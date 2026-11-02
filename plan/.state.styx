@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-02T20:22:02.468464Z
+last_sync_at 2026-11-02T20:23:57.600468Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -1838,6 +1838,7 @@ impl_evidence (
         {impl_name main, rule migration.up}
         {impl_name main, rule migration.up-only}
     )}
+    {id derives.boilerplate}
     {id derives.compact-only, covered_rules (
         macros.derive.one-form
     ), covered_claims (
