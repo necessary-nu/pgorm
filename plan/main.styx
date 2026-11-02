@@ -12093,6 +12093,13 @@ children (
                         kind @note
                         text "sql.target (2026-10-07) holds every parser on PostgreSQL 18's grammar under either target until this lands — the render oracle, sql! and prql!, codegen's DDL reader, the paginator, metric fingerprints — and leaves to this node how they follow the pg-19 feature, on one condition: an 18 build's sql! must not accept what 18 cannot parse. A feature cannot swap one pg_query for another: features are additive, so an 18 grammar behind default plus a 19 one behind pg-19 would link both libpg_query copies, whose C symbols collide. The workable shapes are one grammar (19's) for every build, with an 18 build's sql! and oracle refusing the 19-only parse nodes (ON CONFLICT DO SELECT's action, a function call's null treatment, the new statements) by walking the tree; or a 19 libpg_query built with prefixed symbols. Whichever is chosen, pgorm-sql-macro and pgorm-codegen gain pg-19 then (no surface of theirs differs yet), and tests/target_release_tests.rs's CARRIERS list grows to match."
                     }
+
+                    {
+                        at 2026-11-02T13:13:52.110819Z
+                        author "brendan@necessary.nu"
+                        kind @blocker
+                        text "Waiting on an external release, re-checked 2026-11-02 with git ls-remote: libpg_query's newest tag is still 18.1.0, and its branches stop at 18-latest-dev (plus release-18-1-0 and update-to-postgres-18-6); there is no 19 grammar to build against. Nothing in this repo can move it, so it is marked blocked rather than left at the head of the frontier, where nplan_next kept offering it as the next node. Unblock when libpg_query tags a 19 release and pg_query.rs (or the necessary-nu fork) carries it."
+                    }
                 )
             }
 
