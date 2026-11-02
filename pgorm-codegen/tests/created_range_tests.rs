@@ -4,7 +4,7 @@
 mod common;
 
 use common::*;
-use pgorm::{ColumnTrait, ColumnTypeTrait, EntityTrait, QueryTrait};
+use pgorm::{ColumnTrait, ColumnTypeTrait, EntityTrait, Iterable, QueryTrait};
 use pgorm_codegen::{Error, WriterOutput, entities_from_sql, parse_schema};
 use pgorm_query::{ColumnType, Name};
 use std::sync::Arc;
@@ -168,13 +168,15 @@ fn a_created_range_declares_its_multirange() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.types+9/test]    one newtype per range type,
+// [spec:pgorm:sem:codegen.entity.types+10/test]    one newtype per range type,
 // named in UpperCamelCase and deriving `DeriveCreatedRange` under its name and
 // schema, `Eq` but for a float subtype; the entity's fields name the newtypes
 // [spec:pgorm:req:codegen.entity.files+1/test]    `pgorm_range_types.rs` is
 // written and declared beside the entities
 // [spec:pgorm:sem:codegen.entity.imports+3/test]    each entity imports the
 // newtypes its columns name
+// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    a range over a subtype
+// its newtype's `E` does not infer names its whole type
 #[test]
 fn a_created_range_generates_a_compiling_newtype() {
     let generated =
@@ -215,6 +217,16 @@ fn a_created_range_generates_a_compiling_newtype() {
             .def()
             .null()
     );
+    // `label`'s newtype holds a `Range<String>`, which infers a range over
+    // `varchar`; the entity carries the `text` the schema names.
+    let statements = parse_schema(SCHEMA).expect("the schema parses");
+    for (column, described) in measurement::Column::iter().zip(statements[0].get_columns()) {
+        assert_eq!(
+            Some(column.def().get_column_type()),
+            described.get_column_type(),
+            "{column:?}"
+        );
+    }
     assert_eq!(
         <pgorm_range_types::Floatrange as pgorm::CreatedRange>::name().to_sql_string(),
         "floatrange"
@@ -225,7 +237,7 @@ fn a_created_range_generates_a_compiling_newtype() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.types+9/test]    the expanded writer spells
+// [spec:pgorm:sem:codegen.entity.types+10/test]    the expanded writer spells
 // a created range column's type as the derive does
 #[test]
 fn the_expanded_writer_names_the_created_range() {

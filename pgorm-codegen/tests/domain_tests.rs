@@ -260,9 +260,9 @@ fn unholdable_domain_arrays_are_named() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.types+9/test]    a domain column is a field of its base's
+// [spec:pgorm:sem:codegen.entity.types+10/test]    a domain column is a field of its base's
 // Rust type, an array of one a `Vec` of it, an enum or a created range's newtype included
-// [spec:pgorm:sem:codegen.entity.compact.attrs+8/test]    the compact writer names every
+// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    the compact writer names every
 // domain column's type, the domain and its base spelled in full
 #[test]
 fn domain_columns_generate_a_compiling_entity() {
@@ -292,7 +292,7 @@ fn domain_columns_generate_a_compiling_entity() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.types+9/test]    the expanded writer spells each domain in
+// [spec:pgorm:sem:codegen.entity.types+10/test]    the expanded writer spells each domain in
 // full, and defines every column as the compact derive does
 #[test]
 fn the_expanded_writer_spells_each_domain() {

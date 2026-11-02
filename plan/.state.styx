@@ -1393,6 +1393,7 @@ assertions (
     {id python-column-collation, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:52:18.979779Z}
     {id python-expr-collate, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:52:19.069641Z}
     {id derives.expanded, kind @complete, author "brendan@necessary.nu", at 2026-11-02T12:46:54.155916Z}
+    {id codegen-compact-string-length, kind @complete, author "brendan@necessary.nu", at 2026-11-02T14:06:17.913323Z}
 )
 
 impl_evidence (

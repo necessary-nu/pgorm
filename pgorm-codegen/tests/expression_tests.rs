@@ -75,7 +75,7 @@ fn refused(sql: &str) -> String {
 // [spec:pgorm:sem:codegen.entity.expressions/test]    and reach the entity as the Rust that
 // builds the same expressions: the schema built from the generated entities carries each
 // expression the bridge read, rendered alike
-// [spec:pgorm:sem:codegen.entity.compact.attrs+8/test]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]
 #[test]
 fn schema_expressions_reach_the_entity() {
     let generated = files(SCHEMA, Opts::default());
