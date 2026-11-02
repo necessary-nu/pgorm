@@ -307,7 +307,7 @@ bound parameter is held to.
 > placeholder to the type the value is actually written as, and the test
 > runs unignored.
 
-> [spec:pgorm:req:exec.cursor.binding-accepts+3]
+> [spec:pgorm:req:exec.cursor.binding-accepts+4]
 > A `Value` MUST NOT be written into a placeholder whose inferred Postgres
 > type its binary representation is not the wire format of.
 > `ValueHolder::to_sql` decides this per variant and raises a `ToSql` error
@@ -364,11 +364,13 @@ bound parameter is held to.
 > apart and MUST NOT pretend to.
 >
 > Two consequences are deliberate. Postgres `money` is an `int8` on the
-> wire, not a `numeric`, so a `Decimal` bound against it is now refused
-> rather than writing `numeric` bytes into a parameter that would read them
-> as a 64-bit integer; codegen maps a `money` column to `Decimal`
-> (`pgorm-codegen/src/entity/column.rs`), so this turns a silent corruption
-> into an error at the bind. And a column whose `save_as` cast does not
+> wire, not a `numeric`, so a `Decimal` bound against it is refused rather
+> than writing `numeric` bytes into a parameter that would read them as a
+> 64-bit integer, a silent corruption turned into an error at the bind. An
+> entity's `money` column, a `Decimal` field wherever codegen generates one
+> (`codegen.entity.types`), never meets that refusal: its value is written
+> cast to `money` from a placeholder pinned to `numeric`, and its column read
+> cast to `numeric` (`entity.traits.column.enum-cast`). And a column whose `save_as` cast does not
 > reach its operand — `eq_any` over a `save_as` column, or a cursor keyset
 > filter, both of which build the predicate on a raw `Expr` — leaves the
 > placeholder typed by the column rather than by the cast, and a variant

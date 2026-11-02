@@ -101,7 +101,7 @@ including panic semantics and quirks inherited from sea-query.
 > `From<Vec<u8>> for Value::Array` — `u8` vectors always become `Bytes` (see
 > `[spec:pgorm:def:sql.value.array]`).
 
-> [spec:pgorm:def:sql.value.value-type+3]
+> [spec:pgorm:def:sql.value.value-type+4]
 > `ValueType` is the extraction/reflection trait implemented by every Rust type
 > that maps into `Value`. `try_from(v: Value) -> Result<Self, ValueTypeError>`
 > succeeds only when `v` is the matching variant with a `Some` payload
@@ -111,7 +111,8 @@ including panic semantics and quirks inherited from sea-query.
 > `type_name()` returns the Rust type name, `array_type()` the matching
 > `ArrayType` tag, and `column_type()` the default `ColumnType` for schema
 > generation (e.g. `String`→`String(StringLen::None)`, `Vec<u8>`→`Bytea`,
-> `char`→`Char(None)`, `Decimal`→`Decimal(None)`, `i8`/`i16`→`SmallInteger`,
+> `char`→`Char(Some(1))` — one character, where `Char(None)` is the unbounded
+> `bpchar` — `Decimal`→`Decimal(None)`, `i8`/`i16`→`SmallInteger`,
 > `u32`/`u64`→`BigInteger` — the `int8` those values bind as —
 > `civil::DateTime`→`Timestamp`, `jiff::Timestamp`→`TimestampWithTimeZone`,
 > `IpNetwork`→`Inet`, `MacAddress`→`MacAddr`, `Vector`→`Vector(None)`). The

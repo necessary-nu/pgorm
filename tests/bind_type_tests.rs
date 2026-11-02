@@ -52,7 +52,7 @@ async fn seed(db: &DatabaseConnection) -> Result<(), Error> {
 
 /// The reported defect: ASCII digits bound to an `int4` placeholder were read
 /// back as the integer those four bytes spell (`"1234"` became 825373492).
-// [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+// [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
 #[pgorm_macros::test]
 async fn rejects_a_string_bound_to_an_int_placeholder() -> Result<(), Error> {
     let ctx = TestContext::new("bind_type_tests_string_as_int").await;
@@ -85,7 +85,7 @@ async fn rejects_a_string_bound_to_an_int_placeholder() -> Result<(), Error> {
 
 /// A mismatched predicate operand must not select a row — neither the right
 /// one nor, as before, a wrong one.
-// [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+// [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
 #[pgorm_macros::test]
 async fn a_mismatched_predicate_selects_nothing() -> Result<(), Error> {
     let ctx = TestContext::new("bind_type_tests_predicate").await;
@@ -120,7 +120,7 @@ async fn a_mismatched_predicate_selects_nothing() -> Result<(), Error> {
 }
 
 /// A mismatched write must leave the table exactly as it was.
-// [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+// [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
 #[pgorm_macros::test]
 async fn a_mismatched_write_changes_nothing() -> Result<(), Error> {
     let ctx = TestContext::new("bind_type_tests_write").await;
@@ -172,7 +172,7 @@ async fn a_mismatched_write_changes_nothing() -> Result<(), Error> {
 }
 
 /// Every binding the check is meant to leave alone.
-// [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+// [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
 #[pgorm_macros::test]
 async fn accepts_every_supported_representation() -> Result<(), Error> {
     let ctx = TestContext::new("bind_type_tests_controls").await;
@@ -312,7 +312,7 @@ async fn accepts_every_supported_representation() -> Result<(), Error> {
 
 /// A domain is transparent on the wire, so the decision is made against the
 /// type it is built over — and a mismatch against that base is still refused.
-// [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+// [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
 #[pgorm_macros::test]
 async fn refuses_a_mismatch_through_a_domain() -> Result<(), Error> {
     let ctx = TestContext::new("bind_type_tests_domain").await;
@@ -338,7 +338,7 @@ async fn refuses_a_mismatch_through_a_domain() -> Result<(), Error> {
 
 /// A `NULL` is sent as a length of -1 with no bytes, so it has no
 /// representation to mismatch and binds against any inferred type.
-// [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+// [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
 #[pgorm_macros::test]
 async fn a_null_binds_against_any_type() -> Result<(), Error> {
     let ctx = TestContext::new("bind_type_tests_null").await;

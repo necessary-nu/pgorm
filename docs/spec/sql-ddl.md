@@ -452,11 +452,11 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > program text reaches that position. Anything expressible through the typed
 > setters MUST use them instead.
 
-> [spec:pgorm:req:sql.ddl.column-types+6]
+> [spec:pgorm:req:sql.ddl.column-types+7]
 > `prepare_column_type` defines the `ColumnType` → Postgres type-name
 > contract, and it is total: every variant has exactly one Postgres spelling
 > and none can fail. It MUST spell: `Char(Some(n))`→`char(n)`,
-> `Char(None)`→`char`; `String(N(n))`→`varchar(n)`,
+> `Char(None)`→`bpchar`; `String(N(n))`→`varchar(n)`,
 > `String(Max|None)`→`varchar`; `Text`→`text`; `SmallInteger`→`smallint`;
 > `Integer`→`integer`; `BigInteger`→`bigint`; `Float`→`real`;
 > `Double`→`double precision`; `Decimal(Some((p,s)))`→`decimal(p, s)`,
@@ -479,6 +479,15 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > `int8range`, `numrange`, `daterange`, `tsrange`, `tstzrange`) and
 > `Multirange(t)`→ its multirange (`int4multirange` through
 > `tstzmultirange`).
+>
+> `Char(None)` is the blank-padded type with no length limit, which
+> `format_type` prints as `bpchar`, and it is written by that name: PostgreSQL
+> reads a bare `char` or `character` as `char(1)` (live on 18.6), so spelling
+> `Char(None)` as `char` created a column that refused every value longer than
+> one character, and a `bpchar` column read back through codegen
+> (`codegen.ddl.types`) came back as `char(1)`. `ColumnDef::char()` is SQL's
+> bare `char` and builds `Char(Some(1))`, as `ValueType::column_type()` does
+> for a Rust `char` (`sql.value.value-type`).
 
 > [spec:pgorm:req:sql.ddl.alter-table+13]
 > `TableAlterStatement` names one table and collects `TableAlterOption`s:

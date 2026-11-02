@@ -171,7 +171,7 @@ pub(super) fn build(
 /// column, as a table constraint beside a column's, or twice on one column.
 /// PostgreSQL refuses every such table (42P16), and none is a composite key:
 /// that is one `PRIMARY KEY (a, b)`.
-// [spec:pgorm:req:codegen.ddl.unsupported+17]
+// [spec:pgorm:req:codegen.ddl.unsupported+18]
 fn second_primary_key(table_name: &str, at: usize) -> Error {
     unresolved(
         format!("table `{table_name}` declares more than one primary key"),
@@ -181,7 +181,7 @@ fn second_primary_key(table_name: &str, at: usize) -> Error {
 
 /// Refuse every `CREATE TABLE` feature the entity model has no place for, and
 /// hand back the table name the rest of the build hangs off.
-// [spec:pgorm:req:codegen.ddl.unsupported+17]
+// [spec:pgorm:req:codegen.ddl.unsupported+18]
 fn reject_table_features(
     stmt: &CreateStmt,
     table_name: &str,
@@ -878,7 +878,7 @@ fn named(created: &mut ForeignKeyCreateStatement, constraint: &Constraint) {
 }
 
 /// Constraint attributes that survive into no part of the entity model.
-// [spec:pgorm:req:codegen.ddl.unsupported+17]
+// [spec:pgorm:req:codegen.ddl.unsupported+18]
 fn reject_constraint_features(
     constraint: &Constraint,
     context: &str,
@@ -931,7 +931,7 @@ fn constraint_type(constraint: &Constraint, context: &str, at: usize) -> Result<
 }
 
 /// How a constraint the bridge does not carry was written.
-// [spec:pgorm:req:codegen.ddl.unsupported+17]
+// [spec:pgorm:req:codegen.ddl.unsupported+18]
 fn constraint_kind(kind: ConstrType) -> &'static str {
     match kind {
         ConstrType::ConstrCheck => "a CHECK constraint",

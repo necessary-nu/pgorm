@@ -1346,7 +1346,7 @@ impl QueryBuilder {
     }
 
     // [spec:pgorm:sem:sql.ddl.panics+4]
-    // [spec:pgorm:def:sql.render.ddl.types+6] (serial family for auto-increment columns)
+    // [spec:pgorm:def:sql.render.ddl.types+7] (serial family for auto-increment columns)
     fn prepare_column_auto_increment(&self, column_type: &ColumnType, sql: &mut dyn SqlWriter) {
         match column_type.serial_spelling() {
             Some(serial) => write!(sql, "{serial}").unwrap(),
@@ -1410,16 +1410,18 @@ impl QueryBuilder {
         });
     }
 
-    // [spec:pgorm:req:sql.ddl.column-types+6]
-    // [spec:pgorm:def:sql.render.ddl.types+6]
+    // [spec:pgorm:req:sql.ddl.column-types+7]
+    // [spec:pgorm:def:sql.render.ddl.types+7]
     fn prepare_column_type(&self, column_type: &ColumnType, sql: &mut dyn SqlWriter) {
         write!(
             sql,
             "{}",
             match column_type {
+                // A bare `char` is `char(1)` to PostgreSQL; the type with
+                // no length limit is spelled `bpchar`.
                 ColumnType::Char(length) => match length {
                     Some(length) => format!("char({length})"),
-                    None => "char".into(),
+                    None => "bpchar".into(),
                 },
                 ColumnType::String(length) => match length {
                     StringLen::N(length) => format!("varchar({length})"),

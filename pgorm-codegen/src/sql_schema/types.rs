@@ -18,7 +18,7 @@ pub(super) struct ColumnKind {
 ///
 /// `context` names the column for the error message; `at` is the 1-based
 /// statement number.
-// [spec:pgorm:sem:codegen.ddl.types+9]
+// [spec:pgorm:sem:codegen.ddl.types+10]
 pub(super) fn column_kind(
     type_name: &TypeName,
     declared: &Declared,
@@ -81,7 +81,7 @@ fn modifiers(type_name: &TypeName, context: &str, at: usize) -> Result<Vec<u32>,
 /// The reverse of the `ColumnType` → Postgres spelling contract, read over the
 /// names the grammar produces: keyword spellings arrive qualified as
 /// `pg_catalog.<name>`, everything else bare.
-// [spec:pgorm:sem:codegen.ddl.types+9]
+// [spec:pgorm:sem:codegen.ddl.types+10]
 fn named_type(
     names: &[String],
     modifiers: &[u32],
@@ -170,7 +170,7 @@ fn named_type(
 /// only through that generic spelling and has no `IntervalSpec`; a precision
 /// past 6 the server would quietly reduce to 6, which is the file saying
 /// something other than what the column would be.
-// [spec:pgorm:sem:codegen.ddl.types+9]
+// [spec:pgorm:sem:codegen.ddl.types+10]
 fn interval_spec(modifiers: &[u32], context: &str, at: usize) -> Result<IntervalSpec, Error> {
     const MONTH: u32 = 1 << 1;
     const YEAR: u32 = 1 << 2;
@@ -240,7 +240,7 @@ fn interval_spec(modifiers: &[u32], context: &str, at: usize) -> Result<Interval
 /// built-in. A reference to a declared type's bare name under another
 /// qualification MUST NOT resolve to that schema's type, and a schema-qualified
 /// name the file did not declare is no built-in either.
-// [spec:pgorm:sem:codegen.ddl.types+9]
+// [spec:pgorm:sem:codegen.ddl.types+10]
 fn declared_type(
     schema: Option<&str>,
     name: &str,
@@ -313,7 +313,7 @@ fn declared_type(
 
 /// A built-in range or multirange type by its catalogue name. None takes a
 /// type modifier, so a modified one falls through to the refusal below.
-// [spec:pgorm:sem:codegen.ddl.types+9]
+// [spec:pgorm:sem:codegen.ddl.types+10]
 fn builtin_range(name: &str) -> Option<ColumnType> {
     [
         RangeType::Int4,

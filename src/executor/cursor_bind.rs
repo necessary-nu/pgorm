@@ -25,7 +25,7 @@ use bytes::BytesMut;
 // representation of the type it is built over, so the whole binding decision,
 // the acceptance check and the encoding alike, is made against `base_type`,
 // and only a refusal names the type as the schema declares it.
-// [spec:pgorm:req:exec.cursor.binding-accepts+3]
+// [spec:pgorm:req:exec.cursor.binding-accepts+4]
 use pgorm_query::base_type;
 use rust_decimal::Decimal;
 
@@ -43,7 +43,7 @@ fn out_of_range(
 
 /// The refusal raised when a variant has no encoding that is the wire format
 /// of the type Postgres inferred for the placeholder.
-// [spec:pgorm:req:exec.cursor.binding-accepts+3]
+// [spec:pgorm:req:exec.cursor.binding-accepts+4]
 fn mismatch(kind: &'static str, ty: &Type) -> Box<dyn std::error::Error + Sync + Send> {
     format!("cannot bind a `{kind}` value to Postgres type `{ty}`").into()
 }
@@ -52,7 +52,7 @@ fn mismatch(kind: &'static str, ty: &Type) -> Box<dyn std::error::Error + Sync +
 /// built-in string types, every enum (a label is sent as its own text),
 /// `xml`, `unknown`, and the text-backed extension types `postgres-types`
 /// itself names.
-// [spec:pgorm:req:exec.cursor.binding-accepts+3]
+// [spec:pgorm:req:exec.cursor.binding-accepts+4]
 fn is_textual(ty: &Type) -> bool {
     matches!(
         *ty,
@@ -66,7 +66,7 @@ fn is_textual(ty: &Type) -> bool {
 /// clock or as UTC. An acceptance check is about representation, so both are
 /// accepted for both datetime variants, exactly as `postgres-types` does for
 /// its own `SystemTime` impl. Which of the two a value *means* is the caller's.
-// [spec:pgorm:req:exec.cursor.binding-accepts+3]
+// [spec:pgorm:req:exec.cursor.binding-accepts+4]
 fn is_timestamp(ty: &Type) -> bool {
     matches!(*ty, Type::TIMESTAMP | Type::TIMESTAMPTZ)
 }
@@ -191,7 +191,7 @@ fn bind_decimal(value: Option<&Decimal>, ty: &Type, out: &mut BytesMut) -> BindR
 /// A `None` payload is SQL `NULL`, which is sent as a length of -1 with no
 /// bytes at all. Having no representation, it has none to mismatch, so it
 /// binds against whatever type Postgres inferred.
-// [spec:pgorm:req:exec.cursor.binding-accepts+3]
+// [spec:pgorm:req:exec.cursor.binding-accepts+4]
 fn bind_exact<T>(
     value: Option<&T>,
     kind: &'static str,
@@ -424,10 +424,10 @@ impl ToSql for ValueHolder {
     /// Every Postgres type is accepted here because this is the wrong place to
     /// refuse one: `accepts` is a static method, with no access to the `Value`
     /// whose representation is the question. The acceptance decision of
-    /// `[spec:pgorm:req:exec.cursor.binding-accepts+3]` therefore lives in
+    /// `[spec:pgorm:req:exec.cursor.binding-accepts+4]` therefore lives in
     /// `to_sql`, which is reached through `to_sql_checked!` and runs
     /// client-side before the bind message is sent.
-    // [spec:pgorm:req:exec.cursor.binding-accepts+3]
+    // [spec:pgorm:req:exec.cursor.binding-accepts+4]
     fn accepts(_ty: &Type) -> bool
     where
         Self: Sized,
@@ -792,7 +792,7 @@ mod tests {
 
     /// The defect this check exists for: ASCII digits written into an `int4`
     /// placeholder were read back as the integer those bytes spell.
-    // [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+    // [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
     #[test]
     fn rejects_string_bound_to_non_textual_types() {
         for ty in [
@@ -816,7 +816,7 @@ mod tests {
     }
 
     /// Every type whose binary representation *is* the text keeps working.
-    // [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+    // [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
     #[test]
     fn binds_string_to_textual_types() {
         let mood = named("mood", Kind::Enum(vec!["happy".to_owned()]));
@@ -851,7 +851,7 @@ mod tests {
 
     /// A domain is transparent on the wire, so the decision is made against
     /// the type it is built over — in both directions.
-    // [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+    // [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
     #[test]
     fn resolves_domains_to_their_base_type() {
         let email = named("email", Kind::Domain(Type::TEXT));
@@ -884,7 +884,7 @@ mod tests {
 
     /// A domain over a domain resolves all the way down, and a `jsonb` domain
     /// still gets the version byte its base type's encoding prescribes.
-    // [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+    // [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
     #[test]
     fn resolves_nested_domains() {
         let inner = named("inner", Kind::Domain(Type::JSONB));
@@ -897,7 +897,7 @@ mod tests {
 
     /// `NULL` is sent as a length of -1 with no bytes, so it has no
     /// representation to mismatch and binds against any inferred type.
-    // [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+    // [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
     #[test]
     fn binds_null_against_any_type() {
         for value in [
@@ -914,7 +914,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+    // [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
     #[test]
     fn rejects_mismatched_payload_variants() {
         let cases = [
@@ -968,7 +968,7 @@ mod tests {
 
     /// `timestamp` and `timestamptz` share a representation, so both datetime
     /// variants bind against either.
-    // [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+    // [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
     #[test]
     fn binds_datetimes_to_either_timestamp_type() {
         let naive = jiff::civil::datetime(2000, 1, 1, 0, 0, 1, 0);
@@ -1189,7 +1189,7 @@ mod tests {
     /// An array binds only against an array type, and its elements are held
     /// to the member type — a mismatched element is refused, not written.
     /// The non-array target used to reach a `panic!` inside `postgres-types`.
-    // [spec:pgorm:req:exec.cursor.binding-accepts+3/test]
+    // [spec:pgorm:req:exec.cursor.binding-accepts+4/test]
     #[test]
     fn checks_arrays_against_the_member_type() {
         use pgorm_query::ArrayType;

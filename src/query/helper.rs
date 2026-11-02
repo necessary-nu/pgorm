@@ -1097,7 +1097,7 @@ pub trait QueryFilter: Sized {
     ///
     /// Each key column is compared as [`belongs_to`](QueryFilter::belongs_to)
     /// compares it, under the alias instead of the entity's own name.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+14]
     fn belongs_to_tbl_alias<M>(mut self, model: &M, tbl_alias: impl IntoName) -> Self
     where
         M: ModelTrait,
@@ -1136,7 +1136,7 @@ pub(crate) fn join_condition(mut rel: RelationDef) -> Condition {
 }
 
 // [spec:pgorm:sem:query.build.join+5]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
 fn join_tbl_on_condition(from_tbl: Name, to_tbl: Name, columns: ColumnPairs) -> Condition {
     let mut cond = Condition::all();
     for ((owner_key, foreign_key), compared) in columns.compared_pairs() {
@@ -1162,7 +1162,7 @@ fn join_tbl_on_condition(from_tbl: Name, to_tbl: Name, columns: ColumnPairs) -> 
 /// One side of a join pair as the equality compares it: cast to the enum when
 /// its column's domain is over one, which is the only way PostgreSQL compares
 /// such a column with anything.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
 fn compared_side(column: Expr, enum_type: &Option<TypeName>) -> Expr {
     match enum_type {
         Some(enum_type) => Expr::expr(column.cast_as_type(enum_type.clone())),

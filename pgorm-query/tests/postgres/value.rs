@@ -254,13 +254,23 @@ fn unsigned_variants_carry_oid_and_limit_counts() {
     );
 }
 
-// [spec:pgorm:def:sql.value.value-type+3/test]    try_from errors on a variant mismatch
+// [spec:pgorm:def:sql.value.value-type+4/test]    a `char` holds one character, so
+// its column is `char(1)`, not the unbounded `bpchar` of `Char(None)`
+#[test]
+fn a_char_column_holds_one_character() {
+    assert_eq!(
+        <char as ValueType>::column_type(),
+        ColumnType::Char(Some(1))
+    );
+}
+
+// [spec:pgorm:def:sql.value.value-type+4/test]    try_from errors on a variant mismatch
 #[test]
 fn try_from_errors_on_variant_mismatch() {
     assert!(<i32 as ValueType>::try_from(Value::BigInt(Some(1))).is_err());
 }
 
-// [spec:pgorm:def:sql.value.value-type+3/test]    try_from errors on a nullability mismatch
+// [spec:pgorm:def:sql.value.value-type+4/test]    try_from errors on a nullability mismatch
 #[test]
 fn try_from_errors_on_a_null_payload() {
     assert!(<i32 as ValueType>::try_from(Value::Int(None)).is_err());
