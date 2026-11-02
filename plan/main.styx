@@ -16077,4 +16077,242 @@ children (
             }
         )
     }
+
+    {
+        id derives
+        title "pgorm's derives are named for what they make, take Rust code as code, and write their own boilerplate"
+        kind @refactor
+        children (
+            {
+                id derives.expanded
+                title "Does the expanded entity format express anything the compact derives cannot?"
+                kind @docs
+                sealed true
+                log (
+                    {
+                        at 2026-11-02T12:46:24.716433Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Answer (read-only survey of the macros, fixtures, tests and codegen, 2026-11-02): yes, four things, none needing the hand-assembled format once attributes say them. (1) Table and schema names computed at run time: an Entity struct with fields (tests/common/features/dyn_table_name_lazy_static.rs, tests/identifier_oracle/fixtures.rs:12-47); compact always emits a unit Entity with literal names, but a hybrid already works (compact Model with no table_name plus a hand-written Entity under DeriveEntity, pgorm-macros/tests/derive_entity_model_test.rs:313-337), so the entity-trait derive stays for that case. (2) Arbitrary select_as/save_as: compact only casts verbatim text (cast_as_raw); hand-written ones quote an alias or name the cast at run time (src/entity/column.rs:1126-1131, 1258-1263; fixtures.rs:142-144). (3) A column type as any expression (fixtures.rs:211-235): compact forces a ColumnType:: prefix. (4) An on_condition using its (left, right) arguments: compact wraps it in |_, _|. Everything else has an attribute: every ColumnDef builder, EntityName's table, schema and comment, PrimaryKeyTrait; RelationTrait is hand-written beside compact entities already. Nothing outside the repo's own fixtures and goldens uses the expanded format. Verdict per the operator's rule (the format stays only if it expresses something compact cannot): delete it, adding select_with/save_with, an expression column_type and a closure on_condition — macros.derive.one-form, delivered by derives.compact-only. Codegen's two formats also differ in behaviour: compact drops varchar(n)/char(n) lengths (filed as codegen-compact-string-length), and expanded keys json_key by the SQL name instead of the field's, so from_json misses renamed fields (dies with the format)."
+                    }
+
+                    {
+                        at 2026-11-02T12:46:54.155916Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id derives.names
+                title "Every derive is named for what it makes, without SeaORM's Derive prefix"
+                implements {
+                    main ([spec:pgorm:req:macros.derive.names])
+                }
+                deps (derives.compact-only)
+                log (
+                    {
+                        at 2026-11-02T12:46:25.951435Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "From the derives.expanded survey. Collisions the rule's names avoid: Entity was claimed by both DeriveEntityModel and DeriveEntity (hence EntityTrait for the latter); SqlName is already a macro pgorm re-exports from pgorm-query-derive (pgorm-query/src/lib.rs:840, src/lib.rs:172), so naming pgorm-macros' DeriveSqlName SqlName would be E0252 — fold it into pgorm-query-derive's SqlName, which already does more (method, flatten, container renames), after making that derive's call-site pgorm_query path (pgorm-query-derive/src/lib.rs:242) resolve for a crate that depends only on pgorm; DeriveSqlName's own bugs (container iden re-parsed as tokens and used as a format string, derive_sql_name.rs:36/118; container iden ignored for enums) die with it; current users are migrations, tests/derive_sql_name_tests.rs and tests/value_decode_tests.rs:447. DeriveDisplay (writes each variant's name or display_value, active_enum_display.rs:33-46) becomes ActiveEnum's opt-in display key, opt-in so it never clashes with a hand-written Display. DeriveEntity accepts comment and drops it (entity.rs:77-88): fix under EntityTrait. MigrationName as both trait and derive in pgorm-migration's prelude should compile (separate namespaces) but was not compiled — confirm. Rename everywhere in one pass: the crates, tests, doctests, docs, README, COMING_FROM_SEAORM.md (add the old-to-new table), CLAUDE.md, codegen's writer and goldens, the migration template, pgorm-python and pgorm-napi's Rust and codegen output. Breaking."
+                    }
+                )
+            }
+
+            {
+                id derives.paths
+                title "Derive attributes take Rust paths, types and expressions bare instead of in strings"
+                implements {
+                    main ([spec:pgorm:req:macros.derive.code-values])
+                }
+                deps (derives.names)
+                log (
+                    {
+                        at 2026-11-02T12:46:39.313218Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Key inventory from the derives.expanded survey. Re-parsed from strings today: column_type, db_type and array_type (spliced after an implicit ColumnType:: prefix), on_update/on_delete (after ForeignKeyAction::), enforcement/deferrability (variant names), rs_type and PartialModel's entity (types/paths), belongs_to/has_one/has_many (paths), from/to (tuples allowed), from_period/to_period, on_condition, default_expr, generated_stored, generated_virtual, from_expr (expressions), a Model field's enum_name and from_col (made into identifiers), condition_type (all/any keywords). Already bare: entity, model, column, active_model, primary_key, relation on DeriveEntity/DeriveModel/DeriveRelation/DeriveIntoActiveModel. Genuine strings that stay: table_name, schema_name, column_name, fk_name, ActiveEnum's enum_name, string_value, display_value, range_name, multirange_name, iden, comment, select_as/save_as SQL type text, rename/rename_all case styles (kebab-case would parse as subtraction). Hazards: db_type = Enum is a sentinel colliding with the ColumnType::Enum variant (it goes: derives.boilerplate makes the PostgreSQL enum the default), generic types such as HashMap<K, V> must parse as types, and default_value = -1 fails today because the parser wants a literal. column_type is already bare after derives.compact-only. Breaking."
+                    }
+                )
+            }
+
+            {
+                id derives.boilerplate
+                title "The derives write the empty behaviour impl, Relation's iteration and each Related impl only one relation could mean"
+                kind @feat
+                implements {
+                    main ([spec:pgorm:sem:macros.derive.boilerplate])
+                }
+                deps (derives.paths)
+                log (
+                    {
+                        at 2026-11-02T12:46:39.853946Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead's call, recorded in macros.derive.boilerplate for the operator's review in the filing PR: with neither rs_type nor db_type, an ActiveEnum's values default to its variants' names in snake_case and its type name to the enum's name in snake_case. Today enum_name defaults to the UpperCamelCase of the enum's name (syn:macros.derive.active-enum), a type name PostgreSQL only reads quoted; snake_case matches PostgreSQL's convention and the kind type disjoint.declare generates, and the breaking release is the one time to change it. Existing schemas keep working by naming enum_name, which codegen always writes when the type's name differs from the default. Also: 387 empty ActiveModelBehavior impls and 216 hand-written Related impls in the repo today are deleted by this node wherever the derive now writes them; DeriveActiveModelBehavior (13 uses, two on dummy structs) is deleted."
+                    }
+                )
+            }
+
+            {
+                id derives.compact-only
+                title "Entities have one written form: the expanded format and its derives are deleted, and attributes say what only it could"
+                implements {
+                    main ([spec:pgorm:req:macros.derive.one-form])
+                }
+                deps (derives.expanded codegen-compact-string-length)
+                log (
+                    {
+                        at 2026-11-02T12:46:25.792721Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Scope from the derives.expanded survey. Delete: DerivePrimaryKey, DeriveCustomColumn (its only fixture is a no-op, src/tests_cfg/filling.rs:25-33, and it is declared without attributes(pgorm) yet reads column_name), the public DeriveActiveModel (the composite derive calls its expansion directly, pgorm-macros/src/lib.rs:181), codegen's expanded format and its goldens, and the 31 hand-assembled fixtures (cake_expanded.rs, lunch_set_expanded.rs and the rest), each rewritten compact or deleted where a compact twin already exists. Keep DeriveEntity (the run-time-names hybrid), DeriveModel (a second model, AltModel in derive_model_test.rs:63) and DeriveColumn (custom-select column enums, the QueryAs doctests in src/executor/select.rs). Add: select_with/save_with (bare function paths), column_type as a bare expression of type ColumnType (no implicit prefix, so a helper call works), and on_condition accepting a closure |left, right| as well as an expression; fixtures.rs and column.rs's hand-written casts move onto them. While there: save_as without save_array_as at src/entity/column.rs:1258 is probably a bug — decide and say. Retire or rewrite the codegen.entity.expanded / expanded.blocks / compact rules and macros.derive.entity / column / active-model as their surfaces go. Breaking."
+                    }
+                )
+            }
+        )
+        log (
+            {
+                at 2026-11-02T12:32:36.669381Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Operator, 2026-11-02, on finding that the September Sea-lineage cleanup (20a52751, 7370e2d6) renamed only what said \"sea\" and made the attribute parsers strict, never touching the derives' names or design (\"Seems our review of SeaORMisms didn't hit the fucked macros\"); agreed scope, \"yes sounds great\": (1) drop the Derive prefix from every derive, the old names deleted outright with no alias, and the Coming from SeaORM guide gaining an old-to-new table; (2) bare Rust paths, types and expressions in attributes instead of strings re-parsed by the macro; (3) the derives write the empty ActiveModelBehavior impl, Relation's iteration, and Related wherever only one relation reaches the entity, and ActiveEnum stops requiring rs_type/db_type for a PostgreSQL enum of strings; (4) the expanded entity format stays only if it expresses something the compact derives cannot (derives.expanded answers that). Unchanged: the fixed item names in each entity's module (Model, Entity, Column, ActiveModel, Relation) and the trait vocabulary (ActiveModel, ActiveValue, ...), since changing either touches three languages and the shared bindings spec for a convention rather than a defect. One breaking pass over the ~200 entity files rather than three, though delivered as three ordered nodes."
+            }
+        )
+    }
+
+    {
+        id disjoint
+        title "A Rust enum is stored as a base table plus a table for each kind that carries data, enforced by constraints alone"
+        kind @feat
+        children (
+            {
+                id disjoint.declare
+                title "#[derive(Disjoint)] declares the kinds, the tables that carry them and the kind type"
+                implements {
+                    main ([spec:pgorm:def:disjoint.declare])
+                }
+                deps (derives.boilerplate)
+            }
+
+            {
+                id disjoint.schema
+                title "Schema::create_disjoint writes the kind type, the tables and the constraints that hold every row to its kind"
+                implements {
+                    main ([spec:pgorm:sem:disjoint.schema])
+                }
+                deps (disjoint.declare)
+            }
+
+            {
+                id disjoint.read
+                title "A disjoint read returns each base row with its kind's row, decoded by kind, in one statement"
+                implements {
+                    main ([spec:pgorm:sem:disjoint.read])
+                }
+                deps (disjoint.schema)
+            }
+
+            {
+                id disjoint.write
+                title "Insert, update and change of kind are each one statement, checked at its end"
+                implements {
+                    main ([spec:pgorm:sem:disjoint.write])
+                }
+                deps (disjoint.read)
+            }
+
+            {
+                id disjoint.codegen
+                title "Codegen generates the disjoint enum from the shape Schema::create_disjoint writes"
+                implements {
+                    main ([spec:pgorm:sem:codegen.entity.disjoint])
+                }
+                deps (disjoint.schema)
+            }
+
+            {
+                id disjoint.bindings
+                title "Python and JavaScript declare, register, read and write disjoint models"
+                implements {
+                    main ([spec:pgorm:req:bindings.disjoint])
+                }
+                deps (disjoint.write)
+            }
+
+            {
+                id disjoint.evolve
+                title "A kind can be added to or removed from an existing disjoint entity"
+                deps (disjoint.schema)
+                log (
+                    {
+                        at 2026-11-02T12:32:26.486249Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Scope: no rule yet; write it when this node starts and put it to the operator before code. What it has to settle: adding a kind needs two transactions, because PostgreSQL cannot use a value ALTER TYPE ... ADD VALUE added inside the transaction that added it (first the value, then the kind table, the base's generated key columns and the foreign keys); removing a kind has no ALTER TYPE ... DROP VALUE to use, so the kind type is recreated and the kind column retyped, refused while any base row still has that kind; a unit kind gaining a table, or a payload kind losing one, is the same column-and-constraint change on an existing value. Every name involved is deterministic per disjoint.schema, so the statements can name what they alter. Decide whether this is Schema statements a migration runs, a pgorm-migration helper, or both, and how up() splits the two transactions."
+                    }
+                )
+            }
+
+            {
+                id disjoint.one-of
+                title "A reference can point at exactly one of several entities"
+                deps (disjoint.write)
+                log (
+                    {
+                        at 2026-11-02T12:32:26.575268Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Scope: no rule yet; write it when this node starts and put it to the operator before code. Sketch from the 2026-11-02 discussion: a reference whose type is an enum, Commentable::Post(post_id) / Commentable::Photo(photo_id), stored as one nullable foreign key column per variant plus a CHECK that exactly one is set (num_nonnulls(...) = 1); \"attached to nothing\" comes from the enum, as a unit variant or an Option around it, and relaxes the CHECK to at most one. Open: whether the model carries the raw columns with the enum as a typed accessor or one field spanning several columns (pgorm maps a field to one column today), how load_one / the graph resolve it to the target's model, and what codegen recognises. A target may itself be a disjoint base."
+                    }
+                )
+            }
+
+            {
+                id disjoint.codegen-unkinded
+                title "Codegen reads tables keyed by a base that has no kind column as a read-only disjoint entity"
+                deps (disjoint.codegen)
+                log (
+                    {
+                        at 2026-11-02T12:32:26.663371Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Scope: no rule yet; write it when this node starts. An existing schema with a base table and tables keyed by its primary key (FK on the key, the key also the kind table's primary key) but no kind column: generate a read-only disjoint entity that decodes each row by which kind table has a row for it, and treats two present rows as an error. Read-only because nothing in such a schema enforces disjointness, so pgorm must not write through it as if something did. Decide how the generator is told a table set is meant this way (an explicit option rather than a guess, since any 1:1 extension table matches the shape)."
+                    }
+                )
+            }
+        )
+        log (
+            {
+                at 2026-11-02T12:32:26.300001Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Operator, 2026-11-02, over two discussions. The enum describes the rule: a payload variant is a kind whose row must exist, a unit variant is a kind with no table, and a base row with no kind row is legitimate exactly for the unit kinds (the operator corrected the lead's first assumption that it is always a mistake). No wide or single-table mapping, ever (\"we're not doing wide tables\"). \"Belongs to one of\" references are in scope, built after subtypes (disjoint.one-of). A variant whose row may be missing (Car(Option<Details>)) is out: a unit kind that becomes a payload kind once its row exists covers it. Codegen first recognises the shape pgorm writes (disjoint.codegen); kind-less existing schemas come later and read-only (disjoint.codegen-unkinded). The new derive is born under the derives rework's conventions, hence disjoint.declare's dep on derives.boilerplate."
+            }
+
+            {
+                at 2026-11-02T12:32:26.397462Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Constraint design probed on PostgreSQL 18 (pgorm-test, scratch databases, dropped), 2026-11-02. Shape: base UNIQUE (id, kind); each kind table a STORED generated constant kind column and an FK (id, kind) to the base, ON DELETE CASCADE; on the base one STORED generated column per payload kind (CASE WHEN kind = 'car' THEN id END) with an FK to the kind table. All 11 cases held under both INITIALLY DEFERRED and DEFERRABLE INITIALLY IMMEDIATE: a car with its row in one WITH statement ok; a car with no row, a truck row for a car, a vehicle with car and truck rows, truck->bike leaving the truck row, and deleting a car's row alone each refused; bike as a base row alone, car->truck / truck->bike / bike->car each in one statement, and deleting a vehicle (cascading its row) ok. Under INITIALLY IMMEDIATE a violation inside a transaction is reported at the offending statement, not at COMMIT, and SET CONSTRAINTS ALL DEFERRED still lets hand-written multi-statement changes through, so disjoint.schema requires IMMEDIATE. STORED must be explicit: 18 defaults generated columns to VIRTUAL, and a virtual column refuses the enum (\"generation expression uses user-defined type\"). Triggers stay out (sql.scope)."
+            }
+        )
+    }
+
+    {
+        id codegen-compact-string-length
+        title "Codegen's compact entities keep a varchar(n) or char(n) column's length"
+        kind @fix
+        log (
+            {
+                at 2026-11-02T12:46:25.337204Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by the derives.expanded survey, 2026-11-02. pgorm-codegen's compact writer emits no column_type for varchar(n) and char(n) (pgorm-codegen/src/entity/column.rs:456-485), so the derive infers String(StringLen::None) (pgorm-macros sql_type_match.rs:122): tests/compact/vendor.rs:9 has a bare `pub name: String` where tests/expanded/vendor.rs:51 has String(StringLen::N(255u32)). Schema::create_table_from_entity on a generated compact entity therefore writes an unbounded string where the database has varchar(255); arrays of these lose it too. Fix in the compact writer (emit the length, and char's fixed width), with goldens and a round-trip test (schema -> entity -> create_table_from_entity -> the same column type). Bump whichever codegen.entity.compact rule says what a column's attributes carry. Lands before derives.compact-only, which deletes the expanded format that currently carries the length."
+            }
+        )
+    }
 )

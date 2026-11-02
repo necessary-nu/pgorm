@@ -1392,6 +1392,7 @@ assertions (
     {id python-truth-testing-rest, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:52:18.890898Z}
     {id python-column-collation, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:52:18.979779Z}
     {id python-expr-collate, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:52:19.069641Z}
+    {id derives.expanded, kind @complete, author "brendan@necessary.nu", at 2026-11-02T12:46:54.155916Z}
 )
 
 impl_evidence (
