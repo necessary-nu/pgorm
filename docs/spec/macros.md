@@ -47,6 +47,90 @@ known limitations.
 > `iden` and `method` helper attributes, and `pgorm-query-attr` provides the `#[enum_def]`
 > attribute macro.
 
+## Form, names and attribute values
+
+> [spec:pgorm:req:macros.derive.one-form]
+> An entity MUST have one written form: the composite derive on its `Model`
+> struct and the relation derive on its `Relation` enum, configured by
+> attributes. There is no hand-assembled form, so the derives that existed
+> only to build one — the primary-key, custom-column and active-model
+> derives — are deleted, and codegen writes only this form. What a
+> hand-written trait method could say and no attribute did, an attribute
+> MUST now say: `column_type` takes any expression of type `ColumnType`, a
+> helper's call included; `select_with` and `save_with` name a function
+> from the column's expression to the one read or written, beside the
+> `select_as` and `save_as` casts; and `on_condition` takes a closure of the
+> two tables as the join binds them, as well as an expression that ignores
+> them. One case keeps a hand-written part: an entity whose table or schema
+> name is computed at run time declares its own `Entity` struct, implements
+> `EntityName` on it, and puts the entity-trait derive on it beside a
+> composite derive given no `table_name`.
+
+> [spec:pgorm:req:macros.derive.names]
+> Every derive MUST be named for what it makes or implements, as Rust's own
+> derives and serde's are, with no `Derive` prefix; a derive and a trait
+> live in different namespaces, so the two can share a name. The derives
+> are `Entity` (the composite derive, on a `Model` struct), `EntityTrait`
+> (on a hand-written `Entity` struct whose names are computed), `Model` (a
+> further model of an entity), `Column` (a column enum for a custom
+> select), `Relation`, `ActiveEnum`, `IntoActiveModel`, `PartialModel`,
+> `FromQueryResult`, `ValueType`, `JsonValueType` (a value stored as a JSON
+> column), `CreatedRange`, `MigrationName` (in pgorm-migration), and
+> pgorm-query's `SqlName` and `StaticName`, reachable from pgorm with no
+> dependency on pgorm-query. The `Derive`-prefixed names, and
+> `FromJsonQueryResult`, MUST NOT exist, as aliases or otherwise; the Coming
+> from SeaORM guide maps each to its replacement.
+>
+> No two macros a pgorm prelude exports may share a name, and none may take
+> a name a widely used derive crate exports: the display derive is folded
+> into `ActiveEnum` as its opt-in `display` key rather than named `Display`
+> beside derive_more's and strum's, and pgorm-macros' own name derive is
+> folded into pgorm-query's `SqlName`, which already does more.
+
+> [spec:pgorm:req:macros.derive.code-values]
+> An attribute value that is Rust code MUST be written as Rust code — a path
+> as a path, a type as a type, an expression as an expression — and is
+> taken as written, with no implicit prefix: `belongs_to =
+> super::cake::Entity`, `from = Column::CakeId`, `rs_type = String`,
+> `db_type = ColumnType::Integer`, `on_delete = ForeignKeyAction::Cascade`,
+> `deferrability = Deferrability::DeferrableInitiallyImmediate`,
+> `condition_type = ConditionType::Any`, `default_value = -1`. That covers
+> the relation targets and column pairs, the periods, `on_condition`,
+> `column_type`, `db_type`, `array_type`, `rs_type`, `default_expr`,
+> `default_value`, the generated expressions, `from_expr`, `from_col`, the
+> foreign-key actions, `enforcement`, `deferrability`, `condition_type` and
+> `PartialModel`'s `entity`. A value that is SQL or a name stays a string —
+> `table_name`, `schema_name`, `column_name`, `fk_name`, an `ActiveEnum`'s
+> `enum_name`, `string_value`, `display_value`, `range_name`,
+> `multirange_name`, `iden`, `comment`, and the `select_as` and `save_as`
+> cast types — as do the case styles of `rename` and `rename_all`, which
+> are not Rust. A string where code is expected MUST be a compile error
+> spanned on the string, saying to remove the quotes. On a model field, the
+> key naming the field's `Column` variant is `variant`, so `enum_name`
+> names a SQL type wherever it appears.
+
+> [spec:pgorm:sem:macros.derive.boilerplate]
+> A derive MUST write what follows from what it was told, so an entity's
+> module holds only what the program decides:
+>
+> - `Entity` implements `ActiveModelBehavior` for the `ActiveModel`, with no
+>   hooks, unless the model says `#[pgorm(hooks)]`, in which case the
+>   program implements it (`[spec:pgorm:req:entity.active-model.hooks]`).
+>   The derive that wrote only that empty implementation is deleted.
+> - `Relation` implements `Related<F>` for each entity `F` exactly one of
+>   its variants reaches, as that variant's definition, unless the variant
+>   says `related = false`. An entity two variants reach gets none, since
+>   only the program knows which it means, and neither does a path through
+>   a junction (`Related::via`), which the program writes.
+> - `Relation`, `Column` and `ActiveEnum` make their types iterable
+>   themselves, so no program writes `EnumIter`, and no prelude exports it.
+> - `ActiveEnum` with neither `rs_type` nor `db_type` is a PostgreSQL enum
+>   of strings: each value is its variant's `string_value`, or else the
+>   variant's name in the `rename_all` style, snake_case by default, and the
+>   type is named by `enum_name`, or else the enum's name in snake_case. An
+>   enum stored any other way names both keys, and a variant with no value
+>   then falls back to its discriminant.
+
 ## DeriveEntityModel
 
 > [spec:pgorm:sem:macros.derive.entity-model+5]

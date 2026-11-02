@@ -1318,6 +1318,34 @@ Rust generic at run time, only use the ones compiled in.
 > native module and every registration it names describe as they did when it
 > was written, and refuse to load otherwise.
 
+## Disjoint models
+
+> [spec:pgorm:req:bindings.disjoint]
+> `disjoint(name, base, kinds, options)` MUST declare a disjoint model over a
+> base model (`bindings.models`), where `kinds` maps each kind's value, in
+> order, to the model of its table or to null for a kind with none, and the
+> options name the base's kind field and the kind type's `schema` and
+> `name`, defaulting as `[spec:pgorm:def:disjoint.declare]` does. A
+> downstream crate's `#[derive(Disjoint)]` enum MUST be registrable as an
+> entity is (`bindings.entities`), its base and kind entities registered
+> with it. Declaring or registering sends nothing. What the Rust
+> declaration refuses — no kinds, a model given for two kinds, a kind
+> model whose key differs from the base's, a base whose kind field is
+> missing, nullable or of another type, a kind model whose key the database
+> generates — MUST be a `ConstructionError` raised as the model is declared.
+>
+> Reads, writes and the schema MUST be Rust's
+> (`[spec:pgorm:sem:disjoint.read]`, `[spec:pgorm:sem:disjoint.write]`,
+> `[spec:pgorm:sem:disjoint.schema]`): the same statements, the same
+> refusals, the same errors as `bindings.errors` classifies them. A read
+> gives each row as the base's record, the kind's value, and the kind's
+> record or null; `insert`, `update` and `change_kind` take the base's
+> values and a kind with its values. `describe()` MUST report a disjoint
+> model under these keys and no other, each spelled by the binding's naming
+> rule: `name`; `base`, the base model's name; `kind_field`; the kind type's
+> `schema` and `name`; and `kinds`, each with its `value` and its model's
+> name or null.
+
 ## Pipelines
 
 Each binding composes pgorm's PRQL-shaped pipeline, `pgorm::pipeline`:

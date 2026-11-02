@@ -920,6 +920,29 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > the expanded `ColumnTrait::def()` renders the column as
 > `<EnumName>::db_type()`.
 
+## Disjoint entities
+
+> [spec:pgorm:sem:codegen.entity.disjoint]
+> A base table and its kinds' tables, constrained exactly as
+> `[spec:pgorm:sem:disjoint.schema]` writes them, MUST generate as one
+> disjoint entity, from a live schema and from DDL text alike: the base's
+> entity and each kind table's, none with a field for a bookkeeping column,
+> and in the base's module a `#[derive(Disjoint)]` enum named for the base
+> table in UpperCamelCase. It has one variant per value of the kind type, in
+> the type's order, named as `codegen.entity.enums` names an enum's
+> variants: a payload variant holding the kind table's `Model` for a value
+> that has a table, and a unit variant for one that has none. A variant
+> carries `value = "..."` where its value is not its name in snake_case, and
+> the enum carries `enum_name` and `schema_name` where the kind type's name
+> is not the default the derive would give it. The kind type is not also
+> generated into `pgorm_active_enums.rs`, since the derive generates it.
+>
+> A set missing any part of the shape, or with any part different — a
+> foreign key's columns, action or deferrability, a generated column's
+> expression or `STORED`, the `UNIQUE` pair — MUST generate as the ordinary
+> entities it is, its generated columns as generated columns, with nothing
+> dropped, since only the full shape enforces what the enum would claim.
+
 ## Identifier hygiene
 
 > [spec:pgorm:sem:codegen.entity.keywords+1]
