@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-02T14:23:29.374268Z
+last_sync_at 2026-11-02T15:57:08.842122Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -479,6 +479,7 @@ derived_priorities (
     {id binoper-missing-variants, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id boolean-operator-parens, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id bound-datetime-max-precision, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
+    {id bpchar-unbounded-round-trip, priority 0, derived_at 2026-11-02T15:57:08.842122Z}
     {id bug.char-render, priority 1, derived_at 2026-09-02T14:40:48.714779Z}
     {id bug.crate-metadata, priority 0, derived_at 2026-09-04T14:19:01.307427Z}
     {id bug.empty-not-in, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
@@ -502,8 +503,10 @@ derived_priorities (
     {id codegen-identity-collisions, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id codegen-interval-columns, priority 1, derived_at 2026-10-24T06:20:32.099314Z}
     {id codegen-junction-detection, priority 3, derived_at 2026-09-06T16:36:02.710141Z}
+    {id codegen-money-decodes, priority 0, derived_at 2026-11-02T15:57:08.842122Z}
     {id codegen-quotes-custom-type, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id codegen-refused-fk, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
+    {id codegen-refuses-nested-arrays, priority 0, derived_at 2026-11-02T15:57:08.842122Z}
     {id codegen-relation-cardinality, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
     {id codegen-relation-integrity, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id codegen-root-export, priority 0, derived_at 2026-10-24T06:20:32.099314Z}
@@ -532,6 +535,7 @@ derived_priorities (
     {id coverage-obligations-unreached, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id coverage-remaining-gaps, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id created-multiranges, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
+    {id created-range-subtype-typmod, priority 0, derived_at 2026-11-02T15:57:08.842122Z}
     {id created-range-types, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id cursor, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
     {id cursor-bind-jiff-gate, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
@@ -1937,6 +1941,11 @@ impl_evidence (
         {impl_name main, rule migration.up}
         {impl_name main, rule migration.up-only}
     )}
+    {id derives.compact-only, covered_rules (
+        macros.derive.one-form
+    ), covered_claims (
+        {impl_name main, rule macros.derive.one-form}
+    )}
     {id generative.acceptance, covered_rules (
         generative.acceptance
     ), covered_claims (
@@ -2947,11 +2956,6 @@ impl_evidence (
         {impl_name main, rule testing.isolation}
     ), rule_versions_seen (
         {id testing.isolation, version 0}
-    )}
-    {id derives.compact-only, covered_rules (
-        macros.derive.one-form
-    ), covered_claims (
-        {impl_name main, rule macros.derive.one-form}
     )}
 )
 
