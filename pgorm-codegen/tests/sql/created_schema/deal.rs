@@ -7,7 +7,7 @@ use super::pgorm_active_enums::Stage;
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
     pub id: i32,
-    #[pgorm(column_type = "Text")]
+    #[pgorm(column_type = ColumnType::Text)]
     pub title: String,
     pub stage: Stage,
     pub history: Option<Vec<Stage>>,

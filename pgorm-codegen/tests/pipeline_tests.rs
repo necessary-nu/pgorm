@@ -41,7 +41,7 @@ fn enum_schema() -> Vec<pgorm_query::TableCreateStatement> {
     )]
 }
 
-// [spec:pgorm:def:codegen.entity+5/test]    transform -> generate hands back named
+// [spec:pgorm:def:codegen.entity+6/test]    transform -> generate hands back named
 // files in memory; the writer itself never touches the filesystem
 #[test]
 fn pipeline_returns_output_files_without_writing_to_disk() {
@@ -67,7 +67,7 @@ fn pipeline_returns_output_files_without_writing_to_disk() {
     }
 }
 
-// [spec:pgorm:def:codegen.entity+5/test]    the Entity model's table name, column
+// [spec:pgorm:def:codegen.entity+6/test]    the Entity model's table name, column
 // facts (type, auto_increment, not_null, unique), relations, conjunct relations
 // and primary keys all reach the generated output
 #[test]
@@ -80,7 +80,7 @@ fn entity_model_carries_column_relation_and_pk_facts() {
     assert_contains(cake, "#[pgorm(primary_key)] pub id: i32,");
     assert_contains(
         cake,
-        r#"#[pgorm(column_type = "Text", nullable)] pub name: Option<String>,"#,
+        r#"#[pgorm(column_type = ColumnType::Text, nullable)] pub name: Option<String>,"#,
     );
     // relations
     assert_contains(
@@ -98,7 +98,7 @@ fn entity_model_carries_column_relation_and_pk_facts() {
     );
 }
 
-// [spec:pgorm:def:codegen.entity+5/test]    errors are the two-variant `Error` enum
+// [spec:pgorm:def:codegen.entity+6/test]    errors are the two-variant `Error` enum
 #[test]
 fn errors_are_the_two_variant_error_enum() {
     let untyped = Table::create(Name::runtime("cake"))
@@ -116,7 +116,7 @@ fn errors_are_the_two_variant_error_enum() {
     assert!(matches!(from_io, Error::StdIoError(_)));
 }
 
-// [spec:pgorm:def:codegen.entity+5/test]    every `EntityWriterContext` option
+// [spec:pgorm:def:codegen.entity+6/test]    every `EntityWriterContext` option
 // selects something in the generated output
 #[test]
 fn every_context_option_selects_generated_output() {
@@ -134,16 +134,6 @@ fn every_context_option_selects_generated_output() {
             ],
         )]
     };
-
-    // expanded_format
-    assert_contains(
-        generate(schema(), expanded()).file("task.rs"),
-        "pub struct Entity;",
-    );
-    assert_not_contains(
-        generate(schema(), Opts::default()).file("task.rs"),
-        "pub struct Entity;",
-    );
 
     // with_serde + serde_skip_hidden_column + serde_skip_deserializing_primary_key
     let serde = generate(
@@ -370,7 +360,7 @@ fn entity_file_blocks_are_joined_with_blank_lines() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.context+3/test]    `bonus_derive` folds extra
+// [spec:pgorm:sem:codegen.entity.context+4/test]    `bonus_derive` folds extra
 // derives into one leading-comma fragment appended to the derive list
 #[test]
 fn context_folds_extra_derives_into_comma_fragment() {
@@ -393,7 +383,7 @@ fn context_folds_extra_derives_into_comma_fragment() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.context+3/test]    `bonus_attributes` wraps each
+// [spec:pgorm:sem:codegen.entity.context+4/test]    `bonus_attributes` wraps each
 // extra attribute in its own `#[...]` line
 #[test]
 fn context_wraps_each_extra_attribute_in_own_line() {
@@ -419,7 +409,7 @@ fn context_wraps_each_extra_attribute_in_own_line() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.context+3/test]    an unparsable extra derive
+// [spec:pgorm:sem:codegen.entity.context+4/test]    an unparsable extra derive
 // comes back from the constructor as an `Error` naming the option and the
 // string, before any file is generated
 #[test]
@@ -433,7 +423,7 @@ fn context_rejects_unparsable_extra_derive() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.context+3/test]    the same holds for an
+// [spec:pgorm:sem:codegen.entity.context+4/test]    the same holds for an
 // unparsable extra attribute
 #[test]
 fn context_rejects_unparsable_extra_attribute() {
@@ -456,9 +446,9 @@ fn assert_context_error(opts: Opts, expected: &str) {
 }
 
 // [spec:pgorm:sem:codegen.entity.types.datetime+2/test]    temporal columns reach
-// both Model field types and the expanded `PrimaryKeyTrait::ValueType`
+// the Model's field types, a key column's included
 #[test]
-fn temporal_columns_reach_model_and_value_type() {
+fn temporal_columns_reach_model_field_types() {
     let schema = || {
         vec![keyed_with(
             "event",
@@ -474,8 +464,10 @@ fn temporal_columns_reach_model_and_value_type() {
         )]
     };
 
-    let generated = generate(schema(), expanded());
-    assert_contains(generated.file("event.rs"), "pub at: Date,");
+    let generated = generate(schema(), Opts::default());
+    assert_contains(
+        generated.file("event.rs"),
+        "#[pgorm(primary_key, auto_increment = false)] pub at: Date,",
+    );
     assert_contains(generated.file("event.rs"), "pub seen: DateTime,");
-    assert_contains(generated.file("event.rs"), "type ValueType = Date;");
 }

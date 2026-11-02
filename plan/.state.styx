@@ -2948,6 +2948,11 @@ impl_evidence (
     ), rule_versions_seen (
         {id testing.isolation, version 0}
     )}
+    {id derives.compact-only, covered_rules (
+        macros.derive.one-form
+    ), covered_claims (
+        {impl_name main, rule macros.derive.one-form}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

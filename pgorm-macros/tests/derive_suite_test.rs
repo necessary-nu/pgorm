@@ -7,13 +7,12 @@
 
 use pgorm::entity::prelude::*;
 use pgorm::{
-    DeriveCustomColumn, DeriveDisplay, DeriveIntoActiveModel, DeriveValueType, FromJsonQueryResult,
-    FromQueryResult, IntoActiveModel, Iterable,
+    DeriveDisplay, DeriveIntoActiveModel, DeriveValueType, FromJsonQueryResult, FromQueryResult,
+    IntoActiveModel, Iterable,
 };
 use serde::{Deserialize, Serialize};
 
-/// `DeriveEntityModel` (which re-runs `DeriveModel` + `DeriveActiveModel`) and
-/// `DeriveRelation`.
+/// `DeriveEntityModel` (which re-runs `DeriveModel`) and `DeriveRelation`.
 mod cake {
     use pgorm::entity::prelude::*;
 
@@ -31,69 +30,51 @@ mod cake {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-/// The same entity written out longhand, which is what exercises `DeriveEntity`,
-/// `DeriveColumn`, `DerivePrimaryKey`, `DeriveModel`, `DeriveActiveModel` and
-/// `DeriveActiveModelBehavior` individually.
+/// An entity whose name is computed at run time, which is what exercises
+/// `DeriveEntity`: its `Entity` is written by hand beside a composite derive
+/// given no `table_name`. `DeriveModel` makes it a second model and
+/// `DeriveActiveModelBehavior` its behaviour.
 mod fruit {
     use pgorm::entity::prelude::*;
 
     #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-    #[pgorm(table_name = "fruit")]
-    pub struct Entity;
+    pub struct Entity {
+        pub orchard: Option<&'static str>,
+    }
 
-    #[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel)]
+    impl EntityName for Entity {
+        fn schema_name(&self) -> Option<&str> {
+            self.orchard
+        }
+
+        fn table_name(&self) -> &str {
+            "fruit"
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, DeriveActiveModelBehavior)]
     pub struct Model {
+        #[pgorm(primary_key)]
         pub id: i32,
         pub name: String,
-    }
-
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-    pub enum Column {
-        Id,
-        Name,
-    }
-
-    #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-    pub enum PrimaryKey {
-        Id,
-    }
-
-    impl PrimaryKeyTrait for PrimaryKey {
-        type ValueType = i32;
-
-        fn auto_increment() -> bool {
-            true
-        }
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
     pub enum Relation {}
 
-    impl ColumnTrait for Column {
-        type EntityName = Entity;
-
-        fn def(&self) -> ColumnDef {
-            match self {
-                Self::Id => ColumnType::Integer.def(),
-                Self::Name => ColumnType::string(None).def(),
-            }
-        }
+    #[derive(Clone, Debug, PartialEq, DeriveModel)]
+    pub struct Named {
+        pub name: String,
     }
-
-    #[derive(pgorm::DeriveActiveModelBehavior)]
-    pub struct Behaviour;
 }
 
-/// `DeriveCustomColumn`.
-#[derive(Copy, Clone, Debug, EnumIter, DeriveCustomColumn)]
-pub enum CustomCol {
+/// The column enum of a custom select, one of whose result columns is not
+/// the snake_case of its variant.
+#[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+pub enum Selected {
     Id,
-}
-
-impl pgorm::StaticName for CustomCol {
-    fn as_str(&self) -> &str {
-        self.default_as_str()
-    }
+    #[pgorm(column_name = "fruit_count")]
+    Count,
 }
 
 /// `DeriveIntoActiveModel`.
@@ -150,16 +131,25 @@ pub enum Flavour {
     Secret,
 }
 
-// [spec:pgorm:def:macros.derive+3/test]    every derive in the catalogue is reachable and wired up
+// [spec:pgorm:def:macros.derive+4/test]    every derive in the catalogue is reachable and wired up
 #[test]
 fn the_whole_derive_catalogue_is_exposed() {
-    // Entity-side derives, composite and longhand.
+    // Entity-side derives: the composite, and the entity-trait derive beside
+    // it for a name computed at run time.
     assert_eq!(cake::Entity.table_name(), "cake");
-    assert_eq!(fruit::Entity.table_name(), "fruit");
+    let orchard = fruit::Entity {
+        orchard: Some("orchard"),
+    };
+    assert_eq!(orchard.table_name(), "fruit");
+    assert_eq!(orchard.schema_name(), Some("orchard"));
     assert_eq!(cake::Column::iter().count(), 2);
     assert_eq!(fruit::Column::iter().count(), 2);
     assert!(fruit::PrimaryKey::auto_increment());
-    assert_eq!(CustomCol::Id.to_string(), "id");
+    assert_eq!(Selected::Count.to_string(), "fruit_count");
+    let named = fruit::Named {
+        name: "pear".to_owned(),
+    };
+    assert_eq!(named.get(fruit::Column::Name), "pear".into());
 
     // Model / ActiveModel derives.
     let model = fruit::Model {

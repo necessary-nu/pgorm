@@ -13,7 +13,7 @@ use proc_macro2::{TokenStream, TokenTree};
 use quote::quote;
 use std::sync::Arc;
 
-// [spec:pgorm:sem:codegen.entity.types+10/test]    `Column::get_rs_type` follows
+// [spec:pgorm:sem:codegen.entity.types+11/test]    `Column::get_rs_type` follows
 // the mapping table, wrapping nullable columns in `Option`
 #[test]
 fn column_rust_types_follow_the_mapping_table() {
@@ -92,7 +92,7 @@ fn column_rust_types_follow_the_mapping_table() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.types+10/test]    `Float` and `Double` also map
+// [spec:pgorm:sem:codegen.entity.types+11/test]    `Float` and `Double` also map
 // to `f32` / `f64`, and either one suppresses the Model's `Eq` derive —
 // recursively through `Array`
 #[test]
@@ -209,7 +209,7 @@ const HOSTILE_NAME: &str = "ev\"il type";
 /// appears in the generated file. `hostile_entity` below carries this same
 /// text through the real derive, so the two halves of the round trip are
 /// pinned to one spelling.
-const HOSTILE_ATTR: &str = r#"#[pgorm(column_type = "named(\"ev\\\"il type\")")]"#;
+const HOSTILE_ATTR: &str = r#"#[pgorm(column_type = ColumnType::named("ev\"il type"))]"#;
 
 /// A generated entity written out by hand, carrying [`HOSTILE_ATTR`] verbatim.
 /// That it compiles at all is half the claim; `Column::Odd`'s definition is the
@@ -222,7 +222,7 @@ mod hostile_entity {
     pub struct Model {
         #[pgorm(primary_key)]
         pub id: i32,
-        #[pgorm(column_type = "named(\"ev\\\"il type\")")]
+        #[pgorm(column_type = ColumnType::named("ev\"il type"))]
         pub odd: String,
     }
 
@@ -232,8 +232,8 @@ mod hostile_entity {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-/// The value of the sole string literal in an attribute — the `LitStr` the
-/// derive reads out of `column_type = "..."` before parsing it as tokens.
+/// The value of the sole string literal in an attribute — the name the
+/// `ColumnType::named(..)` expression `column_type` takes is called with.
 fn attribute_string_value(attr: &str) -> String {
     let mut literal = None;
     fn walk(stream: TokenStream, found: &mut Option<String>) {
@@ -255,7 +255,7 @@ fn attribute_string_value(attr: &str) -> String {
         .value()
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    the compact attribute
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    the compact attribute
 // carries a named type's name as a rendered string literal, so a name holding a
 // quote arrives at the derive as the name that was described rather than as
 // tokens that escaped the literal
@@ -275,15 +275,9 @@ fn hostile_named_type_survives_the_compact_attribute() {
         &format!("{HOSTILE_ATTR} pub odd: String,"),
     );
 
-    // The derive's own read of that attribute, step for step: the `LitStr`'s
-    // value, parsed as tokens, spliced after `ColumnType::`.
-    let spliced: TokenStream = syn::parse_str(&attribute_string_value(HOSTILE_ATTR))
-        .expect("the attribute value should parse as tokens");
-    let expected = quote!(pgorm::prelude::ColumnType::named("ev\"il type")).to_string();
-    assert_eq!(
-        quote!(pgorm::prelude::ColumnType::#spliced).to_string(),
-        expected,
-    );
+    // The derive takes the expression as written, so the name it is called
+    // with is the literal's value: the described name, whole.
+    assert_eq!(attribute_string_value(HOSTILE_ATTR), HOSTILE_NAME);
 
     // The control the rest of this test rests on: pasting the same name
     // between two quote characters, as `format!` would, does not produce the
@@ -295,33 +289,33 @@ fn hostile_named_type_survives_the_compact_attribute() {
     // compile error inside generated source, pointing at an attribute nobody
     // wrote by hand.
     assert!(
-        syn::parse_str::<TokenStream>(&format!("named(\"{HOSTILE_NAME}\")")).is_err(),
+        syn::parse_str::<syn::Expr>(&format!("ColumnType::named(\"{HOSTILE_NAME}\")")).is_err(),
         "the pasted spelling of {HOSTILE_NAME:?} should not parse",
     );
     // A name carrying a comment opener parses perfectly well, and names a
     // different type than the one described — the tail of the name is
     // commented out, and nothing anywhere reports it.
     let truncating = "x\") //";
-    let pasted: TokenStream = syn::parse_str(&format!("named(\"{truncating}\")"))
+    let pasted: syn::Expr = syn::parse_str(&format!("ColumnType::named(\"{truncating}\")"))
         .expect("the pasted spelling of a comment-bearing name parses");
     assert_eq!(
-        quote!(pgorm::prelude::ColumnType::#pasted).to_string(),
-        quote!(pgorm::prelude::ColumnType::named("x")).to_string(),
+        quote!(#pasted).to_string(),
+        quote!(ColumnType::named("x")).to_string(),
         "the pasted spelling should silently lose the rest of the name",
     );
     // Rendered as a literal, that same name survives whole.
-    let rendered: TokenStream = syn::parse_str(&format!(
-        "named({})",
+    let rendered: syn::Expr = syn::parse_str(&format!(
+        "ColumnType::named({})",
         proc_macro2::Literal::string(truncating)
     ))
     .expect("the rendered spelling parses");
     assert_eq!(
-        quote!(pgorm::prelude::ColumnType::#rendered).to_string(),
-        quote!(pgorm::prelude::ColumnType::named("x\") //")).to_string(),
+        quote!(#rendered).to_string(),
+        quote!(ColumnType::named("x\") //")).to_string(),
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    and the entity the
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    and the entity the
 // derive builds from it names the type that was described, character for
 // character
 #[test]
@@ -334,27 +328,7 @@ fn derived_entity_names_the_hostile_type_exactly() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.types+10/test]    the expanded writer spells the
-// same name the same way, so the two emission paths agree on a hostile name as
-// they do on a benign one
-#[test]
-fn hostile_named_type_survives_the_expanded_column_def() {
-    let generated = generate(
-        vec![keyed_with(
-            "sample",
-            &["id"],
-            vec![serial("id"), typed("odd", ColumnType::named(HOSTILE_NAME))],
-        )],
-        expanded(),
-    );
-
-    assert_contains(
-        generated.file("sample.rs"),
-        r#"ColumnType::named("ev\"il type").def()"#,
-    );
-}
-
-// [spec:pgorm:req:codegen.entity.types.unsupported+8/test]    a named type the
+// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    a named type the
 // generated `ColumnType::named("..")` could not rebuild — schema-qualified, an
 // array, or a type expression — is refused by name rather than respelled as a
 // different type
@@ -388,7 +362,7 @@ fn column_conversion_rejects_an_unrespellable_named_type() {
     }
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+8/test]    a type outside the
+// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    a type outside the
 // mapping fails the whole run with a `TransformError` naming table, column and
 // type — no placeholder code, and no panic
 #[test]
@@ -408,7 +382,7 @@ fn transform_rejects_column_type_outside_mapping() {
     }
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+8/test]    the check sits at
+// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    the check sits at
 // `Column` construction, so the writer never meets an unmapped type; `Array`
 // element types are checked through
 #[test]
@@ -428,81 +402,7 @@ fn column_conversion_rejects_unsupported_type() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.pk+3/test]    the expanded `ValueType` is the PK
-// column's Rust type, or a tuple for a composite key
-#[test]
-fn expanded_pk_value_type_is_type_or_tuple() {
-    let single = generate(vec![cake()], expanded());
-    assert_contains(single.file("cake.rs"), "type ValueType = i32;");
-
-    let composite = generate(vec![cake(), cake_filling(), filling()], expanded());
-    assert_contains(
-        composite.file("cake_filling.rs"),
-        "type ValueType = (i32, i32);",
-    );
-
-    let text_key = generate(
-        vec![keyed_with(
-            "setting",
-            &["key"],
-            vec![
-                ColumnDef::new_with_type(Name::runtime("key"), ColumnType::Text)
-                    .not_null()
-                    .to_owned(),
-            ],
-        )],
-        expanded(),
-    );
-    assert_contains(text_key.file("setting.rs"), "type ValueType = String;");
-}
-
-// [spec:pgorm:sem:codegen.entity.pk+3/test]    `auto_increment()` reads the key
-// alone: a serial column outside the key does not flip it, a one-column serial
-// key does, and an identity inside a composite key does not, since the rest of
-// the key is still the caller's
-#[test]
-fn expanded_pk_auto_increment_reads_only_the_key() {
-    let auto_increment = |key: &[&str], columns: Vec<ColumnDef>| {
-        let generated = generate(vec![keyed_with("ticket", key, columns)], expanded());
-        let file = norm(generated.file("ticket.rs"));
-        if file.contains(&norm("fn auto_increment() -> bool { true }")) {
-            true
-        } else {
-            assert!(file.contains(&norm("fn auto_increment() -> bool { false }")));
-            false
-        }
-    };
-    let code = || {
-        ColumnDef::new_with_type(Name::runtime("code"), ColumnType::Text)
-            .not_null()
-            .to_owned()
-    };
-    let serial_seq = ColumnDef::new(Name::runtime("seq"))
-        .integer()
-        .not_null()
-        .auto_increment()
-        .to_owned();
-
-    assert!(!auto_increment(&["code"], vec![code(), serial_seq]));
-    assert!(!auto_increment(&["code"], vec![code()]));
-    assert!(auto_increment(&["id"], vec![serial("id")]));
-
-    let tenant = ColumnDef::new(Name::runtime("tenant_id"))
-        .integer()
-        .not_null()
-        .to_owned();
-    let generated_id = ColumnDef::new(Name::runtime("id"))
-        .integer()
-        .identity()
-        .to_owned();
-    assert!(!auto_increment(
-        &["tenant_id", "id"],
-        vec![tenant, generated_id.clone()]
-    ));
-    assert!(auto_increment(&["id"], vec![generated_id]));
-}
-
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    an identity is read off
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    an identity is read off
 // the column definition as its form, and makes the column NOT NULL; one
 // carrying sequence options is refused, since an entity declares no options
 #[test]
@@ -530,7 +430,7 @@ fn column_conversion_reads_an_identity() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.pk+3/test]    in the compact format the same facts
+// [spec:pgorm:sem:codegen.entity.pk+4/test]    in the compact format the same facts
 // surface as the `primary_key` / `auto_increment = false` field attributes
 #[test]
 fn compact_primary_key_facts_surface_as_field_attributes() {
@@ -546,38 +446,27 @@ fn compact_primary_key_facts_surface_as_field_attributes() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.types+10/test]    a range column is the `Range` of its
-// subtype's Rust type, and the expanded writer names its `RangeType`
-// [spec:pgorm:req:codegen.entity.types.unsupported+8/test]    an array of ranges is supported
+// [spec:pgorm:sem:codegen.entity.types+11/test]    a range column is the `Range` of its
+// subtype's Rust type, which the derive infers the range from
+// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    an array of ranges is supported
 #[test]
-fn range_columns_name_their_range_type() {
+fn range_columns_are_typed_by_their_subtype() {
     use pgorm_query::RangeType;
 
-    for (col_type, rust_type, def) in [
-        (
-            ColumnType::Range(RangeType::Int4),
-            "Range < i32 >",
-            "ColumnType :: Range (RangeType :: Int4) . def ()",
-        ),
-        (
-            ColumnType::Range(RangeType::Numeric),
-            "Range < Decimal >",
-            "ColumnType :: Range (RangeType :: Numeric) . def ()",
-        ),
+    for (col_type, rust_type) in [
+        (ColumnType::Range(RangeType::Int4), "Range < i32 >"),
+        (ColumnType::Range(RangeType::Numeric), "Range < Decimal >"),
         (
             ColumnType::Multirange(RangeType::TimestampTz),
             "Multirange < DateTimeWithTimeZone >",
-            "ColumnType :: Multirange (RangeType :: TimestampTz) . def ()",
         ),
         (
             ColumnType::Array(std::sync::Arc::new(ColumnType::Range(RangeType::Int4))),
             "Vec < Range < i32 >>",
-            "ColumnType :: Array (Arc :: new (ColumnType :: Range (RangeType :: Int4))) . def ()",
         ),
         (
             ColumnType::Array(std::sync::Arc::new(ColumnType::Multirange(RangeType::Date))),
             "Vec < Multirange < Date >>",
-            "ColumnType :: Array (Arc :: new (ColumnType :: Multirange (RangeType :: Date))) . def ()",
         ),
     ] {
         let col_def = ColumnDef::new_with_type(Name::runtime("span"), col_type)
@@ -585,11 +474,11 @@ fn range_columns_name_their_range_type() {
             .to_owned();
         let column = Column::try_from(&col_def).expect("a range column is supported");
         assert_eq!(column.get_rs_type().to_string(), rust_type);
-        assert_eq!(column.get_def().to_string(), def);
+        assert!(column.get_col_type_attrs().is_none(), "{rust_type}");
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    an array needs a
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    an array needs a
 // `column_type` exactly when its element does, since the derive infers an
 // array as an array of what the element's Rust type infers: `text[]` would be
 // created as `varchar[]`, and `citext[]` as `varchar[]` too
@@ -626,14 +515,14 @@ fn arrays_name_the_element_type_they_cannot_infer() {
     );
     let sample = generated.file("sample.rs");
     for field in [
-        r#"#[pgorm(column_type = "Array(Arc::new(ColumnType::Text))")] pub tags: Vec<String>,"#,
-        r#"#[pgorm(column_type = "Array(Arc::new(ColumnType::Decimal(Some((10u32, 2u32)))))")]
+        r#"#[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Text)))] pub tags: Vec<String>,"#,
+        r#"#[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Decimal(Some((10u32, 2u32))))))]
            pub prices: Vec<Decimal>,"#,
-        r#"#[pgorm(column_type = "Array(Arc::new(ColumnType::named(\"citext\")))")]
+        r#"#[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::named("citext"))))]
            pub names: Vec<String>,"#,
         // One run of fields with nothing between them: the arrays whose
         // element the derive infers carry no attribute.
-        r#"#[pgorm(column_type = "Array(Arc::new(ColumnType::Array(Arc::new(ColumnType::Text))))")]
+        r#"#[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Array(Arc::new(ColumnType::Text)))))]
            pub grid: Vec<Vec<String> >,
            pub counts: Vec<i32>,
            pub labels: Vec<String>,
@@ -653,10 +542,10 @@ mod text_array_entity {
     pub struct Model {
         #[pgorm(primary_key)]
         pub id: i32,
-        #[pgorm(column_type = "Array(Arc::new(ColumnType::Text))")]
+        #[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Text)))]
         pub tags: Vec<String>,
         #[pgorm(
-            column_type = "Array(Arc::new(ColumnType::named(\"citext\")))",
+            column_type = ColumnType::Array(Arc::new(ColumnType::named("citext"))),
             nullable
         )]
         pub names: Option<Vec<String>>,
@@ -668,7 +557,7 @@ mod text_array_entity {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    and the derive builds
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    and the derive builds
 // the array of the element type named, not of the one `String` infers
 #[test]
 fn derived_array_columns_keep_their_element_type() {

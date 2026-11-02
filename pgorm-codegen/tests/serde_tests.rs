@@ -197,7 +197,7 @@ fn serde_skip_flags_are_inert_without_serde() {
     assert_not_contains(task, "#[serde(skip_deserializing)]");
 }
 
-// [spec:pgorm:sem:codegen.entity.serde.derives+1/test]    `extra_derive` is the one
+// [spec:pgorm:sem:codegen.entity.serde.derives+2/test]    `extra_derive` is the one
 // producer of the serde derive fragment
 #[test]
 fn with_serde_extra_derive_produces_comma_fragment() {
@@ -216,7 +216,7 @@ fn with_serde_extra_derive_produces_comma_fragment() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.serde.derives+1/test]    both Model writers splice
+// [spec:pgorm:sem:codegen.entity.serde.derives+2/test]    both Model writers splice
 // the fragment after the base derives and the conditional `Eq`, before
 // `model_extra_derives`
 #[test]
@@ -234,19 +234,18 @@ fn serde_derives_are_spliced_after_the_eq_slot() {
         "#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]",
     );
 
-    // expanded, `Eq` present, plus extra derives after the fragment
-    let expanded = generate(
+    // extra derives come after the fragment
+    let extra = generate(
         task_schema(),
         Opts {
-            expanded_format: true,
             with_serde: WithSerde::Both,
             model_extra_derives: vec!["Default".to_owned()],
             ..Default::default()
         },
     );
     assert_contains(
-        expanded.file("task.rs"),
-        "#[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel, Eq, Serialize, Deserialize, Default)]",
+        extra.file("task.rs"),
+        "#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize, Default)]",
     );
 
     // `Eq` suppressed by a float column: the fragment still occupies the slot
@@ -268,7 +267,7 @@ fn serde_derives_are_spliced_after_the_eq_slot() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.serde.derives+1/test]    the same fragment is
+// [spec:pgorm:sem:codegen.entity.serde.derives+2/test]    the same fragment is
 // appended to generated active enums after the base derives and optional `Copy`,
 // and always travels with the serde import
 #[test]

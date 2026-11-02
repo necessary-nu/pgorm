@@ -392,7 +392,7 @@ mod padded {
     pub struct Model {
         #[pgorm(primary_key)]
         pub id: i32,
-        #[pgorm(column_type = "Char(Some(3))")]
+        #[pgorm(column_type = ColumnType::Char(Some(3)))]
         pub code: String,
     }
 

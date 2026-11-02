@@ -120,18 +120,6 @@ def option_cases():
     """The writer options, each varied against a schema that exercises it."""
     return [
         _case(
-            "codegen-expanded",
-            RELATED,
-            "the expanded format writes the entity out by hand",
-            expanded_format=True,
-        ),
-        _case(
-            "codegen-expanded-enum",
-            ENUMERATED,
-            "expanded output carrying a generated enum",
-            expanded_format=True,
-        ),
-        _case(
             "codegen-schema-name",
             RELATED,
             "schema_name reaches every generated entity",

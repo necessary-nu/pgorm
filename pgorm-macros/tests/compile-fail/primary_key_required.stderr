@@ -1,5 +1,5 @@
 error: Entity must have a primary key column. See <https://github.com/pgorm-rs/pgorm/issues/485> for details.
- --> tests/compile-fail/primary_key_required.rs:7:10
+ --> tests/compile-fail/primary_key_required.rs:7:12
   |
-7 | pub enum PrimaryKey {}
-  |          ^^^^^^^^^^
+7 | pub struct Model {
+  |            ^^^^^

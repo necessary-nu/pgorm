@@ -5,26 +5,26 @@ use pgorm::entity::prelude::*;
 pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
-    #[pgorm(column_type = "Bit(None)", select_as = "BIGINT", save_as = "BIT")]
+    #[pgorm(column_type = ColumnType::Bit(None), select_as = "BIGINT", save_as = "BIT")]
     pub bit0: i64,
-    #[pgorm(column_type = "Bit(Some(1))", select_as = "BIGINT", save_as = "BIT(1)")]
+    #[pgorm(column_type = ColumnType::Bit(Some(1)), select_as = "BIGINT", save_as = "BIT(1)")]
     pub bit1: i64,
-    #[pgorm(column_type = "Bit(Some(8))", select_as = "BIGINT", save_as = "BIT(8)")]
+    #[pgorm(column_type = ColumnType::Bit(Some(8)), select_as = "BIGINT", save_as = "BIT(8)")]
     pub bit8: i64,
     #[pgorm(
-        column_type = "Bit(Some(16))",
+        column_type = ColumnType::Bit(Some(16)),
         select_as = "BIGINT",
         save_as = "BIT(16)"
     )]
     pub bit16: i64,
     #[pgorm(
-        column_type = "Bit(Some(32))",
+        column_type = ColumnType::Bit(Some(32)),
         select_as = "BIGINT",
         save_as = "BIT(32)"
     )]
     pub bit32: i64,
     #[pgorm(
-        column_type = "Bit(Some(64))",
+        column_type = ColumnType::Bit(Some(64)),
         select_as = "BIGINT",
         save_as = "BIT(64)"
     )]

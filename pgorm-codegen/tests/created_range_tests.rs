@@ -168,14 +168,14 @@ fn a_created_range_declares_its_multirange() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.types+10/test]    one newtype per range type,
+// [spec:pgorm:sem:codegen.entity.types+11/test]    one newtype per range type,
 // named in UpperCamelCase and deriving `DeriveCreatedRange` under its name and
 // schema, `Eq` but for a float subtype; the entity's fields name the newtypes
 // [spec:pgorm:req:codegen.entity.files+1/test]    `pgorm_range_types.rs` is
 // written and declared beside the entities
 // [spec:pgorm:sem:codegen.entity.imports+3/test]    each entity imports the
 // newtypes its columns name
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    a range over a subtype
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    a range over a subtype
 // its newtype's `E` does not infer names its whole type
 #[test]
 fn a_created_range_generates_a_compiling_newtype() {
@@ -201,8 +201,10 @@ fn a_created_range_generates_a_compiling_newtype() {
             include_str!("sql/created_range/measurement.rs"),
         ),
     ] {
-        let written = norm(generated.file(file)).replace(", )", ")");
-        assert!(written.contains(&norm(fixture)), "{file}: {written}");
+        // rustfmt and the writer differ only on trailing commas.
+        let flat = |src: &str| norm(src).replace(" , )", " )").replace(" , }", " }");
+        let written = flat(generated.file(file));
+        assert!(written.contains(&flat(fixture)), "{file}: {written}");
     }
 
     assert_eq!(
@@ -237,42 +239,11 @@ fn a_created_range_generates_a_compiling_newtype() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.types+10/test]    the expanded writer spells
-// a created range column's type as the derive does
-#[test]
-fn the_expanded_writer_names_the_created_range() {
-    let generated = files(entities_from_sql(SCHEMA, expanded()).expect("the schema generates"));
-    assert_contains(
-        generated.file("measurement.rs"),
-        r#"Self::Slot => ColumnType::CreatedRange {
-            name: Name::runtime("slot"),
-            schema: Some(Name::runtime("booking")),
-            subtype: Arc::new(ColumnType::Integer),
-        }
-        .def()
-        .null(),"#,
-    );
-    assert_contains(
-        generated.file("measurement.rs"),
-        "pub spans: Floatmultirange, pub span: Floatrange, pub slot: Option<Slot>, \
-         pub slots: Option<SlotMultirange>, pub label: Textrange,",
-    );
-    assert_contains(
-        generated.file("measurement.rs"),
-        r#"Self::Spans => ColumnType::CreatedMultirange {
-            name: Name::runtime("floatmultirange"),
-            schema: None,
-            subtype: Arc::new(ColumnType::Double),
-        }
-        .def(),"#,
-    );
-}
-
 // [spec:pgorm:req:codegen.ddl.unsupported+17/test]    what the bridge cannot
 // carry out of a range type is named: a subtype no newtype can hold, an array
 // of a created range, an option PostgreSQL does not have, a range with no
 // subtype, a serial subtype, and a type declared twice
-// [spec:pgorm:req:codegen.entity.types.unsupported+8/test]
+// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]
 #[test]
 fn what_a_created_range_cannot_carry_is_named() {
     assert_eq!(

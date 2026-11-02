@@ -7,7 +7,7 @@ pub struct Model {
     pub tenant_id: i32,
     #[pgorm(primary_key, auto_increment = false)]
     pub id: i32,
-    #[pgorm(column_type = "Text")]
+    #[pgorm(column_type = ColumnType::Text)]
     pub title: String,
 }
 

@@ -22,10 +22,10 @@ pub struct Column {
     pub(crate) not_null: bool,
     pub(crate) unique: bool,
     /// The column's `DEFAULT`, if it has one.
-    // [spec:pgorm:sem:codegen.entity.expressions]
+    // [spec:pgorm:sem:codegen.entity.expressions+1]
     pub(crate) default: Option<ColumnExpr>,
     /// The expression a generated column is computed from, and its kind.
-    // [spec:pgorm:sem:codegen.entity.expressions]
+    // [spec:pgorm:sem:codegen.entity.expressions+1]
     pub(crate) generated: Option<Generation>,
 }
 
@@ -36,8 +36,8 @@ impl Column {
     /// Reject anything the writer could not render: a type outside the mapping
     /// table, and a DB name whose case-converted forms are not Rust
     /// identifiers.
-    // [spec:pgorm:req:codegen.entity.types.unsupported+8]
-    // [spec:pgorm:sem:codegen.entity.keywords+1]
+    // [spec:pgorm:req:codegen.entity.types.unsupported+9]
+    // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let context = format!("column `{}`", self.name);
         validate_col_type(&context, &self.col_type)?;
@@ -49,7 +49,7 @@ impl Column {
         Ok(())
     }
 
-    // [spec:pgorm:sem:codegen.entity.keywords+1]
+    // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub fn get_name_snake_case(&self) -> Ident {
         format_ident!("{}", escape_rust_keyword(self.name.to_snake_case()))
     }
@@ -62,9 +62,9 @@ impl Column {
         self.name.to_snake_case() == self.name
     }
 
-    // [spec:pgorm:sem:codegen.entity.types+10]
+    // [spec:pgorm:sem:codegen.entity.types+11]
     // [spec:pgorm:sem:codegen.entity.types.datetime+2]
-    // [spec:pgorm:req:codegen.entity.types.unsupported+8]
+    // [spec:pgorm:req:codegen.entity.types.unsupported+9]
     pub fn get_rs_type(&self) -> TokenStream {
         fn write_rs_type(col_type: &ColumnType) -> String {
             #[allow(unreachable_patterns)]
@@ -116,58 +116,17 @@ impl Column {
         }
     }
 
-    /// The `column_type = "..."` part of the compact `#[pgorm(..)]` attribute,
-    /// whose string the derive re-parses as tokens and splices after
-    /// `ColumnType::`.
-    // [spec:pgorm:sem:codegen.entity.compact.attrs+9]
+    /// The `column_type = ..` part of the compact `#[pgorm(..)]` attribute,
+    /// the expression the derive builds the column's type from.
+    // [spec:pgorm:sem:codegen.entity.compact.attrs+10]
     pub fn get_col_type_attrs(&self) -> Option<TokenStream> {
         col_type_attr(&self.col_type).map(|ty| quote! { column_type = #ty })
-    }
-
-    // [spec:pgorm:req:codegen.entity.types.unsupported+8]
-    pub fn get_def(&self) -> TokenStream {
-        let mut col_def = write_col_def(&self.col_type);
-        col_def.extend(quote! {
-            .def()
-        });
-        if !self.not_null {
-            col_def.extend(quote! {
-                .null()
-            });
-        }
-        if self.unique {
-            col_def.extend(quote! {
-                .unique()
-            });
-        }
-        if let Some(identity) = self.identity {
-            col_def.extend(match identity {
-                IdentityGeneration::Always => quote! { .identity() },
-                IdentityGeneration::ByDefault => quote! { .identity_by_default() },
-            });
-        }
-        // [spec:pgorm:sem:codegen.entity.expressions]
-        if let Some(default) = &self.default {
-            let default = default.to_rust();
-            col_def.extend(quote! { .default(#default) });
-        }
-        if let Some((expr, kind)) = &self.generated {
-            let expr = expr.to_rust();
-            let kind = match kind {
-                GeneratedKind::Stored => quote! { Stored },
-                GeneratedKind::Virtual => quote! { Virtual },
-            };
-            col_def.extend(quote! {
-                .generated(#expr, pgorm::pgorm_query::GeneratedKind::#kind)
-            });
-        }
-        col_def
     }
 
     /// The field attribute carrying the column's `DEFAULT` or generation
     /// expression, as the Rust that builds it: `default_expr = "..."`,
     /// `generated_stored = "..."` or `generated_virtual = "..."`.
-    // [spec:pgorm:sem:codegen.entity.expressions]
+    // [spec:pgorm:sem:codegen.entity.expressions+1]
     pub fn get_expression_attr(&self) -> Option<TokenStream> {
         if let Some(default) = &self.default {
             let source = rust_source(&default.to_rust());
@@ -182,7 +141,7 @@ impl Column {
     }
 
     /// The field attribute declaring the column's identity, if it is one.
-    // [spec:pgorm:sem:codegen.entity.compact.attrs+9]
+    // [spec:pgorm:sem:codegen.entity.compact.attrs+10]
     pub fn get_identity_attr(&self) -> Option<TokenStream> {
         self.identity.map(|identity| match identity {
             IdentityGeneration::Always => quote! { identity },
@@ -254,26 +213,13 @@ impl Column {
     }
 }
 
-/// The Rust that builds a column's definition, which `get_def` follows with
-/// `.def()`: an enum column's is its `ActiveEnum`'s `db_type()`, a `ColumnDef`
-/// that `.def()` passes through, and any other column's is its `ColumnType`.
-fn write_col_def(col_type: &ColumnType) -> TokenStream {
-    match col_type {
-        ColumnType::Enum { name, .. } => {
-            let enum_ident = format_ident!("{}", name.to_string().to_upper_camel_case());
-            quote! { #enum_ident::db_type() }
-        }
-        col_type => write_col_type(col_type),
-    }
-}
-
 /// The Rust that builds a `ColumnType`. An enum reaches it only inside
 /// another type — an array's element, a domain's base — and is its
 /// `ActiveEnum`'s column type itself, `db_type().get_column_type().clone()`,
 /// since the `Arc` holding it holds a `ColumnType` where `db_type()` returns
 /// a `ColumnDef`.
-// [spec:pgorm:req:codegen.entity.types.unsupported+8]
-// [spec:pgorm:sem:codegen.entity.types+10]
+// [spec:pgorm:req:codegen.entity.types.unsupported+9]
+// [spec:pgorm:sem:codegen.entity.types+11]
 fn write_col_type(col_type: &ColumnType) -> TokenStream {
     match col_type {
         ColumnType::Char(s) => match s {
@@ -373,7 +319,7 @@ fn write_col_type(col_type: &ColumnType) -> TokenStream {
 
 /// A domain column's `ColumnType::Domain`, its name and schema as runtime
 /// names and its base built as a `ColumnType`.
-// [spec:pgorm:sem:codegen.entity.types+10]
+// [spec:pgorm:sem:codegen.entity.types+11]
 fn domain_tokens(name: &Name, schema: &Option<Name>, base: &ColumnType) -> TokenStream {
     let name = name.to_string();
     let schema = match schema {
@@ -406,7 +352,7 @@ pub(crate) fn under_domains(col_type: &ColumnType) -> &ColumnType {
 /// naming it, and the Rust type it ranges over as the prelude names it.
 /// `None` for one codegen has no spelling of, which `validate_col_type`
 /// refuses, so the writers meet only ranges this answers for.
-// [spec:pgorm:sem:codegen.entity.types+10]
+// [spec:pgorm:sem:codegen.entity.types+11]
 fn range_spelling(range: RangeType) -> Option<(&'static str, &'static str)> {
     Some(match range {
         RangeType::Int4 => ("Int4", "i32"),
@@ -429,33 +375,25 @@ fn checked_range_spelling(range: RangeType) -> (&'static str, &'static str) {
     })
 }
 
-/// The program text the compact derive splices after `ColumnType::`: the
-/// column's whole type, spelled as `write_col_type` spells it with that
-/// prefix taken off, wherever the derive's inference from the field's Rust
-/// type is not that type, and on a `Float`, `Double` or `Bytea` scalar
-/// besides; `None` elsewhere.
+/// The `ColumnType` expression the compact derive's `column_type` takes: the
+/// column's whole type, as `write_col_type` spells it, wherever the derive's
+/// inference from the field's Rust type is not that type, and on a `Float`,
+/// `Double` or `Bytea` scalar besides; `None` elsewhere.
 ///
-/// One spelling serves both writers, so the type a compact entity's derive
-/// builds is the type the expanded writer's `def()` builds. Every name the
-/// described schema contributes to it — a named type's, a domain's or a
-/// created range's — reaches it as a string-literal token, `quote!`'s own
-/// escaping of a `&str`, never as text placed between two quote characters,
-/// so a name holding a `"` comes back out of the derive as the name it went
-/// in as. `validate_col_type` has already refused any `Named` shape the
-/// one-name spelling could not carry. Only an enum's spelling lacks the
-/// `ColumnType::` prefix, and an enum is a type its field infers.
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9]
-fn col_type_attr(col_type: &ColumnType) -> Option<String> {
+/// Every name the described schema contributes to it — a named type's, a
+/// domain's or a created range's — reaches it as a string-literal token,
+/// `quote!`'s own escaping of a `&str`, never as text placed between two
+/// quote characters, so a name holding a `"` comes back out of the derive as
+/// the name it went in as. `validate_col_type` has already refused any
+/// `Named` shape the one-name spelling could not carry.
+// [spec:pgorm:req:macros.derive.one-form]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10]
+fn col_type_attr(col_type: &ColumnType) -> Option<TokenStream> {
     let stated = matches!(
         col_type,
         ColumnType::Float | ColumnType::Double | ColumnType::Bytea
     ) || !infers_itself(col_type);
-    if !stated {
-        return None;
-    }
-    rust_source(&write_col_type(col_type))
-        .strip_prefix("ColumnType::")
-        .map(str::to_owned)
+    stated.then(|| write_col_type(col_type))
 }
 
 /// Whether `DeriveEntityModel`, given no `column_type`, builds exactly
@@ -472,7 +410,7 @@ fn col_type_attr(col_type: &ColumnType) -> Option<String> {
 /// element or subtype does. No Rust type infers a domain. A type this table
 /// does not know is taken not to infer itself, so it is stated rather than
 /// lost.
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10]
 fn infers_itself(col_type: &ColumnType) -> bool {
     match col_type {
         ColumnType::String(StringLen::None)
@@ -504,7 +442,7 @@ fn infers_itself(col_type: &ColumnType) -> bool {
 /// The `IntervalSpec` an interval column carries, as generated source spells
 /// it: the qualifier vocabulary resolves through the prelude, as `RangeType`
 /// does.
-// [spec:pgorm:sem:codegen.entity.types+10]
+// [spec:pgorm:sem:codegen.entity.types+11]
 fn interval_spec_tokens(spec: &IntervalSpec) -> TokenStream {
     let precision = |precision: &Option<IntervalPrecision>| match precision {
         Some(precision) => {
@@ -556,10 +494,10 @@ fn range_type_tokens(range: RangeType) -> TokenStream {
     quote! { RangeType::#variant }
 }
 
-/// The set of `ColumnType`s `get_rs_type` and `get_def` can render, checked
+/// The set of `ColumnType`s `get_rs_type` and `write_col_type` can render, checked
 /// through `Array` element types, over the enum names they will emit, and over
 /// the named types they will respell.
-// [spec:pgorm:req:codegen.entity.types.unsupported+8]
+// [spec:pgorm:req:codegen.entity.types.unsupported+9]
 fn validate_col_type(context: &str, col_type: &ColumnType) -> Result<(), Error> {
     match col_type {
         ColumnType::Char(_)
@@ -586,7 +524,7 @@ fn validate_col_type(context: &str, col_type: &ColumnType) -> Result<(), Error> 
             safe_ident(context, &name.to_string().to_upper_camel_case())?;
             Ok(())
         }
-        // Both writers respell a named type as `ColumnType::named("<name>")`,
+        // The writer respells a named type as `ColumnType::named("<name>")`,
         // whose argument rebuilds one unqualified, non-array, quoted name. The
         // characters of that name are unconstrained — it becomes a string
         // literal, never a Rust identifier, and `citext`, `CamelType` and
@@ -661,7 +599,7 @@ impl TryFrom<ColumnDef> for Column {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15]
+// [spec:pgorm:sem:codegen.entity.transform+16]
 impl TryFrom<&ColumnDef> for Column {
     type Error = Error;
 
@@ -715,7 +653,7 @@ impl TryFrom<&ColumnDef> for Column {
 /// A column's `DEFAULT` and generation expression, read into the subset, and
 /// refused where PostgreSQL refuses the pair (`42601`): a column takes one of
 /// a default, an identity, a generation expression and the serial family.
-// [spec:pgorm:sem:codegen.entity.expressions]
+// [spec:pgorm:sem:codegen.entity.expressions+1]
 fn expressions(
     col_def: &ColumnDef,
     name: &str,
@@ -883,41 +821,6 @@ mod tests {
     }
 
     #[test]
-    fn test_get_def() {
-        let columns = setup();
-        let col_defs = vec![
-            "ColumnType::String(StringLen::N(255u32)).def()",
-            "ColumnType::String(StringLen::None).def()",
-            "ColumnType::named(\"cus_col\").def()",
-            "ColumnType::SmallInteger.def()",
-            "ColumnType::Integer.def()",
-            "ColumnType::BigInteger.def()",
-            "ColumnType::Float.def()",
-            "ColumnType::Double.def()",
-            "ColumnType::Bytea.def()",
-            "ColumnType::Boolean.def()",
-            "ColumnType::Date.def()",
-            "ColumnType::Time.def()",
-            "ColumnType::Timestamp.def()",
-            "ColumnType::TimestampWithTimeZone.def()",
-        ];
-        for (mut col, col_def) in columns.into_iter().zip(col_defs) {
-            let mut col_def: TokenStream = col_def.parse().unwrap();
-
-            col.not_null = true;
-            assert_eq!(col.get_def().to_string(), col_def.to_string());
-
-            col.not_null = false;
-            col_def.extend(quote!(.null()));
-            assert_eq!(col.get_def().to_string(), col_def.to_string());
-
-            col.unique = true;
-            col_def.extend(quote!(.unique()));
-            assert_eq!(col.get_def().to_string(), col_def.to_string());
-        }
-    }
-
-    #[test]
     fn test_get_info() {
         let column = to_column(ColumnDef::new(Name::runtime("id")).string().to_owned());
         assert_eq!(column.get_info().as_str(), "Column `id`: Option<String>");
@@ -1005,13 +908,8 @@ mod tests {
     #[test]
     fn test_from_column_def() {
         let column = to_column(ColumnDef::new(Name::runtime("id")).string().to_owned());
-        assert_eq!(
-            column.get_def().to_string(),
-            quote! {
-                ColumnType::String(StringLen::None).def().null()
-            }
-            .to_string()
-        );
+        assert_eq!(column.col_type, ColumnType::String(StringLen::None));
+        assert!(!column.not_null);
 
         let column = to_column(
             ColumnDef::new(Name::runtime("id"))

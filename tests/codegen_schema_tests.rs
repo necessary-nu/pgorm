@@ -1,14 +1,14 @@
 #![allow(unused_imports, dead_code)]
 
-//! The entities pgorm-codegen generates from a dump that creates its own
+//! The entity pgorm-codegen generates from a dump that creates its own
 //! schema, against a live server.
 //!
-//! pgorm-codegen's own tests hold both writers to these files and compile
-//! them. What only a server settles is that the file runs as written, its
-//! `CREATE SCHEMA` included; that the table each generated entity creates is
-//! the one the file creates, in the schema the file creates; and that a value
-//! written through either entity lands in that schema's table, not in a
-//! same-named one `search_path` reaches first, and is read back as written.
+//! pgorm-codegen's own tests hold the writer to these files and compile them.
+//! What only a server settles is that the file runs as written, its `CREATE
+//! SCHEMA` included; that the table the generated entity creates is the one
+//! the file creates, in the schema the file creates; and that a value written
+//! through the entity lands in that schema's table, not in a same-named one
+//! `search_path` reaches first, and is read back as written.
 
 pub mod common;
 pub use common::{TestContext, setup::*};
@@ -16,17 +16,13 @@ use pgorm::{ConnectionTrait, Schema, entity::prelude::*};
 use pretty_assertions::assert_eq;
 
 /// The files pgorm-codegen generates from its created-schema fixture: the
-/// ones its own tests hold the writers' output to, so what is run here is
+/// ones its own tests hold the writer's output to, so what is run here is
 /// what the generator writes.
 #[path = "../pgorm-codegen/tests/sql/created_schema/pgorm_active_enums.rs"]
 mod pgorm_active_enums;
 
 #[path = "../pgorm-codegen/tests/sql/created_schema/deal.rs"]
 mod deal;
-
-mod expanded_deal {
-    include!("../pgorm-codegen/tests/sql/created_schema/expanded/deal.rs");
-}
 
 use pgorm_active_enums::Stage;
 
@@ -60,9 +56,9 @@ fn won(id: i32) -> deal::Model {
 }
 
 /// The file, run as written, creates its schema and the table in it, and
-/// the table each generated entity creates there is the same table.
+/// the table the generated entity creates there is the same table.
 // [spec:pgorm:sem:codegen.ddl.objects+10/test]    against a live server: the file that
-// creates its schema runs as written, and the entities generated from it create its table
+// creates its schema runs as written, and the entity generated from it creates its table
 // in that schema
 #[pgorm_macros::test]
 async fn generated_entities_create_the_schemas_table() -> Result<(), Error> {
@@ -85,26 +81,21 @@ async fn generated_entities_create_the_schemas_table() -> Result<(), Error> {
         ]
     );
 
-    let generator = Schema::new();
-    for create in [
-        generator.create_table_from_entity(deal::Entity)?,
-        generator.create_table_from_entity(expanded_deal::Entity)?,
-    ] {
-        db.batch_execute("DROP TABLE sales.deal").await?;
-        db.batch_execute(&create.to_string()).await?;
-        assert_eq!(columns_of(&db).await?, described);
-    }
+    let create = Schema::new().create_table_from_entity(deal::Entity)?;
+    db.batch_execute("DROP TABLE sales.deal").await?;
+    db.batch_execute(&create.to_string()).await?;
+    assert_eq!(columns_of(&db).await?, described);
 
     drop(db);
     ctx.delete().await;
     Ok(())
 }
 
-/// A row written through either generated entity is the schema's, a
-/// same-named table on `search_path` left empty, and reads back as written.
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    against a live server: each generated
+/// A row written through the generated entity is the schema's, a same-named
+/// table on `search_path` left empty, and reads back as written.
+// [spec:pgorm:sem:codegen.ddl.objects+10/test]    against a live server: the generated
 // entity writes to and reads from the table in the created schema
-// [spec:pgorm:sem:codegen.entity.context+3/test]
+// [spec:pgorm:sem:codegen.entity.context+4/test]
 #[pgorm_macros::test]
 async fn generated_entities_write_the_schemas_table() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_schema_tests_values").await;
@@ -121,24 +112,21 @@ async fn generated_entities_write_the_schemas_table() -> Result<(), Error> {
         written.clone().into_active_model().insert(&db).await?,
         written
     );
-    let expanded = expanded_deal::Model {
+    let pilot = deal::Model {
         id: 2,
         title: "Pilot".to_owned(),
         stage: Stage::Lead,
         history: None,
     };
-    assert_eq!(
-        expanded.clone().into_active_model().insert(&db).await?,
-        expanded
-    );
+    assert_eq!(pilot.clone().into_active_model().insert(&db).await?, pilot);
 
     assert_eq!(
         deal::Entity::find_by_id(2).one(&db).await?.stage,
         Stage::Lead
     );
     assert_eq!(
-        expanded_deal::Entity::find()
-            .filter(expanded_deal::Column::Stage.eq(Stage::Won))
+        deal::Entity::find()
+            .filter(deal::Column::Stage.eq(Stage::Won))
             .all(&db)
             .await?
             .into_iter()

@@ -98,15 +98,16 @@ mod quad {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-/// A fully hand-written entity — the spec says every trait in the family can be
-/// implemented without the derive macros. It deliberately declares a `ValueType`
-/// with more components than its `PrimaryKey` enum has variants, which is what
-/// the `find_by_id` / `delete_by_id` arity guard exists to catch.
+/// An entity whose key is written by hand, which the traits allow: its
+/// `Entity` names the key through `DeriveEntity`'s `primary_key` override. It
+/// deliberately declares a `ValueType` with more components than the key has
+/// variants, which is what the `find_by_id` / `delete_by_id` arity guard exists
+/// to catch; no derive writes such a key.
 mod too_many_values {
     use pgorm::entity::prelude::*;
-    use pgorm::{RelationDef, RelationTrait};
 
     #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
+    #[pgorm(primary_key = WideKey)]
     pub struct Entity;
 
     impl EntityName for Entity {
@@ -115,60 +116,69 @@ mod too_many_values {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
     pub struct Model {
+        #[pgorm(primary_key)]
         pub id_1: i32,
         pub id_2: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-    pub enum Column {
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+
+    #[derive(Copy, Clone, Debug, EnumIter)]
+    pub enum WideKey {
         Id1,
-        Id2,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-    pub enum PrimaryKey {
-        Id1,
+    impl SqlName for WideKey {
+        fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+            s.write_str(self.as_str()).expect("write to sql sink");
+        }
     }
 
-    impl PrimaryKeyTrait for PrimaryKey {
+    impl StaticName for WideKey {
+        fn as_str(&self) -> &str {
+            match self {
+                Self::Id1 => "id_1",
+            }
+        }
+    }
+
+    impl PrimaryKeyToColumn for WideKey {
+        type Column = Column;
+
+        fn into_column(self) -> Column {
+            match self {
+                Self::Id1 => Column::Id1,
+            }
+        }
+
+        fn from_column(col: Column) -> Option<Self> {
+            match col {
+                Column::Id1 => Some(Self::Id1),
+                Column::Id2 => None,
+            }
+        }
+    }
+
+    impl PrimaryKeyTrait for WideKey {
         type ValueType = (i32, i32);
 
         fn auto_increment() -> bool {
             false
         }
     }
-
-    #[derive(Copy, Clone, Debug, EnumIter)]
-    pub enum Relation {}
-
-    impl ColumnTrait for Column {
-        type EntityName = Entity;
-
-        fn def(&self) -> ColumnDef {
-            match self {
-                Self::Id1 => ColumnType::Integer.def(),
-                Self::Id2 => ColumnType::Integer.def(),
-            }
-        }
-    }
-
-    impl RelationTrait for Relation {
-        fn def(&self) -> RelationDef {
-            unreachable!("no relations")
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The mirror image: two key columns but a single-component `ValueType`.
 mod too_few_values {
     use pgorm::entity::prelude::*;
-    use pgorm::{RelationDef, RelationTrait};
 
     #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
+    #[pgorm(primary_key = NarrowKey)]
     pub struct Entity;
 
     impl EntityName for Entity {
@@ -177,53 +187,65 @@ mod too_few_values {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
     pub struct Model {
+        #[pgorm(primary_key)]
         pub id_1: i32,
+        #[pgorm(primary_key)]
         pub id_2: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-    pub enum Column {
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+
+    #[derive(Copy, Clone, Debug, EnumIter)]
+    pub enum NarrowKey {
         Id1,
         Id2,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-    pub enum PrimaryKey {
-        Id1,
-        Id2,
+    impl SqlName for NarrowKey {
+        fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+            s.write_str(self.as_str()).expect("write to sql sink");
+        }
     }
 
-    impl PrimaryKeyTrait for PrimaryKey {
+    impl StaticName for NarrowKey {
+        fn as_str(&self) -> &str {
+            match self {
+                Self::Id1 => "id_1",
+                Self::Id2 => "id_2",
+            }
+        }
+    }
+
+    impl PrimaryKeyToColumn for NarrowKey {
+        type Column = Column;
+
+        fn into_column(self) -> Column {
+            match self {
+                Self::Id1 => Column::Id1,
+                Self::Id2 => Column::Id2,
+            }
+        }
+
+        fn from_column(col: Column) -> Option<Self> {
+            match col {
+                Column::Id1 => Some(Self::Id1),
+                Column::Id2 => Some(Self::Id2),
+            }
+        }
+    }
+
+    impl PrimaryKeyTrait for NarrowKey {
         type ValueType = i32;
 
         fn auto_increment() -> bool {
             false
         }
     }
-
-    #[derive(Copy, Clone, Debug, EnumIter)]
-    pub enum Relation {}
-
-    impl ColumnTrait for Column {
-        type EntityName = Entity;
-
-        fn def(&self) -> ColumnDef {
-            match self {
-                Self::Id1 => ColumnType::Integer.def(),
-                Self::Id2 => ColumnType::Integer.def(),
-            }
-        }
-    }
-
-    impl RelationTrait for Relation {
-        fn def(&self) -> RelationDef {
-            unreachable!("no relations")
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// One key column of type `i32`, but a `ValueType` declaring `String`. The
@@ -231,9 +253,9 @@ mod too_few_values {
 /// element type is what disagrees wherever the declared key type is consulted.
 mod mistyped_key {
     use pgorm::entity::prelude::*;
-    use pgorm::{RelationDef, RelationTrait};
 
     #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
+    #[pgorm(primary_key = MistypedKey)]
     pub struct Entity;
 
     impl EntityName for Entity {
@@ -242,49 +264,59 @@ mod mistyped_key {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
     pub struct Model {
+        #[pgorm(primary_key)]
         pub id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-    pub enum Column {
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+
+    #[derive(Copy, Clone, Debug, EnumIter)]
+    pub enum MistypedKey {
         Id,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-    pub enum PrimaryKey {
-        Id,
+    impl SqlName for MistypedKey {
+        fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+            s.write_str(self.as_str()).expect("write to sql sink");
+        }
     }
 
-    impl PrimaryKeyTrait for PrimaryKey {
+    impl StaticName for MistypedKey {
+        fn as_str(&self) -> &str {
+            match self {
+                Self::Id => "id",
+            }
+        }
+    }
+
+    impl PrimaryKeyToColumn for MistypedKey {
+        type Column = Column;
+
+        fn into_column(self) -> Column {
+            match self {
+                Self::Id => Column::Id,
+            }
+        }
+
+        fn from_column(col: Column) -> Option<Self> {
+            match col {
+                Column::Id => Some(Self::Id),
+            }
+        }
+    }
+
+    impl PrimaryKeyTrait for MistypedKey {
         type ValueType = String;
 
         fn auto_increment() -> bool {
             false
         }
     }
-
-    #[derive(Copy, Clone, Debug, EnumIter)]
-    pub enum Relation {}
-
-    impl ColumnTrait for Column {
-        type EntityName = Entity;
-
-        fn def(&self) -> ColumnDef {
-            match self {
-                Self::Id => ColumnType::Integer.def(),
-            }
-        }
-    }
-
-    impl RelationTrait for Relation {
-        fn def(&self) -> RelationDef {
-            unreachable!("no relations")
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // ---------------------------------------------------------------------------
@@ -311,14 +343,14 @@ fn via_default<E: Default>() -> E {
     E::default()
 }
 
-// [spec:pgorm:def:entity.traits+2/test]    `StaticName` as the base identifier
+// [spec:pgorm:def:entity.traits+3/test]    `StaticName` as the base identifier
 // contract (`as_str` alongside `SqlName`'s quoting), `EntityName: StaticName +
 // Default`, and `EntityTrait`'s five associated types resolving for both a
-// derive-macro entity and a fully hand-written one
+// derived entity and one whose name and key are written by hand
 #[test]
 fn entity_trait_family() {
     // The five associated types satisfy their declared bounds — for a derived
-    // entity and for one written out by hand.
+    // entity and for one whose key is written by hand.
     assert_entity_family::<item::Entity>();
     assert_entity_family::<pair::Entity>();
     assert_entity_family::<too_many_values::Entity>();

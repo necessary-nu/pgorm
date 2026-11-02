@@ -758,79 +758,6 @@ mod tests {
 
     #[test]
     #[cfg(feature = "macros")]
-    fn column_name_2() {
-        use pgorm_query::SqlName;
-
-        mod hello {
-            use crate as pgorm;
-            use crate::entity::prelude::*;
-
-            #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-            pub struct Entity;
-
-            impl EntityName for Entity {
-                fn table_name(&self) -> &str {
-                    "hello"
-                }
-            }
-
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
-            pub struct Model {
-                pub id: i32,
-                pub one: i32,
-                pub two: i32,
-                pub three: i32,
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-            pub enum Column {
-                Id,
-                #[pgorm(column_name = "ONE")]
-                One,
-                Two,
-                #[pgorm(column_name = "3")]
-                Three,
-            }
-
-            impl ColumnTrait for Column {
-                type EntityName = Entity;
-
-                fn def(&self) -> ColumnDef {
-                    match self {
-                        Column::Id => ColumnType::Integer.def(),
-                        Column::One => ColumnType::Integer.def(),
-                        Column::Two => ColumnType::Integer.def(),
-                        Column::Three => ColumnType::Integer.def(),
-                    }
-                }
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-            pub enum PrimaryKey {
-                Id,
-            }
-
-            impl PrimaryKeyTrait for PrimaryKey {
-                type ValueType = i32;
-
-                fn auto_increment() -> bool {
-                    true
-                }
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-            pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
-        }
-
-        assert_eq!(hello::Column::One.to_string().as_str(), "ONE");
-        assert_eq!(hello::Column::Two.to_string().as_str(), "two");
-        assert_eq!(hello::Column::Three.to_string().as_str(), "3");
-    }
-
-    #[test]
-    #[cfg(feature = "macros")]
     fn enum_name_1() {
         use pgorm_query::SqlName;
 
@@ -848,79 +775,6 @@ mod tests {
                 pub two: i32,
                 #[pgorm(enum_name = "Three3")]
                 pub three: i32,
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-            pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
-        }
-
-        assert_eq!(hello::Column::One1.to_string().as_str(), "one1");
-        assert_eq!(hello::Column::Two.to_string().as_str(), "two");
-        assert_eq!(hello::Column::Three3.to_string().as_str(), "three3");
-    }
-
-    #[test]
-    #[cfg(feature = "macros")]
-    fn enum_name_2() {
-        use pgorm_query::SqlName;
-
-        mod hello {
-            use crate as pgorm;
-            use crate::entity::prelude::*;
-
-            #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-            pub struct Entity;
-
-            impl EntityName for Entity {
-                fn table_name(&self) -> &str {
-                    "hello"
-                }
-            }
-
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
-            pub struct Model {
-                pub id: i32,
-                #[pgorm(enum_name = "One1")]
-                pub one: i32,
-                pub two: i32,
-                #[pgorm(enum_name = "Three3")]
-                pub three: i32,
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-            pub enum Column {
-                Id,
-                One1,
-                Two,
-                Three3,
-            }
-
-            impl ColumnTrait for Column {
-                type EntityName = Entity;
-
-                fn def(&self) -> ColumnDef {
-                    match self {
-                        Column::Id => ColumnType::Integer.def(),
-                        Column::One1 => ColumnType::Integer.def(),
-                        Column::Two => ColumnType::Integer.def(),
-                        Column::Three3 => ColumnType::Integer.def(),
-                    }
-                }
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-            pub enum PrimaryKey {
-                Id,
-            }
-
-            impl PrimaryKeyTrait for PrimaryKey {
-                type ValueType = i32;
-
-                fn auto_increment() -> bool {
-                    true
-                }
             }
 
             #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -970,84 +824,6 @@ mod tests {
 
     #[test]
     #[cfg(feature = "macros")]
-    fn column_name_enum_name_2() {
-        use pgorm_query::SqlName;
-
-        mod hello {
-            use crate as pgorm;
-            use crate::entity::prelude::*;
-
-            #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-            pub struct Entity;
-
-            impl EntityName for Entity {
-                fn table_name(&self) -> &str {
-                    "hello"
-                }
-            }
-
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
-            pub struct Model {
-                #[pgorm(enum_name = "IdentityCol")]
-                pub id: i32,
-                #[pgorm(enum_name = "One1")]
-                pub one: i32,
-                pub two: i32,
-                #[pgorm(enum_name = "Three3")]
-                pub three: i32,
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-            pub enum Column {
-                #[pgorm(column_name = "ID")]
-                IdentityCol,
-                #[pgorm(column_name = "ONE")]
-                One1,
-                Two,
-                #[pgorm(column_name = "THREE")]
-                Three3,
-            }
-
-            impl ColumnTrait for Column {
-                type EntityName = Entity;
-
-                fn def(&self) -> ColumnDef {
-                    match self {
-                        Column::IdentityCol => ColumnType::Integer.def(),
-                        Column::One1 => ColumnType::Integer.def(),
-                        Column::Two => ColumnType::Integer.def(),
-                        Column::Three3 => ColumnType::Integer.def(),
-                    }
-                }
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-            pub enum PrimaryKey {
-                IdentityCol,
-            }
-
-            impl PrimaryKeyTrait for PrimaryKey {
-                type ValueType = i32;
-
-                fn auto_increment() -> bool {
-                    true
-                }
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-            pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
-        }
-
-        assert_eq!(hello::Column::IdentityCol.to_string().as_str(), "ID");
-        assert_eq!(hello::Column::One1.to_string().as_str(), "ONE");
-        assert_eq!(hello::Column::Two.to_string().as_str(), "two");
-        assert_eq!(hello::Column::Three3.to_string().as_str(), "THREE");
-    }
-
-    #[test]
-    #[cfg(feature = "macros")]
     fn column_name_enum_name_3() {
         use pgorm_query::SqlName;
 
@@ -1079,69 +855,27 @@ mod tests {
     fn select_as_1() {
         use crate::{ActiveModelTrait, ActiveValue, Update};
 
-        mod hello_expanded {
+        #[allow(clippy::enum_variant_names)]
+        mod hello_with {
             use crate as pgorm;
             use crate::entity::prelude::*;
-            use crate::pgorm_query::{Expr, SimpleExpr};
+            use crate::pgorm_query::SimpleExpr;
 
-            #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-            pub struct Entity;
-
-            impl EntityName for Entity {
-                fn table_name(&self) -> &str {
-                    "hello"
-                }
+            fn as_integer(expr: Expr) -> SimpleExpr {
+                expr.cast_as(alias("integer"))
             }
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[pgorm(table_name = "hello")]
             pub struct Model {
+                #[pgorm(primary_key)]
                 pub id: i32,
                 #[pgorm(enum_name = "One1")]
                 pub one: i32,
+                #[pgorm(select_with = as_integer)]
                 pub two: i32,
                 #[pgorm(enum_name = "Three3")]
                 pub three: i32,
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-            pub enum Column {
-                Id,
-                One1,
-                Two,
-                Three3,
-            }
-
-            impl ColumnTrait for Column {
-                type EntityName = Entity;
-
-                fn def(&self) -> ColumnDef {
-                    match self {
-                        Column::Id => ColumnType::Integer.def(),
-                        Column::One1 => ColumnType::Integer.def(),
-                        Column::Two => ColumnType::Integer.def(),
-                        Column::Three3 => ColumnType::Integer.def(),
-                    }
-                }
-
-                fn select_as(&self, expr: Expr) -> SimpleExpr {
-                    match self {
-                        Self::Two => expr.cast_as(alias("integer")),
-                        _ => self.select_enum_as(expr),
-                    }
-                }
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-            pub enum PrimaryKey {
-                Id,
-            }
-
-            impl PrimaryKeyTrait for PrimaryKey {
-                type ValueType = i32;
-
-                fn auto_increment() -> bool {
-                    true
-                }
             }
 
             #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -1192,7 +926,7 @@ mod tests {
             );
         }
 
-        assert_it(hello_expanded::ActiveModel {
+        assert_it(hello_with::ActiveModel {
             id: ActiveValue::set(1),
             one: ActiveValue::set(1),
             two: ActiveValue::set(2),
@@ -1209,71 +943,33 @@ mod tests {
     #[test]
     #[cfg(feature = "macros")]
     fn save_as_1() {
-        use crate::{ActiveModelTrait, ActiveValue, Update};
+        use crate::{ActiveModelTrait, ActiveValue, QueryFilter, QueryTrait, Update};
 
-        mod hello_expanded {
+        #[allow(clippy::enum_variant_names)]
+        mod hello_with {
             use crate as pgorm;
             use crate::entity::prelude::*;
-            use crate::pgorm_query::{Expr, SimpleExpr};
+            use crate::pgorm_query::{SimpleExpr, TypeName};
 
-            #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-            pub struct Entity;
-
-            impl EntityName for Entity {
-                fn table_name(&self) -> &str {
-                    "hello"
-                }
+            fn as_text(val: Expr) -> SimpleExpr {
+                val.cast_as(alias("text"))
             }
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
+            fn as_texts(val: Expr) -> SimpleExpr {
+                val.cast_as_type(TypeName::new(alias("text")).array())
+            }
+
+            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[pgorm(table_name = "hello")]
             pub struct Model {
+                #[pgorm(primary_key)]
                 pub id: i32,
                 #[pgorm(enum_name = "One1")]
                 pub one: i32,
+                #[pgorm(save_with = as_text, save_array_with = as_texts)]
                 pub two: i32,
                 #[pgorm(enum_name = "Three3")]
                 pub three: i32,
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-            pub enum Column {
-                Id,
-                One1,
-                Two,
-                Three3,
-            }
-
-            impl ColumnTrait for Column {
-                type EntityName = Entity;
-
-                fn def(&self) -> ColumnDef {
-                    match self {
-                        Column::Id => ColumnType::Integer.def(),
-                        Column::One1 => ColumnType::Integer.def(),
-                        Column::Two => ColumnType::Integer.def(),
-                        Column::Three3 => ColumnType::Integer.def(),
-                    }
-                }
-
-                fn save_as(&self, val: Expr) -> SimpleExpr {
-                    match self {
-                        Self::Two => val.cast_as(alias("text")),
-                        _ => self.save_enum_as(val),
-                    }
-                }
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-            pub enum PrimaryKey {
-                Id,
-            }
-
-            impl PrimaryKeyTrait for PrimaryKey {
-                type ValueType = i32;
-
-                fn auto_increment() -> bool {
-                    true
-                }
             }
 
             #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -1324,7 +1020,7 @@ mod tests {
             );
         }
 
-        assert_it(hello_expanded::ActiveModel {
+        assert_it(hello_with::ActiveModel {
             id: ActiveValue::set(1),
             one: ActiveValue::set(1),
             two: ActiveValue::set(2),
@@ -1336,6 +1032,24 @@ mod tests {
             two: ActiveValue::set(2),
             three: ActiveValue::set(3),
         });
+
+        // `save_array_with` is the array operand's conversion, as `text[]` is
+        // `save_as`'s.
+        let any = r#"SELECT "hello"."id", "hello"."one1", "hello"."two", "hello"."three3" FROM "hello" WHERE "hello"."two" = ANY(CAST(ARRAY [1,2] AS text[]))"#;
+        assert_eq!(
+            hello_with::Entity::find()
+                .filter(hello_with::Column::Two.eq_any([1, 2]))
+                .as_query()
+                .to_string(),
+            any,
+        );
+        assert_eq!(
+            hello_compact::Entity::find()
+                .filter(hello_compact::Column::Two.eq_any([1, 2]))
+                .as_query()
+                .to_string(),
+            any,
+        );
     }
 
     #[test]
@@ -1415,76 +1129,35 @@ mod tests {
     fn select_as_and_value_1() {
         use crate::{ActiveModelTrait, ActiveValue, Update};
 
-        mod hello_expanded {
+        #[allow(clippy::enum_variant_names)]
+        mod hello_with {
             use crate as pgorm;
             use crate::entity::prelude::*;
-            use crate::pgorm_query::{Expr, SimpleExpr};
+            use crate::pgorm_query::{SimpleExpr, TypeName};
 
-            #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-            pub struct Entity;
-
-            impl EntityName for Entity {
-                fn table_name(&self) -> &str {
-                    "hello"
-                }
+            fn as_integer(expr: Expr) -> SimpleExpr {
+                expr.cast_as(alias("integer"))
             }
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
+            fn as_text(val: Expr) -> SimpleExpr {
+                val.cast_as(alias("text"))
+            }
+
+            fn as_texts(val: Expr) -> SimpleExpr {
+                val.cast_as_type(TypeName::new(alias("text")).array())
+            }
+
+            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[pgorm(table_name = "hello")]
             pub struct Model {
+                #[pgorm(primary_key)]
                 pub id: i32,
                 #[pgorm(enum_name = "One1")]
                 pub one: i32,
+                #[pgorm(select_with = as_integer, save_with = as_text, save_array_with = as_texts)]
                 pub two: i32,
                 #[pgorm(enum_name = "Three3")]
                 pub three: i32,
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-            pub enum Column {
-                Id,
-                One1,
-                Two,
-                Three3,
-            }
-
-            impl ColumnTrait for Column {
-                type EntityName = Entity;
-
-                fn def(&self) -> ColumnDef {
-                    match self {
-                        Column::Id => ColumnType::Integer.def(),
-                        Column::One1 => ColumnType::Integer.def(),
-                        Column::Two => ColumnType::Integer.def(),
-                        Column::Three3 => ColumnType::Integer.def(),
-                    }
-                }
-
-                fn select_as(&self, expr: Expr) -> SimpleExpr {
-                    match self {
-                        Self::Two => expr.cast_as(alias("integer")),
-                        _ => self.select_enum_as(expr),
-                    }
-                }
-
-                fn save_as(&self, val: Expr) -> SimpleExpr {
-                    match self {
-                        Self::Two => val.cast_as(alias("text")),
-                        _ => self.save_enum_as(val),
-                    }
-                }
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-            pub enum PrimaryKey {
-                Id,
-            }
-
-            impl PrimaryKeyTrait for PrimaryKey {
-                type ValueType = i32;
-
-                fn auto_increment() -> bool {
-                    true
-                }
             }
 
             #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -1535,7 +1208,7 @@ mod tests {
             );
         }
 
-        assert_it(hello_expanded::ActiveModel {
+        assert_it(hello_with::ActiveModel {
             id: ActiveValue::set(1),
             one: ActiveValue::set(1),
             two: ActiveValue::set(2),

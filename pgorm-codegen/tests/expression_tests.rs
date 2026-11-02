@@ -72,10 +72,10 @@ fn refused(sql: &str) -> String {
 
 // [spec:pgorm:sem:codegen.ddl.tables+11/test]    a column's DEFAULT and generation expression,
 // stored or virtual, ride on the bridged statement
-// [spec:pgorm:sem:codegen.entity.expressions/test]    and reach the entity as the Rust that
+// [spec:pgorm:sem:codegen.entity.expressions+1/test]    and reach the entity as the Rust that
 // builds the same expressions: the schema built from the generated entities carries each
 // expression the bridge read, rendered alike
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]
 #[test]
 fn schema_expressions_reach_the_entity() {
     let generated = files(SCHEMA, Opts::default());
@@ -126,44 +126,13 @@ fn schema_expressions_reach_the_entity() {
     assert_eq!(expressions(&tables[2]).len(), 1);
 }
 
-// [spec:pgorm:sem:codegen.entity.expressions/test]    the expanded format writes the same
-// expressions into each column's definition
-#[test]
-fn expanded_columns_carry_their_expressions() {
-    let generated = files(SCHEMA, expanded());
-    let item = generated.file("stock_item.rs");
-    assert_contains(
-        item,
-        "Self::Price => ColumnType::Decimal(None).def().default(Expr::val(Decimal::new(150i64, 2)))",
-    );
-    assert_contains(
-        item,
-        ".generated(
-            Expr::col(Column::Price).mul(Expr::col(Column::Quantity)),
-            pgorm::pgorm_query::GeneratedKind::Stored
-        )",
-    );
-    assert_contains(
-        generated.file("formula.rs"),
-        ".generated(
-            Func::named(Name::runtime(\"nullif\")).arg(Expr::col(Column::A)).arg(Expr::val(0)),
-            pgorm::pgorm_query::GeneratedKind::Virtual
-        )",
-    );
-}
-
-// [spec:pgorm:sem:codegen.entity.pk+3/test]    a key whose every column is generated is the
-// database's to fill, in both formats: the compact key carries no `auto_increment = false`
-// [spec:pgorm:sem:codegen.entity.expressions/test]    and a VIRTUAL generated column in a key,
+// [spec:pgorm:sem:codegen.entity.pk+4/test]    a key whose every column is generated is the
+// database's to fill: the key carries no `auto_increment = false`
+// [spec:pgorm:sem:codegen.entity.expressions+1/test]    and a VIRTUAL generated column in a key,
 // which PostgreSQL does not support (0A000), is refused
 #[test]
 fn a_generated_key_is_the_databases() {
     assert!(<stock_code::PrimaryKey as pgorm::PrimaryKeyTrait>::auto_increment());
-    let expanded = files(SCHEMA, expanded());
-    assert_contains(
-        expanded.file("stock_code.rs"),
-        "fn auto_increment() -> bool { true }",
-    );
     for key in ["PRIMARY KEY", "UNIQUE"] {
         assert_eq!(
             refused(&format!(
@@ -290,7 +259,7 @@ fn a_column_filled_twice_is_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a caller-built statement's expressions are
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a caller-built statement's expressions are
 // read through the same subset, and what the entity could not hold is refused by name
 #[test]
 fn caller_built_expressions_pass_the_gate() {

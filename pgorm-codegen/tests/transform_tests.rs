@@ -29,7 +29,7 @@ fn bare(table: &str) -> TableCreateStatement {
     keyed_with(table, &["id"], vec![serial("id")])
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    one Entity per input
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    one Entity per input
 // statement, held in a BTreeMap so every output is ordered by table name
 #[test]
 fn transform_builds_entity_per_statement_ordered_by_name() {
@@ -53,7 +53,7 @@ fn transform_builds_entity_per_statement_ordered_by_name() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    the table name is unpacked
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    the table name is unpacked
 // from every `TableName` form, and the qualified form keeps its schema
 #[test]
 fn transform_unpacks_the_table_name_from_every_form() {
@@ -86,7 +86,7 @@ fn transform_unpacks_the_table_name_from_every_form() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a column with no
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a column with no
 // `ColumnType` is a `TransformError` naming the table and the column
 #[test]
 fn transform_rejects_a_column_without_column_type() {
@@ -100,7 +100,7 @@ fn transform_rejects_a_column_without_column_type() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a primary-key index naming
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a primary-key index naming
 // a column the table does not have is a `TransformError`
 #[test]
 fn transform_rejects_primary_key_over_unknown_column() {
@@ -120,7 +120,7 @@ fn transform_rejects_primary_key_over_unknown_column() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a statement's temporal primary key
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a statement's temporal primary key
 // becomes the entity's, its period last, and a PERIOD foreign key a relation carrying its
 // period; a temporal unique key is refused, never read as its equality columns
 #[test]
@@ -177,7 +177,7 @@ fn transform_reads_temporal_keys_and_refuses_temporal_unique() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a statement's key naming
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a statement's key naming
 // one column twice is refused, never read with or without its repeat; columns
 // compare as the text the server reads, whatever names them
 #[test]
@@ -211,7 +211,7 @@ fn a_key_naming_a_column_twice_is_refused() {
     assert!(keyed.is_ok(), "{keyed:?}");
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a DB name with no Rust
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a DB name with no Rust
 // identifier form is a `TransformError` naming what it came from
 #[test]
 fn transform_rejects_names_without_identifier_form() {
@@ -237,7 +237,7 @@ fn transform_rejects_names_without_identifier_form() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a relation onto a table the
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a relation onto a table the
 // schema does not define, or onto a column either end does not have, is a
 // `TransformError` naming the table, the relation and the column
 #[test]
@@ -276,7 +276,7 @@ fn transform_rejects_relations_it_cannot_resolve() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    `auto_increment`,
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    `auto_increment`,
 // `not_null` and `unique` come from the matching `ColumnSpec`
 #[test]
 fn transform_reads_column_specs_off_the_column_definition() {
@@ -298,17 +298,18 @@ fn transform_reads_column_specs_off_the_column_definition() {
                     .to_owned(),
             ],
         )],
-        expanded(),
+        Opts::default(),
     );
     let cake = generated.file("cake.rs");
 
-    // not_null decides the `Option<..>` wrapping and the trailing `.null()`
-    assert_contains(cake, "pub id: i32,");
+    // auto_increment leaves the key unmarked; not_null decides the
+    // `Option<..>` wrapping
+    assert_contains(cake, "#[pgorm(primary_key)] pub id: i32,");
     assert_contains(cake, "pub baked_at: Option<DateTime>,");
-    assert_contains(cake, "Self::BakedAt => ColumnType::Timestamp.def().null(),");
-    assert_contains(cake, "Self::Name => ColumnType::Text.def(),");
-    // auto_increment
-    assert_contains(cake, "fn auto_increment() -> bool { true }");
+    assert_contains(
+        cake,
+        "#[pgorm(column_type = ColumnType::Text)] pub name: String,",
+    );
 
     // A column converted on its own is not unique: uniqueness is a key of the
     // table's, which the transform reads off the table's unique keys.
@@ -319,13 +320,10 @@ fn transform_reads_column_specs_off_the_column_definition() {
             .to_owned(),
     )
     .expect("a typed column def should convert");
-    assert_eq!(
-        norm(&alone.get_def().to_string()),
-        norm("ColumnType::String(StringLen::None).def()")
-    );
+    assert_eq!(alone.get_info(), "Column `email`: String, not_null");
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a single-column unique index
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a single-column unique index
 // over exactly that column also marks it unique
 #[test]
 fn transform_marks_columns_from_single_column_unique_key() {
@@ -371,15 +369,15 @@ fn transform_marks_columns_from_single_column_unique_key() {
     assert_not_contains(vendor, "#[pgorm(unique)] pub tier: String,");
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    the key columns are the
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    the key columns are the
 // table's primary key's, one column or a tuple, in key order
 #[test]
 fn transform_reads_the_tables_primary_key() {
     let one = generate(
         vec![keyed_with("cake", &["id"], vec![serial("id")])],
-        expanded(),
+        Opts::default(),
     );
-    assert_contains(one.file("cake.rs"), "pub enum PrimaryKey { Id, }");
+    assert_contains(one.file("cake.rs"), "#[pgorm(primary_key)] pub id: i32,");
 
     let by_index = generate(
         vec![
@@ -401,15 +399,12 @@ fn transform_reads_the_tables_primary_key() {
                 )
                 .to_owned(),
         ],
-        expanded(),
+        Opts::default(),
     );
     assert_contains(
         by_index.file("cake_filling.rs"),
-        "pub enum PrimaryKey { CakeId, FillingId, }",
-    );
-    assert_contains(
-        by_index.file("cake_filling.rs"),
-        "type ValueType = (i32, i32);",
+        "#[pgorm(primary_key, auto_increment = false)] pub cake_id: i32, \
+         #[pgorm(primary_key, auto_increment = false)] pub filling_id: i32,",
     );
 }
 
@@ -433,16 +428,13 @@ fn keyed_by(columns: usize) -> TableCreateStatement {
     table
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a key of twelve columns
-// generates its twelve-tuple, and a thirteenth column is refused by name rather
-// than generated as a key type the entity traits have no impl for
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a key of twelve columns
+// generates its twelve key fields, and a thirteenth column is refused by name
+// rather than generated as a key type the entity traits have no impl for
 #[test]
 fn a_key_wider_than_twelve_columns_is_refused() {
-    let twelve = generate(vec![keyed_by(12)], expanded());
-    assert_contains(
-        twelve.file("wide.rs"),
-        "type ValueType = (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32);",
-    );
+    let twelve = generate(vec![keyed_by(12)], Opts::default());
+    assert_eq!(twelve.file("wide.rs").matches("primary_key").count(), 12);
     assert_transform_error(
         vec![keyed_by(13)],
         "table `wide`: a primary key of 13 columns; an entity's key has at most 12, the widest \
@@ -450,7 +442,7 @@ fn a_key_wider_than_twelve_columns_is_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    every enum column registers
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    every enum column registers
 // an `ActiveEnum` keyed by enum name, deduplicated across tables and looked
 // through `Array`
 #[test]
@@ -498,7 +490,7 @@ fn transform_registers_enums_once_per_name_across_tables() {
     assert!(position_of(enums, "pub enum Mood") < position_of(enums, "pub enum Tea"));
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    foreign keys become
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    foreign keys become
 // `BelongsTo` relations that keep their columns, referenced columns and
 // on_update / on_delete actions
 #[test]
@@ -561,7 +553,7 @@ fn transform_turns_foreign_keys_into_belongs_to_relations() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a relation onto its own
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a relation onto its own
 // table is flagged self-referencing
 #[test]
 fn transform_flags_self_referencing_relations() {
@@ -576,7 +568,7 @@ fn transform_flags_self_referencing_relations() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    several FKs onto the same
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    several FKs onto the same
 // target take 1-based `num_suffix`es in declaration order; a lone FK keeps 0
 #[test]
 fn transform_numbers_repeated_fks_to_same_table() {
@@ -659,7 +651,7 @@ fn transform_numbers_repeated_fks_to_same_table() {
     assert_not_contains(basket, "Cake1,");
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    relations are sorted by
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    relations are sorted by
 // referenced table name and conjunct relations by target name
 #[test]
 fn transform_sorts_relations_and_conjunct_relations() {
@@ -892,7 +884,7 @@ fn inverse_has_one_for_composite_unique_foreign_key() {
     assert_not_contains(generated.file("fruit.rs"), "#[pgorm(unique)] pub cake_id");
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]
+// [spec:pgorm:sem:codegen.entity.transform+16/test]
 // [spec:pgorm:sem:codegen.entity.transform.inverse+1/test]    a `UniqueKey` spec
 // on the column definition marks the column unique on this path too, so its FK
 // inverts to `HasOne`

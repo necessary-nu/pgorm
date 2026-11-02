@@ -7,7 +7,7 @@ use syn::{Data, DataEnum, Fields, LitStr, Variant};
 /// Variant-level `#[pgorm(...)]` keys a `Column` enum may carry. `column_name` is the
 /// override this derive reads; `table_name` rides on the `Table` variant
 /// `DeriveEntityModel` generates for `table_iden`, which has no column name at all.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+4]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+5]
 const COLUMN_VARIANT_KEYS: [&str; 2] = ["column_name", "table_name"];
 
 /// Derive a Column name for an enum type
@@ -98,25 +98,8 @@ pub fn impl_col_from_str(ident: &Ident, data: &Data) -> syn::Result<TokenStream>
     ))
 }
 
-// [spec:pgorm:sem:macros.derive.column+3]
+// [spec:pgorm:sem:macros.derive.column+4]
 pub fn expand_derive_column(ident: &Ident, data: &Data) -> syn::Result<TokenStream> {
-    let impl_iden = expand_derive_custom_column(ident, data)?;
-
-    Ok(quote!(
-        #impl_iden
-
-        #[automatically_derived]
-        impl pgorm::StaticName for #ident {
-            fn as_str(&self) -> &str {
-                self.default_as_str()
-            }
-        }
-    ))
-}
-
-/// Derive a column with a non_snake_case name
-// [spec:pgorm:sem:macros.derive.column+3]
-pub fn expand_derive_custom_column(ident: &Ident, data: &Data) -> syn::Result<TokenStream> {
     let impl_default_as_str = impl_default_as_str(ident, data)?;
     let impl_col_from_str = impl_col_from_str(ident, data)?;
 
@@ -129,6 +112,13 @@ pub fn expand_derive_custom_column(ident: &Ident, data: &Data) -> syn::Result<To
         impl pgorm::SqlName for #ident {
             fn unquoted(&self, s: &mut dyn std::fmt::Write) {
                 write!(s, "{}", pgorm::StaticName::as_str(self)).unwrap();
+            }
+        }
+
+        #[automatically_derived]
+        impl pgorm::StaticName for #ident {
+            fn as_str(&self) -> &str {
+                self.default_as_str()
             }
         }
     ))

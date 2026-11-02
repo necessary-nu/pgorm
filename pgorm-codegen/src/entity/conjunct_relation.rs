@@ -14,7 +14,7 @@ pub struct ConjunctRelation {
 }
 
 impl ConjunctRelation {
-    // [spec:pgorm:sem:codegen.entity.keywords+1]
+    // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let context = format!("conjunct relation via `{}` to `{}`", self.via, self.to);
         safe_ident(&context, &escape_rust_keyword(self.via.to_snake_case()))?;

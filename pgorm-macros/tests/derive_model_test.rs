@@ -1,6 +1,6 @@
-//! Verification for `DeriveModel`, `DeriveActiveModel` (with
-//! `DeriveActiveModelBehavior` and `DeriveIntoActiveModel`), and
-//! `DeriveColumn` / `DeriveCustomColumn`.
+//! Verification for `DeriveModel`, the `ActiveModel` the composite derive
+//! writes (with `DeriveActiveModelBehavior` and `DeriveIntoActiveModel`), and
+//! `DeriveColumn`.
 
 #![allow(dead_code)]
 
@@ -105,23 +105,6 @@ pub enum PlainColumn {
     LastName,
 }
 
-/// `DeriveCustomColumn` is the same minus the `StaticName` impl, which the user
-/// writes — typically delegating to the generated `default_as_str`.
-#[derive(Copy, Clone, Debug, EnumIter, DeriveCustomColumn)]
-pub enum CustomColumn {
-    Id,
-    FirstName,
-}
-
-impl pgorm::StaticName for CustomColumn {
-    fn as_str(&self) -> &str {
-        match self {
-            Self::FirstName => "SHOUTED",
-            _ => self.default_as_str(),
-        }
-    }
-}
-
 // [spec:pgorm:sem:macros.derive.model+3/test]    ModelTrait::get / set
 #[test]
 fn derive_model_get_and_set_walk_the_columns() {
@@ -203,7 +186,7 @@ fn derive_model_from_query_result_and_entity_override() {
     assert_eq!(alt.get(overrides::InnerColumn::Id), Value::Int(Some(3)));
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+3/test]    the generated struct and its conversions
+// [spec:pgorm:sem:macros.derive.active-model+4/test]    the generated struct and its conversions
 #[test]
 fn derive_active_model_struct_default_and_from_model() {
     // One `pub field: ActiveValue<T>` per *non-ignored* field: the struct
@@ -234,7 +217,7 @@ fn derive_active_model_struct_default_and_from_model() {
     assert_eq!(model.into_active_model(), converted);
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+3/test]    ActiveModelTrait
+// [spec:pgorm:sem:macros.derive.active-model+4/test]    ActiveModelTrait
 // accessors, including the one answer `take`, `get` and `set` share: a column
 // this ActiveModel does not carry is `Error::Type`, in those same words
 // [spec:pgorm:req:entity.active-model+4/test]    that refusal is the trait's
@@ -298,7 +281,7 @@ fn derive_active_model_trait_accessors() {
     assert_eq!(active.name, ActiveValue::Set("chiffon".to_owned()));
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+3/test]    set errors on an unmatched column
+// [spec:pgorm:sem:macros.derive.active-model+4/test]    set errors on an unmatched column
 #[test]
 fn active_model_set_errs_on_unmatched_column() {
     let mut active = <cake::ActiveModel as Default>::default();
@@ -310,7 +293,7 @@ fn active_model_set_errs_on_unmatched_column() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+3/test]    is_not_set panics on an unmatched column
+// [spec:pgorm:sem:macros.derive.active-model+4/test]    is_not_set panics on an unmatched column
 #[test]
 #[should_panic(expected = "This ActiveModel does not have this field")]
 fn active_model_is_not_set_panics_on_unmatched() {
@@ -318,7 +301,7 @@ fn active_model_is_not_set_panics_on_unmatched() {
     let _ = active.is_not_set(cake::Column::Table);
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+3/test]    reset panics on an unmatched column
+// [spec:pgorm:sem:macros.derive.active-model+4/test]    reset panics on an unmatched column
 #[test]
 #[should_panic(expected = "This ActiveModel does not have this field")]
 fn active_model_reset_panics_on_unmatched_column() {
@@ -326,7 +309,7 @@ fn active_model_reset_panics_on_unmatched_column() {
     active.reset(cake::Column::Table);
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+3/test]    TryFrom<ActiveModel> / TryIntoModel
+// [spec:pgorm:sem:macros.derive.active-model+4/test]    TryFrom<ActiveModel> / TryIntoModel
 #[test]
 fn derive_active_model_try_into_model() {
     // A non-ignored field left `NotSet` fails with `AttrNotSet(field)`.
@@ -359,7 +342,7 @@ fn derive_active_model_try_into_model() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+3/test]    DeriveActiveModelBehavior + DeriveIntoActiveModel
+// [spec:pgorm:sem:macros.derive.active-model+4/test]    DeriveActiveModelBehavior + DeriveIntoActiveModel
 #[test]
 fn behavior_and_into_active_model_derives() {
     // `DeriveActiveModelBehavior` was applied to `NothingLikeAnActiveModel`, yet
@@ -380,7 +363,7 @@ fn behavior_and_into_active_model_derives() {
     assert_eq!(active.id, ActiveValue::NotSet);
 }
 
-// [spec:pgorm:sem:macros.derive.column+3/test]    default_as_str / StaticName / SqlName
+// [spec:pgorm:sem:macros.derive.column+4/test]    default_as_str / StaticName / SqlName
 #[test]
 fn derive_column_names() {
     // `default_as_str` is the snake_case of the variant, or the `column_name`
@@ -398,7 +381,7 @@ fn derive_column_names() {
     assert_eq!(PlainColumn::LastName.to_string(), "lAsTnAmE");
 }
 
-// [spec:pgorm:sem:macros.derive.column+3/test]    FromStr accepts both spellings
+// [spec:pgorm:sem:macros.derive.column+4/test]    FromStr accepts both spellings
 #[test]
 fn derive_column_from_str() {
     assert!(matches!(
@@ -426,31 +409,11 @@ fn derive_column_from_str() {
     }
 }
 
-// [spec:pgorm:sem:macros.derive.column+3/test]    DeriveCustomColumn leaves as_str to the user
+// [spec:pgorm:sem:macros.derive.column+4/test]    the derive adds no EnumIter
 #[test]
-fn derive_custom_column_leaves_as_str_to_user() {
-    // The inherent `default_as_str` and `FromStr` are still generated...
-    assert_eq!(CustomColumn::FirstName.default_as_str(), "first_name");
-    assert!(matches!(
-        CustomColumn::from_str("firstName"),
-        Ok(CustomColumn::FirstName)
-    ));
-    // ...but `StaticName` is the hand-written one above, and `SqlName` renders it.
-    assert_eq!(
-        pgorm::StaticName::as_str(&CustomColumn::FirstName),
-        "SHOUTED"
-    );
-    assert_eq!(CustomColumn::FirstName.to_string(), "SHOUTED");
-    // The escape hatch: delegating back to the generated default.
-    assert_eq!(CustomColumn::Id.to_string(), "id");
-}
-
-// [spec:pgorm:sem:macros.derive.column+3/test]    neither derive adds EnumIter
-#[test]
-fn column_derives_do_not_add_enum_iter_themselves() {
+fn column_derive_does_not_add_enum_iter_itself() {
     // `EnumIter` is derived alongside above; without it `Column::iter()` would
-    // not exist. Both enums iterate because the caller asked for it.
+    // not exist. The enum iterates because the caller asked for it.
     use pgorm::Iterable;
     assert_eq!(PlainColumn::iter().count(), 3);
-    assert_eq!(CustomColumn::iter().count(), 2);
 }

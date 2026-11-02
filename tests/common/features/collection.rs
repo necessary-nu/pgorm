@@ -7,7 +7,7 @@ pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
     #[pgorm(
-        column_type = r#"named("citext")"#,
+        column_type = ColumnType::named("citext"),
         select_as = "text",
         save_as = "citext"
     )]

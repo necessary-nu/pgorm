@@ -7,7 +7,7 @@ pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
     pub name: String,
-    #[pgorm(column_type = "Decimal(Some((16, 4)))")]
+    #[pgorm(column_type = ColumnType::Decimal(Some((16, 4))))]
     pub price: Decimal,
     pub bakery_id: Option<i32>,
     pub gluten_free: bool,

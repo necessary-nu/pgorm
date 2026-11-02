@@ -1824,62 +1824,22 @@ fn select_sources_casts_enum_columns_to_text() {
 mod read_casts {
     use crate as pgorm;
     use crate::entity::prelude::*;
-    use pgorm_query::{Expr, Name, SimpleExpr};
+    use pgorm_query::SimpleExpr;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
+    /// A type name that needs quoting, through the ordinary cast.
+    fn label_type(expr: Expr) -> SimpleExpr {
+        expr.cast_as(Name::runtime("Label Type"))
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[pgorm(table_name = "ledger")]
     pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
         pub id: i32,
+        #[pgorm(column_type = ColumnType::Text, select_as = "numeric(12, 2)")]
         pub amount: String,
+        #[pgorm(column_type = ColumnType::Text, select_with = label_type)]
         pub label: String,
-    }
-
-    #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-    pub struct Entity;
-
-    impl EntityName for Entity {
-        fn table_name(&self) -> &str {
-            "ledger"
-        }
-    }
-
-    #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-    pub enum PrimaryKey {
-        Id,
-    }
-
-    impl PrimaryKeyTrait for PrimaryKey {
-        type ValueType = i32;
-        fn auto_increment() -> bool {
-            false
-        }
-    }
-
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-    pub enum Column {
-        Id,
-        Amount,
-        Label,
-    }
-
-    impl ColumnTrait for Column {
-        type EntityName = Entity;
-
-        fn def(&self) -> ColumnDef {
-            match self {
-                Self::Id => ColumnType::Integer.def(),
-                Self::Amount | Self::Label => ColumnType::Text.def(),
-            }
-        }
-
-        /// A type expression through the verbatim constructor, and a type
-        /// name that needs quoting through the ordinary one.
-        fn select_as(&self, expr: Expr) -> SimpleExpr {
-            match self {
-                Self::Id => expr.into(),
-                Self::Amount => expr.cast_as_raw("numeric(12, 2)"),
-                Self::Label => expr.cast_as(Name::runtime("Label Type")),
-            }
-        }
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -3129,66 +3089,32 @@ fn deduplicated_branches_compose_with_every_set_operation() {
 /// the enum `mood`.
 mod cheerful {
     macro_rules! entity {
-        ($module:ident, $table:literal, $key:ident $Key:ident, $other:ident $Other:ident) => {
+        ($module:ident, $table:literal, $key:ident, $other:ident) => {
             pub mod $module {
                 use crate as pgorm;
                 use crate::entity::prelude::*;
-                use pgorm_query::Name;
 
-                #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
+                fn cheerful() -> ColumnType {
+                    ColumnType::Domain {
+                        name: Name::runtime("cheerful"),
+                        schema: None,
+                        base: Arc::new(ColumnType::Enum {
+                            name: Name::runtime("mood"),
+                            schema: None,
+                            variants: vec![Name::runtime("calm"), Name::runtime("glad")],
+                        }),
+                    }
+                }
+
+                #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+                #[pgorm(table_name = $table)]
                 pub struct Model {
+                    #[pgorm(primary_key, auto_increment = false)]
                     pub $key: i32,
+                    #[pgorm(column_type = cheerful())]
                     pub mood: String,
+                    #[pgorm(column_type = ColumnType::Text)]
                     pub $other: String,
-                }
-
-                #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-                pub struct Entity;
-
-                impl EntityName for Entity {
-                    fn table_name(&self) -> &str {
-                        $table
-                    }
-                }
-
-                #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-                pub enum PrimaryKey {
-                    $Key,
-                }
-
-                impl PrimaryKeyTrait for PrimaryKey {
-                    type ValueType = i32;
-                    fn auto_increment() -> bool {
-                        false
-                    }
-                }
-
-                #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-                pub enum Column {
-                    $Key,
-                    Mood,
-                    $Other,
-                }
-
-                impl ColumnTrait for Column {
-                    type EntityName = Entity;
-
-                    fn def(&self) -> ColumnDef {
-                        match self {
-                            Self::$Key => ColumnType::Integer.def(),
-                            Self::Mood => ColumnType::Domain {
-                                name: Name::runtime("cheerful"),
-                                schema: None,
-                                base: Arc::new(ColumnType::Enum {
-                                    name: Name::runtime("mood"),
-                                    schema: None,
-                                    variants: vec![Name::runtime("calm"), Name::runtime("glad")],
-                                }),
-                            }
-                            .def(),
-                            Self::$Other => ColumnType::Text.def(),
-                        }
-                    }
                 }
 
                 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -3199,8 +3125,8 @@ mod cheerful {
         };
     }
 
-    entity!(line, "line", id Id, note Note);
-    entity!(temper, "temper", rank Rank, label Label);
+    entity!(line, "line", id, note);
+    entity!(temper, "temper", rank, label);
 }
 
 // [spec:pgorm:sem:entity.traits.column.enum-cast+12/test]    a pipeline

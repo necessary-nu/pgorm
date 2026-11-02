@@ -27,8 +27,6 @@ struct Case {
     id: String,
     sql: String,
     #[serde(default)]
-    expanded_format: bool,
-    #[serde(default)]
     with_serde: String,
     #[serde(default)]
     with_copy_enums: bool,
@@ -93,7 +91,6 @@ fn serde_mode(text: &str) -> Result<WithSerde, String> {
 
 fn options(case: &Case) -> Result<EntityWriterOptions, String> {
     Ok(EntityWriterOptions {
-        expanded_format: case.expanded_format,
         with_serde: serde_mode(&case.with_serde)?,
         with_copy_enums: case.with_copy_enums,
         schema_name: case.schema_name.clone(),

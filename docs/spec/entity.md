@@ -7,7 +7,7 @@ explicit limitations.
 
 ## Entity traits
 
-> [spec:pgorm:def:entity.traits+2]
+> [spec:pgorm:def:entity.traits+3]
 > The entity trait family is defined in `src/entity/` and re-exported from
 > `pgorm::entity` (`src/entity/mod.rs`). Its base identifier contract is
 > `pgorm_query::StaticName` (`[spec:pgorm:def:sql.types]`), re-exported from
@@ -25,9 +25,12 @@ explicit limitations.
 > (`RelationTrait`), and `PrimaryKey`
 > (`PrimaryKeyTrait + PrimaryKeyToColumn<Column = Self::Column>`).
 >
-> The trait family is normally produced by the derive macros exported from
-> `src/entity/prelude.rs` (`DeriveEntityModel`, `DeriveActiveModel`, `DerivePrimaryKey`,
-> `DeriveRelation`, and friends), but every trait can be implemented by hand.
+> The trait family is produced by the derive macros exported from
+> `src/entity/prelude.rs` (`DeriveEntityModel`, `DeriveRelation`, and friends), an
+> entity having one written form (`[spec:pgorm:req:macros.derive.one-form]`). The
+> traits are not sealed, so what is written by hand — the `EntityName` of an entity
+> whose names are computed, or a key the arity guard of `entity.traits.crud` refuses —
+> meets the same bounds.
 
 > [spec:pgorm:req:entity.traits.entity-name+3]
 > `EntityName::table_name` is the only required method and MUST return the table's SQL
@@ -591,7 +594,7 @@ explicit limitations.
 > `find_related()`, which MUST inner-join `to()` (and `via()` when present, joined in
 > reverse) onto a fresh `Select<R>`.
 
-> [spec:pgorm:def:entity.relation.def+10]
+> [spec:pgorm:def:entity.relation.def+11]
 > `RelationDef` (`src/entity/relation.rs`) is the concrete relation record:
 > `rel_type`, `from_tbl` / `to_tbl` (`FromItem`, since a relation is joined into a
 > query and may be re-aliased), `columns` (`ColumnPairs`),
@@ -656,12 +659,14 @@ explicit limitations.
 > one; the closure is opaque, and no consumer can detect the miswiring. A
 > closure MUST derive every table qualification from its parameters to be
 > sound under aliasing; one that hardcodes is sound only where its relation
-> is never joined re-aliased. The `DeriveRelation` `on_condition = "..."`
-> attribute is where the mistake is easiest to write — its expression
-> string has no parameters in scope, and a `ColumnTrait` operator
+> is never joined re-aliased. The `DeriveRelation` `on_condition` attribute
+> written as an expression is where the mistake is easiest to write — it has
+> no parameters in scope, and a `ColumnTrait` operator
 > (`Column::Name.like(..)`) qualifies with the entity's canonical table —
 > and the `tests_cfg` `TropicalFruit` relation is the standing in-tree
-> example.
+> example; written as a closure, `"|left, right| .."`
+> (`[spec:pgorm:syn:macros.derive.relation]`), it takes the two identifiers
+> as any other closure does.
 >
 > A relation's foreign key may be PostgreSQL 18's `NOT ENFORCED` — recorded,
 > never checked, with no referential triggers — or deferrable, and the
@@ -790,7 +795,7 @@ explicit limitations.
 
 ## Prelude
 
-> [spec:pgorm:def:entity.prelude+8]
+> [spec:pgorm:def:entity.prelude+9]
 > `pgorm::entity::prelude` (`src/entity/prelude.rs`) is the glob a file that
 > talks to the database imports instead of naming what it needs one item at a
 > time. Membership is chosen from what code actually writes, and is public API:
@@ -821,9 +826,8 @@ explicit limitations.
 > vocabulary an interval column's type is written in — `IntervalSpec`,
 > `PgInterval` and `IntervalPrecision` (`[spec:pgorm:def:sql.types.column-type]`)
 > — so a generated entity's
-> `column_type = "Interval(IntervalSpec::Fields(PgInterval::YearToMonth))"`
-> and `ColumnType::Interval(IntervalSpec::Any(None))` resolve through the
-> glob as a range column's do.
+> `column_type = ColumnType::Interval(IntervalSpec::Fields(PgInterval::YearToMonth))`
+> resolves through the glob as a range column's does.
 >
 > `Order` — `pgorm_query`'s `ASC`/`DESC` enum — is deliberately NOT a member.
 > `order` is an ordinary table name, so an entity aliased `Order` is ordinary

@@ -5,9 +5,9 @@ use pgorm::entity::prelude::*;
 pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
-    #[pgorm(column_type = "Text", nullable)]
+    #[pgorm(column_type = ColumnType::Text, nullable)]
     pub name: Option<String> ,
-    #[pgorm(column_type = "Float", nullable)]
+    #[pgorm(column_type = ColumnType::Float, nullable)]
     pub price: Option<f32> ,
 }
 

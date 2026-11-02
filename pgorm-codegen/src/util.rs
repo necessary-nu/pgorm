@@ -5,7 +5,7 @@ use quote::format_ident;
 /// `format_ident!` panics on anything that is not a legal Rust identifier, so
 /// every DB-derived name is put through here while the transform gate can still
 /// return the failure. `context` names where the identifier came from.
-// [spec:pgorm:sem:codegen.entity.keywords+1]
+// [spec:pgorm:sem:codegen.entity.keywords+2]
 pub(crate) fn safe_ident(context: &str, raw: &str) -> Result<Ident, Error> {
     if is_ident(raw) {
         Ok(format_ident!("{}", raw))
@@ -33,7 +33,7 @@ fn is_ident(raw: &str) -> bool {
 /// variant twice over, or a unique key whose set of columns is narrower than
 /// its list.
 // [spec:pgorm:req:codegen.ddl.unsupported+17]
-// [spec:pgorm:sem:codegen.entity.transform+15]
+// [spec:pgorm:sem:codegen.entity.transform+16]
 pub(crate) fn repeated_column<I>(columns: I) -> Option<String>
 where
     I: IntoIterator<Item = String>,
@@ -48,7 +48,7 @@ where
 /// brackets, one after each comma and after a field's `:`. The writers carry
 /// an expression or a column type as the text of an attribute, which no
 /// formatter reaches, so it is spaced here.
-// [spec:pgorm:sem:codegen.entity.expressions]
+// [spec:pgorm:sem:codegen.entity.expressions+1]
 pub(crate) fn rust_source(tokens: &TokenStream) -> String {
     let mut source = String::new();
     write_source(tokens, &mut source);
@@ -95,7 +95,7 @@ fn write_source(tokens: &TokenStream, source: &mut String) {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.keywords+1]
+// [spec:pgorm:sem:codegen.entity.keywords+2]
 pub(crate) fn escape_rust_keyword<T>(string: T) -> String
 where
     T: ToString,

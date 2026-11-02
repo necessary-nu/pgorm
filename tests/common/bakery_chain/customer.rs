@@ -6,7 +6,7 @@ pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
     pub name: String,
-    #[pgorm(column_type = "Text", nullable)]
+    #[pgorm(column_type = ColumnType::Text, nullable)]
     pub notes: Option<String>,
 }
 

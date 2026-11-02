@@ -370,7 +370,7 @@ async fn many_rows_each_get_a_generated_key_part() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+6/test]    `identity`
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7/test]    `identity`
 // is `GENERATED ALWAYS`: a number the insert supplies is refused by the server
 // (428C9), so the generated part cannot be claimed by accident;
 // `identity_by_default` keeps a supplied number and generates an omitted one

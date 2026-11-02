@@ -7,7 +7,7 @@ use common::*;
 use pgorm_codegen::WithSerde;
 use pgorm_query::{ColumnDef, ColumnType, Name, Table};
 
-// [spec:pgorm:sem:codegen.entity.enums+2/test]    every discovered enum lands in
+// [spec:pgorm:sem:codegen.entity.enums+3/test]    every discovered enum lands in
 // one `pgorm_active_enums.rs`, alphabetically by enum name
 #[test]
 fn active_enums_are_generated_into_one_alphabetical_file() {
@@ -45,7 +45,7 @@ fn active_enums_are_generated_into_one_alphabetical_file() {
     assert!(position_of(enums, "pub enum AppleKind") < position_of(enums, "pub enum ZebraKind"));
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+2/test]    each enum gets the base derives,
+// [spec:pgorm:sem:codegen.entity.enums+3/test]    each enum gets the base derives,
 // the `#[pgorm(rs_type, db_type, enum_name)]` attribute, extra attributes, an
 // UpperCamelCase name and one `string_value` per variant
 #[test]
@@ -82,7 +82,7 @@ fn active_enum_derives_attributes_and_string_values() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+2/test]    variant naming: a leading digit
+// [spec:pgorm:sem:codegen.entity.enums+3/test]    variant naming: a leading digit
 // gets an underscore prefix, an empty UpperCamelCase falls back to per-character
 // encoding (ASCII as `U<hex>`, multi-byte verbatim), everything else is plain
 // UpperCamelCase
@@ -119,11 +119,11 @@ fn active_enum_variant_naming_digits_punctuation_multibyte() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+2/test]    entity files import each enum
-// they use, and the expanded `ColumnTrait::def` renders enum columns as
-// `<EnumName>::db_type()`
+// [spec:pgorm:sem:codegen.entity.enums+3/test]    entity files import each enum
+// they use, and an enum column is a field of the enum's type, which the derive
+// takes the column's type from
 #[test]
-fn entity_files_import_enums_and_render_db_type() {
+fn entity_files_import_the_enums_typing_their_fields() {
     let generated = generate(
         vec![keyed_with(
             "tea_pairing",
@@ -134,7 +134,7 @@ fn entity_files_import_enums_and_render_db_type() {
                 enum_col("second_tea", "tea_kind", &["black", "green"]),
             ],
         )],
-        expanded(),
+        Opts::default(),
     );
     let file = generated.file("tea_pairing.rs");
 
@@ -145,11 +145,10 @@ fn entity_files_import_enums_and_render_db_type() {
         1,
         "{file}"
     );
-    assert_contains(file, "Self::FirstTea => TeaKind::db_type().def(),");
-    assert_contains(file, "Self::SecondTea => TeaKind::db_type().def(),");
+    assert_contains(file, "pub first_tea: TeaKind, pub second_tea: TeaKind,");
 }
 
-// [spec:pgorm:sem:codegen.entity.keywords+1/test]    strict / reserved Rust
+// [spec:pgorm:sem:codegen.entity.keywords+2/test]    strict / reserved Rust
 // keywords are emitted as raw identifiers
 #[test]
 fn rust_keywords_in_column_names_become_raw_identifiers() {
@@ -166,29 +165,22 @@ fn rust_keywords_in_column_names_become_raw_identifiers() {
                 typed("plain", ColumnType::Integer),
             ],
         )],
-        expanded(),
+        Opts::default(),
     );
     let sample = generated.file("sample.rs");
 
     assert_contains(
         sample,
-        "pub struct Model {
-            pub id: i32,
+        "pub id: i32,
             pub r#type: i32,
             pub r#typeof: i32,
             pub r#match: i32,
             pub r#async: i32,
-            pub plain: i32,
-        }",
-    );
-    // the camel-case Column variants are not keywords, so they stay bare
-    assert_contains(
-        sample,
-        "pub enum Column { Id, Type, Typeof, Match, Async, Plain, }",
+            pub plain: i32,",
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.keywords+1/test]    `crate`, `self` and `Self`
+// [spec:pgorm:sem:codegen.entity.keywords+2/test]    `crate`, `self` and `Self`
 // cannot be raw identifiers, so they get a trailing underscore instead
 #[test]
 fn crate_and_self_keywords_get_a_trailing_underscore() {
@@ -202,20 +194,15 @@ fn crate_and_self_keywords_get_a_trailing_underscore() {
                 typed("self", ColumnType::Integer),
             ],
         )],
-        expanded(),
+        Opts::default(),
     );
     let sample = generated.file("sample.rs");
 
     // field names: `crate` -> `crate_`, `self` -> `self_`
-    assert_contains(
-        sample,
-        "pub struct Model { pub id: i32, pub crate_: i32, pub self_: i32, }",
-    );
-    // the camel-case form of `self` is `Self`, which is escaped the same way
-    assert_contains(sample, "pub enum Column { Id, Crate, Self_, }");
+    assert_contains(sample, "pub id: i32, pub crate_: i32, pub self_: i32,");
 }
 
-// [spec:pgorm:sem:codegen.entity.keywords+1/test]    module names and table idents
+// [spec:pgorm:sem:codegen.entity.keywords+2/test]    module names and table idents
 // are escaped too
 #[test]
 fn keyword_table_names_escaped_in_index_and_prelude() {
@@ -248,9 +235,9 @@ fn keyword_table_names_escaped_in_index_and_prelude() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.keywords+1/test]    field names are the snake_case
+// [spec:pgorm:sem:codegen.entity.keywords+2/test]    field names are the snake_case
 // of the column name; when that differs from the raw DB name the DB name is
-// preserved by a `column_name` attribute in both formats
+// preserved by a `column_name` attribute
 #[test]
 fn non_snake_case_names_preserved_by_column_name() {
     let schema = || {
@@ -267,17 +254,10 @@ fn non_snake_case_names_preserved_by_column_name() {
         ]
     };
 
-    let compact = generate(schema(), Opts::default());
+    let generated = generate(schema(), Opts::default());
     assert_contains(
-        compact.file("cake.rs"),
+        generated.file("cake.rs"),
         r#"#[pgorm(column_name = "bakedAt")] pub baked_at: i32,"#,
-    );
-
-    let expanded = generate(schema(), expanded());
-    assert_contains(expanded.file("cake.rs"), "pub baked_at: i32,");
-    assert_contains(
-        expanded.file("cake.rs"),
-        r#"pub enum Column { Id, #[pgorm(column_name = "bakedAt")] BakedAt, }"#,
     );
 }
 
