@@ -11,7 +11,7 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
-    #[pgorm(belongs_to = "Entity", from = "Column::UuidRef", to = "Column::Uuid")]
+    #[pgorm(belongs_to = Entity, from = Column::UuidRef, to = Column::Uuid)]
     SelfReferencing,
 }
 

@@ -187,16 +187,16 @@ where
     ///     entity::*,
     ///     query::*,
     ///     tests_cfg::cake::{self, Entity as Cake},
-    ///     PartialModel, FromQueryResult,
+    ///     PartialModel,
     /// };
     /// use pgorm_query::{Expr, Func, SimpleExpr};
     ///
-    /// #[derive(PartialModel, FromQueryResult)]
-    /// #[pgorm(entity = "Cake")]
+    /// #[derive(PartialModel)]
+    /// #[pgorm(entity = Cake)]
     /// struct PartialCake {
     ///     name: String,
     ///     #[pgorm(
-    ///         from_expr = r#"SimpleExpr::FunctionCall(Func::upper(Expr::col((Cake, cake::Column::Name))))"#
+    ///         from_expr = SimpleExpr::FunctionCall(Func::upper(Expr::col((Cake, cake::Column::Name))))
     ///     )]
     ///     name_upper: String,
     /// }
@@ -218,16 +218,16 @@ where
     /// # use pgorm::{
     /// #     entity::*, error::*, query::*,
     /// #     tests_cfg::cake::{self, Entity as Cake},
-    /// #     DatabasePool, PartialModel, FromQueryResult,
+    /// #     DatabasePool, PartialModel,
     /// # };
     /// # use pgorm_query::{Expr, Func, SimpleExpr};
     /// #
-    /// # #[derive(PartialModel, FromQueryResult)]
-    /// # #[pgorm(entity = "Cake")]
+    /// # #[derive(PartialModel)]
+    /// # #[pgorm(entity = Cake)]
     /// # struct PartialCake {
     /// #     name: String,
     /// #     #[pgorm(
-    /// #         from_expr = r#"SimpleExpr::FunctionCall(Func::upper(Expr::col((Cake, cake::Column::Name))))"#
+    /// #         from_expr = SimpleExpr::FunctionCall(Func::upper(Expr::col((Cake, cake::Column::Name))))
     /// #     )]
     /// #     name_upper: String,
     /// # }

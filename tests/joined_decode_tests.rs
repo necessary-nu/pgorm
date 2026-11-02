@@ -274,7 +274,7 @@ mod tea {
     use pgorm::entity::prelude::*;
 
     #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "tea")]
+    #[pgorm(rs_type = String, enum_name = "tea")]
     pub enum Tea {
         #[pgorm(string_value = "EverydayTea")]
         EverydayTea,
@@ -292,9 +292,9 @@ mod tea {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "pgorm::tests_cfg::cake::Entity",
-            from = "Column::CakeId",
-            to = "pgorm::tests_cfg::cake::Column::Id"
+            belongs_to = pgorm::tests_cfg::cake::Entity,
+            from = Column::CakeId,
+            to = pgorm::tests_cfg::cake::Column::Id
         )]
         Cake,
     }

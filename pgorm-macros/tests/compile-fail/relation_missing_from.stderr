@@ -1,6 +1,6 @@
 error: Missing attribute 'from'
  --> tests/compile-fail/relation_missing_from.rs:5:5
   |
-5 | /     #[pgorm(belongs_to = "super::Nothing")]
+5 | /     #[pgorm(belongs_to = super::Nothing)]
 6 | |     Nothing,
   | |___________^

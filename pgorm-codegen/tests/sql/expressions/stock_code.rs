@@ -6,7 +6,7 @@ pub struct Model {
     pub base: i32,
     #[pgorm(
         primary_key,
-        generated_stored = "Expr::col(Column::Base).mul(Expr::val(2))"
+        generated_stored = Expr::col(Column::Base).mul(Expr::val(2))
     )]
     pub code: i32,
 }

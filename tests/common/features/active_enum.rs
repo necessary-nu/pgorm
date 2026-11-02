@@ -13,7 +13,7 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
-    #[pgorm(has_many = "super::active_enum_child::Entity")]
+    #[pgorm(has_many = super::active_enum_child::Entity)]
     ActiveEnumChild,
 }
 

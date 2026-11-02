@@ -11,16 +11,16 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "super::users::Entity",
-        from = "Column::UserId",
-        to = "super::users::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction",
+        belongs_to = super::users::Entity,
+        from = Column::UserId,
+        to = super::users::Column::Id,
+        on_update = ForeignKeyAction::NoAction,
+        on_delete = ForeignKeyAction::NoAction,
     )]
     Users,
-    #[pgorm(has_many = "super::users_saved_bills::Entity")]
+    #[pgorm(has_many = super::users_saved_bills::Entity)]
     UsersSavedBills,
-    #[pgorm(has_many = "super::users_votes::Entity")]
+    #[pgorm(has_many = super::users_votes::Entity)]
     UsersVotes,
 }
 

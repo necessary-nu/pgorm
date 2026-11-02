@@ -5,7 +5,7 @@ use pgorm::entity::prelude::*;
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
     pub uuid: Uuid,
-    #[pgorm(column_name = "type", enum_name = "Type")]
+    #[pgorm(column_name = "type", variant = Type)]
     pub ty: String,
     pub key: String,
     pub value: String,

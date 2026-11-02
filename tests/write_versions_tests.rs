@@ -19,7 +19,7 @@ mod stock {
     use pgorm::entity::prelude::*;
 
     #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "shelf")]
+    #[pgorm(rs_type = String, enum_name = "shelf")]
     pub enum Shelf {
         #[pgorm(string_value = "front")]
         Front,

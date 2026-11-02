@@ -13,9 +13,9 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "super::cake_filling::Entity",
-        from = "(Column::CakeId, Column::FillingId)",
-        to = "(super::cake_filling::Column::CakeId, super::cake_filling::Column::FillingId)",
+        belongs_to = super::cake_filling::Entity,
+        from = (Column::CakeId, Column::FillingId),
+        to = (super::cake_filling::Column::CakeId, super::cake_filling::Column::FillingId),
     )]
     CakeFilling,
 }

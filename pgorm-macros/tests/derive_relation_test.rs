@@ -23,25 +23,25 @@ mod cake {
     pub enum Relation {
         // `has_many` needs neither `from` nor `to`: it reverses the target's
         // `Related<Self>` definition.
-        #[pgorm(has_many = "super::fruit::Entity")]
+        #[pgorm(has_many = super::fruit::Entity)]
         Fruits,
         // ...but it still accepts them, as does `has_one`.
         #[pgorm(
-            has_one = "super::fruit::Entity",
-            from = "Column::Id",
-            to = "super::fruit::Column::CakeId"
+            has_one = super::fruit::Entity,
+            from = Column::Id,
+            to = super::fruit::Column::CakeId
         )]
         TopFruit,
         // A closure `on_condition` names the two tables as the join binds
         // them; its parameters are typed for it unless it types them itself.
         #[pgorm(
-            has_many = "super::fruit::Entity",
-            on_condition = r#"|_left, right| Expr::col((right, super::fruit::Column::CakeId)).gt(10)"#
+            has_many = super::fruit::Entity,
+            on_condition = |_left, right| Expr::col((right, super::fruit::Column::CakeId)).gt(10)
         )]
         BigFruits,
         #[pgorm(
-            has_many = "super::fruit::Entity",
-            on_condition = r#"|left: Name, _: Name| Expr::col((left, Column::Id)).gt(1)"#
+            has_many = super::fruit::Entity,
+            on_condition = |left: Name, _: Name| Expr::col((left, Column::Id)).gt(1)
         )]
         FromLaterCakes,
     }
@@ -71,21 +71,21 @@ mod fruit {
         // The minimal `belongs_to`: the target path plus the mandatory
         // `from` / `to` pair.
         #[pgorm(
-            belongs_to = "super::cake::Entity",
-            from = "Column::CakeId",
-            to = "super::cake::Column::Id"
+            belongs_to = super::cake::Entity,
+            from = Column::CakeId,
+            to = super::cake::Column::Id
         )]
         Cake,
         // The same, plus every optional builder key.
         #[pgorm(
-            belongs_to = "super::cake::Entity",
-            from = "Column::CakeId",
-            to = "super::cake::Column::Id",
-            on_update = "Cascade",
-            on_delete = "SetNull",
-            on_condition = r#"pgorm::pgorm_query::Expr::val(1).eq(1)"#,
+            belongs_to = super::cake::Entity,
+            from = Column::CakeId,
+            to = super::cake::Column::Id,
+            on_update = ForeignKeyAction::Cascade,
+            on_delete = ForeignKeyAction::SetNull,
+            on_condition = pgorm::pgorm_query::Expr::val(1).eq(1),
             fk_name = "fk_fruit_cake",
-            condition_type = "AnY"
+            condition_type = ConditionType::Any
         )]
         DecoratedCake,
     }
@@ -111,9 +111,9 @@ mod entity_override {
     #[pgorm(entity = Renamed)]
     pub enum AltRelation {
         #[pgorm(
-            belongs_to = "super::fruit::Entity",
-            from = "super::cake::Column::Id",
-            to = "super::fruit::Column::CakeId"
+            belongs_to = super::fruit::Entity,
+            from = super::cake::Column::Id,
+            to = super::fruit::Column::CakeId
         )]
         Fruit,
     }
@@ -136,7 +136,7 @@ mod shelf {
 
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
-        #[pgorm(has_many = "super::book::Entity")]
+        #[pgorm(has_many = super::book::Entity)]
         Books,
     }
 
@@ -165,27 +165,27 @@ mod book {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::shelf::Entity",
-            from = "(Column::TenantId, Column::ShelfId)",
-            to = "(super::shelf::Column::TenantId, super::shelf::Column::Id)",
-            on_delete = "Cascade"
+            belongs_to = super::shelf::Entity,
+            from = (Column::TenantId, Column::ShelfId),
+            to = (super::shelf::Column::TenantId, super::shelf::Column::Id),
+            on_delete = ForeignKeyAction::Cascade
         )]
         Shelf,
         #[pgorm(
-            belongs_to = "super::shelf::Entity",
-            from = "(Column::TenantId, Column::ShelfId)",
-            to = "(super::shelf::Column::TenantId, super::shelf::Column::Id)",
-            enforcement = "NotEnforced",
-            deferrability = "DeferrableInitiallyDeferred"
+            belongs_to = super::shelf::Entity,
+            from = (Column::TenantId, Column::ShelfId),
+            to = (super::shelf::Column::TenantId, super::shelf::Column::Id),
+            enforcement = Enforcement::NotEnforced,
+            deferrability = Deferrability::DeferrableInitiallyDeferred
         )]
         LooseShelf,
         #[pgorm(
-            belongs_to = "super::shelf::Entity",
-            from = "Column::TenantId",
-            to = "super::shelf::Column::TenantId",
-            from_period = "Column::ShelfId",
-            to_period = "super::shelf::Column::Label",
-            on_delete = "NoAction"
+            belongs_to = super::shelf::Entity,
+            from = Column::TenantId,
+            to = super::shelf::Column::TenantId,
+            from_period = Column::ShelfId,
+            to_period = super::shelf::Column::Label,
+            on_delete = ForeignKeyAction::NoAction
         )]
         ShelfOverTime,
     }
@@ -203,7 +203,7 @@ fn cols(id: &Key) -> Vec<String> {
     id.iter().map(|i| SqlName::to_string(&**i)).collect()
 }
 
-// [spec:pgorm:syn:macros.derive.relation+5/test]    belongs_to + the mandatory from/to
+// [spec:pgorm:syn:macros.derive.relation+6/test]    belongs_to + the mandatory from/to
 #[test]
 fn belongs_to_builds_a_non_owning_relation_def() {
     let def = fruit::Relation::Cake.def();
@@ -224,7 +224,7 @@ fn belongs_to_builds_a_non_owning_relation_def() {
     assert_eq!(def.condition_type, ConditionType::All);
 }
 
-// [spec:pgorm:syn:macros.derive.relation+5/test]    the optional builder keys
+// [spec:pgorm:syn:macros.derive.relation+6/test]    the optional builder keys
 #[test]
 fn optional_keys_chain_onto_the_relation_builder() {
     let def = fruit::Relation::DecoratedCake.def();
@@ -247,7 +247,7 @@ fn optional_keys_chain_onto_the_relation_builder() {
 
 // [spec:pgorm:req:macros.derive.one-form/test]    a closure `on_condition` takes the two
 // tables as the join binds them
-// [spec:pgorm:syn:macros.derive.relation+5/test]
+// [spec:pgorm:syn:macros.derive.relation+6/test]
 #[test]
 fn on_condition_closure_reads_the_bound_tables() {
     use pgorm::pgorm_query::IntoCondition;
@@ -275,7 +275,7 @@ fn on_condition_closure_reads_the_bound_tables() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.relation+5/test]    `enforcement` and `deferrability` name a
+// [spec:pgorm:syn:macros.derive.relation+6/test]    `enforcement` and `deferrability` name a
 // variant of their enum and chain onto the builder, reaching the foreign key schema generation
 // builds from the relation
 #[test]
@@ -302,7 +302,7 @@ fn key_check_attributes_reach_the_foreign_key() {
     assert_eq!(plain.deferrability, None);
 }
 
-// [spec:pgorm:syn:macros.derive.relation+5/test]    `from_period` / `to_period` set the
+// [spec:pgorm:syn:macros.derive.relation+6/test]    `from_period` / `to_period` set the
 // relation's period pair after its equality pairs, which its foreign key writes PERIOD
 #[test]
 fn period_attributes_reach_the_foreign_key() {
@@ -326,7 +326,7 @@ fn period_attributes_reach_the_foreign_key() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.relation+5/test]    has_many / has_one, where from and to are optional
+// [spec:pgorm:syn:macros.derive.relation+6/test]    has_many / has_one, where from and to are optional
 #[test]
 fn has_many_and_has_one_reverse_the_target() {
     let many = cake::Relation::Fruits.def();
@@ -346,7 +346,7 @@ fn has_many_and_has_one_reverse_the_target() {
     assert_eq!(cols(&one.columns.to_key()), vec!["cake_id".to_owned()]);
 }
 
-// [spec:pgorm:syn:macros.derive.relation+5/test]    container-level entity override
+// [spec:pgorm:syn:macros.derive.relation+6/test]    container-level entity override
 #[test]
 fn the_entity_identifier_is_overridable() {
     let def = entity_override::AltRelation::Fruit.def();
@@ -357,7 +357,7 @@ fn the_entity_identifier_is_overridable() {
     assert_eq!(def.rel_type, RelationType::HasOne);
 }
 
-// [spec:pgorm:syn:macros.derive.relation+5/test]    tuple `from` / `to` pair
+// [spec:pgorm:syn:macros.derive.relation+6/test]    tuple `from` / `to` pair
 // column by column: the def carries every pair in order, and the join it
 // renders, both ways round, constrains every pair rather than the first
 #[test]

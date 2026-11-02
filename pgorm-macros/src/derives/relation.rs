@@ -1,7 +1,8 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
+use syn::{Expr, LitStr, Path, meta::ParseNestedMeta};
 
-use super::attributes::{derive_attr, field_attr};
+use super::util::{COMPOSITE_KEYS, bare_code, unknown_pgorm_key};
 
 enum Error {
     InputNotEnum,
@@ -14,6 +15,146 @@ struct Relation {
     variants: syn::punctuated::Punctuated<syn::Variant, syn::token::Comma>,
 }
 
+/// Which of an entity's relations a variant is, the builder method of the
+/// same name.
+#[derive(Clone, Copy)]
+enum Kind {
+    BelongsTo,
+    HasOne,
+    HasMany,
+}
+
+impl Kind {
+    fn of(meta: &ParseNestedMeta<'_>) -> Option<(Self, &'static str)> {
+        [
+            (Self::BelongsTo, "belongs_to"),
+            (Self::HasOne, "has_one"),
+            (Self::HasMany, "has_many"),
+        ]
+        .into_iter()
+        .find(|(_, key)| meta.path.is_ident(key))
+    }
+
+    fn builder(self) -> TokenStream {
+        match self {
+            Self::BelongsTo => quote! { belongs_to },
+            Self::HasOne => quote! { has_one },
+            Self::HasMany => quote! { has_many },
+        }
+    }
+}
+
+/// One variant's `#[pgorm(...)]` keys, accumulated across every attribute on
+/// it. Each value that is Rust code is written bare and taken as written; a
+/// key given twice is refused at the second.
+#[derive(Default)]
+struct VariantAttrs {
+    /// The relation's kind and the entity it reaches.
+    target: Option<(Kind, Path)>,
+    from: Option<Expr>,
+    to: Option<Expr>,
+    from_period: Option<Expr>,
+    to_period: Option<Expr>,
+    on_update: Option<Expr>,
+    on_delete: Option<Expr>,
+    on_condition: Option<Expr>,
+    fk_name: Option<LitStr>,
+    condition_type: Option<Expr>,
+    enforcement: Option<Expr>,
+    deferrability: Option<Expr>,
+}
+
+impl VariantAttrs {
+    // [spec:pgorm:syn:macros.derive.relation+6]
+    // [spec:pgorm:req:macros.derive.code-values+2]
+    fn parse(variant: &syn::Variant) -> syn::Result<Self> {
+        let mut attrs = Self::default();
+        for attr in variant
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("pgorm"))
+        {
+            attr.parse_nested_meta(|meta| attrs.read(&meta))?;
+        }
+        Ok(attrs)
+    }
+
+    fn read(&mut self, meta: &ParseNestedMeta<'_>) -> syn::Result<()> {
+        if let Some((kind, key)) = Kind::of(meta) {
+            if self.target.is_some() {
+                return Err(
+                    meta.error("a relation is one of `belongs_to`, `has_one` or `has_many`, once")
+                );
+            }
+            self.target = Some((kind, bare_code(meta, key)?));
+            return Ok(());
+        }
+        let key = meta
+            .path
+            .get_ident()
+            .map(ToString::to_string)
+            .unwrap_or_default();
+        if key == "fk_name" {
+            let name = meta.value()?.parse()?;
+            return once(meta, &mut self.fk_name, name);
+        }
+        let slot = match key.as_str() {
+            "from" => &mut self.from,
+            "to" => &mut self.to,
+            "from_period" => &mut self.from_period,
+            "to_period" => &mut self.to_period,
+            "on_update" => &mut self.on_update,
+            "on_delete" => &mut self.on_delete,
+            "on_condition" => &mut self.on_condition,
+            "condition_type" => &mut self.condition_type,
+            "enforcement" => &mut self.enforcement,
+            "deferrability" => &mut self.deferrability,
+            _ => return Err(unknown_pgorm_key(meta)),
+        };
+        let value = bare_code(meta, &key)?;
+        once(meta, slot, value)
+    }
+}
+
+/// Fill `slot` with `value`, refusing a key given twice at the second.
+fn once<T>(meta: &ParseNestedMeta<'_>, slot: &mut Option<T>, value: T) -> syn::Result<()> {
+    if slot.is_some() {
+        let key = meta
+            .path
+            .get_ident()
+            .map(ToString::to_string)
+            .unwrap_or_default();
+        return Err(meta.error(format!("duplicate `{key}`")));
+    }
+    *slot = Some(value);
+    Ok(())
+}
+
+/// The entity the relations belong to, from the container's `entity`, the one
+/// key the derive reads there.
+// [spec:pgorm:syn:macros.derive.relation+6]
+fn relation_entity(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Ident>> {
+    let mut entity = None;
+    for attr in attrs.iter().filter(|attr| attr.path().is_ident("pgorm")) {
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("entity") {
+                let value = bare_code(&meta, "entity")?;
+                return once(&meta, &mut entity, value);
+            }
+            match meta.path.get_ident() {
+                Some(key) if COMPOSITE_KEYS.contains(&key.to_string().as_str()) => {
+                    Err(meta.error(format!(
+                        "`{key}` is the composite derive's: it goes on the entity's `Model` \
+                         under `Entity`; `Relation` reads `entity`"
+                    )))
+                }
+                _ => Err(unknown_pgorm_key(&meta)),
+            }
+        })?;
+    }
+    Ok(entity)
+}
+
 impl Relation {
     fn new(input: syn::DeriveInput) -> Result<Self, Error> {
         let variants = match input.data {
@@ -21,16 +162,13 @@ impl Relation {
             _ => return Err(Error::InputNotEnum),
         };
 
-        let pgorm_attr = derive_attr::Pgorm::try_from_attributes(&input.attrs)
+        let entity_ident = relation_entity(&input.attrs)
             .map_err(Error::Syn)?
-            .unwrap_or_default();
-
-        let ident = input.ident;
-        let entity_ident = pgorm_attr.entity.unwrap_or_else(|| format_ident!("Entity"));
+            .unwrap_or_else(|| format_ident!("Entity"));
 
         Ok(Relation {
             entity_ident,
-            ident,
+            ident: input.ident,
             variants,
         })
     }
@@ -51,41 +189,17 @@ impl Relation {
             .iter()
             .map(|variant| {
                 let variant_ident = &variant.ident;
-                let attr = field_attr::Pgorm::from_attributes(&variant.attrs)?;
-                let mut relation_type = quote! { error };
-                let related_to = if attr.belongs_to.is_some() {
-                    relation_type = quote! { belongs_to };
-                    attr.belongs_to
-                        .as_ref()
-                        .map(Self::parse_lit_string)
-                        .ok_or_else(|| {
-                            syn::Error::new_spanned(variant, "Missing value for 'belongs_to'")
-                        })
-                } else if attr.has_one.is_some() {
-                    relation_type = quote! { has_one };
-                    attr.has_one
-                        .as_ref()
-                        .map(Self::parse_lit_string)
-                        .ok_or_else(|| {
-                            syn::Error::new_spanned(variant, "Missing value for 'has_one'")
-                        })
-                } else if attr.has_many.is_some() {
-                    relation_type = quote! { has_many };
-                    attr.has_many
-                        .as_ref()
-                        .map(Self::parse_lit_string)
-                        .ok_or_else(|| {
-                            syn::Error::new_spanned(variant, "Missing value for 'has_many'")
-                        })
-                } else {
-                    Err(syn::Error::new_spanned(
+                let attr = VariantAttrs::parse(variant)?;
+                let Some((kind, target)) = &attr.target else {
+                    return Err(syn::Error::new_spanned(
                         variant,
                         "Missing one of 'has_one', 'has_many' or 'belongs_to'",
-                    ))
-                }??;
+                    ));
+                };
+                let builder = kind.builder();
 
                 let mut result = quote!(
-                    Self::#variant_ident => #entity_ident::#relation_type(#related_to)
+                    Self::#variant_ident => #entity_ident::#builder(#target)
                 );
 
                 match (attr.from.as_ref(), attr.to.as_ref()) {
@@ -105,80 +219,35 @@ impl Relation {
                     (Some(_), None) => {
                         return Err(syn::Error::new_spanned(variant, "Missing attribute 'to'"));
                     }
-                    (None, None) if attr.belongs_to.is_some() => {
+                    (None, None) if matches!(kind, Kind::BelongsTo) => {
                         return Err(syn::Error::new_spanned(variant, "Missing attribute 'from'"));
                     }
                     (None, None) => {}
                 }
                 result.extend(Self::period(variant, &attr)?);
 
-                if attr.on_update.is_some() {
-                    let on_update = attr
-                        .on_update
-                        .as_ref()
-                        .map(Self::parse_lit_string)
-                        .ok_or_else(|| {
-                            syn::Error::new_spanned(variant, "Missing value for 'on_update'")
-                        })??;
-                    result =
-                        quote! { #result.on_update(pgorm::prelude::ForeignKeyAction::#on_update) };
+                if let Some(on_update) = &attr.on_update {
+                    result = quote! { #result.on_update(#on_update) };
                 }
-
-                if attr.on_delete.is_some() {
-                    let on_delete = attr
-                        .on_delete
-                        .as_ref()
-                        .map(Self::parse_lit_string)
-                        .ok_or_else(|| {
-                            syn::Error::new_spanned(variant, "Missing value for 'on_delete'")
-                        })??;
-                    result =
-                        quote! { #result.on_delete(pgorm::prelude::ForeignKeyAction::#on_delete) };
+                if let Some(on_delete) = &attr.on_delete {
+                    result = quote! { #result.on_delete(#on_delete) };
                 }
-
-                if let Some(lit) = &attr.on_condition {
-                    let on_condition = Self::on_condition(lit)?;
+                if let Some(on_condition) = &attr.on_condition {
+                    let on_condition = Self::on_condition(on_condition)?;
                     result = quote! { #result.on_condition(#on_condition) };
                 }
-
-                if attr.fk_name.is_some() {
-                    let fk_name = attr
-                        .fk_name
-                        .as_ref()
-                        .map(|lit| match lit {
-                            syn::Lit::Str(lit_str) => Ok(lit_str.value()),
-                            _ => Err(syn::Error::new_spanned(lit, "attribute must be a string")),
-                        })
-                        .ok_or_else(|| {
-                            syn::Error::new_spanned(variant, "Missing value for 'fk_name'")
-                        })??;
+                if let Some(fk_name) = &attr.fk_name {
                     result = quote! { #result.fk_name(#fk_name) };
                 }
-
-                if attr.condition_type.is_some() {
-                    let condition_type = attr
-                        .condition_type
-                        .as_ref()
-                        .map(|lit| match lit {
-                            syn::Lit::Str(lit_str) => {
-                                match lit_str.value().to_ascii_lowercase().as_str() {
-                                    "all" => Ok(quote!(pgorm::pgorm_query::ConditionType::All)),
-                                    "any" => Ok(quote!(pgorm::pgorm_query::ConditionType::Any)),
-                                    _ => Err(syn::Error::new_spanned(
-                                        lit,
-                                        "Condition type must be one of `all` or `any`",
-                                    )),
-                                }
-                            }
-                            _ => Err(syn::Error::new_spanned(lit, "attribute must be a string")),
-                        })
-                        .ok_or_else(|| {
-                            syn::Error::new_spanned(variant, "Missing value for 'condition_type'")
-                        })??;
+                if let Some(condition_type) = &attr.condition_type {
                     result = quote! { #result.condition_type(#condition_type) };
                 }
-
-                result.extend(Self::key_check(&attr)?);
+                if let Some(enforcement) = &attr.enforcement {
+                    result = quote! { #result.enforcement(#enforcement) };
+                }
+                if let Some(deferrability) = &attr.deferrability {
+                    result = quote! { #result.deferrability(#deferrability) };
+                }
                 result = quote! { #result.into() };
 
                 Result::<_, syn::Error>::Ok(result)
@@ -203,9 +272,10 @@ impl Relation {
     /// after a `from` / `to` pair, since PostgreSQL refuses a period on one
     /// side alone (42830) and a key the period is the only column of (42601);
     /// and a temporal foreign key takes no referential action but `NO
-    /// ACTION`, PostgreSQL 18 refusing the rest (0A000).
-    // [spec:pgorm:syn:macros.derive.relation+5]
-    fn period(variant: &syn::Variant, attr: &field_attr::Pgorm) -> syn::Result<TokenStream> {
+    /// ACTION`, PostgreSQL 18 refusing the rest (0A000), so an action is a
+    /// path ending in `NoAction` or refused.
+    // [spec:pgorm:syn:macros.derive.relation+6]
+    fn period(variant: &syn::Variant, attr: &VariantAttrs) -> syn::Result<TokenStream> {
         let (from, to) = match (&attr.from_period, &attr.to_period) {
             (Some(from), Some(to)) => (from, to),
             (None, None) => return Ok(TokenStream::new()),
@@ -230,16 +300,18 @@ impl Relation {
             ));
         }
         for action in [&attr.on_update, &attr.on_delete].into_iter().flatten() {
-            if !matches!(action, syn::Lit::Str(name) if name.value() == "NoAction") {
+            let no_action = matches!(
+                action,
+                Expr::Path(path) if path.path.segments.last().is_some_and(|last| last.ident == "NoAction")
+            );
+            if !no_action {
                 return Err(syn::Error::new_spanned(
                     action,
-                    "a PERIOD foreign key takes no referential action but NoAction; \
-                     PostgreSQL 18 refuses the rest",
+                    "a PERIOD foreign key takes no referential action but \
+                     `ForeignKeyAction::NoAction`; PostgreSQL 18 refuses the rest",
                 ));
             }
         }
-        let from = Self::parse_lit_expr(from)?;
-        let to = Self::parse_lit_expr(to)?;
         Ok(quote! { .period(#from, #to) })
     }
 
@@ -248,10 +320,10 @@ impl Relation {
     /// parameters typed as the names they are where it left them untyped; any
     /// other expression is the condition whatever the tables are called.
     // [spec:pgorm:req:macros.derive.one-form]
-    // [spec:pgorm:syn:macros.derive.relation+5]
-    fn on_condition(lit: &syn::Lit) -> syn::Result<TokenStream> {
-        let mut closure = match Self::parse_lit_expr(lit)? {
-            syn::Expr::Closure(closure) => closure,
+    // [spec:pgorm:syn:macros.derive.relation+6]
+    fn on_condition(condition: &Expr) -> syn::Result<TokenStream> {
+        let mut closure = match condition.clone() {
+            Expr::Closure(closure) => closure,
             condition => {
                 return Ok(quote! {
                     |_, _| pgorm::pgorm_query::IntoCondition::into_condition(#condition)
@@ -260,7 +332,7 @@ impl Relation {
         };
         if closure.inputs.len() != 2 {
             return Err(syn::Error::new_spanned(
-                lit,
+                condition,
                 "an `on_condition` closure takes the two tables the join binds, \
                  `|left, right|`",
             ));
@@ -286,48 +358,6 @@ impl Relation {
         })
     }
 
-    /// The `enforcement` and `deferrability` a relation's foreign key is
-    /// declared with, as builder calls: each value names a variant of its enum
-    /// (`"NotEnforced"`, `"DeferrableInitiallyDeferred"`), and any other name
-    /// is refused here, where its span is still known.
-    // [spec:pgorm:syn:macros.derive.relation+5]
-    fn key_check(attr: &field_attr::Pgorm) -> syn::Result<TokenStream> {
-        let mut calls = TokenStream::new();
-        if let Some(lit) = &attr.enforcement {
-            let variant = Self::variant_of(lit, "enforcement", &["Enforced", "NotEnforced"])?;
-            calls.extend(quote! { .enforcement(pgorm::pgorm_query::Enforcement::#variant) });
-        }
-        if let Some(lit) = &attr.deferrability {
-            let variant = Self::variant_of(
-                lit,
-                "deferrability",
-                &[
-                    "NotDeferrable",
-                    "DeferrableInitiallyImmediate",
-                    "DeferrableInitiallyDeferred",
-                ],
-            )?;
-            calls.extend(quote! { .deferrability(pgorm::pgorm_query::Deferrability::#variant) });
-        }
-        Ok(calls)
-    }
-
-    /// The variant `lit` names, one of `variants`.
-    fn variant_of(lit: &syn::Lit, key: &str, variants: &[&str]) -> syn::Result<syn::Ident> {
-        let syn::Lit::Str(lit_str) = lit else {
-            return Err(syn::Error::new_spanned(lit, "attribute must be a string"));
-        };
-        let value = lit_str.value();
-        if variants.contains(&value.as_str()) {
-            Ok(format_ident!("{}", value, span = lit_str.span()))
-        } else {
-            Err(syn::Error::new_spanned(
-                lit,
-                format!("'{key}' must be one of {}", variants.join(", ")),
-            ))
-        }
-    }
-
     /// Pair the `from` and `to` attributes column by column.
     ///
     /// Both sides are parsed as expressions and a tuple on either side is taken
@@ -337,13 +367,11 @@ impl Relation {
     /// declares has no way to be expressed.
     fn column_pairs(
         variant: &syn::Variant,
-        from: &syn::Lit,
-        to: &syn::Lit,
-    ) -> syn::Result<Vec<(syn::Expr, syn::Expr)>> {
-        let from = Self::parse_lit_expr(from)?;
-        let to = Self::parse_lit_expr(to)?;
-        let from = Self::split_tuple(from);
-        let to = Self::split_tuple(to);
+        from: &Expr,
+        to: &Expr,
+    ) -> syn::Result<Vec<(Expr, Expr)>> {
+        let from = Self::split_tuple(from.clone());
+        let to = Self::split_tuple(to.clone());
 
         if from.len() != to.len() {
             return Err(syn::Error::new_spanned(
@@ -365,29 +393,10 @@ impl Relation {
             expr => vec![expr],
         }
     }
-
-    fn parse_lit_expr(lit: &syn::Lit) -> syn::Result<syn::Expr> {
-        match lit {
-            syn::Lit::Str(lit_str) => lit_str
-                .parse()
-                .map_err(|_| syn::Error::new_spanned(lit, "attribute not valid")),
-            _ => Err(syn::Error::new_spanned(lit, "attribute must be a string")),
-        }
-    }
-
-    fn parse_lit_string(lit: &syn::Lit) -> syn::Result<TokenStream> {
-        match lit {
-            syn::Lit::Str(lit_str) => lit_str
-                .value()
-                .parse()
-                .map_err(|_| syn::Error::new_spanned(lit, "attribute not valid")),
-            _ => Err(syn::Error::new_spanned(lit, "attribute must be a string")),
-        }
-    }
 }
 
 /// Method to derive a Relation
-// [spec:pgorm:syn:macros.derive.relation+5]
+// [spec:pgorm:syn:macros.derive.relation+6]
 pub fn expand_derive_relation(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
 

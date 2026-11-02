@@ -10,23 +10,23 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
-    #[pgorm(column_name = "name", enum_name = "Name")]
+    #[pgorm(column_name = "name", variant = Name)]
     pub name: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
-    #[pgorm(has_many = "super::fruit::Entity")]
+    #[pgorm(has_many = super::fruit::Entity)]
     Fruit,
     #[pgorm(
-        has_many = "super::fruit::Entity",
-        on_condition = r#"super::fruit::Column::Name.like("%tropical%")"#
+        has_many = super::fruit::Entity,
+        on_condition = super::fruit::Column::Name.like("%tropical%")
     )]
     TropicalFruit,
     #[pgorm(
-        has_many = "super::fruit::Entity",
-        condition_type = "any",
-        on_condition = r#"super::fruit::Column::Name.like("%tropical%")"#
+        has_many = super::fruit::Entity,
+        condition_type = ConditionType::Any,
+        on_condition = super::fruit::Column::Name.like("%tropical%")
     )]
     OrTropicalFruit,
 }

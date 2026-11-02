@@ -26,7 +26,7 @@ mod both_preludes {
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "tea", display)]
+    #[pgorm(rs_type = String, enum_name = "tea", display)]
     pub enum Tea {
         #[pgorm(string_value = "everyday", display_value = "Everyday")]
         Everyday,

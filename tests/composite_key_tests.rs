@@ -74,7 +74,7 @@ mod shelf {
 
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
-        #[pgorm(has_many = "super::book::Entity")]
+        #[pgorm(has_many = super::book::Entity)]
         Book,
     }
 
@@ -106,9 +106,9 @@ mod book {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::shelf::Entity",
-            from = "(Column::TenantId, Column::ShelfCode)",
-            to = "(super::shelf::Column::TenantId, super::shelf::Column::Code)"
+            belongs_to = super::shelf::Entity,
+            from = (Column::TenantId, Column::ShelfCode),
+            to = (super::shelf::Column::TenantId, super::shelf::Column::Code)
         )]
         Shelf,
     }
@@ -181,15 +181,15 @@ mod book_author {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::book::Entity",
-            from = "(Column::TenantId, Column::BookId)",
-            to = "(super::book::Column::TenantId, super::book::Column::Id)"
+            belongs_to = super::book::Entity,
+            from = (Column::TenantId, Column::BookId),
+            to = (super::book::Column::TenantId, super::book::Column::Id)
         )]
         Book,
         #[pgorm(
-            belongs_to = "super::author::Entity",
-            from = "(Column::TenantId, Column::AuthorId)",
-            to = "(super::author::Column::TenantId, super::author::Column::Id)"
+            belongs_to = super::author::Entity,
+            from = (Column::TenantId, Column::AuthorId),
+            to = (super::author::Column::TenantId, super::author::Column::Id)
         )]
         Author,
     }

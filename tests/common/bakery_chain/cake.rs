@@ -17,14 +17,14 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "super::bakery::Entity",
-        from = "Column::BakeryId",
-        to = "super::bakery::Column::Id",
-        on_update = "Cascade",
-        on_delete = "SetNull"
+        belongs_to = super::bakery::Entity,
+        from = Column::BakeryId,
+        to = super::bakery::Column::Id,
+        on_update = ForeignKeyAction::Cascade,
+        on_delete = ForeignKeyAction::SetNull
     )]
     Bakery,
-    #[pgorm(has_many = "super::lineitem::Entity")]
+    #[pgorm(has_many = super::lineitem::Entity)]
     Lineitem,
 }
 

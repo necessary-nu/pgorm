@@ -1,0 +1,53 @@
+error: `table_name` is the composite derive's: it goes on the entity's `Model` under `Entity`; `Model` reads `entity`
+ --> tests/compile-fail/unread_keys.rs:6:9
+  |
+6 | #[pgorm(table_name = "cake")]
+  |         ^^^^^^^^^^
+
+error: `column_type` is the composite derive's, read by `Entity` on the entity's `Model`; `Model` reads `variant` and `ignore`
+  --> tests/compile-fail/unread_keys.rs:13:13
+   |
+13 |     #[pgorm(column_type = ColumnType::Text)]
+   |             ^^^^^^^^^^^
+
+error: `enum_name` names a SQL enum type; the key naming a field's `Column` variant is `variant`
+  --> tests/compile-fail/unread_keys.rs:19:13
+   |
+19 |     #[pgorm(enum_name = "Name")]
+   |             ^^^^^^^^^
+
+error: `enum_name` names a SQL enum type; the key naming a field's `Column` variant is `variant`
+  --> tests/compile-fail/unread_keys.rs:31:17
+   |
+31 |         #[pgorm(enum_name = "Title")]
+   |                 ^^^^^^^^^
+
+error: `table_name` is the composite derive's: it goes on the entity's `Model` under `Entity`; `Relation` reads `entity`
+  --> tests/compile-fail/unread_keys.rs:45:13
+   |
+45 |     #[pgorm(table_name = "cake")]
+   |             ^^^^^^^^^^
+
+error: a relation is one of `belongs_to`, `has_one` or `has_many`, once
+  --> tests/compile-fail/unread_keys.rs:54:41
+   |
+54 |         #[pgorm(has_one = super::Child, has_many = super::Child)]
+   |                                         ^^^^^^^^
+
+error: unknown pgorm attribute `table_name`
+  --> tests/compile-fail/unread_keys.rs:60:9
+   |
+60 | #[pgorm(table_name = "cake")]
+   |         ^^^^^^^^^^
+
+error: unknown pgorm attribute `ignore`
+  --> tests/compile-fail/unread_keys.rs:67:13
+   |
+67 |     #[pgorm(ignore)]
+   |             ^^^^^^
+
+error: `from_col` is read by `PartialModel`, which implements `FromQueryResult` too: derive `PartialModel` in its place
+  --> tests/compile-fail/unread_keys.rs:73:13
+   |
+73 |     #[pgorm(from_col = Column::Name)]
+   |             ^^^^^^^^

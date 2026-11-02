@@ -75,7 +75,7 @@ fn refused(sql: &str) -> String {
 // [spec:pgorm:sem:codegen.entity.expressions+1/test]    and reach the entity as the Rust that
 // builds the same expressions: the schema built from the generated entities carries each
 // expression the bridge read, rendered alike
-// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]
 #[test]
 fn schema_expressions_reach_the_entity() {
     let generated = files(SCHEMA, Opts::default());
@@ -340,7 +340,7 @@ fn caller_built_expressions_pass_the_gate() {
     );
     assert_contains(
         read.file("t.rs"),
-        r#"#[pgorm(generated_stored = "Expr::col(Column::Id).mul(Expr::val(2))")]
+        r#"#[pgorm(generated_stored = Expr::col(Column::Id).mul(Expr::val(2)))]
         pub b: Option<i32>,"#,
     );
 }

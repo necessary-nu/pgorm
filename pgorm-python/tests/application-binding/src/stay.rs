@@ -17,19 +17,19 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "super::room::Entity",
-        from = "Column::RoomId",
-        to = "super::room::Column::Id",
-        from_period = "Column::During",
-        to_period = "super::room::Column::ValidAt",
-        deferrability = "DeferrableInitiallyDeferred"
+        belongs_to = super::room::Entity,
+        from = Column::RoomId,
+        to = super::room::Column::Id,
+        from_period = Column::During,
+        to_period = super::room::Column::ValidAt,
+        deferrability = Deferrability::DeferrableInitiallyDeferred
     )]
     Room,
     #[pgorm(
-        belongs_to = "super::account::Entity",
-        from = "Column::GuestId",
-        to = "super::account::Column::Id",
-        enforcement = "NotEnforced"
+        belongs_to = super::account::Entity,
+        from = Column::GuestId,
+        to = super::account::Column::Id,
+        enforcement = Enforcement::NotEnforced
     )]
     Guest,
 }

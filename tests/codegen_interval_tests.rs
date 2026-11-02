@@ -80,7 +80,7 @@ fn written(id: i32, value: Interval) -> interval_span::Model {
 // [spec:pgorm:sem:codegen.entity.types+12/test]    against a live server: the
 // entity generated from a table of interval columns creates that table,
 // qualifier for qualifier
-// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]
 #[pgorm_macros::test]
 async fn generated_interval_columns_keep_their_qualifiers() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_interval_tests_qualifiers").await;

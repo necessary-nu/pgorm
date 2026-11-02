@@ -19,7 +19,7 @@ struct Unserializable {
     grid: BTreeMap<(i32, i32), i32>,
 }
 
-// [spec:pgorm:sem:macros.derive.from-query-result+3/test]    the generated impls
+// [spec:pgorm:sem:macros.derive.from-query-result+4/test]    the generated impls
 #[test]
 fn the_generated_json_impls() {
     let value = pgorm::Value::from(Meta {
@@ -43,7 +43,7 @@ fn the_generated_json_impls() {
     assert_eq!(<Meta as Nullable>::null(), pgorm::Value::Json(None));
 }
 
-// [spec:pgorm:sem:macros.derive.from-query-result+3/test]    a serialisation
+// [spec:pgorm:sem:macros.derive.from-query-result+4/test]    a serialisation
 // failure panics naming the type instead of binding SQL NULL
 #[test]
 #[should_panic(expected = "`Unserializable` could not be serialized to JSON")]

@@ -14,9 +14,9 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "super::account::Entity",
-        from = "Column::AccountId",
-        to = "super::account::Column::Id"
+        belongs_to = super::account::Entity,
+        from = Column::AccountId,
+        to = super::account::Column::Id
     )]
     Account,
 }

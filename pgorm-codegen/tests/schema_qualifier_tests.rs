@@ -147,12 +147,9 @@ fn a_foreign_key_resolves_across_schemas() {
     );
     assert_contains(
         generated.file("cart.rs"),
-        r#"belongs_to = "super::item::Entity""#,
+        "belongs_to = super::item::Entity",
     );
-    assert_contains(
-        generated.file("item.rs"),
-        r#"has_many = "super::cart::Entity""#,
-    );
+    assert_contains(generated.file("item.rs"), "has_many = super::cart::Entity");
 }
 
 // [spec:pgorm:sem:codegen.entity.transform+16/test]    an unqualified reference
@@ -167,12 +164,9 @@ fn an_unqualified_key_reaches_a_qualified_table() {
 
     assert_contains(
         generated.file("cart.rs"),
-        r#"belongs_to = "super::item::Entity""#,
+        "belongs_to = super::item::Entity",
     );
-    assert_contains(
-        generated.file("item.rs"),
-        r#"has_many = "super::cart::Entity""#,
-    );
+    assert_contains(generated.file("item.rs"), "has_many = super::cart::Entity");
 }
 
 // [spec:pgorm:sem:codegen.entity.transform+16/test]    a key onto another
@@ -198,7 +192,7 @@ fn a_qualified_table_can_reference_itself() {
     assert_contains(generated.file("node.rs"), "SelfRef");
     assert_contains(
         generated.file("node.rs"),
-        r#"belongs_to = "Entity", from = "Column::Parent", to = "Column::Id""#,
+        "belongs_to = Entity, from = Column::Parent, to = Column::Id",
     );
 }
 
@@ -284,7 +278,7 @@ fn bridge_and_generated_entity_agree_on_schema() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+4/test]    a schema-qualified enum's
+// [spec:pgorm:sem:codegen.entity.enums+5/test]    a schema-qualified enum's
 // schema survives into the generated ActiveEnum attribute, so the
 // entity round-trips the type it was described with
 #[test]
@@ -326,7 +320,7 @@ fn unqualified_reference_needs_an_unqualified_declaration() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+4/test]    one bare Rust enum cannot
+// [spec:pgorm:sem:codegen.entity.enums+5/test]    one bare Rust enum cannot
 // stand for two differently-qualified database types: the collision is
 // refused rather than generated
 #[test]

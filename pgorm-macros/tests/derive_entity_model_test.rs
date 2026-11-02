@@ -28,11 +28,11 @@ mod filling {
         pub vendor_id: Option<i32>,
         #[pgorm(nullable, default_value = 0)]
         pub weight: i32,
-        #[pgorm(default_expr = "Expr::current_date()")]
+        #[pgorm(default_expr = Expr::current_date())]
         pub baked_on: Date,
         #[pgorm(column_name = "SKU")]
         pub sku: String,
-        #[pgorm(enum_name = "Renamed")]
+        #[pgorm(variant = Renamed)]
         pub original: i32,
         #[pgorm(select_as = "text", save_as = "citext")]
         pub casted: String,
@@ -128,7 +128,7 @@ mod scalars {
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = "String", db_type = "String(StringLen::N(1))")]
+    #[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::N(1)))]
     pub enum Tea {
         #[pgorm(string_value = "E")]
         EverydayTea,
@@ -163,7 +163,7 @@ mod casing {
         // appending an underscore.
         pub SELF: i32,
         // `enum_name` replaces the computed variant name entirely.
-        #[pgorm(enum_name = "Wholly")]
+        #[pgorm(variant = Wholly)]
         pub renamed_away: i32,
     }
 
@@ -345,12 +345,12 @@ mod generated_columns {
     #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "generated_columns")]
     pub struct Model {
-        #[pgorm(primary_key, generated_stored = "Expr::col(Column::Base).mul(10)")]
+        #[pgorm(primary_key, generated_stored = Expr::col(Column::Base).mul(10))]
         pub id: i32,
         pub base: i32,
-        #[pgorm(generated_virtual = "Expr::col(Column::Base).add(1)")]
+        #[pgorm(generated_virtual = Expr::col(Column::Base).add(1))]
         pub next: i32,
-        #[pgorm(generated_virtual = "Expr::col(Column::Base).mul(2)", nullable)]
+        #[pgorm(generated_virtual = Expr::col(Column::Base).mul(2), nullable)]
         pub doubled: Option<i32>,
     }
 
@@ -415,8 +415,8 @@ mod serde_keys {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model+7/test]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+6/test]    struct-level table_name / schema_name / comment
+// [spec:pgorm:sem:macros.derive.entity-model+8/test]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+7/test]    struct-level table_name / schema_name / comment
 #[test]
 fn struct_attributes_drive_entity_and_entity_name() {
     // (3) `table_name` present, so `pub struct Entity;` plus a hand-rolled
@@ -431,7 +431,7 @@ fn struct_attributes_drive_entity_and_entity_name() {
     assert_eq!(format!("{:?}", filling::Entity {}), "Entity");
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model+7/test]    one derive yields the whole entity module
+// [spec:pgorm:sem:macros.derive.entity-model+8/test]    one derive yields the whole entity module
 #[test]
 fn one_derive_yields_the_whole_entity_module() {
     // (1) the `Column` enum, with `EnumIter` + the `Column` derive's behaviour.
@@ -478,7 +478,7 @@ fn one_derive_yields_the_whole_entity_module() {
     assert_eq!(active.id, pgorm::ActiveValue::unchanged(1));
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model+7/test]    select_as / save_as overrides and their fallback
+// [spec:pgorm:sem:macros.derive.entity-model+8/test]    select_as / save_as overrides and their fallback
 #[test]
 fn select_as_and_save_as_cast_columns() {
     let casted = filling::Column::Casted;
@@ -544,7 +544,7 @@ fn attributes_say_what_column_methods_said() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model+7/test]    the `json_key` arm: the
+// [spec:pgorm:sem:macros.derive.entity-model+8/test]    the `json_key` arm: the
 // field's own name under `serde`'s renames, with the SQL naming attributes kept
 // out of it and the rest of `serde` stepped over
 // [spec:pgorm:def:entity.traits.column+7/test]    the namespace `json_key` names,
@@ -589,7 +589,7 @@ fn json_key_reports_the_serde_key() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+6/test]    `table_iden` adds a Table variant
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+7/test]    `table_iden` adds a Table variant
 #[test]
 fn table_iden_variant_is_skipped_by_enum_iter() {
     // The variant exists...
@@ -602,14 +602,14 @@ fn table_iden_variant_is_skipped_by_enum_iter() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+6/test]    the Table variant has no column def
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+7/test]    the Table variant has no column def
 #[test]
 #[should_panic(expected = "Table cannot be used as a column")]
 fn table_iden_variant_has_no_column_def() {
     let _ = filling::Column::Table.def();
 }
 
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+6/test]    field-level keys
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+7/test]    field-level keys
 #[test]
 fn field_level_attributes_shape_the_column_defs() {
     use pgorm::ColumnTypeTrait;
@@ -644,7 +644,7 @@ fn field_level_attributes_shape_the_column_defs() {
     assert_eq!(filling::Column::Plain.def(), ColumnType::Integer.def());
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+9/test]    the Rust-type inference table
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+10/test]    the Rust-type inference table
 #[test]
 fn column_types_inferred_from_rust_type_name() {
     use pgorm::ColumnTypeTrait;
@@ -677,7 +677,7 @@ fn column_types_inferred_from_rust_type_name() {
     assert_eq!(C::Tea.def(), ColumnType::String(StringLen::N(1)).def());
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+9/test]    explicit column_type wins
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+10/test]    explicit column_type wins
 #[test]
 fn an_explicit_column_type_overrides_the_inferred_one() {
     // `name: String` would infer `string(None)`; the attribute pins `Text`.
@@ -691,7 +691,7 @@ fn an_explicit_column_type_overrides_the_inferred_one() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.casing+3/test]
+// [spec:pgorm:sem:macros.derive.entity-model.casing+4/test]
 #[test]
 fn column_variant_names_follow_the_casing_rules() {
     // Raw identifier trimmed, then UpperCamelCase.
@@ -703,7 +703,7 @@ fn column_variant_names_follow_the_casing_rules() {
     assert_eq!(casing::Column::Wholly.to_string(), "wholly");
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.casing+3/test]    when the SQL name is pinned
+// [spec:pgorm:sem:macros.derive.entity-model.casing+4/test]    when the SQL name is pinned
 #[test]
 fn sql_column_names_are_pinned_only_when_needed() {
     // Clean snake_case: no attribute, the name falls out of the `Column` derive.
@@ -786,7 +786,7 @@ fn every_identity_key_column_generates_the_key() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+9/test]    each generated key
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+10/test]    each generated key
 // becomes the column's generation expression of its kind, after the modifiers it
 // sits beside, and a stored generated column alone in the key generates the key
 #[test]

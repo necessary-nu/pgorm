@@ -28,9 +28,9 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "Entity",
-        from = "Column::SettlesInto",
-        to = "Column::Mood"
+        belongs_to = Entity,
+        from = Column::SettlesInto,
+        to = Column::Mood
     )]
     Settles,
 }

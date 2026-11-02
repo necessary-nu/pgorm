@@ -28,8 +28,7 @@ mod tenant_a {
 
         #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
         #[pgorm(
-            rs_type = "String",
-            db_type = "Enum",
+            rs_type = String,
             enum_name = "status",
             schema_name = "tenant_a"
         )]
@@ -57,9 +56,9 @@ mod tenant_a {
         #[derive(Copy, Clone, Debug, EnumIter, Relation)]
         pub enum Relation {
             #[pgorm(
-                belongs_to = "crate::owner::Entity",
-                from = "Column::OwnerId",
-                to = "crate::owner::Column::Id"
+                belongs_to = crate::owner::Entity,
+                from = Column::OwnerId,
+                to = crate::owner::Column::Id
             )]
             Owner,
         }
@@ -115,15 +114,15 @@ mod tenant_a {
         #[derive(Copy, Clone, Debug, EnumIter, Relation)]
         pub enum Relation {
             #[pgorm(
-                belongs_to = "super::item::Entity",
-                from = "Column::ItemId",
-                to = "super::item::Column::Id"
+                belongs_to = super::item::Entity,
+                from = Column::ItemId,
+                to = super::item::Column::Id
             )]
             Item,
             #[pgorm(
-                belongs_to = "super::tag::Entity",
-                from = "Column::TagId",
-                to = "super::tag::Column::Id"
+                belongs_to = super::tag::Entity,
+                from = Column::TagId,
+                to = super::tag::Column::Id
             )]
             Tag,
         }
@@ -168,7 +167,7 @@ mod owner {
 
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
-        #[pgorm(has_many = "crate::tenant_a::item::Entity")]
+        #[pgorm(has_many = crate::tenant_a::item::Entity)]
         Item,
     }
 

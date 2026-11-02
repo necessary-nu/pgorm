@@ -1889,7 +1889,7 @@ today, including panicking edges and deliberate failsafes.
 
 ## Function calls
 
-> [spec:pgorm:def:sql.ast.func+11]
+> [spec:pgorm:def:sql.ast.func+12]
 > `FunctionCall` pairs a `Function` selector with argument expressions and
 > per-argument modifiers (`FuncArgMod { distinct }`); `arg` appends one
 > argument, `args` replaces the argument list. `get_func()` and `get_args()`
@@ -1925,7 +1925,7 @@ today, including panicking edges and deliberate failsafes.
 > indexes like a sequence. A column takes one as its
 > `DEFAULT` the way it takes any expression, `ColumnDef::default(Func::uuidv7())`
 > (`[spec:pgorm:req:sql.ddl.column-def]`), and an entity as
-> `#[pgorm(default_expr = "Func::uuidv7()")]`, `Func` being a prelude member for
+> `#[pgorm(default_expr = Func::uuidv7())]`, `Func` being a prelude member for
 > that reason (`[spec:pgorm:def:entity.prelude]`). `uuidv7_shifted` is
 > `uuidv7`'s one-argument overload, which moves the embedded time by an
 > `interval` and binds it as any argument is bound; PostgreSQL has no other

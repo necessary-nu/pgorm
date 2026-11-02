@@ -363,7 +363,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > each section is one contiguous block in the output (rendered shapes pinned
 > by `tests/compact/`).
 
-> [spec:pgorm:sem:codegen.entity.compact.attrs+11]
+> [spec:pgorm:sem:codegen.entity.compact.attrs+12]
 > In the compact Model, each field's `#[pgorm(...)]` attribute assembles
 > parts in this fixed order: `column_name = "..."` when the DB column name
 > is not already snake_case; `primary_key` when the column is in the primary
@@ -374,9 +374,9 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > the column is one, key or not — the derive refuses an identity or a
 > generation expression beside `auto_increment`, so an identity key column
 > carries `primary_key, identity` and a generated one `primary_key,
-> generated_stored = "..."`; `default_expr = "..."`, `generated_stored =
-> "..."` or `generated_virtual = "..."` when the column has a `DEFAULT` or is
-> generated, its string the Rust that builds the expression
+> generated_stored = ..`; `default_expr = ..`, `generated_stored = ..` or
+> `generated_virtual = ..` when the column has a `DEFAULT` or is generated,
+> the Rust that builds the expression written bare
 > (`codegen.entity.expressions`); `column_type = <expression>` wherever the type the
 > derive infers from the field's Rust type
 > (`macros.derive.entity-model.column-def`) is not the column's own, and on a
@@ -820,23 +820,24 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Relations
 
-> [spec:pgorm:sem:codegen.entity.relations+4]
+> [spec:pgorm:sem:codegen.entity.relations+5]
 > `Relation` enum variants are named by the UpperCamelCase of the referenced
 > table, with two adjustments: a self-referencing relation is named
 > `SelfRef`, and a nonzero `num_suffix` is appended (`Fruit1`, `Fruit2`,
 > `SelfRef1`, ...). Each variant carries a `#[pgorm]`
-> attribute: FK-owning relations emit
-> `#[pgorm(belongs_to = "<Entity>", from = "Column::<Src>", to = "<Entity path>Column::<Ref>", on_update = "<Action>", on_delete = "<Action>")]`
+> attribute, every value but the key's name Rust written bare
+> (`macros.derive.code-values`): FK-owning relations emit
+> `#[pgorm(belongs_to = <Entity>, from = Column::<Src>, to = <Entity path>Column::<Ref>, on_update = ForeignKeyAction::<Action>, on_delete = ForeignKeyAction::<Action>)]`
 > where `<Entity>` is `super::<module>::Entity` (or plain `Entity` when
 > self-referencing), multi-column FKs render `from`/`to` as parenthesized
-> tuples `"(Column::A, Column::B)"`, and `on_update`/`on_delete` appear only
+> tuples `(Column::A, Column::B)`, and `on_update`/`on_delete` appear only
 > when the FK declared an action (`Restrict`, `Cascade`, `SetNull`,
-> `NoAction`, `SetDefault`), with `from_period = "Column::<Src>"` and
-> `to_period = "<Entity path>Column::<Ref>"` before them for a `PERIOD` foreign
-> key, and followed by `deferrability = "<Deferrability>"` and `enforcement =
-> "NotEnforced"` where the key declared them. Inverse
+> `NoAction`, `SetDefault`), with `from_period = Column::<Src>` and
+> `to_period = <Entity path>Column::<Ref>` before them for a `PERIOD` foreign
+> key, and followed by `deferrability = Deferrability::<Deferrability>` and
+> `enforcement = Enforcement::NotEnforced` where the key declared them. Inverse
 > relations emit
-> `#[pgorm(has_one = "...")]` or `#[pgorm(has_many = "...")]` with no
+> `#[pgorm(has_one = <Entity>)]` or `#[pgorm(has_many = <Entity>)]` with no
 > `from`/`to`. A relation
 > whose constrained and referenced column lists differ in length is rejected by
 > `Relation::validate`, so no generated relation can name a column on one side
@@ -865,13 +866,15 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Active enums
 
-> [spec:pgorm:sem:codegen.entity.enums+4]
+> [spec:pgorm:sem:codegen.entity.enums+5]
 > All discovered database enums are generated into a single
 > `pgorm_active_enums.rs`, in alphabetical order by enum name. Each becomes
 > `#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]`
 > (plus `Copy` when `with_copy_enums`, then serde derives, then
 > `enum_extra_derives`) with
-> `#[pgorm(rs_type = "String", db_type = "Enum", enum_name = "<db name>")]` —
+> `#[pgorm(rs_type = String, enum_name = "<db name>")]`, no `db_type` being
+> how the derive is told the values are a PostgreSQL enum's
+> (`macros.derive.active-enum`) —
 > plus `schema_name = "<schema>"` when the described type is
 > schema-qualified, so the generated entity round-trips the full type
 > identity. Enums are keyed by that identity; two same-named enums under

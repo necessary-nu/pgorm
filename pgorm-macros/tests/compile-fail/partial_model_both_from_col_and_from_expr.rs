@@ -1,9 +1,9 @@
 use pgorm::entity::prelude::*;
 
 #[derive(PartialModel)]
-#[pgorm(entity = "Entity")]
+#[pgorm(entity = Entity)]
 struct Partial {
-    #[pgorm(from_col = "name", from_expr = "Expr::val(1)")]
+    #[pgorm(from_col = Column::Name, from_expr = Expr::val(1))]
     label: String,
 }
 

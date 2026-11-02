@@ -34,8 +34,7 @@ pub mod account {
 
     #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum, Serialize, Deserialize)]
     #[pgorm(
-        rs_type = "String",
-        db_type = "Enum",
+        rs_type = String,
         enum_name = "State\" 雪",
         schema_name = "fixture"
     )]

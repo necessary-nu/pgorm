@@ -73,14 +73,14 @@ pub async fn left_join() {
     assert_eq!(result.name.as_str(), "Baker 1");
     assert_eq!(result.bakery_name, Some("SeaSide Bakery".to_string()));
 
-    #[derive(PartialModel, FromQueryResult, Debug, PartialEq)]
-    #[pgorm(entity = "Baker")]
+    #[derive(PartialModel, Debug, PartialEq)]
+    #[pgorm(entity = Baker)]
     struct PartialSelectResult {
         name: String,
-        #[pgorm(from_expr = "Expr::col((bakery::Entity, bakery::Column::Name))")]
+        #[pgorm(from_expr = Expr::col((bakery::Entity, bakery::Column::Name)))]
         bakery_name: Option<String>,
         #[pgorm(
-            from_expr = r#"SimpleExpr::FunctionCall(Func::upper(Expr::col((bakery::Entity, bakery::Column::Name))))"#
+            from_expr = SimpleExpr::FunctionCall(Func::upper(Expr::col((bakery::Entity, bakery::Column::Name))))
         )]
         bakery_name_upper: Option<String>,
     }
@@ -1047,9 +1047,9 @@ mod composite_parent {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            has_many = "super::composite_child::Entity",
-            from = "(Column::Region, Column::Code)",
-            to = "(super::composite_child::Column::ParentRegion, super::composite_child::Column::ParentCode)"
+            has_many = super::composite_child::Entity,
+            from = (Column::Region, Column::Code),
+            to = (super::composite_child::Column::ParentRegion, super::composite_child::Column::ParentCode)
         )]
         Child,
     }
@@ -1079,9 +1079,9 @@ mod composite_child {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::composite_parent::Entity",
-            from = "(Column::ParentRegion, Column::ParentCode)",
-            to = "(super::composite_parent::Column::Region, super::composite_parent::Column::Code)"
+            belongs_to = super::composite_parent::Entity,
+            from = (Column::ParentRegion, Column::ParentCode),
+            to = (super::composite_parent::Column::Region, super::composite_parent::Column::Code)
         )]
         Parent,
     }

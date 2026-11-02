@@ -88,7 +88,7 @@ fn basket_with_two_fruit_keys() -> TableCreateStatement {
         .to_owned()
 }
 
-// [spec:pgorm:sem:codegen.entity.relations+4/test]    variants are the
+// [spec:pgorm:sem:codegen.entity.relations+5/test]    variants are the
 // UpperCamelCase of the referenced table, `SelfRef` when self-referencing, with
 // a nonzero `num_suffix` appended
 #[test]
@@ -110,24 +110,24 @@ fn relation_variants_are_named_after_the_referenced_table() {
     assert_contains(
         basket,
         r#"#[pgorm(
-            belongs_to = "super::fruit::Entity",
-            from = "Column::FruitId1",
-            to = "super::fruit::Column::Id",
+            belongs_to = super::fruit::Entity,
+            from = Column::FruitId1,
+            to = super::fruit::Column::Id,
         )]
         Fruit2,"#,
     );
     assert_contains(
         basket,
         r#"#[pgorm(
-            belongs_to = "super::fruit::Entity",
-            from = "Column::FruitId2",
-            to = "super::fruit::Column::Id",
+            belongs_to = super::fruit::Entity,
+            from = Column::FruitId2,
+            to = super::fruit::Column::Id,
         )]
         Fruit1,"#,
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.relations+4/test]    a compact FK-owning relation
+// [spec:pgorm:sem:codegen.entity.relations+5/test]    a compact FK-owning relation
 // renders belongs_to / from / to, with parenthesized tuples for multi-column
 // keys and `Entity` (no module path) when self-referencing
 #[test]
@@ -136,11 +136,11 @@ fn compact_belongs_to_attributes_carry_from_and_to() {
     assert_contains(
         single.file("fruit.rs"),
         r#"#[pgorm(
-            belongs_to = "super::cake::Entity",
-            from = "Column::CakeId",
-            to = "super::cake::Column::Id",
-            on_update = "Cascade",
-            on_delete = "Cascade",
+            belongs_to = super::cake::Entity,
+            from = Column::CakeId,
+            to = super::cake::Column::Id,
+            on_update = ForeignKeyAction::Cascade,
+            on_delete = ForeignKeyAction::Cascade,
         )]
         Cake,"#,
     );
@@ -148,7 +148,7 @@ fn compact_belongs_to_attributes_carry_from_and_to() {
     let self_ref = generate(vec![self_referencing_cake()], Opts::default());
     assert_contains(
         self_ref.file("cake.rs"),
-        r#"#[pgorm(belongs_to = "Entity", from = "Column::BaseId", to = "Column::Id",)] SelfRef,"#,
+        r#"#[pgorm(belongs_to = Entity, from = Column::BaseId, to = Column::Id,)] SelfRef,"#,
     );
 
     let composite = generate(
@@ -196,15 +196,15 @@ fn compact_belongs_to_attributes_carry_from_and_to() {
     );
     assert_contains(
         composite.file("fruit.rs"),
-        r#"from = "(Column::CakeId, Column::CakeKind)","#,
+        "from = (Column::CakeId, Column::CakeKind),",
     );
     assert_contains(
         composite.file("fruit.rs"),
-        r#"to = "(super::cake::Column::Id, super::cake::Column::Kind)","#,
+        "to = (super::cake::Column::Id, super::cake::Column::Kind),",
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.relations+4/test]    `on_update` / `on_delete`
+// [spec:pgorm:sem:codegen.entity.relations+5/test]    `on_update` / `on_delete`
 // appear only when the FK declared an action, and cover all five actions
 #[test]
 fn foreign_key_actions_render_only_when_declared() {
@@ -254,28 +254,28 @@ fn foreign_key_actions_render_only_when_declared() {
     let audit = generated.file("audit.rs");
 
     for (_, _, rendered) in cases {
-        assert_contains(audit, &format!(r#"on_update = "{rendered}","#));
-        assert_contains(audit, &format!(r#"on_delete = "{rendered}","#));
+        assert_contains(audit, &format!("on_update = ForeignKeyAction::{rendered},"));
+        assert_contains(audit, &format!("on_delete = ForeignKeyAction::{rendered},"));
     }
     assert_contains(
         audit,
         r#"#[pgorm(
-            belongs_to = "super::plain::Entity",
-            from = "Column::PlainId",
-            to = "super::plain::Column::Id",
+            belongs_to = super::plain::Entity,
+            from = Column::PlainId,
+            to = super::plain::Column::Id,
         )]
         Plain,"#,
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.relations+4/test]    inverse relations render as
+// [spec:pgorm:sem:codegen.entity.relations+5/test]    inverse relations render as
 // `has_one` / `has_many` with no `from` / `to`
 #[test]
 fn inverse_relations_render_without_from_and_to() {
     let generated = generate(vec![cake(), fruit()], Opts::default());
     assert_contains(
         generated.file("cake.rs"),
-        r#"#[pgorm(has_many = "super::fruit::Entity")] Fruit,"#,
+        r#"#[pgorm(has_many = super::fruit::Entity)] Fruit,"#,
     );
 
     let has_one = generate(
@@ -301,7 +301,7 @@ fn inverse_relations_render_without_from_and_to() {
     );
     assert_contains(
         has_one.file("users.rs"),
-        r#"#[pgorm(has_one = "super::profile::Entity")] Profile,"#,
+        r#"#[pgorm(has_one = super::profile::Entity)] Profile,"#,
     );
 }
 
@@ -370,10 +370,7 @@ fn conjunct_shadowed_relations_lose_their_plain_related_impl() {
     );
     let users = generated.file("users.rs");
 
-    assert_contains(
-        users,
-        r#"#[pgorm(has_many = "super::bills::Entity")] Bills,"#,
-    );
+    assert_contains(users, r#"#[pgorm(has_many = super::bills::Entity)] Bills,"#);
     assert_not_contains(
         users,
         "impl Related<super::bills::Entity> for Entity {

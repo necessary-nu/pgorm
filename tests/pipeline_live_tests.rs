@@ -60,7 +60,7 @@ mod employee {
 
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
-        #[pgorm(belongs_to = "Entity", from = "Column::ManagerId", to = "Column::Id")]
+        #[pgorm(belongs_to = Entity, from = Column::ManagerId, to = Column::Id)]
         Manager,
     }
 
@@ -83,7 +83,7 @@ mod message {
 
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
-        #[pgorm(belongs_to = "Entity", from = "Column::ParentId", to = "Column::Id")]
+        #[pgorm(belongs_to = Entity, from = Column::ParentId, to = Column::Id)]
         Parent,
     }
 
@@ -1480,7 +1480,7 @@ mod tea_pot {
     use pgorm::entity::prelude::*;
 
     #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
-    #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "tea")]
+    #[pgorm(rs_type = String, enum_name = "tea")]
     pub enum Tea {
         #[pgorm(string_value = "EverydayTea")]
         EverydayTea,

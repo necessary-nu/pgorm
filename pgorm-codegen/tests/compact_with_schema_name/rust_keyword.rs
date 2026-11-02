@@ -22,33 +22,33 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "Entity",
-        from = "Column::SelfId1",
-        to = "Column::Id",
+        belongs_to = Entity,
+        from = Column::SelfId1,
+        to = Column::Id,
     )]
     SelfRef1,
     #[pgorm(
-        belongs_to = "Entity",
-        from = "Column::SelfId2",
-        to = "Column::Id",
+        belongs_to = Entity,
+        from = Column::SelfId2,
+        to = Column::Id,
     )]
     SelfRef2,
     #[pgorm(
-        belongs_to = "super::fruit::Entity",
-        from = "Column::FruitId1",
-        to = "super::fruit::Column::Id",
+        belongs_to = super::fruit::Entity,
+        from = Column::FruitId1,
+        to = super::fruit::Column::Id,
     )]
     Fruit1,
     #[pgorm(
-        belongs_to = "super::fruit::Entity",
-        from = "Column::FruitId2",
-        to = "super::fruit::Column::Id",
+        belongs_to = super::fruit::Entity,
+        from = Column::FruitId2,
+        to = super::fruit::Column::Id,
     )]
     Fruit2,
     #[pgorm(
-        belongs_to = "super::cake::Entity",
-        from = "Column::CakeId",
-        to = "super::cake::Column::Id",
+        belongs_to = super::cake::Entity,
+        from = Column::CakeId,
+        to = super::cake::Column::Id,
     )]
     Cake,
 }

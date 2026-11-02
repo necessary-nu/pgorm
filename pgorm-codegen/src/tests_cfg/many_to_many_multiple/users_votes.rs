@@ -15,27 +15,27 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "super::bills::Entity",
-        from = "Column::BillIdd",
-        to = "super::bills::Column::Id",
+        belongs_to = super::bills::Entity,
+        from = Column::BillIdd,
+        to = super::bills::Column::Id,
     )]
     Bills2,
     #[pgorm(
-        belongs_to = "super::bills::Entity",
-        from = "Column::BillId",
-        to = "super::bills::Column::Id",
+        belongs_to = super::bills::Entity,
+        from = Column::BillId,
+        to = super::bills::Column::Id,
     )]
     Bills1,
     #[pgorm(
-        belongs_to = "super::users::Entity",
-        from = "Column::UserIdd",
-        to = "super::users::Column::Id",
+        belongs_to = super::users::Entity,
+        from = Column::UserIdd,
+        to = super::users::Column::Id,
     )]
     Users2,
     #[pgorm(
-        belongs_to = "super::users::Entity",
-        from = "Column::UserId",
-        to = "super::users::Column::Id",
+        belongs_to = super::users::Entity,
+        from = Column::UserId,
+        to = super::users::Column::Id,
     )]
     Users1,
 }
