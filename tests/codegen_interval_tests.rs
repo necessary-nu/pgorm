@@ -77,10 +77,10 @@ fn written(id: i32, value: Interval) -> interval_span::Model {
 /// The schema, run as written, and the table its generated entity creates
 /// have the same columns, each qualifier and precision among them, so the
 /// entity carries what the field type alone could not.
-// [spec:pgorm:sem:codegen.entity.types+9/test]    against a live server: the
+// [spec:pgorm:sem:codegen.entity.types+10/test]    against a live server: the
 // entity generated from a table of interval columns creates that table,
 // qualifier for qualifier
-// [spec:pgorm:sem:codegen.entity.compact.attrs+8/test]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]
 #[pgorm_macros::test]
 async fn generated_interval_columns_keep_their_qualifiers() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_interval_tests_qualifiers").await;
@@ -127,7 +127,7 @@ async fn generated_interval_columns_keep_their_qualifiers() -> Result<(), Error>
 /// creates, come back as each column stores them: the unqualified columns
 /// exactly, the qualified ones with the fields their qualifier leaves out
 /// dropped and the seconds rounded to their precision, half away from zero.
-// [spec:pgorm:sem:codegen.entity.types+9/test]    against a live server: an
+// [spec:pgorm:sem:codegen.entity.types+10/test]    against a live server: an
 // interval field of the generated entity writes and reads back
 #[pgorm_macros::test]
 async fn generated_interval_fields_round_trip() -> Result<(), Error> {

@@ -16313,12 +16313,20 @@ children (
         id codegen-compact-string-length
         title "Codegen's compact entities keep a varchar(n) or char(n) column's length"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T12:46:25.337204Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by the derives.expanded survey, 2026-11-02. pgorm-codegen's compact writer emits no column_type for varchar(n) and char(n) (pgorm-codegen/src/entity/column.rs:456-485), so the derive infers String(StringLen::None) (pgorm-macros sql_type_match.rs:122): tests/compact/vendor.rs:9 has a bare `pub name: String` where tests/expanded/vendor.rs:51 has String(StringLen::N(255u32)). Schema::create_table_from_entity on a generated compact entity therefore writes an unbounded string where the database has varchar(255); arrays of these lose it too. Fix in the compact writer (emit the length, and char's fixed width), with goldens and a round-trip test (schema -> entity -> create_table_from_entity -> the same column type). Bump whichever codegen.entity.compact rule says what a column's attributes carry. Lands before derives.compact-only, which deletes the expanded format that currently carries the length."
+            }
+
+            {
+                at 2026-11-02T14:06:17.913323Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

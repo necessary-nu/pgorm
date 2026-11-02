@@ -55,7 +55,7 @@ fn compact_model_attribute_and_empty_relation_enum() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+8/test]    the `#[pgorm(..)]` field
+// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    the `#[pgorm(..)]` field
 // attribute assembles its parts in one fixed order
 #[test]
 fn compact_field_attribute_parts_assembled_in_fixed_order() {
@@ -82,7 +82,7 @@ fn compact_field_attribute_parts_assembled_in_fixed_order() {
             column_name = "camelCase",
             primary_key,
             auto_increment = false,
-            column_type = "Decimal(Some((10, 2)))",
+            column_type = "Decimal(Some((10u32, 2u32)))",
             nullable,
             unique
         )]
@@ -90,8 +90,10 @@ fn compact_field_attribute_parts_assembled_in_fixed_order() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+8/test]    `column_type` is emitted
-// for exactly the types whose default mapping is ambiguous
+// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    `column_type` is emitted
+// on every type its field's Rust type does not infer — a length, `char` of any length,
+// a precision and scale, `money`, `text`, `jsonb`, a named type — and on `Float`,
+// `Double` and `Bytea`, spelled as the expanded writer spells the type
 #[test]
 fn compact_column_type_attribute_covers_ambiguous_types() {
     let generated = generate(
@@ -108,6 +110,10 @@ fn compact_column_type_attribute_covers_ambiguous_types() {
                 typed("a_jsonb", ColumnType::JsonBinary),
                 typed("a_named", ColumnType::named("citext")),
                 typed("a_bytea", ColumnType::Bytea),
+                typed("a_varchar", ColumnType::String(StringLen::N(3))),
+                typed("a_longest", ColumnType::String(StringLen::Max)),
+                typed("a_char", ColumnType::Char(Some(2))),
+                typed("a_bpchar", ColumnType::Char(None)),
             ],
         )],
         Opts::default(),
@@ -117,12 +123,16 @@ fn compact_column_type_attribute_covers_ambiguous_types() {
     for (field, rendered) in [
         ("a_float", "Float"),
         ("a_double", "Double"),
-        ("a_decimal", "Decimal(Some((10, 2)))"),
+        ("a_decimal", "Decimal(Some((10u32, 2u32)))"),
         ("a_money", "Money"),
         ("a_text", "Text"),
         ("a_jsonb", "JsonBinary"),
         ("a_named", r#"named(\"citext\")"#),
         ("a_bytea", "Bytea"),
+        ("a_varchar", "String(StringLen::N(3u32))"),
+        ("a_longest", "String(StringLen::Max)"),
+        ("a_char", "Char(Some(2u32))"),
+        ("a_bpchar", "Char(None)"),
     ] {
         assert_contains(
             sample,
@@ -131,7 +141,7 @@ fn compact_column_type_attribute_covers_ambiguous_types() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+8/test]    a field needing none of
+// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    a field needing none of
 // the parts carries no `#[pgorm]` attribute, and `nullable` never appears
 // without a `column_type`
 #[test]

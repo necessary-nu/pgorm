@@ -384,7 +384,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > there are no relations; the `Related` impls; and
 > `impl ActiveModelBehavior for ActiveModel {}`.
 
-> [spec:pgorm:sem:codegen.entity.compact.attrs+8]
+> [spec:pgorm:sem:codegen.entity.compact.attrs+9]
 > In the compact Model, each field's `#[pgorm(...)]` attribute assembles
 > parts in this fixed order: `column_name = "..."` when the DB column name
 > is not already snake_case; `primary_key` when the column is in the primary
@@ -398,37 +398,67 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > generated_stored = "..."`; `default_expr = "..."`, `generated_stored =
 > "..."` or `generated_virtual = "..."` when the column has a `DEFAULT` or is
 > generated, its string the Rust that builds the expression
-> (`codegen.entity.expressions`); `column_type = "..."` for exactly the types whose default
-> mapping is ambiguous — `Float`, `Double`, `Decimal(Some((p, s)))`,
-> `Money`, `Text`, `JsonBinary`, `named("...")`, `Bytea`, and an interval
-> carrying a field qualifier or a precision, spelled as the expanded writer
-> spells its `IntervalSpec` (`codegen.entity.types`):
+> (`codegen.entity.expressions`); `column_type = "..."` wherever the type the
+> derive infers from the field's Rust type
+> (`macros.derive.entity-model.column-def`) is not the column's own, and on a
+> `Float`, `Double` or `Bytea` column besides; `nullable` (only alongside a
+> `column_type`) when the column is nullable; and `unique` when the column is
+> unique. Fields needing none of these carry no `#[pgorm]` attribute.
+>
+> A compact entity carries each column's full type, so that the table it
+> creates (`Schema::create_table_from_entity`) is the table described, every
+> length, precision, scale and qualifier included, and a value written
+> through it is held to them. The `column_type` string is the expanded
+> writer's spelling of the type (`codegen.entity.types`) with its leading
+> `ColumnType::` taken off — one spelling, so the two formats define every
+> column alike, its integers carrying the `u32` suffix that writer gives
+> them. `String` infers an unbounded `varchar`, so `varchar(3)` states
+> `String(StringLen::N(3u32))` (`StringLen::Max` stating itself too), every
+> `Char` — `char(2)` states `Char(Some(2u32))`, and `char` alone, which is
+> `char(1)`, `Char(Some(1u32))` — states its length or `Char(None)`, `text`
+> states `Text` and a named type `named("...")`; `Decimal` infers an
+> unconstrained `numeric`, so `numeric(10, 2)` states
+> `Decimal(Some((10u32, 2u32)))` and `money` `Money`; `Json` infers `json`,
+> so `jsonb` states `JsonBinary`; and `Interval` infers
+> an unqualified `interval`, so an interval carrying a field qualifier or a
+> precision states its `IntervalSpec`:
 > `Interval(IntervalSpec::Fields(PgInterval::YearToMonth))`,
-> `Interval(IntervalSpec::Any(Some(IntervalPrecision::P3)))`. An unqualified
-> `interval` is what an `Interval` field infers, and states none. A domain
-> column always states one, `Domain { name: Name::runtime("..."), schema: ..,
-> base: Arc::new(..) }` as the expanded writer spells it
-> (`codegen.entity.types`), because no Rust type infers a domain. An array
-> carries `Array(Arc::new(ColumnType::<element>))` when its element is one of
-> these other than `Float`, `Double` and `Bytea`, which `f32`, `f64` and
-> `Vec<u8>` infer as they are: the derive infers an array as the array of
-> what its element's Rust type infers, so without it `text[]` would be
-> created as `varchar[]`, and `interval YEAR TO MONTH[]` as an `interval[]`
-> keeping the days and seconds the column discards. `nullable` is appended (only
-> alongside a `column_type`) when the column is nullable; and `unique` when
-> the column is unique. Fields needing none of these carry no `#[pgorm]`
-> attribute.
+> `Interval(IntervalSpec::Any(Some(IntervalPrecision::P3)))`. Without it
+> `varchar(3)` would be created as a `varchar` holding any length, and
+> `interval YEAR TO MONTH` as an `interval` keeping the days and seconds the
+> column discards. A domain column always states one, `Domain { name:
+> Name::runtime("..."), schema: .., base: Arc::new(..) }`, because no Rust
+> type infers a domain. An array is inferred as the array of what its
+> element's Rust type infers, so it states
+> `Array(Arc::new(ColumnType::<element>))` exactly when its element would
+> other than for a `Float`, `Double` or `Bytea` element, which `f32`, `f64`
+> and `Vec<u8>` infer as they are: `text[]`, `varchar(3)[]` and
+> `numeric(8, 3)[]` state one, `real[]` and `integer[]` none. A created
+> range's newtype is inferred as the range over what its `Range<E>`'s `E`
+> infers (`codegen.entity.types`), so a column of one, or of the multirange
+> beside it, states `CreatedRange { name: Name::runtime("..."), schema: ..,
+> subtype: Arc::new(..) }` or `CreatedMultirange { .. }` exactly when its
+> subtype would: a range over `text` does, which `String` would infer over
+> `varchar`. Every other type — the integers, `boolean`, `json`, `uuid`, the
+> dates and times, an unqualified `interval`, a bare `numeric`, an unbounded
+> `varchar`, an enum, a built-in range or multirange, and arrays of these —
+> is what its field infers, and states none. The live round trip of a
+> generated entity with a column of every kind of type codegen reads is held
+> at the workspace root (`tests/codegen_column_types_tests.rs`), over the
+> module `tests/codegen_column_types/` it compiles, whose files
+> pgorm-codegen's `tests/column_types_tests.rs` compares the writer's output
+> with.
 >
 > The `column_type` part's string is re-parsed as tokens by
 > `DeriveEntityModel` and spliced after `ColumnType::`
 > (`macros.derive.entity-model.column-def`), so it is generated *program
-> text*, and the names it uses — `Arc`, `ColumnType`, `Name`, `IntervalSpec`,
-> `PgInterval`, `IntervalPrecision` — resolve through the prelude glob the
-> entity file imports (`[spec:pgorm:def:entity.prelude]`), as an enum a
-> domain is over resolves through the import of it. Every part of it
-> but the named type's and a domain's names is fixed by this rule —
-> `Decimal`'s precision and scale are integers, and an interval's qualifier
-> is one of a closed set of variants — and the name, which comes
+> text*, and the names it uses — `Arc`, `ColumnType`, `Name`, `StringLen`,
+> `IntervalSpec`, `PgInterval`, `IntervalPrecision` — resolve through the
+> prelude glob the entity file imports (`[spec:pgorm:def:entity.prelude]`),
+> as an enum a domain is over resolves through the import of it. Every part
+> of it but the names of a named type, a domain and a created range is fixed
+> by this rule — a length and `Decimal`'s precision and scale are integers,
+> and an interval's qualifier is one of a closed set of variants — and the name, which comes
 > from the described schema, MUST be written by rendering it as a string
 > literal rather than by placing it between two quote characters. A type name
 > is data: Postgres accepts names that Rust source does not, and a name
@@ -510,7 +540,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Type mapping
 
-> [spec:pgorm:sem:codegen.entity.types+9]
+> [spec:pgorm:sem:codegen.entity.types+10]
 > Model field types come from `Column::get_rs_type`: a non-null column maps
 > to `T`, a nullable column to `Option<T>`, where `T` is:
 >
@@ -569,11 +599,14 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > (`[spec:pgorm:def:sql.value.created-range]`). `E` is the subtype's Rust
 > type as this table maps it — `i16`, `i32`, `i64`, `f32`, `f64`, `Decimal`,
 > `String` (for `Char`, `String` and `Text`), `Date`, `Time`, `DateTime`,
-> `DateTimeWithTimeZone` or `Uuid`. The compact writer states no
-> `column_type` for such a field, the derive taking it from the newtype's
-> `ValueType`; the expanded writer spells `ColumnType::CreatedRange` or
-> `CreatedMultirange { name, schema, subtype }` out, as the derive builds
-> it. The live round trip of a
+> `DateTimeWithTimeZone` or `Uuid`. The expanded writer spells
+> `ColumnType::CreatedRange` or `CreatedMultirange { name, schema, subtype }`
+> out, the subtype as the schema describes it. The derive, given no
+> `column_type`, takes a field's column type from the newtype's `ValueType`,
+> whose subtype is what `E` infers, so the compact writer states none where
+> that is the column's subtype and the expanded writer's spelling where it is
+> not — a range over `text`, which `String` infers as `varchar`
+> (`codegen.entity.compact.attrs`). The live round trip of a
 > generated entity is held at the workspace root (`tests/created_range_tests.rs`),
 > over the same files `pgorm-codegen/tests/sql/created_range/` compares the
 > writer's output with.
