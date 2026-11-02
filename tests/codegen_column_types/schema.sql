@@ -17,6 +17,7 @@ CREATE TABLE specimen (
     amount numeric NOT NULL,
     prices numeric(8, 3)[] NOT NULL,
     cost money,
+    fees money[] NOT NULL,
     small smallint NOT NULL,
     big bigint NOT NULL,
     ratio real NOT NULL,

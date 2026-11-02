@@ -38,6 +38,8 @@ pub struct Model {
     pub prices: Vec<Decimal>,
     #[pgorm(column_type = ColumnType::Money, nullable)]
     pub cost: Option<Decimal>,
+    #[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Money)))]
+    pub fees: Vec<Decimal>,
     pub small: i16,
     pub big: i64,
     #[pgorm(column_type = ColumnType::Float)]

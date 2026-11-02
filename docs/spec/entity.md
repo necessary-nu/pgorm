@@ -156,7 +156,7 @@ explicit limitations.
 > (`[spec:pgorm:sem:macros.derive.entity-model.column-def]`) and a hand-written
 > definition meets when its schema is created.
 
-> [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+> [spec:pgorm:sem:entity.traits.column.enum-cast+14]
 > Enum-typed columns are transparently cast at the SQL boundary
 > (`src/entity/column.rs`). On read, `select_as` / `select_enum_as` casts an enum
 > column to `text` — or `text[]` when the column type is `Array` of an enum — and
@@ -181,13 +181,34 @@ explicit limitations.
 > as an enum column is, `select_as` casting it to `text`: tokio-postgres
 > reports that multirange as a simple type whose binary form it cannot read.
 >
+> A `money` column (`ColumnType::Money`) is read and written as `numeric`,
+> which a `Decimal` field binds and decodes: on the wire a `money` is an
+> `int8` count of the currency's minor units, whose scale only the server's
+> `lc_monetary` knows and which `rust_decimal` does not read. `select_as`
+> casts the column to `numeric`, `numeric[]` for an array of `money`, and
+> `save_as` casts a value to `money`, `save_array_as` an array operand to
+> `money[]`; a value's placeholder is pinned to its own type inside the cast
+> (`sql.render.cast-param-type`), so a `Decimal` arrives as `numeric` and an
+> integer as the whole currency units PostgreSQL's integer cast reads it as.
+> The server converts at the session's scale both ways, a `Decimal` with more
+> places than the currency rounded to its places. A value is cast to `money`
+> rather than left `numeric`, which a column assignment would take but no
+> comparison resolves (`42883`, *operator does not exist: money =
+> numeric*). The live round trip of a generated entity's `money` column and
+> array of `money`, inserted, read back whole and by column, found by each
+> comparison form and updated through `RETURNING`, is held at the workspace
+> root (`tests/codegen_column_types_tests.rs`).
+>
 > A column whose type is a domain (`ColumnType::Domain`) is read and written
 > as its base is, and cast, where its base needs a cast, to the domain by its
 > own name. A domain over an enum — or over an array of one, or over another
 > such domain — is read as `text`, or `text[]` when what it holds is an
 > array, and a value written to it is cast to the domain, its array to the
 > domain's array; a domain over a created range or multirange is written
-> through `Expr::as_range` to the domain and its multirange read as `text`.
+> through `Expr::as_range` to the domain and its multirange read as `text`;
+> a domain over `money`, or an array of one, is read as `numeric` and a value
+> written to it cast to the domain, its array to the domain's array, so the
+> domain's checks hold the value as its column does.
 > Every other domain needs no cast at all: its values travel as its base
 > type's (`exec.cursor.binding-accepts`), and a comparison with one resolves
 > its base type's operator.

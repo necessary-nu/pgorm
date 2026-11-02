@@ -16384,12 +16384,34 @@ children (
         id codegen-money-decodes
         title "Codegen gives a money column a Rust type that binds and decodes it"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T14:25:05.00426Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by codegen-compact-string-length (fdd065f7). Codegen maps a money column to Decimal, but rust_decimal's ToSql/FromSql accept NUMERIC only, so a generated entity can neither bind nor decode its money column (the new tests/codegen_column_types fixture leaves its cost column nullable and NotSet for that reason). Choose a Rust type that round-trips money's binary form (an i64 of the currency's minor units, whose scale lc_monetary decides, so likely a pgorm newtype rather than Decimal) or refuse money in codegen with the reason; either way the generated entity must compile and work against a live money column."
+            }
+
+            {
+                at 2026-11-02T21:25:35.861185Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-02T21:33:42.598018Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Kept Decimal and made it work, with no new Value variant: ColumnTrait's default casts read a money column (an array of it, a domain over either) as numeric and write a value cast to money (to the domain by name; money[]/domain[] for arrays and = ANY operands). The cast pins the placeholder to the value's own type (sql.render.cast-param-type), so a Decimal binds as numeric and PostgreSQL converts at lc_monetary's scale both ways; a value left numeric would assign but not compare (42883 money = numeric). Rejected the i64-minor-units newtype: binding it needs its own Value variant (a BigInt accepted at a money placeholder would mean minor units where PostgreSQL's int8->money cast means whole units), threaded through pgorm-query's Value (Display, identity/hash, kind, ArrayType tag, JSON), pgorm's bind/decode/COPY paths and both bindings' value tags, and its inline literal cannot be rendered at all without the server's frac_digits. Not done here: the bindings' entity kinds still report money as Explicit (a tagged decimal Value works); a pipeline ExprOps comparison on a money column binds bare, as it does for every save_as column."
+            }
+
+            {
+                at 2026-11-02T21:34:31.695407Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

@@ -181,7 +181,7 @@ fn written(id: i32) -> spans::Model {
 /// and read back through the column's text cast; a `NULL` multirange stays
 /// `NULL` and the empty one stays empty.
 // [spec:pgorm:def:sql.value.created-range+5/test]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]
 async fn a_multirange_round_trips_through_an_entity(db: &DatabaseConnection) -> Result<(), Error> {
     let first = written(1);
     assert_eq!(first.clone().into_active_model().insert(db).await?, first);
@@ -212,7 +212,7 @@ async fn a_multirange_round_trips_through_an_entity(db: &DatabaseConnection) -> 
 
 /// `find`, the graph and the pipeline all read through the column's cast to
 /// `text`; without it the driver could not read the column at all.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]
 async fn every_reader_takes_the_text_cast(db: &DatabaseConnection) -> Result<(), Error> {
     let first = written(1);
     let found = spans::Entity::find_by_id(1).one(db).await?;

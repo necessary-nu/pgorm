@@ -13,7 +13,7 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::Range;
-use pgorm::{ConnectionTrait, Schema, entity::prelude::*};
+use pgorm::{ConnectionTrait, QueryTrait, Schema, entity::prelude::*};
 use pretty_assertions::assert_eq;
 use tokio_postgres::error::SqlState;
 
@@ -85,7 +85,8 @@ fn specimen(id: i32) -> specimen::Model {
         whole: Decimal::new(25, 1),
         amount: Decimal::new(12345, 4),
         prices: vec![Decimal::new(10005, 4)],
-        cost: None,
+        cost: Some(Decimal::new(1234, 2)),
+        fees: vec![Decimal::new(150, 2), Decimal::new(2, 0)],
         small: 1,
         big: 2,
         ratio: 0.5,
@@ -108,14 +109,6 @@ fn specimen(id: i32) -> specimen::Model {
         level: Grade::High,
         letters: Textrange(Range::from("a".to_owned().."m".to_owned())),
     }
-}
-
-/// The row of `model`, its `money` column left out: a `Decimal` field is
-/// bound and decoded as `numeric`, which a `money` column is not.
-fn without_cost(model: specimen::Model) -> specimen::ActiveModel {
-    let mut active = model.into_active_model();
-    active.cost = NotSet;
-    active
 }
 
 /// The compiled entity defines each column with the type modifiers the schema
@@ -145,6 +138,7 @@ fn the_entity_table_renders_each_type_modifier() {
         r#""amount" decimal NOT NULL"#,
         r#""prices" decimal(8, 3)[] NOT NULL"#,
         r#""cost" money,"#,
+        r#""fees" money[] NOT NULL"#,
         r#""data" jsonb NOT NULL"#,
         r#""months" interval YEAR TO MONTH NOT NULL"#,
     ] {
@@ -206,6 +200,7 @@ async fn generated_columns_keep_their_type_modifiers() -> Result<(), Error> {
             ("amount", "numeric"),
             ("prices", "numeric(8,3)[]"),
             ("cost", "money"),
+            ("fees", "money[]"),
             ("small", "smallint"),
             ("big", "bigint"),
             ("ratio", "real"),
@@ -245,7 +240,12 @@ async fn generated_columns_hold_values_to_their_modifiers() -> Result<(), Error>
     let db = ctx.db.get().await?;
     entity_table(&db).await?;
 
-    assert_eq!(Insert::one(without_cost(specimen(1))).exec(&db).await?, 1);
+    assert_eq!(
+        Insert::one(specimen(1).into_active_model())
+            .exec(&db)
+            .await?,
+        1
+    );
     type Stored = (
         String,
         String,
@@ -314,7 +314,7 @@ async fn generated_columns_hold_values_to_their_modifiers() -> Result<(), Error>
         },
     ];
     for model in too_long {
-        let error = Insert::one(without_cost(model))
+        let error = Insert::one(model.into_active_model())
             .exec(&db)
             .await
             .expect_err("a value past the column's length");
@@ -336,7 +336,7 @@ async fn generated_columns_hold_values_to_their_modifiers() -> Result<(), Error>
         },
     ];
     for model in too_wide {
-        let error = Insert::one(without_cost(model))
+        let error = Insert::one(model.into_active_model())
             .exec(&db)
             .await
             .expect_err("a value past the column's precision");
@@ -350,6 +350,109 @@ async fn generated_columns_hold_values_to_their_modifiers() -> Result<(), Error>
             .all(&db)
             .await?,
         [1]
+    );
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+/// The generated entity's `money` columns are read as `numeric` and written
+/// cast to `money` from the `numeric` a `Decimal` placeholder is pinned to.
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    a `money` column, and an
+// array of it, is read cast to `numeric` and written cast to `money`
+#[test]
+fn money_columns_cast_through_numeric() {
+    let (sql, _) = specimen::Entity::find()
+        .select([specimen::Column::Cost, specimen::Column::Fees])
+        .filter(specimen::Column::Cost.eq(Decimal::ONE))
+        .filter(specimen::Column::Cost.eq_any([Decimal::ONE]))
+        .filter(specimen::Column::Fees.eq(vec![Decimal::ONE]))
+        .build();
+    assert_eq!(
+        sql,
+        [
+            r#"SELECT CAST("specimen"."cost" AS numeric), CAST("specimen"."fees" AS numeric[])"#,
+            r#"FROM "specimen" WHERE "specimen"."cost" = CAST($1::numeric AS money)"#,
+            r#"AND "specimen"."cost" = ANY(CAST($2::numeric[] AS money[]))"#,
+            r#"AND "specimen"."fees" = CAST($3::numeric[] AS money[])"#,
+        ]
+        .join(" ")
+    );
+}
+
+/// A `money` column, and an array of them, read and write through the
+/// generated entity's `Decimal` fields: the row inserted, read back whole and
+/// by its columns, found by a comparison with each, and updated through
+/// `RETURNING`, each value at the currency's two places, a third rounded off.
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    against a live server: a
+// `money` column, and an array of it, is read as `numeric` and written through
+// `numeric` to `money`, which compares with the column as well as assigns to it
+// [spec:pgorm:sem:codegen.entity.types+12/test]
+#[pgorm_macros::test]
+async fn a_money_column_reads_and_writes_as_decimal() -> Result<(), Error> {
+    let ctx = TestContext::new("codegen_column_types_tests_money").await;
+    let db = ctx.db.get().await?;
+    entity_table(&db).await?;
+
+    Insert::one(specimen(1).into_active_model())
+        .exec(&db)
+        .await?;
+    let read = specimen::Entity::find_by_id(1).one(&db).await?;
+    assert_eq!(
+        (read.cost, read.fees),
+        (
+            Some(Decimal::new(1234, 2)),
+            vec![Decimal::new(150, 2), Decimal::new(200, 2)]
+        )
+    );
+    let columns = specimen::Entity::find_by_id(1)
+        .select([specimen::Column::Cost, specimen::Column::Fees])
+        .into_tuple::<(Option<Decimal>, Vec<Decimal>)>()
+        .one(&db)
+        .await?;
+    assert_eq!(
+        columns,
+        (
+            Some(Decimal::new(1234, 2)),
+            vec![Decimal::new(150, 2), Decimal::new(200, 2)]
+        )
+    );
+
+    let found = |condition: Condition| {
+        specimen::Entity::find()
+            .filter(condition)
+            .select(specimen::Column::Id)
+            .into_tuple::<i32>()
+            .all(&db)
+    };
+    let cost = Decimal::new(1234, 2);
+    for condition in [
+        Condition::all().add(specimen::Column::Cost.eq(cost)),
+        Condition::all().add(specimen::Column::Cost.is_in([cost, Decimal::ONE])),
+        Condition::all().add(specimen::Column::Cost.eq_any([cost])),
+        Condition::all().add(specimen::Column::Cost.between(Decimal::ONE, Decimal::ONE_HUNDRED)),
+        Condition::all().add(specimen::Column::Fees.eq(vec![Decimal::new(15, 1), Decimal::TWO])),
+    ] {
+        assert_eq!(found(condition).await?, [1]);
+    }
+    assert!(
+        found(Condition::all().add(specimen::Column::Cost.gt(Decimal::ONE_HUNDRED)))
+            .await?
+            .is_empty()
+    );
+
+    let updated = specimen::ActiveModel {
+        id: Unchanged(1),
+        cost: Set(Some(Decimal::new(56789, 3))),
+        fees: Set(vec![Decimal::new(1, 3)]),
+        ..Default::default()
+    }
+    .update(&db)
+    .await?;
+    assert_eq!(
+        (updated.cost, updated.fees),
+        (Some(Decimal::new(5679, 2)), vec![Decimal::new(0, 2)])
     );
 
     drop(db);

@@ -75,7 +75,7 @@ fn qualified(name: &Name, schema: &Option<Name>) -> pgorm_query::TypeName {
 /// value written to its column becomes; over an enum array the domain is the
 /// array type, so its name carries no `[]`. A comparison takes
 /// [`compared_enum`] instead.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
 pub(crate) fn enum_type_name(col_type: &ColumnType) -> Option<pgorm_query::TypeName> {
     match col_type {
         ColumnType::Enum { name, schema, .. } => Some(qualified(name, schema)),
@@ -95,7 +95,7 @@ pub(crate) fn enum_type_name(col_type: &ColumnType) -> Option<pgorm_query::TypeN
 /// d*), so the column and every value compared with it are cast to the enum.
 /// A domain over an array of an enum is `None`: array comparison resolves for
 /// it, as it does for every other domain's base.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
 pub(crate) fn compared_enum(col_type: &ColumnType) -> Option<pgorm_query::TypeName> {
     let ColumnType::Domain { base, .. } = col_type else {
         return None;
@@ -108,7 +108,7 @@ pub(crate) fn compared_enum(col_type: &ColumnType) -> Option<pgorm_query::TypeNa
 
 /// A column as a comparison operand: cast to the enum when its domain is
 /// over one ([`compared_enum`]), itself otherwise.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
 pub(crate) fn compared_column<C: ColumnTrait>(col: &C, expr: Expr) -> Expr {
     match compared_enum(col.def().get_column_type()) {
         Some(enum_type) => Expr::expr(expr.cast_as_type(enum_type)),
@@ -119,7 +119,7 @@ pub(crate) fn compared_column<C: ColumnTrait>(col: &C, expr: Expr) -> Expr {
 /// A value compared with a column: cast to the enum when the column's domain
 /// is over one, so it meets the column cast the same way, and through the
 /// column's [`save_as`](ColumnTrait::save_as) otherwise.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
 pub(crate) fn compared_value<C: ColumnTrait>(col: &C, val: Expr) -> SimpleExpr {
     match compared_enum(col.def().get_column_type()) {
         Some(enum_type) => val.cast_as_type(enum_type),
@@ -130,7 +130,7 @@ pub(crate) fn compared_value<C: ColumnTrait>(col: &C, val: Expr) -> SimpleExpr {
 /// The array counterpart of [`compared_value`], for the one-array operand of
 /// `= ANY` and `<> ALL`: the enum's array, or the column's
 /// [`save_array_as`](ColumnTrait::save_array_as).
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
 pub(crate) fn compared_array<C: ColumnTrait>(col: &C, val: Expr) -> SimpleExpr {
     match compared_enum(col.def().get_column_type()) {
         Some(enum_type) => val.cast_as_type(enum_type.array()),
@@ -140,7 +140,7 @@ pub(crate) fn compared_array<C: ColumnTrait>(col: &C, val: Expr) -> SimpleExpr {
 
 /// A subquery a column's membership is tested against, in the form the
 /// comparison takes it.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
 pub(crate) enum ComparedSubquery {
     /// Compared row by row, `IN (..)` / `NOT IN (..)`: as written, or with its
     /// one projected expression cast to the enum in place.
@@ -165,7 +165,7 @@ pub(crate) enum ComparedSubquery {
 /// expressions are left as written: the membership is of one column, so the
 /// server refuses them (`42601`, *subquery has too many columns*) whatever
 /// their types.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
 pub(crate) fn compared_subquery<C: ColumnTrait>(
     col: &C,
     mut query: SelectStatement,
@@ -197,7 +197,7 @@ pub(crate) fn compared_subquery<C: ColumnTrait>(
 
 /// Whether a column holds an array, under any domains it is typed with: what
 /// decides whether an enum column is read as `text` or `text[]`.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
 pub(crate) fn holds_array(col_type: &ColumnType) -> bool {
     match col_type {
         ColumnType::Array(_) => true,
@@ -226,6 +226,41 @@ pub(crate) fn created_range_type_name(col_type: &ColumnType) -> Option<pgorm_que
             created_range_type_name(base).map(|_| qualified(name, schema))
         }
         _ => None,
+    }
+}
+
+/// The `money` type a column stores, as the [`TypeName`] a value written to
+/// it is cast to: the array flag set for a column holding an array of it, and
+/// a domain over either cast to by its own name, so its constraints apply.
+///
+/// On the wire a `money` is an `int8` count of the currency's minor units,
+/// whose scale only the server's `lc_monetary` knows, and which `Decimal`
+/// does not read. Its column is therefore read cast to `numeric`
+/// ([`money_carrier`]), and a value written to it is cast to the column's
+/// type from the type its placeholder is pinned to, `numeric` for a
+/// `Decimal` (`sql.render.cast-param-type`), PostgreSQL converting at that
+/// scale both ways. A value left `numeric` would assign but not compare
+/// (`42883`, *operator does not exist: money = numeric*).
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+pub(crate) fn money_type_name(col_type: &ColumnType) -> Option<pgorm_query::TypeName> {
+    match col_type {
+        ColumnType::Money => Some(pgorm_query::TypeName::new(Name::runtime("money"))),
+        ColumnType::Array(col_type) => Some(money_type_name(col_type)?.array()),
+        ColumnType::Domain { name, schema, base } => {
+            money_type_name(base).map(|_| qualified(name, schema))
+        }
+        _ => None,
+    }
+}
+
+/// The `numeric` a `money` column is read as ([`money_type_name`]), or
+/// `numeric[]` for an array of them.
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+pub(crate) fn money_carrier(array: bool) -> pgorm_query::TypeName {
+    let numeric = pgorm_query::TypeName::new(Name::runtime("numeric"));
+    match array {
+        true => numeric.array(),
+        false => numeric,
     }
 }
 
@@ -398,11 +433,11 @@ where
 mod tests {
     use crate::{ColumnTrait, EntityTrait};
 
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]    every
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    every
     // value-position operand passes through `save_as` — between, if_null and
     // the array membership forms included — for the derive-generated override
     // and the enum default alike
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]    a
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    a
     // schema-qualified enum type reaches every rendering qualified: the value
     // cast, the array cast, the CREATE TABLE column type and CREATE TYPE
     #[test]
@@ -519,7 +554,7 @@ mod tests {
         impl ActiveModelBehavior for ActiveModel {}
     }
 
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]    a column whose
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    a column whose
     // domain is over an enum compares as the enum: every predicate form casts
     // the column and its value operands to the enum, an array operand to its
     // array, while a value written to the column is still cast to the domain
@@ -584,7 +619,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]    a column whose
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    a column whose
     // domain is over an enum is compared as the enum in subquery membership,
     // the subquery's one plain projection cast with it, a `*`, a table's `*` or
     // a windowed projection compared through the subquery's array cast to the
