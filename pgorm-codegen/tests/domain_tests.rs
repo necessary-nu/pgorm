@@ -256,7 +256,7 @@ fn unholdable_domain_arrays_are_named() {
 
 // [spec:pgorm:sem:codegen.entity.types+12/test]    a domain column is a field of its base's
 // Rust type, an array of one a `Vec` of it, an enum or a created range's newtype included
-// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    the compact writer names every
+// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    the compact writer names every
 // domain column's type, the domain and its base spelled in full
 #[test]
 fn domain_columns_generate_a_compiling_entity() {
@@ -445,7 +445,7 @@ fn keyable_domain_pairs_generate_their_relation() {
         assert_contains(
             &flat(generated.file("c.rs")),
             &flat(
-                r#"#[pgorm(belongs_to = "super::p::Entity", from = "Column::R", to = "super::p::Column::K")]"#,
+                r#"#[pgorm(belongs_to = super::p::Entity, from = Column::R, to = super::p::Column::K)]"#,
             ),
         );
     }

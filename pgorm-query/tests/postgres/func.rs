@@ -4,7 +4,7 @@
 use super::*;
 use crate::oracle::assert_eq;
 
-// [spec:pgorm:def:sql.ast.func+11/test]      FILTER takes any IntoCondition
+// [spec:pgorm:def:sql.ast.func+12/test]      FILTER takes any IntoCondition
 // [spec:pgorm:req:sql.render.func-mods/test]
 #[test]
 fn aggregate_filter_renders_after_the_arguments() {
@@ -54,7 +54,7 @@ fn aggregate_filter_numbers_its_parameters_in_sequence() {
 }
 
 // Each `filter` call replaces the last rather than accumulating.
-// [spec:pgorm:def:sql.ast.func+11/test]
+// [spec:pgorm:def:sql.ast.func+12/test]
 #[test]
 fn a_second_filter_replaces_the_first() {
     assert_eq!(
@@ -70,7 +70,7 @@ fn a_second_filter_replaces_the_first() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.func+11/test]      WITHIN GROUP, and the two
+// [spec:pgorm:def:sql.ast.func+12/test]      WITHIN GROUP, and the two
 // ordered-set constructors
 // [spec:pgorm:req:sql.render.func-mods/test]
 #[test]
@@ -97,7 +97,7 @@ fn within_group_renders_the_ordered_set_ordering() {
 
 // The ordering accumulates, for the hypothetical-set aggregates that rank
 // against several columns at once.
-// [spec:pgorm:def:sql.ast.func+11/test]
+// [spec:pgorm:def:sql.ast.func+12/test]
 #[test]
 fn within_group_accumulates_its_ordering() {
     assert_eq!(
@@ -188,7 +188,7 @@ fn an_unmodified_call_renders_unchanged() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.func+11/test]
+// [spec:pgorm:def:sql.ast.func+12/test]
 #[test]
 fn sub_query_with_fn() {
     #[derive(SqlName)]
@@ -215,7 +215,7 @@ fn sub_query_with_fn() {
 
 // PostgreSQL 18's UUID family: the two generators, v7's shifted form with its
 // interval bound like any value, and the two readers over a column.
-// [spec:pgorm:def:sql.ast.func+11/test]
+// [spec:pgorm:def:sql.ast.func+12/test]
 #[test]
 fn the_uuid_family_renders_its_calls() {
     assert_eq!(
@@ -247,7 +247,7 @@ fn the_uuid_family_renders_its_calls() {
 }
 
 // A v7 call is a column default like any expression.
-// [spec:pgorm:def:sql.ast.func+11/test]
+// [spec:pgorm:def:sql.ast.func+12/test]
 #[test]
 fn a_uuidv7_call_is_a_column_default() {
     assert_eq!(

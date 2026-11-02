@@ -54,7 +54,7 @@ fn even() -> SimpleExpr {
 /// the old one computed in the same query — one row, two columns, no chance of
 /// the two seeing different data.
 // [spec:pgorm:req:sql.render.func-mods/test]
-// [spec:pgorm:def:sql.ast.func+11/test]
+// [spec:pgorm:def:sql.ast.func+12/test]
 async fn filter_agrees_with_the_case_sum_it_replaces(db: &DatabaseConnection) -> Result<(), Error> {
     let sql = Query::select()
         .expr(Func::sum(size_w()).filter(even()))
@@ -108,7 +108,7 @@ async fn filter_narrows_the_row_set_the_aggregate_sees(
 /// the same ordering, which is what proves the WITHIN GROUP ordering reached
 /// the server rather than the clause being dropped.
 // [spec:pgorm:req:sql.render.func-mods/test]
-// [spec:pgorm:def:sql.ast.func+11/test]
+// [spec:pgorm:def:sql.ast.func+12/test]
 async fn within_group_reads_the_ordering_it_is_given(db: &DatabaseConnection) -> Result<(), Error> {
     let sql = Query::select()
         .expr(Func::percentile_cont(0.5).within_group(Name::runtime("size_w"), Order::Asc))

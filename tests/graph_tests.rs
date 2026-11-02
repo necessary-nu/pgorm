@@ -1249,15 +1249,15 @@ mod peers {
         #[derive(Copy, Clone, Debug, EnumIter, Relation)]
         pub enum Relation {
             #[pgorm(
-                belongs_to = "super::member::Entity",
-                from = "Column::MemberId",
-                to = "super::member::Column::Id"
+                belongs_to = super::member::Entity,
+                from = Column::MemberId,
+                to = super::member::Column::Id
             )]
             Member,
             #[pgorm(
-                belongs_to = "super::member::Entity",
-                from = "Column::PeerId",
-                to = "super::member::Column::Id"
+                belongs_to = super::member::Entity,
+                from = Column::PeerId,
+                to = super::member::Column::Id
             )]
             Peer,
         }

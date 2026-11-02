@@ -20,8 +20,8 @@ use tokio_postgres::row::RowIndex;
 /// // Using the derive macro
 /// #[derive(Debug, PartialEq, EnumIter, ActiveEnum)]
 /// #[pgorm(
-///     rs_type = "String",
-///     db_type = "String(StringLen::N(1))",
+///     rs_type = String,
+///     db_type = ColumnType::String(StringLen::N(1)),
 ///     enum_name = "category",
 ///     display
 /// )]
@@ -88,7 +88,7 @@ use tokio_postgres::row::RowIndex;
 ///
 /// // Define the `Category` active enum
 /// #[derive(Debug, Clone, PartialEq, EnumIter, ActiveEnum)]
-/// #[pgorm(rs_type = "String", db_type = "String(StringLen::N(1))", display)]
+/// #[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::N(1)), display)]
 /// pub enum Category {
 ///     #[pgorm(string_value = "B")]
 ///     Big,
@@ -273,8 +273,8 @@ mod tests {
 
         #[derive(Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
         #[pgorm(
-            rs_type = "String",
-            db_type = "String(StringLen::N(1))",
+            rs_type = String,
+            db_type = ColumnType::String(StringLen::N(1)),
             enum_name = "category",
             display
         )]
@@ -337,7 +337,7 @@ mod tests {
     #[test]
     fn active_enum_derive_signed_integers() {
         macro_rules! test_num_value_int {
-            ($ident: ident, $rs_type: expr, $db_type: expr, $col_def: ident) => {
+            ($ident: ident, $rs_type: ty, $db_type: expr, $col_def: ident) => {
                 #[derive(Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
                 #[pgorm(rs_type = $rs_type, db_type = $db_type, display)]
                 pub enum $ident {
@@ -354,7 +354,7 @@ mod tests {
         }
 
         macro_rules! test_fallback_int {
-            ($ident: ident, $fallback_type: ident, $rs_type: expr, $db_type: expr, $col_def: ident) => {
+            ($ident: ident, $fallback_type: ident, $rs_type: ty, $db_type: expr, $col_def: ident) => {
                 #[derive(Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
                 #[pgorm(rs_type = $rs_type, db_type = $db_type, display)]
                 #[repr(i32)]
@@ -369,7 +369,7 @@ mod tests {
         }
 
         macro_rules! test_int {
-            ($ident: ident, $rs_type: expr, $db_type: expr, $col_def: ident) => {
+            ($ident: ident, $rs_type: ty, $db_type: expr, $col_def: ident) => {
                 assert_eq!($ident::Big.to_value(), 1);
                 assert_eq!($ident::Small.to_value(), 0);
                 assert_eq!($ident::Negative.to_value(), -10);
@@ -393,21 +393,27 @@ mod tests {
             };
         }
 
-        test_num_value_int!(I8, "i8", "SmallInteger", SmallInteger);
-        test_num_value_int!(I16, "i16", "SmallInteger", SmallInteger);
-        test_num_value_int!(I32, "i32", "Integer", Integer);
-        test_num_value_int!(I64, "i64", "BigInteger", BigInteger);
+        test_num_value_int!(I8, i8, ColumnType::SmallInteger, SmallInteger);
+        test_num_value_int!(I16, i16, ColumnType::SmallInteger, SmallInteger);
+        test_num_value_int!(I32, i32, ColumnType::Integer, Integer);
+        test_num_value_int!(I64, i64, ColumnType::BigInteger, BigInteger);
 
-        test_fallback_int!(I8Fallback, i8, "i8", "SmallInteger", SmallInteger);
-        test_fallback_int!(I16Fallback, i16, "i16", "SmallInteger", SmallInteger);
-        test_fallback_int!(I32Fallback, i32, "i32", "Integer", Integer);
-        test_fallback_int!(I64Fallback, i64, "i64", "BigInteger", BigInteger);
+        test_fallback_int!(I8Fallback, i8, i8, ColumnType::SmallInteger, SmallInteger);
+        test_fallback_int!(
+            I16Fallback,
+            i16,
+            i16,
+            ColumnType::SmallInteger,
+            SmallInteger
+        );
+        test_fallback_int!(I32Fallback, i32, i32, ColumnType::Integer, Integer);
+        test_fallback_int!(I64Fallback, i64, i64, ColumnType::BigInteger, BigInteger);
     }
 
     #[test]
     fn active_enum_derive_unsigned_integers() {
         macro_rules! test_num_value_uint {
-            ($ident: ident, $rs_type: expr, $db_type: expr, $col_def: ident) => {
+            ($ident: ident, $rs_type: ty, $db_type: expr, $col_def: ident) => {
                 #[derive(Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
                 #[pgorm(rs_type = $rs_type, db_type = $db_type, display)]
                 pub enum $ident {
@@ -422,7 +428,7 @@ mod tests {
         }
 
         macro_rules! test_fallback_uint {
-            ($ident: ident, $fallback_type: ident, $rs_type: expr, $db_type: expr, $col_def: ident) => {
+            ($ident: ident, $fallback_type: ident, $rs_type: ty, $db_type: expr, $col_def: ident) => {
                 #[derive(Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
                 #[pgorm(rs_type = $rs_type, db_type = $db_type, display)]
                 #[repr($fallback_type)]
@@ -436,7 +442,7 @@ mod tests {
         }
 
         macro_rules! test_uint {
-            ($ident: ident, $rs_type: expr, $db_type: expr, $col_def: ident) => {
+            ($ident: ident, $rs_type: ty, $db_type: expr, $col_def: ident) => {
                 assert_eq!($ident::Big.to_value(), 1);
                 assert_eq!($ident::Small.to_value(), 0);
 
@@ -457,15 +463,15 @@ mod tests {
             };
         }
 
-        test_num_value_uint!(U32, "u32", "Integer", Integer);
+        test_num_value_uint!(U32, u32, ColumnType::Integer, Integer);
 
-        test_fallback_uint!(U32Fallback, u32, "u32", "Integer", Integer);
+        test_fallback_uint!(U32Fallback, u32, u32, ColumnType::Integer, Integer);
     }
 
     #[test]
     fn escaped_non_uax31() {
         #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
-        #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "pop_os_names_typos")]
+        #[pgorm(rs_type = String, enum_name = "pop_os_names_typos")]
         pub enum PopOSTypos {
             #[pgorm(string_value = "Pop!_OS")]
             PopOSCorrect,
@@ -520,8 +526,8 @@ mod tests {
         #[allow(dead_code)]
         #[derive(Clone, Debug, PartialEq, EnumIter, ActiveEnum)]
         #[pgorm(
-            rs_type = "String",
-            db_type = "String(StringLen::None)",
+            rs_type = String,
+            db_type = ColumnType::String(StringLen::None),
             enum_name = "conflicting_string_values",
             display
         )]
@@ -551,11 +557,11 @@ mod tests {
         assert_eq!(EnumVariant::_0x300x20123.to_string(), "0 123");
     }
 
-    // [spec:pgorm:sem:macros.derive.active-enum.expansion+3/test]    `display` writes each variant's `display_value`, or its name
+    // [spec:pgorm:sem:macros.derive.active-enum.expansion+4/test]    `display` writes each variant's `display_value`, or its name
     #[test]
     fn test_derive_display() {
         #[derive(Debug, PartialEq, EnumIter, ActiveEnum)]
-        #[pgorm(rs_type = "String", db_type = "String(StringLen::None)", display)]
+        #[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::None), display)]
         enum DisplayTea {
             #[pgorm(string_value = "everyday")]
             EverydayTea,

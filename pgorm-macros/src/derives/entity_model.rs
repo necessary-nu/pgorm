@@ -3,7 +3,7 @@ use super::primary_key::expand_primary_key;
 use super::sql_type_match::unwrap_option;
 use super::util::{
     bare_code, column_variant_ident, escape_rust_keyword, parse_derived_ident,
-    trim_starting_raw_identifier, unknown_pgorm_key,
+    trim_starting_raw_identifier, unknown_pgorm_key, unread_model_field_key,
 };
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use proc_macro2::{Ident, Span, TokenStream};
@@ -25,10 +25,12 @@ const MAX_KEY_ARITY: usize = 12;
 struct FieldAttrs {
     sql_type: Option<Expr>,
     column_name: Option<String>,
-    enum_name: Option<Ident>,
+    /// The `Column` variant the field names in place of the one its name
+    /// derives.
+    variant: Option<Ident>,
     comment: Option<Lit>,
-    default_value: Option<Lit>,
-    default_expr: Option<TokenStream>,
+    default_value: Option<Expr>,
+    default_expr: Option<Expr>,
     /// How the column is read: a verbatim cast or a function of its
     /// expression, never both.
     select: Option<Conversion>,
@@ -52,7 +54,7 @@ struct FieldAttrs {
     identity: Option<(Identity, Span)>,
     /// The generated column this field declared: its kind, its expression,
     /// and where the key was written.
-    generated: Option<(Generated, TokenStream, Span)>,
+    generated: Option<(Generated, Expr, Span)>,
 }
 
 /// Which of PostgreSQL's two identity forms a field declared.
@@ -85,7 +87,7 @@ enum Generated {
 
 impl Generated {
     /// The `ColumnDef` builder call that declares this kind over `expr`.
-    fn builder(self, expr: &TokenStream) -> TokenStream {
+    fn builder(self, expr: &Expr) -> TokenStream {
         let kind = match self {
             Self::Stored => quote! { Stored },
             Self::Virtual => quote! { Virtual },
@@ -129,7 +131,7 @@ const WRITE: Direction = Direction {
 /// direction, so a second key of the pair, or the same key again, is refused
 /// rather than left to override the first.
 // [spec:pgorm:req:macros.derive.one-form]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+6]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+7]
 fn conversion(
     meta: &ParseNestedMeta,
     declared: &Option<Conversion>,
@@ -164,7 +166,7 @@ struct Written {
 /// `save_array_with` beside it, since the array `= ANY` and `<> ALL` compare a
 /// column with is not a value of the column's type.
 // [spec:pgorm:req:macros.derive.one-form]
-// [spec:pgorm:sem:macros.derive.entity-model+7]
+// [spec:pgorm:sem:macros.derive.entity-model+8]
 fn conversion_arms(
     select: Option<Conversion>,
     save: Option<Conversion>,
@@ -208,8 +210,11 @@ fn conversion_arms(
 
 /// `column_name` carries the name derived before any attribute is read, which an
 /// explicit `column_name` key overrides. `auto_increment` and `primary_key_types`
-/// are entity-wide and accumulate across every field.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+6]
+/// are entity-wide and accumulate across every field. A key whose value is Rust
+/// code takes it bare; `default_value` is an expression of the column's value,
+/// so a string literal there is that string.
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+7]
+// [spec:pgorm:req:macros.derive.code-values+2]
 fn parse_field_attrs(
     field: &Field,
     column_name: Option<String>,
@@ -221,7 +226,6 @@ fn parse_field_attrs(
         ..Default::default()
     };
 
-    // search for #[pgorm(primary_key, auto_increment = false, column_type = ColumnType::String(StringLen::N(255)), default_value = "new user", default_expr = "gen_random_uuid()", generated_stored = "Expr::col(Column::A).mul(2)", column_name = "name", enum_name = "Name", nullable, indexed, unique)]
     for attr in field.attrs.iter() {
         if !attr.path().is_ident("pgorm") {
             continue;
@@ -268,24 +272,18 @@ fn parse_field_attrs(
                     Generated::Virtual
                 };
                 let span = meta.path.span();
-                let lit = meta.value()?.parse()?;
-                let Lit::Str(litstr) = lit else {
-                    return Err(meta.error(format!("Invalid generated expression {:?}", lit)));
+                let key = if kind == Generated::Stored {
+                    "generated_stored"
+                } else {
+                    "generated_virtual"
                 };
-                let expr: TokenStream = syn::parse_str(&litstr.value())?;
-                parsed.generated = Some((kind, expr, span));
+                parsed.generated = Some((kind, bare_code(&meta, key)?, span));
             } else if meta.path.is_ident("comment") {
                 parsed.comment = Some(meta.value()?.parse::<Lit>()?);
             } else if meta.path.is_ident("default_value") {
-                parsed.default_value = Some(meta.value()?.parse::<Lit>()?);
+                parsed.default_value = Some(meta.value()?.parse::<Expr>()?);
             } else if meta.path.is_ident("default_expr") {
-                let lit = meta.value()?.parse()?;
-                if let Lit::Str(litstr) = lit {
-                    let value_expr: TokenStream = syn::parse_str(&litstr.value())?;
-                    parsed.default_expr = Some(value_expr);
-                } else {
-                    return Err(meta.error(format!("Invalid column_type {:?}", lit)));
-                }
+                parsed.default_expr = Some(bare_code(&meta, "default_expr")?);
             } else if meta.path.is_ident("column_name") {
                 let lit = meta.value()?.parse()?;
                 if let Lit::Str(litstr) = lit {
@@ -293,14 +291,10 @@ fn parse_field_attrs(
                 } else {
                     return Err(meta.error(format!("Invalid column_name {:?}", lit)));
                 }
+            } else if meta.path.is_ident("variant") {
+                parsed.variant = Some(bare_code(&meta, "variant")?);
             } else if meta.path.is_ident("enum_name") {
-                let lit = meta.value()?.parse()?;
-                if let Lit::Str(litstr) = lit {
-                    let ty: Ident = syn::parse_str(&litstr.value())?;
-                    parsed.enum_name = Some(ty);
-                } else {
-                    return Err(meta.error(format!("Invalid enum_name {:?}", lit)));
-                }
+                return Err(unread_model_field_key(&meta));
             } else if meta.path.is_ident("select_as") || meta.path.is_ident("select_with") {
                 parsed.select = Some(conversion(&meta, &parsed.select, READ)?);
             } else if meta.path.is_ident("save_as") || meta.path.is_ident("save_with") {
@@ -388,7 +382,7 @@ fn temporal_key(key_periods: &[Option<Span>]) -> syn::Result<TokenStream> {
 /// Refuse a generated column beside anything else that would fill it, and a
 /// virtual one where PostgreSQL cannot index it: the first are definitions it
 /// rejects as conflicting (42601), the second as unsupported (0A000).
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+9]
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+10]
 fn check_generated(attrs: &FieldAttrs) -> syn::Result<()> {
     let Some((kind, _, span)) = &attrs.generated else {
         return Ok(());
@@ -494,10 +488,10 @@ fn serde_field_rename(attrs: &[Attribute]) -> syn::Result<Option<String>> {
 }
 
 /// Method to derive an Model
-// [spec:pgorm:sem:macros.derive.entity-model+7]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+6]
-// [spec:pgorm:sem:macros.derive.entity-model.casing+3]
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+9]
+// [spec:pgorm:sem:macros.derive.entity-model+8]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+7]
+// [spec:pgorm:sem:macros.derive.entity-model.casing+4]
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+10]
 // [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
 pub fn expand_derive_entity_model(
     model: &Ident,
@@ -578,11 +572,10 @@ pub fn expand_derive_entity_model(
     let mut key_spans: Vec<Span> = Vec::new();
     let mut key_periods: Vec<Option<Span>> = Vec::new();
     let mut serial_key_fields: Vec<Span> = Vec::new();
-    if table_iden && let Some(table_name) = table_name {
+    if table_iden && table_name.is_some() {
         let table_field_name = Ident::new("Table", Span::call_site());
         columns_enum.push(quote! {
             #[doc = " Generated by pgorm-macros"]
-            #[pgorm(table_name=#table_name)]
             #[strum(disabled)]
             #table_field_name
         });
@@ -622,7 +615,7 @@ pub fn expand_derive_entity_model(
                 let FieldAttrs {
                     sql_type,
                     column_name,
-                    enum_name,
+                    variant,
                     comment,
                     default_value,
                     default_expr,
@@ -640,8 +633,8 @@ pub fn expand_derive_entity_model(
                     generated,
                 } = attrs;
 
-                if let Some(enum_name) = enum_name {
-                    field_name = enum_name;
+                if let Some(variant) = variant {
+                    field_name = variant;
                 }
 
                 field_name = parse_derived_ident(&escape_rust_keyword(&field_name), ident)?;
@@ -742,7 +735,6 @@ pub fn expand_derive_entity_model(
                     let builder = kind.builder(&expr);
                     match_row = quote! { #match_row #builder };
                 }
-                // match_row = quote! { #match_row.comment() };
                 columns_trait.push(match_row);
             }
         }

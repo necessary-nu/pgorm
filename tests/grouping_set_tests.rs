@@ -206,7 +206,7 @@ async fn grouping_sets_group_by_exactly_the_sets_named(
 /// (NULL, pear) group and the NULL region's subtotal, both from the data,
 /// and the grand total, which drops the column. `GROUPING(region)` is 0 for
 /// the first two and 1 for the last — the distinction `IS NULL` cannot make.
-// [spec:pgorm:def:sql.ast.func+11/test]    against a live server: GROUPING() reads which columns
+// [spec:pgorm:def:sql.ast.func+12/test]    against a live server: GROUPING() reads which columns
 // a row's set left out
 async fn grouping_tells_subtotal_null_from_data_null(db: &DatabaseConnection) -> Result<(), Error> {
     let query = Query::select()

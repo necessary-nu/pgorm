@@ -111,7 +111,7 @@ class SuiteTests(unittest.TestCase):
             [
                 "binder-brand-crossed",
                 "entity-key-temporal-alone",
-                "entity-relation-enforcement-unknown",
+                "entity-relation-key-quoted",
                 "entity-relation-period-half",
                 "txn-escapes-closure",
             ],

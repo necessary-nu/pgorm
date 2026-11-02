@@ -38,7 +38,7 @@ mod mood {
     use pgorm::entity::prelude::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "mood")]
+    #[pgorm(rs_type = String, enum_name = "mood")]
     pub enum Mood {
         #[pgorm(string_value = "sad")]
         Sad,
@@ -128,33 +128,33 @@ mod keyed {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::anchor::Entity",
-            from = "Column::Mood",
-            to = "super::anchor::Column::AsMood"
+            belongs_to = super::anchor::Entity,
+            from = Column::Mood,
+            to = super::anchor::Column::AsMood
         )]
         Mood,
         #[pgorm(
-            belongs_to = "super::anchor::Entity",
-            from = "Column::Counted",
-            to = "super::anchor::Column::AsCount"
+            belongs_to = super::anchor::Entity,
+            from = Column::Counted,
+            to = super::anchor::Column::AsCount
         )]
         TallyToCount,
         #[pgorm(
-            belongs_to = "super::anchor::Entity",
-            from = "Column::Plain",
-            to = "super::anchor::Column::AsTally"
+            belongs_to = super::anchor::Entity,
+            from = Column::Plain,
+            to = super::anchor::Column::AsTally
         )]
         CountToTally,
         #[pgorm(
-            belongs_to = "super::anchor::Entity",
-            from = "Column::Tally",
-            to = "super::anchor::Column::AsTally"
+            belongs_to = super::anchor::Entity,
+            from = Column::Tally,
+            to = super::anchor::Column::AsTally
         )]
         Tally,
         #[pgorm(
-            belongs_to = "super::anchor::Entity",
-            from = "Column::Moods",
-            to = "super::anchor::Column::AsMoods"
+            belongs_to = super::anchor::Entity,
+            from = Column::Moods,
+            to = super::anchor::Column::AsMoods
         )]
         Moods,
     }
@@ -181,9 +181,9 @@ mod domain_to_domain {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::anchor::Entity",
-            from = "Column::Mood",
-            to = "super::anchor::Column::AsCheerful"
+            belongs_to = super::anchor::Entity,
+            from = Column::Mood,
+            to = super::anchor::Column::AsCheerful
         )]
         Anchor,
     }
@@ -210,9 +210,9 @@ mod domain_to_enum {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::anchor::Entity",
-            from = "Column::Mood",
-            to = "super::anchor::Column::AsMood"
+            belongs_to = super::anchor::Entity,
+            from = Column::Mood,
+            to = super::anchor::Column::AsMood
         )]
         Anchor,
     }
@@ -236,9 +236,9 @@ mod enum_to_domain {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::anchor::Entity",
-            from = "Column::Mood",
-            to = "super::anchor::Column::AsCheerful"
+            belongs_to = super::anchor::Entity,
+            from = Column::Mood,
+            to = super::anchor::Column::AsCheerful
         )]
         Anchor,
     }
@@ -265,9 +265,9 @@ mod nested_to_domain {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::anchor::Entity",
-            from = "Column::Mood",
-            to = "super::anchor::Column::AsCheerful"
+            belongs_to = super::anchor::Entity,
+            from = Column::Mood,
+            to = super::anchor::Column::AsCheerful
         )]
         Anchor,
     }

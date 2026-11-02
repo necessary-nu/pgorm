@@ -121,7 +121,7 @@ def naming_cases():
     """Table, schema and per-column renaming, which only a derive can vary."""
     renamed = (
         ("value", "String", 'column_name = "sql_value"'),
-        ("kind", "i32", 'enum_name = "Kind"'),
+        ("kind", "i32", "variant = Kind"),
         ("r#type", "i32", ""),
     )
     return [
@@ -133,7 +133,7 @@ def naming_cases():
         _accept(
             "entity-renamed-columns",
             entity_module(table="renamed", columns=renamed),
-            "column_name, enum_name and a raw identifier together",
+            "column_name, variant and a raw identifier together",
         ),
     ]
 
@@ -243,13 +243,13 @@ def key_check_cases():
             ("during", "Range<Date>", ""),
         ),
         relation=(
-            '        #[pgorm(belongs_to = "super::room::Entity", from = "Column::RoomId", '
-            'to = "super::room::Column::Id", from_period = "Column::During", '
-            'to_period = "super::room::Column::ValidAt", '
-            'deferrability = "DeferrableInitiallyDeferred")]\n'
+            "        #[pgorm(belongs_to = super::room::Entity, from = Column::RoomId, "
+            "to = super::room::Column::Id, from_period = Column::During, "
+            "to_period = super::room::Column::ValidAt, "
+            "deferrability = Deferrability::DeferrableInitiallyDeferred)]\n"
             "        Room,\n"
-            '        #[pgorm(belongs_to = "super::room::Entity", from = "Column::GuestId", '
-            'to = "super::room::Column::Id", enforcement = "NotEnforced")]\n'
+            "        #[pgorm(belongs_to = super::room::Entity, from = Column::GuestId, "
+            "to = super::room::Column::Id, enforcement = Enforcement::NotEnforced)]\n"
             "        Unchecked,"
         ),
     )
@@ -268,8 +268,17 @@ def key_check_cases():
         table="checked_unknown",
         columns=(("parent_id", "i32", ""),),
         relation=(
-            '        #[pgorm(belongs_to = "Entity", from = "Column::ParentId", '
-            'to = "Column::Id", enforcement = "Lax")]\n'
+            "        #[pgorm(belongs_to = Entity, from = Column::ParentId, "
+            "to = Column::Id, enforcement = Enforcement::Lax)]\n"
+            "        Parent,"
+        ),
+    )
+    quoted = entity_module(
+        table="checked_quoted",
+        columns=(("parent_id", "i32", ""),),
+        relation=(
+            "        #[pgorm(belongs_to = Entity, from = Column::ParentId, "
+            'to = Column::Id, enforcement = "NotEnforced")]\n'
             "        Parent,"
         ),
     )
@@ -277,8 +286,8 @@ def key_check_cases():
         table="checked_half",
         columns=(("parent_id", "i32", ""), ("during", "Range<Date>", "")),
         relation=(
-            '        #[pgorm(belongs_to = "Entity", from = "Column::ParentId", '
-            'to = "Column::Id", from_period = "Column::During")]\n'
+            "        #[pgorm(belongs_to = Entity, from = Column::ParentId, "
+            "to = Column::Id, from_period = Column::During)]\n"
             "        Parent,"
         ),
     )
@@ -294,10 +303,19 @@ def key_check_cases():
             verdict="reject",
             phase="typeck",
             source=unknown,
+            expects=rejects("E0599"),
+            note="enforcement is one of the two states PostgreSQL has, a variant of its enum",
+        ),
+        CompileCase(
+            id="entity-relation-key-quoted",
+            obligation=OBLIGATION,
+            verdict="reject",
+            phase="typeck",
+            source=quoted,
             expects=rejects(
-                message="'enforcement' must be one of Enforced, NotEnforced"
+                message="`enforcement` is Rust code, written bare: remove the quotes"
             ),
-            note="enforcement takes the two states PostgreSQL has, by name",
+            note="an attribute value that is Rust code is written bare, never in a string",
         ),
         CompileCase(
             id="entity-relation-period-half",
@@ -317,7 +335,7 @@ def enum_cases():
         PRELUDE
         + "\n\n"
         + "    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]\n"
-        '    #[pgorm(rs_type = "String", db_type = "Enum", '
+        "    #[pgorm(rs_type = String, "
         'schema_name = "fixture", enum_name = "state")]\n'
         "    pub enum State {\n"
         '        #[pgorm(string_value = "open")]\n'
@@ -351,8 +369,8 @@ def relation_cases():
         table="rel_child",
         columns=(("parent_id", "i32", ""),),
         relation=(
-            '        #[pgorm(belongs_to = "super::parent::Entity", '
-            'from = "Column::ParentId", to = "super::parent::Column::Id")]\n'
+            "        #[pgorm(belongs_to = super::parent::Entity, "
+            "from = Column::ParentId, to = super::parent::Column::Id)]\n"
             "        Parent,"
         ),
     )
@@ -372,9 +390,9 @@ def relation_cases():
         columns=(("parent_id", "i32", ""),),
         keys=(("tenant_id", "i32"), ("id", "i32")),
         relation=(
-            '        #[pgorm(belongs_to = "super::parent::Entity", '
-            'from = "(Column::TenantId, Column::ParentId)", '
-            'to = "(super::parent::Column::TenantId, super::parent::Column::Id)")]\n'
+            "        #[pgorm(belongs_to = super::parent::Entity, "
+            "from = (Column::TenantId, Column::ParentId), "
+            "to = (super::parent::Column::TenantId, super::parent::Column::Id))]\n"
             "        Parent,"
         ),
     )

@@ -15,10 +15,10 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "super::tenant_task::Entity",
-        from = "(Column::TenantId, Column::TaskId)",
-        to = "(super::tenant_task::Column::TenantId, super::tenant_task::Column::Id)",
-        on_delete = "Cascade"
+        belongs_to = super::tenant_task::Entity,
+        from = (Column::TenantId, Column::TaskId),
+        to = (super::tenant_task::Column::TenantId, super::tenant_task::Column::Id),
+        on_delete = ForeignKeyAction::Cascade
     )]
     TenantTask,
 }

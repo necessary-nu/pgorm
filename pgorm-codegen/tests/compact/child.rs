@@ -12,9 +12,9 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "super::parent::Entity",
-        from = "(Column::ParentId1, Column::ParentId2)",
-        to = "(super::parent::Column::Id1, super::parent::Column::Id2)",
+        belongs_to = super::parent::Entity,
+        from = (Column::ParentId1, Column::ParentId2),
+        to = (super::parent::Column::Id1, super::parent::Column::Id2),
     )]
     Parent,
 }

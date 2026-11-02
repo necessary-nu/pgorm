@@ -50,7 +50,7 @@ mod widget {
     use pgorm::entity::prelude::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "widget_grade")]
+    #[pgorm(rs_type = String, enum_name = "widget_grade")]
     pub enum Grade {
         #[pgorm(string_value = "Gold")]
         Gold,
@@ -84,12 +84,12 @@ mod widget {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::factory::Entity",
-            from = "Column::FactoryId",
-            to = "super::factory::Column::Id"
+            belongs_to = super::factory::Entity,
+            from = Column::FactoryId,
+            to = super::factory::Column::Id
         )]
         Factory,
-        #[pgorm(has_many = "super::widget_tag::Entity")]
+        #[pgorm(has_many = super::widget_tag::Entity)]
         WidgetTag,
     }
 
@@ -123,9 +123,9 @@ mod widget_tag {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::widget::Entity",
-            from = "Column::WidgetId",
-            to = "super::widget::Column::Id"
+            belongs_to = super::widget::Entity,
+            from = Column::WidgetId,
+            to = super::widget::Column::Id
         )]
         Widget,
     }
@@ -222,7 +222,7 @@ mod palette {
     use pgorm::entity::prelude::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "palette_hue")]
+    #[pgorm(rs_type = String, enum_name = "palette_hue")]
     pub enum Hue {
         #[pgorm(string_value = "Red")]
         Red,
@@ -247,7 +247,7 @@ mod palette {
 
 /// An `ActiveEnum` whose `db_type()` is not `ColumnType::Enum`.
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
-#[pgorm(rs_type = "String", db_type = "String(StringLen::N(1))")]
+#[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::N(1)))]
 pub enum Size {
     #[pgorm(string_value = "B")]
     Big,

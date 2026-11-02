@@ -85,11 +85,11 @@ struct Opaque {
     opaque: Anything,
 }
 
-#[derive(Debug, FromQueryResult, PartialModel)]
-#[pgorm(entity = "widget::Entity")]
+#[derive(Debug, PartialModel)]
+#[pgorm(entity = widget::Entity)]
 struct PartialWidget {
     id: i32,
-    #[pgorm(from_col = "name")]
+    #[pgorm(from_col = widget::Column::Name)]
     name: String,
 }
 
@@ -236,7 +236,7 @@ async fn manual_impl_can_opt_back_in(db: &DatabaseConnection) -> Result<(), Erro
     Ok(())
 }
 
-// [spec:pgorm:sem:macros.derive.from-query-result+3/test]    `skip` reads no column
+// [spec:pgorm:sem:macros.derive.from-query-result+4/test]    `skip` reads no column
 async fn skipped_field_reads_no_column(db: &DatabaseConnection) -> Result<(), Error> {
     let columns = Skipping::expected_columns().expect("the derive reports columns");
     assert_eq!(columns.len(), 1);
@@ -286,7 +286,7 @@ async fn partial_model_target_verifies(db: &DatabaseConnection) -> Result<(), Er
     Ok(())
 }
 
-// [spec:pgorm:sem:macros.derive.model+4/test]    an entity model reports its columns
+// [spec:pgorm:sem:macros.derive.model+5/test]    an entity model reports its columns
 async fn entity_model_target_verifies(db: &DatabaseConnection) -> Result<(), Error> {
     db.verify::<widget::Model>(NO_ROWS).await?;
 

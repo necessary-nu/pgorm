@@ -1,15 +1,44 @@
-use super::{
-    attributes::derive_attr,
-    util::{
-        MODEL_FIELD_KEYS, escape_rust_keyword, field_not_ignored, parse_derived_ident,
-        parse_enum_name, skip_known_key, spell_type, trim_starting_raw_identifier,
-    },
+use super::util::{
+    COMPOSITE_KEYS, Reader, bare_code, field_not_ignored, field_variant, spell_type,
+    unknown_pgorm_key,
 };
-use heck::ToUpperCamelCase;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use std::iter::FromIterator;
-use syn::{Ident, LitStr};
+use syn::Ident;
+
+/// The entity a further model belongs to, from its container's `entity`:
+/// the one key `Model` reads there. Under the composite the entity is
+/// always `Entity`, and the composite reads the container itself.
+// [spec:pgorm:sem:macros.derive.model+5]
+// [spec:pgorm:req:macros.derive.code-values+2]
+fn model_entity(attrs: &[syn::Attribute], reader: Reader) -> syn::Result<Option<Ident>> {
+    let mut entity = None;
+    if reader == Reader::Composite {
+        return Ok(entity);
+    }
+    for attr in attrs.iter().filter(|attr| attr.path().is_ident("pgorm")) {
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("entity") {
+                if entity.is_some() {
+                    return Err(meta.error("duplicate `entity`"));
+                }
+                entity = Some(bare_code(&meta, "entity")?);
+                return Ok(());
+            }
+            match meta.path.get_ident() {
+                Some(key) if COMPOSITE_KEYS.contains(&key.to_string().as_str()) => {
+                    Err(meta.error(format!(
+                        "`{key}` is the composite derive's: it goes on the entity's `Model` \
+                         under `Entity`; `Model` reads `entity`"
+                    )))
+                }
+                _ => Err(unknown_pgorm_key(&meta)),
+            }
+        })?;
+    }
+    Ok(entity)
+}
 
 enum Error {
     InputNotStruct,
@@ -26,7 +55,7 @@ struct Model {
 }
 
 impl Model {
-    fn new(input: syn::DeriveInput) -> Result<Self, Error> {
+    fn new(input: syn::DeriveInput, reader: Reader) -> Result<Self, Error> {
         let fields = match input.data {
             syn::Data::Struct(syn::DataStruct {
                 fields: syn::Fields::Named(syn::FieldsNamed { named, .. }),
@@ -35,12 +64,10 @@ impl Model {
             _ => return Err(Error::InputNotStruct),
         };
 
-        let pgorm_attr = derive_attr::Pgorm::try_from_attributes(&input.attrs)
-            .map_err(Error::Syn)?
-            .unwrap_or_default();
-
         let ident = input.ident;
-        let entity_ident = pgorm_attr.entity.unwrap_or_else(|| format_ident!("Entity"));
+        let entity_ident = model_entity(&input.attrs, reader)
+            .map_err(Error::Syn)?
+            .unwrap_or_else(|| format_ident!("Entity"));
 
         let field_idents = fields
             .iter()
@@ -51,30 +78,9 @@ impl Model {
 
         let column_idents = fields
             .iter()
-            .map(|field| {
-                let field_ident = field.ident.as_ref().unwrap();
-                let name = trim_starting_raw_identifier(field_ident).to_upper_camel_case();
-                let mut ident = parse_derived_ident(&escape_rust_keyword(name), field_ident)
-                    .map_err(Error::Syn)?;
-                field
-                    .attrs
-                    .iter()
-                    .filter(|attr| attr.path().is_ident("pgorm"))
-                    .try_for_each(|attr| {
-                        attr.parse_nested_meta(|meta| {
-                            if meta.path.is_ident("enum_name") {
-                                ident = parse_enum_name(&meta.value()?.parse::<LitStr>()?)?;
-                            } else {
-                                skip_known_key(&meta, &MODEL_FIELD_KEYS)?;
-                            }
-
-                            Ok(())
-                        })
-                        .map_err(Error::Syn)
-                    })?;
-                Ok(ident)
-            })
-            .collect::<Result<_, _>>()?;
+            .map(|field| field_variant(field, reader))
+            .collect::<syn::Result<_>>()
+            .map_err(Error::Syn)?;
 
         let ignore_attrs = fields
             .iter()
@@ -121,7 +127,7 @@ impl Model {
             })
             .collect();
 
-        // [spec:pgorm:sem:macros.derive.model+4]    the reflected column shape
+        // [spec:pgorm:sem:macros.derive.model+5]    the reflected column shape
         let expected_columns: Vec<TokenStream> = column_idents
             .iter()
             .zip(&self.field_types)
@@ -210,13 +216,15 @@ impl Model {
     }
 }
 
-/// Method to derive an ActiveModel
-// [spec:pgorm:sem:macros.derive.model+4]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+6]    the field-key vocabulary this
+/// `ModelTrait` and `FromQueryResult` for a model, as `reader` reads its
+/// keys: every key under the composite, which validated them, and only
+/// `entity`, `variant` and `ignore` under `Model` itself.
+// [spec:pgorm:sem:macros.derive.model+5]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+7]    the field-key vocabulary this
 // derive shares with the `Entity` derive
-pub fn expand_derive_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
+pub fn expand_derive_model(input: syn::DeriveInput, reader: Reader) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
-    match Model::new(input) {
+    match Model::new(input, reader) {
         Ok(model) => model.expand(),
         Err(Error::InputNotStruct) => Ok(quote_spanned! {
             ident_span => compile_error!("you can only derive `Model` on structs");

@@ -1,7 +1,9 @@
-use super::util::{PROJECTION_FIELD_KEYS, skip_known_key, spell_type};
+use super::util::{PROJECTION_FIELD_KEYS, skip_known_key, spell_type, unknown_pgorm_key};
 use proc_macro2::{Ident, TokenStream};
 use quote::{ToTokens, format_ident, quote, quote_spanned};
-use syn::{Data, DataStruct, Fields, Generics, Type, ext::IdentExt};
+use syn::{
+    Attribute, Data, DataStruct, Fields, Generics, Type, ext::IdentExt, meta::ParseNestedMeta,
+};
 
 pub struct FromQueryResultItem {
     pub skip: bool,
@@ -27,7 +29,7 @@ impl ToTokens for FromQueryResultItem {
 impl FromQueryResultItem {
     /// The column this field reads, as an `ExpectedColumn`, or `None` for a
     /// skipped field, which reads no column at all.
-    // [spec:pgorm:sem:macros.derive.from-query-result+3]    the reflected column
+    // [spec:pgorm:sem:macros.derive.from-query-result+4]    the reflected column
     fn expected_column(&self) -> Option<TokenStream> {
         if self.skip {
             return None;
@@ -43,12 +45,61 @@ impl FromQueryResultItem {
     }
 }
 
+/// Which derive is writing `FromQueryResult`: its own, or `PartialModel`,
+/// which writes it beside the projection and reads the keys that say what
+/// is projected.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Decoder {
+    FromQueryResult,
+    PartialModel,
+}
+
+/// The refusal for a key `FromQueryResult` does not read: one `PartialModel`
+/// reads names that derive, which writes `FromQueryResult` itself.
+// [spec:pgorm:sem:macros.derive.from-query-result+4]
+fn unread_key(meta: &ParseNestedMeta<'_>) -> syn::Error {
+    match meta.path.get_ident() {
+        Some(key)
+            if key == "entity" || PROJECTION_FIELD_KEYS.contains(&key.to_string().as_str()) =>
+        {
+            meta.error(format!(
+                "`{key}` is read by `PartialModel`, which implements `FromQueryResult` too: \
+             derive `PartialModel` in its place"
+            ))
+        }
+        _ => unknown_pgorm_key(meta),
+    }
+}
+
+/// Refuse every container key: `FromQueryResult` reads none.
+fn refuse_container_keys(attrs: &[Attribute]) -> syn::Result<()> {
+    for attr in attrs.iter().filter(|attr| attr.path().is_ident("pgorm")) {
+        attr.parse_nested_meta(|meta| Err(unread_key(&meta)))?;
+    }
+    Ok(())
+}
+
 /// Method to derive a [QueryResult](pgorm::QueryResult)
-// [spec:pgorm:sem:macros.derive.from-query-result+3]
+// [spec:pgorm:sem:macros.derive.from-query-result+4]
 pub fn expand_derive_from_query_result(
     ident: Ident,
     data: Data,
     generics: Generics,
+    attrs: &[Attribute],
+) -> syn::Result<TokenStream> {
+    refuse_container_keys(attrs)?;
+    expand_from_query_result(ident, data, generics, Decoder::FromQueryResult)
+}
+
+/// `FromQueryResult` as `decoder` writes it. Under `PartialModel`, which
+/// reads the container and the projection keys itself, a field's
+/// `from_col` and `from_expr` are stepped over.
+// [spec:pgorm:sem:macros.derive.from-query-result+4]
+pub(crate) fn expand_from_query_result(
+    ident: Ident,
+    data: Data,
+    generics: Generics,
+    decoder: Decoder,
 ) -> syn::Result<TokenStream> {
     let fields = match data {
         Data::Struct(DataStruct {
@@ -75,8 +126,10 @@ pub fn expand_derive_from_query_result(
                 if meta.path.is_ident("skip") {
                     skip = true;
                     Ok(())
-                } else {
+                } else if decoder == Decoder::PartialModel {
                     skip_known_key(&meta, &PROJECTION_FIELD_KEYS)
+                } else {
+                    Err(unread_key(&meta))
                 }
             })?;
         }

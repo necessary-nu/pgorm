@@ -1,7 +1,7 @@
 use crate::{
     ColumnExpr, Error,
     entity::created_range::created_range_subtype,
-    util::{escape_rust_keyword, rust_source, safe_ident},
+    util::{escape_rust_keyword, safe_ident},
 };
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use pgorm_query::{
@@ -118,22 +118,23 @@ impl Column {
 
     /// The `column_type = ..` part of the compact `#[pgorm(..)]` attribute,
     /// the expression the derive builds the column's type from.
-    // [spec:pgorm:sem:codegen.entity.compact.attrs+11]
+    // [spec:pgorm:sem:codegen.entity.compact.attrs+12]
     pub fn get_col_type_attrs(&self) -> Option<TokenStream> {
         col_type_attr(&self.col_type).map(|ty| quote! { column_type = #ty })
     }
 
     /// The field attribute carrying the column's `DEFAULT` or generation
-    /// expression, as the Rust that builds it: `default_expr = "..."`,
-    /// `generated_stored = "..."` or `generated_virtual = "..."`.
+    /// expression, the Rust that builds it written bare: `default_expr = ..`,
+    /// `generated_stored = ..` or `generated_virtual = ..`.
     // [spec:pgorm:sem:codegen.entity.expressions+1]
+    // [spec:pgorm:req:macros.derive.code-values+2]
     pub fn get_expression_attr(&self) -> Option<TokenStream> {
         if let Some(default) = &self.default {
-            let source = rust_source(&default.to_rust());
+            let source = default.to_rust();
             return Some(quote! { default_expr = #source });
         }
         let (expr, kind) = self.generated.as_ref()?;
-        let source = rust_source(&expr.to_rust());
+        let source = expr.to_rust();
         Some(match kind {
             GeneratedKind::Stored => quote! { generated_stored = #source },
             GeneratedKind::Virtual => quote! { generated_virtual = #source },
@@ -141,7 +142,7 @@ impl Column {
     }
 
     /// The field attribute declaring the column's identity, if it is one.
-    // [spec:pgorm:sem:codegen.entity.compact.attrs+11]
+    // [spec:pgorm:sem:codegen.entity.compact.attrs+12]
     pub fn get_identity_attr(&self) -> Option<TokenStream> {
         self.identity.map(|identity| match identity {
             IdentityGeneration::Always => quote! { identity },
@@ -387,7 +388,7 @@ fn checked_range_spelling(range: RangeType) -> (&'static str, &'static str) {
 /// the name it went in as. `validate_col_type` has already refused any
 /// `Named` shape the one-name spelling could not carry.
 // [spec:pgorm:req:macros.derive.one-form]
-// [spec:pgorm:sem:codegen.entity.compact.attrs+11]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+12]
 fn col_type_attr(col_type: &ColumnType) -> Option<TokenStream> {
     let stated = matches!(
         col_type,
@@ -410,7 +411,7 @@ fn col_type_attr(col_type: &ColumnType) -> Option<TokenStream> {
 /// element or subtype does. No Rust type infers a domain. A type this table
 /// does not know is taken not to infer itself, so it is stated rather than
 /// lost.
-// [spec:pgorm:sem:codegen.entity.compact.attrs+11]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+12]
 fn infers_itself(col_type: &ColumnType) -> bool {
     match col_type {
         ColumnType::String(StringLen::None)

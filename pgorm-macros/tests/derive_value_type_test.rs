@@ -39,7 +39,7 @@ struct MyOptional(Option<i64>);
 
 /// Both overrides at once.
 #[derive(ValueType, Debug, PartialEq)]
-#[pgorm(column_type = ColumnType::Text, array_type = "String")]
+#[pgorm(column_type = ColumnType::Text, array_type = ArrayType::String)]
 struct MyText(String);
 
 /// A `#[pgorm(...)]` key the derive does not read is a spanned compile error;
@@ -49,7 +49,7 @@ struct MyText(String);
 struct MyPlain(i32);
 
 #[derive(Debug, Clone, PartialEq, Eq, pgorm::EnumIter, pgorm::ActiveEnum)]
-#[pgorm(rs_type = "String", db_type = "String(StringLen::N(1))")]
+#[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::N(1)))]
 enum Tea {
     #[pgorm(string_value = "E")]
     Everyday,
@@ -60,7 +60,7 @@ enum Tea {
 #[derive(ValueType, Debug, PartialEq)]
 struct MyTea(Tea);
 
-// [spec:pgorm:sem:macros.derive.value-type+5/test]    the inferred ColumnType / ArrayType
+// [spec:pgorm:sem:macros.derive.value-type+6/test]    the inferred ColumnType / ArrayType
 #[test]
 fn column_and_array_types_inferred_from_inner_type() {
     assert_eq!(MyString::column_type(), ColumnType::string(None));
@@ -82,7 +82,7 @@ fn column_and_array_types_inferred_from_inner_type() {
     assert_eq!(MyTea::array_type(), <Tea as ValueType>::array_type());
 }
 
-// [spec:pgorm:sem:macros.derive.value-type+5/test]    the attribute overrides
+// [spec:pgorm:sem:macros.derive.value-type+6/test]    the attribute overrides
 #[test]
 fn column_type_and_array_type_attributes_override() {
     // `String` would infer `string(None)` / `ArrayType::String`.
@@ -94,7 +94,7 @@ fn column_type_and_array_type_attributes_override() {
     assert_eq!(MyPlain::array_type(), ArrayType::Int);
 }
 
-// [spec:pgorm:sem:macros.derive.value-type+5/test]    From<T> for Value, ValueType, TryGetable
+// [spec:pgorm:sem:macros.derive.value-type+6/test]    From<T> for Value, ValueType, TryGetable
 #[test]
 fn the_three_generated_impls() {
     // `From<T> for Value` goes through `self.0`.

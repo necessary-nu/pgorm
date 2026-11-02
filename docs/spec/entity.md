@@ -795,7 +795,7 @@ explicit limitations.
 
 ## Prelude
 
-> [spec:pgorm:def:entity.prelude+10]
+> [spec:pgorm:def:entity.prelude+11]
 > `pgorm::entity::prelude` (`src/entity/prelude.rs`) is the glob a file that
 > talks to the database imports instead of naming what it needs one item at a
 > time. Membership is chosen from what code actually writes, and is public API:
@@ -815,7 +815,10 @@ explicit limitations.
 > `ConnectionTrait`, `TransactionTrait`; `Iterable`, `Condition`, `JoinType`,
 > `Value`, the `error` module's contents, and the handful of `pgorm_query`
 > names an entity definition needs (`Expr`, `Name`, `StringLen`,
-> `ForeignKeyAction`, `Func`, `Arc`), with the range vocabulary a field of a range
+> `ForeignKeyAction`, `Func`, `Arc`, and `ConditionType`, `Deferrability`,
+> `Enforcement` and `ArrayType`, which with `ForeignKeyAction` and `ColumnType`
+> a derive's attributes name as written, with no prefix of the derive's
+> (`[spec:pgorm:req:macros.derive.code-values]`)), with the range vocabulary a field of a range
 > column is written in — `Range`, `Multirange` and `RangeType`
 > (`[spec:pgorm:def:sql.value.range]`) — so a generated entity's
 > `Range<i32>` field and `ColumnType::Range(RangeType::Int4)` resolve through
@@ -851,7 +854,7 @@ explicit limitations.
 > only cheaper than `Name::runtime` when it is already in scope. `Func` is a
 > member on the same grounds: a field's `default_expr` is Rust written in the
 > entity's own module (`[spec:pgorm:sem:macros.derive.entity-model.column-def]`),
-> and `default_expr = "Func::uuidv7()"` — a key PostgreSQL fills time-ordered
+> and `default_expr = Func::uuidv7()` — a key PostgreSQL fills time-ordered
 > (`[spec:pgorm:def:sql.ast.func]`) — resolves through the glob. `LinkedAlias` is
 > NOT a member — it is reached as the return of a `Linked` method, so a caller
 > never has to name the type.

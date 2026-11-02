@@ -1,7 +1,7 @@
 use pgorm::entity::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
-#[pgorm(rs_type = "String", db_type = "String(StringLen::N(1))")]
+#[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::N(1)))]
 pub enum Category {
     #[pgorm(string_value = "B")]
     Big,
@@ -10,7 +10,7 @@ pub enum Category {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
-#[pgorm(rs_type = "i32", db_type = "Integer")]
+#[pgorm(rs_type = i32, db_type = ColumnType::Integer)]
 pub enum Color {
     #[pgorm(num_value = 0)]
     Black,
@@ -19,7 +19,7 @@ pub enum Color {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
-#[pgorm(rs_type = "String", db_type = "Enum", enum_name = "tea", display)]
+#[pgorm(rs_type = String, enum_name = "tea", display)]
 pub enum Tea {
     #[pgorm(string_value = "EverydayTea")]
     EverydayTea,
@@ -28,7 +28,7 @@ pub enum Tea {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
-#[pgorm(rs_type = "String", db_type = "Enum", enum_name = "media_type")]
+#[pgorm(rs_type = String, enum_name = "media_type")]
 pub enum MediaType {
     #[pgorm(string_value = "UNKNOWN")]
     Unknown,
@@ -55,7 +55,7 @@ pub enum MediaType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
-#[pgorm(rs_type = "String", db_type = "Enum", enum_name = "tea", display)]
+#[pgorm(rs_type = String, enum_name = "tea", display)]
 pub enum DisplayTea {
     #[pgorm(string_value = "EverydayTea", display_value = "Everyday")]
     EverydayTea,

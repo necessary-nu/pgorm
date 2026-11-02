@@ -1,5 +1,0 @@
-error: 'deferrability' must be one of NotDeferrable, DeferrableInitiallyImmediate, DeferrableInitiallyDeferred
-  --> tests/compile-fail/relation_unknown_deferrability.rs:14:25
-   |
-14 |         deferrability = "Deferred"
-   |                         ^^^^^^^^^^

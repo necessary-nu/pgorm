@@ -157,7 +157,7 @@ fn units_and_empty_lists() {
     }
 }
 
-// [spec:pgorm:def:sql.ast.func+11/test]    `Func::grouping` renders the GROUPING keyword, which the
+// [spec:pgorm:def:sql.ast.func+12/test]    `Func::grouping` renders the GROUPING keyword, which the
 // parser reads as its own node rather than as a call
 #[test]
 fn grouping_function_is_the_grouping_node() {

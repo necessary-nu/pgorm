@@ -34,7 +34,7 @@ mod room {
 
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
-        #[pgorm(has_many = "super::booking::Entity")]
+        #[pgorm(has_many = super::booking::Entity)]
         Booking,
     }
 
@@ -62,11 +62,11 @@ mod booking {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::room::Entity",
-            from = "Column::RoomId",
-            to = "super::room::Column::Id",
-            from_period = "Column::During",
-            to_period = "super::room::Column::ValidAt"
+            belongs_to = super::room::Entity,
+            from = Column::RoomId,
+            to = super::room::Column::Id,
+            from_period = Column::During,
+            to_period = super::room::Column::ValidAt
         )]
         Room,
     }

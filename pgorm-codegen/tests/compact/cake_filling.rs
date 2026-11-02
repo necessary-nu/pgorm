@@ -12,19 +12,19 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "super::cake::Entity",
-        from = "Column::CakeId",
-        to = "super::cake::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Cascade",
+        belongs_to = super::cake::Entity,
+        from = Column::CakeId,
+        to = super::cake::Column::Id,
+        on_update = ForeignKeyAction::Cascade,
+        on_delete = ForeignKeyAction::Cascade,
     )]
     Cake,
     #[pgorm(
-        belongs_to = "super::filling::Entity",
-        from = "Column::FillingId",
-        to = "super::filling::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Cascade",
+        belongs_to = super::filling::Entity,
+        from = Column::FillingId,
+        to = super::filling::Column::Id,
+        on_update = ForeignKeyAction::Cascade,
+        on_delete = ForeignKeyAction::Cascade,
     )]
     Filling,
 }

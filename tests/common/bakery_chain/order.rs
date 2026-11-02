@@ -15,20 +15,20 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "super::bakery::Entity",
-        from = "Column::BakeryId",
-        to = "super::bakery::Column::Id"
+        belongs_to = super::bakery::Entity,
+        from = Column::BakeryId,
+        to = super::bakery::Column::Id
     )]
     Bakery,
     #[pgorm(
-        belongs_to = "super::customer::Entity",
-        from = "Column::CustomerId",
-        to = "super::customer::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Cascade"
+        belongs_to = super::customer::Entity,
+        from = Column::CustomerId,
+        to = super::customer::Column::Id,
+        on_update = ForeignKeyAction::Cascade,
+        on_delete = ForeignKeyAction::Cascade
     )]
     Customer,
-    #[pgorm(has_many = "super::lineitem::Entity")]
+    #[pgorm(has_many = super::lineitem::Entity)]
     Lineitem,
 }
 

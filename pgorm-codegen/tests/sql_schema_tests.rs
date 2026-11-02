@@ -169,7 +169,7 @@ fn enum_type_reaches_the_generated_active_enum() {
 
     assert_contains(
         enums,
-        r#"#[pgorm(rs_type = "String", db_type = "Enum", enum_name = "task_state")]"#,
+        r#"#[pgorm(rs_type = String, enum_name = "task_state")]"#,
     );
     assert_contains(enums, "pub enum TaskState");
     assert_contains(enums, r#"#[pgorm(string_value = "open")] Open,"#);
@@ -188,7 +188,7 @@ fn foreign_keys_keep_their_columns_and_actions() {
 
     assert_contains(
         generated.file("task.rs"),
-        r#"#[pgorm(belongs_to = "super::owner::Entity", from = "Column::OwnerId", to = "super::owner::Column::Id", on_update = "Restrict", on_delete = "Cascade",)]"#,
+        r#"#[pgorm(belongs_to = super::owner::Entity, from = Column::OwnerId, to = super::owner::Column::Id, on_update = ForeignKeyAction::Restrict, on_delete = ForeignKeyAction::Cascade,)]"#,
     );
 }
 
@@ -972,7 +972,7 @@ fn array_of_ranges_generates_a_vec() {
 // [spec:pgorm:sem:codegen.ddl.tables+11/test]    an identity inside a composite
 // key is carried, not refused, and the generated entity declares it on its
 // column and compiles: the key is not generated whole, the column is
-// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    `identity` follows
+// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    `identity` follows
 // `primary_key`, and the identity column carries no `auto_increment = false`
 #[test]
 fn composite_key_identity_generates_a_compiling_entity() {
@@ -1073,7 +1073,7 @@ fn a_composite_foreign_key_joins_on_both_pairs() {
 
 // [spec:pgorm:sem:codegen.ddl.tables+11/test]    a foreign key's deferrability and
 // NOT ENFORCED, declared on its column or at table level, ride on the statement
-// [spec:pgorm:sem:codegen.entity.relations+4/test]    and reach the relation the
+// [spec:pgorm:sem:codegen.entity.relations+5/test]    and reach the relation the
 // entity declares, which generates the same key back
 // [spec:pgorm:sem:codegen.entity.transform+16/test]
 #[test]
@@ -1164,7 +1164,7 @@ fn a_refused_foreign_key_check_is_named() {
 
 // [spec:pgorm:sem:codegen.ddl.tables+11/test]    a temporal primary key and a PERIOD foreign
 // key ride on the statement with their periods held apart
-// [spec:pgorm:sem:codegen.entity.relations+4/test]    and reach the entity, whose key ends
+// [spec:pgorm:sem:codegen.entity.relations+5/test]    and reach the entity, whose key ends
 // `without_overlaps` and whose relation carries `from_period` / `to_period`, generating the
 // same keys back
 // [spec:pgorm:sem:codegen.entity.pk+4/test]

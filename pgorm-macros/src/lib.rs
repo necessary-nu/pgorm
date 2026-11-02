@@ -137,37 +137,34 @@ pub fn derive_entity_trait(input: TokenStream) -> TokenStream {
 /// `use my_orm as pgorm;` there or at the crate root; otherwise every generated path is
 /// an `E0433`. There is no `#[pgorm(crate = ...)]` override.
 // [spec:pgorm:def:macros.derive+5]
-// [spec:pgorm:sem:macros.derive.entity-model+7]
+// [spec:pgorm:sem:macros.derive.entity-model+8]
 // [spec:pgorm:req:macros.derive.entity-model.reject+3]
 // [spec:pgorm:req:macros.derive.names]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveEntityModel")]
 #[proc_macro_derive(Entity, attributes(pgorm))]
 pub fn derive_entity(input: TokenStream) -> TokenStream {
-    let input_ts = input.clone();
-    let DeriveInput {
-        ident, data, attrs, ..
-    } = parse_macro_input!(input as DeriveInput);
+    let input = parse_macro_input!(input as DeriveInput);
 
-    if ident != "Model" {
+    if input.ident != "Model" {
         return Error::new(
-            ident.span(),
+            input.ident.span(),
             "`Entity` is derived on the struct named `Model`",
         )
         .into_compile_error()
         .into();
     }
 
-    let mut ts: TokenStream = derives::expand_derive_entity_model(&ident, data.clone(), attrs)
-        .unwrap_or_else(Error::into_compile_error)
-        .into();
+    let mut ts =
+        derives::expand_derive_entity_model(&input.ident, input.data.clone(), input.attrs.clone())
+            .unwrap_or_else(Error::into_compile_error);
     ts.extend([
-        derive_model(input_ts),
-        derives::expand_active_model(ident, data)
-            .unwrap_or_else(Error::into_compile_error)
-            .into(),
+        derives::expand_derive_model(input.clone(), derives::Reader::Composite)
+            .unwrap_or_else(Error::into_compile_error),
+        derives::expand_active_model(input.ident, input.data)
+            .unwrap_or_else(Error::into_compile_error),
     ]);
-    ts
+    ts.into()
 }
 
 /// Name the variants of a column enum, for a custom select: implement
@@ -189,9 +186,11 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
 #[doc(alias = "DeriveColumn")]
 #[proc_macro_derive(Column, attributes(pgorm))]
 pub fn derive_column(input: TokenStream) -> TokenStream {
-    let DeriveInput { ident, data, .. } = parse_macro_input!(input);
+    let DeriveInput {
+        ident, data, attrs, ..
+    } = parse_macro_input!(input);
 
-    match derives::expand_derive_column(&ident, &data) {
+    match derives::expand_derive_column(&ident, &data, &attrs) {
         Ok(ts) => ts.into(),
         Err(e) => e.to_compile_error().into(),
     }
@@ -200,7 +199,10 @@ pub fn derive_column(input: TokenStream) -> TokenStream {
 /// Implement `ModelTrait` and `FromQueryResult` for a further model of an
 /// entity, beside the `Model` its composite derive makes: a struct of some of
 /// the entity's columns, read from a row and through `ModelTrait` as `Model`
-/// is. `#[pgorm(entity = ..)]` names the entity when it is not `Entity`.
+/// is. `#[pgorm(entity = ..)]` names the entity when it is not `Entity`, and
+/// a field's `#[pgorm(variant = ..)]` the `Column` variant it is read through
+/// when its name does not derive it; `#[pgorm(ignore)]` reads no column. Any
+/// other key is a compile error.
 ///
 /// ### Usage
 ///
@@ -233,7 +235,7 @@ pub fn derive_column(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(Model, attributes(pgorm))]
 pub fn derive_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    derives::expand_derive_model(input)
+    derives::expand_derive_model(input, derives::Reader::Model)
         .unwrap_or_else(Error::into_compile_error)
         .into()
 }
@@ -264,15 +266,15 @@ pub fn derive_into_active_model(input: TokenStream) -> TokenStream {
 /// All macro attributes listed below have to be annotated in the form of `#[pgorm(attr = value)]`.
 ///
 /// - For enum
-///     - `rs_type`: Define `ActiveEnum::Value`
-///         - Possible values: `String`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`
-///         - Note that value has to be passed as string, i.e. `rs_type = "i8"`
-///     - `db_type`: Define `ColumnType` returned by `ActiveEnum::db_type()`
-///         - Possible values: all available enum variants of `ColumnType`, e.g. `String(None)`, `String(Some(1))`, `Integer`
-///         - Note that value has to be passed as string, i.e. `db_type = "Integer"`
-///     - `enum_name`: Define `String` returned by `ActiveEnum::name()`
-///         - This attribute is optional with default value being the name of enum in camel-case
-///         - Note that value has to be passed as string, i.e. `db_type = "Integer"`
+///     - `rs_type`: the type of `ActiveEnum::Value`, written as a type:
+///       `rs_type = String`, `rs_type = i32`
+///     - `db_type`: the `ColumnType` the values are stored as, written as an
+///       expression: `db_type = ColumnType::Integer`,
+///       `db_type = ColumnType::String(StringLen::N(1))`. Omitted, an enum of
+///       strings is a PostgreSQL enum type of its values
+///     - `enum_name`: the SQL type's name, a string: `enum_name = "tea"`.
+///       Optional, defaulting to the enum's name in UpperCamelCase
+///     - `schema_name`: the schema the SQL type is in, a string
 ///     - `display`: also implement `std::fmt::Display`, writing each variant's
 ///       `display_value`, or else its name. Opt-in, so an enum can implement
 ///       `Display` by hand instead
@@ -293,7 +295,7 @@ pub fn derive_into_active_model(input: TokenStream) -> TokenStream {
 /// use pgorm::entity::prelude::*;
 ///
 /// #[derive(EnumIter, ActiveEnum)]
-/// #[pgorm(rs_type = "i32", db_type = "Integer", display)]
+/// #[pgorm(rs_type = i32, db_type = ColumnType::Integer, display)]
 /// pub enum Color {
 ///     Black = 0,
 ///     #[pgorm(display_value = "Snow")]
@@ -302,6 +304,17 @@ pub fn derive_into_active_model(input: TokenStream) -> TokenStream {
 ///
 /// assert_eq!(Color::Black.to_string(), "Black");
 /// assert_eq!(Color::White.to_string(), "Snow");
+///
+/// #[derive(Clone, Debug, PartialEq, EnumIter, ActiveEnum)]
+/// #[pgorm(rs_type = String, enum_name = "tea")]
+/// pub enum Tea {
+///     #[pgorm(string_value = "EverydayTea")]
+///     EverydayTea,
+///     #[pgorm(string_value = "BreakfastTea")]
+///     BreakfastTea,
+/// }
+///
+/// assert!(matches!(Tea::db_type().get_column_type(), ColumnType::Enum { .. }));
 /// ```
 // [spec:pgorm:req:macros.derive.names]
 #[cfg(feature = "derive")]
@@ -319,6 +332,9 @@ pub fn derive_active_enum(input: TokenStream) -> TokenStream {
 ///
 /// ### Attributes
 /// - `skip`: Will not try to pull this field from the query result. And set it to the default value of the type.
+///
+/// Any other key is a compile error. A struct read from a projection derives
+/// `PartialModel` in its place, which implements `FromQueryResult` too.
 ///
 /// ### Usage
 ///
@@ -340,17 +356,20 @@ pub fn derive_from_query_result(input: TokenStream) -> TokenStream {
         ident,
         data,
         generics,
+        attrs,
         ..
     } = parse_macro_input!(input);
 
-    match derives::expand_derive_from_query_result(ident, data, generics) {
+    match derives::expand_derive_from_query_result(ident, data, generics, &attrs) {
         Ok(ts) => ts.into(),
         Err(e) => e.to_compile_error().into(),
     }
 }
 
 /// Implement `RelationTrait` for an entity's `Relation` enum, each variant one
-/// relation its `#[pgorm(..)]` describes.
+/// relation its `#[pgorm(..)]` describes. The entity a relation reaches, its
+/// column pairs, its actions and its condition are Rust, written bare; its
+/// foreign key's name is a string.
 ///
 /// ### Usage
 ///
@@ -361,16 +380,20 @@ pub fn derive_from_query_result(input: TokenStream) -> TokenStream {
 /// #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 /// pub enum Relation {
 ///     #[pgorm(
-///         belongs_to = "pgorm::tests_cfg::cake::Entity",
-///         from = "pgorm::tests_cfg::fruit::Column::CakeId",
-///         to = "pgorm::tests_cfg::cake::Column::Id"
+///         belongs_to = pgorm::tests_cfg::cake::Entity,
+///         from = pgorm::tests_cfg::fruit::Column::CakeId,
+///         to = pgorm::tests_cfg::cake::Column::Id,
+///         on_delete = ForeignKeyAction::Cascade,
+///         fk_name = "fruit_cake"
 ///     )]
 ///     Cake,
 ///     #[pgorm(
-///         belongs_to = "pgorm::tests_cfg::cake::Entity",
-///         from = "pgorm::tests_cfg::fruit::Column::CakeId",
-///         to = "pgorm::tests_cfg::cake::Column::Id",
-///         on_condition = r#"|_left, right| Expr::col((right, pgorm::tests_cfg::cake::Column::Name)).like("%chocolate%")"#
+///         belongs_to = pgorm::tests_cfg::cake::Entity,
+///         from = pgorm::tests_cfg::fruit::Column::CakeId,
+///         to = pgorm::tests_cfg::cake::Column::Id,
+///         on_condition = |_left, right| {
+///             Expr::col((right, pgorm::tests_cfg::cake::Column::Name)).like("%chocolate%")
+///         }
 ///     )]
 ///     ChocolateCake,
 /// }
@@ -450,12 +473,16 @@ pub fn derive_json_value_type(input: TokenStream) -> TokenStream {
 }
 
 /// Implement `PartialModelTrait` for a struct of some of an entity's columns
-/// and expressions, the projection a select reads it from.
+/// and expressions, the projection a select reads it from, and
+/// `FromQueryResult`, which reads it back. `entity` names the entity a field
+/// with no key is a column of, `from_col` the column a field is read from, and
+/// `from_expr` the expression; each is Rust, written bare. `skip` reads no
+/// column, as under `FromQueryResult`.
 ///
 /// ## Usage
 ///
 /// ```rust
-/// use pgorm::{entity::prelude::*, pgorm_query::Expr, PartialModel, FromQueryResult};
+/// use pgorm::{entity::prelude::*, pgorm_query::Expr, PartialModel};
 /// use serde::{Deserialize, Serialize};
 ///
 /// #[derive(Clone, Debug, PartialEq, Entity, Deserialize, Serialize)]
@@ -472,24 +499,25 @@ pub fn derive_json_value_type(input: TokenStream) -> TokenStream {
 /// #
 /// # impl ActiveModelBehavior for ActiveModel {}
 ///
-/// #[derive(Debug, FromQueryResult, PartialModel)]
-/// #[pgorm(entity = "Entity")]
+/// #[derive(Debug, PartialModel)]
+/// #[pgorm(entity = Entity)]
 /// struct SelectResult {
 ///     title: String,
-///     #[pgorm(from_col = "text")]
+///     #[pgorm(from_col = Column::Text)]
 ///     content: String,
-///     #[pgorm(from_expr = "Expr::val(1).add(1)")]
+///     #[pgorm(from_expr = Expr::val(1).add(1))]
 ///     sum: i32,
 /// }
 /// ```
 ///
-/// If all fields in the partial model is `from_expr`, the `entity` can be ignore.
+/// A struct none of whose fields is a column of `entity` by name needs no
+/// `entity`.
 /// ```
-/// use pgorm::{entity::prelude::*, pgorm_query::Expr, PartialModel, FromQueryResult};
+/// use pgorm::{entity::prelude::*, pgorm_query::Expr, PartialModel};
 ///
-/// #[derive(Debug, FromQueryResult, PartialModel)]
+/// #[derive(Debug, PartialModel)]
 /// struct SelectResult {
-///     #[pgorm(from_expr = "Expr::val(1).add(1)")]
+///     #[pgorm(from_expr = Expr::val(1).add(1))]
 ///     sum: i32,
 /// }
 /// ```
@@ -498,12 +526,12 @@ pub fn derive_json_value_type(input: TokenStream) -> TokenStream {
 /// Or, it will result in a compile error.
 ///
 /// ```compile_fail
-/// use pgorm::{entity::prelude::*, FromQueryResult, PartialModel, pgorm_query::Expr};
+/// use pgorm::{entity::prelude::*, PartialModel, pgorm_query::Expr};
 ///
-/// #[derive(Debug, FromQueryResult, PartialModel)]
-/// #[pgorm(entity = "Entity")]
+/// #[derive(Debug, PartialModel)]
+/// #[pgorm(entity = Entity)]
 /// struct SelectResult {
-///     #[pgorm(from_expr = "Expr::val(1).add(1)", from_col = "foo")]
+///     #[pgorm(from_expr = Expr::val(1).add(1), from_col = Column::Foo)]
 ///     sum: i32
 /// }
 /// ```
@@ -514,10 +542,10 @@ pub fn derive_json_value_type(input: TokenStream) -> TokenStream {
 /// `SELECT  FROM "tbl"`.
 ///
 /// ```compile_fail,E0308
-/// use pgorm::{entity::prelude::*, FromQueryResult, PartialModel};
+/// use pgorm::{entity::prelude::*, PartialModel};
 ///
-/// #[derive(Debug, FromQueryResult, PartialModel)]
-/// #[pgorm(entity = "Entity")]
+/// #[derive(Debug, PartialModel)]
+/// #[pgorm(entity = Entity)]
 /// struct SelectNothing {}
 /// ```
 #[cfg(feature = "derive")]

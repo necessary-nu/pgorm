@@ -36,8 +36,8 @@ PAIR = "\n\n".join(
                     table="g_child",
                     columns=(("parent_id", "i32", ""),),
                     relation=(
-                        '        #[pgorm(belongs_to = "super::parent::Entity", '
-                        'from = "Column::ParentId", to = "super::parent::Column::Id")]\n'
+                        "        #[pgorm(belongs_to = super::parent::Entity, "
+                        "from = Column::ParentId, to = super::parent::Column::Id)]\n"
                         "        Parent,"
                     ),
                 )

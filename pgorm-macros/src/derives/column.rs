@@ -1,14 +1,18 @@
-use super::util::skip_known_key;
+use super::util::unknown_pgorm_key;
 use heck::{ToLowerCamelCase, ToSnakeCase};
 use proc_macro2::{Ident, TokenStream};
 use quote::{quote, quote_spanned};
-use syn::{Data, DataEnum, Fields, LitStr, Variant};
+use syn::{Attribute, Data, DataEnum, Fields, LitStr, Variant};
 
-/// Variant-level `#[pgorm(...)]` keys a `Column` enum may carry. `column_name` is the
-/// override this derive reads; `table_name` rides on the `Table` variant
-/// the `Entity` derive generates for `table_iden`, which has no column name at all.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+6]
-const COLUMN_VARIANT_KEYS: [&str; 2] = ["column_name", "table_name"];
+/// Refuse every key on the enum itself: `Column` reads only a variant's
+/// `column_name`.
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+7]
+fn refuse_container_keys(attrs: &[Attribute]) -> syn::Result<()> {
+    for attr in attrs.iter().filter(|attr| attr.path().is_ident("pgorm")) {
+        attr.parse_nested_meta(|meta| Err(unknown_pgorm_key(&meta)))?;
+    }
+    Ok(())
+}
 
 /// Derive a Column name for an enum type
 pub fn impl_default_as_str(ident: &Ident, data: &Data) -> syn::Result<TokenStream> {
@@ -39,11 +43,10 @@ pub fn impl_default_as_str(ident: &Ident, data: &Data) -> syn::Result<TokenStrea
                     continue;
                 }
                 attr.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("column_name") {
-                        column_name = meta.value()?.parse::<LitStr>()?.value();
-                    } else {
-                        skip_known_key(&meta, &COLUMN_VARIANT_KEYS)?;
+                    if !meta.path.is_ident("column_name") {
+                        return Err(unknown_pgorm_key(&meta));
                     }
+                    column_name = meta.value()?.parse::<LitStr>()?.value();
                     Ok(())
                 })?;
             }
@@ -98,8 +101,13 @@ pub fn impl_col_from_str(ident: &Ident, data: &Data) -> syn::Result<TokenStream>
     ))
 }
 
-// [spec:pgorm:sem:macros.derive.column+5]
-pub fn expand_derive_column(ident: &Ident, data: &Data) -> syn::Result<TokenStream> {
+// [spec:pgorm:sem:macros.derive.column+6]
+pub fn expand_derive_column(
+    ident: &Ident,
+    data: &Data,
+    attrs: &[Attribute],
+) -> syn::Result<TokenStream> {
+    refuse_container_keys(attrs)?;
     let impl_default_as_str = impl_default_as_str(ident, data)?;
     let impl_col_from_str = impl_col_from_str(ident, data)?;
 

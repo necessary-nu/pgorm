@@ -11,11 +11,11 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "super::key_room::Entity",
-        from = "Column::RoomId",
-        to = "super::key_room::Column::Id",
-        deferrability = "DeferrableInitiallyDeferred",
-        enforcement = "NotEnforced"
+        belongs_to = super::key_room::Entity,
+        from = Column::RoomId,
+        to = super::key_room::Column::Id,
+        deferrability = Deferrability::DeferrableInitiallyDeferred,
+        enforcement = Enforcement::NotEnforced
     )]
     KeyRoom,
 }

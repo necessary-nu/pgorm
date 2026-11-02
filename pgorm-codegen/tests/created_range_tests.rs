@@ -175,7 +175,7 @@ fn a_created_range_declares_its_multirange() {
 // written and declared beside the entities
 // [spec:pgorm:sem:codegen.entity.imports+3/test]    each entity imports the
 // newtypes its columns name
-// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    a range over a subtype
+// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    a range over a subtype
 // its newtype's `E` does not infer names its whole type
 #[test]
 fn a_created_range_generates_a_compiling_newtype() {

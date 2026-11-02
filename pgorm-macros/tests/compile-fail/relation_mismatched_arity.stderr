@@ -2,9 +2,9 @@ error: 'from' names 2 column(s) and 'to' names 1; a relation joins its columns i
   --> tests/compile-fail/relation_mismatched_arity.rs:10:5
    |
 10 | /     #[pgorm(
-11 | |         belongs_to = "filling::Entity",
-12 | |         from = "(cake::Column::Id, cake::Column::Name)",
-13 | |         to = "filling::Column::Id"
+11 | |         belongs_to = filling::Entity,
+12 | |         from = (cake::Column::Id, cake::Column::Name),
+13 | |         to = filling::Column::Id
 14 | |     )]
 15 | |     Filling,
    | |___________^

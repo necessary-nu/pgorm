@@ -38,7 +38,7 @@ pub mod value_type_pg {
 use pgorm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, ValueType)]
-#[pgorm(array_type = "Int")]
+#[pgorm(array_type = ArrayType::Int)]
 pub struct Integer(i32);
 
 impl<T> From<T> for Integer
@@ -51,7 +51,7 @@ where
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, ValueType)]
-#[pgorm(column_type = ColumnType::Boolean, array_type = "Bool")]
+#[pgorm(column_type = ColumnType::Boolean, array_type = ArrayType::Bool)]
 pub struct Boolbean(pub String);
 
 #[derive(Clone, Debug, PartialEq, Eq, ValueType)]

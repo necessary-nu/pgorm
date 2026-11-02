@@ -1,5 +1,5 @@
 error: you can only use one of `from_col` or `from_expr`
  --> tests/compile-fail/partial_model_both_from_col_and_from_expr.rs:6:5
   |
-6 |     #[pgorm(from_col = "name", from_expr = "Expr::val(1)")]
+6 |     #[pgorm(from_col = Column::Name, from_expr = Expr::val(1))]
   |     ^

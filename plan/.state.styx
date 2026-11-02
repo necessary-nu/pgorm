@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-02T18:22:12.077171Z
+last_sync_at 2026-11-02T19:55:15.934339Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -596,6 +596,7 @@ derived_priorities (
     {id ergo.pipeline-v1, priority 2, derived_at 2026-09-04T14:19:01.307427Z}
     {id ergo.prql-macro, priority 1, derived_at 2026-09-04T14:19:01.307427Z}
     {id ergo.with-carry, priority 1, derived_at 2026-09-04T14:19:01.307427Z}
+    {id exec-vocabulary-annotation-verb, priority 0, derived_at 2026-11-02T19:55:15.934339Z}
     {id from-json-serialization, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
     {id generative-interval-kind, priority 1, derived_at 2026-10-24T06:20:32.099314Z}
     {id generative-killpg-eperm, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
@@ -911,6 +912,7 @@ derived_priorities (
     {id sql-views, priority 1, derived_at 2026-10-24T06:20:32.099314Z}
     {id sql.empty-select-list, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
     {id sqlmap-harness-fixes, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
+    {id sqlmap-harness-format, priority 0, derived_at 2026-11-02T19:55:15.934339Z}
     {id sqlmap-identifier-profile, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id sqlmap-profile-args-honoured, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id sqlmap-smoke-unrunnable, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
@@ -1849,6 +1851,11 @@ impl_evidence (
         {impl_name main, rule macros.derive.names}
     ), rule_versions_seen (
         {id macros.derive.names, version 0}
+    )}
+    {id derives.paths, covered_rules (
+        macros.derive.code-values
+    ), covered_claims (
+        {impl_name main, rule macros.derive.code-values}
     )}
     {id generative.acceptance, covered_rules (
         generative.acceptance
