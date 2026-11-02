@@ -16397,12 +16397,20 @@ children (
         id codegen-refuses-nested-arrays
         title "Codegen refuses a multi-dimensional array from a described schema, as its DDL reader does"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T14:25:05.248738Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by codegen-compact-string-length (fdd065f7). A described schema (the live-schema path, not DDL text) can hand codegen ColumnType::Array(Array(_)); it generates a Vec<Vec<T>> field, which has no ValueType, so the output does not compile. The DDL-text bridge already refuses multi-dimensional arrays. Refuse it in validate_col_type with codegen.entity.types.unsupported's wording, before anything is written, and test it from a described schema."
+            }
+
+            {
+                at 2026-11-02T20:34:20.560114Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

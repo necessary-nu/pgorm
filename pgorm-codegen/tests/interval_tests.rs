@@ -196,7 +196,7 @@ fn an_interval_modifier_beyond_the_spec_is_named() {
 // [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    the compact writer
 // names the column type exactly where the field's `Interval` does not: a
 // qualifier or a precision, alone or as an array's element
-// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    no interval
+// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    no interval
 // shape is refused
 #[test]
 fn interval_columns_generate_a_compiling_entity() {

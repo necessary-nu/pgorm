@@ -47,10 +47,6 @@ fn column_rust_types_follow_the_mapping_table() {
                     .array(ColumnType::Integer)
                     .not_null()
                     .to_owned(),
-                ColumnDef::new(Name::runtime("c_nested_array"))
-                    .array(ColumnType::Array(Arc::new(ColumnType::Integer)))
-                    .not_null()
-                    .to_owned(),
                 // nullable: the same mapping, wrapped in `Option`
                 typed_null("c_null_int", ColumnType::Integer),
                 typed_null("c_null_uuid", ColumnType::Uuid),
@@ -83,7 +79,6 @@ fn column_rust_types_follow_the_mapping_table() {
         ("c_months", "Interval"),
         ("c_enum", "TeaKind"),
         ("c_array", "Vec<i32>"),
-        ("c_nested_array", "Vec<Vec<i32>>"),
         ("c_null_int", "Option<i32>"),
         ("c_null_uuid", "Option<Uuid>"),
         ("c_null_intervals", "Option<Vec<Interval> >"),
@@ -328,7 +323,7 @@ fn derived_entity_names_the_hostile_type_exactly() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    a named type the
+// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    a named type the
 // generated `ColumnType::named("..")` could not rebuild — schema-qualified, an
 // array, or a type expression — is refused by name rather than respelled as a
 // different type
@@ -362,7 +357,7 @@ fn column_conversion_rejects_an_unrespellable_named_type() {
     }
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    a type outside the
+// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    a type outside the
 // mapping fails the whole run with a `TransformError` naming table, column and
 // type — no placeholder code, and no panic
 #[test]
@@ -382,7 +377,37 @@ fn transform_rejects_column_type_outside_mapping() {
     }
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    the check sits at
+// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    an array of an
+// array, which a described schema can hold though the DDL reader refuses its
+// spelling, fails the whole run by name, through a domain and an element's
+// domain alike
+#[test]
+fn transform_refuses_an_array_of_an_array() {
+    let array = |element: ColumnType| ColumnType::Array(Arc::new(element));
+    let domain = |base: ColumnType| ColumnType::Domain {
+        name: Name::runtime("grid_d"),
+        schema: None,
+        base: Arc::new(base),
+    };
+    for col_type in [
+        array(array(ColumnType::Integer)),
+        array(array(array(ColumnType::Text))),
+        array(array(domain(ColumnType::Integer))),
+        domain(array(array(ColumnType::Integer))),
+    ] {
+        assert_transform_error(
+            vec![keyed_with(
+                "board",
+                &["id"],
+                vec![serial("id"), typed("grid", col_type)],
+            )],
+            "table `board` column `grid`: an array of an array is not supported by codegen; \
+             an entity field holds one dimension",
+        );
+    }
+}
+
+// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    the check sits at
 // `Column` construction, so the writer never meets an unmapped type; `Array`
 // element types are checked through
 #[test]
@@ -448,7 +473,7 @@ fn compact_primary_key_facts_surface_as_field_attributes() {
 
 // [spec:pgorm:sem:codegen.entity.types+12/test]    a range column is the `Range` of its
 // subtype's Rust type, which the derive infers the range from
-// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    an array of ranges is supported
+// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    an array of ranges is supported
 #[test]
 fn range_columns_are_typed_by_their_subtype() {
     use pgorm_query::RangeType;
@@ -499,7 +524,6 @@ fn arrays_name_the_element_type_they_cannot_infer() {
                 array("tags", ColumnType::Text),
                 array("prices", ColumnType::Decimal(Some((10, 2)))),
                 array("names", ColumnType::named("citext")),
-                array("grid", ColumnType::Array(Arc::new(ColumnType::Text))),
                 array("counts", ColumnType::Integer),
                 array("labels", ColumnType::String(StringLen::None)),
                 ColumnDef::new(Name::runtime("kinds"))
@@ -518,12 +542,10 @@ fn arrays_name_the_element_type_they_cannot_infer() {
         r#"#[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Text)))] pub tags: Vec<String>,"#,
         r#"#[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Decimal(Some((10u32, 2u32))))))]
            pub prices: Vec<Decimal>,"#,
-        r#"#[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::named("citext"))))]
-           pub names: Vec<String>,"#,
         // One run of fields with nothing between them: the arrays whose
         // element the derive infers carry no attribute.
-        r#"#[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Array(Arc::new(ColumnType::Text)))))]
-           pub grid: Vec<Vec<String> >,
+        r#"#[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::named("citext"))))]
+           pub names: Vec<String>,
            pub counts: Vec<i32>,
            pub labels: Vec<String>,
            pub kinds: Option<Vec<TeaKind> >,"#,

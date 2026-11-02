@@ -230,7 +230,7 @@ fn refused_domain_shapes_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    an array of a domain over an
+// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    an array of a domain over an
 // array, and an array of a domain over a range type a schema created, are refused by name;
 // a domain over either alone generates
 #[test]

@@ -36,7 +36,7 @@ impl Column {
     /// Reject anything the writer could not render: a type outside the mapping
     /// table, and a DB name whose case-converted forms are not Rust
     /// identifiers.
-    // [spec:pgorm:req:codegen.entity.types.unsupported+9]
+    // [spec:pgorm:req:codegen.entity.types.unsupported+10]
     // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let context = format!("column `{}`", self.name);
@@ -64,7 +64,7 @@ impl Column {
 
     // [spec:pgorm:sem:codegen.entity.types+12]
     // [spec:pgorm:sem:codegen.entity.types.datetime+2]
-    // [spec:pgorm:req:codegen.entity.types.unsupported+9]
+    // [spec:pgorm:req:codegen.entity.types.unsupported+10]
     pub fn get_rs_type(&self) -> TokenStream {
         fn write_rs_type(col_type: &ColumnType) -> String {
             #[allow(unreachable_patterns)]
@@ -219,7 +219,7 @@ impl Column {
 /// `ActiveEnum`'s column type itself, `db_type().get_column_type().clone()`,
 /// since the `Arc` holding it holds a `ColumnType` where `db_type()` returns
 /// a `ColumnDef`.
-// [spec:pgorm:req:codegen.entity.types.unsupported+9]
+// [spec:pgorm:req:codegen.entity.types.unsupported+10]
 // [spec:pgorm:sem:codegen.entity.types+12]
 fn write_col_type(col_type: &ColumnType) -> TokenStream {
     match col_type {
@@ -498,7 +498,7 @@ fn range_type_tokens(range: RangeType) -> TokenStream {
 /// The set of `ColumnType`s `get_rs_type` and `write_col_type` can render, checked
 /// through `Array` element types, over the enum names they will emit, and over
 /// the named types they will respell.
-// [spec:pgorm:req:codegen.entity.types.unsupported+9]
+// [spec:pgorm:req:codegen.entity.types.unsupported+10]
 fn validate_col_type(context: &str, col_type: &ColumnType) -> Result<(), Error> {
     match col_type {
         ColumnType::Char(_)
@@ -573,11 +573,16 @@ fn validate_col_type(context: &str, col_type: &ColumnType) -> Result<(), Error> 
                     name = name.to_string(),
                 )))
             }
-            ColumnType::Array(_)
-                if matches!(inner_col_type.as_ref(), ColumnType::Domain { .. }) =>
-            {
+            // A field is one `Vec` of its element's Rust type, and no `Vec`
+            // but `Vec<u8>` is an element (`NotU8`), so `Vec<Vec<T>>` has no
+            // `ValueType` and an entity holding it would not compile.
+            ColumnType::Array(_) => {
+                let element = match inner_col_type.as_ref() {
+                    ColumnType::Domain { .. } => "a domain over an array",
+                    _ => "an array",
+                };
                 Err(Error::TransformError(format!(
-                    "{context}: an array of a domain over an array is not supported by codegen; \
+                    "{context}: an array of {element} is not supported by codegen; \
                      an entity field holds one dimension"
                 )))
             }

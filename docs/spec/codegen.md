@@ -632,7 +632,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > glob rather than from any named crate, repointing the aliases is how the
 > temporal backing changes, and generated text does not move when it does.
 
-> [spec:pgorm:req:codegen.entity.types.unsupported+9]
+> [spec:pgorm:req:codegen.entity.types.unsupported+10]
 > Column types outside the mapping table are not supported, and support is
 > decided when a `Column` is built rather than when it is rendered. Both
 > `TryFrom<&ColumnDef> for Column` and — through it —
@@ -654,12 +654,20 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `RangeSubtype` covers")``, `<subtype>` in `Debug` form; an array of one is
 > refused as ``TransformError("... an array of range type `<name>` is not
 > supported by codegen; the newtype a created range generates has no array
-> conversion")``. A domain is supported as its base is, a domain over a
+> conversion")``. An array of an array is refused as ``TransformError("... an
+> array of an array is not supported by codegen; an entity field holds one
+> dimension")``, whatever its innermost element: a field is one `Vec` of its
+> element's Rust type, and `Vec<Vec<T>>` has no `ValueType`, so the entity
+> would not compile. The DDL bridge refuses the `[][]` spelling that would
+> describe one (`codegen.ddl.types`), but a schema described as
+> `TableCreateStatement`s can hold one, so the gate holds it to the same
+> refusal. A domain is supported as its base is, a domain over a
 > domain recursively, and an array of one as an array of its base would be —
 > an array of a domain over a created range refused as that array is — but
 > for an array of a domain over an array, refused as ``TransformError("... an
 > array of a domain over an array is not supported by codegen; an entity
-> field holds one dimension")``.
+> field holds one dimension")``; a domain over an array of an array is refused
+> as that array is.
 >
 > A type inside the table can still be beyond the writer, in which case the
 > same gate refuses it with its own message. `Enum { name, .. }` is refused

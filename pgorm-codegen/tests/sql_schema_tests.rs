@@ -942,7 +942,7 @@ fn range_types_map_through_the_vocabulary() {
     assert_not_contains(span, "column_type");
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    an array of ranges or
+// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    an array of ranges or
 // multiranges is a `Vec` of them, the derive taking its column type from the
 // field's own `ValueType` as it does for a range
 // [spec:pgorm:sem:codegen.ddl.types+9/test]    and a range type takes no modifier

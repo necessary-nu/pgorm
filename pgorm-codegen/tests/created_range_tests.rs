@@ -243,7 +243,7 @@ fn a_created_range_generates_a_compiling_newtype() {
 // carry out of a range type is named: a subtype no newtype can hold, an array
 // of a created range, an option PostgreSQL does not have, a range with no
 // subtype, a serial subtype, and a type declared twice
-// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]
+// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]
 #[test]
 fn what_a_created_range_cannot_carry_is_named() {
     assert_eq!(
