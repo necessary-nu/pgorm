@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "pi")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -11,7 +11,7 @@ pub struct Model {
     pub decimal_opt: Option<Decimal>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

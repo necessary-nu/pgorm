@@ -1,6 +1,6 @@
-use pgorm::DeriveValueType;
+use pgorm::ValueType;
 
-#[derive(DeriveValueType)]
+#[derive(ValueType)]
 #[pgorm(no_such_key = "not read by this derive")]
 struct MyInt(i32);
 

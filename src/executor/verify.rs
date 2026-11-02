@@ -109,7 +109,7 @@ where
 {
     let target = std::any::type_name::<M>();
 
-    // [spec:pgorm:req:exec.verify.manual]    an unreported shape is unverifiable, not verified
+    // [spec:pgorm:req:exec.verify.manual+1]    an unreported shape is unverifiable, not verified
     let Some(expected) = M::expected_columns() else {
         return Err(VerifyError::Unreflected { target }.into());
     };

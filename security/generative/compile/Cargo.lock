@@ -630,6 +630,15 @@ dependencies = [
 name = "pgorm-query-derive"
 version = "0.2.0"
 dependencies = [
+ "pgorm-query-derive-internals",
+ "quote",
+ "syn 3.0.6",
+]
+
+[[package]]
+name = "pgorm-query-derive-internals"
+version = "0.2.0"
+dependencies = [
  "heck",
  "proc-macro2",
  "quote",

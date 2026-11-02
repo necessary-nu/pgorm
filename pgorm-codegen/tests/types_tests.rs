@@ -13,7 +13,7 @@ use proc_macro2::{TokenStream, TokenTree};
 use quote::quote;
 use std::sync::Arc;
 
-// [spec:pgorm:sem:codegen.entity.types+11/test]    `Column::get_rs_type` follows
+// [spec:pgorm:sem:codegen.entity.types+12/test]    `Column::get_rs_type` follows
 // the mapping table, wrapping nullable columns in `Option`
 #[test]
 fn column_rust_types_follow_the_mapping_table() {
@@ -92,7 +92,7 @@ fn column_rust_types_follow_the_mapping_table() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.types+11/test]    `Float` and `Double` also map
+// [spec:pgorm:sem:codegen.entity.types+12/test]    `Float` and `Double` also map
 // to `f32` / `f64`, and either one suppresses the Model's `Eq` derive —
 // recursively through `Array`
 #[test]
@@ -103,7 +103,7 @@ fn float_and_double_columns_suppress_the_eq_derive() {
     );
     assert_contains(
         no_floats.file("sample.rs"),
-        "#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]",
+        "#[derive(Clone, Debug, PartialEq, Entity, Eq)]",
     );
 
     let with_float = generate(
@@ -117,7 +117,7 @@ fn float_and_double_columns_suppress_the_eq_derive() {
     assert_contains(with_float.file("sample.rs"), "pub ratio: f32,");
     assert_contains(
         with_float.file("sample.rs"),
-        "#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]",
+        "#[derive(Clone, Debug, PartialEq, Entity)]",
     );
 
     let with_double = generate(
@@ -131,7 +131,7 @@ fn float_and_double_columns_suppress_the_eq_derive() {
     assert_contains(with_double.file("sample.rs"), "pub ratio: f64,");
     assert_contains(
         with_double.file("sample.rs"),
-        "#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]",
+        "#[derive(Clone, Debug, PartialEq, Entity)]",
     );
 
     // through an array element type
@@ -151,7 +151,7 @@ fn float_and_double_columns_suppress_the_eq_derive() {
     );
     assert_contains(
         with_float_array.file("sample.rs"),
-        "#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]",
+        "#[derive(Clone, Debug, PartialEq, Entity)]",
     );
 }
 
@@ -217,7 +217,7 @@ const HOSTILE_ATTR: &str = r#"#[pgorm(column_type = ColumnType::named("ev\"il ty
 mod hostile_entity {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+    #[derive(Clone, Debug, PartialEq, Entity, Eq)]
     #[pgorm(table_name = "sample")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -226,7 +226,7 @@ mod hostile_entity {
         pub odd: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -255,7 +255,7 @@ fn attribute_string_value(attr: &str) -> String {
         .value()
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    the compact attribute
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    the compact attribute
 // carries a named type's name as a rendered string literal, so a name holding a
 // quote arrives at the derive as the name that was described rather than as
 // tokens that escaped the literal
@@ -315,7 +315,7 @@ fn hostile_named_type_survives_the_compact_attribute() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    and the entity the
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    and the entity the
 // derive builds from it names the type that was described, character for
 // character
 #[test]
@@ -446,7 +446,7 @@ fn compact_primary_key_facts_surface_as_field_attributes() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.types+11/test]    a range column is the `Range` of its
+// [spec:pgorm:sem:codegen.entity.types+12/test]    a range column is the `Range` of its
 // subtype's Rust type, which the derive infers the range from
 // [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    an array of ranges is supported
 #[test]
@@ -478,7 +478,7 @@ fn range_columns_are_typed_by_their_subtype() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    an array needs a
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    an array needs a
 // `column_type` exactly when its element does, since the derive infers an
 // array as an array of what the element's Rust type infers: `text[]` would be
 // created as `varchar[]`, and `citext[]` as `varchar[]` too
@@ -537,7 +537,7 @@ fn arrays_name_the_element_type_they_cannot_infer() {
 mod text_array_entity {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+    #[derive(Clone, Debug, PartialEq, Entity, Eq)]
     #[pgorm(table_name = "sample")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -551,13 +551,13 @@ mod text_array_entity {
         pub names: Option<Vec<String>>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    and the derive builds
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    and the derive builds
 // the array of the element type named, not of the one `String` infers
 #[test]
 fn derived_array_columns_keep_their_element_type() {

@@ -21,7 +21,7 @@ pub struct CreatedRangeType {
 /// The Rust type a range type created over `subtype` ranges over, as the
 /// prelude names it — `None` for a subtype pgorm's `RangeSubtype` does not
 /// cover, which no newtype can hold.
-// [spec:pgorm:sem:codegen.entity.types+11]
+// [spec:pgorm:sem:codegen.entity.types+12]
 pub(crate) fn created_range_subtype(subtype: &ColumnType) -> Option<&'static str> {
     Some(match subtype {
         ColumnType::SmallInteger => "i16",
@@ -47,12 +47,12 @@ impl CreatedRangeType {
         format_ident!("{}", name.to_string().to_upper_camel_case())
     }
 
-    /// The newtype, deriving `DeriveCreatedRange` under the type's name and
+    /// The newtype, deriving `CreatedRange` under the type's name and
     /// schema. `Eq` is derived unless the subtype is a float, as for a Model,
     /// and the serde derives follow the Model's: a Model serializing a field
     /// of this type needs the type to serialize.
-    // [spec:pgorm:sem:codegen.entity.types+11]
-    // [spec:pgorm:sem:codegen.entity.serde.derives+2]
+    // [spec:pgorm:sem:codegen.entity.types+12]
+    // [spec:pgorm:sem:codegen.entity.serde.derives+3]
     pub fn impl_created_range(&self, with_serde: &WithSerde) -> TokenStream {
         let ident = Self::rs_type(&self.name);
         let Some(subtype) = created_range_subtype(&self.subtype) else {
@@ -80,7 +80,7 @@ impl CreatedRangeType {
         };
         let serde_derive = with_serde.extra_derive();
         quote! {
-            #[derive(Clone, Debug, PartialEq #eq, DeriveCreatedRange #serde_derive)]
+            #[derive(Clone, Debug, PartialEq #eq, CreatedRange #serde_derive)]
             #[pgorm(#key = #type_name #schema_attr)]
             pub struct #ident(pub #held<#subtype>);
         }

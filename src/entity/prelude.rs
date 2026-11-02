@@ -24,7 +24,7 @@
 //! entity's own module, and a key filled by `Func::uuidv7()` is the default a
 //! new table most often wants.
 
-// [spec:pgorm:def:entity.prelude+9]
+// [spec:pgorm:def:entity.prelude+10]
 // [spec:pgorm:sem:query.build.alias+2]
 pub use crate::{
     ActiveEnum, ActiveModelBehavior, ActiveModelTrait, ActiveValue,
@@ -42,12 +42,13 @@ pub use crate::{
 };
 pub use std::sync::Arc;
 
+/// The derives with no trait of their name above. The rest — `ActiveEnum`,
+/// `CreatedRange`, `EntityTrait`, `FromQueryResult`, `IntoActiveModel`,
+/// `SqlName` and `StaticName` — arrive with the trait they implement, one
+/// import bringing both.
+// [spec:pgorm:req:macros.derive.names]
 #[cfg(feature = "macros")]
-pub use crate::{
-    DeriveActiveEnum, DeriveActiveModelBehavior, DeriveColumn, DeriveCreatedRange, DeriveDisplay,
-    DeriveEntity, DeriveEntityModel, DeriveIntoActiveModel, DeriveModel, DerivePartialModel,
-    DeriveRelation, DeriveSqlName, DeriveValueType,
-};
+pub use crate::{Column, Entity, JsonValueType, Model, PartialModel, Relation, ValueType};
 
 pub use async_trait;
 
@@ -80,7 +81,7 @@ pub use crate::pgorm_query::Interval;
 /// The qualifier vocabulary of an interval column, so that
 /// `column_type = ColumnType::Interval(IntervalSpec::Fields(PgInterval::YearToMonth))`
 /// resolves in the module the entity is written in.
-// [spec:pgorm:def:entity.prelude+9]
+// [spec:pgorm:def:entity.prelude+10]
 pub use crate::pgorm_query::{IntervalPrecision, IntervalSpec, PgInterval};
 
 // [spec:pgorm:def:exec.decode.range+3]

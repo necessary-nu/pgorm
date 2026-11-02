@@ -31,7 +31,7 @@ use tokio_postgres::error::SqlState;
 mod active_account {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "active_account")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -40,7 +40,7 @@ mod active_account {
         pub active: bool,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -50,7 +50,7 @@ mod active_account {
 mod checked_account {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "checked_account")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -59,7 +59,7 @@ mod checked_account {
         pub active: bool,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -70,7 +70,7 @@ mod checked_account {
 mod account_total {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "account_total")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -78,7 +78,7 @@ mod account_total {
         pub total: i64,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

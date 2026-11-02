@@ -336,7 +336,7 @@ These rules capture what the code does today, including known gaps.
 > refuses to prepare at all fails as `Error::Postgres` before any column is
 > compared.
 
-> [spec:pgorm:sem:exec.verify.accepts]
+> [spec:pgorm:sem:exec.verify.accepts+1]
 > `TryGetable::accepts(ty)` answers whether a column of PostgreSQL type
 > `ty` can be decoded into the implementing Rust type. Every built-in impl
 > delegates to the `FromSql::accepts` of the type its decode actually
@@ -350,7 +350,7 @@ These rules capture what the code does today, including known gaps.
 > part (`exec.verify.limits`).
 >
 > The trait's default answers `true`. An implementation that does not
-> override it — a `DeriveActiveEnum` mapping, a `DeriveValueType` newtype,
+> override it — an `ActiveEnum` mapping, a `ValueType` newtype,
 > the `TryGetableArray`-backed `Vec<T>`, or any hand-written impl —
 > therefore accepts every column type, and verification reports nothing
 > about that field rather than guessing at a decode path it cannot see.
@@ -366,7 +366,7 @@ These rules capture what the code does today, including known gaps.
 > `VerifyError` is `#[non_exhaustive]`, and verification returns these
 > rather than panicking, per `[dec:pgorm:no-panic]`.
 
-> [spec:pgorm:req:exec.verify.manual]
+> [spec:pgorm:req:exec.verify.manual+1]
 > `FromQueryResult::expected_columns` defaults to `None`, so a hand-written
 > impl reports no columns. Verifying such a target MUST answer
 > `VerifyError::Unreflected` rather than `Ok(())`: a decode pgorm cannot
@@ -374,7 +374,7 @@ These rules capture what the code does today, including known gaps.
 > evidence supports. A hand-written impl opts back in by overriding
 > `expected_columns`. Both derives generate it
 > (`macros.derive.from-query-result`, `macros.derive.model`), so derived
-> targets — plain structs, entity `Model`s, and `DerivePartialModel`
+> targets — plain structs, entity `Model`s, and `PartialModel`
 > structs, which derive `FromQueryResult` alongside it — are verifiable
 > without further work.
 

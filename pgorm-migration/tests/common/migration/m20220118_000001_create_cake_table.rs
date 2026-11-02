@@ -1,6 +1,6 @@
 use pgorm_migration::prelude::*;
 
-#[derive(DeriveMigrationName)]
+#[derive(MigrationName)]
 pub struct Migration;
 
 #[async_trait::async_trait]
@@ -27,7 +27,7 @@ impl MigrationTrait for Migration {
     }
 }
 
-#[derive(DeriveSqlName)]
+#[derive(SqlName)]
 pub enum Cake {
     Table,
     Id,

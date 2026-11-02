@@ -81,9 +81,9 @@ struct RawIdentifierTest {
 // `#[pgorm(...)]` attributes. Both fields here are skipped.
 #[derive(FromQueryResult)]
 struct SkipAnywhereTest {
-    #[pgorm(skip, from_col = "read by DerivePartialModel, not by this derive")]
+    #[pgorm(skip, from_col = "read by PartialModel, not by this derive")]
     _foo: i32,
-    #[pgorm(from_col = "read by DerivePartialModel, not by this derive")]
+    #[pgorm(from_col = "read by PartialModel, not by this derive")]
     #[pgorm(skip)]
     _bar: i32,
 }
@@ -98,7 +98,7 @@ where
 // [spec:pgorm:def:exec.crud+1/test]    `SelectorRaw::from_statement` decoding
 // through `SelectModel`, i.e. `SelectorTrait::from_raw_query_result` with an
 // empty prefix
-// [spec:pgorm:sem:macros.derive.from-query-result+2/test]    field-named reads, generics, and `skip`
+// [spec:pgorm:sem:macros.derive.from-query-result+3/test]    field-named reads, generics, and `skip`
 #[pgorm_macros::test]
 async fn from_query_result_derive() -> Result<(), Error> {
     let ctx = TestContext::new("derive_tests_from_query_result").await;

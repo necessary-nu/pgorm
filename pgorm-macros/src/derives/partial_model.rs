@@ -31,12 +31,12 @@ enum ColumnAs {
     Expr { expr: syn::Expr, field_name: String },
 }
 
-struct DerivePartialModel {
+struct PartialModel {
     ident: syn::Ident,
     fields: Vec<ColumnAs>,
 }
 
-impl DerivePartialModel {
+impl PartialModel {
     fn new(input: syn::DeriveInput) -> Result<Self, Error> {
         if !input.generics.params.is_empty() {
             return Err(Error::NotSupportGeneric(input.generics.params.span()));
@@ -151,7 +151,7 @@ impl DerivePartialModel {
 
     fn impl_partial_model_trait(&self) -> TokenStream {
         let select_ident = format_ident!("select");
-        let DerivePartialModel { ident, fields } = self;
+        let PartialModel { ident, fields } = self;
         let select_col_code_gen = fields.iter().map(|col_as| match col_as {
             ColumnAs::Col { entity, col: ident } => {
                 let col_value = quote!( <#entity as pgorm::EntityTrait>::Column:: #ident);
@@ -178,14 +178,14 @@ impl DerivePartialModel {
     }
 }
 
-// [spec:pgorm:sem:macros.derive.partial-model+3]
+// [spec:pgorm:sem:macros.derive.partial-model+4]
 pub fn expand_derive_partial_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
 
-    match DerivePartialModel::new(input) {
+    match PartialModel::new(input) {
         Ok(partial_model) => partial_model.expand(),
         Err(Error::NotSupportGeneric(span)) => Ok(quote_spanned! {
-            span => compile_error!("you can only derive `DerivePartialModel` on named struct");
+            span => compile_error!("you can only derive `PartialModel` on named struct");
         }),
         Err(Error::BothFromColAndFromExpr(span)) => Ok(quote_spanned! {
             span => compile_error!("you can only use one of `from_col` or `from_expr`");
@@ -194,7 +194,7 @@ pub fn expand_derive_partial_model(input: syn::DeriveInput) -> syn::Result<Token
             ident_span => compile_error!("you need specific which entity you are using")
         }),
         Err(Error::InputNotStruct) => Ok(quote_spanned! {
-            ident_span => compile_error!("you can only derive `DerivePartialModel` on named struct");
+            ident_span => compile_error!("you can only derive `PartialModel` on named struct");
         }),
         Err(Error::Syn(err)) => Err(err),
     }
@@ -207,7 +207,7 @@ mod test {
 
     use crate::derives::partial_model::ColumnAs;
 
-    use super::DerivePartialModel;
+    use super::PartialModel;
 
     #[cfg(test)]
     type StdResult<T> = Result<T, Box<dyn std::error::Error>>;
@@ -223,12 +223,12 @@ struct PartialModel{
     expr_field : i32
 }
 "#;
-    // [spec:pgorm:sem:macros.derive.partial-model+3/test]
+    // [spec:pgorm:sem:macros.derive.partial-model+4/test]
     #[test]
     fn test_load_macro_input() -> StdResult<()> {
         let input = parse_str::<DeriveInput>(CODE_SNIPPET)?;
 
-        let middle = DerivePartialModel::new(input).unwrap();
+        let middle = PartialModel::new(input).unwrap();
         assert_eq!(middle.ident, format_ident!("PartialModel"));
         assert_eq!(middle.fields.len(), 3);
         assert_eq!(

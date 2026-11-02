@@ -4,10 +4,10 @@ pub mod common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use futures::TryStreamExt;
-use pgorm::{DerivePartialModel, entity::prelude::*};
+use pgorm::{PartialModel, entity::prelude::*};
 use pretty_assertions::assert_eq;
 
-#[derive(Debug, PartialEq, FromQueryResult, DerivePartialModel)]
+#[derive(Debug, PartialEq, FromQueryResult, PartialModel)]
 #[pgorm(entity = "Bakery")]
 struct BakeryName {
     name: String,

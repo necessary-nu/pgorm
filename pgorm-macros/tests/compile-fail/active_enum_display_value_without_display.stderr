@@ -1,0 +1,5 @@
+error: `display_value` is the text the `display` key writes: add `display` to the enum's `#[pgorm(..)]`
+ --> tests/compile-fail/active_enum_display_value_without_display.rs:8:49
+  |
+8 |     #[pgorm(string_value = "S", display_value = "Small")]
+  |                                                 ^^^^^^^

@@ -71,7 +71,7 @@ is what `EntityTrait::find()` produces.
 > no `IntoName for &str` (`[spec:pgorm:def:sql.types]`), so the conversion
 > is written rather than inferred.
 
-> [spec:pgorm:sem:query.build.modifiers+9]
+> [spec:pgorm:sem:query.build.modifiers+10]
 > `QuerySelect` mutates the select statement in place: `column` appends a
 > column through `col.select_as(col.into_expr())` (same enum-cast rule as the
 > default list); `columns` iterates it; `column_as` / `expr_as` /
@@ -97,7 +97,7 @@ is what `EntityTrait::find()` produces.
 > impl over `QuerySelect` with an identical `Projected` fixpoint. It added a
 > second vocabulary and no capability; `PartialModelTrait::select_cols` is
 > generic over `QuerySelect` directly, and the typestate proof that a
-> field-less `DerivePartialModel` cannot compile is unchanged because the
+> field-less `PartialModel` struct cannot compile is unchanged because the
 > fixpoint bound it relies on is `QuerySelect`'s own.
 >
 > Clearing the select list is a typestate transition, not an in-place

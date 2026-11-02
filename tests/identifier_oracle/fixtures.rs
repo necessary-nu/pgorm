@@ -9,7 +9,7 @@
 pub mod dyn_named {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
+    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
     pub struct Entity {
         pub table: &'static str,
         pub schema: Option<&'static str>,
@@ -47,7 +47,7 @@ pub mod dyn_named {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     pub struct Model {
         #[pgorm(primary_key)]
         pub id: i32,
@@ -55,7 +55,7 @@ pub mod dyn_named {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -87,14 +87,14 @@ pub mod cast_named {
         expr.cast_as(TYPE.with(|cell| Name::runtime(cell.borrow().clone())))
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "t")]
     pub struct Model {
         #[pgorm(primary_key, select_with = named_cast)]
         pub id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -148,14 +148,14 @@ pub mod range_named {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "t")]
     pub struct Model {
         #[pgorm(primary_key, column_type = named_range())]
         pub id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

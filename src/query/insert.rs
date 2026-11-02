@@ -730,7 +730,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "posts")]
             pub struct Model {
                 #[pgorm(primary_key, select_as = "INTEGER", save_as = "TEXT")]
@@ -739,7 +739,7 @@ mod tests {
                 pub text: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -765,7 +765,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "posts")]
             pub struct Model {
                 #[pgorm(
@@ -786,7 +786,7 @@ mod tests {
                 pub text: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}

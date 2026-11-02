@@ -1,8 +1,8 @@
-use pgorm::FromJsonQueryResult;
+use pgorm::JsonValueType;
 use pgorm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Entity)]
 #[pgorm(table_name = "json_struct")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -12,7 +12,7 @@ pub struct Model {
     pub json_value_opt: Option<KeyValue>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonValueType)]
 pub struct KeyValue {
     pub id: i32,
     pub name: String,
@@ -20,7 +20,7 @@ pub struct KeyValue {
     pub notes: Option<String>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

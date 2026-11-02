@@ -3,7 +3,7 @@ use pgorm::entity::prelude::*;
 
 pub type TableName = ArrayString<U32>;
 
-#[derive(Copy, Clone, Default, Debug, DeriveEntity)]
+#[derive(Copy, Clone, Default, Debug, EntityTrait)]
 pub struct Entity {
     pub table_name: TableName,
 }
@@ -14,14 +14,14 @@ impl EntityName for Entity {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
     pub name: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

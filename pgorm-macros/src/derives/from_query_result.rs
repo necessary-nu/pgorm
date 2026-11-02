@@ -27,7 +27,7 @@ impl ToTokens for FromQueryResultItem {
 impl FromQueryResultItem {
     /// The column this field reads, as an `ExpectedColumn`, or `None` for a
     /// skipped field, which reads no column at all.
-    // [spec:pgorm:sem:macros.derive.from-query-result+2]    the reflected column
+    // [spec:pgorm:sem:macros.derive.from-query-result+3]    the reflected column
     fn expected_column(&self) -> Option<TokenStream> {
         if self.skip {
             return None;
@@ -44,7 +44,7 @@ impl FromQueryResultItem {
 }
 
 /// Method to derive a [QueryResult](pgorm::QueryResult)
-// [spec:pgorm:sem:macros.derive.from-query-result+2]
+// [spec:pgorm:sem:macros.derive.from-query-result+3]
 pub fn expand_derive_from_query_result(
     ident: Ident,
     data: Data,

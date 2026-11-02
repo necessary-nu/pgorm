@@ -1,25 +1,25 @@
-//! `FromJsonQueryResult`: the four impls it generates, and the refusal the
+//! `JsonValueType`: the four impls it generates, and the refusal the
 //! `From<T> for Value` conversion makes when `serde_json` cannot serialize the
 //! value at all.
 
-use pgorm::FromJsonQueryResult;
+use pgorm::JsonValueType;
 use pgorm::pgorm_query::{ArrayType, ColumnType, Nullable, ValueType};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonValueType)]
 struct Meta {
     tags: Vec<String>,
 }
 
 /// A JSON object key must be a string; a tuple key is one `serde_json` refuses,
 /// so `to_value` on this type always fails.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonValueType)]
 struct Unserializable {
     grid: BTreeMap<(i32, i32), i32>,
 }
 
-// [spec:pgorm:sem:macros.derive.from-query-result+2/test]    the generated impls
+// [spec:pgorm:sem:macros.derive.from-query-result+3/test]    the generated impls
 #[test]
 fn the_generated_json_impls() {
     let value = pgorm::Value::from(Meta {
@@ -43,7 +43,7 @@ fn the_generated_json_impls() {
     assert_eq!(<Meta as Nullable>::null(), pgorm::Value::Json(None));
 }
 
-// [spec:pgorm:sem:macros.derive.from-query-result+2/test]    a serialisation
+// [spec:pgorm:sem:macros.derive.from-query-result+3/test]    a serialisation
 // failure panics naming the type instead of binding SQL NULL
 #[test]
 #[should_panic(expected = "`Unserializable` could not be serialized to JSON")]

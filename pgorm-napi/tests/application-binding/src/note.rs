@@ -2,7 +2,7 @@
 
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "notes", schema_name = "napi_entities")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -11,7 +11,7 @@ pub struct Model {
     pub body: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = "super::account::Entity",

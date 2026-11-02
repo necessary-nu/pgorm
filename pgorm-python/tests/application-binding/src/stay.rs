@@ -4,7 +4,7 @@ use pgorm::entity::prelude::*;
 /// of the room whose period overlaps the stay, checked at commit; its guest is
 /// an account the server records and never checks, so a stay may name one
 /// that does not exist.
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "stays", schema_name = "python_entities")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -14,7 +14,7 @@ pub struct Model {
     pub during: Range<Date>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = "super::room::Entity",

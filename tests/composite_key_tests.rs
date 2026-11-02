@@ -20,7 +20,7 @@ use tokio_postgres::error::SqlState;
 mod ticket {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "ticket")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -30,7 +30,7 @@ mod ticket {
         pub title: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -41,7 +41,7 @@ mod ticket {
 mod imported_ticket {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "imported_ticket")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -51,7 +51,7 @@ mod imported_ticket {
         pub title: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -62,7 +62,7 @@ mod imported_ticket {
 mod shelf {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "shelf")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -72,7 +72,7 @@ mod shelf {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(has_many = "super::book::Entity")]
         Book,
@@ -92,7 +92,7 @@ mod shelf {
 mod book {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "book")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -103,7 +103,7 @@ mod book {
         pub title: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::shelf::Entity",
@@ -136,7 +136,7 @@ mod book {
 mod author {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "author")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -146,7 +146,7 @@ mod author {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl Related<super::book::Entity> for Entity {
@@ -167,7 +167,7 @@ mod author {
 mod book_author {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "book_author")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -178,7 +178,7 @@ mod book_author {
         pub author_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::book::Entity",
@@ -215,7 +215,7 @@ mod book_author {
 mod placement {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "placement")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -227,7 +227,7 @@ mod placement {
         pub item: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -258,7 +258,7 @@ fn new_ticket(tenant_id: i32, title: &str) -> ticket::ActiveModel {
     }
 }
 
-// [spec:pgorm:sem:schema.from-entity+9/test]    the generated part of a
+// [spec:pgorm:sem:schema.from-entity+10/test]    the generated part of a
 // composite key gets its identity in the table schema-gen builds, and nothing
 // else in the key does
 // [spec:pgorm:sem:exec.crud.insert+6/test]    an insert leaving the generated

@@ -7,7 +7,7 @@ use pgorm_codegen::WithSerde;
 use pgorm_query::{ColumnDef, ColumnType, Name, StringLen, Table};
 
 // [spec:pgorm:req:macros.derive.one-form/test]    codegen writes the one form
-// [spec:pgorm:def:codegen.entity.compact+2/test]    the compact format emits
+// [spec:pgorm:def:codegen.entity.compact+3/test]    the compact format emits
 // imports, Model, Relation, the Related impls and ActiveModelBehavior, in order
 #[test]
 fn compact_format_emits_its_blocks_in_order() {
@@ -18,13 +18,13 @@ fn compact_format_emits_its_blocks_in_order() {
     assert_starts_with(blocks[0], "use pgorm::entity::prelude::*;");
     assert_starts_with(
         blocks[1],
-        r#"#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+        r#"#[derive(Clone, Debug, PartialEq, Entity, Eq)]
            #[pgorm(table_name = "fruit")]
            pub struct Model"#,
     );
     assert_starts_with(
         blocks[2],
-        "#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)] pub enum Relation",
+        "#[derive(Copy, Clone, Debug, EnumIter, Relation)] pub enum Relation",
     );
     assert_starts_with(blocks[3], "impl Related<super::cake::Entity> for Entity");
     assert_eq!(
@@ -33,7 +33,7 @@ fn compact_format_emits_its_blocks_in_order() {
     );
 }
 
-// [spec:pgorm:def:codegen.entity.compact+2/test]    the `schema_name` part of the
+// [spec:pgorm:def:codegen.entity.compact+3/test]    the `schema_name` part of the
 // Model attribute appears only when configured, and an entity with no relations
 // emits the empty `pub enum Relation {}`
 #[test]
@@ -55,7 +55,7 @@ fn compact_model_attribute_and_empty_relation_enum() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    the `#[pgorm(..)]` field
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    the `#[pgorm(..)]` field
 // attribute assembles its parts in one fixed order
 #[test]
 fn compact_field_attribute_parts_assembled_in_fixed_order() {
@@ -92,7 +92,7 @@ fn compact_field_attribute_parts_assembled_in_fixed_order() {
 
 // [spec:pgorm:req:macros.derive.one-form/test]    codegen states a `column_type` as the
 // bare expression the derive takes
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    `column_type` is emitted
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    `column_type` is emitted
 // on every type its field's Rust type does not infer — a length, `char` of any length,
 // a precision and scale, `money`, `text`, `jsonb`, a named type — and on `Float`,
 // `Double` and `Bytea`, spelled as the type's whole `ColumnType` expression
@@ -143,7 +143,7 @@ fn compact_column_type_attribute_covers_ambiguous_types() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    a field needing none of
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    a field needing none of
 // the parts carries no `#[pgorm]` attribute, and `nullable` never appears
 // without a `column_type`
 #[test]
@@ -175,7 +175,7 @@ fn compact_fields_without_applicable_parts_carry_no_attribute() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.model+1/test]    derives, struct
+// [spec:pgorm:sem:codegen.entity.compact.model+2/test]    derives, struct
 // attribute, extra attributes and fields are emitted as one ordered block
 #[test]
 fn compact_model_assembles_derives_attributes_fields_in_order() {
@@ -205,7 +205,7 @@ fn compact_model_assembles_derives_attributes_fields_in_order() {
 
     assert_contains(
         generated.file("cake.rs"),
-        r#"#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize, Default)]
+        r#"#[derive(Clone, Debug, PartialEq, Entity, Eq, Serialize, Deserialize, Default)]
            #[pgorm(schema_name = "public", table_name = "cake")]
            #[serde(rename_all = "camelCase")]
            pub struct Model {
@@ -218,7 +218,7 @@ fn compact_model_assembles_derives_attributes_fields_in_order() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.model+1/test]    primary-key membership
+// [spec:pgorm:sem:codegen.entity.compact.model+2/test]    primary-key membership
 // is decided against the raw DB column name, not the snake_case field name
 #[test]
 fn compact_model_pk_membership_uses_raw_column_name() {
@@ -241,7 +241,7 @@ fn compact_model_pk_membership_uses_raw_column_name() {
     );
 }
 
-// [spec:pgorm:def:codegen.entity.compact+2/test]    each section is one
+// [spec:pgorm:def:codegen.entity.compact+3/test]    each section is one
 // contiguous blank-line-separated block, with the generated header prepended
 #[test]
 fn sections_are_one_contiguous_block_each() {

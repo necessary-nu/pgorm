@@ -20,7 +20,7 @@ use pretty_assertions::assert_eq;
 mod item {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "item")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -29,7 +29,7 @@ mod item {
         pub note: Option<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -39,7 +39,7 @@ mod item {
 mod scoped_item {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "item", schema_name = "warehouse")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -47,7 +47,7 @@ mod scoped_item {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -57,7 +57,7 @@ mod scoped_item {
 mod pair {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "pair")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -67,7 +67,7 @@ mod pair {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -78,7 +78,7 @@ mod pair {
 mod quad {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "quad")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -92,21 +92,21 @@ mod quad {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// An entity whose key is written by hand, which the traits allow: its
-/// `Entity` names the key through `DeriveEntity`'s `primary_key` override. It
+/// `Entity` names the key through the `EntityTrait` derive's `primary_key` override. It
 /// deliberately declares a `ValueType` with more components than the key has
 /// variants, which is what the `find_by_id` / `delete_by_id` arity guard exists
 /// to catch; no derive writes such a key.
 mod too_many_values {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
+    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
     #[pgorm(primary_key = WideKey)]
     pub struct Entity;
 
@@ -116,14 +116,14 @@ mod too_many_values {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     pub struct Model {
         #[pgorm(primary_key)]
         pub id_1: i32,
         pub id_2: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -177,7 +177,7 @@ mod too_many_values {
 mod too_few_values {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
+    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
     #[pgorm(primary_key = NarrowKey)]
     pub struct Entity;
 
@@ -187,7 +187,7 @@ mod too_few_values {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     pub struct Model {
         #[pgorm(primary_key)]
         pub id_1: i32,
@@ -195,7 +195,7 @@ mod too_few_values {
         pub id_2: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -254,7 +254,7 @@ mod too_few_values {
 mod mistyped_key {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
+    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
     #[pgorm(primary_key = MistypedKey)]
     pub struct Entity;
 
@@ -264,13 +264,13 @@ mod mistyped_key {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     pub struct Model {
         #[pgorm(primary_key)]
         pub id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -343,7 +343,7 @@ fn via_default<E: Default>() -> E {
     E::default()
 }
 
-// [spec:pgorm:def:entity.traits+3/test]    `StaticName` as the base identifier
+// [spec:pgorm:def:entity.traits+4/test]    `StaticName` as the base identifier
 // contract (`as_str` alongside `SqlName`'s quoting), `EntityName: StaticName +
 // Default`, and `EntityTrait`'s five associated types resolving for both a
 // derived entity and one whose name and key are written by hand
@@ -380,7 +380,7 @@ fn entity_trait_family() {
     assert_eq!(entity.as_str(), copied.as_str());
 }
 
-// [spec:pgorm:req:entity.traits.entity-name+3/test]    `table_name` is the only
+// [spec:pgorm:req:entity.traits.entity-name+4/test]    `table_name` is the only
 // required method; `schema_name` and `comment` default to `None` and
 // `module_name` to `table_name()`; `table_ref` yields a bare `TableName::Table`
 // without a schema and a `SchemaTable` with one, and every statement that names
@@ -746,7 +746,7 @@ fn sql(expr: pgorm_query::SimpleExpr) -> String {
 
 const SELECT_ITEM: &str = r#"SELECT "item"."id", "item"."name", "item"."note" FROM "item" WHERE "#;
 
-// [spec:pgorm:def:entity.traits.column+6/test]    the expression-building surface
+// [spec:pgorm:def:entity.traits.column+7/test]    the expression-building surface
 // `ColumnTrait` wraps around `Expr`: comparisons, ranges, pattern matching and
 // its sugar, aggregates, null checks, set membership and subqueries — plus
 // `def`, `entity_name`, `as_column_ref`, `into_expr` and `into_returning_expr`
@@ -898,7 +898,7 @@ fn column_trait_expression_surface() {
     let _: ColumnType = pgorm_query::ColumnType::Integer;
 }
 
-// [spec:pgorm:def:entity.traits.column+6/test]    the column-to-column family
+// [spec:pgorm:def:entity.traits.column+7/test]    the column-to-column family
 // `eq_col` / `ne_col` / `gt_col` / `gte_col` / `lt_col` / `lte_col` and the
 // expression form `eq_expr` — each side qualified by its own entity, same SQL as
 // the `Expr::col` escape they replace, and the value-taking `eq` left alone
@@ -1237,7 +1237,7 @@ struct ItemRow {
     name: String,
 }
 
-#[derive(Debug, PartialEq, FromQueryResult, DerivePartialModel)]
+#[derive(Debug, PartialEq, FromQueryResult, PartialModel)]
 #[pgorm(entity = "item::Entity")]
 struct ItemNameOnly {
     #[pgorm(from_col = "name")]
@@ -1306,7 +1306,7 @@ impl FromQueryResult for PrefixProbe {
     }
 }
 
-// [spec:pgorm:def:entity.traits.from-query-result+4/test]    `from_query_result`
+// [spec:pgorm:def:entity.traits.from-query-result+5/test]    `from_query_result`
 // instantiates a type from a row under a column-name prefix,
 // `from_query_result_optional` answers `Ok(None)` for an absent row and reports
 // every other decode failure, `find_by_statement` runs raw SQL into typed rows,

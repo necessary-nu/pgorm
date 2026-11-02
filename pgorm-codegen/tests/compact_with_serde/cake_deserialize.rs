@@ -1,7 +1,7 @@
 use pgorm::entity::prelude:: * ;
 use serde::Deserialize;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Entity, Eq, Deserialize)]
 #[pgorm(table_name = "cake")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -11,7 +11,7 @@ pub struct Model {
     pub name: Option<String> ,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(has_many = "super::fruit::Entity")]
     Fruit,

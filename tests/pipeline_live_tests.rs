@@ -49,7 +49,7 @@ const ORDER_ID: AliasName = alias("order_id");
 mod employee {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "employee")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -58,7 +58,7 @@ mod employee {
         pub manager_id: Option<i32>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(belongs_to = "Entity", from = "Column::ManagerId", to = "Column::Id")]
         Manager,
@@ -72,7 +72,7 @@ mod employee {
 mod message {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "message")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -81,7 +81,7 @@ mod message {
         pub parent_id: Option<i32>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(belongs_to = "Entity", from = "Column::ParentId", to = "Column::Id")]
         Parent,
@@ -1405,7 +1405,7 @@ async fn select_sources_decodes_six_sources_by_position() {
 mod cast_probe {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "cast_probe")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -1418,7 +1418,7 @@ mod cast_probe {
         pub amount: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -1479,7 +1479,7 @@ async fn select_sources_applies_read_casts() -> Result<(), pgorm::Error> {
 mod tea_pot {
     use pgorm::entity::prelude::*;
 
-    #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Copy)]
+    #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
     #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "tea")]
     pub enum Tea {
         #[pgorm(string_value = "EverydayTea")]
@@ -1488,7 +1488,7 @@ mod tea_pot {
         BreakfastTea,
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "tea_pot")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -1496,7 +1496,7 @@ mod tea_pot {
         pub teas: Vec<Tea>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

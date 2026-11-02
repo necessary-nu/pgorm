@@ -38,7 +38,7 @@ def _field(name, rust, attrs):
 
 
 def entity_module(*, table, columns, schema=None, keys=(("id", "i32"),), relation=""):
-    """Render one `DeriveEntityModel` entity as module body text.
+    """Render one `Entity` entity as module body text.
 
     The relation enum is always emitted, empty when the entity has no edges:
     the derive requires it, and an entity generated without one would fail for
@@ -53,7 +53,7 @@ def entity_module(*, table, columns, schema=None, keys=(("id", "i32"),), relatio
         # `Eq` is left off deliberately: the column set varies across `f64`,
         # and a derive that only compiles for some of the shapes under test
         # would fail for a reason that says nothing about the entity.
-        "    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]",
+        "    #[derive(Clone, Debug, PartialEq, Entity)]",
         f"    #[pgorm({header})]",
         "    pub struct Model {",
     ]
@@ -65,7 +65,7 @@ def entity_module(*, table, columns, schema=None, keys=(("id", "i32"),), relatio
         lines.extend(_field(name, rust, attrs))
     lines.append("    }")
     lines.append("")
-    lines.append("    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]")
+    lines.append("    #[derive(Copy, Clone, Debug, EnumIter, Relation)]")
     lines.append("    pub enum Relation {" + ("" if relation else "}"))
     if relation:
         lines.append(relation)
@@ -168,7 +168,7 @@ def _temporal(table):
         [
             PRELUDE,
             "",
-            "    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]",
+            "    #[derive(Clone, Debug, PartialEq, Eq, Entity)]",
             f'    #[pgorm(table_name = "{table}")]',
             "    pub struct Model {",
             "        #[pgorm(primary_key, auto_increment = false)]",
@@ -178,7 +178,7 @@ def _temporal(table):
             "        pub rate: i32,",
             "    }",
             "",
-            "    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]",
+            "    #[derive(Copy, Clone, Debug, EnumIter, Relation)]",
             "    pub enum Relation {}",
             "",
             "    impl ActiveModelBehavior for ActiveModel {}",
@@ -195,7 +195,7 @@ def temporal_key_cases():
         [
             PRELUDE,
             "",
-            "    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]",
+            "    #[derive(Clone, Debug, PartialEq, Eq, Entity)]",
             '    #[pgorm(table_name = "temporal_alone")]',
             "    pub struct Model {",
             "        #[pgorm(primary_key, without_overlaps)]",
@@ -203,7 +203,7 @@ def temporal_key_cases():
             "        pub rate: i32,",
             "    }",
             "",
-            "    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]",
+            "    #[derive(Copy, Clone, Debug, EnumIter, Relation)]",
             "    pub enum Relation {}",
             "",
             "    impl ActiveModelBehavior for ActiveModel {}",
@@ -312,11 +312,11 @@ def key_check_cases():
 
 
 def enum_cases():
-    """`DeriveActiveEnum`, including the schema-qualified identity."""
+    """`ActiveEnum`, including the schema-qualified identity."""
     body = (
         PRELUDE
         + "\n\n"
-        + "    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum)]\n"
+        + "    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]\n"
         '    #[pgorm(rs_type = "String", db_type = "Enum", '
         'schema_name = "fixture", enum_name = "state")]\n'
         "    pub enum State {\n"
@@ -325,14 +325,14 @@ def enum_cases():
         '        #[pgorm(string_value = "closed")]\n'
         "        Closed,\n"
         "    }\n\n"
-        "    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]\n"
+        "    #[derive(Clone, Debug, PartialEq, Entity)]\n"
         '    #[pgorm(table_name = "with_enum")]\n'
         "    pub struct Model {\n"
         "        #[pgorm(primary_key)]\n"
         "        pub id: i32,\n"
         "        pub state: State,\n"
         "    }\n\n"
-        "    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]\n"
+        "    #[derive(Copy, Clone, Debug, EnumIter, Relation)]\n"
         "    pub enum Relation {}\n\n"
         "    impl ActiveModelBehavior for ActiveModel {}"
     )

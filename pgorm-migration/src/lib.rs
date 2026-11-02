@@ -20,10 +20,16 @@ use pgorm::DatabaseTransaction;
 pub use pgorm::Error;
 pub use pgorm::pgorm_query;
 
-// [spec:pgorm:sem:migration.name+3]    ledger identity, normally the file stem
+// [spec:pgorm:sem:migration.name+4]    ledger identity, normally the file stem
 pub trait MigrationName {
     fn name(&self) -> &str;
 }
+
+/// Implement [`MigrationName`] for a migration, naming it for the file stem of
+/// the file it is written in. The derive and the trait share a name and live
+/// in different namespaces.
+// [spec:pgorm:req:macros.derive.names]
+pub use pgorm_macros::MigrationName;
 
 /// The migration definition
 // [spec:pgorm:def:migration.runner+4]    author-facing half

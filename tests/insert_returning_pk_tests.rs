@@ -13,7 +13,7 @@ use pretty_assertions::assert_eq;
 mod manual_key {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "insert_pk_manual")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -23,7 +23,7 @@ mod manual_key {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

@@ -102,7 +102,7 @@ fn kind_key_of_value(mut cx: FunctionContext) -> JsResult<JsString> {
 /// created range's is read: text the subtype does not read is a
 /// `DecodeError`, never a value of another type.
 // [spec:pgorm:req:bindings.model-records+1]
-// [spec:pgorm:req:bindings.created-ranges]
+// [spec:pgorm:req:bindings.created-ranges+1]
 fn read_text(mut cx: FunctionContext) -> JsResult<JsValue> {
     let kind = cx.argument::<JsValue>(0)?;
     let text = cx.argument::<JsString>(1)?.value(&mut cx);

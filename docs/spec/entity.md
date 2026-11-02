@@ -7,7 +7,7 @@ explicit limitations.
 
 ## Entity traits
 
-> [spec:pgorm:def:entity.traits+3]
+> [spec:pgorm:def:entity.traits+4]
 > The entity trait family is defined in `src/entity/` and re-exported from
 > `pgorm::entity` (`src/entity/mod.rs`). Its base identifier contract is
 > `pgorm_query::StaticName` (`[spec:pgorm:def:sql.types]`), re-exported from
@@ -26,13 +26,13 @@ explicit limitations.
 > (`PrimaryKeyTrait + PrimaryKeyToColumn<Column = Self::Column>`).
 >
 > The trait family is produced by the derive macros exported from
-> `src/entity/prelude.rs` (`DeriveEntityModel`, `DeriveRelation`, and friends), an
+> `src/entity/prelude.rs` (`Entity`, `Relation`, and friends), an
 > entity having one written form (`[spec:pgorm:req:macros.derive.one-form]`). The
 > traits are not sealed, so what is written by hand — the `EntityName` of an entity
 > whose names are computed, or a key the arity guard of `entity.traits.crud` refuses —
 > meets the same bounds.
 
-> [spec:pgorm:req:entity.traits.entity-name+3]
+> [spec:pgorm:req:entity.traits.entity-name+4]
 > `EntityName::table_name` is the only required method and MUST return the table's SQL
 > name. `schema_name` and `comment` default to `None`; `module_name` defaults to
 > `table_name()`. `table_ref` MUST produce a schema-qualified `TableName`
@@ -44,7 +44,7 @@ explicit limitations.
 > An entity handed straight to a builder's table position — `from`, a join, an
 > `INSERT`, `UPDATE` or `DELETE` target, a DDL target — MUST be qualified the same
 > way, so a raw statement reads and writes the table `find()` does and never a
-> same-named one `search_path` finds first: the `SqlName` `DeriveEntity` writes
+> same-named one `search_path` finds first: the `SqlName` the `EntityTrait` derive writes
 > answers `schema_name` as its `table_schema`, which `IntoTableName` reads
 > (`[spec:pgorm:def:sql.types.table-ref]`). An entity whose `SqlName` is written
 > by hand qualifies there only if it answers `table_schema` too.
@@ -79,7 +79,7 @@ explicit limitations.
 > `.to_owned()`. These two are the only APIs that take a key value; a cursor boundary
 > takes a value tuple over its order columns, not a key.
 
-> [spec:pgorm:def:entity.traits.column+6]
+> [spec:pgorm:def:entity.traits.column+7]
 > `ColumnTrait: StaticName + Iterable + FromStr` (`src/entity/column.rs`) describes one
 > column of an entity. `def()` returns the column's `ColumnDef`; `entity_name()` and
 > `as_column_ref()` qualify the column with its `EntityName`. The trait exposes an
@@ -114,7 +114,7 @@ explicit limitations.
 > different namespace from the SQL name `StaticName::as_str` gives: the `with-json`
 > conversions of `[spec:pgorm:req:entity.active-model.json]` deserialize through the
 > entity's `Model`, so the key is the model field's name as `serde` spells it.
-> `DeriveEntityModel` MUST emit it from the field the column was derived from and the
+> The `Entity` derive MUST emit it from the field the column was derived from and the
 > `serde` renames declared on that field and its struct; the trait's default falls back
 > to the SQL name, which is what a hand-written `Column` — having no field to read —
 > can offer and what the two namespaces agree on when nothing is renamed.
@@ -156,7 +156,7 @@ explicit limitations.
 > (`[spec:pgorm:sem:macros.derive.entity-model.column-def]`) and a hand-written
 > definition meets when its schema is created.
 
-> [spec:pgorm:sem:entity.traits.column.enum-cast+12]
+> [spec:pgorm:sem:entity.traits.column.enum-cast+13]
 > Enum-typed columns are transparently cast at the SQL boundary
 > (`src/entity/column.rs`). On read, `select_as` / `select_enum_as` casts an enum
 > column to `text` — or `text[]` when the column type is `Array` of an enum — and
@@ -173,7 +173,7 @@ explicit limitations.
 > A column of a range type a schema created (`ColumnType::CreatedRange`) takes
 > the same write path through `Expr::as_range`
 > (`[spec:pgorm:def:sql.value.created-range]`): the value — the text a
-> `DeriveCreatedRange` newtype converts into, or a built-in range value, which
+> `CreatedRange` newtype converts into, or a built-in range value, which
 > is written as its text first — is cast to the type by its structured
 > `TypeName`, there being no cast to it from a built-in range type. On read
 > it is left untouched: the range's binary form decodes as it is. A column of
@@ -347,7 +347,7 @@ explicit limitations.
 > `ActiveModelTrait::delete`, so behavior hooks run. `TryIntoModel<M>` is the fallible
 > reverse conversion with a blanket identity impl for any model.
 
-> [spec:pgorm:def:entity.traits.from-query-result+4]
+> [spec:pgorm:def:entity.traits.from-query-result+5]
 > `FromQueryResult` (`src/entity/model.rs`) instantiates a type from a `QueryResult`
 > row given a column-name prefix: `from_query_result(res, pre)`.
 > `from_query_result_optional` reads a row that may not carry the type at all —
@@ -363,7 +363,7 @@ explicit limitations.
 > `select_cols<S: QuerySelect>(S) -> S::Projected`, letting a partial model declare
 > exactly the columns it needs on a select. The return type is the *projected* state,
 > not `S`, so an implementation that selects no column cannot typecheck: a field-less
-> `DerivePartialModel` is a compile error rather than a query with an empty
+> `PartialModel` struct is a compile error rather than a query with an empty
 > projection (`query.build.modifiers`).
 
 > [spec:pgorm:def:entity.traits.active-enum+2]
@@ -531,12 +531,12 @@ explicit limitations.
 > `delete` MUST state this asymmetry rather than promise an abort the code does not
 > perform.
 
-> [spec:pgorm:req:entity.active-model.into+2]
+> [spec:pgorm:req:entity.active-model.into+3]
 > `IntoActiveModel<A>` converts a type into an active model and has a blanket identity
 > impl for any `ActiveModelTrait`; derived models convert `Model` → `ActiveModel` with
 > every field `Unchanged` (used by `Model::delete`, `set_from_json`, and by callers
 > turning a returned `Model` back into an active model to update it).
-> `IntoActiveValue<V>` governs how `DeriveIntoActiveModel` fields become states:
+> `IntoActiveValue<V>` governs how an `IntoActiveModel` struct's fields become states:
 > `Option<V>` MUST map `Some(v)` → `Set(Some(v))` and `None` → `NotSet`;
 > `Option<Option<V>>` MUST map `Some(inner)` → `Set(inner)` (allowing an explicit
 > `Set(None)` to null a column) and `None` → `NotSet`; the plain scalar impls
@@ -545,7 +545,7 @@ explicit limitations.
 > `Multirange` of each built-in subtype, those over jiff types under
 > `with-jiff`) MUST produce `Set` (`src/entity/active_model.rs`).
 
-> [spec:pgorm:req:entity.active-model.json+3]
+> [spec:pgorm:req:entity.active-model.json+4]
 > Under the `with-json` feature, `ActiveModelTrait::from_json` builds an active model
 > by deserializing the JSON object into the entity's `Model` (errors surface as
 > `Error`), converting it with `IntoActiveModel`, then normalizing states per column:
@@ -556,7 +556,7 @@ explicit limitations.
 > namespace is `serde`'s: the key a column occupies is the model field's name as
 > `serde` spells it, read from `ColumnTrait::json_key`
 > (`[spec:pgorm:def:entity.traits.column]`) — never the SQL column name, which the
-> deserializer never sees. `DeriveEntityModel` computes each column's key from the
+> deserializer never sees. The `Entity` derive computes each column's key from the
 > field it derived that column from, applying `#[serde(rename = "..")]` and
 > `#[serde(rename_all = "..")]` (the deserialize half where the split form is used);
 > `#[pgorm(column_name)]` and `#[pgorm(rename_all)]` name the SQL column and MUST NOT
@@ -594,7 +594,7 @@ explicit limitations.
 > `find_related()`, which MUST inner-join `to()` (and `via()` when present, joined in
 > reverse) onto a fresh `Select<R>`.
 
-> [spec:pgorm:def:entity.relation.def+11]
+> [spec:pgorm:def:entity.relation.def+12]
 > `RelationDef` (`src/entity/relation.rs`) is the concrete relation record:
 > `rel_type`, `from_tbl` / `to_tbl` (`FromItem`, since a relation is joined into a
 > query and may be re-aliased), `columns` (`ColumnPairs`),
@@ -659,7 +659,7 @@ explicit limitations.
 > one; the closure is opaque, and no consumer can detect the miswiring. A
 > closure MUST derive every table qualification from its parameters to be
 > sound under aliasing; one that hardcodes is sound only where its relation
-> is never joined re-aliased. The `DeriveRelation` `on_condition` attribute
+> is never joined re-aliased. The `Relation` derive's `on_condition` attribute
 > written as an expression is where the mistake is easiest to write — it has
 > no parameters in scope, and a `ColumnTrait` operator
 > (`Column::Name.like(..)`) qualifies with the entity's canonical table —
@@ -795,14 +795,15 @@ explicit limitations.
 
 ## Prelude
 
-> [spec:pgorm:def:entity.prelude+9]
+> [spec:pgorm:def:entity.prelude+10]
 > `pgorm::entity::prelude` (`src/entity/prelude.rs`) is the glob a file that
 > talks to the database imports instead of naming what it needs one item at a
 > time. Membership is chosen from what code actually writes, and is public API:
 > removing a name from it breaks callers that never mentioned it.
 >
 > It carries the entity trait family and the derives that produce it
-> (`entity.traits`); the query-builder traits whose methods are otherwise
+> (`entity.traits`), each by the name `macros.derive.names` gives it, so a derive
+> named for a trait arrives with the trait; the query-builder traits whose methods are otherwise
 > unreachable — `QueryFilter`, `QuerySelect`, `QueryOrder`, `QueryTrait`,
 > `PaginatorTrait`, `CursorTrait`, `LoaderTrait`; the active-model vocabulary
 > `ActiveValue` with its `Set` / `Unchanged` / `NotSet` variants,
@@ -818,7 +819,7 @@ explicit limitations.
 > column is written in — `Range`, `Multirange` and `RangeType`
 > (`[spec:pgorm:def:sql.value.range]`) — so a generated entity's
 > `Range<i32>` field and `ColumnType::Range(RangeType::Int4)` resolve through
-> the glob, and `CreatedRange` with its derive `DeriveCreatedRange`
+> the glob, and `CreatedRange` with its derive of the same name
 > (`[spec:pgorm:def:sql.value.created-range]`), so a generated
 > `pgorm_range_types.rs` resolves through it too. A file that also imports `std::ops::Range` by name keeps its
 > own: an explicit import shadows a glob. The interval value `Interval`

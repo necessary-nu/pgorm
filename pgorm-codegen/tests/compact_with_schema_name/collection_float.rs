@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Entity)]
 #[pgorm(schema_name = "schema_name", table_name = "collection_float")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -9,7 +9,7 @@ pub struct Model {
     pub doubles: Vec<f64> ,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

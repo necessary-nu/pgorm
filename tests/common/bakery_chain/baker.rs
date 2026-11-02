@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "baker")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -10,7 +10,7 @@ pub struct Model {
     pub bakery_id: Option<i32>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = "super::bakery::Entity",

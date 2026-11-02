@@ -32,7 +32,7 @@ struct CreatedRange {
     schema_name: Option<LitStr>,
 }
 
-// [spec:pgorm:sem:macros.derive.created-range+1]
+// [spec:pgorm:sem:macros.derive.created-range+2]
 pub fn expand_derive_created_range(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let parsed = parse(input)?;
     Ok(expand(&parsed))
@@ -52,7 +52,7 @@ fn parse(input: syn::DeriveInput) -> syn::Result<CreatedRange> {
     let Some(field) = held else {
         return Err(syn::Error::new(
             ident.span(),
-            "DeriveCreatedRange is derived on a tuple struct holding one `Range<T>` or `Multirange<T>`",
+            "`CreatedRange` is derived on a tuple struct holding one `Range<T>` or `Multirange<T>`",
         ));
     };
 
@@ -82,7 +82,7 @@ fn parse(input: syn::DeriveInput) -> syn::Result<CreatedRange> {
     let Some((kind, type_name)) = named else {
         return Err(syn::Error::new(
             ident.span(),
-            "DeriveCreatedRange needs `#[pgorm(range_name = \"...\")]` or \
+            "`CreatedRange` needs `#[pgorm(range_name = \"...\")]` or \
              `#[pgorm(multirange_name = \"...\")]`, the type's name",
         ));
     };
@@ -90,7 +90,7 @@ fn parse(input: syn::DeriveInput) -> syn::Result<CreatedRange> {
         return Err(syn::Error::new(
             field.ty.span(),
             format!(
-                "DeriveCreatedRange's field is a `{}<T>`, `T` the subtype the type ranges over",
+                "`CreatedRange`'s field is a `{}<T>`, `T` the subtype the type ranges over",
                 kind.holds()
             ),
         ));
@@ -260,7 +260,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:sem:macros.derive.created-range+1/test]    a shape other than a
+    // [spec:pgorm:sem:macros.derive.created-range+2/test]    a shape other than a
     // newtype over `Range<T>`, a missing name and an unknown key are compile errors
     #[test]
     fn what_the_derive_cannot_read_is_refused() {
@@ -290,7 +290,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:sem:macros.derive.created-range+1/test]    a qualified spelling of
+    // [spec:pgorm:sem:macros.derive.created-range+2/test]    a qualified spelling of
     // `Range` is read, and the name and schema are names, never tokens
     #[test]
     fn the_name_and_schema_are_names() {

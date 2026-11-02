@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, Lit, Type, spanned::Spanned};
 
-// [spec:pgorm:sem:macros.derive.value-type+4]
+// [spec:pgorm:sem:macros.derive.value-type+5]
 pub fn expand_derive_value_type(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let syn::DeriveInput {
         ident: name,
@@ -20,14 +20,14 @@ pub fn expand_derive_value_type(input: syn::DeriveInput) -> syn::Result<TokenStr
     else {
         return Err(syn::Error::new(
             name.span(),
-            "DeriveValueType can only be derived on a tuple struct",
+            "`ValueType` can only be derived on a tuple struct",
         ));
     };
 
     let Some(field) = unnamed.into_iter().next() else {
         return Err(syn::Error::new(
             name.span(),
-            "DeriveValueType requires the tuple struct to hold a value field",
+            "`ValueType` requires the tuple struct to hold a value field",
         ));
     };
 

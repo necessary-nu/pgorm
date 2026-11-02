@@ -8,7 +8,7 @@ executes SQL.
 
 ## Table projection
 
-> [spec:pgorm:sem:schema.from-entity+9]
+> [spec:pgorm:sem:schema.from-entity+10]
 > `Schema::create_table_from_entity::<E>()` returns one `TableCreateStatement`
 > for `E`, or the refusal below: the table ref from `entity.table_ref()`, the
 > entity comment if any,
@@ -57,7 +57,7 @@ executes SQL.
 > `Error::Type` naming the entity, the relation and the pair, and MUST NOT
 > leave the constraint out in silence. The side's type is read from the
 > record a `ColumnPairs` keeps when its pair is named by entity columns
-> (`entity.traits.column.enum-cast`), as `DeriveRelation` and
+> (`entity.traits.column.enum-cast`), as the `Relation` derive and
 > `RelationBuilder` name them; a pair named by bare names records none, so it
 > is not checked and its key is written as declared. Every other pairing is
 > written: an enum with the same enum, a domain over a base that is no enum

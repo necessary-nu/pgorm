@@ -16,7 +16,7 @@ enum Error {
     Syn(syn::Error),
 }
 
-struct DeriveModel {
+struct Model {
     column_idents: Vec<syn::Ident>,
     entity_ident: syn::Ident,
     field_idents: Vec<syn::Ident>,
@@ -25,7 +25,7 @@ struct DeriveModel {
     ignore_attrs: Vec<bool>,
 }
 
-impl DeriveModel {
+impl Model {
     fn new(input: syn::DeriveInput) -> Result<Self, Error> {
         let fields = match input.data {
             syn::Data::Struct(syn::DataStruct {
@@ -81,7 +81,7 @@ impl DeriveModel {
             .map(|field| !field_not_ignored(field))
             .collect();
 
-        Ok(DeriveModel {
+        Ok(Model {
             column_idents,
             entity_ident,
             field_idents,
@@ -121,7 +121,7 @@ impl DeriveModel {
             })
             .collect();
 
-        // [spec:pgorm:sem:macros.derive.model+3]    the reflected column shape
+        // [spec:pgorm:sem:macros.derive.model+4]    the reflected column shape
         let expected_columns: Vec<TokenStream> = column_idents
             .iter()
             .zip(&self.field_types)
@@ -211,15 +211,15 @@ impl DeriveModel {
 }
 
 /// Method to derive an ActiveModel
-// [spec:pgorm:sem:macros.derive.model+3]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+5]    the field-key vocabulary this
-// derive shares with `DeriveEntityModel`
+// [spec:pgorm:sem:macros.derive.model+4]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+6]    the field-key vocabulary this
+// derive shares with the `Entity` derive
 pub fn expand_derive_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
-    match DeriveModel::new(input) {
+    match Model::new(input) {
         Ok(model) => model.expand(),
         Err(Error::InputNotStruct) => Ok(quote_spanned! {
-            ident_span => compile_error!("you can only derive DeriveModel on structs");
+            ident_span => compile_error!("you can only derive `Model` on structs");
         }),
         Err(Error::Syn(err)) => Err(err),
     }

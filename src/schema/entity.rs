@@ -38,7 +38,7 @@ impl Schema {
     /// enum, on either side of the key, not even to the enum itself (`42804`).
     /// The check reads each side's type from the
     /// [`ColumnPairs`](crate::ColumnPairs) of the relation, which records it
-    /// only when the pair was named by entity columns, as `DeriveRelation` and
+    /// only when the pair was named by entity columns, as the `Relation` derive and
     /// [`RelationBuilder`](crate::RelationBuilder) name them: a pair built from
     /// bare names is written as declared, unchecked.
     pub fn create_table_from_entity<E>(&self, entity: E) -> Result<TableCreateStatement, Error>
@@ -66,7 +66,7 @@ impl Schema {
     /// ```
     /// use pgorm::{Schema, entity::prelude::*};
     ///
-    /// #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    /// #[derive(Clone, Debug, PartialEq, Entity)]
     /// #[pgorm(table_name = "posts", comment = "one row per post")]
     /// pub struct Model {
     ///     #[pgorm(primary_key)]
@@ -75,7 +75,7 @@ impl Schema {
     ///     pub title: String,
     /// }
     ///
-    /// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    /// #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     /// pub enum Relation {}
     ///
     /// impl ActiveModelBehavior for ActiveModel {}
@@ -108,7 +108,7 @@ impl Schema {
     /// use pgorm::{Schema, entity::prelude::*};
     /// use pgorm_query::Table;
     ///
-    /// #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    /// #[derive(Clone, Debug, PartialEq, Entity)]
     /// #[pgorm(table_name = "posts")]
     /// pub struct Model {
     ///     #[pgorm(primary_key)]
@@ -116,7 +116,7 @@ impl Schema {
     ///     pub title: String,
     /// }
     ///
-    /// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    /// #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     /// pub enum Relation {}
     ///
     /// impl ActiveModelBehavior for ActiveModel {}
@@ -228,7 +228,7 @@ where
     vec
 }
 
-// [spec:pgorm:sem:schema.from-entity+9]    the comment statements, one stream per entity
+// [spec:pgorm:sem:schema.from-entity+10]    the comment statements, one stream per entity
 pub(crate) fn create_comments_from_entity<E>(entity: E) -> Vec<CommentStatement>
 where
     E: EntityTrait,
@@ -247,7 +247,7 @@ where
     vec
 }
 
-// [spec:pgorm:sem:schema.from-entity+9]
+// [spec:pgorm:sem:schema.from-entity+10]
 pub(crate) fn create_table_from_entity<E>(entity: E) -> Result<TableCreateStatement, Error>
 where
     E: EntityTrait,
@@ -310,7 +310,7 @@ where
 /// Each side's type is the one its [`ColumnPairs`](crate::ColumnPairs)
 /// recorded when the pair was named by entity columns; a pair named by bare
 /// names recorded none and passes unchecked.
-// [spec:pgorm:sem:schema.from-entity+9]
+// [spec:pgorm:sem:schema.from-entity+10]
 fn refuse_unkeyable<E: EntityTrait>(
     entity: &E,
     relation: &E::Relation,
@@ -335,7 +335,7 @@ fn refuse_unkeyable<E: EntityTrait>(
     )))
 }
 
-// [spec:pgorm:sem:schema.from-entity+9]    column projection, and the serial family for a one-column key
+// [spec:pgorm:sem:schema.from-entity+10]    column projection, and the serial family for a one-column key
 fn column_def_from_entity_column<E>(column: E::Column) -> ColumnDef
 where
     E: EntityTrait,

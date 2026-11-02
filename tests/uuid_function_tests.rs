@@ -18,7 +18,7 @@ use pretty_assertions::assert_eq;
 mod token {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "token")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false, default_expr = "Func::uuidv7()")]
@@ -26,7 +26,7 @@ mod token {
         pub written: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -53,7 +53,7 @@ async fn server_clock(db: &DatabaseConnection) -> Result<DateTimeWithTimeZone, E
 /// Rows written one after another, each leaving its key to the `uuidv7()`
 /// default, come back in the order they were written when sorted by key alone.
 // [spec:pgorm:def:sql.ast.func+11/test]    a v7 default sorts in minting order
-// [spec:pgorm:def:entity.prelude+9/test]    an entity's `default_expr` names `Func`
+// [spec:pgorm:def:entity.prelude+10/test]    an entity's `default_expr` names `Func`
 // through the prelude
 #[pgorm_macros::test]
 async fn a_uuidv7_key_sorts_in_write_order() -> Result<(), Error> {

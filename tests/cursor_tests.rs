@@ -3,7 +3,7 @@
 pub mod common;
 
 pub use common::{TestContext, features::*, setup::*};
-use pgorm::{DerivePartialModel, entity::prelude::*};
+use pgorm::{PartialModel, entity::prelude::*};
 use pretty_assertions::assert_eq;
 
 #[pgorm_macros::test]
@@ -418,7 +418,7 @@ pub async fn cursor_pagination(db: &DatabaseConnection) -> Result<(), Error> {
 
     cursor.after(5).before(8);
 
-    #[derive(DerivePartialModel, FromQueryResult, Debug, PartialEq, Clone)]
+    #[derive(PartialModel, FromQueryResult, Debug, PartialEq, Clone)]
     #[pgorm(entity = "Entity")]
     struct PartialRow {
         #[pgorm(from_col = "id")]
@@ -898,7 +898,7 @@ pub async fn cursor_related_pagination(db: &DatabaseConnection) -> Result<(), Er
 mod net_cursor {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "net_cursor")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -906,7 +906,7 @@ mod net_cursor {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -1045,7 +1045,7 @@ async fn cursor_over_network_types() -> Result<(), Error> {
 mod cursor_composite {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "cursor_composite")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -1056,7 +1056,7 @@ mod cursor_composite {
         pub d: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

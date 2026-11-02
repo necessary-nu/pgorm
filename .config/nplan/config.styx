@@ -72,7 +72,7 @@ platforms (
     }
     {
         platform "python-distribution"
-        files (pgorm-python/Cargo.toml pgorm-python/Cargo.lock Cargo.toml pgorm-*/Cargo.toml pgorm-query/pgorm-query-derive/Cargo.toml pgorm-python/checks/notices.py pgorm-python/licenses/** pgorm-python/python/pgorm/DEPENDENCIES.json pgorm-python/python/pgorm/THIRD_PARTY_NOTICES.txt)
+        files (pgorm-python/Cargo.toml pgorm-python/Cargo.lock Cargo.toml pgorm-*/Cargo.toml pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-python/checks/notices.py pgorm-python/licenses/** pgorm-python/python/pgorm/DEPENDENCIES.json pgorm-python/python/pgorm/THIRD_PARTY_NOTICES.txt)
         checks {
             notices {
                 cmd "python3 pgorm-python/checks/notices.py"
@@ -234,7 +234,7 @@ platforms (
     }
     {
         platform "napi-distribution"
-        files (pgorm-napi/Cargo.toml pgorm-napi/Cargo.lock Cargo.toml pgorm-*/Cargo.toml pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-derive/Cargo.toml pgorm-napi/package.json pgorm-napi/support.json pgorm-napi/checks/notices.js pgorm-napi/checks/package.js pgorm-napi/licenses/** pgorm-napi/notices/**)
+        files (pgorm-napi/Cargo.toml pgorm-napi/Cargo.lock Cargo.toml pgorm-*/Cargo.toml pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-napi/package.json pgorm-napi/support.json pgorm-napi/checks/notices.js pgorm-napi/checks/package.js pgorm-napi/licenses/** pgorm-napi/notices/**)
         checks {
             // The packages' notices against the lockfile, and the npm
             // version, the crate's and support.json against each other.
@@ -275,7 +275,7 @@ platforms (
         // manifests are in scope because a feature edge moving is as likely a
         // cause as a source change.
         platform "rust-features"
-        files (Cargo.toml Cargo.lock src/**/*.rs pgorm-macros/Cargo.toml pgorm-macros/src/**/*.rs pgorm-pool/Cargo.toml pgorm-pool/src/**/*.rs pgorm-query/Cargo.toml pgorm-query/src/**/*.rs pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-attr/src/**/*.rs pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive/src/**/*.rs pgorm-sql-macro/Cargo.toml pgorm-sql-macro/src/**/*.rs)
+        files (Cargo.toml Cargo.lock src/**/*.rs pgorm-macros/Cargo.toml pgorm-macros/src/**/*.rs pgorm-pool/Cargo.toml pgorm-pool/src/**/*.rs pgorm-query/Cargo.toml pgorm-query/src/**/*.rs pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-attr/src/**/*.rs pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive/src/**/*.rs pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-query/pgorm-query-derive-internals/src/**/*.rs pgorm-sql-macro/Cargo.toml pgorm-sql-macro/src/**/*.rs)
         checks {
             minimal {
                 cmd "cargo check -p pgorm --lib --no-default-features"
@@ -297,7 +297,7 @@ platforms (
         // that code cannot rot unseen. The live suite under it needs a 19
         // server and stays out of the gate as nextest does.
         platform "rust-pg-19"
-        files (Cargo.toml Cargo.lock src/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs tests/**/*.rs pgorm-macros/Cargo.toml pgorm-codegen/Cargo.toml pgorm-migration/Cargo.toml pgorm-pool/Cargo.toml pgorm-query/Cargo.toml pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-derive/Cargo.toml pgorm-sql-macro/Cargo.toml pgorm-test-support/Cargo.toml)
+        files (Cargo.toml Cargo.lock src/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs tests/**/*.rs pgorm-macros/Cargo.toml pgorm-codegen/Cargo.toml pgorm-migration/Cargo.toml pgorm-pool/Cargo.toml pgorm-query/Cargo.toml pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-sql-macro/Cargo.toml pgorm-test-support/Cargo.toml)
         checks {
             check {
                 cmd "cargo check --workspace --all-targets --features pg-19"

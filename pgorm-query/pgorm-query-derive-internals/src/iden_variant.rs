@@ -13,9 +13,9 @@ pub(crate) trait WriteArm {
     fn flattened(variant: TokenStream, name: &Ident) -> TokenStream;
 }
 
-pub(crate) struct DeriveSqlName;
+pub(crate) struct SqlNameArm;
 
-impl WriteArm for DeriveSqlName {
+impl WriteArm for SqlNameArm {
     fn variant(variant: TokenStream, name: TokenStream) -> TokenStream {
         quote! { Self::#variant => write!(s, "{}", #name).unwrap() }
     }
@@ -25,9 +25,9 @@ impl WriteArm for DeriveSqlName {
     }
 }
 
-pub(crate) struct DeriveStaticName;
+pub(crate) struct StaticNameArm;
 
-impl WriteArm for DeriveStaticName {
+impl WriteArm for StaticNameArm {
     fn variant(variant: TokenStream, name: TokenStream) -> TokenStream {
         quote! { Self::#variant => #name }
     }

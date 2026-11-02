@@ -1,6 +1,6 @@
 use pgorm_migration::prelude::{pgorm_query::extension::Type, *};
 
-#[derive(DeriveMigrationName)]
+#[derive(MigrationName)]
 pub struct Migration;
 
 #[async_trait::async_trait]
@@ -17,8 +17,8 @@ impl MigrationTrait for Migration {
 
 // The type is named by an `SqlName`; its labels are data and are written as the
 // string literals they render to.
-#[derive(DeriveSqlName)]
+#[derive(SqlName)]
 pub enum Tea {
-    #[pgorm(iden = "tea")]
+    #[iden = "tea"]
     Enum,
 }

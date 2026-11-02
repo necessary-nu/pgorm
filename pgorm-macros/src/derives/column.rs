@@ -6,8 +6,8 @@ use syn::{Data, DataEnum, Fields, LitStr, Variant};
 
 /// Variant-level `#[pgorm(...)]` keys a `Column` enum may carry. `column_name` is the
 /// override this derive reads; `table_name` rides on the `Table` variant
-/// `DeriveEntityModel` generates for `table_iden`, which has no column name at all.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+5]
+/// the `Entity` derive generates for `table_iden`, which has no column name at all.
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+6]
 const COLUMN_VARIANT_KEYS: [&str; 2] = ["column_name", "table_name"];
 
 /// Derive a Column name for an enum type
@@ -16,7 +16,7 @@ pub fn impl_default_as_str(ident: &Ident, data: &Data) -> syn::Result<TokenStrea
         syn::Data::Enum(DataEnum { variants, .. }) => variants,
         _ => {
             return Ok(quote_spanned! {
-                ident.span() => compile_error!("you can only derive DeriveColumn on enums");
+                ident.span() => compile_error!("you can only derive `Column` on enums");
             });
         }
     };
@@ -63,13 +63,13 @@ pub fn impl_default_as_str(ident: &Ident, data: &Data) -> syn::Result<TokenStrea
     ))
 }
 
-/// Implement a column for an enum using [DeriveColumn](pgorm::DeriveColumn)
+/// Implement `FromStr` for a column enum under the `Column` derive.
 pub fn impl_col_from_str(ident: &Ident, data: &Data) -> syn::Result<TokenStream> {
     let data_enum = match data {
         Data::Enum(data_enum) => data_enum,
         _ => {
             return Ok(quote_spanned! {
-                ident.span() => compile_error!("you can only derive DeriveColumn on enums");
+                ident.span() => compile_error!("you can only derive `Column` on enums");
             });
         }
     };
@@ -98,7 +98,7 @@ pub fn impl_col_from_str(ident: &Ident, data: &Data) -> syn::Result<TokenStream>
     ))
 }
 
-// [spec:pgorm:sem:macros.derive.column+4]
+// [spec:pgorm:sem:macros.derive.column+5]
 pub fn expand_derive_column(ident: &Ident, data: &Data) -> syn::Result<TokenStream> {
     let impl_default_as_str = impl_default_as_str(ident, data)?;
     let impl_col_from_str = impl_col_from_str(ident, data)?;

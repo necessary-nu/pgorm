@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Entity)]
 #[pgorm(table_name = "cake_with_float")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -11,7 +11,7 @@ pub struct Model {
     pub price: Option<f32> ,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(has_many = "super::fruit::Entity")]
     Fruit,

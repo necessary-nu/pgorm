@@ -8,7 +8,7 @@ use syn::{
 
 /// The refusal for a `#[pgorm(...)]` key none of a derive's arms read, spanned at the
 /// key and naming it, so a typo is diagnosed rather than dropped.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+5]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+6]
 pub(crate) fn unknown_pgorm_key(meta: &ParseNestedMeta<'_>) -> syn::Error {
     let name = match meta.path.get_ident() {
         Some(ident) => ident.to_string(),
@@ -20,7 +20,7 @@ pub(crate) fn unknown_pgorm_key(meta: &ParseNestedMeta<'_>) -> syn::Error {
 /// The Rust code a key's value is, written bare. A string there is refused at
 /// the string, since the quotes would make it data the derive re-parses.
 // [spec:pgorm:req:macros.derive.one-form]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+5]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+6]
 pub(crate) fn bare_code<T: Parse>(meta: &ParseNestedMeta<'_>, key: &str) -> syn::Result<T> {
     let value = meta.value()?;
     if value.peek(LitStr) {
@@ -35,7 +35,7 @@ pub(crate) fn bare_code<T: Parse>(meta: &ParseNestedMeta<'_>, key: &str) -> syn:
 
 /// Accept a key this derive recognises but does not read, consuming its `= value` when
 /// it carries one so the parse stream advances past it; refuse anything else.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+5]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+6]
 pub(crate) fn skip_known_key(meta: &ParseNestedMeta<'_>, known: &[&str]) -> syn::Result<()> {
     if !known.iter().any(|key| meta.path.is_ident(key)) {
         return Err(unknown_pgorm_key(meta));
@@ -45,19 +45,19 @@ pub(crate) fn skip_known_key(meta: &ParseNestedMeta<'_>, known: &[&str]) -> syn:
     Ok(())
 }
 
-/// The field-level keys `FromQueryResult` and `DerivePartialModel` define between them.
+/// The field-level keys `FromQueryResult` and `PartialModel` define between them.
 /// The two are routinely derived on one struct — a partial model is decoded through
 /// `FromQueryResult` — so each has to recognise the other's vocabulary.
-// [spec:pgorm:sem:macros.derive.from-query-result+2]
-// [spec:pgorm:sem:macros.derive.partial-model+3]
+// [spec:pgorm:sem:macros.derive.from-query-result+3]
+// [spec:pgorm:sem:macros.derive.partial-model+4]
 pub(crate) const PROJECTION_FIELD_KEYS: [&str; 3] = ["from_col", "from_expr", "skip"];
 
-/// Every field-level `#[pgorm(...)]` key `DeriveEntityModel` defines. `DeriveModel` and
+/// Every field-level `#[pgorm(...)]` key the `Entity` derive defines. `Model` and
 /// the active-model expansion read only `enum_name` (and `ignore`, through
 /// `field_not_ignored`) out of the set, but the composite derive runs both over the same
 /// input, so each has to recognise the whole vocabulary or a legal entity model would stop
 /// compiling.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+5]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+6]
 pub(crate) const MODEL_FIELD_KEYS: [&str; 22] = [
     "auto_increment",
     "column_name",
@@ -139,7 +139,7 @@ where
 /// Turn a name derived from `field` into an identifier, naming the field and the
 /// derived spelling when the derivation produced something unusable — case
 /// conversion drops non-alphanumerics, so `__` derives `""` and `_1` derives `"1"`.
-// [spec:pgorm:sem:macros.derive.entity-model.casing+2]
+// [spec:pgorm:sem:macros.derive.entity-model.casing+3]
 pub(crate) fn parse_derived_ident(derived: &str, field: &Ident) -> syn::Result<Ident> {
     syn::parse_str::<Ident>(derived).map_err(|_| {
         syn::Error::new(
@@ -153,7 +153,7 @@ pub(crate) fn parse_derived_ident(derived: &str, field: &Ident) -> syn::Result<I
 
 /// The identifier an `enum_name = "..."` attribute names, reported at the literal
 /// when it does not spell one.
-// [spec:pgorm:sem:macros.derive.entity-model.casing+2]
+// [spec:pgorm:sem:macros.derive.entity-model.casing+3]
 pub(crate) fn parse_enum_name(litstr: &syn::LitStr) -> syn::Result<Ident> {
     syn::parse_str::<Ident>(&litstr.value()).map_err(|_| {
         syn::Error::new(
@@ -171,13 +171,13 @@ pub(crate) fn parse_enum_name(litstr: &syn::LitStr) -> syn::Result<Ident> {
 /// Validity is judged on the keyword-escaped spelling because the final variant
 /// name is escaped downstream (`SELF` -> `Self` -> `Self_`); the identifier
 /// returned keeps the unescaped spelling that `rename_all` converts.
-// [spec:pgorm:sem:macros.derive.entity-model.casing+2]
+// [spec:pgorm:sem:macros.derive.entity-model.casing+3]
 pub(crate) fn column_variant_ident(camel_name: &str, field: &Ident) -> syn::Result<Ident> {
     parse_derived_ident(&escape_rust_keyword(camel_name), field)?;
     Ok(Ident::new(camel_name, Span::call_site()))
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.casing+2]
+// [spec:pgorm:sem:macros.derive.entity-model.casing+3]
 pub(crate) fn escape_rust_keyword<T>(string: T) -> String
 where
     T: ToString,
@@ -300,7 +300,7 @@ pub(crate) const RUST_SPECIAL_KEYWORDS: [&str; 3] = ["crate", "Self", "self"];
 mod tests {
     use super::*;
 
-    // [spec:pgorm:sem:macros.derive.active-enum.expansion+2/test]
+    // [spec:pgorm:sem:macros.derive.active-enum.expansion+3/test]
     #[test]
     fn test_non_uax31_escape() {
         // Test empty string

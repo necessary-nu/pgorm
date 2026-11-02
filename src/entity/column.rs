@@ -66,7 +66,7 @@ macro_rules! bind_func_no_params {
     };
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+12]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
 macro_rules! bind_compared_aggregate {
     ( $func: ident ) => {
         /// See also SeaQuery's method with same name. A column whose domain is
@@ -93,7 +93,7 @@ macro_rules! bind_vec_func {
     };
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+12]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
 macro_rules! bind_subquery_func {
     ( $func: ident, $array_cmp: ident, $quantifier: ident ) => {
         /// Membership in what a subquery projects. A column whose domain is
@@ -118,7 +118,7 @@ use column_def::{
 
 // LINT: when the operand value does not match column type
 /// API for working with a `Column`. Mostly a wrapper of the identically named methods in [`pgorm_query::Expr`]
-// [spec:pgorm:def:entity.traits.column+6]
+// [spec:pgorm:def:entity.traits.column+7]
 pub trait ColumnTrait: StaticName + Iterable + FromStr {
     #[allow(missing_docs)]
     type EntityName: EntityName;
@@ -141,7 +141,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// The `with-json` conversions on `ActiveModelTrait` deserialize through the
     /// entity's `Model`, so the keys they read are `serde`'s — the model field's
     /// name, spelled the way any `serde` rename spells it — and not the SQL
-    /// column name. `DeriveEntityModel` computes this from the field the column
+    /// column name. The `Entity` derive computes this from the field the column
     /// was derived from; a hand-written `Column` has no field to read, so it
     /// falls back to the SQL name, which is what the two agree on when nothing
     /// is renamed.
@@ -182,7 +182,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// enum column compared against another column of the same enum type needs
     /// no cast, and a column whose domain is over an enum is cast to the enum,
     /// either side, PostgreSQL resolving no operator for the domain.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+12]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+13]
     fn eq_col<C>(&self, other: C) -> SimpleExpr
     where
         C: ColumnTrait,
@@ -338,7 +338,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."name" LIKE 'cheese%'"#
     /// );
     /// ```
-    // [spec:pgorm:def:entity.traits.column+6]
+    // [spec:pgorm:def:entity.traits.column+7]
     fn starts_with<T>(&self, s: T) -> SimpleExpr
     where
         T: Into<String>,
@@ -358,7 +358,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."name" LIKE '%cheese'"#
     /// );
     /// ```
-    // [spec:pgorm:def:entity.traits.column+6]
+    // [spec:pgorm:def:entity.traits.column+7]
     fn ends_with<T>(&self, s: T) -> SimpleExpr
     where
         T: Into<String>,
@@ -378,7 +378,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."name" LIKE '%cheese%'"#
     /// );
     /// ```
-    // [spec:pgorm:def:entity.traits.column+6]
+    // [spec:pgorm:def:entity.traits.column+7]
     fn contains<T>(&self, s: T) -> SimpleExpr
     where
         T: Into<String>,
@@ -483,8 +483,8 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// driver reports such a multirange as a simple type with no subtype to
     /// read its binary form by, so it is read as its text, which the
     /// newtype's `FromStr` parses.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+12]
-    // [spec:pgorm:def:sql.value.created-range+4]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+    // [spec:pgorm:def:sql.value.created-range+5]
     // [spec:pgorm:req:sql.ast.cast-shape+2]
     fn select_enum_as(&self, expr: Expr) -> SimpleExpr {
         if let ColumnType::CreatedMultirange { .. } = under_domains(self.def().get_column_type()) {
@@ -512,7 +512,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// A column that overrides `save_as` with a cast of its own — what
     /// `#[pgorm(save_as = "…")]` generates — overrides this too, with the
     /// array spelling of the same type.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+12]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+13]
     fn save_array_as(&self, val: Expr) -> SimpleExpr {
         self.save_enum_array_as(val)
     }
@@ -522,7 +522,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// [`ColumnTrait::save_enum_as`], and like it the fallback a derived
     /// [`save_array_as`][ColumnTrait::save_array_as] override keeps for
     /// columns without a `save_as` attribute.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+12]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+13]
     // [spec:pgorm:req:sql.ast.cast-shape+2]
     fn save_enum_array_as(&self, val: Expr) -> SimpleExpr {
         let col_def = self.def();
@@ -538,8 +538,8 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// A column of a range type a schema created takes its value through
     /// [`Expr::as_range`]: a range is written as its text form and cast to the
     /// type by name, there being no cast to it from a built-in range type.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+12]
-    // [spec:pgorm:def:sql.value.created-range+4]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+13]
+    // [spec:pgorm:def:sql.value.created-range+5]
     // [spec:pgorm:req:sql.ast.cast-shape+2]
     fn save_enum_as(&self, val: Expr) -> SimpleExpr {
         match created_range_type_name(self.def().get_column_type()) {
@@ -647,7 +647,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -673,7 +673,7 @@ mod tests {
                 pub twelve_two: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -733,7 +733,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -745,7 +745,7 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -765,7 +765,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -777,7 +777,7 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -798,7 +798,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello")]
             pub struct Model {
                 #[pgorm(primary_key, column_name = "ID", enum_name = "IdentityColumn")]
@@ -810,7 +810,7 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -831,7 +831,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "my_entity")]
             pub struct Model {
                 #[pgorm(primary_key, enum_name = "IdentityColumn", column_name = "id")]
@@ -840,7 +840,7 @@ mod tests {
                 pub type_: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -865,7 +865,7 @@ mod tests {
                 expr.cast_as(alias("integer"))
             }
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -878,7 +878,7 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -889,7 +889,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -902,7 +902,7 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -959,7 +959,7 @@ mod tests {
                 val.cast_as_type(TypeName::new(alias("text")).array())
             }
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -972,7 +972,7 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -983,7 +983,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -996,7 +996,7 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -1063,7 +1063,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "guarded")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -1072,7 +1072,7 @@ mod tests {
                 pub two: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -1147,7 +1147,7 @@ mod tests {
                 val.cast_as_type(TypeName::new(alias("text")).array())
             }
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -1160,7 +1160,7 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -1171,7 +1171,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -1184,7 +1184,7 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}

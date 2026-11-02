@@ -28,14 +28,14 @@ pub fn sum<'brand>(expr: impl Into<Expr<'brand>>) -> Expr<'brand> {
 
 /// `MIN(expr)`. An entity column whose domain is over an enum is cast to the
 /// enum, PostgreSQL resolving no `min` for the domain itself.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+12]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
 pub fn min<'brand>(expr: impl Into<Expr<'brand>>) -> Expr<'brand> {
     branded(adapter::call("min", vec![expr.into().compared()]))
 }
 
 /// `MAX(expr)`. An entity column whose domain is over an enum is cast to the
 /// enum, PostgreSQL resolving no `max` for the domain itself.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+12]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
 pub fn max<'brand>(expr: impl Into<Expr<'brand>>) -> Expr<'brand> {
     branded(adapter::call("max", vec![expr.into().compared()]))
 }

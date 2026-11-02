@@ -1,7 +1,7 @@
 mod both_kinds {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "both_kinds")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -16,7 +16,7 @@ mod both_kinds {
 mod beside_identity {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "beside_identity")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -31,7 +31,7 @@ mod beside_identity {
 mod beside_default {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "beside_default")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -46,7 +46,7 @@ mod beside_default {
 mod beside_auto_increment {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "beside_auto_increment")]
     pub struct Model {
         #[pgorm(primary_key, generated_stored = "Expr::col(Column::Base)", auto_increment = false)]
@@ -60,7 +60,7 @@ mod beside_auto_increment {
 mod virtual_key {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "virtual_key")]
     pub struct Model {
         #[pgorm(primary_key, generated_virtual = "Expr::col(Column::Base)")]
@@ -74,7 +74,7 @@ mod virtual_key {
 mod virtual_unique {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "virtual_unique")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -89,7 +89,7 @@ mod virtual_unique {
 mod virtual_indexed {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "virtual_indexed")]
     pub struct Model {
         #[pgorm(primary_key)]

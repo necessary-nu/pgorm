@@ -23,7 +23,7 @@ const NO_PARAMS: [&(dyn tokio_postgres::types::ToSql + Sync); 0] = [];
 mod qualified {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(schema_name = "tenant_a", table_name = "item")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -31,7 +31,7 @@ mod qualified {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -42,7 +42,7 @@ mod qualified {
 mod unqualified {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "item")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -50,7 +50,7 @@ mod unqualified {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -84,7 +84,7 @@ async fn main() -> Result<(), Error> {
 // [spec:pgorm:sem:codegen.entity.transform+16/test]    preserving the source
 // table's schema qualifier is what keeps generated CRUD off a same-named table
 // on the `search_path`
-// [spec:pgorm:def:codegen.entity.compact+2/test]
+// [spec:pgorm:def:codegen.entity.compact+3/test]
 async fn generated_entity_targets_its_own_schema(db: &DatabaseConnection) -> Result<(), Error> {
     // `public` is on the default `search_path` and `tenant_a` is not, so an
     // unqualified name resolves to the other table entirely.
@@ -136,7 +136,7 @@ where
         .await
 }
 
-// [spec:pgorm:req:entity.traits.entity-name+3/test]    an entity handed straight to a raw
+// [spec:pgorm:req:entity.traits.entity-name+4/test]    an entity handed straight to a raw
 // builder's table position is qualified as `table_ref` qualifies it, so a select, a join and
 // each write reach `tenant_a.item` and never the `public.item` the `search_path` holds
 // [spec:pgorm:def:sql.types.table-ref+7/test]

@@ -56,11 +56,13 @@ impl IdenAttr {
                         let value: LitStr = value.parse()?;
                         iden_attr = Some(IdenAttr::Method(Ident::new(&value.value(), meta.span())));
                         Ok(())
-                    } else {
+                    } else if let Some(keyword) = nested.path.get_ident() {
                         Err(Error::new_spanned(
                             &meta,
-                            ErrorMsg::UnsupportedKeyword(nested.path.get_ident().unwrap().clone()),
+                            ErrorMsg::UnsupportedKeyword(keyword.clone()),
                         ))
+                    } else {
+                        Err(nested.error(ErrorMsg::WrongListFormat))
                     }
                 })?;
                 iden_attr.ok_or(Error::new_spanned(meta, ErrorMsg::WrongListFormat))
@@ -88,7 +90,7 @@ impl TryFrom<Meta> for IdenAttr {
         } else if path.is_ident(&IdenPath::Iden) {
             Self::extract_iden(value)
         } else {
-            todo!()
+            Err(Error::new_spanned(path, ErrorMsg::WrongAttributeFormat))
         }
     }
 }

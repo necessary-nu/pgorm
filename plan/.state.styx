@@ -2955,6 +2955,11 @@ impl_evidence (
     ), rule_versions_seen (
         {id testing.isolation, version 0}
     )}
+    {id derives.names, covered_rules (
+        macros.derive.names
+    ), covered_claims (
+        {impl_name main, rule macros.derive.names}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

@@ -14,7 +14,7 @@ use pretty_assertions::assert_eq;
 mod factory {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "factory")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -22,7 +22,7 @@ mod factory {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -31,7 +31,7 @@ mod factory {
 mod gadget {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "gadget")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -40,7 +40,7 @@ mod gadget {
         pub batch: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -49,7 +49,7 @@ mod gadget {
 mod widget {
     use pgorm::entity::prelude::*;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
     #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "widget_grade")]
     pub enum Grade {
         #[pgorm(string_value = "Gold")]
@@ -60,7 +60,7 @@ mod widget {
         Bronze,
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(
         table_name = "widget",
         schema_name = "public",
@@ -81,7 +81,7 @@ mod widget {
         pub factory_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::factory::Entity",
@@ -111,7 +111,7 @@ mod widget {
 mod widget_tag {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "widget_tag")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -120,7 +120,7 @@ mod widget_tag {
         pub tag: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::widget::Entity",
@@ -143,7 +143,7 @@ mod widget_tag {
 mod tenant_row {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "tenant_row")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -153,7 +153,7 @@ mod tenant_row {
         pub note: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -163,14 +163,14 @@ mod tenant_row {
 mod identity_key {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "identity_key")]
     pub struct Model {
         #[pgorm(primary_key, identity_by_default)]
         pub id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -181,7 +181,7 @@ mod identity_key {
 mod defaulted_key {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "defaulted_key")]
     pub struct Model {
         #[pgorm(primary_key, default_value = 7)]
@@ -189,7 +189,7 @@ mod defaulted_key {
         pub note: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -200,7 +200,7 @@ mod defaulted_key {
 mod quirk {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "quirk", comment = "it's a table")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -210,7 +210,7 @@ mod quirk {
         pub plain: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -221,7 +221,7 @@ mod quirk {
 mod palette {
     use pgorm::entity::prelude::*;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
     #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "palette_hue")]
     pub enum Hue {
         #[pgorm(string_value = "Red")]
@@ -230,7 +230,7 @@ mod palette {
         Blue,
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "palette")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -239,14 +239,14 @@ mod palette {
         pub spare_hues: Option<Vec<Hue>>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// An `ActiveEnum` whose `db_type()` is not `ColumnType::Enum`.
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
 #[pgorm(rs_type = "String", db_type = "String(StringLen::N(1))")]
 pub enum Size {
     #[pgorm(string_value = "B")]
@@ -293,7 +293,7 @@ fn key_columns<K>(key: &TableKey<K>) -> Vec<String> {
         .collect()
 }
 
-// [spec:pgorm:sem:schema.from-entity+9/test]    table ref, comment, per-column projection, single-column key, unique keys, belongs-to foreign keys
+// [spec:pgorm:sem:schema.from-entity+10/test]    table ref, comment, per-column projection, single-column key, unique keys, belongs-to foreign keys
 #[test]
 fn create_table_from_entity_projects_columns() {
     let schema = Schema::new();
@@ -398,7 +398,7 @@ fn create_table_from_entity_projects_columns() {
     assert!(!widget::Relation::Factory.def().is_owner);
 }
 
-// [spec:pgorm:sem:schema.from-entity+9/test]    a composite key is the table's key, named pk-{table}
+// [spec:pgorm:sem:schema.from-entity+10/test]    a composite key is the table's key, named pk-{table}
 #[test]
 fn create_table_composite_key_emits_index() {
     let schema = Schema::new();
@@ -425,7 +425,7 @@ fn create_table_composite_key_emits_index() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+9/test]    the entity comment first, then the commented
+// [spec:pgorm:sem:schema.from-entity+10/test]    the entity comment first, then the commented
 // columns in Column order, targeting entity.table_ref() with the text quoted
 #[test]
 fn create_comments_from_entity_emits_statements() {
@@ -624,7 +624,7 @@ fn create_enum_from_active_enum_errs_non_enum() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+9/test]    the projected DDL is accepted by Postgres and enforces what it declares
+// [spec:pgorm:sem:schema.from-entity+10/test]    the projected DDL is accepted by Postgres and enforces what it declares
 // [spec:pgorm:sem:schema.from-entity.index+1/test]    the schema-qualified index executes and reaches pg_indexes under its generated name
 // [spec:pgorm:sem:schema.from-entity.enum+3/test]    the projected type is a usable Postgres enum
 #[pgorm_macros::test]
@@ -811,7 +811,7 @@ async fn array_only_enum_schema_executes_on_postgres() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:schema.from-entity+9/test]    a composite key's generated
+// [spec:pgorm:sem:schema.from-entity+10/test]    a composite key's generated
 // column carries its identity, the supplied column nothing, and neither the
 // serial family nor an inline PRIMARY KEY
 #[test]
@@ -846,7 +846,7 @@ fn composite_key_identity_lands_on_its_column() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+9/test]    a one-column key that fills
+// [spec:pgorm:sem:schema.from-entity+10/test]    a one-column key that fills
 // itself — an identity or a default of its own — is not also drawn from the
 // serial family, which PostgreSQL refuses beside either (42601)
 #[test]
@@ -886,7 +886,7 @@ fn key_with_its_own_fill_is_not_serial() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+9/test]    the tables a key that fills
+// [spec:pgorm:sem:schema.from-entity+10/test]    the tables a key that fills
 // itself projects to are ones the server builds, and fill the key unasked
 #[pgorm_macros::test]
 async fn self_filling_keys_execute_on_postgres() -> Result<(), Error> {
@@ -933,7 +933,7 @@ async fn self_filling_keys_execute_on_postgres() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:schema.from-entity+9/test]    the comment statements execute, and only they
+// [spec:pgorm:sem:schema.from-entity+10/test]    the comment statements execute, and only they
 // attach anything: the text arrives in pg_description exactly as declared
 #[pgorm_macros::test]
 async fn entity_comments_land_in_pg_description() -> Result<(), Error> {

@@ -14,13 +14,18 @@ pub use strum::IntoEnumIterator as Iterable;
 /// a second trait of its own with the same method, which meant two traits with
 /// the same shape could be in scope at once and neither call site could say
 /// which it meant.
-// [spec:pgorm:def:entity.traits+3]
+// [spec:pgorm:def:entity.traits+4]
 // [spec:pgorm:sem:query.build.alias+2]    AliasName is a StaticName in pgorm-query, so a
 // query-introduced name reaches the key positions that key on it
 pub use pgorm_query::StaticName;
 
+// `StaticName`'s supertrait, here so that the crate root reaches both traits
+// through its glob of `entity`. Each import also brings pgorm-query's derive
+// of its name, which `entity` shadows with pgorm-macros'.
+pub use pgorm_query::SqlName;
+
 /// A Trait for mapping an Entity to a database table
-// [spec:pgorm:req:entity.traits.entity-name+3]
+// [spec:pgorm:req:entity.traits.entity-name+4]
 pub trait EntityName: StaticName + Default {
     /// Method to get the name for the schema, defaults to [Option::None] if not set
     fn schema_name(&self) -> Option<&str> {
@@ -61,7 +66,7 @@ pub trait EntityName: StaticName + Default {
 /// and one delete, [`delete_by_id`](EntityTrait::delete_by_id). Inserts and
 /// updates start from [`Insert`](crate::Insert) and [`Update`](crate::Update),
 /// and other deletes from [`Delete`].
-// [spec:pgorm:def:entity.traits+3]
+// [spec:pgorm:def:entity.traits+4]
 // [spec:pgorm:req:entity.traits.crud+4]
 pub trait EntityTrait: EntityName {
     #[allow(missing_docs)]
@@ -338,14 +343,14 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello")]
             pub struct Model {
                 #[pgorm(primary_key)]
                 pub id: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -364,14 +369,14 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello", schema_name = "world")]
             pub struct Model {
                 #[pgorm(primary_key)]
                 pub id: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -392,14 +397,14 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello", schema_name = "world")]
             pub struct Model {
                 #[pgorm(primary_key, auto_increment = false)]
                 pub id: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}

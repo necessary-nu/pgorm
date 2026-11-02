@@ -29,7 +29,7 @@ the name is the migration's identity in the ledger, so a file is never renamed
 once it has been applied.
 
 - In Rust, as `src/m20220101_000001_create_table.rs` is: a module with a
-  `#[derive(DeriveMigrationName)]` struct whose `up` drives the transaction
+  `#[derive(MigrationName)]` struct whose `up` drives the transaction
   with the query builders, listed as `Box::new(m20220101_000001_create_table::Migration)`.
 - In SQL, as `src/m20220101_000002_index_post_title.sql` is: a file of
   statements, listed as `Box::new(sql_migration!("src/m20220101_000002_index_post_title.sql"))`

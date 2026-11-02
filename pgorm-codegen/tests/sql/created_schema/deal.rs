@@ -2,7 +2,7 @@ use pgorm::entity::prelude::*;
 
 use super::pgorm_active_enums::Stage;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+#[derive(Clone, Debug, PartialEq, Entity, Eq)]
 #[pgorm(schema_name = "sales", table_name = "deal")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -13,7 +13,7 @@ pub struct Model {
     pub history: Option<Vec<Stage>>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

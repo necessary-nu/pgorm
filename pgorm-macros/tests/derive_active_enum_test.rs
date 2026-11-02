@@ -1,9 +1,9 @@
 #![allow(non_camel_case_types)]
 
 use pgorm::{ActiveEnum, entity::prelude::StringLen};
-use pgorm_macros::{DeriveActiveEnum, DeriveDisplay, EnumIter};
+use pgorm_macros::EnumIter;
 
-#[derive(Debug, EnumIter, DeriveActiveEnum, Eq, PartialEq)]
+#[derive(Debug, EnumIter, ActiveEnum, Eq, PartialEq)]
 #[pgorm(
     rs_type = "String",
     db_type = "Enum",
@@ -36,7 +36,7 @@ enum TestEnum {
     CustomStringValue,
 }
 
-#[derive(Debug, EnumIter, DeriveActiveEnum, Eq, PartialEq)]
+#[derive(Debug, EnumIter, ActiveEnum, Eq, PartialEq)]
 #[pgorm(
     rs_type = "String",
     db_type = "String(StringLen::None)",
@@ -48,7 +48,7 @@ pub enum TestEnum2 {
     HelloWorldTwo,
 }
 
-#[derive(Debug, EnumIter, DeriveActiveEnum, Eq, PartialEq)]
+#[derive(Debug, EnumIter, ActiveEnum, Eq, PartialEq)]
 #[pgorm(
     rs_type = "String",
     db_type = "String(StringLen::None)",
@@ -141,7 +141,7 @@ fn derive_active_enum_value_2() {
 }
 
 /// `enum_name` is optional: it defaults to the UpperCamelCase of the enum ident.
-#[derive(Debug, EnumIter, DeriveActiveEnum, Eq, PartialEq)]
+#[derive(Debug, EnumIter, ActiveEnum, Eq, PartialEq)]
 #[pgorm(rs_type = "String", db_type = "String(StringLen::None)")]
 pub enum tea_kind {
     #[pgorm(string_value = "E")]
@@ -149,7 +149,7 @@ pub enum tea_kind {
 }
 
 /// `num_value` selects the integer flavour for the whole enum.
-#[derive(Debug, EnumIter, DeriveActiveEnum, Eq, PartialEq)]
+#[derive(Debug, EnumIter, ActiveEnum, Eq, PartialEq)]
 #[pgorm(rs_type = "i32", db_type = "Integer")]
 pub enum Numbered {
     #[pgorm(num_value = 1)]
@@ -160,7 +160,7 @@ pub enum Numbered {
 
 /// A variant with no attribute falls back to its integer discriminant,
 /// including negative literals written with a unary minus.
-#[derive(Debug, EnumIter, DeriveActiveEnum, Eq, PartialEq)]
+#[derive(Debug, EnumIter, ActiveEnum, Eq, PartialEq)]
 #[pgorm(rs_type = "i32", db_type = "Integer")]
 pub enum Discriminants {
     Below = -3,
@@ -168,10 +168,10 @@ pub enum Discriminants {
     Above = 9,
 }
 
-/// `display_value` is accepted by `DeriveActiveEnum` purely as a placeholder so
-/// that the companion `DeriveDisplay` can read it.
-#[derive(Debug, EnumIter, DeriveActiveEnum, DeriveDisplay, Eq, PartialEq)]
-#[pgorm(rs_type = "String", db_type = "String(StringLen::None)")]
+/// `display` implements `Display`, writing a variant's `display_value` or else
+/// its name.
+#[derive(Debug, EnumIter, ActiveEnum, Eq, PartialEq)]
+#[pgorm(rs_type = "String", db_type = "String(StringLen::None)", display)]
 pub enum Displayed {
     #[pgorm(string_value = "S", display_value = "Small")]
     Small,
@@ -179,7 +179,7 @@ pub enum Displayed {
     Large,
 }
 
-// [spec:pgorm:syn:macros.derive.active-enum+2/test]    rename_all + per-variant rename + string_value
+// [spec:pgorm:syn:macros.derive.active-enum+3/test]    rename_all + per-variant rename + string_value
 #[test]
 fn container_and_variant_string_markers() {
     // Covered exhaustively by `derive_active_enum_value` above; this asserts the
@@ -198,7 +198,7 @@ fn container_and_variant_string_markers() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.active-enum+2/test]    db_type = "Enum" is a special spelling
+// [spec:pgorm:syn:macros.derive.active-enum+3/test]    db_type = "Enum" is a special spelling
 #[test]
 fn db_type_enum_expands_to_enum_column_type() {
     use pgorm::pgorm_query::ColumnType;
@@ -224,7 +224,7 @@ fn db_type_enum_expands_to_enum_column_type() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.active-enum+2/test]    num_value
+// [spec:pgorm:syn:macros.derive.active-enum+3/test]    num_value
 #[test]
 fn num_value_variants() {
     assert_eq!(Numbered::One.to_value(), 1);
@@ -233,7 +233,7 @@ fn num_value_variants() {
     assert!(Numbered::try_from_value(&23).is_err());
 }
 
-// [spec:pgorm:syn:macros.derive.active-enum+2/test]    discriminant fallback, incl. unary minus
+// [spec:pgorm:syn:macros.derive.active-enum+3/test]    discriminant fallback, incl. unary minus
 #[test]
 fn variants_without_attributes_fall_back_to_their_discriminant() {
     assert_eq!(Discriminants::Below.to_value(), -3);
@@ -242,13 +242,13 @@ fn variants_without_attributes_fall_back_to_their_discriminant() {
     assert_eq!(Discriminants::try_from_value(&-3), Ok(Discriminants::Below));
 }
 
-// [spec:pgorm:syn:macros.derive.active-enum+2/test]    display_value is accepted as a placeholder
+// [spec:pgorm:syn:macros.derive.active-enum+3/test]    `display` and `display_value`
 #[test]
-fn display_value_is_accepted_as_placeholder() {
+fn display_writes_the_display_value_or_name() {
     // It plays no part in the stored value...
     assert_eq!(Displayed::Small.to_value(), "S");
     assert_eq!(Displayed::Large.to_value(), "L");
-    // ...it only feeds the companion `DeriveDisplay`.
+    // ...it is what `display` writes, the variant's name where it is absent.
     assert_eq!(Displayed::Small.to_string(), "Small");
     assert_eq!(Displayed::Large.to_string(), "Large");
 }

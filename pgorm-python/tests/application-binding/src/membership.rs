@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 /// A membership keyed `(tenant_id, id)`, the database generating `id` unless a
 /// row supplies one: the multi-tenant composite key, registered so that Python
 /// reaches a Rust entity whose key is two columns wide.
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize, Deserialize)]
 #[pgorm(table_name = "memberships", schema_name = "python_entities")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -14,7 +14,7 @@ pub struct Model {
     pub role: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

@@ -16,7 +16,7 @@ use crate::{Error, MigrationName, MigrationTrait};
 /// the crate compiles and expands to a [`SqlMigration`]:
 ///
 /// - its `name()` is the file stem, as a Rust migration's is with
-///   `DeriveMigrationName`;
+///   `#[derive(MigrationName)]`;
 /// - its `up` runs the file's text through `batch_execute` inside the batch's
 ///   transaction;
 /// - its `checksum()` is the SHA-256 digest of that text, so a file edited

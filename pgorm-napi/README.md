@@ -871,7 +871,7 @@ new Value("calm", new TypeName("mood", { schema: "app" }));
 carrying its kind, which tells an `int2` from an `int8` and SQL NULL from JSON's
 `null`. A range type a schema created is a `CreatedRange` kind; its value
 travels as text for the statement to cast, `CAST($1::text AS app.floatrange)`,
-as pgorm's own `DeriveCreatedRange` does.
+as a newtype under pgorm's own `CreatedRange` derive does.
 
 ## Errors
 

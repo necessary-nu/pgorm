@@ -21,12 +21,12 @@ use pgorm_query::{Expr, SimpleExpr, TypeName, Value};
 /// text, the column's [`select_as`](crate::ColumnTrait::select_as) casting it
 /// so.
 ///
-/// Derived with [`DeriveCreatedRange`](pgorm_macros::DeriveCreatedRange):
+/// Derived with [`CreatedRange`](pgorm_macros::CreatedRange):
 ///
 /// ```
 /// use pgorm::entity::prelude::*;
 ///
-/// #[derive(Clone, Debug, PartialEq, DeriveCreatedRange)]
+/// #[derive(Clone, Debug, PartialEq, CreatedRange)]
 /// #[pgorm(range_name = "floatrange", schema_name = "measure")]
 /// pub struct FloatRange(pub Range<f64>);
 ///
@@ -38,7 +38,7 @@ use pgorm_query::{Expr, SimpleExpr, TypeName, Value};
 ///     ),
 /// );
 /// ```
-// [spec:pgorm:def:sql.value.created-range+4]
+// [spec:pgorm:def:sql.value.created-range+5]
 pub trait CreatedRange: Into<Value> {
     /// The range type's name, schema-qualified when it was declared with one.
     fn name() -> TypeName;
