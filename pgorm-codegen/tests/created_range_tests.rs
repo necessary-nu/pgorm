@@ -6,7 +6,7 @@ mod common;
 use common::*;
 use pgorm::{ColumnTrait, ColumnTypeTrait, EntityTrait, Iterable, QueryTrait};
 use pgorm_codegen::{Error, WriterOutput, entities_from_sql, parse_schema};
-use pgorm_query::{ColumnType, Name};
+use pgorm_query::{ColumnType, Name, StringLen};
 use std::sync::Arc;
 
 const SCHEMA: &str = include_str!("sql/created_range/schema.sql");
@@ -239,11 +239,11 @@ fn a_created_range_generates_a_compiling_newtype() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    what the bridge cannot
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    what the bridge cannot
 // carry out of a range type is named: a subtype no newtype can hold, an array
 // of a created range, an option PostgreSQL does not have, a range with no
 // subtype, a serial subtype, and a type declared twice
-// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]
+// [spec:pgorm:req:codegen.entity.types.unsupported+11/test]
 #[test]
 fn what_a_created_range_cannot_carry_is_named() {
     assert_eq!(
@@ -290,6 +290,70 @@ fn what_a_created_range_cannot_carry_is_named() {
         ),
         "range type `slot` is used under two qualifications; the generated Rust newtype can carry only one"
     );
+}
+
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a type modifier on a range
+// type's SUBTYPE, which PostgreSQL drops, is named rather than carried, `char`'s
+// implicit length among them; the subtype written without one is read
+#[test]
+fn a_dropped_subtype_modifier_is_named() {
+    for subtype in [
+        "numeric(10, 2)",
+        "varchar(5)",
+        "char(3)",
+        "char",
+        "character",
+        "timestamp(3)",
+        "interval YEAR TO MONTH",
+    ] {
+        assert_eq!(
+            error(&format!("CREATE TYPE r AS RANGE (SUBTYPE = {subtype});")),
+            "unsupported DDL: a type modifier PostgreSQL drops on the SUBTYPE of range \
+             type `r` at statement 1",
+            "{subtype}"
+        );
+    }
+    for (subtype, read) in [
+        ("numeric", ColumnType::Decimal(None)),
+        ("varchar", ColumnType::String(StringLen::None)),
+        ("bpchar", ColumnType::Char(None)),
+    ] {
+        let statements = parse_schema(&format!(
+            "CREATE TYPE r AS RANGE (SUBTYPE = {subtype}); \
+             CREATE TABLE t (id int PRIMARY KEY, a r);"
+        ))
+        .expect("the schema parses");
+        assert_eq!(
+            statements[0].get_columns()[1].get_column_type(),
+            Some(&created("r", None, read)),
+            "{subtype}"
+        );
+    }
+}
+
+// [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    a described range
+// type whose subtype carries a type modifier fails the run by name, since
+// PostgreSQL keeps none on a range's subtype
+#[test]
+fn a_described_subtype_modifier_is_refused() {
+    for subtype in [
+        ColumnType::Decimal(Some((10, 2))),
+        ColumnType::String(StringLen::N(5)),
+        ColumnType::Char(Some(1)),
+    ] {
+        let expected = format!(
+            "table `t` column `a`: range type `r` over {subtype:?} is not supported by \
+             codegen; PostgreSQL keeps no type modifier on a range's subtype"
+        );
+        assert_transform_error(
+            vec![keyed_with(
+                "t",
+                &["id"],
+                vec![serial("id"), typed("a", created("r", None, subtype))],
+            )],
+            &expected,
+        );
+    }
 }
 
 // [spec:pgorm:sem:codegen.ddl.objects+10/test]    the options that do not change

@@ -632,7 +632,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > glob rather than from any named crate, repointing the aliases is how the
 > temporal backing changes, and generated text does not move when it does.
 
-> [spec:pgorm:req:codegen.entity.types.unsupported+10]
+> [spec:pgorm:req:codegen.entity.types.unsupported+11]
 > Column types outside the mapping table are not supported, and support is
 > decided when a `Column` is built rather than when it is rendered. Both
 > `TryFrom<&ColumnDef> for Column` and — through it —
@@ -651,7 +651,12 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `codegen.entity.types` maps for it, and refused
 > over any other with ``TransformError("... range type `<name>` over <subtype>
 > is not supported by codegen; a created range's subtype is one pgorm's
-> `RangeSubtype` covers")``, `<subtype>` in `Debug` form; an array of one is
+> `RangeSubtype` covers")``, `<subtype>` in `Debug` form, and over one
+> carrying a type modifier — `Decimal(Some(_))`, `Char(Some(_))`,
+> `String(StringLen::N(_))` — with ``TransformError("... range type `<name>`
+> over <subtype> is not supported by codegen; PostgreSQL keeps no type
+> modifier on a range's subtype")``, since no range PostgreSQL creates has
+> one (`codegen.ddl.unsupported`); an array of one is
 > refused as ``TransformError("... an array of range type `<name>` is not
 > supported by codegen; the newtype a created range generates has no array
 > conversion")``. An array of an array is refused as ``TransformError("... an
@@ -1048,7 +1053,7 @@ compiling the C parser falls on people generating entities and on nobody else.
 > (`sql.ddl.create-table`), so a key the statement declares and the key the
 > bridge reads back from its rendering are one fact.
 
-> [spec:pgorm:req:codegen.ddl.unsupported+17]
+> [spec:pgorm:req:codegen.ddl.unsupported+18]
 > The supported subset is what the entity model can hold: `CREATE TABLE` with
 > its columns, `NULL`/`NOT NULL`, primary-key, unique and foreign-key
 > constraints, and its `DEFAULT`s and generation expressions within the subset
@@ -1071,7 +1076,9 @@ compiling the C parser falls on people generating entities and on nobody else.
 > Named rejections MUST cover at least: every statement other than the seven
 > above; a statement written inside a `CREATE SCHEMA` as one of its elements,
 > named by its kind (``CREATE TABLE inside CREATE SCHEMA `s` ``); a range type option PostgreSQL does not have, a `SUBTYPE` that is not
-> a type name or is a `serial` spelling, and a range type with no `SUBTYPE`
+> a type name or is a `serial` spelling, a type modifier on a `SUBTYPE`
+> (``a type modifier PostgreSQL drops on the SUBTYPE of range type `r` ``),
+> and a range type with no `SUBTYPE`
 > (unresolved, as PostgreSQL refuses it with `42601`); on a domain, a base
 > that is a `serial` spelling or names no type the file declared or the
 > vocabulary holds, a catalog-qualified domain name, and every constraint
@@ -1097,6 +1104,17 @@ compiling the C parser falls on people generating entities and on nobody else.
 > a column.
 > Type spellings outside the vocabulary are named the same way
 > (`codegen.ddl.types`).
+>
+> PostgreSQL accepts a range type's `SUBTYPE` with a type modifier and keeps
+> none of it: `pg_range` records the subtype's type alone, so a range over
+> `numeric(10, 2)` holds bounds of any scale and one over `varchar(5)` bounds
+> of any length (live on 18.6). Carrying the modifier would generate an
+> entity claiming a precision the range does not hold, and reading the
+> subtype without it would be the file quietly reinterpreted, so the
+> modifier is named, as an `interval` precision the server would reduce is
+> (`codegen.ddl.types`). `char` and `character` written without a length are
+> `char(1)` to the grammar, a modifier like any other, and are named too;
+> the unbounded `bpchar` they would range over is written `bpchar`.
 >
 > A column's `DEFAULT` and generation expression are read
 > (`codegen.ddl.tables`), but only within the subset of PostgreSQL's

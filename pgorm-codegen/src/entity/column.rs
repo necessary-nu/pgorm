@@ -36,7 +36,7 @@ impl Column {
     /// Reject anything the writer could not render: a type outside the mapping
     /// table, and a DB name whose case-converted forms are not Rust
     /// identifiers.
-    // [spec:pgorm:req:codegen.entity.types.unsupported+10]
+    // [spec:pgorm:req:codegen.entity.types.unsupported+11]
     // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let context = format!("column `{}`", self.name);
@@ -64,7 +64,7 @@ impl Column {
 
     // [spec:pgorm:sem:codegen.entity.types+12]
     // [spec:pgorm:sem:codegen.entity.types.datetime+2]
-    // [spec:pgorm:req:codegen.entity.types.unsupported+10]
+    // [spec:pgorm:req:codegen.entity.types.unsupported+11]
     pub fn get_rs_type(&self) -> TokenStream {
         fn write_rs_type(col_type: &ColumnType) -> String {
             #[allow(unreachable_patterns)]
@@ -219,7 +219,7 @@ impl Column {
 /// `ActiveEnum`'s column type itself, `db_type().get_column_type().clone()`,
 /// since the `Arc` holding it holds a `ColumnType` where `db_type()` returns
 /// a `ColumnDef`.
-// [spec:pgorm:req:codegen.entity.types.unsupported+10]
+// [spec:pgorm:req:codegen.entity.types.unsupported+11]
 // [spec:pgorm:sem:codegen.entity.types+12]
 fn write_col_type(col_type: &ColumnType) -> TokenStream {
     match col_type {
@@ -498,7 +498,7 @@ fn range_type_tokens(range: RangeType) -> TokenStream {
 /// The set of `ColumnType`s `get_rs_type` and `write_col_type` can render, checked
 /// through `Array` element types, over the enum names they will emit, and over
 /// the named types they will respell.
-// [spec:pgorm:req:codegen.entity.types.unsupported+10]
+// [spec:pgorm:req:codegen.entity.types.unsupported+11]
 fn validate_col_type(context: &str, col_type: &ColumnType) -> Result<(), Error> {
     match col_type {
         ColumnType::Char(_)
@@ -560,6 +560,20 @@ fn validate_col_type(context: &str, col_type: &ColumnType) -> Result<(), Error> 
                 return Err(Error::TransformError(format!(
                     "{context}: range type `{name}` over {subtype:?} is not supported by \
                      codegen; a created range's subtype is one pgorm's `RangeSubtype` covers",
+                    name = name.to_string(),
+                )));
+            }
+            // A modifier would claim a length or precision the range's
+            // bounds are not held to.
+            if matches!(
+                subtype.as_ref(),
+                ColumnType::Decimal(Some(_))
+                    | ColumnType::Char(Some(_))
+                    | ColumnType::String(StringLen::N(_))
+            ) {
+                return Err(Error::TransformError(format!(
+                    "{context}: range type `{name}` over {subtype:?} is not supported by \
+                     codegen; PostgreSQL keeps no type modifier on a range's subtype",
                     name = name.to_string(),
                 )));
             }

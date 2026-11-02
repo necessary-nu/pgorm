@@ -155,7 +155,7 @@ fn the_bridge_reads_each_interval_qualifier() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    a qualifier no
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a qualifier no
 // `IntervalSpec` holds is named, as is a precision the server would quietly
 // reduce
 // [spec:pgorm:sem:codegen.ddl.types+9/test]
@@ -196,7 +196,7 @@ fn an_interval_modifier_beyond_the_spec_is_named() {
 // [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    the compact writer
 // names the column type exactly where the field's `Interval` does not: a
 // qualifier or a precision, alone or as an array's element
-// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    no interval
+// [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    no interval
 // shape is refused
 #[test]
 fn interval_columns_generate_a_compiling_entity() {

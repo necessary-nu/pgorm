@@ -158,7 +158,7 @@ fn domain_constraints_are_set_aside() {
     assert_eq!(generate(nullable), generate(bare));
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    a constraint PostgreSQL refuses on a
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a constraint PostgreSQL refuses on a
 // domain is named, as are a serial base, a base the file does not declare and a domain
 // column under a qualification the domain was not declared with
 #[test]
@@ -230,7 +230,7 @@ fn refused_domain_shapes_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    an array of a domain over an
+// [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    an array of a domain over an
 // array, and an array of a domain over a range type a schema created, are refused by name;
 // a domain over either alone generates
 #[test]

@@ -323,7 +323,7 @@ fn derived_entity_names_the_hostile_type_exactly() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    a named type the
+// [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    a named type the
 // generated `ColumnType::named("..")` could not rebuild — schema-qualified, an
 // array, or a type expression — is refused by name rather than respelled as a
 // different type
@@ -357,7 +357,7 @@ fn column_conversion_rejects_an_unrespellable_named_type() {
     }
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    a type outside the
+// [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    a type outside the
 // mapping fails the whole run with a `TransformError` naming table, column and
 // type — no placeholder code, and no panic
 #[test]
@@ -377,7 +377,7 @@ fn transform_rejects_column_type_outside_mapping() {
     }
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    an array of an
+// [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    an array of an
 // array, which a described schema can hold though the DDL reader refuses its
 // spelling, fails the whole run by name, through a domain and an element's
 // domain alike
@@ -407,7 +407,7 @@ fn transform_refuses_an_array_of_an_array() {
     }
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    the check sits at
+// [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    the check sits at
 // `Column` construction, so the writer never meets an unmapped type; `Array`
 // element types are checked through
 #[test]
@@ -473,7 +473,7 @@ fn compact_primary_key_facts_surface_as_field_attributes() {
 
 // [spec:pgorm:sem:codegen.entity.types+12/test]    a range column is the `Range` of its
 // subtype's Rust type, which the derive infers the range from
-// [spec:pgorm:req:codegen.entity.types.unsupported+10/test]    an array of ranges is supported
+// [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    an array of ranges is supported
 #[test]
 fn range_columns_are_typed_by_their_subtype() {
     use pgorm_query::RangeType;

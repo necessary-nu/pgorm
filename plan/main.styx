@@ -16383,12 +16383,34 @@ children (
         id created-range-subtype-typmod
         title "A created range's subtype carries no type modifier PostgreSQL ignores"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T14:25:05.129542Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by codegen-compact-string-length (fdd065f7), confirmed live: CREATE TYPE r AS RANGE (SUBTYPE = numeric(10,2)) is accepted, but PostgreSQL drops the type modifier, so the range's subtype is plain numeric. Codegen's DDL bridge keeps the typmod in the CreatedRange subtype, so the generated entity claims a precision the database does not hold. Read the subtype without its typmod (or refuse it, saying PostgreSQL ignores it); check pgorm-query's CREATE TYPE ... AS RANGE builder for the same claim."
+            }
+
+            {
+                at 2026-11-02T20:58:39.220045Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-02T21:07:37.586029Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Refuse, not read without. The bridge's rule is that the file is never quietly reinterpreted, and it already names the other modifiers the server drops or reduces (a sized array bound, an interval precision past 6); reading numeric(10,2) as numeric would be that reinterpretation. `char`/`character` without a length reach the bridge as bpchar(1) (the grammar's implicit modifier) and are refused too; `bpchar` is the unbounded subtype they range over. The described-schema gate (validate_col_type) also refuses a CreatedRange whose subtype carries a modifier (Decimal(Some), Char(Some), String(N)). pgorm-query's RangeDefinition renders the subtype as given; sql.ddl.type-range already states PostgreSQL discards the modifier, and a new live test (tests/created_range_tests.rs) builds one over numeric(10, 2) and witnesses pg_range's subtype as numeric with bounds of any scale, so the builder makes no claim beyond its rendered text and was left unchanged."
+            }
+
+            {
+                at 2026-11-02T21:09:53.793138Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
