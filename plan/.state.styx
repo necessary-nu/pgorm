@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-02T20:20:56.640352Z
+last_sync_at 2026-11-02T20:22:02.468464Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -1856,6 +1856,8 @@ impl_evidence (
         macros.derive.code-values
     ), covered_claims (
         {impl_name main, rule macros.derive.code-values}
+    ), rule_versions_seen (
+        {id macros.derive.code-values, version 2}
     )}
     {id generative.acceptance, covered_rules (
         generative.acceptance
