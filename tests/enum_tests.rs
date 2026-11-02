@@ -192,7 +192,7 @@ mod casts {
     use super::pgorm_active_enums::Tea;
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "casts")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -203,13 +203,13 @@ mod casts {
         pub payload: Json,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+12/test]    on read, `select_as` /
+// [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]    on read, `select_as` /
 // `select_enum_as` casts an enum column to `text` — `text[]` when the column is
 // an `Array` of an enum — and leaves non-enum columns alone; on write,
 // `save_as` / `save_enum_as` casts the value to the enum's database type name,
@@ -297,7 +297,7 @@ fn enum_columns_are_cast_at_the_sql_boundary() {
     // an enum column on the server, so no cast is applied to either side. This
     // is why `eq` was not widened to admit a column — a widened bound would have
     // dropped the cast above without saying so.
-    // [spec:pgorm:def:entity.traits.column+6/test]    the `_col` family does not
+    // [spec:pgorm:def:entity.traits.column+7/test]    the `_col` family does not
     // route its operand through `save_as`
     assert_eq!(
         filter_sql(casts::Column::Tea.eq_col(casts::Column::Tea)),
@@ -328,15 +328,15 @@ fn enum_columns_are_cast_at_the_sql_boundary() {
 mod bookings {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(range_name = "slot", schema_name = "booking")]
     pub struct Slot(pub Range<i32>);
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(multirange_name = "slot_set", schema_name = "booking")]
     pub struct Slots(pub Multirange<i32>);
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "bookings")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -345,7 +345,7 @@ mod bookings {
         pub slots: Slots,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -484,7 +484,7 @@ fn entity_layer_casts_build_the_one_cast_node() {
     );
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+12/test]    the special case:
+// [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]    the special case:
 // under `with-json` + `postgres-array`, saving into a `Json` / `JsonBinary`
 // column flattens a `Value::Array` of JSON values into a single `Value::Json`
 // array value instead of applying an enum cast
@@ -512,7 +512,7 @@ fn json_column_flattens_json_array_without_cast() {
     assert_eq!(expr_sql(untouched), r#"'{"k":"v"}'"#);
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+12/test]    the casts survive a
+// [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]    the casts survive a
 // real round trip: values written through the enum cast read back as the
 // original variants
 #[pgorm_macros::test]

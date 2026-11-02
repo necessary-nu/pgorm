@@ -1,5 +1,5 @@
 //! Range and multirange types a schema created. pgorm holds a value of one as
-//! its text form, the `Value::String` a `DeriveCreatedRange` newtype converts
+//! its text form, the `Value::String` a `CreatedRange` newtype converts
 //! into, because no range tag can carry a name only the schema knows; the
 //! subtype converts each bound and reads the text back.
 

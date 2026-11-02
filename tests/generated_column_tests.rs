@@ -27,7 +27,7 @@ use tokio_postgres::error::SqlState;
 mod line {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "line")]
     pub struct Model {
         #[pgorm(primary_key, identity)]
@@ -40,7 +40,7 @@ mod line {
         pub discounted: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -134,7 +134,7 @@ async fn each_kind_reaches_the_catalog() -> Result<(), Error> {
 /// other column and recomputed when the row changes; a model writes them by
 /// leaving them `NotSet`, and one that supplies a value is refused, as a
 /// `GENERATED ALWAYS` identity is.
-// [spec:pgorm:sem:schema.from-entity+9/test]    an entity's generated column is
+// [spec:pgorm:sem:schema.from-entity+10/test]    an entity's generated column is
 // created as its kind, after the column it reads
 // [spec:pgorm:req:entity.traits.column-def+2/test]    a generated column is read
 // and recomputed, and a value written into it is refused (428C9)

@@ -291,7 +291,7 @@ test("a result that breaks the declaration is a DecodeError, never a value", asy
 
 // [spec:pgorm:req:bindings.models+4/test]
 // [spec:pgorm:req:bindings.model-records+1/test]
-// [spec:pgorm:req:bindings.created-ranges/test]
+// [spec:pgorm:req:bindings.created-ranges+1/test]
 test("a created multirange field is projected as its text and read as the multirange of its declared subtype", async () => {
   await pool().execute("CREATE TABLE app.slot (id int4 PRIMARY KEY, open app.floatmultirange)");
   const kind = new CreatedMultirange("floatmultirange", "f64", { schema: "app" });

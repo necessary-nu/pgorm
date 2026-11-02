@@ -62,7 +62,7 @@ impl Column {
         self.name.to_snake_case() == self.name
     }
 
-    // [spec:pgorm:sem:codegen.entity.types+11]
+    // [spec:pgorm:sem:codegen.entity.types+12]
     // [spec:pgorm:sem:codegen.entity.types.datetime+2]
     // [spec:pgorm:req:codegen.entity.types.unsupported+9]
     pub fn get_rs_type(&self) -> TokenStream {
@@ -118,7 +118,7 @@ impl Column {
 
     /// The `column_type = ..` part of the compact `#[pgorm(..)]` attribute,
     /// the expression the derive builds the column's type from.
-    // [spec:pgorm:sem:codegen.entity.compact.attrs+10]
+    // [spec:pgorm:sem:codegen.entity.compact.attrs+11]
     pub fn get_col_type_attrs(&self) -> Option<TokenStream> {
         col_type_attr(&self.col_type).map(|ty| quote! { column_type = #ty })
     }
@@ -141,7 +141,7 @@ impl Column {
     }
 
     /// The field attribute declaring the column's identity, if it is one.
-    // [spec:pgorm:sem:codegen.entity.compact.attrs+10]
+    // [spec:pgorm:sem:codegen.entity.compact.attrs+11]
     pub fn get_identity_attr(&self) -> Option<TokenStream> {
         self.identity.map(|identity| match identity {
             IdentityGeneration::Always => quote! { identity },
@@ -219,7 +219,7 @@ impl Column {
 /// since the `Arc` holding it holds a `ColumnType` where `db_type()` returns
 /// a `ColumnDef`.
 // [spec:pgorm:req:codegen.entity.types.unsupported+9]
-// [spec:pgorm:sem:codegen.entity.types+11]
+// [spec:pgorm:sem:codegen.entity.types+12]
 fn write_col_type(col_type: &ColumnType) -> TokenStream {
     match col_type {
         ColumnType::Char(s) => match s {
@@ -319,7 +319,7 @@ fn write_col_type(col_type: &ColumnType) -> TokenStream {
 
 /// A domain column's `ColumnType::Domain`, its name and schema as runtime
 /// names and its base built as a `ColumnType`.
-// [spec:pgorm:sem:codegen.entity.types+11]
+// [spec:pgorm:sem:codegen.entity.types+12]
 fn domain_tokens(name: &Name, schema: &Option<Name>, base: &ColumnType) -> TokenStream {
     let name = name.to_string();
     let schema = match schema {
@@ -352,7 +352,7 @@ pub(crate) fn under_domains(col_type: &ColumnType) -> &ColumnType {
 /// naming it, and the Rust type it ranges over as the prelude names it.
 /// `None` for one codegen has no spelling of, which `validate_col_type`
 /// refuses, so the writers meet only ranges this answers for.
-// [spec:pgorm:sem:codegen.entity.types+11]
+// [spec:pgorm:sem:codegen.entity.types+12]
 fn range_spelling(range: RangeType) -> Option<(&'static str, &'static str)> {
     Some(match range {
         RangeType::Int4 => ("Int4", "i32"),
@@ -387,7 +387,7 @@ fn checked_range_spelling(range: RangeType) -> (&'static str, &'static str) {
 /// the name it went in as. `validate_col_type` has already refused any
 /// `Named` shape the one-name spelling could not carry.
 // [spec:pgorm:req:macros.derive.one-form]
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11]
 fn col_type_attr(col_type: &ColumnType) -> Option<TokenStream> {
     let stated = matches!(
         col_type,
@@ -396,7 +396,7 @@ fn col_type_attr(col_type: &ColumnType) -> Option<TokenStream> {
     stated.then(|| write_col_type(col_type))
 }
 
-/// Whether `DeriveEntityModel`, given no `column_type`, builds exactly
+/// Whether the `Entity` derive, given no `column_type`, builds exactly
 /// `col_type` from the Rust type `get_rs_type` writes for it: from its
 /// table of bare names, else from the type's `ValueType::column_type()`
 /// (`macros.derive.entity-model.column-def`).
@@ -410,7 +410,7 @@ fn col_type_attr(col_type: &ColumnType) -> Option<TokenStream> {
 /// element or subtype does. No Rust type infers a domain. A type this table
 /// does not know is taken not to infer itself, so it is stated rather than
 /// lost.
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11]
 fn infers_itself(col_type: &ColumnType) -> bool {
     match col_type {
         ColumnType::String(StringLen::None)
@@ -442,7 +442,7 @@ fn infers_itself(col_type: &ColumnType) -> bool {
 /// The `IntervalSpec` an interval column carries, as generated source spells
 /// it: the qualifier vocabulary resolves through the prelude, as `RangeType`
 /// does.
-// [spec:pgorm:sem:codegen.entity.types+11]
+// [spec:pgorm:sem:codegen.entity.types+12]
 fn interval_spec_tokens(spec: &IntervalSpec) -> TokenStream {
     let precision = |precision: &Option<IntervalPrecision>| match precision {
         Some(precision) => {

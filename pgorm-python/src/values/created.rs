@@ -2,7 +2,7 @@
 //! its subtype, and the text form a value of one travels as.
 //!
 //! The Rust value of such a range is `Value::String` of its text form, the
-//! `Value` a `DeriveCreatedRange` newtype converts into, because no range
+//! `Value` a `CreatedRange` newtype converts into, because no range
 //! tag can carry a name only the schema knows. The kind carries the name,
 //! which the cast needs, and the subtype, which converts each bound with that
 //! scalar kind's limits and reads the text back.
@@ -183,7 +183,7 @@ impl CreatedKind {
     /// The text form of a Python value of this kind: a `pgorm.Range` (or a
     /// `pgorm.Multirange`), each bound converted as the subtype's kind, or the
     /// text form itself, which is read and written back canonically.
-    // [spec:pgorm:req:bindings.created-ranges]
+    // [spec:pgorm:req:bindings.created-ranges+1]
     pub(crate) fn text(&self, data: &Bound<'_, PyAny>) -> PyResult<String> {
         let ranges = if let Ok(text) = data.cast_exact::<PyString>() {
             match dispatch!(self.subtype, parsed, text.to_str()?, self.multirange) {
@@ -221,7 +221,7 @@ impl CreatedKind {
     }
 
     /// The Python value of this kind's text form.
-    // [spec:pgorm:req:bindings.created-ranges]
+    // [spec:pgorm:req:bindings.created-ranges+1]
     pub(crate) fn read(&self, py: Python<'_>, text: &str) -> PyResult<Py<PyAny>> {
         let ranges = dispatch!(self.subtype, parsed, text, self.multirange).ok_or_else(|| {
             DecodeError::new_err(format!(

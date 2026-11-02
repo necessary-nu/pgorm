@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Locked Cargo graph, including build and platform-conditional dependencies; a superset of any one platform's addon",
-  "cargo_lock_sha256": "37296377ad8cd8659852fad5d6f445443447350aa6c25660818597ea96856394",
+  "cargo_lock_sha256": "17f0d9eec2765c7d7793c1c464608d3caa5548020e30f0b082a9c8f51a2f0e28",
   "javascript_runtime_dependencies": [],
   "packages": [
     {
@@ -2686,6 +2686,23 @@
     },
     {
       "name": "pgorm-query-derive",
+      "version": "0.2.0",
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/pgorm-rs/pgorm",
+      "source": "pgorm workspace",
+      "notices": [
+        {
+          "source": "LICENSE-APACHE",
+          "sha256": "769f80b5bcb42ed0af4e4d2fd74e1ac9bf843cb80c5a29219d1ef3544428a6bb"
+        },
+        {
+          "source": "LICENSE-MIT",
+          "sha256": "105fba85b65585b4f8ff4d405f8cfbd297f3a4cdab21643e117bc5dc9baa9072"
+        }
+      ]
+    },
+    {
+      "name": "pgorm-query-derive-internals",
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/pgorm-rs/pgorm",

@@ -6,7 +6,7 @@
 // The `compile-fail` fixtures pin the refusals: non-enum / non-unit-struct
 // containers, container-level list forms, bare `#[iden]` / `#[method]` paths,
 // non-string literals, and multi-field flatten.
-// [spec:pgorm:sem:macros.derive.iden.query/test]
+// [spec:pgorm:sem:macros.derive.iden.query+1/test]
 #[test]
 fn build_tests() {
     let t = trybuild::TestCases::new();

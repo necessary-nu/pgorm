@@ -1,4 +1,4 @@
-//! Verification for `DeriveRelation`: which variant attributes are required,
+//! Verification for `Relation`: which variant attributes are required,
 //! which are optional, and what each one contributes to the generated
 //! `RelationDef`.
 
@@ -11,7 +11,7 @@ use pgorm::{Key, RelationType, SqlName};
 mod cake {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "cake")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -19,7 +19,7 @@ mod cake {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         // `has_many` needs neither `from` nor `to`: it reverses the target's
         // `Related<Self>` definition.
@@ -58,7 +58,7 @@ mod cake {
 mod fruit {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "fruit")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -66,7 +66,7 @@ mod fruit {
         pub cake_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         // The minimal `belongs_to`: the target path plus the mandatory
         // `from` / `to` pair.
@@ -107,7 +107,7 @@ mod entity_override {
 
     pub use super::cake::Entity as Renamed;
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     #[pgorm(entity = Renamed)]
     pub enum AltRelation {
         #[pgorm(
@@ -124,7 +124,7 @@ mod entity_override {
 mod shelf {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "shelf")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -134,7 +134,7 @@ mod shelf {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(has_many = "super::book::Entity")]
         Books,
@@ -152,7 +152,7 @@ mod shelf {
 mod book {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "book")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -162,7 +162,7 @@ mod book {
         pub shelf_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::shelf::Entity",
@@ -203,7 +203,7 @@ fn cols(id: &Key) -> Vec<String> {
     id.iter().map(|i| SqlName::to_string(&**i)).collect()
 }
 
-// [spec:pgorm:syn:macros.derive.relation+4/test]    belongs_to + the mandatory from/to
+// [spec:pgorm:syn:macros.derive.relation+5/test]    belongs_to + the mandatory from/to
 #[test]
 fn belongs_to_builds_a_non_owning_relation_def() {
     let def = fruit::Relation::Cake.def();
@@ -224,7 +224,7 @@ fn belongs_to_builds_a_non_owning_relation_def() {
     assert_eq!(def.condition_type, ConditionType::All);
 }
 
-// [spec:pgorm:syn:macros.derive.relation+4/test]    the optional builder keys
+// [spec:pgorm:syn:macros.derive.relation+5/test]    the optional builder keys
 #[test]
 fn optional_keys_chain_onto_the_relation_builder() {
     let def = fruit::Relation::DecoratedCake.def();
@@ -247,7 +247,7 @@ fn optional_keys_chain_onto_the_relation_builder() {
 
 // [spec:pgorm:req:macros.derive.one-form/test]    a closure `on_condition` takes the two
 // tables as the join binds them
-// [spec:pgorm:syn:macros.derive.relation+4/test]
+// [spec:pgorm:syn:macros.derive.relation+5/test]
 #[test]
 fn on_condition_closure_reads_the_bound_tables() {
     use pgorm::pgorm_query::IntoCondition;
@@ -275,7 +275,7 @@ fn on_condition_closure_reads_the_bound_tables() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.relation+4/test]    `enforcement` and `deferrability` name a
+// [spec:pgorm:syn:macros.derive.relation+5/test]    `enforcement` and `deferrability` name a
 // variant of their enum and chain onto the builder, reaching the foreign key schema generation
 // builds from the relation
 #[test]
@@ -302,7 +302,7 @@ fn key_check_attributes_reach_the_foreign_key() {
     assert_eq!(plain.deferrability, None);
 }
 
-// [spec:pgorm:syn:macros.derive.relation+4/test]    `from_period` / `to_period` set the
+// [spec:pgorm:syn:macros.derive.relation+5/test]    `from_period` / `to_period` set the
 // relation's period pair after its equality pairs, which its foreign key writes PERIOD
 #[test]
 fn period_attributes_reach_the_foreign_key() {
@@ -326,7 +326,7 @@ fn period_attributes_reach_the_foreign_key() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.relation+4/test]    has_many / has_one, where from and to are optional
+// [spec:pgorm:syn:macros.derive.relation+5/test]    has_many / has_one, where from and to are optional
 #[test]
 fn has_many_and_has_one_reverse_the_target() {
     let many = cake::Relation::Fruits.def();
@@ -346,7 +346,7 @@ fn has_many_and_has_one_reverse_the_target() {
     assert_eq!(cols(&one.columns.to_key()), vec!["cake_id".to_owned()]);
 }
 
-// [spec:pgorm:syn:macros.derive.relation+4/test]    container-level entity override
+// [spec:pgorm:syn:macros.derive.relation+5/test]    container-level entity override
 #[test]
 fn the_entity_identifier_is_overridable() {
     let def = entity_override::AltRelation::Fruit.def();
@@ -357,7 +357,7 @@ fn the_entity_identifier_is_overridable() {
     assert_eq!(def.rel_type, RelationType::HasOne);
 }
 
-// [spec:pgorm:syn:macros.derive.relation+4/test]    tuple `from` / `to` pair
+// [spec:pgorm:syn:macros.derive.relation+5/test]    tuple `from` / `to` pair
 // column by column: the def carries every pair in order, and the join it
 // renders, both ways round, constrains every pair rather than the first
 #[test]

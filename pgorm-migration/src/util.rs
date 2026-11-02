@@ -1,8 +1,8 @@
-/// The file stem of `path`, which is what `DeriveMigrationName` resolves
+/// The file stem of `path`, which is what the `MigrationName` derive resolves
 /// `file!()` to. This is public because the derive expands in the caller's
 /// crate, so it is reachable with any string: a path carrying no file stem
 /// (`""`, `"."`, `"foo/"`) or a non-UTF-8 one yields `path` unchanged.
-// [spec:pgorm:sem:migration.name+3]    what DeriveMigrationName resolves `file!()` to
+// [spec:pgorm:sem:migration.name+4]    what MigrationName resolves `file!()` to
 pub fn get_file_stem(path: &str) -> &str {
     std::path::Path::new(path)
         .file_stem()

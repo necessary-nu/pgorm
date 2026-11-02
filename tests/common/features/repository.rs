@@ -2,7 +2,7 @@ use super::edit_log;
 use pgorm::entity::prelude::*;
 use serde::Serialize;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize)]
 #[pgorm(table_name = "repository")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -12,7 +12,7 @@ pub struct Model {
     pub description: Option<String>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 #[async_trait::async_trait]

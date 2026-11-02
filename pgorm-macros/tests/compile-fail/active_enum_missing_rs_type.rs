@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Debug, EnumIter, DeriveActiveEnum)]
+#[derive(Debug, EnumIter, ActiveEnum)]
 #[pgorm(db_type = "Integer")]
 pub enum Missing {
     #[pgorm(num_value = 1)]

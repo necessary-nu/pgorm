@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "pgorm-macros", "pgorm-codegen", "pgorm-migration", "pgorm-pool", "pgorm-query", "pgorm-query/pgorm-query-attr", "pgorm-query/pgorm-query-derive", "pgorm-sql-macro", "pgorm-test-support"]
+members = [".", "pgorm-macros", "pgorm-codegen", "pgorm-migration", "pgorm-pool", "pgorm-query", "pgorm-query/pgorm-query-attr", "pgorm-query/pgorm-query-derive", "pgorm-query/pgorm-query-derive-internals", "pgorm-sql-macro", "pgorm-test-support"]
 
 [package]
 name = "pgorm"

@@ -336,21 +336,21 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## The entity file
 
-> [spec:pgorm:def:codegen.entity.compact+2]
+> [spec:pgorm:def:codegen.entity.compact+3]
 > The writer emits one form of entity, the composite derive's
 > (`[spec:pgorm:req:macros.derive.one-form]`), and no option selects another.
 > Per entity it emits, in order: the imports (`use pgorm::entity::prelude::*;`,
 > serde imports, and one `use super::pgorm_active_enums::<EnumName>;` per
 > distinct enum used by the entity's columns); a single `Model` struct
-> deriving `Clone, Debug, PartialEq, DeriveEntityModel` (plus `Eq`, serde
+> deriving `Clone, Debug, PartialEq, Entity` (plus `Eq`, serde
 > derives, and extra derives) annotated with
 > `#[pgorm(schema_name = "...", table_name = "...")]` (`schema_name` only
 > when the entity has one — its source table's qualifier, else the configured
 > default, per `codegen.entity.context`); a `Relation` enum deriving
-> `Copy, Clone, Debug, EnumIter, DeriveRelation` whose variants carry
+> `Copy, Clone, Debug, EnumIter, Relation` whose variants carry
 > `#[pgorm(...)]` relation attributes (an entity with no relations emits the
 > empty `pub enum Relation {}`); the `Related` impls; and
-> `impl ActiveModelBehavior for ActiveModel {}`. `DeriveEntityModel` writes
+> `impl ActiveModelBehavior for ActiveModel {}`. The `Entity` derive writes
 > the `Entity`, `Column`, `PrimaryKey` and `ActiveModel` from the `Model`.
 >
 > `gen_compact_code_blocks` assembles the file as an ordered
@@ -363,7 +363,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > each section is one contiguous block in the output (rendered shapes pinned
 > by `tests/compact/`).
 
-> [spec:pgorm:sem:codegen.entity.compact.attrs+10]
+> [spec:pgorm:sem:codegen.entity.compact.attrs+11]
 > In the compact Model, each field's `#[pgorm(...)]` attribute assembles
 > parts in this fixed order: `column_name = "..."` when the DB column name
 > is not already snake_case; `primary_key` when the column is in the primary
@@ -429,7 +429,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > pgorm-codegen's `tests/column_types_tests.rs` compares the writer's output
 > with.
 >
-> The `column_type` part is an expression `DeriveEntityModel` takes as
+> The `column_type` part is an expression the `Entity` derive takes as
 > written (`macros.derive.entity-model.column-def`), so it is generated
 > *program text*, and the names it uses — `Arc`, `ColumnType`, `Name`, `StringLen`,
 > `IntervalSpec`, `PgInterval`, `IntervalPrecision` — resolve through the
@@ -459,9 +459,9 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > quote, a comment opener or Rust syntax is data inside the program, never
 > program.
 
-> [spec:pgorm:sem:codegen.entity.compact.model+1]
+> [spec:pgorm:sem:codegen.entity.compact.model+2]
 > `gen_compact_model_struct` emits the compact `Model` as one block: the
-> derive attribute `Clone, Debug, PartialEq, DeriveEntityModel` followed by
+> derive attribute `Clone, Debug, PartialEq, Entity` followed by
 > the `Eq` slot, the serde fragment (`codegen.entity.serde.derives`), and
 > `model_extra_derives`; the struct attribute
 > `#[pgorm(schema_name = "...", table_name = "...")]` (the `schema_name =`
@@ -496,7 +496,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Type mapping
 
-> [spec:pgorm:sem:codegen.entity.types+11]
+> [spec:pgorm:sem:codegen.entity.types+12]
 > Model field types come from `Column::get_rs_type`: a non-null column maps
 > to `T`, a nullable column to `Option<T>`, where `T` is:
 >
@@ -549,7 +549,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > A range type a schema created generates one newtype, as an enum type
 > generates one `ActiveEnum`: `pub struct <RangeName>(pub Range<E>);`
 > deriving `Clone`, `Debug`, `PartialEq`, `Eq` unless `E` is a float, and
-> `DeriveCreatedRange` under `#[pgorm(range_name = "<name>")]`, with
+> `CreatedRange` under `#[pgorm(range_name = "<name>")]`, with
 > `schema_name` when the type is qualified; a column of its multirange
 > generates `pub struct <MultirangeName>(pub Multirange<E>);` under
 > `multirange_name` the same way
@@ -721,20 +721,20 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > gets `#[serde(skip)]`, not `#[serde(skip_deserializing)]`. With
 > `WithSerde::None` both flags are inert.
 
-> [spec:pgorm:sem:codegen.entity.serde.derives+2]
+> [spec:pgorm:sem:codegen.entity.serde.derives+3]
 > `WithSerde::extra_derive` is the single producer of the serde derive
 > fragment: an empty stream for `None`, otherwise a leading-comma fragment
 > (`, Serialize`, `, Deserialize`, or `, Serialize, Deserialize` for
 > `Both`). The Model writer splices it at a fixed slot — after
 > the base derives and the conditional `Eq`, before `model_extra_derives` —
 > so a serde-enabled compact Model derives exactly
-> `Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize`
+> `Clone, Debug, PartialEq, Entity, Eq, Serialize, Deserialize`
 > (pinned by `tests/compact_with_serde/cake_both.rs`). The same fragment is
 > appended to generated active enums after their base derives and optional
 > `Copy` (`codegen.entity.enums`), and to each range newtype after
-> `DeriveCreatedRange` (`codegen.entity.types`), so a newtype over a
+> `CreatedRange` (`codegen.entity.types`), so a newtype over a
 > `Range<i32>` derives exactly
-> `Clone, Debug, PartialEq, Eq, DeriveCreatedRange, Serialize, Deserialize`
+> `Clone, Debug, PartialEq, Eq, CreatedRange, Serialize, Deserialize`
 > under `Both`. The fragment and the serde import
 > (`codegen.entity.imports`) always travel together, both derived from the
 > one `WithSerde` value in the context.
@@ -865,10 +865,10 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Active enums
 
-> [spec:pgorm:sem:codegen.entity.enums+3]
+> [spec:pgorm:sem:codegen.entity.enums+4]
 > All discovered database enums are generated into a single
 > `pgorm_active_enums.rs`, in alphabetical order by enum name. Each becomes
-> `#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]`
+> `#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]`
 > (plus `Copy` when `with_copy_enums`, then serde derives, then
 > `enum_extra_derives`) with
 > `#[pgorm(rs_type = "String", db_type = "Enum", enum_name = "<db name>")]` —

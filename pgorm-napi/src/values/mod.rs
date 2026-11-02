@@ -66,8 +66,8 @@ pub(crate) enum Tag {
 }
 
 /// A value and its kind. An enum label and a created range's text form are
-/// `Value::String`, as pgorm's own `DeriveActiveEnum` and
-/// `DeriveCreatedRange` types convert into.
+/// `Value::String`, as pgorm's own `ActiveEnum` and
+/// `CreatedRange` types convert into.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Tagged {
     pub(crate) datum: Value,

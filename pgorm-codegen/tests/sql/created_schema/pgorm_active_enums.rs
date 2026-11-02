@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
 #[pgorm(
     rs_type = "String",
     db_type = "Enum",

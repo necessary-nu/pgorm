@@ -26,7 +26,7 @@ mod tenant_a {
     pub mod status {
         use pgorm::entity::prelude::*;
 
-        #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Copy)]
+        #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
         #[pgorm(
             rs_type = "String",
             db_type = "Enum",
@@ -44,7 +44,7 @@ mod tenant_a {
     pub mod item {
         use pgorm::entity::prelude::*;
 
-        #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+        #[derive(Clone, Debug, PartialEq, Eq, Entity)]
         #[pgorm(schema_name = "tenant_a", table_name = "item")]
         pub struct Model {
             #[pgorm(primary_key, auto_increment = false)]
@@ -54,7 +54,7 @@ mod tenant_a {
             pub owner_id: Option<i32>,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
         pub enum Relation {
             #[pgorm(
                 belongs_to = "crate::owner::Entity",
@@ -86,7 +86,7 @@ mod tenant_a {
     pub mod tag {
         use pgorm::entity::prelude::*;
 
-        #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+        #[derive(Clone, Debug, PartialEq, Eq, Entity)]
         #[pgorm(schema_name = "tenant_a", table_name = "tag")]
         pub struct Model {
             #[pgorm(primary_key, auto_increment = false)]
@@ -94,7 +94,7 @@ mod tenant_a {
             pub name: String,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
         pub enum Relation {}
 
         impl ActiveModelBehavior for ActiveModel {}
@@ -103,7 +103,7 @@ mod tenant_a {
     pub mod item_tag {
         use pgorm::entity::prelude::*;
 
-        #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+        #[derive(Clone, Debug, PartialEq, Eq, Entity)]
         #[pgorm(schema_name = "tenant_a", table_name = "item_tag")]
         pub struct Model {
             #[pgorm(primary_key, auto_increment = false)]
@@ -112,7 +112,7 @@ mod tenant_a {
             pub tag_id: i32,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
         pub enum Relation {
             #[pgorm(
                 belongs_to = "super::item::Entity",
@@ -138,7 +138,7 @@ mod tenant_b {
     pub mod item {
         use pgorm::entity::prelude::*;
 
-        #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+        #[derive(Clone, Debug, PartialEq, Eq, Entity)]
         #[pgorm(schema_name = "tenant_b", table_name = "item")]
         pub struct Model {
             #[pgorm(primary_key, auto_increment = false)]
@@ -146,7 +146,7 @@ mod tenant_b {
             pub name: String,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
         pub enum Relation {}
 
         impl ActiveModelBehavior for ActiveModel {}
@@ -158,7 +158,7 @@ mod tenant_b {
 mod owner {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "owner")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -166,7 +166,7 @@ mod owner {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(has_many = "crate::tenant_a::item::Entity")]
         Item,
@@ -235,7 +235,7 @@ fn anvil() -> tenant_a::item::Model {
     }
 }
 
-// [spec:pgorm:req:entity.traits.entity-name+3/test]    a declared schema
+// [spec:pgorm:req:entity.traits.entity-name+4/test]    a declared schema
 // qualifies the generated DDL and every CRUD statement: create, insert with
 // RETURNING, a guarded no-op update, a TryInsert conflict, and delete all
 // land on tenant_a.item
@@ -300,10 +300,10 @@ async fn schema_ddl_and_crud_round_trip() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:entity.traits.entity-name+3/test]    finds, filters,
+// [spec:pgorm:req:entity.traits.entity-name+4/test]    finds, filters,
 // ordering, pagination, keyset cursors and the schema-qualified enum's value
 // predicates all address tenant_a.item
-// [spec:pgorm:sem:entity.traits.column.enum-cast+12/test]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]
 // [spec:pgorm:sem:exec.cursor.keyset+8/test]
 #[pgorm_macros::test]
 async fn qualified_finds_filters_and_cursors() -> Result<(), Error> {
@@ -482,7 +482,7 @@ async fn loaders_work_across_qualified_schemas() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:entity.traits.entity-name+3/test]    the same table name in
+// [spec:pgorm:req:entity.traits.entity-name+4/test]    the same table name in
 // two schemas: both entities read side by side and return their own rows, so
 // resolution is by declared schema, never by search_path
 #[pgorm_macros::test]

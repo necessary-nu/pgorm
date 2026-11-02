@@ -2,7 +2,7 @@ use pgorm::TryGetableFromJson;
 use pgorm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "json_vec")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -10,7 +10,7 @@ pub struct Model {
     pub str_vec: Option<StringVec>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

@@ -329,7 +329,7 @@ pub trait ActiveModelTrait: Clone + Debug {
     /// anything else when the JSON does not parse: the value is converted into a
     /// whole new ActiveModel first, and only a conversion that succeeded reaches
     /// `self`.
-    // [spec:pgorm:req:entity.active-model.json+3]
+    // [spec:pgorm:req:entity.active-model.json+4]
     #[cfg(feature = "with-json")]
     fn set_from_json(&mut self, json: serde_json::Value) -> Result<(), Error>
     where
@@ -357,7 +357,7 @@ pub trait ActiveModelTrait: Clone + Debug {
     }
 
     /// Create ActiveModel from a JSON value
-    // [spec:pgorm:req:entity.active-model.json+3]
+    // [spec:pgorm:req:entity.active-model.json+4]
     #[cfg(feature = "with-json")]
     fn from_json(json: serde_json::Value) -> Result<Self, Error>
     where
@@ -418,8 +418,8 @@ pub trait ActiveModelTrait: Clone + Debug {
 /// # {
 /// use pgorm::entity::prelude::*;
 ///
-/// // `DeriveEntityModel` derives the Entity, Column, PrimaryKey and ActiveModel
-/// #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+/// // `#[derive(Entity)]` writes the Entity, Column, PrimaryKey and ActiveModel
+/// #[derive(Clone, Debug, PartialEq, Eq, Entity)]
 /// #[pgorm(table_name = "cake")]
 /// pub struct Model {
 ///     #[pgorm(primary_key)]
@@ -427,7 +427,7 @@ pub trait ActiveModelTrait: Clone + Debug {
 ///     pub name: String,
 /// }
 ///
-/// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+/// #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 /// pub enum Relation {}
 ///
 /// // Every hook has a no-op default; override only what you need
@@ -525,7 +525,7 @@ pub trait ActiveModelBehavior: ActiveModelTrait {
 }
 
 /// A Trait for any type that can be converted into an ActiveModel
-// [spec:pgorm:req:entity.active-model.into+2]
+// [spec:pgorm:req:entity.active-model.into+3]
 pub trait IntoActiveModel<A>
 where
     A: ActiveModelTrait,
@@ -544,7 +544,7 @@ where
 }
 
 /// Any type that can be converted into an [ActiveValue]
-// [spec:pgorm:req:entity.active-model.into+2]
+// [spec:pgorm:req:entity.active-model.into+3]
 pub trait IntoActiveValue<V>
 where
     V: Into<Value>,
@@ -876,7 +876,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(DeriveIntoActiveModel)]
+            #[derive(IntoActiveModel)]
             pub struct NewFruit {
                 // id is omitted
                 pub name: String,
@@ -907,7 +907,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(DeriveIntoActiveModel)]
+            #[derive(IntoActiveModel)]
             pub struct UpdateFruit {
                 pub cake_id: Option<Option<i32>>,
             }
@@ -954,7 +954,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Entity)]
             #[pgorm(table_name = "fruit")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -963,7 +963,7 @@ mod tests {
                 pub cake_id: Option<i32>,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -1026,7 +1026,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Entity)]
             #[pgorm(table_name = "fruit")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -1036,7 +1036,7 @@ mod tests {
                 pub cake_id: Option<i32>,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -1063,7 +1063,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Entity)]
             #[pgorm(table_name = "fruit")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -1073,7 +1073,7 @@ mod tests {
                 pub cake_id: Option<i32>,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}

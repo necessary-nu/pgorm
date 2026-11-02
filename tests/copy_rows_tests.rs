@@ -552,7 +552,7 @@ async fn copy_rows_naming_a_generated_column_closes() -> Result<(), Error> {
 mod item {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "item")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -561,7 +561,7 @@ mod item {
         pub qty: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -658,13 +658,13 @@ async fn copy_rows_models_in_a_transaction() -> Result<(), Error> {
 
 /// A model of enum and JSON fields: an enum in a schema of its own, an enum
 /// reached through a domain over it, an array of an enum, and two
-/// `FromJsonQueryResult` structs, one in `jsonb` and one, nullable, in `json`.
+/// `JsonValueType` structs, one in `jsonb` and one, nullable, in `json`.
 mod entry {
-    use pgorm::FromJsonQueryResult;
+    use pgorm::JsonValueType;
     use pgorm::entity::prelude::*;
     use serde::{Deserialize, Serialize};
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
     #[pgorm(
         rs_type = "String",
         db_type = "Enum",
@@ -678,7 +678,7 @@ mod entry {
         Closed,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
     #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "tone")]
     pub enum Tone {
         #[pgorm(string_value = "calm")]
@@ -687,14 +687,14 @@ mod entry {
         Loud,
     }
 
-    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonValueType)]
     pub struct Detail {
         pub label: String,
         pub weight: f64,
         pub tags: Vec<String>,
     }
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(schema_name = "audit", table_name = "entry")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -706,7 +706,7 @@ mod entry {
         pub extra: Option<Detail>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -798,15 +798,15 @@ async fn copy_rows_models_with_enum_and_json() -> Result<(), Error> {
 mod span {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, CreatedRange)]
     #[pgorm(range_name = "floatrange", schema_name = "geo")]
     pub struct FloatRange(pub Range<f64>);
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(range_name = "slot", schema_name = "geo")]
     pub struct Slot(pub Range<i32>);
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(schema_name = "geo", table_name = "span")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -815,7 +815,7 @@ mod span {
         pub slot: Option<Slot>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -1024,15 +1024,15 @@ async fn copy_rows_created_range_refusals() -> Result<(), Error> {
 mod multispan {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, CreatedRange)]
     #[pgorm(multirange_name = "floatmultirange", schema_name = "geo")]
     pub struct Reach(pub Multirange<f64>);
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(multirange_name = "Slot Set", schema_name = "geo")]
     pub struct Slots(pub Multirange<i32>);
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(schema_name = "geo", table_name = "spans")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -1041,7 +1041,7 @@ mod multispan {
         pub slots: Option<Slots>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

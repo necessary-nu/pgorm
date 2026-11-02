@@ -91,7 +91,7 @@ macro_rules! ledger {
 
 // [spec:pgorm:def:codegen.entity.serde+1/test]    each mode's import heads
 // the entity and the range newtypes' file alike
-// [spec:pgorm:sem:codegen.entity.serde.derives+2/test]    and its derives
+// [spec:pgorm:sem:codegen.entity.serde.derives+3/test]    and its derives
 // reach the Model and every range newtype
 // [spec:pgorm:sem:codegen.entity.imports+3/test]
 #[test]
@@ -202,7 +202,7 @@ fn a_generated_model_round_trips_through_json() -> Result<(), serde_json::Error>
     Ok(())
 }
 
-// [spec:pgorm:req:entity.active-model.json+3/test]    `from_json` sets every
+// [spec:pgorm:req:entity.active-model.json+4/test]    `from_json` sets every
 // interval, range and multirange column of a generated entity to the value
 // the Model serialized
 #[test]

@@ -10,7 +10,7 @@ use crate::account::Mood;
 /// two columns of a domain over an enum (`42804`), so schema generation
 /// refuses the `Settles` relation; registered so that Python meets the
 /// refusal.
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "tempers", schema_name = "python_entities")]
 pub struct Model {
     #[pgorm(
@@ -25,7 +25,7 @@ pub struct Model {
     pub settles_into: Mood,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = "Entity",

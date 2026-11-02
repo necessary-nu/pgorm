@@ -4,7 +4,7 @@ pub mod common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 pub use jiff::{Timestamp, tz::Offset};
-use pgorm::{DerivePartialModel, Error, FromQueryResult, alias, entity::*, query::*, set};
+use pgorm::{Error, FromQueryResult, PartialModel, alias, entity::*, query::*, set};
 use pgorm_query::{Expr, Func, SimpleExpr};
 use pretty_assertions::assert_eq;
 pub use rust_decimal::prelude::*;
@@ -73,7 +73,7 @@ pub async fn left_join() {
     assert_eq!(result.name.as_str(), "Baker 1");
     assert_eq!(result.bakery_name, Some("SeaSide Bakery".to_string()));
 
-    #[derive(DerivePartialModel, FromQueryResult, Debug, PartialEq)]
+    #[derive(PartialModel, FromQueryResult, Debug, PartialEq)]
     #[pgorm(entity = "Baker")]
     struct PartialSelectResult {
         name: String,
@@ -1034,7 +1034,7 @@ pub async fn linked() -> Result<(), Error> {
 mod composite_parent {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "composite_parent")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -1044,7 +1044,7 @@ mod composite_parent {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             has_many = "super::composite_child::Entity",
@@ -1066,7 +1066,7 @@ mod composite_parent {
 mod composite_child {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "composite_child")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -1076,7 +1076,7 @@ mod composite_child {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::composite_parent::Entity",
@@ -1405,7 +1405,7 @@ fn relation_trait_and_ownership_direction() {
     );
 }
 
-// [spec:pgorm:def:entity.relation.def+11/test]    the `RelationDef` record and its
+// [spec:pgorm:def:entity.relation.def+12/test]    the `RelationDef` record and its
 // combinators: `rev()` swaps from/to, negates `is_owner`, clears `fk_name` and
 // keeps everything else; `from_alias` re-points the source table; `on_condition`
 // replaces any existing custom condition; `condition_type` picks AND vs OR.
@@ -1665,7 +1665,7 @@ fn relation_builder_accumulates_a_definition() {
     assert_eq!(full.rel_type, RelationType::HasOne);
 }
 
-// [spec:pgorm:def:entity.relation.def+11/test]    a set of join columns is a
+// [spec:pgorm:def:entity.relation.def+12/test]    a set of join columns is a
 // list of pairs, so both sides always name the same number of columns however
 // the definition is built, reversed or extended
 #[test]

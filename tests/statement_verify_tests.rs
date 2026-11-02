@@ -16,7 +16,7 @@ const NO_ROWS: &str = r#"SELECT 1 AS "id", 'a'::text AS "name" WHERE false"#;
 mod widget {
     use pgorm::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "verify_widget")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -24,7 +24,7 @@ mod widget {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -85,7 +85,7 @@ struct Opaque {
     opaque: Anything,
 }
 
-#[derive(Debug, FromQueryResult, DerivePartialModel)]
+#[derive(Debug, FromQueryResult, PartialModel)]
 #[pgorm(entity = "widget::Entity")]
 struct PartialWidget {
     id: i32,
@@ -214,7 +214,7 @@ async fn missing_column_caught_at_zero_rows(db: &DatabaseConnection) -> Result<(
     Ok(())
 }
 
-// [spec:pgorm:req:exec.verify.manual/test]
+// [spec:pgorm:req:exec.verify.manual+1/test]
 async fn manual_impl_reports_unreflected(db: &DatabaseConnection) -> Result<(), Error> {
     let error = db
         .verify::<Handwritten>(NO_ROWS)
@@ -229,14 +229,14 @@ async fn manual_impl_reports_unreflected(db: &DatabaseConnection) -> Result<(), 
     Ok(())
 }
 
-// [spec:pgorm:req:exec.verify.manual/test]    overriding the hook opts back in
+// [spec:pgorm:req:exec.verify.manual+1/test]    overriding the hook opts back in
 async fn manual_impl_can_opt_back_in(db: &DatabaseConnection) -> Result<(), Error> {
     db.verify::<Reflected>(NO_ROWS).await?;
 
     Ok(())
 }
 
-// [spec:pgorm:sem:macros.derive.from-query-result+2/test]    `skip` reads no column
+// [spec:pgorm:sem:macros.derive.from-query-result+3/test]    `skip` reads no column
 async fn skipped_field_reads_no_column(db: &DatabaseConnection) -> Result<(), Error> {
     let columns = Skipping::expected_columns().expect("the derive reports columns");
     assert_eq!(columns.len(), 1);
@@ -248,7 +248,7 @@ async fn skipped_field_reads_no_column(db: &DatabaseConnection) -> Result<(), Er
 }
 
 // [spec:pgorm:req:exec.verify.limits+1/test]    nullability is outside what is checked
-// [spec:pgorm:sem:exec.verify.accepts/test]    `Option<T>` accepts what `T` accepts
+// [spec:pgorm:sem:exec.verify.accepts+1/test]    `Option<T>` accepts what `T` accepts
 async fn nullability_is_not_verified(db: &DatabaseConnection) -> Result<(), Error> {
     db.verify::<Nullable>(NO_ROWS).await?;
     db.verify::<Matching>(r#"SELECT NULL::int4 AS "id", NULL::text AS "name""#)
@@ -257,7 +257,7 @@ async fn nullability_is_not_verified(db: &DatabaseConnection) -> Result<(), Erro
     Ok(())
 }
 
-// [spec:pgorm:sem:exec.verify.accepts/test]    `u32` reads `OID`, and a custom
+// [spec:pgorm:sem:exec.verify.accepts+1/test]    `u32` reads `OID`, and a custom
 // `TryGetable` that does not override `accepts` takes any column type
 async fn accepts_follows_the_decode_path(db: &DatabaseConnection) -> Result<(), Error> {
     db.verify::<Oids>(r#"SELECT 'pg_class'::regclass::oid AS "oid""#)
@@ -286,7 +286,7 @@ async fn partial_model_target_verifies(db: &DatabaseConnection) -> Result<(), Er
     Ok(())
 }
 
-// [spec:pgorm:sem:macros.derive.model+3/test]    an entity model reports its columns
+// [spec:pgorm:sem:macros.derive.model+4/test]    an entity model reports its columns
 async fn entity_model_target_verifies(db: &DatabaseConnection) -> Result<(), Error> {
     db.verify::<widget::Model>(NO_ROWS).await?;
 

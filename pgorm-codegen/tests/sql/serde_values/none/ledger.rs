@@ -5,7 +5,7 @@ use super::pgorm_range_types::Floatrange;
 use super::pgorm_range_types::Slot;
 use super::pgorm_range_types::SlotMultirange;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Entity)]
 #[pgorm(table_name = "ledger")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -35,7 +35,7 @@ pub struct Model {
     pub slots: SlotMultirange,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

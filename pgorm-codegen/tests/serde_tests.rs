@@ -90,11 +90,11 @@ fn with_serde_contributes_matching_imports_and_derives() {
 
         assert_contains(
             task,
-            &format!("#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq{derives})]"),
+            &format!("#[derive(Clone, Debug, PartialEq, Entity, Eq{derives})]"),
         );
         assert_contains(
             enums,
-            &format!("#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum{derives})]"),
+            &format!("#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum{derives})]"),
         );
     }
 }
@@ -197,7 +197,7 @@ fn serde_skip_flags_are_inert_without_serde() {
     assert_not_contains(task, "#[serde(skip_deserializing)]");
 }
 
-// [spec:pgorm:sem:codegen.entity.serde.derives+2/test]    `extra_derive` is the one
+// [spec:pgorm:sem:codegen.entity.serde.derives+3/test]    `extra_derive` is the one
 // producer of the serde derive fragment
 #[test]
 fn with_serde_extra_derive_produces_comma_fragment() {
@@ -216,7 +216,7 @@ fn with_serde_extra_derive_produces_comma_fragment() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.serde.derives+2/test]    both Model writers splice
+// [spec:pgorm:sem:codegen.entity.serde.derives+3/test]    both Model writers splice
 // the fragment after the base derives and the conditional `Eq`, before
 // `model_extra_derives`
 #[test]
@@ -231,7 +231,7 @@ fn serde_derives_are_spliced_after_the_eq_slot() {
     );
     assert_contains(
         compact.file("task.rs"),
-        "#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]",
+        "#[derive(Clone, Debug, PartialEq, Entity, Eq, Serialize, Deserialize)]",
     );
 
     // extra derives come after the fragment
@@ -245,7 +245,7 @@ fn serde_derives_are_spliced_after_the_eq_slot() {
     );
     assert_contains(
         extra.file("task.rs"),
-        "#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize, Default)]",
+        "#[derive(Clone, Debug, PartialEq, Entity, Eq, Serialize, Deserialize, Default)]",
     );
 
     // `Eq` suppressed by a float column: the fragment still occupies the slot
@@ -263,11 +263,11 @@ fn serde_derives_are_spliced_after_the_eq_slot() {
     );
     assert_contains(
         floaty.file("task.rs"),
-        "#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]",
+        "#[derive(Clone, Debug, PartialEq, Entity, Serialize, Deserialize, Default)]",
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.serde.derives+2/test]    the same fragment is
+// [spec:pgorm:sem:codegen.entity.serde.derives+3/test]    the same fragment is
 // appended to generated active enums after the base derives and optional `Copy`,
 // and always travels with the serde import
 #[test]
@@ -285,7 +285,7 @@ fn serde_derives_reach_enums_after_copy_with_import() {
 
     assert_contains(
         enums,
-        "#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Copy, Serialize, Deserialize, Hash)]",
+        "#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy, Serialize, Deserialize, Hash)]",
     );
     // the fragment and the import always travel together
     assert_contains(enums, "use serde::{Deserialize, Serialize};");

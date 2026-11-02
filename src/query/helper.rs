@@ -16,7 +16,7 @@ use pgorm_query::IntoColumnRef;
 // LINT: when there is a group by clause, but some columns don't have aggregate functions
 // LINT: when the join table or column does not exists
 /// Abstract API for performing queries
-// [spec:pgorm:sem:query.build.modifiers+9]
+// [spec:pgorm:sem:query.build.modifiers+10]
 pub trait QuerySelect: Sized {
     #[allow(missing_docs)]
     type QueryStatement;
@@ -826,7 +826,7 @@ pub trait QuerySelect: Sized {
 
 // LINT: when the column does not appear in tables selected from
 /// Performs ORDER BY operations
-// [spec:pgorm:sem:query.build.modifiers+9]
+// [spec:pgorm:sem:query.build.modifiers+10]
 pub trait QueryOrder: Sized {
     #[allow(missing_docs)]
     type QueryStatement: OrderedStatement;
@@ -1097,7 +1097,7 @@ pub trait QueryFilter: Sized {
     ///
     /// Each key column is compared as [`belongs_to`](QueryFilter::belongs_to)
     /// compares it, under the alias instead of the entity's own name.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+12]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+13]
     fn belongs_to_tbl_alias<M>(mut self, model: &M, tbl_alias: impl IntoName) -> Self
     where
         M: ModelTrait,
@@ -1136,7 +1136,7 @@ pub(crate) fn join_condition(mut rel: RelationDef) -> Condition {
 }
 
 // [spec:pgorm:sem:query.build.join+5]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+12]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
 fn join_tbl_on_condition(from_tbl: Name, to_tbl: Name, columns: ColumnPairs) -> Condition {
     let mut cond = Condition::all();
     for ((owner_key, foreign_key), compared) in columns.compared_pairs() {
@@ -1162,7 +1162,7 @@ fn join_tbl_on_condition(from_tbl: Name, to_tbl: Name, columns: ColumnPairs) -> 
 /// One side of a join pair as the equality compares it: cast to the enum when
 /// its column's domain is over one, which is the only way PostgreSQL compares
 /// such a column with anything.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+12]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+13]
 fn compared_side(column: Expr, enum_type: &Option<TypeName>) -> Expr {
     match enum_type {
         Some(enum_type) => Expr::expr(column.cast_as_type(enum_type.clone())),
@@ -1173,7 +1173,7 @@ fn compared_side(column: Expr, enum_type: &Option<TypeName>) -> Expr {
 /// The full table name a [`FromItem`] contributes to a foreign key: schema
 /// qualification included, so a `REFERENCES` clause names the table the
 /// relation actually points at rather than whatever `search_path` resolves.
-// [spec:pgorm:sem:schema.from-entity+9]
+// [spec:pgorm:sem:schema.from-entity+10]
 pub(crate) fn unpack_table_name(from_item: &FromItem) -> pgorm_query::TableName {
     match from_item.table_name() {
         Some(name) => name.clone(),

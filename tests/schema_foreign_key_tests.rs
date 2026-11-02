@@ -37,7 +37,7 @@ const TYPES: &str = r#"
 mod mood {
     use pgorm::entity::prelude::*;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
     #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "mood")]
     pub enum Mood {
         #[pgorm(string_value = "sad")]
@@ -65,7 +65,7 @@ mod anchor {
     use super::Mood;
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "anchor")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -91,7 +91,7 @@ mod anchor {
         pub as_moods: Vec<Mood>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -104,7 +104,7 @@ mod keyed {
     use super::Mood;
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "keyed")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -125,7 +125,7 @@ mod keyed {
         pub moods: Vec<Mood>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::anchor::Entity",
@@ -167,7 +167,7 @@ mod domain_to_domain {
     use super::Mood;
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "domain_to_domain")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -178,7 +178,7 @@ mod domain_to_domain {
         pub mood: Mood,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::anchor::Entity",
@@ -196,7 +196,7 @@ mod domain_to_enum {
     use super::Mood;
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "domain_to_enum")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -207,7 +207,7 @@ mod domain_to_enum {
         pub mood: Mood,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::anchor::Entity",
@@ -225,7 +225,7 @@ mod enum_to_domain {
     use super::Mood;
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "enum_to_domain")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -233,7 +233,7 @@ mod enum_to_domain {
         pub mood: Mood,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::anchor::Entity",
@@ -251,7 +251,7 @@ mod nested_to_domain {
     use super::Mood;
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "nested_to_domain")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -262,7 +262,7 @@ mod nested_to_domain {
         pub mood: Mood,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::anchor::Entity",
@@ -296,7 +296,7 @@ fn unkeyed_table<E: EntityTrait>(entity: E) -> TableCreateStatement {
     table.take()
 }
 
-// [spec:pgorm:sem:schema.from-entity+9/test]    a belongs-to relation with a column typed as a
+// [spec:pgorm:sem:schema.from-entity+10/test]    a belongs-to relation with a column typed as a
 // domain over an enum on either side is refused as Error::Type naming the entity, the relation
 // and the pair, whichever side the domain is on and however deep it nests
 #[test]
@@ -332,7 +332,7 @@ fn domain_enum_keys_are_refused_by_name() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+9/test]    generation refuses exactly the foreign keys the
+// [spec:pgorm:sem:schema.from-entity+10/test]    generation refuses exactly the foreign keys the
 // server refuses: each refused relation's key is answered 42804 when sent by hand, and an entity
 // whose every pairing the server keys is created with all of its keys, live
 #[pgorm_macros::test]

@@ -5,7 +5,7 @@ use std::fmt::Debug;
 
 /// A Trait for to be used to define a Primary Key.
 ///
-/// `DeriveEntityModel` implements it on the `PrimaryKey` enum it writes, one
+/// The `Entity` derive implements it on the `PrimaryKey` enum it writes, one
 /// variant per `#[pgorm(primary_key)]` field.
 ///
 /// See module level docs [crate::entity] for a full example
@@ -243,7 +243,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Entity)]
             #[pgorm(table_name = "primary_key_of_1")]
             pub struct Model {
                 #[pgorm(primary_key)]
@@ -253,7 +253,7 @@ mod tests {
                 pub description: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -263,7 +263,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Entity)]
             #[pgorm(table_name = "primary_key_of_2")]
             pub struct Model {
                 #[pgorm(primary_key, auto_increment = false)]
@@ -275,7 +275,7 @@ mod tests {
                 pub description: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -285,7 +285,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Entity)]
             #[pgorm(table_name = "primary_key_of_3")]
             pub struct Model {
                 #[pgorm(primary_key, auto_increment = false)]
@@ -299,7 +299,7 @@ mod tests {
                 pub description: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -309,7 +309,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Entity)]
             #[pgorm(table_name = "primary_key_of_4")]
             pub struct Model {
                 #[pgorm(primary_key, auto_increment = false)]
@@ -325,7 +325,7 @@ mod tests {
                 pub description: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -335,7 +335,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+            #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
             #[pgorm(
                 rs_type = "String",
                 db_type = "String(StringLen::N(1))",
@@ -348,7 +348,7 @@ mod tests {
                 Small,
             }
 
-            #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Entity)]
             #[pgorm(table_name = "primary_key_of_11")]
             pub struct Model {
                 #[pgorm(primary_key, auto_increment = false)]
@@ -378,7 +378,7 @@ mod tests {
                 pub description: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}
@@ -388,7 +388,7 @@ mod tests {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+            #[derive(Clone, Debug, PartialEq, Entity)]
             #[pgorm(table_name = "primary_key_of_12")]
             pub struct Model {
                 #[pgorm(primary_key, auto_increment = false)]
@@ -420,7 +420,7 @@ mod tests {
                 pub description: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {}
 
             impl ActiveModelBehavior for ActiveModel {}

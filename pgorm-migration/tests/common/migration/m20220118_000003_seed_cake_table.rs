@@ -2,7 +2,7 @@ use pgorm_migration::pgorm::entity::*;
 use pgorm_migration::pgorm::set;
 use pgorm_migration::prelude::*;
 
-#[derive(DeriveMigrationName)]
+#[derive(MigrationName)]
 pub struct Migration;
 
 #[async_trait::async_trait]
@@ -22,7 +22,7 @@ impl MigrationTrait for Migration {
 mod cake {
     use pgorm_migration::pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "cake")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -30,7 +30,7 @@ mod cake {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

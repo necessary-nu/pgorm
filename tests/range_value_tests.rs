@@ -26,7 +26,7 @@ use tokio_postgres::error::SqlState;
 mod spans {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "spans")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -42,7 +42,7 @@ mod spans {
         pub maybe: Option<Range<i32>>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -51,7 +51,7 @@ mod spans {
 mod lists {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "range_lists")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -62,7 +62,7 @@ mod lists {
         pub instants: Option<Vec<Range<DateTimeWithTimeZone>>>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -638,7 +638,7 @@ async fn arrays_of_ranges_round_trip_through_an_entity(
 /// range type over the same subtype included — and a NULL element fails the
 /// whole array, as it does in every other `Vec<T>`.
 // [spec:pgorm:def:exec.decode.range+3/test]
-// [spec:pgorm:sem:exec.verify.accepts/test]    an array of ranges answers through the newtype
+// [spec:pgorm:sem:exec.verify.accepts+1/test]    an array of ranges answers through the newtype
 async fn an_array_reads_only_its_own_range_type(db: &DatabaseConnection) -> Result<(), Error> {
     use tokio_postgres::types::Type as Wire;
 

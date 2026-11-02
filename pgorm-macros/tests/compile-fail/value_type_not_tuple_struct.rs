@@ -1,6 +1,6 @@
-use pgorm::DeriveValueType;
+use pgorm::ValueType;
 
-#[derive(DeriveValueType)]
+#[derive(ValueType)]
 struct MyInt {
     inner: i32,
 }

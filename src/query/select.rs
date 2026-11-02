@@ -22,7 +22,7 @@ where
 /// `SELECT` with no projection has no rows to decode. Adding any column or
 /// expression moves to [`SelectProjected<E>`], where the terminal operations
 /// live.
-// [spec:pgorm:sem:query.build.modifiers+9]
+// [spec:pgorm:sem:query.build.modifiers+10]
 #[derive(Clone, Debug)]
 pub struct SelectCustom<E>
 where
@@ -40,7 +40,7 @@ where
 /// [`into_partial_model`](SelectProjected::into_partial_model),
 /// [`into_tuple`](SelectProjected::into_tuple) or
 /// [`into_values`](SelectProjected::into_values).
-// [spec:pgorm:sem:query.build.modifiers+9]
+// [spec:pgorm:sem:query.build.modifiers+10]
 #[derive(Clone, Debug)]
 pub struct SelectProjected<E>
 where
@@ -158,7 +158,7 @@ impl IntoSimpleExpr for SimpleExpr {
 /// how an aliased item joins a list, though
 /// [`column_as`](QuerySelect::column_as) chained after
 /// [`select`](Select::select) reads better.
-// [spec:pgorm:sem:query.build.modifiers+9]
+// [spec:pgorm:sem:query.build.modifiers+10]
 pub trait SelectItem {
     /// The item as a select expression.
     fn into_select_expr(self) -> SelectExpr;
@@ -225,7 +225,7 @@ impl SelectItem for AliasName {
 /// A list computed at run time is an iterator, which no tuple arity can cover;
 /// that stays [`select_only`](Select::select_only) plus
 /// [`columns`](QuerySelect::columns).
-// [spec:pgorm:sem:query.build.modifiers+9]
+// [spec:pgorm:sem:query.build.modifiers+10]
 pub trait SelectList {
     /// The items, in the order written.
     fn into_select_exprs(self) -> Vec<SelectExpr>;
@@ -356,7 +356,7 @@ where
     /// # Ok(())
     /// # }
     /// ```
-    // [spec:pgorm:sem:query.build.modifiers+9]
+    // [spec:pgorm:sem:query.build.modifiers+10]
     pub fn select_only(mut self) -> SelectCustom<E> {
         self.query.clear_selects();
         SelectCustom {
@@ -414,7 +414,7 @@ where
     ///
     /// An empty list projects nothing at all, which the execution-boundary
     /// guard catches for the same reason `columns([])` does.
-    // [spec:pgorm:sem:query.build.modifiers+9]
+    // [spec:pgorm:sem:query.build.modifiers+10]
     pub fn select<L>(mut self, items: L) -> SelectProjected<E>
     where
         L: SelectList,
@@ -433,7 +433,7 @@ where
     E: EntityTrait,
 {
     /// Project exactly these items. See [`Select::select`].
-    // [spec:pgorm:sem:query.build.modifiers+9]
+    // [spec:pgorm:sem:query.build.modifiers+10]
     pub fn select<L>(mut self, items: L) -> SelectProjected<E>
     where
         L: SelectList,
@@ -453,7 +453,7 @@ where
 {
     /// Project exactly these items, discarding the projection built so far.
     /// See [`Select::select`].
-    // [spec:pgorm:sem:query.build.modifiers+9]
+    // [spec:pgorm:sem:query.build.modifiers+10]
     pub fn select<L>(mut self, items: L) -> SelectProjected<E>
     where
         L: SelectList,
@@ -465,7 +465,7 @@ where
 
     /// Discard the projection built so far and start over from
     /// [`SelectCustom<E>`].
-    // [spec:pgorm:sem:query.build.modifiers+9]
+    // [spec:pgorm:sem:query.build.modifiers+10]
     pub fn select_only(mut self) -> SelectCustom<E> {
         self.query.clear_selects();
         SelectCustom {

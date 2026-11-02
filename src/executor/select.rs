@@ -26,7 +26,7 @@ pub type PinBoxSendStream<'db, Item> = Pin<Box<dyn Stream<Item = Item> + Send + 
 /// The `select_only` typestate keeps the ORM's own builders out of this state,
 /// but an empty `columns([])` / `exprs([])` iterator and a hand-rolled
 /// [`SelectStatement`] both still reach it.
-// [spec:pgorm:sem:query.build.modifiers+9]
+// [spec:pgorm:sem:query.build.modifiers+10]
 // [spec:pgorm:req:exec.tie-limit+1]
 // [spec:pgorm:def:sql.ast.window-statement+8]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2]
@@ -187,11 +187,11 @@ where
     ///     entity::*,
     ///     query::*,
     ///     tests_cfg::cake::{self, Entity as Cake},
-    ///     DerivePartialModel, FromQueryResult,
+    ///     PartialModel, FromQueryResult,
     /// };
     /// use pgorm_query::{Expr, Func, SimpleExpr};
     ///
-    /// #[derive(DerivePartialModel, FromQueryResult)]
+    /// #[derive(PartialModel, FromQueryResult)]
     /// #[pgorm(entity = "Cake")]
     /// struct PartialCake {
     ///     name: String,
@@ -218,11 +218,11 @@ where
     /// # use pgorm::{
     /// #     entity::*, error::*, query::*,
     /// #     tests_cfg::cake::{self, Entity as Cake},
-    /// #     DatabasePool, DerivePartialModel, FromQueryResult,
+    /// #     DatabasePool, PartialModel, FromQueryResult,
     /// # };
     /// # use pgorm_query::{Expr, Func, SimpleExpr};
     /// #
-    /// # #[derive(DerivePartialModel, FromQueryResult)]
+    /// # #[derive(PartialModel, FromQueryResult)]
     /// # #[pgorm(entity = "Cake")]
     /// # struct PartialCake {
     /// #     name: String,
@@ -255,10 +255,10 @@ where
     /// ```no_run
     /// # #[cfg(feature = "macros")]
     /// # {
-    /// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, DeriveColumn, EnumIter};
+    /// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, Column, EnumIter};
     /// #
     /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
-    /// #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+    /// #[derive(Copy, Clone, Debug, EnumIter, Column)]
     /// enum QueryAs {
     ///     CakeName,
     /// }
@@ -279,9 +279,9 @@ where
     /// ```
     /// # #[cfg(feature = "macros")]
     /// # {
-    /// use pgorm::{entity::*, query::*, tests_cfg::cake, DeriveColumn, EnumIter};
+    /// use pgorm::{entity::*, query::*, tests_cfg::cake, Column, EnumIter};
     ///
-    /// #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+    /// #[derive(Copy, Clone, Debug, EnumIter, Column)]
     /// enum QueryAs {
     ///     CakeName,
     /// }
@@ -302,10 +302,10 @@ where
     /// ```no_run
     /// # #[cfg(feature = "macros")]
     /// # {
-    /// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, DeriveColumn, EnumIter};
+    /// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, Column, EnumIter};
     /// #
     /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
-    /// #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+    /// #[derive(Copy, Clone, Debug, EnumIter, Column)]
     /// enum QueryAs {
     ///     CakeName,
     ///     NumOfCakes,
@@ -432,7 +432,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:query.build.modifiers+9]
+// [spec:pgorm:sem:query.build.modifiers+10]
 impl<E> SelectProjected<E>
 where
     E: EntityTrait,

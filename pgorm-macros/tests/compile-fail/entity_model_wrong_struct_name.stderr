@@ -1,4 +1,4 @@
-error: DeriveEntityModel requires the struct to be named `Model`
+error: `Entity` is derived on the struct named `Model`
  --> tests/compile-fail/entity_model_wrong_struct_name.rs:6:12
   |
 6 | pub struct Cake {

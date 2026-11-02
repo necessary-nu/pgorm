@@ -15,12 +15,12 @@
 ///
 /// #### Example for creating an Entity, Model and ActiveModel
 ///
-/// An entity is written as one `Model` struct under `DeriveEntityModel`, which
-/// writes the `Entity`, its `Column` and `PrimaryKey` enums and the
-/// `ActiveModel` from it, and a `Relation` enum under `DeriveRelation`.
+/// An entity is written as one `Model` struct under `#[derive(Entity)]`,
+/// which writes the `Entity`, its `Column` and `PrimaryKey` enums and the
+/// `ActiveModel` from it, and a `Relation` enum under `#[derive(Relation)]`.
 /// ```
 /// # use pgorm::entity::prelude::*;
-/// #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+/// #[derive(Clone, Debug, PartialEq, Entity)]
 /// #[pgorm(table_name = "filling")]
 /// pub struct Model {
 ///     #[pgorm(primary_key)]
@@ -28,7 +28,7 @@
 ///     pub name: String,
 /// }
 ///
-/// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+/// #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 /// pub enum Relation {}
 ///
 /// // Implement user defined operations for CREATE, UPDATE and DELETE operations
@@ -61,3 +61,14 @@ pub use partial_model::*;
 // pub use prelude::*;
 pub use primary_key::*;
 pub use relation::*;
+
+/// The derives of the `SqlName` and `StaticName` traits `base_entity`'s glob
+/// brings. pgorm-query's derives of the same names ride in with the traits and
+/// expand to `pgorm_query::..` paths, which a crate depending only on pgorm
+/// cannot resolve; an explicit import shadows a glob's in the macro namespace
+/// alone, so these name the traits while pgorm-macros' derives, expanding to
+/// `pgorm::pgorm_query::..`, are the derives.
+// [spec:pgorm:req:macros.derive.names]
+// [spec:pgorm:sem:macros.derive.iden+3]
+#[cfg(feature = "macros")]
+pub use pgorm_macros::{SqlName, StaticName};

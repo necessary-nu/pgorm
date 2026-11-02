@@ -7,7 +7,7 @@ use pgorm::entity::prelude::*;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
-// [spec:pgorm:sem:macros.derive.from-query-result+2/test]    FromJsonQueryResult round-trips through the DB:
+// [spec:pgorm:sem:macros.derive.from-query-result+3/test]    JsonValueType round-trips through the DB:
 // `From<T> for Value` serialises through serde_json, `ValueType` / `TryGetableFromJson` read it
 // back, and the `Option` column exercises the `Nullable` impl.
 #[pgorm_macros::test]

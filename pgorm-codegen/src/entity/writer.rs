@@ -65,7 +65,7 @@ pub struct EntityWriterContext {
 }
 
 impl WithSerde {
-    // [spec:pgorm:sem:codegen.entity.serde.derives+2]
+    // [spec:pgorm:sem:codegen.entity.serde.derives+3]
     pub fn extra_derive(&self) -> TokenStream {
         let mut extra_derive = match self {
             Self::None => {
@@ -301,7 +301,7 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+3]
+    // [spec:pgorm:sem:codegen.entity.enums+4]
     pub fn write_pgorm_active_enums(
         &self,
         with_serde: &WithSerde,
@@ -351,7 +351,7 @@ impl EntityWriter {
     }
 
     // [spec:pgorm:req:macros.derive.one-form]
-    // [spec:pgorm:def:codegen.entity.compact+2]
+    // [spec:pgorm:def:codegen.entity.compact+3]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_code_blocks(
         entity: &Entity,
@@ -513,8 +513,8 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.compact.attrs+10]
-    // [spec:pgorm:sem:codegen.entity.compact.model+1]
+    // [spec:pgorm:sem:codegen.entity.compact.attrs+11]
+    // [spec:pgorm:sem:codegen.entity.compact.model+2]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_model_struct(
         entity: &Entity,
@@ -601,7 +601,7 @@ impl EntityWriter {
         let extra_derive = with_serde.extra_derive();
 
         quote! {
-            #[derive(Clone, Debug, PartialEq, DeriveEntityModel #if_eq_needed #extra_derive #model_extra_derives)]
+            #[derive(Clone, Debug, PartialEq, Entity #if_eq_needed #extra_derive #model_extra_derives)]
             #[pgorm(
                 #schema_name
                 table_name = #table_name
@@ -620,7 +620,7 @@ impl EntityWriter {
         let relation_enum_name = entity.get_relation_enum_name();
         let attrs = entity.get_relation_attrs();
         quote! {
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
             pub enum Relation {
                 #(
                     #attrs

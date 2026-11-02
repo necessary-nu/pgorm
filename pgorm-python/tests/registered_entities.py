@@ -118,7 +118,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(model.tagged("mood").type_name, p.TypeName("Mood", schema="python_entities"))
 
     # [spec:pgorm:req:bindings.entity-writes/test]
-    # [spec:pgorm:req:bindings.created-ranges/test]
+    # [spec:pgorm:req:bindings.created-ranges+1/test]
     async def test_created_ranges_round_trip_through_an_entity(self):
         booking = p.entity("app.Booking")
         span = p.CreatedRange("floatrange", "f64", schema="python_entities")

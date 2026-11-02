@@ -3,7 +3,7 @@
 pub mod common;
 
 pub use common::{TestContext, features::*, setup::*};
-use pgorm::{ActiveValue::Unchanged, DerivePartialModel, entity::prelude::*, entity::*};
+use pgorm::{ActiveValue::Unchanged, PartialModel, entity::prelude::*, entity::*};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
@@ -164,7 +164,7 @@ pub async fn update_collection(db: &DatabaseConnection) -> Result<(), Error> {
 pub async fn select_collection(db: &DatabaseConnection) -> Result<(), Error> {
     use collection::*;
 
-    #[derive(DerivePartialModel, FromQueryResult, Debug, PartialEq)]
+    #[derive(PartialModel, FromQueryResult, Debug, PartialEq)]
     #[pgorm(entity = "Entity")]
     struct PartialSelectResult {
         name: String,

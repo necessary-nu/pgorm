@@ -1,7 +1,7 @@
 use pgorm::entity::prelude::*;
 
-// `DeriveEntityModel` input MUST be a struct named exactly `Model`.
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+// The `Entity` derive's input MUST be a struct named exactly `Model`.
+#[derive(Clone, Debug, PartialEq, Entity)]
 #[pgorm(table_name = "cake")]
 pub struct Cake {
     #[pgorm(primary_key)]

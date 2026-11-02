@@ -162,7 +162,7 @@ export function columnKey(column) {
  *
  * @param {Column} column
  */
-// [spec:pgorm:req:bindings.created-ranges]
+// [spec:pgorm:req:bindings.created-ranges+1]
 export function readsText(column) {
   return column.kind instanceof CreatedMultirange;
 }

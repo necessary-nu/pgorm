@@ -169,7 +169,7 @@ The subtype is one of the twelve a created range can range over, Rust's
 `RangeSubtype`: `i16`, `i32`, `i64`, `f32`, `f64`, `decimal`, `text`, `date`,
 `time`, `datetime`, `datetime_utc` and `uuid`. Each bound converts as a scalar
 of that kind does, with its limits. The value holds the range's text form, the
-`Value::String` a Rust `DeriveCreatedRange` newtype converts into, written by
+`Value::String` a Rust `CreatedRange` newtype converts into, written by
 Rust's `Display` with each bound quoted where the range parser needs it.
 `bind` writes it as `CAST($1::text AS name)` and `literal` as an escaped string
 cast to the name, Rust's `Expr::as_range`, because there is no cast between two

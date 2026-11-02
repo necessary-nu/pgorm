@@ -13,9 +13,9 @@ use pgorm_migration::prelude::*;
 /// runs every pending migration in order.
 // [spec:pgorm:def:migration.runner+4/test]
 // [spec:pgorm:sem:migration.up+4/test]
-// [spec:pgorm:sem:migration.name+3/test]    asserted names are file stems
+// [spec:pgorm:sem:migration.name+4/test]    asserted names are file stems
 // [spec:pgorm:req:migration.ledger-upgrade+2/test]    the fresh-install half: the legacy name is never created
-// [spec:pgorm:def:macros.derive+4/test]    `DeriveMigrationName` names each migration after the file stem
+// [spec:pgorm:def:macros.derive+5/test]    `MigrationName` names each migration after the file stem
 // [spec:pgorm:req:migration.read-only+1/test]    the accessors leave a fresh database fresh
 #[tokio::test]
 async fn fresh_install_applies_all_pending() -> Result<(), Error> {
@@ -168,7 +168,7 @@ async fn failed_migration_rolls_back_the_run() -> Result<(), Error> {
 /// Two migrations answering `name()` with the same string share one ledger row,
 /// so the list is refused — by `status` and by `up` alike — before anything is
 /// installed, read or applied.
-// [spec:pgorm:sem:migration.name+3/test]
+// [spec:pgorm:sem:migration.name+4/test]
 #[tokio::test]
 async fn duplicate_migration_names_are_rejected() -> Result<(), Error> {
     use common::migrator::pinned::{Duplicated, REPEATED};

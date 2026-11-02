@@ -1348,6 +1348,7 @@ name = "pgorm-macros"
 version = "0.2.0"
 dependencies = [
  "heck",
+ "pgorm-query-derive-internals",
  "proc-macro2",
  "quote",
  "syn 3.0.6",
@@ -1386,6 +1387,15 @@ dependencies = [
 
 [[package]]
 name = "pgorm-query-derive"
+version = "0.2.0"
+dependencies = [
+ "pgorm-query-derive-internals",
+ "quote",
+ "syn 3.0.6",
+]
+
+[[package]]
+name = "pgorm-query-derive-internals"
 version = "0.2.0"
 dependencies = [
  "heck",

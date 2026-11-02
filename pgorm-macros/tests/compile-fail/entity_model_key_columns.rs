@@ -1,7 +1,7 @@
 mod thirteen_columns {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "thirteen_columns")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -39,7 +39,7 @@ mod thirteen_columns {
 mod key_given_twice {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "key_given_twice")]
     pub struct Model {
         #[pgorm(primary_key, primary_key)]

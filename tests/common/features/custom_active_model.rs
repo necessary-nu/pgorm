@@ -1,7 +1,7 @@
 use super::pgorm_active_enums::*;
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Entity)]
 #[pgorm(table_name = "custom_active_model")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -12,12 +12,12 @@ pub struct Model {
     pub color: Option<Color>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
 
-#[derive(Clone, Debug, PartialEq, DeriveIntoActiveModel)]
+#[derive(Clone, Debug, PartialEq, IntoActiveModel)]
 pub struct CustomActiveModel {
     pub weight: Option<f32>,
     pub amount: Option<Option<i32>>,

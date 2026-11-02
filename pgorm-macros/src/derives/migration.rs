@@ -1,15 +1,15 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-struct DeriveMigrationName {
+struct MigrationName {
     ident: syn::Ident,
 }
 
-impl DeriveMigrationName {
+impl MigrationName {
     fn new(input: syn::DeriveInput) -> Self {
         let ident = input.ident;
 
-        DeriveMigrationName { ident }
+        MigrationName { ident }
     }
 
     fn expand(&self) -> TokenStream {
@@ -27,7 +27,7 @@ impl DeriveMigrationName {
 }
 
 /// Method to derive a MigrationName
-// [spec:pgorm:def:macros.derive+4]
+// [spec:pgorm:def:macros.derive+5]
 pub fn expand_derive_migration_name(input: syn::DeriveInput) -> syn::Result<TokenStream> {
-    Ok(DeriveMigrationName::new(input).expand())
+    Ok(MigrationName::new(input).expand())
 }

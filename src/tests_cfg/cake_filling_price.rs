@@ -1,7 +1,7 @@
 use crate as pgorm;
 use crate::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(schema_name = "public", table_name = "cake_filling_price")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -13,7 +13,7 @@ pub struct Model {
     pub ignored_attr: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = "super::cake_filling::Entity",

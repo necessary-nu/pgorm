@@ -120,7 +120,7 @@ fn without_cost(model: specimen::Model) -> specimen::ActiveModel {
 /// The compiled entity defines each column with the type modifiers the schema
 /// writes, and its range over `text` with that subtype, which neither
 /// `String` nor the newtype's `Range<String>` would infer.
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    the compiled compact entity
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    the compiled compact entity
 // renders each column's length, precision and scale into the table it creates
 #[test]
 fn the_entity_table_renders_each_type_modifier() {
@@ -161,10 +161,10 @@ fn the_entity_table_renders_each_type_modifier() {
 /// The schema, run as written, and the table its generated entity creates
 /// have the same columns, each length, precision and scale among them, so the
 /// entity carries what the field type alone could not.
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    against a live server: the
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    against a live server: the
 // entity generated from a table of every kind of column type creates that table, typmod
 // for typmod
-// [spec:pgorm:sem:codegen.entity.types+11/test]
+// [spec:pgorm:sem:codegen.entity.types+12/test]
 #[pgorm_macros::test]
 async fn generated_columns_keep_their_type_modifiers() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_column_types_tests_columns").await;
@@ -234,7 +234,7 @@ async fn generated_columns_keep_their_type_modifiers() -> Result<(), Error> {
 /// stored as each column's type modifier makes it — a `char(n)` padded to its
 /// length, a `numeric(p, s)` rounded to its scale, half away from zero — and
 /// a value past a column's length or precision is refused.
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    against a live server: a value
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    against a live server: a value
 // the generated entity writes is held to its column's length, precision and scale
 #[pgorm_macros::test]
 async fn generated_columns_hold_values_to_their_modifiers() -> Result<(), Error> {

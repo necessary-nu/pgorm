@@ -18,7 +18,7 @@ use tokio_postgres::error::SqlState;
 mod stock {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
     #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "shelf")]
     pub enum Shelf {
         #[pgorm(string_value = "front")]
@@ -27,7 +27,7 @@ mod stock {
         Back,
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "stock")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -39,7 +39,7 @@ mod stock {
         pub a_count_of_the_items_on_the_shelf_that_were_counted_last_time: Option<i32>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -50,7 +50,7 @@ mod stock {
 mod old {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "old")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -58,7 +58,7 @@ mod old {
         pub count: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -68,7 +68,7 @@ mod old {
 mod pgorm_old {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "pgorm_old")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -76,7 +76,7 @@ mod pgorm_old {
         pub count: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

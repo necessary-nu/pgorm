@@ -2,7 +2,7 @@ use pgorm::entity::prelude::*;
 
 // [spec:pgorm:def:migration.runner+4]    ledger schema and default name
 // [spec:pgorm:req:migration.checksum+1]    the nullable third column
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 // The default name only: a migrator places its ledger through
 // `MigratorTrait::migration_table_name` and `MigratorTrait::migration_table_schema`
 #[pgorm(table_name = "pgorm_migrations")]
@@ -16,7 +16,7 @@ pub struct Model {
     pub checksum: Option<String>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

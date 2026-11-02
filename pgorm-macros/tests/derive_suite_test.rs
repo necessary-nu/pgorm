@@ -1,22 +1,30 @@
 //! Verification for the macro catalogue itself: every derive `pgorm-macros`
-//! exposes is reachable, they all read their configuration from the shared
-//! `#[pgorm(...)]` helper attribute (except `EnumIter`, which uses
-//! `#[strum(...)]`), and the auxiliary derives behave as documented.
+//! exposes is reachable through the entity prelude alone, they all read their
+//! configuration from the shared `#[pgorm(...)]` helper attribute (except
+//! `EnumIter`, which uses `#[strum(...)]`, and the name derives, which use
+//! pgorm-query's `#[iden]`), and the auxiliary derives behave as documented.
+//!
+//! The crate depends on pgorm and not on pgorm-query, so `pgorm_query` names
+//! nothing here: a derive whose expansion named it would not compile.
 
 #![allow(dead_code)]
 
+// The prelude twice over, by both its paths, beside the crate root: each name
+// reaches one item however it is imported, so no glob makes a derive
+// ambiguous.
+#[allow(unused_imports)]
 use pgorm::entity::prelude::*;
-use pgorm::{
-    DeriveDisplay, DeriveIntoActiveModel, DeriveValueType, FromJsonQueryResult, FromQueryResult,
-    IntoActiveModel, Iterable,
-};
+#[allow(unused_imports)]
+use pgorm::prelude::*;
+#[allow(unused_imports)]
+use pgorm::*;
 use serde::{Deserialize, Serialize};
 
-/// `DeriveEntityModel` (which re-runs `DeriveModel`) and `DeriveRelation`.
+/// The `Entity` derive (which re-runs the `Model` derive) and `Relation`.
 mod cake {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "cake")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -24,20 +32,19 @@ mod cake {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// An entity whose name is computed at run time, which is what exercises
-/// `DeriveEntity`: its `Entity` is written by hand beside a composite derive
-/// given no `table_name`. `DeriveModel` makes it a second model and
-/// `DeriveActiveModelBehavior` its behaviour.
+/// `EntityTrait`: its `Entity` is written by hand beside a composite derive
+/// given no `table_name`. `Model` makes it a second model.
 mod fruit {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
+    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
     pub struct Entity {
         pub orchard: Option<&'static str>,
     }
@@ -52,17 +59,19 @@ mod fruit {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, DeriveActiveModelBehavior)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     pub struct Model {
         #[pgorm(primary_key)]
         pub id: i32,
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
-    #[derive(Clone, Debug, PartialEq, DeriveModel)]
+    impl ActiveModelBehavior for ActiveModel {}
+
+    #[derive(Clone, Debug, PartialEq, Model)]
     pub struct Named {
         pub name: String,
     }
@@ -70,25 +79,25 @@ mod fruit {
 
 /// The column enum of a custom select, one of whose result columns is not
 /// the snake_case of its variant.
-#[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+#[derive(Copy, Clone, Debug, EnumIter, Column)]
 pub enum Selected {
     Id,
     #[pgorm(column_name = "fruit_count")]
     Count,
 }
 
-/// `DeriveIntoActiveModel`.
+/// `IntoActiveModel`.
 use cake::ActiveModel as CakeActive;
 
-#[derive(Clone, Debug, PartialEq, DeriveIntoActiveModel)]
+#[derive(Clone, Debug, PartialEq, IntoActiveModel)]
 #[pgorm(active_model = CakeActive)]
 pub struct CakeName {
     pub name: String,
 }
 
-/// `DeriveActiveEnum` + `DeriveDisplay`.
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, DeriveDisplay)]
-#[pgorm(rs_type = "String", db_type = "String(StringLen::None)")]
+/// `ActiveEnum`, with the `display` key.
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
+#[pgorm(rs_type = "String", db_type = "String(StringLen::None)", display)]
 pub enum Tea {
     #[pgorm(string_value = "E", display_value = "Everyday")]
     Everyday,
@@ -100,27 +109,40 @@ pub struct Projection {
     pub name: String,
 }
 
-/// `FromJsonQueryResult`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+/// `JsonValueType`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonValueType)]
 pub struct Meta {
     pub tags: Vec<String>,
 }
 
-/// `DerivePartialModel`.
-#[derive(Debug, PartialEq, DerivePartialModel, FromQueryResult)]
+/// `PartialModel`.
+#[derive(Debug, PartialEq, PartialModel, FromQueryResult)]
 #[pgorm(entity = "cake::Entity")]
 pub struct CakeSlice {
     pub name: String,
 }
 
-/// `DeriveValueType`.
-#[derive(Debug, PartialEq, DeriveValueType)]
+/// `ValueType`.
+#[derive(Debug, PartialEq, ValueType)]
 pub struct Grams(i32);
 
-/// `DeriveSqlName`.
-#[derive(DeriveSqlName)]
-#[pgorm(iden = "cake_table")]
+/// `SqlName`, pgorm-query's derive reached through pgorm.
+#[derive(SqlName)]
+#[iden = "cake_table"]
 pub struct CakeTable;
+
+/// `StaticName`, likewise.
+#[derive(Clone, Copy, Debug, StaticName)]
+pub enum Shelf {
+    Table,
+    #[iden = "top_shelf"]
+    Top,
+}
+
+/// `CreatedRange`.
+#[derive(Clone, Debug, PartialEq, CreatedRange)]
+#[pgorm(range_name = "floatrange")]
+pub struct FloatRange(pub Range<f64>);
 
 /// `EnumIter`, the one derive configured through `#[strum(...)]` rather than
 /// `#[pgorm(...)]`.
@@ -131,7 +153,8 @@ pub enum Flavour {
     Secret,
 }
 
-// [spec:pgorm:def:macros.derive+4/test]    every derive in the catalogue is reachable and wired up
+// [spec:pgorm:def:macros.derive+5/test]    every derive in the catalogue is reachable and wired up
+// [spec:pgorm:req:macros.derive.names/test]    each derive by its name through the prelude, glob-imported by both its paths and beside the crate root's glob
 #[test]
 fn the_whole_derive_catalogue_is_exposed() {
     // Entity-side derives: the composite, and the entity-trait derive beside
@@ -172,6 +195,12 @@ fn the_whole_derive_catalogue_is_exposed() {
     assert_eq!(Tea::Everyday.to_string(), "Everyday");
     assert_eq!(pgorm::Value::from(Grams(5)), pgorm::Value::Int(Some(5)));
     assert_eq!(CakeTable.to_string(), "cake_table");
+    assert_eq!(Shelf::Table.as_str(), "shelf");
+    assert_eq!(Shelf::Top.as_str(), "top_shelf");
+    assert_eq!(
+        <FloatRange as CreatedRange>::name(),
+        pgorm::pgorm_query::TypeName::new(Name::runtime("floatrange"))
+    );
     assert_eq!(Flavour::iter().collect::<Vec<_>>(), vec![Flavour::Sweet]);
 
     // The projection derives are compile-time contracts; assert the traits.

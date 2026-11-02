@@ -166,10 +166,10 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > monotonic, auditable log. Callers needing a reversal write it as the next
 > migration.
 
-> [spec:pgorm:sem:migration.name+3]
+> [spec:pgorm:sem:migration.name+4]
 > A migration's identity — the value written to and matched against the
 > ledger's `version` column — is its **source filename** without extension, not
-> its type name. `DeriveMigrationName` implements `MigrationName::name` as
+> its type name. The `MigrationName` derive implements `MigrationName::name` as
 > `util::get_file_stem(file!())`, which takes the `file!()` path's file stem, so
 > every migration in a project must live in its own uniquely-named file and the
 > conventional `m<timestamp>_<description>.rs` naming is what makes

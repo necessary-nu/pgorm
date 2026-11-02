@@ -14,7 +14,7 @@ use pretty_assertions::assert_eq;
 mod wire_probe {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "wire_probe")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -24,7 +24,7 @@ mod wire_probe {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

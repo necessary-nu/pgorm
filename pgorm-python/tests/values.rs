@@ -208,7 +208,7 @@ fn rust_ranges_round_trip_through_python() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.created-ranges/test]    a created range's Python value is the Value its Rust
+// [spec:pgorm:req:bindings.created-ranges+1/test]    a created range's Python value is the Value its Rust
 // newtype converts into, written as the newtype writes itself, and reads back as the range
 #[test]
 fn created_ranges_match_their_rust_newtypes() -> PyResult<()> {
@@ -219,11 +219,11 @@ fn created_ranges_match_their_rust_newtypes() -> PyResult<()> {
     };
     use pgorm_python::expressions::PyExpr;
 
-    #[derive(Clone, Debug, PartialEq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, CreatedRange)]
     #[pgorm(range_name = "Float Range", schema_name = "measure")]
     struct FloatRange(Range<f64>);
 
-    #[derive(Clone, Debug, PartialEq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, CreatedRange)]
     #[pgorm(multirange_name = "slot_multirange")]
     struct Slots(Multirange<i32>);
 

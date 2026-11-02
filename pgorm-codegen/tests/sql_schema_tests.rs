@@ -972,7 +972,7 @@ fn array_of_ranges_generates_a_vec() {
 // [spec:pgorm:sem:codegen.ddl.tables+11/test]    an identity inside a composite
 // key is carried, not refused, and the generated entity declares it on its
 // column and compiles: the key is not generated whole, the column is
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    `identity` follows
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    `identity` follows
 // `primary_key`, and the identity column carries no `auto_increment = false`
 #[test]
 fn composite_key_identity_generates_a_compiling_entity() {

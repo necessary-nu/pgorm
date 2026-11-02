@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+#[derive(Clone, Debug, PartialEq, Entity, Eq)]
 #[pgorm(table_name = "temporal_stay")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -9,7 +9,7 @@ pub struct Model {
     pub during: Range<i32>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = "super::temporal_room::Entity",

@@ -1,7 +1,7 @@
 mod both_forms {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "both_forms")]
     pub struct Model {
         #[pgorm(primary_key, identity, identity_by_default)]
@@ -14,7 +14,7 @@ mod both_forms {
 mod beside_auto_increment {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "beside_auto_increment")]
     pub struct Model {
         #[pgorm(primary_key, identity, auto_increment = false)]
@@ -27,7 +27,7 @@ mod beside_auto_increment {
 mod beside_default {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "beside_default")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -42,7 +42,7 @@ mod beside_default {
 mod nullable {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "nullable")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -57,7 +57,7 @@ mod nullable {
 mod composite_serial {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "composite_serial")]
     pub struct Model {
         #[pgorm(primary_key)]

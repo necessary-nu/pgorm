@@ -357,7 +357,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:def:entity.relation.def+11/test]    a condition attached
+    // [spec:pgorm:def:entity.relation.def+12/test]    a condition attached
     // before `rev` keeps its authored roles — the closure's `left` still
     // receives the side it was written against — and a double `rev` renders
     // the same join as the unreversed def
