@@ -16330,4 +16330,60 @@ children (
             }
         )
     }
+
+    {
+        id bpchar-unbounded-round-trip
+        title "An unbounded bpchar column comes back as bpchar, not char(1)"
+        kind @fix
+        log (
+            {
+                at 2026-11-02T14:25:04.863777Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by codegen-compact-string-length (fdd065f7), confirmed live on PostgreSQL 18.6. pgorm-query renders ColumnType::Char(None) as `char`, which PostgreSQL reads as character(1); codegen's bridge reads a bare `bpchar` (blank-padded with no length limit) as Char(None). So a bpchar column generates, in either format, an entity whose create_table_from_entity writes char(1), which truncates-or-refuses everything past one character. Decide what Char(None) means (unbounded bpchar, so render `bpchar`; or char(1), so the bridge must read bare bpchar as something else) and make reading and rendering agree; bump the sql.types / codegen.entity.types rule that says it, with a live round-trip test."
+            }
+        )
+    }
+
+    {
+        id codegen-money-decodes
+        title "Codegen gives a money column a Rust type that binds and decodes it"
+        kind @fix
+        log (
+            {
+                at 2026-11-02T14:25:05.00426Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by codegen-compact-string-length (fdd065f7). Codegen maps a money column to Decimal, but rust_decimal's ToSql/FromSql accept NUMERIC only, so a generated entity can neither bind nor decode its money column (the new tests/codegen_column_types fixture leaves its cost column nullable and NotSet for that reason). Choose a Rust type that round-trips money's binary form (an i64 of the currency's minor units, whose scale lc_monetary decides, so likely a pgorm newtype rather than Decimal) or refuse money in codegen with the reason; either way the generated entity must compile and work against a live money column."
+            }
+        )
+    }
+
+    {
+        id created-range-subtype-typmod
+        title "A created range's subtype carries no type modifier PostgreSQL ignores"
+        kind @fix
+        log (
+            {
+                at 2026-11-02T14:25:05.129542Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by codegen-compact-string-length (fdd065f7), confirmed live: CREATE TYPE r AS RANGE (SUBTYPE = numeric(10,2)) is accepted, but PostgreSQL drops the type modifier, so the range's subtype is plain numeric. Codegen's DDL bridge keeps the typmod in the CreatedRange subtype, so the generated entity claims a precision the database does not hold. Read the subtype without its typmod (or refuse it, saying PostgreSQL ignores it); check pgorm-query's CREATE TYPE ... AS RANGE builder for the same claim."
+            }
+        )
+    }
+
+    {
+        id codegen-refuses-nested-arrays
+        title "Codegen refuses a multi-dimensional array from a described schema, as its DDL reader does"
+        kind @fix
+        log (
+            {
+                at 2026-11-02T14:25:05.248738Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by codegen-compact-string-length (fdd065f7). A described schema (the live-schema path, not DDL text) can hand codegen ColumnType::Array(Array(_)); it generates a Vec<Vec<T>> field, which has no ValueType, so the output does not compile. The DDL-text bridge already refuses multi-dimensional arrays. Refuse it in validate_col_type with codegen.entity.types.unsupported's wording, before anything is written, and test it from a described schema."
+            }
+        )
+    }
 )
