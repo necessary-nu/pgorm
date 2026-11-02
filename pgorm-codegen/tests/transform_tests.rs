@@ -1023,7 +1023,7 @@ fn inverse_dropped_when_target_already_relates_back() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.transform.conjunct+1/test]    a table with two
+// [spec:pgorm:sem:codegen.entity.transform.conjunct+2/test]    a table with two
 // relations and two primary-key columns is a junction: both referenced entities
 // gain a `ConjunctRelation`
 #[test]
@@ -1050,7 +1050,7 @@ fn junction_table_gives_both_sides_a_conjunct_relation() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform.conjunct+1/test]    two foreign keys
+// [spec:pgorm:sem:codegen.entity.transform.conjunct+2/test]    two foreign keys
 // that are not the table's primary key join nothing: a table keyed by something
 // of its own is a table with two references, not a junction
 #[test]
@@ -1110,7 +1110,7 @@ fn fks_outside_the_primary_key_are_not_junctions() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.transform.conjunct+1/test]    only the table's
+// [spec:pgorm:sem:codegen.entity.transform.conjunct+2/test]    only the table's
 // own foreign keys are junction legs: a synthesised inverse neither makes a
 // junction nor stops one
 #[test]
@@ -1182,7 +1182,7 @@ fn inbound_relations_are_not_junction_legs() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform.conjunct+1/test]    duplicated
+// [spec:pgorm:sem:codegen.entity.transform.conjunct+2/test]    duplicated
 // many-to-many paths to the same target are all removed
 #[test]
 fn duplicated_many_to_many_paths_generate_no_conjunct() {
@@ -1215,9 +1215,9 @@ fn duplicated_many_to_many_paths_generate_no_conjunct() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform.conjunct+1/test]    when a conjunct
+// [spec:pgorm:sem:codegen.entity.transform.conjunct+2/test]    when a conjunct
 // relation targets the same table as an ordinary relation, the ordinary
-// relation's `Related` impl is suppressed in favour of the `via` one
+// relation says `related = false` in favour of the `via` impl
 #[test]
 fn conjunct_relation_suppresses_the_plain_related_impl() {
     let generated = generate(
@@ -1232,14 +1232,11 @@ fn conjunct_relation_suppresses_the_plain_related_impl() {
     );
     let users = generated.file("users.rs");
 
-    // the Relation variant survives ...
-    assert_contains(users, r#"#[pgorm(has_many = super::bills::Entity)] Bills,"#);
-    // ... but the plain `Related` impl is replaced by the conjunct one
-    assert_not_contains(
+    // the Relation variant survives, saying the derive writes no `Related`
+    // for it, which the conjunct one is instead
+    assert_contains(
         users,
-        "impl Related<super::bills::Entity> for Entity {
-            fn to() -> RelationDef { Relation::Bills.def() }
-        }",
+        r#"#[pgorm(has_many = super::bills::Entity, related = false)] Bills,"#,
     );
     assert_contains(
         users,

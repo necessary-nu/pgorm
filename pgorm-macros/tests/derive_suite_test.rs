@@ -1,8 +1,8 @@
 //! Verification for the macro catalogue itself: every derive `pgorm-macros`
 //! exposes is reachable through the entity prelude alone, they all read their
-//! configuration from the shared `#[pgorm(...)]` helper attribute (except
-//! `EnumIter`, which uses `#[strum(...)]`, and the name derives, which use
-//! pgorm-query's `#[iden]`), and the auxiliary derives behave as documented.
+//! configuration from the shared `#[pgorm(...)]` helper attribute (except the
+//! name derives, which use pgorm-query's `#[iden]`), and the auxiliary derives
+//! behave as documented.
 //!
 //! The crate depends on pgorm and not on pgorm-query, so `pgorm_query` names
 //! nothing here: a derive whose expansion named it would not compile.
@@ -32,10 +32,8 @@ mod cake {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// An entity whose name is computed at run time, which is what exercises
@@ -66,10 +64,8 @@ mod fruit {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 
     #[derive(Clone, Debug, PartialEq, Model)]
     pub struct Named {
@@ -79,7 +75,7 @@ mod fruit {
 
 /// The column enum of a custom select, one of whose result columns is not
 /// the snake_case of its variant.
-#[derive(Copy, Clone, Debug, EnumIter, Column)]
+#[derive(Copy, Clone, Debug, Column)]
 pub enum Selected {
     Id,
     #[pgorm(column_name = "fruit_count")]
@@ -96,7 +92,7 @@ pub struct CakeName {
 }
 
 /// `ActiveEnum`, with the `display` key.
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
+#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]
 #[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::None), display)]
 pub enum Tea {
     #[pgorm(string_value = "E", display_value = "Everyday")]
@@ -144,16 +140,7 @@ pub enum Shelf {
 #[pgorm(range_name = "floatrange")]
 pub struct FloatRange(pub Range<f64>);
 
-/// `EnumIter`, the one derive configured through `#[strum(...)]` rather than
-/// `#[pgorm(...)]`.
-#[derive(Debug, PartialEq, EnumIter)]
-pub enum Flavour {
-    Sweet,
-    #[strum(disabled)]
-    Secret,
-}
-
-// [spec:pgorm:def:macros.derive+5/test]    every derive in the catalogue is reachable and wired up
+// [spec:pgorm:def:macros.derive+6/test]    every derive in the catalogue is reachable and wired up
 // [spec:pgorm:req:macros.derive.names/test]    each derive by its name through the prelude, glob-imported by both its paths and beside the crate root's glob
 #[test]
 fn the_whole_derive_catalogue_is_exposed() {
@@ -201,7 +188,6 @@ fn the_whole_derive_catalogue_is_exposed() {
         <FloatRange as CreatedRange>::name(),
         pgorm::pgorm_query::TypeName::new(Name::runtime("floatrange"))
     );
-    assert_eq!(Flavour::iter().collect::<Vec<_>>(), vec![Flavour::Sweet]);
 
     // The projection derives are compile-time contracts; assert the traits.
     fn assert_from_query_result<T: FromQueryResult>() {}

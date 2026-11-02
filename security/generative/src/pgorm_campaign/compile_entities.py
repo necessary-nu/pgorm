@@ -37,16 +37,22 @@ def _field(name, rust, attrs):
     return lines
 
 
-def entity_module(*, table, columns, schema=None, keys=(("id", "i32"),), relation=""):
+def entity_module(
+    *, table, columns, schema=None, keys=(("id", "i32"),), relation="", hooks=False
+):
     """Render one `Entity` entity as module body text.
 
     The relation enum is always emitted, empty when the entity has no edges:
     the derive requires it, and an entity generated without one would fail for
-    a reason that says nothing about the shape under test.
+    a reason that says nothing about the shape under test. The derives write
+    the rest: the behaviour, unless `hooks` says the case writes its own, and
+    a `Related` impl for each entity one relation reaches.
     """
     header = f'table_name = "{table}"'
     if schema:
         header = f'schema_name = "{schema}", ' + header
+    if hooks:
+        header += ", hooks"
     lines = [
         PRELUDE,
         "",
@@ -65,13 +71,11 @@ def entity_module(*, table, columns, schema=None, keys=(("id", "i32"),), relatio
         lines.extend(_field(name, rust, attrs))
     lines.append("    }")
     lines.append("")
-    lines.append("    #[derive(Copy, Clone, Debug, EnumIter, Relation)]")
+    lines.append("    #[derive(Copy, Clone, Debug, Relation)]")
     lines.append("    pub enum Relation {" + ("" if relation else "}"))
     if relation:
         lines.append(relation)
         lines.append("    }")
-    lines.append("")
-    lines.append("    impl ActiveModelBehavior for ActiveModel {}")
     return "\n".join(lines)
 
 
@@ -178,10 +182,8 @@ def _temporal(table):
             "        pub rate: i32,",
             "    }",
             "",
-            "    #[derive(Copy, Clone, Debug, EnumIter, Relation)]",
+            "    #[derive(Copy, Clone, Debug, Relation)]",
             "    pub enum Relation {}",
-            "",
-            "    impl ActiveModelBehavior for ActiveModel {}",
         ]
     )
 
@@ -203,10 +205,8 @@ def temporal_key_cases():
             "        pub rate: i32,",
             "    }",
             "",
-            "    #[derive(Copy, Clone, Debug, EnumIter, Relation)]",
+            "    #[derive(Copy, Clone, Debug, Relation)]",
             "    pub enum Relation {}",
-            "",
-            "    impl ActiveModelBehavior for ActiveModel {}",
         ]
     )
     return [
@@ -330,17 +330,15 @@ def key_check_cases():
 
 
 def enum_cases():
-    """`ActiveEnum`, including the schema-qualified identity."""
+    """`ActiveEnum`, including the schema-qualified identity: an enum of names
+    is a PostgreSQL enum of its variants' names in snake_case, the type named
+    for the enum, unless it says otherwise."""
     body = (
-        PRELUDE
-        + "\n\n"
-        + "    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]\n"
-        "    #[pgorm(rs_type = String, "
-        'schema_name = "fixture", enum_name = "state")]\n'
+        PRELUDE + "\n\n" + "    #[derive(Clone, Debug, PartialEq, Eq, ActiveEnum)]\n"
+        '    #[pgorm(schema_name = "fixture")]\n'
         "    pub enum State {\n"
-        '        #[pgorm(string_value = "open")]\n'
         "        Open,\n"
-        '        #[pgorm(string_value = "closed")]\n'
+        '        #[pgorm(string_value = "shut")]\n'
         "        Closed,\n"
         "    }\n\n"
         "    #[derive(Clone, Debug, PartialEq, Entity)]\n"
@@ -350,21 +348,72 @@ def enum_cases():
         "        pub id: i32,\n"
         "        pub state: State,\n"
         "    }\n\n"
-        "    #[derive(Copy, Clone, Debug, EnumIter, Relation)]\n"
-        "    pub enum Relation {}\n\n"
-        "    impl ActiveModelBehavior for ActiveModel {}"
+        "    #[derive(Copy, Clone, Debug, Relation)]\n"
+        "    pub enum Relation {}"
+    )
+    lone = (
+        PRELUDE + "\n\n"
+        "    #[derive(Clone, Debug, PartialEq, Eq, ActiveEnum)]\n"
+        "    #[pgorm(rs_type = String)]\n"
+        "    pub enum State {\n"
+        "        Open,\n"
+        "    }"
     )
     return [
         _accept(
             "entity-enum-qualified",
             body,
             "a schema-qualified active enum used as a column type",
-        )
+        ),
+        CompileCase(
+            id="entity-enum-lone-rs-type",
+            obligation=OBLIGATION,
+            verdict="reject",
+            phase="typeck",
+            source=lone,
+            expects=rejects(
+                message="a PostgreSQL enum of strings names neither",
+            ),
+            note="an enum stored as `rs_type` names its column type too",
+        ),
+    ]
+
+
+def behaviour_cases():
+    """The behaviour the `Entity` derive writes, and the hooks a case writes
+    under `hooks` instead."""
+    hooked = entity_module(
+        table="hooked",
+        columns=(("label", "String", ""),),
+        hooks=True,
+    )
+    plain = entity_module(table="plain", columns=(("label", "String", ""),))
+    return [
+        _accept(
+            "entity-hooks",
+            hooked + "\n\n    impl ActiveModelBehavior for ActiveModel {\n"
+            "        fn new() -> Self {\n"
+            "            Self {\n"
+            '                label: pgorm::set("untitled"),\n'
+            "                ..ActiveModelTrait::default()\n"
+            "            }\n        }\n    }",
+            "under `hooks` the entity's module implements the behaviour",
+        ),
+        CompileCase(
+            id="entity-behaviour-twice",
+            obligation=OBLIGATION,
+            verdict="reject",
+            phase="typeck",
+            source=plain + "\n\n    impl ActiveModelBehavior for ActiveModel {}",
+            expects=rejects("E0119"),
+            note="without `hooks` the derive implements the behaviour, so a second is a conflict",
+        ),
     ]
 
 
 def relation_cases():
-    """A derived relation, and the `Related` impl a graph later walks."""
+    """A derived relation, and the `Related` impl the derive writes for it,
+    which a lookup of the related entity walks."""
     child = entity_module(
         table="rel_child",
         columns=(("parent_id", "i32", ""),),
@@ -379,9 +428,9 @@ def relation_cases():
             _nested("parent", entity_module(table="rel_parent", columns=())),
             _nested(
                 "child",
-                child + "\n\n    impl Related<super::parent::Entity> for Entity {\n"
-                "        fn to() -> RelationDef {\n"
-                "            Relation::Parent.def()\n        }\n    }",
+                child
+                + "\n\n    pub fn parent_of(child: &Model) -> Select<super::parent::Entity> {\n"
+                "        child.find_related(super::parent::Entity)\n    }",
             ),
         ]
     )
@@ -409,16 +458,17 @@ def relation_cases():
             _nested(
                 "child",
                 tenant_child
-                + "\n\n    impl Related<super::parent::Entity> for Entity {\n"
-                "        fn to() -> RelationDef {\n"
-                "            Relation::Parent.def()\n        }\n    }"
-                "\n\n    pub fn parent_of(child: &Model) -> Select<super::parent::Entity> {\n"
+                + "\n\n    pub fn parent_of(child: &Model) -> Select<super::parent::Entity> {\n"
                 "        child.find_related(super::parent::Entity)\n    }",
             ),
         ]
     )
     return [
-        _accept("entity-relation-pair", body, "belongs_to plus a Related impl"),
+        _accept(
+            "entity-relation-pair",
+            body,
+            "belongs_to, and the Related impl the derive writes for it",
+        ),
         _accept(
             "entity-relation-composite",
             composite,
@@ -502,6 +552,7 @@ def cases():
         + key_cases()
         + temporal_key_cases()
         + enum_cases()
+        + behaviour_cases()
         + relation_cases()
         + key_check_cases()
         + negative_cases()

@@ -32,19 +32,11 @@ mod room {
         pub rate: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(has_many = super::booking::Entity)]
         Booking,
     }
-
-    impl Related<super::booking::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Booking.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod booking {
@@ -59,7 +51,7 @@ mod booking {
         pub during: Range<Date>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::room::Entity,
@@ -70,14 +62,6 @@ mod booking {
         )]
         Room,
     }
-
-    impl Related<super::room::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Room.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 fn refused_with(error: &Error, state: &SqlState) {

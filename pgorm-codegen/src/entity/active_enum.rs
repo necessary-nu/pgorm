@@ -1,4 +1,4 @@
-use heck::ToUpperCamelCase;
+use heck::{ToSnakeCase, ToUpperCamelCase};
 use pgorm_query::Name;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -20,7 +20,7 @@ struct Variant {
     encoded: bool,
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+5]
+// [spec:pgorm:sem:codegen.entity.enums+6]
 fn variant(value: &str) -> Variant {
     if value.chars().next().map(char::is_numeric).unwrap_or(false) {
         return Variant {
@@ -64,7 +64,7 @@ impl ActiveEnum {
             .collect()
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+5]
+    // [spec:pgorm:sem:codegen.entity.enums+6]
     // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let enum_name = self.enum_name.to_string();
@@ -83,7 +83,12 @@ impl ActiveEnum {
         Ok(())
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+5]
+    /// The enum as the `ActiveEnum` derive reads it, saying only what differs
+    /// from the derive's defaults: `enum_name` where the type is not named
+    /// the enum's name in snake_case, and `string_value` where a value is not
+    /// its variant's name in snake_case.
+    // [spec:pgorm:sem:codegen.entity.enums+6]
+    // [spec:pgorm:sem:macros.derive.boilerplate]
     pub fn impl_active_enum(
         &self,
         with_serde: &WithSerde,
@@ -93,10 +98,19 @@ impl ActiveEnum {
     ) -> TokenStream {
         let enum_name = &self.enum_name.to_string();
         let enum_iden = format_ident!("{}", enum_name.to_upper_camel_case());
-        let values: Vec<String> = self.values.iter().map(|v| v.to_string()).collect();
-        let variants = values
-            .iter()
-            .map(|value| format_ident!("{}", variant(value.trim()).name));
+        let variants = self.values.iter().map(|value| {
+            let value = value.to_string();
+            let variant = variant(value.trim()).name;
+            let iden = format_ident!("{}", variant);
+            if variant.to_snake_case() == value {
+                quote! { #iden }
+            } else {
+                quote! {
+                    #[pgorm(string_value = #value)]
+                    #iden
+                }
+            }
+        });
 
         let serde_derive = with_serde.extra_derive();
         let copy_derive = if with_copy_enums {
@@ -105,20 +119,22 @@ impl ActiveEnum {
             quote! {}
         };
 
-        let schema_attr = self.schema.as_ref().map(|schema| {
+        let mut keys = Vec::new();
+        if enum_iden.to_string().to_snake_case() != *enum_name {
+            keys.push(quote! { enum_name = #enum_name });
+        }
+        if let Some(schema) = &self.schema {
             let schema = schema.to_string();
-            quote! { , schema_name = #schema }
-        });
+            keys.push(quote! { schema_name = #schema });
+        }
+        let keys = (!keys.is_empty()).then(|| quote! { #[pgorm(#(#keys),*)] });
 
         quote! {
-            #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum #copy_derive #serde_derive #extra_derives)]
-            #[pgorm(rs_type = String, enum_name = #enum_name #schema_attr)]
+            #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum #copy_derive #serde_derive #extra_derives)]
+            #keys
             #extra_attributes
             pub enum #enum_iden {
-                #(
-                    #[pgorm(string_value = #values)]
-                    #variants,
-                )*
+                #( #variants, )*
             }
         }
     }
@@ -162,8 +178,7 @@ mod tests {
             )
             .to_string(),
             quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
-                #[pgorm(rs_type = String, enum_name = "media_type")]
+                #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy)]
                 pub enum MediaType {
                     #[pgorm(string_value = "UNKNOWN")]
                     Unknown,
@@ -218,8 +233,7 @@ mod tests {
         #[rustfmt::skip]
         fn build_generated_enum() -> String {
             quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy, specta :: Type, ts_rs :: TS)]
-                #[pgorm(rs_type = String, enum_name = "media_type")]
+                #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy, specta :: Type, ts_rs :: TS)]
                 pub enum MediaType {
                     #[pgorm(string_value = "UNKNOWN")]
                     Unknown,
@@ -254,11 +268,7 @@ mod tests {
             )
             .to_string(),
             quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
-                #[pgorm(
-                    rs_type = String,
-                    enum_name = "coinflip_result_type"
-                )]
+                #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy)]
                 #[serde(rename_all = "camelCase")]
                 pub enum CoinflipResultType {
                     #[pgorm(string_value = "HEADS")]
@@ -290,11 +300,7 @@ mod tests {
             )
             .to_string(),
             quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
-                #[pgorm(
-                    rs_type = String,
-                    enum_name = "coinflip_result_type"
-                )]
+                #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy)]
                 #[serde(rename_all = "camelCase")]
                 #[ts(export)]
                 pub enum CoinflipResultType {
@@ -336,8 +342,7 @@ mod tests {
             )
             .to_string(),
             quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
-                #[pgorm(rs_type = String, enum_name = "ty")]
+                #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy)]
                 pub enum Ty {
                     #[pgorm(string_value = "Question")]
                     Question,
@@ -353,11 +358,64 @@ mod tests {
                     U002FU002F,
                     #[pgorm(string_value = "A-B-C")]
                     ABC,
-                    #[pgorm(string_value = "你好")]
                     你好,
                 }
             )
             .to_string()
         )
+    }
+
+    // [spec:pgorm:sem:codegen.entity.enums+6/test]    `enum_name` and `string_value` only where they differ from the derive's snake_case defaults
+    #[test]
+    fn test_enum_defaults_are_left_unsaid() {
+        assert_eq!(
+            ActiveEnum {
+                schema: Some(Name::runtime("crm")),
+                enum_name: Name::runtime("Mood"),
+                values: vec!["calm", "very_busy", "Loud"]
+                    .into_iter()
+                    .map(Name::runtime)
+                    .collect(),
+            }
+            .impl_active_enum(
+                &WithSerde::None,
+                false,
+                &TokenStream::new(),
+                &TokenStream::new(),
+            )
+            .to_string(),
+            quote!(
+                #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]
+                #[pgorm(enum_name = "Mood", schema_name = "crm")]
+                pub enum Mood {
+                    Calm,
+                    VeryBusy,
+                    #[pgorm(string_value = "Loud")]
+                    Loud,
+                }
+            )
+            .to_string()
+        );
+        assert_eq!(
+            ActiveEnum {
+                schema: None,
+                enum_name: Name::runtime("tea"),
+                values: vec!["everyday"].into_iter().map(Name::runtime).collect(),
+            }
+            .impl_active_enum(
+                &WithSerde::None,
+                false,
+                &TokenStream::new(),
+                &TokenStream::new(),
+            )
+            .to_string(),
+            quote!(
+                #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]
+                pub enum Tea {
+                    Everyday,
+                }
+            )
+            .to_string()
+        );
     }
 }

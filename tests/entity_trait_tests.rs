@@ -29,10 +29,8 @@ mod item {
         pub note: Option<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Same shape but declaring a schema, for the `table_ref` qualification claim.
@@ -47,10 +45,8 @@ mod scoped_item {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Composite (two-column) primary key.
@@ -67,10 +63,8 @@ mod pair {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Composite four-column primary key: the arity past every hand-written tuple
@@ -92,10 +86,8 @@ mod quad {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// An entity whose key is written by hand, which the traits allow: its
@@ -123,14 +115,20 @@ mod too_many_values {
         pub id_2: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
 
-    impl ActiveModelBehavior for ActiveModel {}
-
-    #[derive(Copy, Clone, Debug, EnumIter)]
+    #[derive(Copy, Clone, Debug)]
     pub enum WideKey {
         Id1,
+    }
+
+    impl Iterable for WideKey {
+        type Iterator = std::array::IntoIter<Self, 1>;
+
+        fn iter() -> Self::Iterator {
+            [Self::Id1].into_iter()
+        }
     }
 
     impl SqlName for WideKey {
@@ -195,15 +193,21 @@ mod too_few_values {
         pub id_2: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
 
-    impl ActiveModelBehavior for ActiveModel {}
-
-    #[derive(Copy, Clone, Debug, EnumIter)]
+    #[derive(Copy, Clone, Debug)]
     pub enum NarrowKey {
         Id1,
         Id2,
+    }
+
+    impl Iterable for NarrowKey {
+        type Iterator = std::array::IntoIter<Self, 2>;
+
+        fn iter() -> Self::Iterator {
+            [Self::Id1, Self::Id2].into_iter()
+        }
     }
 
     impl SqlName for NarrowKey {
@@ -270,14 +274,20 @@ mod mistyped_key {
         pub id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
 
-    impl ActiveModelBehavior for ActiveModel {}
-
-    #[derive(Copy, Clone, Debug, EnumIter)]
+    #[derive(Copy, Clone, Debug)]
     pub enum MistypedKey {
         Id,
+    }
+
+    impl Iterable for MistypedKey {
+        type Iterator = std::array::IntoIter<Self, 1>;
+
+        fn iter() -> Self::Iterator {
+            [Self::Id].into_iter()
+        }
     }
 
     impl SqlName for MistypedKey {

@@ -18,8 +18,8 @@ use tokio_postgres::error::SqlState;
 mod stock {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = String, enum_name = "shelf")]
+    #[derive(Clone, Debug, PartialEq, Eq, ActiveEnum)]
+    #[pgorm(enum_name = "shelf")]
     pub enum Shelf {
         #[pgorm(string_value = "front")]
         Front,
@@ -39,10 +39,8 @@ mod stock {
         pub a_count_of_the_items_on_the_shelf_that_were_counted_last_time: Option<i32>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A table called `old`, which a bare `old."col"` in its `RETURNING` list
@@ -58,10 +56,8 @@ mod old {
         pub count: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A table called by the name the terminals give the row before the write.
@@ -76,10 +72,8 @@ mod pgorm_old {
         pub count: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 use stock::Shelf;

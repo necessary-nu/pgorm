@@ -28,13 +28,13 @@
 ///     pub name: String,
 /// }
 ///
-/// #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+/// #[derive(Copy, Clone, Debug, Relation)]
 /// pub enum Relation {}
-///
-/// // Implement user defined operations for CREATE, UPDATE and DELETE operations
-/// // to create an ActiveModel using the [ActiveModelBehavior]
-/// impl ActiveModelBehavior for ActiveModel {}
 /// ```
+///
+/// The `Entity` derive implements [ActiveModelBehavior](crate::ActiveModelBehavior)
+/// with no hooks, unless the `Model` says `#[pgorm(hooks)]` and the module
+/// implements it.
 mod active_enum;
 mod active_model;
 mod base_entity;

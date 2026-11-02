@@ -226,10 +226,8 @@ mod hostile_entity {
         pub odd: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The value of the sole string literal in an attribute — the name the
@@ -551,10 +549,8 @@ mod text_array_entity {
         pub names: Option<Vec<String>>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    and the derive builds

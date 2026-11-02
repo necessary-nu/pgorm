@@ -32,12 +32,8 @@ pub mod account {
     use pgorm::entity::prelude::*;
     use serde::{Deserialize, Serialize};
 
-    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum, Serialize, Deserialize)]
-    #[pgorm(
-        rs_type = String,
-        enum_name = "State\" 雪",
-        schema_name = "fixture"
-    )]
+    #[derive(Clone, Debug, PartialEq, Eq, ActiveEnum, Serialize, Deserialize)]
+    #[pgorm(enum_name = "State\" 雪", schema_name = "fixture")]
     pub enum State {
         #[pgorm(string_value = "calm")]
         Calm,
@@ -46,7 +42,7 @@ pub mod account {
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize, Deserialize)]
-    #[pgorm(table_name = "accounts", schema_name = "fixture")]
+    #[pgorm(table_name = "accounts", schema_name = "fixture", hooks)]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
         pub id: i32,
@@ -66,7 +62,7 @@ pub mod account {
         pub state: State,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
 
     #[async_trait::async_trait]
@@ -103,10 +99,8 @@ pub mod note {
         pub body: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A room's rate over time, keyed `(id, valid_at WITHOUT OVERLAPS)`.
@@ -123,10 +117,8 @@ pub mod room {
         pub rate: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A guest's stay in a room.
@@ -143,10 +135,8 @@ pub mod stay {
         pub during: Range<Date>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The registered graph shapes, by arity, each aliasing its joined sources with

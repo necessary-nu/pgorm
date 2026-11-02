@@ -611,16 +611,16 @@ pub trait TryGetableMany: Sized {
     fn try_get_many_by_index(res: &QueryResult) -> Result<Self, TryGetError>;
 
     /// Run a raw statement and decode each row into a tuple, naming the
-    /// columns through an `SqlName` enum.
+    /// columns through a column enum, one deriving `Column`.
     ///
     /// ```no_run
     /// # #[cfg(feature = "macros")]
     /// # {
-    /// # use pgorm::{error::*, query::*, DatabasePool, SqlName, EnumIter, TryGetableMany};
+    /// # use pgorm::{error::*, query::*, Column, DatabasePool, TryGetableMany};
     /// # use pgorm::pgorm_query::Values;
     /// #
     /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
-    /// #[derive(EnumIter, SqlName)]
+    /// #[derive(Clone, Copy, Debug, Column)]
     /// enum ResultCol {
     ///     Name,
     ///     NumOfCakes,

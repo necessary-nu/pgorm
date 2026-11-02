@@ -12,7 +12,5 @@ pub struct Model {
     pub uuid_urn: uuid::fmt::Urn,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-
-impl ActiveModelBehavior for ActiveModel {}

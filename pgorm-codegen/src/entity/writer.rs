@@ -301,7 +301,7 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+5]
+    // [spec:pgorm:sem:codegen.entity.enums+6]
     pub fn write_pgorm_active_enums(
         &self,
         with_serde: &WithSerde,
@@ -351,7 +351,7 @@ impl EntityWriter {
     }
 
     // [spec:pgorm:req:macros.derive.one-form]
-    // [spec:pgorm:def:codegen.entity.compact+3]
+    // [spec:pgorm:def:codegen.entity.compact+4]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_code_blocks(
         entity: &Entity,
@@ -378,9 +378,7 @@ impl EntityWriter {
             ),
             Self::gen_compact_relation_enum(entity),
         ];
-        code_blocks.extend(Self::gen_impl_related(entity));
         code_blocks.extend(Self::gen_impl_conjunct_related(entity));
-        code_blocks.extend([Self::gen_impl_active_model_behavior()]);
         code_blocks
     }
 
@@ -436,34 +434,7 @@ impl EntityWriter {
             .0
     }
 
-    // [spec:pgorm:sem:codegen.entity.relations.related+1]
-    pub fn gen_impl_related(entity: &Entity) -> Vec<TokenStream> {
-        entity
-            .relations
-            .iter()
-            .filter(|rel| !rel.self_referencing && rel.num_suffix == 0 && rel.impl_related)
-            .map(|rel| {
-                let enum_name = rel.get_enum_name();
-                let module_name = rel.get_module_name();
-                let inner = quote! {
-                    fn to() -> RelationDef {
-                        Relation::#enum_name.def()
-                    }
-                };
-                if module_name.is_some() {
-                    quote! {
-                        impl Related<super::#module_name::Entity> for Entity { #inner }
-                    }
-                } else {
-                    quote! {
-                        impl Related<Entity> for Entity { #inner }
-                    }
-                }
-            })
-            .collect()
-    }
-
-    // [spec:pgorm:sem:codegen.entity.relations.via+1]
+    // [spec:pgorm:sem:codegen.entity.relations.via+2]
     pub fn gen_impl_conjunct_related(entity: &Entity) -> Vec<TokenStream> {
         let table_name_camel_case = entity.get_table_name_camel_case_ident();
         let via_snake_case = entity.get_conjunct_relations_via_snake_case();
@@ -487,12 +458,6 @@ impl EntityWriter {
                 }
             })
             .collect()
-    }
-
-    pub fn gen_impl_active_model_behavior() -> TokenStream {
-        quote! {
-            impl ActiveModelBehavior for ActiveModel {}
-        }
     }
 
     pub fn gen_mod(entity: &Entity) -> TokenStream {
@@ -620,7 +585,7 @@ impl EntityWriter {
         let relation_enum_name = entity.get_relation_enum_name();
         let attrs = entity.get_relation_attrs();
         quote! {
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {
                 #(
                     #attrs

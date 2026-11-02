@@ -30,10 +30,8 @@ mod ticket {
         pub title: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The same key with the generated part `BY DEFAULT`: a supplied number is
@@ -51,10 +49,8 @@ mod imported_ticket {
         pub title: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A tenant's shelf, keyed by the tenant and a code the tenant chose: a
@@ -72,19 +68,11 @@ mod shelf {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(has_many = super::book::Entity)]
         Book,
     }
-
-    impl Related<super::book::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Book.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A book on a shelf: its own key is the tenant and a generated number, and it
@@ -103,7 +91,7 @@ mod book {
         pub title: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::shelf::Entity,
@@ -111,12 +99,6 @@ mod book {
             to = (super::shelf::Column::TenantId, super::shelf::Column::Code)
         )]
         Shelf,
-    }
-
-    impl Related<super::shelf::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Shelf.def()
-        }
     }
 
     impl Related<super::author::Entity> for Entity {
@@ -128,8 +110,6 @@ mod book {
             Some(super::book_author::Relation::Book.def().rev())
         }
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// An author, keyed by the tenant and a number the caller supplies.
@@ -146,7 +126,7 @@ mod author {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
 
     impl Related<super::book::Entity> for Entity {
@@ -158,8 +138,6 @@ mod author {
             Some(super::book_author::Relation::Author.def().rev())
         }
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The junction between books and authors: a three-column key, two
@@ -178,7 +156,7 @@ mod book_author {
         pub author_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::book::Entity,
@@ -193,20 +171,6 @@ mod book_author {
         )]
         Author,
     }
-
-    impl Related<super::book::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Book.def()
-        }
-    }
-
-    impl Related<super::author::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Author.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Where a tenant keeps a thing: keyed by the tenant and two codes the tenant
@@ -227,10 +191,8 @@ mod placement {
         pub item: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 async fn create_from_entity<C, E>(db: &C, entity: E) -> Result<(), Error>

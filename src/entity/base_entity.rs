@@ -350,10 +350,8 @@ mod tests {
                 pub id: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         assert_eq!(hello::Entity.table_name(), "hello");
@@ -376,10 +374,8 @@ mod tests {
                 pub id: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         assert_eq!(hello::Entity.table_name(), "hello");
@@ -404,10 +400,8 @@ mod tests {
                 pub id: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         fn delete_by_id<T>(value: T)

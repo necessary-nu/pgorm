@@ -11,7 +11,5 @@ pub struct Model {
     pub decimal_opt: Option<Decimal>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-
-impl ActiveModelBehavior for ActiveModel {}

@@ -8,7 +8,7 @@ pub struct Model {
     pub room_id: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::key_room::Entity,
@@ -19,11 +19,3 @@ pub enum Relation {
     )]
     KeyRoom,
 }
-
-impl Related<super::key_room::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::KeyRoom.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

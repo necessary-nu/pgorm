@@ -9,8 +9,6 @@ mod period_outside_the_key {
         #[pgorm(without_overlaps)]
         pub valid_at: Range<Date>,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod period_before_the_end {
@@ -24,8 +22,6 @@ mod period_before_the_end {
         #[pgorm(primary_key)]
         pub id: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod period_alone {
@@ -38,8 +34,6 @@ mod period_alone {
         pub valid_at: Range<Date>,
         pub rate: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 fn main() {}

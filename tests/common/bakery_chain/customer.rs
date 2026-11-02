@@ -10,16 +10,8 @@ pub struct Model {
     pub notes: Option<String>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(has_many = super::order::Entity)]
     Order,
 }
-
-impl Related<super::order::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Order.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

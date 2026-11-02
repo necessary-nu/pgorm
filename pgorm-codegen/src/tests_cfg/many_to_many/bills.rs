@@ -8,7 +8,7 @@ pub struct Model {
     pub user_id: Option<i32> ,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::users::Entity,
@@ -16,16 +16,11 @@ pub enum Relation {
         to = super::users::Column::Id,
         on_update = ForeignKeyAction::NoAction,
         on_delete = ForeignKeyAction::NoAction,
+        related = false,
     )]
     Users,
     #[pgorm(has_many = super::users_votes::Entity)]
     UsersVotes,
-}
-
-impl Related<super::users_votes::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::UsersVotes.def()
-    }
 }
 
 impl Related<super::users::Entity> for Entity {
@@ -37,5 +32,3 @@ impl Related<super::users::Entity> for Entity {
         Some(super::users_votes::Relation::Bills.def().rev())
     }
 }
-
-impl ActiveModelBehavior for ActiveModel {}

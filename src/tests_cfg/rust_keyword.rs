@@ -62,10 +62,8 @@ pub struct Model {
     pub r#yield: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-
-impl ActiveModelBehavior for ActiveModel {}
 
 #[cfg(test)]
 mod tests {

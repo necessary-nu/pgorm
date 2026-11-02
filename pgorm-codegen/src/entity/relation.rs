@@ -129,8 +129,9 @@ impl Relation {
         let ref_entity = quote! { #module Entity };
         match self.rel_type {
             RelationType::HasOne | RelationType::HasMany => {
+                let unrelated = self.unrelated().then(|| quote! { , related = false });
                 quote! {
-                    #[pgorm(#rel_type = #ref_entity)]
+                    #[pgorm(#rel_type = #ref_entity #unrelated)]
                 }
             }
             RelationType::BelongsTo => {
@@ -145,6 +146,7 @@ impl Relation {
                     quote! { on_delete = ForeignKeyAction::#action, }
                 });
                 let key_check = self.get_key_attrs();
+                let unrelated = self.unrelated().then(|| quote! { related = false, });
                 let period = self.period.as_ref().map(|(src_column, ref_column)| {
                     let from_period = format_ident!("{}", src_column.to_upper_camel_case());
                     let to_period = format_ident!("{}", ref_column.to_upper_camel_case());
@@ -162,10 +164,21 @@ impl Relation {
                         #on_update
                         #on_delete
                         #key_check
+                        #unrelated
                     )]
                 }
             }
         }
+    }
+
+    /// Whether the variant says `related = false`: the entity it reaches is
+    /// one a junction's `Related` impl reaches too, and the derive would
+    /// otherwise write a second. An entity two variants reach gets no impl
+    /// from the derive, so only a variant alone in reaching one says it.
+    // [spec:pgorm:sem:codegen.entity.relations.related+2]
+    // [spec:pgorm:sem:macros.derive.boilerplate]
+    fn unrelated(&self) -> bool {
+        !self.impl_related && self.num_suffix == 0
     }
 
     /// The `Column` variants a side of the key names, under `module`: the

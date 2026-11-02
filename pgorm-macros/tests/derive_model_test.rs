@@ -26,10 +26,8 @@ mod cake {
         pub scratch: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The `entity` / `active_model` overrides. Neither `Entity` nor `ActiveModel`
@@ -49,10 +47,8 @@ mod overrides {
             pub name: String,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+        #[derive(Copy, Clone, Debug, Relation)]
         pub enum Relation {}
-
-        impl ActiveModelBehavior for ActiveModel {}
     }
 
     pub use inner::ActiveModel as InnerActive;
@@ -75,7 +71,7 @@ mod overrides {
 
 /// A hand-rolled `Column` enum, away from any entity, so the derive's own
 /// output is what is under test.
-#[derive(Copy, Clone, Debug, EnumIter, Column)]
+#[derive(Copy, Clone, Debug, Column)]
 pub enum PlainColumn {
     Id,
     FirstName,
@@ -164,7 +160,7 @@ fn derive_model_from_query_result_and_entity_override() {
     assert_eq!(alt.get(overrides::InnerColumn::Id), Value::Int(Some(3)));
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+6/test]    the generated struct and its conversions
+// [spec:pgorm:sem:macros.derive.active-model+7/test]    the generated struct and its conversions
 #[test]
 fn derive_active_model_struct_default_and_from_model() {
     // One `pub field: ActiveValue<T>` per *non-ignored* field: the struct
@@ -195,7 +191,7 @@ fn derive_active_model_struct_default_and_from_model() {
     assert_eq!(model.into_active_model(), converted);
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+6/test]    ActiveModelTrait
+// [spec:pgorm:sem:macros.derive.active-model+7/test]    ActiveModelTrait
 // accessors, including the one answer `take`, `get` and `set` share: a column
 // this ActiveModel does not carry is `Error::Type`, in those same words
 // [spec:pgorm:req:entity.active-model+4/test]    that refusal is the trait's
@@ -259,7 +255,7 @@ fn derive_active_model_trait_accessors() {
     assert_eq!(active.name, ActiveValue::Set("chiffon".to_owned()));
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+6/test]    set errors on an unmatched column
+// [spec:pgorm:sem:macros.derive.active-model+7/test]    set errors on an unmatched column
 #[test]
 fn active_model_set_errs_on_unmatched_column() {
     let mut active = <cake::ActiveModel as Default>::default();
@@ -271,7 +267,7 @@ fn active_model_set_errs_on_unmatched_column() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+6/test]    is_not_set panics on an unmatched column
+// [spec:pgorm:sem:macros.derive.active-model+7/test]    is_not_set panics on an unmatched column
 #[test]
 #[should_panic(expected = "This ActiveModel does not have this field")]
 fn active_model_is_not_set_panics_on_unmatched() {
@@ -279,7 +275,7 @@ fn active_model_is_not_set_panics_on_unmatched() {
     let _ = active.is_not_set(cake::Column::Table);
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+6/test]    reset panics on an unmatched column
+// [spec:pgorm:sem:macros.derive.active-model+7/test]    reset panics on an unmatched column
 #[test]
 #[should_panic(expected = "This ActiveModel does not have this field")]
 fn active_model_reset_panics_on_unmatched_column() {
@@ -287,7 +283,7 @@ fn active_model_reset_panics_on_unmatched_column() {
     active.reset(cake::Column::Table);
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+6/test]    TryFrom<ActiveModel> / TryIntoModel
+// [spec:pgorm:sem:macros.derive.active-model+7/test]    TryFrom<ActiveModel> / TryIntoModel
 #[test]
 fn derive_active_model_try_into_model() {
     // A non-ignored field left `NotSet` fails with `AttrNotSet(field)`.
@@ -320,7 +316,7 @@ fn derive_active_model_try_into_model() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+6/test]    IntoActiveModel
+// [spec:pgorm:sem:macros.derive.active-model+7/test]    IntoActiveModel
 #[test]
 fn into_active_model_derive_fills_a_form() {
     // `IntoActiveModel` builds a partial "form" struct into the named
@@ -336,7 +332,7 @@ fn into_active_model_derive_fills_a_form() {
     assert_eq!(active.id, ActiveValue::NotSet);
 }
 
-// [spec:pgorm:sem:macros.derive.column+6/test]    default_as_str / StaticName / SqlName
+// [spec:pgorm:sem:macros.derive.column+7/test]    default_as_str / StaticName / SqlName
 #[test]
 fn derive_column_names() {
     // `default_as_str` is the snake_case of the variant, or the `column_name`
@@ -354,7 +350,7 @@ fn derive_column_names() {
     assert_eq!(PlainColumn::LastName.to_string(), "lAsTnAmE");
 }
 
-// [spec:pgorm:sem:macros.derive.column+6/test]    FromStr accepts both spellings
+// [spec:pgorm:sem:macros.derive.column+7/test]    FromStr accepts both spellings
 #[test]
 fn derive_column_from_str() {
     assert!(matches!(
@@ -382,11 +378,10 @@ fn derive_column_from_str() {
     }
 }
 
-// [spec:pgorm:sem:macros.derive.column+6/test]    the derive adds no EnumIter
+// [spec:pgorm:sem:macros.derive.column+7/test]    the derive makes the enum iterable itself
+// [spec:pgorm:sem:macros.derive.boilerplate/test]    `Column` iterates its variants with no `EnumIter` beside it
 #[test]
-fn column_derive_does_not_add_enum_iter_itself() {
-    // `EnumIter` is derived alongside above; without it `Column::iter()` would
-    // not exist. The enum iterates because the caller asked for it.
+fn column_derive_iterates_its_variants() {
     use pgorm::Iterable;
     assert_eq!(PlainColumn::iter().count(), 3);
 }

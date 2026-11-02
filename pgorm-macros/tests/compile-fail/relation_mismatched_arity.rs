@@ -4,7 +4,7 @@ use pgorm::entity::prelude::*;
 use pgorm::tests_cfg::cake::Entity as Cake;
 use pgorm::tests_cfg::{cake, filling};
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 #[pgorm(entity = Cake)]
 pub enum Relation {
     #[pgorm(

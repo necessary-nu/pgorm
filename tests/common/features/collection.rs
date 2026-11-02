@@ -22,7 +22,5 @@ pub struct Model {
     pub uuid_hyphenated: Vec<uuid::fmt::Hyphenated>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-
-impl ActiveModelBehavior for ActiveModel {}

@@ -9,6 +9,4 @@ pub struct Model {
     pub text: String,
 }
 
-impl ActiveModelBehavior for ActiveModel {}
-
 fn main() {}

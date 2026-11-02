@@ -1,0 +1,17 @@
+error: a variant is related by default; `related` is written only as `related = false`
+  --> tests/compile-fail/relation_related.rs:20:59
+   |
+20 |         #[pgorm(has_many = super::cake::Entity, related = true)]
+   |                                                           ^^^^
+
+error: `super::cake::Entity` is reached by more than one variant, so the derive writes no `Related` for it; drop `related = false`
+  --> tests/compile-fail/relation_related.rs:30:59
+   |
+30 |         #[pgorm(has_many = super::cake::Entity, related = false)]
+   |                                                           ^^^^^
+
+error: `hooks` is the composite derive's: it goes on the entity's `Model` under `Entity`; `Relation` reads `entity`
+  --> tests/compile-fail/relation_related.rs:41:13
+   |
+41 |     #[pgorm(hooks)]
+   |             ^^^^^

@@ -7,7 +7,7 @@ use common::*;
 use pgorm_codegen::WithSerde;
 use pgorm_query::{ColumnDef, ColumnType, Name, Table};
 
-// [spec:pgorm:sem:codegen.entity.enums+5/test]    every discovered enum lands in
+// [spec:pgorm:sem:codegen.entity.enums+6/test]    every discovered enum lands in
 // one `pgorm_active_enums.rs`, alphabetically by enum name
 #[test]
 fn active_enums_are_generated_into_one_alphabetical_file() {
@@ -45,7 +45,7 @@ fn active_enums_are_generated_into_one_alphabetical_file() {
     assert!(position_of(enums, "pub enum AppleKind") < position_of(enums, "pub enum ZebraKind"));
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+5/test]    each enum gets the base derives,
+// [spec:pgorm:sem:codegen.entity.enums+6/test]    each enum gets the base derives,
 // the `#[pgorm(rs_type, db_type, enum_name)]` attribute, extra attributes, an
 // UpperCamelCase name and one `string_value` per variant
 #[test]
@@ -70,8 +70,7 @@ fn active_enum_derives_attributes_and_string_values() {
 
     assert_contains(
         generated.file("pgorm_active_enums.rs"),
-        r#"#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy, Serialize, Hash)]
-           #[pgorm(rs_type = String, enum_name = "tea_kind")]
+        r#"#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy, Serialize, Hash)]
            #[non_exhaustive]
            pub enum TeaKind {
                #[pgorm(string_value = "EverydayTea")]
@@ -82,7 +81,7 @@ fn active_enum_derives_attributes_and_string_values() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+5/test]    variant naming: a leading digit
+// [spec:pgorm:sem:codegen.entity.enums+6/test]    variant naming: a leading digit
 // gets an underscore prefix, an empty UpperCamelCase falls back to per-character
 // encoding (ASCII as `U<hex>`, multi-byte verbatim), everything else is plain
 // UpperCamelCase
@@ -113,13 +112,12 @@ fn active_enum_variant_naming_digits_punctuation_multibyte() {
                U002F,
                #[pgorm(string_value = "//")]
                U002FU002F,
-               #[pgorm(string_value = "你好")]
                你好,
            }"#,
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+5/test]    entity files import each enum
+// [spec:pgorm:sem:codegen.entity.enums+6/test]    entity files import each enum
 // they use, and an enum column is a field of the enum's type, which the derive
 // takes the column's type from
 #[test]

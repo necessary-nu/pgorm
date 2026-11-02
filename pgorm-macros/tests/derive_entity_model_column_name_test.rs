@@ -16,10 +16,8 @@ pub struct Model {
     orders_count: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-
-impl ActiveModelBehavior for ActiveModel {}
 
 #[test]
 fn test_column_names() {

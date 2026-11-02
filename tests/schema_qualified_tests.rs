@@ -31,10 +31,8 @@ mod qualified {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The same table read as if its schema had been discarded — what a generator
@@ -50,10 +48,8 @@ mod unqualified {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 #[pgorm_macros::test]
@@ -84,7 +80,7 @@ async fn main() -> Result<(), Error> {
 // [spec:pgorm:sem:codegen.entity.transform+16/test]    preserving the source
 // table's schema qualifier is what keeps generated CRUD off a same-named table
 // on the `search_path`
-// [spec:pgorm:def:codegen.entity.compact+3/test]
+// [spec:pgorm:def:codegen.entity.compact+4/test]
 async fn generated_entity_targets_its_own_schema(db: &DatabaseConnection) -> Result<(), Error> {
     // `public` is on the default `search_path` and `tenant_a` is not, so an
     // unqualified name resolves to the other table entirely.

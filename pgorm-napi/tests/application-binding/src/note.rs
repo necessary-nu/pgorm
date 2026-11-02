@@ -11,7 +11,7 @@ pub struct Model {
     pub body: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::account::Entity,
@@ -20,11 +20,3 @@ pub enum Relation {
     )]
     Account,
 }
-
-impl Related<super::account::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Account.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

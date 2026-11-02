@@ -27,19 +27,11 @@ mod shelf {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(has_many = super::loose_book::Entity)]
         LooseBook,
     }
-
-    impl Related<super::loose_book::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::LooseBook.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A book whose shelf the server never checks: its key is `NOT ENFORCED`.
@@ -54,7 +46,7 @@ mod loose_book {
         pub shelf_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::shelf::Entity,
@@ -64,14 +56,6 @@ mod loose_book {
         )]
         Shelf,
     }
-
-    impl Related<super::shelf::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Shelf.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A book whose shelf is checked at commit: its key is deferred.
@@ -86,7 +70,7 @@ mod later_book {
         pub shelf_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::shelf::Entity,
@@ -96,8 +80,6 @@ mod later_book {
         )]
         Shelf,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A book whose shelf is checked as each statement ends: the plain key, the
@@ -113,7 +95,7 @@ mod tight_book {
         pub shelf_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::shelf::Entity,
@@ -122,8 +104,6 @@ mod tight_book {
         )]
         Shelf,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 fn refused_with(error: &Error, state: &SqlState) {

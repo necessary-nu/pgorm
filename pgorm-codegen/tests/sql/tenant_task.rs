@@ -11,16 +11,8 @@ pub struct Model {
     pub title: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(has_many = super::tenant_task_note::Entity)]
     TenantTaskNote,
 }
-
-impl Related<super::tenant_task_note::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::TenantTaskNote.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

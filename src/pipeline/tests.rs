@@ -1842,10 +1842,8 @@ mod read_casts {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:sem:pipeline.select-sources+4/test]    the read cast's type
@@ -3117,10 +3115,8 @@ mod cheerful {
                     pub $other: String,
                 }
 
-                #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+                #[derive(Copy, Clone, Debug, Relation)]
                 pub enum Relation {}
-
-                impl ActiveModelBehavior for ActiveModel {}
             }
         };
     }

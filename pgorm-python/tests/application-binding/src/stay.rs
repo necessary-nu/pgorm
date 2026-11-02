@@ -14,7 +14,7 @@ pub struct Model {
     pub during: Range<Date>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::room::Entity,
@@ -33,5 +33,3 @@ pub enum Relation {
     )]
     Guest,
 }
-
-impl ActiveModelBehavior for ActiveModel {}

@@ -9,16 +9,8 @@ pub struct Model {
     pub time: Option<Time>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(belongs_to = Entity, from = Column::UuidRef, to = Column::Uuid)]
     SelfReferencing,
 }
-
-impl Related<Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::SelfReferencing.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

@@ -140,7 +140,7 @@ impl EntityTrait {
         )
     }
 
-    // [spec:pgorm:sem:macros.derive.entity+5]
+    // [spec:pgorm:sem:macros.derive.entity+6]
     fn impl_iden(&self) -> TokenStream {
         let ident = &self.ident;
 
@@ -172,7 +172,7 @@ impl EntityTrait {
     }
 }
 
-// [spec:pgorm:sem:macros.derive.entity+5]
+// [spec:pgorm:sem:macros.derive.entity+6]
 pub fn expand_derive_entity(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     Ok(EntityTrait::new(input)?.expand())
 }

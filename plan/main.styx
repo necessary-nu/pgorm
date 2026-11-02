@@ -16181,6 +16181,13 @@ children (
                         kind @note
                         text "Also in scope, found by derives.paths (420d8d41): ActiveEnum's unknown-key error prints Rust debug output (Some(Ident(..))) instead of the key's name; fix it while reworking ActiveEnum's defaults. Base state for this node: one entity form, the new derive names, every code value bare, db_type = Enum gone (an enum of strings with no db_type is a PostgreSQL enum; rs_type still mandatory), PartialModel writing FromQueryResult, and every derive refusing keys it does not read."
                     }
+
+                    {
+                        at 2026-11-02T21:40:53.827539Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Calls made in delivery (implementing agent, 2026-11-02): (1) EnumIter is exported nowhere: the derive, the vendored strum module and `pub use strum` are deleted; Relation, Column, ActiveEnum and the composite (its Column and PrimaryKey) write iteration directly against `pgorm::Iterable`; strum stays a dependency for the trait. The three hand-written key enums in tests/entity_trait_tests.rs and the hand-implemented ActiveEnum doc and test implement Iterable by hand; the `into_values` column-name enums derive `Column`. (2) ActiveEnum: `rs_type` and `db_type` come together or not at all; a lone `rs_type = String` (the base-state PostgreSQL-enum spelling) is refused at the key, so every fixture dropped it; a `num_value`, or a discriminant on a variant taking the snake_case default, in a PostgreSQL enum is refused. No PostgreSQL-enum fixture relied on the UpperCamelCase default (all named enum_name); only non-enum storage names changed (`Color` -> `color`, asserted in tests/enum_tests.rs). (3) `related` takes only `false`; `related = false` on an entity two variants reach is refused; the Related target is identified by its path as written. (4) `hooks` joins the composite's container keys, so other derives refuse it as the composite's; the behaviour impl is emitted from the ActiveModel expansion even when the entity-model expansion is refused, so trybuild snapshots carry no echoed E0277. (5) The hand-written-empty-impl beside the generated one is rustc's wording-free E0119, so it is a generative compile case (entity-behaviour-twice), not a trybuild fixture. (6) codegen writes `related = false` on a conjunct-shadowed relation with num_suffix 0, and a single self-referencing relation now gets the derive's Related<Entity>."
+                    }
                 )
             }
 

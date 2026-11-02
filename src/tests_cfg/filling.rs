@@ -12,7 +12,7 @@ pub struct Model {
     pub ignored_attr: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::vendor::Entity,
@@ -31,5 +31,3 @@ impl Related<super::cake::Entity> for Entity {
         Some(super::cake_filling::Relation::Filling.def().rev())
     }
 }
-
-impl ActiveModelBehavior for ActiveModel {}

@@ -1,12 +1,8 @@
 use pgorm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum, Serialize, Deserialize)]
-#[pgorm(
-    rs_type = String,
-    enum_name = "Mood",
-    schema_name = "python_entities"
-)]
+#[derive(Clone, Debug, PartialEq, Eq, ActiveEnum, Serialize, Deserialize)]
+#[pgorm(enum_name = "Mood", schema_name = "python_entities")]
 pub enum Mood {
     #[pgorm(string_value = "calm")]
     Calm,
@@ -18,7 +14,8 @@ pub enum Mood {
 #[pgorm(
     table_name = "accounts",
     schema_name = "python_entities",
-    comment = "Accounts' native schema"
+    comment = "Accounts' native schema",
+    hooks
 )]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -35,7 +32,7 @@ pub struct Model {
     pub mood: Mood,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
 
 // [spec:pgorm:req:bindings.entity-writes/test]

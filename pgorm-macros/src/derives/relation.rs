@@ -1,7 +1,8 @@
-use proc_macro2::TokenStream;
-use quote::{format_ident, quote, quote_spanned};
-use syn::{Expr, LitStr, Path, meta::ParseNestedMeta};
+use proc_macro2::{Span, TokenStream};
+use quote::{ToTokens, format_ident, quote, quote_spanned};
+use syn::{Expr, LitBool, LitStr, Path, meta::ParseNestedMeta};
 
+use super::iterable::impl_iterable;
 use super::util::{COMPOSITE_KEYS, bare_code, unknown_pgorm_key};
 
 enum Error {
@@ -12,6 +13,7 @@ enum Error {
 struct Relation {
     entity_ident: syn::Ident,
     ident: syn::Ident,
+    vis: syn::Visibility,
     variants: syn::punctuated::Punctuated<syn::Variant, syn::token::Comma>,
 }
 
@@ -62,10 +64,13 @@ struct VariantAttrs {
     condition_type: Option<Expr>,
     enforcement: Option<Expr>,
     deferrability: Option<Expr>,
+    /// Where the variant said `related = false`, which leaves the entity's
+    /// `Related` impl to the program.
+    unrelated: Option<Span>,
 }
 
 impl VariantAttrs {
-    // [spec:pgorm:syn:macros.derive.relation+6]
+    // [spec:pgorm:syn:macros.derive.relation+7]
     // [spec:pgorm:req:macros.derive.code-values+2]
     fn parse(variant: &syn::Variant) -> syn::Result<Self> {
         let mut attrs = Self::default();
@@ -98,6 +103,17 @@ impl VariantAttrs {
             let name = meta.value()?.parse()?;
             return once(meta, &mut self.fk_name, name);
         }
+        if key == "related" {
+            let related: LitBool = meta.value()?.parse()?;
+            if related.value {
+                return Err(syn::Error::new(
+                    related.span(),
+                    "a variant is related by default; `related` is written only as \
+                     `related = false`",
+                ));
+            }
+            return once(meta, &mut self.unrelated, related.span());
+        }
         let slot = match key.as_str() {
             "from" => &mut self.from,
             "to" => &mut self.to,
@@ -116,6 +132,20 @@ impl VariantAttrs {
     }
 }
 
+/// An entity the variants reach, by the path one names it with, and the
+/// variants naming it so.
+struct Target<'a> {
+    spelling: String,
+    path: Path,
+    variants: Vec<Reaching<'a>>,
+}
+
+/// A variant reaching a [`Target`], and where it said `related = false`.
+struct Reaching<'a> {
+    variant: &'a syn::Ident,
+    unrelated: Option<Span>,
+}
+
 /// Fill `slot` with `value`, refusing a key given twice at the second.
 fn once<T>(meta: &ParseNestedMeta<'_>, slot: &mut Option<T>, value: T) -> syn::Result<()> {
     if slot.is_some() {
@@ -132,7 +162,7 @@ fn once<T>(meta: &ParseNestedMeta<'_>, slot: &mut Option<T>, value: T) -> syn::R
 
 /// The entity the relations belong to, from the container's `entity`, the one
 /// key the derive reads there.
-// [spec:pgorm:syn:macros.derive.relation+6]
+// [spec:pgorm:syn:macros.derive.relation+7]
 fn relation_entity(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Ident>> {
     let mut entity = None;
     for attr in attrs.iter().filter(|attr| attr.path().is_ident("pgorm")) {
@@ -169,14 +199,91 @@ impl Relation {
         Ok(Relation {
             entity_ident,
             ident: input.ident,
+            vis: input.vis,
             variants,
         })
     }
 
+    // [spec:pgorm:sem:macros.derive.boilerplate]
     fn expand(&self) -> syn::Result<TokenStream> {
-        let expanded_impl_relation_trait = self.impl_relation_trait()?;
+        let mut expanded = self.impl_relation_trait()?;
+        expanded.extend(impl_iterable(&self.ident, &self.vis, &self.variants));
+        expanded.extend(self.impl_related()?);
+        Ok(expanded)
+    }
 
-        Ok(expanded_impl_relation_trait)
+    /// `Related<F>` for each entity `F` exactly one variant reaches, as that
+    /// variant's definition, unless the variant says `related = false`. An
+    /// entity is known by the path that names it, so two spellings of one
+    /// entity are two entities here, and the two impls conflict. Only the
+    /// program knows which of two variants reaching one entity it means, so
+    /// such an entity gets none, and `related = false` on either says
+    /// nothing and is refused.
+    // [spec:pgorm:sem:macros.derive.boilerplate]
+    // [spec:pgorm:syn:macros.derive.relation+7]
+    fn impl_related(&self) -> syn::Result<TokenStream> {
+        let ident = &self.ident;
+        let entity_ident = &self.entity_ident;
+        let mut reached: Vec<Target<'_>> = Vec::new();
+        for variant in &self.variants {
+            let attr = VariantAttrs::parse(variant)?;
+            let Some((_, path)) = attr.target else {
+                continue;
+            };
+            let spelling = path.to_token_stream().to_string();
+            let reaching = Reaching {
+                variant: &variant.ident,
+                unrelated: attr.unrelated,
+            };
+            match reached
+                .iter_mut()
+                .find(|target| target.spelling == spelling)
+            {
+                Some(target) => target.variants.push(reaching),
+                None => reached.push(Target {
+                    spelling,
+                    path,
+                    variants: vec![reaching],
+                }),
+            }
+        }
+
+        let mut impls = TokenStream::new();
+        for Target { path, variants, .. } in reached {
+            match variants.as_slice() {
+                [
+                    Reaching {
+                        unrelated: Some(_), ..
+                    },
+                ] => {}
+                [
+                    Reaching {
+                        variant,
+                        unrelated: None,
+                    },
+                ] => impls.extend(quote! {
+                    #[automatically_derived]
+                    impl pgorm::entity::Related<#path> for #entity_ident {
+                        fn to() -> pgorm::entity::RelationDef {
+                            pgorm::entity::RelationTrait::def(&#ident::#variant)
+                        }
+                    }
+                }),
+                variants => {
+                    if let Some(span) = variants.iter().find_map(|reaching| reaching.unrelated) {
+                        let path = path.to_token_stream().to_string().replace(' ', "");
+                        return Err(syn::Error::new(
+                            span,
+                            format!(
+                                "`{path}` is reached by more than one variant, so the derive \
+                                 writes no `Related` for it; drop `related = false`"
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(impls)
     }
 
     fn impl_relation_trait(&self) -> syn::Result<TokenStream> {
@@ -274,7 +381,7 @@ impl Relation {
     /// and a temporal foreign key takes no referential action but `NO
     /// ACTION`, PostgreSQL 18 refusing the rest (0A000), so an action is a
     /// path ending in `NoAction` or refused.
-    // [spec:pgorm:syn:macros.derive.relation+6]
+    // [spec:pgorm:syn:macros.derive.relation+7]
     fn period(variant: &syn::Variant, attr: &VariantAttrs) -> syn::Result<TokenStream> {
         let (from, to) = match (&attr.from_period, &attr.to_period) {
             (Some(from), Some(to)) => (from, to),
@@ -320,7 +427,7 @@ impl Relation {
     /// parameters typed as the names they are where it left them untyped; any
     /// other expression is the condition whatever the tables are called.
     // [spec:pgorm:req:macros.derive.one-form]
-    // [spec:pgorm:syn:macros.derive.relation+6]
+    // [spec:pgorm:syn:macros.derive.relation+7]
     fn on_condition(condition: &Expr) -> syn::Result<TokenStream> {
         let mut closure = match condition.clone() {
             Expr::Closure(closure) => closure,
@@ -396,7 +503,7 @@ impl Relation {
 }
 
 /// Method to derive a Relation
-// [spec:pgorm:syn:macros.derive.relation+6]
+// [spec:pgorm:syn:macros.derive.relation+7]
 pub fn expand_derive_relation(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
 

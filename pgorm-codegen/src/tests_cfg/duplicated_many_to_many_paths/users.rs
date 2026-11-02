@@ -9,7 +9,7 @@ pub struct Model {
     pub email: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(has_many = super::bills::Entity)]
     Bills,
@@ -18,23 +18,3 @@ pub enum Relation {
     #[pgorm(has_many = super::users_votes::Entity)]
     UsersVotes,
 }
-
-impl Related<super::bills::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Bills.def()
-    }
-}
-
-impl Related<super::users_saved_bills::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::UsersSavedBills.def()
-    }
-}
-
-impl Related<super::users_votes::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::UsersVotes.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

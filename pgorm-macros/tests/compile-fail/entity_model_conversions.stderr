@@ -5,19 +5,19 @@ error: a column is read one way: `select_as` or `select_with`, once
    |                                     ^^^^^^^^^^^
 
 error: a column written through `save_with` names `save_array_with` too: the function writing an array of its values, which `= ANY` and `<> ALL` compare it with
-  --> tests/compile-fail/entity_model_conversions.rs:34:17
+  --> tests/compile-fail/entity_model_conversions.rs:32:17
    |
-34 |         #[pgorm(save_with = as_text)]
+32 |         #[pgorm(save_with = as_text)]
    |                 ^^^^^^^^^
 
 error: `save_array_with` writes an array of the values `save_with` writes one of; name `save_with` beside it
-  --> tests/compile-fail/entity_model_conversions.rs:54:35
+  --> tests/compile-fail/entity_model_conversions.rs:50:35
    |
-54 |         #[pgorm(save_as = "text", save_array_with = as_texts)]
+50 |         #[pgorm(save_as = "text", save_array_with = as_texts)]
    |                                   ^^^^^^^^^^^^^^^
 
 error: `select_with` is Rust code, written bare: remove the quotes
-  --> tests/compile-fail/entity_model_conversions.rs:69:31
+  --> tests/compile-fail/entity_model_conversions.rs:63:31
    |
-69 |         #[pgorm(select_with = "as_text")]
+63 |         #[pgorm(select_with = "as_text")]
    |                               ^^^^^^^^^

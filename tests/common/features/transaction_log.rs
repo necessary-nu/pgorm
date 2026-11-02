@@ -11,7 +11,5 @@ pub struct Model {
     pub date_time_tz: DateTimeWithTimeZone,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-
-impl ActiveModelBehavior for ActiveModel {}

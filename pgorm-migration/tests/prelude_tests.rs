@@ -25,8 +25,8 @@ mod both_preludes {
         Top,
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = String, enum_name = "tea", display)]
+    #[derive(Clone, Debug, PartialEq, Eq, ActiveEnum)]
+    #[pgorm(enum_name = "tea", display)]
     pub enum Tea {
         #[pgorm(string_value = "everyday", display_value = "Everyday")]
         Everyday,
@@ -44,10 +44,8 @@ mod both_preludes {
             pub tea: super::Tea,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+        #[derive(Copy, Clone, Debug, Relation)]
         pub enum Relation {}
-
-        impl ActiveModelBehavior for ActiveModel {}
     }
 }
 

@@ -7,6 +7,4 @@ pub struct Model {
     pub id: i32,
 }
 
-impl ActiveModelBehavior for ActiveModel {}
-
 fn main() {}

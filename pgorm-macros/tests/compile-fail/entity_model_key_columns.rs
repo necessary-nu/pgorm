@@ -32,8 +32,6 @@ mod thirteen_columns {
         pub k13: i32,
         pub name: String,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod key_given_twice {
@@ -45,8 +43,6 @@ mod key_given_twice {
         #[pgorm(primary_key, primary_key)]
         pub id: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 fn main() {}

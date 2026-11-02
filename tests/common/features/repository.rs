@@ -3,7 +3,7 @@ use pgorm::entity::prelude::*;
 use serde::Serialize;
 
 #[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize)]
-#[pgorm(table_name = "repository")]
+#[pgorm(table_name = "repository", hooks)]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
     pub id: String,
@@ -12,7 +12,7 @@ pub struct Model {
     pub description: Option<String>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
 
 #[async_trait::async_trait]

@@ -418,22 +418,37 @@ pub trait ActiveModelTrait: Clone + Debug {
 /// # {
 /// use pgorm::entity::prelude::*;
 ///
-/// // `#[derive(Entity)]` writes the Entity, Column, PrimaryKey and ActiveModel
+/// // `#[derive(Entity)]` writes the Entity, Column, PrimaryKey and ActiveModel,
+/// // and leaves the behaviour to this module where the model says `hooks`
 /// #[derive(Clone, Debug, PartialEq, Eq, Entity)]
-/// #[pgorm(table_name = "cake")]
+/// #[pgorm(table_name = "cake", hooks)]
 /// pub struct Model {
 ///     #[pgorm(primary_key)]
 ///     pub id: i32,
 ///     pub name: String,
 /// }
 ///
-/// #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+/// #[derive(Copy, Clone, Debug, Relation)]
 /// pub enum Relation {}
 ///
 /// // Every hook has a no-op default; override only what you need
-/// impl ActiveModelBehavior for ActiveModel {}
+/// #[async_trait::async_trait]
+/// impl ActiveModelBehavior for ActiveModel {
+///     async fn before_save<C>(mut self, _db: &C, _insert: bool) -> Result<Self, Error>
+///     where
+///         C: ConnectionTrait,
+///     {
+///         if let ActiveValue::Set(name) = &self.name {
+///             self.name = set(name.trim());
+///         }
+///         Ok(self)
+///     }
+/// }
 /// # }
 /// ```
+///
+/// Without `hooks`, the `Entity` derive implements this trait with every
+/// default.
 ///
 /// # What a hook error does
 ///
@@ -963,10 +978,8 @@ mod tests {
                 pub cake_id: Option<i32>,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
         assert_eq!(
             my_fruit::ActiveModel {
@@ -1036,10 +1049,8 @@ mod tests {
                 pub cake_id: Option<i32>,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
         assert_eq!(
             my_fruit::ActiveModel {
@@ -1073,10 +1084,8 @@ mod tests {
                 pub cake_id: Option<i32>,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
         assert_eq!(
             my_fruit::ActiveModel {
