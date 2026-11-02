@@ -16,7 +16,10 @@ fn main() {
     };
     print!("{summary}");
     if let Ok(destination) = std::env::var("GITHUB_STEP_SUMMARY")
-        && let Ok(mut step) = fs::OpenOptions::new().create(true).append(true).open(destination)
+        && let Ok(mut step) = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(destination)
     {
         let _ = write!(step, "{summary}");
     }

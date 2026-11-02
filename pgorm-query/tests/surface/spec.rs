@@ -13,8 +13,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// The checkout pgorm-query is a member of, whose `docs/spec` is the spec.
+pub fn checkout_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
+}
+
 pub fn spec_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../docs/spec")
+    checkout_root().join("docs/spec")
 }
 
 /// Every Markdown file under `docs/spec`, nested directories included, in
@@ -106,32 +111,46 @@ impl Rule {
     }
 }
 
-/// The id a line defines when it is a rule marker, `> [spec:pgorm:req:a.b+3]`:
+/// The citation a line is when it is a rule marker, `> [spec:pgorm:req:a.b+3]`:
 /// a blockquote line holding one bracketed citation and nothing else. A line
 /// of prose that opens with a citation goes on after it, so it is not one.
-pub fn defined_id(line: &str) -> Option<&str> {
+pub fn marker(line: &str) -> Option<Citation<'_>> {
     let marker = line.strip_prefix('>')?.trim();
     let cited = citation(marker)?;
-    (marker.starts_with('[') && cited.facet.is_none()).then_some(cited.id)
+    (marker.starts_with('[') && cited.facet.is_none()).then_some(cited)
 }
 
-/// Every rule id the spec defines, across every file under `docs/spec`.
-pub fn defined_rule_ids() -> BTreeSet<String> {
+/// The id a line defines when it is a rule [`marker`].
+pub fn defined_id(line: &str) -> Option<&str> {
+    marker(line).map(|cited| cited.id)
+}
+
+/// The verb each rule the spec defines is declared under, by id, across every
+/// file under `docs/spec`: `req` for the rule `> [spec:pgorm:req:a.b+3]` opens.
+pub fn declared_verbs() -> BTreeMap<String, String> {
     spec_files()
         .iter()
         .flat_map(|file| {
             read_spec_file(file)
                 .lines()
-                .filter_map(defined_id)
-                .map(str::to_owned)
+                .filter_map(marker)
+                .filter_map(|cited| Some((cited.id.to_owned(), cited.verb?.to_owned())))
                 .collect::<Vec<_>>()
         })
         .collect()
 }
 
+/// Every rule id the spec defines, across every file under `docs/spec`.
+pub fn defined_rule_ids() -> BTreeSet<String> {
+    declared_verbs().into_keys().collect()
+}
+
 /// A rule as the spec's text cites one: bracketed, `[spec:pgorm:req:a.b+3]`,
 /// or bare, `a.b`, either with the version and the facet (`/test`) it names.
 pub struct Citation<'a> {
+    /// What a bracketed citation names between the namespace and the id,
+    /// `req` above; a bare one names none.
+    pub verb: Option<&'a str>,
     pub id: &'a str,
     pub version: Option<&'a str>,
     pub facet: Option<&'a str>,
@@ -139,9 +158,12 @@ pub struct Citation<'a> {
 
 /// Read `text` as one citation, bracketed or bare.
 pub fn citation(text: &str) -> Option<Citation<'_>> {
-    let cited = match text.strip_prefix("[spec:pgorm:") {
-        Some(rest) => rest.strip_suffix(']')?.split_once(':')?.1,
-        None => text,
+    let (verb, cited) = match text.strip_prefix("[spec:pgorm:") {
+        Some(rest) => {
+            let (verb, cited) = rest.strip_suffix(']')?.split_once(':')?;
+            (Some(verb), cited)
+        }
+        None => (None, text),
     };
     let (cited, facet) = match cited.split_once('/') {
         Some((cited, facet)) => (cited, Some(facet)),
@@ -154,7 +176,23 @@ pub fn citation(text: &str) -> Option<Citation<'_>> {
     let numbered = version.is_none_or(|version| {
         !version.is_empty() && version.bytes().all(|byte| byte.is_ascii_digit())
     });
-    (is_rule_id(id) && numbered).then_some(Citation { id, version, facet })
+    (is_rule_id(id) && numbered).then_some(Citation {
+        verb,
+        id,
+        version,
+        facet,
+    })
+}
+
+/// Every bracketed citation in `line`, each read from its `[spec:pgorm:` to
+/// the `]` that closes it. Outside prose a citation can stand flush against
+/// a character [`citations`] keeps in a token (`notes.md:[spec:pgorm:req:a.b]`,
+/// `[[spec:pgorm:req:a.b]]`), which would hide it there.
+pub fn bracketed_citations(line: &str) -> impl Iterator<Item = Citation<'_>> {
+    line.match_indices("[spec:pgorm:").filter_map(|(start, _)| {
+        let rest = &line[start..];
+        citation(&rest[..=rest.find(']')?])
+    })
 }
 
 /// Every citation in `line`, bracketed, in backticks or bare. The line is cut

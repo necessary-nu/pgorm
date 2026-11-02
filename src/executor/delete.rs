@@ -10,7 +10,7 @@ where
 {
     /// Execute the delete and report how many rows it removed.
     // [spec:pgorm:sem:exec.crud.delete+1]
-    // [spec:pgorm:sem:exec.crud.exec-vocabulary+2]
+    // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
     #[doc(alias = "DeleteResult")]
     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
     where
@@ -26,7 +26,7 @@ where
 {
     /// Execute the delete and report how many rows it removed.
     // [spec:pgorm:sem:exec.crud.delete+1]
-    // [spec:pgorm:sem:exec.crud.exec-vocabulary+2]
+    // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
     #[doc(alias = "DeleteResult")]
     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
     where

@@ -4,7 +4,8 @@ use serde_json::{Value, json};
 use std::{fs, path::PathBuf};
 
 fn scratch(name: &str) -> PathBuf {
-    let artifacts = std::env::temp_dir().join(format!("sqlmap-verdict-{}-{name}", std::process::id()));
+    let artifacts =
+        std::env::temp_dir().join(format!("sqlmap-verdict-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&artifacts);
     fs::create_dir_all(artifacts.join("run")).unwrap();
     artifacts
@@ -20,7 +21,10 @@ fn passing() -> Value {
 #[test]
 fn missing_report_is_explicitly_not_run() {
     let artifacts = scratch("missing");
-    assert_eq!(verdict::profile_status("smoke", &artifacts).status, "not-run");
+    assert_eq!(
+        verdict::profile_status("smoke", &artifacts).status,
+        "not-run"
+    );
 }
 
 // [spec:pgorm:req:security.sqlmap.ci+2/test]
@@ -33,7 +37,10 @@ fn profile_status_requires_matching_complete_evidence() {
         (Some(("pass", json!(false))), "fail"),
         (Some(("subset", json!(["select"]))), "incomplete"),
         (Some(("profile", json!("smoke"))), "incomplete"),
-        (Some(("direct_regressions", json!({"pass": false}))), "incomplete"),
+        (
+            Some(("direct_regressions", json!({"pass": false}))),
+            "incomplete",
+        ),
         (Some(("direct_regressions", Value::Null)), "incomplete"),
         (Some(("falsified_exemptions", json!(["select-Q"]))), "fail"),
         (Some(("inapplicable", Value::Null)), "incomplete"),
@@ -48,11 +55,19 @@ fn profile_status_requires_matching_complete_evidence() {
             document[field] = replacement.clone();
         }
         fs::write(&report, document.to_string()).unwrap();
-        assert_eq!(verdict::profile_status("full", &artifacts).status, expected, "{update:?}");
+        assert_eq!(
+            verdict::profile_status("full", &artifacts).status,
+            expected,
+            "{update:?}"
+        );
     }
     for malformed in ["{", "[]", "null"] {
         fs::write(&report, malformed).unwrap();
-        assert_eq!(verdict::profile_status("full", &artifacts).status, "incomplete", "{malformed}");
+        assert_eq!(
+            verdict::profile_status("full", &artifacts).status,
+            "incomplete",
+            "{malformed}"
+        );
     }
 }
 
@@ -63,17 +78,42 @@ fn exemptions_are_published_and_never_absorbed() {
     let artifacts = scratch("exemptions");
     fs::write(artifacts.join("run/report.json"), passing().to_string()).unwrap();
     let status = verdict::profile_status("full", &artifacts);
-    assert_eq!((status.status, status.inapplicable.keys().map(String::as_str).collect::<Vec<_>>()), ("pass", vec!["select-Q"]));
-    assert!(status.reason.contains("1 pairs are declared inapplicable"), "{}", status.reason);
+    assert_eq!(
+        (
+            status.status,
+            status
+                .inapplicable
+                .keys()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+        ),
+        ("pass", vec!["select-Q"])
+    );
+    assert!(
+        status.reason.contains("1 pairs are declared inapplicable"),
+        "{}",
+        status.reason
+    );
 
     let (passed, summary) = verdict::publish("full", &artifacts).unwrap();
     assert!(passed);
     assert!(summary.starts_with("sqlmap / full: PASS\n"), "{summary}");
-    assert!(summary.contains("- select-Q: REPLACE-only and never reflected here.\n"), "{summary}");
-    assert_eq!(fs::read_to_string(artifacts.join("ci-summary.txt")).unwrap(), summary);
-    let published: Value = serde_json::from_str(&fs::read_to_string(artifacts.join("ci-status.json")).unwrap()).unwrap();
+    assert!(
+        summary.contains("- select-Q: REPLACE-only and never reflected here.\n"),
+        "{summary}"
+    );
+    assert_eq!(
+        fs::read_to_string(artifacts.join("ci-summary.txt")).unwrap(),
+        summary
+    );
+    let published: Value =
+        serde_json::from_str(&fs::read_to_string(artifacts.join("ci-status.json")).unwrap())
+            .unwrap();
     assert_eq!(published["status"], "pass");
-    assert_eq!(published["inapplicable"]["select-Q"], "REPLACE-only and never reflected here.");
+    assert_eq!(
+        published["inapplicable"]["select-Q"],
+        "REPLACE-only and never reflected here."
+    );
 }
 
 // [spec:pgorm:req:security.sqlmap.ci+2/test]
@@ -101,14 +141,26 @@ fn identifiers_status_needs_no_direct_regressions() {
     let artifacts = scratch("identifiers");
     let mut document = passing();
     document["profile"] = json!("identifiers");
-    document.as_object_mut().unwrap().remove("direct_regressions");
+    document
+        .as_object_mut()
+        .unwrap()
+        .remove("direct_regressions");
     fs::write(artifacts.join("run/report.json"), document.to_string()).unwrap();
     // Direct regressions belong to the full profile; the identifiers scan neither runs nor needs them.
     let (passed, summary) = verdict::publish("identifiers", &artifacts).unwrap();
     assert!(passed, "{summary}");
-    assert!(summary.starts_with("sqlmap / identifiers: PASS\n"), "{summary}");
+    assert!(
+        summary.starts_with("sqlmap / identifiers: PASS\n"),
+        "{summary}"
+    );
     // A full-profile report cannot stand in for it, nor it for the full profile.
-    assert_eq!(verdict::profile_status("full", &artifacts).status, "incomplete");
+    assert_eq!(
+        verdict::profile_status("full", &artifacts).status,
+        "incomplete"
+    );
     fs::write(artifacts.join("run/report.json"), passing().to_string()).unwrap();
-    assert_eq!(verdict::profile_status("identifiers", &artifacts).status, "incomplete");
+    assert_eq!(
+        verdict::profile_status("identifiers", &artifacts).status,
+        "incomplete"
+    );
 }
