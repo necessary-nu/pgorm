@@ -16,7 +16,11 @@ pub struct Status {
 // [spec:pgorm:req:security.sqlmap.ci+2]
 // [spec:pgorm:req:security.sqlmap.profiles+4]
 pub fn profile_status(profile: &str, artifacts: &Path) -> Status {
-    let bare = |status: &'static str, reason: &str| Status { status, reason: reason.into(), inapplicable: Map::new() };
+    let bare = |status: &'static str, reason: &str| Status {
+        status,
+        reason: reason.into(),
+        inapplicable: Map::new(),
+    };
     let bytes = match fs::read(artifacts.join("run/report.json")) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -31,12 +35,18 @@ pub fn profile_status(profile: &str, artifacts: &Path) -> Status {
         return bare("incomplete", "runner report is malformed");
     };
     if report.get("profile") != Some(&json!(profile)) || report.get("subset") != Some(&json!([])) {
-        return bare("incomplete", "report does not cover the requested complete profile");
+        return bare(
+            "incomplete",
+            "report does not cover the requested complete profile",
+        );
     }
     // A re-measurement scans the declared-inapplicable pairs instead of the scheduled work,
     // so even a passing one says nothing about the profile.
     if report.get("remeasure") != Some(&json!(false)) {
-        return bare("incomplete", "report is not a profile run: it re-measures declared inapplicability or does not say");
+        return bare(
+            "incomplete",
+            "report is not a profile run: it re-measures declared inapplicability or does not say",
+        );
     }
     // A report that does not account for its own exemptions cannot be audited against
     // the work it claims to have scheduled, so it is evidence of nothing.
@@ -44,22 +54,55 @@ pub fn profile_status(profile: &str, artifacts: &Path) -> Status {
         report.get("inapplicable").and_then(Value::as_object),
         report.get("falsified_exemptions").and_then(Value::as_array),
     ) else {
-        return bare("incomplete", "report does not account for declared inapplicability");
+        return bare(
+            "incomplete",
+            "report does not account for declared inapplicability",
+        );
     };
-    let carried = |status: &'static str, reason: String| Status { status, reason, inapplicable: inapplicable.clone() };
+    let carried = |status: &'static str, reason: String| Status {
+        status,
+        reason,
+        inapplicable: inapplicable.clone(),
+    };
     if !falsified.is_empty() {
-        let mut pairs: Vec<String> = falsified.iter().map(|pair| pair.as_str().map_or_else(|| pair.to_string(), str::to_owned)).collect();
+        let mut pairs: Vec<String> = falsified
+            .iter()
+            .map(|pair| {
+                pair.as_str()
+                    .map_or_else(|| pair.to_string(), str::to_owned)
+            })
+            .collect();
         pairs.sort();
-        return carried("fail", format!("the scanner detected declared-inapplicable pairs: {}", pairs.join(", ")));
+        return carried(
+            "fail",
+            format!(
+                "the scanner detected declared-inapplicable pairs: {}",
+                pairs.join(", ")
+            ),
+        );
     }
     if report.get("pass") != Some(&json!(true)) {
-        return carried("fail", "runner did not report a passing profile; inspect run/report.json".into());
+        return carried(
+            "fail",
+            "runner did not report a passing profile; inspect run/report.json".into(),
+        );
     }
     let regressions = report.get("direct_regressions").and_then(Value::as_object);
-    if profile == "full" && !regressions.is_some_and(|direct| direct.get("pass") == Some(&json!(true))) {
-        return carried("incomplete", "full profile lacks passing direct security regressions".into());
+    if profile == "full"
+        && !regressions.is_some_and(|direct| direct.get("pass") == Some(&json!(true)))
+    {
+        return carried(
+            "incomplete",
+            "full profile lacks passing direct security regressions".into(),
+        );
     }
-    carried("pass", format!("the pinned profile passed every scheduled pair; {} pairs are declared inapplicable", inapplicable.len()))
+    carried(
+        "pass",
+        format!(
+            "the pinned profile passed every scheduled pair; {} pairs are declared inapplicable",
+            inapplicable.len()
+        ),
+    )
 }
 
 /// Writes `ci-status.json` and `ci-summary.txt`, and reports whether the profile
@@ -71,15 +114,34 @@ pub fn publish(profile: &str, artifacts: &Path) -> Result<(bool, String)> {
         return Err("profile must be smoke, full or identifiers".into());
     }
     fs::create_dir_all(artifacts)?;
-    let Status { status, reason, inapplicable } = profile_status(profile, artifacts);
+    let Status {
+        status,
+        reason,
+        inapplicable,
+    } = profile_status(profile, artifacts);
     // Only each exemption's reason is published: the full evidence block belongs to the
     // report, and a CI summary that reprinted it would bury the verdict it exists to state.
     let declared: Map<String, Value> = inapplicable
         .iter()
-        .filter_map(|(pair, entry)| Some((pair.clone(), entry.as_object()?.get("reason").cloned().unwrap_or(Value::Null))))
+        .filter_map(|(pair, entry)| {
+            Some((
+                pair.clone(),
+                entry
+                    .as_object()?
+                    .get("reason")
+                    .cloned()
+                    .unwrap_or(Value::Null),
+            ))
+        })
         .collect();
-    write_json(&artifacts.join("ci-status.json"), &json!({"profile": profile, "status": status, "reason": reason, "inapplicable": declared}))?;
-    let mut summary = format!("sqlmap / {profile}: {}\n\n{reason}\n", status.to_uppercase());
+    write_json(
+        &artifacts.join("ci-status.json"),
+        &json!({"profile": profile, "status": status, "reason": reason, "inapplicable": declared}),
+    )?;
+    let mut summary = format!(
+        "sqlmap / {profile}: {}\n\n{reason}\n",
+        status.to_uppercase()
+    );
     if !declared.is_empty() {
         summary.push_str(&format!("\nDeclared inapplicable ({} pairs, excluded from scheduled work and never counted as passes):\n", declared.len()));
         for (pair, why) in &declared {

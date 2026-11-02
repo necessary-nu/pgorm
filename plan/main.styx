@@ -16440,12 +16440,27 @@ children (
         id sqlmap-harness-format
         title "The sqlmap harness binary is rustfmt-clean and a platform check keeps it so"
         kind @ci
+        sealed true
         log (
             {
                 at 2026-11-02T18:22:36.384003Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by derives.names (eed4f53e), predating it: security/sqlmap/adapter/src/bin/sqlmap-harness.rs is not rustfmt-clean, and no platform in .config/nplan/config.styx runs cargo fmt over the sqlmap adapter, so nothing noticed. Format it and add the adapter's fmt (and clippy, if it is not already covered) to a platform whose files glob matches it."
+            }
+
+            {
+                at 2026-11-02T21:09:53.743431Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-02T21:12:54.852906Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

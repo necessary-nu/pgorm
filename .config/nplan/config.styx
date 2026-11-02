@@ -52,6 +52,19 @@ platforms (
         }
     }
     {
+        platform "sqlmap-adapter"
+        files (security/sqlmap/adapter/**/*.rs security/sqlmap/adapter/Cargo.toml security/sqlmap/adapter/Cargo.lock)
+        checks {
+            format {
+                cmd "cargo fmt --manifest-path security/sqlmap/adapter/Cargo.toml --all -- --check"
+                fix "cargo fmt --manifest-path security/sqlmap/adapter/Cargo.toml --all"
+            }
+            clippy {
+                cmd "cargo clippy --manifest-path security/sqlmap/adapter/Cargo.toml --locked --target-dir target --all-targets -- -D warnings"
+            }
+        }
+    }
+    {
         platform "generative-python"
         files (security/generative/*.py security/generative/src/**/*.py security/generative/tests/**/*.py security/generative/pyproject.toml)
         checks {
