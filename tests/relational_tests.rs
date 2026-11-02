@@ -1044,7 +1044,7 @@ mod composite_parent {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             has_many = super::composite_child::Entity,
@@ -1053,14 +1053,6 @@ mod composite_parent {
         )]
         Child,
     }
-
-    impl Related<super::composite_child::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Child.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod composite_child {
@@ -1076,7 +1068,7 @@ mod composite_child {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::composite_parent::Entity,
@@ -1085,14 +1077,6 @@ mod composite_child {
         )]
         Parent,
     }
-
-    impl Related<super::composite_parent::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Parent.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:sem:query.graph.grouped+2/test]    grouping by a composite

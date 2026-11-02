@@ -52,10 +52,8 @@ mod spans {
         pub labels: Labels,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 use spans::{FloatSpans, Labels, Slots};

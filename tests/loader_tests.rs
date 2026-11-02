@@ -325,10 +325,8 @@ mod ledger {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// `HasOne` over a non-unique column, so one key can match several rows.
@@ -396,10 +394,8 @@ mod padded {
         pub code: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// `HasMany` from an unpadded `text` column onto that padded one.
@@ -440,10 +436,8 @@ mod tagged {
         pub visible: bool,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The predicate an authored relation adds to its key equality. It qualifies

@@ -12,7 +12,7 @@ pub struct Model {
     pub vote: bool,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::bills::Entity,
@@ -39,5 +39,3 @@ pub enum Relation {
     )]
     Users1,
 }
-
-impl ActiveModelBehavior for ActiveModel {}

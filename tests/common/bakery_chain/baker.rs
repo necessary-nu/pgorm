@@ -10,7 +10,7 @@ pub struct Model {
     pub bakery_id: Option<i32>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::bakery::Entity,
@@ -20,12 +20,6 @@ pub enum Relation {
         on_delete = ForeignKeyAction::SetNull
     )]
     Bakery,
-}
-
-impl Related<super::bakery::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Bakery.def()
-    }
 }
 
 impl Related<super::cake::Entity> for Entity {
@@ -55,5 +49,3 @@ impl Linked for BakedForCustomer {
         ]
     }
 }
-
-impl ActiveModelBehavior for ActiveModel {}

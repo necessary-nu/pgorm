@@ -167,13 +167,8 @@ fn enum_type_reaches_the_generated_active_enum() {
     let generated = from_sql(SCHEMA);
     let enums = generated.file("pgorm_active_enums.rs");
 
-    assert_contains(
-        enums,
-        r#"#[pgorm(rs_type = String, enum_name = "task_state")]"#,
-    );
-    assert_contains(enums, "pub enum TaskState");
-    assert_contains(enums, r#"#[pgorm(string_value = "open")] Open,"#);
-    assert_contains(enums, r#"#[pgorm(string_value = "closed")] Closed,"#);
+    assert_not_contains(enums, "enum_name");
+    assert_contains(enums, "pub enum TaskState { Open, Closed, }");
     assert_contains(
         generated.file("task.rs"),
         "use super::pgorm_active_enums::TaskState;",

@@ -31,7 +31,5 @@ pub struct Model {
     pub bit64: i64,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-
-impl ActiveModelBehavior for ActiveModel {}

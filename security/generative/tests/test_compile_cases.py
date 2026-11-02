@@ -110,6 +110,7 @@ class SuiteTests(unittest.TestCase):
             sorted(uncoded),
             [
                 "binder-brand-crossed",
+                "entity-enum-lone-rs-type",
                 "entity-key-temporal-alone",
                 "entity-relation-key-quoted",
                 "entity-relation-period-half",

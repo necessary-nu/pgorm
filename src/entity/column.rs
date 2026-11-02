@@ -673,10 +673,8 @@ mod tests {
                 pub twelve_two: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         assert_eq!(hello::Column::One.def(), ColumnType::Integer.def());
@@ -745,10 +743,8 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         assert_eq!(hello::Column::One.to_string().as_str(), "ONE");
@@ -777,10 +773,8 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         assert_eq!(hello::Column::One1.to_string().as_str(), "one1");
@@ -810,10 +804,8 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         assert_eq!(hello::Column::IdentityColumn.to_string().as_str(), "ID");
@@ -840,10 +832,8 @@ mod tests {
                 pub type_: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         assert_eq!(my_entity::Column::IdentityColumn.to_string().as_str(), "id");
@@ -878,10 +868,8 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         #[allow(clippy::enum_variant_names)]
@@ -902,10 +890,8 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         fn assert_it<E, A>(active_model: A)
@@ -972,10 +958,8 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         #[allow(clippy::enum_variant_names)]
@@ -996,10 +980,8 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         fn assert_it<E, A>(active_model: A)
@@ -1072,10 +1054,8 @@ mod tests {
                 pub two: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         let clause = |expr: SimpleExpr| {
@@ -1160,10 +1140,8 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         #[allow(clippy::enum_variant_names)]
@@ -1184,10 +1162,8 @@ mod tests {
                 pub three: i32,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         fn assert_it<E, A>(active_model: A)

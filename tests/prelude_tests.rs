@@ -133,10 +133,8 @@ mod interval_columns {
         pub precise: Interval,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:def:entity.prelude+11/test]    the interval vocabulary: a field's

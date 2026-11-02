@@ -11,16 +11,8 @@ pub struct Model {
     pub tea: Option<Tea>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(has_many = super::active_enum_child::Entity)]
     ActiveEnumChild,
 }
-
-impl Related<super::active_enum_child::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::ActiveEnumChild.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

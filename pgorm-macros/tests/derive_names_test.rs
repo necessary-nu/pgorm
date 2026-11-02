@@ -51,8 +51,8 @@ fn is_old_name(name: &str) -> bool {
         .strip_prefix("Derive")
         .and_then(|rest| rest.chars().next())
         .is_some_and(char::is_uppercase);
-    // syn's `DeriveInput`, and the vendored strum helper extending it, are
-    // the input type of every derive rather than a derive.
+    // syn's `DeriveInput` is the input type of every derive rather than a
+    // derive.
     (derive_prefixed && !name.starts_with("DeriveInput")) || name == "FromJsonQueryResult"
 }
 
@@ -112,7 +112,6 @@ fn derives_are_named_for_what_they_make() {
         "ActiveEnum",
         "Column",
         "CreatedRange",
-        "EnumIter",
         "Entity",
         "EntityTrait",
         "FromQueryResult",

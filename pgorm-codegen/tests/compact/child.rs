@@ -9,7 +9,7 @@ pub struct Model {
     pub parent_id2: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::parent::Entity,
@@ -18,11 +18,3 @@ pub enum Relation {
     )]
     Parent,
 }
-
-impl Related<super::parent::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Parent.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

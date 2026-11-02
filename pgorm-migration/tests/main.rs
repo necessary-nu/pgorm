@@ -15,7 +15,7 @@ use pgorm_migration::prelude::*;
 // [spec:pgorm:sem:migration.up+4/test]
 // [spec:pgorm:sem:migration.name+4/test]    asserted names are file stems
 // [spec:pgorm:req:migration.ledger-upgrade+2/test]    the fresh-install half: the legacy name is never created
-// [spec:pgorm:def:macros.derive+5/test]    `MigrationName` names each migration after the file stem
+// [spec:pgorm:def:macros.derive+6/test]    `MigrationName` names each migration after the file stem
 // [spec:pgorm:req:migration.read-only+1/test]    the accessors leave a fresh database fresh
 #[tokio::test]
 async fn fresh_install_applies_all_pending() -> Result<(), Error> {

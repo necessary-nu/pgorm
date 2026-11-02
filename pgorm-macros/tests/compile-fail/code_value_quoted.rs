@@ -5,7 +5,7 @@ use pgorm::entity::prelude::*;
 mod relation_target {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(belongs_to = "super::Parent", from = Column::ParentId, to = Column::Id)]
         Parent,
@@ -15,7 +15,7 @@ mod relation_target {
 mod relation_action {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(has_many = super::Child, on_delete = "Cascade")]
         Child,
@@ -25,21 +25,21 @@ mod relation_action {
 mod relation_condition {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(has_many = super::Child, condition_type = "any")]
         Child,
     }
 }
 
-#[derive(Debug, EnumIter, ActiveEnum)]
+#[derive(Debug, ActiveEnum)]
 #[pgorm(rs_type = "String")]
 pub enum RsType {
     #[pgorm(string_value = "a")]
     A,
 }
 
-#[derive(Debug, EnumIter, ActiveEnum)]
+#[derive(Debug, ActiveEnum)]
 #[pgorm(rs_type = i32, db_type = "Integer")]
 pub enum DbType {
     #[pgorm(num_value = 1)]
@@ -80,10 +80,8 @@ mod quoted_default {
         pub key: Uuid,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 fn main() {}

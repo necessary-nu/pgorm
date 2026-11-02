@@ -23,7 +23,7 @@ pub struct Model {
     pub settles_into: Mood,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = Entity,
@@ -32,5 +32,3 @@ pub enum Relation {
     )]
     Settles,
 }
-
-impl ActiveModelBehavior for ActiveModel {}

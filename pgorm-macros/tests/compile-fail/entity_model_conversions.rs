@@ -14,8 +14,6 @@ mod read_both_ways {
         #[pgorm(select_as = "text", select_with = as_text)]
         pub name: String,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod written_without_arrays {
@@ -34,8 +32,6 @@ mod written_without_arrays {
         #[pgorm(save_with = as_text)]
         pub name: String,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod arrays_without_values {
@@ -54,8 +50,6 @@ mod arrays_without_values {
         #[pgorm(save_as = "text", save_array_with = as_texts)]
         pub name: String,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod quoted_function {
@@ -69,8 +63,6 @@ mod quoted_function {
         #[pgorm(select_with = "as_text")]
         pub name: String,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 fn main() {}

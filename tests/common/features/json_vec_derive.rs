@@ -14,10 +14,8 @@ pub mod json_string_vec {
     #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonValueType)]
     pub struct StringVec(pub Vec<String>);
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 pub mod json_struct_vec {
@@ -39,8 +37,6 @@ pub mod json_struct_vec {
         pub value: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }

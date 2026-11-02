@@ -58,13 +58,11 @@ mod employee {
         pub manager_id: Option<i32>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(belongs_to = Entity, from = Column::ManagerId, to = Column::Id)]
         Manager,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The same shape with the reference left unset on the root row, so a left
@@ -81,13 +79,11 @@ mod message {
         pub parent_id: Option<i32>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(belongs_to = Entity, from = Column::ParentId, to = Column::Id)]
         Parent,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 struct Seeded {
@@ -1418,10 +1414,8 @@ mod cast_probe {
         pub amount: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:sem:pipeline.select-sources+4/test]    a select_as override and
@@ -1479,8 +1473,8 @@ async fn select_sources_applies_read_casts() -> Result<(), pgorm::Error> {
 mod tea_pot {
     use pgorm::entity::prelude::*;
 
-    #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
-    #[pgorm(rs_type = String, enum_name = "tea")]
+    #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy)]
+    #[pgorm(enum_name = "tea")]
     pub enum Tea {
         #[pgorm(string_value = "EverydayTea")]
         EverydayTea,
@@ -1496,10 +1490,8 @@ mod tea_pot {
         pub teas: Vec<Tea>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 use tea_pot::Tea;
 

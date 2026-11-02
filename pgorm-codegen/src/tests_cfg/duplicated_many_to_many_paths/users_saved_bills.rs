@@ -9,7 +9,7 @@ pub struct Model {
     pub bill_id: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::bills::Entity,
@@ -28,17 +28,3 @@ pub enum Relation {
     )]
     Users,
 }
-
-impl Related<super::bills::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Bills.def()
-    }
-}
-
-impl Related<super::users::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Users.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

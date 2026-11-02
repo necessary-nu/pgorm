@@ -24,10 +24,8 @@ mod interval_probe {
         pub spans: Vec<Interval>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Mixed signs, zero, each field at both of its limits, the finite triples

@@ -12,7 +12,7 @@ pub struct Model {
     pub placed_at: DateTime,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::bakery::Entity,
@@ -31,23 +31,3 @@ pub enum Relation {
     #[pgorm(has_many = super::lineitem::Entity)]
     Lineitem,
 }
-
-impl Related<super::bakery::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Bakery.def()
-    }
-}
-
-impl Related<super::customer::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Customer.def()
-    }
-}
-
-impl Related<super::lineitem::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Lineitem.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

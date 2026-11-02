@@ -32,16 +32,14 @@ mod composite_enum_name {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod relation_container {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     #[pgorm(table_name = "cake")]
     pub enum Relation {}
 }
@@ -49,14 +47,14 @@ mod relation_container {
 mod relation_twice {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(has_one = super::Child, has_many = super::Child)]
         Child,
     }
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Column)]
+#[derive(Copy, Clone, Debug, Column)]
 #[pgorm(table_name = "cake")]
 pub enum ColumnContainer {
     Id,

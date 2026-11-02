@@ -78,7 +78,7 @@ rust_decimal = { version = "1.43", features = ["db-tokio-postgres"], default-fea
 # tests/fork_pin_tests.rs holds every declaration and every committed lockfile
 # to it.
 pg_query = { git = "https://github.com/necessary-nu/pg_query.rs.git", rev = "09ebc3a4c7f50f3682e890a8372b4c4c99382ed9" }
-pgorm-macros = { version = "0.2.0", path = "pgorm-macros", default-features = false, features = ["strum"] }
+pgorm-macros = { version = "0.2.0", path = "pgorm-macros", default-features = false }
 pgorm-sql-macro = { version = "0.2.0", path = "pgorm-sql-macro" }
 # The PRQL compiler behind pgorm::pipeline. Pure Rust but a heavyweight
 # compile; a permanent dependency by decision, like pg_query above. The pin

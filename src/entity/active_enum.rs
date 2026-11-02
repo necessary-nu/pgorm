@@ -18,7 +18,7 @@ use tokio_postgres::row::RowIndex;
 /// use pgorm::entity::prelude::*;
 ///
 /// // Using the derive macro
-/// #[derive(Debug, PartialEq, EnumIter, ActiveEnum)]
+/// #[derive(Debug, PartialEq, ActiveEnum)]
 /// #[pgorm(
 ///     rs_type = String,
 ///     db_type = ColumnType::String(StringLen::N(1)),
@@ -33,10 +33,18 @@ use tokio_postgres::row::RowIndex;
 /// }
 ///
 /// // Implementing it manually
-/// #[derive(Debug, PartialEq, EnumIter)]
+/// #[derive(Clone, Debug, PartialEq)]
 /// pub enum Category {
 ///     Big,
 ///     Small,
+/// }
+///
+/// impl Iterable for Category {
+///     type Iterator = std::array::IntoIter<Self, 2>;
+///
+///     fn iter() -> Self::Iterator {
+///         [Self::Big, Self::Small].into_iter()
+///     }
 /// }
 ///
 /// #[derive(Debug, SqlName)]
@@ -87,7 +95,7 @@ use tokio_postgres::row::RowIndex;
 /// use pgorm::entity::prelude::*;
 ///
 /// // Define the `Category` active enum
-/// #[derive(Debug, Clone, PartialEq, EnumIter, ActiveEnum)]
+/// #[derive(Debug, Clone, PartialEq, ActiveEnum)]
 /// #[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::N(1)), display)]
 /// pub enum Category {
 ///     #[pgorm(string_value = "B")]
@@ -106,10 +114,8 @@ use tokio_postgres::row::RowIndex;
 ///     pub category_opt: Option<Category>,
 /// }
 ///
-/// #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+/// #[derive(Copy, Clone, Debug, Relation)]
 /// pub enum Relation {}
-///
-/// impl ActiveModelBehavior for ActiveModel {}
 /// ```
 // [spec:pgorm:def:entity.traits.active-enum+2]
 pub trait ActiveEnum: Sized + Iterable {
@@ -231,10 +237,18 @@ mod tests {
 
     #[test]
     fn active_enum_string() {
-        #[derive(Debug, PartialEq, Eq, EnumIter)]
+        #[derive(Clone, Debug, PartialEq, Eq)]
         pub enum Category {
             Big,
             Small,
+        }
+
+        impl Iterable for Category {
+            type Iterator = std::array::IntoIter<Self, 2>;
+
+            fn iter() -> Self::Iterator {
+                [Self::Big, Self::Small].into_iter()
+            }
         }
 
         #[derive(Debug, SqlName)]
@@ -271,7 +285,7 @@ mod tests {
             }
         }
 
-        #[derive(Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
+        #[derive(Debug, PartialEq, Eq, ActiveEnum)]
         #[pgorm(
             rs_type = String,
             db_type = ColumnType::String(StringLen::N(1)),
@@ -338,7 +352,7 @@ mod tests {
     fn active_enum_derive_signed_integers() {
         macro_rules! test_num_value_int {
             ($ident: ident, $rs_type: ty, $db_type: expr, $col_def: ident) => {
-                #[derive(Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
+                #[derive(Debug, PartialEq, Eq, ActiveEnum)]
                 #[pgorm(rs_type = $rs_type, db_type = $db_type, display)]
                 pub enum $ident {
                     #[pgorm(num_value = -10)]
@@ -355,7 +369,7 @@ mod tests {
 
         macro_rules! test_fallback_int {
             ($ident: ident, $fallback_type: ident, $rs_type: ty, $db_type: expr, $col_def: ident) => {
-                #[derive(Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
+                #[derive(Debug, PartialEq, Eq, ActiveEnum)]
                 #[pgorm(rs_type = $rs_type, db_type = $db_type, display)]
                 #[repr(i32)]
                 pub enum $ident {
@@ -414,7 +428,7 @@ mod tests {
     fn active_enum_derive_unsigned_integers() {
         macro_rules! test_num_value_uint {
             ($ident: ident, $rs_type: ty, $db_type: expr, $col_def: ident) => {
-                #[derive(Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
+                #[derive(Debug, PartialEq, Eq, ActiveEnum)]
                 #[pgorm(rs_type = $rs_type, db_type = $db_type, display)]
                 pub enum $ident {
                     #[pgorm(num_value = 1)]
@@ -429,7 +443,7 @@ mod tests {
 
         macro_rules! test_fallback_uint {
             ($ident: ident, $fallback_type: ident, $rs_type: ty, $db_type: expr, $col_def: ident) => {
-                #[derive(Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
+                #[derive(Debug, PartialEq, Eq, ActiveEnum)]
                 #[pgorm(rs_type = $rs_type, db_type = $db_type, display)]
                 #[repr($fallback_type)]
                 pub enum $ident {
@@ -470,8 +484,8 @@ mod tests {
 
     #[test]
     fn escaped_non_uax31() {
-        #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
-        #[pgorm(rs_type = String, enum_name = "pop_os_names_typos")]
+        #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy)]
+        #[pgorm(enum_name = "pop_os_names_typos")]
         pub enum PopOSTypos {
             #[pgorm(string_value = "Pop!_OS")]
             PopOSCorrect,
@@ -524,7 +538,7 @@ mod tests {
         // Only the derived `…Variant` type is exercised; the enum itself is
         // the derive's input.
         #[allow(dead_code)]
-        #[derive(Clone, Debug, PartialEq, EnumIter, ActiveEnum)]
+        #[derive(Clone, Debug, PartialEq, ActiveEnum)]
         #[pgorm(
             rs_type = String,
             db_type = ColumnType::String(StringLen::None),
@@ -557,10 +571,10 @@ mod tests {
         assert_eq!(EnumVariant::_0x300x20123.to_string(), "0 123");
     }
 
-    // [spec:pgorm:sem:macros.derive.active-enum.expansion+4/test]    `display` writes each variant's `display_value`, or its name
+    // [spec:pgorm:sem:macros.derive.active-enum.expansion+5/test]    `display` writes each variant's `display_value`, or its name
     #[test]
     fn test_derive_display() {
-        #[derive(Debug, PartialEq, EnumIter, ActiveEnum)]
+        #[derive(Debug, PartialEq, ActiveEnum)]
         #[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::None), display)]
         enum DisplayTea {
             #[pgorm(string_value = "everyday")]

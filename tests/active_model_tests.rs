@@ -26,10 +26,8 @@ mod row {
         pub note: Option<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Manual (non auto-increment) single-column key: the caller supplies the key,
@@ -45,10 +43,8 @@ mod manual_key {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod pk2 {
@@ -64,10 +60,8 @@ mod pk2 {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod pk3 {
@@ -85,10 +79,8 @@ mod pk3 {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod pk4 {
@@ -108,10 +100,8 @@ mod pk4 {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The SQL column name and the `serde` key pull apart: `#[pgorm(column_name)]`
@@ -130,10 +120,8 @@ mod sql_renamed {
         pub note: Option<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The other direction: the SQL columns keep their plain names and `serde`
@@ -153,10 +141,8 @@ mod serde_renamed {
         pub note: Option<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // ---------------------------------------------------------------------------
@@ -1184,14 +1170,14 @@ mod hooked {
     use pgorm::entity::prelude::*;
 
     #[derive(Clone, Debug, PartialEq, Eq, Entity)]
-    #[pgorm(table_name = "am_hooked")]
+    #[pgorm(table_name = "am_hooked", hooks)]
     pub struct Model {
         #[pgorm(primary_key)]
         pub id: i32,
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
 
     #[async_trait::async_trait]
@@ -1301,14 +1287,14 @@ mod hook_abort {
     use pgorm::entity::prelude::*;
 
     #[derive(Clone, Debug, PartialEq, Eq, Entity)]
-    #[pgorm(table_name = "am_hook_abort")]
+    #[pgorm(table_name = "am_hook_abort", hooks)]
     pub struct Model {
         #[pgorm(primary_key)]
         pub id: i32,
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
 
     #[async_trait::async_trait]
@@ -1391,14 +1377,14 @@ mod after_hook_abort {
     use pgorm::entity::prelude::*;
 
     #[derive(Clone, Debug, PartialEq, Eq, Entity)]
-    #[pgorm(table_name = "am_after_hook_abort")]
+    #[pgorm(table_name = "am_after_hook_abort", hooks)]
     pub struct Model {
         #[pgorm(primary_key)]
         pub id: i32,
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
 
     #[async_trait::async_trait]

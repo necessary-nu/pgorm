@@ -19,10 +19,8 @@ mod parent {
         pub id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod child {
@@ -47,7 +45,7 @@ mod child {
         pub note: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::parent::Entity,
@@ -63,11 +61,9 @@ mod child {
         )]
         Parent,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
+#[derive(Clone, Debug, PartialEq, Eq, ActiveEnum)]
 #[pgorm(rs_type = Same<String>, db_type = ColumnType::String(StringLen::N(1)))]
 pub enum Size {
     #[pgorm(string_value = "S")]
@@ -76,8 +72,8 @@ pub enum Size {
     Large,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
-#[pgorm(rs_type = String, enum_name = "tea")]
+#[derive(Clone, Debug, PartialEq, Eq, ActiveEnum)]
+#[pgorm(enum_name = "tea")]
 pub enum Tea {
     #[pgorm(string_value = "green")]
     Green,

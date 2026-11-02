@@ -1,12 +1,8 @@
 use pgorm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum, Serialize, Deserialize)]
-#[pgorm(
-    rs_type = String,
-    enum_name = "State\" 雪",
-    schema_name = "fixture"
-)]
+#[derive(Clone, Debug, PartialEq, Eq, ActiveEnum, Serialize, Deserialize)]
+#[pgorm(enum_name = "State\" 雪", schema_name = "fixture")]
 pub enum State {
     #[pgorm(string_value = "calm")]
     Calm,
@@ -16,7 +12,7 @@ pub enum State {
 
 // [spec:pgorm:req:generative.execution]
 #[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize, Deserialize)]
-#[pgorm(table_name = "accounts", schema_name = "fixture")]
+#[pgorm(table_name = "accounts", schema_name = "fixture", hooks)]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
     pub id: i32,
@@ -36,7 +32,7 @@ pub struct Model {
     pub state: State,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
 
 #[async_trait::async_trait]

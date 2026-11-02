@@ -164,7 +164,7 @@ fn every_context_option_selects_generated_output() {
     );
     assert_contains(
         enums.file("pgorm_active_enums.rs"),
-        "#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy, Hash)]",
+        "#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy, Hash)]",
     );
     assert_contains(enums.file("pgorm_active_enums.rs"), "#[non_exhaustive]");
 
@@ -341,14 +341,12 @@ fn entity_file_blocks_are_joined_with_blank_lines() {
     let blocks = blocks(fruit);
     assert_eq!(
         blocks.len(),
-        5,
+        3,
         "one block per compact section: {blocks:#?}"
     );
     assert!(blocks[0].starts_with("use pgorm :: entity :: prelude"));
     assert!(blocks[1].starts_with("# [derive (Clone , Debug , PartialEq , Entity"));
-    assert!(blocks[2].starts_with("# [derive (Copy , Clone , Debug , EnumIter , Relation)]"));
-    assert!(blocks[3].starts_with("impl Related < super :: cake :: Entity >"));
-    assert_eq!(blocks[4], "impl ActiveModelBehavior for ActiveModel { }");
+    assert!(blocks[2].starts_with("# [derive (Copy , Clone , Debug , Relation)]"));
 
     // unformatted TokenStream text: no rustfmt-style newlines inside a block
     assert!(
@@ -376,7 +374,7 @@ fn context_folds_extra_derives_into_comma_fragment() {
     );
     assert_contains(
         generated.file("pgorm_active_enums.rs"),
-        "#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Hash, PartialOrd)]",
+        "#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Hash, PartialOrd)]",
     );
 }
 

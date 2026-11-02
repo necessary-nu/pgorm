@@ -26,10 +26,8 @@ mod token {
         pub written: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 async fn create_token_table(db: &DatabaseConnection) -> Result<(), Error> {

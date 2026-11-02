@@ -5,12 +5,8 @@
 
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
-#[pgorm(
-    rs_type = String,
-    enum_name = "mood",
-    schema_name = "napi_entities"
-)]
+#[derive(Clone, Debug, PartialEq, Eq, ActiveEnum)]
+#[pgorm(enum_name = "mood", schema_name = "napi_entities")]
 pub enum Mood {
     #[pgorm(string_value = "calm")]
     Calm,
@@ -22,7 +18,8 @@ pub enum Mood {
 #[pgorm(
     table_name = "accounts",
     schema_name = "napi_entities",
-    comment = "Accounts' native schema"
+    comment = "Accounts' native schema",
+    hooks
 )]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -38,16 +35,10 @@ pub struct Model {
     pub mood: Mood,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(has_many = super::note::Entity)]
     Note,
-}
-
-impl Related<super::note::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Note.def()
-    }
 }
 
 // [spec:pgorm:req:bindings.entity-writes/test]

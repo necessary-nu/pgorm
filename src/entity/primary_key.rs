@@ -253,10 +253,8 @@ mod tests {
                 pub description: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         mod primary_key_of_2 {
@@ -275,10 +273,8 @@ mod tests {
                 pub description: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         mod primary_key_of_3 {
@@ -299,10 +295,8 @@ mod tests {
                 pub description: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         mod primary_key_of_4 {
@@ -325,17 +319,15 @@ mod tests {
                 pub description: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         mod primary_key_of_11 {
             use crate as pgorm;
             use crate::entity::prelude::*;
 
-            #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
+            #[derive(Clone, Debug, PartialEq, Eq, ActiveEnum)]
             #[pgorm(
                 rs_type = String,
                 db_type = ColumnType::String(StringLen::N(1)),
@@ -378,10 +370,8 @@ mod tests {
                 pub description: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         mod primary_key_of_12 {
@@ -420,10 +410,8 @@ mod tests {
                 pub description: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
     }
 }

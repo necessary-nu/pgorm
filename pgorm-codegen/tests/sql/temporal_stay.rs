@@ -9,7 +9,7 @@ pub struct Model {
     pub during: Range<i32>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::temporal_room::Entity,
@@ -20,11 +20,3 @@ pub enum Relation {
     )]
     TemporalRoom,
 }
-
-impl Related<super::temporal_room::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::TemporalRoom.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

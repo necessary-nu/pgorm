@@ -32,11 +32,10 @@ fn expr_sql(e: SimpleExpr) -> String {
 #[test]
 fn active_enum_trait_surface() {
     // `name()` is the database enum identifier: the explicit `enum_name` when
-    // one was given, and the Rust type name verbatim otherwise (note: NOT
-    // snake-cased, so an enum without `enum_name` yields a capitalised ident).
+    // one was given, and the Rust type name in snake_case otherwise.
     assert_eq!(Tea::name().to_string(), "tea");
-    assert_eq!(Category::name().to_string(), "Category");
-    assert_eq!(Color::name().to_string(), "Color");
+    assert_eq!(Category::name().to_string(), "category");
+    assert_eq!(Color::name().to_string(), "color");
     assert_eq!(MediaType::name().to_string(), "media_type");
 
     // `Value` is the backing Rust type: `String` for Tea/Category, `i32` for Color.
@@ -94,7 +93,7 @@ fn active_enum_trait_surface() {
         expr_sql(Tea::EverydayTea.as_enum()),
         r#"CAST('EverydayTea' AS tea)"#
     );
-    assert_eq!(expr_sql(Color::White.as_enum()), r#"CAST(1 AS "Color")"#);
+    assert_eq!(expr_sql(Color::White.as_enum()), r#"CAST(1 AS color)"#);
 
     // `values()` enumerates every variant's database value, in iterator order.
     assert_eq!(
@@ -203,10 +202,8 @@ mod casts {
         pub payload: Json,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]    on read, `select_as` /
@@ -345,10 +342,8 @@ mod bookings {
         pub slots: Slots,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:req:sql.ast.cast-shape+2/test]    the entity layer's casts — the

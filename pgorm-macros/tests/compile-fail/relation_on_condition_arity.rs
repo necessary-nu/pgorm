@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         has_many = super::Nothing,

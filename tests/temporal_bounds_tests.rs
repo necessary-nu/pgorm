@@ -40,10 +40,8 @@ mod temporal_probe {
         pub instant: DateTimeWithTimeZone,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The defect itself, at its smallest: one parameter, one placeholder.

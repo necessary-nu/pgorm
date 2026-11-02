@@ -7,16 +7,8 @@ pub struct Model {
     pub id: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(has_many = super::key_stay::Entity)]
     KeyStay,
 }
-
-impl Related<super::key_stay::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::KeyStay.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

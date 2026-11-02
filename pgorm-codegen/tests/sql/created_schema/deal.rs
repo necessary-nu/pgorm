@@ -13,7 +13,5 @@ pub struct Model {
     pub history: Option<Vec<Stage>>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-
-impl ActiveModelBehavior for ActiveModel {}

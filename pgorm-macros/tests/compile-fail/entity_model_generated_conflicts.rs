@@ -9,8 +9,6 @@ mod both_kinds {
         #[pgorm(generated_stored = Expr::col(Column::Id), generated_virtual = Expr::col(Column::Id))]
         pub copy: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod beside_identity {
@@ -24,8 +22,6 @@ mod beside_identity {
         #[pgorm(identity, generated_stored = Expr::col(Column::Id))]
         pub copy: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod beside_default {
@@ -39,8 +35,6 @@ mod beside_default {
         #[pgorm(generated_virtual = Expr::col(Column::Id), default_value = 1)]
         pub copy: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod beside_auto_increment {
@@ -53,8 +47,6 @@ mod beside_auto_increment {
         pub id: i32,
         pub base: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod virtual_key {
@@ -67,8 +59,6 @@ mod virtual_key {
         pub id: i32,
         pub base: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod virtual_unique {
@@ -82,8 +72,6 @@ mod virtual_unique {
         #[pgorm(unique, generated_virtual = Expr::col(Column::Id))]
         pub copy: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod virtual_indexed {
@@ -97,8 +85,6 @@ mod virtual_indexed {
         #[pgorm(generated_virtual = Expr::col(Column::Id), indexed)]
         pub copy: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 fn main() {}

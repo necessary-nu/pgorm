@@ -50,10 +50,8 @@ mod measures {
         pub label: Option<LabelSpan>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// One range type created over each remaining subtype.
@@ -112,10 +110,8 @@ mod subtypes {
         pub uuid: Id,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 use measures::{FloatRange, LabelSpan, Slot};

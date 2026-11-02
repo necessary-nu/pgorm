@@ -10,10 +10,8 @@ pub struct Model {
     pub str_vec: Option<StringVec>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-
-impl ActiveModelBehavior for ActiveModel {}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StringVec(pub Vec<String>);

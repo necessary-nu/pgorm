@@ -906,10 +906,8 @@ mod net_cursor {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:req:exec.cursor.binding-gaps+3/test]
@@ -1056,10 +1054,8 @@ mod cursor_composite {
         pub d: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// `(a, b)` pairs in ascending order, one row per id starting at 1.

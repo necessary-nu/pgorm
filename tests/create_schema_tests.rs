@@ -24,12 +24,8 @@ use tokio_postgres::error::SqlState;
 mod invoice_state {
     use pgorm::entity::prelude::*;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(
-        rs_type = String,
-        enum_name = "invoice_state",
-        schema_name = "billing"
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, ActiveEnum)]
+    #[pgorm(enum_name = "invoice_state", schema_name = "billing")]
     pub enum InvoiceState {
         #[pgorm(string_value = "draft")]
         Draft,
@@ -50,10 +46,8 @@ mod invoice {
         pub state: super::invoice_state::InvoiceState,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 use invoice_state::InvoiceState;

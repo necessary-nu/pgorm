@@ -50,7 +50,5 @@ pub struct Model {
     pub amount: Decimal,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-
-impl ActiveModelBehavior for ActiveModel {}

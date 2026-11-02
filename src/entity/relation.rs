@@ -568,7 +568,7 @@ impl From<RelationDef> for ForeignKeyCreateStatement {
 /// Creates a column definition for example to update a table.
 /// ```
 /// use pgorm_query::{ConditionType, FromItem, IntoName, Table, TableForeignKey, TableName};
-/// use pgorm::{alias, ColumnPairs, EnumIter, SqlName, PrimaryKeyTrait, RelationDef, RelationTrait, RelationType};
+/// use pgorm::{alias, ColumnPairs, SqlName, PrimaryKeyTrait, RelationDef, RelationTrait, RelationType};
 ///
 /// let relation = RelationDef {
 ///     rel_type: RelationType::HasOne,

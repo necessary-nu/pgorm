@@ -7,6 +7,7 @@ mod entity;
 mod entity_model;
 mod from_query_result;
 mod into_active_model;
+mod iterable;
 mod json_value_type;
 mod migration;
 mod model;

@@ -273,8 +273,8 @@ async fn linked_decode_errors() -> Result<(), Error> {
 mod tea {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = String, enum_name = "tea")]
+    #[derive(Clone, Debug, PartialEq, Eq, ActiveEnum)]
+    #[pgorm(enum_name = "tea")]
     pub enum Tea {
         #[pgorm(string_value = "EverydayTea")]
         EverydayTea,
@@ -289,7 +289,7 @@ mod tea {
         pub tea: Tea,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = pgorm::tests_cfg::cake::Entity,
@@ -298,14 +298,6 @@ mod tea {
         )]
         Cake,
     }
-
-    impl Related<pgorm::tests_cfg::cake::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Cake.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 impl pgorm::Related<tea::Entity> for cake::Entity {

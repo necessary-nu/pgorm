@@ -12,7 +12,7 @@ pub struct Model {
     pub body: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::tenant_task::Entity,
@@ -22,11 +22,3 @@ pub enum Relation {
     )]
     TenantTask,
 }
-
-impl Related<super::tenant_task::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::TenantTask.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

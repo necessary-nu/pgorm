@@ -8,7 +8,7 @@ pub struct Model {
     pub user_id: Option<i32> ,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::users::Entity,
@@ -23,23 +23,3 @@ pub enum Relation {
     #[pgorm(has_many = super::users_votes::Entity)]
     UsersVotes,
 }
-
-impl Related<super::users::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Users.def()
-    }
-}
-
-impl Related<super::users_saved_bills::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::UsersSavedBills.def()
-    }
-}
-
-impl Related<super::users_votes::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::UsersVotes.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

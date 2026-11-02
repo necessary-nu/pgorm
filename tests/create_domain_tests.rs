@@ -30,8 +30,8 @@ use tokio_postgres::error::SqlState;
 mod mood {
     use pgorm::entity::prelude::*;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = String, enum_name = "mood")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, ActiveEnum)]
+    #[pgorm(enum_name = "mood")]
     pub enum Mood {
         #[pgorm(string_value = "sad")]
         Sad,
@@ -68,10 +68,8 @@ mod line {
         pub codes: Vec<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// `temper`, keyed by a column of the domain `line.mood` is typed with: the
@@ -92,10 +90,8 @@ mod temper {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Neither entity declares the relation in its `Relation` enum: PostgreSQL

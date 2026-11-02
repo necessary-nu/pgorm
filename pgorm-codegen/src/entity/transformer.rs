@@ -19,7 +19,7 @@ pub struct EntityTransformer;
 impl EntityTransformer {
     // [spec:pgorm:sem:codegen.entity.transform+16]
     // [spec:pgorm:sem:codegen.entity.transform.inverse+1]
-    // [spec:pgorm:sem:codegen.entity.transform.conjunct+1]
+    // [spec:pgorm:sem:codegen.entity.transform.conjunct+2]
     // [spec:pgorm:req:codegen.entity.collisions+2]
     pub fn transform(table_create_stmts: Vec<TableCreateStatement>) -> Result<EntityWriter, Error> {
         let declared: Vec<TableIdent> = table_create_stmts
@@ -198,8 +198,8 @@ impl EntityTransformer {
                 if rel.self_referencing {
                     continue;
                 }
-                // This will cause compile error on the many side,
-                // got relation variant but without Related<T> implemented
+                // An inverse relation is built from this side's `Related` impl,
+                // which suffixed relations reaching one table together do not get
                 if rel.num_suffix > 0 {
                     continue;
                 }
@@ -313,8 +313,8 @@ impl EntityTransformer {
                 v.conjunct_relations
                     .retain(|conjunct_relation| !duplicated_to.contains(&conjunct_relation.to));
 
-                // Skip `impl Related ... { fn to() ... }` implementation block,
-                // if the same related entity is being referenced by a conjunct relation
+                // A relation to the entity a conjunct relation reaches leaves its
+                // `Related` impl to the `via` one, saying `related = false`
                 v.relations.iter_mut().for_each(|relation| {
                     if v.conjunct_relations
                         .iter()

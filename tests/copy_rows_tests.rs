@@ -561,10 +561,8 @@ mod item {
         pub qty: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:req:conn.copy.rows+3/test]    models are written and read by column name, in a transaction and through the metrics wrapper
@@ -664,12 +662,8 @@ mod entry {
     use pgorm::entity::prelude::*;
     use serde::{Deserialize, Serialize};
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(
-        rs_type = String,
-        enum_name = "phase",
-        schema_name = "audit"
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, ActiveEnum)]
+    #[pgorm(enum_name = "phase", schema_name = "audit")]
     pub enum Phase {
         #[pgorm(string_value = "open")]
         Open,
@@ -677,8 +671,8 @@ mod entry {
         Closed,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = String, enum_name = "tone")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, ActiveEnum)]
+    #[pgorm(enum_name = "tone")]
     pub enum Tone {
         #[pgorm(string_value = "calm")]
         Calm,
@@ -705,10 +699,8 @@ mod entry {
         pub extra: Option<Detail>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 fn entries() -> Vec<entry::Model> {
@@ -814,10 +806,8 @@ mod span {
         pub slot: Option<Slot>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Two range types created over a subtype a `RangeSubtype` reads, one over
@@ -1040,10 +1030,8 @@ mod multispan {
         pub slots: Option<Slots>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The multiranges created beside two range types over a subtype a

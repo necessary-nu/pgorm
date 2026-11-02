@@ -28,6 +28,7 @@ compiled.
 - [Running SQL by hand](#running-sql-by-hand)
 - [Transactions](#transactions)
 - [Entities and their attributes](#entities-and-their-attributes)
+- [What the derives write](#what-the-derives-write)
 - [Derive names](#derive-names)
 - [Attribute values that are Rust](#attribute-values-that-are-rust)
 - [Active models](#active-models)
@@ -437,10 +438,8 @@ pub struct Model {
     pub name: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-
-impl ActiveModelBehavior for ActiveModel {}
 ```
 
 Some details differ besides:
@@ -476,8 +475,8 @@ needs the new field:
 ```rust
 use pgorm::entity::prelude::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
-#[pgorm(rs_type = String, enum_name = "tea", schema_name = "kitchen")]
+#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]
+#[pgorm(schema_name = "kitchen")]
 pub enum Tea {
     #[pgorm(string_value = "EverydayTea")]
     EverydayTea,
@@ -485,6 +484,110 @@ pub enum Tea {
     BreakfastTea,
 }
 ```
+
+## What the derives write
+
+A SeaORM entity file carries lines every entity repeats: `EnumIter` beside
+each derive on an enum, the empty `impl ActiveModelBehavior for ActiveModel
+{}`, a `Related` impl that only restates a relation, and an `ActiveEnum`'s
+`rs_type` and `db_type` saying it is a PostgreSQL enum of strings. pgorm's
+derives write them, so the file holds only what it decides:
+
+```text
+// SeaORM
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "ripeness")]
+pub enum Ripeness {
+    #[sea_orm(string_value = "green")]
+    Green,
+    #[sea_orm(string_value = "ripe")]
+    Ripe,
+}
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[sea_orm(table_name = "fruit")]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    pub id: i32,
+    pub cake_id: Option<i32>,
+    pub ripeness: Ripeness,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::cake::Entity",
+        from = "Column::CakeId",
+        to = "super::cake::Column::Id"
+    )]
+    Cake,
+}
+
+impl Related<super::cake::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Cake.def()
+    }
+}
+
+impl ActiveModelBehavior for ActiveModel {}
+```
+
+```rust
+# mod cake { pub use pgorm::tests_cfg::cake::*; }
+# mod fruit {
+use pgorm::entity::prelude::*;
+
+#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]
+pub enum Ripeness {
+    Green,
+    Ripe,
+}
+
+#[derive(Clone, Debug, PartialEq, Entity)]
+#[pgorm(table_name = "fruit")]
+pub struct Model {
+    #[pgorm(primary_key)]
+    pub id: i32,
+    pub cake_id: Option<i32>,
+    pub ripeness: Ripeness,
+}
+
+#[derive(Copy, Clone, Debug, Relation)]
+pub enum Relation {
+    #[pgorm(
+        belongs_to = super::cake::Entity,
+        from = Column::CakeId,
+        to = super::cake::Column::Id
+    )]
+    Cake,
+}
+# }
+# fn main() {
+# use pgorm::entity::prelude::*;
+# let _ = <fruit::Entity as Related<cake::Entity>>::to();
+# assert_eq!(fruit::Ripeness::Green.to_value(), "green");
+# assert_eq!(fruit::Ripeness::name().to_string(), "ripeness");
+# }
+```
+
+- `Relation`, `Column` and `ActiveEnum` make their enums iterable
+  themselves. There is no `EnumIter` to derive or import.
+- `Entity` implements `ActiveModelBehavior` with no hooks. An entity with
+  hooks says `#[pgorm(hooks)]` on its `Model` and implements the trait
+  itself; without `hooks`, a second implementation is a conflict.
+- `Relation` implements `Related<F>` for each entity `F` exactly one of its
+  variants reaches, as that variant's definition, naming `F` by the path the
+  variant does. An entity two variants reach gets none, since only you know
+  which one you mean, and neither does a path through a junction
+  (`Related::via`): write those yourself. Where a junction's `Related` reaches
+  an entity one variant also reaches, mark the variant `related = false`.
+- An `ActiveEnum` naming neither `rs_type` nor `db_type` is a PostgreSQL enum
+  of strings. Each value is the variant's `string_value`, or else its name in
+  the `rename_all` style, snake_case by default, and the type is named by
+  `enum_name`, or else the enum's name in snake_case. SeaORM named a type
+  without `enum_name` after the enum verbatim, `Ripeness`; a schema created
+  that way keeps its name by saying `enum_name = "Ripeness"`. An enum stored
+  any other way names both keys: `rs_type = i32, db_type = ColumnType::Integer`.
 
 ## Derive names
 
@@ -503,7 +606,7 @@ gave derives SeaORM does not have.
 | `DeriveColumn` | `Column` |
 | `DeriveRelation` | `Relation` |
 | `DeriveActiveEnum` | `ActiveEnum` |
-| `DeriveDisplay` | `ActiveEnum`'s `display` key: `#[pgorm(rs_type = .., db_type = .., display)]` |
+| `DeriveDisplay` | `ActiveEnum`'s `display` key: `#[pgorm(display)]` |
 | `DeriveIntoActiveModel` | `IntoActiveModel` |
 | `DerivePartialModel` | `PartialModel`, which implements `FromQueryResult` too: derive it alone |
 | `FromQueryResult` | the same |
@@ -512,7 +615,8 @@ gave derives SeaORM does not have.
 | `DeriveCreatedRange` (pgorm's) | `CreatedRange` |
 | `DeriveMigrationName` | `MigrationName`, from `pgorm_migration` |
 | `DeriveIden`, and pgorm's `DeriveSqlName` | `SqlName`, pgorm-query's, with `#[iden = ".."]` for `#[sea_orm(iden = "..")]` |
-| `DeriveActiveModelBehavior` | `impl ActiveModelBehavior for ActiveModel {}`, written out |
+| `DeriveActiveModelBehavior` | gone: `Entity` implements the behaviour with no hooks, and `#[pgorm(hooks)]` leaves it to your impl |
+| `EnumIter` | gone: `Relation`, `Column` and `ActiveEnum` make their enums iterable |
 | `DerivePrimaryKey`, `DeriveActiveModel`, `DeriveCustomColumn` | gone: `Entity` writes the key and the active model |
 | `DeriveRelatedEntity` | gone, with Seaography |
 
@@ -527,8 +631,8 @@ name is.
 ```rust
 use pgorm::entity::prelude::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
-#[pgorm(rs_type = String, enum_name = "tea", display)]
+#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]
+#[pgorm(display)]
 pub enum Tea {
     #[pgorm(string_value = "EverydayTea", display_value = "Everyday")]
     EverydayTea,
@@ -607,7 +711,7 @@ pub struct Model {
     pub rank: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = Entity,
@@ -619,9 +723,7 @@ pub enum Relation {
     Parent,
 }
 
-impl ActiveModelBehavior for ActiveModel {}
-
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
+#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]
 #[pgorm(rs_type = i32, db_type = ColumnType::Integer)]
 pub enum Ripeness {
     #[pgorm(num_value = 0)]
@@ -1250,6 +1352,10 @@ for file in output.files {
 
 The schema is read with PostgreSQL's own parser, so it is read as
 PostgreSQL 18 reads it. Enums are told apart by schema as well as name.
+The files say only what the derives would not
+([What the derives write](#what-the-derives-write)): a `Related` impl only
+for a path through a junction, and an enum's `enum_name` and `string_value`
+only where they are not snake_case.
 What it cannot carry into an entity is refused by name rather than skipped,
 and that includes the output of `pg_dump --schema-only`, which adds its keys
 with `ALTER TABLE` and opens with `SET`s. Write the keys into each

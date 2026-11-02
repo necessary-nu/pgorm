@@ -1,0 +1,29 @@
+error: an enum stored as `rs_type` names the column type too, `db_type = ColumnType::..`; a PostgreSQL enum of strings names neither
+ --> tests/compile-fail/active_enum_storage.rs:4:9
+  |
+4 | #[pgorm(rs_type = String)]
+  |         ^^^^^^^
+
+error: a PostgreSQL enum's values are strings; an enum stored as numbers names `rs_type` and `db_type`
+  --> tests/compile-fail/active_enum_storage.rs:11:25
+   |
+11 |     #[pgorm(num_value = 1)]
+   |                         ^
+
+error: a PostgreSQL enum's values are its variants' names; an enum stored as its discriminants names `rs_type` and `db_type`
+  --> tests/compile-fail/active_enum_storage.rs:17:11
+   |
+17 |     One = 1,
+   |           ^
+
+error: unknown pgorm attribute `enum_nmae`
+  --> tests/compile-fail/active_enum_storage.rs:21:9
+   |
+21 | #[pgorm(enum_nmae = "tea")]
+   |         ^^^^^^^^^
+
+error: unknown pgorm attribute `string_valeu`
+  --> tests/compile-fail/active_enum_storage.rs:28:13
+   |
+28 |     #[pgorm(string_valeu = "big")]
+   |             ^^^^^^^^^^^^

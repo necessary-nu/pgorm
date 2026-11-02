@@ -40,10 +40,8 @@ mod active_account {
         pub active: bool,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The same columns through `checked_account`, which carries a check option.
@@ -59,10 +57,8 @@ mod checked_account {
         pub active: bool,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A row of the `account_total` materialized view: how many accounts are
@@ -78,10 +74,8 @@ mod account_total {
         pub total: i64,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 fn n(name: &str) -> Name {

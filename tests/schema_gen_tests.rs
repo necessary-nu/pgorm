@@ -22,10 +22,8 @@ mod factory {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod gadget {
@@ -40,17 +38,15 @@ mod gadget {
         pub batch: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod widget {
     use pgorm::entity::prelude::*;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = String, enum_name = "widget_grade")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, ActiveEnum)]
+    #[pgorm(enum_name = "widget_grade")]
     pub enum Grade {
         #[pgorm(string_value = "Gold")]
         Gold,
@@ -81,7 +77,7 @@ mod widget {
         pub factory_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::factory::Entity,
@@ -92,20 +88,6 @@ mod widget {
         #[pgorm(has_many = super::widget_tag::Entity)]
         WidgetTag,
     }
-
-    impl Related<super::widget_tag::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::WidgetTag.def()
-        }
-    }
-
-    impl Related<super::factory::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Factory.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod widget_tag {
@@ -120,7 +102,7 @@ mod widget_tag {
         pub tag: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::widget::Entity,
@@ -129,14 +111,6 @@ mod widget_tag {
         )]
         Widget,
     }
-
-    impl Related<super::widget::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Widget.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A composite key whose second column the database generates.
@@ -153,10 +127,8 @@ mod tenant_row {
         pub note: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A one-column key filled by an identity rather than the serial family.
@@ -170,10 +142,8 @@ mod identity_key {
         pub id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A one-column integer key with a default of its own, which the serial
@@ -189,10 +159,8 @@ mod defaulted_key {
         pub note: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A bare (unqualified) entity whose comments contain the one character the
@@ -210,10 +178,8 @@ mod quirk {
         pub plain: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// An entity whose only route to a database enum is an array column — the
@@ -221,8 +187,8 @@ mod quirk {
 mod palette {
     use pgorm::entity::prelude::*;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = String, enum_name = "palette_hue")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, ActiveEnum)]
+    #[pgorm(enum_name = "palette_hue")]
     pub enum Hue {
         #[pgorm(string_value = "Red")]
         Red,
@@ -239,14 +205,12 @@ mod palette {
         pub spare_hues: Option<Vec<Hue>>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// An `ActiveEnum` whose `db_type()` is not `ColumnType::Enum`.
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
+#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]
 #[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::N(1)))]
 pub enum Size {
     #[pgorm(string_value = "B")]

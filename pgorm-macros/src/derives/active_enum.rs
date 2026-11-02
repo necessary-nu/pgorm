@@ -1,9 +1,12 @@
-use super::case_style::{CaseStyle, CaseStyleHelpers};
-use super::util::{bare_code, camel_case_with_escaped_non_uax31};
-use heck::ToUpperCamelCase;
-use proc_macro2::TokenStream;
+use super::case_style::{CaseStyle, convert_case_str};
+use super::iterable::impl_iterable;
+use super::util::{
+    bare_code, camel_case_with_escaped_non_uax31, trim_starting_raw_identifier, unknown_pgorm_key,
+};
+use heck::ToSnakeCase;
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
-use syn::{Expr, Lit, LitInt, LitStr, Type, UnOp, parse};
+use syn::{Expr, Lit, LitInt, LitStr, Type, UnOp, parse, spanned::Spanned};
 
 enum Error {
     InputNotEnum,
@@ -13,6 +16,7 @@ enum Error {
 
 struct ActiveEnum {
     ident: syn::Ident,
+    vis: syn::Visibility,
     enum_name: String,
     rs_type: Type,
     /// The column type the values are stored as, the expression `db_type`
@@ -20,29 +24,121 @@ struct ActiveEnum {
     db_type: TokenStream,
     is_string: bool,
     variants: Vec<ActiveEnumVariant>,
-    rename_all: Option<CaseStyle>,
     display: bool,
 }
 
 struct ActiveEnumVariant {
-    ident: syn::Ident,
+    variant: syn::Variant,
+    value: Value,
+    display_value: Option<LitStr>,
+}
+
+/// The value a variant is stored as.
+enum Value {
+    String(String),
+    Number(LitInt),
+}
+
+/// A variant's own keys.
+struct VariantKeys {
     string_value: Option<LitStr>,
     num_value: Option<LitInt>,
     rename: Option<CaseStyle>,
     display_value: Option<LitStr>,
 }
 
+impl VariantKeys {
+    /// The keys on `variant`, any other being refused at the key; the
+    /// `display_value` that only `display` reads is refused without it.
+    // [spec:pgorm:syn:macros.derive.active-enum+5]
+    fn parse(variant: &syn::Variant, display: bool) -> syn::Result<Self> {
+        let mut keys = Self {
+            string_value: None,
+            num_value: None,
+            rename: None,
+            display_value: None,
+        };
+        for attr in variant
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("pgorm"))
+        {
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("string_value") {
+                    keys.string_value = Some(meta.value()?.parse::<LitStr>()?);
+                } else if meta.path.is_ident("num_value") {
+                    keys.num_value = Some(meta.value()?.parse::<LitInt>()?);
+                } else if meta.path.is_ident("display_value") {
+                    let value = meta.value()?.parse::<LitStr>()?;
+                    // An opt-in `Display` is what reads it, so without one
+                    // the text would be dropped unread.
+                    if !display {
+                        return Err(syn::Error::new_spanned(
+                            &value,
+                            "`display_value` is the text the `display` key writes: add \
+                             `display` to the enum's `#[pgorm(..)]`",
+                        ));
+                    }
+                    keys.display_value = Some(value);
+                } else if meta.path.is_ident("rename") {
+                    keys.rename = Some((&meta).try_into()?);
+                } else {
+                    return Err(unknown_pgorm_key(&meta));
+                }
+                Ok(())
+            })?;
+        }
+        Ok(keys)
+    }
+}
+
+/// The integer a variant's discriminant writes, a negative literal included.
+fn discriminant(variant: &syn::Variant) -> Result<Option<LitInt>, Error> {
+    let span = variant.ident.span();
+    match &variant.discriminant {
+        None => Ok(None),
+        Some((_, Expr::Lit(exprlit))) => match &exprlit.lit {
+            Lit::Int(litint) => Ok(Some(litint.clone())),
+            _ => Err(Error::TT(quote_spanned! {
+                span => compile_error!("Enum variant discriminant is not an integer");
+            })),
+        },
+        // Rust writes a negative discriminant as a unary minus on a literal.
+        Some((_, Expr::Unary(unary))) => match (&unary.op, &*unary.expr) {
+            (UnOp::Neg(_), Expr::Lit(exprlit)) => match &exprlit.lit {
+                Lit::Int(litint) => {
+                    let negative = quote! { -#litint };
+                    Ok(Some(parse(negative.into()).map_err(Error::Syn)?))
+                }
+                _ => Err(Error::TT(quote_spanned! {
+                    span => compile_error!("Enum variant discriminant is not an integer");
+                })),
+            },
+            (UnOp::Neg(_), _) => Ok(None),
+            _ => Err(Error::TT(quote_spanned! {
+                span => compile_error!("Only - token is supported in enum variants, not ! and *");
+            })),
+        },
+        Some(_) => Ok(None),
+    }
+}
+
 impl ActiveEnum {
-    // [spec:pgorm:syn:macros.derive.active-enum+4]
+    /// An enum with neither `rs_type` nor `db_type` is a PostgreSQL enum of
+    /// strings, each value its variant's `string_value` or else its name in
+    /// the `rename` or `rename_all` style, snake_case by default, and its
+    /// type the enum's name in snake_case unless `enum_name` says otherwise.
+    /// An enum stored any other way names both keys, and its values are
+    /// what its variants write, falling back to their discriminants.
+    // [spec:pgorm:syn:macros.derive.active-enum+5]
+    // [spec:pgorm:sem:macros.derive.boilerplate]
     // [spec:pgorm:req:macros.derive.code-values+2]
     fn new(input: syn::DeriveInput) -> Result<Self, Error> {
         let ident_span = input.ident.span();
         let ident = input.ident;
 
-        let mut enum_name = ident.to_string().to_upper_camel_case();
-        let mut rs_type = Err(Error::TT(quote_spanned! {
-            ident_span => compile_error!("Missing macro attribute `rs_type`");
-        }));
+        let mut enum_name = None;
+        let mut rs_type: Option<(Type, Span)> = None;
         let mut db_type: Option<Expr> = None;
         let mut rename_all = None;
         let mut schema_name: Option<String> = None;
@@ -55,7 +151,8 @@ impl ActiveEnum {
             .try_for_each(|attr| {
                 attr.parse_nested_meta(|meta| {
                     if meta.path.is_ident("rs_type") {
-                        rs_type = Ok(bare_code(&meta, "rs_type")?);
+                        let span = meta.path.span();
+                        rs_type = Some((bare_code(&meta, "rs_type")?, span));
                     } else if meta.path.is_ident("db_type") {
                         db_type = Some(bare_code(&meta, "db_type")?);
                     } else if meta.path.is_ident("schema_name") {
@@ -63,17 +160,14 @@ impl ActiveEnum {
                         schema_name = Some(litstr.value());
                     } else if meta.path.is_ident("enum_name") {
                         let litstr: LitStr = meta.value()?.parse()?;
-                        enum_name = litstr.value();
+                        enum_name = Some(litstr.value());
                     } else if meta.path.is_ident("rename_all") {
                         rename_all = Some((&meta).try_into()?);
                     } else if meta.path.is_ident("display") {
                         // [spec:pgorm:req:macros.derive.names]
                         display = true;
                     } else {
-                        return Err(meta.error(format!(
-                            "Unknown attribute parameter found: {:?}",
-                            meta.path.get_ident()
-                        )));
+                        return Err(unknown_pgorm_key(&meta));
                     }
                     Ok(())
                 })
@@ -85,54 +179,69 @@ impl ActiveEnum {
             _ => return Err(Error::InputNotEnum),
         };
 
-        let mut is_string = rename_all.is_some();
+        let enum_name =
+            enum_name.unwrap_or_else(|| trim_starting_raw_identifier(&ident).to_snake_case());
+
+        let (rs_type, db_type) = match (rs_type, db_type) {
+            (None, None) => (None, None),
+            (Some((rs_type, _)), Some(db_type)) => (Some(rs_type), Some(db_type)),
+            (Some((_, span)), None) => {
+                return Err(Error::Syn(syn::Error::new(
+                    span,
+                    "an enum stored as `rs_type` names the column type too, `db_type = \
+                     ColumnType::..`; a PostgreSQL enum of strings names neither",
+                )));
+            }
+            (None, Some(_)) => {
+                return Err(Error::TT(quote_spanned! {
+                    ident_span => compile_error!("Missing macro attribute `rs_type`");
+                }));
+            }
+        };
+        let postgres_enum = db_type.is_none();
+
+        let mut is_string = postgres_enum || rename_all.is_some();
         let mut is_int = false;
         let mut variants = Vec::new();
 
         for variant in variant_vec {
-            let variant_span = variant.ident.span();
-            let mut string_value = None;
-            let mut num_value = None;
-            let mut rename_rule = None;
-            let mut display_value = None;
-
-            for attr in variant.attrs.iter() {
-                if !attr.path().is_ident("pgorm") {
-                    continue;
+            let keys = VariantKeys::parse(&variant, display).map_err(Error::Syn)?;
+            if let Some(num_value) = &keys.num_value {
+                if postgres_enum {
+                    return Err(Error::Syn(syn::Error::new_spanned(
+                        num_value,
+                        "a PostgreSQL enum's values are strings; an enum stored as numbers \
+                         names `rs_type` and `db_type`",
+                    )));
                 }
-                attr.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("string_value") {
-                        is_string = true;
-                        string_value = Some(meta.value()?.parse::<LitStr>()?);
-                    } else if meta.path.is_ident("num_value") {
-                        is_int = true;
-                        num_value = Some(meta.value()?.parse::<LitInt>()?);
-                    } else if meta.path.is_ident("display_value") {
-                        let value = meta.value()?.parse::<LitStr>()?;
-                        // An opt-in `Display` is what reads it, so without one
-                        // the text would be dropped unread.
-                        if !display {
-                            return Err(syn::Error::new_spanned(
-                                &value,
-                                "`display_value` is the text the `display` key writes: add \
-                                 `display` to the enum's `#[pgorm(..)]`",
-                            ));
-                        }
-                        display_value = Some(value);
-                    } else if meta.path.is_ident("rename") {
-                        is_string = true;
-                        rename_rule = Some((&meta).try_into()?);
-                    } else {
-                        return Err(meta.error(format!(
-                            "Unknown attribute parameter found: {:?}",
-                            meta.path.get_ident()
-                        )));
-                    }
-
-                    Ok(())
-                })
-                .map_err(Error::Syn)?;
+                is_int = true;
             }
+            is_string |= keys.string_value.is_some() || keys.rename.is_some();
+            let value = if let Some(string_value) = &keys.string_value {
+                Some(Value::String(string_value.value()))
+            } else if let Some(num_value) = &keys.num_value {
+                Some(Value::Number(num_value.clone()))
+            } else if let Some(rename) = keys.rename.or(rename_all) {
+                Some(Value::String(convert_case_str(
+                    &trim_starting_raw_identifier(&variant.ident),
+                    Some(rename),
+                )))
+            } else if postgres_enum {
+                if let Some((_, discriminant)) = &variant.discriminant {
+                    return Err(Error::Syn(syn::Error::new_spanned(
+                        discriminant,
+                        "a PostgreSQL enum's values are its variants' names; an enum stored \
+                         as its discriminants names `rs_type` and `db_type`",
+                    )));
+                }
+                Some(Value::String(
+                    trim_starting_raw_identifier(&variant.ident).to_snake_case(),
+                ))
+            } else {
+                let number = discriminant(&variant)?;
+                is_int |= number.is_some();
+                number.map(Value::Number)
+            };
 
             if is_string && is_int {
                 return Err(Error::TT(quote_spanned! {
@@ -140,59 +249,23 @@ impl ActiveEnum {
                 }));
             }
 
-            if string_value.is_none() && num_value.is_none() && rename_rule.or(rename_all).is_none()
-            {
-                match variant.discriminant {
-                    Some((_, Expr::Lit(exprlit))) => {
-                        if let Lit::Int(litint) = exprlit.lit {
-                            is_int = true;
-                            num_value = Some(litint);
-                        } else {
-                            return Err(Error::TT(quote_spanned! {
-                                variant_span => compile_error!("Enum variant discriminant is not an integer");
-                            }));
-                        }
-                    }
-                    //rust doesn't provide negative variants in enums as a single LitInt, this workarounds that
-                    Some((_, Expr::Unary(exprnlit))) => {
-                        if let UnOp::Neg(_) = exprnlit.op {
-                            if let Expr::Lit(exprlit) = *exprnlit.expr
-                                && let Lit::Int(litint) = exprlit.lit
-                            {
-                                let negative_token = quote! { -#litint };
-                                let litint = parse(negative_token.into()).unwrap();
-
-                                is_int = true;
-                                num_value = Some(litint);
-                            }
-                        } else {
-                            return Err(Error::TT(quote_spanned! {
-                                variant_span => compile_error!("Only - token is supported in enum variants, not ! and *");
-                            }));
-                        }
-                    }
-                    _ => {
-                        return Err(Error::TT(quote_spanned! {
-                            variant_span => compile_error!("Missing macro attribute, either `string_value`, `num_value` or `rename` should be specified or specify repr[X] and have a value for every entry");
-                        }));
-                    }
-                }
-            }
+            let Some(value) = value else {
+                let variant_span = variant.ident.span();
+                return Err(Error::TT(quote_spanned! {
+                    variant_span => compile_error!("Missing macro attribute, either `string_value`, `num_value` or `rename` should be specified or specify repr[X] and have a value for every entry");
+                }));
+            };
 
             variants.push(ActiveEnumVariant {
-                ident: variant.ident,
-                string_value,
-                num_value,
-                rename: rename_rule,
-                display_value,
+                variant,
+                value,
+                display_value: keys.display_value,
             });
         }
 
-        // With no `db_type`, the values are a PostgreSQL enum's, which only
-        // an enum of strings has.
         let db_type = match db_type {
             Some(db_type) => quote! { #db_type },
-            None if is_string => {
+            None => {
                 let schema = match &schema_name {
                     Some(schema) => quote! {
                         Some(pgorm::pgorm_query::Name::runtime(#schema))
@@ -207,28 +280,28 @@ impl ActiveEnum {
                     }
                 }
             }
-            None => {
-                return Err(Error::TT(quote_spanned! {
-                    ident_span => compile_error!("Missing macro attribute `db_type`: an enum stored as numbers names its column type, `db_type = ColumnType::Integer`");
-                }));
-            }
         };
 
         Ok(ActiveEnum {
             ident,
+            vis: input.vis,
             enum_name,
-            rs_type: rs_type?,
+            rs_type: rs_type.unwrap_or_else(|| syn::parse_quote!(String)),
             db_type,
             is_string,
             variants,
-            rename_all,
             display,
         })
     }
 
-    // [spec:pgorm:sem:macros.derive.active-enum.expansion+4]
+    // [spec:pgorm:sem:macros.derive.active-enum.expansion+5]
     fn expand(&self) -> syn::Result<TokenStream> {
         let mut expanded = self.impl_active_enum();
+        expanded.extend(impl_iterable(
+            &self.ident,
+            &self.vis,
+            self.variants.iter().map(|variant| &variant.variant),
+        ));
         if self.display {
             expanded.extend(self.impl_display());
         }
@@ -236,16 +309,16 @@ impl ActiveEnum {
         Ok(expanded)
     }
 
-    // [spec:pgorm:sem:macros.derive.active-enum.expansion+4]
+    // [spec:pgorm:sem:macros.derive.active-enum.expansion+5]
     fn impl_display(&self) -> TokenStream {
         let ident = &self.ident;
-        let variant_idents = self.variants.iter().map(|variant| &variant.ident);
+        let variant_idents = self.variants.iter().map(|variant| &variant.variant.ident);
         let variant_display = self
             .variants
             .iter()
             .map(|variant| match &variant.display_value {
                 Some(value) => value.value(),
-                None => variant.ident.to_string(),
+                None => variant.variant.ident.to_string(),
             });
 
         quote!(
@@ -268,33 +341,19 @@ impl ActiveEnum {
             db_type,
             is_string,
             variants,
-            rename_all,
             ..
         } = self;
 
-        let variant_idents: Vec<syn::Ident> = variants
+        let variant_idents: Vec<&syn::Ident> = variants
             .iter()
-            .map(|variant| variant.ident.clone())
+            .map(|variant| &variant.variant.ident)
             .collect();
 
         let variant_values: Vec<TokenStream> = variants
             .iter()
-            .map(|variant| {
-                let variant_span = variant.ident.span();
-
-                if let Some(string_value) = &variant.string_value {
-                    let string = string_value.value();
-                    quote! { #string }
-                } else if let Some(num_value) = &variant.num_value {
-                    quote! { #num_value }
-                } else if let Some(rename_rule) = variant.rename.or(*rename_all) {
-                    let variant_ident = variant.ident.convert_case(Some(rename_rule));
-                    quote! { #variant_ident }
-                } else {
-                    quote_spanned! {
-                        variant_span => compile_error!("Missing macro attribute, either `string_value`, `num_value` or `rename_all` should be specified");
-                    }
-                }
+            .map(|variant| match &variant.value {
+                Value::String(string) => quote! { #string },
+                Value::Number(number) => quote! { #number },
             })
             .collect();
 
@@ -306,17 +365,11 @@ impl ActiveEnum {
 
         let enum_name_iden = format_ident!("{}Enum", ident);
 
-        let str_variants: Vec<String> = variants
+        let str_variants: Vec<&String> = variants
             .iter()
-            .filter_map(|variant| {
-                variant
-                    .string_value
-                    .as_ref()
-                    .map(|string_value| string_value.value())
-                    .or(variant
-                        .rename
-                        .or(*rename_all)
-                        .map(|rename| variant.ident.convert_case(Some(rename))))
+            .filter_map(|variant| match &variant.value {
+                Value::String(string) => Some(string),
+                Value::Number(_) => None,
             })
             .collect();
 
@@ -333,7 +386,7 @@ impl ActiveEnum {
 
             quote!(
                 #[doc = " Generated by pgorm-macros"]
-                #[derive(Debug, Clone, PartialEq, Eq, pgorm::EnumIter)]
+                #[derive(Debug, Clone, PartialEq, Eq)]
                 pub enum #enum_variant_iden {
                     #(
                         #[doc = " Generated by pgorm-macros"]
@@ -356,9 +409,9 @@ impl ActiveEnum {
                 impl #ident {
                     #[doc = " Generated by pgorm-macros"]
                     pub fn name_values() -> Vec<pgorm::pgorm_query::Name> {
-                        <#enum_variant_iden as pgorm::strum::IntoEnumIterator>::iter()
-                            .map(pgorm::pgorm_query::Name::new)
-                            .collect()
+                        vec![
+                            #( pgorm::pgorm_query::Name::new(#enum_variant_iden::#enum_variants), )*
+                        ]
                     }
                 }
             )

@@ -21,10 +21,8 @@ mod net_decode {
         pub gateway: Option<IpNetwork>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 fn net(s: &str) -> IpNetwork {
@@ -444,7 +442,7 @@ impl FromQueryResult for WideProbe {
     }
 }
 
-#[derive(EnumIter, SqlName)]
+#[derive(Clone, Copy, Debug, Column)]
 enum ResultCol {
     Num,
     Word,
@@ -587,10 +585,8 @@ mod big_counter {
         pub counter: i64,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:req:exec.cursor.binding-coerce+2/test]    a `u64` reaches the

@@ -19,7 +19,7 @@ pub struct Model {
     pub cake_id: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = Entity,
@@ -52,11 +52,3 @@ pub enum Relation {
     )]
     Cake,
 }
-
-impl Related<super::cake::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Cake.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

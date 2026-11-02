@@ -427,10 +427,8 @@ mod tests {
                 pub status: String,
             }
 
-            #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+            #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {}
-
-            impl ActiveModelBehavior for ActiveModel {}
         }
 
         assert_eq!(
@@ -513,10 +511,8 @@ mod tests {
             pub mood: String,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+        #[derive(Copy, Clone, Debug, Relation)]
         pub enum Relation {}
-
-        impl ActiveModelBehavior for ActiveModel {}
     }
 
     // [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]    a column whose

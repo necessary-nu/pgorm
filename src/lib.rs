@@ -175,7 +175,4 @@ pub use pgorm_sql_macro::prql;
 pub use pgorm_query;
 pub use pgorm_query::{AliasName, Values, alias};
 
-pub use pgorm_macros::EnumIter;
-pub use strum;
-
 pub use tokio_postgres::types;

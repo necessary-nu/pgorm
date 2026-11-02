@@ -1228,10 +1228,8 @@ mod peers {
             pub nickname: String,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+        #[derive(Copy, Clone, Debug, Relation)]
         pub enum Relation {}
-
-        impl ActiveModelBehavior for ActiveModel {}
     }
 
     pub mod member_link {
@@ -1246,7 +1244,7 @@ mod peers {
             pub peer_id: i32,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+        #[derive(Copy, Clone, Debug, Relation)]
         pub enum Relation {
             #[pgorm(
                 belongs_to = super::member::Entity,
@@ -1261,8 +1259,6 @@ mod peers {
             )]
             Peer,
         }
-
-        impl ActiveModelBehavior for ActiveModel {}
     }
 
     /// A member to the peers of its peers: the junction twice, and the member
@@ -1407,10 +1403,8 @@ mod alias_collision {
         pub mimic: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:sem:query.graph.writer+4/test]    a column literally named like
@@ -1475,10 +1469,8 @@ mod unicode_collision {
         pub mimic: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:sem:query.graph.writer+4/test]    a multibyte name whose head
@@ -1542,10 +1534,8 @@ mod long_name {
         pub wide: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:sem:query.graph.writer+4/test]    every valid PostgreSQL column

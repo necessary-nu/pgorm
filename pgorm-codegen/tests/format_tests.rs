@@ -7,14 +7,16 @@ use pgorm_codegen::WithSerde;
 use pgorm_query::{ColumnDef, ColumnType, Name, StringLen, Table};
 
 // [spec:pgorm:req:macros.derive.one-form/test]    codegen writes the one form
-// [spec:pgorm:def:codegen.entity.compact+3/test]    the compact format emits
-// imports, Model, Relation, the Related impls and ActiveModelBehavior, in order
+// [spec:pgorm:def:codegen.entity.compact+4/test]    the compact format emits
+// imports, Model and Relation, in order, and leaves the `Related` impl one
+// relation reaches and the behaviour with no hooks to the derives
 #[test]
 fn compact_format_emits_its_blocks_in_order() {
     let generated = generate(vec![cake(), fruit()], Opts::default());
-    let blocks = blocks(generated.file("fruit.rs"));
+    let fruit = generated.file("fruit.rs");
+    let blocks = blocks(fruit);
 
-    assert_eq!(blocks.len(), 5, "{blocks:#?}");
+    assert_eq!(blocks.len(), 3, "{blocks:#?}");
     assert_starts_with(blocks[0], "use pgorm::entity::prelude::*;");
     assert_starts_with(
         blocks[1],
@@ -24,16 +26,13 @@ fn compact_format_emits_its_blocks_in_order() {
     );
     assert_starts_with(
         blocks[2],
-        "#[derive(Copy, Clone, Debug, EnumIter, Relation)] pub enum Relation",
+        "#[derive(Copy, Clone, Debug, Relation)] pub enum Relation",
     );
-    assert_starts_with(blocks[3], "impl Related<super::cake::Entity> for Entity");
-    assert_eq!(
-        norm(blocks[4]),
-        norm("impl ActiveModelBehavior for ActiveModel {}")
-    );
+    assert_not_contains(fruit, "impl Related");
+    assert_not_contains(fruit, "ActiveModelBehavior");
 }
 
-// [spec:pgorm:def:codegen.entity.compact+3/test]    the `schema_name` part of the
+// [spec:pgorm:def:codegen.entity.compact+4/test]    the `schema_name` part of the
 // Model attribute appears only when configured, and an entity with no relations
 // emits the empty `pub enum Relation {}`
 #[test]
@@ -241,7 +240,7 @@ fn compact_model_pk_membership_uses_raw_column_name() {
     );
 }
 
-// [spec:pgorm:def:codegen.entity.compact+3/test]    each section is one
+// [spec:pgorm:def:codegen.entity.compact+4/test]    each section is one
 // contiguous blank-line-separated block, with the generated header prepended
 #[test]
 fn sections_are_one_contiguous_block_each() {

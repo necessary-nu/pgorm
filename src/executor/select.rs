@@ -255,10 +255,10 @@ where
     /// ```no_run
     /// # #[cfg(feature = "macros")]
     /// # {
-    /// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, Column, EnumIter};
+    /// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, Column};
     /// #
     /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
-    /// #[derive(Copy, Clone, Debug, EnumIter, Column)]
+    /// #[derive(Copy, Clone, Debug, Column)]
     /// enum QueryAs {
     ///     CakeName,
     /// }
@@ -279,9 +279,9 @@ where
     /// ```
     /// # #[cfg(feature = "macros")]
     /// # {
-    /// use pgorm::{entity::*, query::*, tests_cfg::cake, Column, EnumIter};
+    /// use pgorm::{entity::*, query::*, tests_cfg::cake, Column};
     ///
-    /// #[derive(Copy, Clone, Debug, EnumIter, Column)]
+    /// #[derive(Copy, Clone, Debug, Column)]
     /// enum QueryAs {
     ///     CakeName,
     /// }
@@ -302,10 +302,10 @@ where
     /// ```no_run
     /// # #[cfg(feature = "macros")]
     /// # {
-    /// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, Column, EnumIter};
+    /// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, Column};
     /// #
     /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
-    /// #[derive(Copy, Clone, Debug, EnumIter, Column)]
+    /// #[derive(Copy, Clone, Debug, Column)]
     /// enum QueryAs {
     ///     CakeName,
     ///     NumOfCakes,
