@@ -94,14 +94,14 @@ impl IntoActiveModel {
 }
 
 /// Method to derive the ActiveModel from the [ActiveModelTrait](pgorm::ActiveModelTrait)
-// [spec:pgorm:sem:macros.derive.active-model+4]
+// [spec:pgorm:sem:macros.derive.active-model+5]
 pub fn expand_into_active_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
 
     match IntoActiveModel::new(input) {
         Ok(model) => model.expand(),
         Err(Error::InputNotStruct) => Ok(quote_spanned! {
-            ident_span => compile_error!("you can only derive IntoActiveModel on structs");
+            ident_span => compile_error!("you can only derive `IntoActiveModel` on structs");
         }),
         Err(Error::Syn(err)) => Err(err),
     }

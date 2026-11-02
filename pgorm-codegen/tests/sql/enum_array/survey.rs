@@ -3,7 +3,7 @@ use pgorm::entity::prelude::*;
 use super::pgorm_active_enums::Mood;
 use super::pgorm_active_enums::Tier;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+#[derive(Clone, Debug, PartialEq, Entity, Eq)]
 #[pgorm(table_name = "survey")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -19,7 +19,7 @@ pub struct Model {
     pub log: Option<Vec<Mood>>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

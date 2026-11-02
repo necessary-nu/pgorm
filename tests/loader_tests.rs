@@ -316,7 +316,7 @@ pub async fn insert_cake_baker(
 mod ledger {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(schema_name = "public", table_name = "ledger")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -325,7 +325,7 @@ mod ledger {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -387,7 +387,7 @@ impl Related<ledger::Entity> for baker::Entity {
 mod padded {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "padded")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -396,7 +396,7 @@ mod padded {
         pub code: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -431,7 +431,7 @@ impl Related<bakery::Entity> for padded::Entity {
 mod tagged {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "tagged")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -440,7 +440,7 @@ mod tagged {
         pub visible: bool,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

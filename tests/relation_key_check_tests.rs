@@ -19,7 +19,7 @@ use tokio_postgres::error::SqlState;
 mod shelf {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "shelf")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -27,7 +27,7 @@ mod shelf {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(has_many = "super::loose_book::Entity")]
         LooseBook,
@@ -46,7 +46,7 @@ mod shelf {
 mod loose_book {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "loose_book")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -54,7 +54,7 @@ mod loose_book {
         pub shelf_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::shelf::Entity",
@@ -78,7 +78,7 @@ mod loose_book {
 mod later_book {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "later_book")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -86,7 +86,7 @@ mod later_book {
         pub shelf_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::shelf::Entity",
@@ -105,7 +105,7 @@ mod later_book {
 mod tight_book {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "tight_book")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -113,7 +113,7 @@ mod tight_book {
         pub shelf_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::shelf::Entity",
@@ -158,7 +158,7 @@ async fn create<E: EntityTrait>(db: &DatabaseConnection, entity: E) -> Result<St
 /// having no shelf: `load_one` answers `None` for it, a graph's optional slot
 /// pairs it with `None` and a required slot leaves it out, as the shelf's
 /// `load_many` and `find_related` do.
-// [spec:pgorm:def:entity.relation.def+11/test]    against a live server: a NOT ENFORCED relation
+// [spec:pgorm:def:entity.relation.def+12/test]    against a live server: a NOT ENFORCED relation
 // creates the key unchecked, and its readers take an orphan as having no related row
 // [spec:pgorm:req:entity.relation.fk+5/test]
 #[pgorm_macros::test]
@@ -234,7 +234,7 @@ async fn a_not_enforced_relation_admits_orphans() -> Result<(), Error> {
 /// checked at commit: a transaction may write a book before its shelf, and a
 /// book whose shelf never comes is refused at commit (`23503`), where the
 /// plain key refuses the first insert.
-// [spec:pgorm:def:entity.relation.def+11/test]    against a live server: a deferred relation's
+// [spec:pgorm:def:entity.relation.def+12/test]    against a live server: a deferred relation's
 // key is checked at commit
 // [spec:pgorm:req:entity.relation.fk+5/test]
 #[pgorm_macros::test]

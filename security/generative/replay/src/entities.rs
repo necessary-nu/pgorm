@@ -32,7 +32,7 @@ pub mod account {
     use pgorm::entity::prelude::*;
     use serde::{Deserialize, Serialize};
 
-    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum, Serialize, Deserialize)]
     #[pgorm(
         rs_type = "String",
         db_type = "Enum",
@@ -46,7 +46,7 @@ pub mod account {
         Busy,
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize, Deserialize)]
     #[pgorm(table_name = "accounts", schema_name = "fixture")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -67,7 +67,7 @@ pub mod account {
         pub state: State,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     #[async_trait::async_trait]
@@ -94,7 +94,7 @@ pub mod note {
     use pgorm::entity::prelude::*;
     use serde::{Deserialize, Serialize};
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize, Deserialize)]
     #[pgorm(table_name = "notes", schema_name = "fixture")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -104,7 +104,7 @@ pub mod note {
         pub body: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -114,7 +114,7 @@ pub mod note {
 pub mod room {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "rooms", schema_name = "fixture")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -124,7 +124,7 @@ pub mod room {
         pub rate: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -134,7 +134,7 @@ pub mod room {
 pub mod stay {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "stays", schema_name = "fixture")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -144,7 +144,7 @@ pub mod stay {
         pub during: Range<Date>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

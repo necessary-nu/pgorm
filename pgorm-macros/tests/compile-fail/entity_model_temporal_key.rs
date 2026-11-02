@@ -1,7 +1,7 @@
 mod period_outside_the_key {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "period_outside_the_key")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -16,7 +16,7 @@ mod period_outside_the_key {
 mod period_before_the_end {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "period_before_the_end")]
     pub struct Model {
         #[pgorm(primary_key, without_overlaps)]
@@ -31,7 +31,7 @@ mod period_before_the_end {
 mod period_alone {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "period_alone")]
     pub struct Model {
         #[pgorm(primary_key, without_overlaps)]

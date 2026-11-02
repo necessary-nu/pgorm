@@ -10,7 +10,7 @@ use pretty_assertions::assert_eq;
 mod net_decode {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "net_decode")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -21,7 +21,7 @@ mod net_decode {
         pub gateway: Option<IpNetwork>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -444,7 +444,7 @@ impl FromQueryResult for WideProbe {
     }
 }
 
-#[derive(EnumIter, DeriveSqlName)]
+#[derive(EnumIter, SqlName)]
 enum ResultCol {
     Num,
     Word,
@@ -579,7 +579,7 @@ async fn decode_json() -> Result<(), Error> {
 mod big_counter {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "big_counter")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -587,7 +587,7 @@ mod big_counter {
         pub counter: i64,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

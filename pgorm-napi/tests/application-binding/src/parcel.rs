@@ -7,7 +7,7 @@ use pgorm::entity::prelude::*;
 
 use super::account::Mood;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "parcels", schema_name = "napi_entities")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -26,7 +26,7 @@ pub struct Model {
     pub codes: Vec<String>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

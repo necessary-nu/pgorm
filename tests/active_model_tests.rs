@@ -17,7 +17,7 @@ mod row {
     use pgorm::entity::prelude::*;
     use serde::{Deserialize, Serialize};
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize, Deserialize)]
     #[pgorm(table_name = "am_row")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -26,7 +26,7 @@ mod row {
         pub note: Option<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -37,7 +37,7 @@ mod row {
 mod manual_key {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "am_manual_key")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -45,7 +45,7 @@ mod manual_key {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -54,7 +54,7 @@ mod manual_key {
 mod pk2 {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "am_pk2")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -64,7 +64,7 @@ mod pk2 {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -73,7 +73,7 @@ mod pk2 {
 mod pk3 {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "am_pk3")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -85,7 +85,7 @@ mod pk3 {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -94,7 +94,7 @@ mod pk3 {
 mod pk4 {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "am_pk4")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -108,7 +108,7 @@ mod pk4 {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -120,7 +120,7 @@ mod sql_renamed {
     use pgorm::entity::prelude::*;
     use serde::{Deserialize, Serialize};
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize, Deserialize)]
     #[pgorm(table_name = "am_sql_renamed")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -130,7 +130,7 @@ mod sql_renamed {
         pub note: Option<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -142,7 +142,7 @@ mod serde_renamed {
     use pgorm::entity::prelude::*;
     use serde::{Deserialize, Serialize};
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize, Deserialize)]
     #[pgorm(table_name = "am_serde_renamed")]
     #[serde(rename_all = "camelCase")]
     pub struct Model {
@@ -153,7 +153,7 @@ mod serde_renamed {
         pub note: Option<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -629,21 +629,21 @@ mod row_dto {
     use pgorm::entity::prelude::*;
 
     /// `Option<V>` fields: `Some` writes, `None` leaves the column alone.
-    #[derive(DeriveIntoActiveModel)]
+    #[derive(IntoActiveModel)]
     pub struct NewRow {
         pub name: String,
         pub note: Option<String>,
     }
 
     /// `Option<Option<V>>` fields: the extra rung that can write an explicit NULL.
-    #[derive(DeriveIntoActiveModel)]
+    #[derive(IntoActiveModel)]
     pub struct UpdateRow {
         pub note: Option<Option<String>>,
     }
 }
 use row_dto::{NewRow, UpdateRow};
 
-// [spec:pgorm:req:entity.active-model.into+2/test]    the blanket identity
+// [spec:pgorm:req:entity.active-model.into+3/test]    the blanket identity
 // `IntoActiveModel` impl, the derived `Model -> ActiveModel` conversion putting
 // every field in `Unchanged`, and the `IntoActiveValue` state mapping for
 // `Option<V>`, `Option<Option<V>>` and the plain scalar impls
@@ -704,7 +704,7 @@ fn into_active_model_and_into_active_value() {
         ActiveValue::<Option<i32>>::NotSet
     );
 
-    // Which is exactly what `DeriveIntoActiveModel` puts to work.
+    // Which is exactly what `IntoActiveModel` puts to work.
     assert_eq!(
         NewRow {
             name: "Apple".to_owned(),
@@ -751,7 +751,7 @@ fn into_active_model_and_into_active_value() {
 // JSON
 // ---------------------------------------------------------------------------
 
-// [spec:pgorm:req:entity.active-model.json+3/test]    `from_json` normalises per
+// [spec:pgorm:req:entity.active-model.json+4/test]    `from_json` normalises per
 // column — keys present in the JSON object become `Set`, everything else `NotSet`
 // — and a deserialization failure surfaces as `Error`
 #[test]
@@ -797,7 +797,7 @@ fn active_model_from_json() {
     );
 }
 
-// [spec:pgorm:req:entity.active-model.json+3/test]    `set_from_json` applies the
+// [spec:pgorm:req:entity.active-model.json+4/test]    `set_from_json` applies the
 // same normalisation in place but MUST NOT alter the primary key: the key states
 // are taken before the overwrite and restored after, so `Set` / `Unchanged`
 // payloads survive and `NotSet` stays `NotSet` whatever the JSON said
@@ -858,7 +858,7 @@ fn active_model_set_from_json_preserves_primary_key() {
     assert_eq!(am.name, set("Apple"));
 }
 
-// [spec:pgorm:req:entity.active-model.json+3/test]    a `set_from_json` that
+// [spec:pgorm:req:entity.active-model.json+4/test]    a `set_from_json` that
 // fails leaves the model bit-for-bit as it was — primary key included. The
 // conversion happens on a fresh model and only a conversion that succeeded is
 // moved into `self`, so nothing partial can be observed
@@ -892,11 +892,11 @@ fn set_from_json_failure_leaves_the_model_untouched() {
     assert_eq!(am.id, set(1));
 }
 
-// [spec:pgorm:req:entity.active-model.json+3/test]    presence detection reads
+// [spec:pgorm:req:entity.active-model.json+4/test]    presence detection reads
 // `serde`'s key namespace, not the SQL column names: a model's own serialization
 // round-trips back through `from_json` / `set_from_json` with every column `Set`,
 // whichever side renamed what
-// [spec:pgorm:def:entity.traits.column+6/test]    which is what `json_key`
+// [spec:pgorm:def:entity.traits.column+7/test]    which is what `json_key`
 // reports, next to the SQL name `as_str` reports
 #[test]
 fn active_model_json_reads_serde_keys() {
@@ -1183,7 +1183,7 @@ mod hooked {
     use pgorm::entity::prelude::async_trait;
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "am_hooked")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -1191,7 +1191,7 @@ mod hooked {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     #[async_trait::async_trait]
@@ -1300,7 +1300,7 @@ mod hook_abort {
     use pgorm::entity::prelude::async_trait;
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "am_hook_abort")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -1308,7 +1308,7 @@ mod hook_abort {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     #[async_trait::async_trait]
@@ -1390,7 +1390,7 @@ mod after_hook_abort {
     use pgorm::entity::prelude::async_trait;
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "am_after_hook_abort")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -1398,7 +1398,7 @@ mod after_hook_abort {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     #[async_trait::async_trait]

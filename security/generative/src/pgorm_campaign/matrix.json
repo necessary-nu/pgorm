@@ -53,7 +53,7 @@
   "registered_graphs": ["campaign.AccountOnly", "campaign.OptionalNotes", "campaign.RequiredNotes", "campaign.SelfJoin", "campaign.Arity3", "campaign.Arity4", "campaign.Arity5", "campaign.Arity6", "campaign.Arity7", "campaign.StayRooms", "campaign.StayGuests"],
   "registered_sources": ["campaign.Sources1", "campaign.Sources2", "campaign.Sources3", "campaign.Sources4", "campaign.Sources5", "campaign.Sources6"],
   "outside_runtime": [
-    {"id": "new-rust-entities", "status": "compile-only", "rust": ["pgorm::DeriveEntityModel", "pgorm_codegen::EntityWriter"], "reason": "Installed entity registrations fix Rust types; fresh derives and codegen shapes require the bounded compile suite."},
+    {"id": "new-rust-entities", "status": "compile-only", "rust": ["pgorm::Entity", "pgorm_codegen::EntityWriter"], "reason": "Installed entity registrations fix Rust types; fresh derives and codegen shapes require the bounded compile suite."},
     {"id": "rust-ownership", "status": "compile-only", "rust": ["pgorm::DatabaseTransaction", "pgorm::pipeline::Binder"], "reason": "Rust borrow and branded lifetime rejection requires compiling negative source programs; Python scope checks are separately exercised."},
     {"id": "fresh-graph-generics", "status": "compile-only", "rust": ["pgorm::SelectGraph", "pgorm::pipeline::SourceList"], "reason": "Runtime programs vary registered shapes; new tuple/generic instantiations belong to the compile suite."},
     {"id": "select-subquery-constructor", "status": "unsupported", "rust": ["pgorm_query::SelectStatement::from_subquery"], "reason": "The public Python Select surface lacks this constructor. Generated query nesting uses real pipeline composition and nested sources; it must not claim this missing Select method."},

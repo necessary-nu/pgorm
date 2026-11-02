@@ -39,7 +39,7 @@ async fn _paged<C: ConnectionTrait>(db: &C) -> Result<u64, Error> {
         .await
 }
 
-// [spec:pgorm:def:entity.prelude+9/test]    a query built, an active model set, a
+// [spec:pgorm:def:entity.prelude+10/test]    a query built, an active model set, a
 // statement decoded and a column enumerated, with the prelude as the only import
 #[test]
 fn prelude_carries_what_a_query_needs() {
@@ -105,7 +105,7 @@ fn prelude_carries_what_a_query_needs() {
     );
 }
 
-// [spec:pgorm:def:entity.prelude+9/test]    `Func`, the vocabulary an entity's
+// [spec:pgorm:def:entity.prelude+10/test]    `Func`, the vocabulary an entity's
 // `default_expr` names a function default in, with the prelude as the only import
 #[test]
 fn prelude_carries_the_function_vocabulary() {
@@ -122,7 +122,7 @@ fn prelude_carries_the_function_vocabulary() {
 mod interval_columns {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "interval_columns")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -133,13 +133,13 @@ mod interval_columns {
         pub precise: Interval,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-// [spec:pgorm:def:entity.prelude+9/test]    the interval vocabulary: a field's
+// [spec:pgorm:def:entity.prelude+10/test]    the interval vocabulary: a field's
 // `Interval` and the `IntervalSpec`, `PgInterval` and `IntervalPrecision` its
 // `column_type` names resolve through the glob
 #[test]

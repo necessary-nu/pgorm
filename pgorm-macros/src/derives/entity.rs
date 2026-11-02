@@ -3,9 +3,78 @@ use std::iter::FromIterator;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-use super::attributes::derive_attr;
+/// Keys of the composite derive's container attribute: the entity's literal
+/// names, which an entity under `EntityTrait` computes in a hand-written
+/// `EntityName` instead, and the keys naming the model's columns.
+const COMPOSITE_KEYS: [&str; 5] = [
+    "table_name",
+    "schema_name",
+    "comment",
+    "table_iden",
+    "rename_all",
+];
 
-struct DeriveEntity {
+/// What the entity's other parts are named, each defaulting to its usual name.
+#[derive(Default)]
+struct PartNames {
+    column: Option<syn::Ident>,
+    model: Option<syn::Ident>,
+    active_model: Option<syn::Ident>,
+    primary_key: Option<syn::Ident>,
+    relation: Option<syn::Ident>,
+}
+
+impl PartNames {
+    /// Read every `#[pgorm(..)]` on the struct. A key this derive does not read
+    /// is refused at the key rather than dropped: the composite derive's keys
+    /// and `entity` with a message saying where they belong, anything else as
+    /// unknown.
+    // [spec:pgorm:req:macros.derive.names]
+    fn parse(attrs: &[syn::Attribute]) -> syn::Result<Self> {
+        let mut names = Self::default();
+        for attr in attrs.iter().filter(|attr| attr.path().is_ident("pgorm")) {
+            attr.parse_nested_meta(|meta| {
+                let key = meta
+                    .path
+                    .get_ident()
+                    .map(ToString::to_string)
+                    .unwrap_or_default();
+                let slot = match key.as_str() {
+                    "column" => &mut names.column,
+                    "model" => &mut names.model,
+                    "active_model" => &mut names.active_model,
+                    "primary_key" => &mut names.primary_key,
+                    "relation" => &mut names.relation,
+                    "entity" => {
+                        return Err(meta.error(
+                            "`entity` names the entity a model or relation belongs to; \
+                             `EntityTrait` is derived on the entity itself",
+                        ));
+                    }
+                    composite if COMPOSITE_KEYS.contains(&composite) => {
+                        return Err(meta.error(format!(
+                            "`{key}` is the composite derive's: an entity under \
+                             `EntityTrait` implements `EntityName` by hand, its names \
+                             computed at run time, so `{key}` goes on the `Model` under \
+                             `Entity`"
+                        )));
+                    }
+                    _ => {
+                        return Err(meta.error(format!(
+                            "unknown pgorm attribute `{key}`: `EntityTrait` reads \
+                             `active_model`, `column`, `model`, `primary_key` and `relation`"
+                        )));
+                    }
+                };
+                *slot = Some(meta.value()?.parse()?);
+                Ok(())
+            })?;
+        }
+        Ok(names)
+    }
+}
+
+struct EntityTrait {
     column_ident: syn::Ident,
     ident: syn::Ident,
     model_ident: syn::Ident,
@@ -14,26 +83,9 @@ struct DeriveEntity {
     relation_ident: syn::Ident,
 }
 
-impl DeriveEntity {
+impl EntityTrait {
     fn new(input: syn::DeriveInput) -> Result<Self, syn::Error> {
-        let pgorm_attr = derive_attr::Pgorm::try_from_attributes(&input.attrs)?.unwrap_or_default();
-        // [spec:pgorm:req:macros.derive.one-form]
-        if let Some(name) = [
-            &pgorm_attr.table_name,
-            &pgorm_attr.schema_name,
-            &pgorm_attr.comment,
-        ]
-        .into_iter()
-        .flatten()
-        .next()
-        {
-            return Err(syn::Error::new_spanned(
-                name,
-                "an entity under `DeriveEntity` implements `EntityName` by hand, its names \
-                 computed at run time; a name written here is the composite derive's: \
-                 put it on the `Model` under `DeriveEntityModel`",
-            ));
-        }
+        let pgorm_attr = PartNames::parse(&input.attrs)?;
 
         let ident = input.ident;
         let column_ident = pgorm_attr.column.unwrap_or_else(|| format_ident!("Column"));
@@ -48,7 +100,7 @@ impl DeriveEntity {
             .relation
             .unwrap_or_else(|| format_ident!("Relation"));
 
-        Ok(DeriveEntity {
+        Ok(EntityTrait {
             column_ident,
             ident,
             model_ident,
@@ -97,7 +149,7 @@ impl DeriveEntity {
         )
     }
 
-    // [spec:pgorm:sem:macros.derive.entity+4]
+    // [spec:pgorm:sem:macros.derive.entity+5]
     fn impl_iden(&self) -> TokenStream {
         let ident = &self.ident;
 
@@ -129,7 +181,7 @@ impl DeriveEntity {
     }
 }
 
-// [spec:pgorm:sem:macros.derive.entity+4]
+// [spec:pgorm:sem:macros.derive.entity+5]
 pub fn expand_derive_entity(input: syn::DeriveInput) -> syn::Result<TokenStream> {
-    Ok(DeriveEntity::new(input)?.expand())
+    Ok(EntityTrait::new(input)?.expand())
 }

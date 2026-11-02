@@ -10,6 +10,8 @@ publish = false
 [dependencies]
 async-trait = { version = "0.1.92", default-features = false }
 pgorm = { path = "..", features = ["macros"] }
+# The `MigrationName` derive, re-exported beside the trait it implements.
+pgorm-macros = { version = "0.2.0", path = "../pgorm-macros", default-features = false, features = ["derive"] }
 # The compile-time half of `sql_migration!`: it reads and checks the file
 # through the same libpg_query oracle as `pgorm::sql!`.
 pgorm-sql-macro = { version = "0.2.0", path = "../pgorm-sql-macro" }

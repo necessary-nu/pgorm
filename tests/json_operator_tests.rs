@@ -24,7 +24,7 @@ use serde_json::json;
 mod doc {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "json_doc")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -33,7 +33,7 @@ mod doc {
         pub body: Json,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

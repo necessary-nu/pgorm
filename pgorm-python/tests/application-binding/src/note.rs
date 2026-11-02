@@ -1,7 +1,7 @@
 use pgorm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize, Deserialize)]
 #[pgorm(table_name = "notes", schema_name = "python_entities")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -10,7 +10,7 @@ pub struct Model {
     pub body: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

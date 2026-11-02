@@ -52,7 +52,7 @@ pub trait TryGetable: Sized {
     /// implementation that does not override it accepts every column type — so
     /// a decode path pgorm cannot see is left unreported rather than guessed
     /// at.
-    // [spec:pgorm:sem:exec.verify.accepts]    the type-acceptance hook
+    // [spec:pgorm:sem:exec.verify.accepts+1]    the type-acceptance hook
     fn accepts(ty: &Type) -> bool {
         let _ = ty;
         true
@@ -248,7 +248,7 @@ impl<T: TryGetable> TryGetable for Option<T> {
         }
     }
 
-    // [spec:pgorm:sem:exec.verify.accepts]    the payload's acceptance, not the column's nullability
+    // [spec:pgorm:sem:exec.verify.accepts+1]    the payload's acceptance, not the column's nullability
     fn accepts(ty: &Type) -> bool {
         T::accepts(ty)
     }
@@ -267,7 +267,7 @@ macro_rules! try_getable_all {
                 result.map_err(TryGetError::postgres)
             }
 
-            // [spec:pgorm:sem:exec.verify.accepts]
+            // [spec:pgorm:sem:exec.verify.accepts+1]
             fn accepts(ty: &Type) -> bool {
                 <$type as FromSql>::accepts(ty)
             }
@@ -312,7 +312,7 @@ impl TryGetable for Decimal {
         Ok(result)
     }
 
-    // [spec:pgorm:sem:exec.verify.accepts]
+    // [spec:pgorm:sem:exec.verify.accepts+1]
     fn accepts(ty: &Type) -> bool {
         <Decimal as FromSql>::accepts(ty)
     }
@@ -343,7 +343,7 @@ macro_rules! try_getable_uuid {
                 res.map($conversion_fn)
             }
 
-            // [spec:pgorm:sem:exec.verify.accepts]    the uuid actually read
+            // [spec:pgorm:sem:exec.verify.accepts+1]    the uuid actually read
             fn accepts(ty: &Type) -> bool {
                 <uuid::Uuid as FromSql>::accepts(ty)
             }
@@ -418,7 +418,7 @@ impl TryGetable for IpNetwork {
         Ok(result.0)
     }
 
-    // [spec:pgorm:sem:exec.verify.accepts]    the newtype that reads the wire format
+    // [spec:pgorm:sem:exec.verify.accepts+1]    the newtype that reads the wire format
     fn accepts(ty: &Type) -> bool {
         <InetSql as FromSql>::accepts(ty)
     }
@@ -434,7 +434,7 @@ impl TryGetable for MacAddress {
         Ok(result.0)
     }
 
-    // [spec:pgorm:sem:exec.verify.accepts]    the newtype that reads the wire format
+    // [spec:pgorm:sem:exec.verify.accepts+1]    the newtype that reads the wire format
     fn accepts(ty: &Type) -> bool {
         <MacAddrSql as FromSql>::accepts(ty)
     }
@@ -452,7 +452,7 @@ impl TryGetable for Vector {
         res.row.try_get(idx).map_err(TryGetError::postgres)
     }
 
-    // [spec:pgorm:sem:exec.verify.accepts]
+    // [spec:pgorm:sem:exec.verify.accepts+1]
     fn accepts(ty: &Type) -> bool {
         <Vector as FromSql>::accepts(ty)
     }
@@ -469,7 +469,7 @@ impl TryGetable for u32 {
         result.map_err(TryGetError::postgres)
     }
 
-    // [spec:pgorm:sem:exec.verify.accepts]    `OID`, not `INT4`
+    // [spec:pgorm:sem:exec.verify.accepts+1]    `OID`, not `INT4`
     fn accepts(ty: &Type) -> bool {
         <Oid as FromSql>::accepts(ty)
     }
@@ -501,7 +501,7 @@ mod postgres_array {
                     Ok(result.0)
                 }
 
-                // [spec:pgorm:sem:exec.verify.accepts]
+                // [spec:pgorm:sem:exec.verify.accepts+1]
                 fn accepts(ty: &Type) -> bool {
                     <Transparent<Vec<$type>> as FromSql>::accepts(ty)
                 }
@@ -552,7 +552,7 @@ mod postgres_array {
                     Ok(res.0.into_iter().map($conversion_fn).collect())
                 }
 
-                // [spec:pgorm:sem:exec.verify.accepts]
+                // [spec:pgorm:sem:exec.verify.accepts+1]
                 fn accepts(ty: &Type) -> bool {
                     <Transparent<Vec<uuid::Uuid>> as FromSql>::accepts(ty)
                 }
@@ -586,7 +586,7 @@ mod postgres_array {
             Ok(result)
         }
 
-        // [spec:pgorm:sem:exec.verify.accepts]    `OID[]`, not `INT4[]`
+        // [spec:pgorm:sem:exec.verify.accepts+1]    `OID[]`, not `INT4[]`
         fn accepts(ty: &Type) -> bool {
             <Vec<Oid> as FromSql>::accepts(ty)
         }
@@ -616,11 +616,11 @@ pub trait TryGetableMany: Sized {
     /// ```no_run
     /// # #[cfg(feature = "macros")]
     /// # {
-    /// # use pgorm::{error::*, query::*, DatabasePool, DeriveSqlName, EnumIter, TryGetableMany};
+    /// # use pgorm::{error::*, query::*, DatabasePool, SqlName, EnumIter, TryGetableMany};
     /// # use pgorm::pgorm_query::Values;
     /// #
     /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
-    /// #[derive(EnumIter, DeriveSqlName)]
+    /// #[derive(EnumIter, SqlName)]
     /// enum ResultCol {
     ///     Name,
     ///     NumOfCakes,
@@ -734,7 +734,7 @@ fn try_get_many_with_slice_len_of(len: usize, cols: &[String]) -> Result<(), Try
 /// An interface to get an array of values from the query result.
 /// A type can only implement `ActiveEnum` or `TryGetableFromJson`, but not both.
 /// A blanket impl is provided for `TryGetableFromJson`, while the impl for `ActiveEnum`
-/// is provided by the `DeriveActiveEnum` macro. So as an end user you won't normally
+/// is provided by the `ActiveEnum` macro. So as an end user you won't normally
 /// touch this trait.
 // [spec:pgorm:def:exec.decode.json+1]
 pub trait TryGetableArray: Sized {
@@ -805,7 +805,7 @@ where
         T::try_get_from_json(res, index)
     }
 
-    // [spec:pgorm:sem:exec.verify.accepts]    the `Json<T>` wrapper's own types
+    // [spec:pgorm:sem:exec.verify.accepts+1]    the `Json<T>` wrapper's own types
     fn accepts(ty: &Type) -> bool {
         *ty == Type::JSON || *ty == Type::JSONB
     }

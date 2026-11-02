@@ -2,7 +2,7 @@
 use crate as pgorm;
 use crate::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(schema_name = "public", table_name = "indexes")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -15,7 +15,7 @@ pub struct Model {
     pub index2_attr: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

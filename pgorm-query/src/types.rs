@@ -39,7 +39,7 @@ pub trait SqlName: Any + Send + Sync {
     /// The schema that qualifies this name wherever it names a table, so
     /// that [`IntoTableName`] reads it as `"schema"."name"`; `None` for a
     /// name that names its table bare. A name that knows its table's schema
-    /// answers it here: pgorm's `DeriveEntity` answers the entity's
+    /// answers it here: pgorm's `EntityTrait` derive answers the entity's
     /// `schema_name`, which is how an entity handed straight to `from`, a
     /// join or a write target reads the table its own queries do, rather than
     /// whichever one `search_path` finds first.

@@ -27,20 +27,20 @@ use tokio_postgres::error::SqlState;
 mod measures {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, CreatedRange)]
     #[pgorm(range_name = "floatrange")]
     pub struct FloatRange(pub Range<f64>);
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(range_name = "slot")]
     pub struct Slot(pub Range<i32>);
 
     /// A name and a schema that need quoting, over `text`.
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(range_name = "Label Span", schema_name = "We\"ird")]
     pub struct LabelSpan(pub Range<String>);
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "measures")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -50,7 +50,7 @@ mod measures {
         pub label: Option<LabelSpan>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -60,43 +60,43 @@ mod measures {
 mod subtypes {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(range_name = "smallrange")]
     pub struct Small(pub Range<i16>);
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(range_name = "bigrange")]
     pub struct Big(pub Range<i64>);
 
-    #[derive(Clone, Debug, PartialEq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, CreatedRange)]
     #[pgorm(range_name = "realrange")]
     pub struct Real(pub Range<f32>);
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(range_name = "amountrange")]
     pub struct Amount(pub Range<Decimal>);
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(range_name = "dayrange")]
     pub struct Day(pub Range<Date>);
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(range_name = "shiftrange")]
     pub struct Shift(pub Range<Time>);
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(range_name = "stamprange")]
     pub struct Stamp(pub Range<DateTime>);
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(range_name = "instantrange")]
     pub struct Instant(pub Range<DateTimeWithTimeZone>);
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveCreatedRange)]
+    #[derive(Clone, Debug, PartialEq, Eq, CreatedRange)]
     #[pgorm(range_name = "idrange")]
     pub struct Id(pub Range<Uuid>);
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "subtypes")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -112,7 +112,7 @@ mod subtypes {
         pub uuid: Id,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -153,7 +153,7 @@ async fn main() -> Result<(), Error> {
 /// A schema with range types it creates generates an entity that writes and
 /// reads its rows, a range and a multirange each: the DDL the generator read,
 /// run as written, then the generated model inserted and found.
-// [spec:pgorm:sem:codegen.entity.types+11/test]
+// [spec:pgorm:sem:codegen.entity.types+12/test]
 #[pgorm_macros::test]
 async fn a_generated_entity_round_trips() -> Result<(), Error> {
     let ctx = TestContext::new("created_range_generated_tests").await;
@@ -263,8 +263,8 @@ async fn create_the_range_types(db: &DatabaseConnection) -> Result<(), Error> {
 
 /// A table built from the entity names each created type in full, quoted
 /// where the name needs it, and the server takes it.
-// [spec:pgorm:def:sql.value.created-range+4/test]
-// [spec:pgorm:sem:macros.derive.created-range+1/test]
+// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:sem:macros.derive.created-range+2/test]
 async fn the_table_names_each_created_type(db: &DatabaseConnection) -> Result<(), Error> {
     let schema = Schema::new();
     let measures = schema.create_table_from_entity(measures::Entity)?;
@@ -299,7 +299,7 @@ fn measure(id: i32) -> measures::Model {
 /// Every subtype is written by an entity insert, its text bound and cast by
 /// name, and read back from the range's binary form by its select; a NULL of
 /// a created range type round-trips too.
-// [spec:pgorm:def:sql.value.created-range+4/test]
+// [spec:pgorm:def:sql.value.created-range+5/test]
 // [spec:pgorm:def:exec.decode.range+3/test]
 async fn every_subtype_round_trips_through_an_entity(db: &DatabaseConnection) -> Result<(), Error> {
     let written = measure(1);
@@ -356,7 +356,7 @@ async fn every_subtype_round_trips_through_an_entity(db: &DatabaseConnection) ->
 
 /// A value cast to its type renders as an escaped literal inline and as a
 /// `text` parameter bound, and the two are one value — the value written.
-// [spec:pgorm:def:sql.value.created-range+4/test]
+// [spec:pgorm:def:sql.value.created-range+5/test]
 async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Result<(), Error> {
     let floats = [
         Range::from(1.5..2.5),
@@ -394,7 +394,7 @@ async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Resul
 
 /// The server's own text for a value reads back as the value written, and
 /// for a continuous range whose bounds print alike it is the text written.
-// [spec:pgorm:def:sql.value.created-range+4/test]
+// [spec:pgorm:def:sql.value.created-range+5/test]
 async fn the_canonical_text_reads_back_as_written(db: &DatabaseConnection) -> Result<(), Error> {
     async fn canonical(db: &DatabaseConnection, expr: SimpleExpr) -> Result<String, Error> {
         let query = select(expr.cast_as_type(TypeName::new(n("text"))));
@@ -446,7 +446,7 @@ async fn the_canonical_text_reads_back_as_written(db: &DatabaseConnection) -> Re
 /// A bound holding the range literal's own syntax, the SQL string's, or a
 /// placeholder's is written and read back as the text it is, by entity insert
 /// and by both renderings of a cast.
-// [spec:pgorm:def:sql.value.created-range+4/test]
+// [spec:pgorm:def:sql.value.created-range+5/test]
 async fn a_bound_holding_range_syntax_stays_data(db: &DatabaseConnection) -> Result<(), Error> {
     let hostile = [
         "'); DROP TABLE measures; --",
@@ -497,7 +497,7 @@ async fn a_bound_holding_range_syntax_stays_data(db: &DatabaseConnection) -> Res
 /// over `int4` is turned into its text and cast, on both renderings. Written
 /// as the built-in it is, it is refused: there is no cast between two range
 /// types.
-// [spec:pgorm:def:sql.value.created-range+4/test]
+// [spec:pgorm:def:sql.value.created-range+5/test]
 async fn a_builtin_range_value_reaches_a_created_type(
     db: &DatabaseConnection,
 ) -> Result<(), Error> {
@@ -569,7 +569,7 @@ async fn a_builtin_range_value_reaches_a_created_type(
 /// author the C function one needs — so it is continuous whatever its
 /// subtype: a range over `int4` keeps the bounds written, where `int4range`
 /// moves them.
-// [spec:pgorm:def:sql.value.created-range+4/test]
+// [spec:pgorm:def:sql.value.created-range+5/test]
 async fn a_created_range_over_int4_is_continuous(db: &DatabaseConnection) -> Result<(), Error> {
     for range in [Range::from(1..=5), Range::new(Excluded(1), Included(5))] {
         let (inline, bound) = both::<Slot>(db, &select(Slot(range.clone()).into_expr())).await?;
@@ -607,7 +607,7 @@ async fn a_column_reads_only_its_own_subtype(db: &DatabaseConnection) -> Result<
 /// What the server refuses, it refuses with its own code on both renderings:
 /// bounds out of order, a bound the subtype does not read, and one outside
 /// its range.
-// [spec:pgorm:def:sql.value.created-range+4/test]
+// [spec:pgorm:def:sql.value.created-range+5/test]
 async fn the_server_refuses_what_it_cannot_store(db: &DatabaseConnection) -> Result<(), Error> {
     let cases = [
         (

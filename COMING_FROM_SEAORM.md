@@ -28,6 +28,7 @@ compiled.
 - [Running SQL by hand](#running-sql-by-hand)
 - [Transactions](#transactions)
 - [Entities and their attributes](#entities-and-their-attributes)
+- [Derive names](#derive-names)
 - [Active models](#active-models)
 - [Insert, update and delete](#insert-update-and-delete)
 - [Reading rows](#reading-rows)
@@ -47,8 +48,9 @@ compiled.
 | --- | --- |
 | `sea_orm`, `sea_orm::prelude` | `pgorm`, `pgorm::entity::prelude` |
 | `#[sea_orm(...)]` | `#[pgorm(...)]` |
-| the expanded entity format | `DeriveEntityModel` on `Model` and `DeriveRelation` on `Relation` only |
-| `DerivePrimaryKey`, `DeriveActiveModel`, `DeriveCustomColumn` | gone: `DeriveEntityModel` writes the key and the active model |
+| the expanded entity format | `#[derive(Entity)]` on `Model` and `#[derive(Relation)]` on `Relation` only |
+| `DeriveEntityModel`, `DeriveRelation`, `DeriveActiveEnum`, ... | the same without `Derive`: see [Derive names](#derive-names) |
+| `DerivePrimaryKey`, `DeriveActiveModel`, `DeriveCustomColumn` | gone: `#[derive(Entity)]` writes the key and the active model |
 | `column_type = "Text"` | `column_type = ColumnType::Text` |
 | a hand-written `ColumnTrait::select_as` / `save_as` | `select_with = f`; `save_with = f, save_array_with = g` |
 | `sea_query` | `pgorm::pgorm_query` |
@@ -95,7 +97,7 @@ compiled.
 | `load_many_to_many(F, Via, db)` | `load_many_via(F, db)` |
 | `paginate(db, 50)` | `paginate(db, NonZeroU64)` |
 | `Paginator::next()` | `Paginator::advance()` |
-| `Iden`, `#[derive(DeriveIden)]` | `SqlName`, `#[derive(DeriveSqlName)]` |
+| `Iden`, `#[derive(DeriveIden)]` | `SqlName`, `#[derive(SqlName)]` |
 | `Alias::new("x")` | `alias("x")`, or `Name::runtime(text)` |
 | `DynIden`, `SeaRc<dyn Iden>` | `Name` |
 | `IntoIden` | `IntoName` |
@@ -380,13 +382,13 @@ fails with a retryable error; SeaORM has no equivalent.
 
 ## Entities and their attributes
 
-An entity is written one way: SeaORM's compact form, `DeriveEntityModel` on
-the `Model` struct and `DeriveRelation` on the `Relation` enum, with
-`#[pgorm(...)]` in place of `#[sea_orm(...)]`. The expanded form, an `Entity`
-struct, `Column` and `PrimaryKey` enums and their trait impls written out by
-hand, is gone, and with it `DerivePrimaryKey`, `DeriveActiveModel` and
-`DeriveCustomColumn`. What an expanded entity said in a trait method, an
-attribute says:
+An entity is written one way: SeaORM's compact form, the composite derive
+`Entity` (SeaORM's `DeriveEntityModel`) on the `Model` struct and `Relation`
+on the `Relation` enum, with `#[pgorm(...)]` in place of `#[sea_orm(...)]`.
+The expanded form, an `Entity` struct, `Column` and `PrimaryKey` enums and
+their trait impls written out by hand, is gone, and with it
+`DerivePrimaryKey`, `DeriveActiveModel` and `DeriveCustomColumn`. What an
+expanded entity said in a trait method, an attribute says:
 
 - `column_type` takes any expression of type `ColumnType`, written bare:
   `column_type = ColumnType::Text`, or a helper's call. A string there is a
@@ -400,14 +402,14 @@ attribute says:
   `r#"|left, right| ..."#`, as well as an expression that ignores them.
 - An entity whose table or schema name is computed at run time keeps a
   hand-written part: its own `Entity` struct holding what the name is computed
-  from, an `EntityName` impl, and `DeriveEntity` on the struct, beside a
-  `DeriveEntityModel` given no `table_name`.
+  from, an `EntityName` impl, and the `EntityTrait` derive on the struct,
+  beside an `Entity` derive given no `table_name`.
 
 ```rust
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::SimpleExpr;
 
-#[derive(Copy, Clone, Default, Debug, DeriveEntity)]
+#[derive(Copy, Clone, Default, Debug, EntityTrait)]
 pub struct Entity {
     pub tenant: &'static str,
 }
@@ -426,7 +428,7 @@ fn as_label(expr: Expr) -> SimpleExpr {
     expr.cast_as(Name::runtime("label"))
 }
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Entity)]
 pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
@@ -434,7 +436,7 @@ pub struct Model {
     pub name: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
@@ -453,8 +455,7 @@ Some details differ besides:
   integers, so a `u8`, `u16` or `u64` field cannot be read, and a `u32`
   field reads an `oid` column. `i8` and `char` fields no longer get a column
   type of their own.
-- `DeriveIden` is `DeriveSqlName`. `DeriveRelatedEntity` and everything
-  Seaography-related are gone.
+- `DeriveRelatedEntity` and everything Seaography-related are gone.
 - `RelationDef::rev()` keeps an `on_condition` closure's two arguments in the
   roles they were written for: a predicate written for `(source, target)`
   still gets the source first after the relation is reversed. SeaORM handed
@@ -466,7 +467,7 @@ Some details differ besides:
 - A column can be generated with `generated_stored = "expr"` or
   `generated_virtual = "expr"`.
 
-An enum can live in a schema of its own. `DeriveActiveEnum` takes
+An enum can live in a schema of its own. The `ActiveEnum` derive takes
 `schema_name`, and `ColumnType::Enum` carries a `schema` field next to `name`
 and `variants`, so code that builds or matches `ColumnType::Enum` by hand
 needs the new field:
@@ -474,7 +475,7 @@ needs the new field:
 ```rust
 use pgorm::entity::prelude::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
 #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "tea", schema_name = "kitchen")]
 pub enum Tea {
     #[pgorm(string_value = "EverydayTea")]
@@ -482,6 +483,69 @@ pub enum Tea {
     #[pgorm(string_value = "BreakfastTea")]
     BreakfastTea,
 }
+```
+
+## Derive names
+
+Each derive is named for what it makes or the trait it implements, as Rust's
+own derives and serde's are, so most share a name with a trait: a derive and
+a trait live in different namespaces, and one `use` brings both. The
+`Derive`-prefixed names are gone, with no alias; each replaced by a derive is
+a search alias on it. The table includes the names earlier pgorm releases
+gave derives SeaORM does not have.
+
+| Old name | pgorm |
+| --- | --- |
+| `DeriveEntityModel` | `Entity` |
+| `DeriveEntity` | `EntityTrait`, on a hand-written `Entity` whose names are computed |
+| `DeriveModel` | `Model` |
+| `DeriveColumn` | `Column` |
+| `DeriveRelation` | `Relation` |
+| `DeriveActiveEnum` | `ActiveEnum` |
+| `DeriveDisplay` | `ActiveEnum`'s `display` key: `#[pgorm(rs_type = .., db_type = .., display)]` |
+| `DeriveIntoActiveModel` | `IntoActiveModel` |
+| `DerivePartialModel` | `PartialModel` |
+| `FromQueryResult` | the same |
+| `DeriveValueType` | `ValueType` |
+| `FromJsonQueryResult` | `JsonValueType` |
+| `DeriveCreatedRange` (pgorm's) | `CreatedRange` |
+| `DeriveMigrationName` | `MigrationName`, from `pgorm_migration` |
+| `DeriveIden`, and pgorm's `DeriveSqlName` | `SqlName`, pgorm-query's, with `#[iden = ".."]` for `#[sea_orm(iden = "..")]` |
+| `DeriveActiveModelBehavior` | `impl ActiveModelBehavior for ActiveModel {}`, written out |
+| `DerivePrimaryKey`, `DeriveActiveModel`, `DeriveCustomColumn` | gone: `Entity` writes the key and the active model |
+| `DeriveRelatedEntity` | gone, with Seaography |
+
+`display` is opt-in so an enum can implement `Display` itself: with it, each
+variant writes its `display_value`, or else its name, and a `display_value`
+without it is a compile error. `SqlName` and `StaticName` are the derives
+pgorm-query exports, reached through pgorm with no dependency on
+pgorm-query; their variant named `Table` is the type's own name, and
+`#[iden = ".."]`, `#[method = ".."]` and `#[iden(flatten)]` say what else a
+name is.
+
+```rust
+use pgorm::entity::prelude::*;
+
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
+#[pgorm(rs_type = "String", db_type = "Enum", enum_name = "tea", display)]
+pub enum Tea {
+    #[pgorm(string_value = "EverydayTea", display_value = "Everyday")]
+    EverydayTea,
+    #[pgorm(string_value = "BreakfastTea")]
+    BreakfastTea,
+}
+
+#[derive(SqlName)]
+enum Post {
+    Table,
+    #[iden = "headline"]
+    Title,
+}
+
+assert_eq!(Tea::EverydayTea.to_string(), "Everyday");
+assert_eq!(Tea::BreakfastTea.to_string(), "BreakfastTea");
+assert_eq!(Post::Table.to_string(), "post");
+assert_eq!(Post::Title.to_string(), "headline");
 ```
 
 ## Active models
@@ -963,7 +1027,7 @@ in `Expr`, `Func`, `Name` and `alias`.
 
 | sea-query | pgorm-query |
 | --- | --- |
-| `Iden`, `#[derive(Iden)]` | `SqlName`, `#[derive(SqlName)]` (or pgorm's `DeriveSqlName`) |
+| `Iden`, `#[derive(Iden)]` | `SqlName`, `#[derive(SqlName)]`, also reached as `pgorm::SqlName` |
 | `IdenStatic` | `StaticName` |
 | `Alias::new("x")` | `alias("x")` for a name written in the program, `Name::runtime(text)` for one computed at run time |
 | `DynIden`, `SeaRc<dyn Iden>` | `Name` |
@@ -1016,7 +1080,8 @@ only.
 | `Migrator::down`, `fresh`, `refresh`, `reset` | gone |
 | `cli::run_cli(Migrator)` | a small `main` of your own; the template has one |
 | `seaql_migrations` table | `pgorm_migrations`, adopted automatically |
-| `#[derive(DeriveIden)]` | `#[derive(DeriveSqlName)]` |
+| `#[derive(DeriveMigrationName)]` | `#[derive(MigrationName)]` |
+| `#[derive(DeriveIden)]` | `#[derive(SqlName)]` |
 
 A migration gets the transaction the whole batch runs in and builds its SQL
 with pgorm-query:
@@ -1024,7 +1089,7 @@ with pgorm-query:
 ```rust
 use pgorm_migration::prelude::*;
 
-#[derive(DeriveMigrationName)]
+#[derive(MigrationName)]
 pub struct Migration;
 
 #[async_trait::async_trait]
@@ -1040,7 +1105,7 @@ impl MigrationTrait for Migration {
     }
 }
 
-#[derive(DeriveSqlName)]
+#[derive(SqlName)]
 enum Post {
     Table,
     Id,

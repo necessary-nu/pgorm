@@ -22,7 +22,7 @@ use tokio_postgres::error::SqlState;
 mod room {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "room")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -32,7 +32,7 @@ mod room {
         pub rate: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(has_many = "super::booking::Entity")]
         Booking,
@@ -50,7 +50,7 @@ mod room {
 mod booking {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "booking")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -59,7 +59,7 @@ mod booking {
         pub during: Range<Date>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::room::Entity",
@@ -132,7 +132,7 @@ async fn rooms(db: &DatabaseConnection) -> Result<Vec<room::Model>, Error> {
 /// An update and a delete by key reach that version alone.
 // [spec:pgorm:def:entity.traits.primary-key+7/test]    against a live server: a temporal key is
 // generated WITHOUT OVERLAPS, and looked up, updated and deleted by equality, period included
-// [spec:pgorm:sem:schema.from-entity+9/test]
+// [spec:pgorm:sem:schema.from-entity+10/test]
 #[pgorm_macros::test]
 async fn a_temporal_key_names_one_version() -> Result<(), Error> {
     let ctx = TestContext::new("temporal_entity_key").await;
@@ -201,7 +201,7 @@ async fn a_temporal_key_names_one_version() -> Result<(), Error> {
 /// related row, and the room's versions' `load_many` gives each version the
 /// bookings it covers. Bookings of one room in different periods keep their
 /// own versions, the period being part of the key a loader files them under.
-// [spec:pgorm:def:entity.relation.def+11/test]    against a live server: a PERIOD relation
+// [spec:pgorm:def:entity.relation.def+12/test]    against a live server: a PERIOD relation
 // creates the temporal foreign key and joins a row to each version its period overlaps
 // [spec:pgorm:req:entity.relation.fk+5/test]
 // [spec:pgorm:sem:query.loader.regroup+6/test]

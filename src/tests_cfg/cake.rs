@@ -4,7 +4,7 @@ use crate::entity::prelude::*;
 #[cfg(feature = "with-json")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[cfg_attr(feature = "with-json", derive(Serialize, Deserialize))]
 #[pgorm(table_name = "cake")]
 pub struct Model {
@@ -14,7 +14,7 @@ pub struct Model {
     pub name: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(has_many = "super::fruit::Entity")]
     Fruit,

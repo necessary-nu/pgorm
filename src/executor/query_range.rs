@@ -162,7 +162,7 @@ macro_rules! try_getable_range {
                 Ok(result.0)
             }
 
-            // [spec:pgorm:sem:exec.verify.accepts]    the newtype that reads the wire format
+            // [spec:pgorm:sem:exec.verify.accepts+1]    the newtype that reads the wire format
             fn accepts(ty: &Type) -> bool {
                 <RangeSql<$type> as FromSql>::accepts(ty)
             }
@@ -187,7 +187,7 @@ macro_rules! try_getable_range_family {
                 Ok(result.0)
             }
 
-            // [spec:pgorm:sem:exec.verify.accepts]    the newtype that reads the wire format
+            // [spec:pgorm:sem:exec.verify.accepts+1]    the newtype that reads the wire format
             fn accepts(ty: &Type) -> bool {
                 <MultirangeSql<$type> as FromSql>::accepts(ty)
             }
@@ -205,7 +205,7 @@ macro_rules! try_getable_range_family {
                 Ok(result.into_iter().map(|range| range.0).collect())
             }
 
-            // [spec:pgorm:sem:exec.verify.accepts]    an array whose member the newtype reads
+            // [spec:pgorm:sem:exec.verify.accepts+1]    an array whose member the newtype reads
             fn accepts(ty: &Type) -> bool {
                 <Vec<RangeSql<$type>> as FromSql>::accepts(ty)
             }
@@ -223,7 +223,7 @@ macro_rules! try_getable_range_family {
                 Ok(result.into_iter().map(|multirange| multirange.0).collect())
             }
 
-            // [spec:pgorm:sem:exec.verify.accepts]    an array whose member the newtype reads
+            // [spec:pgorm:sem:exec.verify.accepts+1]    an array whose member the newtype reads
             fn accepts(ty: &Type) -> bool {
                 <Vec<MultirangeSql<$type>> as FromSql>::accepts(ty)
             }
@@ -247,7 +247,7 @@ try_getable_range_family!(jiff::Timestamp);
 // The subtypes only a range type a schema created ranges over. Their
 // multiranges are reported by tokio-postgres as simple types, and an array of
 // them is not built, so the range alone decodes.
-// [spec:pgorm:def:sql.value.created-range+4]
+// [spec:pgorm:def:sql.value.created-range+5]
 try_getable_range!(i16);
 try_getable_range!(f32);
 try_getable_range!(f64);
@@ -337,7 +337,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:sem:exec.verify.accepts/test]
+    // [spec:pgorm:sem:exec.verify.accepts+1/test]
     #[test]
     fn accepts_the_range_types_over_its_subtype() {
         let created = Type::new(

@@ -23,6 +23,9 @@ quote = { version = "1.0.47", default-features = false }
 heck = { version = "0.5", default-features = false }
 proc-macro2 = { version = "1.0.107", default-features = false }
 unicode-ident = { version = "1.0.26" }
+# The expansion of `SqlName` and `StaticName`, which pgorm-query-derive's
+# derives of the same names share.
+pgorm-query-derive-internals = { version = "0.2.0", path = "../pgorm-query/pgorm-query-derive-internals", optional = true }
 
 [dev-dependencies]
 pgorm = { path = "../", features = ["macros", "tests-cfg"] }
@@ -33,5 +36,5 @@ trybuild = "1.0.122"
 [features]
 default = ["derive"]
 postgres-array = []
-derive = []
+derive = ["dep:pgorm-query-derive-internals"]
 strum = []

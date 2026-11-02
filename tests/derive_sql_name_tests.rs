@@ -4,7 +4,7 @@ pub mod common;
 pub use common::{TestContext, features::*, setup::*};
 use pgorm::entity::prelude::*;
 
-#[derive(DeriveSqlName)]
+#[derive(SqlName)]
 pub enum ClassName {
     Table,
     Id,
@@ -12,29 +12,29 @@ pub enum ClassName {
     Text,
 }
 
-#[derive(DeriveSqlName)]
+#[derive(SqlName)]
 pub enum Book {
-    #[pgorm(iden = "book_table")]
+    #[iden = "book_table"]
     Table,
     Id,
-    #[pgorm(iden = "turtle")]
+    #[iden = "turtle"]
     Title,
-    #[pgorm(iden = "TeXt")]
+    #[iden = "TeXt"]
     Text,
-    #[pgorm(iden = "ty_pe")]
+    #[iden = "ty_pe"]
     Type,
 }
 
-#[derive(DeriveSqlName)]
+#[derive(SqlName)]
 struct GlyphToken;
 
-#[derive(DeriveSqlName)]
-#[pgorm(iden = "weRd")]
+#[derive(SqlName)]
+#[iden = "weRd"]
 struct Word;
 
 // Every rendered name here is a "valid iden", so the `prepare` override is
 // emitted and quotes the name itself.
-#[derive(DeriveSqlName)]
+#[derive(SqlName)]
 pub enum AllValid {
     Table,
     Id,
@@ -43,16 +43,16 @@ pub enum AllValid {
 // One variant renders a name that is *not* a valid iden, which suppresses the
 // `prepare` override for the whole enum and leaves the trait default (which
 // doubles any embedded double quote) to do the quoting.
-#[derive(DeriveSqlName)]
+#[derive(SqlName)]
 pub enum SomeInvalid {
     Table,
-    #[pgorm(iden = "we\"ird")]
+    #[iden = "we\"ird"]
     Weird,
 }
 
 // An empty enum expands to nothing, which is the only reason this hand-written
 // `SqlName` impl compiles rather than colliding with a generated one.
-#[derive(DeriveSqlName)]
+#[derive(SqlName)]
 pub enum EmptyIden {}
 
 impl SqlName for EmptyIden {
@@ -61,7 +61,7 @@ impl SqlName for EmptyIden {
     }
 }
 
-// [spec:pgorm:sem:macros.derive.iden+2/test]    unit structs, enums, `Table`, and the `iden` override
+// [spec:pgorm:sem:macros.derive.iden+3/test]    unit structs, enums, `Table`, and the `iden` override
 #[test]
 fn main() -> Result<(), Error> {
     assert_eq!(ClassName::Table.to_string(), "class_name");
@@ -81,7 +81,7 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:macros.derive.iden+2/test]    `prepare` is emitted only for statically-valid idens
+// [spec:pgorm:sem:macros.derive.iden+3/test]    `prepare` is emitted only for statically-valid idens
 #[test]
 fn prepare_override_is_conditional() {
     // Emitted: the name is written between the quotes verbatim.
@@ -105,7 +105,7 @@ fn prepare_override_is_conditional() {
     assert_eq!(s, "\"id\"");
 }
 
-// [spec:pgorm:sem:macros.derive.iden+2/test]    an empty enum expands to nothing
+// [spec:pgorm:sem:macros.derive.iden+3/test]    an empty enum expands to nothing
 #[test]
 fn empty_enum_expands_to_nothing() {
     fn assert_iden<T: SqlName>() {}

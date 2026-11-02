@@ -28,7 +28,7 @@
 //!
 //! Renaming `pgorm-query` needs nothing — the derives reach it through this
 //! crate's [`pgorm_query`] re-export. `pgorm-migration` is subject to the same
-//! rule as `pgorm`, since `DeriveMigrationName` names `pgorm_migration`.
+//! rule as `pgorm`, since its `MigrationName` derive names `pgorm_migration`.
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 #![deny(
@@ -74,12 +74,16 @@ pub use executor::*;
 pub use query::*;
 pub use schema::*;
 
+/// Each derive is named for the trait it implements or the item it writes,
+/// so most share a name with a trait the `entity` glob brings; a derive and a
+/// trait live in different namespaces, and one `use` brings both.
+/// `SqlName` and `StaticName` arrive through that glob too, `entity` pairing
+/// the traits with pgorm-macros' derives.
+// [spec:pgorm:req:macros.derive.names]
 #[cfg(feature = "macros")]
 pub use pgorm_macros::{
-    DeriveActiveEnum, DeriveActiveModelBehavior, DeriveColumn, DeriveCreatedRange, DeriveDisplay,
-    DeriveEntity, DeriveEntityModel, DeriveIntoActiveModel, DeriveMigrationName, DeriveModel,
-    DerivePartialModel, DeriveRelation, DeriveSqlName, DeriveValueType, FromJsonQueryResult,
-    FromQueryResult,
+    ActiveEnum, Column, CreatedRange, Entity, EntityTrait, FromQueryResult, IntoActiveModel,
+    JsonValueType, Model, PartialModel, Relation, ValueType,
 };
 #[cfg(feature = "macros")]
 pub use tokio_postgres::row::RowIndex;
@@ -169,7 +173,7 @@ pub use pgorm_sql_macro::sql;
 pub use pgorm_sql_macro::prql;
 
 pub use pgorm_query;
-pub use pgorm_query::{AliasName, SqlName, Values, alias};
+pub use pgorm_query::{AliasName, Values, alias};
 
 pub use pgorm_macros::EnumIter;
 pub use strum;

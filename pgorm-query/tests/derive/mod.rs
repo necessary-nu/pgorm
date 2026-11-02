@@ -1,6 +1,6 @@
 use pgorm_query::*;
 
-// [spec:pgorm:sem:macros.derive.iden.query/test]    default snake_case names; `Table` renders the container
+// [spec:pgorm:sem:macros.derive.iden.query+1/test]    default snake_case names; `Table` renders the container
 #[test]
 fn derive_1() {
     #[derive(Debug, SqlName)]
@@ -20,7 +20,7 @@ fn derive_1() {
     assert_eq!(SqlName::to_string(&User::Email), "email");
 }
 
-// [spec:pgorm:sem:macros.derive.iden.query/test]    container and variant `#[iden = "..."]` renaming
+// [spec:pgorm:sem:macros.derive.iden.query+1/test]    container and variant `#[iden = "..."]` renaming
 #[test]
 fn derive_2() {
     #[derive(Debug, SqlName)]
@@ -47,7 +47,7 @@ fn derive_2() {
     assert_eq!(SqlName::to_string(&Custom::Email), "EMail");
 }
 
-// [spec:pgorm:sem:macros.derive.iden.query/test]    renaming only the `Table` variant
+// [spec:pgorm:sem:macros.derive.iden.query+1/test]    renaming only the `Table` variant
 #[test]
 fn derive_3() {
     #[derive(Debug, SqlName)]
@@ -67,7 +67,7 @@ fn derive_3() {
     assert_eq!(SqlName::to_string(&Something::UserId), "user_id");
 }
 
-// [spec:pgorm:sem:macros.derive.iden.query/test]    unit structs, renamed and not
+// [spec:pgorm:sem:macros.derive.iden.query+1/test]    unit structs, renamed and not
 #[test]
 fn derive_4() {
     #[derive(Debug, SqlName)]
@@ -82,7 +82,7 @@ fn derive_4() {
     assert_eq!(SqlName::to_string(&CustomName), "another_name");
 }
 
-// [spec:pgorm:sem:macros.derive.iden.query/test]    StaticName adds as_str and AsRef<str>
+// [spec:pgorm:sem:macros.derive.iden.query+1/test]    StaticName adds as_str and AsRef<str>
 #[test]
 fn derive_5_iden_static() {
     #[derive(Copy, Clone, Debug, StaticName)]
@@ -111,7 +111,7 @@ fn derive_5_iden_static() {
     assert_eq!(take_str(User::FirstName), "first_name");
 }
 
-// [spec:pgorm:sem:macros.derive.iden.query/test]    an empty enum expands to nothing
+// [spec:pgorm:sem:macros.derive.iden.query+1/test]    an empty enum expands to nothing
 #[test]
 fn derive_6_empty_enum_expands_to_nothing() {
     #[derive(Copy, Clone, Debug, SqlName)]

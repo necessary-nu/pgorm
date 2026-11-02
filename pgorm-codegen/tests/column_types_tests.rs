@@ -15,13 +15,13 @@ use pgorm_codegen::entities_from_sql;
 
 const SCHEMA: &str = include_str!("../../tests/codegen_column_types/schema.sql");
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    the compact writer states
+// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    the compact writer states
 // each column's whole type wherever its field's Rust type infers another: a
 // `varchar(n)` or `char(n)` that `String` would infer as an unbounded `varchar`, a
 // `numeric(p, s)`, and arrays of each, and a range over `text` whose newtype's
 // `Range<String>` would infer one over `varchar`; every type its field infers states
 // none
-// [spec:pgorm:sem:codegen.entity.types+11/test]
+// [spec:pgorm:sem:codegen.entity.types+12/test]
 #[test]
 fn compact_entities_state_every_uninferred_type() {
     let generated = entities_from_sql(SCHEMA, Opts::default()).expect("the schema generates");

@@ -19,6 +19,7 @@ struct ActiveEnum {
     is_string: bool,
     variants: Vec<ActiveEnumVariant>,
     rename_all: Option<CaseStyle>,
+    display: bool,
 }
 
 struct ActiveEnumVariant {
@@ -26,10 +27,11 @@ struct ActiveEnumVariant {
     string_value: Option<LitStr>,
     num_value: Option<LitInt>,
     rename: Option<CaseStyle>,
+    display_value: Option<LitStr>,
 }
 
 impl ActiveEnum {
-    // [spec:pgorm:syn:macros.derive.active-enum+2]
+    // [spec:pgorm:syn:macros.derive.active-enum+3]
     fn new(input: syn::DeriveInput) -> Result<Self, Error> {
         let ident_span = input.ident.span();
         let ident = input.ident;
@@ -44,6 +46,7 @@ impl ActiveEnum {
         let mut rename_all = None;
         let mut schema_name: Option<String> = None;
         let mut db_type_is_enum = false;
+        let mut display = false;
 
         input
             .attrs
@@ -75,6 +78,9 @@ impl ActiveEnum {
                         enum_name = litstr.value();
                     } else if meta.path.is_ident("rename_all") {
                         rename_all = Some((&meta).try_into()?);
+                    } else if meta.path.is_ident("display") {
+                        // [spec:pgorm:req:macros.derive.names]
+                        display = true;
                     } else {
                         return Err(meta.error(format!(
                             "Unknown attribute parameter found: {:?}",
@@ -116,6 +122,7 @@ impl ActiveEnum {
             let mut string_value = None;
             let mut num_value = None;
             let mut rename_rule = None;
+            let mut display_value = None;
 
             for attr in variant.attrs.iter() {
                 if !attr.path().is_ident("pgorm") {
@@ -129,9 +136,17 @@ impl ActiveEnum {
                         is_int = true;
                         num_value = Some(meta.value()?.parse::<LitInt>()?);
                     } else if meta.path.is_ident("display_value") {
-                        // This is a placeholder to prevent the `display_value` proc_macro attribute of `DeriveDisplay`
-                        // to be considered unknown attribute parameter
-                        meta.value()?.parse::<LitStr>()?;
+                        let value = meta.value()?.parse::<LitStr>()?;
+                        // An opt-in `Display` is what reads it, so without one
+                        // the text would be dropped unread.
+                        if !display {
+                            return Err(syn::Error::new_spanned(
+                                &value,
+                                "`display_value` is the text the `display` key writes: add \
+                                 `display` to the enum's `#[pgorm(..)]`",
+                            ));
+                        }
+                        display_value = Some(value);
                     } else if meta.path.is_ident("rename") {
                         is_string = true;
                         rename_rule = Some((&meta).try_into()?);
@@ -197,6 +212,7 @@ impl ActiveEnum {
                 string_value,
                 num_value,
                 rename: rename_rule,
+                display_value,
             });
         }
 
@@ -208,14 +224,42 @@ impl ActiveEnum {
             is_string,
             variants,
             rename_all,
+            display,
         })
     }
 
-    // [spec:pgorm:sem:macros.derive.active-enum.expansion+2]
+    // [spec:pgorm:sem:macros.derive.active-enum.expansion+3]
     fn expand(&self) -> syn::Result<TokenStream> {
-        let expanded_impl_active_enum = self.impl_active_enum();
+        let mut expanded = self.impl_active_enum();
+        if self.display {
+            expanded.extend(self.impl_display());
+        }
 
-        Ok(expanded_impl_active_enum)
+        Ok(expanded)
+    }
+
+    // [spec:pgorm:sem:macros.derive.active-enum.expansion+3]
+    fn impl_display(&self) -> TokenStream {
+        let ident = &self.ident;
+        let variant_idents = self.variants.iter().map(|variant| &variant.ident);
+        let variant_display = self
+            .variants
+            .iter()
+            .map(|variant| match &variant.display_value {
+                Some(value) => value.value(),
+                None => variant.ident.to_string(),
+            });
+
+        quote!(
+            #[automatically_derived]
+            impl std::fmt::Display for #ident {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    f.write_str(match self {
+                        #( Self::#variant_idents => #variant_display, )*
+                    })
+                }
+            }
+        )
     }
 
     fn impl_active_enum(&self) -> TokenStream {
@@ -227,6 +271,7 @@ impl ActiveEnum {
             is_string,
             variants,
             rename_all,
+            ..
         } = self;
 
         let variant_idents: Vec<syn::Ident> = variants
@@ -445,7 +490,7 @@ pub fn expand_derive_active_enum(input: syn::DeriveInput) -> syn::Result<TokenSt
     match ActiveEnum::new(input) {
         Ok(model) => model.expand(),
         Err(Error::InputNotEnum) => Ok(quote_spanned! {
-            ident_span => compile_error!("you can only derive ActiveEnum on enums");
+            ident_span => compile_error!("you can only derive `ActiveEnum` on enums");
         }),
         Err(Error::TT(token_stream)) => Ok(token_stream),
         Err(Error::Syn(e)) => Err(e),

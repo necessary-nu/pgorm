@@ -8,9 +8,9 @@ use quote::{quote, quote_spanned};
 use syn::{Data, DataStruct, Field, Fields, LitStr, Type, punctuated::IntoIter};
 
 /// The `ActiveModel` the composite derive writes beside its `Model`.
-// [spec:pgorm:sem:macros.derive.active-model+4]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+5]    the field-key vocabulary this
-// expansion shares with `DeriveEntityModel`
+// [spec:pgorm:sem:macros.derive.active-model+5]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+6]    the field-key vocabulary this
+// expansion shares with the `Entity` derive
 pub fn expand_active_model(ident: Ident, data: Data) -> syn::Result<TokenStream> {
     // including ignored fields
     let all_fields = match data {

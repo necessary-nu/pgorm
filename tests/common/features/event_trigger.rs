@@ -4,7 +4,7 @@ use pgorm::{
     pgorm_query::{ArrayType, ColumnType, ValueType},
 };
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "event_trigger")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -12,7 +12,7 @@ pub struct Model {
     pub events: Events,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

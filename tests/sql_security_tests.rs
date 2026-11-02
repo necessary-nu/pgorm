@@ -157,14 +157,14 @@ async fn enum_type_identifier_preserves_case() {
 
 mod item {
     use pgorm::entity::prelude::*;
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "security_items")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
         pub id: i32,
         pub name: String,
     }
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
     impl ActiveModelBehavior for ActiveModel {}
 }

@@ -20,7 +20,7 @@ struct Variant {
     encoded: bool,
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+3]
+// [spec:pgorm:sem:codegen.entity.enums+4]
 fn variant(value: &str) -> Variant {
     if value.chars().next().map(char::is_numeric).unwrap_or(false) {
         return Variant {
@@ -64,7 +64,7 @@ impl ActiveEnum {
             .collect()
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+3]
+    // [spec:pgorm:sem:codegen.entity.enums+4]
     // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let enum_name = self.enum_name.to_string();
@@ -83,7 +83,7 @@ impl ActiveEnum {
         Ok(())
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+3]
+    // [spec:pgorm:sem:codegen.entity.enums+4]
     pub fn impl_active_enum(
         &self,
         with_serde: &WithSerde,
@@ -111,7 +111,7 @@ impl ActiveEnum {
         });
 
         quote! {
-            #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum #copy_derive #serde_derive #extra_derives)]
+            #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum #copy_derive #serde_derive #extra_derives)]
             #[pgorm(rs_type = "String", db_type = "Enum", enum_name = #enum_name #schema_attr)]
             #extra_attributes
             pub enum #enum_iden {
@@ -162,7 +162,7 @@ mod tests {
             )
             .to_string(),
             quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Copy)]
+                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
                 #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "media_type")]
                 pub enum MediaType {
                     #[pgorm(string_value = "UNKNOWN")]
@@ -218,7 +218,7 @@ mod tests {
         #[rustfmt::skip]
         fn build_generated_enum() -> String {
             quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Copy, specta :: Type, ts_rs :: TS)]
+                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy, specta :: Type, ts_rs :: TS)]
                 #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "media_type")]
                 pub enum MediaType {
                     #[pgorm(string_value = "UNKNOWN")]
@@ -254,7 +254,7 @@ mod tests {
             )
             .to_string(),
             quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Copy)]
+                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
                 #[pgorm(
                     rs_type = "String",
                     db_type = "Enum",
@@ -291,7 +291,7 @@ mod tests {
             )
             .to_string(),
             quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Copy)]
+                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
                 #[pgorm(
                     rs_type = "String",
                     db_type = "Enum",
@@ -338,7 +338,7 @@ mod tests {
             )
             .to_string(),
             quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Copy)]
+                #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
                 #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "ty")]
                 pub enum Ty {
                     #[pgorm(string_value = "Question")]

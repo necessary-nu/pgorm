@@ -2,7 +2,7 @@ pub mod value_type_general {
     use super::*;
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "value_type")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -10,7 +10,7 @@ pub mod value_type_general {
         pub number: Integer,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -20,7 +20,7 @@ pub mod value_type_pg {
     use super::*;
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "value_type_postgres")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -29,7 +29,7 @@ pub mod value_type_pg {
         pub str_vec: StringVec,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -37,7 +37,7 @@ pub mod value_type_pg {
 
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveValueType)]
+#[derive(Clone, Debug, PartialEq, Eq, ValueType)]
 #[pgorm(array_type = "Int")]
 pub struct Integer(i32);
 
@@ -50,9 +50,9 @@ where
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveValueType)]
+#[derive(Clone, Debug, PartialEq, Eq, ValueType)]
 #[pgorm(column_type = ColumnType::Boolean, array_type = "Bool")]
 pub struct Boolbean(pub String);
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveValueType)]
+#[derive(Clone, Debug, PartialEq, Eq, ValueType)]
 pub struct StringVec(pub Vec<String>);

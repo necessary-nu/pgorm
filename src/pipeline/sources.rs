@@ -483,7 +483,7 @@ impl<S: SelectableSource> Named<S> {
     /// # Ok::<_, pgorm::pipeline::PipelineError>(())
     /// ```
     // [spec:pgorm:sem:pipeline.self-join+1]
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+12]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+13]
     pub fn col<'brand>(&self, column: <S::Entity as EntityTrait>::Column) -> Expr<'brand> {
         entity_column(self.name.clone(), &column)
     }

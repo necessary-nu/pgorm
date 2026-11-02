@@ -8,19 +8,19 @@ use std::fmt;
 /// One arity-agnostic representation, whether the key is a single column or a
 /// composite: every consumer walks the columns rather than dispatching on how
 /// many there are, and a column set of a given width has exactly one spelling.
-// [spec:pgorm:def:entity.relation.def+11]
+// [spec:pgorm:def:entity.relation.def+12]
 #[derive(Debug, Clone)]
 pub struct Key(Vec<Name>);
 
 impl Key {
     /// The number of columns.
-    // [spec:pgorm:def:entity.relation.def+11]
+    // [spec:pgorm:def:entity.relation.def+12]
     pub fn arity(&self) -> usize {
         self.0.len()
     }
 
     /// Iterate the columns in declared order.
-    // [spec:pgorm:def:entity.relation.def+11]
+    // [spec:pgorm:def:entity.relation.def+12]
     pub fn iter(&self) -> impl Iterator<Item = &Name> {
         self.0.iter()
     }
@@ -28,7 +28,7 @@ impl Key {
     /// The one column of a unary set, or `None` when the set is wider: what a
     /// consumer that can only act on one column asks, instead of dispatching on
     /// arity.
-    // [spec:pgorm:def:entity.relation.def+11]
+    // [spec:pgorm:def:entity.relation.def+12]
     pub fn single(&self) -> Option<&Name> {
         match self.0.as_slice() {
             [only] => Some(only),
@@ -37,21 +37,21 @@ impl Key {
     }
 }
 
-// [spec:pgorm:def:entity.relation.def+11]
+// [spec:pgorm:def:entity.relation.def+12]
 impl From<Name> for Key {
     fn from(name: Name) -> Self {
         Self(vec![name])
     }
 }
 
-// [spec:pgorm:def:entity.relation.def+11]
+// [spec:pgorm:def:entity.relation.def+12]
 impl From<Vec<Name>> for Key {
     fn from(names: Vec<Name>) -> Self {
         Self(names)
     }
 }
 
-// [spec:pgorm:def:entity.relation.def+11]
+// [spec:pgorm:def:entity.relation.def+12]
 impl FromIterator<Name> for Key {
     fn from_iter<I: IntoIterator<Item = Name>>(iter: I) -> Self {
         Self(iter.into_iter().collect())
@@ -76,7 +76,7 @@ impl SqlName for Key {
 }
 
 /// Performs a conversion into a [`Key`]
-// [spec:pgorm:def:entity.relation.def+11]
+// [spec:pgorm:def:entity.relation.def+12]
 pub trait IntoKey {
     /// The shape a boundary value must have to line up with this key: a
     /// tuple of [`Value`] of the same length, so the arity of a column set and
@@ -96,7 +96,7 @@ pub trait IntoKey {
 /// The exception is `K = ValueTuple`, the shape of a runtime-built
 /// [`Key`], which accepts any tuple and leaves the arity to be checked
 /// when the query runs.
-// [spec:pgorm:def:entity.relation.def+11]
+// [spec:pgorm:def:entity.relation.def+12]
 pub trait IntoBoundary<K>: IntoValueTuple {}
 
 impl<T> IntoBoundary<ValueTuple> for T where T: IntoValueTuple {}

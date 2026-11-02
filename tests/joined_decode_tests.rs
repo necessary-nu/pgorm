@@ -273,14 +273,14 @@ async fn linked_decode_errors() -> Result<(), Error> {
 mod tea {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
     #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "tea")]
     pub enum Tea {
         #[pgorm(string_value = "EverydayTea")]
         EverydayTea,
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "brew")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -289,7 +289,7 @@ mod tea {
         pub tea: Tea,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "pgorm::tests_cfg::cake::Entity",

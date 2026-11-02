@@ -79,7 +79,7 @@ pub trait ModelTrait: Clone + Send + Debug {
 }
 
 /// A Trait for implementing a [QueryResult]
-// [spec:pgorm:def:entity.traits.from-query-result+4]
+// [spec:pgorm:def:entity.traits.from-query-result+5]
 pub trait FromQueryResult: Sized {
     /// Instantiate a Model from a [QueryResult]
     fn from_query_result(res: &QueryResult, pre: &str) -> Result<Self, Error>;

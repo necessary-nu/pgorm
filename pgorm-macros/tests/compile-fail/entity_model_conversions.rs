@@ -6,7 +6,7 @@ mod read_both_ways {
         expr.cast_as(Name::runtime("text"))
     }
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "read_both_ways")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -26,7 +26,7 @@ mod written_without_arrays {
         val.cast_as(Name::runtime("text"))
     }
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "written_without_arrays")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -46,7 +46,7 @@ mod arrays_without_values {
         val.cast_as(Name::runtime("text"))
     }
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "arrays_without_values")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -61,7 +61,7 @@ mod arrays_without_values {
 mod quoted_function {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Entity)]
     #[pgorm(table_name = "quoted_function")]
     pub struct Model {
         #[pgorm(primary_key)]

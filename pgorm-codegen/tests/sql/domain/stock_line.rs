@@ -3,7 +3,7 @@ use pgorm::entity::prelude::*;
 use super::pgorm_active_enums::Mood;
 use super::pgorm_range_types::Floatrange;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Entity)]
 #[pgorm(table_name = "stock_line")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -50,7 +50,7 @@ pub struct Model {
     pub amount: Decimal,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

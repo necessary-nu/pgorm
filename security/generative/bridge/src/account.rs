@@ -1,7 +1,7 @@
 use pgorm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum, Serialize, Deserialize)]
 #[pgorm(
     rs_type = "String",
     db_type = "Enum",
@@ -16,7 +16,7 @@ pub enum State {
 }
 
 // [spec:pgorm:req:generative.execution]
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize, Deserialize)]
 #[pgorm(table_name = "accounts", schema_name = "fixture")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -37,7 +37,7 @@ pub struct Model {
     pub state: State,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 #[async_trait::async_trait]

@@ -8,13 +8,13 @@ enum Error {
     Syn(syn::Error),
 }
 
-struct DeriveRelation {
+struct Relation {
     entity_ident: syn::Ident,
     ident: syn::Ident,
     variants: syn::punctuated::Punctuated<syn::Variant, syn::token::Comma>,
 }
 
-impl DeriveRelation {
+impl Relation {
     fn new(input: syn::DeriveInput) -> Result<Self, Error> {
         let variants = match input.data {
             syn::Data::Enum(syn::DataEnum { variants, .. }) => variants,
@@ -28,7 +28,7 @@ impl DeriveRelation {
         let ident = input.ident;
         let entity_ident = pgorm_attr.entity.unwrap_or_else(|| format_ident!("Entity"));
 
-        Ok(DeriveRelation {
+        Ok(Relation {
             entity_ident,
             ident,
             variants,
@@ -204,7 +204,7 @@ impl DeriveRelation {
     /// side alone (42830) and a key the period is the only column of (42601);
     /// and a temporal foreign key takes no referential action but `NO
     /// ACTION`, PostgreSQL 18 refusing the rest (0A000).
-    // [spec:pgorm:syn:macros.derive.relation+4]
+    // [spec:pgorm:syn:macros.derive.relation+5]
     fn period(variant: &syn::Variant, attr: &field_attr::Pgorm) -> syn::Result<TokenStream> {
         let (from, to) = match (&attr.from_period, &attr.to_period) {
             (Some(from), Some(to)) => (from, to),
@@ -248,7 +248,7 @@ impl DeriveRelation {
     /// parameters typed as the names they are where it left them untyped; any
     /// other expression is the condition whatever the tables are called.
     // [spec:pgorm:req:macros.derive.one-form]
-    // [spec:pgorm:syn:macros.derive.relation+4]
+    // [spec:pgorm:syn:macros.derive.relation+5]
     fn on_condition(lit: &syn::Lit) -> syn::Result<TokenStream> {
         let mut closure = match Self::parse_lit_expr(lit)? {
             syn::Expr::Closure(closure) => closure,
@@ -290,7 +290,7 @@ impl DeriveRelation {
     /// declared with, as builder calls: each value names a variant of its enum
     /// (`"NotEnforced"`, `"DeferrableInitiallyDeferred"`), and any other name
     /// is refused here, where its span is still known.
-    // [spec:pgorm:syn:macros.derive.relation+4]
+    // [spec:pgorm:syn:macros.derive.relation+5]
     fn key_check(attr: &field_attr::Pgorm) -> syn::Result<TokenStream> {
         let mut calls = TokenStream::new();
         if let Some(lit) = &attr.enforcement {
@@ -387,14 +387,14 @@ impl DeriveRelation {
 }
 
 /// Method to derive a Relation
-// [spec:pgorm:syn:macros.derive.relation+4]
+// [spec:pgorm:syn:macros.derive.relation+5]
 pub fn expand_derive_relation(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
 
-    match DeriveRelation::new(input) {
+    match Relation::new(input) {
         Ok(model) => model.expand(),
         Err(Error::InputNotEnum) => Ok(quote_spanned! {
-            ident_span => compile_error!("you can only derive DeriveRelation on enums");
+            ident_span => compile_error!("you can only derive `Relation` on enums");
         }),
         Err(Error::Syn(err)) => Err(err),
     }

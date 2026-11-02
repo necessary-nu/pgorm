@@ -325,13 +325,13 @@ including panic semantics and quirks inherited from sea-query.
 
 ## Range types a schema creates
 
-> [spec:pgorm:def:sql.value.created-range+4]
+> [spec:pgorm:def:sql.value.created-range+5]
 > A range type a schema creates with `CREATE TYPE ... AS RANGE`
 > (`[spec:pgorm:req:sql.ddl.type-range]`) is named by that schema, so no
 > `RangeType` variant can carry it, and `Value` does not: it stays one pointer
 > of payload wide. A value of one travels as its *text form* cast to the type
 > by name. The Rust side names the type once, in a newtype over `Range<T>`
-> deriving `DeriveCreatedRange` (`[spec:pgorm:sem:macros.derive.created-range]`)
+> deriving `CreatedRange` (`[spec:pgorm:sem:macros.derive.created-range]`)
 > with `range_name` and an optional `schema_name`, as an enum type is named
 > once by its `ActiveEnum`. A bare `Range<T>` field naming the type in an
 > attribute is not the shape, because `ValueType::column_type()` of a
@@ -414,7 +414,7 @@ including panic semantics and quirks inherited from sea-query.
 > The multirange PostgreSQL creates beside such a range travels the same
 > way, and is read the same way too. It is named by its own name, which is
 > not the range's: a newtype over `Multirange<T>` deriving
-> `DeriveCreatedRange` with `multirange_name`, whose `Value` is the
+> `CreatedRange` with `multirange_name`, whose `Value` is the
 > multirange's text form (`{[1,3),[5,8)}`) and whose column is
 > `ColumnType::CreatedMultirange { name, schema, subtype }`. A value is
 > written through `as_range` exactly as a range is — `CAST($1::text AS

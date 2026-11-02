@@ -3,7 +3,7 @@ use pgorm::entity::prelude::*;
 use super::pgorm_active_enums::Grade;
 use super::pgorm_range_types::Textrange;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Entity)]
 #[pgorm(table_name = "specimen")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -65,7 +65,7 @@ pub struct Model {
     pub letters: Textrange,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

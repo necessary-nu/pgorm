@@ -1,5 +1,23 @@
-error: an entity under `DeriveEntity` implements `EntityName` by hand, its names computed at run time; a name written here is the composite derive's: put it on the `Model` under `DeriveEntityModel`
- --> tests/compile-fail/entity_named_literally.rs:6:22
+error: `table_name` is the composite derive's: an entity under `EntityTrait` implements `EntityName` by hand, its names computed at run time, so `table_name` goes on the `Model` under `Entity`
+ --> tests/compile-fail/entity_named_literally.rs:6:9
   |
 6 | #[pgorm(table_name = "fruit")]
-  |                      ^^^^^^^
+  |         ^^^^^^^^^^
+
+error: `rename_all` is the composite derive's: an entity under `EntityTrait` implements `EntityName` by hand, its names computed at run time, so `rename_all` goes on the `Model` under `Entity`
+  --> tests/compile-fail/entity_named_literally.rs:14:13
+   |
+14 |     #[pgorm(rename_all = "camelCase")]
+   |             ^^^^^^^^^^
+
+error: `entity` names the entity a model or relation belongs to; `EntityTrait` is derived on the entity itself
+  --> tests/compile-fail/entity_named_literally.rs:23:13
+   |
+23 |     #[pgorm(entity = Fruit)]
+   |             ^^^^^^
+
+error: unknown pgorm attribute `colum`: `EntityTrait` reads `active_model`, `column`, `model`, `primary_key` and `relation`
+  --> tests/compile-fail/entity_named_literally.rs:32:13
+   |
+32 |     #[pgorm(colum = FruitColumn)]
+   |             ^^^^^

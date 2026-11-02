@@ -1,9 +1,9 @@
 use pgorm::Iterable;
 use pgorm::SqlName;
 use pgorm::prelude::*;
-use pgorm_macros::DeriveEntityModel;
+use pgorm_macros::Entity;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+#[derive(Clone, Debug, PartialEq, Entity, Eq)]
 #[pgorm(table_name = "user", rename_all = "camelCase")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -16,7 +16,7 @@ pub struct Model {
     orders_count: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

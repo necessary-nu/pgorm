@@ -17,7 +17,7 @@ use crate::statements::parity::{check, n};
 mod account {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "account", schema_name = "app")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -26,7 +26,7 @@ mod account {
         pub display_name: Option<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(has_many = "super::post::Entity")]
         Post,
@@ -44,7 +44,7 @@ mod account {
 mod post {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "post", schema_name = "app")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -53,7 +53,7 @@ mod post {
         pub title: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::account::Entity",
@@ -75,7 +75,7 @@ mod post {
 mod tag {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "tag", schema_name = "app")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -83,7 +83,7 @@ mod tag {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -92,7 +92,7 @@ mod tag {
 mod post_tag {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "post_tag", schema_name = "app")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -101,7 +101,7 @@ mod post_tag {
         pub tag_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = "super::post::Entity",
@@ -123,7 +123,7 @@ mod post_tag {
 mod version {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "version", schema_name = "app")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -133,7 +133,7 @@ mod version {
         pub body: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -142,7 +142,7 @@ mod version {
 mod ticket {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "ticket")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -150,7 +150,7 @@ mod ticket {
         pub note: Option<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -159,7 +159,7 @@ mod ticket {
 mod long_names {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "long_names")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -167,7 +167,7 @@ mod long_names {
         pub column_with_a_name_long_enough_to_need_bounding_in_a_graph_xx: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}

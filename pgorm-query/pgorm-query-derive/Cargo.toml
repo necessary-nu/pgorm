@@ -15,11 +15,9 @@ rust-version = "1.89"
 proc-macro = true
 
 [dependencies]
+pgorm-query-derive-internals = { version = "0.2.0", path = "../pgorm-query-derive-internals" }
 syn = { version = "3", default-features = false, features = ["parsing", "proc-macro", "derive", "printing"] }
 quote = { version = "1.0.47", default-features = false }
-heck = { version = "0.5", default-features = false }
-proc-macro2 = { version = "1.0.107", default-features = false }
-thiserror = { version = "2.0", default-features = false }
 
 [dev-dependencies]
 trybuild = "1.0.122"

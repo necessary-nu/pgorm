@@ -100,7 +100,7 @@ pub trait MigratorTrait: Send {
 
     /// Get list of migrations wrapped in `Migration` struct, failing if two of
     /// them answer `name()` with the same string
-    // [spec:pgorm:sem:migration.name+3]    duplicates are rejected here, ahead of every other step
+    // [spec:pgorm:sem:migration.name+4]    duplicates are rejected here, ahead of every other step
     fn get_migration_files() -> Result<Vec<Migration>, Error> {
         let migrations = Self::migrations();
 
@@ -121,7 +121,7 @@ pub trait MigratorTrait: Send {
                 .join(", ");
             return Err(Error::Custom(format!(
                 "Duplicate migration name(s): {names}. A migration's name is its ledger identity, \
-                 so it must be unique; note that `DeriveMigrationName` uses the file stem alone, \
+                 so it must be unique; note that `MigrationName` uses the file stem alone, \
                  which makes two same-named files in different directories collide"
             )));
         }
@@ -692,7 +692,7 @@ where
     // A list that names the same migration twice cannot be applied coherently,
     // so it is rejected before the lock is taken and before the ledger exists —
     // there is no reason to make a concurrent runner queue behind it.
-    // [spec:pgorm:sem:migration.name+3]
+    // [spec:pgorm:sem:migration.name+4]
     M::get_migration_files()?;
 
     // Before anything reads or writes the ledger: a concurrent runner is made

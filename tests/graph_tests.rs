@@ -1219,7 +1219,7 @@ mod peers {
     pub mod member {
         use pgorm::entity::prelude::*;
 
-        #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+        #[derive(Clone, Debug, PartialEq, Eq, Entity)]
         #[pgorm(table_name = "review_member")]
         pub struct Model {
             #[pgorm(primary_key, auto_increment = false)]
@@ -1228,7 +1228,7 @@ mod peers {
             pub nickname: String,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
         pub enum Relation {}
 
         impl ActiveModelBehavior for ActiveModel {}
@@ -1237,7 +1237,7 @@ mod peers {
     pub mod member_link {
         use pgorm::entity::prelude::*;
 
-        #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+        #[derive(Clone, Debug, PartialEq, Eq, Entity)]
         #[pgorm(table_name = "review_member_link")]
         pub struct Model {
             #[pgorm(primary_key, auto_increment = false)]
@@ -1246,7 +1246,7 @@ mod peers {
             pub peer_id: i32,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
         pub enum Relation {
             #[pgorm(
                 belongs_to = "super::member::Entity",
@@ -1396,7 +1396,7 @@ async fn slot_cursor_resumes_through_equal_names() -> Result<(), Error> {
 mod alias_collision {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "review_alias_collision")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -1407,7 +1407,7 @@ mod alias_collision {
         pub mimic: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -1464,7 +1464,7 @@ async fn bounded_alias_never_shadows_a_short_column() -> Result<(), Error> {
 mod unicode_collision {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "review_unicode_collision")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -1475,7 +1475,7 @@ mod unicode_collision {
         pub mimic: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -1529,7 +1529,7 @@ async fn unicode_bounded_alias_never_shadows_a_short_column() -> Result<(), Erro
 mod long_name {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "review_long_name")]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
@@ -1542,7 +1542,7 @@ mod long_name {
         pub wide: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
