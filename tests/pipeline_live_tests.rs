@@ -1413,7 +1413,7 @@ mod cast_probe {
         #[pgorm(
             select_as = "text",
             save_as = "numeric",
-            column_type = "named(\"numeric\")"
+            column_type = ColumnType::named("numeric")
         )]
         pub amount: String,
     }

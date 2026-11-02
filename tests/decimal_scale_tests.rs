@@ -29,7 +29,7 @@ mod decimal_probe {
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
         pub id: i32,
-        #[pgorm(column_type = "Decimal(None)")]
+        #[pgorm(column_type = ColumnType::Decimal(None))]
         pub amount: Decimal,
     }
 

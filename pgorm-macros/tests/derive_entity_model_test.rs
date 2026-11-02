@@ -23,7 +23,7 @@ mod filling {
     pub struct Model {
         #[pgorm(primary_key)]
         pub id: i32,
-        #[pgorm(column_type = "Text", unique, indexed, comment = "display name")]
+        #[pgorm(column_type = ColumnType::Text, unique, indexed, comment = "display name")]
         pub name: String,
         pub vendor_id: Option<i32>,
         #[pgorm(nullable, default_value = 0)]
@@ -39,6 +39,56 @@ mod filling {
         #[pgorm(ignore)]
         pub not_a_column: i32,
         pub plain: i32,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+/// What a hand-written `ColumnTrait` method could say, said by attributes: a
+/// `column_type` that is any `ColumnType` expression, a helper's call
+/// included, and a column read and written through functions of its
+/// expression.
+mod written_by_functions {
+    use pgorm::entity::prelude::*;
+    use pgorm::pgorm_query::{SimpleExpr, TypeName};
+
+    fn varchar(length: u32) -> ColumnType {
+        ColumnType::String(StringLen::N(length))
+    }
+
+    fn label() -> TypeName {
+        TypeName::new(Name::runtime("Label"))
+    }
+
+    pub fn read_label(expr: Expr) -> SimpleExpr {
+        expr.cast_as_type(label())
+    }
+
+    pub fn write_label(val: Expr) -> SimpleExpr {
+        val.cast_as_type(label())
+    }
+
+    pub fn write_labels(val: Expr) -> SimpleExpr {
+        val.cast_as_type(label().array())
+    }
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[pgorm(table_name = "written_by_functions")]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        #[pgorm(column_type = varchar(40))]
+        pub code: String,
+        #[pgorm(
+            column_type = ColumnType::named("label"),
+            select_with = read_label,
+            save_with = write_label,
+            save_array_with = write_labels
+        )]
+        pub label: String,
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -310,9 +360,10 @@ mod generated_columns {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-/// No `table_name`, so no `Entity` struct is generated: the entity module is
-/// hand-finished and `DeriveEntityModel` contributes only `Column`,
-/// `PrimaryKey`, `Model` and `ActiveModel`.
+/// No `table_name`, so no `Entity` struct is generated: the entity's name is
+/// computed, its `Entity` written by hand under `DeriveEntity`, and
+/// `DeriveEntityModel` contributes only `Column`, `PrimaryKey`, `Model` and
+/// `ActiveModel`.
 mod no_table_name {
     use pgorm::entity::prelude::*;
 
@@ -364,8 +415,8 @@ mod serde_keys {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model+5/test]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+4/test]    struct-level table_name / schema_name / comment
+// [spec:pgorm:sem:macros.derive.entity-model+6/test]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+5/test]    struct-level table_name / schema_name / comment
 #[test]
 fn struct_attributes_drive_entity_and_entity_name() {
     // (3) `table_name` present, so `pub struct Entity;` plus a hand-rolled
@@ -380,7 +431,7 @@ fn struct_attributes_drive_entity_and_entity_name() {
     assert_eq!(format!("{:?}", filling::Entity {}), "Entity");
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model+5/test]    one derive yields the whole entity module
+// [spec:pgorm:sem:macros.derive.entity-model+6/test]    one derive yields the whole entity module
 #[test]
 fn one_derive_yields_the_whole_entity_module() {
     // (1) the `Column` enum, with `EnumIter` + `DeriveColumn` behaviour.
@@ -408,8 +459,8 @@ fn one_derive_yields_the_whole_entity_module() {
     let keys: Vec<String> = filling::PrimaryKey::iter().map(|k| k.to_string()).collect();
     assert_eq!(keys, vec!["id"]);
 
-    // DeriveModel + DeriveActiveModel are re-run on the same input, so
-    // `Model: ModelTrait` and `ActiveModel` both exist.
+    // DeriveModel is re-run on the same input and the ActiveModel written
+    // beside it, so `Model: ModelTrait` and `ActiveModel` both exist.
     let model = filling::Model {
         id: 1,
         name: "raspberry".to_owned(),
@@ -427,7 +478,7 @@ fn one_derive_yields_the_whole_entity_module() {
     assert_eq!(active.id, pgorm::ActiveValue::unchanged(1));
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model+5/test]    select_as / save_as overrides and their fallback
+// [spec:pgorm:sem:macros.derive.entity-model+6/test]    select_as / save_as overrides and their fallback
 #[test]
 fn select_as_and_save_as_cast_columns() {
     let casted = filling::Column::Casted;
@@ -454,7 +505,46 @@ fn select_as_and_save_as_cast_columns() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model+5/test]    the `json_key` arm: the
+// [spec:pgorm:req:macros.derive.one-form/test]    `column_type` is any `ColumnType`
+// expression, a helper's call included, and `select_with` / `save_with` /
+// `save_array_with` name the functions a column is read and written through
+#[test]
+fn attributes_say_what_column_methods_said() {
+    use written_by_functions::{Column, read_label, write_label, write_labels};
+
+    assert_eq!(
+        Column::Code.def().get_column_type(),
+        &ColumnType::String(StringLen::N(40))
+    );
+    assert_eq!(
+        Column::Label.def().get_column_type(),
+        &ColumnType::named("label")
+    );
+
+    let label = Column::Label;
+    assert_eq!(
+        label.select_as(Expr::col(label)),
+        read_label(Expr::col(label))
+    );
+    assert_eq!(label.save_as(Expr::val("v")), write_label(Expr::val("v")));
+    assert_eq!(
+        label.save_array_as(Expr::val(vec!["v".to_owned()])),
+        write_labels(Expr::val(vec!["v".to_owned()]))
+    );
+
+    // Columns naming none of the three keep the trait's casts.
+    let code = Column::Code;
+    assert_eq!(
+        code.select_as(Expr::col(code)),
+        ColumnTrait::select_enum_as(&code, Expr::col(code))
+    );
+    assert_eq!(
+        code.save_array_as(Expr::val(vec!["v".to_owned()])),
+        ColumnTrait::save_enum_array_as(&code, Expr::val(vec!["v".to_owned()]))
+    );
+}
+
+// [spec:pgorm:sem:macros.derive.entity-model+6/test]    the `json_key` arm: the
 // field's own name under `serde`'s renames, with the SQL naming attributes kept
 // out of it and the rest of `serde` stepped over
 // [spec:pgorm:def:entity.traits.column+6/test]    the namespace `json_key` names,
@@ -499,7 +589,7 @@ fn json_key_reports_the_serde_key() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+4/test]    `table_iden` adds a Table variant
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+5/test]    `table_iden` adds a Table variant
 #[test]
 fn table_iden_variant_is_skipped_by_enum_iter() {
     // The variant exists...
@@ -512,14 +602,14 @@ fn table_iden_variant_is_skipped_by_enum_iter() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+4/test]    the Table variant has no column def
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+5/test]    the Table variant has no column def
 #[test]
 #[should_panic(expected = "Table cannot be used as a column")]
 fn table_iden_variant_has_no_column_def() {
     let _ = filling::Column::Table.def();
 }
 
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+4/test]    field-level keys
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+5/test]    field-level keys
 #[test]
 fn field_level_attributes_shape_the_column_defs() {
     use pgorm::ColumnTypeTrait;
@@ -554,7 +644,7 @@ fn field_level_attributes_shape_the_column_defs() {
     assert_eq!(filling::Column::Plain.def(), ColumnType::Integer.def());
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+7/test]    the Rust-type inference table
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+8/test]    the Rust-type inference table
 #[test]
 fn column_types_inferred_from_rust_type_name() {
     use pgorm::ColumnTypeTrait;
@@ -587,7 +677,7 @@ fn column_types_inferred_from_rust_type_name() {
     assert_eq!(C::Tea.def(), ColumnType::String(StringLen::N(1)).def());
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+7/test]    explicit column_type wins
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+8/test]    explicit column_type wins
 #[test]
 fn an_explicit_column_type_overrides_the_inferred_one() {
     // `name: String` would infer `string(None)`; the attribute pins `Text`.
@@ -601,7 +691,7 @@ fn an_explicit_column_type_overrides_the_inferred_one() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.casing+1/test]
+// [spec:pgorm:sem:macros.derive.entity-model.casing+2/test]
 #[test]
 fn column_variant_names_follow_the_casing_rules() {
     // Raw identifier trimmed, then UpperCamelCase.
@@ -613,7 +703,7 @@ fn column_variant_names_follow_the_casing_rules() {
     assert_eq!(casing::Column::Wholly.to_string(), "wholly");
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.casing+1/test]    when the SQL name is pinned
+// [spec:pgorm:sem:macros.derive.entity-model.casing+2/test]    when the SQL name is pinned
 #[test]
 fn sql_column_names_are_pinned_only_when_needed() {
     // Clean snake_case: no attribute, the name falls out of `DeriveColumn`.
@@ -627,7 +717,7 @@ fn sql_column_names_are_pinned_only_when_needed() {
     assert_eq!(renamed::Column::SecondName.to_string(), "explicit");
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+6/test]
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7/test]
 #[test]
 fn primary_key_value_type_and_auto_increment() {
     // A single key contributes a bare type...
@@ -647,7 +737,7 @@ fn primary_key_value_type_and_auto_increment() {
     assert!(!shared_auto_increment::PrimaryKey::auto_increment());
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+6/test]    `without_overlaps` on the
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7/test]    `without_overlaps` on the
 // key's last field makes the key temporal, its period part of the key value; a plain key is not
 #[test]
 fn without_overlaps_marks_the_period() {
@@ -658,7 +748,7 @@ fn without_overlaps_marks_the_period() {
     assert!(!single_pk::PrimaryKey::without_overlaps());
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+6/test]    an identity
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7/test]    an identity
 // column inside a composite key: its def carries the identity, the other key
 // column's does not, and the key is not generated whole
 #[test]
@@ -679,7 +769,7 @@ fn identity_inside_a_composite_key() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+6/test]    the key is
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7/test]    the key is
 // generated whole when every key column is an identity, whatever its arity and
 // whatever a non-key field says about `auto_increment`
 #[test]
@@ -696,7 +786,7 @@ fn every_identity_key_column_generates_the_key() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+7/test]    each generated key
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+8/test]    each generated key
 // becomes the column's generation expression of its kind, after the modifiers it
 // sits beside, and a stored generated column alone in the key generates the key
 #[test]
@@ -727,9 +817,10 @@ fn generated_keys_carry_their_kind() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+6/test]    what DerivePrimaryKey itself emits
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7/test]    the names and column
+// mapping the composite writes for its `PrimaryKey`
 #[test]
-fn derive_primary_key_emits_iden_and_mapping() {
+fn primary_key_emits_iden_and_mapping() {
     // `StaticName` maps the variant to its snake_case name, or a `column_name`
     // override; `SqlName` delegates to it.
     assert_eq!(pgorm::StaticName::as_str(&single_pk::PrimaryKey::Id), "ID");
@@ -754,7 +845,7 @@ fn derive_primary_key_emits_iden_and_mapping() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.entity+3/test]    EntityTrait associated types and the SqlName pair
+// [spec:pgorm:sem:macros.derive.entity+4/test]    EntityTrait associated types and the SqlName pair
 #[test]
 fn derive_entity_wires_up_the_entity_trait() {
     // The five associated types default to the conventional names.
@@ -787,12 +878,14 @@ fn derive_entity_wires_up_the_entity_trait() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.entity+3/test]    EntityName only when table_name is present
+// [spec:pgorm:req:macros.derive.one-form/test]    an entity whose name is computed keeps
+// its `Entity` and `EntityName` by hand, beside a composite derive given no `table_name`
+// [spec:pgorm:sem:macros.derive.entity+4/test]    the entity-trait derive writes no EntityName
 #[test]
-fn derive_entity_omits_entity_name_without_table_name() {
-    // `no_table_name::Entity` carries `DeriveEntity` with no `table_name`, and a
-    // hand-written `EntityName` impl right beside it. If the derive had emitted
-    // its own `EntityName` this module would not compile at all.
+fn derive_entity_leaves_entity_name_to_hand() {
+    // `no_table_name::Entity` carries `DeriveEntity` and a hand-written
+    // `EntityName` impl right beside it. If the derive had emitted its own
+    // `EntityName` this module would not compile at all.
     assert_eq!(no_table_name::Entity.table_name(), "hand_written");
     assert_eq!(no_table_name::Entity.schema_name(), None);
     assert_eq!(no_table_name::Entity.to_string(), "hand_written");

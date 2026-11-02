@@ -20,7 +20,7 @@ struct Variant {
     encoded: bool,
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+2]
+// [spec:pgorm:sem:codegen.entity.enums+3]
 fn variant(value: &str) -> Variant {
     if value.chars().next().map(char::is_numeric).unwrap_or(false) {
         return Variant {
@@ -64,8 +64,8 @@ impl ActiveEnum {
             .collect()
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+2]
-    // [spec:pgorm:sem:codegen.entity.keywords+1]
+    // [spec:pgorm:sem:codegen.entity.enums+3]
+    // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let enum_name = self.enum_name.to_string();
         let context = format!("enum `{enum_name}`");
@@ -83,7 +83,7 @@ impl ActiveEnum {
         Ok(())
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+2]
+    // [spec:pgorm:sem:codegen.entity.enums+3]
     pub fn impl_active_enum(
         &self,
         with_serde: &WithSerde,

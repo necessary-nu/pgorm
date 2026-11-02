@@ -1,5 +1,5 @@
 //! Interval columns: each qualifier PostgreSQL's `interval` takes, read by
-//! the DDL bridge, and the entity both writers generate for it — the field an
+//! the DDL bridge, and the entity the writer generates for it — the field an
 //! `Interval` whatever the qualifier, the qualifier carried in the column's
 //! definition so that the table the entity creates is the table described.
 
@@ -19,14 +19,6 @@ const SCHEMA: &str = include_str!("sql/interval/schema.sql");
 /// workspace root.
 #[path = "sql/interval/interval_span.rs"]
 mod interval_span;
-
-/// The same entity in the expanded format. Included rather than declared as a
-/// module, so that rustfmt leaves the fixture in the shape the writer emits:
-/// its match arms are longer than a formatted line, and formatting would
-/// wrap them in braces the comparison would then have to see through.
-mod expanded_span {
-    include!("sql/interval/expanded/interval_span.rs");
-}
 
 /// The columns [`SCHEMA`] declares nullable.
 const NULLABLE: [&str; 3] = ["maybe", "clock", "budgets"];
@@ -199,12 +191,12 @@ fn an_interval_modifier_beyond_the_spec_is_named() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.types+10/test]    an interval column is an
+// [spec:pgorm:sem:codegen.entity.types+11/test]    an interval column is an
 // `Interval` field, an array of them a `Vec<Interval>`, whatever the qualifier
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    the compact writer
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    the compact writer
 // names the column type exactly where the field's `Interval` does not: a
 // qualifier or a precision, alone or as an array's element
-// [spec:pgorm:req:codegen.entity.types.unsupported+8/test]    no interval
+// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    no interval
 // shape is refused
 #[test]
 fn interval_columns_generate_a_compiling_entity() {
@@ -226,39 +218,14 @@ fn interval_columns_generate_a_compiling_entity() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.types+10/test]    the expanded writer spells
-// each qualifier out through the prelude, and defines every column as the
-// compact derive does
-#[test]
-fn the_expanded_writer_spells_each_qualifier() {
-    let generated = files(entities_from_sql(SCHEMA, expanded()).expect("the schema generates"));
-    let written = norm(generated.file("interval_span.rs")).replace(", )", ")");
-    assert!(
-        written.contains(&norm(include_str!(
-            "sql/interval/expanded/interval_span.rs"
-        ))),
-        "{written}"
-    );
-
-    for (expanded, compact) in expanded_span::Column::iter().zip(interval_span::Column::iter()) {
-        assert_eq!(expanded.def(), compact.def(), "{}", compact.as_str());
-    }
-}
-
 // [spec:pgorm:def:codegen.ddl+4/test]    a table of interval columns built
 // with pgorm-query and rendered generates, read back, the entity the
 // statement itself generates
 #[test]
 fn rendered_interval_columns_read_back_whole() {
     let text = format!("{};", built());
-    for expanded_format in [false, true] {
-        let opts = || Opts {
-            expanded_format,
-            ..Default::default()
-        };
-        assert_eq!(
-            files(entities_from_sql(&text, opts()).expect("the rendering generates")).files,
-            generate(vec![built()], opts()).files,
-        );
-    }
+    assert_eq!(
+        files(entities_from_sql(&text, Opts::default()).expect("the rendering generates")).files,
+        generate(vec![built()], Opts::default()).files,
+    );
 }

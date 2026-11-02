@@ -15,7 +15,7 @@ use crate::{
 ///
 /// Ordered by bare name first, so the entity map — and every output that walks
 /// it — stays alphabetical by table name however the schemas sort.
-// [spec:pgorm:sem:codegen.entity.transform+15]
+// [spec:pgorm:sem:codegen.entity.transform+16]
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TableIdent {
     pub table: String,
@@ -24,7 +24,7 @@ pub struct TableIdent {
 
 impl TableIdent {
     /// The identity a DDL statement's table name spells.
-    // [spec:pgorm:sem:codegen.entity.transform+15]
+    // [spec:pgorm:sem:codegen.entity.transform+16]
     pub fn of(name: &TableName) -> Self {
         Self {
             table: name.table().to_string(),
@@ -34,7 +34,7 @@ impl TableIdent {
 }
 
 /// As the schema wrote it: `schema.table`, or `table` when unqualified.
-// [spec:pgorm:sem:codegen.entity.transform+15]
+// [spec:pgorm:sem:codegen.entity.transform+16]
 impl fmt::Display for TableIdent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.schema {
@@ -55,13 +55,13 @@ pub struct Entity {
     pub(crate) primary_keys: Vec<PrimaryKey>,
     /// Whether the last primary-key column is the key's period, PostgreSQL
     /// 18's `WITHOUT OVERLAPS`.
-    // [spec:pgorm:sem:codegen.entity.transform+15]
+    // [spec:pgorm:sem:codegen.entity.transform+16]
     pub(crate) without_overlaps: bool,
 }
 
 impl Entity {
     /// Which table this entity is generated from.
-    // [spec:pgorm:sem:codegen.entity.transform+15]
+    // [spec:pgorm:sem:codegen.entity.transform+16]
     pub fn ident(&self) -> TableIdent {
         TableIdent {
             table: self.table_name.clone(),
@@ -72,15 +72,15 @@ impl Entity {
     /// The schema the generated entity names: the source table's own qualifier
     /// when it had one, else the configured default. A fact the schema states
     /// is never overridden by an option.
-    // [spec:pgorm:sem:codegen.entity.transform+15]
+    // [spec:pgorm:sem:codegen.entity.transform+16]
     pub fn effective_schema<'a>(&'a self, default: &'a Option<String>) -> Option<&'a str> {
         self.schema_name.as_deref().or(default.as_deref())
     }
 
     /// Everything the writer derives from this entity's DB names, checked while
     /// the caller can still be handed the failure.
-    // [spec:pgorm:sem:codegen.entity.transform+15]
-    // [spec:pgorm:sem:codegen.entity.keywords+1]
+    // [spec:pgorm:sem:codegen.entity.transform+16]
+    // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let qualified = self.ident().to_string();
         let table = qualified.as_str();
@@ -139,13 +139,6 @@ impl Entity {
             .collect()
     }
 
-    pub fn get_column_names_camel_case(&self) -> Vec<Ident> {
-        self.columns
-            .iter()
-            .map(|col| col.get_name_camel_case())
-            .collect()
-    }
-
     pub fn get_column_rs_types(&self) -> Vec<TokenStream> {
         self.columns
             .clone()
@@ -154,25 +147,10 @@ impl Entity {
             .collect()
     }
 
-    pub fn get_column_defs(&self) -> Vec<TokenStream> {
-        self.columns
-            .clone()
-            .into_iter()
-            .map(|col| col.get_def())
-            .collect()
-    }
-
     pub fn get_primary_key_names_snake_case(&self) -> Vec<Ident> {
         self.primary_keys
             .iter()
             .map(|pk| pk.get_name_snake_case())
-            .collect()
-    }
-
-    pub fn get_primary_key_names_camel_case(&self) -> Vec<Ident> {
-        self.primary_keys
-            .iter()
-            .map(|pk| pk.get_name_camel_case())
             .collect()
     }
 
@@ -190,59 +168,8 @@ impl Entity {
             .collect()
     }
 
-    pub fn get_relation_defs(&self) -> Vec<TokenStream> {
-        self.relations.iter().map(|rel| rel.get_def()).collect()
-    }
-
     pub fn get_relation_attrs(&self) -> Vec<TokenStream> {
         self.relations.iter().map(|rel| rel.get_attrs()).collect()
-    }
-
-    /// Whether the database generates the whole key: every key column is an
-    /// identity or a generated column, or the key is one serial column — the
-    /// reading the derive gives the compact form's attributes.
-    // [spec:pgorm:sem:codegen.entity.pk+3]
-    pub fn get_primary_key_auto_increment(&self) -> Ident {
-        let keys: Vec<&Column> = self
-            .columns
-            .iter()
-            .filter(|col| self.primary_keys.iter().any(|key| key.name == col.name))
-            .collect();
-        let generated = |col: &&Column| col.identity.is_some() || col.generated.is_some();
-        let auto_increment = if keys.iter().any(generated) {
-            keys.iter().all(generated)
-        } else {
-            matches!(keys.as_slice(), [key] if key.auto_increment)
-        };
-        format_ident!("{}", auto_increment)
-    }
-
-    pub fn get_primary_key_rs_type(&self) -> TokenStream {
-        let types = self
-            .primary_keys
-            .iter()
-            .map(|primary_key| {
-                self.columns
-                    .iter()
-                    .find(|col| col.name.eq(&primary_key.name))
-                    .expect("every primary key names a column of its own table")
-                    .get_rs_type()
-                    .to_string()
-            })
-            .collect::<Vec<_>>();
-        if !types.is_empty() {
-            let value_type = if types.len() > 1 {
-                vec!["(".to_owned(), types.join(", "), ")".to_owned()]
-            } else {
-                types
-            };
-            value_type
-                .join("")
-                .parse()
-                .expect("mapped Rust type names are token text")
-        } else {
-            TokenStream::new()
-        }
     }
 
     pub fn get_conjunct_relations_via_snake_case(&self) -> Vec<Ident> {
@@ -266,7 +193,7 @@ impl Entity {
             .collect()
     }
 
-    // [spec:pgorm:sem:codegen.entity.types+10]
+    // [spec:pgorm:sem:codegen.entity.types+11]
     pub fn get_eq_needed(&self) -> TokenStream {
         fn is_floats(col_type: &ColumnType) -> bool {
             match col_type {
@@ -425,15 +352,6 @@ mod tests {
     }
 
     #[test]
-    fn test_get_column_names_camel_case() {
-        let entity = setup();
-
-        for (i, elem) in entity.get_column_names_camel_case().into_iter().enumerate() {
-            assert_eq!(elem, entity.columns[i].get_name_camel_case());
-        }
-    }
-
-    #[test]
     fn test_get_column_rs_types() {
         let entity = setup();
 
@@ -442,15 +360,6 @@ mod tests {
                 elem.to_string(),
                 entity.columns[i].get_rs_type().to_string()
             );
-        }
-    }
-
-    #[test]
-    fn test_get_column_defs() {
-        let entity = setup();
-
-        for (i, elem) in entity.get_column_defs().into_iter().enumerate() {
-            assert_eq!(elem.to_string(), entity.columns[i].get_def().to_string());
         }
     }
 
@@ -464,19 +373,6 @@ mod tests {
             .enumerate()
         {
             assert_eq!(elem, entity.primary_keys[i].get_name_snake_case());
-        }
-    }
-
-    #[test]
-    fn test_get_primary_key_names_camel_case() {
-        let entity = setup();
-
-        for (i, elem) in entity
-            .get_primary_key_names_camel_case()
-            .into_iter()
-            .enumerate()
-        {
-            assert_eq!(elem, entity.primary_keys[i].get_name_camel_case());
         }
     }
 
@@ -499,15 +395,6 @@ mod tests {
     }
 
     #[test]
-    fn test_get_relation_defs() {
-        let entity = setup();
-
-        for (i, elem) in entity.get_relation_defs().into_iter().enumerate() {
-            assert_eq!(elem.to_string(), entity.relations[i].get_def().to_string());
-        }
-    }
-
-    #[test]
     fn test_get_relation_attrs() {
         let entity = setup();
 
@@ -517,32 +404,6 @@ mod tests {
                 entity.relations[i].get_attrs().to_string()
             );
         }
-    }
-
-    #[test]
-    fn test_get_primary_key_auto_increment() {
-        let mut entity = setup();
-
-        assert_eq!(
-            entity.get_primary_key_auto_increment(),
-            format_ident!("{}", false)
-        );
-
-        entity.columns[0].auto_increment = true;
-        assert_eq!(
-            entity.get_primary_key_auto_increment(),
-            format_ident!("{}", true)
-        );
-    }
-
-    #[test]
-    fn test_get_primary_key_rs_type() {
-        let entity = setup();
-
-        assert_eq!(
-            entity.get_primary_key_rs_type().to_string(),
-            entity.columns[0].get_rs_type().to_string()
-        );
     }
 
     #[test]

@@ -47,6 +47,10 @@ compiled.
 | --- | --- |
 | `sea_orm`, `sea_orm::prelude` | `pgorm`, `pgorm::entity::prelude` |
 | `#[sea_orm(...)]` | `#[pgorm(...)]` |
+| the expanded entity format | `DeriveEntityModel` on `Model` and `DeriveRelation` on `Relation` only |
+| `DerivePrimaryKey`, `DeriveActiveModel`, `DeriveCustomColumn` | gone: `DeriveEntityModel` writes the key and the active model |
+| `column_type = "Text"` | `column_type = ColumnType::Text` |
+| a hand-written `ColumnTrait::select_as` / `save_as` | `select_with = f`; `save_with = f, save_array_with = g` |
 | `sea_query` | `pgorm::pgorm_query` |
 | `Database::connect(url)` | `pgorm::connect(config)` |
 | `ConnectOptions` | `connect_with_builder`, `connect_with` |
@@ -105,6 +109,7 @@ compiled.
 | `down`, `fresh`, `refresh`, `reset` | gone: migrations run forward only |
 | `seaql_migrations` | `pgorm_migrations`, adopted on the first `up` |
 | `sea-orm-cli generate entity` | `pgorm_codegen::entities_from_sql` |
+| `sea-orm-cli generate entity --expanded-format` | gone: codegen writes the compact form only |
 | `sea-orm-cli migrate` | a small binary of your own |
 | `MockDatabase` | `build()` to check the SQL, or a real database |
 | `set_metric_callback` | `metric::InstrumentedPool` |
@@ -375,8 +380,67 @@ fails with a retryable error; SeaORM has no equivalent.
 
 ## Entities and their attributes
 
-Entities are written the same way, with `#[pgorm(...)]` in place of
-`#[sea_orm(...)]`. Some details differ:
+An entity is written one way: SeaORM's compact form, `DeriveEntityModel` on
+the `Model` struct and `DeriveRelation` on the `Relation` enum, with
+`#[pgorm(...)]` in place of `#[sea_orm(...)]`. The expanded form, an `Entity`
+struct, `Column` and `PrimaryKey` enums and their trait impls written out by
+hand, is gone, and with it `DerivePrimaryKey`, `DeriveActiveModel` and
+`DeriveCustomColumn`. What an expanded entity said in a trait method, an
+attribute says:
+
+- `column_type` takes any expression of type `ColumnType`, written bare:
+  `column_type = ColumnType::Text`, or a helper's call. A string there is a
+  compile error.
+- `select_with = f` reads a column through `fn f(Expr) -> SimpleExpr`, and
+  `save_with = f` writes a value through one, beside `save_array_with = g`
+  for the array `= ANY` and `<> ALL` compare it with. They stand for the
+  `select_as` and `save_as` methods; the attributes of those names still take
+  a type to cast to.
+- `on_condition` takes a closure of the two tables as the join binds them,
+  `r#"|left, right| ..."#`, as well as an expression that ignores them.
+- An entity whose table or schema name is computed at run time keeps a
+  hand-written part: its own `Entity` struct holding what the name is computed
+  from, an `EntityName` impl, and `DeriveEntity` on the struct, beside a
+  `DeriveEntityModel` given no `table_name`.
+
+```rust
+use pgorm::entity::prelude::*;
+use pgorm::pgorm_query::SimpleExpr;
+
+#[derive(Copy, Clone, Default, Debug, DeriveEntity)]
+pub struct Entity {
+    pub tenant: &'static str,
+}
+
+impl EntityName for Entity {
+    fn schema_name(&self) -> Option<&str> {
+        Some(self.tenant)
+    }
+
+    fn table_name(&self) -> &str {
+        "cake"
+    }
+}
+
+fn as_label(expr: Expr) -> SimpleExpr {
+    expr.cast_as(Name::runtime("label"))
+}
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+pub struct Model {
+    #[pgorm(primary_key)]
+    pub id: i32,
+    #[pgorm(column_type = ColumnType::String(StringLen::N(40)), select_with = as_label)]
+    pub name: String,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {}
+
+impl ActiveModelBehavior for ActiveModel {}
+```
+
+Some details differ besides:
 
 - An unknown key in `#[pgorm(...)]` is a compile error. SeaORM ignored it, so
   a typo such as `auto_incremnt = false` silently changed the column.

@@ -14,16 +14,8 @@ use pgorm_query::{
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
 
 /// The full `EntityWriterContext::new` option set; `Opts::default()` is the
-/// shape a caller gets with no flags: compact format, no serde, `mod.rs`.
+/// shape a caller gets with no flags: no serde, `mod.rs`.
 pub type Opts = EntityWriterOptions;
-
-/// The same set with the expanded format selected.
-pub fn expanded() -> Opts {
-    Opts {
-        expanded_format: true,
-        ..Default::default()
-    }
-}
 
 pub fn context(opts: Opts) -> EntityWriterContext {
     EntityWriterContext::new(opts).expect("options should build a context")

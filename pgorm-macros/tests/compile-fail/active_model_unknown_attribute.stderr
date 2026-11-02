@@ -1,5 +1,0 @@
-error: unknown pgorm attribute `nulable`
- --> tests/compile-fail/active_model_unknown_attribute.rs:5:13
-  |
-5 |     #[pgorm(nulable)]
-  |             ^^^^^^^

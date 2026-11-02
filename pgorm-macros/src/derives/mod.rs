@@ -35,7 +35,6 @@ pub use into_active_model::*;
 pub use migration::*;
 pub use model::*;
 pub use partial_model::*;
-pub use primary_key::*;
 pub use relation::*;
 pub use try_getable_from_json::*;
 pub use value_type::*;

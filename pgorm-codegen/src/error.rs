@@ -1,6 +1,6 @@
 use std::{error, fmt, io};
 
-// [spec:pgorm:def:codegen.entity+5]
+// [spec:pgorm:def:codegen.entity+6]
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {

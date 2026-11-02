@@ -23,23 +23,11 @@ pub enum Relation {
         to = "super::cake::Column::Id"
     )]
     Cake,
-    #[pgorm(
-        belongs_to = "super::cake_expanded::Entity",
-        from = "Column::CakeId",
-        to = "super::cake_expanded::Column::Id"
-    )]
-    CakeExpanded,
 }
 
 impl Related<super::cake::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Cake.def()
-    }
-}
-
-impl Related<super::cake_expanded::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::CakeExpanded.def()
     }
 }
 

@@ -1,6 +1,6 @@
 //! Enum arrays: columns typed with an array of an enum the file creates,
 //! schema-qualified or not, nullable or not, and through a domain, and the
-//! entity both writers generate for them — each field a `Vec` of the enum's
+//! entity the writer generates for them — each field a `Vec` of the enum's
 //! `ActiveEnum`.
 
 mod common;
@@ -14,7 +14,7 @@ use std::sync::Arc;
 const SCHEMA: &str = include_str!("sql/enum_array/schema.sql");
 
 /// The files the bridge generates for [`SCHEMA`], compiled here as well as
-/// compared: the derives accept every enum array the writers emit. The live
+/// compared: the derives accept every enum array the writer emits. The live
 /// round trip through them is `tests/codegen_enum_array_tests.rs` at the
 /// workspace root.
 #[path = "sql/enum_array/pgorm_active_enums.rs"]
@@ -22,12 +22,6 @@ mod pgorm_active_enums;
 
 #[path = "sql/enum_array/survey.rs"]
 mod survey;
-
-/// The same entity in the expanded format, included rather than declared so
-/// that rustfmt leaves the fixture in the shape the writer emits.
-mod expanded_survey {
-    include!("sql/enum_array/expanded/survey.rs");
-}
 
 /// The columns [`SCHEMA`] declares nullable.
 const NULLABLE: [&str; 3] = ["past_moods", "past_tiers", "log"];
@@ -105,7 +99,7 @@ fn the_bridge_reads_an_enum_array_column() {
     assert_eq!(columns, expected);
 }
 
-// [spec:pgorm:sem:codegen.entity.types+10/test]    an enum array column is a `Vec` of the
+// [spec:pgorm:sem:codegen.entity.types+11/test]    an enum array column is a `Vec` of the
 // enum's `ActiveEnum`, and the compact writer names no `column_type` for one, the derive
 // inferring the array of the enum's type, its schema included; a domain over one is
 // spelled with the enum's column type as its array's element
@@ -130,23 +124,5 @@ fn enum_arrays_generate_a_compiling_entity() {
             false => col_type.def(),
         };
         assert_eq!(column.def(), expected, "{name}");
-    }
-}
-
-// [spec:pgorm:sem:codegen.entity.types+10/test]    the expanded writer spells an enum array's
-// element as the enum's column type, `<Enum>::db_type().get_column_type().clone()`, and
-// defines every column as the compact derive does
-// [spec:pgorm:def:codegen.entity.expanded+4/test]
-#[test]
-fn the_expanded_writer_spells_an_enum_array() {
-    let generated = files(entities_from_sql(SCHEMA, expanded()).expect("the schema generates"));
-    let written = flat(generated.file("survey.rs"));
-    assert!(
-        written.contains(&flat(include_str!("sql/enum_array/expanded/survey.rs"))),
-        "{written}"
-    );
-
-    for (expanded, compact) in expanded_survey::Column::iter().zip(survey::Column::iter()) {
-        assert_eq!(expanded.def(), compact.def(), "{}", compact.as_str());
     }
 }

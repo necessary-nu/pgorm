@@ -11,9 +11,9 @@ pub struct Model {
     pub p: Option<bool>,
     pub q: Option<bool>,
     pub r: Option<bool>,
-    #[pgorm(column_type = "Text", nullable)]
+    #[pgorm(column_type = ColumnType::Text, nullable)]
     pub s: Option<String>,
-    #[pgorm(column_type = "Text", nullable)]
+    #[pgorm(column_type = ColumnType::Text, nullable)]
     pub t: Option<String>,
     #[pgorm(generated_stored = "Expr::expr(Expr::col(Column::P).not()).eq(Expr::col(Column::Q))")]
     pub not_first: Option<bool>,
@@ -35,7 +35,7 @@ pub struct Model {
     pub mod_sum: Option<i32>,
     #[pgorm(
         generated_stored = "Expr::col(Column::S).concat(Expr::col(Column::T).concat(Expr::col(Column::S)))",
-        column_type = "Text",
+        column_type = ColumnType::Text,
         nullable
     )]
     pub concat_right: Option<String>,
@@ -65,7 +65,7 @@ pub struct Model {
     pub sum_is_null: Option<bool>,
     #[pgorm(
         generated_stored = "Expr::expr(Expr::col(Column::A).add(Expr::col(Column::B))).cast_as(Name::runtime(\"text\"))",
-        column_type = "Text",
+        column_type = ColumnType::Text,
         nullable
     )]
     pub sum_cast: Option<String>,

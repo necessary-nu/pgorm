@@ -47,40 +47,12 @@ pub mod dyn_named {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
     pub struct Model {
+        #[pgorm(primary_key)]
         pub id: i32,
+        #[pgorm(column_type = ColumnType::Text, indexed)]
         pub name: String,
-    }
-
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-    pub enum Column {
-        Id,
-        Name,
-    }
-
-    impl ColumnTrait for Column {
-        type EntityName = Entity;
-
-        fn def(&self) -> ColumnDef {
-            match self {
-                Column::Id => ColumnType::Integer.def(),
-                Column::Name => ColumnType::Text.def().indexed(),
-            }
-        }
-    }
-
-    #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-    pub enum PrimaryKey {
-        Id,
-    }
-
-    impl PrimaryKeyTrait for PrimaryKey {
-        type ValueType = i32;
-
-        fn auto_increment() -> bool {
-            true
-        }
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -89,15 +61,14 @@ pub mod dyn_named {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-/// An entity with a hand-written `ColumnTrait::select_as` that casts its
-/// column to a type named at run time — the read cast `select_sources`
-/// projects through.
+/// An entity whose column is read through `select_with`, casting it to a type
+/// named at run time — the read cast `select_sources` projects through.
 pub mod cast_named {
     use std::cell::RefCell;
 
     use pgorm::{
         entity::prelude::*,
-        pgorm_query::{Expr, Name, SimpleExpr},
+        pgorm_query::{Name, SimpleExpr},
     };
 
     thread_local! {
@@ -112,48 +83,15 @@ pub mod cast_named {
         out
     }
 
-    #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-    pub struct Entity;
-
-    impl EntityName for Entity {
-        fn table_name(&self) -> &str {
-            "t"
-        }
+    fn named_cast(expr: Expr) -> SimpleExpr {
+        expr.cast_as(TYPE.with(|cell| Name::runtime(cell.borrow().clone())))
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[pgorm(table_name = "t")]
     pub struct Model {
+        #[pgorm(primary_key, select_with = named_cast)]
         pub id: i32,
-    }
-
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-    pub enum Column {
-        Id,
-    }
-
-    impl ColumnTrait for Column {
-        type EntityName = Entity;
-
-        fn def(&self) -> ColumnDef {
-            ColumnType::Integer.def()
-        }
-
-        fn select_as(&self, expr: Expr) -> SimpleExpr {
-            expr.cast_as(TYPE.with(|cell| Name::runtime(cell.borrow().clone())))
-        }
-    }
-
-    #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-    pub enum PrimaryKey {
-        Id,
-    }
-
-    impl PrimaryKeyTrait for PrimaryKey {
-        type ValueType = i32;
-
-        fn auto_increment() -> bool {
-            true
-        }
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -163,10 +101,10 @@ pub mod cast_named {
 }
 
 /// An entity whose one column is of a range type a schema created, or of the
-/// multirange beside one, named at run time — the cast `ColumnTrait::save_as`
-/// writes a value through.
+/// multirange beside one, named at run time through its `column_type` — the
+/// cast `ColumnTrait::save_as` writes a value through.
 pub mod range_named {
-    use std::{cell::RefCell, sync::Arc};
+    use std::cell::RefCell;
 
     use pgorm::{entity::prelude::*, pgorm_query::Name};
 
@@ -189,62 +127,32 @@ pub mod range_named {
         out
     }
 
-    #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-    pub struct Entity;
-
-    impl EntityName for Entity {
-        fn table_name(&self) -> &str {
-            "t"
+    fn named_range() -> ColumnType {
+        let (multirange, schema, name) = TYPE.with(|cell| cell.borrow().clone());
+        let (name, schema, subtype) = (
+            Name::runtime(name),
+            schema.map(Name::runtime),
+            Arc::new(ColumnType::Integer),
+        );
+        match multirange {
+            false => ColumnType::CreatedRange {
+                name,
+                schema,
+                subtype,
+            },
+            true => ColumnType::CreatedMultirange {
+                name,
+                schema,
+                subtype,
+            },
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[pgorm(table_name = "t")]
     pub struct Model {
+        #[pgorm(primary_key, column_type = named_range())]
         pub id: i32,
-    }
-
-    #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-    pub enum Column {
-        Id,
-    }
-
-    impl ColumnTrait for Column {
-        type EntityName = Entity;
-
-        fn def(&self) -> ColumnDef {
-            let (multirange, schema, name) = TYPE.with(|cell| cell.borrow().clone());
-            let (name, schema, subtype) = (
-                Name::runtime(name),
-                schema.map(Name::runtime),
-                Arc::new(ColumnType::Integer),
-            );
-            match multirange {
-                false => ColumnType::CreatedRange {
-                    name,
-                    schema,
-                    subtype,
-                },
-                true => ColumnType::CreatedMultirange {
-                    name,
-                    schema,
-                    subtype,
-                },
-            }
-            .def()
-        }
-    }
-
-    #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-    pub enum PrimaryKey {
-        Id,
-    }
-
-    impl PrimaryKeyTrait for PrimaryKey {
-        type ValueType = i32;
-
-        fn auto_increment() -> bool {
-            true
-        }
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -1,5 +1,4 @@
-//! The two output formats — compact and expanded — the compact `Model`
-//! attribute assembly, and the shared import block.
+//! The output format, the `Model` attribute assembly, and the import block.
 
 mod common;
 
@@ -7,7 +6,8 @@ use common::*;
 use pgorm_codegen::WithSerde;
 use pgorm_query::{ColumnDef, ColumnType, Name, StringLen, Table};
 
-// [spec:pgorm:def:codegen.entity.compact+1/test]    the compact format emits
+// [spec:pgorm:req:macros.derive.one-form/test]    codegen writes the one form
+// [spec:pgorm:def:codegen.entity.compact+2/test]    the compact format emits
 // imports, Model, Relation, the Related impls and ActiveModelBehavior, in order
 #[test]
 fn compact_format_emits_its_blocks_in_order() {
@@ -33,7 +33,7 @@ fn compact_format_emits_its_blocks_in_order() {
     );
 }
 
-// [spec:pgorm:def:codegen.entity.compact+1/test]    the `schema_name` part of the
+// [spec:pgorm:def:codegen.entity.compact+2/test]    the `schema_name` part of the
 // Model attribute appears only when configured, and an entity with no relations
 // emits the empty `pub enum Relation {}`
 #[test]
@@ -55,7 +55,7 @@ fn compact_model_attribute_and_empty_relation_enum() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    the `#[pgorm(..)]` field
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    the `#[pgorm(..)]` field
 // attribute assembles its parts in one fixed order
 #[test]
 fn compact_field_attribute_parts_assembled_in_fixed_order() {
@@ -82,7 +82,7 @@ fn compact_field_attribute_parts_assembled_in_fixed_order() {
             column_name = "camelCase",
             primary_key,
             auto_increment = false,
-            column_type = "Decimal(Some((10u32, 2u32)))",
+            column_type = ColumnType::Decimal(Some((10u32, 2u32))),
             nullable,
             unique
         )]
@@ -90,10 +90,12 @@ fn compact_field_attribute_parts_assembled_in_fixed_order() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    `column_type` is emitted
+// [spec:pgorm:req:macros.derive.one-form/test]    codegen states a `column_type` as the
+// bare expression the derive takes
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    `column_type` is emitted
 // on every type its field's Rust type does not infer — a length, `char` of any length,
 // a precision and scale, `money`, `text`, `jsonb`, a named type — and on `Float`,
-// `Double` and `Bytea`, spelled as the expanded writer spells the type
+// `Double` and `Bytea`, spelled as the type's whole `ColumnType` expression
 #[test]
 fn compact_column_type_attribute_covers_ambiguous_types() {
     let generated = generate(
@@ -127,7 +129,7 @@ fn compact_column_type_attribute_covers_ambiguous_types() {
         ("a_money", "Money"),
         ("a_text", "Text"),
         ("a_jsonb", "JsonBinary"),
-        ("a_named", r#"named(\"citext\")"#),
+        ("a_named", r#"named("citext")"#),
         ("a_bytea", "Bytea"),
         ("a_varchar", "String(StringLen::N(3u32))"),
         ("a_longest", "String(StringLen::Max)"),
@@ -136,12 +138,12 @@ fn compact_column_type_attribute_covers_ambiguous_types() {
     ] {
         assert_contains(
             sample,
-            &format!(r#"#[pgorm(column_type = "{rendered}")] pub {field}:"#),
+            &format!(r#"#[pgorm(column_type = ColumnType::{rendered})] pub {field}:"#),
         );
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    a field needing none of
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    a field needing none of
 // the parts carries no `#[pgorm]` attribute, and `nullable` never appears
 // without a `column_type`
 #[test]
@@ -169,7 +171,7 @@ fn compact_fields_without_applicable_parts_carry_no_attribute() {
     // `nullable` rides along only with a `column_type`
     assert_contains(
         task,
-        r#"#[pgorm(column_type = "Text", nullable)] pub note: Option<String>,"#,
+        r#"#[pgorm(column_type = ColumnType::Text, nullable)] pub note: Option<String>,"#,
     );
 }
 
@@ -239,189 +241,11 @@ fn compact_model_pk_membership_uses_raw_column_name() {
     );
 }
 
-// [spec:pgorm:def:codegen.entity.expanded+4/test]    the expanded format spells
-// out Entity, EntityName, Model, Column, PrimaryKey, PrimaryKeyTrait, Relation,
-// ColumnTrait, RelationTrait, the Related impls and ActiveModelBehavior
-#[test]
-fn expanded_format_emits_every_block_in_order() {
-    let generated = generate(vec![cake(), fruit()], expanded());
-    let blocks = blocks(generated.file("fruit.rs"));
-
-    assert_eq!(blocks.len(), 12, "{blocks:#?}");
-    assert_starts_with(blocks[0], "use pgorm::entity::prelude::*;");
-    assert_eq!(
-        norm(blocks[1]),
-        norm("#[derive(Copy, Clone, Default, Debug, DeriveEntity)] pub struct Entity;")
-    );
-    assert_eq!(
-        norm(blocks[2]),
-        norm(r#"impl EntityName for Entity { fn table_name(&self) -> &str { "fruit" } }"#)
-    );
-    assert_starts_with(
-        blocks[3],
-        "#[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel, Eq)] pub struct Model",
-    );
-    assert_starts_with(
-        blocks[4],
-        "#[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)] pub enum Column",
-    );
-    assert_eq!(
-        norm(blocks[5]),
-        norm(
-            "#[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)] pub enum PrimaryKey { Id, }"
-        )
-    );
-    assert_eq!(
-        norm(blocks[6]),
-        norm(
-            "impl PrimaryKeyTrait for PrimaryKey {
-                type ValueType = i32;
-                fn auto_increment() -> bool { true }
-            }"
-        )
-    );
-    assert_eq!(
-        norm(blocks[7]),
-        norm("#[derive(Copy, Clone, Debug, EnumIter)] pub enum Relation { Cake, }")
-    );
-    assert_starts_with(blocks[8], "impl ColumnTrait for Column");
-    assert_starts_with(blocks[9], "impl RelationTrait for Relation");
-    assert_starts_with(blocks[10], "impl Related<super::cake::Entity> for Entity");
-    assert_eq!(
-        norm(blocks[11]),
-        norm("impl ActiveModelBehavior for ActiveModel {}")
-    );
-
-    // the expanded `Relation` enum has no `DeriveRelation`
-    assert_not_contains(blocks[7], "DeriveRelation");
-    // and the expanded Model has no `#[pgorm(..)]` struct attribute
-    assert!(!blocks[3].contains("pgorm"), "{}", blocks[3]);
-}
-
-// [spec:pgorm:def:codegen.entity.expanded+4/test]    `EntityName::schema_name` is
-// emitted only when a schema name is configured
-#[test]
-fn expanded_entity_name_carries_schema_name_when_configured() {
-    let plain = generate(vec![cake()], expanded());
-    assert_contains(
-        plain.file("cake.rs"),
-        r#"impl EntityName for Entity { fn table_name(&self) -> &str { "cake" } }"#,
-    );
-
-    let scoped = generate(
-        vec![cake()],
-        Opts {
-            expanded_format: true,
-            schema_name: Some("public".to_owned()),
-            ..Default::default()
-        },
-    );
-    assert_contains(
-        scoped.file("cake.rs"),
-        r#"impl EntityName for Entity {
-            fn schema_name(&self) -> Option<&str> { Some("public") }
-            fn table_name(&self) -> &str { "cake" }
-        }"#,
-    );
-}
-
-// [spec:pgorm:def:codegen.entity.expanded+4/test]    `ColumnTrait::def` matches
-// each column to a ColumnType chain, with `.null()`, `.unique()` and
-// `<Enum>::db_type()` where they apply
-#[test]
-fn expanded_column_def_chains_null_unique_enum_type() {
-    let generated = generate(
-        vec![
-            Table::create(Name::runtime("task"))
-                .col(serial("id"))
-                .primary_key(Name::runtime("id"))
-                .col(typed_null("note", ColumnType::Text))
-                .col(typed("email", ColumnType::String(StringLen::None)))
-                .col(enum_col("state", "task_state", &["open", "done"]))
-                .unique(unique_key("task", "email"))
-                .to_owned(),
-        ],
-        expanded(),
-    );
-
-    assert_contains(
-        generated.file("task.rs"),
-        "impl ColumnTrait for Column {
-            type EntityName = Entity;
-            fn def(&self) -> ColumnDef {
-                match self {
-                    Self::Id => ColumnType::Integer.def(),
-                    Self::Note => ColumnType::Text.def().null(),
-                    Self::Email => ColumnType::String(StringLen::None).def().unique(),
-                    Self::State => TaskState::db_type().def(),
-                }
-            }
-        }",
-    );
-}
-
-// [spec:pgorm:def:codegen.entity.expanded+4/test]    `RelationTrait::def` matches
-// the variants, or panics when the entity has no relations
-#[test]
-fn expanded_relation_trait_def_matches_variants_or_panics() {
-    let related = generate(vec![cake(), fruit()], expanded());
-    assert_contains(
-        related.file("fruit.rs"),
-        "impl RelationTrait for Relation {
-            fn def(&self) -> RelationDef {
-                match self {
-                    Self::Cake => Entity::belongs_to(super::cake::Entity)
-                        .columns(Column::CakeId, super::cake::Column::Id)
-                        .on_update(ForeignKeyAction::Cascade)
-                        .on_delete(ForeignKeyAction::Cascade)
-                        .into(),
-                }
-            }
-        }",
-    );
-
-    let lonely = generate(vec![cake()], expanded());
-    assert_contains(
-        lonely.file("cake.rs"),
-        r#"impl RelationTrait for Relation {
-            fn def(&self) -> RelationDef { panic!("No RelationDef") }
-        }"#,
-    );
-}
-
-// [spec:pgorm:def:codegen.entity.expanded+4/test]    `Column` variants of
-// non-snake-case columns carry `#[pgorm(column_name = "..")]`
-#[test]
-fn expanded_column_enum_preserves_non_snake_case_names() {
-    let generated = generate(
-        vec![keyed_with(
-            "cake",
-            &["id"],
-            vec![
-                serial("id"),
-                typed("bakedAt", ColumnType::Integer),
-                typed("plain", ColumnType::Integer),
-            ],
-        )],
-        expanded(),
-    );
-
-    assert_contains(
-        generated.file("cake.rs"),
-        r#"pub enum Column {
-            Id,
-            #[pgorm(column_name = "bakedAt")]
-            BakedAt,
-            Plain,
-        }"#,
-    );
-}
-
-// [spec:pgorm:sem:codegen.entity.expanded.blocks+1/test]    each section is one
+// [spec:pgorm:def:codegen.entity.compact+2/test]    each section is one
 // contiguous blank-line-separated block, with the generated header prepended
 #[test]
-fn expanded_sections_are_one_contiguous_block_each() {
-    let generated = generate(vec![cake(), fruit()], expanded());
+fn sections_are_one_contiguous_block_each() {
+    let generated = generate(vec![cake(), fruit()], Opts::default());
     let content = generated.file("fruit.rs");
 
     assert!(content.starts_with("//! `pgorm` Entity, @generated by pgorm-codegen"));
@@ -433,39 +257,6 @@ fn expanded_sections_are_one_contiguous_block_each() {
         // every block lexes on its own, i.e. sections do not straddle the join
         let _ = norm(block);
     }
-}
-
-// [spec:pgorm:sem:codegen.entity.expanded.blocks+1/test]    the expanded Model
-// block derives DeriveModel + DeriveActiveModel, renders extra attributes
-// between the derive and the struct, and carries only serde field attributes
-#[test]
-fn expanded_model_block_layout() {
-    let generated = generate(
-        vec![keyed_with(
-            "task",
-            &["id"],
-            vec![serial("id"), typed_null("note", ColumnType::Text)],
-        )],
-        Opts {
-            expanded_format: true,
-            with_serde: WithSerde::Both,
-            serde_skip_deserializing_primary_key: true,
-            model_extra_derives: vec!["Default".to_owned()],
-            model_extra_attributes: vec![r#"serde(rename_all = "camelCase")"#.to_owned()],
-            ..Default::default()
-        },
-    );
-
-    assert_contains(
-        generated.file("task.rs"),
-        r#"#[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel, Eq, Serialize, Deserialize, Default)]
-           #[serde(rename_all = "camelCase")]
-           pub struct Model {
-               #[serde(skip_deserializing)]
-               pub id: i32,
-               pub note: Option<String>,
-           }"#,
-    );
 }
 
 // [spec:pgorm:sem:codegen.entity.imports+3/test]    the import block is the prelude
@@ -570,7 +361,7 @@ fn active_enums_file_imports_serde_not_enum_modules() {
 // directly below the generated-file header
 #[test]
 fn imports_sit_directly_below_the_generated_header() {
-    let generated = generate(vec![cake()], expanded());
+    let generated = generate(vec![cake()], Opts::default());
     let content = generated.file("cake.rs");
 
     assert!(content.starts_with("//! `pgorm` Entity, @generated by pgorm-codegen"));

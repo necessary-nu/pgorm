@@ -17,14 +17,18 @@ use proc_macro::TokenStream;
 
 use syn::{DeriveInput, Error, parse_macro_input};
 
-// [spec:pgorm:def:macros.derive+3]
+// [spec:pgorm:def:macros.derive+4]
 #[cfg(feature = "derive")]
 mod derives;
 
 #[cfg(feature = "strum")]
 mod strum;
 
-/// Create an Entity
+/// Implement `EntityTrait` on an entity's own `Entity` struct, for an entity
+/// whose table or schema name is computed at run time. The struct carries what
+/// the name is computed from, `EntityName` is implemented on it by hand, and
+/// the composite derive on the `Model` is given no `table_name`, so it writes
+/// every other part of the entity.
 ///
 /// ### Usage
 ///
@@ -32,60 +36,34 @@ mod strum;
 /// use pgorm::entity::prelude::*;
 ///
 /// #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-/// pub struct Entity;
+/// pub struct Entity {
+///     pub tenant: &'static str,
+/// }
 ///
-/// # impl EntityName for Entity {
-/// #     fn table_name(&self) -> &str {
-/// #         "cake"
-/// #     }
-/// # }
-/// #
-/// # #[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel)]
-/// # pub struct Model {
-/// #     pub id: i32,
-/// #     pub name: String,
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-/// # pub enum Column {
-/// #     Id,
-/// #     Name,
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-/// # pub enum PrimaryKey {
-/// #     Id,
-/// # }
-/// #
-/// # impl PrimaryKeyTrait for PrimaryKey {
-/// #     type ValueType = i32;
-/// #
-/// #     fn auto_increment() -> bool {
-/// #         true
-/// #     }
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter)]
-/// # pub enum Relation {}
-/// #
-/// # impl ColumnTrait for Column {
-/// #     type EntityName = Entity;
-/// #
-/// #     fn def(&self) -> ColumnDef {
-/// #         match self {
-/// #             Self::Id => ColumnType::Integer.def(),
-/// #             Self::Name => ColumnType::String(StringLen::None).def(),
-/// #         }
-/// #     }
-/// # }
-/// #
-/// # impl RelationTrait for Relation {
-/// #     fn def(&self) -> RelationDef {
-/// #         panic!("No Relation");
-/// #     }
-/// # }
-/// #
-/// # impl ActiveModelBehavior for ActiveModel {}
+/// impl EntityName for Entity {
+///     fn schema_name(&self) -> Option<&str> {
+///         Some(self.tenant)
+///     }
+///
+///     fn table_name(&self) -> &str {
+///         "cake"
+///     }
+/// }
+///
+/// #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+/// pub struct Model {
+///     #[pgorm(primary_key)]
+///     pub id: i32,
+///     pub name: String,
+/// }
+///
+/// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+/// pub enum Relation {}
+///
+/// impl ActiveModelBehavior for ActiveModel {}
+///
+/// let cake = Entity { tenant: "bakery" };
+/// assert_eq!(cake.schema_name(), Some("bakery"));
 /// ```
 #[cfg(feature = "derive")]
 #[proc_macro_derive(DeriveEntity, attributes(pgorm))]
@@ -111,18 +89,12 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
 ///     #[pgorm(primary_key)]
 ///     pub id: i32,
 ///     pub title: String,
-///     #[pgorm(column_type = "Text")]
+///     #[pgorm(column_type = ColumnType::Text)]
 ///     pub text: String,
 /// }
 ///
-/// # #[derive(Copy, Clone, Debug, EnumIter)]
+/// # #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 /// # pub enum Relation {}
-/// #
-/// # impl RelationTrait for Relation {
-/// #     fn def(&self) -> RelationDef {
-/// #         panic!("No Relation");
-/// #     }
-/// # }
 /// #
 /// # impl ActiveModelBehavior for ActiveModel {}
 /// ```
@@ -138,7 +110,7 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
 /// #[pgorm(table_name = "posts")]
 /// pub struct Model {
 ///     pub title: String,
-///     #[pgorm(column_type = "Text")]
+///     #[pgorm(column_type = ColumnType::Text)]
 ///     pub text: String,
 /// }
 ///
@@ -153,9 +125,9 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
 /// `Cargo.toml` (`my_orm = { package = "pgorm", .. }`), alias it back with
 /// `use my_orm as pgorm;` there or at the crate root; otherwise every generated path is
 /// an `E0433`. There is no `#[pgorm(crate = ...)]` override.
-// [spec:pgorm:def:macros.derive+3]
-// [spec:pgorm:sem:macros.derive.entity-model+5]
-// [spec:pgorm:req:macros.derive.entity-model.reject+1]
+// [spec:pgorm:def:macros.derive+4]
+// [spec:pgorm:sem:macros.derive.entity-model+6]
+// [spec:pgorm:req:macros.derive.entity-model.reject+2]
 #[cfg(feature = "derive")]
 #[proc_macro_derive(DeriveEntityModel, attributes(pgorm))]
 pub fn derive_entity_model(input: TokenStream) -> TokenStream {
@@ -173,91 +145,16 @@ pub fn derive_entity_model(input: TokenStream) -> TokenStream {
         .into();
     }
 
-    let mut ts: TokenStream = derives::expand_derive_entity_model(data, attrs)
+    let mut ts: TokenStream = derives::expand_derive_entity_model(&ident, data.clone(), attrs)
         .unwrap_or_else(Error::into_compile_error)
         .into();
     ts.extend([
-        derive_model(input_ts.clone()),
-        derive_active_model(input_ts),
+        derive_model(input_ts),
+        derives::expand_active_model(ident, data)
+            .unwrap_or_else(Error::into_compile_error)
+            .into(),
     ]);
     ts
-}
-
-/// The DerivePrimaryKey derive macro will implement `PrimaryKeyToColumn`
-/// for PrimaryKey which defines tedious mappings between primary keys and columns.
-/// The [EnumIter] is also derived, allowing iteration over all enum variants.
-///
-/// ### Usage
-///
-/// ```
-/// use pgorm::entity::prelude::*;
-///
-/// #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-/// pub enum PrimaryKey {
-///     CakeId,
-///     FillingId,
-/// }
-///
-/// # #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-/// # pub struct Entity;
-/// #
-/// # impl EntityName for Entity {
-/// #     fn table_name(&self) -> &str {
-/// #         "cake"
-/// #     }
-/// # }
-/// #
-/// # #[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel)]
-/// # pub struct Model {
-/// #     pub cake_id: i32,
-/// #     pub filling_id: i32,
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-/// # pub enum Column {
-/// #     CakeId,
-/// #     FillingId,
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter)]
-/// # pub enum Relation {}
-/// #
-/// # impl ColumnTrait for Column {
-/// #     type EntityName = Entity;
-/// #
-/// #     fn def(&self) -> ColumnDef {
-/// #         match self {
-/// #             Self::CakeId => ColumnType::Integer.def(),
-/// #             Self::FillingId => ColumnType::Integer.def(),
-/// #         }
-/// #     }
-/// # }
-/// #
-/// # impl PrimaryKeyTrait for PrimaryKey {
-/// #     type ValueType = (i32, i32);
-/// #
-/// #     fn auto_increment() -> bool {
-/// #         false
-/// #     }
-/// # }
-/// #
-/// # impl RelationTrait for Relation {
-/// #     fn def(&self) -> RelationDef {
-/// #         panic!("No Relation");
-/// #     }
-/// # }
-/// #
-/// # impl ActiveModelBehavior for ActiveModel {}
-/// ```
-#[cfg(feature = "derive")]
-#[proc_macro_derive(DerivePrimaryKey, attributes(pgorm))]
-pub fn derive_primary_key(input: TokenStream) -> TokenStream {
-    let DeriveInput { ident, data, .. } = parse_macro_input!(input);
-
-    match derives::expand_derive_primary_key(ident, data) {
-        Ok(ts) => ts.into(),
-        Err(e) => e.to_compile_error().into(),
-    }
 }
 
 /// The DeriveColumn derive macro will implement `ColumnTrait` for Columns.
@@ -286,104 +183,36 @@ pub fn derive_column(input: TokenStream) -> TokenStream {
     }
 }
 
-/// Derive a column if column names are not in snake-case
+/// Implement `ModelTrait` and `FromQueryResult` for a further model of an
+/// entity, beside the `Model` its composite derive makes: a struct of some of
+/// the entity's columns, read from a row and through `ModelTrait` as `Model`
+/// is. `#[pgorm(entity = ..)]` names the entity when it is not `Entity`.
 ///
 /// ### Usage
 ///
 /// ```
 /// use pgorm::entity::prelude::*;
 ///
-/// #[derive(Copy, Clone, Debug, EnumIter, DeriveCustomColumn)]
-/// pub enum Column {
-///     Id,
-///     Name,
-///     VendorId,
-/// }
-///
-/// impl StaticName for Column {
-///     fn as_str(&self) -> &str {
-///         match self {
-///             Self::Id => "id",
-///             _ => self.default_as_str(),
-///         }
-///     }
-/// }
-/// ```
-#[cfg(feature = "derive")]
-#[proc_macro_derive(DeriveCustomColumn)]
-pub fn derive_custom_column(input: TokenStream) -> TokenStream {
-    let DeriveInput { ident, data, .. } = parse_macro_input!(input);
-
-    match derives::expand_derive_custom_column(&ident, &data) {
-        Ok(ts) => ts.into(),
-        Err(e) => e.to_compile_error().into(),
-    }
-}
-
-/// The DeriveModel derive macro will implement ModelTrait for Model,
-/// which provides setters and getters for all attributes in the mod
-/// It also implements FromQueryResult to convert a query result into the corresponding Model.
-///
-/// ### Usage
-///
-/// ```
-/// use pgorm::entity::prelude::*;
-///
-/// #[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel)]
+/// #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+/// #[pgorm(table_name = "cake")]
 /// pub struct Model {
+///     #[pgorm(primary_key)]
 ///     pub id: i32,
 ///     pub name: String,
 /// }
 ///
-/// # #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-/// # pub struct Entity;
-/// #
-/// # impl EntityName for Entity {
-/// #     fn table_name(&self) -> &str {
-/// #         "cake"
-/// #     }
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-/// # pub enum Column {
-/// #     Id,
-/// #     Name,
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-/// # pub enum PrimaryKey {
-/// #     Id,
-/// # }
-/// #
-/// # impl PrimaryKeyTrait for PrimaryKey {
-/// #     type ValueType = i32;
-/// #
-/// #     fn auto_increment() -> bool {
-/// #         true
-/// #     }
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter)]
-/// # pub enum Relation {}
-/// #
-/// # impl ColumnTrait for Column {
-/// #     type EntityName = Entity;
-/// #
-/// #     fn def(&self) -> ColumnDef {
-/// #         match self {
-/// #             Self::Id => ColumnType::Integer.def(),
-/// #             Self::Name => ColumnType::String(StringLen::None).def(),
-/// #         }
-/// #     }
-/// # }
-/// #
-/// # impl RelationTrait for Relation {
-/// #     fn def(&self) -> RelationDef {
-/// #         panic!("No Relation");
-/// #     }
-/// # }
-/// #
-/// # impl ActiveModelBehavior for ActiveModel {}
+/// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+/// pub enum Relation {}
+///
+/// impl ActiveModelBehavior for ActiveModel {}
+///
+/// #[derive(Clone, Debug, PartialEq, DeriveModel)]
+/// pub struct NameOnly {
+///     pub name: String,
+/// }
+///
+/// let named = NameOnly { name: "chiffon".to_owned() };
+/// assert_eq!(named.get(Column::Name), "chiffon".into());
 /// ```
 #[cfg(feature = "derive")]
 #[proc_macro_derive(DeriveModel, attributes(pgorm))]
@@ -392,81 +221,6 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
     derives::expand_derive_model(input)
         .unwrap_or_else(Error::into_compile_error)
         .into()
-}
-
-/// The DeriveActiveModel derive macro will implement ActiveModelTrait for ActiveModel
-/// which provides setters and getters for all active values in the active model.
-///
-/// ### Usage
-///
-/// ```
-/// use pgorm::entity::prelude::*;
-///
-/// #[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel)]
-/// pub struct Model {
-///     pub id: i32,
-///     pub name: String,
-/// }
-///
-/// # #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-/// # pub struct Entity;
-/// #
-/// # impl EntityName for Entity {
-/// #     fn table_name(&self) -> &str {
-/// #         "cake"
-/// #     }
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-/// # pub enum Column {
-/// #     Id,
-/// #     Name,
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-/// # pub enum PrimaryKey {
-/// #     Id,
-/// # }
-/// #
-/// # impl PrimaryKeyTrait for PrimaryKey {
-/// #     type ValueType = i32;
-/// #
-/// #     fn auto_increment() -> bool {
-/// #         true
-/// #     }
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter)]
-/// # pub enum Relation {}
-/// #
-/// # impl ColumnTrait for Column {
-/// #     type EntityName = Entity;
-/// #
-/// #     fn def(&self) -> ColumnDef {
-/// #         match self {
-/// #             Self::Id => ColumnType::Integer.def(),
-/// #             Self::Name => ColumnType::String(StringLen::None).def(),
-/// #         }
-/// #     }
-/// # }
-/// #
-/// # impl RelationTrait for Relation {
-/// #     fn def(&self) -> RelationDef {
-/// #         panic!("No Relation");
-/// #     }
-/// # }
-/// #
-/// # impl ActiveModelBehavior for ActiveModel {}
-/// ```
-#[cfg(feature = "derive")]
-#[proc_macro_derive(DeriveActiveModel, attributes(pgorm))]
-pub fn derive_active_model(input: TokenStream) -> TokenStream {
-    let DeriveInput { ident, data, .. } = parse_macro_input!(input);
-
-    match derives::expand_derive_active_model(ident, data) {
-        Ok(ts) => ts.into(),
-        Err(e) => e.to_compile_error().into(),
-    }
 }
 
 /// Derive into an active model
@@ -479,68 +233,24 @@ pub fn derive_into_active_model(input: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Models that a user can override
+/// Implement `ActiveModelBehavior` for the `ActiveModel` with no hooks,
+/// whatever the item it is written on.
 ///
 /// ### Usage
 ///
 /// ```
 /// use pgorm::entity::prelude::*;
 ///
-/// #[derive(
-///     Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel, DeriveActiveModelBehavior,
-/// )]
+/// #[derive(Clone, Debug, PartialEq, DeriveEntityModel, DeriveActiveModelBehavior)]
+/// #[pgorm(table_name = "cake")]
 /// pub struct Model {
+///     #[pgorm(primary_key)]
 ///     pub id: i32,
 ///     pub name: String,
 /// }
 ///
-/// # #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-/// # pub struct Entity;
-/// #
-/// # impl EntityName for Entity {
-/// #     fn table_name(&self) -> &str {
-/// #         "cake"
-/// #     }
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-/// # pub enum Column {
-/// #     Id,
-/// #     Name,
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-/// # pub enum PrimaryKey {
-/// #     Id,
-/// # }
-/// #
-/// # impl PrimaryKeyTrait for PrimaryKey {
-/// #     type ValueType = i32;
-/// #
-/// #     fn auto_increment() -> bool {
-/// #         true
-/// #     }
-/// # }
-/// #
-/// # #[derive(Copy, Clone, Debug, EnumIter)]
-/// # pub enum Relation {}
-/// #
-/// # impl ColumnTrait for Column {
-/// #     type EntityName = Entity;
-/// #
-/// #     fn def(&self) -> ColumnDef {
-/// #         match self {
-/// #             Self::Id => ColumnType::Integer.def(),
-/// #             Self::Name => ColumnType::String(StringLen::None).def(),
-/// #         }
-/// #     }
-/// # }
-/// #
-/// # impl RelationTrait for Relation {
-/// #     fn def(&self) -> RelationDef {
-/// #         panic!("No Relation");
-/// #     }
-/// # }
+/// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+/// pub enum Relation {}
 /// ```
 #[cfg(feature = "derive")]
 #[proc_macro_derive(DeriveActiveModelBehavior)]
@@ -656,11 +366,12 @@ pub fn derive_from_query_result(input: TokenStream) -> TokenStream {
 ///     )]
 ///     Cake,
 ///     #[pgorm(
-///         belongs_to = "pgorm::tests_cfg::cake_expanded::Entity",
+///         belongs_to = "pgorm::tests_cfg::cake::Entity",
 ///         from = "pgorm::tests_cfg::fruit::Column::CakeId",
-///         to = "pgorm::tests_cfg::cake_expanded::Column::Id"
+///         to = "pgorm::tests_cfg::cake::Column::Id",
+///         on_condition = r#"|_left, right| Expr::col((right, pgorm::tests_cfg::cake::Column::Name)).like("%chocolate%")"#
 ///     )]
-///     CakeExpanded,
+///     ChocolateCake,
 /// }
 /// ```
 #[cfg(feature = "derive")]
@@ -697,7 +408,7 @@ pub fn derive_relation(input: TokenStream) -> TokenStream {
 /// (`use my_migration as pgorm_migration;`) in the module holding the migration or at
 /// the crate root, exactly as `pgorm` itself does. There is no `#[pgorm(crate = ...)]`
 /// override.
-// [spec:pgorm:def:macros.derive+3]
+// [spec:pgorm:def:macros.derive+4]
 #[cfg(feature = "derive")]
 #[proc_macro_derive(DeriveMigrationName)]
 pub fn derive_migration_name(input: TokenStream) -> TokenStream {
@@ -746,17 +457,11 @@ pub fn derive_from_json_query_result(input: TokenStream) -> TokenStream {
 ///     #[pgorm(primary_key)]
 ///     pub id: i32,
 ///     pub title: String,
-///     #[pgorm(column_type = "Text")]
+///     #[pgorm(column_type = ColumnType::Text)]
 ///     pub text: String,
 /// }
-/// # #[derive(Copy, Clone, Debug, EnumIter)]
+/// # #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 /// # pub enum Relation {}
-/// #
-/// # impl RelationTrait for Relation {
-/// #     fn def(&self) -> RelationDef {
-/// #         panic!("No Relation");
-/// #     }
-/// # }
 /// #
 /// # impl ActiveModelBehavior for ActiveModel {}
 ///

@@ -1,12 +1,10 @@
 use crate as pgorm;
 use crate::entity::prelude::*;
 
-#[derive(Copy, Clone, Default, Debug, DeriveEntity)]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[pgorm(table_name = "filling")]
-pub struct Entity;
-
-#[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
 pub struct Model {
+    #[pgorm(primary_key)]
     pub id: i32,
     pub name: String,
     pub vendor_id: Option<i32>,
@@ -14,64 +12,14 @@ pub struct Model {
     pub ignored_attr: i32,
 }
 
-// If your column names are not in snake-case, derive `DeriveCustomColumn` here.
-#[derive(Copy, Clone, Debug, EnumIter, DeriveCustomColumn)]
-pub enum Column {
-    Id,
-    Name,
-    VendorId,
-}
-
-// Then, customize each column names here.
-impl StaticName for Column {
-    fn as_str(&self) -> &str {
-        match self {
-            // Override column names
-            Self::Id => "id",
-            // Leave all other columns using default snake-case values
-            _ => self.default_as_str(),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-pub enum PrimaryKey {
-    Id,
-}
-
-impl PrimaryKeyTrait for PrimaryKey {
-    type ValueType = i32;
-
-    fn auto_increment() -> bool {
-        true
-    }
-}
-
-#[derive(Copy, Clone, Debug, EnumIter)]
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[pgorm(
+        belongs_to = "super::vendor::Entity",
+        from = "Column::VendorId",
+        to = "super::vendor::Column::Id"
+    )]
     Vendor,
-}
-
-impl ColumnTrait for Column {
-    type EntityName = Entity;
-
-    fn def(&self) -> ColumnDef {
-        match self {
-            Self::Id => ColumnType::Integer.def(),
-            Self::Name => ColumnType::String(StringLen::None).def(),
-            Self::VendorId => ColumnType::Integer.def().nullable(),
-        }
-    }
-}
-
-impl RelationTrait for Relation {
-    fn def(&self) -> RelationDef {
-        match self {
-            Self::Vendor => Entity::belongs_to(super::vendor::Entity)
-                .columns(Column::VendorId, super::vendor::Column::Id)
-                .into(),
-        }
-    }
 }
 
 impl Related<super::cake::Entity> for Entity {

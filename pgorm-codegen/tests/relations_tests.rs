@@ -88,7 +88,7 @@ fn basket_with_two_fruit_keys() -> TableCreateStatement {
         .to_owned()
 }
 
-// [spec:pgorm:sem:codegen.entity.relations+3/test]    variants are the
+// [spec:pgorm:sem:codegen.entity.relations+4/test]    variants are the
 // UpperCamelCase of the referenced table, `SelfRef` when self-referencing, with
 // a nonzero `num_suffix` appended
 #[test]
@@ -127,7 +127,7 @@ fn relation_variants_are_named_after_the_referenced_table() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.relations+3/test]    a compact FK-owning relation
+// [spec:pgorm:sem:codegen.entity.relations+4/test]    a compact FK-owning relation
 // renders belongs_to / from / to, with parenthesized tuples for multi-column
 // keys and `Entity` (no module path) when self-referencing
 #[test]
@@ -204,7 +204,7 @@ fn compact_belongs_to_attributes_carry_from_and_to() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.relations+3/test]    `on_update` / `on_delete`
+// [spec:pgorm:sem:codegen.entity.relations+4/test]    `on_update` / `on_delete`
 // appear only when the FK declared an action, and cover all five actions
 #[test]
 fn foreign_key_actions_render_only_when_declared() {
@@ -268,7 +268,7 @@ fn foreign_key_actions_render_only_when_declared() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.relations+3/test]    inverse relations render as
+// [spec:pgorm:sem:codegen.entity.relations+4/test]    inverse relations render as
 // `has_one` / `has_many` with no `from` / `to`
 #[test]
 fn inverse_relations_render_without_from_and_to() {
@@ -305,56 +305,26 @@ fn inverse_relations_render_without_from_and_to() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.relations+3/test]    in the expanded format the
-// same facts render as `RelationTrait::def` builder chains
+// [spec:pgorm:sem:codegen.entity.relations.related+1/test]    an ordinary relation
+// gets `impl Related<super::<module>::Entity> for Entity`
 #[test]
-fn expanded_relation_defs_render_as_builder_chains() {
-    let generated = generate(vec![cake(), fruit()], expanded());
-
-    assert_contains(
-        generated.file("cake.rs"),
-        "Self::Fruit => Entity::has_many(super::fruit::Entity).into(),",
-    );
+fn ordinary_relations_get_a_related_impl() {
+    let generated = generate(vec![cake(), fruit()], Opts::default());
     assert_contains(
         generated.file("fruit.rs"),
-        "Self::Cake => Entity::belongs_to(super::cake::Entity)
-            .columns(Column::CakeId, super::cake::Column::Id)
-            .on_update(ForeignKeyAction::Cascade)
-            .on_delete(ForeignKeyAction::Cascade)
-            .into(),",
+        "impl Related<super::cake::Entity> for Entity {
+            fn to() -> RelationDef { Relation::Cake.def() }
+        }",
     );
-
-    let self_ref = generate(vec![self_referencing_cake()], expanded());
     assert_contains(
-        self_ref.file("cake.rs"),
-        "Self::SelfRef => Entity::belongs_to(Entity)
-            .columns(Column::BaseId, Column::Id)
-            .into(),",
+        generated.file("cake.rs"),
+        "impl Related<super::fruit::Entity> for Entity {
+            fn to() -> RelationDef { Relation::Fruit.def() }
+        }",
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.relations.related/test]    an ordinary relation
-// gets `impl Related<super::<module>::Entity> for Entity`, in both formats
-#[test]
-fn ordinary_relations_get_related_impl_in_both_formats() {
-    for opts in [Opts::default(), expanded()] {
-        let generated = generate(vec![cake(), fruit()], opts);
-        assert_contains(
-            generated.file("fruit.rs"),
-            "impl Related<super::cake::Entity> for Entity {
-                fn to() -> RelationDef { Relation::Cake.def() }
-            }",
-        );
-        assert_contains(
-            generated.file("cake.rs"),
-            "impl Related<super::fruit::Entity> for Entity {
-                fn to() -> RelationDef { Relation::Fruit.def() }
-            }",
-        );
-    }
-}
-
-// [spec:pgorm:sem:codegen.entity.relations.related/test]    self-referencing and
+// [spec:pgorm:sem:codegen.entity.relations.related+1/test]    self-referencing and
 // suffixed relations get `Relation` variants but no `Related` impl
 #[test]
 fn self_ref_and_suffixed_get_no_related_impl() {
@@ -372,7 +342,7 @@ fn self_ref_and_suffixed_get_no_related_impl() {
     assert_not_contains(basket, "impl Related<super::fruit::Entity> for Entity");
 }
 
-// [spec:pgorm:sem:codegen.entity.relations.related/test]    a conjunct-shadowed
+// [spec:pgorm:sem:codegen.entity.relations.related+1/test]    a conjunct-shadowed
 // relation loses its plain `Related` impl to the `via` one
 #[test]
 fn conjunct_shadowed_relations_lose_their_plain_related_impl() {
@@ -413,38 +383,34 @@ fn conjunct_shadowed_relations_lose_their_plain_related_impl() {
     assert_contains(users, "fn via() -> Option<RelationDef>");
 }
 
-// [spec:pgorm:sem:codegen.entity.relations.via/test]    each conjunct relation
+// [spec:pgorm:sem:codegen.entity.relations.via+1/test]    each conjunct relation
 // emits the many-to-many `Related` impl with `to()` and `via()`
 #[test]
 fn conjunct_relations_emit_a_via_related_impl() {
-    for opts in [Opts::default(), expanded()] {
-        let generated = generate(cake_schema(), opts);
-        assert_contains(
-            generated.file("cake.rs"),
-            "impl Related<super::filling::Entity> for Entity {
-                fn to() -> RelationDef { super::cake_filling::Relation::Filling.def() }
-                fn via() -> Option<RelationDef> {
-                    Some(super::cake_filling::Relation::Cake.def().rev())
-                }
-            }",
-        );
-    }
+    let generated = generate(cake_schema(), Opts::default());
+    assert_contains(
+        generated.file("cake.rs"),
+        "impl Related<super::filling::Entity> for Entity {
+            fn to() -> RelationDef { super::cake_filling::Relation::Filling.def() }
+            fn via() -> Option<RelationDef> {
+                Some(super::cake_filling::Relation::Cake.def().rev())
+            }
+        }",
+    );
 }
 
-// [spec:pgorm:sem:codegen.entity.relations.via/test]    the `via` impls come
-// after the plain `Related` impls, in both formats
+// [spec:pgorm:sem:codegen.entity.relations.via+1/test]    the `via` impls come
+// after the plain `Related` impls
 #[test]
 fn via_impls_follow_the_plain_related_impls() {
-    for opts in [Opts::default(), expanded()] {
-        let generated = generate(cake_schema(), opts);
-        let cake = generated.file("cake.rs");
+    let generated = generate(cake_schema(), Opts::default());
+    let cake = generated.file("cake.rs");
 
-        let plain = position_of(cake, "impl Related<super::fruit::Entity> for Entity");
-        let via = position_of(cake, "impl Related<super::filling::Entity> for Entity");
-        assert!(plain < via, "expected the via impl last:\n{cake}");
-        assert!(
-            via < position_of(cake, "impl ActiveModelBehavior for ActiveModel"),
-            "expected the via impl before ActiveModelBehavior"
-        );
-    }
+    let plain = position_of(cake, "impl Related<super::fruit::Entity> for Entity");
+    let via = position_of(cake, "impl Related<super::filling::Entity> for Entity");
+    assert!(plain < via, "expected the via impl last:\n{cake}");
+    assert!(
+        via < position_of(cake, "impl ActiveModelBehavior for ActiveModel"),
+        "expected the via impl before ActiveModelBehavior"
+    );
 }

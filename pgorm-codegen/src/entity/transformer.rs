@@ -10,14 +10,14 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// The most columns an entity's primary key can have: its `ValueType` is a
 /// tuple for a composite key, and pgorm's key traits stop at 12 parts.
-// [spec:pgorm:sem:codegen.entity.transform+15]
+// [spec:pgorm:sem:codegen.entity.transform+16]
 const MAX_KEY_COLUMNS: usize = 12;
 
 #[derive(Clone, Debug)]
 pub struct EntityTransformer;
 
 impl EntityTransformer {
-    // [spec:pgorm:sem:codegen.entity.transform+15]
+    // [spec:pgorm:sem:codegen.entity.transform+16]
     // [spec:pgorm:sem:codegen.entity.transform.inverse+1]
     // [spec:pgorm:sem:codegen.entity.transform.conjunct+1]
     // [spec:pgorm:req:codegen.entity.collisions+2]
@@ -352,7 +352,7 @@ impl EntityTransformer {
 /// that bare name — the reading `search_path` would give it in any schema that
 /// generates at all, since two tables sharing a bare name are refused before
 /// this is reached (`validate_distinct_names`).
-// [spec:pgorm:sem:codegen.entity.transform+15]
+// [spec:pgorm:sem:codegen.entity.transform+16]
 pub(crate) fn resolve_reference<'a>(
     declared: &'a [TableIdent],
     reference: &TableIdent,
@@ -374,7 +374,7 @@ pub(crate) fn resolve_reference<'a>(
 /// single columns, and a key ending `WITHOUT OVERLAPS` has two at least, so
 /// read as its columns it would claim a uniqueness the table does not have.
 /// A temporal primary key and a `PERIOD` foreign key the entity holds.
-// [spec:pgorm:sem:codegen.entity.transform+15]
+// [spec:pgorm:sem:codegen.entity.transform+16]
 fn refuse_temporal_constraints(table: &TableCreateStatement, name: &str) -> Result<(), Error> {
     let temporal_unique = table
         .get_unique_keys()
@@ -393,7 +393,7 @@ fn refuse_temporal_constraints(table: &TableCreateStatement, name: &str) -> Resu
 /// would generate a `PrimaryKey` enum with one variant twice, which does not
 /// compile, and a unique key over `(a, a)` would mark `a` unique on its own;
 /// so it is refused by name, never read as the key without its repeat.
-// [spec:pgorm:sem:codegen.entity.transform+15]
+// [spec:pgorm:sem:codegen.entity.transform+16]
 fn refuse_repeated_key_columns(table: &TableCreateStatement, name: &str) -> Result<(), Error> {
     let primary = table
         .get_primary_key()
@@ -424,7 +424,7 @@ fn refuse_repeated_key_columns(table: &TableCreateStatement, name: &str) -> Resu
 /// the generated `Column::<name>` would not compile against, and a `VIRTUAL`
 /// generated column in a key, which PostgreSQL does not support (`0A000`)
 /// and the derive refuses.
-// [spec:pgorm:sem:codegen.entity.expressions]
+// [spec:pgorm:sem:codegen.entity.expressions+1]
 fn refuse_unwritable_expressions(
     columns: &[Column],
     primary_keys: &[PrimaryKey],
@@ -464,7 +464,7 @@ fn refuse_unwritable_expressions(
 /// column: an entity's key is its key fields in the order they are written,
 /// and the derive takes `WITHOUT OVERLAPS` on the last of them alone, so the
 /// generated entity would not compile.
-// [spec:pgorm:sem:codegen.entity.transform+15]
+// [spec:pgorm:sem:codegen.entity.transform+16]
 fn refuse_period_before_key(
     columns: &[Column],
     primary_keys: &[PrimaryKey],
@@ -513,7 +513,7 @@ fn validate_distinct_names(declared: &[TableIdent]) -> Result<(), Error> {
 /// Every relation joins tables and columns this schema has: a generated file
 /// names its target's module and columns, so a foreign key onto a table the
 /// caller did not pass would generate Rust that does not compile.
-// [spec:pgorm:sem:codegen.entity.transform+15]
+// [spec:pgorm:sem:codegen.entity.transform+16]
 fn validate_references(entities: &BTreeMap<TableIdent, Entity>) -> Result<(), Error> {
     for (table_name, entity) in entities.iter() {
         for relation in entity.relations.iter() {
@@ -555,7 +555,7 @@ fn validate_references(entities: &BTreeMap<TableIdent, Entity>) -> Result<(), Er
 /// whatever the other side is. DDL text is never run, so the server's refusal
 /// cannot have kept one out; generated, it would be a relation
 /// `Schema::create_table_from_entity` refuses in turn.
-// [spec:pgorm:sem:codegen.entity.transform+15]
+// [spec:pgorm:sem:codegen.entity.transform+16]
 fn refuse_unkeyable_references(entities: &BTreeMap<TableIdent, Entity>) -> Result<(), Error> {
     for (table_name, entity) in entities.iter() {
         for relation in entity.relations.iter() {
@@ -580,7 +580,7 @@ fn refuse_unkeyable_references(entities: &BTreeMap<TableIdent, Entity>) -> Resul
 
 /// Whether `entity`'s column `name` is typed as a domain over an enum,
 /// through any further domains; a domain over an array of one is keyed.
-// [spec:pgorm:sem:codegen.entity.transform+15]
+// [spec:pgorm:sem:codegen.entity.transform+16]
 fn over_enum_domain(entity: &Entity, name: &str) -> bool {
     entity
         .columns

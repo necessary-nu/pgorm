@@ -74,19 +74,19 @@ mod anchor {
         pub as_mood: Mood,
         #[pgorm(
             unique,
-            column_type = "Domain { name: Name::runtime(\"cheerful\"), schema: None, base: Arc::new(Mood::db_type().get_column_type().clone()) }"
+            column_type = ColumnType::Domain { name: Name::runtime("cheerful"), schema: None, base: Arc::new(Mood::db_type().get_column_type().clone()) }
         )]
         pub as_cheerful: Mood,
         #[pgorm(unique)]
         pub as_count: i32,
         #[pgorm(
             unique,
-            column_type = "Domain { name: Name::runtime(\"tally\"), schema: None, base: Arc::new(ColumnType::Integer) }"
+            column_type = ColumnType::Domain { name: Name::runtime("tally"), schema: None, base: Arc::new(ColumnType::Integer) }
         )]
         pub as_tally: i32,
         #[pgorm(
             unique,
-            column_type = "Domain { name: Name::runtime(\"moods\"), schema: None, base: Arc::new(ColumnType::Array(Arc::new(Mood::db_type().get_column_type().clone()))) }"
+            column_type = ColumnType::Domain { name: Name::runtime("moods"), schema: None, base: Arc::new(ColumnType::Array(Arc::new(Mood::db_type().get_column_type().clone()))) }
         )]
         pub as_moods: Vec<Mood>,
     }
@@ -111,16 +111,16 @@ mod keyed {
         pub id: i32,
         pub mood: Mood,
         #[pgorm(
-            column_type = "Domain { name: Name::runtime(\"tally\"), schema: None, base: Arc::new(ColumnType::Integer) }"
+            column_type = ColumnType::Domain { name: Name::runtime("tally"), schema: None, base: Arc::new(ColumnType::Integer) }
         )]
         pub tally: i32,
         #[pgorm(
-            column_type = "Domain { name: Name::runtime(\"tally\"), schema: None, base: Arc::new(ColumnType::Integer) }"
+            column_type = ColumnType::Domain { name: Name::runtime("tally"), schema: None, base: Arc::new(ColumnType::Integer) }
         )]
         pub counted: i32,
         pub plain: i32,
         #[pgorm(
-            column_type = "Domain { name: Name::runtime(\"moods\"), schema: None, base: Arc::new(ColumnType::Array(Arc::new(Mood::db_type().get_column_type().clone()))) }"
+            column_type = ColumnType::Domain { name: Name::runtime("moods"), schema: None, base: Arc::new(ColumnType::Array(Arc::new(Mood::db_type().get_column_type().clone()))) }
         )]
         pub moods: Vec<Mood>,
     }
@@ -173,7 +173,7 @@ mod domain_to_domain {
         #[pgorm(primary_key, auto_increment = false)]
         pub id: i32,
         #[pgorm(
-            column_type = "Domain { name: Name::runtime(\"cheerful\"), schema: None, base: Arc::new(Mood::db_type().get_column_type().clone()) }"
+            column_type = ColumnType::Domain { name: Name::runtime("cheerful"), schema: None, base: Arc::new(Mood::db_type().get_column_type().clone()) }
         )]
         pub mood: Mood,
     }
@@ -202,7 +202,7 @@ mod domain_to_enum {
         #[pgorm(primary_key, auto_increment = false)]
         pub id: i32,
         #[pgorm(
-            column_type = "Domain { name: Name::runtime(\"cheerful\"), schema: None, base: Arc::new(Mood::db_type().get_column_type().clone()) }"
+            column_type = ColumnType::Domain { name: Name::runtime("cheerful"), schema: None, base: Arc::new(Mood::db_type().get_column_type().clone()) }
         )]
         pub mood: Mood,
     }
@@ -257,7 +257,7 @@ mod nested_to_domain {
         #[pgorm(primary_key, auto_increment = false)]
         pub id: i32,
         #[pgorm(
-            column_type = "Domain { name: Name::runtime(\"beaming\"), schema: None, base: Arc::new(super::cheerful()) }"
+            column_type = ColumnType::Domain { name: Name::runtime("beaming"), schema: None, base: Arc::new(super::cheerful()) }
         )]
         pub mood: Mood,
     }

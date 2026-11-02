@@ -64,12 +64,7 @@ impl Schema {
     /// See [CommentStatement] for more details.
     ///
     /// ```
-    /// use crate::pgorm::StaticName;
-    /// use pgorm::{
-    ///     ActiveModelBehavior, ColumnDef, ColumnTrait, ColumnType, EntityName, EntityTrait,
-    ///     EnumIter, PrimaryKeyTrait, RelationDef, RelationTrait, Schema,
-    /// };
-    /// use pgorm_macros::{DeriveEntityModel, DerivePrimaryKey};
+    /// use pgorm::{Schema, entity::prelude::*};
     ///
     /// #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
     /// #[pgorm(table_name = "posts", comment = "one row per post")]
@@ -80,14 +75,9 @@ impl Schema {
     ///     pub title: String,
     /// }
     ///
-    /// #[derive(Copy, Clone, Debug, EnumIter)]
+    /// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
     /// pub enum Relation {}
     ///
-    /// impl RelationTrait for Relation {
-    ///     fn def(&self) -> RelationDef {
-    ///         panic!("No RelationDef")
-    ///     }
-    /// }
     /// impl ActiveModelBehavior for ActiveModel {}
     ///
     /// let schema = Schema::new();
@@ -115,12 +105,7 @@ impl Schema {
     /// Creates a column definition for example to update a table.
     ///
     /// ```
-    /// use crate::pgorm::StaticName;
-    /// use pgorm::{
-    ///     ActiveModelBehavior, ColumnDef, ColumnTrait, ColumnType, EntityName, EntityTrait,
-    ///     EnumIter, PrimaryKeyTrait, RelationDef, RelationTrait, Schema,
-    /// };
-    /// use pgorm_macros::{DeriveEntityModel, DerivePrimaryKey};
+    /// use pgorm::{Schema, entity::prelude::*};
     /// use pgorm_query::Table;
     ///
     /// #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
@@ -131,14 +116,9 @@ impl Schema {
     ///     pub title: String,
     /// }
     ///
-    /// #[derive(Copy, Clone, Debug, EnumIter)]
+    /// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
     /// pub enum Relation {}
     ///
-    /// impl RelationTrait for Relation {
-    ///     fn def(&self) -> RelationDef {
-    ///         panic!("No RelationDef")
-    ///     }
-    /// }
     /// impl ActiveModelBehavior for ActiveModel {}
     ///
     /// let schema = Schema::new();

@@ -91,7 +91,7 @@ macro_rules! ledger {
 
 // [spec:pgorm:def:codegen.entity.serde+1/test]    each mode's import heads
 // the entity and the range newtypes' file alike
-// [spec:pgorm:sem:codegen.entity.serde.derives+1/test]    and its derives
+// [spec:pgorm:sem:codegen.entity.serde.derives+2/test]    and its derives
 // reach the Model and every range newtype
 // [spec:pgorm:sem:codegen.entity.imports+3/test]
 #[test]

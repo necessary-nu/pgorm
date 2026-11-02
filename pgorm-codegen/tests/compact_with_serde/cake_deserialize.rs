@@ -7,7 +7,7 @@ pub struct Model {
     #[pgorm(primary_key)]
     #[serde(skip_deserializing)]
     pub id: i32,
-    #[pgorm(column_type = "Text", nullable)]
+    #[pgorm(column_type = ColumnType::Text, nullable)]
     pub name: Option<String> ,
 }
 

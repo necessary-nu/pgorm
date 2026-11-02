@@ -35,7 +35,7 @@ pub struct Relation {
     pub(crate) deferrability: Option<Deferrability>,
     /// The `(column, referenced column)` pair a temporal foreign key matches
     /// as periods, after its pairs.
-    // [spec:pgorm:sem:codegen.entity.relations+3]
+    // [spec:pgorm:sem:codegen.entity.relations+4]
     pub(crate) period: Option<(String, String)>,
     pub(crate) self_referencing: bool,
     pub(crate) num_suffix: usize,
@@ -44,7 +44,7 @@ pub struct Relation {
 
 impl Relation {
     /// Which table this relation references.
-    // [spec:pgorm:sem:codegen.entity.transform+15]
+    // [spec:pgorm:sem:codegen.entity.transform+16]
     pub fn ref_ident(&self) -> TableIdent {
         TableIdent {
             table: self.ref_table.clone(),
@@ -52,8 +52,8 @@ impl Relation {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.keywords+1]
-    // [spec:pgorm:sem:codegen.entity.relations+3]
+    // [spec:pgorm:sem:codegen.entity.keywords+2]
+    // [spec:pgorm:sem:codegen.entity.relations+4]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let context = format!("relation to `{}`", self.ref_ident());
         safe_ident(
@@ -91,7 +91,7 @@ impl Relation {
         Ok(())
     }
 
-    // [spec:pgorm:sem:codegen.entity.relations+3]
+    // [spec:pgorm:sem:codegen.entity.relations+4]
     pub fn get_enum_name(&self) -> Ident {
         let name = if self.self_referencing {
             format_ident!("SelfRef")
@@ -116,54 +116,7 @@ impl Relation {
         }
     }
 
-    pub fn get_def(&self) -> TokenStream {
-        let rel_type = self.get_rel_type();
-        let module_name = self.get_module_name();
-        let ref_entity = if module_name.is_some() {
-            quote! { super::#module_name::Entity }
-        } else {
-            quote! { Entity }
-        };
-        match self.rel_type {
-            RelationType::HasOne | RelationType::HasMany => {
-                quote! {
-                    Entity::#rel_type(#ref_entity).into()
-                }
-            }
-            RelationType::BelongsTo => {
-                let mut def = quote! { Entity::#rel_type(#ref_entity) };
-                let mut pairs = self
-                    .get_column_camel_case()
-                    .into_iter()
-                    .zip(self.get_ref_column_camel_case());
-                let map_ref_column = |ref_column: Ident| {
-                    if module_name.is_some() {
-                        quote! { super::#module_name::Column::#ref_column }
-                    } else {
-                        quote! { Column::#ref_column }
-                    }
-                };
-                if let Some((src_column, ref_column)) = pairs.next() {
-                    let ref_column = map_ref_column(ref_column);
-                    def = quote! { #def.columns(Column::#src_column, #ref_column) };
-                }
-                for (src_column, ref_column) in pairs {
-                    let ref_column = map_ref_column(ref_column);
-                    def = quote! { #def.and_columns(Column::#src_column, #ref_column) };
-                }
-                if let Some((src_column, ref_column)) = &self.period {
-                    let src_column = format_ident!("{}", src_column.to_upper_camel_case());
-                    let ref_column =
-                        map_ref_column(format_ident!("{}", ref_column.to_upper_camel_case()));
-                    def = quote! { #def.period(Column::#src_column, #ref_column) };
-                }
-                def.extend(self.get_key_calls());
-                quote! { #def.into() }
-            }
-        }
-    }
-
-    // [spec:pgorm:sem:codegen.entity.relations+3]
+    // [spec:pgorm:sem:codegen.entity.relations+4]
     pub fn get_attrs(&self) -> TokenStream {
         let rel_type = self.get_rel_type();
         let module_name = if let Some(module_name) = self.get_module_name() {
@@ -234,36 +187,9 @@ impl Relation {
         }
     }
 
-    /// The owning relation's foreign-key behavior as builder calls, for the
-    /// expanded format's `def()`: its actions, then its deferrability and
-    /// enforcement where the key declared them.
-    // [spec:pgorm:sem:codegen.entity.relations+3]
-    fn get_key_calls(&self) -> TokenStream {
-        let mut calls = TokenStream::new();
-        if let Some(action) = &self.on_update {
-            let action = format_ident!("{}", Self::checked_foreign_key_action(action));
-            calls.extend(quote! { .on_update(ForeignKeyAction::#action) });
-        }
-        if let Some(action) = &self.on_delete {
-            let action = format_ident!("{}", Self::checked_foreign_key_action(action));
-            calls.extend(quote! { .on_delete(ForeignKeyAction::#action) });
-        }
-        if let Some(deferrability) = self.deferrability {
-            let variant = format_ident!("{}", Self::get_deferrability(deferrability));
-            calls.extend(quote! {
-                .deferrability(pgorm::pgorm_query::Deferrability::#variant)
-            });
-        }
-        if let Some(enforcement) = self.enforcement {
-            let variant = format_ident!("{}", Self::get_enforcement(enforcement));
-            calls.extend(quote! { .enforcement(pgorm::pgorm_query::Enforcement::#variant) });
-        }
-        calls
-    }
-
-    /// The compact format's `deferrability = ".."` and `enforcement = ".."`
-    /// attribute keys, where the key declared them.
-    // [spec:pgorm:sem:codegen.entity.relations+3]
+    /// The `deferrability = ".."` and `enforcement = ".."` attribute keys,
+    /// where the key declared them.
+    // [spec:pgorm:sem:codegen.entity.relations+4]
     fn get_key_attrs(&self) -> TokenStream {
         let mut attrs = TokenStream::new();
         if let Some(deferrability) = self.deferrability {
@@ -371,7 +297,7 @@ impl Relation {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15]
+// [spec:pgorm:sem:codegen.entity.transform+16]
 impl From<&TableForeignKey> for Relation {
     fn from(tbl_fk: &TableForeignKey) -> Self {
         let ref_table = TableIdent::of(tbl_fk.get_ref_table());
@@ -403,7 +329,6 @@ impl From<&TableForeignKey> for Relation {
 mod tests {
     use crate::{Relation, RelationType};
     use pgorm_query::ForeignKeyAction;
-    use proc_macro2::TokenStream;
 
     fn setup() -> Vec<Relation> {
         vec![
@@ -470,25 +395,6 @@ mod tests {
         let camel_cases = vec!["Fruit", "Filling", "Filling"];
         for (rel, camel_case) in relations.into_iter().zip(camel_cases) {
             assert_eq!(rel.get_enum_name().to_string(), camel_case);
-        }
-    }
-
-    #[test]
-    fn test_get_def() {
-        let relations = setup();
-        let rel_defs = vec![
-            "Entity::has_one(super::fruit::Entity).into()",
-            "Entity::belongs_to(super::filling::Entity) \
-                .columns(Column::FillingId, super::filling::Column::Id) \
-                .on_update(ForeignKeyAction::Cascade) \
-                .on_delete(ForeignKeyAction::Cascade) \
-                .into()",
-            "Entity::has_many(super::filling::Entity).into()",
-        ];
-        for (rel, rel_def) in relations.into_iter().zip(rel_defs) {
-            let rel_def: TokenStream = rel_def.parse().unwrap();
-
-            assert_eq!(rel.get_def().to_string(), rel_def.to_string());
         }
     }
 

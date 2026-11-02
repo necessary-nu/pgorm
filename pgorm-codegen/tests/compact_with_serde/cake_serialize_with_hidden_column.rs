@@ -6,7 +6,7 @@ use serde::Serialize;
 pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
-    #[pgorm(column_name = "_name", column_type = "Text", nullable)]
+    #[pgorm(column_name = "_name", column_type = ColumnType::Text, nullable)]
     #[serde(skip)]
     pub name: Option<String> ,
 }

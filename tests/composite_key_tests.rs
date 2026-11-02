@@ -72,17 +72,10 @@ mod shelf {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter)]
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
     pub enum Relation {
+        #[pgorm(has_many = "super::book::Entity")]
         Book,
-    }
-
-    impl RelationTrait for Relation {
-        fn def(&self) -> RelationDef {
-            match self {
-                Self::Book => Entity::has_many(super::book::Entity).into(),
-            }
-        }
     }
 
     impl Related<super::book::Entity> for Entity {
@@ -110,20 +103,14 @@ mod book {
         pub title: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter)]
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
     pub enum Relation {
+        #[pgorm(
+            belongs_to = "super::shelf::Entity",
+            from = "(Column::TenantId, Column::ShelfCode)",
+            to = "(super::shelf::Column::TenantId, super::shelf::Column::Code)"
+        )]
         Shelf,
-    }
-
-    impl RelationTrait for Relation {
-        fn def(&self) -> RelationDef {
-            match self {
-                Self::Shelf => Entity::belongs_to(super::shelf::Entity)
-                    .columns(Column::TenantId, super::shelf::Column::TenantId)
-                    .and_columns(Column::ShelfCode, super::shelf::Column::Code)
-                    .into(),
-            }
-        }
     }
 
     impl Related<super::shelf::Entity> for Entity {
@@ -159,14 +146,8 @@ mod author {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter)]
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
     pub enum Relation {}
-
-    impl RelationTrait for Relation {
-        fn def(&self) -> RelationDef {
-            match *self {}
-        }
-    }
 
     impl Related<super::book::Entity> for Entity {
         fn to() -> RelationDef {
@@ -197,25 +178,20 @@ mod book_author {
         pub author_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter)]
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
     pub enum Relation {
+        #[pgorm(
+            belongs_to = "super::book::Entity",
+            from = "(Column::TenantId, Column::BookId)",
+            to = "(super::book::Column::TenantId, super::book::Column::Id)"
+        )]
         Book,
+        #[pgorm(
+            belongs_to = "super::author::Entity",
+            from = "(Column::TenantId, Column::AuthorId)",
+            to = "(super::author::Column::TenantId, super::author::Column::Id)"
+        )]
         Author,
-    }
-
-    impl RelationTrait for Relation {
-        fn def(&self) -> RelationDef {
-            match self {
-                Self::Book => Entity::belongs_to(super::book::Entity)
-                    .columns(Column::TenantId, super::book::Column::TenantId)
-                    .and_columns(Column::BookId, super::book::Column::Id)
-                    .into(),
-                Self::Author => Entity::belongs_to(super::author::Entity)
-                    .columns(Column::TenantId, super::author::Column::TenantId)
-                    .and_columns(Column::AuthorId, super::author::Column::Id)
-                    .into(),
-            }
-        }
     }
 
     impl Related<super::book::Entity> for Entity {
@@ -370,7 +346,7 @@ async fn many_rows_each_get_a_generated_key_part() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+6/test]    `identity`
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7/test]    `identity`
 // is `GENERATED ALWAYS`: a number the insert supplies is refused by the server
 // (428C9), so the generated part cannot be claimed by accident;
 // `identity_by_default` keeps a supplied number and generates an omitted one
@@ -864,6 +840,8 @@ impl Linked for ShelfAuthors {
     }
 }
 
+// [spec:pgorm:req:macros.derive.one-form/test]    composite foreign keys and a junction
+// written as the relation derive's `from` / `to` tuples, with no `RelationTrait` by hand
 // [spec:pgorm:def:entity.traits.model+3/test]    find_related walks a composite
 // foreign key both ways and find_linked over two and three hops, each join
 // comparing every key column, so tenant 2's rows never reach tenant 1's

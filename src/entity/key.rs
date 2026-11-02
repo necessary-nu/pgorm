@@ -19,7 +19,7 @@ pub use pgorm_query::{IntoBoundary, IntoKey, Key};
 /// A pair named by entity columns, as [`RelationBuilder`](crate::RelationBuilder)
 /// names them, also records the enum each side compares as when its column's
 /// domain is over one, which a pair named by bare names cannot know.
-// [spec:pgorm:def:entity.relation.def+10]
+// [spec:pgorm:def:entity.relation.def+11]
 // [spec:pgorm:sem:entity.traits.column.enum-cast+12]
 #[derive(Debug, Clone)]
 pub struct ColumnPairs {
@@ -112,7 +112,7 @@ impl ColumnPairs {
 
     /// Match `from` to `to` as periods, replacing any period pair already
     /// set: the relation joins a row to each row whose period overlaps its own.
-    // [spec:pgorm:def:entity.relation.def+10]
+    // [spec:pgorm:def:entity.relation.def+11]
     pub fn set_period<F, T>(&mut self, from: F, to: T)
     where
         F: IntoName,
@@ -122,7 +122,7 @@ impl ColumnPairs {
     }
 
     /// The `(from, to)` period pair, if the relation is temporal.
-    // [spec:pgorm:def:entity.relation.def+10]
+    // [spec:pgorm:def:entity.relation.def+11]
     pub fn period(&self) -> Option<&(Name, Name)> {
         self.period.as_ref()
     }

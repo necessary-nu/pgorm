@@ -1,35 +1,41 @@
 use super::case_style::{CaseStyle, CaseStyleHelpers, convert_case_str};
+use super::primary_key::expand_primary_key;
 use super::sql_type_match::unwrap_option;
 use super::util::{
-    column_variant_ident, escape_rust_keyword, parse_derived_ident, trim_starting_raw_identifier,
-    unknown_pgorm_key,
+    bare_code, column_variant_ident, escape_rust_keyword, parse_derived_ident,
+    trim_starting_raw_identifier, unknown_pgorm_key,
 };
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use std::str::FromStr;
 use syn::{
-    Attribute, Data, Expr, Field, Fields, Lit, LitStr, Token, Type, meta::ParseNestedMeta,
+    Attribute, Data, Expr, Field, Fields, Lit, LitStr, Path, Token, Type, meta::ParseNestedMeta,
     parenthesized, punctuated::Punctuated, spanned::Spanned, token::Comma, token::Paren,
 };
 
 /// The most columns a primary key can have: `PrimaryKeyTrait::ValueType` is a
 /// tuple for a composite key, and its traits are implemented for tuples of 1
 /// through 12 parts.
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+6]
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
 const MAX_KEY_ARITY: usize = 12;
 
 /// The field-level `#[pgorm(...)]` configuration of one model field.
 #[derive(Default)]
 struct FieldAttrs {
-    sql_type: Option<TokenStream>,
+    sql_type: Option<Expr>,
     column_name: Option<String>,
     enum_name: Option<Ident>,
     comment: Option<Lit>,
     default_value: Option<Lit>,
     default_expr: Option<TokenStream>,
-    select_as: Option<String>,
-    save_as: Option<String>,
+    /// How the column is read: a verbatim cast or a function of its
+    /// expression, never both.
+    select: Option<Conversion>,
+    /// How a value is written to the column, and an array of its values.
+    save: Option<Conversion>,
+    /// Where `save_array_with` was written, and the function it names.
+    save_array_with: Option<(Path, Span)>,
     /// Where this field's `primary_key` key was written, when it was.
     primary_key: Option<Span>,
     /// Where this field's `without_overlaps` key was written: the key's
@@ -88,10 +94,122 @@ impl Generated {
     }
 }
 
+/// How a column's expression becomes the one read, or a value the one
+/// written: a cast to a type the entity's author wrote out as SQL
+/// (`select_as`, `save_as`), or a function of the expression
+/// (`select_with`, `save_with`) for what a fixed cast cannot say.
+enum Conversion {
+    /// The type, verbatim: `BIT(8)`, `numeric(10,2)`.
+    Cast(String),
+    /// The function, `fn(Expr) -> SimpleExpr`, and where its key was written.
+    With(Path, Span),
+}
+
+/// The two keys of one direction of [`Conversion`], and the word its refusal
+/// uses.
+struct Direction {
+    cast: &'static str,
+    with: &'static str,
+    verb: &'static str,
+}
+
+const READ: Direction = Direction {
+    cast: "select_as",
+    with: "select_with",
+    verb: "read",
+};
+
+const WRITE: Direction = Direction {
+    cast: "save_as",
+    with: "save_with",
+    verb: "written",
+};
+
+/// The conversion `meta` declares. A column is converted one way in each
+/// direction, so a second key of the pair, or the same key again, is refused
+/// rather than left to override the first.
+// [spec:pgorm:req:macros.derive.one-form]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+5]
+fn conversion(
+    meta: &ParseNestedMeta,
+    declared: &Option<Conversion>,
+    direction: Direction,
+) -> syn::Result<Conversion> {
+    let Direction { cast, with, verb } = direction;
+    if declared.is_some() {
+        return Err(meta.error(format!(
+            "a column is {verb} one way: `{cast}` or `{with}`, once"
+        )));
+    }
+    if meta.path.is_ident(cast) {
+        let lit = meta.value()?.parse()?;
+        let Lit::Str(litstr) = lit else {
+            return Err(meta.error(format!("Invalid {cast} {lit:?}")));
+        };
+        return Ok(Conversion::Cast(litstr.value()));
+    }
+    Ok(Conversion::With(bare_code(meta, with)?, meta.path.span()))
+}
+
+/// The expressions a column's `save_as` and `save_array_as` overrides write a
+/// value and an array of values through.
+struct Written {
+    value: TokenStream,
+    array: TokenStream,
+}
+
+/// The expression a column's `select_as` override reads it through, and what
+/// its `save_as` / `save_array_as` overrides write through: `None` where the
+/// field declared none, leaving the trait's casts. A `save_with` needs a
+/// `save_array_with` beside it, since the array `= ANY` and `<> ALL` compare a
+/// column with is not a value of the column's type.
+// [spec:pgorm:req:macros.derive.one-form]
+// [spec:pgorm:sem:macros.derive.entity-model+6]
+fn conversion_arms(
+    select: Option<Conversion>,
+    save: Option<Conversion>,
+    save_array_with: Option<(Path, Span)>,
+) -> syn::Result<(Option<TokenStream>, Option<Written>)> {
+    // `select_as` / `save_as` carry a type *expression* authored in the
+    // entity's own source — `BIT(8)`, `numeric(10,2)` — which is not an
+    // identifier and must not be quoted as one.
+    let read = select.map(|select| match select {
+        Conversion::Cast(select_as) => quote! { expr.cast_as_raw(#select_as) },
+        Conversion::With(select_with, _) => quote! { #select_with(expr) },
+    });
+    let written = match (save, save_array_with) {
+        (Some(Conversion::Cast(save_as)), None) => Some(Written {
+            value: quote! { val.cast_as_raw(#save_as) },
+            array: quote! { val.cast_as_raw(concat!(#save_as, "[]")) },
+        }),
+        (Some(Conversion::With(save_with, _)), Some((save_array_with, _))) => Some(Written {
+            value: quote! { #save_with(val) },
+            array: quote! { #save_array_with(val) },
+        }),
+        (Some(Conversion::With(_, span)), None) => {
+            return Err(syn::Error::new(
+                span,
+                "a column written through `save_with` names `save_array_with` too: the \
+                 function writing an array of its values, which `= ANY` and `<> ALL` \
+                 compare it with",
+            ));
+        }
+        (_, Some((_, span))) => {
+            return Err(syn::Error::new(
+                span,
+                "`save_array_with` writes an array of the values `save_with` writes one \
+                 of; name `save_with` beside it",
+            ));
+        }
+        (None, None) => None,
+    };
+    Ok((read, written))
+}
+
 /// `column_name` carries the name derived before any attribute is read, which an
 /// explicit `column_name` key overrides. `auto_increment` and `primary_key_types`
 /// are entity-wide and accumulate across every field.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+4]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+5]
 fn parse_field_attrs(
     field: &Field,
     column_name: Option<String>,
@@ -103,7 +221,7 @@ fn parse_field_attrs(
         ..Default::default()
     };
 
-    // search for #[pgorm(primary_key, auto_increment = false, column_type = "String(Some(255))", default_value = "new user", default_expr = "gen_random_uuid()", generated_stored = "Expr::col(Column::A).mul(2)", column_name = "name", enum_name = "Name", nullable, indexed, unique)]
+    // search for #[pgorm(primary_key, auto_increment = false, column_type = ColumnType::String(StringLen::N(255)), default_value = "new user", default_expr = "gen_random_uuid()", generated_stored = "Expr::col(Column::A).mul(2)", column_name = "name", enum_name = "Name", nullable, indexed, unique)]
     for attr in field.attrs.iter() {
         if !attr.path().is_ident("pgorm") {
             continue;
@@ -112,13 +230,7 @@ fn parse_field_attrs(
         // single param
         attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("column_type") {
-                let lit = meta.value()?.parse()?;
-                if let Lit::Str(litstr) = lit {
-                    let ty: TokenStream = syn::parse_str(&litstr.value())?;
-                    parsed.sql_type = Some(ty);
-                } else {
-                    return Err(meta.error(format!("Invalid column_type {:?}", lit)));
-                }
+                parsed.sql_type = Some(bare_code(&meta, "column_type")?);
             } else if meta.path.is_ident("auto_increment") {
                 let span = meta.path.span();
                 let lit = meta.value()?.parse()?;
@@ -189,20 +301,13 @@ fn parse_field_attrs(
                 } else {
                     return Err(meta.error(format!("Invalid enum_name {:?}", lit)));
                 }
-            } else if meta.path.is_ident("select_as") {
-                let lit = meta.value()?.parse()?;
-                if let Lit::Str(litstr) = lit {
-                    parsed.select_as = Some(litstr.value());
-                } else {
-                    return Err(meta.error(format!("Invalid select_as {:?}", lit)));
-                }
-            } else if meta.path.is_ident("save_as") {
-                let lit = meta.value()?.parse()?;
-                if let Lit::Str(litstr) = lit {
-                    parsed.save_as = Some(litstr.value());
-                } else {
-                    return Err(meta.error(format!("Invalid save_as {:?}", lit)));
-                }
+            } else if meta.path.is_ident("select_as") || meta.path.is_ident("select_with") {
+                parsed.select = Some(conversion(&meta, &parsed.select, READ)?);
+            } else if meta.path.is_ident("save_as") || meta.path.is_ident("save_with") {
+                parsed.save = Some(conversion(&meta, &parsed.save, WRITE)?);
+            } else if meta.path.is_ident("save_array_with") {
+                parsed.save_array_with =
+                    Some((bare_code(&meta, "save_array_with")?, meta.path.span()));
             } else if meta.path.is_ident("ignore") {
                 parsed.ignore = true;
             } else if meta.path.is_ident("primary_key") {
@@ -233,7 +338,7 @@ fn parse_field_attrs(
 
 /// Refuse an identity beside anything else that would fill the column or let
 /// it be `NULL`, each a definition PostgreSQL rejects (42601).
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+6]
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
 fn check_identity(attrs: &FieldAttrs, optional: bool) -> syn::Result<()> {
     let Some((_, span)) = attrs.identity else {
         return Ok(());
@@ -255,7 +360,7 @@ fn check_identity(attrs: &FieldAttrs, optional: bool) -> syn::Result<()> {
 /// `WITHOUT OVERLAPS` on the key's last column alone and refuses a key it is
 /// the only column of (both 42601), so the period is the last key field of
 /// several, and anything else is refused at its key.
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+6]
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
 fn temporal_key(key_periods: &[Option<Span>]) -> syn::Result<TokenStream> {
     let last = key_periods.len().saturating_sub(1);
     if let Some(span) = key_periods[..last].iter().flatten().next() {
@@ -283,7 +388,7 @@ fn temporal_key(key_periods: &[Option<Span>]) -> syn::Result<TokenStream> {
 /// Refuse a generated column beside anything else that would fill it, and a
 /// virtual one where PostgreSQL cannot index it: the first are definitions it
 /// rejects as conflicting (42601), the second as unsupported (0A000).
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+7]
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+8]
 fn check_generated(attrs: &FieldAttrs) -> syn::Result<()> {
     let Some((kind, _, span)) = &attrs.generated else {
         return Ok(());
@@ -389,12 +494,16 @@ fn serde_field_rename(attrs: &[Attribute]) -> syn::Result<Option<String>> {
 }
 
 /// Method to derive an Model
-// [spec:pgorm:sem:macros.derive.entity-model+5]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+4]
-// [spec:pgorm:sem:macros.derive.entity-model.casing+1]
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+7]
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+6]
-pub fn expand_derive_entity_model(data: Data, attrs: Vec<Attribute>) -> syn::Result<TokenStream> {
+// [spec:pgorm:sem:macros.derive.entity-model+6]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+5]
+// [spec:pgorm:sem:macros.derive.entity-model.casing+2]
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+8]
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
+pub fn expand_derive_entity_model(
+    model: &Ident,
+    data: Data,
+    attrs: Vec<Attribute>,
+) -> syn::Result<TokenStream> {
     // if #[pgorm(table_name = "foo", schema_name = "bar")] specified, create Entity struct
     let mut table_name = None;
     let mut comment = quote! {None};
@@ -462,7 +571,7 @@ pub fn expand_derive_entity_model(data: Data, attrs: Vec<Attribute>) -> syn::Res
     let mut columns_select_as: Punctuated<_, Comma> = Punctuated::new();
     let mut columns_save_as: Punctuated<_, Comma> = Punctuated::new();
     let mut columns_save_array_as: Punctuated<_, Comma> = Punctuated::new();
-    let mut primary_keys: Punctuated<_, Comma> = Punctuated::new();
+    let mut primary_keys: Vec<(Ident, String)> = Vec::new();
     let mut primary_key_types: Punctuated<Type, Comma> = Punctuated::new();
     let mut auto_increment = true;
     let mut key_generated: Vec<bool> = Vec::new();
@@ -517,8 +626,9 @@ pub fn expand_derive_entity_model(data: Data, attrs: Vec<Attribute>) -> syn::Res
                     comment,
                     default_value,
                     default_expr,
-                    select_as,
-                    save_as,
+                    select,
+                    save,
+                    save_array_with,
                     primary_key,
                     without_overlaps,
                     mut nullable,
@@ -570,31 +680,23 @@ pub fn expand_derive_entity_model(data: Data, attrs: Vec<Attribute>) -> syn::Res
                 if let Some(span) = primary_key {
                     key_spans.push(span);
                     key_periods.push(without_overlaps);
-                    primary_keys.push(quote! {
-                        #variant_attrs
-                        #field_name
-                    });
+                    let key_name = column_name
+                        .clone()
+                        .unwrap_or_else(|| field_name.to_string().to_snake_case());
+                    primary_keys.push((field_name.clone(), key_name));
                     key_generated.push(identity.is_some() || generated.is_some());
                     if let Some((true, span)) = field_auto_increment {
                         serial_key_fields.push(span);
                     }
                 }
 
-                // `select_as` / `save_as` carry a type *expression* authored in
-                // the entity's own source — `BIT(8)`, `numeric(10,2)` — which is
-                // not an identifier and must not be quoted as one.
-                if let Some(select_as) = select_as {
-                    columns_select_as.push(quote! {
-                        Self::#field_name => expr.cast_as_raw(#select_as)
-                    });
+                let (read, written) = conversion_arms(select, save, save_array_with)?;
+                if let Some(read) = read {
+                    columns_select_as.push(quote! { Self::#field_name => #read });
                 }
-                if let Some(save_as) = save_as {
-                    columns_save_as.push(quote! {
-                        Self::#field_name => val.cast_as_raw(#save_as)
-                    });
-                    columns_save_array_as.push(quote! {
-                        Self::#field_name => val.cast_as_raw(concat!(#save_as, "[]"))
-                    });
+                if let Some(Written { value, array }) = written {
+                    columns_save_as.push(quote! { Self::#field_name => #value });
+                    columns_save_array_as.push(quote! { Self::#field_name => #array });
                 }
 
                 let field_type = match unwrap_option(&field.ty) {
@@ -657,6 +759,14 @@ pub fn expand_derive_entity_model(data: Data, attrs: Vec<Attribute>) -> syn::Res
         columns_save_array_as.push_punct(Comma::default());
     }
 
+    if primary_keys.is_empty() {
+        return Err(syn::Error::new(
+            model.span(),
+            "Entity must have a primary key column. \
+             See <https://github.com/pgorm-rs/pgorm/issues/485> for details.",
+        ));
+    }
+
     if let Some(span) = key_spans.get(MAX_KEY_ARITY) {
         return Err(syn::Error::new(
             *span,
@@ -695,15 +805,22 @@ pub fn expand_derive_entity_model(data: Data, attrs: Vec<Attribute>) -> syn::Res
         } else {
             quote! { (#primary_key_types) }
         };
+        let key_variants = primary_keys.iter().map(|(variant, _)| variant);
+        let key_impls = expand_primary_key(&primary_keys);
         quote! {
             #[doc = " Generated by pgorm-macros"]
-            #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
+            #[derive(Copy, Clone, Debug, pgorm::prelude::EnumIter)]
             pub enum PrimaryKey {
-                #primary_keys
+                #(
+                    #[doc = " Generated by pgorm-macros"]
+                    #key_variants,
+                )*
             }
 
+            #key_impls
+
             #[automatically_derived]
-            impl PrimaryKeyTrait for PrimaryKey {
+            impl pgorm::prelude::PrimaryKeyTrait for PrimaryKey {
                 type ValueType = #primary_key_types;
 
                 fn auto_increment() -> bool {

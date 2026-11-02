@@ -6,7 +6,7 @@ use std::{collections::BTreeMap, str::FromStr};
 use syn::{punctuated::Punctuated, token::Comma};
 use tracing::info;
 
-// [spec:pgorm:def:codegen.entity+5]
+// [spec:pgorm:def:codegen.entity+6]
 #[derive(Clone, Debug)]
 pub struct EntityWriter {
     pub(crate) entities: Vec<Entity>,
@@ -33,12 +33,11 @@ pub enum WithSerde {
     Both,
 }
 
-/// Every generation option, named. `Default` is the no-flags shape: compact
-/// format, no serde, `mod.rs`.
-// [spec:pgorm:sem:codegen.entity.context+3]
+/// Every generation option, named. `Default` is the no-flags shape: no
+/// serde, `mod.rs`.
+// [spec:pgorm:sem:codegen.entity.context+4]
 #[derive(Debug, Default)]
 pub struct EntityWriterOptions {
-    pub expanded_format: bool,
     pub with_serde: WithSerde,
     pub with_copy_enums: bool,
     pub schema_name: Option<String>,
@@ -53,7 +52,6 @@ pub struct EntityWriterOptions {
 
 #[derive(Debug)]
 pub struct EntityWriterContext {
-    pub(crate) expanded_format: bool,
     pub(crate) with_serde: WithSerde,
     pub(crate) with_copy_enums: bool,
     pub(crate) schema_name: Option<String>,
@@ -67,7 +65,7 @@ pub struct EntityWriterContext {
 }
 
 impl WithSerde {
-    // [spec:pgorm:sem:codegen.entity.serde.derives+1]
+    // [spec:pgorm:sem:codegen.entity.serde.derives+2]
     pub fn extra_derive(&self) -> TokenStream {
         let mut extra_derive = match self {
             Self::None => {
@@ -98,7 +96,7 @@ impl WithSerde {
 
 /// Converts *_extra_derives argument to token stream. `option` names the
 /// option the strings came from, so a rejection points at the caller's field.
-// [spec:pgorm:sem:codegen.entity.context+3]    extra-derive normalization
+// [spec:pgorm:sem:codegen.entity.context+4]    extra-derive normalization
 pub(crate) fn bonus_derive<T, I>(option: &str, extra_derives: I) -> Result<TokenStream, Error>
 where
     T: Into<String>,
@@ -114,7 +112,7 @@ where
 }
 
 /// convert *_extra_attributes argument to token stream
-// [spec:pgorm:sem:codegen.entity.context+3]    extra-attribute normalization
+// [spec:pgorm:sem:codegen.entity.context+4]    extra-attribute normalization
 pub(crate) fn bonus_attributes<T, I>(option: &str, attributes: I) -> Result<TokenStream, Error>
 where
     T: Into<String>,
@@ -132,7 +130,7 @@ where
     )
 }
 
-// [spec:pgorm:sem:codegen.entity.context+3]
+// [spec:pgorm:sem:codegen.entity.context+4]
 fn parse_bonus(option: &str, source: &str) -> Result<TokenStream, Error> {
     source.parse().map_err(|_| {
         Error::TransformError(format!(
@@ -161,10 +159,9 @@ impl FromStr for WithSerde {
 }
 
 impl EntityWriterContext {
-    // [spec:pgorm:sem:codegen.entity.context+3]
+    // [spec:pgorm:sem:codegen.entity.context+4]
     pub fn new(options: EntityWriterOptions) -> Result<Self, Error> {
         Ok(Self {
-            expanded_format: options.expanded_format,
             with_serde: options.with_serde,
             with_copy_enums: options.with_copy_enums,
             schema_name: options.schema_name,
@@ -234,27 +231,15 @@ impl EntityWriter {
 
                 let mut lines = Vec::new();
                 Self::write_doc_comment(&mut lines);
-                let code_blocks = if context.expanded_format {
-                    Self::gen_expanded_code_blocks(
-                        entity,
-                        &context.with_serde,
-                        &context.schema_name,
-                        serde_skip_deserializing_primary_key,
-                        serde_skip_hidden_column,
-                        &context.model_extra_derives,
-                        &context.model_extra_attributes,
-                    )
-                } else {
-                    Self::gen_compact_code_blocks(
-                        entity,
-                        &context.with_serde,
-                        &context.schema_name,
-                        serde_skip_deserializing_primary_key,
-                        serde_skip_hidden_column,
-                        &context.model_extra_derives,
-                        &context.model_extra_attributes,
-                    )
-                };
+                let code_blocks = Self::gen_compact_code_blocks(
+                    entity,
+                    &context.with_serde,
+                    &context.schema_name,
+                    serde_skip_deserializing_primary_key,
+                    serde_skip_hidden_column,
+                    &context.model_extra_derives,
+                    &context.model_extra_attributes,
+                );
                 Self::write(&mut lines, code_blocks);
                 OutputFile {
                     name: entity_file,
@@ -316,7 +301,7 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+2]
+    // [spec:pgorm:sem:codegen.entity.enums+3]
     pub fn write_pgorm_active_enums(
         &self,
         with_serde: &WithSerde,
@@ -365,47 +350,8 @@ impl EntityWriter {
         lines.push("".to_owned());
     }
 
-    // [spec:pgorm:def:codegen.entity.expanded+4]
-    // [spec:pgorm:sem:codegen.entity.expanded.blocks+1]
-    #[allow(clippy::too_many_arguments)]
-    pub fn gen_expanded_code_blocks(
-        entity: &Entity,
-        with_serde: &WithSerde,
-        schema_name: &Option<String>,
-        serde_skip_deserializing_primary_key: bool,
-        serde_skip_hidden_column: bool,
-        model_extra_derives: &TokenStream,
-        model_extra_attributes: &TokenStream,
-    ) -> Vec<TokenStream> {
-        let mut imports = Self::gen_import(with_serde);
-        imports.extend(Self::gen_import_active_enum(entity));
-        imports.extend(Self::gen_import_range_types(entity));
-        let mut code_blocks = vec![
-            imports,
-            Self::gen_entity_struct(),
-            Self::gen_impl_entity_name(entity, schema_name),
-            Self::gen_model_struct(
-                entity,
-                with_serde,
-                serde_skip_deserializing_primary_key,
-                serde_skip_hidden_column,
-                model_extra_derives,
-                model_extra_attributes,
-            ),
-            Self::gen_column_enum(entity),
-            Self::gen_primary_key_enum(entity),
-            Self::gen_impl_primary_key(entity),
-            Self::gen_relation_enum(entity),
-            Self::gen_impl_column_trait(entity),
-            Self::gen_impl_relation_trait(entity),
-        ];
-        code_blocks.extend(Self::gen_impl_related(entity));
-        code_blocks.extend(Self::gen_impl_conjunct_related(entity));
-        code_blocks.extend([Self::gen_impl_active_model_behavior()]);
-        code_blocks
-    }
-
-    // [spec:pgorm:def:codegen.entity.compact+1]
+    // [spec:pgorm:req:macros.derive.one-form]
+    // [spec:pgorm:def:codegen.entity.compact+2]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_code_blocks(
         entity: &Entity,
@@ -467,37 +413,6 @@ impl EntityWriter {
         }
     }
 
-    pub fn gen_entity_struct() -> TokenStream {
-        quote! {
-            #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-            pub struct Entity;
-        }
-    }
-
-    // [spec:pgorm:def:codegen.entity.expanded+4]
-    pub fn gen_impl_entity_name(entity: &Entity, schema_name: &Option<String>) -> TokenStream {
-        let schema_name = match Self::gen_schema_name(entity, schema_name) {
-            Some(schema_name) => quote! {
-                fn schema_name(&self) -> Option<&str> {
-                    Some(#schema_name)
-                }
-            },
-            None => quote! {},
-        };
-        let table_name = entity.table_name.as_str();
-        let table_name = quote! {
-            fn table_name(&self) -> &str {
-                #table_name
-            }
-        };
-        quote! {
-            impl EntityName for Entity {
-                #schema_name
-                #table_name
-            }
-        }
-    }
-
     // [spec:pgorm:sem:codegen.entity.imports+3]    active-enum imports
     pub fn gen_import_active_enum(entity: &Entity) -> TokenStream {
         entity
@@ -521,139 +436,7 @@ impl EntityWriter {
             .0
     }
 
-    // [spec:pgorm:sem:codegen.entity.expanded.blocks+1]    expanded Model block
-    pub fn gen_model_struct(
-        entity: &Entity,
-        with_serde: &WithSerde,
-        serde_skip_deserializing_primary_key: bool,
-        serde_skip_hidden_column: bool,
-        model_extra_derives: &TokenStream,
-        model_extra_attributes: &TokenStream,
-    ) -> TokenStream {
-        let column_names_snake_case = entity.get_column_names_snake_case();
-        let column_rs_types = entity.get_column_rs_types();
-        let if_eq_needed = entity.get_eq_needed();
-        let serde_attributes = entity.get_column_serde_attributes(
-            serde_skip_deserializing_primary_key,
-            serde_skip_hidden_column,
-        );
-        let extra_derive = with_serde.extra_derive();
-
-        quote! {
-            #[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel #if_eq_needed #extra_derive #model_extra_derives)]
-            #model_extra_attributes
-            pub struct Model {
-                #(
-                    #serde_attributes
-                    pub #column_names_snake_case: #column_rs_types,
-                )*
-            }
-        }
-    }
-
-    pub fn gen_column_enum(entity: &Entity) -> TokenStream {
-        let column_variants = entity.columns.iter().map(|col| {
-            let variant = col.get_name_camel_case();
-            let mut variant = quote! { #variant };
-            if !col.is_snake_case_name() {
-                let column_name = &col.name;
-                variant = quote! {
-                    #[pgorm(column_name = #column_name)]
-                    #variant
-                };
-            }
-            variant
-        });
-        quote! {
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-            pub enum Column {
-                #(#column_variants,)*
-            }
-        }
-    }
-
-    pub fn gen_primary_key_enum(entity: &Entity) -> TokenStream {
-        let primary_key_names_camel_case = entity.get_primary_key_names_camel_case();
-        quote! {
-            #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-            pub enum PrimaryKey {
-                #(#primary_key_names_camel_case,)*
-            }
-        }
-    }
-
-    // [spec:pgorm:sem:codegen.entity.pk+3]
-    pub fn gen_impl_primary_key(entity: &Entity) -> TokenStream {
-        let primary_key_auto_increment = entity.get_primary_key_auto_increment();
-        let value_type = entity.get_primary_key_rs_type();
-        // [spec:pgorm:sem:codegen.entity.pk+3]
-        let without_overlaps = match entity.without_overlaps {
-            true => quote! { fn without_overlaps() -> bool { true } },
-            false => quote! {},
-        };
-        quote! {
-            impl PrimaryKeyTrait for PrimaryKey {
-                type ValueType = #value_type;
-
-                fn auto_increment() -> bool {
-                    #primary_key_auto_increment
-                }
-
-                #without_overlaps
-            }
-        }
-    }
-
-    pub fn gen_relation_enum(entity: &Entity) -> TokenStream {
-        let relation_enum_name = entity.get_relation_enum_name();
-        quote! {
-            #[derive(Copy, Clone, Debug, EnumIter)]
-            pub enum Relation {
-                #(#relation_enum_name,)*
-            }
-        }
-    }
-
-    pub fn gen_impl_column_trait(entity: &Entity) -> TokenStream {
-        let column_names_camel_case = entity.get_column_names_camel_case();
-        let column_defs = entity.get_column_defs();
-        quote! {
-            impl ColumnTrait for Column {
-                type EntityName = Entity;
-
-                fn def(&self) -> ColumnDef {
-                    match self {
-                        #(Self::#column_names_camel_case => #column_defs,)*
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn gen_impl_relation_trait(entity: &Entity) -> TokenStream {
-        let relation_enum_name = entity.get_relation_enum_name();
-        let relation_defs = entity.get_relation_defs();
-        let quoted = if relation_enum_name.is_empty() {
-            quote! {
-                panic!("No RelationDef")
-            }
-        } else {
-            quote! {
-                match self {
-                    #(Self::#relation_enum_name => #relation_defs,)*
-                }
-            }
-        };
-        quote! {
-            impl RelationTrait for Relation {
-                fn def(&self) -> RelationDef {
-                    #quoted
-                }
-            }
-        }
-    }
-
-    // [spec:pgorm:sem:codegen.entity.relations.related]
+    // [spec:pgorm:sem:codegen.entity.relations.related+1]
     pub fn gen_impl_related(entity: &Entity) -> Vec<TokenStream> {
         entity
             .relations
@@ -680,7 +463,7 @@ impl EntityWriter {
             .collect()
     }
 
-    // [spec:pgorm:sem:codegen.entity.relations.via]
+    // [spec:pgorm:sem:codegen.entity.relations.via+1]
     pub fn gen_impl_conjunct_related(entity: &Entity) -> Vec<TokenStream> {
         let table_name_camel_case = entity.get_table_name_camel_case_ident();
         let via_snake_case = entity.get_conjunct_relations_via_snake_case();
@@ -730,7 +513,7 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.compact.attrs+9]
+    // [spec:pgorm:sem:codegen.entity.compact.attrs+10]
     // [spec:pgorm:sem:codegen.entity.compact.model+1]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_model_struct(
@@ -850,7 +633,7 @@ impl EntityWriter {
     /// The schema literal an entity's generated attribute carries: the source
     /// table's own qualifier, and only failing that the configured default. An
     /// option cannot move a table into a schema the DDL says it is not in.
-    // [spec:pgorm:sem:codegen.entity.context+3]
+    // [spec:pgorm:sem:codegen.entity.context+4]
     pub fn gen_schema_name(entity: &Entity, schema_name: &Option<String>) -> Option<TokenStream> {
         entity
             .effective_schema(schema_name)
@@ -1765,86 +1548,6 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_expanded_code_blocks() -> io::Result<()> {
-        let entities = setup();
-        const ENTITY_FILES: [&str; 13] = [
-            include_str!("../../tests/expanded/cake.rs"),
-            include_str!("../../tests/expanded/cake_filling.rs"),
-            include_str!("../../tests/expanded/cake_filling_price.rs"),
-            include_str!("../../tests/expanded/filling.rs"),
-            include_str!("../../tests/expanded/fruit.rs"),
-            include_str!("../../tests/expanded/vendor.rs"),
-            include_str!("../../tests/expanded/rust_keyword.rs"),
-            include_str!("../../tests/expanded/cake_with_float.rs"),
-            include_str!("../../tests/expanded/cake_with_double.rs"),
-            include_str!("../../tests/expanded/collection.rs"),
-            include_str!("../../tests/expanded/collection_float.rs"),
-            include_str!("../../tests/expanded/parent.rs"),
-            include_str!("../../tests/expanded/child.rs"),
-        ];
-        const ENTITY_FILES_WITH_SCHEMA_NAME: [&str; 13] = [
-            include_str!("../../tests/expanded_with_schema_name/cake.rs"),
-            include_str!("../../tests/expanded_with_schema_name/cake_filling.rs"),
-            include_str!("../../tests/expanded_with_schema_name/cake_filling_price.rs"),
-            include_str!("../../tests/expanded_with_schema_name/filling.rs"),
-            include_str!("../../tests/expanded_with_schema_name/fruit.rs"),
-            include_str!("../../tests/expanded_with_schema_name/vendor.rs"),
-            include_str!("../../tests/expanded_with_schema_name/rust_keyword.rs"),
-            include_str!("../../tests/expanded_with_schema_name/cake_with_float.rs"),
-            include_str!("../../tests/expanded_with_schema_name/cake_with_double.rs"),
-            include_str!("../../tests/expanded_with_schema_name/collection.rs"),
-            include_str!("../../tests/expanded_with_schema_name/collection_float.rs"),
-            include_str!("../../tests/expanded_with_schema_name/parent.rs"),
-            include_str!("../../tests/expanded_with_schema_name/child.rs"),
-        ];
-
-        assert_eq!(entities.len(), ENTITY_FILES.len());
-
-        for (i, entity) in entities.iter().enumerate() {
-            assert_eq!(
-                parse_from_file(ENTITY_FILES[i].as_bytes())?.to_string(),
-                EntityWriter::gen_expanded_code_blocks(
-                    entity,
-                    &crate::WithSerde::None,
-                    &None,
-                    false,
-                    false,
-                    &TokenStream::new(),
-                    &TokenStream::new()
-                )
-                .into_iter()
-                .skip(1)
-                .fold(TokenStream::new(), |mut acc, tok| {
-                    acc.extend(tok);
-                    acc
-                })
-                .to_string()
-            );
-            assert_eq!(
-                parse_from_file(ENTITY_FILES_WITH_SCHEMA_NAME[i].as_bytes())?.to_string(),
-                EntityWriter::gen_expanded_code_blocks(
-                    entity,
-                    &crate::WithSerde::None,
-                    &Some("schema_name".to_owned()),
-                    false,
-                    false,
-                    &TokenStream::new(),
-                    &TokenStream::new()
-                )
-                .into_iter()
-                .skip(1)
-                .fold(TokenStream::new(), |mut acc, tok| {
-                    acc.extend(tok);
-                    acc
-                })
-                .to_string()
-            );
-        }
-
-        Ok(())
-    }
-
-    #[test]
     fn test_gen_compact_code_blocks() -> io::Result<()> {
         let entities = setup();
         const ENTITY_FILES: [&str; 13] = [
@@ -1930,7 +1633,6 @@ mod tests {
 
         assert_eq!(cake_entity.get_table_name_snake_case(), "cake");
 
-        // Compact code blocks
         assert_eq!(
             comparable_file_string(include_str!("../../tests/compact_with_serde/cake_none.rs"))?,
             generated_to_string(EntityWriter::gen_compact_code_blocks(
@@ -1984,60 +1686,6 @@ mod tests {
             ))
         );
 
-        // Expanded code blocks
-        assert_eq!(
-            comparable_file_string(include_str!("../../tests/expanded_with_serde/cake_none.rs"))?,
-            generated_to_string(EntityWriter::gen_expanded_code_blocks(
-                &cake_entity,
-                &WithSerde::None,
-                &None,
-                false,
-                false,
-                &TokenStream::new(),
-                &TokenStream::new()
-            ))
-        );
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/expanded_with_serde/cake_serialize.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_expanded_code_blocks(
-                &cake_entity,
-                &WithSerde::Serialize,
-                &None,
-                false,
-                false,
-                &TokenStream::new(),
-                &TokenStream::new()
-            ))
-        );
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/expanded_with_serde/cake_deserialize.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_expanded_code_blocks(
-                &cake_entity,
-                &WithSerde::Deserialize,
-                &None,
-                true,
-                false,
-                &TokenStream::new(),
-                &TokenStream::new()
-            ))
-        );
-        assert_eq!(
-            comparable_file_string(include_str!("../../tests/expanded_with_serde/cake_both.rs"))?,
-            generated_to_string(EntityWriter::gen_expanded_code_blocks(
-                &cake_entity,
-                &WithSerde::Both,
-                &None,
-                true,
-                false,
-                &TokenStream::new(),
-                &TokenStream::new()
-            ))
-        );
-
         Ok(())
     }
 
@@ -2047,7 +1695,6 @@ mod tests {
 
         assert_eq!(cake_entity.get_table_name_snake_case(), "cake");
 
-        // Compact code blocks
         assert_eq!(
             comparable_file_string(include_str!(
                 "../../tests/compact_with_derives/cake_none.rs"
@@ -2090,51 +1737,6 @@ mod tests {
             ))
         );
 
-        // Expanded code blocks
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/expanded_with_derives/cake_none.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_expanded_code_blocks(
-                &cake_entity,
-                &WithSerde::None,
-                &None,
-                false,
-                false,
-                &TokenStream::new(),
-                &TokenStream::new()
-            ))
-        );
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/expanded_with_derives/cake_one.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_expanded_code_blocks(
-                &cake_entity,
-                &WithSerde::None,
-                &None,
-                false,
-                false,
-                &bonus_derive("model_extra_derives", ["ts_rs::TS"]).expect("valid derives"),
-                &TokenStream::new()
-            ))
-        );
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/expanded_with_derives/cake_multiple.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_expanded_code_blocks(
-                &cake_entity,
-                &WithSerde::None,
-                &None,
-                false,
-                false,
-                &bonus_derive("model_extra_derives", ["ts_rs::TS", "utoipa::ToSchema"])
-                    .expect("valid derives"),
-                &TokenStream::new()
-            ))
-        );
-
         // Make the `name` column of `cake` entity as hidden column
         cake_entity.columns[1].name = "_name".into();
 
@@ -2146,17 +1748,6 @@ mod tests {
                 None,
             ),
             Box::new(EntityWriter::gen_compact_code_blocks),
-        )?;
-        assert_serde_variant_results(
-            &cake_entity,
-            &(
-                include_str!(
-                    "../../tests/expanded_with_serde/cake_serialize_with_hidden_column.rs"
-                ),
-                WithSerde::Serialize,
-                None,
-            ),
-            Box::new(EntityWriter::gen_expanded_code_blocks),
         )?;
 
         Ok(())
@@ -2219,7 +1810,6 @@ mod tests {
 
         assert_eq!(cake_entity.get_table_name_snake_case(), "cake");
 
-        // Compact code blocks
         assert_eq!(
             comparable_file_string(include_str!(
                 "../../tests/compact_with_attributes/cake_none.rs"
@@ -2257,58 +1847,6 @@ mod tests {
                 "../../tests/compact_with_attributes/cake_multiple.rs"
             ))?,
             generated_to_string(EntityWriter::gen_compact_code_blocks(
-                &cake_entity,
-                &WithSerde::None,
-                &None,
-                false,
-                false,
-                &TokenStream::new(),
-                &bonus_attributes(
-                    "model_extra_attributes",
-                    [r#"serde(rename_all = "camelCase")"#, "ts(export)"]
-                )
-                .expect("valid attributes")
-            ))
-        );
-
-        // Expanded code blocks
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/expanded_with_attributes/cake_none.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_expanded_code_blocks(
-                &cake_entity,
-                &WithSerde::None,
-                &None,
-                false,
-                false,
-                &TokenStream::new(),
-                &TokenStream::new()
-            ))
-        );
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/expanded_with_attributes/cake_one.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_expanded_code_blocks(
-                &cake_entity,
-                &WithSerde::None,
-                &None,
-                false,
-                false,
-                &TokenStream::new(),
-                &bonus_attributes(
-                    "model_extra_attributes",
-                    [r#"serde(rename_all = "camelCase")"#]
-                )
-                .expect("valid attributes")
-            ))
-        );
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/expanded_with_attributes/cake_multiple.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_expanded_code_blocks(
                 &cake_entity,
                 &WithSerde::None,
                 &None,
@@ -2404,9 +1942,6 @@ mod tests {
         ];
         const ENTITY_FILES: [&str; 1] = [include_str!("../../tests/postgres/binary_json.rs")];
 
-        const ENTITY_FILES_EXPANDED: [&str; 1] =
-            [include_str!("../../tests/postgres/binary_json_expanded.rs")];
-
         assert_eq!(entities.len(), ENTITY_FILES.len());
 
         for (i, entity) in entities.iter().enumerate() {
@@ -2416,25 +1951,6 @@ mod tests {
                     entity,
                     &crate::WithSerde::None,
                     &None,
-                    false,
-                    false,
-                    &TokenStream::new(),
-                    &TokenStream::new()
-                )
-                .into_iter()
-                .skip(1)
-                .fold(TokenStream::new(), |mut acc, tok| {
-                    acc.extend(tok);
-                    acc
-                })
-                .to_string()
-            );
-            assert_eq!(
-                parse_from_file(ENTITY_FILES_EXPANDED[i].as_bytes())?.to_string(),
-                EntityWriter::gen_expanded_code_blocks(
-                    entity,
-                    &crate::WithSerde::None,
-                    &Some("schema_name".to_owned()),
                     false,
                     false,
                     &TokenStream::new(),
