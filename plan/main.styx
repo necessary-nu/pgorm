@@ -16411,6 +16411,7 @@ children (
         id exec-vocabulary-annotation-verb
         title "The delete and update executors claim exec.crud.exec-vocabulary under its own verb"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T18:22:36.290558Z
@@ -16424,6 +16425,13 @@ children (
                 author "brendan@necessary.nu"
                 kind @note
                 text "Widened by derives.paths (420d8d41): eleven annotations use a verb their rule does not have, all predating that branch — exec.crud.exec-vocabulary written sem (the rule is req) in src/executor/update.rs, src/executor/delete.rs and plan/main.styx, and others in pgorm-query/tests/surface/citations.rs and plan/decisions/*.md. Find every one by script (each [spec:pgorm:<verb>:<id>] whose verb differs from the rule's declaring blockquote), fix them all, and add a guard so a mismatch fails a check (pgorm-query's spec reader already refuses pinned citations; a verb check fits beside it). Whether nspec itself should refuse the mismatch is a question for ../nplan/DEFECTS.md."
+            }
+
+            {
+                at 2026-11-02T21:06:55.540292Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
