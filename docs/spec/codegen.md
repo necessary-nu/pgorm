@@ -9,7 +9,7 @@ golden fixtures under `pgorm-codegen/tests/`. A schema reaches the pipeline as
 DDL text, through `entities_from_sql` and `parse_schema` at the crate root,
 specified under [Schema from DDL text](#schema-from-ddl-text).
 
-> [spec:pgorm:def:codegen.entity+5]
+> [spec:pgorm:def:codegen.entity+6]
 > The entity generator is the pipeline
 > `EntityTransformer::transform(Vec<TableCreateStatement>) -> EntityWriter`
 > followed by `EntityWriter::generate(&EntityWriterContext) -> WriterOutput`.
@@ -21,8 +21,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > — the writer never touches the filesystem; its caller writes the files and
 > runs `rustfmt` over them.
 >
-> `EntityWriterContext` selects all generation options: `expanded_format`,
-> `with_serde`, `with_copy_enums`, `schema_name`, `lib`,
+> `EntityWriterContext` selects all generation options: `with_serde`, `with_copy_enums`, `schema_name`, `lib`,
 > `serde_skip_deserializing_primary_key`, `serde_skip_hidden_column`,
 > `model_extra_derives`, `model_extra_attributes`, `enum_extra_derives`,
 > and `enum_extra_attributes`. Extra derives are appended
@@ -42,7 +41,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Schema discovery → Entity model
 
-> [spec:pgorm:sem:codegen.entity.transform+15]
+> [spec:pgorm:sem:codegen.entity.transform+16]
 > `EntityTransformer::transform` builds one `Entity` per input
 > `TableCreateStatement`. A table's identity is the `TableIdent` its
 > `TableName` spells: the bare name, and the schema qualifying it when the
@@ -146,8 +145,8 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > key has at most 12, the widest tuple its value can be")``. A wider key would
 > generate a `ValueType` tuple the key traits have no impl for
 > (`entity.traits.primary-key`), which the derive refuses by name
-> (`macros.derive.entity-model.primary-key`) and the expanded format would
-> hand the caller as a cascade of E0277s. A statement the caller built may
+> (`macros.derive.entity-model.primary-key`) — a compile error in source the
+> caller did not write, where this names the table described. A statement the caller built may
 > also hold what the DDL bridge refuses before any statement is built, and two
 > of those the reads above would drop without a word: a primary or unique key
 > ending `WITHOUT OVERLAPS`, whose `get_columns()` is its equality columns
@@ -302,10 +301,10 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > per entity. Entity-file code blocks are joined with blank lines; content
 > is unformatted `TokenStream` text (callers are expected to run rustfmt).
 
-> [spec:pgorm:sem:codegen.entity.context+3]
+> [spec:pgorm:sem:codegen.entity.context+4]
 > `EntityWriterContext::new` takes one `EntityWriterOptions` struct — every
 > generation option is a named field, and its `Default` is the no-flags
-> shape (compact format, no serde, `mod.rs`) — and returns
+> shape (no serde, `mod.rs`) — and returns
 > `Result<EntityWriterContext, Error>`.
 >
 > The `schema_name` option is a **default, not an override**: an entity's
@@ -321,8 +320,8 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > each table the schema it is actually in. `EntityWriter::gen_schema_name`
 > takes the entity and the option and applies that precedence, so no
 > generator can be written that forgets it; "a schema name is configured", in
-> `codegen.entity.compact`, `codegen.entity.compact.model` and
-> `codegen.entity.expanded`, means the result of it.
+> `codegen.entity.compact` and `codegen.entity.compact.model`, means the
+> result of it.
 >
 > `new` normalizes the option lists at construction:
 > `model_extra_derives` / `enum_extra_derives` pass through `bonus_derive`,
@@ -335,56 +334,36 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > text")`` — naming the option field it came from — before any file is
 > generated.
 
-## Compact and expanded formats
+## The entity file
 
-> [spec:pgorm:def:codegen.entity.compact+1]
-> The compact format (default, `expanded_format == false`) emits per entity,
-> in order: the imports (`use pgorm::entity::prelude::*;`, serde imports,
-> and one `use super::pgorm_active_enums::<EnumName>;` per distinct enum
-> used by the entity's columns); a single `Model` struct deriving
-> `Clone, Debug, PartialEq, DeriveEntityModel` (plus `Eq`, serde derives,
-> and extra derives) annotated with
+> [spec:pgorm:def:codegen.entity.compact+2]
+> The writer emits one form of entity, the composite derive's
+> (`[spec:pgorm:req:macros.derive.one-form]`), and no option selects another.
+> Per entity it emits, in order: the imports (`use pgorm::entity::prelude::*;`,
+> serde imports, and one `use super::pgorm_active_enums::<EnumName>;` per
+> distinct enum used by the entity's columns); a single `Model` struct
+> deriving `Clone, Debug, PartialEq, DeriveEntityModel` (plus `Eq`, serde
+> derives, and extra derives) annotated with
 > `#[pgorm(schema_name = "...", table_name = "...")]` (`schema_name` only
 > when the entity has one — its source table's qualifier, else the configured
 > default, per `codegen.entity.context`); a `Relation` enum deriving
 > `Copy, Clone, Debug, EnumIter, DeriveRelation` whose variants carry
 > `#[pgorm(...)]` relation attributes (an entity with no relations emits the
 > empty `pub enum Relation {}`); the `Related` impls; and
-> `impl ActiveModelBehavior for ActiveModel {}`. `DeriveEntityModel`
-> expands the Entity/Column/PrimaryKey machinery that the expanded format
-> spells out.
+> `impl ActiveModelBehavior for ActiveModel {}`. `DeriveEntityModel` writes
+> the `Entity`, `Column`, `PrimaryKey` and `ActiveModel` from the `Model`.
+>
+> `gen_compact_code_blocks` assembles the file as an ordered
+> `Vec<TokenStream>`, one block per section: the import block (`gen_import`
+> extended with `gen_import_active_enum` and `gen_import_range_types`),
+> `gen_compact_model_struct`, `gen_compact_relation_enum`, zero or more
+> `gen_impl_related` blocks, zero or more `gen_impl_conjunct_related` blocks,
+> then `gen_impl_active_model_behavior`. `write_entities` prepends the
+> generated-file header and joins the stringified blocks with blank lines, so
+> each section is one contiguous block in the output (rendered shapes pinned
+> by `tests/compact/`).
 
-> [spec:pgorm:def:codegen.entity.expanded+4]
-> The expanded format (`expanded_format == true`) emits per entity, in
-> order: the same imports; `#[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-> pub struct Entity;`; `impl EntityName for Entity` containing
-> `fn schema_name(&self) -> Option<&str>` returning `Some("...")` only when
-> the entity has a schema name — its source table's qualifier, else the
-> configured default, per `codegen.entity.context` — and
-> `fn table_name(&self) -> &str` returning
-> the table name literal, which is the bare name in either case; a `Model`
-> struct deriving
-> `Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel` (plus `Eq`,
-> serde, extras) with no `#[pgorm(...)]` struct attribute; a `Column` enum
-> deriving `Copy, Clone, Debug, EnumIter, DeriveColumn` (variants of
-> non-snake-case columns carry `#[pgorm(column_name = "...")]`); a
-> `PrimaryKey` enum deriving `Copy, Clone, Debug, EnumIter,
-> DerivePrimaryKey`; `impl PrimaryKeyTrait`; a `Relation` enum deriving
-> `Copy, Clone, Debug, EnumIter` (no `DeriveRelation`); `impl ColumnTrait
-> for Column` whose `def()` matches every column to a `ColumnType`
-> expression chain (`ColumnType::X.def()` + `.null()` when nullable +
-> `.unique()` when unique + `.identity()` / `.identity_by_default()` for an
-> identity column + `.default(<expr>)` for a column with a `DEFAULT` and
-> `.generated(<expr>, pgorm::pgorm_query::GeneratedKind::Stored | Virtual)`
-> for a generated one, `<expr>` the Rust `codegen.entity.expressions` prints,
-> and `<EnumName>::db_type()` for enum columns, an enum inside an array or a
-> domain spelled as `codegen.entity.types` spells it);
-> `impl RelationTrait for Relation` whose `def()` matches every variant to a
-> `RelationDef` expression — or has the body `panic!("No RelationDef")` when
-> there are no relations; the `Related` impls; and
-> `impl ActiveModelBehavior for ActiveModel {}`.
-
-> [spec:pgorm:sem:codegen.entity.compact.attrs+9]
+> [spec:pgorm:sem:codegen.entity.compact.attrs+10]
 > In the compact Model, each field's `#[pgorm(...)]` attribute assembles
 > parts in this fixed order: `column_name = "..."` when the DB column name
 > is not already snake_case; `primary_key` when the column is in the primary
@@ -398,7 +377,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > generated_stored = "..."`; `default_expr = "..."`, `generated_stored =
 > "..."` or `generated_virtual = "..."` when the column has a `DEFAULT` or is
 > generated, its string the Rust that builds the expression
-> (`codegen.entity.expressions`); `column_type = "..."` wherever the type the
+> (`codegen.entity.expressions`); `column_type = <expression>` wherever the type the
 > derive infers from the field's Rust type
 > (`macros.derive.entity-model.column-def`) is not the column's own, and on a
 > `Float`, `Double` or `Bytea` column besides; `nullable` (only alongside a
@@ -408,36 +387,37 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > A compact entity carries each column's full type, so that the table it
 > creates (`Schema::create_table_from_entity`) is the table described, every
 > length, precision, scale and qualifier included, and a value written
-> through it is held to them. The `column_type` string is the expanded
-> writer's spelling of the type (`codegen.entity.types`) with its leading
-> `ColumnType::` taken off — one spelling, so the two formats define every
-> column alike, its integers carrying the `u32` suffix that writer gives
-> them. `String` infers an unbounded `varchar`, so `varchar(3)` states
-> `String(StringLen::N(3u32))` (`StringLen::Max` stating itself too), every
-> `Char` — `char(2)` states `Char(Some(2u32))`, and `char` alone, which is
-> `char(1)`, `Char(Some(1u32))` — states its length or `Char(None)`, `text`
-> states `Text` and a named type `named("...")`; `Decimal` infers an
-> unconstrained `numeric`, so `numeric(10, 2)` states
-> `Decimal(Some((10u32, 2u32)))` and `money` `Money`; `Json` infers `json`,
-> so `jsonb` states `JsonBinary`; and `Interval` infers
-> an unqualified `interval`, so an interval carrying a field qualifier or a
-> precision states its `IntervalSpec`:
-> `Interval(IntervalSpec::Fields(PgInterval::YearToMonth))`,
-> `Interval(IntervalSpec::Any(Some(IntervalPrecision::P3)))`. Without it
+> through it is held to them. The `column_type` value is the type's whole
+> `ColumnType` expression as `codegen.entity.types` spells it, its integers
+> carrying a `u32` suffix. `String` infers an unbounded `varchar`, so
+> `varchar(3)` states `ColumnType::String(StringLen::N(3u32))`
+> (`StringLen::Max` stating itself too), every `Char` — `char(2)` states
+> `ColumnType::Char(Some(2u32))`, and `char` alone, which is `char(1)`,
+> `ColumnType::Char(Some(1u32))` — states its length or
+> `ColumnType::Char(None)`, `text` states `ColumnType::Text` and a named type
+> `ColumnType::named("...")`; `Decimal` infers an unconstrained `numeric`, so
+> `numeric(10, 2)` states `ColumnType::Decimal(Some((10u32, 2u32)))` and
+> `money` `ColumnType::Money`; `Json` infers `json`, so `jsonb` states
+> `ColumnType::JsonBinary`; and `Interval` infers an unqualified `interval`,
+> so an interval carrying a field qualifier or a precision states its
+> `IntervalSpec`:
+> `ColumnType::Interval(IntervalSpec::Fields(PgInterval::YearToMonth))`,
+> `ColumnType::Interval(IntervalSpec::Any(Some(IntervalPrecision::P3)))`. Without it
 > `varchar(3)` would be created as a `varchar` holding any length, and
 > `interval YEAR TO MONTH` as an `interval` keeping the days and seconds the
-> column discards. A domain column always states one, `Domain { name:
-> Name::runtime("..."), schema: .., base: Arc::new(..) }`, because no Rust
+> column discards. A domain column always states one, `ColumnType::Domain {
+> name: Name::runtime("..."), schema: .., base: Arc::new(..) }`, because no Rust
 > type infers a domain. An array is inferred as the array of what its
 > element's Rust type infers, so it states
-> `Array(Arc::new(ColumnType::<element>))` exactly when its element would
+> `ColumnType::Array(Arc::new(ColumnType::<element>))` exactly when its element would
 > other than for a `Float`, `Double` or `Bytea` element, which `f32`, `f64`
 > and `Vec<u8>` infer as they are: `text[]`, `varchar(3)[]` and
 > `numeric(8, 3)[]` state one, `real[]` and `integer[]` none. A created
 > range's newtype is inferred as the range over what its `Range<E>`'s `E`
 > infers (`codegen.entity.types`), so a column of one, or of the multirange
-> beside it, states `CreatedRange { name: Name::runtime("..."), schema: ..,
-> subtype: Arc::new(..) }` or `CreatedMultirange { .. }` exactly when its
+> beside it, states `ColumnType::CreatedRange { name: Name::runtime("..."),
+> schema: .., subtype: Arc::new(..) }` or `ColumnType::CreatedMultirange { .. }`
+> exactly when its
 > subtype would: a range over `text` does, which `String` would infer over
 > `varchar`. Every other type — the integers, `boolean`, `json`, `uuid`, the
 > dates and times, an unqualified `interval`, a bare `numeric`, an unbounded
@@ -449,10 +429,9 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > pgorm-codegen's `tests/column_types_tests.rs` compares the writer's output
 > with.
 >
-> The `column_type` part's string is re-parsed as tokens by
-> `DeriveEntityModel` and spliced after `ColumnType::`
-> (`macros.derive.entity-model.column-def`), so it is generated *program
-> text*, and the names it uses — `Arc`, `ColumnType`, `Name`, `StringLen`,
+> The `column_type` part is an expression `DeriveEntityModel` takes as
+> written (`macros.derive.entity-model.column-def`), so it is generated
+> *program text*, and the names it uses — `Arc`, `ColumnType`, `Name`, `StringLen`,
 > `IntervalSpec`, `PgInterval`, `IntervalPrecision` — resolve through the
 > prelude glob the entity file imports (`[spec:pgorm:def:entity.prelude]`),
 > as an enum a domain is over resolves through the import of it. Every part
@@ -465,9 +444,8 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > holding a `"` pasted into the attribute either fails to parse in the
 > generated file or, given a comment opener, names a *different* type with
 > nothing reporting the difference. Rendered as a literal it round-trips
-> whole, so `named("...")` here and `ColumnType::named("...")` in the
-> expanded writer (`codegen.entity.types`) spell one name the same way, as a
-> domain's name and schema are each spelled inside `Name::runtime("...")`. The
+> whole, as a domain's name and schema are each spelled inside
+> `Name::runtime("...")`. The
 > shapes that spelling cannot carry are refused before the writer runs
 > (`codegen.entity.types.unsupported`).
 >
@@ -499,28 +477,6 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > is decided by matching the raw DB column name against the entity's
 > `primary_keys` list.
 
-> [spec:pgorm:sem:codegen.entity.expanded.blocks+1]
-> `gen_expanded_code_blocks` assembles an entity's expanded file as an
-> ordered `Vec<TokenStream>`, one block per section, each produced by a
-> dedicated generator: a single import block (`gen_import` extended with
-> `gen_import_active_enum`); `gen_entity_struct`; `gen_impl_entity_name`;
-> `gen_model_struct`; `gen_column_enum`; `gen_primary_key_enum`;
-> `gen_impl_primary_key`; `gen_relation_enum`; `gen_impl_column_trait`;
-> `gen_impl_relation_trait`; then zero or more `gen_impl_related` blocks,
-> zero or more `gen_impl_conjunct_related` blocks, then
-> `gen_impl_active_model_behavior` last. `write_entities` prepends the generated-file
-> header and joins the stringified blocks with blank lines, so each section
-> is one contiguous block in the output (rendered shapes pinned by
-> `tests/expanded/`).
->
-> The expanded Model block (`gen_model_struct`) derives
-> `Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel`, then the `Eq`
-> slot, the serde fragment, and `model_extra_derives`;
-> `model_extra_attributes` render as attribute lines between the derive and
-> the struct, and fields carry only their serde attributes — the
-> `#[pgorm(...)]` field metadata of the compact format has no expanded
-> counterpart because `Column` / `PrimaryKey` are spelled out explicitly.
-
 > [spec:pgorm:sem:codegen.entity.imports+3]
 > `gen_import` builds the per-file import block: always
 > `use pgorm::entity::prelude::*;`, followed by the serde import selected
@@ -540,7 +496,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Type mapping
 
-> [spec:pgorm:sem:codegen.entity.types+10]
+> [spec:pgorm:sem:codegen.entity.types+11]
 > Model field types come from `Column::get_rs_type`: a non-null column maps
 > to `T`, a nullable column to `Option<T>`, where `T` is:
 >
@@ -565,10 +521,12 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > No row produces an unsigned Rust integer: Postgres has no unsigned integer
 > type, so a generated field MUST NOT claim one.
 >
-> The named types resolve through `pgorm::entity::prelude::*`. The expanded
-> writer names a range column's type `ColumnType::Range(RangeType::Int4)`,
-> which resolves the same way; the compact writer states no `column_type` for
-> one, the derive taking it from the field's own `ValueType`.
+> The named types resolve through `pgorm::entity::prelude::*`, as the names
+> in a stated `column_type` do (`codegen.entity.compact.attrs`). The writer
+> states no `column_type` for a range column, the derive taking its type from
+> the field's own `ValueType`; inside a type it does state, a built-in range
+> is `ColumnType::Range(RangeType::Int4)`, `RangeType` resolving through the
+> prelude too.
 >
 > An interval column is an `Interval` field whatever its field qualifier and
 > precision: the qualifier constrains what the column stores, not the type a
@@ -577,14 +535,13 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > creates (`Schema::create_table_from_entity`) is the table described,
 > qualifier for qualifier, and a value written through the entity is stored
 > as that column stores it — the fields the qualifier leaves out dropped, the
-> seconds rounded to its precision. The expanded writer spells the
-> `IntervalSpec` out in every case, through the prelude as `RangeType` is:
-> `ColumnType::Interval(IntervalSpec::Any(None))`,
-> `ColumnType::Interval(IntervalSpec::Any(Some(IntervalPrecision::P3)))`,
-> `ColumnType::Interval(IntervalSpec::Fields(PgInterval::DayToSecond(Some(IntervalPrecision::P3))))`;
-> the compact writer states it in `column_type` where the field's
+> seconds rounded to its precision. The writer states the `IntervalSpec` in
+> `column_type`, through the prelude as `RangeType` is, wherever the field's
 > `Interval` would infer an unqualified `interval`
-> (`codegen.entity.compact.attrs`). The live round trip of a generated
+> (`codegen.entity.compact.attrs`):
+> `ColumnType::Interval(IntervalSpec::Any(Some(IntervalPrecision::P3)))`,
+> `ColumnType::Interval(IntervalSpec::Fields(PgInterval::DayToSecond(Some(IntervalPrecision::P3))))`.
+> The live round trip of a generated
 > entity with a column of each kind of qualifier is held at the workspace
 > root (`tests/codegen_interval_tests.rs`), over the files
 > `pgorm-codegen/tests/sql/interval/` compares the writer's output with.
@@ -599,14 +556,13 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > (`[spec:pgorm:def:sql.value.created-range]`). `E` is the subtype's Rust
 > type as this table maps it — `i16`, `i32`, `i64`, `f32`, `f64`, `Decimal`,
 > `String` (for `Char`, `String` and `Text`), `Date`, `Time`, `DateTime`,
-> `DateTimeWithTimeZone` or `Uuid`. The expanded writer spells
+> `DateTimeWithTimeZone` or `Uuid`. The derive, given no `column_type`,
+> takes a field's column type from the newtype's `ValueType`, whose subtype
+> is what `E` infers, so the writer states none where that is the column's
+> subtype, and where it is not — a range over `text`, which `String` infers
+> as `varchar` (`codegen.entity.compact.attrs`) — spells
 > `ColumnType::CreatedRange` or `CreatedMultirange { name, schema, subtype }`
-> out, the subtype as the schema describes it. The derive, given no
-> `column_type`, takes a field's column type from the newtype's `ValueType`,
-> whose subtype is what `E` infers, so the compact writer states none where
-> that is the column's subtype and the expanded writer's spelling where it is
-> not — a range over `text`, which `String` infers as `varchar`
-> (`codegen.entity.compact.attrs`). The live round trip of a
+> out, the subtype as the schema describes it. The live round trip of a
 > generated entity is held at the workspace root (`tests/created_range_tests.rs`),
 > over the same files `pgorm-codegen/tests/sql/created_range/` compares the
 > writer's output with.
@@ -616,10 +572,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > — and an array of one a `Vec` of that. The domain's name rides in the
 > column's definition, as an interval's qualifier does, so that the table the
 > entity creates types the column with the domain and a value the entity
-> writes is held to the domain's default, `NOT NULL` and checks. Both writers
-> spell `ColumnType::Domain { name: Name::runtime("<name>"), schema:
-> <Some(Name::runtime("<schema>")) or None>, base: Arc::new(<base>) }` out,
-> the base spelled as a type inside another is, an enum base included. A
+> writes is held to the domain's default, `NOT NULL` and checks. The writer
+> spells `ColumnType::Domain { name: Name::runtime("<name>"), schema:
+> <Some(Name::runtime("<schema>")) or None>, base: Arc::new(<base>) }` out in
+> `column_type`, the base spelled as a type inside another is, an enum base
+> included. A
 > domain over an enum or a created range imports and generates that type as a
 > column of it does. The live round trip of a generated entity whose columns
 > are domains over an integer, another domain, a sized string, an enum, an
@@ -628,20 +585,19 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > the files `pgorm-codegen/tests/sql/domain/` compares the writer's output
 > with.
 >
-> An enum column's definition is its `ActiveEnum`'s `<Enum>::db_type()`, the
-> `ColumnDef` that `.def()` passes through. An enum inside another type — an
-> array's element, a domain's base — is
-> `<Enum>::db_type().get_column_type().clone()` instead, since the `Arc`
-> holding it holds a `ColumnType`: the expanded writer spells an enum array
-> `ColumnType::Array(Arc::new(<Enum>::db_type().get_column_type().clone()))`,
-> its schema, when it has one, carried by the `ActiveEnum`. The compact writer
-> states no `column_type` for an enum array, the derive inferring the array of
-> the enum's type from the `Vec` of its `ActiveEnum`; a domain over one it
-> spells as the expanded writer does. The live round trip of a generated
-> entity whose columns are arrays of an enum and of a schema-qualified one,
-> nullable and not, and a domain over an enum array is held at the workspace
-> root (`tests/codegen_enum_array_tests.rs`), over the files
-> `pgorm-codegen/tests/sql/enum_array/` compares both writers' output with.
+> An enum column states no `column_type`: the derive takes its type from the
+> field's `ActiveEnum`, and an enum array's from the `Vec` of it. An enum
+> inside a type the writer does state — a domain's base, or the element of an
+> array a domain is over — is the `ActiveEnum`'s column type,
+> `<Enum>::db_type().get_column_type().clone()`, since the `Arc` holding it
+> holds a `ColumnType`: a domain over an enum array is
+> `ColumnType::Domain { .., base: Arc::new(ColumnType::Array(Arc::new(<Enum>::db_type().get_column_type().clone()))) }`,
+> the enum's schema, when it has one, carried by the `ActiveEnum`. The live
+> round trip of a generated entity whose columns are arrays of an enum and of
+> a schema-qualified one, nullable and not, and a domain over an enum array is
+> held at the workspace root (`tests/codegen_enum_array_tests.rs`), over the
+> files `pgorm-codegen/tests/sql/enum_array/` compares the writer's output
+> with.
 >
 > The `Eq` derive is added to the Model derive list only when no column's
 > type is `Float` or `Double`, checked recursively through `Array` element
@@ -676,7 +632,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > glob rather than from any named crate, repointing the aliases is how the
 > temporal backing changes, and generated text does not move when it does.
 
-> [spec:pgorm:req:codegen.entity.types.unsupported+8]
+> [spec:pgorm:req:codegen.entity.types.unsupported+9]
 > Column types outside the mapping table are not supported, and support is
 > decided when a `Column` is built rather than when it is rendered. Both
 > `TryFrom<&ColumnDef> for Column` and — through it —
@@ -713,7 +669,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > ``TransformError("... named column type `<name>` is not supported by
 > codegen; only a bare type name survives the generated
 > `ColumnType::named(\"..\")`")`` where `<name>` is the type name's SQL
-> spelling: both writers respell a named type as a single-argument
+> spelling: the writer respells a named type as a single-argument
 > `ColumnType::named("...")`, which rebuilds one unqualified, non-array,
 > quoted name, so a `TypeName` carrying more than that would be generated as
 > a type other than the one described. The *characters* of a bare name are
@@ -726,7 +682,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > placeholder code is emitted and no file is generated, the whole run fails.
 > It MUST NOT abort by panic either — the failure is a value the caller
 > handles. Because no `Column` can hold an unsupported type, the wildcard
-> arms of `Column::get_rs_type` and `Column::get_def` are unreachable and
+> arms of `Column::get_rs_type` and `write_col_type` are unreachable and
 > stand as internal invariants.
 
 ## Serde
@@ -765,11 +721,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > gets `#[serde(skip)]`, not `#[serde(skip_deserializing)]`. With
 > `WithSerde::None` both flags are inert.
 
-> [spec:pgorm:sem:codegen.entity.serde.derives+1]
+> [spec:pgorm:sem:codegen.entity.serde.derives+2]
 > `WithSerde::extra_derive` is the single producer of the serde derive
 > fragment: an empty stream for `None`, otherwise a leading-comma fragment
 > (`, Serialize`, `, Deserialize`, or `, Serialize, Deserialize` for
-> `Both`). Model writers in both formats splice it at a fixed slot — after
+> `Both`). The Model writer splices it at a fixed slot — after
 > the base derives and the conditional `Eq`, before `model_extra_derives` —
 > so a serde-enabled compact Model derives exactly
 > `Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize`
@@ -785,24 +741,22 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Primary keys
 
-> [spec:pgorm:sem:codegen.entity.pk+3]
-> In the expanded format, `impl PrimaryKeyTrait for PrimaryKey` sets
-> `type ValueType` to the single PK column's Rust type, or to a tuple
-> `(T1, T2, ...)` of the column types for composite keys, and
-> `fn auto_increment() -> bool` answers whether the database generates the
-> whole key (`entity.traits.primary-key`), and a temporal key adds `fn
-> without_overlaps() -> bool { true }`, reading the key's own columns and
-> no others: true when every key column is an identity or a generated
+> [spec:pgorm:sem:codegen.entity.pk+4]
+> A key's facts surface as field attributes (`codegen.entity.compact.attrs`):
+> `primary_key` on each key column, followed by `without_overlaps` on a
+> temporal key's period, by `auto_increment = false` on a column that is
+> neither auto-increment, an identity nor a generated column, and by
+> `identity` / `identity_by_default` on an identity. The derive reads them
+> into `PrimaryKeyTrait` (`macros.derive.entity-model.primary-key`): its
+> `ValueType` the key column's Rust type, or the tuple of them for a
+> composite key, and its `auto_increment()` whether the database generates
+> the whole key (`entity.traits.primary-key`), reading the key's own columns
+> and no others: true when every key column is an identity or a generated
 > column, and otherwise only for a one-column key that is auto-increment. A
-> serial column outside the key does not make the key generated, and neither
-> does one identity column of a composite key. This is the reading the derive gives the compact form
-> (`macros.derive.entity-model.primary-key`), where the same facts surface
-> as the `primary_key` / `auto_increment = false` / `identity` field
-> attributes described in `codegen.entity.compact.attrs`, so the two formats
-> of one table agree. They did not while the expanded check ran over every
-> column: a table keyed `(tenant_id, id)` with `id serial` answered true, and
-> schema generation from that entity drew both key columns from the serial
-> family.
+> serial column outside the key does not make the key generated, and
+> neither does one identity column of a composite key: a table keyed
+> `(tenant_id, id)` with `id serial` would otherwise draw both key columns
+> from the serial family when schema generation built it from the entity.
 >
 > A serial column inside a composite key has no attribute to land on — the
 > derive offers per-column generation only as an identity — so it generates
@@ -812,13 +766,12 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Column expressions
 
-> [spec:pgorm:sem:codegen.entity.expressions]
+> [spec:pgorm:sem:codegen.entity.expressions+1]
 > A column's `DEFAULT`, and the expression a generated column is computed
 > from, are read into one closed subset of PostgreSQL's expressions, which
 > the DDL bridge reads from the parse tree (`codegen.ddl.tables`), the
 > transform reads from a statement's `SimpleExpr` (`codegen.entity.transform`)
-> and the writers print as Rust (`codegen.entity.compact.attrs`,
-> `codegen.entity.expanded`). The subset is: a column of the same table by
+> and the writer prints as Rust (`codegen.entity.compact.attrs`). The subset is: a column of the same table by
 > its unqualified name; an `integer`, `bigint` or `numeric` literal, the last
 > kept as the exact decimal it spells (`1.50` stays `1.50`) within 18 digits;
 > a string literal; `TRUE`, `FALSE` and `NULL`; `CURRENT_DATE`,
@@ -867,11 +820,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Relations
 
-> [spec:pgorm:sem:codegen.entity.relations+3]
+> [spec:pgorm:sem:codegen.entity.relations+4]
 > `Relation` enum variants are named by the UpperCamelCase of the referenced
 > table, with two adjustments: a self-referencing relation is named
 > `SelfRef`, and a nonzero `num_suffix` is appended (`Fruit1`, `Fruit2`,
-> `SelfRef1`, ...). In the compact format each variant carries a `#[pgorm]`
+> `SelfRef1`, ...). Each variant carries a `#[pgorm]`
 > attribute: FK-owning relations emit
 > `#[pgorm(belongs_to = "<Entity>", from = "Column::<Src>", to = "<Entity path>Column::<Ref>", on_update = "<Action>", on_delete = "<Action>")]`
 > where `<Entity>` is `super::<module>::Entity` (or plain `Entity` when
@@ -884,24 +837,14 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > "NotEnforced"` where the key declared them. Inverse
 > relations emit
 > `#[pgorm(has_one = "...")]` or `#[pgorm(has_many = "...")]` with no
-> `from`/`to`. In the expanded format the same information renders as
-> `RelationTrait::def()` match arms:
-> `Entity::has_many(super::fruit::Entity).into()` and
-> `Entity::belongs_to(...).columns(<src>, <ref>).into()`, with each further
-> column of a composite FK appended as `.and_columns(<src>, <ref>)`, its period
-> as `.period(<src>, <ref>)`, then the key's `.on_update(ForeignKeyAction::<Action>)`,
-> `.on_delete(ForeignKeyAction::<Action>)`,
-> `.deferrability(pgorm::pgorm_query::Deferrability::<..>)` and
-> `.enforcement(pgorm::pgorm_query::Enforcement::NotEnforced)` where it
-> declared them — the same information as the compact attribute, which the
-> expanded format once lost the actions of. A relation
+> `from`/`to`. A relation
 > whose constrained and referenced column lists differ in length is rejected by
 > `Relation::validate`, so no generated relation can name a column on one side
 > without its counterpart on the other.
 
-> [spec:pgorm:sem:codegen.entity.relations.related]
+> [spec:pgorm:sem:codegen.entity.relations.related+1]
 > For each relation that is not self-referencing, has `num_suffix == 0`, and
-> still has `impl_related` set, both formats emit
+> still has `impl_related` set, the writer emits
 > `impl Related<super::<module>::Entity> for Entity` with
 > `fn to() -> RelationDef { Relation::<Variant>.def() }`. Self-referencing
 > and suffixed relations get `Relation` variants but no `Related` impl
@@ -909,7 +852,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > conjunct-shadowed relations are replaced by the `via` impl of
 > `codegen.entity.relations.via`.
 
-> [spec:pgorm:sem:codegen.entity.relations.via]
+> [spec:pgorm:sem:codegen.entity.relations.via+1]
 > Each conjunct relation emits a many-to-many `Related` impl:
 >
 > `impl Related<super::<to>::Entity> for Entity` with
@@ -918,12 +861,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 >
 > where `<via>` is the junction module, `<To>` the target's variant in the
 > junction's `Relation` enum, and `<Self>` the current entity's variant
-> there. These impls are emitted after the plain `Related` impls in both
-> formats.
+> there. These impls are emitted after the plain `Related` impls.
 
 ## Active enums
 
-> [spec:pgorm:sem:codegen.entity.enums+2]
+> [spec:pgorm:sem:codegen.entity.enums+3]
 > All discovered database enums are generated into a single
 > `pgorm_active_enums.rs`, in alphabetical order by enum name. Each becomes
 > `#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]`
@@ -949,9 +891,9 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > digit-led value carrying a space) is a `TransformError` per
 > `codegen.entity.keywords`, not a panic. Entity files
 > using an enum column import it via
-> `use super::pgorm_active_enums::<EnumName>;` (deduplicated per file), and
-> the expanded `ColumnTrait::def()` renders the column as
-> `<EnumName>::db_type()`.
+> `use super::pgorm_active_enums::<EnumName>;` (deduplicated per file), the
+> column a field of the enum's type, from which the derive takes the
+> column's (`codegen.entity.types`).
 
 ## Disjoint entities
 
@@ -978,7 +920,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Identifier hygiene
 
-> [spec:pgorm:sem:codegen.entity.keywords+1]
+> [spec:pgorm:sem:codegen.entity.keywords+2]
 > Generated identifiers derived from DB names (module names, Model field
 > names, table idents) pass through `escape_rust_keyword`: 49 strict/reserved
 > Rust keywords are emitted as raw identifiers (`type` → `r#type`,
@@ -986,8 +928,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > identifiers — `crate`, `self`, `Self` — get a trailing underscore
 > (`crate` → `crate_`, `self` → `self_`). Field names are the snake_case of
 > the column name; when that differs from the raw DB name, the DB name is
-> preserved via `column_name` attributes (compact Model fields and expanded
-> `Column` variants).
+> preserved via a `column_name` attribute on the Model field.
 >
 > Keyword escaping is the only rescue on offer. A DB name whose derived form
 > is still not a legal Rust identifier — empty after case conversion, all

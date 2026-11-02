@@ -12,7 +12,7 @@ pub struct Model {
     pub id: i32,
     pub span: Interval,
     pub maybe_span: Option<Interval>,
-    #[pgorm(column_type = "Interval(IntervalSpec::Fields(PgInterval::YearToMonth))")]
+    #[pgorm(column_type = ColumnType::Interval(IntervalSpec::Fields(PgInterval::YearToMonth)))]
     pub months: Interval,
     pub spans: Vec<Interval>,
     pub ints: Range<i32>,

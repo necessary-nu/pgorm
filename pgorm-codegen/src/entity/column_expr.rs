@@ -21,7 +21,7 @@ use rust_decimal::Decimal;
 use crate::util::escape_rust_keyword;
 
 /// One expression of the subset.
-// [spec:pgorm:sem:codegen.entity.expressions]
+// [spec:pgorm:sem:codegen.entity.expressions+1]
 #[derive(Clone, Debug, PartialEq)]
 pub enum ColumnExpr {
     /// A column of the same table, by name.
@@ -208,7 +208,7 @@ impl ColumnExpr {
 
     /// The `SimpleExpr` this builds: the value the bridged statement carries,
     /// and the one the Rust [`to_rust`](Self::to_rust) prints builds.
-    // [spec:pgorm:sem:codegen.entity.expressions]
+    // [spec:pgorm:sem:codegen.entity.expressions+1]
     pub(crate) fn lower(&self) -> SimpleExpr {
         match self {
             Self::Column(name) => Expr::col(Name::runtime(name.as_str())).into(),
@@ -237,7 +237,7 @@ impl ColumnExpr {
 
     /// Read a statement's expression back, or name the part of it outside
     /// the subset.
-    // [spec:pgorm:sem:codegen.entity.expressions]
+    // [spec:pgorm:sem:codegen.entity.expressions+1]
     pub(crate) fn read(expr: &SimpleExpr) -> Result<Self, String> {
         Ok(match expr {
             SimpleExpr::Column(ColumnRef::Column(name)) => Self::Column(name.to_string()),
@@ -337,7 +337,7 @@ impl ColumnExpr {
 
     /// The Rust that builds [`lower`](Self::lower)'s `SimpleExpr`, inside an
     /// entity whose `Column` enum names the table's columns.
-    // [spec:pgorm:sem:codegen.entity.expressions]
+    // [spec:pgorm:sem:codegen.entity.expressions+1]
     pub(crate) fn to_rust(&self) -> TokenStream {
         match self {
             Self::Column(name) => {

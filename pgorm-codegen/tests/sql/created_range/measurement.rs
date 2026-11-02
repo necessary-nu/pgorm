@@ -16,7 +16,7 @@ pub struct Model {
     pub slot: Option<Slot>,
     pub slots: Option<SlotMultirange>,
     #[pgorm(
-        column_type = "CreatedRange { name: Name::runtime(\"textrange\"), schema: None, subtype: Arc::new(ColumnType::Text) }"
+        column_type = ColumnType::CreatedRange { name: Name::runtime("textrange"), schema: None, subtype: Arc::new(ColumnType::Text) }
     )]
     pub label: Textrange,
 }

@@ -120,7 +120,8 @@ impl DeriveRelation {
                         .ok_or_else(|| {
                             syn::Error::new_spanned(variant, "Missing value for 'on_update'")
                         })??;
-                    result = quote! { #result.on_update(pgorm::prelude::ForeignKeyAction::#on_update) };
+                    result =
+                        quote! { #result.on_update(pgorm::prelude::ForeignKeyAction::#on_update) };
                 }
 
                 if attr.on_delete.is_some() {
@@ -131,29 +132,22 @@ impl DeriveRelation {
                         .ok_or_else(|| {
                             syn::Error::new_spanned(variant, "Missing value for 'on_delete'")
                         })??;
-                    result = quote! { #result.on_delete(pgorm::prelude::ForeignKeyAction::#on_delete) };
+                    result =
+                        quote! { #result.on_delete(pgorm::prelude::ForeignKeyAction::#on_delete) };
                 }
 
-                if attr.on_condition.is_some() {
-                    let on_condition = attr
-                        .on_condition
-                        .as_ref()
-                        .map(Self::parse_lit_string)
-                        .ok_or_else(|| {
-                            syn::Error::new_spanned(variant, "Missing value for 'on_condition'")
-                        })??;
-                    result = quote! { #result.on_condition(|_, _| pgorm::pgorm_query::IntoCondition::into_condition(#on_condition)) };
+                if let Some(lit) = &attr.on_condition {
+                    let on_condition = Self::on_condition(lit)?;
+                    result = quote! { #result.on_condition(#on_condition) };
                 }
 
                 if attr.fk_name.is_some() {
                     let fk_name = attr
                         .fk_name
                         .as_ref()
-                        .map(|lit| {
-                            match lit {
-                                syn::Lit::Str(lit_str) => Ok(lit_str.value()),
-                                _ => Err(syn::Error::new_spanned(lit, "attribute must be a string")),
-                            }
+                        .map(|lit| match lit {
+                            syn::Lit::Str(lit_str) => Ok(lit_str.value()),
+                            _ => Err(syn::Error::new_spanned(lit, "attribute must be a string")),
                         })
                         .ok_or_else(|| {
                             syn::Error::new_spanned(variant, "Missing value for 'fk_name'")
@@ -165,17 +159,18 @@ impl DeriveRelation {
                     let condition_type = attr
                         .condition_type
                         .as_ref()
-                        .map(|lit| {
-                            match lit {
-                                syn::Lit::Str(lit_str) => {
-                                    match lit_str.value().to_ascii_lowercase().as_str() {
-                                        "all" => Ok(quote!( pgorm::pgorm_query::ConditionType::All )),
-                                        "any" => Ok(quote!( pgorm::pgorm_query::ConditionType::Any )),
-                                        _ => Err(syn::Error::new_spanned(lit, "Condition type must be one of `all` or `any`")),
-                                    }
-                                },
-                                _ => Err(syn::Error::new_spanned(lit, "attribute must be a string")),
+                        .map(|lit| match lit {
+                            syn::Lit::Str(lit_str) => {
+                                match lit_str.value().to_ascii_lowercase().as_str() {
+                                    "all" => Ok(quote!(pgorm::pgorm_query::ConditionType::All)),
+                                    "any" => Ok(quote!(pgorm::pgorm_query::ConditionType::Any)),
+                                    _ => Err(syn::Error::new_spanned(
+                                        lit,
+                                        "Condition type must be one of `all` or `any`",
+                                    )),
+                                }
                             }
+                            _ => Err(syn::Error::new_spanned(lit, "attribute must be a string")),
                         })
                         .ok_or_else(|| {
                             syn::Error::new_spanned(variant, "Missing value for 'condition_type'")
@@ -209,7 +204,7 @@ impl DeriveRelation {
     /// side alone (42830) and a key the period is the only column of (42601);
     /// and a temporal foreign key takes no referential action but `NO
     /// ACTION`, PostgreSQL 18 refusing the rest (0A000).
-    // [spec:pgorm:syn:macros.derive.relation+3]
+    // [spec:pgorm:syn:macros.derive.relation+4]
     fn period(variant: &syn::Variant, attr: &field_attr::Pgorm) -> syn::Result<TokenStream> {
         let (from, to) = match (&attr.from_period, &attr.to_period) {
             (Some(from), Some(to)) => (from, to),
@@ -248,11 +243,54 @@ impl DeriveRelation {
         Ok(quote! { .period(#from, #to) })
     }
 
+    /// The closure an `on_condition` value becomes, taking the two tables as
+    /// the join binds them. A closure `|left, right| ..` is that closure, its
+    /// parameters typed as the names they are where it left them untyped; any
+    /// other expression is the condition whatever the tables are called.
+    // [spec:pgorm:req:macros.derive.one-form]
+    // [spec:pgorm:syn:macros.derive.relation+4]
+    fn on_condition(lit: &syn::Lit) -> syn::Result<TokenStream> {
+        let mut closure = match Self::parse_lit_expr(lit)? {
+            syn::Expr::Closure(closure) => closure,
+            condition => {
+                return Ok(quote! {
+                    |_, _| pgorm::pgorm_query::IntoCondition::into_condition(#condition)
+                });
+            }
+        };
+        if closure.inputs.len() != 2 {
+            return Err(syn::Error::new_spanned(
+                lit,
+                "an `on_condition` closure takes the two tables the join binds, \
+                 `|left, right|`",
+            ));
+        }
+        for input in closure.inputs.iter_mut() {
+            if !matches!(input, syn::Pat::Type(_)) {
+                let pat = input.clone();
+                *input = syn::Pat::Type(syn::PatType {
+                    attrs: Vec::new(),
+                    pat: Box::new(pat),
+                    colon_token: Default::default(),
+                    ty: Box::new(syn::parse_quote!(pgorm::pgorm_query::Name)),
+                });
+            }
+        }
+        Ok(quote! {
+            {
+                let on_condition = #closure;
+                move |left, right| {
+                    pgorm::pgorm_query::IntoCondition::into_condition(on_condition(left, right))
+                }
+            }
+        })
+    }
+
     /// The `enforcement` and `deferrability` a relation's foreign key is
     /// declared with, as builder calls: each value names a variant of its enum
     /// (`"NotEnforced"`, `"DeferrableInitiallyDeferred"`), and any other name
     /// is refused here, where its span is still known.
-    // [spec:pgorm:syn:macros.derive.relation+3]
+    // [spec:pgorm:syn:macros.derive.relation+4]
     fn key_check(attr: &field_attr::Pgorm) -> syn::Result<TokenStream> {
         let mut calls = TokenStream::new();
         if let Some(lit) = &attr.enforcement {
@@ -349,7 +387,7 @@ impl DeriveRelation {
 }
 
 /// Method to derive a Relation
-// [spec:pgorm:syn:macros.derive.relation+3]
+// [spec:pgorm:syn:macros.derive.relation+4]
 pub fn expand_derive_relation(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
 

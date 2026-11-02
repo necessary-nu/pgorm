@@ -1044,20 +1044,14 @@ mod composite_parent {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter)]
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
     pub enum Relation {
+        #[pgorm(
+            has_many = "super::composite_child::Entity",
+            from = "(Column::Region, Column::Code)",
+            to = "(super::composite_child::Column::ParentRegion, super::composite_child::Column::ParentCode)"
+        )]
         Child,
-    }
-
-    impl RelationTrait for Relation {
-        fn def(&self) -> RelationDef {
-            match self {
-                Self::Child => Entity::has_many(super::composite_child::Entity)
-                    .columns(Column::Region, super::composite_child::Column::ParentRegion)
-                    .and_columns(Column::Code, super::composite_child::Column::ParentCode)
-                    .into(),
-            }
-        }
     }
 
     impl Related<super::composite_child::Entity> for Entity {
@@ -1082,23 +1076,14 @@ mod composite_child {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter)]
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
     pub enum Relation {
+        #[pgorm(
+            belongs_to = "super::composite_parent::Entity",
+            from = "(Column::ParentRegion, Column::ParentCode)",
+            to = "(super::composite_parent::Column::Region, super::composite_parent::Column::Code)"
+        )]
         Parent,
-    }
-
-    impl RelationTrait for Relation {
-        fn def(&self) -> RelationDef {
-            match self {
-                Self::Parent => Entity::belongs_to(super::composite_parent::Entity)
-                    .columns(
-                        Column::ParentRegion,
-                        super::composite_parent::Column::Region,
-                    )
-                    .and_columns(Column::ParentCode, super::composite_parent::Column::Code)
-                    .into(),
-            }
-        }
     }
 
     impl Related<super::composite_parent::Entity> for Entity {
@@ -1420,7 +1405,7 @@ fn relation_trait_and_ownership_direction() {
     );
 }
 
-// [spec:pgorm:def:entity.relation.def+10/test]    the `RelationDef` record and its
+// [spec:pgorm:def:entity.relation.def+11/test]    the `RelationDef` record and its
 // combinators: `rev()` swaps from/to, negates `is_owner`, clears `fk_name` and
 // keeps everything else; `from_alias` re-points the source table; `on_condition`
 // replaces any existing custom condition; `condition_type` picks AND vs OR.
@@ -1680,7 +1665,7 @@ fn relation_builder_accumulates_a_definition() {
     assert_eq!(full.rel_type, RelationType::HasOne);
 }
 
-// [spec:pgorm:def:entity.relation.def+10/test]    a set of join columns is a
+// [spec:pgorm:def:entity.relation.def+11/test]    a set of join columns is a
 // list of pairs, so both sides always name the same number of columns however
 // the definition is built, reversed or extended
 #[test]

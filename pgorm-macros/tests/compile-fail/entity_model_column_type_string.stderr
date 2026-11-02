@@ -1,0 +1,5 @@
+error: `column_type` is Rust code, written bare: remove the quotes
+ --> tests/compile-fail/entity_model_column_type_string.rs:8:27
+  |
+8 |     #[pgorm(column_type = "Text")]
+  |                           ^^^^^^

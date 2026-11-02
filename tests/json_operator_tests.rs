@@ -29,7 +29,7 @@ mod doc {
     pub struct Model {
         #[pgorm(primary_key)]
         pub id: i32,
-        #[pgorm(column_type = "JsonBinary")]
+        #[pgorm(column_type = ColumnType::JsonBinary)]
         pub body: Json,
     }
 

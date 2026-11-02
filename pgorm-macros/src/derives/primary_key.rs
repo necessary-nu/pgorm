@@ -1,72 +1,25 @@
-use heck::ToSnakeCase;
 use proc_macro2::{Ident, TokenStream};
-use quote::{quote, quote_spanned};
-use syn::{Data, DataEnum, Expr, Fields, LitStr, Variant};
+use quote::quote;
 
-/// Method to derive a Primary Key for a Model using the [PrimaryKeyTrait](pgorm::PrimaryKeyTrait)
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+6]
-// [spec:pgorm:req:macros.derive.entity-model.reject+1]
-pub fn expand_derive_primary_key(ident: Ident, data: Data) -> syn::Result<TokenStream> {
-    let variants = match data {
-        syn::Data::Enum(DataEnum { variants, .. }) => variants,
-        _ => {
-            return Ok(quote_spanned! {
-                ident.span() => compile_error!("you can only derive DerivePrimaryKey on enums");
-            });
-        }
-    };
+/// The impls the composite derive writes for the `PrimaryKey` enum it
+/// generates, one variant per key column: its name, and the `Column` variant
+/// of the same name it maps to and from. `keys` pairs each variant with its
+/// column's SQL name.
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
+pub fn expand_primary_key(keys: &[(Ident, String)]) -> TokenStream {
+    let variant: Vec<&Ident> = keys.iter().map(|(variant, _)| variant).collect();
+    let name: Vec<&String> = keys.iter().map(|(_, name)| name).collect();
 
-    if variants.is_empty() {
-        return Ok(quote_spanned! {
-            ident.span() => compile_error!("Entity must have a primary key column. See <https://github.com/pgorm-rs/pgorm/issues/485> for details.");
-        });
-    }
-
-    let variant: Vec<TokenStream> = variants
-        .iter()
-        .map(|Variant { ident, fields, .. }| match fields {
-            Fields::Named(_) => quote! { #ident{..} },
-            Fields::Unnamed(_) => quote! { #ident(..) },
-            Fields::Unit => quote! { #ident },
-        })
-        .collect();
-
-    let name: Vec<TokenStream> = variants
-        .iter()
-        .map(|v| {
-            let mut column_name = v.ident.to_string().to_snake_case();
-            for attr in v.attrs.iter() {
-                if !attr.path().is_ident("pgorm") {
-                    continue;
-                }
-
-                attr.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("column_name") {
-                        column_name = meta.value()?.parse::<LitStr>()?.value();
-                    } else {
-                        // Reads the value expression to advance the parse stream.
-                        // Some parameters, such as `primary_key`, do not have any value,
-                        // so ignoring an error occurred here.
-                        let _: Option<Expr> = meta.value().and_then(|v| v.parse()).ok();
-                    }
-
-                    Ok(())
-                })?;
-            }
-            Ok::<TokenStream, syn::Error>(quote! { #column_name })
-        })
-        .collect::<Result<_, _>>()?;
-
-    Ok(quote!(
+    quote!(
         #[automatically_derived]
-        impl pgorm::SqlName for #ident {
+        impl pgorm::SqlName for PrimaryKey {
             fn unquoted(&self, s: &mut dyn std::fmt::Write) {
                 write!(s, "{}", pgorm::StaticName::as_str(self)).unwrap();
             }
         }
 
         #[automatically_derived]
-        impl pgorm::StaticName for #ident {
+        impl pgorm::StaticName for PrimaryKey {
             fn as_str(&self) -> &str {
                 match self {
                     #(Self::#variant => #name),*
@@ -75,7 +28,7 @@ pub fn expand_derive_primary_key(ident: Ident, data: Data) -> syn::Result<TokenS
         }
 
         #[automatically_derived]
-        impl pgorm::PrimaryKeyToColumn for #ident {
+        impl pgorm::PrimaryKeyToColumn for PrimaryKey {
             type Column = Column;
 
             fn into_column(self) -> Self::Column {
@@ -91,5 +44,5 @@ pub fn expand_derive_primary_key(ident: Ident, data: Data) -> syn::Result<TokenS
                 }
             }
         }
-    ))
+    )
 }

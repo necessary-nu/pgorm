@@ -5,36 +5,9 @@ use std::fmt::Debug;
 
 /// A Trait for to be used to define a Primary Key.
 ///
-/// A primary key can be derived manually
+/// `DeriveEntityModel` implements it on the `PrimaryKey` enum it writes, one
+/// variant per `#[pgorm(primary_key)]` field.
 ///
-/// ### Example
-/// ```text
-/// use pgorm::entity::prelude::*;
-///
-/// #[derive(Copy, Clone, Debug, EnumIter)]
-/// pub enum PrimaryKey {
-///     Id,
-/// }
-/// impl PrimaryKeyTrait for PrimaryKey {
-///     type ValueType = i32;
-///
-///     fn auto_increment() -> bool {
-///         true
-///     }
-/// }
-/// ```
-///
-/// Alternatively, use derive macros to automatically implement the trait for a Primary Key
-///
-/// ### Example
-/// ```text
-/// use pgorm::entity::prelude::*;
-///
-/// #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-/// pub enum PrimaryKey {
-///     Id,
-/// }
-/// ```
 /// See module level docs [crate::entity] for a full example
 // [spec:pgorm:def:entity.traits.primary-key+7]
 pub trait PrimaryKeyTrait: StaticName + Iterable {

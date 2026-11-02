@@ -32,9 +32,9 @@ fn assert_error(sql: &str, expected: &str) {
 
 const QUALIFIED: &str = "CREATE TABLE tenant_a.item (id int PRIMARY KEY);";
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    the source table's schema
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    the source table's schema
 // survives transformation and reaches the compact entity
-// [spec:pgorm:def:codegen.entity.compact+1/test]
+// [spec:pgorm:def:codegen.entity.compact+2/test]
 #[test]
 fn compact_entity_carries_the_source_schema() {
     let generated = from_sql(QUALIFIED, Opts::default());
@@ -45,28 +45,7 @@ fn compact_entity_carries_the_source_schema() {
     );
 }
 
-// [spec:pgorm:def:codegen.entity.expanded+4/test]    and the expanded
-// `EntityName::schema_name`, which is what qualifies every generated statement
-#[test]
-fn expanded_entity_name_carries_the_source_schema() {
-    let generated = from_sql(QUALIFIED, expanded());
-
-    assert_contains(
-        generated.file("item.rs"),
-        r#"
-        impl EntityName for Entity {
-            fn schema_name(&self) -> Option<&str> {
-                Some("tenant_a")
-            }
-            fn table_name(&self) -> &str {
-                "item"
-            }
-        }
-        "#,
-    );
-}
-
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    an unqualified table
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    an unqualified table
 // still generates no schema of its own
 #[test]
 fn an_unqualified_table_carries_no_schema() {
@@ -79,7 +58,7 @@ fn an_unqualified_table_carries_no_schema() {
     assert_not_contains(generated.file("item.rs"), "schema_name");
 }
 
-// [spec:pgorm:sem:codegen.entity.context+3/test]    the configured schema is a
+// [spec:pgorm:sem:codegen.entity.context+4/test]    the configured schema is a
 // default, not an override: it fills in for tables the DDL left unqualified and
 // never contradicts one that names its own schema
 #[test]
@@ -100,25 +79,6 @@ fn the_configured_schema_is_only_a_default() {
     assert_contains(
         generated.file("stock.rs"),
         r#"#[pgorm(schema_name = "public", table_name = "stock")]"#,
-    );
-}
-
-// [spec:pgorm:sem:codegen.entity.context+3/test]    the same precedence in the
-// expanded format
-#[test]
-fn the_expanded_format_defaults_the_schema_too() {
-    let generated = from_sql(
-        QUALIFIED,
-        Opts {
-            expanded_format: true,
-            schema_name: Some("public".to_owned()),
-            ..Default::default()
-        },
-    );
-
-    assert_contains(
-        generated.file("item.rs"),
-        r#"fn schema_name(&self) -> Option<&str> { Some("tenant_a") }"#,
     );
 }
 
@@ -171,7 +131,7 @@ fn qualified_item() -> pgorm_query::TableCreateStatement {
         .to_owned()
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a qualified foreign key
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a qualified foreign key
 // resolves to the table it names, across schemas
 #[test]
 fn a_foreign_key_resolves_across_schemas() {
@@ -195,7 +155,7 @@ fn a_foreign_key_resolves_across_schemas() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    an unqualified reference
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    an unqualified reference
 // resolves to the one table with that bare name, whatever schema it is in
 #[test]
 fn an_unqualified_key_reaches_a_qualified_table() {
@@ -215,7 +175,7 @@ fn an_unqualified_key_reaches_a_qualified_table() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a key onto another
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a key onto another
 // schema's table is a key onto a table this schema does not define
 #[test]
 fn a_key_onto_another_schemas_table_is_unresolved() {
@@ -226,7 +186,7 @@ fn a_key_onto_another_schemas_table_is_unresolved() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    self-reference is decided
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    self-reference is decided
 // on identity: a qualified table keying itself is still `SelfRef`
 #[test]
 fn a_qualified_table_can_reference_itself() {
@@ -242,7 +202,7 @@ fn a_qualified_table_can_reference_itself() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    the gate names a table by
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    the gate names a table by
 // its identity, so a failure in one of two schemas' tables says which
 #[test]
 fn a_refusal_names_the_qualified_table() {
@@ -275,7 +235,7 @@ fn a_qualified_index_reaches_its_own_table() {
 
     assert_contains(
         generated.file("item.rs"),
-        r#"#[pgorm(column_type = "Text", nullable, unique)] pub sku"#,
+        r#"#[pgorm(column_type = ColumnType::Text, nullable, unique)] pub sku"#,
     );
 }
 
@@ -324,7 +284,7 @@ fn bridge_and_generated_entity_agree_on_schema() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+2/test]    a schema-qualified enum's
+// [spec:pgorm:sem:codegen.entity.enums+3/test]    a schema-qualified enum's
 // schema survives into the generated DeriveActiveEnum attribute, so the
 // entity round-trips the type it was described with
 #[test]
@@ -366,7 +326,7 @@ fn unqualified_reference_needs_an_unqualified_declaration() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+2/test]    one bare Rust enum cannot
+// [spec:pgorm:sem:codegen.entity.enums+3/test]    one bare Rust enum cannot
 // stand for two differently-qualified database types: the collision is
 // refused rather than generated
 #[test]

@@ -1,0 +1,5 @@
+error: an entity under `DeriveEntity` implements `EntityName` by hand, its names computed at run time; a name written here is the composite derive's: put it on the `Model` under `DeriveEntityModel`
+ --> tests/compile-fail/entity_named_literally.rs:6:22
+  |
+6 | #[pgorm(table_name = "fruit")]
+  |                      ^^^^^^^

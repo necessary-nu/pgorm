@@ -22,12 +22,6 @@ mod pgorm_active_enums;
 #[path = "sql/created_schema/deal.rs"]
 mod deal;
 
-/// The same entity in the expanded format, included rather than declared so
-/// that rustfmt leaves the fixture in the shape the writer emits.
-mod expanded_deal {
-    include!("sql/created_schema/expanded/deal.rs");
-}
-
 /// [`SCHEMA`]'s statements after its `CREATE SCHEMA`.
 fn in_the_schema() -> &'static str {
     SCHEMA
@@ -114,25 +108,6 @@ fn a_created_schema_generates_a_compiling_entity() {
             false => col_type.def(),
         };
         assert_eq!(column.def(), expected, "{name}");
-    }
-}
-
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    and so does the expanded writer, its
-// `schema_name` the created schema's
-// [spec:pgorm:def:codegen.entity.expanded+4/test]
-#[test]
-fn the_expanded_writer_names_the_created_schema() {
-    let generated = from_sql(SCHEMA, expanded());
-    assert_eq!(generated.files, from_sql(in_the_schema(), expanded()).files);
-    let written = flat(generated.file("deal.rs"));
-    assert!(
-        written.contains(&flat(include_str!("sql/created_schema/expanded/deal.rs"))),
-        "{written}"
-    );
-
-    assert_eq!(expanded_deal::Entity.schema_name(), Some("sales"));
-    for (expanded, compact) in expanded_deal::Column::iter().zip(deal::Column::iter()) {
-        assert_eq!(expanded.def(), compact.def(), "{}", compact.as_str());
     }
 }
 
@@ -241,14 +216,8 @@ fn rendered_created_schema_reads_back_whole() {
         .chain([format!("{table};")])
         .collect::<Vec<_>>()
         .join("\n");
-    for expanded_format in [false, true] {
-        let opts = || Opts {
-            expanded_format,
-            ..Default::default()
-        };
-        assert_eq!(
-            from_sql(&text, opts()).files,
-            generate(vec![table.clone()], opts()).files,
-        );
-    }
+    assert_eq!(
+        from_sql(&text, Opts::default()).files,
+        generate(vec![table], Opts::default()).files,
+    );
 }

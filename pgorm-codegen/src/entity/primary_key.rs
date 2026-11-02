@@ -10,7 +10,7 @@ pub struct PrimaryKey {
 }
 
 impl PrimaryKey {
-    // [spec:pgorm:sem:codegen.entity.keywords+1]
+    // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let context = format!("primary key `{}`", self.name);
         safe_ident(&context, &self.name.to_snake_case())?;

@@ -1,0 +1,5 @@
+error: an `on_condition` closure takes the two tables the join binds, `|left, right|`
+ --> tests/compile-fail/relation_on_condition_arity.rs:7:24
+  |
+7 |         on_condition = r#"|right| Expr::col((right, Column::Id)).gt(1)"#
+  |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

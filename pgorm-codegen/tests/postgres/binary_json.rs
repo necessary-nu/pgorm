@@ -6,7 +6,7 @@ pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
     pub payload: Json,
-    #[pgorm(column_type = "JsonBinary")]
+    #[pgorm(column_type = ColumnType::JsonBinary)]
     pub payload_binary: Json,
 }
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

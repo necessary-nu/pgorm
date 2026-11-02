@@ -212,7 +212,7 @@ impl DeriveModel {
 
 /// Method to derive an ActiveModel
 // [spec:pgorm:sem:macros.derive.model+3]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+4]    the field-key vocabulary this
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+5]    the field-key vocabulary this
 // derive shares with `DeriveEntityModel`
 pub fn expand_derive_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();

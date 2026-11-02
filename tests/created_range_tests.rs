@@ -153,7 +153,7 @@ async fn main() -> Result<(), Error> {
 /// A schema with range types it creates generates an entity that writes and
 /// reads its rows, a range and a multirange each: the DDL the generator read,
 /// run as written, then the generated model inserted and found.
-// [spec:pgorm:sem:codegen.entity.types+10/test]
+// [spec:pgorm:sem:codegen.entity.types+11/test]
 #[pgorm_macros::test]
 async fn a_generated_entity_round_trips() -> Result<(), Error> {
     let ctx = TestContext::new("created_range_generated_tests").await;

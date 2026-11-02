@@ -201,7 +201,7 @@ async fn a_temporal_key_names_one_version() -> Result<(), Error> {
 /// related row, and the room's versions' `load_many` gives each version the
 /// bookings it covers. Bookings of one room in different periods keep their
 /// own versions, the period being part of the key a loader files them under.
-// [spec:pgorm:def:entity.relation.def+10/test]    against a live server: a PERIOD relation
+// [spec:pgorm:def:entity.relation.def+11/test]    against a live server: a PERIOD relation
 // creates the temporal foreign key and joins a row to each version its period overlaps
 // [spec:pgorm:req:entity.relation.fk+5/test]
 // [spec:pgorm:sem:query.loader.regroup+6/test]

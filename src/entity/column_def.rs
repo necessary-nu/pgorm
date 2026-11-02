@@ -413,60 +413,22 @@ mod tests {
         mod housed {
             use crate as pgorm;
             use crate::entity::prelude::*;
-            use crate::pgorm_query::Name;
 
-            #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-            pub struct Entity;
-
-            impl EntityName for Entity {
-                fn table_name(&self) -> &str {
-                    "housed"
-                }
-            }
-
-            #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
+            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[pgorm(table_name = "housed")]
             pub struct Model {
+                #[pgorm(primary_key, auto_increment = false)]
                 pub id: i32,
+                #[pgorm(column_type = ColumnType::Enum {
+                    name: Name::runtime("status"),
+                    schema: Some(Name::runtime("custom")),
+                    variants: vec![Name::runtime("open")],
+                })]
                 pub status: String,
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-            pub enum Column {
-                Id,
-                Status,
-            }
-
-            #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-            pub enum PrimaryKey {
-                Id,
-            }
-
-            impl PrimaryKeyTrait for PrimaryKey {
-                type ValueType = i32;
-
-                fn auto_increment() -> bool {
-                    false
-                }
             }
 
             #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
             pub enum Relation {}
-
-            impl ColumnTrait for Column {
-                type EntityName = Entity;
-
-                fn def(&self) -> ColumnDef {
-                    match self {
-                        Self::Id => ColumnType::Integer.def(),
-                        Self::Status => ColumnType::Enum {
-                            name: Name::runtime("status"),
-                            schema: Some(Name::runtime("custom")),
-                            variants: vec![Name::runtime("open")],
-                        }
-                        .def(),
-                    }
-                }
-            }
 
             impl ActiveModelBehavior for ActiveModel {}
         }
@@ -521,72 +483,38 @@ mod tests {
     mod moody {
         use crate as pgorm;
         use crate::entity::prelude::*;
-        use crate::pgorm_query::Name;
 
-        #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-        pub struct Entity;
-
-        impl EntityName for Entity {
-            fn table_name(&self) -> &str {
-                "moody"
-            }
+        /// `custom.mood`, under `app.temper`, under `app.calm_temper`.
+        fn calm_temper() -> ColumnType {
+            let domain = |name: &str, base: ColumnType| ColumnType::Domain {
+                name: Name::runtime(name),
+                schema: Some(Name::runtime("app")),
+                base: Arc::new(base),
+            };
+            domain(
+                "calm_temper",
+                domain(
+                    "temper",
+                    ColumnType::Enum {
+                        name: Name::runtime("mood"),
+                        schema: Some(Name::runtime("custom")),
+                        variants: vec![Name::runtime("calm"), Name::runtime("busy")],
+                    },
+                ),
+            )
         }
 
-        #[derive(Clone, Debug, PartialEq, Eq, DeriveModel, DeriveActiveModel)]
+        #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+        #[pgorm(table_name = "moody")]
         pub struct Model {
+            #[pgorm(primary_key, auto_increment = false)]
             pub id: i32,
+            #[pgorm(column_type = calm_temper())]
             pub mood: String,
-        }
-
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-        pub enum Column {
-            Id,
-            Mood,
-        }
-
-        #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-        pub enum PrimaryKey {
-            Id,
-        }
-
-        impl PrimaryKeyTrait for PrimaryKey {
-            type ValueType = i32;
-
-            fn auto_increment() -> bool {
-                false
-            }
         }
 
         #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
         pub enum Relation {}
-
-        /// `custom.mood`, under `app.temper`, under `app.calm_temper`.
-        impl ColumnTrait for Column {
-            type EntityName = Entity;
-
-            fn def(&self) -> ColumnDef {
-                let domain = |name: &str, base: ColumnType| ColumnType::Domain {
-                    name: Name::runtime(name),
-                    schema: Some(Name::runtime("app")),
-                    base: Arc::new(base),
-                };
-                match self {
-                    Self::Id => ColumnType::Integer.def(),
-                    Self::Mood => domain(
-                        "calm_temper",
-                        domain(
-                            "temper",
-                            ColumnType::Enum {
-                                name: Name::runtime("mood"),
-                                schema: Some(Name::runtime("custom")),
-                                variants: vec![Name::runtime("calm"), Name::runtime("busy")],
-                            },
-                        ),
-                    )
-                    .def(),
-                }
-            }
-        }
 
         impl ActiveModelBehavior for ActiveModel {}
     }

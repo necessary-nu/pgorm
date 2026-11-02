@@ -3,12 +3,12 @@
 //! The entities pgorm-codegen generates from a table of enum-array columns,
 //! against a live server.
 //!
-//! pgorm-codegen's own tests hold both writers to these files and compile
-//! them. What only a server settles is that they are the table's columns: the
-//! table each generated entity creates is the one the schema creates, every
-//! array of the enum it names, the schema-qualified one in its schema and the
-//! domain over one by the domain's name; and a value written through either
-//! entity is read back as it was written.
+//! pgorm-codegen's own tests hold the writer to these files and compile them.
+//! What only a server settles is that they are the table's columns: the table
+//! the generated entity creates is the one the schema creates, every array of
+//! the enum it names, the schema-qualified one in its schema and the domain
+//! over one by the domain's name; and a value written through the entity is
+//! read back as it was written.
 
 pub mod common;
 pub use common::{TestContext, setup::*};
@@ -17,17 +17,13 @@ use pgorm::{ConnectionTrait, Schema, entity::prelude::*};
 use pretty_assertions::assert_eq;
 
 /// The files pgorm-codegen generates from its enum-array schema: the ones its
-/// own tests hold the writers' output to, so what is run here is what the
+/// own tests hold the writer's output to, so what is run here is what the
 /// generator writes.
 #[path = "../pgorm-codegen/tests/sql/enum_array/pgorm_active_enums.rs"]
 mod pgorm_active_enums;
 
 #[path = "../pgorm-codegen/tests/sql/enum_array/survey.rs"]
 mod survey;
-
-mod expanded_survey {
-    include!("../pgorm-codegen/tests/sql/enum_array/expanded/survey.rs");
-}
 
 use pgorm_active_enums::{Mood, Tier};
 
@@ -70,29 +66,10 @@ fn answer(id: i32) -> survey::Model {
     }
 }
 
-fn expanded_answer(id: i32) -> expanded_survey::Model {
-    let survey::Model {
-        id,
-        moods,
-        past_moods,
-        tiers,
-        past_tiers,
-        log,
-    } = answer(id);
-    expanded_survey::Model {
-        id,
-        moods,
-        past_moods,
-        tiers,
-        past_tiers,
-        log,
-    }
-}
-
-/// The schema, run as written, and the table each generated entity creates
+/// The schema, run as written, and the table the generated entity creates
 /// have the same columns, each an array of the enum it names.
-// [spec:pgorm:sem:codegen.entity.types+10/test]    against a live server: the entities both
-// writers generate from a table of enum arrays create that table, the schema-qualified
+// [spec:pgorm:sem:codegen.entity.types+11/test]    against a live server: the entity the
+// writer generates from a table of enum arrays creates that table, the schema-qualified
 // enum's array in its schema
 #[pgorm_macros::test]
 async fn generated_enum_arrays_keep_their_types() -> Result<(), Error> {
@@ -117,26 +94,21 @@ async fn generated_enum_arrays_keep_their_types() -> Result<(), Error> {
         ]
     );
 
-    let generator = Schema::new();
-    for create in [
-        generator.create_table_from_entity(survey::Entity)?,
-        generator.create_table_from_entity(expanded_survey::Entity)?,
-    ] {
-        db.batch_execute("DROP TABLE survey").await?;
-        db.batch_execute(&create.to_string()).await?;
-        assert_eq!(columns_of(&db).await?, described);
-    }
+    let create = Schema::new().create_table_from_entity(survey::Entity)?;
+    db.batch_execute("DROP TABLE survey").await?;
+    db.batch_execute(&create.to_string()).await?;
+    assert_eq!(columns_of(&db).await?, described);
 
     drop(db);
     ctx.delete().await;
     Ok(())
 }
 
-/// Values written through either generated entity come back as written,
-/// empty arrays and absent ones included, and an enum array is a filter's
-/// operand as it is a field.
-// [spec:pgorm:sem:codegen.entity.types+10/test]    against a live server: each enum-array
-// field of either generated entity writes and reads back
+/// Values written through the generated entity come back as written, empty
+/// arrays and absent ones included, and an enum array is a filter's operand as
+/// it is a field.
+// [spec:pgorm:sem:codegen.entity.types+11/test]    against a live server: each enum-array
+// field of the generated entity writes and reads back
 // [spec:pgorm:def:exec.decode.array+2/test]
 #[pgorm_macros::test]
 async fn generated_enum_array_fields_round_trip() -> Result<(), Error> {
@@ -158,28 +130,15 @@ async fn generated_enum_array_fields_round_trip() -> Result<(), Error> {
         ..answer(2)
     };
     assert_eq!(empty.clone().into_active_model().insert(&db).await?, empty);
-    let expanded = expanded_answer(3);
-    assert_eq!(
-        expanded.clone().into_active_model().insert(&db).await?,
-        expanded
-    );
+    let third = answer(3);
+    assert_eq!(third.clone().into_active_model().insert(&db).await?, third);
 
     assert_eq!(survey::Entity::find_by_id(1).one(&db).await?, written);
+    assert_eq!(survey::Entity::find_by_id(2).one(&db).await?, empty);
     assert_eq!(
-        expanded_survey::Entity::find_by_id(2).one(&db).await?,
-        expanded_survey::Model {
-            moods: Vec::new(),
-            past_moods: None,
-            tiers: Vec::new(),
-            past_tiers: Some(Vec::new()),
-            log: None,
-            ..expanded_answer(2)
-        }
-    );
-    assert_eq!(
-        expanded_survey::Entity::find()
-            .filter(expanded_survey::Column::Tiers.eq(vec![Tier::Pro, Tier::Free]))
-            .order_by_asc(expanded_survey::Column::Id)
+        survey::Entity::find()
+            .filter(survey::Column::Tiers.eq(vec![Tier::Pro, Tier::Free]))
+            .order_by_asc(survey::Column::Id)
             .all(&db)
             .await?
             .iter()

@@ -99,9 +99,9 @@ fn line(id: i32) -> stock_line::Model {
 /// The schema, run as written, and the table its generated entity creates
 /// have the same columns, each typed with its domain, so the entity carries
 /// the domain's name that its field's Rust type does not.
-// [spec:pgorm:sem:codegen.entity.types+10/test]    against a live server: the entity generated
+// [spec:pgorm:sem:codegen.entity.types+11/test]    against a live server: the entity generated
 // from a table of domain columns creates that table, domain for domain
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]
 #[pgorm_macros::test]
 async fn generated_domain_columns_keep_their_domains() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_domain_tests_columns").await;
@@ -147,7 +147,7 @@ async fn generated_domain_columns_keep_their_domains() -> Result<(), Error> {
 /// every kind of domain the file declares; a domain's default fills the field
 /// a write leaves out; and each domain refuses, by its own `NOT NULL` or
 /// check, a value it does not hold.
-// [spec:pgorm:sem:codegen.entity.types+10/test]    against a live server: each domain field of
+// [spec:pgorm:sem:codegen.entity.types+11/test]    against a live server: each domain field of
 // the generated entity writes and reads back, its domain's default and constraints applied
 // [spec:pgorm:def:exec.decode.array+2/test]
 #[pgorm_macros::test]

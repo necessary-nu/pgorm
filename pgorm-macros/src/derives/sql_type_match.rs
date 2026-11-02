@@ -1,6 +1,6 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, quote_spanned};
-use syn::{GenericArgument, PathArguments, PathSegment, Type, TypePath};
+use syn::{Expr, GenericArgument, PathArguments, PathSegment, Type, TypePath};
 
 /// The `T` of a field written as a bare, single-segment `Option<T>`.
 ///
@@ -65,14 +65,14 @@ fn is_byte_vec(ty: &Type) -> bool {
             .is_some_and(|name| name == "u8")
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+7]
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+8]
 pub fn col_type_match(
-    col_type: Option<TokenStream>,
+    col_type: Option<Expr>,
     field_type: &Type,
     field_span: Span,
 ) -> syn::Result<TokenStream> {
     if let Some(col_type) = col_type {
-        return Ok(quote! { pgorm::prelude::ColumnType::#col_type });
+        return Ok(quote! { #col_type });
     }
     if let Some(name) = bare_name(field_type)
         && let Some(reason) = refused_col_type(&name.to_string())
@@ -81,7 +81,7 @@ pub fn col_type_match(
             field_span,
             format!(
                 "{reason}, so no column type is inferred for it; \
-                 write `#[pgorm(column_type = \"...\")]` to name one explicitly"
+                 write `#[pgorm(column_type = ColumnType::...)]` to name one explicitly"
             ),
         ));
     }
@@ -100,7 +100,7 @@ pub fn col_type_match(
 /// Inferring one would generate DDL no `SELECT` could ever fill, so the inference
 /// refuses instead — the same posture as `u8` and `u16`, which have no `ValueType` at
 /// all and so fail on the fallback path.
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+7]
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+8]
 fn refused_col_type(name: &str) -> Option<&'static str> {
     Some(match name {
         "i8" => "`i8` decodes only from the Postgres `\"char\"` type, never from `smallint`",
@@ -137,7 +137,7 @@ fn inferred_col_type(field_type: &Type) -> Option<TokenStream> {
     })
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+7]
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+8]
 pub fn arr_type_match(
     arr_type: Option<TokenStream>,
     field_type: &Type,
@@ -204,7 +204,7 @@ mod tests {
         arr_type_match(None, &ty, Span::call_site()).to_string()
     }
 
-    // [spec:pgorm:sem:macros.derive.entity-model.column-def+7/test]    types whose decode
+    // [spec:pgorm:sem:macros.derive.entity-model.column-def+8/test]    types whose decode
     // cannot read back what their `Value` binds are refused rather than inferred
     #[test]
     fn undecodable_integer_widths_are_refused() {
@@ -215,7 +215,8 @@ mod tests {
 
         // An explicit `column_type` is the escape hatch and is never second-guessed.
         let ty = parse_str::<Type>("u32").expect("test type parses");
-        let pinned = col_type_match(Some(quote! { BigInteger }), &ty, Span::call_site())
+        let explicit = parse_str::<Expr>("ColumnType::BigInteger").expect("test expression parses");
+        let pinned = col_type_match(Some(explicit), &ty, Span::call_site())
             .expect("an explicit column type is taken as written");
         assert!(pinned.to_string().contains("BigInteger"));
 
@@ -224,7 +225,7 @@ mod tests {
         assert!(col("i64").contains("BigInteger"));
     }
 
-    // [spec:pgorm:sem:macros.derive.entity-model.column-def+7/test]    only bare `&str` is in the table
+    // [spec:pgorm:sem:macros.derive.entity-model.column-def+8/test]    only bare `&str` is in the table
     #[test]
     fn shared_str_matches_without_a_lifetime() {
         assert!(col("&str").contains("ColumnType :: string"));
@@ -234,7 +235,7 @@ mod tests {
         assert!(col("&mut str").contains("ValueType"));
     }
 
-    // [spec:pgorm:sem:macros.derive.entity-model.column-def+7/test]    the fallback keeps the written type
+    // [spec:pgorm:sem:macros.derive.entity-model.column-def+8/test]    the fallback keeps the written type
     #[test]
     fn fallback_reproduces_the_type_verbatim() {
         assert!(col("&'a str").contains("& 'a str"));
@@ -242,7 +243,7 @@ mod tests {
         assert!(col("<T as Trait>::Assoc").contains("< T as Trait > :: Assoc"));
     }
 
-    // [spec:pgorm:sem:macros.derive.entity-model.column-def+7/test]    `Vec<u8>` is the only byte row
+    // [spec:pgorm:sem:macros.derive.entity-model.column-def+8/test]    `Vec<u8>` is the only byte row
     #[test]
     fn byte_vec_matches_only_vec_of_u8() {
         assert!(col("Vec<u8>").contains("Bytea"));
@@ -251,7 +252,7 @@ mod tests {
         assert!(arr("Vec<u8>").contains("ValueType"));
     }
 
-    // [spec:pgorm:sem:macros.derive.entity-model.column-def+7/test]    a wall clock and
+    // [spec:pgorm:sem:macros.derive.entity-model.column-def+8/test]    a wall clock and
     // an instant are different columns and different array members, so neither table
     // may merge them; each array tag agrees with its `ValueType::array_type()`
     #[test]
@@ -263,7 +264,7 @@ mod tests {
         assert!(arr("DateTimeWithTimeZone").ends_with("DateTimeWithTimeZone"));
     }
 
-    // [spec:pgorm:sem:macros.derive.entity-model.column-def+7/test]    the tables hold only
+    // [spec:pgorm:sem:macros.derive.entity-model.column-def+8/test]    the tables hold only
     // bare names, so a qualified spelling or a user alias resolves through `ValueType`
     // rather than failing — the tables are a fast path, not the mechanism
     #[test]
@@ -278,7 +279,7 @@ mod tests {
         assert!(arr("Stamp").contains("ValueType"));
     }
 
-    // [spec:pgorm:sem:macros.derive.entity-model.column-def+7/test]    `Option<T>` unwrapping is structural
+    // [spec:pgorm:sem:macros.derive.entity-model.column-def+8/test]    `Option<T>` unwrapping is structural
     #[test]
     fn option_unwraps_only_when_bare() {
         let bare = parse_str::<Type>("Option<i64>").expect("test type parses");

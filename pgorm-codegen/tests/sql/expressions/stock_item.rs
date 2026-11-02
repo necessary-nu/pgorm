@@ -7,10 +7,10 @@ pub struct Model {
     pub id: i32,
     #[pgorm(
         default_expr = "Func::named(Name::runtime(\"md5\")).arg(Expr::expr(Func::named(Name::runtime(\"random\"))).cast_as(Name::runtime(\"text\")))",
-        column_type = "Text"
+        column_type = ColumnType::Text
     )]
     pub code: String,
-    #[pgorm(default_expr = "Expr::val(\"it's\")", column_type = "Text")]
+    #[pgorm(default_expr = "Expr::val(\"it's\")", column_type = ColumnType::Text)]
     pub name: String,
     #[pgorm(default_expr = "Expr::val(-1)")]
     pub quantity: i32,
@@ -24,13 +24,13 @@ pub struct Model {
     pub archived: bool,
     #[pgorm(
         default_expr = "pgorm::pgorm_query::Keyword::Null",
-        column_type = "Text",
+        column_type = ColumnType::Text,
         nullable
     )]
     pub note: Option<String>,
     #[pgorm(
         default_expr = "Expr::current_date().cast_as(Name::runtime(\"text\"))",
-        column_type = "Text"
+        column_type = ColumnType::Text
     )]
     pub stocked_on: String,
     #[pgorm(
@@ -43,7 +43,7 @@ pub struct Model {
     pub total: Option<Decimal>,
     #[pgorm(
         generated_virtual = "Expr::expr(Expr::expr(Func::named(Name::runtime(\"upper\")).arg(Expr::col(Column::Name))).concat(Expr::val(\" #\"))).concat(Expr::col(Column::Quantity).cast_as(Name::runtime(\"text\")))",
-        column_type = "Text",
+        column_type = ColumnType::Text,
         nullable
     )]
     pub shown: Option<String>,

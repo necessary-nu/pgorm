@@ -14,83 +14,22 @@
 /// This trait also provides an API for CRUD actions
 ///
 /// #### Example for creating an Entity, Model and ActiveModel
+///
+/// An entity is written as one `Model` struct under `DeriveEntityModel`, which
+/// writes the `Entity`, its `Column` and `PrimaryKey` enums and the
+/// `ActiveModel` from it, and a `Relation` enum under `DeriveRelation`.
 /// ```
-/// #[cfg(feature = "macros")]
 /// # use pgorm::entity::prelude::*;
-/// use pgorm::ActiveModelBehavior;
-/// use pgorm::ColumnDef;
-/// use pgorm::ColumnTrait;
-/// use pgorm::ColumnType;
-/// use pgorm::EntityName;
-/// use pgorm::PrimaryKeyTrait;
-/// use pgorm::RelationDef;
-/// use pgorm::RelationTrait;
-///
-/// // Use [DeriveEntity] to derive the EntityTrait automatically
-/// #[derive(Copy, Clone, Default, Debug, DeriveEntity)]
-/// pub struct Entity;
-///
-/// /// The [EntityName] describes the name of a table
-/// impl EntityName for Entity {
-///     fn table_name(&self) -> &str {
-///         "filling"
-///     }
-/// }
-///
-/// // Create a Model for the Entity through [DeriveModel].
-/// // The `Model` handles `READ` operations on a table in a database.
-/// // The [DeriveActiveModel] creates a way to perform `CREATE` , `READ` and `UPDATE` operations
-/// // in a database
-/// #[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel)]
+/// #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+/// #[pgorm(table_name = "filling")]
 /// pub struct Model {
+///     #[pgorm(primary_key)]
 ///     pub id: i32,
 ///     pub name: String,
 /// }
 ///
-/// // Use the [DeriveColumn] to create a Column for an the table called Entity
-/// // The [EnumIter] which creates a new type that iterates of the variants of a Column.
-/// #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-/// pub enum Column {
-///     Id,
-///     Name,
-/// }
-///
-/// // Create a PrimaryKey for the Entity using the [PrimaryKeyTrait]
-/// // The [EnumIter] which creates a new type that iterates of the variants of a PrimaryKey.
-/// #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-/// pub enum PrimaryKey {
-///     Id,
-/// }
-///
-/// // Or implement the [PrimaryKeyTrait] manually instead of using the macro [DerivePrimaryKey]
-/// impl PrimaryKeyTrait for PrimaryKey {
-///     type ValueType = i32;
-///
-///     fn auto_increment() -> bool {
-///         true
-///     }
-/// }
-///
-/// #[derive(Copy, Clone, Debug, EnumIter)]
+/// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 /// pub enum Relation {}
-///
-/// impl ColumnTrait for Column {
-///     type EntityName = Entity;
-///
-///     fn def(&self) -> ColumnDef {
-///         match self {
-///             Self::Id => ColumnType::Integer.def(),
-///             Self::Name => ColumnType::String(StringLen::None).def(),
-///         }
-///     }
-/// }
-///
-/// // Create a Relation for the Entity
-/// impl RelationTrait for Relation {
-///     fn def(&self) -> RelationDef {
-///         unimplemented!()
-///     }
-/// }
 ///
 /// // Implement user defined operations for CREATE, UPDATE and DELETE operations
 /// // to create an ActiveModel using the [ActiveModelBehavior]

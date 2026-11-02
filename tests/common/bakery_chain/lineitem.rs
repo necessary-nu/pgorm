@@ -5,7 +5,7 @@ use pgorm::entity::prelude::*;
 pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
-    #[pgorm(column_type = "Decimal(Some((16, 4)))")]
+    #[pgorm(column_type = ColumnType::Decimal(Some((16, 4))))]
     pub price: Decimal,
     pub quantity: i32,
     pub order_id: i32,

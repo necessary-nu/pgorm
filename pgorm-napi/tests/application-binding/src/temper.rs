@@ -14,11 +14,11 @@ pub struct Model {
     #[pgorm(
         primary_key,
         auto_increment = false,
-        column_type = "Domain { name: Name::runtime(\"temper\"), schema: Some(Name::runtime(\"napi_entities\")), base: Arc::new(Mood::db_type().get_column_type().clone()) }"
+        column_type = ColumnType::Domain { name: Name::runtime("temper"), schema: Some(Name::runtime("napi_entities")), base: Arc::new(Mood::db_type().get_column_type().clone()) }
     )]
     pub mood: Mood,
     #[pgorm(
-        column_type = "Domain { name: Name::runtime(\"temper\"), schema: Some(Name::runtime(\"napi_entities\")), base: Arc::new(Mood::db_type().get_column_type().clone()) }"
+        column_type = ColumnType::Domain { name: Name::runtime("temper"), schema: Some(Name::runtime("napi_entities")), base: Arc::new(Mood::db_type().get_column_type().clone()) }
     )]
     pub settles_into: Mood,
 }

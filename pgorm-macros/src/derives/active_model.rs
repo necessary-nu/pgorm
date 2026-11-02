@@ -7,11 +7,11 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::{Data, DataStruct, Field, Fields, LitStr, Type, punctuated::IntoIter};
 
-/// Method to derive an [ActiveModel](pgorm::ActiveModel)
-// [spec:pgorm:sem:macros.derive.active-model+3]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+4]    the field-key vocabulary this
-// derive shares with `DeriveEntityModel`
-pub fn expand_derive_active_model(ident: Ident, data: Data) -> syn::Result<TokenStream> {
+/// The `ActiveModel` the composite derive writes beside its `Model`.
+// [spec:pgorm:sem:macros.derive.active-model+4]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+5]    the field-key vocabulary this
+// expansion shares with `DeriveEntityModel`
+pub fn expand_active_model(ident: Ident, data: Data) -> syn::Result<TokenStream> {
     // including ignored fields
     let all_fields = match data {
         Data::Struct(DataStruct {
@@ -20,7 +20,7 @@ pub fn expand_derive_active_model(ident: Ident, data: Data) -> syn::Result<Token
         }) => named.named,
         _ => {
             return Ok(quote_spanned! {
-                ident.span() => compile_error!("you can only derive DeriveActiveModel on structs");
+                ident.span() => compile_error!("an ActiveModel is written for a struct");
             });
         }
     }

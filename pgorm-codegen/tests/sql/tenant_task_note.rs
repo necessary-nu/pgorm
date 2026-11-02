@@ -8,7 +8,7 @@ pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
     pub id: i32,
     pub task_id: i32,
-    #[pgorm(column_type = "Text")]
+    #[pgorm(column_type = ColumnType::Text)]
     pub body: String,
 }
 

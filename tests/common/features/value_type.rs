@@ -51,7 +51,7 @@ where
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveValueType)]
-#[pgorm(column_type = "Boolean", array_type = "Bool")]
+#[pgorm(column_type = ColumnType::Boolean, array_type = "Bool")]
 pub struct Boolbean(pub String);
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveValueType)]

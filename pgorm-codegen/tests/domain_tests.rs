@@ -1,5 +1,5 @@
 //! Domains: `CREATE DOMAIN` read by the DDL bridge, the columns typed by one,
-//! and the entity both writers generate for them — each field the Rust type
+//! and the entity the writer generates for them — each field the Rust type
 //! of the domain's base, the domain's name carried in the column's definition.
 
 mod common;
@@ -27,12 +27,6 @@ mod pgorm_range_types;
 
 #[path = "sql/domain/stock_line.rs"]
 mod stock_line;
-
-/// The same entity in the expanded format, included rather than declared so
-/// that rustfmt leaves the fixture in the shape the writer emits.
-mod expanded_line {
-    include!("sql/domain/expanded/stock_line.rs");
-}
 
 /// The columns [`SCHEMA`] declares nullable.
 const NULLABLE: [&str; 4] = ["qty", "moods", "labels", "span"];
@@ -236,7 +230,7 @@ fn refused_domain_shapes_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+8/test]    an array of a domain over an
+// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    an array of a domain over an
 // array, and an array of a domain over a range type a schema created, are refused by name;
 // a domain over either alone generates
 #[test]
@@ -260,9 +254,9 @@ fn unholdable_domain_arrays_are_named() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.types+10/test]    a domain column is a field of its base's
+// [spec:pgorm:sem:codegen.entity.types+11/test]    a domain column is a field of its base's
 // Rust type, an array of one a `Vec` of it, an enum or a created range's newtype included
-// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    the compact writer names every
+// [spec:pgorm:sem:codegen.entity.compact.attrs+10/test]    the compact writer names every
 // domain column's type, the domain and its base spelled in full
 #[test]
 fn domain_columns_generate_a_compiling_entity() {
@@ -289,22 +283,6 @@ fn domain_columns_generate_a_compiling_entity() {
             false => col_type.def(),
         };
         assert_eq!(column.def(), expected, "{name}");
-    }
-}
-
-// [spec:pgorm:sem:codegen.entity.types+10/test]    the expanded writer spells each domain in
-// full, and defines every column as the compact derive does
-#[test]
-fn the_expanded_writer_spells_each_domain() {
-    let generated = files(entities_from_sql(SCHEMA, expanded()).expect("the schema generates"));
-    let written = flat(generated.file("stock_line.rs"));
-    assert!(
-        written.contains(&flat(include_str!("sql/domain/expanded/stock_line.rs"))),
-        "{written}"
-    );
-
-    for (expanded, compact) in expanded_line::Column::iter().zip(stock_line::Column::iter()) {
-        assert_eq!(expanded.def(), compact.def(), "{}", compact.as_str());
     }
 }
 
@@ -366,16 +344,10 @@ fn rendered_domain_columns_read_back_whole() {
         .chain([format!("{table};")])
         .collect::<Vec<_>>()
         .join("\n");
-    for expanded_format in [false, true] {
-        let opts = || Opts {
-            expanded_format,
-            ..Default::default()
-        };
-        assert_eq!(
-            files(entities_from_sql(&text, opts()).expect("the rendering generates")).files,
-            generate(vec![table.clone()], opts()).files,
-        );
-    }
+    assert_eq!(
+        files(entities_from_sql(&text, Opts::default()).expect("the rendering generates")).files,
+        generate(vec![table], Opts::default()).files,
+    );
 }
 
 /// A table `p` keyed by `k` and a table `c` whose `r` references it, with
@@ -392,7 +364,7 @@ fn referencing(declared: &str, key: &str, reference: &str) -> String {
 const UNKEYABLE: &str = "and PostgreSQL implements no foreign key with a column typed as a \
                          domain over an enum on either side (42804)";
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a foreign key matching a column typed
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a foreign key matching a column typed
 // as a domain over an enum, through further domains too, is refused on either side whatever
 // the other side is, in a composite key and a self-reference as alone
 #[test]
@@ -431,7 +403,7 @@ fn keys_over_an_enum_domain_are_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+15/test]    a statement built in code is held to
+// [spec:pgorm:sem:codegen.entity.transform+16/test]    a statement built in code is held to
 // the same refusal, and every pairing PostgreSQL keys still generates its relation: an enum
 // with itself, a domain over an integer with the integer or itself, a domain over an array of
 // an enum with itself
