@@ -5,7 +5,7 @@ use pgorm::entity::prelude::*;
 pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
-    #[pgorm(column_name = "_name_")]
+    #[pgorm(column_name = "_name_", column_type = "String(StringLen::N(255u32))")]
     pub name: String,
     #[pgorm(column_name = "fruitId")]
     pub fruit_id: Option<i32> ,

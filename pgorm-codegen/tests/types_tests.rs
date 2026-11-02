@@ -13,7 +13,7 @@ use proc_macro2::{TokenStream, TokenTree};
 use quote::quote;
 use std::sync::Arc;
 
-// [spec:pgorm:sem:codegen.entity.types+9/test]    `Column::get_rs_type` follows
+// [spec:pgorm:sem:codegen.entity.types+10/test]    `Column::get_rs_type` follows
 // the mapping table, wrapping nullable columns in `Option`
 #[test]
 fn column_rust_types_follow_the_mapping_table() {
@@ -92,7 +92,7 @@ fn column_rust_types_follow_the_mapping_table() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.types+9/test]    `Float` and `Double` also map
+// [spec:pgorm:sem:codegen.entity.types+10/test]    `Float` and `Double` also map
 // to `f32` / `f64`, and either one suppresses the Model's `Eq` derive —
 // recursively through `Array`
 #[test]
@@ -255,7 +255,7 @@ fn attribute_string_value(attr: &str) -> String {
         .value()
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+8/test]    the compact attribute
+// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    the compact attribute
 // carries a named type's name as a rendered string literal, so a name holding a
 // quote arrives at the derive as the name that was described rather than as
 // tokens that escaped the literal
@@ -321,7 +321,7 @@ fn hostile_named_type_survives_the_compact_attribute() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+8/test]    and the entity the
+// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    and the entity the
 // derive builds from it names the type that was described, character for
 // character
 #[test]
@@ -334,7 +334,7 @@ fn derived_entity_names_the_hostile_type_exactly() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.types+9/test]    the expanded writer spells the
+// [spec:pgorm:sem:codegen.entity.types+10/test]    the expanded writer spells the
 // same name the same way, so the two emission paths agree on a hostile name as
 // they do on a benign one
 #[test]
@@ -546,7 +546,7 @@ fn compact_primary_key_facts_surface_as_field_attributes() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.types+9/test]    a range column is the `Range` of its
+// [spec:pgorm:sem:codegen.entity.types+10/test]    a range column is the `Range` of its
 // subtype's Rust type, and the expanded writer names its `RangeType`
 // [spec:pgorm:req:codegen.entity.types.unsupported+8/test]    an array of ranges is supported
 #[test]
@@ -589,7 +589,7 @@ fn range_columns_name_their_range_type() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+8/test]    an array needs a
+// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    an array needs a
 // `column_type` exactly when its element does, since the derive infers an
 // array as an array of what the element's Rust type infers: `text[]` would be
 // created as `varchar[]`, and `citext[]` as `varchar[]` too
@@ -627,7 +627,7 @@ fn arrays_name_the_element_type_they_cannot_infer() {
     let sample = generated.file("sample.rs");
     for field in [
         r#"#[pgorm(column_type = "Array(Arc::new(ColumnType::Text))")] pub tags: Vec<String>,"#,
-        r#"#[pgorm(column_type = "Array(Arc::new(ColumnType::Decimal(Some((10, 2)))))")]
+        r#"#[pgorm(column_type = "Array(Arc::new(ColumnType::Decimal(Some((10u32, 2u32)))))")]
            pub prices: Vec<Decimal>,"#,
         r#"#[pgorm(column_type = "Array(Arc::new(ColumnType::named(\"citext\")))")]
            pub names: Vec<String>,"#,
@@ -668,7 +668,7 @@ mod text_array_entity {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+8/test]    and the derive builds
+// [spec:pgorm:sem:codegen.entity.compact.attrs+9/test]    and the derive builds
 // the array of the element type named, not of the one `String` infers
 #[test]
 fn derived_array_columns_keep_their_element_type() {

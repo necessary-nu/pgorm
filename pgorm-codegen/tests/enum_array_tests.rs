@@ -105,7 +105,7 @@ fn the_bridge_reads_an_enum_array_column() {
     assert_eq!(columns, expected);
 }
 
-// [spec:pgorm:sem:codegen.entity.types+9/test]    an enum array column is a `Vec` of the
+// [spec:pgorm:sem:codegen.entity.types+10/test]    an enum array column is a `Vec` of the
 // enum's `ActiveEnum`, and the compact writer names no `column_type` for one, the derive
 // inferring the array of the enum's type, its schema included; a domain over one is
 // spelled with the enum's column type as its array's element
@@ -133,7 +133,7 @@ fn enum_arrays_generate_a_compiling_entity() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.types+9/test]    the expanded writer spells an enum array's
+// [spec:pgorm:sem:codegen.entity.types+10/test]    the expanded writer spells an enum array's
 // element as the enum's column type, `<Enum>::db_type().get_column_type().clone()`, and
 // defines every column as the compact derive does
 // [spec:pgorm:def:codegen.entity.expanded+4/test]
