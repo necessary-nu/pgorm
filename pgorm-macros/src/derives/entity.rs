@@ -3,16 +3,7 @@ use std::iter::FromIterator;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-/// Keys of the composite derive's container attribute: the entity's literal
-/// names, which an entity under `EntityTrait` computes in a hand-written
-/// `EntityName` instead, and the keys naming the model's columns.
-const COMPOSITE_KEYS: [&str; 5] = [
-    "table_name",
-    "schema_name",
-    "comment",
-    "table_iden",
-    "rename_all",
-];
+use super::util::{COMPOSITE_KEYS, bare_code};
 
 /// What the entity's other parts are named, each defaulting to its usual name.
 #[derive(Default)]
@@ -66,7 +57,7 @@ impl PartNames {
                         )));
                     }
                 };
-                *slot = Some(meta.value()?.parse()?);
+                *slot = Some(bare_code(&meta, &key)?);
                 Ok(())
             })?;
         }

@@ -666,8 +666,7 @@ mod entry {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
     #[pgorm(
-        rs_type = "String",
-        db_type = "Enum",
+        rs_type = String,
         enum_name = "phase",
         schema_name = "audit"
     )]
@@ -679,7 +678,7 @@ mod entry {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = "String", db_type = "Enum", enum_name = "tone")]
+    #[pgorm(rs_type = String, enum_name = "tone")]
     pub enum Tone {
         #[pgorm(string_value = "calm")]
         Calm,

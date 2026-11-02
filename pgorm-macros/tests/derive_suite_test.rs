@@ -97,7 +97,7 @@ pub struct CakeName {
 
 /// `ActiveEnum`, with the `display` key.
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
-#[pgorm(rs_type = "String", db_type = "String(StringLen::None)", display)]
+#[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::None), display)]
 pub enum Tea {
     #[pgorm(string_value = "E", display_value = "Everyday")]
     Everyday,
@@ -116,8 +116,8 @@ pub struct Meta {
 }
 
 /// `PartialModel`.
-#[derive(Debug, PartialEq, PartialModel, FromQueryResult)]
-#[pgorm(entity = "cake::Entity")]
+#[derive(Debug, PartialEq, PartialModel)]
+#[pgorm(entity = cake::Entity)]
 pub struct CakeSlice {
     pub name: String,
 }

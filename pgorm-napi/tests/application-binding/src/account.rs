@@ -7,8 +7,7 @@ use pgorm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
 #[pgorm(
-    rs_type = "String",
-    db_type = "Enum",
+    rs_type = String,
     enum_name = "mood",
     schema_name = "napi_entities"
 )]
@@ -41,7 +40,7 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
-    #[pgorm(has_many = "super::note::Entity")]
+    #[pgorm(has_many = super::note::Entity)]
     Note,
 }
 

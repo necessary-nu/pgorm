@@ -1,6 +1,5 @@
 mod active_enum;
 mod active_model;
-mod attributes;
 mod case_style;
 mod column;
 mod created_range;
@@ -32,3 +31,5 @@ pub use model::*;
 pub use partial_model::*;
 pub use relation::*;
 pub use value_type::*;
+
+pub(crate) use util::Reader;

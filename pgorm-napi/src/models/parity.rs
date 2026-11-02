@@ -28,7 +28,7 @@ mod account {
 
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
-        #[pgorm(has_many = "super::post::Entity")]
+        #[pgorm(has_many = super::post::Entity)]
         Post,
     }
 
@@ -56,9 +56,9 @@ mod post {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::account::Entity",
-            from = "Column::AuthorId",
-            to = "super::account::Column::Id"
+            belongs_to = super::account::Entity,
+            from = Column::AuthorId,
+            to = super::account::Column::Id
         )]
         Author,
     }
@@ -104,15 +104,15 @@ mod post_tag {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::post::Entity",
-            from = "Column::PostId",
-            to = "super::post::Column::Id"
+            belongs_to = super::post::Entity,
+            from = Column::PostId,
+            to = super::post::Column::Id
         )]
         Post,
         #[pgorm(
-            belongs_to = "super::tag::Entity",
-            from = "Column::TagId",
-            to = "super::tag::Column::Id"
+            belongs_to = super::tag::Entity,
+            from = Column::TagId,
+            to = super::tag::Column::Id
         )]
         Tag,
     }

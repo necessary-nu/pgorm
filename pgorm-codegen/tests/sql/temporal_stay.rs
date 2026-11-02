@@ -12,11 +12,11 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "super::temporal_room::Entity",
-        from = "Column::RoomId",
-        to = "super::temporal_room::Column::Id",
-        from_period = "Column::During",
-        to_period = "super::temporal_room::Column::ValidAt"
+        belongs_to = super::temporal_room::Entity,
+        from = Column::RoomId,
+        to = super::temporal_room::Column::Id,
+        from_period = Column::During,
+        to_period = super::temporal_room::Column::ValidAt
     )]
     TemporalRoom,
 }

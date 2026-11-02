@@ -34,9 +34,9 @@ mod line {
         pub id: i32,
         pub price: i32,
         pub quantity: i32,
-        #[pgorm(generated_stored = "Expr::col(Column::Price).mul(Expr::col(Column::Quantity))")]
+        #[pgorm(generated_stored = Expr::col(Column::Price).mul(Expr::col(Column::Quantity)))]
         pub total: i32,
-        #[pgorm(generated_virtual = "Expr::col(Column::Price).sub(1)")]
+        #[pgorm(generated_virtual = Expr::col(Column::Price).sub(1))]
         pub discounted: i32,
     }
 

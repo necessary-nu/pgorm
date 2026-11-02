@@ -701,7 +701,7 @@ fn tablesample_binds_percentage_and_seed() {
 
 // [spec:pgorm:req:sql.ast.select.table-function+2/test]    the set-returning constructors, their
 // arguments bound
-// [spec:pgorm:def:sql.ast.func+11/test]
+// [spec:pgorm:def:sql.ast.func+12/test]
 #[test]
 fn set_returning_constructors_bind_arguments() {
     let (sql, values) = Query::select()

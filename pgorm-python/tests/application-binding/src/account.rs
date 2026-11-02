@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum, Serialize, Deserialize)]
 #[pgorm(
-    rs_type = "String",
-    db_type = "Enum",
+    rs_type = String,
     enum_name = "Mood",
     schema_name = "python_entities"
 )]

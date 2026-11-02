@@ -2,16 +2,16 @@ error: Missing attribute 'to_period'
   --> tests/compile-fail/relation_period.rs:11:9
    |
 11 | /         #[pgorm(
-12 | |             belongs_to = "filling::Entity",
-13 | |             from = "cake::Column::Id",
-14 | |             to = "filling::Column::Id",
-15 | |             from_period = "cake::Column::Name"
+12 | |             belongs_to = filling::Entity,
+13 | |             from = cake::Column::Id,
+14 | |             to = filling::Column::Id,
+15 | |             from_period = cake::Column::Name
 16 | |         )]
 17 | |         Filling,
    | |_______________^
 
-error: a PERIOD foreign key takes no referential action but NoAction; PostgreSQL 18 refuses the rest
+error: a PERIOD foreign key takes no referential action but `ForeignKeyAction::NoAction`; PostgreSQL 18 refuses the rest
   --> tests/compile-fail/relation_period.rs:35:25
    |
-35 |             on_delete = "Cascade"
-   |                         ^^^^^^^^^
+35 |             on_delete = ForeignKeyAction::Cascade
+   |                         ^^^^^^^^^^^^^^^^^^^^^^^^^

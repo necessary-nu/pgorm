@@ -29,6 +29,7 @@ compiled.
 - [Transactions](#transactions)
 - [Entities and their attributes](#entities-and-their-attributes)
 - [Derive names](#derive-names)
+- [Attribute values that are Rust](#attribute-values-that-are-rust)
 - [Active models](#active-models)
 - [Insert, update and delete](#insert-update-and-delete)
 - [Reading rows](#reading-rows)
@@ -51,7 +52,7 @@ compiled.
 | the expanded entity format | `#[derive(Entity)]` on `Model` and `#[derive(Relation)]` on `Relation` only |
 | `DeriveEntityModel`, `DeriveRelation`, `DeriveActiveEnum`, ... | the same without `Derive`: see [Derive names](#derive-names) |
 | `DerivePrimaryKey`, `DeriveActiveModel`, `DeriveCustomColumn` | gone: `#[derive(Entity)]` writes the key and the active model |
-| `column_type = "Text"` | `column_type = ColumnType::Text` |
+| `column_type = "Text"`, `belongs_to = "super::cake::Entity"`, ... | Rust written bare: see [Attribute values that are Rust](#attribute-values-that-are-rust) |
 | a hand-written `ColumnTrait::select_as` / `save_as` | `select_with = f`; `save_with = f, save_array_with = g` |
 | `sea_query` | `pgorm::pgorm_query` |
 | `Database::connect(url)` | `pgorm::connect(config)` |
@@ -399,7 +400,7 @@ expanded entity said in a trait method, an attribute says:
   `select_as` and `save_as` methods; the attributes of those names still take
   a type to cast to.
 - `on_condition` takes a closure of the two tables as the join binds them,
-  `r#"|left, right| ..."#`, as well as an expression that ignores them.
+  `|left, right| ..`, as well as an expression that ignores them.
 - An entity whose table or schema name is computed at run time keeps a
   hand-written part: its own `Entity` struct holding what the name is computed
   from, an `EntityName` impl, and the `EntityTrait` derive on the struct,
@@ -464,8 +465,8 @@ Some details differ besides:
   `#[pgorm(identity)]` or `#[pgorm(identity_by_default)]`, even inside a
   composite key, and `find_by_id` takes a composite key's parts by reference:
   `find_by_id((1, "x"))` rather than `find_by_id((1, "x".to_owned()))`.
-- A column can be generated with `generated_stored = "expr"` or
-  `generated_virtual = "expr"`.
+- A column can be generated with `generated_stored = expr` or
+  `generated_virtual = expr`, the expression written bare.
 
 An enum can live in a schema of its own. The `ActiveEnum` derive takes
 `schema_name`, and `ColumnType::Enum` carries a `schema` field next to `name`
@@ -476,7 +477,7 @@ needs the new field:
 use pgorm::entity::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
-#[pgorm(rs_type = "String", db_type = "Enum", enum_name = "tea", schema_name = "kitchen")]
+#[pgorm(rs_type = String, enum_name = "tea", schema_name = "kitchen")]
 pub enum Tea {
     #[pgorm(string_value = "EverydayTea")]
     EverydayTea,
@@ -504,7 +505,7 @@ gave derives SeaORM does not have.
 | `DeriveActiveEnum` | `ActiveEnum` |
 | `DeriveDisplay` | `ActiveEnum`'s `display` key: `#[pgorm(rs_type = .., db_type = .., display)]` |
 | `DeriveIntoActiveModel` | `IntoActiveModel` |
-| `DerivePartialModel` | `PartialModel` |
+| `DerivePartialModel` | `PartialModel`, which implements `FromQueryResult` too: derive it alone |
 | `FromQueryResult` | the same |
 | `DeriveValueType` | `ValueType` |
 | `FromJsonQueryResult` | `JsonValueType` |
@@ -527,7 +528,7 @@ name is.
 use pgorm::entity::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
-#[pgorm(rs_type = "String", db_type = "Enum", enum_name = "tea", display)]
+#[pgorm(rs_type = String, enum_name = "tea", display)]
 pub enum Tea {
     #[pgorm(string_value = "EverydayTea", display_value = "Everyday")]
     EverydayTea,
@@ -546,6 +547,88 @@ assert_eq!(Tea::EverydayTea.to_string(), "Everyday");
 assert_eq!(Tea::BreakfastTea.to_string(), "BreakfastTea");
 assert_eq!(Post::Table.to_string(), "post");
 assert_eq!(Post::Title.to_string(), "headline");
+```
+
+## Attribute values that are Rust
+
+An attribute value that is Rust code is written as Rust code: a path as a
+path, a type as a type, an expression as an expression. It is taken as
+written, with no prefix the derive adds, so `on_delete` names
+`ForeignKeyAction::Cascade` where SeaORM's string named `Cascade`, and the
+prelude exports `ForeignKeyAction`, `Deferrability`, `Enforcement`,
+`ConditionType` and `ArrayType` for the attributes to name. A string where
+code belongs is a compile error at the string, saying to remove the quotes.
+
+| SeaORM | pgorm |
+| --- | --- |
+| `belongs_to = "super::cake::Entity"` (and `has_one`, `has_many`) | `belongs_to = super::cake::Entity` |
+| `from = "Column::CakeId"`, `to = "super::cake::Column::Id"` | `from = Column::CakeId`, `to = super::cake::Column::Id` |
+| `from = "(Column::A, Column::B)"` | `from = (Column::A, Column::B)` |
+| `on_update = "Cascade"`, `on_delete = "SetNull"` | `on_update = ForeignKeyAction::Cascade`, `on_delete = ForeignKeyAction::SetNull` |
+| `on_condition = r#"Column::Name.like("%a%")"#` | `on_condition = Column::Name.like("%a%")`, or `\|left, right\| ..` |
+| `condition_type = "any"` | `condition_type = ConditionType::Any` |
+| `from_period = "Column::During"` (pgorm's) | `from_period = Column::During` |
+| `enforcement = "NotEnforced"`, `deferrability = "DeferrableInitiallyDeferred"` (pgorm's) | `enforcement = Enforcement::NotEnforced`, `deferrability = Deferrability::DeferrableInitiallyDeferred` |
+| `column_type = "Text"` | `column_type = ColumnType::Text` |
+| `rs_type = "String"` | `rs_type = String` |
+| `db_type = "Integer"`, `db_type = "String(StringLen::N(1))"` | `db_type = ColumnType::Integer`, `db_type = ColumnType::String(StringLen::N(1))` |
+| `db_type = "Enum"` | no `db_type`: an enum of strings with none is a PostgreSQL enum |
+| `array_type = "Int"` | `array_type = ArrayType::Int` |
+| `default_expr = "Expr::current_timestamp()"` | `default_expr = Expr::current_timestamp()` |
+| `default_value = "-1"` | `default_value = -1`; a string default stays a string, `default_value = "untitled"` |
+| `generated_stored = "Expr::col(Column::A).mul(2)"` (pgorm's) | `generated_stored = Expr::col(Column::A).mul(2)` |
+| a field's `enum_name = "Name"` | `variant = Name` |
+| `#[sea_orm(entity = "Entity")]` on a partial model | `#[pgorm(entity = Entity)]` |
+| `from_col = "name"` | `from_col = Column::Name` |
+| `from_expr = "Expr::val(1)"` | `from_expr = Expr::val(1)` |
+
+What is SQL or a name stays a string: `table_name`, `schema_name`,
+`column_name`, `fk_name`, an `ActiveEnum`'s `enum_name` (the type's SQL
+name), `string_value`, `display_value`, `range_name`, `multirange_name`,
+`comment`, and the `select_as` and `save_as` cast types; so do the case
+styles of `rename` and `rename_all`, which are not Rust.
+
+Each derive refuses a key it does not read, where SeaORM dropped it: a
+`table_name` on a `Relation` enum or on a further `Model` is a compile error
+naming where it goes. `PartialModel` implements `FromQueryResult` itself, so
+the two are not derived together, and `FromQueryResult` alone refuses
+`from_col` and `from_expr`.
+
+```rust
+use pgorm::entity::prelude::*;
+
+#[derive(Clone, Debug, PartialEq, Entity)]
+#[pgorm(table_name = "fruit")]
+pub struct Model {
+    #[pgorm(primary_key)]
+    pub id: i32,
+    pub parent_id: Option<i32>,
+    #[pgorm(default_value = -1)]
+    pub rank: i32,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+pub enum Relation {
+    #[pgorm(
+        belongs_to = Entity,
+        from = Column::ParentId,
+        to = Column::Id,
+        on_delete = ForeignKeyAction::Cascade,
+        deferrability = Deferrability::DeferrableInitiallyDeferred
+    )]
+    Parent,
+}
+
+impl ActiveModelBehavior for ActiveModel {}
+
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
+#[pgorm(rs_type = i32, db_type = ColumnType::Integer)]
+pub enum Ripeness {
+    #[pgorm(num_value = 0)]
+    Green,
+    #[pgorm(num_value = 1)]
+    Ripe,
+}
 ```
 
 ## Active models

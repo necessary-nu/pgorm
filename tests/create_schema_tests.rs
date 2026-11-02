@@ -26,8 +26,7 @@ mod invoice_state {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
     #[pgorm(
-        rs_type = "String",
-        db_type = "Enum",
+        rs_type = String,
         enum_name = "invoice_state",
         schema_name = "billing"
     )]

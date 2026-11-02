@@ -11,11 +11,11 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
-    #[pgorm(has_many = "super::baker::Entity")]
+    #[pgorm(has_many = super::baker::Entity)]
     Baker,
-    #[pgorm(has_many = "super::order::Entity")]
+    #[pgorm(has_many = super::order::Entity)]
     Order,
-    #[pgorm(has_many = "super::cake::Entity")]
+    #[pgorm(has_many = super::cake::Entity)]
     Cake,
 }
 

@@ -16148,6 +16148,14 @@ children (
                         kind @note
                         text "Found by derives.names (eed4f53e): the Model and Relation derives still drop container keys they do not read without saying so (table_name on a Relation enum is ignored). Model has to accept the composite derive's keys, since the composite runs it on the same input, so the fix is to know which derive is reading: refuse an unread key spanned at the key, as EntityTrait now does, wherever the derive is not running under the composite. This node rewrites every attribute parser anyway; leave no derive that accepts a key it ignores."
                     }
+
+                    {
+                        at 2026-11-02T20:22:02.623087Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Two calls the implementing agent made beyond its brief, kept by the lead and put to the operator (2026-11-02): (1) PartialModel writes FromQueryResult itself, because FromQueryResult alone silently ignored from_col/from_expr whenever PartialModel was not derived beside it; deriving both is now a conflicting-impl error (E0119), and FromQueryResult alone refuses from_col, from_expr and entity, pointing at PartialModel; about 20 derive lists changed. (2) default_value is an expression of the column's value, so a string literal there is the column's text default, not a quoted code value, and is not refused; macros.derive.code-values +2 says so. Also: a misspelled variant in a relation's actions, enforcement or deferrability is rustc's E0599 now that they are bare paths, replacing the derive's own \"must be one of\" wording."
+                        after_done true
+                    }
                 )
             }
 
@@ -16165,6 +16173,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Lead's call, recorded in macros.derive.boilerplate for the operator's review in the filing PR: with neither rs_type nor db_type, an ActiveEnum's values default to its variants' names in snake_case and its type name to the enum's name in snake_case. Today enum_name defaults to the UpperCamelCase of the enum's name (syn:macros.derive.active-enum), a type name PostgreSQL only reads quoted; snake_case matches PostgreSQL's convention and the kind type disjoint.declare generates, and the breaking release is the one time to change it. Existing schemas keep working by naming enum_name, which codegen always writes when the type's name differs from the default. Also: 387 empty ActiveModelBehavior impls and 216 hand-written Related impls in the repo today are deleted by this node wherever the derive now writes them; DeriveActiveModelBehavior (13 uses, two on dummy structs) is deleted."
+                    }
+
+                    {
+                        at 2026-11-02T20:22:02.844851Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Also in scope, found by derives.paths (420d8d41): ActiveEnum's unknown-key error prints Rust debug output (Some(Ident(..))) instead of the key's name; fix it while reworking ActiveEnum's defaults. Base state for this node: one entity form, the new derive names, every code value bare, db_type = Enum gone (an enum of strings with no db_type is a PostgreSQL enum; rs_type still mandatory), PartialModel writing FromQueryResult, and every derive refusing keys it does not read."
                     }
                 )
             }
@@ -16402,6 +16417,13 @@ children (
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by derives.names (eed4f53e), predating it: src/executor/delete.rs and src/executor/update.rs annotate [spec:pgorm:sem:exec.crud.exec-vocabulary+2], but the rule is declared req:exec.crud.exec-vocabulary, so those sites do not count as its implementation and nplan spec validate did not object. Re-annotate with the rule's own verb, and check whether nspec should refuse a verb mismatch (if it should and does not, that is an nplan defect for ../nplan/DEFECTS.md)."
+            }
+
+            {
+                at 2026-11-02T20:22:02.743774Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Widened by derives.paths (420d8d41): eleven annotations use a verb their rule does not have, all predating that branch — exec.crud.exec-vocabulary written sem (the rule is req) in src/executor/update.rs, src/executor/delete.rs and plan/main.styx, and others in pgorm-query/tests/surface/citations.rs and plan/decisions/*.md. Find every one by script (each [spec:pgorm:<verb>:<id>] whose verb differs from the rule's declaring blockquote), fix them all, and add a guard so a mismatch fails a check (pgorm-query's spec reader already refuses pinned citations; a verb check fits beside it). Whether nspec itself should refuse the mismatch is a question for ../nplan/DEFECTS.md."
             }
         )
     }

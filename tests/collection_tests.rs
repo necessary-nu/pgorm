@@ -164,8 +164,8 @@ pub async fn update_collection(db: &DatabaseConnection) -> Result<(), Error> {
 pub async fn select_collection(db: &DatabaseConnection) -> Result<(), Error> {
     use collection::*;
 
-    #[derive(PartialModel, FromQueryResult, Debug, PartialEq)]
-    #[pgorm(entity = "Entity")]
+    #[derive(PartialModel, Debug, PartialEq)]
+    #[pgorm(entity = Entity)]
     struct PartialSelectResult {
         name: String,
     }

@@ -3,8 +3,10 @@
 pub mod common;
 
 pub use common::TestContext;
-use pgorm::{DecodeRaw, Error, FromQueryResult, SelectModel, SelectorRaw, TryGetable};
-use pgorm_query::Values;
+use pgorm::{
+    DecodeRaw, Error, FromQueryResult, PartialModel, SelectModel, SelectorRaw, TryGetable,
+};
+use pgorm_query::{Expr, Values};
 
 #[derive(FromQueryResult)]
 struct SimpleTest {
@@ -78,12 +80,14 @@ struct RawIdentifierTest {
 
 // `skip` accumulates rather than being recomputed, so it holds wherever it is
 // written: ahead of another key in the same list, and split across two
-// `#[pgorm(...)]` attributes. Both fields here are skipped.
-#[derive(FromQueryResult)]
+// `#[pgorm(...)]` attributes. Both fields here are skipped by the
+// `FromQueryResult` `PartialModel` writes, which steps over the projection's
+// own keys.
+#[derive(PartialModel)]
 struct SkipAnywhereTest {
-    #[pgorm(skip, from_col = "read by PartialModel, not by this derive")]
+    #[pgorm(skip, from_expr = Expr::val(1))]
     _foo: i32,
-    #[pgorm(from_col = "read by PartialModel, not by this derive")]
+    #[pgorm(from_expr = Expr::val(2))]
     #[pgorm(skip)]
     _bar: i32,
 }
@@ -98,7 +102,7 @@ where
 // [spec:pgorm:def:exec.crud+1/test]    `SelectorRaw::from_statement` decoding
 // through `SelectModel`, i.e. `SelectorTrait::from_raw_query_result` with an
 // empty prefix
-// [spec:pgorm:sem:macros.derive.from-query-result+3/test]    field-named reads, generics, and `skip`
+// [spec:pgorm:sem:macros.derive.from-query-result+4/test]    field-named reads, generics, and `skip`
 #[pgorm_macros::test]
 async fn from_query_result_derive() -> Result<(), Error> {
     let ctx = TestContext::new("derive_tests_from_query_result").await;

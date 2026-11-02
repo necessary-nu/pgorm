@@ -35,7 +35,7 @@ pub struct Relation {
     pub(crate) deferrability: Option<Deferrability>,
     /// The `(column, referenced column)` pair a temporal foreign key matches
     /// as periods, after its pairs.
-    // [spec:pgorm:sem:codegen.entity.relations+4]
+    // [spec:pgorm:sem:codegen.entity.relations+5]
     pub(crate) period: Option<(String, String)>,
     pub(crate) self_referencing: bool,
     pub(crate) num_suffix: usize,
@@ -53,7 +53,7 @@ impl Relation {
     }
 
     // [spec:pgorm:sem:codegen.entity.keywords+2]
-    // [spec:pgorm:sem:codegen.entity.relations+4]
+    // [spec:pgorm:sem:codegen.entity.relations+5]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let context = format!("relation to `{}`", self.ref_ident());
         safe_ident(
@@ -91,7 +91,7 @@ impl Relation {
         Ok(())
     }
 
-    // [spec:pgorm:sem:codegen.entity.relations+4]
+    // [spec:pgorm:sem:codegen.entity.relations+5]
     pub fn get_enum_name(&self) -> Ident {
         let name = if self.self_referencing {
             format_ident!("SelfRef")
@@ -116,15 +116,17 @@ impl Relation {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.relations+4]
+    /// The variant's `#[pgorm(..)]`, every value but the key's name Rust
+    /// written bare: the entity reached, the column pairs, the period, the
+    /// actions and the key check.
+    // [spec:pgorm:sem:codegen.entity.relations+5]
+    // [spec:pgorm:req:macros.derive.code-values+2]
     pub fn get_attrs(&self) -> TokenStream {
         let rel_type = self.get_rel_type();
-        let module_name = if let Some(module_name) = self.get_module_name() {
-            format!("super::{module_name}::")
-        } else {
-            String::new()
-        };
-        let ref_entity = format!("{module_name}Entity");
+        let module = self
+            .get_module_name()
+            .map(|module_name| quote! { super::#module_name:: });
+        let ref_entity = quote! { #module Entity };
         match self.rel_type {
             RelationType::HasOne | RelationType::HasMany => {
                 quote! {
@@ -132,46 +134,25 @@ impl Relation {
                 }
             }
             RelationType::BelongsTo => {
-                let map_src_column = |src_column: &Ident| format!("Column::{src_column}");
-                let map_ref_column =
-                    |ref_column: &Ident| format!("{module_name}Column::{ref_column}");
-                let map_punctuated = |punctuated: Vec<String>| {
-                    let len = punctuated.len();
-                    let punctuated = punctuated.join(", ");
-                    match len {
-                        0..=1 => punctuated,
-                        _ => format!("({})", punctuated),
-                    }
-                };
-                let (from, to) =
-                    self.get_src_ref_columns(map_src_column, map_ref_column, map_punctuated);
-
-                let on_update = if let Some(action) = &self.on_update {
+                let from = Self::column_list(&self.get_column_camel_case(), None);
+                let to = Self::column_list(&self.get_ref_column_camel_case(), module.as_ref());
+                let on_update = self.on_update.as_ref().map(|action| {
                     let action = Self::checked_foreign_key_action(action);
-                    quote! {
-                        on_update = #action,
-                    }
-                } else {
-                    quote! {}
-                };
-                let on_delete = if let Some(action) = &self.on_delete {
+                    quote! { on_update = ForeignKeyAction::#action, }
+                });
+                let on_delete = self.on_delete.as_ref().map(|action| {
                     let action = Self::checked_foreign_key_action(action);
-                    quote! {
-                        on_delete = #action,
-                    }
-                } else {
-                    quote! {}
-                };
+                    quote! { on_delete = ForeignKeyAction::#action, }
+                });
                 let key_check = self.get_key_attrs();
-                let period = match &self.period {
-                    Some((src_column, ref_column)) => {
-                        let from_period = format!("Column::{}", src_column.to_upper_camel_case());
-                        let to_period =
-                            format!("{module_name}Column::{}", ref_column.to_upper_camel_case());
-                        quote! { from_period = #from_period, to_period = #to_period, }
+                let period = self.period.as_ref().map(|(src_column, ref_column)| {
+                    let from_period = format_ident!("{}", src_column.to_upper_camel_case());
+                    let to_period = format_ident!("{}", ref_column.to_upper_camel_case());
+                    quote! {
+                        from_period = Column::#from_period,
+                        to_period = #module Column::#to_period,
                     }
-                    None => quote! {},
-                };
+                });
                 quote! {
                     #[pgorm(
                         #rel_type = #ref_entity,
@@ -187,18 +168,31 @@ impl Relation {
         }
     }
 
-    /// The `deferrability = ".."` and `enforcement = ".."` attribute keys,
-    /// where the key declared them.
-    // [spec:pgorm:sem:codegen.entity.relations+4]
+    /// The `Column` variants a side of the key names, under `module`: the
+    /// variant alone for a one-column key, a tuple of them for a composite one.
+    fn column_list(columns: &[Ident], module: Option<&TokenStream>) -> TokenStream {
+        let paths: Vec<TokenStream> = columns
+            .iter()
+            .map(|column| quote! { #module Column::#column })
+            .collect();
+        match paths.as_slice() {
+            [one] => one.clone(),
+            _ => quote! { (#(#paths),*) },
+        }
+    }
+
+    /// The `deferrability` and `enforcement` attribute keys, where the key
+    /// declared them.
+    // [spec:pgorm:sem:codegen.entity.relations+5]
     fn get_key_attrs(&self) -> TokenStream {
         let mut attrs = TokenStream::new();
         if let Some(deferrability) = self.deferrability {
-            let variant = Self::get_deferrability(deferrability);
-            attrs.extend(quote! { deferrability = #variant, });
+            let variant = format_ident!("{}", Self::get_deferrability(deferrability));
+            attrs.extend(quote! { deferrability = Deferrability::#variant, });
         }
         if let Some(enforcement) = self.enforcement {
-            let variant = Self::get_enforcement(enforcement);
-            attrs.extend(quote! { enforcement = #variant, });
+            let variant = format_ident!("{}", Self::get_enforcement(enforcement));
+            attrs.extend(quote! { enforcement = Enforcement::#variant, });
         }
         attrs
     }
@@ -256,44 +250,15 @@ impl Relation {
     }
 
     /// [`get_foreign_key_action`](Self::get_foreign_key_action) of an action
-    /// a validated relation holds.
-    fn checked_foreign_key_action(action: &ForeignKeyAction) -> String {
-        Self::get_foreign_key_action(action).unwrap_or_else(|| {
+    /// a validated relation holds, as the variant's identifier.
+    fn checked_foreign_key_action(action: &ForeignKeyAction) -> Ident {
+        let action = Self::get_foreign_key_action(action).unwrap_or_else(|| {
             unreachable!(
                 "foreign key action {action:?} reached the writer; \
                  every relation is validated before it is written"
             )
-        })
-    }
-
-    pub fn get_src_ref_columns<F1, F2, F3, T, I>(
-        &self,
-        map_src_column: F1,
-        map_ref_column: F2,
-        map_punctuated: F3,
-    ) -> (T, T)
-    where
-        F1: Fn(&Ident) -> T,
-        F2: Fn(&Ident) -> T,
-        F3: Fn(I) -> T,
-        I: Extend<T> + Default,
-    {
-        let from: I =
-            self.get_column_camel_case()
-                .iter()
-                .fold(I::default(), |mut acc, src_column| {
-                    acc.extend([map_src_column(src_column)]);
-                    acc
-                });
-        let to: I =
-            self.get_ref_column_camel_case()
-                .iter()
-                .fold(I::default(), |mut acc, ref_column| {
-                    acc.extend([map_ref_column(ref_column)]);
-                    acc
-                });
-
-        (map_punctuated(from), map_punctuated(to))
+        });
+        format_ident!("{action}")
     }
 }
 

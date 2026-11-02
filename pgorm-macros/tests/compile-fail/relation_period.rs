@@ -9,10 +9,10 @@ mod one_side {
     #[pgorm(entity = Cake)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "filling::Entity",
-            from = "cake::Column::Id",
-            to = "filling::Column::Id",
-            from_period = "cake::Column::Name"
+            belongs_to = filling::Entity,
+            from = cake::Column::Id,
+            to = filling::Column::Id,
+            from_period = cake::Column::Name
         )]
         Filling,
     }
@@ -27,12 +27,12 @@ mod with_an_action {
     #[pgorm(entity = Cake)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "filling::Entity",
-            from = "cake::Column::Id",
-            to = "filling::Column::Id",
-            from_period = "cake::Column::Name",
-            to_period = "filling::Column::Name",
-            on_delete = "Cascade"
+            belongs_to = filling::Entity,
+            from = cake::Column::Id,
+            to = filling::Column::Id,
+            from_period = cake::Column::Name,
+            to_period = filling::Column::Name,
+            on_delete = ForeignKeyAction::Cascade
         )]
         Filling,
     }

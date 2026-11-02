@@ -3,9 +3,3 @@ error: unknown pgorm attribute `tabel_iden`
   |
 4 | #[pgorm(table_name = "cake", tabel_iden)]
   |                              ^^^^^^^^^^
-
-error: `#[pgorm]` got unknown `tabel_iden` argument. Supported arguments are `active_model`, `column`, `comment`, `entity`, `model`, `primary_key`, `relation`, `rename_all`, `schema_name`, `table_iden`, `table_name`
- --> tests/compile-fail/entity_model_unknown_struct_attribute.rs:4:30
-  |
-4 | #[pgorm(table_name = "cake", tabel_iden)]
-  |                              ^^^^^^^^^^

@@ -30,61 +30,61 @@ mod entity {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-#[derive(FromQueryResult, PartialModel)]
-#[pgorm(entity = "Entity")]
+#[derive(PartialModel)]
+#[pgorm(entity = Entity)]
 struct SimpleTest {
     _foo: i32,
     _bar: String,
 }
 
-#[derive(FromQueryResult, PartialModel)]
-#[pgorm(entity = "<entity::Model as ModelTrait>::Entity")]
+#[derive(PartialModel)]
+#[pgorm(entity = <entity::Model as ModelTrait>::Entity)]
 struct EntityNameNotAIdent {
-    #[pgorm(from_col = "foo2")]
+    #[pgorm(from_col = <<entity::Model as ModelTrait>::Entity as EntityTrait>::Column::Foo2)]
     _foo: i32,
-    #[pgorm(from_col = "bar2")]
+    #[pgorm(from_col = Column::Bar2)]
     _bar: String,
 }
 
-#[derive(FromQueryResult, PartialModel)]
-#[pgorm(entity = "Entity")]
+#[derive(PartialModel)]
+#[pgorm(entity = Entity)]
 struct FieldFromDiffNameColumnTest {
-    #[pgorm(from_col = "foo2")]
+    #[pgorm(from_col = Column::Foo2)]
     _foo: i32,
-    #[pgorm(from_col = "bar2")]
+    #[pgorm(from_col = Column::Bar2)]
     _bar: String,
 }
 
-#[derive(FromQueryResult, PartialModel)]
+#[derive(PartialModel)]
 struct FieldFromExpr {
-    #[pgorm(from_expr = "Column::Bar2.sum()")]
+    #[pgorm(from_expr = Column::Bar2.sum())]
     _foo: f64,
-    #[pgorm(from_expr = "Expr::col(Column::Id).equals(Column::Foo)")]
+    #[pgorm(from_expr = Expr::col(Column::Id).equals(Column::Foo))]
     _bar: bool,
 }
 
-#[derive(Debug, PartialEq, FromQueryResult, PartialModel)]
-#[pgorm(entity = "bakery::Entity")]
+#[derive(Debug, PartialEq, PartialModel)]
+#[pgorm(entity = bakery::Entity)]
 struct PartialBakery {
     id: i32,
-    #[pgorm(from_col = "name")]
+    #[pgorm(from_col = bakery::Column::Name)]
     title: String,
-    #[pgorm(from_expr = "Expr::col(bakery::Column::ProfitMargin).mul(2.0)")]
+    #[pgorm(from_expr = Expr::col(bakery::Column::ProfitMargin).mul(2.0))]
     double_margin: f64,
 }
 
-#[derive(Debug, PartialEq, FromQueryResult, PartialModel)]
-#[pgorm(entity = "bakery::Entity")]
+#[derive(Debug, PartialEq, PartialModel)]
+#[pgorm(entity = bakery::Entity)]
 struct MarginTotal {
-    #[pgorm(from_expr = "bakery::Column::ProfitMargin.sum()")]
+    #[pgorm(from_expr = bakery::Column::ProfitMargin.sum())]
     total: f64,
 }
 
-#[derive(Debug, PartialEq, FromQueryResult, PartialModel)]
-#[pgorm(entity = "bakery::Entity")]
+#[derive(Debug, PartialEq, PartialModel)]
+#[pgorm(entity = bakery::Entity)]
 struct IntScaledBakery {
     id: i32,
-    #[pgorm(from_expr = "Expr::col(bakery::Column::ProfitMargin).mul(2)")]
+    #[pgorm(from_expr = Expr::col(bakery::Column::ProfitMargin).mul(2))]
     double_margin: f64,
 }
 

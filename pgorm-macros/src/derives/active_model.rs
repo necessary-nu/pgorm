@@ -1,15 +1,11 @@
-use super::util::{
-    MODEL_FIELD_KEYS, escape_rust_keyword, field_not_ignored, format_field_ident,
-    parse_derived_ident, parse_enum_name, skip_known_key, trim_starting_raw_identifier,
-};
-use heck::ToUpperCamelCase;
+use super::util::{Reader, field_not_ignored, field_variant, format_field_ident};
 use proc_macro2::{Ident, TokenStream};
 use quote::{quote, quote_spanned};
-use syn::{Data, DataStruct, Field, Fields, LitStr, Type, punctuated::IntoIter};
+use syn::{Data, DataStruct, Field, Fields, Type, punctuated::IntoIter};
 
 /// The `ActiveModel` the composite derive writes beside its `Model`.
-// [spec:pgorm:sem:macros.derive.active-model+5]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+6]    the field-key vocabulary this
+// [spec:pgorm:sem:macros.derive.active-model+6]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+7]    the field-key vocabulary this
 // expansion shares with the `Entity` derive
 pub fn expand_active_model(ident: Ident, data: Data) -> syn::Result<TokenStream> {
     // including ignored fields
@@ -42,29 +38,8 @@ fn derive_active_model(all_fields: IntoIter<Field>) -> syn::Result<TokenStream> 
 
     let name: Vec<Ident> = fields
         .clone()
-        .map(|field| {
-            let field_ident = field.ident.as_ref().unwrap();
-            let name = trim_starting_raw_identifier(field_ident).to_upper_camel_case();
-            let mut ident = parse_derived_ident(&escape_rust_keyword(name), field_ident)?;
-            field
-                .attrs
-                .iter()
-                .filter(|attr| attr.path().is_ident("pgorm"))
-                .try_for_each(|attr| {
-                    attr.parse_nested_meta(|meta| {
-                        if meta.path.is_ident("enum_name") {
-                            let litstr: LitStr = meta.value()?.parse()?;
-                            ident = parse_enum_name(&litstr)?;
-                        } else {
-                            skip_known_key(&meta, &MODEL_FIELD_KEYS)?;
-                        }
-
-                        Ok(())
-                    })
-                })?;
-            Ok::<Ident, syn::Error>(ident)
-        })
-        .collect::<Result<_, _>>()?;
+        .map(|field| field_variant(&field, Reader::Composite))
+        .collect::<syn::Result<_>>()?;
 
     let ty: Vec<Type> = fields.into_iter().map(|Field { ty, .. }| ty).collect();
 

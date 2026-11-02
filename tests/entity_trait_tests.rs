@@ -1237,10 +1237,10 @@ struct ItemRow {
     name: String,
 }
 
-#[derive(Debug, PartialEq, FromQueryResult, PartialModel)]
-#[pgorm(entity = "item::Entity")]
+#[derive(Debug, PartialEq, PartialModel)]
+#[pgorm(entity = item::Entity)]
 struct ItemNameOnly {
-    #[pgorm(from_col = "name")]
+    #[pgorm(from_col = item::Column::Name)]
     label: String,
 }
 

@@ -15,7 +15,7 @@ impl Func {
     ///     r#"SELECT UUIDV4()"#
     /// );
     /// ```
-    // [spec:pgorm:def:sql.ast.func+11]
+    // [spec:pgorm:def:sql.ast.func+12]
     pub fn uuidv4() -> FunctionCall {
         FunctionCall::new(Function::UuidV4)
     }
@@ -41,8 +41,8 @@ impl Func {
     /// );
     /// ```
     ///
-    /// An entity says the same with `#[pgorm(default_expr = "Func::uuidv7()")]`.
-    // [spec:pgorm:def:sql.ast.func+11]
+    /// An entity says the same with `#[pgorm(default_expr = Func::uuidv7())]`.
+    // [spec:pgorm:def:sql.ast.func+12]
     pub fn uuidv7() -> FunctionCall {
         FunctionCall::new(Function::UuidV7)
     }
@@ -64,7 +64,7 @@ impl Func {
     ///     )
     /// );
     /// ```
-    // [spec:pgorm:def:sql.ast.func+11]
+    // [spec:pgorm:def:sql.ast.func+12]
     pub fn uuidv7_shifted<T>(shift: T) -> FunctionCall
     where
         T: Into<SimpleExpr>,
@@ -87,7 +87,7 @@ impl Func {
     ///     r#"SELECT UUID_EXTRACT_TIMESTAMP("id") FROM "glyph""#
     /// );
     /// ```
-    // [spec:pgorm:def:sql.ast.func+11]
+    // [spec:pgorm:def:sql.ast.func+12]
     pub fn uuid_extract_timestamp<T>(uuid: T) -> FunctionCall
     where
         T: Into<SimpleExpr>,
@@ -110,7 +110,7 @@ impl Func {
     ///     r#"SELECT "id" FROM "glyph" WHERE UUID_EXTRACT_VERSION("id") = 7"#
     /// );
     /// ```
-    // [spec:pgorm:def:sql.ast.func+11]
+    // [spec:pgorm:def:sql.ast.func+12]
     pub fn uuid_extract_version<T>(uuid: T) -> FunctionCall
     where
         T: Into<SimpleExpr>,

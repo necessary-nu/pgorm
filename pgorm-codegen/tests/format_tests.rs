@@ -55,7 +55,7 @@ fn compact_model_attribute_and_empty_relation_enum() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    the `#[pgorm(..)]` field
+// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    the `#[pgorm(..)]` field
 // attribute assembles its parts in one fixed order
 #[test]
 fn compact_field_attribute_parts_assembled_in_fixed_order() {
@@ -92,7 +92,7 @@ fn compact_field_attribute_parts_assembled_in_fixed_order() {
 
 // [spec:pgorm:req:macros.derive.one-form/test]    codegen states a `column_type` as the
 // bare expression the derive takes
-// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    `column_type` is emitted
+// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    `column_type` is emitted
 // on every type its field's Rust type does not infer — a length, `char` of any length,
 // a precision and scale, `money`, `text`, `jsonb`, a named type — and on `Float`,
 // `Double` and `Bytea`, spelled as the type's whole `ColumnType` expression
@@ -143,7 +143,7 @@ fn compact_column_type_attribute_covers_ambiguous_types() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+11/test]    a field needing none of
+// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    a field needing none of
 // the parts carries no `#[pgorm]` attribute, and `nullable` never appears
 // without a `column_type`
 #[test]

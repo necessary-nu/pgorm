@@ -16,9 +16,9 @@ pub struct Model {
 pub enum Relation {
     #[pgorm(
         fk_name = "fk-active_enum_child-active_enum",
-        belongs_to = "super::active_enum::Entity",
-        from = "Column::ParentId",
-        to = "super::active_enum::Column::Id"
+        belongs_to = super::active_enum::Entity,
+        from = Column::ParentId,
+        to = super::active_enum::Column::Id
     )]
     ActiveEnum,
 }

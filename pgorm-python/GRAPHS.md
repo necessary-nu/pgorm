@@ -86,7 +86,7 @@ relation matching on a `PERIOD` (`from_period` / `to_period`, PostgreSQL 18's
 temporal foreign key) joins by equality on its key columns and by overlap
 (`&&`) on the two periods, so a row reaches every version of its target whose
 period overlaps its own: one root row per overlapping version. A relation the
-server does not enforce (`enforcement = "NotEnforced"`) may name a row that does
+server does not enforce (`enforcement = Enforcement::NotEnforced`) may name a row that does
 not exist; an optional slot then holds `None` and a required slot drops the
 root row, as for any unmatched join. Deferrability changes when the server
 checks the key, never what a join reads. The entity's `describe()` reports each

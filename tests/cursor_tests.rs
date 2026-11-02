@@ -418,12 +418,12 @@ pub async fn cursor_pagination(db: &DatabaseConnection) -> Result<(), Error> {
 
     cursor.after(5).before(8);
 
-    #[derive(PartialModel, FromQueryResult, Debug, PartialEq, Clone)]
-    #[pgorm(entity = "Entity")]
+    #[derive(PartialModel, Debug, PartialEq, Clone)]
+    #[pgorm(entity = Entity)]
     struct PartialRow {
-        #[pgorm(from_col = "id")]
+        #[pgorm(from_col = Column::Id)]
         id: i32,
-        #[pgorm(from_expr = "pgorm_query::Expr::col(Column::Id).add(1000)")]
+        #[pgorm(from_expr = pgorm_query::Expr::col(Column::Id).add(1000))]
         id_shifted: i32,
     }
 

@@ -21,7 +21,7 @@ mod token {
     #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "token")]
     pub struct Model {
-        #[pgorm(primary_key, auto_increment = false, default_expr = "Func::uuidv7()")]
+        #[pgorm(primary_key, auto_increment = false, default_expr = Func::uuidv7())]
         pub id: Uuid,
         pub written: i32,
     }
@@ -52,8 +52,8 @@ async fn server_clock(db: &DatabaseConnection) -> Result<DateTimeWithTimeZone, E
 
 /// Rows written one after another, each leaving its key to the `uuidv7()`
 /// default, come back in the order they were written when sorted by key alone.
-// [spec:pgorm:def:sql.ast.func+11/test]    a v7 default sorts in minting order
-// [spec:pgorm:def:entity.prelude+10/test]    an entity's `default_expr` names `Func`
+// [spec:pgorm:def:sql.ast.func+12/test]    a v7 default sorts in minting order
+// [spec:pgorm:def:entity.prelude+11/test]    an entity's `default_expr` names `Func`
 // through the prelude
 #[pgorm_macros::test]
 async fn a_uuidv7_key_sorts_in_write_order() -> Result<(), Error> {
@@ -91,7 +91,7 @@ async fn a_uuidv7_key_sorts_in_write_order() -> Result<(), Error> {
 /// `uuid_extract_version` reads 7 off a key the default minted, and
 /// `uuid_extract_timestamp` the millisecond it was minted in, which lies
 /// between the server's clock read before the insert and after it.
-// [spec:pgorm:def:sql.ast.func+11/test]    the readers return the version and the
+// [spec:pgorm:def:sql.ast.func+12/test]    the readers return the version and the
 // minting instant at millisecond precision
 #[pgorm_macros::test]
 async fn the_readers_return_the_version_and_the_instant() -> Result<(), Error> {
@@ -136,7 +136,7 @@ async fn the_readers_return_the_version_and_the_instant() -> Result<(), Error> {
 /// A version 4 UUID — `uuidv4()`, like `gen_random_uuid()` — reads as version
 /// 4 and carries no instant, so the timestamp reader answers `NULL` rather
 /// than failing; a UUID outside the RFC 9562 variant has no version either.
-// [spec:pgorm:def:sql.ast.func+11/test]    the readers answer NULL where there is
+// [spec:pgorm:def:sql.ast.func+12/test]    the readers answer NULL where there is
 // nothing to read
 #[pgorm_macros::test]
 async fn the_readers_answer_null_where_nothing_is_encoded() -> Result<(), Error> {
@@ -175,7 +175,7 @@ async fn the_readers_answer_null_where_nothing_is_encoded() -> Result<(), Error>
 /// `uuidv7(shift)` embeds the instant `shift` away from the clock, so a key
 /// minted with a shift of minus one day reads a day back, and sorts before one
 /// minted unshifted.
-// [spec:pgorm:def:sql.ast.func+11/test]    the shifted overload embeds the
+// [spec:pgorm:def:sql.ast.func+12/test]    the shifted overload embeds the
 // shifted instant
 #[pgorm_macros::test]
 async fn a_shifted_uuidv7_carries_the_moved_instant() -> Result<(), Error> {

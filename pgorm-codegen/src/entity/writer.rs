@@ -301,7 +301,7 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+4]
+    // [spec:pgorm:sem:codegen.entity.enums+5]
     pub fn write_pgorm_active_enums(
         &self,
         with_serde: &WithSerde,
@@ -513,7 +513,7 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.compact.attrs+11]
+    // [spec:pgorm:sem:codegen.entity.compact.attrs+12]
     // [spec:pgorm:sem:codegen.entity.compact.model+2]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_model_struct(

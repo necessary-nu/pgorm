@@ -7,7 +7,8 @@ use quote::quote_spanned;
 use syn::Expr;
 use syn::spanned::Spanned;
 
-use super::util::{PROJECTION_FIELD_KEYS, parse_derived_ident, skip_known_key, unknown_pgorm_key};
+use super::from_query_result::{Decoder, expand_from_query_result};
+use super::util::{bare_code, parse_derived_ident, unknown_pgorm_key};
 
 #[derive(Debug)]
 enum Error {
@@ -21,12 +22,8 @@ enum Error {
 enum ColumnAs {
     /// column in the model
     Col { entity: syn::Type, col: syn::Ident },
-    /// alias from a column in model
-    ColAlias {
-        entity: syn::Type,
-        col: syn::Ident,
-        field: String,
-    },
+    /// a column the field names, aliased to the field
+    ColAlias { col: syn::ExprPath, field: String },
     /// from an expr
     Expr { expr: syn::Expr, field_name: String },
 }
@@ -34,6 +31,9 @@ enum ColumnAs {
 struct PartialModel {
     ident: syn::Ident,
     fields: Vec<ColumnAs>,
+    /// The struct's `FromQueryResult`, which the derive writes beside the
+    /// projection.
+    decode: TokenStream,
 }
 
 impl PartialModel {
@@ -41,6 +41,14 @@ impl PartialModel {
         if !input.generics.params.is_empty() {
             return Err(Error::NotSupportGeneric(input.generics.params.span()));
         }
+
+        let decode = expand_from_query_result(
+            input.ident.clone(),
+            input.data.clone(),
+            input.generics.clone(),
+            Decoder::PartialModel,
+        )
+        .map_err(Error::Syn)?;
 
         let syn::Data::Struct(
             syn::DataStruct {
@@ -67,8 +75,7 @@ impl PartialModel {
                 if entity.is_some() {
                     return Err(meta.error("duplicate `entity`"));
                 }
-                let litstr: syn::LitStr = meta.value()?.parse()?;
-                entity = Some(syn::parse_str::<syn::Type>(&litstr.value())?);
+                entity = Some(bare_code(&meta, "entity")?);
                 Ok(())
             })
             .map_err(Error::Syn)?;
@@ -83,7 +90,7 @@ impl PartialModel {
             // Both trackers accumulate across every meta item of every `#[pgorm(...)]`
             // attribute on the field, so a second key cannot erase the first: a repeat of
             // one key is a duplicate, and one of each is the conflict guarded below.
-            let mut from_col: Option<syn::Ident> = None;
+            let mut from_col: Option<syn::ExprPath> = None;
             let mut from_expr: Option<Expr> = None;
 
             for attr in field.attrs.iter() {
@@ -96,21 +103,18 @@ impl PartialModel {
                         if from_col.is_some() {
                             return Err(meta.error("duplicate `from_col`"));
                         }
-                        let litstr: syn::LitStr = meta.value()?.parse()?;
-                        from_col = Some(parse_derived_ident(
-                            &litstr.value().to_upper_camel_case(),
-                            &field_name,
-                        )?);
+                        from_col = Some(bare_code(&meta, "from_col")?);
                         Ok(())
                     } else if meta.path.is_ident("from_expr") {
                         if from_expr.is_some() {
                             return Err(meta.error("duplicate `from_expr`"));
                         }
-                        let litstr: syn::LitStr = meta.value()?.parse()?;
-                        from_expr = Some(syn::parse_str::<Expr>(&litstr.value())?);
+                        from_expr = Some(bare_code(&meta, "from_expr")?);
+                        Ok(())
+                    } else if meta.path.is_ident("skip") {
                         Ok(())
                     } else {
-                        skip_known_key(&meta, &PROJECTION_FIELD_KEYS)
+                        Err(unknown_pgorm_key(&meta))
                     }
                 })
                 .map_err(Error::Syn)?;
@@ -130,7 +134,6 @@ impl PartialModel {
                     field_name: field_name.to_string(),
                 },
                 (Some(col), None) => ColumnAs::ColAlias {
-                    entity: entity.clone().ok_or(Error::EntityNotSpecific)?,
                     col,
                     field: field_name.to_string(),
                 },
@@ -142,24 +145,26 @@ impl PartialModel {
         Ok(Self {
             ident: input.ident,
             fields: column_as_list,
+            decode,
         })
     }
 
     fn expand(&self) -> syn::Result<TokenStream> {
-        Ok(self.impl_partial_model_trait())
+        let mut expanded = self.impl_partial_model_trait();
+        expanded.extend(self.decode.clone());
+        Ok(expanded)
     }
 
     fn impl_partial_model_trait(&self) -> TokenStream {
         let select_ident = format_ident!("select");
-        let PartialModel { ident, fields } = self;
+        let PartialModel { ident, fields, .. } = self;
         let select_col_code_gen = fields.iter().map(|col_as| match col_as {
             ColumnAs::Col { entity, col: ident } => {
                 let col_value = quote!( <#entity as pgorm::EntityTrait>::Column:: #ident);
                 quote!(let #select_ident =  pgorm::QuerySelect::column(#select_ident, #col_value);)
             },
-            ColumnAs::ColAlias { entity, col, field } => {
-                let col_value = quote!( <#entity as pgorm::EntityTrait>::Column:: #col);
-                quote!(let #select_ident =  pgorm::QuerySelect::column_as(#select_ident, #col_value, pgorm::pgorm_query::alias(#field));)
+            ColumnAs::ColAlias { col, field } => {
+                quote!(let #select_ident =  pgorm::QuerySelect::column_as(#select_ident, #col, pgorm::pgorm_query::alias(#field));)
             },
             ColumnAs::Expr { expr, field_name } => {
                 quote!(let #select_ident =  pgorm::QuerySelect::column_as(#select_ident, #expr, pgorm::pgorm_query::alias(#field_name));)
@@ -178,7 +183,8 @@ impl PartialModel {
     }
 }
 
-// [spec:pgorm:sem:macros.derive.partial-model+4]
+// [spec:pgorm:sem:macros.derive.partial-model+5]
+// [spec:pgorm:req:macros.derive.code-values+2]
 pub fn expand_derive_partial_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
 
@@ -214,16 +220,16 @@ mod test {
 
     #[cfg(test)]
     const CODE_SNIPPET: &str = r#"
-#[pgorm(entity = "Entity")]
+#[pgorm(entity = Entity)]
 struct PartialModel{
     default_field: i32,
-    #[pgorm(from_col = "bar")]
+    #[pgorm(from_col = Column::Bar)]
     alias_field: i32,
-    #[pgorm(from_expr = "Expr::val(1).add(1)")]
+    #[pgorm(from_expr = Expr::val(1).add(1))]
     expr_field : i32
 }
 "#;
-    // [spec:pgorm:sem:macros.derive.partial-model+4/test]
+    // [spec:pgorm:sem:macros.derive.partial-model+5/test]
     #[test]
     fn test_load_macro_input() -> StdResult<()> {
         let input = parse_str::<DeriveInput>(CODE_SNIPPET)?;
@@ -241,8 +247,7 @@ struct PartialModel{
         assert_eq!(
             middle.fields[1],
             ColumnAs::ColAlias {
-                entity: parse_str::<Type>("Entity").unwrap(),
-                col: format_ident!("Bar"),
+                col: parse_str("Column::Bar").unwrap(),
                 field: "alias_field".to_string()
             },
         );

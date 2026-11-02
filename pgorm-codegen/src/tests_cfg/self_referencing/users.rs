@@ -12,15 +12,15 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "Entity",
-        from = "Column::SelfId",
-        to = "Column::Id",
+        belongs_to = Entity,
+        from = Column::SelfId,
+        to = Column::Id,
     )]
     SelfRef2,
     #[pgorm(
-        belongs_to = "Entity",
-        from = "Column::SelfIdd",
-        to = "Column::Id",
+        belongs_to = Entity,
+        from = Column::SelfIdd,
+        to = Column::Id,
     )]
     SelfRef1,
 }

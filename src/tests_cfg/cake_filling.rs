@@ -13,15 +13,15 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, Relation)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "super::cake::Entity",
-        from = "Column::CakeId",
-        to = "super::cake::Column::Id"
+        belongs_to = super::cake::Entity,
+        from = Column::CakeId,
+        to = super::cake::Column::Id
     )]
     Cake,
     #[pgorm(
-        belongs_to = "super::filling::Entity",
-        from = "Column::FillingId",
-        to = "super::filling::Column::Id"
+        belongs_to = super::filling::Entity,
+        from = Column::FillingId,
+        to = super::filling::Column::Id
     )]
     Filling,
 }

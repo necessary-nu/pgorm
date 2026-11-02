@@ -8,9 +8,9 @@ use pgorm::tests_cfg::{cake, filling};
 #[pgorm(entity = Cake)]
 pub enum Relation {
     #[pgorm(
-        belongs_to = "filling::Entity",
-        from = "(cake::Column::Id, cake::Column::Name)",
-        to = "filling::Column::Id"
+        belongs_to = filling::Entity,
+        from = (cake::Column::Id, cake::Column::Name),
+        to = filling::Column::Id
     )]
     Filling,
 }

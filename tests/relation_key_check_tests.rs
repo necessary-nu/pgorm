@@ -29,7 +29,7 @@ mod shelf {
 
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
-        #[pgorm(has_many = "super::loose_book::Entity")]
+        #[pgorm(has_many = super::loose_book::Entity)]
         LooseBook,
     }
 
@@ -57,10 +57,10 @@ mod loose_book {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::shelf::Entity",
-            from = "Column::ShelfId",
-            to = "super::shelf::Column::Id",
-            enforcement = "NotEnforced"
+            belongs_to = super::shelf::Entity,
+            from = Column::ShelfId,
+            to = super::shelf::Column::Id,
+            enforcement = Enforcement::NotEnforced
         )]
         Shelf,
     }
@@ -89,10 +89,10 @@ mod later_book {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::shelf::Entity",
-            from = "Column::ShelfId",
-            to = "super::shelf::Column::Id",
-            deferrability = "DeferrableInitiallyDeferred"
+            belongs_to = super::shelf::Entity,
+            from = Column::ShelfId,
+            to = super::shelf::Column::Id,
+            deferrability = Deferrability::DeferrableInitiallyDeferred
         )]
         Shelf,
     }
@@ -116,9 +116,9 @@ mod tight_book {
     #[derive(Copy, Clone, Debug, EnumIter, Relation)]
     pub enum Relation {
         #[pgorm(
-            belongs_to = "super::shelf::Entity",
-            from = "Column::ShelfId",
-            to = "super::shelf::Column::Id"
+            belongs_to = super::shelf::Entity,
+            from = Column::ShelfId,
+            to = super::shelf::Column::Id
         )]
         Shelf,
     }

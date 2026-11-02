@@ -2,9 +2,10 @@ use super::sql_type_match::{arr_type_match, col_type_match, unwrap_option};
 use super::util::bare_code;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Ident, Lit, Type, spanned::Spanned};
+use syn::{Ident, Type, spanned::Spanned};
 
-// [spec:pgorm:sem:macros.derive.value-type+5]
+// [spec:pgorm:sem:macros.derive.value-type+6]
+// [spec:pgorm:req:macros.derive.code-values+2]
 pub fn expand_derive_value_type(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let syn::DeriveInput {
         ident: name,
@@ -43,13 +44,7 @@ pub fn expand_derive_value_type(input: syn::DeriveInput) -> syn::Result<TokenStr
             if meta.path.is_ident("column_type") {
                 col_type = Some(bare_code(&meta, "column_type")?);
             } else if meta.path.is_ident("array_type") {
-                let lit = meta.value()?.parse()?;
-                if let Lit::Str(litstr) = lit {
-                    let ty: TokenStream = syn::parse_str(&litstr.value())?;
-                    arr_type = Some(ty);
-                } else {
-                    return Err(meta.error("Invalid array_type: expected a string literal"));
-                }
+                arr_type = Some(bare_code(&meta, "array_type")?);
             } else {
                 return Err(meta.error("Invalid attribute: expected `column_type` or `array_type`"));
             }

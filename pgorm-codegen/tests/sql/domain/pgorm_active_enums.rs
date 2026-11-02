@@ -1,7 +1,7 @@
 use pgorm::entity::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]
-#[pgorm(rs_type = "String", db_type = "Enum", enum_name = "mood")]
+#[pgorm(rs_type = String, enum_name = "mood")]
 pub enum Mood {
     #[pgorm(string_value = "sad")]
     Sad,

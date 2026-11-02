@@ -544,11 +544,11 @@ fn transform_turns_foreign_keys_into_belongs_to_relations() {
     assert_contains(
         generated.file("fruit.rs"),
         r#"#[pgorm(
-            belongs_to = "super::cake::Entity",
-            from = "(Column::CakeId, Column::CakeKind)",
-            to = "(super::cake::Column::Id, super::cake::Column::Kind)",
-            on_update = "Cascade",
-            on_delete = "SetNull",
+            belongs_to = super::cake::Entity,
+            from = (Column::CakeId, Column::CakeKind),
+            to = (super::cake::Column::Id, super::cake::Column::Kind),
+            on_update = ForeignKeyAction::Cascade,
+            on_delete = ForeignKeyAction::SetNull,
         )]"#,
     );
 }
@@ -564,7 +564,7 @@ fn transform_flags_self_referencing_relations() {
 
     assert_contains(
         generated.file("users.rs"),
-        r#"#[pgorm(belongs_to = "Entity", from = "Column::ManagerId", to = "Column::Id",)] SelfRef,"#,
+        r#"#[pgorm(belongs_to = Entity, from = Column::ManagerId, to = Column::Id,)] SelfRef,"#,
     );
 }
 
@@ -623,18 +623,18 @@ fn transform_numbers_repeated_fks_to_same_table() {
     assert_contains(
         basket,
         r#"#[pgorm(
-            belongs_to = "super::fruit::Entity",
-            from = "Column::FruitId1",
-            to = "super::fruit::Column::Id",
+            belongs_to = super::fruit::Entity,
+            from = Column::FruitId1,
+            to = super::fruit::Column::Id,
         )]
         Fruit2,"#,
     );
     assert_contains(
         basket,
         r#"#[pgorm(
-            belongs_to = "super::fruit::Entity",
-            from = "Column::FruitId2",
-            to = "super::fruit::Column::Id",
+            belongs_to = super::fruit::Entity,
+            from = Column::FruitId2,
+            to = super::fruit::Column::Id,
         )]
         Fruit1,"#,
     );
@@ -642,9 +642,9 @@ fn transform_numbers_repeated_fks_to_same_table() {
     assert_contains(
         basket,
         r#"#[pgorm(
-            belongs_to = "super::cake::Entity",
-            from = "Column::CakeId",
-            to = "super::cake::Column::Id",
+            belongs_to = super::cake::Entity,
+            from = Column::CakeId,
+            to = super::cake::Column::Id,
         )]
         Cake,"#,
     );
@@ -717,10 +717,10 @@ fn inverse_has_many_for_non_unique_foreign_key() {
 
     assert_contains(
         generated.file("cake.rs"),
-        r#"#[pgorm(has_many = "super::fruit::Entity")] Fruit,"#,
+        r#"#[pgorm(has_many = super::fruit::Entity)] Fruit,"#,
     );
     // the inverse carries no from/to
-    assert_not_contains(generated.file("cake.rs"), r#"from = "Column::CakeId""#);
+    assert_not_contains(generated.file("cake.rs"), "from = Column::CakeId");
 }
 
 // [spec:pgorm:sem:codegen.entity.transform.inverse+1/test]    a FK whose every
@@ -752,7 +752,7 @@ fn inverse_has_one_for_unique_foreign_key() {
 
     assert_contains(
         generated.file("cake.rs"),
-        r#"#[pgorm(has_one = "super::fruit::Entity")] Fruit,"#,
+        r#"#[pgorm(has_one = super::fruit::Entity)] Fruit,"#,
     );
 }
 
@@ -784,7 +784,7 @@ fn inverse_has_one_for_whole_primary_key_fk() {
 
     assert_contains(
         generated.file("users.rs"),
-        r#"#[pgorm(has_one = "super::profile::Entity")] Profile,"#,
+        r#"#[pgorm(has_one = super::profile::Entity)] Profile,"#,
     );
 }
 
@@ -874,11 +874,11 @@ fn inverse_has_one_for_composite_unique_foreign_key() {
 
     assert_contains(
         cake_file,
-        r#"#[pgorm(has_one = "super::fruit::Entity")] Fruit,"#,
+        r#"#[pgorm(has_one = super::fruit::Entity)] Fruit,"#,
     );
     assert_contains(
         cake_file,
-        r#"#[pgorm(has_many = "super::crumb::Entity")] Crumb,"#,
+        r#"#[pgorm(has_many = super::crumb::Entity)] Crumb,"#,
     );
     // neither column is unique on its own
     assert_not_contains(generated.file("fruit.rs"), "#[pgorm(unique)] pub cake_id");
@@ -919,7 +919,7 @@ fn inverse_has_one_for_inline_unique_key_column() {
     );
     assert_contains(
         generated.file("cake.rs"),
-        r#"#[pgorm(has_one = "super::fruit::Entity")] Fruit,"#,
+        r#"#[pgorm(has_one = super::fruit::Entity)] Fruit,"#,
     );
 }
 
@@ -934,8 +934,8 @@ fn no_inverse_for_self_referencing_or_suffixed_relations() {
     let users = self_ref.file("users.rs");
     // exactly the one `SelfRef` variant, no synthesised back-reference
     assert_contains(users, "SelfRef,");
-    assert_not_contains(users, r#"has_many = "Entity""#);
-    assert_not_contains(users, r#"has_one = "Entity""#);
+    assert_not_contains(users, "has_many = Entity");
+    assert_not_contains(users, "has_one = Entity");
 
     let suffixed = generate(
         vec![
@@ -1018,8 +1018,8 @@ fn inverse_dropped_when_target_already_relates_back() {
         ("bills.rs", "super::users::Entity"),
     ] {
         let content = generated.file(file);
-        assert_contains(content, &format!(r#"belongs_to = "{target}""#));
-        assert_not_contains(content, &format!(r#"has_many = "{target}""#));
+        assert_contains(content, &format!("belongs_to = {target}"));
+        assert_not_contains(content, &format!("has_many = {target}"));
     }
 }
 
@@ -1100,7 +1100,7 @@ fn fks_outside_the_primary_key_are_not_junctions() {
         let content = generated.file(file);
         assert_contains(
             content,
-            r#"#[pgorm(has_many = "super::audit_events::Entity")] AuditEvents,"#,
+            r#"#[pgorm(has_many = super::audit_events::Entity)] AuditEvents,"#,
         );
         assert_not_contains(content, "fn via() -> Option<RelationDef>");
         assert_not_contains(
@@ -1211,7 +1211,7 @@ fn duplicated_many_to_many_paths_generate_no_conjunct() {
     );
     assert_contains(
         generated.file("users.rs"),
-        r#"#[pgorm(has_many = "super::users_votes::Entity")] UsersVotes,"#,
+        r#"#[pgorm(has_many = super::users_votes::Entity)] UsersVotes,"#,
     );
 }
 
@@ -1233,10 +1233,7 @@ fn conjunct_relation_suppresses_the_plain_related_impl() {
     let users = generated.file("users.rs");
 
     // the Relation variant survives ...
-    assert_contains(
-        users,
-        r#"#[pgorm(has_many = "super::bills::Entity")] Bills,"#,
-    );
+    assert_contains(users, r#"#[pgorm(has_many = super::bills::Entity)] Bills,"#);
     // ... but the plain `Related` impl is replaced by the conjunct one
     assert_not_contains(
         users,

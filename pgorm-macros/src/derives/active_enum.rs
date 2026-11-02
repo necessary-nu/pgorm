@@ -1,9 +1,9 @@
 use super::case_style::{CaseStyle, CaseStyleHelpers};
-use super::util::camel_case_with_escaped_non_uax31;
+use super::util::{bare_code, camel_case_with_escaped_non_uax31};
 use heck::ToUpperCamelCase;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
-use syn::{Expr, Lit, LitInt, LitStr, UnOp, parse};
+use syn::{Expr, Lit, LitInt, LitStr, Type, UnOp, parse};
 
 enum Error {
     InputNotEnum,
@@ -14,7 +14,9 @@ enum Error {
 struct ActiveEnum {
     ident: syn::Ident,
     enum_name: String,
-    rs_type: TokenStream,
+    rs_type: Type,
+    /// The column type the values are stored as, the expression `db_type`
+    /// wrote, or else the PostgreSQL enum of the string values.
     db_type: TokenStream,
     is_string: bool,
     variants: Vec<ActiveEnumVariant>,
@@ -31,7 +33,8 @@ struct ActiveEnumVariant {
 }
 
 impl ActiveEnum {
-    // [spec:pgorm:syn:macros.derive.active-enum+3]
+    // [spec:pgorm:syn:macros.derive.active-enum+4]
+    // [spec:pgorm:req:macros.derive.code-values+2]
     fn new(input: syn::DeriveInput) -> Result<Self, Error> {
         let ident_span = input.ident.span();
         let ident = input.ident;
@@ -40,12 +43,9 @@ impl ActiveEnum {
         let mut rs_type = Err(Error::TT(quote_spanned! {
             ident_span => compile_error!("Missing macro attribute `rs_type`");
         }));
-        let mut db_type = Err(Error::TT(quote_spanned! {
-            ident_span => compile_error!("Missing macro attribute `db_type`");
-        }));
+        let mut db_type: Option<Expr> = None;
         let mut rename_all = None;
         let mut schema_name: Option<String> = None;
-        let mut db_type_is_enum = false;
         let mut display = false;
 
         input
@@ -55,21 +55,9 @@ impl ActiveEnum {
             .try_for_each(|attr| {
                 attr.parse_nested_meta(|meta| {
                     if meta.path.is_ident("rs_type") {
-                        let litstr: LitStr = meta.value()?.parse()?;
-                        rs_type =
-                            syn::parse_str::<TokenStream>(&litstr.value()).map_err(Error::Syn);
+                        rs_type = Ok(bare_code(&meta, "rs_type")?);
                     } else if meta.path.is_ident("db_type") {
-                        let litstr: LitStr = meta.value()?.parse()?;
-                        let s = litstr.value();
-                        match s.as_ref() {
-                            "Enum" => {
-                                db_type_is_enum = true;
-                                db_type = Ok(TokenStream::new());
-                            }
-                            _ => {
-                                db_type = syn::parse_str::<TokenStream>(&s).map_err(Error::Syn);
-                            }
-                        }
+                        db_type = Some(bare_code(&meta, "db_type")?);
                     } else if meta.path.is_ident("schema_name") {
                         let litstr: LitStr = meta.value()?.parse()?;
                         schema_name = Some(litstr.value());
@@ -91,22 +79,6 @@ impl ActiveEnum {
                 })
                 .map_err(Error::Syn)
             })?;
-
-        if db_type_is_enum {
-            let schema = match &schema_name {
-                Some(schema) => quote! {
-                    Some(pgorm::pgorm_query::Name::runtime(#schema))
-                },
-                None => quote! { None },
-            };
-            db_type = Ok(quote! {
-                Enum {
-                    name: Self::name(),
-                    schema: #schema,
-                    variants: Self::name_values(),
-                }
-            });
-        }
 
         let variant_vec = match input.data {
             syn::Data::Enum(syn::DataEnum { variants, .. }) => variants,
@@ -216,11 +188,37 @@ impl ActiveEnum {
             });
         }
 
+        // With no `db_type`, the values are a PostgreSQL enum's, which only
+        // an enum of strings has.
+        let db_type = match db_type {
+            Some(db_type) => quote! { #db_type },
+            None if is_string => {
+                let schema = match &schema_name {
+                    Some(schema) => quote! {
+                        Some(pgorm::pgorm_query::Name::runtime(#schema))
+                    },
+                    None => quote! { None },
+                };
+                quote! {
+                    pgorm::ColumnType::Enum {
+                        name: Self::name(),
+                        schema: #schema,
+                        variants: Self::name_values(),
+                    }
+                }
+            }
+            None => {
+                return Err(Error::TT(quote_spanned! {
+                    ident_span => compile_error!("Missing macro attribute `db_type`: an enum stored as numbers names its column type, `db_type = ColumnType::Integer`");
+                }));
+            }
+        };
+
         Ok(ActiveEnum {
             ident,
             enum_name,
             rs_type: rs_type?,
-            db_type: db_type?,
+            db_type,
             is_string,
             variants,
             rename_all,
@@ -228,7 +226,7 @@ impl ActiveEnum {
         })
     }
 
-    // [spec:pgorm:sem:macros.derive.active-enum.expansion+3]
+    // [spec:pgorm:sem:macros.derive.active-enum.expansion+4]
     fn expand(&self) -> syn::Result<TokenStream> {
         let mut expanded = self.impl_active_enum();
         if self.display {
@@ -238,7 +236,7 @@ impl ActiveEnum {
         Ok(expanded)
     }
 
-    // [spec:pgorm:sem:macros.derive.active-enum.expansion+3]
+    // [spec:pgorm:sem:macros.derive.active-enum.expansion+4]
     fn impl_display(&self) -> TokenStream {
         let ident = &self.ident;
         let variant_idents = self.variants.iter().map(|variant| &variant.ident);
@@ -317,6 +315,7 @@ impl ActiveEnum {
                     .map(|string_value| string_value.value())
                     .or(variant
                         .rename
+                        .or(*rename_all)
                         .map(|rename| variant.ident.convert_case(Some(rename))))
             })
             .collect();
@@ -427,7 +426,7 @@ impl ActiveEnum {
                 }
 
                 fn db_type() -> pgorm::ColumnDef {
-                    pgorm::prelude::ColumnTypeTrait::def(pgorm::ColumnType::#db_type)
+                    pgorm::prelude::ColumnTypeTrait::def(#db_type)
                 }
             }
 

@@ -83,10 +83,7 @@ fn entity_model_carries_column_relation_and_pk_facts() {
         r#"#[pgorm(column_type = ColumnType::Text, nullable)] pub name: Option<String>,"#,
     );
     // relations
-    assert_contains(
-        cake,
-        r#"#[pgorm(has_many = "super::fruit::Entity")] Fruit,"#,
-    );
+    assert_contains(cake, r#"#[pgorm(has_many = super::fruit::Entity)] Fruit,"#);
     // conjunct relations, reached through the junction table
     assert_contains(cake, "impl Related<super::filling::Entity> for Entity");
 

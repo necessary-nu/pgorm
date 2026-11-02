@@ -1,5 +1,0 @@
-error: 'enforcement' must be one of Enforced, NotEnforced
-  --> tests/compile-fail/relation_unknown_enforcement.rs:14:23
-   |
-14 |         enforcement = "Lax"
-   |                       ^^^^^

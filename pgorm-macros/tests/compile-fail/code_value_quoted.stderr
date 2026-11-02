@@ -1,0 +1,59 @@
+error: `belongs_to` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/code_value_quoted.rs:10:30
+   |
+10 |         #[pgorm(belongs_to = "super::Parent", from = Column::ParentId, to = Column::Id)]
+   |                              ^^^^^^^^^^^^^^^
+
+error: `on_delete` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/code_value_quoted.rs:20:54
+   |
+20 |         #[pgorm(has_many = super::Child, on_delete = "Cascade")]
+   |                                                      ^^^^^^^^^
+
+error: `condition_type` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/code_value_quoted.rs:30:59
+   |
+30 |         #[pgorm(has_many = super::Child, condition_type = "any")]
+   |                                                           ^^^^^
+
+error: `rs_type` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/code_value_quoted.rs:36:19
+   |
+36 | #[pgorm(rs_type = "String")]
+   |                   ^^^^^^^^
+
+error: `db_type` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/code_value_quoted.rs:43:34
+   |
+43 | #[pgorm(rs_type = i32, db_type = "Integer")]
+   |                                  ^^^^^^^^^
+
+error: `array_type` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/code_value_quoted.rs:50:22
+   |
+50 | #[pgorm(array_type = "Int")]
+   |                      ^^^^^
+
+error: `entity` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/code_value_quoted.rs:54:18
+   |
+54 | #[pgorm(entity = "Entity")]
+   |                  ^^^^^^^^
+
+error: `from_expr` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/code_value_quoted.rs:61:25
+   |
+61 |     #[pgorm(from_expr = "Expr::val(1)")]
+   |                         ^^^^^^^^^^^^^^
+
+error: `variant` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/code_value_quoted.rs:67:23
+   |
+67 |     #[pgorm(variant = "Id")]
+   |                       ^^^^
+
+error: `default_expr` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/code_value_quoted.rs:79:32
+   |
+79 |         #[pgorm(default_expr = "Func::uuidv7()")]
+   |                                ^^^^^^^^^^^^^^^^

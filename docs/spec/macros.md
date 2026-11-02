@@ -93,7 +93,7 @@ known limitations.
 > beside derive_more's and strum's, and pgorm-macros' own name derive is
 > folded into pgorm-query's `SqlName`, which already does more.
 
-> [spec:pgorm:req:macros.derive.code-values]
+> [spec:pgorm:req:macros.derive.code-values+2]
 > An attribute value that is Rust code MUST be written as Rust code — a path
 > as a path, a type as a type, an expression as an expression — and is
 > taken as written, with no implicit prefix: `belongs_to =
@@ -111,9 +111,14 @@ known limitations.
 > `multirange_name`, `iden`, `comment`, and the `select_as` and `save_as`
 > cast types — as do the case styles of `rename` and `rename_all`, which
 > are not Rust. A string where code is expected MUST be a compile error
-> spanned on the string, saying to remove the quotes. On a model field, the
-> key naming the field's `Column` variant is `variant`, so `enum_name`
-> names a SQL type wherever it appears.
+> spanned on the string, saying to remove the quotes. `default_value` is an
+> expression of the column's value, which a string literal is, so
+> `default_value = "untitled"` is the string it spells. On a model field,
+> the key naming the field's `Column` variant is `variant`, so `enum_name`
+> names a SQL type wherever it appears. The names the values take for
+> granted — `ColumnType`, `ForeignKeyAction`, `Deferrability`,
+> `Enforcement`, `ConditionType` and `ArrayType` — are members of the entity
+> prelude (`[spec:pgorm:def:entity.prelude]`).
 
 > [spec:pgorm:sem:macros.derive.boilerplate]
 > A derive MUST write what follows from what it was told, so an entity's
@@ -139,7 +144,7 @@ known limitations.
 
 ## The composite derive
 
-> [spec:pgorm:sem:macros.derive.entity-model+7]
+> [spec:pgorm:sem:macros.derive.entity-model+8]
 > `Entity` is the composite derive: applied to a `Model` struct, it expands
 > the entity-model generation, re-runs the `Model` derive on the same input and writes the
 > `ActiveModel` (`macros.derive.active-model`), so one derive yields the full entity
@@ -188,7 +193,7 @@ known limitations.
 > `#[serde(rename = "..")]` on the field, taking the deserialize half where either is
 > written in the split `(serialize = .., deserialize = ..)` form. Every other `serde`
 > parameter is stepped over unread. Column naming does not take part in either
-> direction — `#[pgorm(column_name)]` and `#[pgorm(enum_name)]` move the SQL name and
+> direction — `#[pgorm(column_name)]` and `#[pgorm(variant)]` move the SQL name and
 > the variant, not the key — which is the point of the two namespaces being separate
 > (`[spec:pgorm:def:entity.traits.column]`).
 
@@ -201,7 +206,7 @@ known limitations.
 > <https://github.com/pgorm-rs/pgorm/issues/485> for details." spanned at the struct's
 > identifier, and no `PrimaryKey` enum.
 
-> [spec:pgorm:syn:macros.derive.entity-model.attrs+6]
+> [spec:pgorm:syn:macros.derive.entity-model.attrs+7]
 > Struct-level `#[pgorm(...)]` keys recognised by the `Entity` derive: `table_name = Lit`,
 > `schema_name = Lit`, `comment = Lit`, bare `table_iden`, and `rename_all = "style"`
 > (case styles per the strum-derived list: `camelCase`, `PascalCase`, `kebab-case`,
@@ -213,44 +218,50 @@ known limitations.
 >
 > Field-level keys: bare `primary_key`, `without_overlaps`, `nullable`, `indexed`,
 > `unique`, `ignore`, `identity`, `identity_by_default`;
-> `auto_increment = bool`; `column_type = <expr>`, any expression of type `ColumnType`
-> written bare; `column_name = "string"`;
-> `enum_name = "Ident"`; `default_value = Lit`; `default_expr = "expr"`;
-> `generated_stored = "expr"`; `generated_virtual = "expr"`; `comment = Lit`;
-> `select_as = "sql type"`; `save_as = "sql type"`; `select_with = path`,
-> `save_with = path` and `save_array_with = path`, each a function written bare.
-> String-typed keys reject non-string literals with an `Invalid <key> ...` error, and
-> a string where code is expected — `column_type = "Text"`, `select_with = "f"` — is
+> `auto_increment = bool`; `column_type = <expr>`, any expression of type `ColumnType`;
+> `column_name = "string"`; `variant = Ident`, the field's `Column` variant;
+> `default_value = <expr>`; `default_expr = <expr>`; `generated_stored = <expr>`;
+> `generated_virtual = <expr>`; `comment = Lit`; `select_as = "sql type"`;
+> `save_as = "sql type"`; `select_with = path`, `save_with = path` and
+> `save_array_with = path`, each a function. Every value that is Rust code is
+> written bare (`macros.derive.code-values`). String-typed keys reject non-string
+> literals with an `Invalid <key> ...` error, and a string where code is expected —
+> `column_type = "Text"`, `default_expr = "Func::uuidv7()"`, `select_with = "f"` — is
 > the compile error "`<key>` is Rust code, written bare: remove the quotes", spanned
-> at the string.
+> at the string. `enum_name` on a field is refused at the key, saying the key naming a
+> field's `Column` variant is `variant`.
 >
 > A key outside the recognised set, at either level, MUST be the compile error
 > "unknown pgorm attribute `<key>`" spanned at the key itself, so a typo — a
 > `auto_incremnt = false` that would otherwise leave `auto_increment` at its `true`
 > default and render `bigserial` where the author asked for `bigint` — is diagnosed
-> rather than dropped. The same refusal governs what reads a subset of this vocabulary
-> off the same input: the `Model` derive and the composite's `ActiveModel` read only
-> `enum_name` (and `ignore`) but MUST accept every field-level key above, because
-> the composite runs both over the whole entity model; the `Column` derive reads
-> `column_name` and MUST also accept the `table_name` that rides on the `table_iden`
-> variant. Keys a derive accepts but does not read are consumed — including their
-> `= value` when they carry one — to advance the parse stream.
+> rather than dropped. The same refusal governs what reads a subset of this vocabulary,
+> and depends on which derive is reading. The composite runs `Model` and writes the
+> `ActiveModel` over its own input after refusing what the vocabulary does not hold,
+> so those two read a field's `variant` (and `ignore`) and step over every other
+> field-level key above, consuming its `= value`, and leave the container to the
+> composite. Derived by the program on a further model, `Model` reads the container's
+> `entity` and a field's `variant` and `ignore`, and MUST refuse every other key at
+> the key: one of the composite's container or field keys saying it is the
+> composite's, any other as unknown. The `Column` derive reads a variant's
+> `column_name` and refuses any other key, on a variant or on the enum; the `Table`
+> variant `table_iden` adds carries none.
 
-> [spec:pgorm:sem:macros.derive.entity-model.casing+3]
+> [spec:pgorm:sem:macros.derive.entity-model.casing+4]
 > Column-variant naming: the field identifier is stripped of a leading `r#`, converted
 > to UpperCamelCase, and then keyword-escaped — any of the 49 reserved Rust keywords
 > becomes a raw identifier (`r#type`), while `crate`/`Self`/`self` get a trailing
-> underscore. An `enum_name` attribute replaces the computed variant name entirely (and
-> is itself keyword-escaped).
+> underscore. A `variant` key replaces the computed variant name entirely with the
+> identifier it is written as, a raw identifier included.
 >
 > Case conversion drops characters that are neither alphanumeric nor word boundaries, so
 > the derived name can fail to spell an identifier: the legal field names `__` and `_1`
 > derive `""` and `"1"`. Each MUST be a compile error naming the field and the derived
 > spelling, spanned at the field identifier, rather than a panic inside `Ident::new`.
 > Validity is judged on the keyword-escaped spelling, so `SELF` — which derives `Self`
-> and escapes to `Self_` — stays legal. An `enum_name` literal that does not spell an
-> identifier is likewise a compile error, spanned at the literal. The same rules govern
-> the variant names the `Model` derive and the composite's `ActiveModel` compute.
+> and escapes to `Self_` — stays legal. A `variant` value that is not an identifier
+> is a compile error at the value. The same rules govern the variant names the `Model`
+> derive and the composite's `ActiveModel` compute.
 >
 > The SQL column name is attached as `#[pgorm(column_name = "...")]` on the generated
 > variant only when needed: an explicit `column_name` always wins; with `rename_all`,
@@ -258,9 +269,10 @@ known limitations.
 > field name does not survive a UpperCamelCase-then-snake_case round trip (e.g. `_id`,
 > `id_` or names with double underscores), the snake_case of the original name is pinned.
 > Fields that are already clean snake_case get no attribute, and their SQL name falls out
-> of the `Column` derive's default (snake_case of the variant).
+> of the `Column` derive's default (snake_case of the variant), so a field given a
+> `variant` and no `column_name` names its column after the variant.
 
-> [spec:pgorm:sem:macros.derive.entity-model.column-def+9]
+> [spec:pgorm:sem:macros.derive.entity-model.column-def+10]
 > Each `def()` arm builds `ColumnTypeTrait::def(<column type>)`. The column type is the
 > `column_type` expression if present, taken as written with no implicit prefix, so a
 > helper's call (`column_type = varchar(40)`) or a type named at run time is one;
@@ -303,14 +315,14 @@ known limitations.
 > An `Option<T>` wrapper — a bare, single-segment `Option` with exactly one type
 > argument — is unwrapped one level to `T` and forces `nullable`. Modifier calls are
 > then chained in order: `.nullable()`, `.indexed()`, `.unique()`,
-> `.default_value(lit)`, `.comment(lit)`, `.default(expr)` (from `default_expr`),
+> `.default_value(expr)` (from `default_value`), `.comment(lit)`, `.default(expr)` (from `default_expr`),
 > `.identity()` or `.identity_by_default()` (from the key of the same name), and
 > `.generated(expr, GeneratedKind::Stored)` or `.generated(expr, GeneratedKind::Virtual)`
 > (from `generated_stored` / `generated_virtual`).
 >
-> A generated column's expression is a Rust expression, as `default_expr`'s is,
-> written in the entity's own module, so it names the row's columns as `Column`
-> variants: `generated_stored = "Expr::col(Column::Price).mul(Expr::col(Column::Quantity))"`.
+> A generated column's expression is a Rust expression written bare, as `default_expr`'s
+> is, in the entity's own module, so it names the row's columns as `Column`
+> variants: `generated_stored = Expr::col(Column::Price).mul(Expr::col(Column::Quantity))`.
 > The kind is in the key's name and has no default, for the reason the builder's
 > `generated` takes it as an argument (`[spec:pgorm:req:sql.ddl.column-def]`).
 > Each combination PostgreSQL refuses for a generated column MUST be a compile error
@@ -424,21 +436,22 @@ known limitations.
 
 ## Column, Model and ActiveModel derives
 
-> [spec:pgorm:sem:macros.derive.column+5]
+> [spec:pgorm:sem:macros.derive.column+6]
 > The `Column` derive (enums only; other inputs are a compile error) generates: an inherent
 > `default_as_str` returning the snake_case of the variant name or a
 > `#[pgorm(column_name = "...")]` override; a `FromStr` impl accepting either the
 > snake_case or the lowerCamelCase spelling of each variant and returning
 > `ColumnFromStrError(input)` otherwise; an `SqlName` impl writing `StaticName::as_str`; and
 > an `StaticName` impl whose `as_str` is `default_as_str`. A column whose name is not
-> snake_case says so with `column_name`. The derive adds no `EnumIter`; callers derive
-> it alongside.
+> snake_case says so with `column_name`, the one key the derive reads: any other key,
+> on a variant or on the enum, is the compile error "unknown pgorm attribute `<key>`"
+> spanned at the key. The derive adds no `EnumIter`; callers derive it alongside.
 
-> [spec:pgorm:sem:macros.derive.model+4]
+> [spec:pgorm:sem:macros.derive.model+5]
 > The `Model` derive (named-field structs only; otherwise a compile error) generates two
 > impls. `FromQueryResult`: each field is read with
 > `row.try_get(pre, Column::<Variant>.as_str())`, where the variant name follows the
-> same trim/UpperCamelCase/keyword-escape/`enum_name` rules as
+> same trim/UpperCamelCase/keyword-escape/`variant` rules as
 > `[spec:pgorm:sem:macros.derive.entity-model.casing]`; `#[pgorm(ignore)]` fields are
 > filled with `Default::default()` instead. `expected_columns` reports the same
 > column names, each paired with its field type's spelling and that type's
@@ -450,8 +463,12 @@ known limitations.
 > `get` on them panics with "field does not exist on {Model}" and `set` returns that
 > same text as `Error::Type`. The
 > target entity defaults to `Entity`, overridable via `#[pgorm(entity = Ident)]`.
+> Derived by the program, the derive reads that `entity` and a field's `variant` and
+> `ignore` and nothing else, refusing any other key at the key; run by the composite,
+> it reads a field's `variant` and `ignore` and leaves the rest of the input to the
+> composite (`macros.derive.entity-model.attrs`).
 
-> [spec:pgorm:sem:macros.derive.active-model+5]
+> [spec:pgorm:sem:macros.derive.active-model+6]
 > The composite derive writes, beside its `Model`, a
 > `pub struct ActiveModel` — name and entity are hard-coded as `ActiveModel`/`Entity` —
 > with one `pub field: ActiveValue<T>` per non-ignored field, plus: `Default`
@@ -473,46 +490,53 @@ known limitations.
 > empty `impl ActiveModelBehavior for ActiveModel {}` where the entity has no hooks.
 > The `IntoActiveModel` derive (named-field structs only) generates an
 > `IntoActiveModel<A>` impl — `A` defaults to `ActiveModel`, overridable with
-> `#[pgorm(active_model = Ident)]` — that converts each field via
+> `#[pgorm(active_model = Ident)]`, the one key it reads on every `#[pgorm(...)]` of the
+> struct, any other key there or on a field being a compile error at the key — that
+> converts each field via
 > `IntoActiveValue::into_active_value(..).into()` and fills the remainder with
 > `..Default::default()`, enabling partial "form" structs.
 
 ## Active enums
 
-> [spec:pgorm:syn:macros.derive.active-enum+3]
+> [spec:pgorm:syn:macros.derive.active-enum+4]
 > The `ActiveEnum` derive applies to enums only ("you can only derive `ActiveEnum` on
 > enums").
-> Container attributes: `rs_type = "Type"` and `db_type = "ColumnType expr"` are
-> mandatory — missing either produces the compile error "Missing macro attribute
-> `rs_type`"/"`db_type`" — while `enum_name = "string"` (defaulting to the
-> UpperCamelCase of the enum name), `schema_name = "string"`,
-> `rename_all = "style"` and the bare `display` are optional. The special
-> spelling `db_type = "Enum"` expands to
-> `Enum { name: Self::name(), schema, variants: Self::name_values() }`, where
-> `schema` is the `schema_name` attribute as an iden when given and `None`
-> otherwise — attribute order does not matter. Variant attributes:
+> Container attributes: `rs_type = Type`, the values' type written as a type
+> (`rs_type = String`, `rs_type = i32`), is mandatory — missing, it produces the compile
+> error "Missing macro attribute `rs_type`". `db_type = <expr>`, the `ColumnType` the
+> values are stored as, written as an expression and taken as written
+> (`db_type = ColumnType::Integer`), is optional for an enum of strings: without it the
+> values are a PostgreSQL enum's,
+> `ColumnType::Enum { name: Self::name(), schema, variants: Self::name_values() }`, where
+> `schema` is the `schema_name` attribute as a name when given and `None` otherwise. An
+> enum of numbers without one is the compile error "Missing macro attribute `db_type`",
+> naming an expression to write. No spelling of `db_type` stands for the enum type: a
+> `db_type` is always the expression written. `enum_name = "string"` (defaulting to the UpperCamelCase of the enum name),
+> `schema_name = "string"`, `rename_all = "style"` and the bare `display` are optional,
+> and attribute order does not matter. Variant attributes:
 > `string_value = "s"`, `num_value = int`, `rename = "style"`, and
 > `display_value = "s"`, which only `display` reads, so without `display` it is a
 > compile error spanned at its value rather than text dropped unread. Unknown keys at
 > either level are
-> rejected with "Unknown attribute parameter found" — unlike the entity derives, which
-> skip them. String-flavoured markers (`string_value`, `rename`, `rename_all`) and
+> rejected with "Unknown attribute parameter found". String-flavoured markers (`string_value`, `rename`, `rename_all`) and
 > `num_value` are mutually exclusive across the whole enum; mixing them is the compile
 > error "All enum variants should specify the same `*_value` macro attribute...". A
 > variant with no attribute falls back to its integer discriminant, including negative
 > literals written with unary minus (other unary operators are rejected); a variant with
 > neither attribute nor usable discriminant is a compile error.
 
-> [spec:pgorm:sem:macros.derive.active-enum.expansion+3]
+> [spec:pgorm:sem:macros.derive.active-enum.expansion+4]
 > The expansion generates: a unit struct `{Enum}Enum` with an `SqlName` impl writing the
-> `enum_name`; when any variant has a string value (explicit or via rename), an enum
+> `enum_name`; when any variant has a string value (explicit, or through `rename` or
+> `rename_all`), an enum
 > `{Enum}Variant` deriving `EnumIter` with an `SqlName` impl writing the raw string values
 > and an inherent `name_values()` returning them as `Name`s; an `ActiveEnum` impl
 > with `Value = rs_type`, `ValueVec = Vec<rs_type>`, `name()` returning the
 > `{Enum}Enum` iden, `to_value()` matching variants to their values, `try_from_value()`
 > matching back (comparing `v.as_ref()` for strings) and failing with
 > `Error::Type("unexpected value for {Enum} enum: ...")`, and `db_type()` building a
-> `ColumnDef` from the `db_type` tokens; plus `TryGetable`, `TryGetableArray`,
+> `ColumnDef` from the `db_type` expression, or from the PostgreSQL enum type an omitted
+> one stands for; plus `TryGetable`, `TryGetableArray`,
 > `Into<Value>`, `ValueType`, `Nullable`, and the `NotU8` marker impl.
 >
 > `{Enum}Variant` identifiers are produced by an escaping PascalCase conversion:
@@ -530,63 +554,68 @@ known limitations.
 
 ## Relations
 
-> [spec:pgorm:syn:macros.derive.relation+5]
+> [spec:pgorm:syn:macros.derive.relation+6]
 > The `Relation` derive applies to enums only. Each variant requires exactly one of
-> `belongs_to = "path::to::Entity"`, `has_one = "..."`, or `has_many = "..."` (checked
-> in that order; none present is the error "Missing one of 'has_one', 'has_many' or
-> 'belongs_to'"); the value is a string parsed as a token path. `belongs_to` variants
-> additionally require `from = "Column::X"` and `to = "Column::Y"` (errors "Missing
-> attribute 'from'"/"Missing attribute 'to'"); on `has_one`/`has_many` both are
-> optional, but the two MUST be given together or not at all — one without the
-> other raises the same missing-attribute error, since a column can only be added
-> to a relation paired with its counterpart. Both values are parsed as
-> expressions and a tuple on either side is taken apart per column, so a
-> composite key expands to `.columns(from0, to0).and_columns(from1, to1)...`.
-> Sides of unequal length are rejected at expansion, where the arity is still
-> known, with "'from' names N column(s) and 'to' names M; a relation joins its
-> columns in pairs". Further optional keys chain builder calls: `on_update`/`on_delete` (a
-> `ForeignKeyAction` variant name), `on_condition`, `fk_name` (string), `condition_type` (case-insensitive
-> `"all"` or `"any"`; anything else is "Condition type must be one of `all` or `any`"),
-> and `enforcement` / `deferrability`, each naming a variant of
-> `pgorm_query::Enforcement` (`"Enforced"`, `"NotEnforced"`) or
-> `pgorm_query::Deferrability` (`"NotDeferrable"`, `"DeferrableInitiallyImmediate"`,
-> `"DeferrableInitiallyDeferred"`); any other name is refused at the value, "'enforcement'
-> must be one of Enforced, NotEnforced" and its `deferrability` counterpart, where a
-> mistyped `on_delete` surfaces only as an unknown variant downstream.
-> `from_period = "Column::P"` and `to_period = "Column::Q"` give a temporal
-> relation's period pair (`entity.relation.def`), chained as `.period(P, Q)`
-> after the column pairs: the two come together ("Missing attribute
-> 'to_period'" / "'from_period'"), after a `from` / `to` pair, since a period
-> is matched after the columns compared for equality, and beside no
-> `on_update` / `on_delete` but `"NoAction"`, PostgreSQL 18 refusing every
-> other action on a temporal foreign key (`0A000`) — each refusal a compile
-> error, the last spanned at the action.
-> `on_condition` is a closure of the two tables as the join binds them,
-> `"|left, right| .."`, whose parameters are typed as the `Name`s they are where it
-> leaves them untyped and whose result goes through `IntoCondition`, or an expression
-> that ignores them, which is wrapped in a closure that does; a closure of another
-> arity is refused, "an `on_condition` closure takes the two tables the join binds".
-> Non-string literal values are rejected with "attribute must be a string". The
-> expansion is an `impl RelationTrait` whose `def()` matches each variant to
+> `belongs_to = path`, `has_one = path` or `has_many = path`, the entity it reaches
+> written as a path (`belongs_to = super::cake::Entity`); none is the error "Missing
+> one of 'has_one', 'has_many' or 'belongs_to'", and a second is "a relation is one of
+> `belongs_to`, `has_one` or `has_many`, once". `belongs_to` variants additionally
+> require `from = Column::X` and `to = Column::Y` (errors "Missing attribute
+> 'from'"/"Missing attribute 'to'"); on `has_one`/`has_many` both are optional, but the
+> two MUST be given together or not at all — one without the other raises the same
+> missing-attribute error, since a column can only be added to a relation paired with
+> its counterpart. Both values are expressions and a tuple on either side is taken
+> apart per column, so a composite key expands to
+> `.columns(from0, to0).and_columns(from1, to1)...`. Sides of unequal length are
+> rejected at expansion, where the arity is still known, with "'from' names N column(s)
+> and 'to' names M; a relation joins its columns in pairs". Further optional keys chain
+> builder calls, each value an expression taken as written: `on_update` / `on_delete`
+> (`ForeignKeyAction::Cascade`), `on_condition`, `condition_type`
+> (`ConditionType::Any`), and `enforcement` / `deferrability`
+> (`Enforcement::NotEnforced`, `Deferrability::DeferrableInitiallyDeferred`). The
+> builder methods take the enums by type, so a name none of their variants has is the
+> compiler's refusal at the value. `fk_name`, the constraint's name, is a string.
+> `from_period = Column::P` and `to_period = Column::Q` give a temporal relation's
+> period pair (`entity.relation.def`), chained as `.period(P, Q)` after the column
+> pairs: the two come together ("Missing attribute 'to_period'" / "'from_period'"),
+> after a `from` / `to` pair, since a period is matched after the columns compared for
+> equality, and beside no `on_update` / `on_delete` but a path ending in `NoAction`
+> (`ForeignKeyAction::NoAction`), PostgreSQL 18 refusing every other action on a
+> temporal foreign key (`0A000`) — each refusal a compile error, the last spanned at the
+> action. `on_condition` is a closure of the two tables as the join binds them,
+> `|left, right| ..`, whose parameters are typed as the `Name`s they are where it leaves
+> them untyped and whose result goes through `IntoCondition`, or an expression that
+> ignores them, which is wrapped in a closure that does; a closure of another arity is
+> refused, "an `on_condition` closure takes the two tables the join binds". A variant's
+> keys accumulate across its `#[pgorm(...)]` attributes, and a key given twice is the
+> compile error "duplicate `<key>`" at the second. The expansion is an
+> `impl RelationTrait` whose `def()` matches each variant to
 > `Entity::belongs_to/has_one/has_many(target)` plus the paired column calls, the
-> chained modifiers and a
-> catch-all arm panicking "No RelationDef for {Relation}"; the entity identifier
-> defaults to `Entity`, overridable via container `#[pgorm(entity = Ident)]`.
+> chained modifiers and a catch-all arm panicking "No RelationDef for {Relation}"; the
+> entity identifier defaults to `Entity`, overridable via container
+> `#[pgorm(entity = Ident)]`, the one key the derive reads on the enum. Any other key
+> there is refused at the key: one of the composite's container keys saying it goes on
+> the `Model` under `Entity`, any other as unknown.
 
 ## Projection and value derives
 
-> [spec:pgorm:sem:macros.derive.partial-model+4]
+> [spec:pgorm:sem:macros.derive.partial-model+5]
 > The `PartialModel` derive accepts only non-generic named-field structs (generics and other
-> shapes are compile errors). The container attribute `entity = "Type"` names the source
-> entity; it is required unless every field carries `from_expr`, and its absence
-> otherwise produces "you need specific which entity you are using". Per field:
-> no attribute selects `Column::{UpperCamelCase(field)}`; `from_col = "name"` selects
-> `Column::{UpperCamelCase(name)}` aliased to the field name; `from_expr = "expr"`
-> selects the parsed expression aliased to the field name. The expansion implements
-> `PartialModelTrait::select_cols` by chaining `QuerySelect::column` /
-> `column_as` calls; the chain's type is `S::Projected`, so a struct with no
-> fields — whose chain is empty and whose body is therefore the unprojected `S` — does
-> not compile.
+> shapes are compile errors). The container attribute `entity = Type` names the source
+> entity, written as a type; it is required unless every field carries `from_col` or
+> `from_expr`, and its absence otherwise produces "you need specific which entity you
+> are using". Per field: no attribute selects
+> `<entity as EntityTrait>::Column::{UpperCamelCase(field)}`; `from_col = path` selects
+> the column the path names, taken as written (`from_col = cake::Column::Name`), aliased
+> to the field name; `from_expr = <expr>` selects the expression aliased to the field
+> name. The expansion implements `PartialModelTrait::select_cols` by chaining
+> `QuerySelect::column` / `column_as` calls; the chain's type is `S::Projected`, so a
+> struct with no fields — whose chain is empty and whose body is therefore the
+> unprojected `S` — does not compile. It also implements `FromQueryResult` for the
+> struct as that derive does (`[spec:pgorm:sem:macros.derive.from-query-result]`),
+> reading `skip` and stepping over the projection's own keys, so the struct derives
+> `PartialModel` alone and a `FromQueryResult` derived beside it is a conflicting
+> implementation.
 >
 > Every key accumulates across all meta items of all `#[pgorm(...)]` attributes on the
 > item, so a later key cannot erase an earlier one and the derive can never generate a
@@ -595,21 +624,21 @@ known limitations.
 > `from_expr` on one field reaches the guard and is the compile error "you can only use
 > one of `from_col` or `from_expr`"; and any key outside `entity` at the container level,
 > or outside `from_col`/`from_expr`/`skip` at the field level, is
-> "unknown pgorm attribute `<key>`" spanned at the key. `skip` is accepted and unread
-> here because `FromQueryResult`, which reads it, is routinely derived on the same
-> struct (`[spec:pgorm:sem:macros.derive.from-query-result]`).
+> "unknown pgorm attribute `<key>`" spanned at the key.
 
-> [spec:pgorm:sem:macros.derive.from-query-result+3]
+> [spec:pgorm:sem:macros.derive.from-query-result+4]
 > `FromQueryResult` (named-field structs only; generics supported) implements
 > `from_query_result(row, pre)` by `row.try_get(pre, "<field>")` for each field, using
 > the un-rawed field identifier as the column name; fields marked `#[pgorm(skip)]` are
 > filled with `Default::default()`. `skip` accumulates across every meta item of every
 > `#[pgorm(...)]` attribute on the field, so once asked for it cannot be un-asked by a
-> later key or a second attribute. Any key other than `skip`, `from_col` or `from_expr`
-> is the compile error "unknown pgorm attribute `<key>`" spanned at the key; the latter
-> two are accepted and unread because `PartialModel`, which reads them, is
-> routinely derived on the same struct
-> (`[spec:pgorm:sem:macros.derive.partial-model]`).
+> later key or a second attribute. It reads no other key: any other on a field or on
+> the struct is the compile error "unknown pgorm attribute `<key>`" spanned at the key,
+> except that `PartialModel`'s `entity`, `from_col` and `from_expr` are refused saying
+> `PartialModel` reads them and implements `FromQueryResult` itself
+> (`[spec:pgorm:sem:macros.derive.partial-model]`). The `FromQueryResult` that
+> `PartialModel` writes steps over a field's `from_col` and `from_expr`, which
+> `PartialModel` reads.
 >
 > It also implements `expected_columns`, reporting one `ExpectedColumn` per read field
 > in declaration order: the same un-rawed identifier, the field type as written (with
@@ -632,19 +661,20 @@ known limitations.
 > column, and silent data loss against a nullable one. The panic is documented on the
 > derive.
 
-> [spec:pgorm:sem:macros.derive.value-type+5]
+> [spec:pgorm:sem:macros.derive.value-type+6]
 > The `ValueType` derive targets newtype tuple structs; it reads only the first unnamed
 > field. Any other input shape is a compile error spanned at the struct identifier —
 > "`ValueType` can only be derived on a tuple struct", or "`ValueType` requires
 > the tuple struct to hold a value field" for an empty one — not a macro panic. Optional
 > attributes `column_type = <expr>`, any expression of type `ColumnType` taken as the
 > entity derive takes one (`macros.derive.entity-model.column-def`), and
-> `array_type = "..."` override the inferred `ColumnType`/`ArrayType`, which otherwise
+> `array_type = <expr>`, an `ArrayType` expression taken as written
+> (`array_type = ArrayType::Int`), override the inferred `ColumnType`/`ArrayType`, which otherwise
 > use the same Rust-type tables (and `Option<T>` unwrapping) as
 > `[spec:pgorm:sem:macros.derive.entity-model.column-def]`, falling back to
 > `<T as ValueType>::column_type()`/`array_type()` — and inheriting that rule's refusal
 > of `i8`, `u32`, `u64` and `char` on the `ColumnType` side. Attribute errors propagate: a
-> string `column_type`, a non-string `array_type`, and any other key in the
+> string `column_type` or `array_type`, and any other key in the
 > `#[pgorm(...)]` list, is a spanned compile error rather than being silently ignored. The expansion implements
 > `From<T> for Value` (through `self.0`), `TryGetable`, and `ValueType` delegating to
 > the inner type with `type_name()` = the struct name; no `Nullable` impl is generated.

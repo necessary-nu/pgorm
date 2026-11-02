@@ -663,13 +663,13 @@ mod tests {
                 pub five: i64,
                 #[pgorm(nullable)]
                 pub eight: i64,
-                #[pgorm(default_expr = "Expr::current_timestamp()")]
+                #[pgorm(default_expr = Expr::current_timestamp())]
                 pub ten: DateTimeWithTimeZone,
                 #[pgorm(default_value = 7)]
                 pub eleven: i16,
                 #[pgorm(default_value = "twelve_value")]
                 pub twelve: String,
-                #[pgorm(default_expr = "\"twelve_value\"")]
+                #[pgorm(default_expr = Expr::val("twelve_value"))]
                 pub twelve_two: String,
             }
 
@@ -770,10 +770,10 @@ mod tests {
             pub struct Model {
                 #[pgorm(primary_key)]
                 pub id: i32,
-                #[pgorm(enum_name = "One1")]
+                #[pgorm(variant = One1)]
                 pub one: i32,
                 pub two: i32,
-                #[pgorm(enum_name = "Three3")]
+                #[pgorm(variant = Three3)]
                 pub three: i32,
             }
 
@@ -801,12 +801,12 @@ mod tests {
             #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "hello")]
             pub struct Model {
-                #[pgorm(primary_key, column_name = "ID", enum_name = "IdentityColumn")]
+                #[pgorm(primary_key, column_name = "ID", variant = IdentityColumn)]
                 pub id: i32,
-                #[pgorm(column_name = "ONE", enum_name = "One1")]
+                #[pgorm(column_name = "ONE", variant = One1)]
                 pub one: i32,
                 pub two: i32,
-                #[pgorm(column_name = "THREE", enum_name = "Three3")]
+                #[pgorm(column_name = "THREE", variant = Three3)]
                 pub three: i32,
             }
 
@@ -834,7 +834,7 @@ mod tests {
             #[derive(Clone, Debug, PartialEq, Eq, Entity)]
             #[pgorm(table_name = "my_entity")]
             pub struct Model {
-                #[pgorm(primary_key, enum_name = "IdentityColumn", column_name = "id")]
+                #[pgorm(primary_key, variant = IdentityColumn, column_name = "id")]
                 pub id: i32,
                 #[pgorm(column_name = "type")]
                 pub type_: String,
@@ -870,11 +870,11 @@ mod tests {
             pub struct Model {
                 #[pgorm(primary_key)]
                 pub id: i32,
-                #[pgorm(enum_name = "One1")]
+                #[pgorm(variant = One1)]
                 pub one: i32,
                 #[pgorm(select_with = as_integer)]
                 pub two: i32,
-                #[pgorm(enum_name = "Three3")]
+                #[pgorm(variant = Three3)]
                 pub three: i32,
             }
 
@@ -894,11 +894,11 @@ mod tests {
             pub struct Model {
                 #[pgorm(primary_key)]
                 pub id: i32,
-                #[pgorm(enum_name = "One1")]
+                #[pgorm(variant = One1)]
                 pub one: i32,
                 #[pgorm(select_as = "integer")]
                 pub two: i32,
-                #[pgorm(enum_name = "Three3")]
+                #[pgorm(variant = Three3)]
                 pub three: i32,
             }
 
@@ -964,11 +964,11 @@ mod tests {
             pub struct Model {
                 #[pgorm(primary_key)]
                 pub id: i32,
-                #[pgorm(enum_name = "One1")]
+                #[pgorm(variant = One1)]
                 pub one: i32,
                 #[pgorm(save_with = as_text, save_array_with = as_texts)]
                 pub two: i32,
-                #[pgorm(enum_name = "Three3")]
+                #[pgorm(variant = Three3)]
                 pub three: i32,
             }
 
@@ -988,11 +988,11 @@ mod tests {
             pub struct Model {
                 #[pgorm(primary_key)]
                 pub id: i32,
-                #[pgorm(enum_name = "One1")]
+                #[pgorm(variant = One1)]
                 pub one: i32,
                 #[pgorm(save_as = "text")]
                 pub two: i32,
-                #[pgorm(enum_name = "Three3")]
+                #[pgorm(variant = Three3)]
                 pub three: i32,
             }
 
@@ -1152,11 +1152,11 @@ mod tests {
             pub struct Model {
                 #[pgorm(primary_key)]
                 pub id: i32,
-                #[pgorm(enum_name = "One1")]
+                #[pgorm(variant = One1)]
                 pub one: i32,
                 #[pgorm(select_with = as_integer, save_with = as_text, save_array_with = as_texts)]
                 pub two: i32,
-                #[pgorm(enum_name = "Three3")]
+                #[pgorm(variant = Three3)]
                 pub three: i32,
             }
 
@@ -1176,11 +1176,11 @@ mod tests {
             pub struct Model {
                 #[pgorm(primary_key)]
                 pub id: i32,
-                #[pgorm(enum_name = "One1")]
+                #[pgorm(variant = One1)]
                 pub one: i32,
                 #[pgorm(select_as = "integer", save_as = "text")]
                 pub two: i32,
-                #[pgorm(enum_name = "Three3")]
+                #[pgorm(variant = Three3)]
                 pub three: i32,
             }
 

@@ -337,8 +337,8 @@ mod tests {
 
             #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
             #[pgorm(
-                rs_type = "String",
-                db_type = "String(StringLen::N(1))",
+                rs_type = String,
+                db_type = ColumnType::String(StringLen::N(1)),
                 enum_name = "category"
             )]
             pub enum DeriveCategory {

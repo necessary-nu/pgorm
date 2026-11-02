@@ -7,8 +7,8 @@ use futures::TryStreamExt;
 use pgorm::{PartialModel, entity::prelude::*};
 use pretty_assertions::assert_eq;
 
-#[derive(Debug, PartialEq, FromQueryResult, PartialModel)]
-#[pgorm(entity = "Bakery")]
+#[derive(Debug, PartialEq, PartialModel)]
+#[pgorm(entity = Bakery)]
 struct BakeryName {
     name: String,
 }
