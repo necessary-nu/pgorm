@@ -58,7 +58,7 @@ fn created(name: &str, schema: Option<&str>, subtype: ColumnType) -> ColumnType 
 // [spec:pgorm:sem:codegen.ddl.objects+10/test]    a range type the file creates
 // types the columns naming it, by its full identity and with its subtype read
 // as a column's type is
-// [spec:pgorm:sem:codegen.ddl.types+9/test]
+// [spec:pgorm:sem:codegen.ddl.types+10/test]
 #[test]
 fn a_created_range_types_its_columns() {
     let statements = parse_schema(SCHEMA).expect("the schema parses");

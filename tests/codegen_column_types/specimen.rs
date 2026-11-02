@@ -17,6 +17,8 @@ pub struct Model {
     pub initials: String,
     #[pgorm(column_type = ColumnType::Char(Some(1u32)))]
     pub flag: String,
+    #[pgorm(column_type = ColumnType::Char(None))]
+    pub pad: String,
     #[pgorm(column_type = ColumnType::Text)]
     pub body: String,
     #[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::String(StringLen::N(3u32)))))]

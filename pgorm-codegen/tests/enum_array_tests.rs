@@ -81,7 +81,7 @@ fn files(output: WriterOutput) -> Generated {
     }
 }
 
-// [spec:pgorm:sem:codegen.ddl.types+9/test]    an array of an enum the file creates reads
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    an array of an enum the file creates reads
 // as an array of that enum by its full identity, a schema-qualified one included, and so
 // does a domain over one
 #[test]

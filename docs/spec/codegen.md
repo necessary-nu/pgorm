@@ -1233,7 +1233,7 @@ compiling the C parser falls on people generating entities and on nobody else.
 > (`sql.ddl.create-table`), so there is no constraint a non-unique index could
 > be carried as. Its table must still exist.
 
-> [spec:pgorm:sem:codegen.ddl.types+9]
+> [spec:pgorm:sem:codegen.ddl.types+10]
 > Column types map back through the `ColumnType` → Postgres spelling contract of
 > `sql.ddl.column-types`, read over the names the grammar produces: keyword
 > spellings arrive qualified as `pg_catalog.<name>`, everything else bare or
@@ -1269,7 +1269,11 @@ compiling the C parser falls on people generating entities and on nobody else.
 > type's values, and an unqualified name is looked up as an enum before the
 > table above. A type argument the vocabulary can hold is kept
 > (`varchar(255)`, `numeric(10, 2)`, `bit(8)`, `vector(3)`), a single-argument
-> `numeric(p)` reading as `Decimal(Some((p, 0)))` — its own meaning. An array
+> `numeric(p)` reading as `Decimal(Some((p, 0)))` — its own meaning. A bare
+> `bpchar`, blank-padded with no length limit, reads as `Char(None)`, which
+> renders `bpchar` again (`sql.ddl.column-types`); `char` and `character`
+> without a length reach the bridge as `bpchar(1)`, the grammar's own
+> reading, and are `Char(Some(1))`. An array
 > bound wraps the element type in `Array`; only one unsized `[]` is accepted.
 >
 > An `interval` keeps its field qualifier and precision, which the grammar

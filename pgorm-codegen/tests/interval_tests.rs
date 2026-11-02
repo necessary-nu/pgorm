@@ -98,7 +98,7 @@ fn column_type_of(sql: &str) -> ColumnType {
         .expect("a column has a type")
 }
 
-// [spec:pgorm:sem:codegen.ddl.types+9/test]    each qualifier and precision
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    each qualifier and precision
 // `interval` takes reads back as the `IntervalSpec` that renders it, through
 // an array as on its own
 #[test]
@@ -158,7 +158,7 @@ fn the_bridge_reads_each_interval_qualifier() {
 // [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a qualifier no
 // `IntervalSpec` holds is named, as is a precision the server would quietly
 // reduce
-// [spec:pgorm:sem:codegen.ddl.types+9/test]
+// [spec:pgorm:sem:codegen.ddl.types+10/test]
 #[test]
 fn an_interval_modifier_beyond_the_spec_is_named() {
     for (sql, what) in [

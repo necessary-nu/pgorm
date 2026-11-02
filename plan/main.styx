@@ -16355,12 +16355,27 @@ children (
         id bpchar-unbounded-round-trip
         title "An unbounded bpchar column comes back as bpchar, not char(1)"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T14:25:04.863777Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by codegen-compact-string-length (fdd065f7), confirmed live on PostgreSQL 18.6. pgorm-query renders ColumnType::Char(None) as `char`, which PostgreSQL reads as character(1); codegen's bridge reads a bare `bpchar` (blank-padded with no length limit) as Char(None). So a bpchar column generates, in either format, an entity whose create_table_from_entity writes char(1), which truncates-or-refuses everything past one character. Decide what Char(None) means (unbounded bpchar, so render `bpchar`; or char(1), so the bridge must read bare bpchar as something else) and make reading and rendering agree; bump the sql.types / codegen.entity.types rule that says it, with a live round-trip test."
+            }
+
+            {
+                at 2026-11-02T21:11:16.549686Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-02T21:21:07.689478Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

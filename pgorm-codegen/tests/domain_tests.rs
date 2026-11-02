@@ -122,7 +122,7 @@ fn error(sql: &str) -> String {
     }
 }
 
-// [spec:pgorm:sem:codegen.ddl.types+9/test]    a column named by a domain the file creates
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    a column named by a domain the file creates
 // reads as `ColumnType::Domain`, carrying the domain's identity and its base read as a
 // column's type is — another domain, an enum, an array and a range type among them —
 // through an array as on its own

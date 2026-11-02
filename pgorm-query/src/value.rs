@@ -150,7 +150,7 @@ impl std::fmt::Display for Value {
     }
 }
 
-// [spec:pgorm:def:sql.value.value-type+3]
+// [spec:pgorm:def:sql.value.value-type+4]
 pub trait ValueType: Sized {
     fn try_from(v: Value) -> Result<Self, ValueTypeError>;
 
@@ -430,7 +430,7 @@ type_to_value!(u32, Unsigned, BigInteger);
 type_to_value!(u64, BigUnsigned, BigInteger);
 type_to_value!(f32, Float, Float);
 type_to_value!(f64, Double, Double);
-type_to_value!(char, Char, Char(None));
+type_to_value!(char, Char, Char(Some(1)));
 
 impl From<&[u8]> for Value {
     fn from(x: &[u8]) -> Value {
@@ -471,7 +471,7 @@ where
     }
 }
 
-// [spec:pgorm:def:sql.value.value-type+3]
+// [spec:pgorm:def:sql.value.value-type+4]
 impl<T> ValueType for Option<T>
 where
     T: ValueType + Nullable,
@@ -1170,7 +1170,7 @@ mod tests {
         test_value!(i64, 8589934592);
     }
 
-    // [spec:pgorm:def:sql.value.value-type+3/test]
+    // [spec:pgorm:def:sql.value.value-type+4/test]
     #[test]
     fn test_option_value() {
         macro_rules! test_some_value {

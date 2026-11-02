@@ -4,7 +4,7 @@ use crate::oracle::{assert_eq, assert_eq_unparsed};
 // [spec:pgorm:req:sql.ddl.create-table+16/test]
 // [spec:pgorm:req:sql.ddl.column-def+13/test]
 #[test]
-// [spec:pgorm:def:sql.render.ddl.types+6/test]
+// [spec:pgorm:def:sql.render.ddl.types+7/test]
 fn create_1() {
     assert_eq!(
         Table::create(Glyph::Table)
@@ -115,7 +115,7 @@ fn create_4() {
     );
 }
 
-// [spec:pgorm:req:sql.ddl.column-types+6/test]
+// [spec:pgorm:req:sql.ddl.column-types+7/test]
 #[test]
 fn create_5() {
     assert_eq!(
@@ -130,6 +130,21 @@ fn create_5() {
             r#")"#,
         ]
         .join(" ")
+    );
+}
+
+// [spec:pgorm:req:sql.ddl.column-types+7/test]    `Char(None)` is the unbounded
+// `bpchar`, and `ColumnDef::char` is SQL's `char`, which PostgreSQL reads as
+// `char(1)`
+#[test]
+fn char_lengths_render_as_postgres_reads_them() {
+    assert_eq!(
+        Table::create(Glyph::Table)
+            .col(ColumnDef::new(Glyph::Image).char())
+            .col(ColumnDef::new(Glyph::Aspect).char_len(3))
+            .col(ColumnDef::new_with_type(Glyph::Id, ColumnType::Char(None)))
+            .to_string(),
+        r#"CREATE TABLE "glyph" ( "image" char(1), "aspect" char(3), "id" bpchar )"#
     );
 }
 
@@ -252,7 +267,7 @@ fn create_11() {
     );
 }
 
-// [spec:pgorm:req:sql.ddl.column-types+6/test]
+// [spec:pgorm:req:sql.ddl.column-types+7/test]
 #[test]
 fn create_12() {
     assert_eq!(

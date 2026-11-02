@@ -7,6 +7,7 @@ CREATE TABLE specimen (
     note varchar NOT NULL,
     initials char(2) NOT NULL,
     flag char NOT NULL,
+    pad bpchar NOT NULL,
     body text NOT NULL,
     codes varchar(3)[] NOT NULL,
     marks character(4)[],

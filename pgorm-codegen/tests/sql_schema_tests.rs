@@ -132,7 +132,7 @@ fn schema_sql_generates_one_file_per_table() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.types+9/test]    the type spellings map onto the
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    the type spellings map onto the
 // ColumnType vocabulary, serial included
 #[test]
 fn column_types_map_through_the_vocabulary() {
@@ -606,7 +606,7 @@ fn conflicting_not_null_constraints_are_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.types+9/test]    a type spelling outside the
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    a type spelling outside the
 // vocabulary is named, and so is a modifier the vocabulary cannot hold
 #[test]
 fn unsupported_types_are_named() {
@@ -844,8 +844,10 @@ fn rendered_ddl_round_trips_through_the_bridge() {
     assert_eq!(round_tripped.files, direct.files);
 }
 
-// [spec:pgorm:sem:codegen.ddl.types+9/test]    the types that once shared a
-// spelling with another variant now each recover themselves
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    each of these variants has a
+// spelling no other shares, so each reads back as itself, the unbounded
+// `bpchar` beside `char(1)` among them
+// [spec:pgorm:req:sql.ddl.column-types+7/test]
 #[test]
 fn one_spelling_one_variant_round_trips() {
     let statements = || {
@@ -858,6 +860,8 @@ fn one_spelling_one_variant_round_trips() {
                 typed("seen", ColumnType::Timestamp),
                 typed("amount", ColumnType::Money),
                 typed("width", ColumnType::SmallInteger),
+                typed("pad", ColumnType::Char(None)),
+                typed("flag", ColumnType::Char(Some(1))),
             ],
         )]
     };
@@ -907,7 +911,7 @@ fn enum_and_unique_index_round_trip() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.types+9/test]    each built-in range and multirange type
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    each built-in range and multirange type
 // reads back as the `Range` or `Multirange` of its subtype
 #[test]
 fn range_types_map_through_the_vocabulary() {
@@ -945,7 +949,7 @@ fn range_types_map_through_the_vocabulary() {
 // [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    an array of ranges or
 // multiranges is a `Vec` of them, the derive taking its column type from the
 // field's own `ValueType` as it does for a range
-// [spec:pgorm:sem:codegen.ddl.types+9/test]    and a range type takes no modifier
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    and a range type takes no modifier
 #[test]
 fn array_of_ranges_generates_a_vec() {
     let generated = from_sql(
