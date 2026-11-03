@@ -56,7 +56,7 @@ impl Registry {
     /// refuses are each refused, and nothing is added. An unkinded enum,
     /// which is read-only, is no `KindedDisjoint`, so it does not register.
     // [spec:pgorm:req:bindings.disjoint+1]
-    // [spec:pgorm:req:bindings.entities+3]
+    // [spec:pgorm:req:bindings.entities+4]
     // [spec:pgorm:sem:disjoint.unkinded]
     pub fn disjoint<D>(&mut self, name: &str) -> Result<&mut Self, RegistrationError>
     where

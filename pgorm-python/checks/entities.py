@@ -58,7 +58,7 @@ def reject_execution_mismatch(project, output, environment):
         )
 
 
-# [spec:pgorm:req:bindings.entities+3/test]
+# [spec:pgorm:req:bindings.entities+4/test]
 # [spec:pgorm:req:bindings.entity-graphs+3/test]
 # [spec:pgorm:req:bindings.pipeline-sources+3/test]
 # [spec:pgorm:req:bindings.surface+2/test]
@@ -300,6 +300,7 @@ def main():
                     "app.Shipment",
                     "app.Stay",
                     "app.Temper",
+                    "app.Till",
                 ],
                 "registered_disjoints": ["app.Shipments"],
                 "graph_source_arities": list(range(1, 8)),

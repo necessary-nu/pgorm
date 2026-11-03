@@ -234,7 +234,7 @@ fn ordered_kinds() -> CopyToStatement<CopyBinary> {
     )
 }
 
-// [spec:pgorm:req:conn.copy.rows+3/test]    every value kind pgorm binds is written as binary rows and read back, as the server reads the same literals
+// [spec:pgorm:req:conn.copy.rows+4/test]    every value kind pgorm binds is written as binary rows and read back, as the server reads the same literals
 #[pgorm_macros::test]
 async fn copy_rows_round_trip_every_kind() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_round_trip_every_kind").await;
@@ -289,7 +289,7 @@ async fn copy_rows_round_trip_every_kind() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy.rows+3/test]    a row of the wrong width or a value its column cannot take is refused, and the sink goes on
+// [spec:pgorm:req:conn.copy.rows+4/test]    a row of the wrong width or a value its column cannot take is refused, and the sink goes on
 #[pgorm_macros::test]
 async fn copy_rows_refuse_wrong_width_or_type() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_refuse_wrong_width").await;
@@ -358,7 +358,7 @@ async fn copy_rows_refuse_wrong_width_or_type() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy.rows+3/test]    the columns come from the server: a list, a whole table without its generated columns, a query's result
+// [spec:pgorm:req:conn.copy.rows+4/test]    the columns come from the server: a list, a whole table without its generated columns, a query's result
 #[pgorm_macros::test]
 async fn copy_rows_columns_from_the_server() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_columns_from_server").await;
@@ -450,7 +450,7 @@ async fn answers_in_step(db: &DatabaseConnection) -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy.rows+3/test]    a description the server refuses leaves the connection as it was; a type no value holds fails its row
+// [spec:pgorm:req:conn.copy.rows+4/test]    a description the server refuses leaves the connection as it was; a type no value holds fails its row
 #[pgorm_macros::test]
 async fn copy_rows_refusals_before_and_after_start() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_refusals").await;
@@ -504,7 +504,7 @@ async fn copy_rows_refusals_before_and_after_start() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy.rows+3/test]    a list naming a generated column is described, since a SELECT reads one, and refused at the start, closing the connection
+// [spec:pgorm:req:conn.copy.rows+4/test]    a list naming a generated column is described, since a SELECT reads one, and refused at the start, closing the connection
 #[pgorm_macros::test]
 async fn copy_rows_naming_a_generated_column_closes() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_generated_column").await;
@@ -565,7 +565,7 @@ mod item {
     pub enum Relation {}
 }
 
-// [spec:pgorm:req:conn.copy.rows+3/test]    models are written and read by column name, in a transaction and through the metrics wrapper
+// [spec:pgorm:req:conn.copy.rows+4/test]    models are written and read by column name, in a transaction and through the metrics wrapper
 #[pgorm_macros::test]
 async fn copy_rows_models_in_a_transaction() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_models_transaction").await;
@@ -730,7 +730,7 @@ fn entries() -> Vec<entry::Model> {
     ]
 }
 
-// [spec:pgorm:req:conn.copy.rows+3/test]    models with enum and JSON fields: a schema's enum, an enum through a domain, an enum array, JSON structs
+// [spec:pgorm:req:conn.copy.rows+4/test]    models with enum and JSON fields: a schema's enum, an enum through a domain, an enum array, JSON structs
 #[pgorm_macros::test]
 async fn copy_rows_models_with_enum_and_json() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_models_enum_json").await;
@@ -848,7 +848,7 @@ fn slots(items: Option<&[&str]>) -> Value {
     )
 }
 
-// [spec:pgorm:req:conn.copy.rows+3/test]    a range type a schema created reads as its text form, writes back from it, and agrees with a raw query's decode
+// [spec:pgorm:req:conn.copy.rows+4/test]    a range type a schema created reads as its text form, writes back from it, and agrees with a raw query's decode
 #[pgorm_macros::test]
 async fn copy_rows_created_ranges_round_trip() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_created_ranges").await;
@@ -965,7 +965,7 @@ async fn copy_rows_created_ranges_round_trip() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy.rows+3/test]    text that spells no range of the subtype is refused as its row is written, and a subtype no RangeSubtype reads has no value
+// [spec:pgorm:req:conn.copy.rows+4/test]    text that spells no range of the subtype is refused as its row is written, and a subtype no RangeSubtype reads has no value
 #[pgorm_macros::test]
 async fn copy_rows_created_range_refusals() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_created_range_refusals").await;
@@ -1070,7 +1070,7 @@ fn ordered_multispans() -> CopyToStatement<CopyBinary> {
     )
 }
 
-// [spec:pgorm:req:conn.copy.rows+3/test]    a multirange type a schema created is described
+// [spec:pgorm:req:conn.copy.rows+4/test]    a multirange type a schema created is described
 // over its subtype, reads as its text form, writes back from it, and agrees with a raw
 // query's read of its text
 #[pgorm_macros::test]
@@ -1278,7 +1278,7 @@ async fn created_multirange_text_binds_through_a_cast() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy.rows+3/test]    text that spells no multirange of the subtype is
+// [spec:pgorm:req:conn.copy.rows+4/test]    text that spells no multirange of the subtype is
 // refused as its row is written and the sink goes on, and a multirange over a subtype no
 // RangeSubtype reads has no value
 #[pgorm_macros::test]
@@ -1336,6 +1336,172 @@ async fn copy_rows_created_multirange_refusals() -> Result<(), Error> {
     assert!(rows.next().await.is_none());
     drop(rows);
     answers_in_step(&db).await?;
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+const TILLS: &str = "CREATE DOMAIN takings AS money CHECK (VALUE >= 0::money);
+CREATE TABLE till (id int4 PRIMARY KEY, cash money, floats money[], banked takings)";
+
+// [spec:pgorm:req:conn.copy.rows+4/test]    a money column, an array of money and a domain
+// over money copy in from a Decimal or an integer of whole units, rounded half away from
+// zero to the currency's places, and copy out as the Decimal the server's numeric cast
+// gives; an amount money cannot hold is refused naming the column, and the domain's
+// check holds
+#[pgorm_macros::test]
+async fn copy_rows_money_moves_as_decimal() -> Result<(), Error> {
+    let ctx = TestContext::new("copy_rows_money_moves_as_decimal").await;
+    let mut db = ctx.db.get().await?;
+    db.batch_execute(TILLS).await?;
+
+    let into = CopyFromStatement::new(n("till"), CopyBinary);
+    let mut sink = db.copy_in_rows(&into).await?;
+    assert_eq!(
+        sink.columns()
+            .iter()
+            .map(CopyColumn::money_places)
+            .collect::<Vec<_>>(),
+        [None, Some(2), Some(2), Some(2)]
+    );
+    sink.send([
+        int(1),
+        decimal("12.345"),
+        Value::Array(
+            ArrayType::Decimal,
+            Some(Box::new(vec![
+                decimal("-0.005"),
+                Value::Decimal(None),
+                decimal("3"),
+            ])),
+        ),
+        int(40),
+    ])
+    .await?;
+    sink.send([
+        int(2),
+        Value::Decimal(None),
+        Value::Array(ArrayType::Decimal, None),
+        Value::Decimal(None),
+    ])
+    .await?;
+    let huge = sink
+        .send([
+            int(3),
+            decimal("100000000000000000000"),
+            Value::Decimal(None),
+            Value::Decimal(None),
+        ])
+        .await;
+    assert!(
+        matches!(&huge, Err(Error::Type(message))
+            if message.contains("COPY column `cash` of type `money`") && message.contains("out of range")),
+        "{huge:?}"
+    );
+    let text = sink
+        .send([
+            int(3),
+            "1.00".into(),
+            Value::Decimal(None),
+            Value::Decimal(None),
+        ])
+        .await;
+    assert!(
+        matches!(&text, Err(Error::Type(message)) if message.contains("COPY column `cash`")),
+        "{text:?}"
+    );
+    assert_eq!(sink.finish().await?, 2);
+
+    let stored = db
+        .query_one(
+            "SELECT cash::numeric AS cash, floats::numeric[]::text AS floats, \
+             banked::numeric AS banked FROM till WHERE id = 1",
+            &[],
+        )
+        .await?;
+    assert_eq!(
+        (
+            stored.get::<_, Decimal>("cash"),
+            stored.get::<_, String>("floats"),
+            stored.get::<_, Decimal>("banked"),
+        ),
+        (
+            Decimal::new(1235, 2),
+            "{-0.01,NULL,3.00}".to_owned(),
+            Decimal::new(4000, 2)
+        )
+    );
+
+    let out_of = CopyToStatement::new(
+        Query::select()
+            .column(Asterisk)
+            .from(n("till"))
+            .order_by(n("id"), Order::Asc)
+            .to_owned(),
+        CopyBinary,
+    );
+    let rows = rows_of(&mut db, &out_of).await?;
+    assert_eq!(
+        rows,
+        [
+            vec![
+                int(1),
+                decimal("12.35"),
+                Value::Array(
+                    ArrayType::Decimal,
+                    Some(Box::new(vec![
+                        decimal("-0.01"),
+                        Value::Decimal(None),
+                        decimal("3.00")
+                    ])),
+                ),
+                decimal("40.00"),
+            ],
+            vec![
+                int(2),
+                Value::Decimal(None),
+                Value::Array(ArrayType::Decimal, None),
+                Value::Decimal(None),
+            ],
+        ]
+    );
+
+    // What a COPY TO reads writes back through a COPY FROM.
+    db.batch_execute("CREATE TABLE till_copy (LIKE till)")
+        .await?;
+    let mut sink = db
+        .copy_in_rows(&CopyFromStatement::new(n("till_copy"), CopyBinary))
+        .await?;
+    for row in rows {
+        sink.send(row).await?;
+    }
+    assert_eq!(sink.finish().await?, 2);
+    let same = db
+        .query_one(
+            "SELECT count(*) AS n FROM till a JOIN till_copy b USING (id) \
+             WHERE a.cash IS NOT DISTINCT FROM b.cash AND a.floats IS NOT DISTINCT FROM b.floats \
+             AND a.banked IS NOT DISTINCT FROM b.banked",
+            &[],
+        )
+        .await?;
+    assert_eq!(same.get::<_, i64>("n"), 2);
+
+    // The domain's check reads the value the COPY wrote.
+    let mut sink = db.copy_in_rows(&into).await?;
+    sink.send([
+        int(4),
+        Value::Decimal(None),
+        Value::Array(ArrayType::Decimal, None),
+        decimal("-1"),
+    ])
+    .await?;
+    let error = sink.finish().await.expect_err("a negative banked amount");
+    assert_eq!(
+        sqlstate(&error),
+        Some(&SqlState::CHECK_VIOLATION),
+        "{error}"
+    );
 
     drop(db);
     ctx.delete().await;

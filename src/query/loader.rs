@@ -483,7 +483,7 @@ where
 /// definition of it: `None` but for a column whose domain is over an enum. A
 /// name the entity does not resolve is `None` here, [`extract_key`] having
 /// already refused it.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
 fn key_casts<F: EntityTrait>(from_col: &Key) -> Vec<Option<TypeName>> {
     from_col
         .iter()
@@ -524,7 +524,7 @@ fn prepare_condition(
 /// column, and every value bound against it, cast to the enum, PostgreSQL
 /// resolving no operator for the domain itself.
 // [spec:pgorm:sem:query.loader.batching+8]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
 fn compared_key_predicate(
     columns: Vec<ColumnRef>,
     casts: &[Option<TypeName>],

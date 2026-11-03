@@ -327,10 +327,10 @@ class GeneratedDomains(unittest.IsolatedAsyncioTestCase):
 
             typed = pl.col("stock_line", mood)
             glad = pl.from_(stock).filter(typed == pl.literal("glad"))
-            self.assertIn('CAST(mood AS mood) = \'glad\'', glad.inspect().sql)
+            self.assertIn("CAST(mood AS mood) = CAST('glad' AS mood)", glad.inspect().sql)
             self.assertEqual(await ids(glad), [1, 3])
             plain = pl.from_(stock).filter(typed == "glad")
-            self.assertIn("CAST(mood AS mood) = $1", plain.inspect().sql)
+            self.assertIn("CAST(mood AS mood) = CAST($1::text AS mood)", plain.inspect().sql)
             self.assertEqual(await ids(plain), [1, 3])
             bound = pl.from_(stock).filter_with(lambda binder: typed < binder.bind("glad"))
             self.assertEqual(await ids(bound), [2])

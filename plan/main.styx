@@ -16612,12 +16612,20 @@ children (
         title "A money column reads and writes as a decimal through the bindings, the pipeline and COPY rows, as it does through an entity"
         kind @fix
         deps (codegen-money-decodes)
+        sealed true
         log (
             {
                 at 2026-11-02T21:41:31.883789Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by codegen-money-decodes (337a9933), which made an entity's money column (and arrays of money, and domains over either) read cast to numeric and write cast to money, carried by Decimal with no new Value variant. Three paths still do not: (1) the Python and JavaScript bindings' entity kinds report a money column as needing an explicit tagged value (a tagged decimal works); make its kind decimal in both, with describe() and the shared surface file updated; (2) pipeline comparisons bind a money column's value bare, as pipelines do for every save_as column, so `money = numeric` fails at the server (42883) instead of casting — check whether pipeline-untyped-enum-casts' mechanism generalises to every save_as cast rather than adding a money special case; (3) COPY rows (copy_in_rows / copy_out_rows) still refuse money. Each with a live test."
+            }
+
+            {
+                at 2026-11-03T10:43:27.991145Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

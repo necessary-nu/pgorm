@@ -268,7 +268,7 @@ fn written(id: i32, qty: i32, mood: Mood, codes: &[&str]) -> line::Model {
 // filters through them, a predicate on the enum's domain comparing as the enum, and a check's
 // refusal arrives as 23514 naming the constraint
 // [spec:pgorm:def:sql.types.column-type+11/test]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]
 // [spec:pgorm:def:exec.decode.array+2/test]
 #[pgorm_macros::test]
 async fn an_entity_reads_and_writes_through_domains() -> Result<(), Error> {
@@ -352,7 +352,7 @@ async fn an_entity_reads_and_writes_through_domains() -> Result<(), Error> {
 /// A domain over `money` reads and writes as `numeric`, a `Decimal` field's
 /// value cast to the domain so that its check holds, and compares through the
 /// same cast; an array of the domain does the same element by element.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    a domain over `money`, and an
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    a domain over `money`, and an
 // array of it, is read as `numeric` and written through `numeric` to the domain, by name
 #[pgorm_macros::test]
 async fn a_money_domain_reads_and_writes_as_decimal() -> Result<(), Error> {
@@ -435,7 +435,7 @@ async fn ids_where(
 /// no operator for the domain itself. The value is compared, not written, so
 /// the domain's check does not refuse it, and a keyset cursor over the column
 /// pages by the enum's order in either direction.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    every value predicate, the
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    every value predicate, the
 // column-taking and expression-taking forms and if_null cast a column whose domain is over an
 // enum, and its values, to the enum, live
 // [spec:pgorm:sem:exec.cursor.keyset+8/test]    a keyset cursor over a column whose domain is
@@ -572,7 +572,7 @@ async fn lines_and_tempers(db: &impl ConnectionTrait) -> Result<(), Error> {
 /// enum, with the subquery's projection cast beside it — even a projection of
 /// the same domain, which the enum does not compare with either — and max and
 /// min aggregate the column as the enum, the domain having neither.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    in_subquery and
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    in_subquery and
 // not_in_subquery against a subquery projecting the same domain, and max and min of the
 // column, live
 #[pgorm_macros::test]
@@ -653,7 +653,7 @@ async fn domain_enum_subqueries_and_extrema_compare() -> Result<(), Error> {
 /// through the subquery's array, with `NOT IN`'s answer to a null member. A
 /// `*` wider than one column, and several projected expressions, are refused
 /// by the server as they are under any `IN`, never narrowed to one column.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    in_subquery and not_in_subquery
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    in_subquery and not_in_subquery
 // against a `*`, a table's `*` and a windowed projection of the domain compare as the enum,
 // live, while a wider `*` and several projections are refused with 42601
 #[pgorm_macros::test]
@@ -752,7 +752,7 @@ async fn domain_enum_subqueries_of_every_shape_compare() -> Result<(), Error> {
 /// as the enum wherever it is joined: a related read, the graph's edge, both
 /// loaders — whose batch key is the column — and a linked read scoped by a
 /// key of the domain.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    a relation over columns whose
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    a relation over columns whose
 // domain is over an enum joins them as the enum in a related graph read, inner_join, a graph
 // edge, load_one and load_many, and find_related and find_linked scope by such a key, live
 // [spec:pgorm:sem:query.build.join+5/test]    a pair over such columns joins them cast
@@ -1035,7 +1035,7 @@ async fn domain_enum_appended_tiebreak_compares_as_enum() -> Result<(), Error> {
 /// A pipeline compares an entity column whose domain is over an enum as the
 /// enum — against a literal, a bound value, a list, or the same domain across
 /// a join — and min and max aggregate it as the enum.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    pipeline comparisons, in_array,
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    pipeline comparisons, in_array,
 // coalesce, a join condition and min / max over a column whose domain is over an enum, live
 #[pgorm_macros::test]
 async fn domain_enum_pipeline_compares_as_the_enum() -> Result<(), Error> {
@@ -1096,7 +1096,7 @@ async fn domain_enum_pipeline_compares_as_the_enum() -> Result<(), Error> {
 /// relation's column through `Named::col`, which the entity types, and a
 /// `col` reference or an alias token through `compares_as`, which names the
 /// enum. Each left bare is compared as the domain, which the server refuses.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    a named relation's column,
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    a named relation's column,
 // a col reference and an alias token naming a projection compare as the enum, bound or
 // literal, live, where each left bare is refused with 42883
 #[pgorm_macros::test]

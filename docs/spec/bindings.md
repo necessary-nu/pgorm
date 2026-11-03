@@ -466,7 +466,7 @@ closed, and a transaction by the block or callback it was opened for ending.
 > finishes it is abandoned, and when its outcome is unknown its connection or
 > transaction is discarded.
 
-> [spec:pgorm:req:bindings.copy-rows]
+> [spec:pgorm:req:bindings.copy-rows+1]
 > `copy_in_rows(statement, rows)` and `copy_out_rows(statement)` MUST run a
 > binary COPY as rows of values through `conn.copy.rows`, on a pool, a
 > connection and a transaction or savepoint, held and released as `copy_in`
@@ -490,9 +490,10 @@ closed, and a transaction by the block or callback it was opened for ending.
 > `copy_out_rows` gives a `CopyRowStream`: an async iterator of rows, each a
 > sequence of values decoded by its column's type as a result column of that
 > type is (`bindings.values`), fetched as they arrive with bounded buffering,
-> one pull at a time. Its `columns` names the columns. A field that does not
-> decode is a `DecodeError` naming the column and closes the stream,
-> discarding its connection. Its end and its closing behave as `copy_out`'s
+> one pull at a time, a `money` field read as the decimal `conn.copy.rows`
+> reads it as, which no query's result column of `money` is. Its `columns`
+> names the columns. A field that does not decode is a `DecodeError` naming
+> the column and closes the stream, discarding its connection. Its end and its closing behave as `copy_out`'s
 > stream does.
 
 > [spec:pgorm:req:bindings.listen+2]
@@ -1154,7 +1155,7 @@ registrations. The program reaches each registration by name, and every
 operation on one is the entity's own Rust API. A binding cannot instantiate a
 Rust generic at run time, only use the ones compiled in.
 
-> [spec:pgorm:req:bindings.entities+3]
+> [spec:pgorm:req:bindings.entities+4]
 > Each binding MUST let a downstream application crate register its own
 > entities, `SelectGraph` shapes and pipeline source tuples, for any entity
 > whose model converts into its ActiveModel, and build one native module from
@@ -1174,7 +1175,10 @@ Rust generic at run time, only use the ones compiled in.
 > serializes under, its `sql_type`, the `rust_type` its model reads it as,
 > `nullable`, `primary_key`, the `kind` its values bind and read as, spelled
 > as a model's is (`bindings.models`) and null for a type that takes a
-> `Value`, and an enum's `values` (null for any other column);
+> `Value` — a `money` column's being `decimal`, as the entity reads it cast
+> to `numeric` and writes it cast to `money`
+> (`[spec:pgorm:sem:entity.traits.column.enum-cast]`) — and an enum's
+> `values` (null for any other column);
 > `primary_key`, and `primary_key_without_overlaps`, whether that key ends
 > `WITHOUT OVERLAPS`; `relations`, each with its `name`, `type` (has one or
 > has many), the `from` and `to` tables, each its `schema` and `table`, its

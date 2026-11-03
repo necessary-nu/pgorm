@@ -585,7 +585,7 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
         await self.drop()
         await asyncio.wait_for(self.pool.close(), 2)
 
-    # [spec:pgorm:req:bindings.copy-rows/test]    each value kind is written as a parameter binds and read back as a result decodes
+    # [spec:pgorm:req:bindings.copy-rows+1/test]    each value kind is written as a parameter binds and read back as a result decodes
     async def test_rows_round_trip_every_kind(self):
         operations = p.capabilities()["operations"]
         for name in ("connection.copy_in_rows", "transaction.copy_out_rows"):
@@ -618,7 +618,7 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             bool(stream)
 
-    # [spec:pgorm:req:bindings.copy-rows/test]    a row of the wrong width or type raises a construction error that aborts the COPY
+    # [spec:pgorm:req:bindings.copy-rows+1/test]    a row of the wrong width or type raises a construction error that aborts the COPY
     # [spec:pgorm:req:bindings.argument-errors+1/test]
     async def test_wrong_width_or_type_aborts_copy(self):
         copy = p.CopyFrom(self.rows, "binary").columns("id", "name")
@@ -653,7 +653,45 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
             await self.pool.copy_in_rows(copy, [[1, "again"]])
         self.assertEqual(caught.exception.sqlstate, "23505")
 
-    # [spec:pgorm:req:bindings.copy-rows/test]    rows run on a connection and in a transaction, from an async generator
+    # [spec:pgorm:req:bindings.copy-rows+1/test]    a money column, an array of money and a domain over
+    # money copy in from a Decimal or an int of whole units, rounded to the currency's places, and
+    # copy out as the Decimal the server's numeric cast gives
+    async def test_money_rows_move_as_decimals(self):
+        await self.pool.execute(p.RawSQL(
+            "CREATE DOMAIN python_copy_takings AS money CHECK (VALUE >= 0::money)"))
+        await self.pool.execute(p.RawSQL(
+            "CREATE TABLE python_copy_tills (id int PRIMARY KEY, cash money, floats money[], "
+            "banked python_copy_takings)"))
+        try:
+            tills = p.Table("python_copy_tills")
+            rows = [
+                (1, Decimal("12.345"), [Decimal("-0.005"), None, Decimal("3")], 40),
+                (2, None, None, None),
+            ]
+            self.assertEqual(await self.pool.copy_in_rows(p.CopyFrom(tills, "binary"), rows), 2)
+            stored = await self.pool.one(p.RawSQL(
+                "SELECT cash::numeric AS cash, floats::numeric[] AS floats, banked::numeric AS banked "
+                "FROM python_copy_tills WHERE id = 1"))
+            self.assertEqual(
+                (stored["cash"], stored["floats"], stored["banked"]),
+                (Decimal("12.35"), [Decimal("-0.01"), None, Decimal("3.00")], Decimal("40.00")))
+            query = p.select(tills.star()).from_(tills).order_by(tills.col("id").asc())
+            read = await rows_of(await self.pool.copy_out_rows(p.CopyTo(query, "binary")))
+            self.assertEqual(read, [
+                (1, Decimal("12.35"), [Decimal("-0.01"), None, Decimal("3.00")], Decimal("40.00")),
+                (2, None, None, None),
+            ])
+            with self.assertRaises(p.ConstructionError) as caught:
+                await self.pool.copy_in_rows(p.CopyFrom(tills, "binary"), [(3, Decimal("100000000000000000000"), None, None)])
+            self.assertIn("COPY column `cash` of type `money`", str(caught.exception))
+            with self.assertRaises(p.DatabaseError) as caught:
+                await self.pool.copy_in_rows(p.CopyFrom(tills, "binary"), [(3, None, None, Decimal("-1"))])
+            self.assertEqual(caught.exception.sqlstate, "23514")
+        finally:
+            await self.pool.execute(p.RawSQL("DROP TABLE IF EXISTS python_copy_tills"))
+            await self.pool.execute(p.RawSQL("DROP DOMAIN IF EXISTS python_copy_takings"))
+
+    # [spec:pgorm:req:bindings.copy-rows+1/test]    rows run on a connection and in a transaction, from an async generator
     async def test_rows_on_connection_and_transaction(self):
         copy = p.CopyFrom(self.rows, "binary").columns("id", "name")
 
@@ -680,7 +718,7 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
             count = await connection.one(p.RawSQL("SELECT count(*) AS n FROM python_copy_rows"))
             self.assertEqual(count["n"], 600)
 
-    # [spec:pgorm:req:bindings.copy-rows/test]    a refused description keeps the connection; an undecodable field raises and closes the stream
+    # [spec:pgorm:req:bindings.copy-rows+1/test]    a refused description keeps the connection; an undecodable field raises and closes the stream
     async def test_refused_description_and_undecodable_field(self):
         async with self.pool.connection() as connection:
             with self.assertRaises(p.DatabaseError) as caught:
@@ -703,7 +741,7 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
             await anext(stream)
         self.assertEqual((await self.pool.one(p.RawSQL("SELECT 3 AS n")))["n"], 3)
 
-    # [spec:pgorm:req:bindings.copy-rows/test]    a created multirange reads as a Multirange and writes back from a Value of its kind or from its text
+    # [spec:pgorm:req:bindings.copy-rows+1/test]    a created multirange reads as a Multirange and writes back from a Value of its kind or from its text
     # [spec:pgorm:req:bindings.created-ranges+1/test]
     async def test_created_multiranges_round_trip(self):
         for statement in MULTISPANS:

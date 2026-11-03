@@ -2,7 +2,10 @@ use jiff::{
     Timestamp,
     civil::{Date, DateTime, Time},
 };
-use pgorm::pgorm_query::{ArrayType, Interval, Value, Vector};
+use pgorm::{
+    CopyColumn,
+    pgorm_query::{ArrayType, Interval, Value, Vector},
+};
 use pyo3::prelude::*;
 use tokio_postgres::{
     Row,
@@ -18,14 +21,14 @@ use crate::{
 };
 
 /// Where a column's value is read from: a result row, or one field of a
-/// binary COPY's row, its bytes and the type the server describes for it.
+/// binary COPY's row, its bytes and the column the server describes for it.
 /// Both read through the same codecs, so a COPY's value is the value a query
 /// of the same column gives.
 #[derive(Clone, Copy)]
 pub(crate) enum Field<'a> {
     Row(&'a Row, usize),
     Copy {
-        ty: &'a Type,
+        column: &'a CopyColumn,
         raw: Option<&'a [u8]>,
         index: usize,
     },
@@ -35,7 +38,7 @@ impl Field<'_> {
     fn ty(&self) -> &Type {
         match self {
             Self::Row(row, index) => row.columns()[*index].type_(),
-            Self::Copy { ty, .. } => ty,
+            Self::Copy { column, .. } => column.type_(),
         }
     }
 
@@ -55,7 +58,8 @@ pub(super) fn read<T: for<'a> FromSql<'a>>(field: Field<'_>) -> PyResult<Option<
     };
     match field {
         Field::Row(row, index) => row.try_get(index).map_err(|_| refused()),
-        Field::Copy { ty, raw, .. } => {
+        Field::Copy { column, raw, .. } => {
+            let ty = column.type_();
             if !<Option<T> as FromSql>::accepts(ty) {
                 return Err(refused());
             }
@@ -83,6 +87,20 @@ pub(super) fn typed<T: for<'a> FromSql<'a>>(
 // [spec:pgorm:req:bindings.value-tags]
 pub(crate) fn value(field: Field<'_>) -> PyResult<PyValue> {
     let index = field.index();
+    // A COPY's `money` field is the count of its currency's minor units,
+    // which pgorm reads as a `Decimal` at the places the COPY's description
+    // learned; a query's `money` column has no places beside it and is
+    // refused below, as a query reads it cast to `numeric`.
+    // [spec:pgorm:req:bindings.copy-rows+1]
+    if let Field::Copy { column, raw, .. } = field
+        && column.money_places().is_some()
+    {
+        return match column.decode(raw) {
+            Ok(value) => Ok(PyValue::from_rust(value)),
+            Err(pgorm::Error::Type(message)) => Err(DecodeError::new_err(message)),
+            Err(error) => Err(DecodeError::new_err(error.to_string())),
+        };
+    }
     let declared = field.ty();
     let (ty, array) = match declared.kind() {
         Kind::Array(member) => (member, true),

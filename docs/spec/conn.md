@@ -936,7 +936,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > computing them as the rows go in; a COPY TO reads one only through a
 > `SELECT` source naming it, since `CopyToStatement` takes no column list.
 
-> [spec:pgorm:req:conn.copy.rows+3]
+> [spec:pgorm:req:conn.copy.rows+4]
 > Binary COPY carries rows of pgorm `Value`s, each field in its value's
 > binary form, the form a parameter is bound in and a result column decoded
 > from. The format sends no column types — a header, then each row as its
@@ -962,7 +962,13 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > and schema over a `Kind::Multirange` of that subtype. An array's member
 > and a domain's base are completed the same way; any other type is the
 > driver's, and a simple type `pg_range` holds no multirange for costs the
-> description one catalogue read. A table or column the server refuses
+> description one catalogue read. A `money` travels as an `int8` count of its
+> currency's minor units, whose places only the session's `lc_monetary`
+> knows, so a description with a column holding `money` — the type, an array
+> of it, a domain over either — asks the server for them
+> (`scale(CAST(CAST(0 AS money) AS numeric))`) and each such `CopyColumn`
+> carries them (`money_places`); `CopyColumn::with_money_places` gives them
+> to a column known without asking. A table or column the server refuses
 > is refused by the description, before any COPY starts, and leaves the
 > connection as it was. A generated column in a COPY FROM's list is not: a
 > `SELECT` reads one, so the description names it like any other column, and
@@ -982,7 +988,12 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > sink goes on taking rows. That check takes a range or multirange type a
 > schema created from the `String` of its text form
 > (`exec.cursor.binding-range`), so the rows a COPY TO reads from such a
-> column write back into it. `send_model` writes a model's value for each of
+> column write back into it. A `money` column, an array of one and a domain
+> over either take what a `numeric` parameter takes — a `Decimal`, an
+> integer as whole units — its amount multiplied out to the currency's minor
+> units and rounded half away from zero, as PostgreSQL's cast of a `numeric`
+> to `money` rounds, an amount past `int8`'s range refused as a value its
+> column cannot take. `send_model` writes a model's value for each of
 > the COPY's columns by name, refusing a
 > column its entity lacks. `finish` writes the trailer and returns the row
 > count; a row the server refuses is reported there, and a sink dropped
@@ -1003,8 +1014,13 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > `timestamptz`, and `uuid` under `with-uuid`, a domain over one read as the
 > one — and written as that type's `Display` writes it, so a model's newtype
 > field reads through `models`, and an array of one reads as an `Array` of
-> those `String`s. A multirange type a schema created, its kind completed by
-> the description, reads the same way, as the `String` of its text form
+> those `String`s. A `money` field, its column's places known, reads as the
+> `Decimal` of its minor units at those places, the amount PostgreSQL's cast
+> to `numeric` gives, and an array of them as an `Array` of `Decimal`s, so
+> what a COPY TO reads writes back through a COPY FROM and a model's
+> `Decimal` field over a `money` column reads through `models`. A multirange
+> type a schema created, its kind completed by the description, reads the
+> same way, as the `String` of its text form
 > (`{[1,3),[5,8)}`), each range read through that `FromSql` and the
 > multirange written as `Multirange<T>`'s `Display` writes it, and an array
 > of one as an `Array` of those. A type no `Value` holds — a geometric type,

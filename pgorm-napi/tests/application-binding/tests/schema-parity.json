@@ -52,5 +52,11 @@
   },
   "app.Temper": {
     "refused": "Type Error: relation `Settles` of `tempers` cannot be a foreign key: `tempers`.`settles_into` references `tempers`.`mood`, and PostgreSQL implements no foreign key with a column typed as a domain over an enum on either side (42804)"
+  },
+  "app.Till": {
+    "comments": [],
+    "enums": [],
+    "indexes": [],
+    "table": "CREATE TABLE \"napi_entities\".\"tills\" ( \"id\" integer NOT NULL, \"takings\" money NOT NULL, \"floats\" money[], PRIMARY KEY (\"id\") )"
   }
 }

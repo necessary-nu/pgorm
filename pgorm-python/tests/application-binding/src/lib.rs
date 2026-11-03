@@ -11,6 +11,7 @@ pub mod shipping;
 pub mod sources;
 pub mod stay;
 pub mod temper;
+pub mod till;
 
 #[cfg(test)]
 mod graph_parity;
@@ -21,7 +22,7 @@ mod schema_parity;
 
 use pyo3::prelude::*;
 
-// [spec:pgorm:req:bindings.entities+3/test]
+// [spec:pgorm:req:bindings.entities+4/test]
 #[pymodule(gil_used = true)]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     let mut registry = pgorm_python::entities::Registry::default();
@@ -33,6 +34,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     registry.entity::<stay::Entity>("app.Stay")?;
     registry.entity::<old::Entity>("app.Old")?;
     registry.entity::<temper::Entity>("app.Temper")?;
+    registry.entity::<till::Entity>("app.Till")?;
     registry.entity::<shipping::shipment::Entity>("app.Shipment")?;
     registry.entity::<shipping::parcel::Entity>("app.Parcel")?;
     registry.entity::<shipping::pallet::Entity>("app.Pallet")?;
@@ -46,7 +48,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use super::*;
 
-    // [spec:pgorm:req:bindings.entities+3/test]
+    // [spec:pgorm:req:bindings.entities+4/test]
     #[test]
     fn registry_refuses_name_and_type_collisions() -> PyResult<()> {
         Python::initialize();

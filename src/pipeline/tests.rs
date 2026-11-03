@@ -3125,7 +3125,7 @@ mod cheerful {
     entity!(temper, "temper", rank, label);
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    a pipeline
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    a pipeline
 // comparison casts each side that is an entity column whose domain is over an
 // enum to the enum — against a literal, a bound value, a list or another such
 // column — and so do coalesce, min and max, while sorting, grouping, count and
@@ -3141,14 +3141,18 @@ fn domain_enum_columns_compare_as_the_enum() {
                 .sort(line::Column::Mood)
                 .select((line::Column::Id, line::Column::Mood))
         ),
-        "SELECT id, mood FROM line WHERE CAST(mood AS mood) = 'glad' AND id > 1 ORDER BY mood"
+        "SELECT id, mood FROM line WHERE CAST(mood AS mood) = CAST('glad' AS mood) AND id > 1 \
+         ORDER BY mood"
     );
     let (bound, values) = Pipeline::from(line::Entity)
         .filter_with(|binder| line::Column::Mood.ne(binder.bind("calm")))
         .select(line::Column::Id)
         .into_sql()
         .expect("pipeline compiles");
-    assert_eq!(bound, "SELECT id FROM line WHERE CAST(mood AS mood) <> $1");
+    assert_eq!(
+        bound,
+        "SELECT id FROM line WHERE CAST(mood AS mood) <> CAST($1::text AS mood)"
+    );
     assert_eq!(values.0, [Value::from("calm")]);
     assert_eq!(
         sql_of(
@@ -3157,8 +3161,8 @@ fn domain_enum_columns_compare_as_the_enum() {
                 .filter(line::Column::Mood.coalesce("calm").lte("glad"))
                 .select(line::Column::Id)
         ),
-        "SELECT id FROM line WHERE CAST(mood AS mood) IN ('calm', 'glad') \
-         AND COALESCE(CAST(mood AS mood), 'calm') <= 'glad'"
+        "SELECT id FROM line WHERE CAST(mood AS mood) IN (CAST('calm' AS mood), \
+         CAST('glad' AS mood)) AND COALESCE(CAST(mood AS mood), CAST('calm' AS mood)) <= 'glad'"
     );
     assert_eq!(
         sql_of(
@@ -3188,7 +3192,7 @@ fn domain_enum_columns_compare_as_the_enum() {
     );
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    a named relation's
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    a named relation's
 // column compares as its entity's column through Named::col, and a col
 // reference or an alias token as the enum compares_as names, schema-qualified
 // and quoted by the type-name policy, while projecting and grouping keep each
@@ -3253,5 +3257,79 @@ fn untyped_columns_compare_as_the_named_enum() {
     assert_eq!(
         sql_of(Pipeline::from(alias("line")).filter(col(alias("line"), alias("mood")).eq("glad"))),
         "SELECT * FROM line WHERE mood = 'glad'"
+    );
+}
+
+/// A till whose `takings` are `money`, with an array of them, a `state` of
+/// the enum `till_state`, and a `code` written through a `save_as` cast.
+mod till {
+    use crate as pgorm;
+    use crate::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "till")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+        #[pgorm(column_type = ColumnType::Money)]
+        pub takings: Decimal,
+        #[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Money)))]
+        pub floats: Vec<Decimal>,
+        #[pgorm(column_type = ColumnType::Enum { name: Name::runtime("till_state"), schema: None, variants: vec![Name::runtime("open"), Name::runtime("shut")] })]
+        pub state: String,
+        #[pgorm(save_as = "citext")]
+        pub code: String,
+        pub note: String,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    a literal or a
+// bound value compared with an entity column, by a comparison, coalesce or
+// in_array, either side, is cast as the column's ColumnTrait casts a compared
+// value — money, an array of money, an enum, a save_as type — its placeholder
+// pinned to its own type, while arithmetic, a column on the other side, null
+// and a column whose values travel bare are left as written
+#[test]
+fn compared_values_cast_as_their_column_writes_them() {
+    use rust_decimal::Decimal;
+    use till::Column as T;
+
+    let (sql, values) = Pipeline::from(till::Entity)
+        .filter_with(|binder| {
+            T::Takings
+                .gte(binder.bind(Decimal::new(150, 2)))
+                .and(binder.bind(Decimal::ONE_HUNDRED).gt(T::Takings))
+                .and(T::Floats.eq(binder.bind(vec![Decimal::ONE])))
+                .and(T::State.ne(binder.bind("shut")))
+                .and(T::Code.eq(binder.bind("ab")))
+                .and(T::Note.eq(binder.bind("plain")))
+        })
+        .into_sql()
+        .expect("pipeline compiles");
+    assert_eq!(
+        sql,
+        "SELECT * FROM till WHERE takings >= CAST($1::numeric AS money) \
+         AND CAST($2::numeric AS money) > takings \
+         AND floats = CAST($3::numeric[] AS money[]) \
+         AND state <> CAST($4::text AS till_state) \
+         AND code = CAST($5::text AS citext) AND note = $6"
+    );
+    assert_eq!(values.0.len(), 6);
+
+    assert_eq!(
+        sql_of(
+            Pipeline::from(till::Entity)
+                .filter(T::Takings.in_array([5, 10]))
+                .filter(T::Takings.coalesce(0).lt(2.5))
+                .filter(T::State.eq("open").and(T::Takings.is_not_null()))
+                .derive(ExprOps::mul(T::Takings, 2).as_("doubled"))
+                .select((T::Id, alias("doubled")))
+        ),
+        "SELECT id, takings * 2 AS doubled FROM till WHERE takings IN (CAST(5 AS money), \
+         CAST(10 AS money)) AND COALESCE(takings, CAST(0 AS money)) < 2.5 \
+         AND state = CAST('open' AS till_state) AND takings IS NOT NULL"
     );
 }

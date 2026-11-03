@@ -120,7 +120,7 @@ async function rowsOf(stream: AsyncIterable<unknown[]>): Promise<unknown[][]> {
 const kinds = new Table("kinds");
 const ordered = () => copyTo(select(kinds.star()).from(kinds).orderBy(kinds.col("id").asc()), "binary");
 
-// [spec:pgorm:req:bindings.copy-rows/test]    each value kind is written as a parameter binds and read back as a result decodes
+// [spec:pgorm:req:bindings.copy-rows+1/test]    each value kind is written as a parameter binds and read back as a result decodes
 test("copyInRows writes each value kind as the server reads its literal, and copyOutRows reads it back", async () => {
   assert.equal(await pool().copyInRows(copyFrom("kinds", "binary"), [row(1)]), 1);
   await pool().execute(LITERALS);
@@ -142,7 +142,7 @@ test("copyInRows writes each value kind as the server reads its literal, and cop
   await pool().execute("TRUNCATE kinds");
 });
 
-// [spec:pgorm:req:bindings.copy-rows/test]    a created range or multirange whose subtype is a domain, nested included, travels as the type the domains are over
+// [spec:pgorm:req:bindings.copy-rows+1/test]    a created range or multirange whose subtype is a domain, nested included, travels as the type the domains are over
 test("a created range and multirange over a domain are written and read through the domain's base", async () => {
   for (
     const statement of [
@@ -164,7 +164,7 @@ test("a created range and multirange over a domain are written and read through 
   assert.equal((await pool().one("SELECT spans::text AS t FROM heights")).t, "{[1.5,2),[3,)}");
 });
 
-// [spec:pgorm:req:bindings.copy-rows/test]    a row of the wrong width or type is a ConstructionError that abandons the COPY
+// [spec:pgorm:req:bindings.copy-rows+1/test]    a row of the wrong width or type is a ConstructionError that abandons the COPY
 // [spec:pgorm:req:napi.typing+1/test]
 test("a row of the wrong width or holding a value its column cannot take abandons the COPY", async () => {
   const copy = copyFrom("item", "binary").columns(["id", "name"]);
@@ -198,7 +198,48 @@ test("a row of the wrong width or holding a value its column cannot take abandon
   await pool().execute("TRUNCATE item");
 });
 
-// [spec:pgorm:req:bindings.copy-rows/test]    rows run on a connection and in a transaction, from an async generator, and an empty source writes none
+// [spec:pgorm:req:bindings.copy-rows+1/test]    a money column, an array of money and a domain over money copy in
+// from a Decimal or a whole number of units, rounded to the currency's places, and copy out as the
+// Decimal the server's numeric cast gives
+test("a money column copies in from a Decimal and out as one, at its currency's places", async () => {
+  for (
+    const statement of [
+      "CREATE DOMAIN takings AS money CHECK (VALUE >= 0::money)",
+      "CREATE TABLE tills (id int PRIMARY KEY, cash money, floats money[], banked takings)",
+    ]
+  ) {
+    await pool().execute(statement);
+  }
+  const rows: Param[][] = [
+    [1, new Decimal("12.345"), [new Decimal("-0.005"), null, new Decimal("3")], 40],
+    [2, null, null, null],
+  ];
+  assert.equal(await pool().copyInRows(copyFrom("tills", "binary"), rows), 2);
+  same(
+    await pool().one(
+      "SELECT cash::numeric AS cash, floats::numeric[] AS floats, banked::numeric AS banked FROM tills WHERE id = 1",
+    ),
+    { cash: new Decimal("12.35"), floats: [new Decimal("-0.01"), null, new Decimal("3.00")], banked: new Decimal("40.00") },
+  );
+  const tills = new Table("tills");
+  same(await rowsOf(await pool().copyOutRows(copyTo(select(tills.star()).from(tills).orderBy(tills.col("id").asc()), "binary"))), [
+    [1, new Decimal("12.35"), [new Decimal("-0.01"), null, new Decimal("3.00")], new Decimal("40.00")],
+    [2, null, null, null],
+  ]);
+  await assert.rejects(
+    pool().copyInRows(copyFrom("tills", "binary"), [[3, new Decimal("100000000000000000000"), null, null]]),
+    refusedWith(/COPY column `cash` of type `money`/),
+  );
+  await assert.rejects(pool().copyInRows(copyFrom("tills", "binary"), [[3, null, null, new Decimal("-1")]]), (error: unknown) => {
+    assert.ok(error instanceof DatabaseError, `expected a DatabaseError, got ${error}`);
+    assert.equal(error.sqlstate, "23514");
+    return true;
+  });
+  await pool().execute("DROP TABLE tills");
+  await pool().execute("DROP DOMAIN takings");
+});
+
+// [spec:pgorm:req:bindings.copy-rows+1/test]    rows run on a connection and in a transaction, from an async generator, and an empty source writes none
 test("copyInRows and copyOutRows run on a connection and in a transaction, holding each until the COPY ends", async () => {
   await using connection = await pool().acquire();
   async function* generated() {
@@ -228,7 +269,7 @@ test("copyInRows and copyOutRows run on a connection and in a transaction, holdi
   await connection.execute("TRUNCATE item");
 });
 
-// [spec:pgorm:req:bindings.copy-rows/test]    a refused description keeps the connection; a field no value holds is a DecodeError that closes the stream
+// [spec:pgorm:req:bindings.copy-rows+1/test]    a refused description keeps the connection; a field no value holds is a DecodeError that closes the stream
 test("a description the server refuses keeps the connection, and an undecodable field closes the stream", async () => {
   await using connection = await pool().acquire();
   await assert.rejects(connection.copyInRows(copyFrom("missing", "binary"), [[1]]), (error: unknown) => {
@@ -275,7 +316,7 @@ const MULTISPANS = [
   `INSERT INTO geo.many VALUES ('{"{[1,3)}"}')`,
 ];
 
-// [spec:pgorm:req:bindings.copy-rows/test]    a multirange type a schema created reads as a Multirange and writes back from a Value of its kind or from its text
+// [spec:pgorm:req:bindings.copy-rows+1/test]    a multirange type a schema created reads as a Multirange and writes back from a Value of its kind or from its text
 // [spec:pgorm:req:bindings.created-ranges+1/test]
 test("a multirange type a schema created reads out of a binary COPY and writes back in", async () => {
   for (const statement of MULTISPANS) await pool().execute(statement);
