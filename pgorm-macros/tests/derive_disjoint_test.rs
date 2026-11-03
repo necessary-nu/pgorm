@@ -33,8 +33,8 @@ impl<D: Disjoint> KindVisitor<D> for Describe {
         (kind.to_value(), Some((table, key)))
     }
 
-    fn unit(self, kind: D::Kind) -> Described {
-        (kind.to_value(), None)
+    fn unit(self, value: D) -> Described {
+        (value.kind().to_value(), None)
     }
 }
 
