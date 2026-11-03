@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-03T01:44:17.138347Z
+last_sync_at 2026-11-03T01:45:27.42603Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -1866,8 +1866,6 @@ impl_evidence (
         macros.derive.names
     ), covered_claims (
         {impl_name main, rule macros.derive.names}
-    ), rule_versions_seen (
-        {id macros.derive.names, version 0}
     )}
     {id derives.paths, covered_rules (
         macros.derive.code-values
@@ -1880,6 +1878,8 @@ impl_evidence (
         disjoint.declare
     ), covered_claims (
         {impl_name main, rule disjoint.declare}
+    ), rule_versions_seen (
+        {id disjoint.declare, version 1}
     )}
     {id generative.acceptance, covered_rules (
         generative.acceptance
