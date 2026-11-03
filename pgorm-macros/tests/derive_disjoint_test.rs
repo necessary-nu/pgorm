@@ -4,61 +4,12 @@
 
 use pgorm::entity::prelude::*;
 use pgorm::tests_cfg::{
-    car, truck,
+    car, flat,
+    listing::{self, Listing, ListingActiveModel, ListingKind},
+    truck,
     vehicle::{self, Vehicle, VehicleActiveModel, VehicleKind},
 };
 use pgorm::{ActiveKindVisitor, DisjointActiveModel, KindModel, KindVisitor};
-
-/// A base keyed by two columns, its kind column under a name of its own, and
-/// a kind type named and placed by hand.
-pub mod listing {
-    use pgorm::entity::prelude::*;
-
-    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
-    #[pgorm(table_name = "listing", schema_name = "market")]
-    pub struct Model {
-        #[pgorm(primary_key, auto_increment = false)]
-        pub tenant_id: i32,
-        #[pgorm(primary_key, auto_increment = false)]
-        pub id: i64,
-        pub category: super::ListingKind,
-        pub title: String,
-    }
-
-    #[derive(Copy, Clone, Debug, Relation)]
-    pub enum Relation {}
-}
-
-/// A kind keyed by the listing's two columns under other names.
-pub mod flat {
-    use pgorm::entity::prelude::*;
-
-    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
-    #[pgorm(table_name = "flat", schema_name = "market")]
-    pub struct Model {
-        #[pgorm(primary_key, auto_increment = false)]
-        pub tenant: i32,
-        #[pgorm(primary_key, auto_increment = false)]
-        pub listing: i64,
-        pub rooms: i16,
-    }
-
-    #[derive(Copy, Clone, Debug, Relation)]
-    pub enum Relation {}
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Disjoint)]
-#[pgorm(
-    base = listing::Entity,
-    kind = listing::Column::Category,
-    enum_name = "listing_category",
-    schema_name = "market"
-)]
-pub enum Listing {
-    #[pgorm(value = "apartment")]
-    Flat(flat::Model),
-    BuildingPlot,
-}
 
 /// Each kind visited, as its value, its entity's table and its key columns
 /// with their types.

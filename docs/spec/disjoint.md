@@ -58,9 +58,12 @@ would sit side by side in the base, mostly null.
 
 ## Schema
 
-> [spec:pgorm:sem:disjoint.schema]
-> `Schema::create_disjoint::<E>()` MUST return the statements that create a
-> disjoint entity's type and tables, in the order they run:
+> [spec:pgorm:sem:disjoint.schema+1]
+> `Schema::create_disjoint::<E>()` MUST run `check_disjoint::<E>()` first,
+> returning its refusal as its own, and otherwise return the statements that
+> create a disjoint entity's type and tables, a `Vec<DdlStatement>` in the
+> order they run (`DdlStatement` being a `CREATE TYPE`, a `CREATE TABLE` or
+> an `ALTER TABLE`, each rendering as its statement):
 >
 > 1. the kind type;
 > 2. the base table as `Schema::create_table_from_entity` writes it
@@ -69,23 +72,29 @@ would sit side by side in the base, mostly null.
 > 3. each kind's table as `create_table_from_entity` writes it, with a kind
 >    column named as the base's, of the kind type and `GENERATED ALWAYS AS
 >    ('<value>') STORED`, and a foreign key from its key columns and that
->    column to the base's `UNIQUE` columns, `ON DELETE CASCADE`;
-> 4. one `ALTER TABLE` on the base adding, for each kind with a table and
->    each key column, a column `<value>_<column>` of the key column's type,
->    `GENERATED ALWAYS AS (CASE WHEN <kind column> = '<value>' THEN <column>
->    END) STORED`, and for each such kind a foreign key from its columns to
->    the kind table's key.
+>    column to the base's `UNIQUE` columns, `ON DELETE CASCADE`. A
+>    belongs-to relation the kind's entity declares from exactly its key to
+>    the base's key writes no foreign key of its own, since this one implies
+>    it, and the key is written with no identity, serial or default, which
+>    `check_disjoint` refuses (`[spec:pgorm:def:disjoint.declare]`);
+> 4. when any kind has a table, one `ALTER TABLE` on the base adding, for
+>    each such kind and each key column, a column `<value>_<column>` of the
+>    key column's type, `GENERATED ALWAYS AS (CASE WHEN <kind column> =
+>    '<value>' THEN <column> END) STORED`, and for each such kind a foreign
+>    key from its columns to the kind table's key.
 >
 > The base's foreign keys come last because each side references the other.
-> Together the constraints MUST make PostgreSQL refuse every state the enum
-> does not describe: a base row of a kind with a table but no row in it, a
-> row in a kind's table whose base row is absent or of another kind, and so
-> a base row with rows in two kinds' tables. A generated column is null for
-> every kind but its own, and a null skips its foreign key, so each base row
-> is held to exactly its own kind's table. A kind without a table constrains
-> nothing beyond its value. Deleting a base row deletes its kind's row by
-> the cascade; deleting a kind's row alone, or changing a base row's kind
-> while its old kind's row remains, is refused.
+> The types the tables' other columns use are not among the statements;
+> `create_enum_from_entity` creates them, the kind type included when given
+> the base. Together the constraints MUST make PostgreSQL refuse every state
+> the enum does not describe: a base row of a kind with a table but no row
+> in it, a row in a kind's table whose base row is absent or of another
+> kind, and so a base row with rows in two kinds' tables. A generated column
+> is null for every kind but its own, and a null skips its foreign key, so
+> each base row is held to exactly its own kind's table. A kind without a
+> table constrains nothing beyond its value. Deleting a base row deletes its
+> kind's row by the cascade; deleting a kind's row alone, or changing a base
+> row's kind while its old kind's row remains, is refused.
 >
 > Every foreign key here MUST be `DEFERRABLE INITIALLY IMMEDIATE`. Each
 > write pgorm sends is one statement, whose checks run at its end, after
@@ -101,9 +110,18 @@ would sit side by side in the base, mostly null.
 > write names them. Every constraint is named. The constraint names and the
 > generated columns' names MUST be a function of the tables, columns and
 > values alone, so that a later statement can name them, and MUST fit
-> PostgreSQL's 63-byte identifier limit. A generated name equal to a column
-> an entity declares MUST be refused with `Error::Type` naming both, before
-> any statement is returned.
+> PostgreSQL's 63-byte identifier limit. They are composed as derived
+> foreign keys' are (`[spec:pgorm:req:entity.relation.fk]`), each table bare
+> and each list `-`-joined: the base's `UNIQUE` is `uq-{base}-{key
+> columns}-{kind column}`, a kind table's foreign key `fk-{table}-{key
+> columns}-{kind column}`, and the base's to it `fk-{base}-{its generated
+> columns}`; and each, the generated columns' `<value>_<column>` too, is
+> bounded as prefixed result names are
+> (`[spec:pgorm:sem:query.graph.writer]`), kept when shorter than 63 bytes
+> and otherwise spelled as a head and a hash of the whole in exactly 63. A
+> generated name equal to a column an entity declares, or to another name
+> generated on the same table, MUST be refused with `Error::Type` naming
+> both, before any statement is returned.
 
 ## Reads
 

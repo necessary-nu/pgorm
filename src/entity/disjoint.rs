@@ -214,7 +214,7 @@ impl<D: Disjoint> KindVisitor<D> for UngeneratedKey {
 }
 
 /// An entity's table as an error names it, schema-qualified where it is.
-fn table_label<E: EntityName>(entity: &E) -> String {
+pub(crate) fn table_label<E: EntityName>(entity: &E) -> String {
     match entity.schema_name() {
         Some(schema) => format!("{schema}.{}", entity.table_name()),
         None => entity.table_name().to_owned(),

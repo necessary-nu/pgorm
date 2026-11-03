@@ -1,4 +1,8 @@
+mod disjoint;
 mod entity;
+mod statement;
+
+pub use statement::DdlStatement;
 
 /// This is a helper struct to convert [`EntityTrait`](crate::EntityTrait)
 /// into different [`pgorm_query`] statements.
