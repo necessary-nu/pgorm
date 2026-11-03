@@ -40,6 +40,7 @@ mod active_model;
 mod base_entity;
 mod column;
 mod created_range;
+mod disjoint;
 mod key;
 mod link;
 mod model;
@@ -54,6 +55,7 @@ pub use active_model::*;
 pub use base_entity::*;
 pub use column::*;
 pub use created_range::*;
+pub use disjoint::*;
 pub use key::*;
 pub use link::*;
 pub use model::*;
@@ -68,7 +70,7 @@ pub use relation::*;
 /// cannot resolve; an explicit import shadows a glob's in the macro namespace
 /// alone, so these name the traits while pgorm-macros' derives, expanding to
 /// `pgorm::pgorm_query::..`, are the derives.
-// [spec:pgorm:req:macros.derive.names]
+// [spec:pgorm:req:macros.derive.names+1]
 // [spec:pgorm:sem:macros.derive.iden+3]
 #[cfg(feature = "macros")]
 pub use pgorm_macros::{SqlName, StaticName};

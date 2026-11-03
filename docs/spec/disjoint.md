@@ -11,7 +11,7 @@ would sit side by side in the base, mostly null.
 
 ## Declaration
 
-> [spec:pgorm:def:disjoint.declare]
+> [spec:pgorm:def:disjoint.declare+1]
 > `#[derive(Disjoint)]` on an enum MUST declare a disjoint entity over the
 > base entity its container attribute names, `#[pgorm(base =
 > vehicle::Entity)]`. Each variant is a kind of base row. A variant with one
@@ -19,8 +19,10 @@ would sit side by side in the base, mostly null.
 > and declares that every base row of that kind has exactly one row in that
 > entity's table. A unit variant, `Bike`, declares a kind with no table of
 > its own, whose base rows have no row anywhere else. A variant of any other
-> shape, a payload that is not an entity's `Model`, two variants holding the
-> same entity, and an enum with no variants MUST NOT compile.
+> shape or with a discriminant, a payload that is not an entity's `Model`
+> (a further model of an entity included), two variants holding the same
+> entity, two variants of one value, and an enum with no variants or with
+> generic parameters MUST NOT compile.
 >
 > The derive MUST generate the kind type, `<Enum>Kind`, an `ActiveEnum`
 > stored as a PostgreSQL enum with one value per variant, in declaration
@@ -30,10 +32,11 @@ would sit side by side in the base, mostly null.
 > gives another, and `schema_name = "..."` qualifies it as it does an
 > `ActiveEnum`'s (`[spec:pgorm:syn:macros.derive.active-enum]`). The base's
 > kind column is the one `kind = vehicle::Column::Kind` names, the base's
-> `Column::Kind` by default; a base row of a kind the enum does not list
-> cannot exist, because the kind type has no such value. The derive MUST
-> also generate `<Enum>ActiveModel`, the same variants each holding its
-> kind entity's `ActiveModel`, which is what a write takes
+> `Column::Kind` by default, and a base with no such column MUST NOT
+> compile; a base row of a kind the enum does not list cannot exist, because
+> the kind type has no such value. The derive MUST also generate
+> `<Enum>ActiveModel`, the same variants each holding its kind entity's
+> `ActiveModel`, which is what a write takes
 > (`[spec:pgorm:sem:disjoint.write]`).
 >
 > Each kind's entity MUST have a primary key of the same types, in the same
@@ -44,11 +47,13 @@ would sit side by side in the base, mostly null.
 > joined and written on its own, subject to the constraints
 > (`[spec:pgorm:sem:disjoint.schema]`), and a foreign key elsewhere can point
 > at the base, meaning a row of any kind, or at one kind's table. What the
-> types cannot tell — a kind column that is missing, nullable or of another
-> type, or a kind entity whose key the database generates, when its values
-> must come from the base row — MUST be refused as an `Error` naming the
-> entity and column, by `Schema::create_disjoint` and by every read and
-> write before anything is sent.
+> types cannot tell — a kind column that is nullable or not of the kind type
+> (its name, schema and values), or a kind entity whose key the database
+> generates (drawn from a sequence, an identity or a generated column), when
+> its values must come from the base row — MUST be refused as an
+> `Error::Type` naming the table and column, by `check_disjoint::<E>()`,
+> which `Schema::create_disjoint` and every read and write run before
+> anything is sent.
 
 ## Schema
 

@@ -11,12 +11,13 @@ known limitations.
 
 ## The macro suite
 
-> [spec:pgorm:def:macros.derive+6]
+> [spec:pgorm:def:macros.derive+7]
 > The `pgorm-macros` crate exposes the ORM's derive macros, all gated behind the crate's
 > `derive` feature: `Entity`, `EntityTrait`, `Model`, `Column`, `Relation`,
-> `ActiveEnum`, `IntoActiveModel`, `PartialModel`, `FromQueryResult`, `ValueType`,
-> `JsonValueType`, `CreatedRange`, `MigrationName`, `SqlName` and `StaticName`, named
-> as `macros.derive.names` says, plus the `#[pgorm_macros::test]` attribute macro.
+> `ActiveEnum`, `Disjoint`, `IntoActiveModel`, `PartialModel`, `FromQueryResult`,
+> `ValueType`, `JsonValueType`, `CreatedRange`, `MigrationName`, `SqlName` and
+> `StaticName`, named as `macros.derive.names` says, plus the
+> `#[pgorm_macros::test]` attribute macro.
 > There is no iteration derive: the derives that need their enums iterable write it
 > (`macros.derive.enum-iter`). Every entity-side derive reads its configuration from
 > the shared `#[pgorm(...)]` helper attribute (`SqlName` and `StaticName` read
@@ -72,16 +73,18 @@ known limitations.
 > `EntityName` on it, and puts the entity-trait derive on it beside a
 > composite derive given no `table_name`.
 
-> [spec:pgorm:req:macros.derive.names]
+> [spec:pgorm:req:macros.derive.names+1]
 > Every derive MUST be named for what it makes or implements, as Rust's own
 > derives and serde's are, with no `Derive` prefix; a derive and a trait
 > live in different namespaces, so the two can share a name. The derives
 > are `Entity` (the composite derive, on a `Model` struct), `EntityTrait`
 > (on a hand-written `Entity` struct whose names are computed), `Model` (a
 > further model of an entity), `Column` (a column enum for a custom
-> select), `Relation`, `ActiveEnum`, `IntoActiveModel`, `PartialModel`,
-> `FromQueryResult`, `ValueType`, `JsonValueType` (a value stored as a JSON
-> column), `CreatedRange`, `MigrationName` (in pgorm-migration), and
+> select), `Relation`, `ActiveEnum`, `Disjoint` (an enum stored as a base
+> table and its kinds' tables, `[spec:pgorm:def:disjoint.declare]`),
+> `IntoActiveModel`, `PartialModel`, `FromQueryResult`, `ValueType`,
+> `JsonValueType` (a value stored as a JSON column), `CreatedRange`,
+> `MigrationName` (in pgorm-migration), and
 > pgorm-query's `SqlName` and `StaticName`, reachable from pgorm with no
 > dependency on pgorm-query. The `Derive`-prefixed names, and
 > `FromJsonQueryResult`, MUST NOT exist, as aliases or otherwise; the Coming
