@@ -17205,4 +17205,18 @@ children (
             }
         )
     }
+
+    {
+        id napi-listen-abort-race
+        title "Aborting a JavaScript listener's in-flight listen always rejects it and closes the listener"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T18:09:52.13362Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Failed once in CI on PR #25 (linux-x86_64 / Node.js 26, run 41687791212), on code no lane touched; passed on the same code locally and in PR #24. pgorm-napi/tests/listen.test.ts \"an aborted pull leaves the listener open; an aborted listen closes it\": `const listening = listener.listen(\"napi_uncertain\", { signal: cut.signal }); cut.abort(new Error(\"cut off\")); await assert.rejects(listening, /cut off/)` got \"Missing expected rejection\", so the listen resolved. The abort fires synchronously, before any native completion can be delivered to JavaScript, so if the binding registered its abort handler before returning, the abort should always win. Look for the binding checking a native in-flight flag that the worker thread clears on completion, or registering the handler after an await, and make an abort that fires before the promise settles always reject it and close the listener (the LISTEN's effect is uncertain). Then repeat the test (e.g. 1000 iterations) to show the race is gone."
+            }
+        )
+    }
 )
