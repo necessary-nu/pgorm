@@ -24,7 +24,7 @@ impl QueryBuilder {
 
     /// `ALTER COLUMN "c" SET EXPRESSION AS (<expr>)`. The `AS` is not
     /// optional: `SET EXPRESSION (<expr>)` is a syntax error (`42601`).
-    // [spec:pgorm:req:sql.ddl.alter-table+13]
+    // [spec:pgorm:req:sql.ddl.alter-table+14]
     pub(crate) fn prepare_set_expression(
         &self,
         column: &Name,
@@ -39,7 +39,7 @@ impl QueryBuilder {
     }
 
     /// `ALTER COLUMN "c" DROP EXPRESSION[ IF EXISTS]`.
-    // [spec:pgorm:req:sql.ddl.alter-table+13]
+    // [spec:pgorm:req:sql.ddl.alter-table+14]
     pub(crate) fn prepare_drop_expression(
         &self,
         column: &Name,

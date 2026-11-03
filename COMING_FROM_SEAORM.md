@@ -1318,7 +1318,11 @@ when something goes wrong. Fix a mistake with a new migration.
 
 `up` runs every pending migration in one transaction, under an advisory lock
 so that two deploys starting together queue instead of colliding. If any
-migration fails, the whole batch rolls back.
+migration fails, the whole batch rolls back. The exception is a migration
+whose `commits_after()` answers `true`, for a change PostgreSQL will not let
+one transaction finish, such as using an enum value `ALTER TYPE ... ADD VALUE`
+added: the batch commits after it and runs the rest in a new transaction, so
+a later failure leaves it applied and the next `up` resumes after it.
 
 Your existing history carries over. A migration's name is its file name, as
 in SeaORM, and the ledger keeps the same `version` and `applied_at` columns.

@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-03T14:48:02.434281Z
+last_sync_at 2026-11-03T17:30:45.402236Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -123,7 +123,7 @@ rule_versions (
     {id conn.tx.guard, version 3}
     {id conn.tx.retry, version 3}
     {id disjoint.declare, version 5}
-    {id disjoint.evolve, version 0}
+    {id disjoint.evolve, version 1}
     {id disjoint.one-of, version 0}
     {id disjoint.read, version 2}
     {id disjoint.schema, version 2}
@@ -252,7 +252,7 @@ rule_versions (
     {id migration.sql-file, version 0}
     {id migration.sql-file.checksum, version 0}
     {id migration.sql-file.compile, version 1}
-    {id migration.up, version 4}
+    {id migration.up, version 5}
     {id migration.up-only, version 0}
     {id napi.api, version 1}
     {id napi.application, version 2}
@@ -384,7 +384,7 @@ rule_versions (
     {id sql.ast.with, version 5}
     {id sql.ast.with.recursive, version 1}
     {id sql.ddl, version 12}
-    {id sql.ddl.alter-table, version 13}
+    {id sql.ddl.alter-table, version 14}
     {id sql.ddl.column-def, version 13}
     {id sql.ddl.column-types, version 8}
     {id sql.ddl.create-table, version 16}
@@ -463,10 +463,12 @@ rule_versions (
 )
 
 derived_priorities (
+    {id active-enum-unknown-key-message, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id active-model-after-hook-atomicity, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id active-model-json-column-names, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id active-model-json-error-atomicity, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id active-model-unknown-column, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
+    {id annotation-verbs-match, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id api-doc-honesty, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id between-render-parens, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id big-unsigned-binding, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
@@ -478,6 +480,8 @@ derived_priorities (
     {id binding-statement-defects, priority 0, derived_at 2026-11-01T03:02:37.492868Z}
     {id binding-variant-coverage, priority 1, derived_at 2026-10-26T20:21:09.753689Z}
     {id bindings-array-subquery, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
+    {id bindings-between-casts, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
+    {id bindings-composite-unique, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id bindings-copy-created-multiranges, priority 3, derived_at 2026-10-26T20:21:09.753689Z}
     {id bindings-expression-gaps, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id bindings-tx-closure-only, priority 2, derived_at 2026-10-26T20:21:09.753689Z}
@@ -507,6 +511,8 @@ derived_priorities (
     {id codegen-datetime-crate-option, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id codegen-enum-array-expanded, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id codegen-enum-variant-names, priority 0, derived_at 2026-11-03T10:52:41.808438Z}
+    {id codegen-enum-variant-names-all, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
+    {id codegen-fk-covering-key-at-most-one, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id codegen-identity-collisions, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id codegen-interval-columns, priority 1, derived_at 2026-10-24T06:20:32.099314Z}
     {id codegen-junction-detection, priority 3, derived_at 2026-09-06T16:36:02.710141Z}
@@ -518,6 +524,7 @@ derived_priorities (
     {id codegen-relation-integrity, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id codegen-root-export, priority 0, derived_at 2026-10-24T06:20:32.099314Z}
     {id codegen-schema-qualifiers, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
+    {id codegen-unique-parts-dropped, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id column-default-parens, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id coming-from-seaorm, priority 0, derived_at 2026-10-24T06:20:32.099314Z}
     {id composite-attribute-alteration, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
@@ -757,6 +764,7 @@ derived_priorities (
     {id pgparse.sql-macro, priority 1, derived_at 2026-09-04T14:19:01.307427Z}
     {id pipeline-append-distinct, priority 0, derived_at 2026-09-10T22:25:12.233544Z}
     {id pipeline-bare-dollar-names, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
+    {id pipeline-created-range-bind, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id pipeline-hidden-order, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id pipeline-hostile-identifiers, priority 0, derived_at 2026-09-08T15:20:53.390093Z}
     {id pipeline-identifier-quoting-own, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
@@ -767,6 +775,7 @@ derived_priorities (
     {id pipeline-renamed-column-order, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id pipeline-sources, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
     {id pipeline-untyped-enum-casts, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
+    {id pipeline-untyped-money-compare, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id pipeline-unused-parameters, priority 3, derived_at 2026-09-06T16:36:02.710141Z}
     {id polish.bare-gates, priority 0, derived_at 2026-09-04T14:19:01.307427Z}
     {id polish.conn-acquire, priority 0, derived_at 2026-09-02T10:37:35.415375Z}
@@ -793,6 +802,7 @@ derived_priorities (
     {id public-enums-non-exhaustive, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id python-acceptance-emcc-probe, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id python-application-check-names, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
+    {id python-bind-refusal-text, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id python-binding-decisions, priority 2, derived_at 2026-10-30T14:41:04.802037Z}
     {id python-campaign-entity-key-attributes, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
     {id python-campaign-write-versions, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
@@ -959,6 +969,7 @@ derived_priorities (
     {id tx-closure-only, priority 1, derived_at 2026-10-26T20:21:09.753689Z}
     {id tx-closure-send, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id type-part-keyword-names, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
+    {id unique-key-virtual-refused, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id unrep.build-any, priority 3, derived_at 2026-09-02T14:40:48.714779Z}
     {id unrep.condition-chain, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
     {id unrep.cte-builders, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
@@ -1900,11 +1911,15 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.codegen-disjoint}
         {impl_name python, rule bindings.codegen-disjoint}
+    ), rule_versions_seen (
+        {id bindings.codegen-disjoint, version 0}
     )}
     {id disjoint.bindings-unkinded, covered_rules (
         bindings.disjoint-unkinded
     ), covered_claims (
         {impl_name main, rule bindings.disjoint-unkinded}
+    ), rule_versions_seen (
+        {id bindings.disjoint-unkinded, version 0}
     )}
     {id disjoint.codegen, covered_rules (
         codegen.entity.disjoint
@@ -1922,6 +1937,13 @@ impl_evidence (
         disjoint.declare
     ), covered_claims (
         {impl_name main, rule disjoint.declare}
+    )}
+    {id disjoint.evolve, covered_rules (
+        disjoint.evolve
+        migration.commit-after
+    ), covered_claims (
+        {impl_name main, rule disjoint.evolve}
+        {impl_name main, rule migration.commit-after}
     )}
     {id disjoint.read, covered_rules (
         disjoint.read

@@ -11,6 +11,34 @@ A starter migration crate lives at
 add your migration modules to the migrator, and run it against your
 database.
 
+## Committing partway
+
+A batch runs in one transaction, so it applies whole or not at all. A change
+PostgreSQL will not let one transaction finish needs a commit inside it: a
+value `ALTER TYPE ... ADD VALUE` adds cannot be used before the transaction
+that added it commits. The migration adding it answers `commits_after()`:
+
+```rust,ignore
+#[async_trait::async_trait]
+impl MigrationTrait for Migration {
+    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+        tx.batch_execute("ALTER TYPE mood ADD VALUE 'meh'").await
+    }
+
+    fn commits_after(&self) -> bool {
+        true
+    }
+}
+```
+
+`up` commits once that migration's ledger row is written, clearing the
+pool's statements and notifying as it does at the end of a batch, and runs
+the rest in a new transaction that takes the advisory lock again. A failure
+after the commit rolls back only that transaction: the migrations before it
+stay applied, and the next `up` resumes after them. `pgorm::Schema`'s changes
+to a disjoint entity's kinds come as steps written to run this way, one
+migration each, every step but the last answering `true`.
+
 ## Migrations written as SQL
 
 A migration can also be a `.sql` file, listed beside the Rust ones:

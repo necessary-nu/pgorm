@@ -123,7 +123,7 @@ impl Table {
 
     /// Construct constraint [`ConstraintRenameStatement`] over a table and two
     /// constraint names
-    // [spec:pgorm:req:sql.ddl.alter-table+13]
+    // [spec:pgorm:req:sql.ddl.alter-table+14]
     pub fn rename_constraint<T, F, R>(
         table: T,
         from_name: F,

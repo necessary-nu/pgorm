@@ -212,7 +212,7 @@ fn a_column_declares_its_collation() {
     assert!(column.get_collation().and_then(Collation::schema).is_none());
 }
 
-// [spec:pgorm:req:sql.ddl.alter-table+13/test]    ADD COLUMN spells the collation as CREATE TABLE
+// [spec:pgorm:req:sql.ddl.alter-table+14/test]    ADD COLUMN spells the collation as CREATE TABLE
 // does, and a modified column carries it on the retype
 // [spec:pgorm:req:sql.ddl.column-def+13/test]
 #[test]

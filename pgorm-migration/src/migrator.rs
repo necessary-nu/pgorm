@@ -145,7 +145,7 @@ pub trait MigratorTrait: Send {
     /// The hash is spelled out here rather than taken from `DefaultHasher`
     /// because the key has to agree between processes that need not share a
     /// compiler version, let alone a `HashMap` seed.
-    // [spec:pgorm:sem:migration.up+4]
+    // [spec:pgorm:sem:migration.up+5]
     fn lock_key() -> i64 {
         const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
         const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -166,7 +166,7 @@ pub trait MigratorTrait: Send {
     /// `pg_advisory_xact_lock` is released at end of transaction: taken in
     /// autocommit it would be surrendered before the caller's next statement,
     /// which is the shape of the bug rather than the fix.
-    // [spec:pgorm:sem:migration.up+4]
+    // [spec:pgorm:sem:migration.up+5]
     async fn lock(db: &DatabaseTransaction<'_>) -> Result<(), Error> {
         let key = Self::lock_key();
         db.execute("SELECT pg_advisory_xact_lock($1)", &[&key])
@@ -215,7 +215,7 @@ pub trait MigratorTrait: Send {
     }
 
     /// Get list of migrations with status
-    // [spec:pgorm:sem:migration.up+4]    pending set difference + missing-file detection
+    // [spec:pgorm:sem:migration.up+5]    pending set difference + missing-file detection
     // [spec:pgorm:req:migration.checksum+1]    recorded digests are checked on every read
     // [spec:pgorm:req:migration.read-only+1]    status is computed from a read alone
     async fn get_migration_with_status(
@@ -436,46 +436,71 @@ pub trait MigratorTrait: Send {
     /// the one a pool given that channel as its
     /// [`statement_cache_channel`](pgorm::ManagerConfig::statement_cache_channel)
     /// listens on.
-    // [spec:pgorm:sem:migration.up+4]    the channel the runner notifies
+    // [spec:pgorm:sem:migration.up+5]    the channel the runner notifies
     fn statement_cache_channel() -> Option<String> {
         Some(pgorm::STATEMENT_CACHE_CHANNEL.to_owned())
     }
 
     /// Apply pending migrations, then clear the pool's cached statements if the
     /// committed batch applied any, notifying every other pool listening on
-    /// [`statement_cache_channel`](MigratorTrait::statement_cache_channel)
-    // [spec:pgorm:sem:migration.up+4]
-    async fn up(db: DatabasePool, steps: Option<u32>) -> Result<(), Error> {
+    /// [`statement_cache_channel`](MigratorTrait::statement_cache_channel).
+    ///
+    /// A migration whose [`commits_after`](MigrationTrait::commits_after)
+    /// answers `true` is committed with its ledger row before the next one
+    /// runs, and the rest run in a new transaction that takes the lock again;
+    /// each commit clears and notifies as the end of a batch does.
+    // [spec:pgorm:sem:migration.up+5]
+    // [spec:pgorm:req:migration.commit-after]
+    async fn up(db: DatabasePool, mut steps: Option<u32>) -> Result<(), Error> {
         tracing::debug!("Applying migrations");
         let channel = Self::statement_cache_channel();
-        let applied = exec_with_connection(&db, move |manager| {
-            tracing::debug!("Exec up");
+        loop {
             let channel = channel.clone();
-            Box::pin(async move {
-                let applied = exec_up::<Self>(manager, steps).await?;
-                // Sent inside the batch's transaction, the notification is
-                // delivered exactly when the batch commits, and never if it
-                // rolls back.
-                // [spec:pgorm:sem:migration.up+4]    other processes' pools hear of a committed batch
-                if applied > 0
-                    && let Some(channel) = channel
-                {
-                    pgorm::notify(manager, &channel, "").await?;
-                }
-                Ok(applied)
+            let batch = exec_with_connection(&db, move |manager| {
+                tracing::debug!("Exec up");
+                let channel = channel.clone();
+                Box::pin(async move {
+                    let batch = exec_up::<Self>(manager, steps).await?;
+                    // Sent inside the batch's transaction, the notification is
+                    // delivered exactly when the batch commits, and never if it
+                    // rolls back.
+                    // [spec:pgorm:sem:migration.up+5]    other processes' pools hear of a committed batch
+                    // [spec:pgorm:req:migration.commit-after]    and of each commit inside one
+                    if batch.applied > 0
+                        && let Some(channel) = channel
+                    {
+                        pgorm::notify(manager, &channel, "").await?;
+                    }
+                    Ok(batch)
+                })
             })
-        })
-        .await?;
+            .await?;
 
-        // The pool's connections may hold statements planned against the schema
-        // the batch changed, and PostgreSQL does not re-plan every such change:
-        // an insert prepared before a domain's default changed keeps the old one.
-        // [spec:pgorm:req:conn.pool.statement-cache.clear+1]    the runner clears after a batch commits
-        if applied > 0 {
-            db.clear_statement_caches();
+            // The pool's connections may hold statements planned against the
+            // schema the batch changed, and PostgreSQL does not re-plan every
+            // such change: an insert prepared before a domain's default
+            // changed keeps the old one. The connection the next transaction
+            // takes is one of them.
+            // [spec:pgorm:req:conn.pool.statement-cache.clear+1]    the runner clears after a batch commits
+            // [spec:pgorm:req:migration.commit-after]    and after each commit inside one
+            if batch.applied > 0 {
+                db.clear_statement_caches();
+            }
+            match batch.resume {
+                Some(rest) => steps = rest,
+                None => return Ok(()),
+            }
         }
-        Ok(())
     }
+}
+
+/// What one transaction of [`MigratorTrait::up`] applied, and the step bound
+/// the next one starts from, when it stopped after a migration that asked to
+/// be committed with migrations still to run.
+// [spec:pgorm:req:migration.commit-after]
+struct Batch {
+    applied: usize,
+    resume: Option<Option<u32>>,
 }
 
 /// Where a migrator's ledger lives: `migration_table_name()`, qualified by
@@ -652,7 +677,7 @@ impl ReadableLedger {
     }
 }
 
-// [spec:pgorm:sem:migration.up+4]    one connection, one transaction for the whole batch
+// [spec:pgorm:sem:migration.up+5]    one connection, one transaction: the whole batch, or one part of a batch a migration splits
 async fn exec_with_connection<T, F>(db: &DatabasePool, f: F) -> Result<T, Error>
 where
     F: for<'b> Fn(
@@ -683,9 +708,12 @@ where
     }
 }
 
-/// Applies the pending migrations inside `db`, answering how many it applied.
-// [spec:pgorm:sem:migration.up+4]    lock, then declaration-order application, step bound, ledger append
-async fn exec_up<M>(db: &DatabaseTransaction<'_>, mut steps: Option<u32>) -> Result<usize, Error>
+/// Applies the pending migrations inside `db`, answering how many it applied
+/// and, where a migration asked to be committed before the rest, the step
+/// bound left for them.
+// [spec:pgorm:sem:migration.up+5]    lock, then declaration-order application, step bound, ledger append
+// [spec:pgorm:req:migration.commit-after]    the lock is retaken and the pending set recomputed per transaction
+async fn exec_up<M>(db: &DatabaseTransaction<'_>, mut steps: Option<u32>) -> Result<Batch, Error>
 where
     M: MigratorTrait + ?Sized,
 {
@@ -712,13 +740,13 @@ where
         info!("Applying all pending migrations");
     }
 
-    let migrations = M::get_pending_migrations(db).await?.into_iter();
+    let mut migrations = M::get_pending_migrations(db).await?.into_iter().peekable();
     if migrations.len() == 0 {
         info!("No pending migrations");
     }
 
     let mut applied = 0;
-    for Migration { migration, .. } in migrations {
+    while let Some(Migration { migration, .. }) = migrations.next() {
         if let Some(steps) = steps.as_mut() {
             if steps == &0 {
                 break;
@@ -742,9 +770,21 @@ where
         .exec(db)
         .await?;
         applied += 1;
+
+        if migration.commits_after() {
+            info!("Committing after migration '{}'", migration.name());
+            let more = migrations.peek().is_some() && steps != Some(0);
+            return Ok(Batch {
+                applied,
+                resume: more.then_some(steps),
+            });
+        }
     }
 
-    Ok(applied)
+    Ok(Batch {
+        applied,
+        resume: None,
+    })
 }
 
 trait QueryTable {
