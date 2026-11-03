@@ -83,6 +83,8 @@ export { ModelDelete, ModelInsert, ModelRows, ModelUpdate } from "./model-writes
 export { Relation } from "./relations.js";
 export { Graph } from "./graphs.js";
 export { Cursor, Paginator } from "./cursors.js";
+export { createDisjoint, disjoint, Disjoint, DisjointEntity, disjointEntities, disjointEntity } from "./disjoint.js";
+export { DisjointCursor, DisjointPaginator, DisjointQuery, DisjointWrite } from "./disjoint-query.js";
 export { ActiveModel, entities, Entity, entity } from "./entities.js";
 export { EntitySchema, fromEntity } from "./entity-schema.js";
 export { EntityColumn, EntityQuery } from "./entity-queries.js";

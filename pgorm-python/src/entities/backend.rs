@@ -78,6 +78,10 @@ pub(crate) trait EntityBackend: Debug + Send + Sync {
         db: Database<'a>,
         write: VersionWrite,
     ) -> BoxFuture<'a, Result<Vec<Versions>, Error>>;
+    /// The model `row` holds under `prefix`, as the entity's own
+    /// `FromQueryResult` reads it: one source of a read that decodes several,
+    /// a disjoint one's.
+    fn decode(&self, row: &pgorm::QueryResult, prefix: &str) -> Result<Model, Error>;
 }
 
 /// What an `UpdateMany` sets a column to: a value, written through the

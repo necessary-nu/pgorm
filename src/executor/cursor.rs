@@ -69,9 +69,18 @@ impl std::fmt::Debug for BoundaryCast {
 }
 
 impl BoundaryCast {
+    /// The casts `value` writes a boundary value under, the column compared
+    /// as the enum `column` where its domain is over one.
+    pub(crate) fn new(
+        value: Arc<dyn Fn(Expr) -> SimpleExpr + Send + Sync>,
+        column: Option<TypeName>,
+    ) -> Self {
+        Self { value, column }
+    }
+
     /// The casts of a column with none: the value binds bare and the column
     /// compares as itself.
-    fn identity() -> Self {
+    pub(crate) fn identity() -> Self {
         Self {
             value: Arc::new(SimpleExpr::from),
             column: None,
@@ -156,6 +165,19 @@ impl<S, K> Cursor<S, K> {
     // [spec:pgorm:sem:exec.cursor.keyset+8]
     pub(crate) fn with_boundary_casts<C: ColumnTrait>(mut self) -> Self {
         self.boundary_casts = BoundaryCast::capture::<C>(&self.order_columns);
+        self
+    }
+
+    /// Each order column's boundary casts, as `cast` gives them for its name:
+    /// a cursor over a read whose columns a description gives rather than a
+    /// typed column set.
+    // [spec:pgorm:sem:exec.cursor.keyset+8]
+    pub(crate) fn with_casts_by(mut self, cast: impl Fn(&str) -> BoundaryCast) -> Self {
+        self.boundary_casts = self
+            .order_columns
+            .iter()
+            .map(|column| cast(&column.to_string()))
+            .collect();
         self
     }
 
@@ -381,6 +403,26 @@ impl<S, K> Cursor<S, K> {
         self.apply_filters(&mut query)?;
         ensure_select_list(&query)?;
         Ok(query)
+    }
+
+    /// The statement [`all`](Cursor::all) sends: the cursor's query with its
+    /// window, order and boundary applied to a copy of it, for a caller that
+    /// sends the statement itself and decodes its rows by its own means. A
+    /// [`last`](Self::last) window is read in the reversed order, so after
+    /// this [`reversed`](Self::reversed) says the rows are to be reversed into
+    /// the cursor's own.
+    // [spec:pgorm:sem:exec.cursor.order+4]
+    // [spec:pgorm:req:bindings.disjoint+1]
+    pub fn statement(&mut self) -> Result<SelectStatement, Error> {
+        self.compose()
+    }
+
+    /// Whether the rows of the last [`statement`](Self::statement) come in
+    /// the reverse of the cursor's order, as a `last` window's do.
+    // [spec:pgorm:sem:exec.cursor.window+1]
+    // [spec:pgorm:req:bindings.disjoint+1]
+    pub fn reversed(&self) -> bool {
+        self.is_result_reversed
     }
 
     /// Construct a [Cursor] that fetch any custom struct

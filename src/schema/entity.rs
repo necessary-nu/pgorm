@@ -256,7 +256,7 @@ where
 /// the one its key to its base row implies.
 // [spec:pgorm:sem:schema.from-entity+10]
 // [spec:pgorm:sem:disjoint.schema+1]
-pub(super) fn table_from_entity<E, K>(
+pub(crate) fn table_from_entity<E, K>(
     entity: E,
     writes_key: K,
 ) -> Result<TableCreateStatement, Error>
@@ -275,27 +275,14 @@ where
         stmt.col(&mut column_def);
     }
 
-    // A composite key is named `pk-{table}`; a one-column key keeps the name
-    // PostgreSQL derives, `{table}_pkey`.
-    let mut primary_keys: Vec<E::PrimaryKey> = E::PrimaryKey::iter().collect();
+    let mut primary_keys: Vec<Name> = E::PrimaryKey::iter().map(Name::new).collect();
     // A temporal key's period is its last column, which the key writes
     // `WITHOUT OVERLAPS` after the rest.
     let period = match E::PrimaryKey::without_overlaps() {
         true => primary_keys.pop(),
         false => None,
     };
-    let mut primary_keys = primary_keys.into_iter();
-    if let Some(first) = primary_keys.next() {
-        let mut key = TableKey::new(first).cols(primary_keys);
-        if let Some(period) = period {
-            key = key.without_overlaps(period);
-        }
-        if <<E::PrimaryKey as PrimaryKeyTrait>::ValueType as PrimaryKeyArity>::ARITY > 1 {
-            stmt.primary_key(key.name(Name::runtime(format!("pk-{}", entity.to_string()))));
-        } else {
-            stmt.primary_key(key);
-        }
-    }
+    write_primary_key(&mut stmt, &entity.to_string(), primary_keys, period);
     for column in E::Column::iter() {
         if column.def().unique {
             stmt.unique(column);
@@ -347,13 +334,54 @@ fn refuse_unkeyable<E: EntityTrait>(
     )))
 }
 
+/// Write the primary key of `keys`, then `period` written `WITHOUT
+/// OVERLAPS`, onto `stmt`, the table `table`'s: a composite key named
+/// `pk-{table}`, a one-column key keeping the name PostgreSQL derives,
+/// `{table}_pkey`.
+// [spec:pgorm:sem:schema.from-entity+10]
+pub(crate) fn write_primary_key(
+    stmt: &mut TableCreateStatement,
+    table: &str,
+    keys: Vec<Name>,
+    period: Option<Name>,
+) {
+    let composite = keys.len() + usize::from(period.is_some()) > 1;
+    let mut keys = keys.into_iter();
+    let Some(first) = keys.next() else {
+        return;
+    };
+    let mut key = TableKey::new(first).cols(keys);
+    if let Some(period) = period {
+        key = key.without_overlaps(period);
+    }
+    if composite {
+        stmt.primary_key(key.name(Name::runtime(format!("pk-{table}"))));
+    } else {
+        stmt.primary_key(key);
+    }
+}
+
 // [spec:pgorm:sem:schema.from-entity+10]    column projection, and the serial family for a one-column key
 fn column_def_from_entity_column<E>(column: E::Column) -> ColumnDef
 where
     E: EntityTrait,
 {
-    let orm_column_def = column.def();
-    let mut column_def = ColumnDef::new_with_type(column, orm_column_def.col_type);
+    // Only a one-column key is drawn from the serial family, and only when the
+    // column names no fill of its own: PostgreSQL refuses `serial` beside a
+    // `DEFAULT`, an identity or a generation expression (42601). A composite
+    // key's generated part is its column's identity.
+    let serial = <<E::PrimaryKey as PrimaryKeyTrait>::ValueType as PrimaryKeyArity>::ARITY == 1
+        && E::PrimaryKey::auto_increment()
+        && E::PrimaryKey::iter().any(|key| column.to_string() == key.into_column().to_string());
+    column_ddl(Name::new(column), column.def(), serial)
+}
+
+/// The column `name` of the definition `orm_column_def` as a `CREATE TABLE`
+/// writes it, drawn from the serial family when `serial` holds and the
+/// column names no fill of its own.
+// [spec:pgorm:sem:schema.from-entity+10]
+pub(crate) fn column_ddl(name: Name, orm_column_def: crate::ColumnDef, serial: bool) -> ColumnDef {
+    let mut column_def = ColumnDef::new_with_type(name, orm_column_def.col_type);
     if !orm_column_def.null {
         column_def.not_null();
     }
@@ -376,15 +404,7 @@ where
     if let Some(comment) = orm_column_def.comment {
         column_def.comment(comment);
     }
-    // Only a one-column key is drawn from the serial family, and only when the
-    // column names no fill of its own: PostgreSQL refuses `serial` beside a
-    // `DEFAULT`, an identity or a generation expression (42601). A composite
-    // key's generated part is its column's identity, rendered above.
-    if <<E::PrimaryKey as PrimaryKeyTrait>::ValueType as PrimaryKeyArity>::ARITY == 1
-        && E::PrimaryKey::auto_increment()
-        && !fills_itself
-        && E::PrimaryKey::iter().any(|key| column.to_string() == key.into_column().to_string())
-    {
+    if serial && !fills_itself {
         column_def.auto_increment();
     }
     column_def

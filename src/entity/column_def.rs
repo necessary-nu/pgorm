@@ -121,9 +121,21 @@ pub(crate) fn compared_column<C: ColumnTrait>(col: &C, expr: Expr) -> Expr {
 /// column's [`save_as`](ColumnTrait::save_as) otherwise.
 // [spec:pgorm:sem:entity.traits.column.enum-cast+14]
 pub(crate) fn compared_value<C: ColumnTrait>(col: &C, val: Expr) -> SimpleExpr {
-    match compared_enum(col.def().get_column_type()) {
+    compared_value_as(col.def().get_column_type(), val, |val| col.save_as(val))
+}
+
+/// [`compared_value`] for a column of `col_type` whose values `save` writes:
+/// what a column described only at run time, a disjoint shape's, compares
+/// by.
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+pub(crate) fn compared_value_as(
+    col_type: &ColumnType,
+    val: Expr,
+    save: impl FnOnce(Expr) -> SimpleExpr,
+) -> SimpleExpr {
+    match compared_enum(col_type) {
         Some(enum_type) => val.cast_as_type(enum_type),
-        None => col.save_as(val),
+        None => save(val),
     }
 }
 
@@ -384,14 +396,10 @@ impl ColumnDef {
     }
 }
 
-pub(crate) fn cast_enum_as<C, F>(expr: Expr, col: &C, f: F) -> SimpleExpr
+pub(crate) fn cast_enum_as<F>(expr: Expr, col_type: &ColumnType, f: F) -> SimpleExpr
 where
-    C: ColumnTrait,
     F: Fn(Expr, pgorm_query::TypeName, &ColumnType) -> SimpleExpr,
 {
-    let col_def = col.def();
-    let col_type = col_def.get_column_type();
-
     match col_type {
         #[cfg(all(feature = "with-json", feature = "postgres-array"))]
         ColumnType::Json | ColumnType::JsonBinary => {

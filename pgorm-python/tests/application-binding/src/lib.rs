@@ -7,6 +7,7 @@ pub mod membership;
 pub mod note;
 pub mod old;
 pub mod room;
+pub mod shipping;
 pub mod sources;
 pub mod stay;
 pub mod temper;
@@ -32,6 +33,10 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     registry.entity::<stay::Entity>("app.Stay")?;
     registry.entity::<old::Entity>("app.Old")?;
     registry.entity::<temper::Entity>("app.Temper")?;
+    registry.entity::<shipping::shipment::Entity>("app.Shipment")?;
+    registry.entity::<shipping::parcel::Entity>("app.Parcel")?;
+    registry.entity::<shipping::pallet::Entity>("app.Pallet")?;
+    registry.disjoint::<shipping::shipment::Shipment>("app.Shipments")?;
     graphs::register(&mut registry)?;
     sources::register(&mut registry)?;
     pgorm_python::install(module, registry)
@@ -54,6 +59,26 @@ mod tests {
                 .is_err()
         );
         registry.entity::<note::Entity>("app.Note")?;
+        // [spec:pgorm:req:bindings.disjoint+1/test]    a disjoint enum registers once its base and kind entities have, and a name or an enum registered twice is refused
+        assert!(
+            registry
+                .disjoint::<shipping::shipment::Shipment>("app.Shipments")
+                .is_err()
+        );
+        registry.entity::<shipping::shipment::Entity>("app.Shipment")?;
+        registry.entity::<shipping::parcel::Entity>("app.Parcel")?;
+        assert!(
+            registry
+                .disjoint::<shipping::shipment::Shipment>("app.Shipments")
+                .is_err()
+        );
+        registry.entity::<shipping::pallet::Entity>("app.Pallet")?;
+        registry.disjoint::<shipping::shipment::Shipment>("app.Shipments")?;
+        assert!(
+            registry
+                .disjoint::<shipping::shipment::Shipment>("app.Others")
+                .is_err()
+        );
         Python::attach(|py| {
             let module = PyModule::new(py, "pgorm._native")?;
             pgorm_python::install(&module, registry)?;
@@ -64,7 +89,14 @@ mod tests {
                     .get_item("registrations")?
                     .get_item("entities")?
                     .len()?,
-                2
+                5
+            );
+            assert_eq!(
+                manifest
+                    .get_item("registrations")?
+                    .get_item("disjoints")?
+                    .len()?,
+                1
             );
             Ok(())
         })

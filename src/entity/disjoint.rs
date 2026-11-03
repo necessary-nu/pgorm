@@ -1,13 +1,8 @@
-use crate::query::{
-    DeleteKind, InsertKind, KindRows, UpdateKind, Writes, rekinded_base, returned, unwritten,
-    updated_base, written_part,
-};
 use crate::{
-    ActiveEnum, ActiveModelTrait, ColumnTrait, ColumnType, EntityName, EntityTrait, Error,
-    FromQueryResult, Insert, IntoPrimaryKey, Iterable, ModelTrait, PrimaryKeyToColumn,
-    PrimaryKeyTrait, QueryFilter, QueryTrait, SelectDisjoint, StaticName, Update, WriteDisjoint,
-    entity::{ColumnDefault, filter_by_key},
+    ActiveEnum, DisjointShape, DisjointValues, EntityName, EntityTrait, Error, FromQueryResult,
+    IntoPrimaryKey, ModelTrait, PrimaryKeyTrait, SelectDisjoint, WriteDisjoint,
 };
+use pgorm_query::IntoValueTuple;
 use std::{fmt::Debug, hash::Hash};
 
 /// A Rust enum stored as a base table plus one table for each kind that
@@ -107,33 +102,17 @@ pub trait Disjoint: Sized + Send {
     /// ```
     // [spec:pgorm:sem:disjoint.write+1]
     fn insert(
-        mut base: <Self::Base as EntityTrait>::ActiveModel,
+        base: <Self::Base as EntityTrait>::ActiveModel,
         kind: Self::ActiveModel,
     ) -> Result<WriteDisjoint<Self>, Error> {
-        check_disjoint::<Self>()?;
-        unwritten(
-            &base,
-            Self::kind_column(),
-            Writes::Insert,
-            "it is the kind column, which an insert sets to the kind it is given, so the \
-             base's `ActiveModel` leaves it `NotSet`",
-        )?;
-        let written = kind.kind();
-        base.set(Self::kind_column(), written.to_value().into())?;
-        let mut insert = Insert::one(base).into_query();
-        insert.returning(returned::<Self::Base>());
-        let row = kind.visit(InsertKind)?;
-        Ok(WriteDisjoint::of(
-            written_part::<Self::Base>(insert),
-            row,
-            &|kind| {
-                if kind == written {
-                    KindRows::Written
-                } else {
-                    KindRows::Table
-                }
-            },
-        ))
+        let shape = DisjointShape::of::<Self>();
+        shape.check()?;
+        let written = kind.kind().to_value();
+        let base = DisjointValues::of_active(&base)?;
+        let row = kind.visit(KindValues)?;
+        shape
+            .insert(&base, &written, row.as_ref())
+            .map(WriteDisjoint::of)
     }
 
     /// Update a value: the set columns of the base row from `base` and of its
@@ -155,29 +134,14 @@ pub trait Disjoint: Sized + Send {
         base: <Self::Base as EntityTrait>::ActiveModel,
         kind: Self::ActiveModel,
     ) -> Result<WriteDisjoint<Self>, Error> {
-        check_disjoint::<Self>()?;
-        unwritten(
-            &base,
-            Self::kind_column(),
-            Writes::Update,
-            "it is the kind column, and an update keeps the row's kind, which `change_kind` \
-             changes",
-        )?;
-        let current = kind.kind();
-        let update = Update::one(base)?.filter(Self::kind_column().eq(current.to_value()));
-        let row = kind.visit(UpdateKind)?;
-        let written = row.is_some();
-        Ok(WriteDisjoint::of(
-            updated_base::<Self::Base>(update),
-            row,
-            &|kind| {
-                if written && kind == current {
-                    KindRows::Written
-                } else {
-                    KindRows::Table
-                }
-            },
-        ))
+        let shape = DisjointShape::of::<Self>();
+        shape.check()?;
+        let current = kind.kind().to_value();
+        let base = DisjointValues::of_active(&base)?;
+        let row = kind.visit(KindValues)?;
+        shape
+            .update(&base, &current, row.as_ref())
+            .map(WriteDisjoint::of)
     }
 
     /// Change the kind of the row of `key` to `kind`'s: delete its row from
@@ -196,29 +160,38 @@ pub trait Disjoint: Sized + Send {
     where
         T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
     {
-        check_disjoint::<Self>()?;
-        let new = kind.kind();
-        let base = filter_by_key::<Self::Base, _, _>(Update::many(Self::Base::default()), key);
-        let mut inserted = Some(kind);
-        let mut rows = Vec::new();
-        for visited in Self::Kind::iter() {
-            let row = match inserted.take_if(|_| visited == new) {
-                Some(kind) => kind.visit(InsertKind)?,
-                None => Self::visit_kind(visited, DeleteKind)?,
-            };
-            rows.extend(row);
-        }
-        Ok(WriteDisjoint::of(
-            rekinded_base::<Self>(base, new),
-            rows,
-            &|kind| {
-                if kind == new {
-                    KindRows::Written
-                } else {
-                    KindRows::Deleted
-                }
-            },
-        ))
+        let shape = DisjointShape::of::<Self>();
+        shape.check()?;
+        let new = kind.kind().to_value();
+        let key = key
+            .into_primary_key()
+            .into_value_tuple()
+            .into_iter()
+            .collect();
+        let row = kind.visit(KindValues)?;
+        shape
+            .change_kind(key, &new, row.as_ref())
+            .map(WriteDisjoint::of)
+    }
+}
+
+/// What a `<Enum>ActiveModel`'s kind row is given: its kind entity's
+/// `ActiveModel`'s values, or none for a kind without a table.
+struct KindValues;
+
+impl<D: Disjoint> ActiveKindVisitor<D> for KindValues {
+    type Output = Result<Option<DisjointValues>, Error>;
+
+    fn table<M: KindModel<D>>(
+        self,
+        _: D::Kind,
+        active: <M::Entity as EntityTrait>::ActiveModel,
+    ) -> Self::Output {
+        DisjointValues::of_active(&active).map(Some)
+    }
+
+    fn unit(self, _: D::Kind) -> Self::Output {
+        Ok(None)
     }
 }
 
@@ -306,7 +279,8 @@ pub trait ActiveKindVisitor<D: Disjoint> {
 }
 
 /// Refuse what a disjoint entity's types cannot tell, as [`Error::Type`]
-/// naming the table and column at fault.
+/// naming the table and column at fault: [`DisjointShape::check`] of
+/// [`DisjointShape::of::<D>`](DisjointShape::of).
 ///
 /// The base's kind column is `NOT NULL` and of the kind type, since every base
 /// row has one of its kinds, and is no generated column, since a write sets
@@ -318,79 +292,7 @@ pub trait ActiveKindVisitor<D: Disjoint> {
 /// to run before anything is sent.
 // [spec:pgorm:def:disjoint.declare+3]
 pub fn check_disjoint<D: Disjoint>() -> Result<(), Error> {
-    let base = D::Base::default();
-    let column = D::kind_column();
-    let def = column.def();
-    let kind_type = D::Kind::db_type();
-    if def.null {
-        return Err(Error::Type(format!(
-            "the kind column `{}`.`{}` is nullable: every base row of a disjoint entity has a \
-             kind, so the column is `NOT NULL`",
-            table_label(&base),
-            column.as_str()
-        )));
-    }
-    if matches!(def.default, Some(ColumnDefault::Generated(..))) {
-        return Err(Error::Type(format!(
-            "the kind column `{}`.`{}` is a generated column: a write sets a base row's kind \
-             to the kind it writes, so no expression computes it",
-            table_label(&base),
-            column.as_str()
-        )));
-    }
-    if !same_enum(def.get_column_type(), kind_type.get_column_type()) {
-        return Err(Error::Type(format!(
-            "the kind column `{}`.`{}` is {}, not the kind type {}",
-            table_label(&base),
-            column.as_str(),
-            describe(def.get_column_type()),
-            describe(kind_type.get_column_type())
-        )));
-    }
-    D::Kind::iter().try_for_each(|kind| D::visit_kind(kind, UngeneratedKey))
-}
-
-/// Refuses a kind entity whose key the database generates or fills.
-struct UngeneratedKey;
-
-impl<D: Disjoint> KindVisitor<D> for UngeneratedKey {
-    type Output = Result<(), Error>;
-
-    fn table<M: KindModel<D>>(self, kind: D::Kind) -> Result<(), Error> {
-        type Key<M> = <<M as ModelTrait>::Entity as EntityTrait>::PrimaryKey;
-        let entity = M::Entity::default();
-        let generated = |column: &<M::Entity as EntityTrait>::Column, how: &str| {
-            Error::Type(format!(
-                "`{}`.`{}`, the key of the kind `{}`, is {how}: a kind's row takes its key from \
-                 its base row, so the database does not generate it",
-                table_label(&entity),
-                column.as_str(),
-                kind.to_value()
-            ))
-        };
-        for key in Key::<M>::iter() {
-            let column = key.into_column();
-            match column.def().default {
-                Some(ColumnDefault::Identity(_)) => return Err(generated(&column, "an identity")),
-                Some(ColumnDefault::Generated(..)) => {
-                    return Err(generated(&column, "a generated column"));
-                }
-                Some(ColumnDefault::Expr(_)) => return Err(generated(&column, "given a default")),
-                None => {}
-            }
-        }
-        match (Key::<M>::auto_increment(), Key::<M>::iter().next()) {
-            (true, Some(key)) => Err(generated(
-                &key.into_column(),
-                "drawn from a sequence (`auto_increment`)",
-            )),
-            _ => Ok(()),
-        }
-    }
-
-    fn unit(self, _: D) -> Result<(), Error> {
-        Ok(())
-    }
+    DisjointShape::of::<D>().check()
 }
 
 /// An entity's table as an error names it, schema-qualified where it is.
@@ -398,48 +300,5 @@ pub(crate) fn table_label<E: EntityName>(entity: &E) -> String {
     match entity.schema_name() {
         Some(schema) => format!("{schema}.{}", entity.table_name()),
         None => entity.table_name().to_owned(),
-    }
-}
-
-/// Whether two column types are one PostgreSQL enum: the same name in the
-/// same schema, with the same values in the same order.
-fn same_enum(left: &ColumnType, right: &ColumnType) -> bool {
-    let identity = |column_type: &ColumnType| match column_type {
-        ColumnType::Enum {
-            name,
-            schema,
-            variants,
-        } => Some((
-            name.to_string(),
-            schema.as_ref().map(|schema| schema.to_string()),
-            variants
-                .iter()
-                .map(|value| value.to_string())
-                .collect::<Vec<_>>(),
-        )),
-        _ => None,
-    };
-    matches!((identity(left), identity(right)), (Some(left), Some(right)) if left == right)
-}
-
-/// A column type as an error names it: an enum by its name and values.
-fn describe(column_type: &ColumnType) -> String {
-    match column_type {
-        ColumnType::Enum {
-            name,
-            schema,
-            variants,
-        } => {
-            let name = match schema {
-                Some(schema) => format!("{}.{}", schema.to_string(), name.to_string()),
-                None => name.to_string(),
-            };
-            let values: Vec<String> = variants
-                .iter()
-                .map(|value| format!("'{}'", value.to_string()))
-                .collect();
-            format!("`{name}` ({})", values.join(", "))
-        }
-        other => format!("`{other:?}`"),
     }
 }

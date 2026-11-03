@@ -3,12 +3,11 @@
 
 use super::{
     DdlStatement,
-    entity::{create_enum_from_active_enum, create_table_from_entity, table_from_entity},
+    entity::{column_ddl, create_enum_from_column_type, write_primary_key},
 };
 use crate::{
-    ActiveEnum, ColumnPairs, ColumnTrait, ColumnType, Disjoint, EntityName, EntityTrait, Error,
-    Iterable, KindModel, KindVisitor, PrimaryKeyToColumn, RelationDef, RelationType, Schema,
-    StaticName, check_disjoint, executor::result_name::bounded_identifier, table_label,
+    ColumnPairs, ColumnType, Disjoint, DisjointKind, DisjointShape, DisjointTable, Error,
+    RelationDef, RelationType, Schema, TableBody, executor::result_name::bounded_identifier,
     unpack_table_name,
 };
 use pgorm_query::{
@@ -20,10 +19,11 @@ use std::iter;
 impl Schema {
     /// Create a disjoint entity's kind type and tables, with the constraints
     /// that make PostgreSQL refuse every state the enum does not describe,
-    /// as the statements to run, in the order they run.
+    /// as the statements to run, in the order they run: the statements
+    /// [`DisjointShape::create`] writes for [`DisjointShape::of::<D>`](DisjointShape::of).
     ///
-    /// [`check_disjoint`] runs first, and its refusal is this one's. The
-    /// statements are the kind type; the base's table as
+    /// [`check_disjoint`](crate::check_disjoint) runs first, and its refusal
+    /// is this one's. The statements are the kind type; the base's table as
     /// [`create_table_from_entity`](Self::create_table_from_entity) writes
     /// it, with a `UNIQUE` key on its key columns and its kind column; each
     /// kind's table as `create_table_from_entity` writes it, with a stored
@@ -54,15 +54,34 @@ impl Schema {
     /// adds twice, is refused with [`Error::Type`] naming both.
     // [spec:pgorm:sem:disjoint.schema+1]
     pub fn create_disjoint<D: Disjoint>(&self) -> Result<Vec<DdlStatement>, Error> {
-        check_disjoint::<D>()?;
-        let base = BaseTable::of::<D>()?;
-        let kinds = D::Kind::iter()
-            .map(|kind| D::visit_kind(kind, KindTableOf(&base)))
-            .filter_map(Result::transpose)
+        DisjointShape::of::<D>().create()
+    }
+}
+
+impl DisjointShape {
+    /// The statements creating this shape's kind type and tables, in the
+    /// order they run, as [`Schema::create_disjoint`] describes them;
+    /// [`check`](Self::check) runs first, and its refusal is this one's.
+    ///
+    /// A table a shape described at run time is written from its columns
+    /// alone, as `create_table_from_entity` writes an entity's columns and
+    /// primary key: it declares no relation, index or comment. A column whose
+    /// default the description does not state has no `DEFAULT` to write, so
+    /// a table holding one is refused with [`Error::Type`] naming it.
+    // [spec:pgorm:sem:disjoint.schema+1]
+    // [spec:pgorm:req:bindings.disjoint+1]
+    pub fn create(&self) -> Result<Vec<DdlStatement>, Error> {
+        self.check()?;
+        let base = BaseTable::of(self);
+        let kinds = self
+            .kinds
+            .iter()
+            .filter_map(|kind| kind.table.as_ref().map(|table| (kind, table)))
+            .map(|(kind, table)| kind_table(&base, kind, table))
             .collect::<Result<Vec<_>, Error>>()?;
         let alter = base.alter(&kinds)?;
 
-        let mut create = create_table_from_entity(D::Base::default())?;
+        let mut create = body(&self.base, &|_| true)?;
         create.unique(
             TableKey::new(Name::runtime(base.key.first.clone()))
                 .cols(base.key.rest.iter().cloned().map(Name::runtime))
@@ -73,8 +92,15 @@ impl Schema {
                     base.key.iter().chain([base.kind.as_str()]),
                 ))),
         );
+        let kind_type = create_enum_from_column_type(&self.kind_type).ok_or_else(|| {
+            Error::Type(format!(
+                "the kind type of the disjoint entity over `{}` is not a database enum, so \
+                 there is no type to create",
+                self.base.label
+            ))
+        })?;
         let mut statements = vec![
-            DdlStatement::CreateType(create_enum_from_active_enum::<D::Kind>()?),
+            DdlStatement::CreateType(kind_type),
             DdlStatement::CreateTable(create),
         ];
         statements.extend(
@@ -84,6 +110,42 @@ impl Schema {
         );
         statements.extend(alter.map(DdlStatement::AlterTable));
         Ok(statements)
+    }
+}
+
+/// `table`'s `CREATE TABLE`, as its entity writes it with the belongs-to
+/// relations `keep` keeps, or from its columns alone.
+// [spec:pgorm:sem:disjoint.schema+1]
+fn body(
+    table: &DisjointTable,
+    keep: &dyn Fn(&RelationDef) -> bool,
+) -> Result<TableCreateStatement, Error> {
+    match &table.body {
+        TableBody::Entity(write) => write(keep),
+        TableBody::Columns => {
+            let mut stmt = TableCreateStatement::new(table.table.clone());
+            for column in &table.columns {
+                if column.unstated_default {
+                    return Err(Error::Type(format!(
+                        "`{}`.`{}` has a default its description does not state, so its \
+                         table cannot be written",
+                        table.label,
+                        column.name.to_string()
+                    )));
+                }
+                stmt.col(column_ddl(
+                    Name::clone(&column.name),
+                    column.def.clone(),
+                    false,
+                ));
+            }
+            let keys = table
+                .key()
+                .map(|column| Name::clone(&column.name))
+                .collect();
+            write_primary_key(&mut stmt, &table.name().to_string(), keys, None);
+            Ok(stmt)
+        }
     }
 }
 
@@ -102,21 +164,21 @@ struct BaseTable {
 }
 
 impl BaseTable {
-    fn of<D: Disjoint>() -> Result<Self, Error> {
-        let entity = D::Base::default();
-        let key_types = <D::Base as EntityTrait>::PrimaryKey::iter()
-            .map(|key| key.into_column().def().get_column_type().clone())
-            .collect();
-        Ok(Self {
-            table: entity.table_ref(),
-            name: entity.table_name().to_owned(),
-            label: table_label(&entity),
-            key: KeyColumns::of(&entity)?,
-            key_types,
-            kind: D::kind_column().as_str().to_owned(),
-            kind_type: D::Kind::db_type().get_column_type().clone(),
-            declared: column_names::<D::Base>(),
-        })
+    fn of(shape: &DisjointShape) -> Self {
+        let base = &shape.base;
+        Self {
+            table: base.table.clone(),
+            name: base.name().to_string(),
+            label: base.label.clone(),
+            key: KeyColumns::of(base),
+            key_types: base
+                .key()
+                .map(|column| column.def.get_column_type().clone())
+                .collect(),
+            kind: shape.kind_column().name.to_string(),
+            kind_type: shape.kind_type.clone(),
+            declared: column_names(base),
+        }
     }
 
     /// The `ALTER TABLE` adding to the base, for each kind with a table, one
@@ -206,59 +268,49 @@ struct KindTable {
     create: TableCreateStatement,
 }
 
-/// Writes a kind's table against the base, and nothing for a kind without
-/// one.
-struct KindTableOf<'a>(&'a BaseTable);
-
-impl<D: Disjoint> KindVisitor<D> for KindTableOf<'_> {
-    type Output = Result<Option<KindTable>, Error>;
-
-    // [spec:pgorm:sem:disjoint.schema+1]
-    fn table<M: KindModel<D>>(self, kind: D::Kind) -> Self::Output {
-        let base = self.0;
-        let entity = M::Entity::default();
-        let value = kind.to_value();
-        if column_names::<M::Entity>().contains(&base.kind) {
-            let label = table_label(&entity);
-            return Err(Error::Type(format!(
-                "`{label}`.`{}`, the kind column the disjoint schema adds to the table of the \
-                 kind `{value}`, is a column `{label}` declares",
-                base.kind
-            )));
-        }
-        let key = KeyColumns::of(&entity)?;
-        let mut create =
-            table_from_entity(entity, |relation| !is_key_to_base(relation, base, &key))?;
-        let mut kind_column =
-            ColumnDef::new_with_type(Name::runtime(base.kind.clone()), base.kind_type.clone());
-        kind_column.generated(Expr::val(value.clone()), GeneratedKind::Stored);
-        create.col(&mut kind_column);
-        let name = constraint_name(
-            "fk",
-            entity.table_name(),
-            key.iter().chain([base.kind.as_str()]),
-        );
-        create.foreign_key(deferrable_key(
-            entity.table_ref(),
-            base.table.clone(),
-            key.pairs(&base.key).and(
-                Name::runtime(base.kind.clone()),
-                Name::runtime(base.kind.clone()),
-            ),
-            name,
-            Some(ForeignKeyAction::Cascade),
-        ));
-        Ok(Some(KindTable {
-            value,
-            table: entity.table_ref(),
-            key,
-            create,
-        }))
+/// `kind`'s table written against the base.
+// [spec:pgorm:sem:disjoint.schema+1]
+fn kind_table(
+    base: &BaseTable,
+    kind: &DisjointKind,
+    table: &DisjointTable,
+) -> Result<KindTable, Error> {
+    let value = kind.value.clone();
+    if column_names(table).contains(&base.kind) {
+        let label = &table.label;
+        return Err(Error::Type(format!(
+            "`{label}`.`{}`, the kind column the disjoint schema adds to the table of the \
+             kind `{value}`, is a column `{label}` declares",
+            base.kind
+        )));
     }
-
-    fn unit(self, _: D) -> Self::Output {
-        Ok(None)
-    }
+    let key = KeyColumns::of(table);
+    let mut create = body(table, &|relation| !is_key_to_base(relation, base, &key))?;
+    let mut kind_column =
+        ColumnDef::new_with_type(Name::runtime(base.kind.clone()), base.kind_type.clone());
+    kind_column.generated(Expr::val(value.clone()), GeneratedKind::Stored);
+    create.col(&mut kind_column);
+    let name = constraint_name(
+        "fk",
+        &table.name().to_string(),
+        key.iter().chain([base.kind.as_str()]),
+    );
+    create.foreign_key(deferrable_key(
+        table.table.clone(),
+        base.table.clone(),
+        key.pairs(&base.key).and(
+            Name::runtime(base.kind.clone()),
+            Name::runtime(base.kind.clone()),
+        ),
+        name,
+        Some(ForeignKeyAction::Cascade),
+    ));
+    Ok(KindTable {
+        value,
+        table: table.table.clone(),
+        key,
+        create,
+    })
 }
 
 /// A key's column names in order, the first held apart because every key
@@ -269,19 +321,13 @@ struct KeyColumns {
 }
 
 impl KeyColumns {
-    /// `E`'s primary key, refused when it has no column.
-    fn of<E: EntityTrait>(entity: &E) -> Result<Self, Error> {
-        let mut names = E::PrimaryKey::iter().map(|key| key.into_column().as_str().to_owned());
-        let Some(first) = names.next() else {
-            return Err(Error::Type(format!(
-                "`{}` has no primary key, which a disjoint entity's tables are keyed by",
-                table_label(entity)
-            )));
-        };
-        Ok(Self {
-            first,
+    /// `table`'s primary key, which a shape's table always has.
+    fn of(table: &DisjointTable) -> Self {
+        let mut names = table.key().map(|column| column.name.to_string());
+        Self {
+            first: names.next().unwrap_or_default(),
             rest: names.collect(),
-        })
+        }
     }
 
     fn iter(&self) -> impl Iterator<Item = &str> {
@@ -370,9 +416,10 @@ fn constraint_name<'a>(kind: &str, table: &str, columns: impl Iterator<Item = &'
     bounded_identifier(name)
 }
 
-/// The names of the columns `E` declares.
-fn column_names<E: EntityTrait>() -> Vec<String> {
-    E::Column::iter()
-        .map(|column| column.as_str().to_owned())
+fn column_names(table: &DisjointTable) -> Vec<String> {
+    table
+        .columns
+        .iter()
+        .map(|column| column.name.to_string())
         .collect()
 }

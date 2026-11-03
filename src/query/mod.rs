@@ -12,14 +12,9 @@ mod update;
 
 pub use delete::*;
 pub(crate) use disjoint::BASE_SOURCE;
-pub(crate) use disjoint::KindRows;
 pub use disjoint::SelectDisjoint;
 pub use disjoint_write::WriteDisjoint;
-pub(crate) use disjoint_write::{
-    DeleteKind, InsertKind, UpdateKind, Writes, rekinded_base, returned, unwritten, updated_base,
-    written_part,
-};
-pub use graph::{Opt, Req, SelectGraph, Sliced, Slot, SlotAt, Slots, Unsliced};
+pub use graph::{Opt, Req, SelectGraph, Sliced, Slot, SlotAt, Slots, Unsliced, source_prefix};
 pub use helper::*;
 pub use insert::*;
 pub use loader::*;

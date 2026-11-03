@@ -1,11 +1,11 @@
 //! A disjoint entity's writes: insert, update and change of kind, each one
 //! statement whose parts are data-modifying `WITH` clauses.
 //!
-//! Every part writing a table is named as that table ([`written_table`]), so
+//! Every part writing a table is named as that table ([`DisjointTable::written`]), so
 //! the statement's `SELECT` is the read's own projection and joins
-//! ([`project_disjoint`]) reading each written table through the rows its
-//! part wrote, and decodes through the read's decode. Every part writing a
-//! kind's table reads the base row's key from the base's part, and that is
+//! ([`DisjointShape::project`]) reading each written table through the rows
+//! its part wrote, and decodes through the read's decode. Every part writing
+//! a kind's table reads the base row's key from the base's part, and that is
 //! the only order PostgreSQL holds the parts to: they all see one snapshot,
 //! and a part reading another's `RETURNING` runs after it. A base part that
 //! touches no row therefore leaves every other part touching none, and the
@@ -15,17 +15,16 @@ use core::marker::PhantomData;
 use std::fmt;
 
 use pgorm_query::{
-    CommonTableExpression, Condition, Expr, FromItem, InsertStatement, IntoName,
-    IntoSubQueryStatement, LockType, Name, Query, ReturningClause, SelectStatement, WithClause,
+    BinOper, CommonTableExpression, Condition, Expr, FromItem, InsertStatement,
+    IntoSubQueryStatement, LockType, Name, Query, ReturningClause, SelectStatement,
+    UpdateStatement, Value, WithClause,
 };
 
-use super::disjoint::{KindRows, key_pairs, key_relation, project_disjoint, written_table};
+use super::disjoint::{KindRows, key_filter};
 use super::helper::join_condition;
-use super::insert::saved_values;
 use crate::{
-    ActiveEnum, ActiveKindVisitor, ActiveModelTrait, ActiveValue, ColumnTrait, Disjoint,
-    EntityName, EntityTrait, Error, Iterable, KindModel, KindVisitor, PrimaryKeyToColumn,
-    QueryFilter, QueryTrait, StaticName, Update, UpdateMany, UpdateOne, Value, table_label,
+    ActiveValue, Disjoint, DisjointKind, DisjointShape, DisjointTable, DisjointValues, Error,
+    QueryTrait,
 };
 
 /// A write to a disjoint entity `D`, built by [`Disjoint::insert`],
@@ -68,23 +67,8 @@ impl<D: Disjoint> Clone for WriteDisjoint<D> {
 }
 
 impl<D: Disjoint> WriteDisjoint<D> {
-    /// The statement whose `WITH` holds the base's part and then `kinds`, and
-    /// whose `SELECT` reads the base row through the base's part and each
-    /// kind's table from where `rows` says.
-    // [spec:pgorm:sem:disjoint.write+1]
-    pub(crate) fn of(
-        base: CommonTableExpression,
-        kinds: impl IntoIterator<Item = CommonTableExpression>,
-        rows: &dyn Fn(D::Kind) -> KindRows,
-    ) -> Self {
-        let mut with = WithClause::new(base);
-        for part in kinds {
-            with.cte(part);
-        }
-        let mut query = SelectStatement::new();
-        query.from(written_table::<D::Base>());
-        project_disjoint::<D>(&mut query, rows);
-        query.with(with);
+    /// The write `query` is, which a shape of `D` built.
+    pub(crate) fn of(query: SelectStatement) -> Self {
         Self {
             query,
             marker: PhantomData,
@@ -92,82 +76,11 @@ impl<D: Disjoint> WriteDisjoint<D> {
     }
 }
 
-/// The part of a write that writes `E`'s table, named as the table.
-// [spec:pgorm:sem:disjoint.write+1]
-pub(crate) fn written_part<E: EntityTrait>(
-    statement: impl IntoSubQueryStatement,
-) -> CommonTableExpression {
-    CommonTableExpression::new(Name::clone(written_table::<E>().table()), statement)
-}
-
-/// Every column of `E`, in iteration order, qualified by its table's bare
-/// name: what a part returns, as stored, for the statement's `SELECT` to cast
-/// as the read casts it.
-///
-/// Qualified because a part that also reads another part (`UPDATE .. FROM`,
-/// `DELETE .. USING`) sees two relations whose columns may share names.
-fn qualified_columns<E: EntityTrait>() -> Vec<(Name, E::Column)> {
-    let table = Name::clone(E::default().table_ref().table());
-    E::Column::iter()
-        .map(|column| (Name::clone(&table), column))
-        .collect()
-}
-
-/// The `RETURNING` of a part writing `E`'s table.
-// [spec:pgorm:sem:disjoint.write+1]
-pub(crate) fn returned<E: EntityTrait>() -> ReturningClause {
-    Query::returning().columns(qualified_columns::<E>())
-}
-
-/// The base's part of an update: the `UPDATE` of its set columns, narrowed
-/// to its key and its kind, or, when it sets none, the `SELECT` of the row so
-/// narrowed `FOR KEY SHARE`.
-///
-/// Either way the base row is locked before any kind part reads it: the
-/// `UPDATE` by its row lock, the `SELECT` by `FOR KEY SHARE`, which a change
-/// of the row's kind (it writes the kind column, in the base's `UNIQUE` key)
-/// and a delete both wait on. Under `READ COMMITTED` a part blocked behind
-/// one re-checks its `WHERE` against the row that committed, so a row whose
-/// kind changed meanwhile is no row, `Error::RecordNotFound`, rather than a
-/// base row of the old kind returned beside a kind row the change deleted.
-// [spec:pgorm:sem:disjoint.write+1]
-pub(crate) fn updated_base<B: EntityTrait>(
-    update: UpdateOne<B::ActiveModel>,
-) -> CommonTableExpression {
-    let mut query = update.into_query();
-    if !query.get_values().is_empty() {
-        query.returning(returned::<B>());
-        return written_part::<B>(query);
-    }
-    let mut guard = SelectStatement::new();
-    guard
-        .columns(qualified_columns::<B>())
-        .from(B::default().table_ref())
-        .lock(LockType::KeyShare);
-    if let Some(condition) = query.where_condition() {
-        guard.cond_where(condition.clone());
-    }
-    written_part::<B>(guard)
-}
-
-/// The condition pairing a row of `K`'s table with the base's part on the
-/// key, column by column.
-fn key_condition<B: EntityTrait, K: EntityTrait>() -> Result<Condition, Error> {
-    key_relation::<B, K>(FromItem::from(K::default().table_ref()))
-        .map(join_condition)
-        .ok_or_else(|| {
-            Error::Type(format!(
-                "`{}` has no primary key column to key its kinds' rows by",
-                table_label(&B::default())
-            ))
-        })
-}
-
-/// Which values of an `ActiveModel` a write would write: an insert writes
-/// `Set` and `Unchanged` values alike, an update `Set` ones alone.
+/// Which values a write writes: an insert writes `Set` and `Unchanged`
+/// values alike, an update `Set` ones alone.
 // [spec:pgorm:sem:disjoint.write+1]
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum Writes {
+enum Writes {
     /// An insert: everything but `NotSet`.
     Insert,
     /// An update: `Set` alone.
@@ -183,23 +96,32 @@ impl Writes {
     }
 }
 
-/// Refuse, as [`Error::Type`] naming the table and column, a value in
-/// `column` of `active` that the write `writes` would write, where the
-/// column's value comes from elsewhere for the reason `why` gives.
+/// The value `value` holds, unless it is `NotSet`.
+fn held(value: &ActiveValue<Value>) -> Option<Value> {
+    match value {
+        ActiveValue::Set(value) | ActiveValue::Unchanged(value) => Some(value.clone()),
+        ActiveValue::NotSet => None,
+    }
+}
+
+/// Refuse, as [`Error::Type`] naming the table and column, a value in the
+/// column at `index` of `table` that `writes` would write, where the column's
+/// value comes from elsewhere for the reason `why` gives.
 // [spec:pgorm:sem:disjoint.write+1]
-pub(crate) fn unwritten<A: ActiveModelTrait>(
-    active: &A,
-    column: <A::Entity as EntityTrait>::Column,
+fn unwritten(
+    table: &DisjointTable,
+    values: &[ActiveValue<Value>],
+    index: usize,
     writes: Writes,
     why: &str,
 ) -> Result<(), Error> {
-    if !writes.writes(&active.get(column)?) {
+    if !writes.writes(&values[index]) {
         return Ok(());
     }
     Err(Error::Type(format!(
         "`{}`.`{}` {}: {why}",
-        table_label(&A::Entity::default()),
-        column.as_str(),
+        table.label,
+        table.columns[index].name.to_string(),
         match writes {
             Writes::Insert => "holds a value",
             Writes::Update => "is `Set`",
@@ -209,136 +131,388 @@ pub(crate) fn unwritten<A: ActiveModelTrait>(
 
 /// Refuse a value of a kind row's key that `writes` would write: the row's
 /// key is its base row's.
-fn unwritten_key<D: Disjoint, M: KindModel<D>>(
-    active: &<M::Entity as EntityTrait>::ActiveModel,
-    kind: D::Kind,
+fn unwritten_key(
+    table: &DisjointTable,
+    values: &[ActiveValue<Value>],
+    kind: &DisjointKind,
     writes: Writes,
 ) -> Result<(), Error> {
-    for key in <M::Entity as EntityTrait>::PrimaryKey::iter() {
+    for index in &table.key {
         unwritten(
-            active,
-            key.into_column(),
+            table,
+            values,
+            *index,
             writes,
             &format!(
                 "it is the key of the kind `{}`, whose row takes its key from its base row, so \
                  its `ActiveModel` leaves it `NotSet`",
-                kind.to_value()
+                kind.value
             ),
         )?;
     }
     Ok(())
 }
 
-/// The part inserting the kind's row, its key read from the base's part, or
-/// none for a kind without a table.
+/// The values `kind`'s row is given, refused as [`Error::Type`] when a kind
+/// with a table is given none, or one without a table some.
+/// A kind's table beside the values its row is given.
+type KindRow<'k, 'v> = (&'k DisjointTable, &'v [ActiveValue<Value>]);
+
+fn kind_row<'k, 'v>(
+    kind: &'k DisjointKind,
+    row: Option<&'v DisjointValues>,
+) -> Result<Option<KindRow<'k, 'v>>, Error> {
+    match (&kind.table, row) {
+        (Some(table), Some(row)) => Ok(Some((table, table.owns(row)?))),
+        (None, None) => Ok(None),
+        (Some(table), None) => Err(Error::Type(format!(
+            "the kind `{}` has a table, `{}`, so a write of it gives its row's values",
+            kind.value, table.label
+        ))),
+        (None, Some(_)) => Err(Error::Type(format!(
+            "the kind `{}` has no table, so a write of it gives no row's values",
+            kind.value
+        ))),
+    }
+}
+
+/// Every column of `table`, in order, qualified by its bare name: what a part
+/// returns, as stored, for the statement's `SELECT` to cast as the read casts
+/// it.
+///
+/// Qualified because a part that also reads another part (`UPDATE .. FROM`,
+/// `DELETE .. USING`) sees two relations whose columns may share names.
+fn qualified_columns(table: &DisjointTable) -> Vec<(Name, Name)> {
+    table
+        .columns
+        .iter()
+        .map(|column| (Name::clone(table.name()), Name::clone(&column.name)))
+        .collect()
+}
+
+/// The `RETURNING` of a part writing `table`.
 // [spec:pgorm:sem:disjoint.write+1]
-pub(crate) struct InsertKind;
+fn returned(table: &DisjointTable) -> ReturningClause {
+    Query::returning().columns(qualified_columns(table))
+}
 
-impl<D: Disjoint> ActiveKindVisitor<D> for InsertKind {
-    type Output = Result<Option<CommonTableExpression>, Error>;
+/// The part of a write that writes `table`, named as the table.
+// [spec:pgorm:sem:disjoint.write+1]
+fn written_part(
+    table: &DisjointTable,
+    statement: impl IntoSubQueryStatement,
+) -> CommonTableExpression {
+    CommonTableExpression::new(Name::clone(table.name()), statement)
+}
 
-    fn table<M: KindModel<D>>(
-        self,
-        kind: D::Kind,
-        active: <M::Entity as EntityTrait>::ActiveModel,
-    ) -> Self::Output {
-        unwritten_key::<D, M>(&active, kind, Writes::Insert)?;
-        let base = written_table::<D::Base>();
-        let mut columns = Vec::new();
-        let mut row = SelectStatement::new();
-        for (base_key, kind_key) in key_pairs::<D::Base, M::Entity>() {
-            columns.push(kind_key.into_name());
-            row.expr(Expr::col((Name::clone(base.table()), base_key)));
+impl DisjointShape {
+    /// The condition pairing a row of `table` with the base's part on the
+    /// key, column by column.
+    fn key_condition(&self, table: &DisjointTable) -> Result<Condition, Error> {
+        self.key_relation(table, FromItem::from(table.table.clone()))
+            .map(join_condition)
+            .ok_or_else(|| {
+                Error::Type(format!(
+                    "`{}` has no primary key column to key its kinds' rows by",
+                    self.base.label
+                ))
+            })
+    }
+
+    /// The statement whose `WITH` holds the base's part and then `kinds`, and
+    /// whose `SELECT` reads the base row through the base's part and each
+    /// kind's table from where `rows` says.
+    fn write(
+        &self,
+        base: CommonTableExpression,
+        kinds: impl IntoIterator<Item = CommonTableExpression>,
+        rows: &dyn Fn(usize) -> KindRows,
+    ) -> SelectStatement {
+        let mut with = WithClause::new(base);
+        for part in kinds {
+            with.cte(part);
         }
-        for (column, value) in saved_values(active) {
-            if let Some(value) = value {
-                columns.push(column.into_name());
-                row.expr(value);
+        let mut query = SelectStatement::new();
+        query.from(self.base.written());
+        self.project(&mut query, rows);
+        query.with(with);
+        query
+    }
+
+    /// The part inserting `kind`'s row from `row`, its key read from the
+    /// base's part, or none for a kind without a table.
+    // [spec:pgorm:sem:disjoint.write+1]
+    fn insert_kind(
+        &self,
+        kind: &DisjointKind,
+        row: Option<&DisjointValues>,
+    ) -> Result<Option<CommonTableExpression>, Error> {
+        let Some((table, values)) = kind_row(kind, row)? else {
+            return Ok(None);
+        };
+        unwritten_key(table, values, kind, Writes::Insert)?;
+        let base = self.base.written();
+        let mut columns = Vec::new();
+        let mut select = SelectStatement::new();
+        for (base_key, kind_key, _) in self.key_pairs(table) {
+            columns.push(Name::clone(&kind_key.name));
+            select.expr(Expr::col((
+                Name::clone(base.table()),
+                Name::clone(&base_key.name),
+            )));
+        }
+        for (column, value) in table.columns.iter().zip(values) {
+            if let Some(value) = held(value) {
+                columns.push(Name::clone(&column.name));
+                select.expr(column.casts.save(value));
             }
         }
-        row.from(base);
+        select.from(base);
         let mut insert = InsertStatement::new();
         insert
-            .into_table(M::Entity::default().table_ref())
+            .into_table(table.table.clone())
             .columns(columns)
-            .select_from(row)?
-            .returning(returned::<M::Entity>());
-        Ok(Some(written_part::<M::Entity>(insert)))
+            .select_from(select)?
+            .returning(returned(table));
+        Ok(Some(written_part(table, insert)))
     }
 
-    fn unit(self, _: D::Kind) -> Self::Output {
-        Ok(None)
-    }
-}
-
-/// The part updating the set columns of the kind's row, found by the base
-/// part's key, or none for a kind without a table or a row setting nothing.
-// [spec:pgorm:sem:disjoint.write+1]
-pub(crate) struct UpdateKind;
-
-impl<D: Disjoint> ActiveKindVisitor<D> for UpdateKind {
-    type Output = Result<Option<CommonTableExpression>, Error>;
-
-    fn table<M: KindModel<D>>(
-        self,
-        kind: D::Kind,
-        active: <M::Entity as EntityTrait>::ActiveModel,
-    ) -> Self::Output {
-        unwritten_key::<D, M>(&active, kind, Writes::Update)?;
-        let update = Update::many(M::Entity::default()).set(active);
-        if update.as_query().get_values().is_empty() {
+    /// The part updating the set columns of `kind`'s row from `row`, found by
+    /// the base part's key, or none for a kind without a table or a row
+    /// setting nothing.
+    // [spec:pgorm:sem:disjoint.write+1]
+    fn update_kind(
+        &self,
+        kind: &DisjointKind,
+        row: Option<&DisjointValues>,
+    ) -> Result<Option<CommonTableExpression>, Error> {
+        let Some((table, values)) = kind_row(kind, row)? else {
+            return Ok(None);
+        };
+        unwritten_key(table, values, kind, Writes::Update)?;
+        let mut update = UpdateStatement::new();
+        update.table(table.table.clone());
+        for (column, value) in table.columns.iter().zip(values) {
+            if let ActiveValue::Set(value) = value {
+                update.value(Name::clone(&column.name), column.casts.save(value.clone()));
+            }
+        }
+        if update.get_values().is_empty() {
             return Ok(None);
         }
-        let mut query = update
-            .from(written_table::<D::Base>())
-            .filter(key_condition::<D::Base, M::Entity>()?)
-            .into_query();
-        query.returning(returned::<M::Entity>());
-        Ok(Some(written_part::<M::Entity>(query)))
+        update
+            .from(self.base.written())
+            .cond_where(self.key_condition(table)?)
+            .returning(returned(table));
+        Ok(Some(written_part(table, update)))
     }
 
-    fn unit(self, _: D::Kind) -> Self::Output {
-        Ok(None)
-    }
-}
-
-/// The part deleting the base row's row from a kind's table, or none for a
-/// kind without one.
-// [spec:pgorm:sem:disjoint.write+1]
-pub(crate) struct DeleteKind;
-
-impl<D: Disjoint> KindVisitor<D> for DeleteKind {
-    type Output = Result<Option<CommonTableExpression>, Error>;
-
-    fn table<M: KindModel<D>>(self, _: D::Kind) -> Self::Output {
+    /// The part deleting the base row's row from `table`.
+    // [spec:pgorm:sem:disjoint.write+1]
+    fn delete_kind(&self, table: &DisjointTable) -> Result<CommonTableExpression, Error> {
         let mut delete = Query::delete();
         delete
-            .from_table(M::Entity::default().table_ref())
-            .using(written_table::<D::Base>())
-            .cond_where(key_condition::<D::Base, M::Entity>()?)
-            .returning(returned::<M::Entity>());
-        Ok(Some(written_part::<M::Entity>(delete)))
+            .from_table(table.table.clone())
+            .using(self.base.written())
+            .cond_where(self.key_condition(table)?)
+            .returning(returned(table));
+        Ok(written_part(table, delete))
     }
 
-    fn unit(self, _: D) -> Self::Output {
-        Ok(None)
+    /// Insert a value of the kind `kind`: the base row from `base`, its kind
+    /// column holding `kind`, and, for a kind with a table, the kind's row
+    /// from `row`, its key read from the inserted base row.
+    ///
+    /// The statement [`Disjoint::insert`] builds, for a shape described at run
+    /// time, refusing what it refuses as [`Error::Type`]: a value held in the
+    /// base's kind column or in the kind row's key, `row` given for a kind
+    /// without a table or not given for one with a table, values of another
+    /// table, and a kind the shape lacks. [`check`](Self::check) is the
+    /// caller's to run.
+    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:req:bindings.disjoint+1]
+    pub fn insert(
+        &self,
+        base: &DisjointValues,
+        kind: &str,
+        row: Option<&DisjointValues>,
+    ) -> Result<SelectStatement, Error> {
+        let mut values = self.base.owns(base)?.to_vec();
+        unwritten(
+            &self.base,
+            &values,
+            self.kind,
+            Writes::Insert,
+            "it is the kind column, which an insert sets to the kind it is given, so the \
+             base's `ActiveModel` leaves it `NotSet`",
+        )?;
+        let (written, entry) = self.kind(kind)?;
+        values[self.kind] = ActiveValue::Set(Value::from(entry.value.clone()));
+        let mut insert = Query::insert();
+        insert
+            .into_table(self.base.table.clone())
+            .or_default_values();
+        let (columns, saved): (Vec<_>, Vec<_>) = self
+            .base
+            .columns
+            .iter()
+            .zip(&values)
+            .filter_map(|(column, value)| {
+                held(value).map(|value| (Name::clone(&column.name), column.casts.save(value)))
+            })
+            .unzip();
+        if !columns.is_empty() {
+            insert.columns(columns).values(saved)?;
+        }
+        insert.returning(returned(&self.base));
+        let row = self.insert_kind(entry, row)?;
+        Ok(self.write(written_part(&self.base, insert), row, &|kind| {
+            if kind == written {
+                KindRows::Written
+            } else {
+                KindRows::Table
+            }
+        }))
     }
-}
 
-/// The base's part of a change of kind: its kind set to `kind`, narrowed to
-/// `update`'s key and to a row of another kind.
-// [spec:pgorm:sem:disjoint.write+1]
-pub(crate) fn rekinded_base<D: Disjoint>(
-    update: UpdateMany<D::Base>,
-    kind: D::Kind,
-) -> CommonTableExpression {
-    let column = D::kind_column();
-    let mut query = update
-        .col_expr(column, column.save_as(Expr::val(kind.to_value())))
-        .filter(column.ne(kind.to_value()))
-        .into_query();
-    query.returning(returned::<D::Base>());
-    written_part::<D::Base>(query)
+    /// Update a value of the kind `kind`: the set columns of the base row
+    /// from `base` and of its kind's row from `row`, both found by the base's
+    /// key, which `base` holds `Set` or `Unchanged`, and narrowed to a row of
+    /// the kind `kind`.
+    ///
+    /// The statement [`Disjoint::update`] builds, for a shape described at run
+    /// time, refusing what it refuses: the base's kind column `Set`, and a
+    /// kind row's key `Set`, as [`Error::Type`], and a `NotSet` key part of
+    /// `base` as [`Error::PrimaryKeyNotSet`], beside what
+    /// [`insert`](Self::insert) refuses of `row` and of `kind`. With nothing
+    /// set in either, the write is a read of the row of that key and kind.
+    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:req:bindings.disjoint+1]
+    pub fn update(
+        &self,
+        base: &DisjointValues,
+        kind: &str,
+        row: Option<&DisjointValues>,
+    ) -> Result<SelectStatement, Error> {
+        let values = self.base.owns(base)?;
+        unwritten(
+            &self.base,
+            values,
+            self.kind,
+            Writes::Update,
+            "it is the kind column, and an update keeps the row's kind, which `change_kind` \
+             changes",
+        )?;
+        let mut key = Vec::with_capacity(self.base.key.len());
+        for index in &self.base.key {
+            key.push(held(&values[*index]).ok_or(Error::PrimaryKeyNotSet)?);
+        }
+        let (current, entry) = self.kind(kind)?;
+        let mut update = UpdateStatement::new();
+        update.table(self.base.table.clone());
+        for (index, (column, value)) in self.base.columns.iter().zip(values).enumerate() {
+            if let ActiveValue::Set(value) = value
+                && !self.base.key.contains(&index)
+            {
+                update.value(Name::clone(&column.name), column.casts.save(value.clone()));
+            }
+        }
+        let condition = key_filter(&self.base, key).add(self.kind_eq(entry.value.clone()));
+        let row = self.update_kind(entry, row)?;
+        let written = row.is_some();
+        Ok(
+            self.write(self.updated_base(update, condition), row, &|kind| {
+                if written && kind == current {
+                    KindRows::Written
+                } else {
+                    KindRows::Table
+                }
+            }),
+        )
+    }
+
+    /// The base's part of an update: the `UPDATE` of its set columns,
+    /// narrowed by `condition`, or, when it sets none, the `SELECT` of the row
+    /// so narrowed `FOR KEY SHARE`.
+    ///
+    /// Either way the base row is locked before any kind part reads it: the
+    /// `UPDATE` by its row lock, the `SELECT` by `FOR KEY SHARE`, which a
+    /// change of the row's kind (it writes the kind column, in the base's
+    /// `UNIQUE` key) and a delete both wait on. Under `READ COMMITTED` a part
+    /// blocked behind one re-checks its `WHERE` against the row that
+    /// committed, so a row whose kind changed meanwhile is no row,
+    /// `Error::RecordNotFound`, rather than a base row of the old kind
+    /// returned beside a kind row the change deleted.
+    // [spec:pgorm:sem:disjoint.write+1]
+    fn updated_base(
+        &self,
+        mut update: UpdateStatement,
+        condition: Condition,
+    ) -> CommonTableExpression {
+        if !update.get_values().is_empty() {
+            update.cond_where(condition).returning(returned(&self.base));
+            return written_part(&self.base, update);
+        }
+        let mut guard = SelectStatement::new();
+        guard
+            .columns(qualified_columns(&self.base))
+            .from(self.base.table.clone())
+            .cond_where(condition)
+            .lock(LockType::KeyShare);
+        written_part(&self.base, guard)
+    }
+
+    /// Change the kind of the row whose key `key` gives, in key order, to
+    /// `kind`: delete its row from every other kind's table, its current
+    /// kind's among them, insert the new kind's row from `row` where that
+    /// kind has a table, and set the base row's kind column, narrowed to a
+    /// row of another kind.
+    ///
+    /// The statement [`Disjoint::change_kind`] builds, for a shape described
+    /// at run time, refusing what it refuses as [`Error::Type`], beside a key
+    /// of another arity than the base's and what [`insert`](Self::insert)
+    /// refuses of `row` and of `kind`.
+    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:req:bindings.disjoint+1]
+    pub fn change_kind(
+        &self,
+        key: Vec<Value>,
+        kind: &str,
+        row: Option<&DisjointValues>,
+    ) -> Result<SelectStatement, Error> {
+        self.key_arity(key.len())?;
+        let (new, entry) = self.kind(kind)?;
+        let mut parts = Vec::new();
+        for (index, kind) in self.kinds.iter().enumerate() {
+            if index == new {
+                parts.extend(self.insert_kind(kind, row)?);
+            } else if let Some(table) = &kind.table {
+                parts.push(self.delete_kind(table)?);
+            }
+        }
+        let column = self.kind_column();
+        let mut update = UpdateStatement::new();
+        update
+            .table(self.base.table.clone())
+            .value(
+                Name::clone(&column.name),
+                column.casts.save(entry.value.clone().into()),
+            )
+            .cond_where(
+                key_filter(&self.base, key)
+                    .add(self.kind_compare(BinOper::NotEqual, entry.value.clone())),
+            )
+            .returning(returned(&self.base));
+        Ok(
+            self.write(written_part(&self.base, update), parts, &|kind| {
+                if kind == new {
+                    KindRows::Written
+                } else {
+                    KindRows::Deleted
+                }
+            }),
+        )
+    }
 }
 
 // [spec:pgorm:sem:disjoint.write+1]

@@ -240,6 +240,31 @@ test("a model's describe() reports exactly the keys the surface declares", () =>
 });
 
 // [spec:pgorm:req:bindings.surface+2/test]
+// [spec:pgorm:req:bindings.disjoint+1/test]
+test("a disjoint model's describe() reports exactly the keys the surface declares", () => {
+  const kind = new pgorm.TypeName("item_kind", { schema: "app" });
+  const base = pgorm.model("items", {
+    schema: "app",
+    columns: {
+      id: pgorm.column("i32", { primaryKey: true }),
+      kind: pgorm.column(kind, { values: ["plain", "boxed"] }),
+    },
+  });
+  const boxed = pgorm.model("boxes", { schema: "app", columns: { id: pgorm.column("i32", { primaryKey: true }) } });
+  const items = pgorm.disjoint("item", base, { plain: null, boxed }, { schemaName: "app" });
+  assertDeclared("pgorm.Disjoint", [items.describe()]);
+});
+
+// [spec:pgorm:req:bindings.surface+2/test]
+// [spec:pgorm:req:bindings.disjoint+1/test]
+test("a registered disjoint enum's describe() reports exactly the keys the surface declares", {
+  skip: pgorm.disjointEntities().length === 0 &&
+    "the module registers no disjoint entity; checks/entities.js runs this against an application's",
+}, () => {
+  assertDeclared("pgorm.DisjointEntity", pgorm.disjointEntities().map((name) => pgorm.disjointEntity(name).describe()));
+});
+
+// [spec:pgorm:req:bindings.surface+2/test]
 // [spec:pgorm:req:bindings.entities+3/test]
 test("a registered entity's describe() reports exactly the keys the surface declares", {
   skip: pgorm.entities().length === 0 && "the module registers no entity; checks/entities.js runs this against an application's",

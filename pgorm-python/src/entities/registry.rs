@@ -19,6 +19,7 @@ pub struct Registry {
     types: HashMap<TypeId, String>,
     pub(crate) graphs: BTreeMap<String, Arc<dyn crate::graphs::backend::Factory>>,
     pub(crate) sources: BTreeMap<String, Arc<dyn crate::pipeline::selected_backend::Factory>>,
+    pub(crate) disjoints: crate::disjoint::Registered,
 }
 
 impl Registry {
@@ -46,6 +47,14 @@ impl Registry {
         );
         self.types.insert(TypeId::of::<E>(), name.to_owned());
         Ok(self)
+    }
+
+    /// The registered entity whose Rust type is `entity`.
+    pub(crate) fn backend_of(&self, entity: TypeId) -> Option<Arc<dyn EntityBackend>> {
+        self.types
+            .get(&entity)
+            .and_then(|name| self.entries.get(name))
+            .cloned()
     }
 
     pub(crate) fn describe(&self) -> Vec<serde_json::Value> {
