@@ -16603,4 +16603,47 @@ children (
             }
         )
     }
+
+    {
+        id disjoint-key-shapes-refused
+        title "create_disjoint refuses the base key shapes PostgreSQL cannot hold to a kind: generated, temporal, and domain-over-enum key columns"
+        kind @fix
+        deps (disjoint.schema)
+        log (
+            {
+                at 2026-11-03T02:38:49.712173Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.schema (22c8f563), each confirmed live and none refused before the statements are sent: a base key column that is itself a generated column (the base's CASE columns read it; PostgreSQL refuses a generated column referencing another with 42P17); a temporal key (WITHOUT OVERLAPS), onto which the plain foreign key from a kind table gets 42830; and key columns typed as a domain over an enum, which the disjoint foreign keys cannot match (42804) — the existing domain-over-enum refusal in create_table_from_entity covers only relation pairs. Refuse each in check_disjoint or create_disjoint with Error::Type naming the table and column, revise disjoint.schema (or disjoint.declare) to list them, and test each live."
+            }
+        )
+    }
+
+    {
+        id schema-gen-name-bounds
+        title "Every constraint name schema generation derives fits PostgreSQL's 63-byte identifier limit"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T02:38:49.886751Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.schema (22c8f563): create_disjoint bounds its names through bounded_identifier (src/executor/result_name.rs: kept under 63 bytes, else a 47-byte head plus a 16-hex FNV hash), but create_table_from_entity's own derived names are not bounded: a relation's foreign key fk-{table}-{cols} and a composite key's pk-{table}. PostgreSQL truncates a longer identifier silently (NOTICE 42622), so two long names can collide and a later statement naming the constraint misses it. Route every derived name through the same composition, revise schema.from-entity, and test the long cases live."
+            }
+        )
+    }
+
+    {
+        id qualified-enum-type-quoting
+        title "A schema-qualified enum is quoted alike in its CREATE TYPE and in every column that uses it"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T02:38:50.06071Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.schema (22c8f563): a schema-qualified enum renders unquoted as a column type (market.listing_category) but quoted in CREATE TYPE (\"market\".\"listing_category\"). They agree only while both names are lower-case and need no quoting; a mixed-case or keyword name creates one type and declares columns of another (42704). Find where a column's enum type is rendered (pgorm-query's column type rendering for ColumnType::Enum with a schema) and quote it as an identifier pair the way CREATE TYPE does; live-test a mixed-case schema and type name through create_table_from_entity and create_disjoint."
+            }
+        )
+    }
 )
