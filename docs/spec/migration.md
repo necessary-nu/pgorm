@@ -149,6 +149,24 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > `Error::Custom` naming each missing migration, so a deleted or renamed
 > migration file surfaces as an error rather than silently re-running.
 
+> [spec:pgorm:req:migration.commit-after]
+> A migration whose `commits_after()` answers `true` (the trait's default is
+> `false`) MUST be committed, with its ledger row, before the next migration
+> of the batch runs: `up` commits the batch so far once that migration's row
+> is written, and runs the rest in a new transaction whose first statement
+> takes the advisory lock again, under which it recomputes the pending set, so
+> a runner that queued behind the first transaction starts nothing the first
+> one already applied. This is for a change PostgreSQL will not let one
+> transaction finish — a value `ALTER TYPE ... ADD VALUE` adds cannot be used
+> before the transaction that added it commits — and it makes the batch no
+> longer all-or-nothing: a failure after a commit rolls back only the
+> transaction it happens in, the migrations committed before it stay applied
+> with their ledger rows, and running `up` again resumes after them. Each
+> commit clears the pool's statement caches and notifies
+> `statement_cache_channel()` as the end of a batch does, inside the
+> transaction it ends. A batch with no such migration is one transaction, as
+> before.
+
 ## Forward-only by construction
 
 > [spec:pgorm:req:migration.up-only]

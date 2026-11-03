@@ -264,3 +264,97 @@ has a row for it, and is never written through.
 > fails at it, `stream` yields it as one `Err` item among the rows, and it is
 > never dropped nor read as one of its kinds, a restriction to one of them
 > included, which reads it and so reports it.
+
+## Changing the kinds
+
+> [spec:pgorm:sem:disjoint.evolve]
+> A change to a kinded disjoint entity's kinds after its tables exist MUST be
+> written by `Schema` from the declaration as it will be, as a
+> `DisjointChange`: an ordered list of steps, each a list of statements that
+> run in one transaction, with a commit between one step and the next, and
+> where a step leaves data to the program, a gap between them that says so.
+> Each statement names the constraints and generated columns it alters by the
+> names `[spec:pgorm:sem:disjoint.schema]` gives them. Run through
+> pgorm-migration, each step is one migration and every step but the last
+> answers `commits_after()` (`[spec:pgorm:req:migration.commit-after]`).
+>
+> - `Schema::add_disjoint_kind::<E>(kind)` MUST add a kind the declaration
+>   holds and the database does not, in two steps: `ALTER TYPE ... ADD VALUE`
+>   placed where the kind stands in declaration order (`BEFORE` or `AFTER` a
+>   neighbour); then, for a kind with a table, that table as
+>   `create_disjoint` writes it and the base's generated key columns and
+>   foreign key for it. Two steps because PostgreSQL refuses to use an added
+>   value before the transaction that added it commits, and both the kind
+>   table's constant kind column and the base's generated columns use it. No
+>   existing table is rewritten except to add the base's generated columns.
+> - `Schema::add_disjoint_kind_recreating::<E>(kind)` MUST make the same
+>   change in one step that rewrites the tables instead: a new enum type with
+>   every value in declaration order, the base's and each kind table's kind
+>   column retyped to it, the disjoint constraints and generated columns
+>   dropped first and written again after, the old type dropped and the new
+>   one renamed to the old name. It takes an exclusive lock on the base and on
+>   every kind table for as long as the rewrite runs, which is the price of
+>   one atomic migration.
+> - `Schema::remove_disjoint_kind::<E>(value)` MUST remove a value the
+>   database's kind type holds and the declaration does not, by the recreating
+>   route, there being no `ALTER TYPE ... DROP VALUE`. Its first statement
+>   MUST fail while any base row still has that kind — a `CHECK` on the base
+>   refusing the value, added and so validated against every row, then
+>   dropped — so the change applies to an entity with no such rows or not at
+>   all. A kind with a table loses its table only through
+>   `remove_disjoint_kind_table`, which comes first.
+> - `Schema::add_disjoint_kind_table::<E>(kind)` MUST give a kind the
+>   database holds as a unit kind the table the declaration now gives it, in
+>   two steps with a gap for the program between them: the table, and the
+>   base's generated key columns with a foreign key added `NOT VALID`, since
+>   every base row of that kind lacks its row until the program writes them;
+>   then, once it has, `VALIDATE CONSTRAINT`, which refuses the change if any
+>   row is still missing.
+> - `Schema::remove_disjoint_kind_table::<E>(kind)` MUST drop a kind's table
+>   and the base's generated key columns and foreign key for it, turning it
+>   into a unit kind, in one step. It discards every row of that table, so it
+>   exists only as its own call, never as a side effect of another change.
+>
+> Every function runs `check_disjoint` on the declaration first, refuses a
+> change the declaration does not describe (a kind added that it does not
+> hold, a value removed that it still holds, a table given to a kind it
+> declares without one, and the converse) with `Error::Type` naming the kind,
+> and refuses an unkinded declaration at compile time, as `create_disjoint`
+> does.
+
+## References to one of several entities
+
+> [spec:pgorm:def:disjoint.one-of]
+> `#[derive(OneOf)]` on an enum MUST declare a reference from one entity to
+> exactly one of several others, stored as one nullable column per target,
+> each a foreign key the entity's own `belongs_to` relation declares:
+> `#[pgorm(entity = comment::Entity)]` on the enum, and on each variant the
+> column holding that target's key, `#[pgorm(column = Column::PostId)]
+> Post(post::Entity)`, the payload naming the target entity. At most one unit
+> variant MAY say that a row references none of them. A column that is not
+> the entity's, is not nullable, appears twice, or whose type is not the
+> target's key type, and an enum with no variant naming a target, MUST NOT
+> compile.
+>
+> The derive MUST generate `<Enum>Key`, the same variants each holding its
+> target's key value (the unit variant, if any, holding nothing), and
+> `<Enum>Model`, the same variants each holding its target's `Model`. A
+> model's reference reads as its `<Enum>Key` — the variant whose column is
+> set — and a row with two columns set, or none where the enum has no unit
+> variant, MUST be an error naming the table, the key and the columns, never
+> read as one of them; setting an `<Enum>Key` on the entity's `ActiveModel`
+> sets that variant's column and sets every other one to null. Loading the
+> targets of a list of rows MUST read each target table once, for the keys
+> its variant holds, as `load_one` reads a relation, and give each row its
+> `<Enum>Model`; a key its target table does not hold is the error `load_one`
+> gives an unmatched key.
+>
+> `Schema::create_one_of::<E>()` MUST return the `ALTER TABLE` adding a named
+> `CHECK` on the entity's table: `num_nonnulls(<columns>) = 1`, or `<= 1`
+> where the enum has a unit variant, so PostgreSQL refuses a row referencing
+> two targets, and refuses one referencing none unless the enum says a row
+> may. The foreign keys are the relations' own, written by
+> `create_table_from_entity`. Codegen MUST generate the enum for nullable
+> foreign-key columns covered by exactly such a `CHECK`, named for the
+> constraint, and generate the columns as the ordinary nullable fields they
+> are when no such `CHECK` covers them.

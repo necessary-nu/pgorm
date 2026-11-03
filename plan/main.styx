@@ -16303,6 +16303,9 @@ children (
             {
                 id disjoint.evolve
                 title "A kind can be added to or removed from an existing disjoint entity"
+                implements {
+                    main ([spec:pgorm:sem:disjoint.evolve] [spec:pgorm:req:migration.commit-after])
+                }
                 deps (disjoint.schema)
                 log (
                     {
@@ -16311,12 +16314,22 @@ children (
                         kind @note
                         text "Scope: no rule yet; write it when this node starts and put it to the operator before code. What it has to settle: adding a kind needs two transactions, because PostgreSQL cannot use a value ALTER TYPE ... ADD VALUE added inside the transaction that added it (first the value, then the kind table, the base's generated key columns and the foreign keys); removing a kind has no ALTER TYPE ... DROP VALUE to use, so the kind type is recreated and the kind column retyped, refused while any base row still has that kind; a unit kind gaining a table, or a payload kind losing one, is the same column-and-constraint change on an existing value. Every name involved is deterministic per disjoint.schema, so the statements can name what they alter. Decide whether this is Schema statements a migration runs, a pgorm-migration helper, or both, and how up() splits the two transactions."
                     }
+
+                    {
+                        at 2026-11-03T10:23:48.026317Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Operator, 2026-11-03 (\"yes to both\"), on the lead's proposal. Adding a kind has two routes: by default ALTER TYPE ... ADD VALUE, then a commit, then the new kind's table, generated key columns and foreign keys — which needs a pgorm-migration opt-in for a migration that commits before the next runs, since up() runs a whole batch in one transaction and PostgreSQL cannot use an added enum value before its transaction commits; and, for a single atomic migration, recreating the kind type in one transaction (a new enum with every value, both kind columns retyped, the disjoint constraints and generated columns dropped and recreated, the old type dropped and the new one renamed), at the cost of rewriting the base and every kind table under an exclusive lock. Removing a kind always takes the recreate route (no ALTER TYPE ... DROP VALUE) and is refused while any base row has that kind. A unit kind gaining a table adds its foreign key NOT VALID, leaves the backfill to the migration, then VALIDATEs. A kind losing its table drops data, so only when asked explicitly. The rule goes to the operator before code."
+                    }
                 )
             }
 
             {
                 id disjoint.one-of
                 title "A reference can point at exactly one of several entities"
+                implements {
+                    main ([spec:pgorm:def:disjoint.one-of])
+                }
                 deps (disjoint.write)
                 log (
                     {
@@ -16324,6 +16337,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Scope: no rule yet; write it when this node starts and put it to the operator before code. Sketch from the 2026-11-02 discussion: a reference whose type is an enum, Commentable::Post(post_id) / Commentable::Photo(photo_id), stored as one nullable foreign key column per variant plus a CHECK that exactly one is set (num_nonnulls(...) = 1); \"attached to nothing\" comes from the enum, as a unit variant or an Option around it, and relaxes the CHECK to at most one. Open: whether the model carries the raw columns with the enum as a typed accessor or one field spanning several columns (pgorm maps a field to one column today), how load_one / the graph resolve it to the target's model, and what codegen recognises. A target may itself be a disjoint base."
+                    }
+
+                    {
+                        at 2026-11-03T10:23:50.700413Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Operator, 2026-11-03 (\"yes to both\"), on the lead's proposal: the referencing model keeps one plain nullable foreign-key column per target, declared as ordinary belongs_to relations (pgorm maps a field to one column, and every existing path keeps working); #[derive(OneOf)] on an enum types the choice over those columns (#[pgorm(entity = comment::Entity)], each variant #[pgorm(column = Column::PostId)] naming its column and its target entity); reading gives the chosen target's key, setting it on the active model sets that column and clears the others, and loading gives the target's model, one query per target table as load_one does; \"attached to nothing\" comes from the enum, a unit variant relaxing the schema's CHECK (num_nonnulls(...) = 1) to <= 1; codegen recognises nullable foreign-key columns covered by exactly such a CHECK."
                     }
                 )
             }
