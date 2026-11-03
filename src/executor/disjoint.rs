@@ -19,7 +19,7 @@ use crate::{
     ActiveEnum, ConnectionTrait, Cursor, CursorTrait, Disjoint, EntityTrait, Error,
     FromQueryResult, Iterable, KeyOf, KindModel, KindVisitor, ModelTrait, Paginator,
     PaginatorTrait, PinBoxSendStream, PrimaryKeyToColumn, QueryResult, SelectDisjoint, Selector,
-    SelectorTrait, StaticName, check_disjoint, table_label,
+    SelectorRaw, SelectorTrait, StaticName, WriteDisjoint, check_disjoint, table_label,
 };
 
 /// The selector that decodes one row of a disjoint read: the base's model
@@ -299,6 +299,33 @@ impl<D: Disjoint> SelectDisjoint<D> {
             Cursor::new(selector.query, Name::new(D::Base::default()), order_columns)
                 .with_boundary_casts::<<D::Base as EntityTrait>::Column>(),
         )
+    }
+}
+
+// [spec:pgorm:sem:disjoint.write+1]
+impl<D: Disjoint> WriteDisjoint<D> {
+    /// Send the write, one statement, and return the pair a read of the
+    /// written row gives, decoded as a [`SelectDisjoint<D>`]'s row is.
+    ///
+    /// A write whose base part touches no row — an update or a change of
+    /// kind whose key no row has, an update of a row of another kind, a
+    /// change of kind to the row's own kind — returns no row and is
+    /// [`Error::RecordNotFound`], having changed nothing. A constraint the
+    /// write breaks is the statement's error, reported at its end, and
+    /// nothing of it applies.
+    // [spec:pgorm:sem:disjoint.write+1]
+    pub async fn exec_returning_model<C: ConnectionTrait>(
+        self,
+        db: &C,
+    ) -> Result<DisjointItem<D>, Error> {
+        let (stmt, values) = self.query.build();
+        SelectorRaw {
+            stmt,
+            values,
+            selector: DisjointRow::<D>(PhantomData),
+        }
+        .one(db)
+        .await
     }
 }
 
