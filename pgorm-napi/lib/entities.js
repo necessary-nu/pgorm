@@ -229,6 +229,16 @@ export class Entity extends Handle {
 let activeHandle;
 
 /**
+ * The native half of `active`, an ActiveModel of whichever registration.
+ *
+ * @param {unknown} active
+ */
+export function activeHandleOf(active) {
+  if (!(active instanceof ActiveModel)) throw new TypeError("expected an ActiveModel");
+  return activeHandle(active);
+}
+
+/**
  * @param {unknown} active
  * @param {string} entity
  */

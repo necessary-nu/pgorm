@@ -1,7 +1,7 @@
 //! The kinds of value pgorm holds, each by the one name pgorm's language
 //! bindings and its generative campaign spell it by.
 
-use crate::{ArrayType, RangeType, Value};
+use crate::{ArrayType, ColumnType, IntervalSpec, Name, RangeType, TypeName, Value};
 
 /// One table of every kind: each scalar tag beside its name, and each
 /// built-in range type beside the kind its bounds are. Every function below
@@ -116,6 +116,46 @@ value_kinds! {
     }
 }
 
+// [spec:pgorm:def:sql.value.kinds]
+impl ArrayType {
+    /// The type of a column whose values a result decodes as this kind,
+    /// which a table described by kinds alone is written with: the one
+    /// PostgreSQL type that decodes as the kind, or where several do, the one
+    /// a schema writes for it — `"char"` for `i8`, `oid` for `u32`, `text` for
+    /// `text`, `jsonb` for `json` and `inet` for `ipnetwork`. `u64` and
+    /// `char` are `None`, since no column decodes as either.
+    // [spec:pgorm:req:bindings.disjoint+1]
+    pub fn column_type(&self) -> Option<ColumnType> {
+        Some(match self {
+            Self::Bool => ColumnType::Boolean,
+            // Bare, `char` is `character(1)`; quoted, it is the one-byte type.
+            Self::TinyInt => ColumnType::Named(TypeName::raw("\"char\"")),
+            Self::SmallInt => ColumnType::SmallInteger,
+            Self::Int => ColumnType::Integer,
+            Self::BigInt => ColumnType::BigInteger,
+            Self::Unsigned => ColumnType::Named(TypeName::new(Name::runtime("oid"))),
+            Self::BigUnsigned | Self::Char => return None,
+            Self::Float => ColumnType::Float,
+            Self::Double => ColumnType::Double,
+            Self::String => ColumnType::Text,
+            Self::Bytes => ColumnType::Bytea,
+            Self::Json => ColumnType::JsonBinary,
+            Self::Decimal => ColumnType::Decimal(None),
+            Self::Uuid => ColumnType::Uuid,
+            Self::Date => ColumnType::Date,
+            Self::Time => ColumnType::Time,
+            Self::DateTime => ColumnType::Timestamp,
+            Self::DateTimeWithTimeZone => ColumnType::TimestampWithTimeZone,
+            Self::IpNetwork => ColumnType::Inet,
+            Self::MacAddress => ColumnType::MacAddr,
+            Self::Vector => ColumnType::Vector(None),
+            Self::Interval => ColumnType::Interval(IntervalSpec::Any(None)),
+            Self::Range(range) => ColumnType::Range(*range),
+            Self::Multirange(range) => ColumnType::Multirange(*range),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
@@ -143,6 +183,71 @@ mod tests {
         );
         for unknown in ["", "int4", "timestamptz", "enum", "array", "I32", "i32 "] {
             assert_eq!(ArrayType::from_kind_name(unknown), None, "{unknown:?}");
+        }
+    }
+
+    // [spec:pgorm:def:sql.value.kinds/test]
+    #[test]
+    fn each_decoded_kind_names_a_column_type() {
+        let written = |kind: ArrayType| {
+            let column_type = kind.column_type()?;
+            let sql = crate::Table::create(Name::runtime("t"))
+                .col(crate::ColumnDef::new_with_type(
+                    Name::runtime("c"),
+                    column_type,
+                ))
+                .to_string();
+            Some(
+                sql.trim_start_matches(r#"CREATE TABLE "t" ( "c" "#)
+                    .trim_end_matches(" )")
+                    .to_owned(),
+            )
+        };
+        let types: Vec<(&str, Option<String>)> = ArrayType::kinds()
+            .map(|kind| (kind.kind_name(), written(kind)))
+            .collect();
+        let expected = [
+            ("bool", "bool"),
+            ("i8", "\"char\""),
+            ("i16", "smallint"),
+            ("i32", "integer"),
+            ("i64", "bigint"),
+            ("u32", "oid"),
+            ("f32", "real"),
+            ("f64", "double precision"),
+            ("text", "text"),
+            ("bytes", "bytea"),
+            ("json", "jsonb"),
+            ("decimal", "decimal"),
+            ("uuid", "uuid"),
+            ("date", "date"),
+            ("time", "time"),
+            ("datetime", "timestamp"),
+            ("datetime_utc", "timestamp with time zone"),
+            ("ipnetwork", "inet"),
+            ("mac_address", "macaddr"),
+            ("vector", "vector"),
+            ("interval", "interval"),
+            ("int4range", "int4range"),
+            ("int4multirange", "int4multirange"),
+        ];
+        for (kind, sql) in expected {
+            let found = types.iter().find(|(name, _)| *name == kind);
+            assert_eq!(
+                found.and_then(|(_, sql)| sql.as_deref()),
+                Some(sql),
+                "{kind}"
+            );
+        }
+        for kind in ["u64", "char"] {
+            assert_eq!(
+                types
+                    .iter()
+                    .find(|(name, _)| *name == kind)
+                    .map(|(_, sql)| sql.clone()),
+                Some(None),
+                "{kind}"
+            );
         }
     }
 

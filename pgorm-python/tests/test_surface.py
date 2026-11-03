@@ -224,6 +224,27 @@ class DescriptionTests(unittest.TestCase):
         self.assert_declared("pgorm.Model", [model.describe(), model.as_("a").describe()])
 
     # [spec:pgorm:req:bindings.surface+2/test]
+    # [spec:pgorm:req:bindings.disjoint+1/test]
+    def test_disjoint_description_has_the_declared_keys(self):
+        kind = p.TypeName("item_kind", schema="app")
+        base = p.Model(
+            "items",
+            {"id": p.Column("i32", primary_key=True), "kind": p.Column(kind, values=["plain", "boxed"])},
+            schema="app",
+        )
+        boxed = p.Model("boxes", {"id": p.Column("i32", primary_key=True)}, schema="app")
+        items = p.Disjoint("item", base, {"plain": None, "boxed": boxed}, schema_name="app")
+        self.assert_declared("pgorm.Disjoint", [items.describe()])
+
+    # [spec:pgorm:req:bindings.surface+2/test]
+    # [spec:pgorm:req:bindings.disjoint+1/test]
+    def test_disjoint_entity_description_has_the_declared_keys(self):
+        names = p.disjoint_entities()
+        if not names:
+            self.skipTest("the module registers no disjoint entity; checks/entities.py runs this against an application's")
+        self.assert_declared("pgorm.DisjointEntity", [p.disjoint_entity(name).describe() for name in names])
+
+    # [spec:pgorm:req:bindings.surface+2/test]
     # [spec:pgorm:req:bindings.entities+3/test]
     def test_entity_description_has_the_declared_keys(self):
         names = p.entities()

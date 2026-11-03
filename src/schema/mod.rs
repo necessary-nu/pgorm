@@ -2,6 +2,7 @@ mod disjoint;
 mod entity;
 mod statement;
 
+pub(crate) use entity::table_from_entity;
 pub use statement::DdlStatement;
 
 /// This is a helper struct to convert [`EntityTrait`](crate::EntityTrait)

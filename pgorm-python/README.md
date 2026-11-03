@@ -121,7 +121,10 @@ builders. It provides the focused proof of direct Python access without HTTP.
 
 [Runtime model descriptors](MODELS.md) declare table names, field mappings,
 types, nullability and primary keys entirely in Python. They validate native
-statement writes and return records using the declared field identities.
+statement writes and return records using the declared field identities. A
+[disjoint model](MODELS.md#disjoint-models) stores a value of one of several
+kinds across a base model and a model per kind, its statements built by
+pgorm's own `DisjointShape`.
 
 Applications with Rust entities can also [compile their entity registrations
 into an application wheel](ENTITIES.md). Python then uses their real typed

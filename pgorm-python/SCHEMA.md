@@ -426,6 +426,16 @@ as the statement is built. `drop_materialized_view(names, ...)` drops them.
 ordinary table from the query's columns and, unless `with_no_data()`, its
 rows. Neither has `or_replace`, and a view has no `if_not_exists`.
 
+## Disjoint models
+
+`create_disjoint(model)` gives a disjoint model's or registered disjoint
+enum's statements in the order they run: the kind type, the base table with
+a `UNIQUE` key on its key and kind column, each kind's table with its kind
+column and foreign key, and the `ALTER TABLE` adding the base's generated key
+columns and foreign keys — `Schema::create_disjoint`'s, from pgorm's
+`DisjointShape` (`MODELS.md`). The types the tables' other columns use are
+not among them.
+
 ## Registered Rust entities
 
 In an application wheel, `s.from_entity(p.entity("app.Account"))` invokes the

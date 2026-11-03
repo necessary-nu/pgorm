@@ -45,6 +45,9 @@ struct Active {
 /// A stream, which holds its connection until the last row or `close`.
 pub(crate) struct StreamState {
     connection: Arc<ConnectionState>,
+    /// The disjoint read whose codec reads each row, for a disjoint read's
+    /// stream; its rows are otherwise values.
+    disjoint: Option<Arc<crate::disjoint::Core>>,
     active: Arc<Mutex<Option<Active>>>,
     cancelled: CancellationToken,
     finished: CancellationToken,
@@ -96,6 +99,7 @@ async fn open(
     sql: String,
     params: Vec<Param>,
     abort: Abort,
+    disjoint: Option<Arc<crate::disjoint::Core>>,
 ) -> Result<Arc<StreamState>, Failure> {
     let connection = operation.state.clone();
     let secrets = &connection.pool.secrets;
@@ -112,6 +116,7 @@ async fn open(
     };
     let state = Arc::new(StreamState {
         connection,
+        disjoint,
         active: Arc::new(Mutex::new(Some(Active {
             rows: Box::pin(rows),
             operation,
@@ -124,20 +129,37 @@ async fn open(
     Ok(state)
 }
 
-/// `connectionStream(connection, sql, params, abort)`: open a stream, which
-/// holds the connection until the last row or `close`.
+/// `connectionStream(connection, sql, params, abort, disjoint?)`: open a
+/// stream, which holds the connection until the last row or `close`, each
+/// row read by `disjoint`'s codec when one is given.
 // [spec:pgorm:req:bindings.streams]
+// [spec:pgorm:req:bindings.disjoint+1]
 fn connection_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let connection = cx.argument::<JsBox<ConnectionHandle>>(0)?.0.clone();
     let (sql, params) = super::sql_and_params(&mut cx, 1)?;
     let abort = abort_argument(&mut cx, 3)?;
+    let disjoint = match cx.argument_opt(4) {
+        Some(value) => value
+            .downcast::<JsBox<crate::disjoint::DisjointHandle>, _>(&mut cx)
+            .ok()
+            .map(|handle| handle.0.clone()),
+        None => None,
+    };
     let operation = match Operation::begin(connection) {
         Ok(operation) => operation,
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
-    settle::promise(&mut cx, open(operation, sql, params, abort), |cx, state| {
-        Ok(cx.boxed(StreamHandle(state)).upcast())
-    })
+    settle::promise(
+        &mut cx,
+        open(operation, sql, params, abort, disjoint),
+        |cx, state| Ok(cx.boxed(StreamHandle(state)).upcast()),
+    )
+}
+
+/// One pulled row: its values, or what a disjoint read's codec read it as.
+enum Pulled {
+    Values(Vec<Tagged>),
+    Disjoint(crate::disjoint::Rows),
 }
 
 /// The next row, decoded, with the column names on the first; `None` at the
@@ -145,7 +167,7 @@ fn connection_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
 async fn next(
     state: Arc<StreamState>,
     abort: Abort,
-) -> Result<Option<(Vec<Tagged>, Option<Vec<String>>)>, Failure> {
+) -> Result<Option<(Pulled, Option<Vec<String>>)>, Failure> {
     state.connection.ensure_open()?;
     if state.cancelled.is_cancelled() {
         return Err(Failure::Lifecycle("the stream is closed".to_owned()));
@@ -170,6 +192,11 @@ async fn next(
     };
     match row {
         Ok(Some(row)) => {
+            if let Some(disjoint) = &state.disjoint {
+                let rows = crate::disjoint::Rows::of(disjoint, vec![row])?;
+                *slot = Some(active);
+                return Ok(Some((Pulled::Disjoint(rows), None)));
+            }
             let names = if state.named.swap(true, Ordering::Relaxed) {
                 None
             } else {
@@ -177,7 +204,7 @@ async fn next(
             };
             let values = decode::row(&row)?;
             *slot = Some(active);
-            Ok(Some((values, names)))
+            Ok(Some((Pulled::Values(values), names)))
         }
         Ok(None) => {
             active.operation.restore();
@@ -196,8 +223,17 @@ fn stream_next(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let tagged = cx.argument::<JsBoolean>(1)?.value(&mut cx);
     let abort = abort_argument(&mut cx, 2)?;
     settle::promise(&mut cx, next(state, abort), move |cx, item| {
-        let Some((values, names)) = item else {
+        let Some((pulled, names)) = item else {
             return Ok(cx.null().upcast());
+        };
+        let values = match pulled {
+            Pulled::Values(values) => values,
+            Pulled::Disjoint(rows) => {
+                let pair = JsArray::new(cx, 1);
+                let rows = crate::connect::job::Settled::into_js(Box::new(rows), cx)?;
+                pair.set(cx, 0, rows)?;
+                return Ok(pair.upcast());
+            }
         };
         let codec = Codec::get(cx)?;
         let pair = JsArray::new(cx, 3);

@@ -9,6 +9,8 @@ gives the statement. A statement is made by its function (``create_table``,
 for annotations and ``isinstance`` and cannot be called.
 """
 
+from typing import TYPE_CHECKING, Any
+
 # [spec:pgorm:req:bindings.schema-api+2]
 from .._native import (
     DataType as DataType, ColumnDef as ColumnDef, DDL as DDL, EntitySchema as EntitySchema,
@@ -39,8 +41,29 @@ from .._native import (
     create_domain as create_domain, alter_domain as alter_domain, drop_domain as drop_domain,
 )
 
+
+if TYPE_CHECKING:
+    from ..models.disjoint_query import _Disjoint
+
+
+# [spec:pgorm:req:bindings.disjoint+1]
+def create_disjoint(disjoint: "_Disjoint[Any]") -> list[DDL]:
+    """The statements creating a disjoint model's kind type, tables and the
+    constraints that hold each base row to exactly its kind's table, in the
+    order they run: pgorm's ``DisjointShape::create``, which
+    ``Schema::create_disjoint`` writes for a registered enum. A model column
+    whose default the declaration does not state has no ``DEFAULT`` to write,
+    so its table is refused; the types the tables' other columns use are not
+    among the statements."""
+    from ..models.disjoint_query import _Disjoint
+
+    if not isinstance(disjoint, _Disjoint):
+        raise TypeError("create_disjoint takes a Disjoint or a DisjointEntity")
+    return list(disjoint._native.statements())
+
+
 __all__ = [
-    "DataType", "ColumnDef", "DDL", "EntitySchema", "from_entity",
+    "DataType", "ColumnDef", "DDL", "EntitySchema", "from_entity", "create_disjoint",
     "CreateTable", "create_table", "PendingAlterTable", "AlterTable", "alter_table",
     "drop_table", "rename_table", "rename_column", "rename_constraint", "truncate_table",
     "comment_on_table", "comment_on_column",

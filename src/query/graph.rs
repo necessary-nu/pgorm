@@ -270,9 +270,9 @@ slots!(S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4, S5 @ 5, S6 @ 6);
 /// and the pipeline's `select_sources` terminal into prqlc's PL AST — mint
 /// their aliases under it, and the per-prefix decodes read exactly these
 /// names, so the scheme is one code path rather than a convention every site
-/// repeats.
+/// repeats. A binding decoding a prefixed source of its own reads by it too.
 // [spec:pgorm:sem:query.graph.writer+4]
-pub(crate) fn source_prefix(index: usize) -> String {
+pub fn source_prefix(index: usize) -> String {
     format!("s{index}_")
 }
 

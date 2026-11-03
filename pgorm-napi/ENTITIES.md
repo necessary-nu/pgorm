@@ -243,3 +243,32 @@ refusal names, before anything is sent. A source tuple's `describe()` reports
 its `name`, its `rustShape`, the Rust tuple of entity types, and its
 `entities` in order, the keys Python's reports.
 
+## Disjoint enums
+
+A `#[derive(Disjoint)]` enum registers beside its entities, its base and each
+kind's entity registered first:
+
+```rust
+registry.entity::<shipment::Entity>("app.Shipment")?;
+registry.entity::<packet::Entity>("app.Packet")?;
+registry.disjoint::<shipment::Shipment>("app.Shipments")?;
+```
+
+`disjointEntity(name)` gives the registration and `disjointEntities()` lists
+them. Its reads are a disjoint model's (`README.md`), each row the base
+entity's record, the kind and the kind entity's record or `null`; its writes
+take the entities' ActiveModels:
+
+```ts
+const Shipments = disjointEntity("app.Shipments");
+const [base, kind, packet] = await Shipments.insert(
+  entity("app.Shipment").active().set("label", "box"),
+  "packet",
+  entity("app.Packet").active().set("weight_g", 500),
+).returningModel(pool);
+```
+
+Its statements are `DisjointShape::of` the enum's, which the enum's own
+`find`, `insert` and `Schema::create_disjoint` build theirs from, and
+`createDisjoint(Shipments)` gives its schema.
+

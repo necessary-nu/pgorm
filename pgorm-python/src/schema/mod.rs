@@ -36,6 +36,16 @@ pub use statement::PyDDL;
 pub use table::PyCreateTable;
 pub use types::PyDataType;
 
+/// `statement`, an `ALTER TABLE` of `table` built in Rust, as Python's
+/// `AlterTable`.
+pub(crate) fn altered_table<'py>(
+    py: Python<'py>,
+    table: pgorm::pgorm_query::TableName,
+    statement: pgorm::pgorm_query::TableAlterStatement,
+) -> PyResult<Bound<'py, PyAny>> {
+    Ok(alter::PyAlterTable::object(py, statement::AlteredTable { table, statement })?.into_any())
+}
+
 /// Why `value`, a schema part that is no statement, cannot be inspected or
 /// run: PostgreSQL parses no `ALTER` without an action, and a column is no
 /// statement. `None` for anything else.

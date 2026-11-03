@@ -2,6 +2,8 @@
 
 from .columns import Column, ModelColumn
 from .cursors import Cursor, Paginator
+from .disjoint import Disjoint, DisjointEntity, disjoint_entities, disjoint_entity
+from .disjoint_query import DisjointCursor, DisjointPaginator, DisjointQuery, DisjointWrite
 from .graphs import Graph
 from .model import Model
 from .queries import ModelQuery, ModelRows
@@ -23,4 +25,12 @@ __all__ = [
     "Graph",
     "Cursor",
     "Paginator",
+    "Disjoint",
+    "DisjointEntity",
+    "DisjointQuery",
+    "DisjointWrite",
+    "DisjointCursor",
+    "DisjointPaginator",
+    "disjoint_entity",
+    "disjoint_entities",
 ]

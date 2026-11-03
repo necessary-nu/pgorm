@@ -218,7 +218,7 @@ fn manifest() -> Value {
             "type_changes": "native driver caches type metadata; close and recreate application pools after altering existing enum labels or type names",
             "unsupported": ["schema introspection", "automatic migrations", "raw column options", "concurrent indexes"]
         },
-        "registrations": {"entities": [], "graphs": [], "sources": []},
+        "registrations": {"entities": [], "graphs": [], "sources": [], "disjoints": []},
         "python": {"abi": "cp314", "free_threading": false, "subinterpreters": false}
     });
     // The release pgorm targets: 18 by default, 19 when it was built with
@@ -242,6 +242,12 @@ fn manifest() -> Value {
             );
         }
         operations.extend(crate::graphs::capabilities());
+        for (name, api) in crate::disjoint::OPERATIONS {
+            operations.insert(
+                name.to_owned(),
+                json!({"rust_api": api, "features": [], "registration_required": name == "disjoint_entity"}),
+            );
+        }
         operations.extend(crate::pipeline::capabilities());
         operations.extend(crate::schema::capabilities());
         operations.extend(crate::transactions::capabilities());
@@ -272,6 +278,14 @@ pub(crate) fn capabilities<'py>(module: &Bound<'py, PyModule>) -> PyResult<Bound
         .graphs
         .values()
         .map(|graph| graph.info().describe())
+        .collect::<Vec<_>>()
+        .into();
+    manifest["registrations"]["disjoints"] = registry
+        .0
+        .disjoints
+        .by_name
+        .values()
+        .map(|disjoint| disjoint.description.clone())
         .collect::<Vec<_>>()
         .into();
     manifest["registrations"]["sources"] = registry

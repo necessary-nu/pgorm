@@ -45,7 +45,7 @@ use pgorm::pgorm_query::{
 use crate::{codec::Codec, rows, values::Tagged};
 use args::refuse;
 pub(crate) use args::select as embedded_select;
-pub(crate) use args::{node, pick};
+pub(crate) use args::{node, pick, predicate};
 pub(crate) use copy::{CopyFrom, CopyTo, copy_from_at, copy_to_at};
 pub(crate) use schema::Ddl;
 

@@ -16,6 +16,20 @@ pub struct QueryResult {
     pub(crate) row: Row,
 }
 
+/// A row of a statement a caller sent itself, as the decoders read it.
+impl From<Row> for QueryResult {
+    fn from(row: Row) -> Self {
+        Self { row }
+    }
+}
+
+impl QueryResult {
+    /// The row the result reads, for a caller decoding it by its own means.
+    pub fn into_row(self) -> Row {
+        self.row
+    }
+}
+
 /// An interface to get a value from the query result
 // [spec:pgorm:def:exec.decode+3]
 pub trait TryGetable: Sized {

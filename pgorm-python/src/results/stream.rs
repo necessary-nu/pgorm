@@ -20,8 +20,13 @@ struct Active {
     operation: Operation,
 }
 
+/// What a stream makes of each row: a `Record`, or what a read that decodes
+/// its own rows, a disjoint one's, makes of it.
+pub(crate) type RowDecode = Arc<dyn Fn(tokio_postgres::Row) -> PyResult<Py<PyAny>> + Send + Sync>;
+
 struct StreamState {
     connection: Arc<ConnectionState>,
+    decode: Option<RowDecode>,
     active: Arc<Mutex<Option<Active>>>,
     cancelled: CancellationToken,
     finished: CancellationToken,
@@ -81,9 +86,15 @@ impl NativeStream {
             };
             match row {
                 Ok(Some(row)) => {
-                    let record = PyRecord::decode(row)?;
+                    let item = match &state.decode {
+                        Some(decode) => decode(row)?,
+                        None => {
+                            let record = PyRecord::decode(&row)?;
+                            Python::attach(|py| Py::new(py, record).map(Py::into_any))?
+                        }
+                    };
                     *slot = Some(active);
-                    Ok(Some(record))
+                    Ok(Some(item))
                 }
                 Ok(None) => {
                     active.operation.restore();
@@ -124,6 +135,7 @@ pub(crate) fn open<'py>(
     py: Python<'py>,
     connection: Arc<ConnectionState>,
     query: &Bound<'_, PyAny>,
+    decode: Option<RowDecode>,
 ) -> PyResult<Bound<'py, PyAny>> {
     connection.pool.check_owner(py)?;
     connection.ensure_open()?;
@@ -138,6 +150,7 @@ pub(crate) fn open<'py>(
         }.map_err(|error| database_error(error, &connection.pool.secrets))?;
         let state = Arc::new(StreamState {
             connection,
+            decode,
             active: Arc::new(Mutex::new(Some(Active {
                 rows: Box::pin(rows),
                 operation,
