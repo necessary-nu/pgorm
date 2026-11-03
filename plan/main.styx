@@ -16567,4 +16567,18 @@ children (
             }
         )
     }
+
+    {
+        id upstream-necessary-nu
+        title "The repository's links name necessary-nu/pgorm, and the issue links inherited from SeaORM name SeaORM"
+        kind @chore
+        log (
+            {
+                at 2026-11-03T00:16:59.932369Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Operator, 2026-11-03: \"Upstream repo changes to necessary-nu/pgorm\". GitHub transferred pgorm-rs/pgorm to necessary-nu/pgorm (same repository, created 2024-08-18; the old name redirects), so history, PRs and Actions came with it; the local origin is repointed. 46 references to pgorm-rs remain across 27 files: Cargo manifests' repository/homepage, pgorm-napi's package.json, pgorm-python's pyproject.toml and DESCRIPTION.md, both bindings' generated DEPENDENCIES.json notices, SECURITY.md's advisory link, pgorm-query's crate docs and README, COMING_FROM_SEAORM.md, and plan/main.styx's source url. Three are not this repository's at all: issues/485 (the derive's missing-primary-key error, its compile-fail snapshot and the macros.md rule quoting it), discussions/2133 (src/entity/relation.rs) and issues/1344 (pgorm-codegen's writer) are SeaORM's numbers that the sea-to-pgorm rename rewrote; they point back at SeaQL/sea-orm, where they exist."
+            }
+        )
+    }
 )
