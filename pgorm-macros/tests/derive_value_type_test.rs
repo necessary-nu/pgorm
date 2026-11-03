@@ -48,7 +48,7 @@ struct MyText(String);
 #[derive(ValueType, Debug, PartialEq)]
 struct MyPlain(i32);
 
-#[derive(Debug, Clone, PartialEq, Eq, pgorm::EnumIter, pgorm::ActiveEnum)]
+#[derive(Debug, Clone, PartialEq, Eq, pgorm::ActiveEnum)]
 #[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::N(1)))]
 enum Tea {
     #[pgorm(string_value = "E")]

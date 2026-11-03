@@ -9,7 +9,7 @@ pub struct Model {
     pub name: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
 
 impl Related<super::cake::Entity> for Entity {
@@ -20,5 +20,3 @@ impl Related<super::cake::Entity> for Entity {
         Some(super::cake_filling::Relation::Filling.def().rev())
     }
 }
-
-impl ActiveModelBehavior for ActiveModel {}

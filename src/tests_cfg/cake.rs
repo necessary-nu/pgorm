@@ -14,7 +14,7 @@ pub struct Model {
     pub name: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(has_many = super::fruit::Entity)]
     Fruit,
@@ -46,5 +46,3 @@ impl Related<super::filling::Entity> for Entity {
         Some(super::cake_filling::Relation::Cake.def().rev())
     }
 }
-
-impl ActiveModelBehavior for ActiveModel {}

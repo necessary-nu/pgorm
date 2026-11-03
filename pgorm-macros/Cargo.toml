@@ -37,4 +37,3 @@ trybuild = "1.0.122"
 default = ["derive"]
 postgres-array = []
 derive = ["dep:pgorm-query-derive-internals"]
-strum = []

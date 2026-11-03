@@ -17,16 +17,15 @@
 
 extern crate proc_macro;
 
+#[cfg(feature = "derive")]
 use proc_macro::TokenStream;
 
+#[cfg(feature = "derive")]
 use syn::{DeriveInput, Error, parse_macro_input};
 
-// [spec:pgorm:def:macros.derive+5]
+// [spec:pgorm:def:macros.derive+6]
 #[cfg(feature = "derive")]
 mod derives;
-
-#[cfg(feature = "strum")]
-mod strum;
 
 /// Implement `EntityTrait` on an entity's own `Entity` struct, for an entity
 /// whose table or schema name is computed at run time. The struct carries what
@@ -65,10 +64,8 @@ mod strum;
 ///     pub name: String,
 /// }
 ///
-/// #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+/// #[derive(Copy, Clone, Debug, Relation)]
 /// pub enum Relation {}
-///
-/// impl ActiveModelBehavior for ActiveModel {}
 ///
 /// let cake = Entity { tenant: "bakery" };
 /// assert_eq!(cake.schema_name(), Some("bakery"));
@@ -88,6 +85,36 @@ pub fn derive_entity_trait(input: TokenStream) -> TokenStream {
 /// entity — its `Entity`, `Column`, `PrimaryKey` and `ActiveModel`, and
 /// `ModelTrait` and `FromQueryResult` for the `Model`.
 ///
+/// It implements `ActiveModelBehavior` for the `ActiveModel` with no hooks.
+/// An entity with hooks says `#[pgorm(hooks)]` and implements the trait
+/// itself:
+///
+/// ```
+/// use pgorm::entity::prelude::*;
+///
+/// #[derive(Clone, Debug, PartialEq, Entity)]
+/// #[pgorm(table_name = "drafts", hooks)]
+/// pub struct Model {
+///     #[pgorm(primary_key)]
+///     pub id: i32,
+///     pub title: String,
+/// }
+///
+/// # #[derive(Copy, Clone, Debug, Relation)]
+/// # pub enum Relation {}
+/// #
+/// impl ActiveModelBehavior for ActiveModel {
+///     fn new() -> Self {
+///         Self {
+///             title: set("untitled"),
+///             ..ActiveModelTrait::default()
+///         }
+///     }
+/// }
+///
+/// assert_eq!(ActiveModel::new().title, set("untitled"));
+/// ```
+///
 /// ### Usage
 ///
 /// ```
@@ -104,10 +131,8 @@ pub fn derive_entity_trait(input: TokenStream) -> TokenStream {
 ///     pub text: String,
 /// }
 ///
-/// # #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+/// # #[derive(Copy, Clone, Debug, Relation)]
 /// # pub enum Relation {}
-/// #
-/// # impl ActiveModelBehavior for ActiveModel {}
 /// ```
 ///
 /// Entity should always have a primary key.
@@ -125,10 +150,8 @@ pub fn derive_entity_trait(input: TokenStream) -> TokenStream {
 ///     pub text: String,
 /// }
 ///
-/// # #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+/// # #[derive(Copy, Clone, Debug, Relation)]
 /// # pub enum Relation {}
-/// #
-/// # impl ActiveModelBehavior for ActiveModel {}
 /// ```
 ///
 /// The expansion writes call-site-relative `pgorm::...` paths, so the name `pgorm` has
@@ -136,8 +159,8 @@ pub fn derive_entity_trait(input: TokenStream) -> TokenStream {
 /// `Cargo.toml` (`my_orm = { package = "pgorm", .. }`), alias it back with
 /// `use my_orm as pgorm;` there or at the crate root; otherwise every generated path is
 /// an `E0433`. There is no `#[pgorm(crate = ...)]` override.
-// [spec:pgorm:def:macros.derive+5]
-// [spec:pgorm:sem:macros.derive.entity-model+8]
+// [spec:pgorm:def:macros.derive+6]
+// [spec:pgorm:sem:macros.derive.entity-model+9]
 // [spec:pgorm:req:macros.derive.entity-model.reject+3]
 // [spec:pgorm:req:macros.derive.names]
 #[cfg(feature = "derive")]
@@ -155,13 +178,14 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
         .into();
     }
 
+    let hooks = derives::declares_hooks(&input.attrs);
     let mut ts =
         derives::expand_derive_entity_model(&input.ident, input.data.clone(), input.attrs.clone())
             .unwrap_or_else(Error::into_compile_error);
     ts.extend([
         derives::expand_derive_model(input.clone(), derives::Reader::Composite)
             .unwrap_or_else(Error::into_compile_error),
-        derives::expand_active_model(input.ident, input.data)
+        derives::expand_active_model(input.ident, input.data, hooks)
             .unwrap_or_else(Error::into_compile_error),
     ]);
     ts.into()
@@ -176,7 +200,7 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
 /// ```
 /// use pgorm::entity::prelude::*;
 ///
-/// #[derive(Copy, Clone, Debug, EnumIter, Column)]
+/// #[derive(Copy, Clone, Debug, Column)]
 /// pub enum Column {
 ///     CakeId,
 ///     FillingId,
@@ -186,14 +210,10 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
 #[doc(alias = "DeriveColumn")]
 #[proc_macro_derive(Column, attributes(pgorm))]
 pub fn derive_column(input: TokenStream) -> TokenStream {
-    let DeriveInput {
-        ident, data, attrs, ..
-    } = parse_macro_input!(input);
-
-    match derives::expand_derive_column(&ident, &data, &attrs) {
-        Ok(ts) => ts.into(),
-        Err(e) => e.to_compile_error().into(),
-    }
+    let input = parse_macro_input!(input as DeriveInput);
+    derives::expand_derive_column(&input)
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
 }
 
 /// Implement `ModelTrait` and `FromQueryResult` for a further model of an
@@ -217,10 +237,8 @@ pub fn derive_column(input: TokenStream) -> TokenStream {
 ///     pub name: String,
 /// }
 ///
-/// #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+/// #[derive(Copy, Clone, Debug, Relation)]
 /// pub enum Relation {}
-///
-/// impl ActiveModelBehavior for ActiveModel {}
 ///
 /// #[derive(Clone, Debug, PartialEq, Model)]
 /// pub struct NameOnly {
@@ -254,8 +272,15 @@ pub fn derive_into_active_model(input: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Implement `ActiveEnum` for an enum, and the conversions that make it a
-/// column's value.
+/// Implement `ActiveEnum` for an enum, the conversions that make it a
+/// column's value, and the enum's iteration.
+///
+/// An enum naming neither `rs_type` nor `db_type` is a PostgreSQL enum of
+/// strings: each value is the variant's `string_value`, or else its name in the
+/// `rename_all` style, snake_case by default, and the type is named by
+/// `enum_name`, or else the enum's name in snake_case. An enum stored any other
+/// way names both keys, and a variant with no value falls back to its
+/// discriminant.
 ///
 /// # Limitations
 ///
@@ -267,13 +292,12 @@ pub fn derive_into_active_model(input: TokenStream) -> TokenStream {
 ///
 /// - For enum
 ///     - `rs_type`: the type of `ActiveEnum::Value`, written as a type:
-///       `rs_type = String`, `rs_type = i32`
+///       `rs_type = String`, `rs_type = i32`, beside `db_type`
 ///     - `db_type`: the `ColumnType` the values are stored as, written as an
 ///       expression: `db_type = ColumnType::Integer`,
-///       `db_type = ColumnType::String(StringLen::N(1))`. Omitted, an enum of
-///       strings is a PostgreSQL enum type of its values
+///       `db_type = ColumnType::String(StringLen::N(1))`, beside `rs_type`
 ///     - `enum_name`: the SQL type's name, a string: `enum_name = "tea"`.
-///       Optional, defaulting to the enum's name in UpperCamelCase
+///       Optional, defaulting to the enum's name in snake_case
 ///     - `schema_name`: the schema the SQL type is in, a string
 ///     - `display`: also implement `std::fmt::Display`, writing each variant's
 ///       `display_value`, or else its name. Opt-in, so an enum can implement
@@ -294,7 +318,7 @@ pub fn derive_into_active_model(input: TokenStream) -> TokenStream {
 /// ```
 /// use pgorm::entity::prelude::*;
 ///
-/// #[derive(EnumIter, ActiveEnum)]
+/// #[derive(ActiveEnum)]
 /// #[pgorm(rs_type = i32, db_type = ColumnType::Integer, display)]
 /// pub enum Color {
 ///     Black = 0,
@@ -305,14 +329,15 @@ pub fn derive_into_active_model(input: TokenStream) -> TokenStream {
 /// assert_eq!(Color::Black.to_string(), "Black");
 /// assert_eq!(Color::White.to_string(), "Snow");
 ///
-/// #[derive(Clone, Debug, PartialEq, EnumIter, ActiveEnum)]
-/// #[pgorm(rs_type = String, enum_name = "tea")]
+/// #[derive(Clone, Debug, PartialEq, ActiveEnum)]
 /// pub enum Tea {
-///     #[pgorm(string_value = "EverydayTea")]
 ///     EverydayTea,
-///     #[pgorm(string_value = "BreakfastTea")]
+///     #[pgorm(string_value = "Breakfast Tea")]
 ///     BreakfastTea,
 /// }
+///
+/// assert_eq!(Tea::name().to_string(), "tea");
+/// assert_eq!(Tea::values(), ["everyday_tea", "Breakfast Tea"]);
 ///
 /// assert!(matches!(Tea::db_type().get_column_type(), ColumnType::Enum { .. }));
 /// ```
@@ -371,13 +396,20 @@ pub fn derive_from_query_result(input: TokenStream) -> TokenStream {
 /// column pairs, its actions and its condition are Rust, written bare; its
 /// foreign key's name is a string.
 ///
+/// The derive also makes the enum iterable, and implements `Related<F>` for
+/// each entity `F` exactly one variant reaches, as that variant's
+/// definition. An entity two variants reach gets none, since only the program
+/// knows which it means, and neither does a path through a junction
+/// (`Related::via`): the program writes those, marking `related = false` on a
+/// variant whose entity a junction's impl reaches.
+///
 /// ### Usage
 ///
 /// ```
 /// # use pgorm::tests_cfg::fruit::Entity;
 /// use pgorm::entity::prelude::*;
 ///
-/// #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+/// #[derive(Copy, Clone, Debug, Relation)]
 /// pub enum Relation {
 ///     #[pgorm(
 ///         belongs_to = pgorm::tests_cfg::cake::Entity,
@@ -434,7 +466,7 @@ pub fn derive_relation(input: TokenStream) -> TokenStream {
 /// (`use my_migration as pgorm_migration;`) in the module holding the migration or at
 /// the crate root, exactly as `pgorm` itself does. There is no `#[pgorm(crate = ...)]`
 /// override.
-// [spec:pgorm:def:macros.derive+5]
+// [spec:pgorm:def:macros.derive+6]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveMigrationName")]
 #[proc_macro_derive(MigrationName)]
@@ -494,10 +526,8 @@ pub fn derive_json_value_type(input: TokenStream) -> TokenStream {
 ///     #[pgorm(column_type = ColumnType::Text)]
 ///     pub text: String,
 /// }
-/// # #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+/// # #[derive(Copy, Clone, Debug, Relation)]
 /// # pub enum Relation {}
-/// #
-/// # impl ActiveModelBehavior for ActiveModel {}
 ///
 /// #[derive(Debug, PartialModel)]
 /// #[pgorm(entity = Entity)]
@@ -584,22 +614,6 @@ pub fn test(_: TokenStream, input: TokenStream) -> TokenStream {
         }
     )
     .into()
-}
-
-/// Creates a new type that iterates of the variants of an enum.
-///
-/// Iterate over the variants of an Enum. Any additional data on your variants will be set to `Default::default()`.
-/// The macro implements `strum::IntoEnumIterator` on your enum and creates a new type called `YourEnumIter` that is the iterator object.
-/// You cannot derive `EnumIter` on any type with a lifetime bound (`<'a>`) because the iterator would surely
-/// create [unbounded lifetimes](https://doc.rust-lang.org/nightly/nomicon/unbounded-lifetimes.html).
-#[cfg(feature = "strum")]
-#[proc_macro_derive(EnumIter, attributes(strum))]
-pub fn enum_iter(input: TokenStream) -> TokenStream {
-    let ast = parse_macro_input!(input as DeriveInput);
-
-    strum::enum_iter::enum_iter_inner(&ast)
-        .unwrap_or_else(Error::into_compile_error)
-        .into()
 }
 
 /// Implements traits for types that wrap a database value type.

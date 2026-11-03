@@ -10,10 +10,8 @@ pub mod value_type_general {
         pub number: Integer,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 pub mod value_type_pg {
@@ -29,10 +27,8 @@ pub mod value_type_pg {
         pub str_vec: StringVec,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 use pgorm::entity::prelude::*;

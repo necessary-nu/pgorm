@@ -75,10 +75,8 @@ impl Schema {
     ///     pub title: String,
     /// }
     ///
-    /// #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    /// #[derive(Copy, Clone, Debug, Relation)]
     /// pub enum Relation {}
-    ///
-    /// impl ActiveModelBehavior for ActiveModel {}
     ///
     /// let schema = Schema::new();
     /// let comments: Vec<String> = schema
@@ -116,10 +114,8 @@ impl Schema {
     ///     pub title: String,
     /// }
     ///
-    /// #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    /// #[derive(Copy, Clone, Debug, Relation)]
     /// pub enum Relation {}
-    ///
-    /// impl ActiveModelBehavior for ActiveModel {}
     ///
     /// let schema = Schema::new();
     ///

@@ -58,7 +58,9 @@ fn builtin(
         return Err("precision and scale belong to numeric".to_owned());
     }
     Ok(match name {
-        "char" => ColumnType::Char(length),
+        // SQL's `char` without a length is `char(1)`; `Char(None)` is the
+        // unbounded `bpchar`.
+        "char" => ColumnType::Char(Some(length.unwrap_or(1))),
         "varchar" => ColumnType::String(length.map_or(StringLen::None, StringLen::N)),
         "text" => ColumnType::Text,
         "smallint" => ColumnType::SmallInteger,

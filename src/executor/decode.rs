@@ -52,7 +52,8 @@ pub trait DecodeSelect {
     where
         T: TryGetableMany;
 
-    /// Decode each row into a tuple, by the column names of an `SqlName` enum.
+    /// Decode each row into a tuple, by the column names of a column enum, one
+    /// deriving `Column`.
     fn into_values<T, C>(self) -> Selector<SelectGetableValue<T, C>>
     where
         T: TryGetableMany,
@@ -116,7 +117,8 @@ pub trait DecodeRaw {
     where
         T: TryGetableMany;
 
-    /// Decode each row into a tuple, by the column names of an `SqlName` enum.
+    /// Decode each row into a tuple, by the column names of a column enum, one
+    /// deriving `Column`.
     fn into_values<T, C>(self) -> SelectorRaw<SelectGetableValue<T, C>>
     where
         T: TryGetableMany,

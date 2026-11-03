@@ -5,7 +5,7 @@ error: a primary key has at most 12 columns, the widest tuple a key value can be
    |                 ^^^^^^^^^^^
 
 error: a field is one column of the key; `primary_key` is given twice
-  --> tests/compile-fail/entity_model_key_columns.rs:45:30
+  --> tests/compile-fail/entity_model_key_columns.rs:43:30
    |
-45 |         #[pgorm(primary_key, primary_key)]
+43 |         #[pgorm(primary_key, primary_key)]
    |                              ^^^^^^^^^^^

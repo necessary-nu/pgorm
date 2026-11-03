@@ -9,6 +9,5 @@ pub struct Model {
     #[pgorm(column_type = ColumnType::JsonBinary)]
     pub payload_binary: Json,
 }
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-impl ActiveModelBehavior for ActiveModel {}

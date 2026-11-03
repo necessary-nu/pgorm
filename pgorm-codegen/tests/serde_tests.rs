@@ -94,7 +94,7 @@ fn with_serde_contributes_matching_imports_and_derives() {
         );
         assert_contains(
             enums,
-            &format!("#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum{derives})]"),
+            &format!("#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum{derives})]"),
         );
     }
 }
@@ -285,7 +285,7 @@ fn serde_derives_reach_enums_after_copy_with_import() {
 
     assert_contains(
         enums,
-        "#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy, Serialize, Deserialize, Hash)]",
+        "#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy, Serialize, Deserialize, Hash)]",
     );
     // the fragment and the import always travel together
     assert_contains(enums, "use serde::{Deserialize, Serialize};");

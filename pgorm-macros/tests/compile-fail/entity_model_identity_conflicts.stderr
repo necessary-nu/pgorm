@@ -5,25 +5,25 @@ error: a column is generated one way: `identity` or `identity_by_default`, not b
   |                                        ^^^^^^^^^^^^^^^^^^^
 
 error: an identity column already says how it is generated; drop `auto_increment`
-  --> tests/compile-fail/entity_model_identity_conflicts.rs:20:30
+  --> tests/compile-fail/entity_model_identity_conflicts.rs:18:30
    |
-20 |         #[pgorm(primary_key, identity, auto_increment = false)]
+18 |         #[pgorm(primary_key, identity, auto_increment = false)]
    |                              ^^^^^^^^
 
 error: a column takes a default or an identity, not both; PostgreSQL refuses the pair
-  --> tests/compile-fail/entity_model_identity_conflicts.rs:35:17
+  --> tests/compile-fail/entity_model_identity_conflicts.rs:31:17
    |
-35 |         #[pgorm(identity_by_default, default_value = 1)]
+31 |         #[pgorm(identity_by_default, default_value = 1)]
    |                 ^^^^^^^^^^^^^^^^^^^
 
 error: an identity column is never NULL; declare the field without `Option` or `nullable`
-  --> tests/compile-fail/entity_model_identity_conflicts.rs:50:17
+  --> tests/compile-fail/entity_model_identity_conflicts.rs:44:17
    |
-50 |         #[pgorm(identity)]
+44 |         #[pgorm(identity)]
    |                 ^^^^^^^^
 
 error: a composite primary key is not drawn from the serial family; declare its generated column `identity` instead
-  --> tests/compile-fail/entity_model_identity_conflicts.rs:65:30
+  --> tests/compile-fail/entity_model_identity_conflicts.rs:57:30
    |
-65 |         #[pgorm(primary_key, auto_increment = true)]
+57 |         #[pgorm(primary_key, auto_increment = true)]
    |                              ^^^^^^^^^^^^^^

@@ -2,7 +2,7 @@ use crate::common::setup::rust_dec;
 use pgorm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, Entity)]
-#[pgorm(table_name = "cake")]
+#[pgorm(table_name = "cake", hooks)]
 pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
@@ -14,7 +14,7 @@ pub struct Model {
     pub serial: Uuid,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::bakery::Entity,
@@ -28,12 +28,6 @@ pub enum Relation {
     Lineitem,
 }
 
-impl Related<super::bakery::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Bakery.def()
-    }
-}
-
 impl Related<super::baker::Entity> for Entity {
     fn to() -> RelationDef {
         super::cakes_bakers::Relation::Baker.def()
@@ -41,12 +35,6 @@ impl Related<super::baker::Entity> for Entity {
 
     fn via() -> Option<RelationDef> {
         Some(super::cakes_bakers::Relation::Cake.def().rev())
-    }
-}
-
-impl Related<super::lineitem::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Lineitem.def()
     }
 }
 

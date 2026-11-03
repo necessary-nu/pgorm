@@ -5,13 +5,13 @@ error: `without_overlaps` marks the period of a temporal primary key; declare th
   |                 ^^^^^^^^^^^^^^^^
 
 error: `without_overlaps` marks the key's last column, its period; declare this field after the key's other columns
-  --> tests/compile-fail/entity_model_temporal_key.rs:22:30
+  --> tests/compile-fail/entity_model_temporal_key.rs:20:30
    |
-22 |         #[pgorm(primary_key, without_overlaps)]
+20 |         #[pgorm(primary_key, without_overlaps)]
    |                              ^^^^^^^^^^^^^^^^
 
 error: a WITHOUT OVERLAPS key needs a column besides its period; PostgreSQL refuses a key the period is the only column of
-  --> tests/compile-fail/entity_model_temporal_key.rs:37:30
+  --> tests/compile-fail/entity_model_temporal_key.rs:33:30
    |
-37 |         #[pgorm(primary_key, without_overlaps)]
+33 |         #[pgorm(primary_key, without_overlaps)]
    |                              ^^^^^^^^^^^^^^^^

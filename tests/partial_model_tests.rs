@@ -24,10 +24,8 @@ mod entity {
         bar2: f64,
     }
 
-    #[derive(Debug, Relation, EnumIter)]
+    #[derive(Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 #[derive(PartialModel)]

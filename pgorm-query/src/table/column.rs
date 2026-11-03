@@ -25,7 +25,7 @@ pub trait IntoColumnDef {
 ///
 /// | ColumnType            | PostgreSQL data type     |
 /// |-----------------------|--------------------------|
-/// | Char                  | char                     |
+/// | Char                  | char(n), bpchar          |
 /// | String                | varchar                  |
 /// | Text                  | text                     |
 /// | SmallInteger          | smallint                 |
@@ -511,9 +511,12 @@ impl ColumnDef {
         self
     }
 
-    /// Set column type as char
+    /// Set column type as SQL's `char`, which PostgreSQL reads as `char(1)`.
+    /// The blank-padded type with no length limit is
+    /// `ColumnType::Char(None)`, spelled `bpchar`.
+    // [spec:pgorm:req:sql.ddl.column-types+7]
     pub fn char(&mut self) -> &mut Self {
-        self.types = Some(ColumnType::Char(None));
+        self.types = Some(ColumnType::Char(Some(1)));
         self
     }
 

@@ -10,16 +10,8 @@ pub struct Model {
     pub rate: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(has_many = super::temporal_stay::Entity)]
     TemporalStay,
 }
-
-impl Related<super::temporal_stay::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::TemporalStay.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

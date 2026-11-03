@@ -132,7 +132,7 @@ fn schema_sql_generates_one_file_per_table() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.types+9/test]    the type spellings map onto the
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    the type spellings map onto the
 // ColumnType vocabulary, serial included
 #[test]
 fn column_types_map_through_the_vocabulary() {
@@ -167,13 +167,8 @@ fn enum_type_reaches_the_generated_active_enum() {
     let generated = from_sql(SCHEMA);
     let enums = generated.file("pgorm_active_enums.rs");
 
-    assert_contains(
-        enums,
-        r#"#[pgorm(rs_type = String, enum_name = "task_state")]"#,
-    );
-    assert_contains(enums, "pub enum TaskState");
-    assert_contains(enums, r#"#[pgorm(string_value = "open")] Open,"#);
-    assert_contains(enums, r#"#[pgorm(string_value = "closed")] Closed,"#);
+    assert_not_contains(enums, "enum_name");
+    assert_contains(enums, "pub enum TaskState { Open, Closed, }");
     assert_contains(
         generated.file("task.rs"),
         "use super::pgorm_active_enums::TaskState;",
@@ -336,7 +331,7 @@ fn a_column_collation_rides_on_the_statement() {
     assert_eq!(collations(&rendered), expected);
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    a statement the bridge does
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a statement the bridge does
 // not read is named, never skipped
 #[test]
 fn unsupported_statements_are_named() {
@@ -378,7 +373,7 @@ fn unsupported_statements_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    a CREATE TABLE clause with
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a CREATE TABLE clause with
 // no entity meaning is named rather than dropped
 #[test]
 fn unsupported_table_clauses_are_named() {
@@ -412,7 +407,7 @@ fn unsupported_table_clauses_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    the same holds for column
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    the same holds for column
 // clauses the entity model has no room for
 #[test]
 fn unsupported_column_clauses_are_named() {
@@ -434,7 +429,7 @@ fn unsupported_column_clauses_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    what PostgreSQL 18's grammar
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    what PostgreSQL 18's grammar
 // added and the entity model cannot hold yet is named, not read as the older
 // shape each one resembles
 #[test]
@@ -471,7 +466,7 @@ fn postgres_18_constraints_are_named() {
 
 // [spec:pgorm:sem:codegen.ddl.tables+11/test]    an explicit ENFORCED on a column's
 // REFERENCES rides on the statement, and the entity is the plain key's
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    an ENFORCED anywhere else is
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    an ENFORCED anywhere else is
 // named, as PostgreSQL refuses it there
 #[test]
 fn an_explicit_enforced_rides_on_the_statement() {
@@ -577,7 +572,7 @@ fn a_not_null_constraint_rides_on_the_statement() {
     assert_eq!(from_sql(declared).files, from_sql(plain).files);
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    two NOT NULL clauses on one
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    two NOT NULL clauses on one
 // column that PostgreSQL would refuse to make one constraint of are refused
 #[test]
 fn conflicting_not_null_constraints_are_refused() {
@@ -606,7 +601,7 @@ fn conflicting_not_null_constraints_are_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.types+9/test]    a type spelling outside the
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    a type spelling outside the
 // vocabulary is named, and so is a modifier the vocabulary cannot hold
 #[test]
 fn unsupported_types_are_named() {
@@ -643,7 +638,7 @@ fn types_codegen_cannot_render_reach_the_gate() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    an index clause the builder
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    an index clause the builder
 // cannot express is named
 #[test]
 fn unsupported_index_clauses_are_named() {
@@ -714,7 +709,7 @@ fn a_unique_index_folds_into_its_constraint() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    a COMMENT the bridge cannot
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a COMMENT the bridge cannot
 // attach is named
 #[test]
 fn unsupported_comment_targets_are_named() {
@@ -724,7 +719,7 @@ fn unsupported_comment_targets_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    a statement that names an
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a statement that names an
 // object the file does not declare is named too
 #[test]
 fn unresolved_references_are_named() {
@@ -746,7 +741,7 @@ fn unresolved_references_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    a table declaring a second
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a table declaring a second
 // primary key is named in every spelling PostgreSQL refuses (42P16), rather
 // than read as the composite key one `PRIMARY KEY (a, b)` declares
 #[test]
@@ -764,7 +759,7 @@ fn a_second_primary_key_is_named() {
     assert!(parse_schema("CREATE TABLE t (a int, b int, PRIMARY KEY (a, b));").is_ok());
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    a key naming one column
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a key naming one column
 // twice, which PostgreSQL refuses (42701), is named rather than read with or
 // without its repeat; a unique index doing so is named as a DESC column on one is
 #[test]
@@ -794,7 +789,7 @@ fn a_key_naming_a_column_twice_is_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    a foreign key onto a table
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a foreign key onto a table
 // or a column the file never declares is named too — by the transform gate the
 // whole pipeline runs, which is where every table is in hand at once
 #[test]
@@ -844,8 +839,10 @@ fn rendered_ddl_round_trips_through_the_bridge() {
     assert_eq!(round_tripped.files, direct.files);
 }
 
-// [spec:pgorm:sem:codegen.ddl.types+9/test]    the types that once shared a
-// spelling with another variant now each recover themselves
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    each of these variants has a
+// spelling no other shares, so each reads back as itself, the unbounded
+// `bpchar` beside `char(1)` among them
+// [spec:pgorm:req:sql.ddl.column-types+7/test]
 #[test]
 fn one_spelling_one_variant_round_trips() {
     let statements = || {
@@ -858,6 +855,8 @@ fn one_spelling_one_variant_round_trips() {
                 typed("seen", ColumnType::Timestamp),
                 typed("amount", ColumnType::Money),
                 typed("width", ColumnType::SmallInteger),
+                typed("pad", ColumnType::Char(None)),
+                typed("flag", ColumnType::Char(Some(1))),
             ],
         )]
     };
@@ -907,7 +906,7 @@ fn enum_and_unique_index_round_trip() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.types+9/test]    each built-in range and multirange type
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    each built-in range and multirange type
 // reads back as the `Range` or `Multirange` of its subtype
 #[test]
 fn range_types_map_through_the_vocabulary() {
@@ -942,10 +941,10 @@ fn range_types_map_through_the_vocabulary() {
     assert_not_contains(span, "column_type");
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+9/test]    an array of ranges or
+// [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    an array of ranges or
 // multiranges is a `Vec` of them, the derive taking its column type from the
 // field's own `ValueType` as it does for a range
-// [spec:pgorm:sem:codegen.ddl.types+9/test]    and a range type takes no modifier
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    and a range type takes no modifier
 #[test]
 fn array_of_ranges_generates_a_vec() {
     let generated = from_sql(
@@ -1129,7 +1128,7 @@ fn a_foreign_keys_check_reaches_the_relation() {
     assert_eq!(from_sql(defaults).files, from_sql(plain).files);
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+17/test]    a foreign key's attribute clause
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a foreign key's attribute clause
 // said twice, or INITIALLY DEFERRED on a NOT DEFERRABLE key, is named, as
 // PostgreSQL refuses each (42601); a deferrable key is still named
 #[test]

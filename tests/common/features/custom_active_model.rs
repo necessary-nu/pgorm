@@ -12,10 +12,8 @@ pub struct Model {
     pub color: Option<Color>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-
-impl ActiveModelBehavior for ActiveModel {}
 
 #[derive(Clone, Debug, PartialEq, IntoActiveModel)]
 pub struct CustomActiveModel {

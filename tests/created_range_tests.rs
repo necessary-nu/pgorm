@@ -50,10 +50,8 @@ mod measures {
         pub label: Option<LabelSpan>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// One range type created over each remaining subtype.
@@ -112,10 +110,8 @@ mod subtypes {
         pub uuid: Id,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 use measures::{FloatRange, LabelSpan, Slot};
@@ -143,6 +139,7 @@ async fn main() -> Result<(), Error> {
     a_created_range_over_int4_is_continuous(&db).await?;
     a_column_reads_only_its_own_subtype(&db).await?;
     the_server_refuses_what_it_cannot_store(&db).await?;
+    a_subtype_modifier_is_dropped(&db).await?;
 
     drop(db);
     ctx.delete().await;
@@ -643,5 +640,32 @@ async fn the_server_refuses_what_it_cannot_store(db: &DatabaseConnection) -> Res
             .unwrap_err();
         refused_with(&bound, &state);
     }
+    Ok(())
+}
+
+/// PostgreSQL keeps no type modifier on a range's subtype: `pg_range`
+/// records the type alone, so the range pgorm-query's builder declares over
+/// `numeric(10, 2)` ranges over `numeric`, its bounds held to no scale. The
+/// DDL bridge refuses the modifier for that reason.
+// [spec:pgorm:req:codegen.ddl.unsupported+18/test]
+// [spec:pgorm:req:sql.ddl.type-range+2/test]
+async fn a_subtype_modifier_is_dropped(db: &DatabaseConnection) -> Result<(), Error> {
+    db.batch_execute(
+        &Type::create(Name::runtime("scaled"))
+            .as_range(RangeDefinition::new(ColumnType::Decimal(Some((10, 2)))))
+            .to_string(),
+    )
+    .await?;
+    let row = db
+        .query_one(
+            "SELECT format_type(rngsubtype, NULL), '[1.234,5.678]'::scaled::text \
+             FROM pg_range WHERE rngtypid = 'scaled'::regtype",
+            &[],
+        )
+        .await?;
+    assert_eq!(
+        (row.get::<_, String>(0), row.get::<_, String>(1)),
+        ("numeric".to_owned(), "[1.234,5.678]".to_owned())
+    );
     Ok(())
 }

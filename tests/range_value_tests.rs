@@ -42,10 +42,8 @@ mod spans {
         pub maybe: Option<Range<i32>>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod lists {
@@ -62,10 +60,8 @@ mod lists {
         pub instants: Option<Vec<Range<DateTimeWithTimeZone>>>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 #[pgorm_macros::test]

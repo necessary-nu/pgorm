@@ -26,12 +26,8 @@ mod tenant_a {
     pub mod status {
         use pgorm::entity::prelude::*;
 
-        #[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum, Copy)]
-        #[pgorm(
-            rs_type = String,
-            enum_name = "status",
-            schema_name = "tenant_a"
-        )]
+        #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy)]
+        #[pgorm(enum_name = "status", schema_name = "tenant_a")]
         pub enum Status {
             #[pgorm(string_value = "open")]
             Open,
@@ -53,7 +49,7 @@ mod tenant_a {
             pub owner_id: Option<i32>,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+        #[derive(Copy, Clone, Debug, Relation)]
         pub enum Relation {
             #[pgorm(
                 belongs_to = crate::owner::Entity,
@@ -61,12 +57,6 @@ mod tenant_a {
                 to = crate::owner::Column::Id
             )]
             Owner,
-        }
-
-        impl Related<crate::owner::Entity> for Entity {
-            fn to() -> RelationDef {
-                Relation::Owner.def()
-            }
         }
 
         impl Related<super::tag::Entity> for Entity {
@@ -78,8 +68,6 @@ mod tenant_a {
                 Some(super::item_tag::Relation::Item.def().rev())
             }
         }
-
-        impl ActiveModelBehavior for ActiveModel {}
     }
 
     pub mod tag {
@@ -93,10 +81,8 @@ mod tenant_a {
             pub name: String,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+        #[derive(Copy, Clone, Debug, Relation)]
         pub enum Relation {}
-
-        impl ActiveModelBehavior for ActiveModel {}
     }
 
     pub mod item_tag {
@@ -111,7 +97,7 @@ mod tenant_a {
             pub tag_id: i32,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+        #[derive(Copy, Clone, Debug, Relation)]
         pub enum Relation {
             #[pgorm(
                 belongs_to = super::item::Entity,
@@ -126,8 +112,6 @@ mod tenant_a {
             )]
             Tag,
         }
-
-        impl ActiveModelBehavior for ActiveModel {}
     }
 }
 
@@ -145,10 +129,8 @@ mod tenant_b {
             pub name: String,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+        #[derive(Copy, Clone, Debug, Relation)]
         pub enum Relation {}
-
-        impl ActiveModelBehavior for ActiveModel {}
     }
 }
 
@@ -165,19 +147,11 @@ mod owner {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(has_many = crate::tenant_a::item::Entity)]
         Item,
     }
-
-    impl Related<crate::tenant_a::item::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Item.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 use tenant_a::status::Status;
@@ -302,7 +276,7 @@ async fn schema_ddl_and_crud_round_trip() -> Result<(), Error> {
 // [spec:pgorm:req:entity.traits.entity-name+4/test]    finds, filters,
 // ordering, pagination, keyset cursors and the schema-qualified enum's value
 // predicates all address tenant_a.item
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]
 // [spec:pgorm:sem:exec.cursor.keyset+8/test]
 #[pgorm_macros::test]
 async fn qualified_finds_filters_and_cursors() -> Result<(), Error> {

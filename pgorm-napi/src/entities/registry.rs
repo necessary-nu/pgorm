@@ -149,10 +149,8 @@ mod tests {
             pub label: Option<String>,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+        #[derive(Copy, Clone, Debug, Relation)]
         pub enum Relation {}
-
-        impl ActiveModelBehavior for ActiveModel {}
     }
 
     mod gadget {
@@ -165,10 +163,8 @@ mod tests {
             pub id: i64,
         }
 
-        #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+        #[derive(Copy, Clone, Debug, Relation)]
         pub enum Relation {}
-
-        impl ActiveModelBehavior for ActiveModel {}
     }
 
     // [spec:pgorm:req:bindings.entities+3/test]    a name or a Rust entity registered

@@ -259,7 +259,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `Relation` variant with no usable `Related` impl). An inverse relation is
 > dropped when the target entity already has any relation to that table.
 
-> [spec:pgorm:sem:codegen.entity.transform.conjunct+1]
+> [spec:pgorm:sem:codegen.entity.transform.conjunct+2]
 > A table is treated as a many-to-many junction when it is nothing but the
 > join: exactly two of its relations are `BelongsTo` relations carrying
 > columns of their own, and those two column sets together are exactly the
@@ -276,8 +276,9 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > target (duplicated many-to-many paths), all conjunct relations to that
 > target are removed — ambiguity is resolved by generating nothing. When a
 > conjunct relation targets the same table as an ordinary relation, that
-> relation's `impl_related` flag is cleared so only the conjunct
-> (`via`-based) `Related` impl is generated.
+> relation's `impl_related` flag is cleared, and the variant says
+> `related = false` (`codegen.entity.relations.related`), so the conjunct
+> (`via`-based) `Related` impl is the entity's only one for that target.
 
 ## Output files
 
@@ -336,7 +337,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## The entity file
 
-> [spec:pgorm:def:codegen.entity.compact+3]
+> [spec:pgorm:def:codegen.entity.compact+4]
 > The writer emits one form of entity, the composite derive's
 > (`[spec:pgorm:req:macros.derive.one-form]`), and no option selects another.
 > Per entity it emits, in order: the imports (`use pgorm::entity::prelude::*;`,
@@ -347,18 +348,20 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `#[pgorm(schema_name = "...", table_name = "...")]` (`schema_name` only
 > when the entity has one — its source table's qualifier, else the configured
 > default, per `codegen.entity.context`); a `Relation` enum deriving
-> `Copy, Clone, Debug, EnumIter, Relation` whose variants carry
+> `Copy, Clone, Debug, Relation` whose variants carry
 > `#[pgorm(...)]` relation attributes (an entity with no relations emits the
-> empty `pub enum Relation {}`); the `Related` impls; and
-> `impl ActiveModelBehavior for ActiveModel {}`. The `Entity` derive writes
-> the `Entity`, `Column`, `PrimaryKey` and `ActiveModel` from the `Model`.
+> empty `pub enum Relation {}`); and the `via` `Related` impls
+> (`codegen.entity.relations.via`). The `Entity` derive writes
+> the `Entity`, `Column`, `PrimaryKey`, `ActiveModel` and the behaviour with no
+> hooks from the `Model`, and the `Relation` derive the enum's iteration and the
+> `Related` impl each entity one relation reaches has
+> (`[spec:pgorm:sem:macros.derive.boilerplate]`), so the file writes none of them.
 >
 > `gen_compact_code_blocks` assembles the file as an ordered
 > `Vec<TokenStream>`, one block per section: the import block (`gen_import`
 > extended with `gen_import_active_enum` and `gen_import_range_types`),
-> `gen_compact_model_struct`, `gen_compact_relation_enum`, zero or more
-> `gen_impl_related` blocks, zero or more `gen_impl_conjunct_related` blocks,
-> then `gen_impl_active_model_behavior`. `write_entities` prepends the
+> `gen_compact_model_struct`, `gen_compact_relation_enum`, then zero or more
+> `gen_impl_conjunct_related` blocks. `write_entities` prepends the
 > generated-file header and joins the stringified blocks with blank lines, so
 > each section is one contiguous block in the output (rendered shapes pinned
 > by `tests/compact/`).
@@ -632,7 +635,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > glob rather than from any named crate, repointing the aliases is how the
 > temporal backing changes, and generated text does not move when it does.
 
-> [spec:pgorm:req:codegen.entity.types.unsupported+9]
+> [spec:pgorm:req:codegen.entity.types.unsupported+11]
 > Column types outside the mapping table are not supported, and support is
 > decided when a `Column` is built rather than when it is rendered. Both
 > `TryFrom<&ColumnDef> for Column` and — through it —
@@ -651,15 +654,28 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `codegen.entity.types` maps for it, and refused
 > over any other with ``TransformError("... range type `<name>` over <subtype>
 > is not supported by codegen; a created range's subtype is one pgorm's
-> `RangeSubtype` covers")``, `<subtype>` in `Debug` form; an array of one is
+> `RangeSubtype` covers")``, `<subtype>` in `Debug` form, and over one
+> carrying a type modifier — `Decimal(Some(_))`, `Char(Some(_))`,
+> `String(StringLen::N(_))` — with ``TransformError("... range type `<name>`
+> over <subtype> is not supported by codegen; PostgreSQL keeps no type
+> modifier on a range's subtype")``, since no range PostgreSQL creates has
+> one (`codegen.ddl.unsupported`); an array of one is
 > refused as ``TransformError("... an array of range type `<name>` is not
 > supported by codegen; the newtype a created range generates has no array
-> conversion")``. A domain is supported as its base is, a domain over a
+> conversion")``. An array of an array is refused as ``TransformError("... an
+> array of an array is not supported by codegen; an entity field holds one
+> dimension")``, whatever its innermost element: a field is one `Vec` of its
+> element's Rust type, and `Vec<Vec<T>>` has no `ValueType`, so the entity
+> would not compile. The DDL bridge refuses the `[][]` spelling that would
+> describe one (`codegen.ddl.types`), but a schema described as
+> `TableCreateStatement`s can hold one, so the gate holds it to the same
+> refusal. A domain is supported as its base is, a domain over a
 > domain recursively, and an array of one as an array of its base would be —
 > an array of a domain over a created range refused as that array is — but
 > for an array of a domain over an array, refused as ``TransformError("... an
 > array of a domain over an array is not supported by codegen; an entity
-> field holds one dimension")``.
+> field holds one dimension")``; a domain over an array of an array is refused
+> as that array is.
 >
 > A type inside the table can still be beyond the writer, in which case the
 > same gate refuses it with its own message. `Enum { name, .. }` is refused
@@ -843,17 +859,18 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `Relation::validate`, so no generated relation can name a column on one side
 > without its counterpart on the other.
 
-> [spec:pgorm:sem:codegen.entity.relations.related+1]
-> For each relation that is not self-referencing, has `num_suffix == 0`, and
-> still has `impl_related` set, the writer emits
-> `impl Related<super::<module>::Entity> for Entity` with
-> `fn to() -> RelationDef { Relation::<Variant>.def() }`. Self-referencing
-> and suffixed relations get `Relation` variants but no `Related` impl
-> (`Related` can only be implemented once per target entity), and
-> conjunct-shadowed relations are replaced by the `via` impl of
-> `codegen.entity.relations.via`.
+> [spec:pgorm:sem:codegen.entity.relations.related+2]
+> The writer writes no plain `Related` impl: the `Relation` derive writes one for each
+> entity exactly one variant reaches (`macros.derive.boilerplate`), which in a
+> generated file is each relation with `num_suffix == 0`, a self-referencing one
+> included, its target named `Entity`. Suffixed relations reach one entity together, so
+> the derive writes none for it. A relation shadowed by a conjunct relation
+> (`codegen.entity.transform.conjunct`) with `num_suffix == 0` carries `related = false`
+> as its attribute's last key, so the `via` impl of `codegen.entity.relations.via` is
+> the entity's one `Related` impl for that target; a suffixed one carries nothing, the
+> derive writing no impl for its target anyway.
 
-> [spec:pgorm:sem:codegen.entity.relations.via+1]
+> [spec:pgorm:sem:codegen.entity.relations.via+2]
 > Each conjunct relation emits a many-to-many `Related` impl:
 >
 > `impl Related<super::<to>::Entity> for Entity` with
@@ -862,28 +879,30 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 >
 > where `<via>` is the junction module, `<To>` the target's variant in the
 > junction's `Relation` enum, and `<Self>` the current entity's variant
-> there. These impls are emitted after the plain `Related` impls.
+> there. These impls follow the `Relation` enum and end the file.
 
 ## Active enums
 
-> [spec:pgorm:sem:codegen.entity.enums+5]
+> [spec:pgorm:sem:codegen.entity.enums+6]
 > All discovered database enums are generated into a single
 > `pgorm_active_enums.rs`, in alphabetical order by enum name. Each becomes
-> `#[derive(Debug, Clone, PartialEq, Eq, EnumIter, ActiveEnum)]`
+> `#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]`
 > (plus `Copy` when `with_copy_enums`, then serde derives, then
-> `enum_extra_derives`) with
-> `#[pgorm(rs_type = String, enum_name = "<db name>")]`, no `db_type` being
-> how the derive is told the values are a PostgreSQL enum's
-> (`macros.derive.active-enum`) —
-> plus `schema_name = "<schema>"` when the described type is
-> schema-qualified, so the generated entity round-trips the full type
-> identity. Enums are keyed by that identity; two same-named enums under
+> `enum_extra_derives`), naming neither `rs_type` nor `db_type`, which is how the
+> derive is told the values are a PostgreSQL enum's (`macros.derive.active-enum`),
+> and saying only what differs from the derive's defaults
+> (`macros.derive.boilerplate`): `#[pgorm(enum_name = "<db name>")]` where the
+> DB name is not the Rust enum name in snake_case, plus `schema_name = "<schema>"`
+> when the described type is schema-qualified, so the generated entity round-trips the
+> full type identity; the attribute is omitted when it would be empty, and
+> `enum_extra_attributes` follow it as further attribute lines. Enums are keyed
+> by that identity; two same-named enums under
 > different qualifications MUST be refused ("enum `<n>` is used under two
 > qualifications; the generated Rust enum can carry only one") rather than
-> generated as one colliding Rust enum.
-> and `enum_extra_attributes` as further attribute lines. The Rust enum
-> name is the UpperCamelCase of the DB enum name; each variant carries
-> `#[pgorm(string_value = "<db value>")]`. Variant naming: values starting
+> generated as one colliding Rust enum. The Rust enum
+> name is the UpperCamelCase of the DB enum name; a variant carries
+> `#[pgorm(string_value = "<db value>")]` where the value is not the variant's name in
+> snake_case. Variant naming: values starting
 > with a digit get an underscore prefix (`3D` → `_3D`); values whose
 > UpperCamelCase form is empty (punctuation-only, etc.) fall back to
 > per-character encoding — ASCII chars as `U<hex, 4 digits>` and multi-byte
@@ -1040,7 +1059,7 @@ compiling the C parser falls on people generating entities and on nobody else.
 > (`sql.ddl.create-table`), so a key the statement declares and the key the
 > bridge reads back from its rendering are one fact.
 
-> [spec:pgorm:req:codegen.ddl.unsupported+17]
+> [spec:pgorm:req:codegen.ddl.unsupported+18]
 > The supported subset is what the entity model can hold: `CREATE TABLE` with
 > its columns, `NULL`/`NOT NULL`, primary-key, unique and foreign-key
 > constraints, and its `DEFAULT`s and generation expressions within the subset
@@ -1063,7 +1082,9 @@ compiling the C parser falls on people generating entities and on nobody else.
 > Named rejections MUST cover at least: every statement other than the seven
 > above; a statement written inside a `CREATE SCHEMA` as one of its elements,
 > named by its kind (``CREATE TABLE inside CREATE SCHEMA `s` ``); a range type option PostgreSQL does not have, a `SUBTYPE` that is not
-> a type name or is a `serial` spelling, and a range type with no `SUBTYPE`
+> a type name or is a `serial` spelling, a type modifier on a `SUBTYPE`
+> (``a type modifier PostgreSQL drops on the SUBTYPE of range type `r` ``),
+> and a range type with no `SUBTYPE`
 > (unresolved, as PostgreSQL refuses it with `42601`); on a domain, a base
 > that is a `serial` spelling or names no type the file declared or the
 > vocabulary holds, a catalog-qualified domain name, and every constraint
@@ -1089,6 +1110,17 @@ compiling the C parser falls on people generating entities and on nobody else.
 > a column.
 > Type spellings outside the vocabulary are named the same way
 > (`codegen.ddl.types`).
+>
+> PostgreSQL accepts a range type's `SUBTYPE` with a type modifier and keeps
+> none of it: `pg_range` records the subtype's type alone, so a range over
+> `numeric(10, 2)` holds bounds of any scale and one over `varchar(5)` bounds
+> of any length (live on 18.6). Carrying the modifier would generate an
+> entity claiming a precision the range does not hold, and reading the
+> subtype without it would be the file quietly reinterpreted, so the
+> modifier is named, as an `interval` precision the server would reduce is
+> (`codegen.ddl.types`). `char` and `character` written without a length are
+> `char(1)` to the grammar, a modifier like any other, and are named too;
+> the unbounded `bpchar` they would range over is written `bpchar`.
 >
 > A column's `DEFAULT` and generation expression are read
 > (`codegen.ddl.tables`), but only within the subset of PostgreSQL's
@@ -1207,7 +1239,7 @@ compiling the C parser falls on people generating entities and on nobody else.
 > (`sql.ddl.create-table`), so there is no constraint a non-unique index could
 > be carried as. Its table must still exist.
 
-> [spec:pgorm:sem:codegen.ddl.types+9]
+> [spec:pgorm:sem:codegen.ddl.types+10]
 > Column types map back through the `ColumnType` → Postgres spelling contract of
 > `sql.ddl.column-types`, read over the names the grammar produces: keyword
 > spellings arrive qualified as `pg_catalog.<name>`, everything else bare or
@@ -1243,7 +1275,11 @@ compiling the C parser falls on people generating entities and on nobody else.
 > type's values, and an unqualified name is looked up as an enum before the
 > table above. A type argument the vocabulary can hold is kept
 > (`varchar(255)`, `numeric(10, 2)`, `bit(8)`, `vector(3)`), a single-argument
-> `numeric(p)` reading as `Decimal(Some((p, 0)))` — its own meaning. An array
+> `numeric(p)` reading as `Decimal(Some((p, 0)))` — its own meaning. A bare
+> `bpchar`, blank-padded with no length limit, reads as `Char(None)`, which
+> renders `bpchar` again (`sql.ddl.column-types`); `char` and `character`
+> without a length reach the bridge as `bpchar(1)`, the grammar's own
+> reading, and are `Char(Some(1))`. An array
 > bound wraps the element type in `Array`; only one unsized `[]` is accepted.
 >
 > An `interval` keeps its field qualifier and precision, which the grammar

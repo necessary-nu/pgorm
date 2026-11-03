@@ -40,10 +40,8 @@ mod player {
         pub score: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Four players, two of them tied for second; two rows to group; a thousand

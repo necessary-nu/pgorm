@@ -5,37 +5,37 @@ error: a column is generated one way: `generated_stored` or `generated_virtual`,
   |                                                           ^^^^^^^^^^^^^^^^^
 
 error: a column takes an identity or a generation expression, not both; PostgreSQL refuses the pair
-  --> tests/compile-fail/entity_model_generated_conflicts.rs:24:27
+  --> tests/compile-fail/entity_model_generated_conflicts.rs:22:27
    |
-24 |         #[pgorm(identity, generated_stored = Expr::col(Column::Id))]
+22 |         #[pgorm(identity, generated_stored = Expr::col(Column::Id))]
    |                           ^^^^^^^^^^^^^^^^
 
 error: a column takes a default or a generation expression, not both; PostgreSQL refuses the pair
-  --> tests/compile-fail/entity_model_generated_conflicts.rs:39:17
+  --> tests/compile-fail/entity_model_generated_conflicts.rs:35:17
    |
-39 |         #[pgorm(generated_virtual = Expr::col(Column::Id), default_value = 1)]
+35 |         #[pgorm(generated_virtual = Expr::col(Column::Id), default_value = 1)]
    |                 ^^^^^^^^^^^^^^^^^
 
 error: a generated column already says how it is filled; drop `auto_increment`
-  --> tests/compile-fail/entity_model_generated_conflicts.rs:52:30
+  --> tests/compile-fail/entity_model_generated_conflicts.rs:46:30
    |
-52 |         #[pgorm(primary_key, generated_stored = Expr::col(Column::Base), auto_increment = false)]
+46 |         #[pgorm(primary_key, generated_stored = Expr::col(Column::Base), auto_increment = false)]
    |                              ^^^^^^^^^^^^^^^^
 
 error: a VIRTUAL generated column cannot be keyed or indexed, which PostgreSQL does not support; declare it `generated_stored`
-  --> tests/compile-fail/entity_model_generated_conflicts.rs:66:30
+  --> tests/compile-fail/entity_model_generated_conflicts.rs:58:30
    |
-66 |         #[pgorm(primary_key, generated_virtual = Expr::col(Column::Base))]
+58 |         #[pgorm(primary_key, generated_virtual = Expr::col(Column::Base))]
    |                              ^^^^^^^^^^^^^^^^^
 
 error: a VIRTUAL generated column cannot be keyed or indexed, which PostgreSQL does not support; declare it `generated_stored`
-  --> tests/compile-fail/entity_model_generated_conflicts.rs:82:25
+  --> tests/compile-fail/entity_model_generated_conflicts.rs:72:25
    |
-82 |         #[pgorm(unique, generated_virtual = Expr::col(Column::Id))]
+72 |         #[pgorm(unique, generated_virtual = Expr::col(Column::Id))]
    |                         ^^^^^^^^^^^^^^^^^
 
 error: a VIRTUAL generated column cannot be keyed or indexed, which PostgreSQL does not support; declare it `generated_stored`
-  --> tests/compile-fail/entity_model_generated_conflicts.rs:97:17
+  --> tests/compile-fail/entity_model_generated_conflicts.rs:85:17
    |
-97 |         #[pgorm(generated_virtual = Expr::col(Column::Id), indexed)]
+85 |         #[pgorm(generated_virtual = Expr::col(Column::Id), indexed)]
    |                 ^^^^^^^^^^^^^^^^^

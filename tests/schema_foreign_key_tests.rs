@@ -37,8 +37,8 @@ const TYPES: &str = r#"
 mod mood {
     use pgorm::entity::prelude::*;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, ActiveEnum)]
-    #[pgorm(rs_type = String, enum_name = "mood")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, ActiveEnum)]
+    #[pgorm(enum_name = "mood")]
     pub enum Mood {
         #[pgorm(string_value = "sad")]
         Sad,
@@ -91,10 +91,8 @@ mod anchor {
         pub as_moods: Vec<Mood>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Every pairing the server keys: an enum with itself, a domain over an
@@ -125,7 +123,7 @@ mod keyed {
         pub moods: Vec<Mood>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::anchor::Entity,
@@ -158,8 +156,6 @@ mod keyed {
         )]
         Moods,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A domain over an enum keyed to the same domain.
@@ -178,7 +174,7 @@ mod domain_to_domain {
         pub mood: Mood,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::anchor::Entity,
@@ -187,8 +183,6 @@ mod domain_to_domain {
         )]
         Anchor,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A domain over an enum keyed to the enum itself.
@@ -207,7 +201,7 @@ mod domain_to_enum {
         pub mood: Mood,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::anchor::Entity,
@@ -216,8 +210,6 @@ mod domain_to_enum {
         )]
         Anchor,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// An enum keyed to a domain over it: the referencing side is the plain enum.
@@ -233,7 +225,7 @@ mod enum_to_domain {
         pub mood: Mood,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::anchor::Entity,
@@ -242,8 +234,6 @@ mod enum_to_domain {
         )]
         Anchor,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A domain over a domain over an enum keyed to the inner domain.
@@ -262,7 +252,7 @@ mod nested_to_domain {
         pub mood: Mood,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::anchor::Entity,
@@ -271,8 +261,6 @@ mod nested_to_domain {
         )]
         Anchor,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The refusal generation answers for `entity`, whose one relation PostgreSQL

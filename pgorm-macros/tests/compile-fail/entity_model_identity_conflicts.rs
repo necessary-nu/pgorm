@@ -7,8 +7,6 @@ mod both_forms {
         #[pgorm(primary_key, identity, identity_by_default)]
         pub id: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod beside_auto_increment {
@@ -20,8 +18,6 @@ mod beside_auto_increment {
         #[pgorm(primary_key, identity, auto_increment = false)]
         pub id: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod beside_default {
@@ -35,8 +31,6 @@ mod beside_default {
         #[pgorm(identity_by_default, default_value = 1)]
         pub seq: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod nullable {
@@ -50,8 +44,6 @@ mod nullable {
         #[pgorm(identity)]
         pub seq: Option<i32>,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod composite_serial {
@@ -65,8 +57,6 @@ mod composite_serial {
         #[pgorm(primary_key, auto_increment = true)]
         pub id: i32,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 fn main() {}

@@ -13,7 +13,7 @@ pub struct Model {
     pub ignored_attr: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::cake_filling::Entity,
@@ -22,11 +22,3 @@ pub enum Relation {
     )]
     CakeFilling,
 }
-
-impl Related<super::cake_filling::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::CakeFilling.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

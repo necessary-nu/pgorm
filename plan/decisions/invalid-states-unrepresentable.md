@@ -4,7 +4,7 @@ epitome "Make invalid states unrepresentable: prefer type-level designs that pre
 state @approved
 category @executive
 scope {
-    rules ([spec:pgorm:req:sql.ast.condition.holder] [spec:pgorm:req:query.build.insert.uniform-columns] [spec:pgorm:req:exec.crud.try-insert] [spec:pgorm:req:entity.active-model.active-value])
+    rules ([spec:pgorm:req:sql.ast.condition.holder] [spec:pgorm:req:query.build.insert.uniform-columns] [spec:pgorm:sem:exec.crud.try-insert] [spec:pgorm:def:entity.active-model.active-value])
 }
 author "brendan@necessary.nu"
 alternatives (

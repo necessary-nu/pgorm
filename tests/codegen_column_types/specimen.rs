@@ -17,6 +17,8 @@ pub struct Model {
     pub initials: String,
     #[pgorm(column_type = ColumnType::Char(Some(1u32)))]
     pub flag: String,
+    #[pgorm(column_type = ColumnType::Char(None))]
+    pub pad: String,
     #[pgorm(column_type = ColumnType::Text)]
     pub body: String,
     #[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::String(StringLen::N(3u32)))))]
@@ -36,6 +38,8 @@ pub struct Model {
     pub prices: Vec<Decimal>,
     #[pgorm(column_type = ColumnType::Money, nullable)]
     pub cost: Option<Decimal>,
+    #[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Money)))]
+    pub fees: Vec<Decimal>,
     pub small: i16,
     pub big: i64,
     #[pgorm(column_type = ColumnType::Float)]
@@ -65,7 +69,5 @@ pub struct Model {
     pub letters: Textrange,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
-
-impl ActiveModelBehavior for ActiveModel {}

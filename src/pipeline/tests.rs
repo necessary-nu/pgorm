@@ -1842,10 +1842,8 @@ mod read_casts {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 // [spec:pgorm:sem:pipeline.select-sources+4/test]    the read cast's type
@@ -3117,10 +3115,8 @@ mod cheerful {
                     pub $other: String,
                 }
 
-                #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+                #[derive(Copy, Clone, Debug, Relation)]
                 pub enum Relation {}
-
-                impl ActiveModelBehavior for ActiveModel {}
             }
         };
     }
@@ -3129,7 +3125,7 @@ mod cheerful {
     entity!(temper, "temper", rank, label);
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]    a pipeline
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    a pipeline
 // comparison casts each side that is an entity column whose domain is over an
 // enum to the enum — against a literal, a bound value, a list or another such
 // column — and so do coalesce, min and max, while sorting, grouping, count and
@@ -3192,7 +3188,7 @@ fn domain_enum_columns_compare_as_the_enum() {
     );
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+13/test]    a named relation's
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    a named relation's
 // column compares as its entity's column through Named::col, and a col
 // reference or an alias token as the enum compares_as names, schema-qualified
 // and quoted by the type-name policy, while projecting and grouping keep each

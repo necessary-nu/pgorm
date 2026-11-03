@@ -10,7 +10,7 @@ pub struct Model {
     pub filling_id: i32,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = super::cake::Entity,
@@ -31,5 +31,3 @@ impl Related<super::cake_filling_price::Entity> for Entity {
         super::cake_filling_price::Relation::CakeFilling.def().rev()
     }
 }
-
-impl ActiveModelBehavior for ActiveModel {}

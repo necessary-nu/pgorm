@@ -8,7 +8,8 @@
 //! outside the crate is the compiler's to say, so `compile-fail/` asks it.
 //!
 //! The spec's reader lives here, so `citations` holds the whole spec to how
-//! its prose cites a rule as well.
+//! its prose cites a rule as well, and every citation in the checkout to the
+//! verb its rule is declared under.
 
 mod baseline;
 mod citations;

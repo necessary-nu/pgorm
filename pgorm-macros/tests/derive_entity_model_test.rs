@@ -41,10 +41,8 @@ mod filling {
         pub plain: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// What a hand-written `ColumnTrait` method could say, said by attributes: a
@@ -91,10 +89,8 @@ mod written_by_functions {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Every branch of the Rust-type -> `ColumnType` inference table. `char`, `i8`,
@@ -127,7 +123,7 @@ mod scalars {
         pub tea: Tea,
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, EnumIter, ActiveEnum)]
+    #[derive(Clone, Debug, PartialEq, Eq, ActiveEnum)]
     #[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::N(1)))]
     pub enum Tea {
         #[pgorm(string_value = "E")]
@@ -136,10 +132,8 @@ mod scalars {
         BreakfastTea,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Casing: raw-identifier trimming, `enum_name` substitution, keyword escaping,
@@ -167,10 +161,8 @@ mod casing {
         pub renamed_away: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// `rename_all` drives the SQL column names for every field that has no
@@ -188,10 +180,8 @@ mod renamed {
         pub second_name: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A single primary key with the default (true) auto-increment flag, plus a
@@ -207,10 +197,8 @@ mod single_pk {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A composite primary key: the `ValueType` becomes a tuple and
@@ -228,10 +216,8 @@ mod composite_pk {
         pub qty: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// `auto_increment` is a single shared flag: setting it false on a field that
@@ -248,10 +234,8 @@ mod shared_auto_increment {
         pub not_a_key: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A temporal key: the room and the period a rate holds over, the period last
@@ -269,10 +253,8 @@ mod temporal_key {
         pub rate: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The multi-tenant key: the tenant is supplied, the row number generated. The
@@ -292,10 +274,8 @@ mod tenant_identity {
         pub seq: i16,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Every column of the key is an identity, so the database generates the whole
@@ -312,10 +292,8 @@ mod all_identity {
         pub b: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// A one-column identity key: generated whole, and not by the serial family.
@@ -331,10 +309,8 @@ mod single_identity {
         pub not_a_key: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// Both kinds of generated column, a nullable one, and a stored one as the
@@ -354,10 +330,8 @@ mod generated_columns {
         pub doubled: Option<i32>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// No `table_name`, so no `Entity` struct is generated: the entity's name is
@@ -382,10 +356,8 @@ mod no_table_name {
         pub id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 /// The `serde` side of the naming, with enough unrelated `serde` parameters
@@ -409,14 +381,12 @@ mod serde_keys {
         pub sku: Option<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model+8/test]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+7/test]    struct-level table_name / schema_name / comment
+// [spec:pgorm:sem:macros.derive.entity-model+9/test]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+8/test]    struct-level table_name / schema_name / comment
 #[test]
 fn struct_attributes_drive_entity_and_entity_name() {
     // (3) `table_name` present, so `pub struct Entity;` plus a hand-rolled
@@ -431,10 +401,10 @@ fn struct_attributes_drive_entity_and_entity_name() {
     assert_eq!(format!("{:?}", filling::Entity {}), "Entity");
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model+8/test]    one derive yields the whole entity module
+// [spec:pgorm:sem:macros.derive.entity-model+9/test]    one derive yields the whole entity module
 #[test]
 fn one_derive_yields_the_whole_entity_module() {
-    // (1) the `Column` enum, with `EnumIter` + the `Column` derive's behaviour.
+    // (1) the `Column` enum, iterable and named as the `Column` derive names one.
     let columns: Vec<String> = filling::Column::iter().map(|c| c.to_string()).collect();
     assert_eq!(
         columns,
@@ -478,7 +448,7 @@ fn one_derive_yields_the_whole_entity_module() {
     assert_eq!(active.id, pgorm::ActiveValue::unchanged(1));
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model+8/test]    select_as / save_as overrides and their fallback
+// [spec:pgorm:sem:macros.derive.entity-model+9/test]    select_as / save_as overrides and their fallback
 #[test]
 fn select_as_and_save_as_cast_columns() {
     let casted = filling::Column::Casted;
@@ -544,7 +514,7 @@ fn attributes_say_what_column_methods_said() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model+8/test]    the `json_key` arm: the
+// [spec:pgorm:sem:macros.derive.entity-model+9/test]    the `json_key` arm: the
 // field's own name under `serde`'s renames, with the SQL naming attributes kept
 // out of it and the rest of `serde` stepped over
 // [spec:pgorm:def:entity.traits.column+7/test]    the namespace `json_key` names,
@@ -589,12 +559,11 @@ fn json_key_reports_the_serde_key() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+7/test]    `table_iden` adds a Table variant
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+8/test]    `table_iden` adds a Table variant
 #[test]
-fn table_iden_variant_is_skipped_by_enum_iter() {
-    // The variant exists...
+fn table_iden_variant_is_skipped_by_iteration() {
+    // The variant exists, but iterating the columns leaves it out.
     assert_eq!(filling::Column::Table.to_string(), "table");
-    // ...but `#[strum(disabled)]` keeps it out of iteration.
     assert!(
         !filling::Column::iter()
             .map(|c| c.to_string())
@@ -602,14 +571,14 @@ fn table_iden_variant_is_skipped_by_enum_iter() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+7/test]    the Table variant has no column def
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+8/test]    the Table variant has no column def
 #[test]
 #[should_panic(expected = "Table cannot be used as a column")]
 fn table_iden_variant_has_no_column_def() {
     let _ = filling::Column::Table.def();
 }
 
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+7/test]    field-level keys
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+8/test]    field-level keys
 #[test]
 fn field_level_attributes_shape_the_column_defs() {
     use pgorm::ColumnTypeTrait;
@@ -845,7 +814,7 @@ fn primary_key_emits_iden_and_mapping() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.entity+5/test]    EntityTrait associated types and the SqlName pair
+// [spec:pgorm:sem:macros.derive.entity+6/test]    EntityTrait associated types and the SqlName pair
 #[test]
 fn derive_entity_wires_up_the_entity_trait() {
     // The five associated types default to the conventional names.
@@ -880,7 +849,7 @@ fn derive_entity_wires_up_the_entity_trait() {
 
 // [spec:pgorm:req:macros.derive.one-form/test]    an entity whose name is computed keeps
 // its `Entity` and `EntityName` by hand, beside a composite derive given no `table_name`
-// [spec:pgorm:sem:macros.derive.entity+5/test]    the entity-trait derive writes no EntityName
+// [spec:pgorm:sem:macros.derive.entity+6/test]    the entity-trait derive writes no EntityName
 #[test]
 fn derive_entity_leaves_entity_name_to_hand() {
     // `no_table_name::Entity` carries the `EntityTrait` derive and a hand-written

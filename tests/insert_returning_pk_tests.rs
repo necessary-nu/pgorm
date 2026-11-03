@@ -23,10 +23,8 @@ mod manual_key {
         pub name: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 async fn create_manual_key_table<C>(db: &C) -> Result<(), Error>

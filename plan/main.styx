@@ -16181,6 +16181,13 @@ children (
                         kind @note
                         text "Also in scope, found by derives.paths (420d8d41): ActiveEnum's unknown-key error prints Rust debug output (Some(Ident(..))) instead of the key's name; fix it while reworking ActiveEnum's defaults. Base state for this node: one entity form, the new derive names, every code value bare, db_type = Enum gone (an enum of strings with no db_type is a PostgreSQL enum; rs_type still mandatory), PartialModel writing FromQueryResult, and every derive refusing keys it does not read."
                     }
+
+                    {
+                        at 2026-11-02T21:40:53.827539Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Calls made in delivery (implementing agent, 2026-11-02): (1) EnumIter is exported nowhere: the derive, the vendored strum module and `pub use strum` are deleted; Relation, Column, ActiveEnum and the composite (its Column and PrimaryKey) write iteration directly against `pgorm::Iterable`; strum stays a dependency for the trait. The three hand-written key enums in tests/entity_trait_tests.rs and the hand-implemented ActiveEnum doc and test implement Iterable by hand; the `into_values` column-name enums derive `Column`. (2) ActiveEnum: `rs_type` and `db_type` come together or not at all; a lone `rs_type = String` (the base-state PostgreSQL-enum spelling) is refused at the key, so every fixture dropped it; a `num_value`, or a discriminant on a variant taking the snake_case default, in a PostgreSQL enum is refused. No PostgreSQL-enum fixture relied on the UpperCamelCase default (all named enum_name); only non-enum storage names changed (`Color` -> `color`, asserted in tests/enum_tests.rs). (3) `related` takes only `false`; `related = false` on an entity two variants reach is refused; the Related target is identified by its path as written. (4) `hooks` joins the composite's container keys, so other derives refuse it as the composite's; the behaviour impl is emitted from the ActiveModel expansion even when the entity-model expansion is refused, so trybuild snapshots carry no echoed E0277. (5) The hand-written-empty-impl beside the generated one is rustc's wording-free E0119, so it is a generative compile case (entity-behaviour-twice), not a trybuild fixture. (6) codegen writes `related = false` on a conjunct-shadowed relation with num_suffix 0, and a single self-referencing relation now gets the derive's Related<Entity>."
+                    }
                 )
             }
 
@@ -16355,12 +16362,27 @@ children (
         id bpchar-unbounded-round-trip
         title "An unbounded bpchar column comes back as bpchar, not char(1)"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T14:25:04.863777Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by codegen-compact-string-length (fdd065f7), confirmed live on PostgreSQL 18.6. pgorm-query renders ColumnType::Char(None) as `char`, which PostgreSQL reads as character(1); codegen's bridge reads a bare `bpchar` (blank-padded with no length limit) as Char(None). So a bpchar column generates, in either format, an entity whose create_table_from_entity writes char(1), which truncates-or-refuses everything past one character. Decide what Char(None) means (unbounded bpchar, so render `bpchar`; or char(1), so the bridge must read bare bpchar as something else) and make reading and rendering agree; bump the sql.types / codegen.entity.types rule that says it, with a live round-trip test."
+            }
+
+            {
+                at 2026-11-02T21:11:16.549686Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-02T21:21:07.689478Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16369,12 +16391,34 @@ children (
         id codegen-money-decodes
         title "Codegen gives a money column a Rust type that binds and decodes it"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T14:25:05.00426Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by codegen-compact-string-length (fdd065f7). Codegen maps a money column to Decimal, but rust_decimal's ToSql/FromSql accept NUMERIC only, so a generated entity can neither bind nor decode its money column (the new tests/codegen_column_types fixture leaves its cost column nullable and NotSet for that reason). Choose a Rust type that round-trips money's binary form (an i64 of the currency's minor units, whose scale lc_monetary decides, so likely a pgorm newtype rather than Decimal) or refuse money in codegen with the reason; either way the generated entity must compile and work against a live money column."
+            }
+
+            {
+                at 2026-11-02T21:25:35.861185Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-02T21:33:42.598018Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Kept Decimal and made it work, with no new Value variant: ColumnTrait's default casts read a money column (an array of it, a domain over either) as numeric and write a value cast to money (to the domain by name; money[]/domain[] for arrays and = ANY operands). The cast pins the placeholder to the value's own type (sql.render.cast-param-type), so a Decimal binds as numeric and PostgreSQL converts at lc_monetary's scale both ways; a value left numeric would assign but not compare (42883 money = numeric). Rejected the i64-minor-units newtype: binding it needs its own Value variant (a BigInt accepted at a money placeholder would mean minor units where PostgreSQL's int8->money cast means whole units), threaded through pgorm-query's Value (Display, identity/hash, kind, ArrayType tag, JSON), pgorm's bind/decode/COPY paths and both bindings' value tags, and its inline literal cannot be rendered at all without the server's frac_digits. Not done here: the bindings' entity kinds still report money as Explicit (a tagged decimal Value works); a pipeline ExprOps comparison on a money column binds bare, as it does for every save_as column."
+            }
+
+            {
+                at 2026-11-02T21:34:31.695407Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16383,12 +16427,34 @@ children (
         id created-range-subtype-typmod
         title "A created range's subtype carries no type modifier PostgreSQL ignores"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T14:25:05.129542Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by codegen-compact-string-length (fdd065f7), confirmed live: CREATE TYPE r AS RANGE (SUBTYPE = numeric(10,2)) is accepted, but PostgreSQL drops the type modifier, so the range's subtype is plain numeric. Codegen's DDL bridge keeps the typmod in the CreatedRange subtype, so the generated entity claims a precision the database does not hold. Read the subtype without its typmod (or refuse it, saying PostgreSQL ignores it); check pgorm-query's CREATE TYPE ... AS RANGE builder for the same claim."
+            }
+
+            {
+                at 2026-11-02T20:58:39.220045Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-02T21:07:37.586029Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Refuse, not read without. The bridge's rule is that the file is never quietly reinterpreted, and it already names the other modifiers the server drops or reduces (a sized array bound, an interval precision past 6); reading numeric(10,2) as numeric would be that reinterpretation. `char`/`character` without a length reach the bridge as bpchar(1) (the grammar's implicit modifier) and are refused too; `bpchar` is the unbounded subtype they range over. The described-schema gate (validate_col_type) also refuses a CreatedRange whose subtype carries a modifier (Decimal(Some), Char(Some), String(N)). pgorm-query's RangeDefinition renders the subtype as given; sql.ddl.type-range already states PostgreSQL discards the modifier, and a new live test (tests/created_range_tests.rs) builds one over numeric(10, 2) and witnesses pg_range's subtype as numeric with bounds of any scale, so the builder makes no claim beyond its rendered text and was left unchanged."
+            }
+
+            {
+                at 2026-11-02T21:09:53.793138Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16397,12 +16463,20 @@ children (
         id codegen-refuses-nested-arrays
         title "Codegen refuses a multi-dimensional array from a described schema, as its DDL reader does"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T14:25:05.248738Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by codegen-compact-string-length (fdd065f7). A described schema (the live-schema path, not DDL text) can hand codegen ColumnType::Array(Array(_)); it generates a Vec<Vec<T>> field, which has no ValueType, so the output does not compile. The DDL-text bridge already refuses multi-dimensional arrays. Refuse it in validate_col_type with codegen.entity.types.unsupported's wording, before anything is written, and test it from a described schema."
+            }
+
+            {
+                at 2026-11-02T20:34:20.560114Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16411,6 +16485,7 @@ children (
         id exec-vocabulary-annotation-verb
         title "The delete and update executors claim exec.crud.exec-vocabulary under its own verb"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T18:22:36.290558Z
@@ -16425,6 +16500,13 @@ children (
                 kind @note
                 text "Widened by derives.paths (420d8d41): eleven annotations use a verb their rule does not have, all predating that branch — exec.crud.exec-vocabulary written sem (the rule is req) in src/executor/update.rs, src/executor/delete.rs and plan/main.styx, and others in pgorm-query/tests/surface/citations.rs and plan/decisions/*.md. Find every one by script (each [spec:pgorm:<verb>:<id>] whose verb differs from the rule's declaring blockquote), fix them all, and add a guard so a mismatch fails a check (pgorm-query's spec reader already refuses pinned citations; a verb check fits beside it). Whether nspec itself should refuse the mismatch is a question for ../nplan/DEFECTS.md."
             }
+
+            {
+                at 2026-11-02T21:06:55.540292Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
+            }
         )
     }
 
@@ -16432,12 +16514,56 @@ children (
         id sqlmap-harness-format
         title "The sqlmap harness binary is rustfmt-clean and a platform check keeps it so"
         kind @ci
+        sealed true
         log (
             {
                 at 2026-11-02T18:22:36.384003Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by derives.names (eed4f53e), predating it: security/sqlmap/adapter/src/bin/sqlmap-harness.rs is not rustfmt-clean, and no platform in .config/nplan/config.styx runs cargo fmt over the sqlmap adapter, so nothing noticed. Format it and add the adapter's fmt (and clippy, if it is not already covered) to a platform whose files glob matches it."
+            }
+
+            {
+                at 2026-11-02T21:09:53.743431Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-02T21:12:54.852906Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
+            }
+        )
+    }
+
+    {
+        id bit-unbounded-renders-bit-one
+        title "An unlengthed Bit column type renders as PostgreSQL reads it, not as bit(1)"
+        kind @fix
+        log (
+            {
+                at 2026-11-02T21:41:31.780712Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by bpchar-unbounded-round-trip (ebba1f67): ColumnType::Bit(None) renders `bit`, which PostgreSQL reads as bit(1), the flaw Char(None) had. Codegen maps no bit column today, so no generated entity is affected, but create_table_from_entity on a Bit(None) column writes bit(1). Decide what Bit(None) means (an unbounded bit string has no spelling in PostgreSQL: `varbit` is the unbounded type, `bit` is always fixed-width), most likely that Bit(None) cannot be written and ColumnDef's bit builder takes a width, and make the rendering say what the type is; live-check format_type for each spelling."
+            }
+        )
+    }
+
+    {
+        id money-beyond-entities
+        title "A money column reads and writes as a decimal through the bindings, the pipeline and COPY rows, as it does through an entity"
+        kind @fix
+        deps (codegen-money-decodes)
+        log (
+            {
+                at 2026-11-02T21:41:31.883789Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by codegen-money-decodes (337a9933), which made an entity's money column (and arrays of money, and domains over either) read cast to numeric and write cast to money, carried by Decimal with no new Value variant. Three paths still do not: (1) the Python and JavaScript bindings' entity kinds report a money column as needing an explicit tagged value (a tagged decimal works); make its kind decimal in both, with describe() and the shared surface file updated; (2) pipeline comparisons bind a money column's value bare, as pipelines do for every save_as column, so `money = numeric` fails at the server (42883) instead of casting — check whether pipeline-untyped-enum-casts' mechanism generalises to every save_as cast rather than adding a money special case; (3) COPY rows (copy_in_rows / copy_out_rows) still refuse money. Each with a live test."
             }
         )
     }

@@ -12,7 +12,7 @@ pub struct Model {
     pub tea: Option<Tea>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         fk_name = "fk-active_enum_child-active_enum",
@@ -22,11 +22,3 @@ pub enum Relation {
     )]
     ActiveEnum,
 }
-
-impl Related<super::active_enum::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::ActiveEnum.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}

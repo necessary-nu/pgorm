@@ -4,7 +4,7 @@ epitome "Library code must not panic on user input; user-facing failure paths re
 state @approved
 category @ban
 scope {
-    rules ([spec:pgorm:req:error.model] [spec:pgorm:sem:sql.value.accessor-panics] [spec:pgorm:req:sql.ddl.panics] [spec:pgorm:req:sql.ast.condition.holder] [spec:pgorm:req:query.build.insert.uniform-columns] [spec:pgorm:req:conn.pool])
+    rules ([spec:pgorm:def:error.model] [spec:pgorm:sem:sql.value.accessor-panics] [spec:pgorm:sem:sql.ddl.panics] [spec:pgorm:req:sql.ast.condition.holder] [spec:pgorm:req:query.build.insert.uniform-columns] [spec:pgorm:req:conn.pool])
 }
 author "brendan@necessary.nu"
 alternatives (

@@ -26,19 +26,11 @@ mod account {
         pub display_name: Option<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(has_many = super::post::Entity)]
         Post,
     }
-
-    impl Related<super::post::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Post.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod post {
@@ -53,7 +45,7 @@ mod post {
         pub title: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::account::Entity,
@@ -62,14 +54,6 @@ mod post {
         )]
         Author,
     }
-
-    impl Related<super::account::Entity> for Entity {
-        fn to() -> RelationDef {
-            Relation::Author.def()
-        }
-    }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod tag {
@@ -83,10 +67,8 @@ mod tag {
         pub label: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod post_tag {
@@ -101,7 +83,7 @@ mod post_tag {
         pub tag_id: i32,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
         #[pgorm(
             belongs_to = super::post::Entity,
@@ -116,8 +98,6 @@ mod post_tag {
         )]
         Tag,
     }
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod version {
@@ -133,10 +113,8 @@ mod version {
         pub body: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod ticket {
@@ -150,10 +128,8 @@ mod ticket {
         pub note: Option<String>,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 mod long_names {
@@ -167,10 +143,8 @@ mod long_names {
         pub column_with_a_name_long_enough_to_need_bounding_in_a_graph_xx: String,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 fn built<Q: QueryTrait>(query: &Q) -> (String, Values)

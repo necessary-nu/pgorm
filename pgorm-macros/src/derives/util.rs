@@ -8,7 +8,7 @@ use syn::{
 
 /// The refusal for a `#[pgorm(...)]` key none of a derive's arms read, spanned at the
 /// key and naming it, so a typo is diagnosed rather than dropped.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+7]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+8]
 pub(crate) fn unknown_pgorm_key(meta: &ParseNestedMeta<'_>) -> syn::Error {
     let name = match meta.path.get_ident() {
         Some(ident) => ident.to_string(),
@@ -35,7 +35,7 @@ pub(crate) fn bare_code<T: Parse>(meta: &ParseNestedMeta<'_>, key: &str) -> syn:
 
 /// Accept a key this derive recognises but does not read, consuming its `= value` when
 /// it carries one so the parse stream advances past it; refuse anything else.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+7]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+8]
 pub(crate) fn skip_known_key(meta: &ParseNestedMeta<'_>, known: &[&str]) -> syn::Result<()> {
     if !known.iter().any(|key| meta.path.is_ident(key)) {
         return Err(unknown_pgorm_key(meta));
@@ -47,15 +47,17 @@ pub(crate) fn skip_known_key(meta: &ParseNestedMeta<'_>, known: &[&str]) -> syn:
 
 /// Keys of the composite derive's container attribute: the entity's literal
 /// names, which an entity under `EntityTrait` computes in a hand-written
-/// `EntityName` instead, and the keys naming the model's columns. Every other
-/// derive refuses them with where they belong.
-// [spec:pgorm:sem:macros.derive.entity+5]
-pub(crate) const COMPOSITE_KEYS: [&str; 5] = [
+/// `EntityName` instead, the keys naming the model's columns, and `hooks`,
+/// saying the program implements `ActiveModelBehavior`. Every other derive
+/// refuses them with where they belong.
+// [spec:pgorm:sem:macros.derive.entity+6]
+pub(crate) const COMPOSITE_KEYS: [&str; 6] = [
     "table_name",
     "schema_name",
     "comment",
     "table_iden",
     "rename_all",
+    "hooks",
 ];
 
 /// The field keys `PartialModel` reads that the `FromQueryResult` it writes
@@ -68,7 +70,7 @@ pub(crate) const PROJECTION_FIELD_KEYS: [&str; 2] = ["from_col", "from_expr"];
 /// composite runs `Model` and the active-model expansion over the same input,
 /// and validates this vocabulary itself, so those two step over every key in
 /// it they do not read.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+7]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+8]
 pub(crate) const MODEL_FIELD_KEYS: [&str; 22] = [
     "auto_increment",
     "column_name",
@@ -362,7 +364,7 @@ pub(crate) const RUST_SPECIAL_KEYWORDS: [&str; 3] = ["crate", "Self", "self"];
 mod tests {
     use super::*;
 
-    // [spec:pgorm:sem:macros.derive.active-enum.expansion+4/test]
+    // [spec:pgorm:sem:macros.derive.active-enum.expansion+5/test]
     #[test]
     fn test_non_uax31_escape() {
         // Test empty string

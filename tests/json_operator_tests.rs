@@ -33,10 +33,8 @@ mod doc {
         pub body: Json,
     }
 
-    #[derive(Copy, Clone, Debug, EnumIter, Relation)]
+    #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
-
-    impl ActiveModelBehavior for ActiveModel {}
 }
 
 async fn seed(db: &impl ConnectionTrait) -> Result<(), Error> {

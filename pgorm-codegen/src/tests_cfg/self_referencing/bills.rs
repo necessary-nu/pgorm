@@ -8,7 +8,7 @@ pub struct Model {
     pub self_id: Option<i32> ,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, Relation)]
+#[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(
         belongs_to = Entity,
@@ -17,5 +17,3 @@ pub enum Relation {
     )]
     SelfRef,
 }
-
-impl ActiveModelBehavior for ActiveModel {}

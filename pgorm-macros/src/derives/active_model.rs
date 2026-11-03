@@ -3,11 +3,13 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::{Data, DataStruct, Field, Fields, Type, punctuated::IntoIter};
 
-/// The `ActiveModel` the composite derive writes beside its `Model`.
-// [spec:pgorm:sem:macros.derive.active-model+6]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+7]    the field-key vocabulary this
+/// The `ActiveModel` the composite derive writes beside its `Model`, and its
+/// `ActiveModelBehavior` with no hooks unless the program writes its own.
+// [spec:pgorm:sem:macros.derive.active-model+7]
+// [spec:pgorm:sem:macros.derive.boilerplate]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+8]    the field-key vocabulary this
 // expansion shares with the `Entity` derive
-pub fn expand_active_model(ident: Ident, data: Data) -> syn::Result<TokenStream> {
+pub fn expand_active_model(ident: Ident, data: Data, hooks: bool) -> syn::Result<TokenStream> {
     // including ignored fields
     let all_fields = match data {
         Data::Struct(DataStruct {
@@ -24,10 +26,17 @@ pub fn expand_active_model(ident: Ident, data: Data) -> syn::Result<TokenStream>
 
     let derive_active_model = derive_active_model(all_fields.clone())?;
     let derive_into_model = derive_into_model(all_fields)?;
+    let behaviour = (!hooks).then(|| {
+        quote! {
+            #[automatically_derived]
+            impl pgorm::ActiveModelBehavior for ActiveModel {}
+        }
+    });
 
     Ok(quote!(
         #derive_active_model
         #derive_into_model
+        #behaviour
     ))
 }
 
