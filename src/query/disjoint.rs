@@ -13,7 +13,8 @@ use core::marker::PhantomData;
 use std::fmt;
 
 use pgorm_query::{
-    Condition, ConditionType, FromItem, IntoCondition, JoinType, Name, SelectStatement,
+    Condition, ConditionType, FromItem, IntoCondition, JoinType, Name, SelectStatement, SimpleExpr,
+    TableName,
 };
 
 use super::graph::project_source;
@@ -106,17 +107,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
     pub(crate) fn of(select: Select<D::Base>) -> Self {
         let mut query = select.query;
         query.clear_selects();
-        project_source::<D::Base>(&mut query, Name::new(D::Base::default()), BASE_SOURCE);
-        let mut sources = BASE_SOURCE;
-        for kind in D::Kind::iter() {
-            D::visit_kind(
-                kind,
-                JoinKind {
-                    query: &mut query,
-                    sources: &mut sources,
-                },
-            );
-        }
+        project_disjoint::<D>(&mut query, &|_| KindRows::Table);
         Self {
             query,
             marker: PhantomData,
@@ -189,6 +180,62 @@ impl<D: Disjoint> SelectDisjoint<D> {
     }
 }
 
+/// Where a disjoint statement reads one kind's table from.
+// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.write+1]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum KindRows {
+    /// The table as the statement's snapshot holds it, which is the table a
+    /// read reads and one a write left alone.
+    Table,
+    /// The rows a write wrote to the table, through its data-modifying
+    /// `WITH` part, which is named as the table ([`written_table`]).
+    Written,
+    /// No row: the write deleted the base row's row from the table, so none
+    /// of the key remains there. Its deleting part is joined `ON FALSE`,
+    /// since the snapshot still holds the row it deleted.
+    Deleted,
+}
+
+/// The name a disjoint write gives the `WITH` part that writes `E`'s table:
+/// the table's own name, bare.
+///
+/// Every reference to the table outside a part's target then means the
+/// rows the part wrote, so the statement's `SELECT`, the read's projection
+/// and joins ([`project_disjoint`]), reads the written row wherever the read
+/// reads the table, and a later part reads the base row through the same
+/// name. A part's target, and a part's own body, still name the table:
+/// PostgreSQL resolves neither to a `WITH` query. A schema-qualified table
+/// keeps its schema where it is a target and drops it here, as its
+/// qualifier in the read's projection already does.
+// [spec:pgorm:sem:disjoint.write+1]
+pub(crate) fn written_table<E: EntityTrait>() -> TableName {
+    TableName::Table(Name::clone(E::default().table_ref().table()))
+}
+
+/// Project a disjoint read onto `query`, whose `FROM` reads the base: the
+/// base's columns under `s0_`, then each kind with a table joined from where
+/// `rows` says and projected under the next prefix, in declaration order.
+// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.write+1]
+pub(crate) fn project_disjoint<D: Disjoint>(
+    query: &mut SelectStatement,
+    rows: &dyn Fn(D::Kind) -> KindRows,
+) {
+    project_source::<D::Base>(query, Name::new(D::Base::default()), BASE_SOURCE);
+    let mut sources = BASE_SOURCE;
+    for kind in D::Kind::iter() {
+        D::visit_kind(
+            kind,
+            JoinKind {
+                query: &mut *query,
+                sources: &mut sources,
+                rows,
+            },
+        );
+    }
+}
+
 /// Joins a kind's table to the base and projects it under the next prefix,
 /// and does nothing for a kind without one.
 ///
@@ -196,30 +243,59 @@ impl<D: Disjoint> SelectDisjoint<D> {
 /// decode ([`DisjointRow`](crate::DisjointRow)) counts kinds the same way, by
 /// the same visit in the same order, which is what pairs each kind with its
 /// prefix.
-struct JoinKind<'q> {
+struct JoinKind<'q, K> {
     query: &'q mut SelectStatement,
     sources: &'q mut usize,
+    rows: &'q dyn Fn(K) -> KindRows,
 }
 
-impl<D: Disjoint> KindVisitor<D> for JoinKind<'_> {
+impl<D: Disjoint> KindVisitor<D> for JoinKind<'_, D::Kind> {
     type Output = ();
 
     // [spec:pgorm:sem:disjoint.read+1]
-    fn table<M: KindModel<D>>(self, _: D::Kind) {
+    // [spec:pgorm:sem:disjoint.write+1]
+    fn table<M: KindModel<D>>(self, kind: D::Kind) {
         *self.sources += 1;
-        let table = FromItem::from(M::Entity::default().table_ref());
+        let rows = (self.rows)(kind);
+        let table = match rows {
+            KindRows::Table => FromItem::from(M::Entity::default().table_ref()),
+            KindRows::Written | KindRows::Deleted => FromItem::from(written_table::<M::Entity>()),
+        };
         let qualifier = Name::clone(table.qualifier());
-        // A key of no column has nothing to join on. Left unjoined, the
-        // projection names a table the statement does not have, which the
-        // server refuses, rather than pairing every base row with every row.
-        if let Some(relation) = key_relation::<D::Base, M::Entity>(table.clone()) {
-            self.query
-                .join(JoinType::LeftJoin, table, join_condition(relation));
+        match rows {
+            KindRows::Deleted => {
+                self.query.join(
+                    JoinType::LeftJoin,
+                    table,
+                    SimpleExpr::Constant(false.into()),
+                );
+            }
+            // A key of no column has nothing to join on. Left unjoined, the
+            // projection names a table the statement does not have, which the
+            // server refuses, rather than pairing every base row with every
+            // row.
+            KindRows::Table | KindRows::Written => {
+                if let Some(relation) = key_relation::<D::Base, M::Entity>(table.clone()) {
+                    self.query
+                        .join(JoinType::LeftJoin, table, join_condition(relation));
+                }
+            }
         }
         project_source::<M::Entity>(self.query, qualifier, *self.sources);
     }
 
     fn unit(self, _: D) {}
+}
+
+/// Each base key column with the kind key column in the same place, in key
+/// order: the pairs a kind's row is keyed by its base row's key through.
+// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.write+1]
+pub(crate) fn key_pairs<B: EntityTrait, K: EntityTrait>()
+-> impl Iterator<Item = (B::Column, K::Column)> {
+    B::PrimaryKey::iter()
+        .map(PrimaryKeyToColumn::into_column)
+        .zip(K::PrimaryKey::iter().map(PrimaryKeyToColumn::into_column))
 }
 
 /// The relation from the base to a kind's table on the key: each base key
@@ -229,10 +305,11 @@ impl<D: Disjoint> KindVisitor<D> for JoinKind<'_> {
 /// The two keys are of one arity, since [`KindModel`] holds the kind's key
 /// types to the base's.
 // [spec:pgorm:sem:disjoint.read+1]
-fn key_relation<B: EntityTrait, K: EntityTrait>(to_tbl: FromItem) -> Option<RelationDef> {
-    let mut pairs = B::PrimaryKey::iter()
-        .map(PrimaryKeyToColumn::into_column)
-        .zip(K::PrimaryKey::iter().map(PrimaryKeyToColumn::into_column));
+// [spec:pgorm:sem:disjoint.write+1]
+pub(crate) fn key_relation<B: EntityTrait, K: EntityTrait>(
+    to_tbl: FromItem,
+) -> Option<RelationDef> {
+    let mut pairs = key_pairs::<B, K>();
     let (base, kind) = pairs.next()?;
     let mut columns = ColumnPairs::of_columns(base, kind);
     for (base, kind) in pairs {

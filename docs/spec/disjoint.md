@@ -166,12 +166,17 @@ would sit side by side in the base, mostly null.
 
 ## Writes
 
-> [spec:pgorm:sem:disjoint.write]
+> [spec:pgorm:sem:disjoint.write+1]
 > Every write MUST be one statement, its parts joined by data-modifying
 > `WITH` clauses, so that it applies whole or not at all with no
 > transaction, and its constraints are checked once, at its end
-> (`[spec:pgorm:sem:disjoint.schema]`). Each returns the pair a read of the
-> written row gives.
+> (`[spec:pgorm:sem:disjoint.schema]`). Each is a `WriteDisjoint<E>`, whose
+> construction runs `check_disjoint::<E>()` and the refusals below, each an
+> `Error::Type` naming the table and column, so a refused write sends
+> nothing. Its terminal, `exec_returning_model`, returns the pair a read of
+> the written row gives, `(base::Model, E)`, decoded as a read's row is
+> (`[spec:pgorm:sem:disjoint.read]`). Every value is written under its
+> column's `save_as` cast, as an ordinary insert or update writes it.
 >
 > - `E::insert(base, kind)`, given the base's `ActiveModel` and an
 >   `<Enum>ActiveModel`, MUST insert the base row with the kind's value in
@@ -179,16 +184,24 @@ would sit side by side in the base, mostly null.
 >   taken from the inserted base row, so a key the database generates reaches
 >   it. The base's kind column and the kind row's key columns MUST be
 >   `NotSet`, since the kind and the key each come from one place; a value
->   set in either MUST be refused before anything is sent.
+>   held in either, `Set` or `Unchanged`, MUST be refused.
 > - `E::update(base, kind)` MUST update the set columns of the base row and
->   of its kind's row, both found by the base's key. A kind other than the
->   row's current one, and a key no row has, MUST be `Error::RecordNotFound`
->   with both rows left as they were: changing kind is its own operation.
-> - `E::change_kind(key, kind)` MUST delete the row's current kind row,
->   where its kind has a table, insert the new kind's row, where that kind
->   has one, and set the base row's kind. A key no row has, and a row that
->   already has that kind, MUST be `Error::RecordNotFound` with nothing
->   changed.
+>   of its kind's row, both found by the base's key, which the base's
+>   `ActiveModel` holds `Set` or `Unchanged` as for `Update::one`, a `NotSet`
+>   part being `Error::PrimaryKeyNotSet`. A kind other than the row's current
+>   one, and a key no row has, MUST be `Error::RecordNotFound` with both rows
+>   left as they were, a kind changed by a write that committed while this
+>   one waited for the row included: changing kind is its own operation, so
+>   the base's kind column `Set`, and a kind row's key column `Set`, MUST be
+>   refused. An update setting nothing in either is a read of the row under
+>   the same conditions, as `UpdateOne`'s `exec_returning_model` reads its
+>   row back.
+> - `E::change_kind(key, kind)` MUST delete the row's row from every kind
+>   table but the new kind's, its current kind's among them, insert the new
+>   kind's row with its key taken from the base row, where that kind has a
+>   table, and set the base row's kind. The new row's key columns MUST be
+>   `NotSet`, as an insert's are. A key no row has, and a row that already
+>   has that kind, MUST be `Error::RecordNotFound` with nothing changed.
 >
 > Deleting needs nothing of its own: the base entity's delete removes a base
 > row and, by the cascade, its kind's row.
