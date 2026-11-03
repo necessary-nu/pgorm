@@ -2603,7 +2603,7 @@
       "name": "pgorm",
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/pgorm-rs/pgorm",
+      "repository": "https://github.com/necessary-nu/pgorm",
       "source": "pgorm workspace",
       "notices": [
         {
@@ -2620,7 +2620,7 @@
       "name": "pgorm-macros",
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/pgorm-rs/pgorm",
+      "repository": "https://github.com/necessary-nu/pgorm",
       "source": "pgorm workspace",
       "notices": [
         {
@@ -2637,7 +2637,7 @@
       "name": "pgorm-napi",
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/pgorm-rs/pgorm",
+      "repository": "https://github.com/necessary-nu/pgorm",
       "source": "pgorm workspace",
       "notices": [
         {
@@ -2654,7 +2654,7 @@
       "name": "pgorm-pool",
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/pgorm-rs/pgorm",
+      "repository": "https://github.com/necessary-nu/pgorm",
       "source": "pgorm workspace",
       "notices": [
         {
@@ -2671,7 +2671,7 @@
       "name": "pgorm-query",
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/pgorm-rs/pgorm",
+      "repository": "https://github.com/necessary-nu/pgorm",
       "source": "pgorm workspace",
       "notices": [
         {
@@ -2688,7 +2688,7 @@
       "name": "pgorm-query-derive",
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/pgorm-rs/pgorm",
+      "repository": "https://github.com/necessary-nu/pgorm",
       "source": "pgorm workspace",
       "notices": [
         {
@@ -2705,7 +2705,7 @@
       "name": "pgorm-query-derive-internals",
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/pgorm-rs/pgorm",
+      "repository": "https://github.com/necessary-nu/pgorm",
       "source": "pgorm workspace",
       "notices": [
         {
@@ -2722,7 +2722,7 @@
       "name": "pgorm-sql-macro",
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/pgorm-rs/pgorm",
+      "repository": "https://github.com/necessary-nu/pgorm",
       "source": "pgorm workspace",
       "notices": [
         {

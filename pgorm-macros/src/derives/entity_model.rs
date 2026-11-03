@@ -758,7 +758,7 @@ pub fn expand_derive_entity_model(
         return Err(syn::Error::new(
             model.span(),
             "Entity must have a primary key column. \
-             See <https://github.com/pgorm-rs/pgorm/issues/485> for details.",
+             See SeaORM's issue 485 <https://github.com/SeaQL/sea-orm/issues/485> for details.",
         ));
     }
 

@@ -9,7 +9,7 @@ before reporting a version-specific issue.
 ## Report a vulnerability
 
 Please do not open a public issue for a suspected vulnerability. Use
-[GitHub's private vulnerability reporting](https://github.com/pgorm-rs/pgorm/security/advisories/new)
+[GitHub's private vulnerability reporting](https://github.com/necessary-nu/pgorm/security/advisories/new)
 so maintainers can investigate and coordinate a fix without exposing users.
 If that channel is unavailable, email `brendan@necessary.nu` with
 `[pgorm security]` in the subject.

@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.89"
 description = "Native Python builders and asynchronous PostgreSQL access through pgorm"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/pgorm-rs/pgorm"
+repository = "https://github.com/necessary-nu/pgorm"
 readme = "README.md"
 
 # [spec:pgorm:req:bindings.optional]

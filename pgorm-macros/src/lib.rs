@@ -137,7 +137,7 @@ pub fn derive_entity_trait(input: TokenStream) -> TokenStream {
 ///
 /// Entity should always have a primary key.
 /// Or, it will result in a compile error.
-/// See <https://github.com/pgorm-rs/pgorm/issues/485> for details.
+/// See SeaORM's issue 485 <https://github.com/SeaQL/sea-orm/issues/485> for details.
 ///
 /// ```compile_fail
 /// use pgorm::entity::prelude::*;
@@ -161,7 +161,7 @@ pub fn derive_entity_trait(input: TokenStream) -> TokenStream {
 /// an `E0433`. There is no `#[pgorm(crate = ...)]` override.
 // [spec:pgorm:def:macros.derive+6]
 // [spec:pgorm:sem:macros.derive.entity-model+9]
-// [spec:pgorm:req:macros.derive.entity-model.reject+3]
+// [spec:pgorm:req:macros.derive.entity-model.reject+4]
 // [spec:pgorm:req:macros.derive.names]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveEntityModel")]

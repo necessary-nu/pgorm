@@ -12,7 +12,7 @@
 //! schema statements built as abstract syntax trees through an ergonomic
 //! API, rendered against the real PostgreSQL grammar.
 //!
-//! pgorm-query is the query layer of [pgorm](https://github.com/pgorm-rs/pgorm),
+//! pgorm-query is the query layer of [pgorm](https://github.com/necessary-nu/pgorm),
 //! an async PostgreSQL ORM for Rust, and lives in the same repository. It is
 //! a hard fork of [SeaQuery](https://github.com/SeaQL/sea-query) by SeaQL,
 //! rebuilt around a single database: everything non-Postgres is deleted, and
@@ -167,8 +167,8 @@
 //! If you're okay with running another procedural macro, you can activate
 //! the `derive` or `attr` feature on the crate to save you some boilerplate.
 //! For more usage information, look at
-//! [the derive examples](https://github.com/pgorm-rs/pgorm/tree/main/pgorm-query/pgorm-query-derive/tests/pass)
-//! or [the attribute examples](https://github.com/pgorm-rs/pgorm/tree/main/pgorm-query/pgorm-query-attr/tests/pass).
+//! [the derive examples](https://github.com/necessary-nu/pgorm/tree/main/pgorm-query/pgorm-query-derive/tests/pass)
+//! or [the attribute examples](https://github.com/necessary-nu/pgorm/tree/main/pgorm-query/pgorm-query-attr/tests/pass).
 //!
 //! ```rust
 //! #[cfg(feature = "derive")]

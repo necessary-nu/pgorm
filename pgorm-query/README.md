@@ -47,6 +47,6 @@ let (sql, values) = query.build();
 ## Use through pgorm
 
 This crate is developed and versioned as part of
-[pgorm](https://github.com/pgorm-rs/pgorm), which re-exports what you need.
+[pgorm](https://github.com/necessary-nu/pgorm), which re-exports what you need.
 It works standalone, but its API tracks pgorm's needs rather than upstream
 sea-query's.
