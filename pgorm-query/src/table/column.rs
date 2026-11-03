@@ -40,8 +40,8 @@ pub trait IntoColumnDef {
 /// | Date                  | date                     |
 /// | Interval              | interval                 |
 /// | Bytea                 | bytea                    |
-/// | Bit                   | bit                      |
-/// | VarBit                | varbit                   |
+/// | Bit                   | bit(n), "bit"            |
+/// | VarBit                | varbit(n)                |
 /// | Boolean               | bool                     |
 /// | Money                 | money                    |
 /// | Json                  | json                     |
@@ -514,7 +514,7 @@ impl ColumnDef {
     /// Set column type as SQL's `char`, which PostgreSQL reads as `char(1)`.
     /// The blank-padded type with no length limit is
     /// `ColumnType::Char(None)`, spelled `bpchar`.
-    // [spec:pgorm:req:sql.ddl.column-types+7]
+    // [spec:pgorm:req:sql.ddl.column-types+8]
     pub fn char(&mut self) -> &mut Self {
         self.types = Some(ColumnType::Char(Some(1)));
         self
@@ -655,13 +655,16 @@ impl ColumnDef {
         self
     }
 
-    /// Set column type as bit with variable length
+    /// Set column type as `bit(n)`, or with `None` as the bit type with no
+    /// length limit, spelled `"bit"`. SQL's bare `bit` is `bit(1)`, so it is
+    /// `bit(Some(1))`.
+    // [spec:pgorm:req:sql.ddl.column-types+8]
     pub fn bit(&mut self, length: Option<u32>) -> &mut Self {
         self.types = Some(ColumnType::Bit(length));
         self
     }
 
-    /// Set column type as varbit with variable length
+    /// Set column type as `varbit(n)`, bit strings of up to `n` bits
     pub fn varbit(&mut self, length: u32) -> &mut Self {
         self.types = Some(ColumnType::VarBit(length));
         self

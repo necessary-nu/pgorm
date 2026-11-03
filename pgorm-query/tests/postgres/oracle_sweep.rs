@@ -827,7 +827,7 @@ fn sweep_schema_object_ddl_shapes() {
 }
 
 // [spec:pgorm:req:sql.render.oracle+4/test]    every `ColumnType` that has a PostgreSQL spelling
-// [spec:pgorm:def:sql.render.ddl.types+7/test]
+// [spec:pgorm:def:sql.render.ddl.types+8/test]
 #[test]
 fn sweep_column_type_vocabulary() {
     let types = [

@@ -4,7 +4,7 @@ use crate::oracle::{assert_eq, assert_eq_unparsed};
 // [spec:pgorm:req:sql.ddl.create-table+16/test]
 // [spec:pgorm:req:sql.ddl.column-def+13/test]
 #[test]
-// [spec:pgorm:def:sql.render.ddl.types+7/test]
+// [spec:pgorm:def:sql.render.ddl.types+8/test]
 fn create_1() {
     assert_eq!(
         Table::create(Glyph::Table)
@@ -115,7 +115,7 @@ fn create_4() {
     );
 }
 
-// [spec:pgorm:req:sql.ddl.column-types+7/test]
+// [spec:pgorm:req:sql.ddl.column-types+8/test]
 #[test]
 fn create_5() {
     assert_eq!(
@@ -133,7 +133,7 @@ fn create_5() {
     );
 }
 
-// [spec:pgorm:req:sql.ddl.column-types+7/test]    `Char(None)` is the unbounded
+// [spec:pgorm:req:sql.ddl.column-types+8/test]    `Char(None)` is the unbounded
 // `bpchar`, and `ColumnDef::char` is SQL's `char`, which PostgreSQL reads as
 // `char(1)`
 #[test]
@@ -145,6 +145,25 @@ fn char_lengths_render_as_postgres_reads_them() {
             .col(ColumnDef::new_with_type(Glyph::Id, ColumnType::Char(None)))
             .to_string(),
         r#"CREATE TABLE "glyph" ( "image" char(1), "aspect" char(3), "id" bpchar )"#
+    );
+}
+
+// [spec:pgorm:req:sql.ddl.column-types+8/test]    `Bit(None)` is the bit type
+// with no length limit, which only the quoted `"bit"` names, since a bare
+// `bit` is `bit(1)`
+#[test]
+fn bit_lengths_render_as_postgres_reads_them() {
+    assert_eq!(
+        Table::create(Glyph::Table)
+            .col(ColumnDef::new(Glyph::Image).bit(None))
+            .col(ColumnDef::new(Glyph::Aspect).bit(Some(1)))
+            .col(ColumnDef::new(Glyph::Id).bit(Some(8)))
+            .col(ColumnDef::new_with_type(
+                Glyph::Tokens,
+                ColumnType::Array(std::sync::Arc::new(ColumnType::Bit(None)))
+            ))
+            .to_string(),
+        r#"CREATE TABLE "glyph" ( "image" "bit", "aspect" bit(1), "id" bit(8), "tokens" "bit"[] )"#
     );
 }
 
@@ -267,7 +286,7 @@ fn create_11() {
     );
 }
 
-// [spec:pgorm:req:sql.ddl.column-types+7/test]
+// [spec:pgorm:req:sql.ddl.column-types+8/test]
 #[test]
 fn create_12() {
     assert_eq!(

@@ -16597,12 +16597,20 @@ children (
         id bit-unbounded-renders-bit-one
         title "An unlengthed Bit column type renders as PostgreSQL reads it, not as bit(1)"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T21:41:31.780712Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by bpchar-unbounded-round-trip (ebba1f67): ColumnType::Bit(None) renders `bit`, which PostgreSQL reads as bit(1), the flaw Char(None) had. Codegen maps no bit column today, so no generated entity is affected, but create_table_from_entity on a Bit(None) column writes bit(1). Decide what Bit(None) means (an unbounded bit string has no spelling in PostgreSQL: `varbit` is the unbounded type, `bit` is always fixed-width), most likely that Bit(None) cannot be written and ColumnDef's bit builder takes a width, and make the rendering say what the type is; live-check format_type for each spelling."
+            }
+
+            {
+                at 2026-11-03T10:13:23.143946Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

@@ -1346,7 +1346,7 @@ impl QueryBuilder {
     }
 
     // [spec:pgorm:sem:sql.ddl.panics+4]
-    // [spec:pgorm:def:sql.render.ddl.types+7] (serial family for auto-increment columns)
+    // [spec:pgorm:def:sql.render.ddl.types+8] (serial family for auto-increment columns)
     fn prepare_column_auto_increment(&self, column_type: &ColumnType, sql: &mut dyn SqlWriter) {
         match column_type.serial_spelling() {
             Some(serial) => write!(sql, "{serial}").unwrap(),
@@ -1410,8 +1410,8 @@ impl QueryBuilder {
         });
     }
 
-    // [spec:pgorm:req:sql.ddl.column-types+7]
-    // [spec:pgorm:def:sql.render.ddl.types+7]
+    // [spec:pgorm:req:sql.ddl.column-types+8]
+    // [spec:pgorm:def:sql.render.ddl.types+8]
     fn prepare_column_type(&self, column_type: &ColumnType, sql: &mut dyn SqlWriter) {
         write!(
             sql,
@@ -1453,12 +1453,13 @@ impl QueryBuilder {
                     typ
                 }
                 ColumnType::Bytea => "bytea".into(),
-                ColumnType::Bit(length) => {
-                    match length {
-                        Some(length) => format!("bit({length})"),
-                        None => "bit".into(),
-                    }
-                }
+                // A bare `bit` is `bit(1)` to PostgreSQL; the bit type with
+                // no length limit has no keyword spelling, only the quoted
+                // type name, which is how `format_type` prints it.
+                ColumnType::Bit(length) => match length {
+                    Some(length) => format!("bit({length})"),
+                    None => r#""bit""#.into(),
+                },
                 ColumnType::VarBit(length) => {
                     format!("varbit({length})")
                 }

@@ -846,7 +846,7 @@ fn rendered_ddl_round_trips_through_the_bridge() {
 // [spec:pgorm:sem:codegen.ddl.types+10/test]    each of these variants has a
 // spelling no other shares, so each reads back as itself, the unbounded
 // `bpchar` beside `char(1)` among them
-// [spec:pgorm:req:sql.ddl.column-types+7/test]
+// [spec:pgorm:req:sql.ddl.column-types+8/test]
 #[test]
 fn one_spelling_one_variant_round_trips() {
     let statements = || {
@@ -873,6 +873,42 @@ fn one_spelling_one_variant_round_trips() {
     assert_eq!(
         from_sql(&text).files,
         generate(statements(), Opts::default()).files
+    );
+}
+
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    the unlengthed bit type,
+// rendered `"bit"`, reads back as itself, and a bare `bit` as the grammar
+// reads it, `bit(1)`
+// [spec:pgorm:req:sql.ddl.column-types+8/test]
+#[test]
+fn bit_spellings_read_back_as_themselves() {
+    let table = keyed_with(
+        "flags",
+        &["id"],
+        vec![
+            serial("id"),
+            typed("free", ColumnType::Bit(None)),
+            typed("one", ColumnType::Bit(Some(1))),
+            typed("eight", ColumnType::Bit(Some(8))),
+            typed("vary", ColumnType::VarBit(8)),
+        ],
+    );
+    let tables = parse_schema(&format!("{table};")).expect("schema should parse");
+    assert_eq!(
+        tables.iter().map(ToString::to_string).collect::<Vec<_>>(),
+        [table.to_string()]
+    );
+
+    let bare =
+        parse_schema("CREATE TABLE t (b bit, q pg_catalog.bit);").expect("schema should parse");
+    let types: Vec<_> = bare[0]
+        .get_columns()
+        .iter()
+        .map(|column| column.get_column_type().cloned())
+        .collect();
+    assert_eq!(
+        types,
+        [Some(ColumnType::Bit(Some(1))), Some(ColumnType::Bit(None))]
     );
 }
 

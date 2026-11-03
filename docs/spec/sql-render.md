@@ -1135,7 +1135,7 @@ an ideal Postgres renderer would emit.
 
 ## DDL
 
-> [spec:pgorm:def:sql.render.ddl.types+7]
+> [spec:pgorm:def:sql.render.ddl.types+8]
 > `prepare_column_type` defines the Rust-side `ColumnType` → PostgreSQL type
 > name mapping (all lowercase): Char(n) → `char(n)`/`bpchar`, the latter
 > the type with no length limit, since a bare `char` is `char(1)`
@@ -1148,7 +1148,9 @@ an ideal Postgres renderer would emit.
 > `interval <fields>` per `IntervalSpec`, the fractional-seconds precision
 > spelled by the second-bearing field itself (`interval HOUR TO SECOND(3)`);
 > Bytea →
-> `bytea`; Bit → `bit(n)`/`bit`; VarBit → `varbit(n)`; Boolean → `bool`;
+> `bytea`; Bit → `bit(n)`/`"bit"`, the latter the bit type with no length
+> limit, since a bare `bit` is `bit(1)` (`sql.ddl.column-types`); VarBit →
+> `varbit(n)`; Boolean → `bool`;
 > Money → `money`; Json → `json`; JsonBinary → `jsonb`; Uuid →
 > `uuid`; Array(t) → recursive element type plus `[]`; Vector →
 > `vector(n)`/`vector`; Cidr → `cidr`; Inet → `inet`; MacAddr → `macaddr`;
