@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-03T02:38:07.698992Z
+last_sync_at 2026-11-03T03:28:07.911135Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -120,7 +120,7 @@ rule_versions (
     {id conn.tx.guard, version 3}
     {id conn.tx.retry, version 3}
     {id disjoint.declare, version 2}
-    {id disjoint.read, version 0}
+    {id disjoint.read, version 1}
     {id disjoint.schema, version 1}
     {id disjoint.write, version 0}
     {id entity.active-model, version 4}
@@ -554,6 +554,7 @@ derived_priorities (
     {id derives.expanded, priority 0, derived_at 2026-11-02T14:23:29.374268Z}
     {id derives.names, priority 2, derived_at 2026-11-02T14:23:29.374268Z}
     {id derives.paths, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
+    {id disjoint-key-shapes-refused, priority 3, derived_at 2026-11-03T03:28:07.911135Z}
     {id disjoint.bindings, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
     {id disjoint.codegen, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
     {id disjoint.codegen-unkinded, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
@@ -577,7 +578,7 @@ derived_priorities (
     {id empty-insert-batch, priority 3, derived_at 2026-09-07T15:33:15.757479Z}
     {id entity-relation-not-enforced, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
     {id entity-temporal-keys, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
-    {id enum-label-length, priority 0, derived_at 2026-11-03T02:37:21.256576Z}
+    {id enum-label-length, priority 0, derived_at 2026-11-03T03:01:26.071998Z}
     {id enum-schema-codegen, priority 1, derived_at 2026-09-07T15:33:15.757479Z}
     {id enum-schema-surface, priority 0, derived_at 2026-09-07T15:33:15.757479Z}
     {id ergo.eq-any, priority 0, derived_at 2026-09-04T14:19:01.307427Z}
@@ -835,6 +836,7 @@ derived_priorities (
     {id python.transactions, priority 3, derived_at 2026-09-08T15:34:01.846701Z}
     {id python.typing, priority 3, derived_at 2026-09-08T15:34:01.846701Z}
     {id python.values, priority 2, derived_at 2026-09-08T15:34:01.846701Z}
+    {id qualified-enum-type-quoting, priority 0, derived_at 2026-11-03T03:28:07.911135Z}
     {id quantifier-beyond-comparisons, priority 1, derived_at 2026-10-26T20:21:09.753689Z}
     {id query-aggregate-modifiers, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id query-bound-quoting-contract, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
@@ -871,6 +873,7 @@ derived_priorities (
     {id schema-enum-arrays, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id schema-enum-dedup, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id schema-fk-domain-enum, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
+    {id schema-gen-name-bounds, priority 0, derived_at 2026-11-03T03:28:07.911135Z}
     {id schema-statement-wrapper, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id scope-array-subscripts, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id scope-collate, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
@@ -1879,6 +1882,11 @@ impl_evidence (
         disjoint.declare
     ), covered_claims (
         {impl_name main, rule disjoint.declare}
+    )}
+    {id disjoint.read, covered_rules (
+        disjoint.read
+    ), covered_claims (
+        {impl_name main, rule disjoint.read}
     )}
     {id disjoint.schema, covered_rules (
         disjoint.schema

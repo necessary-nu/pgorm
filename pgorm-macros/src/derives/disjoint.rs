@@ -311,9 +311,12 @@ fn impl_disjoint(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> 
             None => quote!(),
         })
         .collect();
-    let visits = kinds.iter().map(|kind| match &kind.payload {
-        Some(payload) => quote_spanned! {payload.span()=> visitor.table::<#payload>(kind) },
-        None => quote!(visitor.unit(kind)),
+    let visits = kinds.iter().map(|kind| {
+        let variant = &kind.variant;
+        match &kind.payload {
+            Some(payload) => quote_spanned! {payload.span()=> visitor.table::<#payload>(kind) },
+            None => quote!(visitor.unit(Self::#variant)),
+        }
     });
     let active_visits = kinds.iter().map(|kind| {
         let variant = &kind.variant;

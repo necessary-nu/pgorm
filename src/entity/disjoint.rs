@@ -1,6 +1,7 @@
 use crate::{
-    ActiveEnum, ColumnTrait, ColumnType, EntityName, EntityTrait, Error, Iterable, ModelTrait,
-    PrimaryKeyToColumn, PrimaryKeyTrait, StaticName, entity::ColumnDefault,
+    ActiveEnum, ColumnTrait, ColumnType, EntityName, EntityTrait, Error, FromQueryResult,
+    IntoPrimaryKey, Iterable, ModelTrait, PrimaryKeyToColumn, PrimaryKeyTrait, SelectDisjoint,
+    StaticName, entity::ColumnDefault,
 };
 use std::{fmt::Debug, hash::Hash};
 
@@ -43,8 +44,30 @@ pub trait Disjoint: Sized + Send {
 
     /// Call `visitor` for `kind`: [`KindVisitor::table`] with the `Model` of
     /// the kind's entity for a kind with a table, or [`KindVisitor::unit`]
-    /// for one with none.
+    /// with the kind's value for one with none.
     fn visit_kind<V: KindVisitor<Self>>(kind: Self::Kind, visitor: V) -> V::Output;
+
+    /// Read every base row with its kind's row, each as the pair
+    /// `(base::Model, Self)`, in one statement: the base `LEFT JOIN`ed to each
+    /// kind's table on the key.
+    ///
+    /// The read takes what a [`Select`](crate::Select) of the base takes; see
+    /// [`SelectDisjoint`].
+    // [spec:pgorm:sem:disjoint.read+1]
+    fn find() -> SelectDisjoint<Self> {
+        SelectDisjoint::of(Self::Base::find())
+    }
+
+    /// [`find`](Self::find) narrowed to the base row of one key, composite
+    /// keys included, their parts borrowed as
+    /// [`EntityTrait::find_by_id`] takes them.
+    // [spec:pgorm:sem:disjoint.read+1]
+    fn find_by_id<T>(key: T) -> SelectDisjoint<Self>
+    where
+        T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+    {
+        SelectDisjoint::of(Self::Base::find_by_id(key))
+    }
 }
 
 /// The `Model` of a kind's entity: what one variant of `D` holds.
@@ -55,6 +78,10 @@ pub trait Disjoint: Sized + Send {
 /// impl, so an enum holding it does not compile; neither does an enum holding
 /// one model in two variants, which would be two impls of this trait for one
 /// type.
+///
+/// It decodes from a row, as every entity's `Model` does, and is required to
+/// here because a bound on its entity's `Model` is not one on the type
+/// itself: a read decodes a kind's joined row through this trait.
 // [spec:pgorm:def:disjoint.declare+2]
 #[diagnostic::on_unimplemented(
     message = "`{Self}` is not the `Model` of one of `{D}`'s kinds",
@@ -62,13 +89,13 @@ pub trait Disjoint: Sized + Send {
 )]
 pub trait KindModel<D: Disjoint>:
     ModelTrait<
-    Entity: EntityTrait<
-        Model = Self,
-        PrimaryKey: PrimaryKeyTrait<
-            ValueType = <<D::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType,
+        Entity: EntityTrait<
+            Model = Self,
+            PrimaryKey: PrimaryKeyTrait<
+                ValueType = <<D::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType,
+            >,
         >,
-    >,
->
+    > + FromQueryResult
 {
     /// The kind whose rows this model is.
     const KIND: D::Kind;
@@ -86,8 +113,9 @@ pub trait KindVisitor<D: Disjoint> {
     /// A kind with a table, whose rows are `M`s of the entity `M::Entity`.
     fn table<M: KindModel<D>>(self, kind: D::Kind) -> Self::Output;
 
-    /// A kind with no table of its own.
-    fn unit(self, kind: D::Kind) -> Self::Output;
+    /// A kind with no table of its own, given as its one value, whose
+    /// [`kind`](Disjoint::kind) it is.
+    fn unit(self, value: D) -> Self::Output;
 }
 
 /// `<Enum>ActiveModel`: a value of a disjoint entity to write, each kind with
@@ -208,7 +236,7 @@ impl<D: Disjoint> KindVisitor<D> for UngeneratedKey {
         }
     }
 
-    fn unit(self, _: D::Kind) -> Result<(), Error> {
+    fn unit(self, _: D) -> Result<(), Error> {
         Ok(())
     }
 }
