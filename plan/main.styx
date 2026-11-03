@@ -16728,4 +16728,18 @@ children (
             }
         )
     }
+
+    {
+        id codegen-enum-variant-names
+        title "Generated disjoint enums compile clippy-clean whatever their tables are named"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T08:39:56.190722Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.codegen-unkinded (30391b0c): a generated disjoint enum can trip clippy::enum_variant_names when the generated module is private — kind table web_shop under base shop becomes Shop::WebShop, a variant ending in the enum's name — so a downstream crate running clippy -D warnings fails on code it did not write. The kinded generator has the same exposure. Decide between emitting #[allow(clippy::enum_variant_names)] on the generated enum (generated code the user does not hand-edit, as other generators do) and renaming, and test with a fixture whose table names trigger it, under clippy -D warnings."
+            }
+        )
+    }
 )
