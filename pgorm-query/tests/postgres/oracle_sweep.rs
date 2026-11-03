@@ -546,7 +546,7 @@ fn sweep_merge_shapes() {
 
 // [spec:pgorm:req:sql.render.oracle+4/test]    table DDL
 // [spec:pgorm:req:sql.ddl.create-table+16/test]
-// [spec:pgorm:req:sql.ddl.alter-table+13/test]
+// [spec:pgorm:req:sql.ddl.alter-table+14/test]
 #[test]
 fn sweep_table_ddl_shapes() {
     sweep([
@@ -599,6 +599,16 @@ fn sweep_table_ddl_shapes() {
             .set_expression(Glyph::Aspect, Expr::col(Glyph::Id).add(1))
             .drop_expression(Glyph::Tokens)
             .drop_expression_if_exists(Glyph::Image)
+            .to_string(),
+        Table::alter(Glyph::Table)
+            .drop_default(Glyph::Image)
+            .alter_column_type_using(
+                Glyph::Image,
+                ColumnType::named("image_kind"),
+                Expr::col(Glyph::Image)
+                    .cast_as(Name::runtime("text"))
+                    .cast_as(Name::runtime("image_kind")),
+            )
             .to_string(),
         Table::create(Glyph::Table)
             .col(

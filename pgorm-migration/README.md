@@ -35,7 +35,9 @@ impl MigrationTrait for Migration {
 pool's statements and notifying as it does at the end of a batch, and runs
 the rest in a new transaction that takes the advisory lock again. A failure
 after the commit rolls back only that transaction: the migrations before it
-stay applied, and the next `up` resumes after them.
+stay applied, and the next `up` resumes after them. `pgorm::Schema`'s changes
+to a disjoint entity's kinds come as steps written to run this way, one
+migration each, every step but the last answering `true`.
 
 ## Migrations written as SQL
 

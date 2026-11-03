@@ -314,7 +314,7 @@ has a row for it, and is never written through.
 
 ## Changing the kinds
 
-> [spec:pgorm:sem:disjoint.evolve]
+> [spec:pgorm:sem:disjoint.evolve+1]
 > A change to a kinded disjoint entity's kinds after its tables exist MUST be
 > written by `Schema` from the declaration as it will be, as a
 > `DisjointChange`: an ordered list of steps, each a list of statements that
@@ -323,33 +323,47 @@ has a row for it, and is never written through.
 > Each statement names the constraints and generated columns it alters by the
 > names `[spec:pgorm:sem:disjoint.schema]` gives them. Run through
 > pgorm-migration, each step is one migration and every step but the last
-> answers `commits_after()` (`[spec:pgorm:req:migration.commit-after]`).
+> answers `commits_after()` (`[spec:pgorm:req:migration.commit-after]`). Each
+> function is the `DisjointShape` method of the same change over
+> `DisjointShape::of::<E>()` — `add_kind`, `add_kind_recreating`,
+> `remove_kind`, `add_kind_table` and `remove_kind_table`, each taking the
+> kind's value — so a declaration described at run time has them too.
 >
 > - `Schema::add_disjoint_kind::<E>(kind)` MUST add a kind the declaration
 >   holds and the database does not, in two steps: `ALTER TYPE ... ADD VALUE`
->   placed where the kind stands in declaration order (`BEFORE` or `AFTER` a
->   neighbour); then, for a kind with a table, that table as
->   `create_disjoint` writes it and the base's generated key columns and
->   foreign key for it. Two steps because PostgreSQL refuses to use an added
->   value before the transaction that added it commits, and both the kind
->   table's constant kind column and the base's generated columns use it. No
->   existing table is rewritten except to add the base's generated columns.
+>   placed where the kind stands in declaration order, `AFTER` the kind
+>   declared before it, or `BEFORE` the one after it when it is the first;
+>   then, for a kind with a table, that table as `create_disjoint` writes it
+>   and the base's generated key columns and foreign key for it. Two steps
+>   because PostgreSQL refuses to use an added value before the transaction
+>   that added it commits, and both the kind table's constant kind column and
+>   the base's generated columns use it; a kind without a table uses it
+>   nowhere, and its change is the first step alone. No existing table is
+>   rewritten except to add the base's generated columns.
 > - `Schema::add_disjoint_kind_recreating::<E>(kind)` MUST make the same
 >   change in one step that rewrites the tables instead: a new enum type with
->   every value in declaration order, the base's and each kind table's kind
->   column retyped to it, the disjoint constraints and generated columns
->   dropped first and written again after, the old type dropped and the new
->   one renamed to the old name. It takes an exclusive lock on the base and on
->   every kind table for as long as the rewrite runs, which is the price of
->   one atomic migration.
+>   every value in declaration order, named as the kind type with `_next`
+>   appended in its schema and bounded to 63 bytes as the schema's names are,
+>   the base's and each kind table's kind column retyped to it, the disjoint
+>   constraints and generated columns dropped first and written again after,
+>   the old type dropped and the new one renamed to the old name. The base's
+>   kind column is retyped `USING` its text, no cast joining two enum types
+>   (`42804`), after its default is dropped, which PostgreSQL would otherwise
+>   refuse to cast as well, and the declaration's is set again after the
+>   rename. A kind table's kind column is a generated column, which
+>   PostgreSQL retypes by no `USING` (`42611`), so it is among the generated
+>   columns dropped and written again, of the new type. It takes an exclusive
+>   lock on the base and on every kind table for as long as the rewrite runs,
+>   which is the price of one atomic migration.
 > - `Schema::remove_disjoint_kind::<E>(value)` MUST remove a value the
 >   database's kind type holds and the declaration does not, by the recreating
 >   route, there being no `ALTER TYPE ... DROP VALUE`. Its first statement
 >   MUST fail while any base row still has that kind — a `CHECK` on the base
->   refusing the value, added and so validated against every row, then
->   dropped — so the change applies to an entity with no such rows or not at
->   all. A kind with a table loses its table only through
->   `remove_disjoint_kind_table`, which comes first.
+>   refusing the value, named `ck-{base}-{kind column}-{value}` as the
+>   schema's names are composed and bounded, added and so validated against
+>   every row (`23514`), then dropped — so the change applies to an entity
+>   with no such rows or not at all. A kind with a table loses its table only
+>   through `remove_disjoint_kind_table`, which comes first.
 > - `Schema::add_disjoint_kind_table::<E>(kind)` MUST give a kind the
 >   database holds as a unit kind the table the declaration now gives it, in
 >   two steps with a gap for the program between them: the table, and the
@@ -357,10 +371,12 @@ has a row for it, and is never written through.
 >   every base row of that kind lacks its row until the program writes them;
 >   then, once it has, `VALIDATE CONSTRAINT`, which refuses the change if any
 >   row is still missing.
-> - `Schema::remove_disjoint_kind_table::<E>(kind)` MUST drop a kind's table
->   and the base's generated key columns and foreign key for it, turning it
->   into a unit kind, in one step. It discards every row of that table, so it
->   exists only as its own call, never as a side effect of another change.
+> - `Schema::remove_disjoint_kind_table::<E>(kind, table)` MUST drop the
+>   kind's table, `table`, and the base's generated key columns and foreign
+>   key for it, turning it into a unit kind, in one step. The table is an
+>   argument because the declaration as it will be no longer names it. It
+>   discards every row of that table, so it exists only as its own call,
+>   never as a side effect of another change.
 >
 > Every function runs `check_disjoint` on the declaration first, refuses a
 > change the declaration does not describe (a kind added that it does not

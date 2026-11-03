@@ -498,16 +498,17 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > bare `bit` being `bit(Some(1))`, and the Python and JavaScript `DataType`
 > `"bit"` with no length is `bit(1)`. `VarBit(n)` is `varbit(n)`.
 
-> [spec:pgorm:req:sql.ddl.alter-table+13]
+> [spec:pgorm:req:sql.ddl.alter-table+14]
 > `TableAlterStatement` names one table and collects `TableAlterOption`s:
-> `AddColumn` (with an `if_not_exists` flag), `ModifyColumn`, `DropColumn`,
-> `AddForeignKey`, `DropConstraint`, `AddPrimaryKey`, `AddUnique`,
-> `SetExpression`, `DropExpression` (with an `if_exists` flag), `AddNotNull`,
-> `AddCheck`, `ValidateConstraint` and `AlterConstraint`. Both the
+> `AddColumn` (with an `if_not_exists` flag), `ModifyColumn`,
+> `AlterColumnTypeUsing`, `DropDefault`, `DropColumn`, `AddForeignKey`,
+> `DropConstraint`, `AddPrimaryKey`, `AddUnique`, `SetExpression`,
+> `DropExpression` (with an `if_exists` flag), `AddNotNull`, `AddCheck`,
+> `ValidateConstraint` and `AlterConstraint`. Both the
 > table and a first option are structural rather than checked:
 > `Table::alter(table)` yields a `PendingTableAlter`, which is a named table and
 > nothing more — it implements no build path and cannot render — and each of
-> its fifteen action methods consumes it
+> its seventeen action methods consumes it
 > and returns the statement, whose own methods append the rest. PostgreSQL parses
 > neither `ALTER TABLE "font"` nor `ALTER TABLE ADD COLUMN ...`, and neither MUST
 > be constructible (`[dec:pgorm:invalid-states-unrepresentable]`); the
@@ -616,6 +617,21 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > would. The two differ over a constraint that is still `NOT VALID`: `SET NOT
 > NULL` validates the one it finds, keeping its name, where the `ADD` is
 > refused (`55000`).
+>
+> `alter_column_type_using(c, type, expr)`, on both types, renders `ALTER
+> COLUMN "c" TYPE <type> USING <expr>`: the column retyped, each row's new
+> value computed by the expression from the row as it was. It is how a column
+> is retyped where no assignment cast joins its type to the new one, which
+> `modify_column`'s retype, having no place for an expression, leaves to the
+> server to refuse (`42804`): between two enum types, `USING
+> CAST(CAST("c" AS text) AS <type>)`. PostgreSQL refuses a `USING` on a
+> generated column (`42611`), whose values its expression computes, and a
+> default it cannot cast to the new type (`42804`), so a column with one is
+> retyped after `drop_default(c)`, on both types, which renders `ALTER COLUMN
+> "c" DROP DEFAULT` and leaves a column with no default as it is, and is
+> given its default again after. The live suite holds each: the values
+> converted through the expression, the retype refused with a default and
+> taken once it is dropped, and the generated column refused.
 >
 > `add_not_null(constraint)`, on both types, takes a `NotNullConstraint`:
 > PostgreSQL 18's table-level `NOT NULL`, over one column the constructor

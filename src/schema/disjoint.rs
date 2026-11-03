@@ -14,7 +14,7 @@ use crate::{
 };
 use pgorm_query::{
     ColumnDef, ConditionType, Deferrability, Expr, ForeignKeyAction, FromItem, GeneratedKind, Name,
-    Table, TableAlterStatement, TableCreateStatement, TableKey, TableName,
+    Table, TableAlterStatement, TableCreateStatement, TableForeignKey, TableKey, TableName, Unique,
 };
 use std::iter;
 
@@ -80,25 +80,11 @@ impl DisjointShape {
         self.check()?;
         self.keyable()?;
         let base = BaseTable::of(self, kinded);
-        let kinds = self
-            .kinds
-            .iter()
-            .filter_map(|kind| kind.table.as_ref().map(|table| (kind, table)))
-            .map(|(kind, table)| kind_table(&base, kind, table))
-            .collect::<Result<Vec<_>, Error>>()?;
-        let alter = base.alter(&kinds)?;
+        let kinds = base.kind_tables(self)?;
+        let alter = base.alter(&base.kind_keys(&kinds)?, false);
 
         let mut create = body(&self.base, &|_| true)?;
-        create.unique(
-            TableKey::new(Name::runtime(base.key.first.clone()))
-                .cols(base.key.rest.iter().cloned().map(Name::runtime))
-                .col(Name::runtime(base.kind.clone()))
-                .name(Name::runtime(derived_name(
-                    "uq",
-                    &base.name,
-                    base.key.iter().chain([base.kind.as_str()]),
-                ))),
-        );
+        create.unique(base.unique());
         let kind_type = create_enum_from_column_type(&kinded.kind_type).ok_or_else(|| {
             Error::Type(format!(
                 "the kind type of the disjoint entity over `{}` is not a database enum, so \
@@ -159,19 +145,19 @@ fn body(
 /// What every kind's table is written against: the base's table, key and
 /// kind column.
 // [spec:pgorm:sem:disjoint.schema+2]
-struct BaseTable {
-    table: TableName,
-    name: String,
+pub(super) struct BaseTable {
+    pub(super) table: TableName,
+    pub(super) name: String,
     label: String,
     key: KeyColumns,
     key_types: Vec<ColumnType>,
-    kind: String,
+    pub(super) kind: String,
     kind_type: ColumnType,
     declared: Vec<String>,
 }
 
 impl BaseTable {
-    fn of(shape: &DisjointShape, kinded: &KindedBy) -> Self {
+    pub(super) fn of(shape: &DisjointShape, kinded: &KindedBy) -> Self {
         let base = &shape.base;
         Self {
             table: base.table.clone(),
@@ -188,21 +174,61 @@ impl BaseTable {
         }
     }
 
-    /// The `ALTER TABLE` adding to the base, for each kind with a table, one
-    /// generated column per key column, null for every other kind, and a
-    /// foreign key from them to the kind's table: refused when a name it adds
-    /// is taken, and absent when no kind has a table.
+    /// Each kind with a table, in declaration order, its table written
+    /// against the base.
     // [spec:pgorm:sem:disjoint.schema+2]
-    fn alter(&self, kinds: &[KindTable]) -> Result<Option<TableAlterStatement>, Error> {
+    pub(super) fn kind_tables(&self, shape: &DisjointShape) -> Result<Vec<KindTable>, Error> {
+        shape
+            .kinds
+            .iter()
+            .filter_map(|kind| kind.table.as_ref().map(|table| (kind, table)))
+            .map(|(kind, table)| kind_table(self, kind, table))
+            .collect()
+    }
+
+    /// The base's `UNIQUE` key on its key columns and its kind column, which
+    /// each kind table's foreign key references.
+    // [spec:pgorm:sem:disjoint.schema+2]
+    pub(super) fn unique(&self) -> TableKey<Unique> {
+        TableKey::new(Name::runtime(self.key.first.clone()))
+            .cols(self.key.rest.iter().cloned().map(Name::runtime))
+            .col(Name::runtime(self.kind.clone()))
+            .name(Name::runtime(self.unique_name()))
+    }
+
+    pub(super) fn unique_name(&self) -> String {
+        derived_name(
+            "uq",
+            &self.name,
+            self.key.iter().chain([self.kind.as_str()]),
+        )
+    }
+
+    /// The names of the generated key columns the base holds for the kind
+    /// `value`, and of their foreign key to the kind's table.
+    // [spec:pgorm:sem:disjoint.schema+2]
+    pub(super) fn generated(&self, value: &str) -> Generated {
+        let columns = self
+            .key
+            .map(|column| bounded_identifier(format!("{value}_{column}")));
+        Generated {
+            name: derived_name("fk", &self.name, columns.iter()),
+            columns,
+        }
+    }
+
+    /// For each of `kinds`, one generated column per key column, null for
+    /// every other kind, and a foreign key from them to the kind's table:
+    /// refused when a name added is taken.
+    // [spec:pgorm:sem:disjoint.schema+2]
+    pub(super) fn kind_keys(&self, kinds: &[KindTable]) -> Result<Vec<KindKeys>, Error> {
         let mut added: Vec<(String, String)> = Vec::new();
-        let mut columns = Vec::new();
         let mut keys = Vec::new();
         for kind in kinds {
-            let generated = self
-                .key
-                .map(|column| bounded_identifier(format!("{}_{column}", kind.value)));
+            let generated = self.generated(&kind.value);
+            let mut columns = Vec::new();
             let sources = self.key.iter().zip(&self.key_types);
-            for (name, (column, column_type)) in generated.iter().zip(sources) {
+            for (name, (column, column_type)) in generated.columns.iter().zip(sources) {
                 let origin = format!("the key column `{column}` of the kind `{}`", kind.value);
                 self.refuse_taken(name, &origin, &added)?;
                 let mut def = ColumnDef::new_with_type(Name::runtime(name), column_type.clone());
@@ -217,27 +243,46 @@ impl BaseTable {
                 columns.push(def);
                 added.push((name.to_owned(), origin));
             }
-            let name = derived_name("fk", &self.name, generated.iter());
-            keys.push(deferrable_key(
+            let foreign_key = TableForeignKey::from(deferrable_key(
                 self.table.clone(),
                 kind.table.clone(),
-                generated.pairs(&kind.key),
-                name,
+                generated.columns.pairs(&kind.key),
+                generated.name.clone(),
                 None,
             ));
+            keys.push(KindKeys {
+                generated,
+                columns,
+                foreign_key,
+            });
         }
-        let mut columns = columns.into_iter();
-        let Some(first) = columns.next() else {
-            return Ok(None);
-        };
-        let mut alter = Table::alter(self.table.clone()).add_column(first);
+        Ok(keys)
+    }
+
+    /// The `ALTER TABLE` adding to the base the generated key columns and
+    /// foreign keys of `keys`, the keys `NOT VALID` where `not_valid` says
+    /// so, or `None` when `keys` adds none.
+    // [spec:pgorm:sem:disjoint.schema+2]
+    pub(super) fn alter<'k>(
+        &self,
+        keys: impl IntoIterator<Item = &'k KindKeys>,
+        not_valid: bool,
+    ) -> Option<TableAlterStatement> {
+        let keys: Vec<&KindKeys> = keys.into_iter().collect();
+        let mut columns = keys.iter().flat_map(|keys| keys.columns.iter().cloned());
+        let mut alter = Table::alter(self.table.clone()).add_column(columns.next()?);
         for column in columns {
             alter.add_column(column);
         }
-        for key in keys {
-            alter.add_foreign_key(key);
+        for keys in keys {
+            let foreign_key = keys.foreign_key.clone();
+            if not_valid {
+                alter.add_foreign_key(foreign_key.not_valid());
+            } else {
+                alter.add_foreign_key(foreign_key);
+            }
         }
-        Ok(Some(alter))
+        Some(alter)
     }
 
     /// Refuse `name`, the column generated for `origin`, when the base
@@ -266,13 +311,33 @@ impl BaseTable {
     }
 }
 
-/// A kind with a table: its value, its table and key, and the statement
-/// creating the table.
-struct KindTable {
-    value: String,
-    table: TableName,
+/// A kind with a table: its value, its table and key, the statement
+/// creating the table, and the table's kind column and foreign key to the
+/// base, which that statement holds.
+pub(super) struct KindTable {
+    pub(super) value: String,
+    pub(super) table: TableName,
+    pub(super) label: String,
     key: KeyColumns,
-    create: TableCreateStatement,
+    pub(super) create: TableCreateStatement,
+    pub(super) kind_column: ColumnDef,
+    pub(super) key_name: String,
+    pub(super) foreign_key: TableForeignKey,
+}
+
+/// The names of the base's generated key columns for one kind, in key
+/// order, and of their foreign key to the kind's table.
+pub(super) struct Generated {
+    pub(super) columns: KeyColumns,
+    pub(super) name: String,
+}
+
+/// The base's generated key columns for one kind with a table, and their
+/// foreign key to it.
+pub(super) struct KindKeys {
+    pub(super) generated: Generated,
+    columns: Vec<ColumnDef>,
+    foreign_key: TableForeignKey,
 }
 
 /// `kind`'s table written against the base.
@@ -296,33 +361,41 @@ fn kind_table(
     let mut kind_column =
         ColumnDef::new_with_type(Name::runtime(base.kind.clone()), base.kind_type.clone());
     kind_column.generated(Expr::val(value.clone()), GeneratedKind::Stored);
-    create.col(&mut kind_column);
+    create.col(kind_column.clone());
     let name = derived_name(
         "fk",
         &table.name().to_string(),
         key.iter().chain([base.kind.as_str()]),
     );
-    create.foreign_key(deferrable_key(
-        table.table.clone(),
-        base.table.clone(),
-        key.pairs(&base.key).and(
-            Name::runtime(base.kind.clone()),
-            Name::runtime(base.kind.clone()),
-        ),
-        name,
-        Some(ForeignKeyAction::Cascade),
-    ));
+    let foreign_key = || {
+        deferrable_key(
+            table.table.clone(),
+            base.table.clone(),
+            key.pairs(&base.key).and(
+                Name::runtime(base.kind.clone()),
+                Name::runtime(base.kind.clone()),
+            ),
+            name.clone(),
+            Some(ForeignKeyAction::Cascade),
+        )
+    };
+    create.foreign_key(foreign_key());
+    let foreign_key = TableForeignKey::from(foreign_key());
     Ok(KindTable {
         value,
         table: table.table.clone(),
+        label: table.label.clone(),
         key,
         create,
+        kind_column,
+        key_name: name,
+        foreign_key,
     })
 }
 
 /// A key's column names in order, the first held apart because every key
 /// has one.
-struct KeyColumns {
+pub(super) struct KeyColumns {
     first: String,
     rest: Vec<String>,
 }
@@ -337,7 +410,7 @@ impl KeyColumns {
         }
     }
 
-    fn iter(&self) -> impl Iterator<Item = &str> {
+    pub(super) fn iter(&self) -> impl Iterator<Item = &str> {
         iter::once(self.first.as_str()).chain(self.rest.iter().map(String::as_str))
     }
 

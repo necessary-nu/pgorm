@@ -1221,3 +1221,78 @@ async fn every_commit_clears_and_notifies() -> Result<(), Error> {
     ctx.delete().await;
     Ok(())
 }
+
+/// A kind with a table added to a disjoint entity through the runner: the two
+/// steps `add_disjoint_kind` writes run as two migrations of one batch, the
+/// first answering `commits_after()`, so the second uses the value the first
+/// added. The entity then writes and reads the new kind beside the old.
+// [spec:pgorm:sem:disjoint.evolve+1/test]    each step one migration, every step but the last
+// answering `commits_after()`
+// [spec:pgorm:req:migration.commit-after/test]    a batch running the steps of a change
+#[tokio::test]
+async fn a_disjoint_kind_is_added_through_the_runner() -> Result<(), Error> {
+    use common::migrator::disjoint::{
+        Created, Fleet, FleetActiveModel, Vanned, VannedFleet, VannedFleetActiveModel, car, fleet,
+        van, vanned_fleet,
+    };
+    use pgorm::{Disjoint, QueryOrder, set};
+
+    let ctx = TestContext::new("pgorm_migration_disjoint_kind").await;
+    let db = &ctx.db;
+
+    Created::up(db.clone(), None).await?;
+    let conn = db.get().await?;
+    let (sedan, _) = Fleet::insert(
+        fleet::ActiveModel {
+            name: set("sedan"),
+            ..Default::default()
+        },
+        FleetActiveModel::Car(car::ActiveModel {
+            seats: set(5_i16),
+            ..Default::default()
+        }),
+    )?
+    .exec_returning_model(&conn)
+    .await?;
+    drop(conn);
+
+    Vanned::up(db.clone(), None).await?;
+    assert_eq!(count_rows(db, "pgorm_migrations").await?, 3);
+    let conn = db.get().await?;
+    let (camper, _) = VannedFleet::insert(
+        vanned_fleet::ActiveModel {
+            name: set("camper"),
+            ..Default::default()
+        },
+        VannedFleetActiveModel::Van(van::ActiveModel {
+            doors: set(4_i16),
+            ..Default::default()
+        }),
+    )?
+    .exec_returning_model(&conn)
+    .await?;
+    let read: Vec<VannedFleet> = VannedFleet::find()
+        .order_by_asc(vanned_fleet::Column::Id)
+        .all(&conn)
+        .await?
+        .into_iter()
+        .map(|(_, value)| value)
+        .collect();
+    assert_eq!(
+        read,
+        [
+            VannedFleet::Car(car::Model {
+                id: sedan.id,
+                seats: 5
+            }),
+            VannedFleet::Van(van::Model {
+                id: camper.id,
+                doors: 4
+            }),
+        ]
+    );
+    drop(conn);
+
+    ctx.delete().await;
+    Ok(())
+}

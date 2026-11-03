@@ -1,6 +1,7 @@
 pub mod abort;
 pub mod commit_after;
 pub mod default;
+pub mod disjoint;
 pub mod domain_default;
 pub mod ledger_schema;
 pub mod override_migration_table_name;
