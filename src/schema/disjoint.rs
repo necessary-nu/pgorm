@@ -256,7 +256,7 @@ impl<D: Disjoint> KindVisitor<D> for KindTableOf<'_> {
         }))
     }
 
-    fn unit(self, _: D::Kind) -> Self::Output {
+    fn unit(self, _: D) -> Self::Output {
         Ok(None)
     }
 }

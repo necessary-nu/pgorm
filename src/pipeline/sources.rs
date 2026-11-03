@@ -13,7 +13,8 @@ use std::fmt;
 
 use pgorm_query::{Name, SqlName, Values};
 
-use crate::query::graph::{source_column_alias, source_read_cast};
+use crate::executor::result_name::result_column_name;
+use crate::query::graph::{source_prefix, source_read_cast};
 use crate::{
     ConnectionTrait, EntityTrait, Error, FromQueryResult, Iterable, QueryResult, SelectorRaw,
     SelectorTrait, StaticName,
@@ -90,14 +91,15 @@ impl<S: SelectableSource> SelectableSource for Named<S> {
 /// Write one source's projection block: every column of `E` in iteration
 /// order, qualified by `qualifier`, cast by the read discipline the graph's
 /// writer applies ([`source_read_cast`]) and aliased
-/// `s{index}_{col}` ([`source_column_alias`]) — the same prefix scheme and
+/// `s{index}_{col}` ([`source_prefix`]) — the same prefix scheme and
 /// cast discipline as [`project_source`](crate::query::graph::project_source),
 /// emitted as PL nodes instead of a `SelectStatement`.
 // [spec:pgorm:sem:pipeline.select-sources+4]
 // [spec:pgorm:sem:query.graph.writer+4]
 fn project_into<E: EntityTrait>(nodes: &mut Vec<PlExpr>, qualifier: &str, index: usize) {
+    let prefix = source_prefix(index);
     for column in <E::Column as Iterable>::iter() {
-        let alias = source_column_alias(index, column.as_str());
+        let alias = result_column_name(&prefix, column.as_str());
         let node = adapter::ident_in(vec![qualifier.to_owned()], SqlName::to_string(&column));
         let node = match source_read_cast(&column) {
             Some(cast) => typed_cast(node, &cast),

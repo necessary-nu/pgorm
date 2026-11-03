@@ -2,6 +2,7 @@ pub(crate) mod created_range;
 mod cursor;
 mod decode;
 mod delete;
+mod disjoint;
 mod execute;
 mod graph;
 mod insert;
@@ -15,6 +16,7 @@ mod versions;
 
 pub use cursor::*;
 pub use decode::*;
+pub use disjoint::*;
 pub use execute::*;
 pub use graph::*;
 pub use insert::*;

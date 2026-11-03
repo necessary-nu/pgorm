@@ -125,26 +125,40 @@ would sit side by side in the base, mostly null.
 
 ## Reads
 
-> [spec:pgorm:sem:disjoint.read]
+> [spec:pgorm:sem:disjoint.read+1]
 > `E::find()` MUST read base rows with their kinds' rows in one statement:
-> the base `LEFT JOIN`ed to each kind's table on the key, each row read as
-> the pair `(base::Model, E)`. A row decodes by its base row's kind: a kind
-> with a table decodes its joined row into its variant, and a kind without
-> one is its unit variant. A row whose kind has a table but whose joined row
-> is absent, and a row with a joined row present for any other kind, can
-> come only from a schema `[spec:pgorm:sem:disjoint.schema]` did not create,
-> and MUST each be an error naming the base table, the key and the kinds
-> involved, never a variant read without its row and never a row dropped.
+> the base `LEFT JOIN`ed to each kind's table on the key alone, each row read
+> as the pair `(base::Model, E)`. A row decodes by its base row's kind: a
+> kind with a table decodes its joined row into its variant, and a kind
+> without one is its unit variant. A row whose kind has a table but whose
+> joined row is absent, and a row with a joined row present for any other
+> kind, can come only from a schema `[spec:pgorm:sem:disjoint.schema]` did
+> not create, and MUST each be an `Error::Query` naming the base table, the
+> key and the kinds involved, never a variant read without its row and never
+> a row dropped: `all` fails at it, and `stream` yields it as one `Err` item
+> among the rows. It is not `Error::Type`, which is `check_disjoint`'s
+> refusal of a declaration before anything is sent; here the declaration
+> passed and the rows the server returned contradict it, as a key that a
+> `HasOne` relation matches twice contradicts `load_one`'s.
 >
 > The read MUST take what a `Select` of the base takes — filters, ordering,
-> limit and offset, pagination and keyset cursors — and `find_by_id(key)`.
-> `kind(k)` and `kinds([..])` restrict it to base rows of those kinds, and a
-> filter on a kind table's column reads only base rows of that kind whose
-> row passes it. Its terminals are `one`, `all` and `stream`. The number of
-> kinds is not bounded. Each joined table's result columns are named by the
-> same prefixed, 63-byte-bounded composition a graph's sources are, so a
-> kind's column never shadows a base column or another kind's of the same
-> name.
+> limit and offset, pagination and keyset cursors over the base's columns —
+> and `find_by_id(key)`, composite keys included. `kind(k)` and
+> `kinds([..])` restrict it to base rows of those kinds, and
+> `filter_kind::<M>(condition)`, `M` a kind's `Model`, to base rows of that
+> kind whose row passes the condition: the kind is part of the condition, so
+> one that a missing row satisfies (`IS NULL`) reads no row of another kind.
+> A condition on a kind table's column given to `filter` is an ordinary
+> `WHERE`, under which every other kind's row holds that column as `NULL`.
+> Its terminals are `one`, `all` and `stream`, `one` being
+> `Error::RecordNotFound` when no row matches. Each runs `check_disjoint`
+> before anything is sent, and so do `paginate`, `count` and `cursor_by`,
+> which therefore return a `Result`. The number of kinds is not bounded.
+> Each joined table's result columns are named by the same prefixed,
+> 63-byte-bounded composition a graph's sources are, the base's under `s0_`
+> and each kind with a table's under the next index in declaration order, so
+> a kind's column never shadows a base column or another kind's of the same
+> name. No bookkeeping column is selected.
 
 ## Writes
 
