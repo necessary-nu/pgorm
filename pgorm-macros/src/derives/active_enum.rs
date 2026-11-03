@@ -164,7 +164,7 @@ impl ActiveEnum {
                     } else if meta.path.is_ident("rename_all") {
                         rename_all = Some((&meta).try_into()?);
                     } else if meta.path.is_ident("display") {
-                        // [spec:pgorm:req:macros.derive.names]
+                        // [spec:pgorm:req:macros.derive.names+1]
                         display = true;
                     } else {
                         return Err(unknown_pgorm_key(&meta));
