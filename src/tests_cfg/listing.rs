@@ -19,7 +19,7 @@ pub enum Relation {}
 
 /// A listing by its kind, its kind type named and placed by hand: an
 /// apartment has a row of its own, a building plot none.
-// [spec:pgorm:def:disjoint.declare+2]
+// [spec:pgorm:def:disjoint.declare+3]
 #[derive(Clone, Debug, PartialEq, Eq, Disjoint)]
 #[pgorm(
     base = Entity,

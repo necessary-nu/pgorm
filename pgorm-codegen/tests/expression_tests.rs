@@ -72,7 +72,7 @@ fn refused(sql: &str) -> String {
 
 // [spec:pgorm:sem:codegen.ddl.tables+11/test]    a column's DEFAULT and generation expression,
 // stored or virtual, ride on the bridged statement
-// [spec:pgorm:sem:codegen.entity.expressions+1/test]    and reach the entity as the Rust that
+// [spec:pgorm:sem:codegen.entity.expressions+2/test]    and reach the entity as the Rust that
 // builds the same expressions: the schema built from the generated entities carries each
 // expression the bridge read, rendered alike
 // [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]
@@ -122,13 +122,13 @@ fn schema_expressions_reach_the_entity() {
             "{expected}: {read:#?}"
         );
     }
-    assert_eq!(expressions(&tables[1]).len(), 23);
+    assert_eq!(expressions(&tables[1]).len(), 26);
     assert_eq!(expressions(&tables[2]).len(), 1);
 }
 
 // [spec:pgorm:sem:codegen.entity.pk+4/test]    a key whose every column is generated is the
 // database's to fill: the key carries no `auto_increment = false`
-// [spec:pgorm:sem:codegen.entity.expressions+1/test]    and a VIRTUAL generated column in a key,
+// [spec:pgorm:sem:codegen.entity.expressions+2/test]    and a VIRTUAL generated column in a key,
 // which PostgreSQL does not support (0A000), is refused
 #[test]
 fn a_generated_key_is_the_databases() {
@@ -144,7 +144,7 @@ fn a_generated_key_is_the_databases() {
     }
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a construct outside the subset codegen
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    a construct outside the subset codegen
 // reads is named with the expression it sits in, never approximated
 #[test]
 fn expressions_outside_the_subset_are_named() {
@@ -157,8 +157,13 @@ fn expressions_outside_the_subset_are_named() {
             default,
         ),
         (
-            "GENERATED ALWAYS AS (CASE WHEN a > 0 THEN 1 END) STORED",
-            "an expression codegen does not read",
+            "GENERATED ALWAYS AS (CASE a WHEN 0 THEN 1 END) STORED",
+            "a CASE comparing an operand",
+            generated,
+        ),
+        (
+            "GENERATED ALWAYS AS (a BETWEEN 0 AND 1) STORED",
+            "an operator codegen does not read",
             generated,
         ),
         (
@@ -261,6 +266,8 @@ fn a_column_filled_twice_is_refused() {
 
 // [spec:pgorm:sem:codegen.entity.transform+16/test]    a caller-built statement's expressions are
 // read through the same subset, and what the entity could not hold is refused by name
+// [spec:pgorm:sem:codegen.entity.expressions+2/test]    a caller-built searched CASE is read
+// back arm by arm, a `Condition` arm as the expression it means
 #[test]
 fn caller_built_expressions_pass_the_gate() {
     let table = |column: ColumnDef| {
@@ -341,6 +348,33 @@ fn caller_built_expressions_pass_the_gate() {
     assert_contains(
         read.file("t.rs"),
         r#"#[pgorm(generated_stored = Expr::col(Column::Id).mul(Expr::val(2)))]
+        pub b: Option<i32>,"#,
+    );
+
+    let cased = generate(
+        vec![table(
+            ColumnDef::new(n("b"))
+                .integer()
+                .generated(
+                    Expr::case(Expr::col(n("id")).gt(0), Expr::col(n("id")))
+                        .case(
+                            pgorm_query::Condition::any()
+                                .add(Expr::col(n("id")).eq(0))
+                                .add(Expr::col(n("id")).lt(-9)),
+                            0,
+                        )
+                        .finally(Expr::col(n("id")).mul(-1)),
+                    GeneratedKind::Stored,
+                )
+                .to_owned(),
+        )],
+        Opts::default(),
+    );
+    assert_contains(
+        cased.file("t.rs"),
+        r#"#[pgorm(generated_stored = Expr::case(Expr::col(Column::Id).gt(Expr::val(0)), Expr::col(Column::Id))
+            .case(Expr::expr(Expr::col(Column::Id).eq(Expr::val(0))).binary(pgorm::pgorm_query::BinOper::Or, Expr::col(Column::Id).lt(Expr::val(-9))), Expr::val(0))
+            .finally(Expr::col(Column::Id).mul(Expr::val(-1))))]
         pub b: Option<i32>,"#,
     );
 }

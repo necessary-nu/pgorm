@@ -60,7 +60,7 @@ pub enum SimpleExpr {
     /// The searched `CASE`, whose arms each test a condition.
     Case(Box<CaseStatement>),
     /// The simple `CASE`, whose arms each compare one operand with a value.
-    // [spec:pgorm:def:sql.ast.case+2]
+    // [spec:pgorm:def:sql.ast.case+3]
     SimpleCase(Box<SimpleCaseStatement>),
     /// An array subscript or slice of the first expression: `a[i]`, `a[l:u]`.
     // [spec:pgorm:req:sql.ast.expr.subscript]

@@ -15,7 +15,7 @@ fn aspect_names() -> SimpleCaseStatement {
         .finally("many")
 }
 
-// [spec:pgorm:def:sql.ast.case+2/test]    `Expr::case_of` takes the operand, `when` the arms,
+// [spec:pgorm:def:sql.ast.case+3/test]    `Expr::case_of` takes the operand, `when` the arms,
 // `finally` the ELSE
 // [spec:pgorm:req:sql.render.case/test]    the operand once after `CASE`, each value bare
 // between `WHEN` and `THEN`
@@ -71,7 +71,40 @@ fn searched_case_leaves_the_operand_empty() {
     assert!(case_expr(&sql).get("arg").is_none(), "searched form: {sql}");
 }
 
-// [spec:pgorm:def:sql.ast.case+2/test]    without `finally` there is no ELSE, and an unmatched
+// [spec:pgorm:def:sql.ast.case+3/test]    `get_arms` reads each arm back in order as the
+// expression its condition means and its result, a one-expression condition as that
+// expression and a `Condition` tree joined and negated as it renders, and `get_else` the ELSE
+#[test]
+fn searched_case_reads_back_its_arms() {
+    let positive = Expr::col(Glyph::Aspect).gt(0);
+    let negative = Expr::col(Glyph::Aspect).lt(0);
+    let large = Expr::col(Glyph::Id).gt(9);
+    let case = Expr::case(positive.clone(), "positive")
+        .case(
+            Condition::any()
+                .add(negative.clone())
+                .add(large.clone())
+                .not(),
+            "small",
+        )
+        .finally("zero");
+
+    let arms: Vec<(SimpleExpr, SimpleExpr)> = case
+        .get_arms()
+        .map(|(condition, result)| (condition, result.clone()))
+        .collect();
+    assert_eq!(
+        arms,
+        vec![
+            (positive, "positive".into()),
+            (negative.or(large).not(), "small".into()),
+        ]
+    );
+    assert_eq!(case.get_else(), Some(&"zero".into()));
+    assert_eq!(Expr::case(Expr::col(Glyph::Id).eq(1), 1).get_else(), None);
+}
+
+// [spec:pgorm:def:sql.ast.case+3/test]    without `finally` there is no ELSE, and an unmatched
 // operand yields NULL
 #[test]
 fn simple_case_without_else_has_no_default() {
@@ -174,7 +207,7 @@ fn simple_case_operands_render_bare() {
     assert_eq!(parsed_nodes(&sql, "CaseExpr").len(), 2);
 }
 
-// [spec:pgorm:def:sql.ast.case+2/test]    the two forms nest in each other's results
+// [spec:pgorm:def:sql.ast.case+3/test]    the two forms nest in each other's results
 #[test]
 fn case_forms_nest_in_each_other() {
     let sql = Query::select()

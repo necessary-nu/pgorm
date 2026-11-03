@@ -126,7 +126,7 @@ fn error(sql: &str) -> String {
 // reads as `ColumnType::Domain`, carrying the domain's identity and its base read as a
 // column's type is — another domain, an enum, an array and a range type among them —
 // through an array as on its own
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]
 #[test]
 fn the_bridge_reads_a_domain_column() {
     let statements = parse_schema(SCHEMA).expect("the schema parses");
@@ -142,7 +142,7 @@ fn the_bridge_reads_a_domain_column() {
     assert_eq!(columns, expected);
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    a domain's COLLATE, DEFAULT, NOT NULL, NULL
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a domain's COLLATE, DEFAULT, NOT NULL, NULL
 // and CHECKs are read and set aside: the entity a domain generates is the one its bare
 // declaration does
 #[test]
@@ -158,7 +158,7 @@ fn domain_constraints_are_set_aside() {
     assert_eq!(generate(nullable), generate(bare));
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a constraint PostgreSQL refuses on a
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    a constraint PostgreSQL refuses on a
 // domain is named, as are a serial base, a base the file does not declare and a domain
 // column under a qualification the domain was not declared with
 #[test]

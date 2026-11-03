@@ -1,7 +1,7 @@
 -- Tables whose columns carry expressions codegen reads: `stock_item` one of
 -- each construct a DEFAULT or a generation expression may hold, `formula` the
--- operators nested every way their precedence matters, and `stock_code` a
--- key the server computes.
+-- operators nested every way their precedence matters and the searched CASE,
+-- and `stock_code` a key the server computes.
 CREATE TABLE stock_item (
     id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     code text NOT NULL DEFAULT md5(random()::text),
@@ -53,7 +53,10 @@ CREATE TABLE formula (
     negative_right int GENERATED ALWAYS AS (a - -1) STORED,
     coalesced int GENERATED ALWAYS AS (coalesce(a, b, 0)) VIRTUAL,
     spread int GENERATED ALWAYS AS (greatest(a, b) - least(b, c)) STORED,
-    nulled int GENERATED ALWAYS AS (nullif(a, 0)) VIRTUAL
+    nulled int GENERATED ALWAYS AS (nullif(a, 0)) VIRTUAL,
+    ranked int GENERATED ALWAYS AS (CASE WHEN a > b THEN a WHEN a < b THEN b ELSE c END) STORED,
+    tested bool GENERATED ALWAYS AS (CASE WHEN p THEN q END) STORED,
+    case_sum int GENERATED ALWAYS AS ((CASE WHEN p IS NULL THEN 0 ELSE a END) + 1) VIRTUAL
 );
 
 CREATE TABLE stock_code (

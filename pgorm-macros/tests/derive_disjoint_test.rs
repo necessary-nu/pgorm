@@ -48,7 +48,7 @@ fn key_column(column: &str, column_type: &str) -> (String, String) {
     (column.to_owned(), column_type.to_owned())
 }
 
-// [spec:pgorm:def:disjoint.declare+2/test]    the kind type is a PostgreSQL enum named for the enum in snake_case, one value per variant in declaration order, each its variant's name in snake_case
+// [spec:pgorm:def:disjoint.declare+3/test]    the kind type is a PostgreSQL enum named for the enum in snake_case, one value per variant in declaration order, each its variant's name in snake_case
 #[test]
 fn kind_type_is_a_postgres_enum_of_variants() {
     assert_eq!(VehicleKind::name().to_string(), "vehicle_kind");
@@ -75,7 +75,7 @@ fn kind_type_is_a_postgres_enum_of_variants() {
     );
 }
 
-// [spec:pgorm:def:disjoint.declare+2/test]    `value`, `enum_name` and `schema_name` in place of the defaults, and `kind` naming the base's column
+// [spec:pgorm:def:disjoint.declare+3/test]    `value`, `enum_name` and `schema_name` in place of the defaults, and `kind` naming the base's column
 #[test]
 fn a_disjoint_says_what_differs_from_the_defaults() {
     assert_eq!(ListingKind::name().to_string(), "listing_category");
@@ -97,7 +97,7 @@ fn a_disjoint_says_what_differs_from_the_defaults() {
     );
 }
 
-// [spec:pgorm:def:disjoint.declare+2/test]    each kind with a table reaches its entity, its table and key columns, in declaration order, a unit kind none; a key may be composite and named otherwise than the base's
+// [spec:pgorm:def:disjoint.declare+3/test]    each kind with a table reaches its entity, its table and key columns, in declaration order, a unit kind none; a key may be composite and named otherwise than the base's
 #[test]
 fn kinds_reach_their_entities_in_order() {
     assert_eq!(
@@ -143,7 +143,7 @@ fn kind_key<D: Disjoint, M: KindModel<D>>(
     key
 }
 
-// [spec:pgorm:def:disjoint.declare+2/test]    a kind's model decodes into its variant, each value names its kind, and a kind entity's key is the base's key type
+// [spec:pgorm:def:disjoint.declare+3/test]    a kind's model decodes into its variant, each value names its kind, and a kind entity's key is the base's key type
 #[test]
 fn a_kind_model_is_its_variant() {
     let sedan = car::Model { id: 1, seats: 5 };
@@ -199,7 +199,7 @@ impl<D: Disjoint> ActiveKindVisitor<D> for SetColumns {
     }
 }
 
-// [spec:pgorm:def:disjoint.declare+2/test]    `<Enum>ActiveModel` holds each kind's `ActiveModel`, names its kind, and is taken apart into the kind's `ActiveModel`
+// [spec:pgorm:def:disjoint.declare+3/test]    `<Enum>ActiveModel` holds each kind's `ActiveModel`, names its kind, and is taken apart into the kind's `ActiveModel`
 #[test]
 fn an_active_model_is_taken_apart() {
     let truck = VehicleActiveModel::Truck(truck::ActiveModel {
@@ -231,9 +231,42 @@ fn an_active_model_is_taken_apart() {
     );
 }
 
-// [spec:pgorm:def:disjoint.declare+2/test]    a declaration whose types hold passes the run-time check, composite key and named kind column included
+// [spec:pgorm:def:disjoint.declare+3/test]    a declaration whose types hold passes the run-time check, composite key and named kind column included
 #[test]
 fn a_sound_declaration_passes_the_check() {
     assert!(pgorm::check_disjoint::<Vehicle>().is_ok());
     assert!(pgorm::check_disjoint::<Listing>().is_ok());
+}
+
+/// The vehicle's kinds again, their kind type carrying derives and a serde
+/// attribute of its own.
+#[derive(Clone, Debug, PartialEq, Disjoint)]
+#[pgorm(
+    base = vehicle::Entity,
+    enum_name = "vehicle_kind",
+    kind_attrs(
+        derive(PartialOrd, Ord, serde::Serialize, serde::Deserialize),
+        serde(rename_all = "lowercase")
+    )
+)]
+pub enum Ranked {
+    Car,
+    Truck,
+    Bike,
+}
+
+// [spec:pgorm:def:disjoint.declare+3/test]    `kind_attrs` gives the kind type each attribute as written on it, derives and their helper attributes alike
+#[test]
+fn kind_attrs_reach_the_kind_type() {
+    assert!(RankedKind::Car < RankedKind::Truck);
+    assert!(RankedKind::Truck < RankedKind::Bike);
+    assert_eq!(
+        serde_json::to_string(&RankedKind::Truck).expect("serializes"),
+        r#""truck""#
+    );
+    assert_eq!(
+        serde_json::from_str::<RankedKind>(r#""bike""#).expect("deserializes"),
+        RankedKind::Bike
+    );
+    assert_eq!(RankedKind::values(), VehicleKind::values());
 }

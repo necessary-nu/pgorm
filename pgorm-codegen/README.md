@@ -31,10 +31,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 The schema is the `CREATE` statements: tables with their keys and foreign
-keys, enum and range types, domains, indexes, comments and schemas. Anything
-else in the text is refused with an `Error` naming it, so a schema that
-generates is one read in full. `pg_dump --schema-only` writes its keys as
-`ALTER TABLE` statements and opens with `SET`s, so its output is refused.
+keys, enum and range types, domains, indexes, comments and schemas, and the
+columns and constraints an `ALTER TABLE` adds to a table. Anything else in
+the text is refused with an `Error` naming it, so a schema that generates is
+one read in full. `pg_dump --schema-only` opens with `SET`s and changes
+owners, so its output is refused.
+
+The tables `Schema::create_disjoint` writes for a `#[derive(Disjoint)]` enum
+generate as that enum again, in its base's module, beside the base's and the
+kinds' entities.
 
 The stages are public too: `parse_schema` reads the text into the
 `TableCreateStatement`s `EntityTransformer::transform` takes, and

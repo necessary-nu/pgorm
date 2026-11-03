@@ -629,7 +629,7 @@ fn quantifiers_are_valid_only_after_a_comparison() {
 // until its first `when`. The armless `(CASE ELSE 'x' END)` this was pinned to
 // is proved unbuildable by the `compile_fail` doctests on `CaseStatement`.
 // [spec:pgorm:req:sql.render.oracle+4/test]
-// [spec:pgorm:def:sql.ast.case+2/test]
+// [spec:pgorm:def:sql.ast.case+3/test]
 #[test]
 fn a_case_needs_at_least_one_arm() {
     let searched = Query::select()

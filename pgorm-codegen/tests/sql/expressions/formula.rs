@@ -101,6 +101,18 @@ pub struct Model {
         generated_virtual = Func::named(Name::runtime("nullif")).arg(Expr::col(Column::A)).arg(Expr::val(0))
     )]
     pub nulled: Option<i32>,
+    #[pgorm(
+        generated_stored = Expr::case(Expr::col(Column::A).gt(Expr::col(Column::B)), Expr::col(Column::A)).case(Expr::col(Column::A).lt(Expr::col(Column::B)), Expr::col(Column::B)).finally(Expr::col(Column::C))
+    )]
+    pub ranked: Option<i32>,
+    #[pgorm(
+        generated_stored = Expr::case(pgorm::pgorm_query::SimpleExpr::from(Expr::col(Column::P)), Expr::col(Column::Q))
+    )]
+    pub tested: Option<bool>,
+    #[pgorm(
+        generated_virtual = Expr::expr(Expr::case(Expr::col(Column::P).is_null(), Expr::val(0)).finally(Expr::col(Column::A))).add(Expr::val(1))
+    )]
+    pub case_sum: Option<i32>,
 }
 
 #[derive(Copy, Clone, Debug, Relation)]

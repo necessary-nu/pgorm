@@ -16660,4 +16660,18 @@ children (
             }
         )
     }
+
+    {
+        id entity-composite-unique
+        title "An entity declares a composite UNIQUE constraint, and codegen keeps one it reads"
+        kind @feat
+        log (
+            {
+                at 2026-11-03T03:53:21.038292Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.codegen (bdfd9dcb): an entity cannot express a composite UNIQUE constraint (only a column's own unique and indexes). Codegen therefore drops one it reads: in a near-miss disjoint shape the base's UNIQUE (id, kind) is lost, and the kind table's relation onto that pair then makes create_table_from_entity write a foreign key PostgreSQL refuses (42830, no unique constraint matching the referenced columns). Give the Entity derive a container key for a named composite unique (bare column paths, e.g. unique(name = \"uq-x\", Column::A, Column::B)), render it in create_table_from_entity, have codegen emit it, and test the near-miss round trip live. Also from that node, both small: validate_identities checks a schema-qualified enum's name collisions as UpperCamel(\"schema.name\") (MarketListingCategory) rather than the Rust name actually written; and the disjoint name-clash check refuses a base table named like a derive macro (debug), more than it needs to."
+            }
+        )
+    }
 )

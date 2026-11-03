@@ -34,7 +34,7 @@ const QUALIFIED: &str = "CREATE TABLE tenant_a.item (id int PRIMARY KEY);";
 
 // [spec:pgorm:sem:codegen.entity.transform+16/test]    the source table's schema
 // survives transformation and reaches the compact entity
-// [spec:pgorm:def:codegen.entity.compact+4/test]
+// [spec:pgorm:def:codegen.entity.compact+5/test]
 #[test]
 fn compact_entity_carries_the_source_schema() {
     let generated = from_sql(QUALIFIED, Opts::default());
@@ -206,7 +206,7 @@ fn a_refusal_names_the_qualified_table() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    an index attaches to the table
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]    an index attaches to the table
 // its own name resolves to, not to whatever shares the bare name
 #[test]
 fn an_index_attaches_by_qualified_name() {
@@ -217,7 +217,7 @@ fn an_index_attaches_by_qualified_name() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    and a qualified index that does
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]    and a qualified index that does
 // name its table is folded into it, giving the column its `unique`
 #[test]
 fn a_qualified_index_reaches_its_own_table() {
@@ -233,7 +233,7 @@ fn a_qualified_index_reaches_its_own_table() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    a comment resolves the same way
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a comment resolves the same way
 #[test]
 fn a_comment_attaches_by_qualified_name() {
     assert_error(
@@ -243,7 +243,7 @@ fn a_comment_attaches_by_qualified_name() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    an unqualified reference that
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]    an unqualified reference that
 // two tables answer to is named as such, rather than attached to one of them
 #[test]
 fn an_ambiguous_unqualified_index_is_refused() {
@@ -278,7 +278,7 @@ fn bridge_and_generated_entity_agree_on_schema() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+6/test]    a schema-qualified enum's
+// [spec:pgorm:sem:codegen.entity.enums+7/test]    a schema-qualified enum's
 // schema survives into the generated ActiveEnum attribute, so the
 // entity round-trips the type it was described with
 #[test]
@@ -320,7 +320,7 @@ fn unqualified_reference_needs_an_unqualified_declaration() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+6/test]    one bare Rust enum cannot
+// [spec:pgorm:sem:codegen.entity.enums+7/test]    one bare Rust enum cannot
 // stand for two differently-qualified database types: the collision is
 // refused rather than generated
 #[test]

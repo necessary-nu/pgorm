@@ -20,7 +20,7 @@ struct Variant {
     encoded: bool,
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+6]
+// [spec:pgorm:sem:codegen.entity.enums+7]
 fn variant(value: &str) -> Variant {
     if value.chars().next().map(char::is_numeric).unwrap_or(false) {
         return Variant {
@@ -49,6 +49,12 @@ fn variant(value: &str) -> Variant {
     }
 }
 
+/// The Rust variant name a DB enum value maps to.
+// [spec:pgorm:sem:codegen.entity.enums+7]
+pub(crate) fn variant_name(value: &str) -> String {
+    variant(value).name
+}
+
 impl ActiveEnum {
     /// Each DB value paired with the Rust variant name it derives, read the way
     /// the generated variants are: trimmed, in declaration order.
@@ -64,7 +70,7 @@ impl ActiveEnum {
             .collect()
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+6]
+    // [spec:pgorm:sem:codegen.entity.enums+7]
     // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let enum_name = self.enum_name.to_string();
@@ -87,7 +93,7 @@ impl ActiveEnum {
     /// from the derive's defaults: `enum_name` where the type is not named
     /// the enum's name in snake_case, and `string_value` where a value is not
     /// its variant's name in snake_case.
-    // [spec:pgorm:sem:codegen.entity.enums+6]
+    // [spec:pgorm:sem:codegen.entity.enums+7]
     // [spec:pgorm:sem:macros.derive.boilerplate]
     pub fn impl_active_enum(
         &self,
@@ -365,7 +371,7 @@ mod tests {
         )
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+6/test]    `enum_name` and `string_value` only where they differ from the derive's snake_case defaults
+    // [spec:pgorm:sem:codegen.entity.enums+7/test]    `enum_name` and `string_value` only where they differ from the derive's snake_case defaults
     #[test]
     fn test_enum_defaults_are_left_unsaid() {
         assert_eq!(

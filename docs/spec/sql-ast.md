@@ -1822,7 +1822,7 @@ today, including panicking edges and deliberate failsafes.
 
 ## CASE expressions
 
-> [spec:pgorm:def:sql.ast.case+2]
+> [spec:pgorm:def:sql.ast.case+3]
 > PostgreSQL's two CASE forms are two types, because their arms have two
 > shapes and a CASE mixing them has no spelling.
 >
@@ -1833,7 +1833,11 @@ today, including panicking edges and deliberate failsafes.
 > result. `Expr::case(cond, then)` is its only constructor and takes the first
 > arm, so a searched CASE holds at least one arm from the start: there is no
 > armless `new()` and no `Default`. A `CaseStatement` converts into
-> `SimpleExpr::Case`.
+> `SimpleExpr::Case`. `get_arms()` reads its arms back in order, each as its
+> condition and its result, the condition as the expression it means — a
+> `Condition` tree joined by its `AND`s and `OR`s and negated where it is, so
+> one built from a single expression is that expression — and `get_else()`
+> its `ELSE` result.
 >
 > `SimpleCaseStatement` builds the simple form, `CASE <operand> WHEN <value>
 > THEN <result> … END`, whose arms hold *values* the one operand is compared

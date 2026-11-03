@@ -22,7 +22,7 @@ use std::{fmt::Debug, hash::Hash};
 /// visits every kind in declaration order.
 ///
 /// What the types cannot tell, [`check_disjoint`] refuses.
-// [spec:pgorm:def:disjoint.declare+2]
+// [spec:pgorm:def:disjoint.declare+3]
 pub trait Disjoint: Sized + Send {
     /// The entity each value has a row of.
     type Base: EntityTrait;
@@ -82,7 +82,7 @@ pub trait Disjoint: Sized + Send {
 /// It decodes from a row, as every entity's `Model` does, and is required to
 /// here because a bound on its entity's `Model` is not one on the type
 /// itself: a read decodes a kind's joined row through this trait.
-// [spec:pgorm:def:disjoint.declare+2]
+// [spec:pgorm:def:disjoint.declare+3]
 #[diagnostic::on_unimplemented(
     message = "`{Self}` is not the `Model` of one of `{D}`'s kinds",
     label = "a kind with a table holds its entity's `Model`"
@@ -105,7 +105,7 @@ pub trait KindModel<D: Disjoint>:
 }
 
 /// What [`Disjoint::visit_kind`] calls for one kind of `D`.
-// [spec:pgorm:def:disjoint.declare+2]
+// [spec:pgorm:def:disjoint.declare+3]
 pub trait KindVisitor<D: Disjoint> {
     /// What the visit gives.
     type Output;
@@ -120,7 +120,7 @@ pub trait KindVisitor<D: Disjoint> {
 
 /// `<Enum>ActiveModel`: a value of a disjoint entity to write, each kind with
 /// a table holding its entity's `ActiveModel`.
-// [spec:pgorm:def:disjoint.declare+2]
+// [spec:pgorm:def:disjoint.declare+3]
 pub trait DisjointActiveModel: Clone + Debug + Send {
     /// The enum whose `ActiveModel` this is: each names the other, so an
     /// enum has exactly one.
@@ -136,7 +136,7 @@ pub trait DisjointActiveModel: Clone + Debug + Send {
 }
 
 /// What [`DisjointActiveModel::visit`] calls with the value it takes apart.
-// [spec:pgorm:def:disjoint.declare+2]
+// [spec:pgorm:def:disjoint.declare+3]
 pub trait ActiveKindVisitor<D: Disjoint> {
     /// What the visit gives.
     type Output;
@@ -164,7 +164,7 @@ pub trait ActiveKindVisitor<D: Disjoint> {
 /// base row.
 /// It is what `Schema::create_disjoint` and every disjoint read and write are
 /// to run before anything is sent.
-// [spec:pgorm:def:disjoint.declare+2]
+// [spec:pgorm:def:disjoint.declare+3]
 pub fn check_disjoint<D: Disjoint>() -> Result<(), Error> {
     let base = D::Base::default();
     let column = D::kind_column();
