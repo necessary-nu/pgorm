@@ -763,11 +763,12 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Primary keys
 
-> [spec:pgorm:sem:codegen.entity.pk+4]
-> A key's facts surface as field attributes (`codegen.entity.compact.attrs`):
-> `primary_key` on each key column, followed by `without_overlaps` on a
-> temporal key's period, by `auto_increment = false` on a column that is
-> neither auto-increment, an identity nor a generated column, and by
+> [spec:pgorm:sem:codegen.entity.pk+5]
+> A key's facts surface as field attributes, in the order
+> `codegen.entity.compact.attrs` gives them: `primary_key` on each key
+> column, followed by `without_overlaps` on a temporal key's period, its last
+> column, and on every other key column by `auto_increment = false` where the
+> column is neither auto-increment, an identity nor a generated column; and
 > `identity` / `identity_by_default` on an identity. The derive reads them
 > into `PrimaryKeyTrait` (`macros.derive.entity-model.primary-key`): its
 > `ValueType` the key column's Rust type, or the tuple of them for a

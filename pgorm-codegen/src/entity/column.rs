@@ -167,6 +167,7 @@ impl Column {
 
     /// The field attribute declaring the column's identity, if it is one.
     // [spec:pgorm:sem:codegen.entity.compact.attrs+12]
+    // [spec:pgorm:sem:codegen.entity.pk+5]
     pub fn get_identity_attr(&self) -> Option<TokenStream> {
         self.identity.map(|identity| match identity {
             IdentityGeneration::Always => quote! { identity },
