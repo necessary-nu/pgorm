@@ -36,11 +36,11 @@ pub use crate::{
     ActiveValue::{NotSet, Set, Unchanged},
     AliasName, ColumnDef, ColumnTrait, ColumnType, ColumnTypeTrait, Condition, ConnectionTrait,
     CreatedRange, CursorTrait, DatabaseConnection, DatabasePool, DatabaseTransaction, DecodeRaw,
-    DecodeSelect, Delete, EntityName, EntityTrait, FromQueryResult, Insert, IntoActiveModel,
-    IntoActiveValue, Iterable, JoinType, Linked, LoaderTrait, ModelTrait, PaginatorTrait,
-    PrimaryKeyArity, PrimaryKeyToColumn, PrimaryKeyTrait, QueryFilter, QueryOrder, QueryResult,
-    QuerySelect, QueryTrait, Related, RelatedLink, RelationDef, RelationTrait, Select, SqlName,
-    StaticName, TransactionTrait, TryInsert, TryIntoModel, Update, Value, alias,
+    DecodeSelect, Delete, Disjoint, EntityName, EntityTrait, FromQueryResult, Insert,
+    IntoActiveModel, IntoActiveValue, Iterable, JoinType, Linked, LoaderTrait, ModelTrait,
+    PaginatorTrait, PrimaryKeyArity, PrimaryKeyToColumn, PrimaryKeyTrait, QueryFilter, QueryOrder,
+    QueryResult, QuerySelect, QueryTrait, Related, RelatedLink, RelationDef, RelationTrait, Select,
+    SqlName, StaticName, TransactionTrait, TryInsert, TryIntoModel, Update, Value, alias,
     error::*,
     pgorm_query::{
         ArrayType, ConditionType, Deferrability, Enforcement, Expr, ForeignKeyAction, Func, Name,
@@ -51,10 +51,10 @@ pub use crate::{
 pub use std::sync::Arc;
 
 /// The derives with no trait of their name above. The rest — `ActiveEnum`,
-/// `CreatedRange`, `EntityTrait`, `FromQueryResult`, `IntoActiveModel`,
-/// `SqlName` and `StaticName` — arrive with the trait they implement, one
-/// import bringing both.
-// [spec:pgorm:req:macros.derive.names]
+/// `CreatedRange`, `Disjoint`, `EntityTrait`, `FromQueryResult`,
+/// `IntoActiveModel`, `SqlName` and `StaticName` — arrive with the trait they
+/// implement, one import bringing both.
+// [spec:pgorm:req:macros.derive.names+1]
 #[cfg(feature = "macros")]
 pub use crate::{Column, Entity, JsonValueType, Model, PartialModel, Relation, ValueType};
 

@@ -1,0 +1,15 @@
+use crate as pgorm;
+use crate::entity::prelude::*;
+
+/// The kind `car` of [`Vehicle`](super::vehicle::Vehicle), keyed by its
+/// vehicle's `id`.
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
+#[pgorm(table_name = "car")]
+pub struct Model {
+    #[pgorm(primary_key, auto_increment = false)]
+    pub id: i32,
+    pub seats: i16,
+}
+
+#[derive(Copy, Clone, Debug, Relation)]
+pub enum Relation {}

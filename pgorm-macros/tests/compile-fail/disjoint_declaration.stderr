@@ -1,0 +1,41 @@
+error: you can only derive `Disjoint` on enums
+ --> tests/compile-fail/disjoint_declaration.rs:6:12
+  |
+6 | pub struct NotAnEnum {
+  |            ^^^^^^^^^
+
+error: a disjoint entity's enum takes no generic parameters
+  --> tests/compile-fail/disjoint_declaration.rs:12:17
+   |
+12 | pub enum Generic<T> {
+   |                 ^^^
+
+error: `Disjoint` names the entity its kinds are rows of: `#[pgorm(base = vehicle::Entity)]`
+  --> tests/compile-fail/disjoint_declaration.rs:18:10
+   |
+18 | pub enum NoBase {
+   |          ^^^^^^
+
+error: `base` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/disjoint_declaration.rs:23:16
+   |
+23 | #[pgorm(base = "pgorm::tests_cfg::vehicle::Entity")]
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `base` is given twice
+  --> tests/compile-fail/disjoint_declaration.rs:29:51
+   |
+29 | #[pgorm(base = pgorm::tests_cfg::vehicle::Entity, base = pgorm::tests_cfg::vehicle::Entity)]
+   |                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unknown pgorm attribute `kind_column`
+  --> tests/compile-fail/disjoint_declaration.rs:35:51
+   |
+35 | #[pgorm(base = pgorm::tests_cfg::vehicle::Entity, kind_column = pgorm::tests_cfg::vehicle::Column::Kind)]
+   |                                                   ^^^^^^^^^^^
+
+error: a disjoint entity has a variant for each kind of base row, and this enum has none
+  --> tests/compile-fail/disjoint_declaration.rs:42:10
+   |
+42 | pub enum NoKinds {}
+   |          ^^^^^^^

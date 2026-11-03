@@ -6,12 +6,15 @@ pub mod active_enums;
 pub mod cake;
 pub mod cake_filling;
 pub mod cake_filling_price;
+pub mod car;
 pub mod entity_linked;
 pub mod filling;
 pub mod fruit;
 pub mod indexes;
 pub mod lunch_set;
 pub mod rust_keyword;
+pub mod truck;
+pub mod vehicle;
 pub mod vendor;
 
 pub use cake::Entity as Cake;

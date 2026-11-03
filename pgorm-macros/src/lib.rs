@@ -23,7 +23,7 @@ use proc_macro::TokenStream;
 #[cfg(feature = "derive")]
 use syn::{DeriveInput, Error, parse_macro_input};
 
-// [spec:pgorm:def:macros.derive+6]
+// [spec:pgorm:def:macros.derive+7]
 #[cfg(feature = "derive")]
 mod derives;
 
@@ -70,7 +70,7 @@ mod derives;
 /// let cake = Entity { tenant: "bakery" };
 /// assert_eq!(cake.schema_name(), Some("bakery"));
 /// ```
-// [spec:pgorm:req:macros.derive.names]
+// [spec:pgorm:req:macros.derive.names+1]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveEntity")]
 #[proc_macro_derive(EntityTrait, attributes(pgorm))]
@@ -159,10 +159,10 @@ pub fn derive_entity_trait(input: TokenStream) -> TokenStream {
 /// `Cargo.toml` (`my_orm = { package = "pgorm", .. }`), alias it back with
 /// `use my_orm as pgorm;` there or at the crate root; otherwise every generated path is
 /// an `E0433`. There is no `#[pgorm(crate = ...)]` override.
-// [spec:pgorm:def:macros.derive+6]
+// [spec:pgorm:def:macros.derive+7]
 // [spec:pgorm:sem:macros.derive.entity-model+9]
 // [spec:pgorm:req:macros.derive.entity-model.reject+4]
-// [spec:pgorm:req:macros.derive.names]
+// [spec:pgorm:req:macros.derive.names+1]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveEntityModel")]
 #[proc_macro_derive(Entity, attributes(pgorm))]
@@ -341,7 +341,7 @@ pub fn derive_into_active_model(input: TokenStream) -> TokenStream {
 ///
 /// assert!(matches!(Tea::db_type().get_column_type(), ColumnType::Enum { .. }));
 /// ```
-// [spec:pgorm:req:macros.derive.names]
+// [spec:pgorm:req:macros.derive.names+1]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveActiveEnum", alias = "DeriveDisplay")]
 #[proc_macro_derive(ActiveEnum, attributes(pgorm))]
@@ -351,6 +351,108 @@ pub fn derive_active_enum(input: TokenStream) -> TokenStream {
         Ok(ts) => ts.into(),
         Err(e) => e.to_compile_error().into(),
     }
+}
+
+/// Declare a disjoint entity: an enum stored as a base table plus one table
+/// for each kind that carries data, keyed by the base row's key.
+///
+/// `#[pgorm(base = ..)]` names the base entity, each of whose rows is a value
+/// of the enum, its kind in its kind column. A variant holding the `Model` of
+/// an entity, `Car(car::Model)`, is a kind whose base rows each have exactly
+/// one row in that entity's table, and a unit variant, `Bike`, a kind with no
+/// table of its own. A kind entity's primary key has the base's key types in
+/// the base's order, under any names; a key of other types, a payload that is
+/// not an entity's `Model`, and two variants holding one entity do not
+/// compile.
+///
+/// The derive writes `<Enum>Kind`, the kind type: an `ActiveEnum` stored as a
+/// PostgreSQL enum with one value per variant, in declaration order. It also
+/// writes `<Enum>ActiveModel`, the variants each holding its kind entity's
+/// `ActiveModel`, which a write takes, and implements `Disjoint` for the enum,
+/// `KindModel` for each kind's `Model` and `DisjointActiveModel` for
+/// `<Enum>ActiveModel`.
+///
+/// # Attributes
+///
+/// - On the enum: `base = path`, required; `kind = path`, the base's column
+///   holding each row's kind, the base's `Column::Kind` unless given;
+///   `enum_name = "..."`, the kind type's name, `<enum>_kind` (the enum's
+///   name in snake_case) unless given; and `schema_name = "..."`, the
+///   kind type's schema.
+/// - On a variant: `value = "..."`, the kind's value, the variant's name in
+///   snake_case unless given.
+///
+/// What the types cannot tell, `pgorm::check_disjoint` refuses at run time:
+/// a kind column that is nullable or not of the kind type, and a kind entity
+/// whose key the database generates, since its key is its base row's.
+///
+/// # Usage
+///
+/// ```
+/// use pgorm::entity::prelude::*;
+///
+/// pub mod vehicle {
+///     use pgorm::entity::prelude::*;
+///
+///     #[derive(Clone, Debug, PartialEq, Entity)]
+///     #[pgorm(table_name = "vehicle")]
+///     pub struct Model {
+///         #[pgorm(primary_key)]
+///         pub id: i32,
+///         pub kind: super::VehicleKind,
+///         pub name: String,
+///     }
+///
+///     #[derive(Copy, Clone, Debug, Relation)]
+///     pub enum Relation {}
+/// }
+///
+/// pub mod car {
+///     use pgorm::entity::prelude::*;
+///
+///     #[derive(Clone, Debug, PartialEq, Entity)]
+///     #[pgorm(table_name = "car")]
+///     pub struct Model {
+///         #[pgorm(primary_key, auto_increment = false)]
+///         pub id: i32,
+///         pub seats: i16,
+///     }
+///
+///     #[derive(Copy, Clone, Debug, Relation)]
+///     pub enum Relation {}
+/// }
+///
+/// #[derive(Clone, Debug, PartialEq, Disjoint)]
+/// #[pgorm(base = vehicle::Entity)]
+/// pub enum Vehicle {
+///     Car(car::Model),
+///     #[pgorm(value = "pushbike")]
+///     Bike,
+/// }
+///
+/// # fn main() -> Result<(), pgorm::Error> {
+/// use pgorm::DisjointActiveModel;
+///
+/// assert_eq!(VehicleKind::name().to_string(), "vehicle_kind");
+/// assert_eq!(VehicleKind::values(), ["car", "pushbike"]);
+///
+/// let sedan = Vehicle::Car(car::Model { id: 1, seats: 4 });
+/// assert_eq!(sedan.kind(), VehicleKind::Car);
+/// assert_eq!(VehicleActiveModel::Bike.kind(), VehicleKind::Bike);
+///
+/// pgorm::check_disjoint::<Vehicle>()?;
+/// # Ok(())
+/// # }
+/// ```
+// [spec:pgorm:def:disjoint.declare+1]
+// [spec:pgorm:req:macros.derive.names+1]
+#[cfg(feature = "derive")]
+#[proc_macro_derive(Disjoint, attributes(pgorm))]
+pub fn derive_disjoint(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    derives::expand_derive_disjoint(input)
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
 }
 
 /// Convert a query result into the corresponding Model.
@@ -466,7 +568,7 @@ pub fn derive_relation(input: TokenStream) -> TokenStream {
 /// (`use my_migration as pgorm_migration;`) in the module holding the migration or at
 /// the crate root, exactly as `pgorm` itself does. There is no `#[pgorm(crate = ...)]`
 /// override.
-// [spec:pgorm:def:macros.derive+6]
+// [spec:pgorm:def:macros.derive+7]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveMigrationName")]
 #[proc_macro_derive(MigrationName)]
@@ -491,7 +593,7 @@ pub fn derive_migration_name(input: TokenStream) -> TokenStream {
 /// a value that was never null: a confusing constraint violation against a `NOT NULL`
 /// column, and silent data loss against a nullable one. The panic message names the
 /// type and carries serde's own error.
-// [spec:pgorm:req:macros.derive.names]
+// [spec:pgorm:req:macros.derive.names+1]
 #[cfg(feature = "derive")]
 #[doc(alias = "FromJsonQueryResult")]
 #[proc_macro_derive(JsonValueType)]
@@ -716,7 +818,7 @@ pub fn derive_created_range(input: TokenStream) -> TokenStream {
 /// assert_eq!(MyOther.to_string(), "my_other");
 /// ```
 // [spec:pgorm:sem:macros.derive.iden+3]
-// [spec:pgorm:req:macros.derive.names]
+// [spec:pgorm:req:macros.derive.names+1]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveSqlName", alias = "DeriveIden", alias = "Iden")]
 #[proc_macro_derive(SqlName, attributes(iden, method))]
@@ -746,7 +848,7 @@ pub fn derive_sql_name(input: TokenStream) -> TokenStream {
 /// assert_eq!(Shelf::Top.as_str(), "top_shelf");
 /// ```
 // [spec:pgorm:sem:macros.derive.iden+3]
-// [spec:pgorm:req:macros.derive.names]
+// [spec:pgorm:req:macros.derive.names+1]
 #[cfg(feature = "derive")]
 #[proc_macro_derive(StaticName, attributes(iden, method))]
 pub fn derive_static_name(input: TokenStream) -> TokenStream {
