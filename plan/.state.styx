@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-03T10:09:37.075712Z
+last_sync_at 2026-11-03T10:22:07.122658Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -83,8 +83,8 @@ rule_versions (
     {id codegen.entity.compact.attrs, version 12}
     {id codegen.entity.compact.model, version 2}
     {id codegen.entity.context, version 4}
-    {id codegen.entity.disjoint, version 1}
-    {id codegen.entity.disjoint.unkinded, version 0}
+    {id codegen.entity.disjoint, version 2}
+    {id codegen.entity.disjoint.unkinded, version 1}
     {id codegen.entity.enums, version 7}
     {id codegen.entity.files, version 2}
     {id codegen.entity.imports, version 4}
@@ -120,7 +120,7 @@ rule_versions (
     {id conn.tx.closure, version 5}
     {id conn.tx.guard, version 3}
     {id conn.tx.retry, version 3}
-    {id disjoint.declare, version 4}
+    {id disjoint.declare, version 5}
     {id disjoint.read, version 1}
     {id disjoint.schema, version 1}
     {id disjoint.unkinded, version 0}
@@ -213,7 +213,7 @@ rule_versions (
     {id generative.verdict, version 0}
     {id macros.derive, version 7}
     {id macros.derive.active-enum, version 6}
-    {id macros.derive.active-enum.expansion, version 5}
+    {id macros.derive.active-enum.expansion, version 6}
     {id macros.derive.active-model, version 7}
     {id macros.derive.boilerplate, version 0}
     {id macros.derive.code-values, version 2}
@@ -1896,8 +1896,6 @@ impl_evidence (
         codegen.entity.disjoint
     ), covered_claims (
         {impl_name main, rule codegen.entity.disjoint}
-    ), rule_versions_seen (
-        {id codegen.entity.disjoint, version 1}
     )}
     {id disjoint.codegen-unkinded, covered_rules (
         codegen.entity.disjoint.unkinded
@@ -1905,9 +1903,6 @@ impl_evidence (
     ), covered_claims (
         {impl_name main, rule codegen.entity.disjoint.unkinded}
         {impl_name main, rule disjoint.unkinded}
-    ), rule_versions_seen (
-        {id codegen.entity.disjoint.unkinded, version 0}
-        {id disjoint.unkinded, version 0}
     )}
     {id disjoint.declare, covered_rules (
         disjoint.declare
