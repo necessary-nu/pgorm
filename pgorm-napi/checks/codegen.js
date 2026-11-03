@@ -17,6 +17,7 @@
 // The suite reads PGORM_TEST_DSN, or the server DATABASE_URL names, and makes
 // and drops a database of its own.
 // [spec:pgorm:req:napi.codegen+1]
+// [spec:pgorm:req:bindings.codegen-disjoint/test]
 
 import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";

@@ -30,16 +30,27 @@ written by hand or by `pgorm-codegen` from a live schema. Beside it, an
   ],
   "sources": [
     {"name": "app.AccountWithNote", "rust": ["account::Entity", "note::Entity"], "typescript": "AccountWithNote"}
+  ],
+  "disjoints": [
+    {"name": "app.Shipments", "rust": "shipping::shipment::Shipment", "typescript": "Shipments"}
   ]
 }
 ```
 
 `entity_crate` is relative to the file. A Rust path names modules and an item
 of that crate — no expression, generic or keyword. Registration names are
-unique per kind, each Rust entity is registered once, a source tuple lists one
-to six of the described entities, and every `typescript` export is a public
-JavaScript identifier no other export or the module takes. Anything else is a
-`CodegenError` before a file is written.
+unique per kind, each Rust entity and disjoint enum is registered once, a
+source tuple lists one to six of the described entities, and every
+`typescript` export is a public JavaScript identifier no other export or the
+module takes. Anything else is a `CodegenError` before a file is written.
+
+A disjoint enum's base and kind entities are among the described entities;
+emission refuses one that is not. Its row type is a union over its kinds,
+`[ShipmentRecord, "packet", PacketRecord] | [ShipmentRecord, "letter", null] |
+...`, which narrows by the kind; a kinded enum is a `DisjointEntity` whose
+writes take its entities' ActiveModels and its kinds, and an unkinded one an
+`UnkindedDisjointEntity` with no write. The module's fingerprint covers each
+enum's `describe()`.
 
 ## Scaffold, build, emit
 

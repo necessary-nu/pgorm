@@ -9,7 +9,7 @@ gives the statement. A statement is made by its function (``create_table``,
 for annotations and ``isinstance`` and cannot be called.
 """
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 # [spec:pgorm:req:bindings.schema-api+2]
 from .._native import (
@@ -43,13 +43,16 @@ from .._native import (
 
 
 if TYPE_CHECKING:
+    from .._registered.disjoints import WritableDisjointView
     from ..models.disjoint import Disjoint, DisjointEntity
 
 
 # [spec:pgorm:req:bindings.disjoint+1]
 # [spec:pgorm:req:bindings.disjoint-unkinded]
+# [spec:pgorm:req:bindings.codegen-disjoint]
 def create_disjoint(
-    disjoint: 'Disjoint[Literal["kinded"]] | DisjointEntity[Literal["kinded"]]',
+    disjoint: 'Disjoint[Literal["kinded"]] | DisjointEntity[Literal["kinded"], Any] '
+    "| WritableDisjointView[Any, Any, Any, Any]",
 ) -> list[DDL]:
     """The statements creating a disjoint model's kind type, tables and the
     constraints that hold each base row to exactly its kind's table, in the
@@ -58,8 +61,11 @@ def create_disjoint(
     whose default the declaration does not state has no ``DEFAULT`` to write,
     so its table is refused; the types the tables' other columns use are not
     among the statements."""
+    from .._registered.disjoints import DisjointView
     from ..models.disjoint_query import _Disjoint
 
+    if isinstance(disjoint, DisjointView):
+        disjoint = disjoint._entity
     if not isinstance(disjoint, _Disjoint):
         raise TypeError("create_disjoint takes a Disjoint or a DisjointEntity")
     return list(disjoint._native.statements())

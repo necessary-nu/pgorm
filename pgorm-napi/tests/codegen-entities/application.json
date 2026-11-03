@@ -5,7 +5,13 @@
   "entities": [
     {"name": "app.Account", "rust": "account::Entity", "typescript": "Account"},
     {"name": "app.Note", "rust": "note::Entity", "typescript": "Note"},
-    {"name": "app.Sample", "rust": "sample::Entity", "typescript": "Sample"}
+    {"name": "app.Sample", "rust": "sample::Entity", "typescript": "Sample"},
+    {"name": "app.Delivery", "rust": "courier::delivery::Entity", "typescript": "Delivery"},
+    {"name": "app.Parcel", "rust": "courier::parcel::Entity", "typescript": "Parcel"},
+    {"name": "app.Pallet", "rust": "courier::pallet::Entity", "typescript": "Pallet"},
+    {"name": "app.Offer", "rust": "courier::offer::Entity", "typescript": "Offer"},
+    {"name": "app.Auction", "rust": "courier::auction::Entity", "typescript": "Auction"},
+    {"name": "app.Sale", "rust": "courier::sale::Entity", "typescript": "Sale"}
   ],
   "graphs": [
     {"name": "app.AccountOnly", "rust": "account_only", "typescript": "AccountOnly"},
@@ -14,5 +20,9 @@
   ],
   "sources": [
     {"name": "app.AccountWithNote", "rust": ["account::Entity", "note::Entity"], "typescript": "AccountWithNote"}
+  ],
+  "disjoints": [
+    {"name": "app.Deliveries", "rust": "courier::delivery::Delivery", "typescript": "Deliveries"},
+    {"name": "app.Offers", "rust": "courier::offer::Offer", "typescript": "Offers"}
   ]
 }

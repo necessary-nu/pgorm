@@ -7,15 +7,16 @@
 // it as it loads, so a module meeting a native build its declarations no
 // longer describe fails at once rather than mistyping a record.
 // [spec:pgorm:req:bindings.codegen]
+// [spec:pgorm:req:bindings.codegen-disjoint]
 
 import { createHash } from "node:crypto";
 
-import { ConstructionError, entity, graph, pipeline, version } from "./index.js";
+import { ConstructionError, disjointEntity, entity, graph, pipeline, version } from "./index.js";
 
 /**
  * The registrations a generated module names, by kind.
  *
- * @typedef {{ entities: readonly string[], graphs: readonly string[], sources: readonly string[] }} Named
+ * @typedef {{ entities: readonly string[], graphs: readonly string[], sources: readonly string[], disjoints?: readonly string[] }} Named
  */
 
 /**
@@ -29,6 +30,7 @@ export function describeRegistrations(named) {
     entities: named.entities.map((name) => entity(name).describe()),
     graphs: named.graphs.map((name) => graph(name).describe()),
     sources: named.sources.map((name) => pipeline.sources(name).describe()),
+    disjoints: (named.disjoints ?? []).map((name) => disjointEntity(name).describe()),
   };
 }
 

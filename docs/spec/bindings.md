@@ -1322,6 +1322,26 @@ Rust generic at run time, only use the ones compiled in.
 > native module and every registration it names describe as they did when it
 > was written, and refuse to load otherwise.
 
+> [spec:pgorm:req:bindings.codegen-disjoint]
+> The codegen workflow (`bindings.codegen`) MUST carry an application's
+> `#[derive(Disjoint)]` enums beside its entities: the description names
+> each by its Rust path, its registration name and its export, a name or a
+> Rust path repeated, and an export colliding with another, refused before
+> anything is written as an entity's are; the generated crate registers each
+> after the entities (`bindings.disjoint`); and generation refuses, before it
+> writes the module, an enum whose base or kind entity the description does
+> not export. The typed wrapper of a registration MUST type its rows as a
+> union over its kinds, one alternative per kind holding the base's record,
+> the kind's value as a literal and the kind's record, or null for a kind
+> without a table, each record the generated type of that entity, so a
+> checker narrows a row's record by its kind; a kinded enum's `insert`,
+> `update` and `change_kind` take the base's and each kind's generated
+> ActiveModel and give the written row as a read does, and an unkinded enum's
+> wrapper offers no write and no schema, as `bindings.disjoint-unkinded`
+> types it. The generated module's load-time check MUST compare every
+> registered enum's `describe()` with the one it was written from, as it
+> compares each entity's.
+
 ## Disjoint models
 
 > [spec:pgorm:req:bindings.disjoint+1]

@@ -1,12 +1,13 @@
 // @ts-check
 
 // Write a project's typed module from its built native library: one export
-// per registration — an entity, a graph shape, a source tuple — and
-// declarations typing each from what the library describes, its records'
-// columns, their nullability and an enum's labels, a graph's and a source
-// tuple's rows. The module checks the library against what it was written
-// from as it loads.
+// per registration — an entity, a graph shape, a source tuple, a disjoint
+// enum — and declarations typing each from what the library describes, its
+// records' columns, their nullability and an enum's labels, a graph's, a
+// source tuple's and a disjoint enum's rows. The module checks the library
+// against what it was written from as it loads.
 // [spec:pgorm:req:bindings.codegen]
+// [spec:pgorm:req:bindings.codegen-disjoint]
 // [spec:pgorm:req:napi.codegen+1]
 // [spec:pgorm:req:napi.codegen-types]
 
@@ -66,6 +67,42 @@ function recordOf(exports, name, what) {
 }
 
 /**
+ * A registered disjoint enum's row type, a union over its kinds, and its
+ * export: a kinded enum's writes take its entities' ActiveModels, and an
+ * unkinded one, which has no kind field, is read-only.
+ *
+ * @param {Map<string, string>} exports
+ * @param {{ name: string, typescript: string }} entry
+ * @param {{ kindField: string | null, base: string, kinds: { value: string, model: string | null }[] }} described
+ */
+function disjointTypes(exports, entry, described) {
+  const exported = (/** @type {string} */ name) => {
+    const found = exports.get(name);
+    if (found === undefined) throw new CodegenError(`${entry.name} reads ${name}, which the build description does not export`);
+    return found;
+  };
+  const base = exported(described.base);
+  const kinds = described.kinds.map(({ value, model }) => [value, model === null ? null : exported(model)]);
+  const types = (/** @type {string} */ name) => `{ record: ${name}Record; input: ${name}Input }`;
+  const row = `${entry.typescript}Row`;
+  const values = kinds.map(([value]) => JSON.stringify(value)).join(" | ");
+  const actives = kinds.filter(([, model]) => model !== null).map(([, model]) => `ActiveModel<${types(/** @type {string} */ (model))}>`);
+  const view = described.kindField === null
+    ? `UnkindedDisjointEntity<${row}, ${values}>`
+    : `DisjointEntity<${row}, ${values}, ActiveModel<${types(base)}>, ${actives.join(" | ") || "never"}>`;
+  return [
+    `/** A row of the disjoint enum \`${entry.name}\`: its base's record, its kind and the kind's record, or null for a kind with no table. */`,
+    `export type ${row} =`,
+    ...kinds.map(([value, model], index) =>
+      `  | [${base}Record, ${JSON.stringify(value)}, ${model === null ? "null" : `${model}Record`}]${index === kinds.length - 1 ? ";" : ""}`
+    ),
+    `/** The disjoint enum registered as \`${entry.name}\`${described.kindField === null ? ", read-only" : ""}. */`,
+    `export declare const ${entry.typescript}: ${view};`,
+    "",
+  ];
+}
+
+/**
  * Write the project's module from its built library.
  *
  * @param {string} project
@@ -79,12 +116,13 @@ export async function emit(project) {
     throw new CodegenError(`${project} has no native library: build it before emitting`);
   }
   const registrations = await import(pathToFileURL(join(lib, "registrations.js")).href);
-  /** @type {{ entities: { name: string, rust: string, typescript: string }[], graphs: { name: string, typescript: string }[], sources: { name: string, typescript: string }[] }} */
-  const { entities, graphs, sources } = description;
+  /** @type {{ entities: { name: string, rust: string, typescript: string }[], graphs: { name: string, typescript: string }[], sources: { name: string, typescript: string }[], disjoints?: { name: string, typescript: string }[] }} */
+  const { entities, graphs, sources, disjoints = [] } = description;
   const named = {
     entities: entities.map((entry) => entry.name),
     graphs: graphs.map((entry) => entry.name),
     sources: sources.map((entry) => entry.name),
+    disjoints: disjoints.map((entry) => entry.name),
   };
   const described = registrations.describeRegistrations(named);
   const fingerprint = registrations.registrationsFingerprint(named);
@@ -120,9 +158,13 @@ export async function emit(project) {
       "",
     );
   });
+  disjoints.forEach((entry, index) => declarations.push(...disjointTypes(exports, entry, described.disjoints[index])));
   const body = declarations.join("\n");
   const used = (/** @type {string[]} */ names) => names.filter((name) => new RegExp(`\\b${name}\\b`).test(body));
-  const types = used(["Decimal", "Entity", "EntityGraph", "Interval", "JsonValue", "Multirange", "PlainValue", "Range", "Uuid"]);
+  const types = used([
+    "ActiveModel", "Decimal", "DisjointEntity", "Entity", "EntityGraph", "Interval", "JsonValue", "Multirange", "PlainValue",
+    "Range", "UnkindedDisjointEntity", "Uuid",
+  ]);
   const imports = [`import type { ${types.join(", ")} } from "./index.js";`];
   if (sources.length > 0) imports.push('import type { SourceSelection } from "./pipeline.d.ts";');
   const module = description.module;
@@ -130,7 +172,7 @@ export async function emit(project) {
     `// @ts-self-types="./${module}.d.ts"`,
     HEADER,
     "",
-    'import { entity, graph, pipeline } from "./index.js";',
+    'import { disjointEntity, entity, graph, pipeline } from "./index.js";',
     'import { checkRegistrations } from "./registrations.js";',
     "",
     `checkRegistrations(${JSON.stringify(named)}, ${JSON.stringify(fingerprint)}, ${JSON.stringify(module)});`,
@@ -138,6 +180,7 @@ export async function emit(project) {
     ...entities.map((entry) => `export const ${entry.typescript} = entity(${JSON.stringify(entry.name)});`),
     ...graphs.map((entry) => `export const ${entry.typescript} = graph(${JSON.stringify(entry.name)});`),
     ...sources.map((entry) => `export const ${entry.typescript} = pipeline.sources(${JSON.stringify(entry.name)});`),
+    ...disjoints.map((entry) => `export const ${entry.typescript} = disjointEntity(${JSON.stringify(entry.name)});`),
     "",
   ];
   writeFileSync(join(lib, `${module}.d.ts`), `${[HEADER, "", ...imports, "", body.trimEnd()].join("\n")}\n`);

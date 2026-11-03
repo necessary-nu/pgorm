@@ -19,9 +19,10 @@ def check(expected: dict[str, Any]) -> None:
         raise native.UnsupportedCapabilityError(
             "generated registrations require another pgorm feature set"
         )
-    for family in ("entities", "graphs"):
+    # [spec:pgorm:req:bindings.codegen-disjoint]
+    for family in ("entities", "graphs", "disjoints"):
         installed = {entry["name"]: entry for entry in actual["registrations"][family]}
-        for entry in expected[family]:
+        for entry in expected.get(family, ()):
             if installed.get(entry["name"]) != entry:
                 raise native.UnsupportedCapabilityError(
                     f"generated {family} declarations differ from the installed registry"

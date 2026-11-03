@@ -128,33 +128,39 @@ export declare function disjoint<B extends Model<any>, const K extends Kinds>(
   options?: DisjointOptions,
 ): Disjoint<B, K>;
 
-/** A downstream crate's `#[derive(Disjoint)]` enum the module registers. */
-export declare class DisjointEntity {
+/**
+ * A downstream crate's `#[derive(Disjoint)]` enum the module registers, each
+ * row an `R` and each kind a `V`, its writes taking the base's ActiveModel
+ * `B` and a kind's `A`: a generated module types them from the
+ * registration.
+ */
+export declare class DisjointEntity<
+  R = DisjointEntityRow,
+  V extends string = string,
+  B extends ActiveModel<any> = ActiveModel<any>,
+  A extends ActiveModel<any> = ActiveModel<any>,
+> {
   private constructor();
   readonly name: string;
   describe(): DisjointDescription;
-  find(): DisjointQuery<DisjointEntityRow, string>;
+  find(): DisjointQuery<R, V>;
   /** The base row of `key`, which names every base key column by its SQL name, and nothing else. */
-  findByKey(key: { readonly [column: string]: unknown }): DisjointQuery<DisjointEntityRow, string>;
-  insert(base: ActiveModel<any>, kind: string, active?: ActiveModel<any> | null): DisjointWrite<DisjointEntityRow>;
-  update(base: ActiveModel<any>, kind: string, active?: ActiveModel<any> | null): DisjointWrite<DisjointEntityRow>;
-  changeKind(
-    key: { readonly [column: string]: unknown },
-    kind: string,
-    active?: ActiveModel<any> | null,
-  ): DisjointWrite<DisjointEntityRow>;
+  findByKey(key: { readonly [column: string]: unknown }): DisjointQuery<R, V>;
+  insert(base: B, kind: V, active?: A | null): DisjointWrite<R>;
+  update(base: B, kind: V, active?: A | null): DisjointWrite<R>;
+  changeKind(key: { readonly [column: string]: unknown }, kind: V, active?: A | null): DisjointWrite<R>;
 }
 
 /**
  * A downstream crate's `#[derive(Disjoint)]` enum declared `unkinded`, which
  * is read-only: `DisjointEntity` without its writes.
  */
-export interface UnkindedDisjointEntity {
+export interface UnkindedDisjointEntity<R = DisjointEntityRow, V extends string = string> {
   readonly name: string;
   describe(): DisjointDescription;
-  find(): DisjointQuery<DisjointEntityRow, string>;
+  find(): DisjointQuery<R, V>;
   /** The base row of `key`, which names every base key column by its SQL name, and nothing else. */
-  findByKey(key: { readonly [column: string]: unknown }): DisjointQuery<DisjointEntityRow, string>;
+  findByKey(key: { readonly [column: string]: unknown }): DisjointQuery<R, V>;
 }
 
 /**
@@ -232,5 +238,5 @@ export declare class DisjointCursor<R> {
  * order they run.
  */
 export declare function createDisjoint(
-  model: Disjoint<any, any> | DisjointEntity,
+  model: Disjoint<any, any> | DisjointEntity<any, any, any, any>,
 ): (CreateType | CreateTable | AlterTable)[];

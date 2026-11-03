@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 import pgorm as p
-from pgorm import app, pipeline as pl
+from pgorm import app, pipeline as pl, schema as s
 from pgorm._registered.compat import check
 from pgorm._registered.entities import Change, Inserted, Updated
 import registered_entities as fixture
@@ -346,19 +346,75 @@ class GeneratedDomains(unittest.IsolatedAsyncioTestCase):
                     await ids(pl.from_(stock).filter(pl.col("stock_line", "mood") == value))
                 self.assertEqual(refused.exception.sqlstate, "42883")
 
+class GeneratedDisjoints(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=2)
+        await self.pool.execute(p.RawSQL("CREATE SCHEMA python_courier"))
+        for statement in s.create_disjoint(app.Deliveries):
+            await self.pool.execute(statement)
+        for statement in (
+            "CREATE TABLE python_courier.offers (id integer PRIMARY KEY, title text NOT NULL)",
+            "CREATE TABLE python_courier.auctions (offer_id integer PRIMARY KEY, reserve integer NOT NULL)",
+            "CREATE TABLE python_courier.sales (id integer PRIMARY KEY, price integer NOT NULL)",
+            "INSERT INTO python_courier.offers VALUES (1, 'lamp'), (2, 'desk')",
+            "INSERT INTO python_courier.auctions VALUES (1, 50)",
+        ):
+            await self.pool.execute(p.RawSQL(statement))
+
+    async def asyncTearDown(self):
+        await self.pool.execute(p.RawSQL("DROP SCHEMA python_courier CASCADE"))
+        await self.pool.close()
+
+    # [spec:pgorm:req:bindings.codegen-disjoint/test]    a generated disjoint view reads each row as the generated models of its base and kind, writes through their generated ActiveModels, pages and narrows as a registration does, and an unkinded enum's view reads and offers no write
+    async def test_disjoint_views_read_and_write_generated_models(self):
+        deliveries = app.Deliveries
+        boxed = await deliveries.insert(
+            app.Delivery.active().set_label("box"), "parcel", app.Parcel.active().set_weight_g(500)
+        ).returning_model(self.pool)
+        base, kind, parcel = boxed
+        self.assertIsInstance(base, app.DeliveryModel)
+        self.assertEqual((base.label, kind), ("box", "parcel"))
+        self.assertIsInstance(parcel, app.ParcelModel)
+        self.assertEqual(parcel.weight_g, 500)
+        letter = await deliveries.insert(app.Delivery.active().set_label("note"), "letter").returning_model(self.pool)
+        self.assertEqual((letter[1], letter[2]), ("letter", None))
+        moved = await deliveries.change_kind(
+            {"id": base.id}, "pallet", app.Pallet.active().set_volume_l(12).set_fragile(None)
+        ).returning_model(self.pool)
+        self.assertIsInstance(moved[2], app.PalletModel)
+        ordered = deliveries.find().order_by(app.Delivery.col("id").asc())
+        rows = await ordered.all(self.pool)
+        self.assertEqual([(row[0].id, row[1]) for row in rows], [(1, "pallet"), (2, "letter")])
+        self.assertEqual(await ordered.kind("letter").count(self.pool), 1)
+        self.assertEqual([[row[1] for row in page] async for page in ordered.paginate(1).pages(self.pool)],
+                         [["pallet"], ["letter"]])
+        self.assertEqual(deliveries.describe()["kind_field"], "kind")
+
+        offers = app.Offers
+        self.assertFalse(hasattr(offers, "insert"))
+        read = await offers.find().order_by(app.Offer.col("id").asc()).all(self.pool)
+        self.assertIsInstance(read[0][0], app.OfferModel)
+        self.assertIsInstance(read[0][2], app.AuctionModel)
+        self.assertEqual([(row[0].title, row[1]) for row in read], [("lamp", "auction"), ("desk", "draft")])
+        self.assertEqual((await offers.find_by_key({"id": 2}).one(self.pool))[2], None)
+        self.assertIsNone(offers.describe()["kind_field"])
+        with self.assertRaises(p.ConstructionError):
+            s.create_disjoint(offers)
+
+
 class GeneratedContract(unittest.TestCase):
     # [spec:pgorm:req:bindings.codegen/test]
+    # [spec:pgorm:req:bindings.codegen-disjoint/test]    the load-time check compares each registered disjoint enum's describe() as it compares an entity's
     def test_compatibility_fails_before_queries(self):
         for key in ("package_version", "pgorm_version", "registry_abi", "features"):
             expected = copy.deepcopy(app._COMPATIBILITY)
             expected[key] = "mismatch"
             with self.subTest(key=key), self.assertRaises(p.UnsupportedCapabilityError):
                 check(expected)
-        for family in ("entities", "graphs"):
+        changed = {"entities": "table", "graphs": "sources", "disjoints": "kinds"}
+        for family, key in changed.items():
             expected = copy.deepcopy(app._COMPATIBILITY)
-            expected[family][0]["table" if family == "entities" else "sources"] = (
-                "changed"
-            )
+            expected[family][0][key] = "changed"
             with (
                 self.subTest(family=family),
                 self.assertRaises(p.UnsupportedCapabilityError),
@@ -397,6 +453,18 @@ class GeneratedContract(unittest.TestCase):
         self.assertIn("def codes(self) -> list[str]:", stub)
         self.assertIn("def labels(self) -> list[str] | None:", stub)
         self.assertIn("def amount(self) -> Decimal:", stub)
+        self.assertIn(
+            "DeliveriesRow: TypeAlias = tuple[DeliveryModel, Literal['parcel'], ParcelModel] "
+            "| tuple[DeliveryModel, Literal['letter'], None] "
+            "| tuple[DeliveryModel, Literal['pallet'], PalletModel]",
+            stub,
+        )
+        self.assertIn(
+            "Deliveries: WritableDisjointView[DeliveriesRow, Literal['parcel', 'letter', 'pallet'], "
+            "DeliveryActive, ParcelActive | PalletActive]",
+            stub,
+        )
+        self.assertIn("Offers: DisjointView[OffersRow]", stub)
         described = app.Account.describe()
         columns = {column["name"]: column for column in described["columns"]}
         self.assertEqual(columns["id"]["rust_type"], "i32")

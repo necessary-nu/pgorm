@@ -6,7 +6,7 @@ import unittest
 
 import pgorm as p
 from pgorm import _native, pipeline as pl, schema as s
-from pgorm._registered import entities as views, graphs as graph_views, versions as version_views
+from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, versions as version_views
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
     Column, Model, ModelRecord, Relation, cursors, disjoint_query, graphs, queries, record, writes,
@@ -37,6 +37,7 @@ EXEMPT = {
     p.Entity, p.EntityGraph, Model, Column, Relation, pl.SourceSelection, pl.Binder,
     views.EntityView, graph_views.GraphView, FieldType,
     p.Disjoint, p.DisjointEntity, disjoint_query._Disjoint,
+    disjoint_views.DisjointView, disjoint_views.WritableDisjointView, disjoint_views._Decoded,
     # The private state a model query, graph, cursor or paginator holds and
     # builds its statements from: data the application never handles, held by
     # a query that refuses.

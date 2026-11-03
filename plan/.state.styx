@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-03T11:21:46.513904Z
+last_sync_at 2026-11-03T11:22:12.631755Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -2946,6 +2946,12 @@ impl_evidence (
         {impl_name main, rule testing.isolation}
     ), rule_versions_seen (
         {id testing.isolation, version 0}
+    )}
+    {id disjoint.bindings-codegen, covered_rules (
+        bindings.codegen-disjoint
+    ), covered_claims (
+        {impl_name javascript, rule bindings.codegen-disjoint}
+        {impl_name python, rule bindings.codegen-disjoint}
     )}
 )
 
