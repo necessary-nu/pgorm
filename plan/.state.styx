@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-03T03:30:10.272249Z
+last_sync_at 2026-11-03T03:30:53.756184Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -1875,12 +1875,15 @@ impl_evidence (
     ), rule_versions_seen (
         {id macros.derive.code-values, version 2}
     )}
+    {id disjoint.codegen, covered_rules (
+        codegen.entity.disjoint
+    ), covered_claims (
+        {impl_name main, rule codegen.entity.disjoint}
+    )}
     {id disjoint.declare, covered_rules (
         disjoint.declare
     ), covered_claims (
         {impl_name main, rule disjoint.declare}
-    ), rule_versions_seen (
-        {id disjoint.declare, version 1}
     )}
     {id disjoint.read, covered_rules (
         disjoint.read
@@ -2906,11 +2909,6 @@ impl_evidence (
         {impl_name main, rule testing.isolation}
     ), rule_versions_seen (
         {id testing.isolation, version 0}
-    )}
-    {id disjoint.codegen, covered_rules (
-        codegen.entity.disjoint
-    ), covered_claims (
-        {impl_name main, rule codegen.entity.disjoint}
     )}
 )
 
