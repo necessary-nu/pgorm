@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-03T02:37:21.256576Z
+last_sync_at 2026-11-03T02:38:07.698992Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -1879,13 +1879,13 @@ impl_evidence (
         disjoint.declare
     ), covered_claims (
         {impl_name main, rule disjoint.declare}
-    ), rule_versions_seen (
-        {id disjoint.declare, version 1}
     )}
     {id disjoint.schema, covered_rules (
         disjoint.schema
     ), covered_claims (
         {impl_name main, rule disjoint.schema}
+    ), rule_versions_seen (
+        {id disjoint.schema, version 1}
     )}
     {id generative.acceptance, covered_rules (
         generative.acceptance
