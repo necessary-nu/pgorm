@@ -15,7 +15,7 @@ use pgorm_codegen::entities_from_sql;
 
 const SCHEMA: &str = include_str!("../../tests/codegen_column_types/schema.sql");
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    the compact writer states
+// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    the compact writer states
 // each column's whole type wherever its field's Rust type infers another: a
 // `varchar(n)` or `char(n)` that `String` would infer as an unbounded `varchar`, a
 // `numeric(p, s)`, and arrays of each, and a range over `text` whose newtype's

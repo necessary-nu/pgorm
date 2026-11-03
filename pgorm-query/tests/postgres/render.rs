@@ -202,7 +202,7 @@ fn an_extension_schema_is_quoted() {
     );
 }
 
-// [spec:pgorm:req:sql.render.ddl.enum-type+5/test]    an enum LABEL is data, not a name: it
+// [spec:pgorm:req:sql.render.ddl.enum-type+6/test]    an enum LABEL is data, not a name: it
 // renders as a string literal inline and as a bound parameter through the values sink, and a
 // hostile label reaches neither position as SQL
 #[test]

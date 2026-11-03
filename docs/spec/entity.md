@@ -32,10 +32,16 @@ explicit limitations.
 > whose names are computed, or a key the arity guard of `entity.traits.crud` refuses —
 > meets the same bounds.
 
-> [spec:pgorm:req:entity.traits.entity-name+4]
+> [spec:pgorm:req:entity.traits.entity-name+5]
 > `EntityName::table_name` is the only required method and MUST return the table's SQL
 > name. `schema_name` and `comment` default to `None`; `module_name` defaults to
-> `table_name()`. `table_ref` MUST produce a schema-qualified `TableName`
+> `table_name()`; `unique_keys` — the table's unique keys over two columns or
+> more, static data as the table's name is: each a `UniqueKey` of the
+> constraint's name or `None`, its columns' SQL names in key order and whether
+> nulls are equal under it, which `create_table_from_entity` writes — defaults
+> to none, and is what the composite derive's `unique(..)` keys declare
+> (`macros.derive.entity-model.attrs`). `table_ref` MUST produce a
+> schema-qualified `TableName`
 > (`(Name::runtime(schema), entity)`) when `schema_name` returns `Some`, and a bare
 > `TableName::Table` otherwise (`src/entity/base_entity.rs`). It is the DDL-position
 > type, so schema projection targets take it directly; query positions widen it to a
@@ -794,7 +800,7 @@ explicit limitations.
 > entity related to itself is well-formed where an unaliased join of the
 > `Related` path would name one table twice.
 
-> [spec:pgorm:req:entity.relation.fk+5]
+> [spec:pgorm:req:entity.relation.fk+6]
 > A `RelationDef` converts into DDL foreign-key forms via
 > `From<RelationDef> for ForeignKeyCreateStatement` and `for TableForeignKey`
 > (`src/entity/relation.rs`). The conversion maps every pair in `columns` to a
@@ -804,7 +810,9 @@ explicit limitations.
 > `deferrability` and the `enforcement` when present, and names the
 > constraint from `fk_name` when set; otherwise the name MUST be derived as
 > `fk-{from_table}-{from_cols joined with '-'}`, the from columns being
-> `from_key()`'s, the period's last. Both conversions unpack the table
+> `from_key()`'s, the period's last, and bounded to PostgreSQL's 63 bytes
+> as every name schema generation derives is
+> (`[spec:pgorm:sem:schema.from-entity]`). Both conversions unpack the table
 > references to bare tables (the schema of a `FromItem`'s `TableName`, and any bound
 > alias, are reduced away by `unpack_table_ref`).
 >

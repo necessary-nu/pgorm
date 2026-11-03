@@ -16617,12 +16617,20 @@ children (
         id bit-unbounded-renders-bit-one
         title "An unlengthed Bit column type renders as PostgreSQL reads it, not as bit(1)"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T21:41:31.780712Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by bpchar-unbounded-round-trip (ebba1f67): ColumnType::Bit(None) renders `bit`, which PostgreSQL reads as bit(1), the flaw Char(None) had. Codegen maps no bit column today, so no generated entity is affected, but create_table_from_entity on a Bit(None) column writes bit(1). Decide what Bit(None) means (an unbounded bit string has no spelling in PostgreSQL: `varbit` is the unbounded type, `bit` is always fixed-width), most likely that Bit(None) cannot be written and ColumnDef's bit builder takes a width, and make the rendering say what the type is; live-check format_type for each spelling."
+            }
+
+            {
+                at 2026-11-03T10:13:23.143946Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16727,12 +16735,27 @@ children (
         id schema-gen-name-bounds
         title "Every constraint name schema generation derives fits PostgreSQL's 63-byte identifier limit"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T02:38:49.886751Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.schema (22c8f563): create_disjoint bounds its names through bounded_identifier (src/executor/result_name.rs: kept under 63 bytes, else a 47-byte head plus a 16-hex FNV hash), but create_table_from_entity's own derived names are not bounded: a relation's foreign key fk-{table}-{cols} and a composite key's pk-{table}. PostgreSQL truncates a longer identifier silently (NOTICE 42622), so two long names can collide and a later statement naming the constraint misses it. Route every derived name through the same composition, revise schema.from-entity, and test the long cases live."
+            }
+
+            {
+                at 2026-11-03T10:20:40.285118Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:26:11.756797Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16741,12 +16764,27 @@ children (
         id qualified-enum-type-quoting
         title "A schema-qualified enum is quoted alike in its CREATE TYPE and in every column that uses it"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T02:38:50.06071Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.schema (22c8f563): a schema-qualified enum renders unquoted as a column type (market.listing_category) but quoted in CREATE TYPE (\"market\".\"listing_category\"). They agree only while both names are lower-case and need no quoting; a mixed-case or keyword name creates one type and declares columns of another (42704). Find where a column's enum type is rendered (pgorm-query's column type rendering for ColumnType::Enum with a schema) and quote it as an identifier pair the way CREATE TYPE does; live-test a mixed-case schema and type name through create_table_from_entity and create_disjoint."
+            }
+
+            {
+                at 2026-11-03T10:14:02.991352Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:19:48.231555Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16784,12 +16822,27 @@ children (
         id entity-composite-unique
         title "An entity declares a composite UNIQUE constraint, and codegen keeps one it reads"
         kind @feat
+        sealed true
         log (
             {
                 at 2026-11-03T03:53:21.038292Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.codegen (bdfd9dcb): an entity cannot express a composite UNIQUE constraint (only a column's own unique and indexes). Codegen therefore drops one it reads: in a near-miss disjoint shape the base's UNIQUE (id, kind) is lost, and the kind table's relation onto that pair then makes create_table_from_entity write a foreign key PostgreSQL refuses (42830, no unique constraint matching the referenced columns). Give the Entity derive a container key for a named composite unique (bare column paths, e.g. unique(name = \"uq-x\", Column::A, Column::B)), render it in create_table_from_entity, have codegen emit it, and test the near-miss round trip live. Also from that node, both small: validate_identities checks a schema-qualified enum's name collisions as UpperCamel(\"schema.name\") (MarketListingCategory) rather than the Rust name actually written; and the disjoint name-clash check refuses a base table named like a derive macro (debug), more than it needs to."
+            }
+
+            {
+                at 2026-11-03T10:26:47.812754Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:51:01.215259Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

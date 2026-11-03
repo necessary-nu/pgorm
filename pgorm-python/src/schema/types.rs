@@ -119,7 +119,9 @@ impl PyDataType {
             "timestamptz" => ColumnType::TimestampWithTimeZone,
             "interval" => ColumnType::Interval(IntervalSpec::Any(None)),
             "bytea" => ColumnType::Bytea,
-            "bit" => ColumnType::Bit(length),
+            // SQL's `bit` without a length is `bit(1)`; `Bit(None)` is the
+            // bit type with no length limit.
+            "bit" => ColumnType::Bit(Some(length.unwrap_or(1))),
             "varbit" => ColumnType::VarBit(
                 length.ok_or_else(|| ConstructionError::new_err("varbit requires length"))?,
             ),

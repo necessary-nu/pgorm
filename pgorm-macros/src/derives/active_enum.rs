@@ -155,7 +155,7 @@ impl ActiveEnum {
     /// what its variants write, falling back to their discriminants.
     // [spec:pgorm:syn:macros.derive.active-enum+6]
     // [spec:pgorm:sem:macros.derive.boilerplate]
-    // [spec:pgorm:req:macros.derive.code-values+2]
+    // [spec:pgorm:req:macros.derive.code-values+3]
     fn new(input: syn::DeriveInput) -> Result<Self, Error> {
         let ident_span = input.ident.span();
         let ident = input.ident;

@@ -390,7 +390,7 @@ fn entity_trait_family() {
     assert_eq!(entity.as_str(), copied.as_str());
 }
 
-// [spec:pgorm:req:entity.traits.entity-name+4/test]    `table_name` is the only
+// [spec:pgorm:req:entity.traits.entity-name+5/test]    `table_name` is the only
 // required method; `schema_name` and `comment` default to `None` and
 // `module_name` to `table_name()`; `table_ref` yields a bare `TableName::Table`
 // without a schema and a `SchemaTable` with one, and every statement that names

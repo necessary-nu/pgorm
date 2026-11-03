@@ -33,7 +33,7 @@ fn is_ident(raw: &str) -> bool {
 /// variant twice over, or a unique key whose set of columns is narrower than
 /// its list.
 // [spec:pgorm:req:codegen.ddl.unsupported+19]
-// [spec:pgorm:sem:codegen.entity.transform+16]
+// [spec:pgorm:sem:codegen.entity.transform+17]
 pub(crate) fn repeated_column<I>(columns: I) -> Option<String>
 where
     I: IntoIterator<Item = String>,

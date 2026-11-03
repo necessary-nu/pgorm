@@ -44,7 +44,7 @@ pub struct Relation {
 
 impl Relation {
     /// Which table this relation references.
-    // [spec:pgorm:sem:codegen.entity.transform+16]
+    // [spec:pgorm:sem:codegen.entity.transform+17]
     pub fn ref_ident(&self) -> TableIdent {
         TableIdent {
             table: self.ref_table.clone(),
@@ -120,7 +120,7 @@ impl Relation {
     /// written bare: the entity reached, the column pairs, the period, the
     /// actions and the key check.
     // [spec:pgorm:sem:codegen.entity.relations+5]
-    // [spec:pgorm:req:macros.derive.code-values+2]
+    // [spec:pgorm:req:macros.derive.code-values+3]
     pub fn get_attrs(&self) -> TokenStream {
         let rel_type = self.get_rel_type();
         let module = self
@@ -275,7 +275,7 @@ impl Relation {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+16]
+// [spec:pgorm:sem:codegen.entity.transform+17]
 impl From<&TableForeignKey> for Relation {
     fn from(tbl_fk: &TableForeignKey) -> Self {
         let ref_table = TableIdent::of(tbl_fk.get_ref_table());

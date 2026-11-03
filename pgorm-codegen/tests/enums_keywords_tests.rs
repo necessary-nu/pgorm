@@ -259,7 +259,7 @@ fn non_snake_case_names_preserved_by_column_name() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.collisions+2/test]    two tables whose names
+// [spec:pgorm:req:codegen.entity.collisions+3/test]    two tables whose names
 // derive one module name are refused by both source names: one file would be
 // written over the other and the module declared twice
 #[test]
@@ -273,7 +273,7 @@ fn colliding_table_names_are_refused() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.collisions+2/test]    two columns of one table
+// [spec:pgorm:req:codegen.entity.collisions+3/test]    two columns of one table
 // whose names derive one field name are refused, naming the table and both
 // columns
 #[test]
@@ -292,7 +292,7 @@ fn colliding_column_names_are_refused() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.collisions+2/test]    two enums that derive one
+// [spec:pgorm:req:codegen.entity.collisions+3/test]    two enums that derive one
 // type name, and two values of one enum that derive one variant name, are
 // refused the same way
 #[test]

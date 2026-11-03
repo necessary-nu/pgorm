@@ -32,7 +32,7 @@ fn assert_error(sql: &str, expected: &str) {
 
 const QUALIFIED: &str = "CREATE TABLE tenant_a.item (id int PRIMARY KEY);";
 
-// [spec:pgorm:sem:codegen.entity.transform+16/test]    the source table's schema
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    the source table's schema
 // survives transformation and reaches the compact entity
 // [spec:pgorm:def:codegen.entity.compact+5/test]
 #[test]
@@ -45,7 +45,7 @@ fn compact_entity_carries_the_source_schema() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+16/test]    an unqualified table
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    an unqualified table
 // still generates no schema of its own
 #[test]
 fn an_unqualified_table_carries_no_schema() {
@@ -82,7 +82,7 @@ fn the_configured_schema_is_only_a_default() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.collisions+2/test]    two schemas' same-named
+// [spec:pgorm:req:codegen.entity.collisions+3/test]    two schemas' same-named
 // tables are two tables that want one file, and the gate says so
 #[test]
 fn same_name_in_two_schemas_is_refused() {
@@ -95,7 +95,7 @@ fn same_name_in_two_schemas_is_refused() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.collisions+2/test]    a qualified table and an
+// [spec:pgorm:req:codegen.entity.collisions+3/test]    a qualified table and an
 // unqualified one of the same name collide the same way — whether they are one
 // table is `search_path`'s business, and either way there is one `item.rs`
 #[test]
@@ -108,7 +108,7 @@ fn qualified_and_unqualified_namesakes_are_refused() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.collisions+2/test]    one identity declared
+// [spec:pgorm:req:codegen.entity.collisions+3/test]    one identity declared
 // twice is a duplicate, not a collision
 #[test]
 fn a_table_declared_twice_is_refused() {
@@ -131,7 +131,7 @@ fn qualified_item() -> pgorm_query::TableCreateStatement {
         .to_owned()
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+16/test]    a qualified foreign key
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    a qualified foreign key
 // resolves to the table it names, across schemas
 #[test]
 fn a_foreign_key_resolves_across_schemas() {
@@ -152,7 +152,7 @@ fn a_foreign_key_resolves_across_schemas() {
     assert_contains(generated.file("item.rs"), "has_many = super::cart::Entity");
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+16/test]    an unqualified reference
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    an unqualified reference
 // resolves to the one table with that bare name, whatever schema it is in
 #[test]
 fn an_unqualified_key_reaches_a_qualified_table() {
@@ -169,7 +169,7 @@ fn an_unqualified_key_reaches_a_qualified_table() {
     assert_contains(generated.file("item.rs"), "has_many = super::cart::Entity");
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+16/test]    a key onto another
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    a key onto another
 // schema's table is a key onto a table this schema does not define
 #[test]
 fn a_key_onto_another_schemas_table_is_unresolved() {
@@ -180,7 +180,7 @@ fn a_key_onto_another_schemas_table_is_unresolved() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+16/test]    self-reference is decided
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    self-reference is decided
 // on identity: a qualified table keying itself is still `SelfRef`
 #[test]
 fn a_qualified_table_can_reference_itself() {
@@ -196,7 +196,7 @@ fn a_qualified_table_can_reference_itself() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+16/test]    the gate names a table by
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    the gate names a table by
 // its identity, so a failure in one of two schemas' tables says which
 #[test]
 fn a_refusal_names_the_qualified_table() {
@@ -333,4 +333,29 @@ fn same_named_enums_in_two_schemas_are_refused() {
         "enum `status` is used under two qualifications; the generated Rust \
          enum can carry only one",
     );
+}
+
+// [spec:pgorm:req:codegen.entity.collisions+3/test]    a schema-qualified enum
+// claims the type name its file declares, its own name's, and not one spelled
+// from its schema too: `market.grade` and `"GRADE"` both declare `Grade` and are
+// refused, while `market.listing_category` and `market_listing_category` declare
+// two and generate
+#[test]
+fn qualified_enums_claim_the_name_they_declare() {
+    assert_error(
+        "CREATE TYPE market.grade AS ENUM ('a');
+         CREATE TYPE \"GRADE\" AS ENUM ('b');
+         CREATE TABLE mark (id int PRIMARY KEY, g market.grade, h \"GRADE\");",
+        "enums `GRADE` and `market.grade` both generate the type name `Grade`",
+    );
+    let generated = from_sql(
+        "CREATE TYPE market.listing_category AS ENUM ('a');
+         CREATE TYPE market_listing_category AS ENUM ('b');
+         CREATE TABLE listing (id int PRIMARY KEY, c market.listing_category, \
+         d market_listing_category);",
+        Opts::default(),
+    );
+    let enums = generated.file("pgorm_active_enums.rs");
+    assert_contains(enums, "pub enum ListingCategory");
+    assert_contains(enums, "pub enum MarketListingCategory");
 }

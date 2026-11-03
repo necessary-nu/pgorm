@@ -516,7 +516,7 @@ pub enum TypeAs {
     ///
     /// A label is *data* — it renders as a string literal, never as an
     /// identifier — so it is carried as a `String` rather than as a name.
-    // [spec:pgorm:req:sql.render.ddl.enum-type+5]
+    // [spec:pgorm:req:sql.render.ddl.enum-type+6]
     Enum(Vec<String>),
     /// `AS RANGE (..)`, carrying the subtype and the options beside it.
     // [spec:pgorm:req:sql.ddl.type-range+2]
@@ -584,7 +584,7 @@ pub enum TypeDropOpt {
 /// Enum labels are data and are carried as `String`; `Rename`'s payload is the
 /// type's own name and is carried as an identifier, because that is what it
 /// renders as.
-// [spec:pgorm:req:sql.render.ddl.enum-type+5]
+// [spec:pgorm:req:sql.render.ddl.enum-type+6]
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum TypeAlterOpt {
@@ -595,7 +595,7 @@ pub enum TypeAlterOpt {
 
 /// Where an added enum label goes relative to an existing one — both labels,
 /// so both data.
-// [spec:pgorm:req:sql.render.ddl.enum-type+5]
+// [spec:pgorm:req:sql.render.ddl.enum-type+6]
 #[derive(Debug, Clone)]
 pub enum TypeAlterAddOpt {
     Before(String),
@@ -690,7 +690,7 @@ impl TypeCreateStatement {
     ///     r#"CREATE TYPE "font_family" AS ENUM ('serif', 'sans', 'monospace')"#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.render.ddl.enum-type+5]
+    // [spec:pgorm:req:sql.render.ddl.enum-type+6]
     pub fn values<T, I>(&mut self, values: I) -> &mut Self
     where
         T: Into<String>,
@@ -851,7 +851,7 @@ impl PendingTypeAlter {
     ///     r#"ALTER TYPE "font_family" ADD VALUE 'cursive'"#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.render.ddl.enum-type+5]
+    // [spec:pgorm:req:sql.render.ddl.enum-type+6]
     pub fn add_value<T>(self, value: T) -> TypeAlterStatement
     where
         T: Into<String>,
@@ -884,7 +884,7 @@ impl PendingTypeAlter {
     ///     r#"ALTER TYPE "font" RENAME VALUE 'variant' TO 'language'"#
     /// )
     /// ```
-    // [spec:pgorm:req:sql.render.ddl.enum-type+5]
+    // [spec:pgorm:req:sql.render.ddl.enum-type+6]
     pub fn rename_value<T, V>(self, existing: T, new_name: V) -> TypeAlterStatement
     where
         T: Into<String>,
@@ -908,7 +908,7 @@ impl TypeAlterStatement {
     ///     r#"ALTER TYPE "font" ADD VALUE 'weight' BEFORE 'variant'"#
     /// )
     /// ```
-    // [spec:pgorm:req:sql.render.ddl.enum-type+5]
+    // [spec:pgorm:req:sql.render.ddl.enum-type+6]
     #[must_use]
     pub fn before<T>(mut self, value: T) -> Self
     where
@@ -919,7 +919,7 @@ impl TypeAlterStatement {
     }
 
     /// Add a enum value after an existing value
-    // [spec:pgorm:req:sql.render.ddl.enum-type+5]
+    // [spec:pgorm:req:sql.render.ddl.enum-type+6]
     #[must_use]
     pub fn after<T>(mut self, value: T) -> Self
     where
@@ -993,7 +993,7 @@ macro_rules! impl_type_statement_build {
             /// SQL, feeding a proxy that expands them — and the statement you
             /// execute is the inlined `Display` rendering.
             // [spec:pgorm:req:sql.ddl+12]
-            // [spec:pgorm:req:sql.render.ddl.enum-type+5]
+            // [spec:pgorm:req:sql.render.ddl.enum-type+6]
             pub fn build(&self) -> (String, Values) {
                 let mut sql = SqlWriterValues::new("$", true);
                 self.build_collect(&mut sql);

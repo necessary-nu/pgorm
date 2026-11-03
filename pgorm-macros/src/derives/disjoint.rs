@@ -50,7 +50,7 @@ fn once<T>(meta: &ParseNestedMeta<'_>, slot: &mut Option<T>, value: T) -> syn::R
 }
 
 // [spec:pgorm:def:disjoint.declare+5]
-// [spec:pgorm:req:macros.derive.code-values+2]
+// [spec:pgorm:req:macros.derive.code-values+3]
 fn container(input: &DeriveInput) -> syn::Result<Container> {
     let mut base = None;
     let mut kind = None;

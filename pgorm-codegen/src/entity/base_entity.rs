@@ -6,7 +6,7 @@ use quote::quote;
 use std::fmt;
 
 use crate::{
-    Column, ConjunctRelation, DisjointEnum, Error, PrimaryKey, Relation,
+    Column, ConjunctRelation, DisjointEnum, Error, PrimaryKey, Relation, UniqueKey,
     util::{escape_rust_keyword, safe_ident},
 };
 
@@ -15,7 +15,7 @@ use crate::{
 ///
 /// Ordered by bare name first, so the entity map — and every output that walks
 /// it — stays alphabetical by table name however the schemas sort.
-// [spec:pgorm:sem:codegen.entity.transform+16]
+// [spec:pgorm:sem:codegen.entity.transform+17]
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TableIdent {
     pub table: String,
@@ -24,7 +24,7 @@ pub struct TableIdent {
 
 impl TableIdent {
     /// The identity a DDL statement's table name spells.
-    // [spec:pgorm:sem:codegen.entity.transform+16]
+    // [spec:pgorm:sem:codegen.entity.transform+17]
     pub fn of(name: &TableName) -> Self {
         Self {
             table: name.table().to_string(),
@@ -34,7 +34,7 @@ impl TableIdent {
 }
 
 /// As the schema wrote it: `schema.table`, or `table` when unqualified.
-// [spec:pgorm:sem:codegen.entity.transform+16]
+// [spec:pgorm:sem:codegen.entity.transform+17]
 impl fmt::Display for TableIdent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.schema {
@@ -55,17 +55,21 @@ pub struct Entity {
     pub(crate) primary_keys: Vec<PrimaryKey>,
     /// Whether the last primary-key column is the key's period, PostgreSQL
     /// 18's `WITHOUT OVERLAPS`.
-    // [spec:pgorm:sem:codegen.entity.transform+16]
+    // [spec:pgorm:sem:codegen.entity.transform+17]
     pub(crate) without_overlaps: bool,
     /// The disjoint enum the entity's module declares, when its table is
     /// the base of one.
-    // [spec:pgorm:sem:codegen.entity.disjoint+2]
+    // [spec:pgorm:sem:codegen.entity.disjoint+3]
     pub(crate) disjoint: Option<DisjointEnum>,
+    /// The table's unique keys over two columns or more, in the table's
+    /// order, which the entity declares with `unique(..)`.
+    // [spec:pgorm:sem:codegen.entity.transform+17]
+    pub(crate) unique_keys: Vec<UniqueKey>,
 }
 
 impl Entity {
     /// Which table this entity is generated from.
-    // [spec:pgorm:sem:codegen.entity.transform+16]
+    // [spec:pgorm:sem:codegen.entity.transform+17]
     pub fn ident(&self) -> TableIdent {
         TableIdent {
             table: self.table_name.clone(),
@@ -76,14 +80,14 @@ impl Entity {
     /// The schema the generated entity names: the source table's own qualifier
     /// when it had one, else the configured default. A fact the schema states
     /// is never overridden by an option.
-    // [spec:pgorm:sem:codegen.entity.transform+16]
+    // [spec:pgorm:sem:codegen.entity.transform+17]
     pub fn effective_schema<'a>(&'a self, default: &'a Option<String>) -> Option<&'a str> {
         self.schema_name.as_deref().or(default.as_deref())
     }
 
     /// Everything the writer derives from this entity's DB names, checked while
     /// the caller can still be handed the failure.
-    // [spec:pgorm:sem:codegen.entity.transform+16]
+    // [spec:pgorm:sem:codegen.entity.transform+17]
     // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let qualified = self.ident().to_string();
@@ -306,6 +310,7 @@ mod tests {
             conjunct_relations: vec![],
             without_overlaps: false,
             disjoint: None,
+            unique_keys: Vec::new(),
             primary_keys: vec![PrimaryKey {
                 name: "id".to_owned(),
             }],

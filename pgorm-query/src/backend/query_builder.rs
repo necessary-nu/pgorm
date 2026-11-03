@@ -1346,7 +1346,7 @@ impl QueryBuilder {
     }
 
     // [spec:pgorm:sem:sql.ddl.panics+4]
-    // [spec:pgorm:def:sql.render.ddl.types+7] (serial family for auto-increment columns)
+    // [spec:pgorm:def:sql.render.ddl.types+8] (serial family for auto-increment columns)
     fn prepare_column_auto_increment(&self, column_type: &ColumnType, sql: &mut dyn SqlWriter) {
         match column_type.serial_spelling() {
             Some(serial) => write!(sql, "{serial}").unwrap(),
@@ -1410,8 +1410,8 @@ impl QueryBuilder {
         });
     }
 
-    // [spec:pgorm:req:sql.ddl.column-types+7]
-    // [spec:pgorm:def:sql.render.ddl.types+7]
+    // [spec:pgorm:req:sql.ddl.column-types+8]
+    // [spec:pgorm:def:sql.render.ddl.types+8]
     fn prepare_column_type(&self, column_type: &ColumnType, sql: &mut dyn SqlWriter) {
         write!(
             sql,
@@ -1453,12 +1453,13 @@ impl QueryBuilder {
                     typ
                 }
                 ColumnType::Bytea => "bytea".into(),
-                ColumnType::Bit(length) => {
-                    match length {
-                        Some(length) => format!("bit({length})"),
-                        None => "bit".into(),
-                    }
-                }
+                // A bare `bit` is `bit(1)` to PostgreSQL; the bit type with
+                // no length limit has no keyword spelling, only the quoted
+                // type name, which is how `format_type` prints it.
+                ColumnType::Bit(length) => match length {
+                    Some(length) => format!("bit({length})"),
+                    None => r#""bit""#.into(),
+                },
                 ColumnType::VarBit(length) => {
                     format!("varbit({length})")
                 }
@@ -1478,6 +1479,7 @@ impl QueryBuilder {
                 },
                 // [spec:pgorm:req:sql.render.ident-quoting+7]
                 ColumnType::Named(type_name) => type_name.to_sql_string(),
+                // [spec:pgorm:req:sql.render.ddl.enum-type+6]    the name its `CREATE TYPE` quotes
                 ColumnType::Enum { name, schema, .. }
                 | ColumnType::CreatedRange { name, schema, .. }
                 | ColumnType::CreatedMultirange { name, schema, .. }
@@ -2306,7 +2308,7 @@ impl QueryBuilder {
         .unwrap()
     }
 
-    // [spec:pgorm:req:sql.render.ddl.enum-type+5] (ALTER TYPE label operands parameterized)
+    // [spec:pgorm:req:sql.render.ddl.enum-type+6] (ALTER TYPE label operands parameterized)
     fn prepare_alter_type_opt(&self, opt: &TypeAlterOpt, sql: &mut dyn SqlWriter) {
         match opt {
             TypeAlterOpt::Add(value, placement) => {
@@ -2341,7 +2343,7 @@ impl QueryBuilder {
     }
 
     // [spec:pgorm:req:sql.ddl.type-enum+7]
-    // [spec:pgorm:req:sql.render.ddl.enum-type+5]
+    // [spec:pgorm:req:sql.render.ddl.enum-type+6]
     pub(crate) fn prepare_type_create_statement(
         &self,
         create: &TypeCreateStatement,

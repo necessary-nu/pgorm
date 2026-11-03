@@ -248,7 +248,7 @@ fn attribute_string_value(attr: &str) -> String {
         .value()
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    the compact attribute
+// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    the compact attribute
 // carries a named type's name as a rendered string literal, so a name holding a
 // quote arrives at the derive as the name that was described rather than as
 // tokens that escaped the literal
@@ -308,7 +308,7 @@ fn hostile_named_type_survives_the_compact_attribute() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    and the entity the
+// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    and the entity the
 // derive builds from it names the type that was described, character for
 // character
 #[test]
@@ -428,7 +428,7 @@ fn column_conversion_rejects_unsupported_type() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+16/test]    an identity is read off
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    an identity is read off
 // the column definition as its form, and makes the column NOT NULL; one
 // carrying sequence options is refused, since an entity declares no options
 #[test]
@@ -505,7 +505,7 @@ fn range_columns_are_typed_by_their_subtype() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    an array needs a
+// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    an array needs a
 // `column_type` exactly when its element does, since the derive infers an
 // array as an array of what the element's Rust type infers: `text[]` would be
 // created as `varchar[]`, and `citext[]` as `varchar[]` too
@@ -579,7 +579,7 @@ mod text_array_entity {
     pub enum Relation {}
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    and the derive builds
+// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    and the derive builds
 // the array of the element type named, not of the one `String` infers
 #[test]
 fn derived_array_columns_keep_their_element_type() {

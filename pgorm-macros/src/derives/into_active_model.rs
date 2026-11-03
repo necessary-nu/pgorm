@@ -7,7 +7,7 @@ use super::util::{bare_code, unknown_pgorm_key};
 /// `active_model`, the one key the derive reads. Every field becomes its
 /// active model's field of the same name, so a field carries no key.
 // [spec:pgorm:sem:macros.derive.active-model+7]
-// [spec:pgorm:req:macros.derive.code-values+2]
+// [spec:pgorm:req:macros.derive.code-values+3]
 fn active_model_name(input: &syn::DeriveInput) -> syn::Result<Option<syn::Ident>> {
     let mut active_model = None;
     for attr in input
