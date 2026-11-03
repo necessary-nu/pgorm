@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-03T03:52:36.39422Z
+last_sync_at 2026-11-03T03:53:31.000679Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -576,6 +576,7 @@ derived_priorities (
     {id domain-unwrap-shared, priority 1, derived_at 2026-10-26T20:21:09.753689Z}
     {id embedded-index-kinds, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id empty-insert-batch, priority 3, derived_at 2026-09-07T15:33:15.757479Z}
+    {id entity-composite-unique, priority 0, derived_at 2026-11-03T03:53:31.000679Z}
     {id entity-relation-not-enforced, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
     {id entity-temporal-keys, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
     {id enum-label-length, priority 0, derived_at 2026-11-03T03:30:10.272249Z}
@@ -1883,6 +1884,8 @@ impl_evidence (
         codegen.entity.disjoint
     ), covered_claims (
         {impl_name main, rule codegen.entity.disjoint}
+    ), rule_versions_seen (
+        {id codegen.entity.disjoint, version 1}
     )}
     {id disjoint.declare, covered_rules (
         disjoint.declare
