@@ -16648,12 +16648,20 @@ children (
         id enum-label-length
         title "An enum value past PostgreSQL's 63-byte label limit is refused at compile time, for ActiveEnum and Disjoint kinds alike"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T01:45:53.734084Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.declare (0b45e379): neither ActiveEnum nor Disjoint checks a value against PostgreSQL's enum label limit (1 to 63 bytes, NAMEDATALEN - 1; CREATE TYPE refuses a longer or empty label with 42622 / 22023), so the mistake surfaces only when the type is created. Both derives know every value at expansion, so refuse an empty value or one over 63 bytes there, spanned at the variant, sharing one check (Disjoint's kind type already comes from ActiveEnum's expansion). Also from that node: #[cfg] on a Disjoint variant (and on an ActiveEnum variant) is not handled — decide whether a cfg'd variant is refused or carried through to the kind type and the visitor consistently, and test it."
+            }
+
+            {
+                at 2026-11-03T10:09:48.300607Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
