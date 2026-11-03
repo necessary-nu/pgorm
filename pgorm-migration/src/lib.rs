@@ -54,4 +54,19 @@ pub trait MigrationTrait: MigrationName + Send + Sync {
     fn checksum(&self) -> Option<String> {
         None
     }
+
+    /// Whether [`up`](MigratorTrait::up) commits this migration, with its
+    /// ledger row, before the next migration of the batch runs, `false` by
+    /// default.
+    ///
+    /// Answering `true` is for a change PostgreSQL will not let one
+    /// transaction finish: a value `ALTER TYPE ... ADD VALUE` adds cannot be
+    /// used before the transaction that added it commits. Such a batch is not
+    /// all-or-nothing: a failure after the commit rolls back only the
+    /// transaction it happens in, the migrations committed before it stay
+    /// applied, and running `up` again resumes after them.
+    // [spec:pgorm:req:migration.commit-after]
+    fn commits_after(&self) -> bool {
+        false
+    }
 }

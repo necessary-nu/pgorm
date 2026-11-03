@@ -2938,6 +2938,13 @@ impl_evidence (
     ), rule_versions_seen (
         {id testing.isolation, version 0}
     )}
+    {id disjoint.evolve, covered_rules (
+        disjoint.evolve
+        migration.commit-after
+    ), covered_claims (
+        {impl_name main, rule disjoint.evolve}
+        {impl_name main, rule migration.commit-after}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

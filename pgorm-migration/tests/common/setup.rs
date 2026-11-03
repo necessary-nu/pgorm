@@ -58,6 +58,16 @@ impl TestContext {
         .expect("a one-connection pool builds")
     }
 
+    /// A pool against this database that lends one connection, so each
+    /// checkout is the session the last one returned.
+    pub fn pool_of_one(&self) -> DatabasePool {
+        pgorm_migration::pgorm::connect_with_builder(
+            config(&self.base_url, &self.db_name),
+            |builder| builder.max_size(1),
+        )
+        .expect("a one-connection pool builds")
+    }
+
     /// A pool against this database whose sessions act as `role`, which the
     /// server's superuser login is allowed to become.
     pub fn pool_as(&self, role: &str) -> DatabasePool {

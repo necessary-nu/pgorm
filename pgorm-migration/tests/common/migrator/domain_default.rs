@@ -12,10 +12,12 @@ pub async fn prepared_insert(db: &impl ConnectionTrait) -> Result<Option<String>
         .map(|row| row.get(0)))
 }
 
-/// A migration that runs one script, its name pinned by hand.
+/// A migration that runs one script, its name pinned by hand, and asks to be
+/// committed before the next one runs where `commits_after` says so.
 pub struct Script {
     pub name: &'static str,
     pub sql: &'static str,
+    pub commits_after: bool,
 }
 
 impl MigrationName for Script {
@@ -29,17 +31,23 @@ impl MigrationTrait for Script {
     async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute(self.sql).await
     }
+
+    fn commits_after(&self) -> bool {
+        self.commits_after
+    }
 }
 
-const CREATED: Script = Script {
+pub const CREATED: Script = Script {
     name: "m20240201_000001_create_quantity",
     sql: "CREATE DOMAIN quantity AS integer DEFAULT 1; \
           CREATE TABLE line (id integer PRIMARY KEY, qty quantity)",
+    commits_after: false,
 };
 
-const DEFAULTED: Script = Script {
+pub const DEFAULTED: Script = Script {
     name: "m20240201_000002_default_quantity",
     sql: "ALTER DOMAIN quantity SET DEFAULT 2",
+    commits_after: false,
 };
 
 /// A domain with a default, and a table with a column of it.
@@ -62,9 +70,10 @@ impl MigratorTrait for Defaulted {
     }
 }
 
-const REDEFAULTED: Script = Script {
+pub const REDEFAULTED: Script = Script {
     name: "m20240201_000003_redefault_quantity",
     sql: "ALTER DOMAIN quantity SET DEFAULT 3",
+    commits_after: false,
 };
 
 /// [`Defaulted`], then another change to the default, from a migrator that
