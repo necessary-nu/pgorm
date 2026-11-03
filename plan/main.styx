@@ -679,6 +679,21 @@ children (
                     }
                 )
             }
+
+            {
+                id alter-column-type-collate
+                title "ALTER COLUMN ... TYPE with USING can also set the column's collation"
+                kind @feat
+                deps (disjoint.evolve)
+                log (
+                    {
+                        at 2026-11-03T17:47:44.53115Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by disjoint.evolve, which added TableAlterOption::AlterColumnTypeUsing (`ALTER COLUMN c TYPE t USING e`, sql.ddl.alter-table+14): PostgreSQL's form also takes COLLATE between the type and USING, which pgorm-query can't write. Add it if a caller needs it; low priority."
+                    }
+                )
+            }
         )
     }
 
@@ -1846,6 +1861,21 @@ children (
                     }
                 )
             }
+
+            {
+                id codegen-enum-variant-names-all
+                title "Codegen's Relation enum and the enums in pgorm_active_enums.rs pass clippy's enum_variant_names"
+                kind @fix
+                deps (codegen-enum-variant-names)
+                log (
+                    {
+                        at 2026-11-03T14:52:11.138424Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by enum-label-length's lane (codegen-enum-variant-names, 7cff255b), which fixed only the generated disjoint enums: codegen's Relation enum, and the enums it writes into pgorm_active_enums.rs, trip clippy's enum_variant_names the same way when every variant shares a suffix or prefix (three related tables, or three values, ending `_shop`). Fix as the disjoint case was (an allow the generated code carries, or names that don't share the affix) and decide which in the rule; it changes every generated golden, the bindings' codegen fixtures included."
+                    }
+                )
+            }
         )
     }
 
@@ -2402,6 +2432,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id annotation-verbs-match
+                title "Every spec annotation's verb matches its rule's"
+                kind @chore
+                log (
+                    {
+                        at 2026-11-03T14:52:35.031923Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by derives.paths: eleven annotations cite a rule under the wrong verb, e.g. `exec.crud.exec-vocabulary` written as `sem` where the rule is `req` (src/executor/update.rs, src/executor/delete.rs, plan/main.styx), and others in pgorm-query/tests/surface/citations.rs and plan/decisions/*.md. nplan doesn't check this (filed in nplan's DEFECTS.md); fix every site, and also put the bindings.disjoint-unkinded and bindings.disjoint claims under the python and javascript impls, as bindings.codegen-disjoint's are, rather than main."
                     }
                 )
             }
@@ -10418,6 +10462,21 @@ children (
                     }
                 )
             }
+
+            {
+                id ident-oracle-disjoint-sites
+                title "The identifier oracle holds create_disjoint, the disjoint change functions and create_one_of to every hostile name"
+                kind @test
+                deps (disjoint.evolve disjoint.one-of)
+                log (
+                    {
+                        at 2026-11-03T17:47:37.221399Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by disjoint.evolve: security.ident-oracle's sites don't include create_disjoint, the five disjoint change functions (add_disjoint_kind, add_disjoint_kind_recreating, remove_disjoint_kind, add_disjoint_kind_table, remove_disjoint_kind_table), or create_one_of, though DisjointShape::new takes table, column, type and value names at run time (the bindings' route). Register each with the oracle so every hostile name lands only in its benign positions, including the derived names (ck-, the {type}_next temporary type, the generated key columns), which take the bounded spelling as the schema-gen sites do."
+                    }
+                )
+            }
         )
     }
 
@@ -12623,6 +12682,20 @@ children (
                         kind @decision
                         text "Operator 2026-10-18, offered opt-level \"s\" for a further 2.6 MB (9.1 MB) at about 4% more cycles when decoding rows: \"speed\". The addon profile keeps opt-level 3."
                         after_done true
+                    }
+                )
+            }
+
+            {
+                id napi-listen-abort-race
+                title "Aborting a JavaScript listener's in-flight listen always rejects it and closes the listener"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-03T18:09:52.13362Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Failed once in CI on PR #25 (linux-x86_64 / Node.js 26, run 41687791212), on code no lane touched; passed on the same code locally and in PR #24. pgorm-napi/tests/listen.test.ts \"an aborted pull leaves the listener open; an aborted listen closes it\": `const listening = listener.listen(\"napi_uncertain\", { signal: cut.signal }); cut.abort(new Error(\"cut off\")); await assert.rejects(listening, /cut off/)` got \"Missing expected rejection\", so the listen resolved. The abort fires synchronously, before any native completion can be delivered to JavaScript, so if the binding registered its abort handler before returning, the abort should always win. Look for the binding checking a native in-flight flag that the worker thread clears on completion, or registering the handler after an await, and make an abort that fires before the promise settles always reject it and close the listener (the LISTEN's effect is uncertain). Then repeat the test (e.g. 1000 iterations) to show the race is gone."
                     }
                 )
             }
@@ -16207,6 +16280,20 @@ children (
                     }
                 )
             }
+
+            {
+                id active-enum-unknown-key-message
+                title "The ActiveEnum derive's unknown-key error names the key, not Rust debug output"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-03T14:52:38.032183Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by derives.paths: the ActiveEnum derive's error for an unknown attribute key prints Rust debug output (`Some(Ident(..))`) instead of the key's name. Word it as the other derives' unknown-key errors are, with a compile-fail test pinning the message."
+                    }
+                )
+            }
         )
         log (
             {
@@ -16424,6 +16511,111 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Todo → Doing (nplan start)"
+                    }
+                )
+            }
+
+            {
+                id disjoint-derive-macro-hygiene
+                title "The Disjoint derive compiles on an enum whose variants a macro_rules! macro writes"
+                kind @fix
+                deps (disjoint.declare)
+                log (
+                    {
+                        at 2026-11-03T17:47:34.73026Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by disjoint.evolve: an enum deriving Disjoint whose variants a macro_rules! macro writes fails to compile with E0425 on `visitor` and `kind`, identifiers the derive's generated code introduces under spans taken from the input, so macro hygiene separates their definitions from their uses. Give the derive's own bindings one consistent span (Span::call_site or mixed_site for every introduced identifier), check the other derives for the same pattern, and add a test that declares a disjoint enum through a macro_rules! macro."
+                    }
+                )
+            }
+
+            {
+                id disjoint-recreate-one-rewrite
+                title "Recreating a disjoint kind type rewrites the base table once, not twice"
+                kind @perf
+                deps (disjoint.evolve)
+                log (
+                    {
+                        at 2026-11-03T17:47:39.330099Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by disjoint.evolve: the recreating route (add_disjoint_kind_recreating, remove_disjoint_kind) rewrites the base table twice under its exclusive lock: once retyping its kind column, again re-adding the STORED generated key columns. Ordering the statements so both happen in one ALTER TABLE (or one rewrite) halves the lock time on a large base. Probe on 18.6 that the combined ALTER rewrites once, and keep the live tests."
+                    }
+                )
+            }
+
+            {
+                id bindings-disjoint-evolve
+                title "Python and JavaScript write a disjoint model's kind changes as pgorm's DisjointShape does"
+                kind @feat
+                deps (disjoint.evolve disjoint.bindings)
+                log (
+                    {
+                        at 2026-11-03T17:47:42.09892Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by disjoint.evolve: DisjointShape gained add_kind, add_kind_recreating, remove_kind, add_kind_table and remove_kind_table (returning DisjointChange: steps of DdlStatements, each with an optional gap), so a binding can write kind changes as the typed Schema functions do. Neither binding exposes them, and bindings-surface.json is unchanged. Needs a bindings rule, both bindings, DisjointChange's steps and gaps surfaced in each language, and live tests."
+                    }
+                )
+            }
+
+            {
+                id bindings-one-of
+                title "Python and JavaScript read, set and load a one-of reference and write its CHECK"
+                kind @feat
+                deps (disjoint.one-of disjoint.bindings)
+                log (
+                    {
+                        at 2026-11-03T17:47:54.308669Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by disjoint.one-of: OneOf has no Python or JavaScript surface. The rule doesn't ask for one, but a binding that registers entities with nullable foreign keys under a one-of CHECK would want to read the reference as a tagged key, set it (nulling the others), load the targets one query per table, and write create_one_of's CHECK. Write a bindings rule first; the typed design (OneOfTarget, TargetVisitor) may need a runtime description like DisjointShape for the bindings to drive."
+                    }
+                )
+            }
+
+            {
+                id codegen-one-of-self-reference
+                title "Generated code for a one-of whose target is its own table compiles and round-trips"
+                kind @test
+                deps (codegen-check-not-dropped)
+                log (
+                    {
+                        at 2026-11-03T17:47:48.835096Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by disjoint.one-of: codegen recognises a one-of CHECK whose targets include the table itself (a comment that may reference another comment), but no test compiles the generated code for that case, where the target entity is the entity's own module and the Related impl and the OneOfTarget impl both name Entity. Add it to the codegen live round trip."
+                    }
+                )
+            }
+
+            {
+                id codegen-one-of-bounded-name
+                title "Codegen names a one-of enum correctly when its CHECK's name was bounded to 63 bytes"
+                kind @fix
+                deps (codegen-check-not-dropped)
+                log (
+                    {
+                        at 2026-11-03T17:47:51.492826Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by disjoint.one-of: Schema::create_one_of names its CHECK ck-{table}-{enum} through derived_name, which past 63 bytes becomes a 47-byte head plus a hash. Codegen names the generated enum for the constraint, so a long one comes back named from the truncated head and hash rather than the original enum. Decide how the enum's name survives: name it from the targets when the constraint name is bounded, or have create_one_of record the enum name (e.g. COMMENT ON CONSTRAINT) for codegen to read. Test with a long table and enum name."
+                    }
+                )
+            }
+
+            {
+                id codegen-check-not-dropped
+                title "Codegen never generates an entity that silently drops a table CHECK it read"
+                kind @fix
+                deps (disjoint.one-of)
+                log (
+                    {
+                        at 2026-11-03T17:47:46.640992Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "From disjoint.one-of (e21257e2), raised with the operator for a decision: to make the rule's near misses generate as plain fields, codegen.ddl.tables+12 / codegen.ddl.unsupported+20 now read any table-level CHECK within the DEFAULT expression subset and carry it on the statement, but the entity can't hold it, so create_table_from_entity on the generated entity writes the table without it. This reverses the 2026-10-08 decision \"CHECK stays refused (the entity holds none)\". Two ways out: (a) refuse every CHECK that is not exactly the one-of shape, as before, and make the near-miss tests expect the refusal, the rule's \"ordinary nullable fields\" then meaning columns no CHECK covers; or (b) let an entity declare CHECKs (a check(..) container attribute written by create_table_from_entity), so codegen keeps every CHECK it reads. Recommended: (a) now, (b) as its own feature if wanted. Waiting on the operator's choice."
                     }
                 )
             }
@@ -16927,295 +17119,134 @@ children (
     }
 
     {
-        id codegen-enum-variant-names-all
-        title "Codegen's Relation enum and the enums in pgorm_active_enums.rs pass clippy's enum_variant_names"
+        id unique-keys
+        title "Unique keys round-trip: declared by entities and the bindings, written by schema generation, read back whole by codegen"
         kind @fix
-        log (
+        children (
             {
-                at 2026-11-03T14:52:11.138424Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by enum-label-length's lane (codegen-enum-variant-names, 7cff255b), which fixed only the generated disjoint enums: codegen's Relation enum, and the enums it writes into pgorm_active_enums.rs, trip clippy's enum_variant_names the same way when every variant shares a suffix or prefix (three related tables, or three values, ending `_shop`). Fix as the disjoint case was (an allow the generated code carries, or names that don't share the affix) and decide which in the rule; it changes every generated golden, the bindings' codegen fixtures included."
+                id unique-key-virtual-refused
+                title "The Entity derive refuses a VIRTUAL generated column inside unique(..), as the field-level unique does"
+                kind @fix
+                deps (entity-composite-unique)
+                log (
+                    {
+                        at 2026-11-03T14:52:13.699834Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by entity-composite-unique (562c6dfc): `#[pgorm(unique(columns = (..)))]` accepts a VIRTUAL generated column, which PostgreSQL refuses at CREATE (0A000, a virtual generated column cannot be in a key), while the field-level `unique` already refuses it at compile time. Refuse it in the derive the same way, with a compile-fail test."
+                    }
+                )
+            }
+
+            {
+                id codegen-unique-parts-dropped
+                title "Codegen refuses a one-column unique key with INCLUDE or deferrability instead of reading it as a plain unique"
+                kind @fix
+                deps (entity-composite-unique)
+                log (
+                    {
+                        at 2026-11-03T14:52:19.120436Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by entity-composite-unique (pre-existing): a one-column unique key carrying INCLUDE or a deferrability, from a statement built in code, is read by codegen as the column's plain `unique`, silently dropping those parts. The composite case is already refused by name (transformer.rs, the `unique(..)` reading); do the same for one column, or give the entity a way to hold them."
+                    }
+                )
+            }
+
+            {
+                id codegen-fk-covering-key-at-most-one
+                title "Codegen gives a foreign key whose columns contain the referencing table's unique key an at-most-one inverse, not has_many"
+                kind @fix
+                deps (entity-composite-unique)
+                log (
+                    {
+                        at 2026-11-03T14:52:21.693016Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by disjoint.codegen's near-miss tests (pre-existing): a table keyed by `id` with a foreign key `(id, kind)` onto another table's UNIQUE pair (the disjoint near miss) is given a `has_many` inverse, though its primary key allows at most one row per referenced row. codegen-relation-cardinality infers at-most-one only when the FK's columns are each unique or equal the full primary key; the general rule is that an FK whose column set contains any unique key of the referencing table (primary or unique) is at most one."
+                    }
+                )
+            }
+
+            {
+                id bindings-composite-unique
+                title "The Python and JavaScript bindings' model DDL declares composite unique keys"
+                kind @feat
+                deps (unique-key-virtual-refused)
+                log (
+                    {
+                        at 2026-11-03T14:52:16.37536Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by entity-composite-unique (562c6dfc): Rust entities declare composite unique keys (`unique(..)`, EntityName::unique_keys, written by create_table_from_entity), but the Python and JavaScript bindings' model declarations have no way to declare one, so their model DDL can't write it. Needs a bindings rule (or a revision of the shared bindings entities rule), both bindings, describe() carrying it, and live tests."
+                    }
+                )
             }
         )
     }
 
     {
-        id unique-key-virtual-refused
-        title "The Entity derive refuses a VIRTUAL generated column inside unique(..), as the field-level unique does"
+        id typed-binds
+        title "Every bound value is cast to its column's type, whichever path binds it: a binding's predicate, a pipeline column read by name, a created range"
         kind @fix
-        log (
+        children (
             {
-                at 2026-11-03T14:52:13.699834Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by entity-composite-unique (562c6dfc): `#[pgorm(unique(columns = (..)))]` accepts a VIRTUAL generated column, which PostgreSQL refuses at CREATE (0A000, a virtual generated column cannot be in a key), while the field-level `unique` already refuses it at compile time. Refuse it in the derive the same way, with a compile-fail test."
+                id bindings-between-casts
+                title "between on a binding's registered column binds its values under the column's casts"
+                kind @fix
+                deps (money-beyond-entities)
+                log (
+                    {
+                        at 2026-11-03T14:52:26.919675Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by money-beyond-entities: `between` on a binding's registered column goes through the plain expression method rather than ColumnTrait's, so its values bind bare instead of under the column's save_as cast, and a money column refuses them. Every value predicate on a registered column should take ColumnTrait's casts (the Rust rule: every value predicate carries save_as casts, between included); check the other predicates the bindings route the same way."
+                    }
+                )
             }
-        )
-    }
 
-    {
-        id bindings-composite-unique
-        title "The Python and JavaScript bindings' model DDL declares composite unique keys"
-        kind @feat
-        log (
             {
-                at 2026-11-03T14:52:16.37536Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by entity-composite-unique (562c6dfc): Rust entities declare composite unique keys (`unique(..)`, EntityName::unique_keys, written by create_table_from_entity), but the Python and JavaScript bindings' model declarations have no way to declare one, so their model DDL can't write it. Needs a bindings rule (or a revision of the shared bindings entities rule), both bindings, describe() carrying it, and live tests."
+                id pipeline-untyped-money-compare
+                title "A pipeline column read without an entity that holds money compares with a Decimal"
+                kind @fix
+                deps (money-beyond-entities)
+                log (
+                    {
+                        at 2026-11-03T14:52:29.553638Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by money-beyond-entities: a pipeline column read by name, with no entity behind it, that holds money refuses a Decimal compared with it (the bind is pinned to numeric, and money = numeric has no operator, 42883). The only route is `compares_as(\"numeric\")`, which is undocumented. Decide in the rule whether an untyped column learns its type (as pipeline-untyped-enum-casts did for enums) or compares_as is the documented answer, then document and test it."
+                    }
+                )
             }
-        )
-    }
 
-    {
-        id codegen-unique-parts-dropped
-        title "Codegen refuses a one-column unique key with INCLUDE or deferrability instead of reading it as a plain unique"
-        kind @fix
-        log (
             {
-                at 2026-11-03T14:52:19.120436Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by entity-composite-unique (pre-existing): a one-column unique key carrying INCLUDE or a deferrability, from a statement built in code, is read by codegen as the column's plain `unique`, silently dropping those parts. The composite case is already refused by name (transformer.rs, the `unique(..)` reading); do the same for one column, or give the entity a way to hold them."
+                id pipeline-created-range-bind
+                title "A bound Range compared with a created-range column in a pipeline binds under the created type"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-03T14:52:32.280341Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by money-beyond-entities (pre-existing, fails before that change too): in a pipeline, a bound Range compared with a column of a range type the schema created is pinned to its built-in range type, which doesn't cast to the created type, so the comparison fails. ColumnTrait avoids this by writing the value as text under the created type's cast; the pipeline should bind the same way."
+                    }
+                )
             }
-        )
-    }
 
-    {
-        id codegen-fk-covering-key-at-most-one
-        title "Codegen gives a foreign key whose columns contain the referencing table's unique key an at-most-one inverse, not has_many"
-        kind @fix
-        log (
             {
-                at 2026-11-03T14:52:21.693016Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by disjoint.codegen's near-miss tests (pre-existing): a table keyed by `id` with a foreign key `(id, kind)` onto another table's UNIQUE pair (the disjoint near miss) is given a `has_many` inverse, though its primary key allows at most one row per referenced row. codegen-relation-cardinality infers at-most-one only when the FK's columns are each unique or equal the full primary key; the general rule is that an FK whose column set contains any unique key of the referencing table (primary or unique) is at most one."
-            }
-        )
-    }
-
-    {
-        id python-bind-refusal-text
-        title "Python reports pgorm's bind refusal text, as JavaScript does, not \"error serializing parameter 0\""
-        kind @fix
-        log (
-            {
-                at 2026-11-03T14:52:24.386677Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by money-beyond-entities: binding a value a column's type refuses (e.g. a Decimal to a money parameter where no cast applies) reports in Python as tokio-postgres's \"error serializing parameter 0\", while JavaScript reports pgorm's \"cannot bind a `Decimal` value to Postgres type `money`\". The Python error path loses the source error's text; carry it as JavaScript does, with a test in each binding asserting the message."
-            }
-        )
-    }
-
-    {
-        id bindings-between-casts
-        title "between on a binding's registered column binds its values under the column's casts"
-        kind @fix
-        log (
-            {
-                at 2026-11-03T14:52:26.919675Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by money-beyond-entities: `between` on a binding's registered column goes through the plain expression method rather than ColumnTrait's, so its values bind bare instead of under the column's save_as cast, and a money column refuses them. Every value predicate on a registered column should take ColumnTrait's casts (the Rust rule: every value predicate carries save_as casts, between included); check the other predicates the bindings route the same way."
-            }
-        )
-    }
-
-    {
-        id pipeline-untyped-money-compare
-        title "A pipeline column read without an entity that holds money compares with a Decimal"
-        kind @fix
-        log (
-            {
-                at 2026-11-03T14:52:29.553638Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by money-beyond-entities: a pipeline column read by name, with no entity behind it, that holds money refuses a Decimal compared with it (the bind is pinned to numeric, and money = numeric has no operator, 42883). The only route is `compares_as(\"numeric\")`, which is undocumented. Decide in the rule whether an untyped column learns its type (as pipeline-untyped-enum-casts did for enums) or compares_as is the documented answer, then document and test it."
-            }
-        )
-    }
-
-    {
-        id pipeline-created-range-bind
-        title "A bound Range compared with a created-range column in a pipeline binds under the created type"
-        kind @fix
-        log (
-            {
-                at 2026-11-03T14:52:32.280341Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by money-beyond-entities (pre-existing, fails before that change too): in a pipeline, a bound Range compared with a column of a range type the schema created is pinned to its built-in range type, which doesn't cast to the created type, so the comparison fails. ColumnTrait avoids this by writing the value as text under the created type's cast; the pipeline should bind the same way."
-            }
-        )
-    }
-
-    {
-        id annotation-verbs-match
-        title "Every spec annotation's verb matches its rule's"
-        kind @chore
-        log (
-            {
-                at 2026-11-03T14:52:35.031923Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by derives.paths: eleven annotations cite a rule under the wrong verb, e.g. `exec.crud.exec-vocabulary` written as `sem` where the rule is `req` (src/executor/update.rs, src/executor/delete.rs, plan/main.styx), and others in pgorm-query/tests/surface/citations.rs and plan/decisions/*.md. nplan doesn't check this (filed in nplan's DEFECTS.md); fix every site, and also put the bindings.disjoint-unkinded and bindings.disjoint claims under the python and javascript impls, as bindings.codegen-disjoint's are, rather than main."
-            }
-        )
-    }
-
-    {
-        id active-enum-unknown-key-message
-        title "The ActiveEnum derive's unknown-key error names the key, not Rust debug output"
-        kind @fix
-        log (
-            {
-                at 2026-11-03T14:52:38.032183Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by derives.paths: the ActiveEnum derive's error for an unknown attribute key prints Rust debug output (`Some(Ident(..))`) instead of the key's name. Word it as the other derives' unknown-key errors are, with a compile-fail test pinning the message."
-            }
-        )
-    }
-
-    {
-        id disjoint-derive-macro-hygiene
-        title "The Disjoint derive compiles on an enum whose variants a macro_rules! macro writes"
-        kind @fix
-        log (
-            {
-                at 2026-11-03T17:47:34.73026Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by disjoint.evolve: an enum deriving Disjoint whose variants a macro_rules! macro writes fails to compile with E0425 on `visitor` and `kind`, identifiers the derive's generated code introduces under spans taken from the input, so macro hygiene separates their definitions from their uses. Give the derive's own bindings one consistent span (Span::call_site or mixed_site for every introduced identifier), check the other derives for the same pattern, and add a test that declares a disjoint enum through a macro_rules! macro."
-            }
-        )
-    }
-
-    {
-        id ident-oracle-disjoint-sites
-        title "The identifier oracle holds create_disjoint, the disjoint change functions and create_one_of to every hostile name"
-        kind @test
-        log (
-            {
-                at 2026-11-03T17:47:37.221399Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by disjoint.evolve: security.ident-oracle's sites don't include create_disjoint, the five disjoint change functions (add_disjoint_kind, add_disjoint_kind_recreating, remove_disjoint_kind, add_disjoint_kind_table, remove_disjoint_kind_table), or create_one_of, though DisjointShape::new takes table, column, type and value names at run time (the bindings' route). Register each with the oracle so every hostile name lands only in its benign positions, including the derived names (ck-, the {type}_next temporary type, the generated key columns), which take the bounded spelling as the schema-gen sites do."
-            }
-        )
-    }
-
-    {
-        id disjoint-recreate-one-rewrite
-        title "Recreating a disjoint kind type rewrites the base table once, not twice"
-        kind @perf
-        log (
-            {
-                at 2026-11-03T17:47:39.330099Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by disjoint.evolve: the recreating route (add_disjoint_kind_recreating, remove_disjoint_kind) rewrites the base table twice under its exclusive lock: once retyping its kind column, again re-adding the STORED generated key columns. Ordering the statements so both happen in one ALTER TABLE (or one rewrite) halves the lock time on a large base. Probe on 18.6 that the combined ALTER rewrites once, and keep the live tests."
-            }
-        )
-    }
-
-    {
-        id bindings-disjoint-evolve
-        title "Python and JavaScript write a disjoint model's kind changes as pgorm's DisjointShape does"
-        kind @feat
-        log (
-            {
-                at 2026-11-03T17:47:42.09892Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by disjoint.evolve: DisjointShape gained add_kind, add_kind_recreating, remove_kind, add_kind_table and remove_kind_table (returning DisjointChange: steps of DdlStatements, each with an optional gap), so a binding can write kind changes as the typed Schema functions do. Neither binding exposes them, and bindings-surface.json is unchanged. Needs a bindings rule, both bindings, DisjointChange's steps and gaps surfaced in each language, and live tests."
-            }
-        )
-    }
-
-    {
-        id alter-column-type-collate
-        title "ALTER COLUMN ... TYPE with USING can also set the column's collation"
-        kind @feat
-        log (
-            {
-                at 2026-11-03T17:47:44.53115Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by disjoint.evolve, which added TableAlterOption::AlterColumnTypeUsing (`ALTER COLUMN c TYPE t USING e`, sql.ddl.alter-table+14): PostgreSQL's form also takes COLLATE between the type and USING, which pgorm-query can't write. Add it if a caller needs it; low priority."
-            }
-        )
-    }
-
-    {
-        id codegen-check-not-dropped
-        title "Codegen never generates an entity that silently drops a table CHECK it read"
-        kind @fix
-        log (
-            {
-                at 2026-11-03T17:47:46.640992Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "From disjoint.one-of (e21257e2), raised with the operator for a decision: to make the rule's near misses generate as plain fields, codegen.ddl.tables+12 / codegen.ddl.unsupported+20 now read any table-level CHECK within the DEFAULT expression subset and carry it on the statement, but the entity can't hold it, so create_table_from_entity on the generated entity writes the table without it. This reverses the 2026-10-08 decision \"CHECK stays refused (the entity holds none)\". Two ways out: (a) refuse every CHECK that is not exactly the one-of shape, as before, and make the near-miss tests expect the refusal, the rule's \"ordinary nullable fields\" then meaning columns no CHECK covers; or (b) let an entity declare CHECKs (a check(..) container attribute written by create_table_from_entity), so codegen keeps every CHECK it reads. Recommended: (a) now, (b) as its own feature if wanted. Waiting on the operator's choice."
-            }
-        )
-    }
-
-    {
-        id codegen-one-of-self-reference
-        title "Generated code for a one-of whose target is its own table compiles and round-trips"
-        kind @test
-        log (
-            {
-                at 2026-11-03T17:47:48.835096Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by disjoint.one-of: codegen recognises a one-of CHECK whose targets include the table itself (a comment that may reference another comment), but no test compiles the generated code for that case, where the target entity is the entity's own module and the Related impl and the OneOfTarget impl both name Entity. Add it to the codegen live round trip."
-            }
-        )
-    }
-
-    {
-        id codegen-one-of-bounded-name
-        title "Codegen names a one-of enum correctly when its CHECK's name was bounded to 63 bytes"
-        kind @fix
-        log (
-            {
-                at 2026-11-03T17:47:51.492826Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by disjoint.one-of: Schema::create_one_of names its CHECK ck-{table}-{enum} through derived_name, which past 63 bytes becomes a 47-byte head plus a hash. Codegen names the generated enum for the constraint, so a long one comes back named from the truncated head and hash rather than the original enum. Decide how the enum's name survives: name it from the targets when the constraint name is bounded, or have create_one_of record the enum name (e.g. COMMENT ON CONSTRAINT) for codegen to read. Test with a long table and enum name."
-            }
-        )
-    }
-
-    {
-        id bindings-one-of
-        title "Python and JavaScript read, set and load a one-of reference and write its CHECK"
-        kind @feat
-        log (
-            {
-                at 2026-11-03T17:47:54.308669Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Found by disjoint.one-of: OneOf has no Python or JavaScript surface. The rule doesn't ask for one, but a binding that registers entities with nullable foreign keys under a one-of CHECK would want to read the reference as a tagged key, set it (nulling the others), load the targets one query per table, and write create_one_of's CHECK. Write a bindings rule first; the typed design (OneOfTarget, TargetVisitor) may need a runtime description like DisjointShape for the bindings to drive."
-            }
-        )
-    }
-
-    {
-        id napi-listen-abort-race
-        title "Aborting a JavaScript listener's in-flight listen always rejects it and closes the listener"
-        kind @fix
-        log (
-            {
-                at 2026-11-03T18:09:52.13362Z
-                author "brendan@necessary.nu"
-                kind @note
-                text "Failed once in CI on PR #25 (linux-x86_64 / Node.js 26, run 41687791212), on code no lane touched; passed on the same code locally and in PR #24. pgorm-napi/tests/listen.test.ts \"an aborted pull leaves the listener open; an aborted listen closes it\": `const listening = listener.listen(\"napi_uncertain\", { signal: cut.signal }); cut.abort(new Error(\"cut off\")); await assert.rejects(listening, /cut off/)` got \"Missing expected rejection\", so the listen resolved. The abort fires synchronously, before any native completion can be delivered to JavaScript, so if the binding registered its abort handler before returning, the abort should always win. Look for the binding checking a native in-flight flag that the worker thread clears on completion, or registering the handler after an await, and make an abort that fires before the promise settles always reject it and close the listener (the LISTEN's effect is uncertain). Then repeat the test (e.g. 1000 iterations) to show the race is gone."
+                id python-bind-refusal-text
+                title "Python reports pgorm's bind refusal text, as JavaScript does, not \"error serializing parameter 0\""
+                kind @fix
+                deps (money-beyond-entities)
+                log (
+                    {
+                        at 2026-11-03T14:52:24.386677Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by money-beyond-entities: binding a value a column's type refuses (e.g. a Decimal to a money parameter where no cast applies) reports in Python as tokio-postgres's \"error serializing parameter 0\", while JavaScript reports pgorm's \"cannot bind a `Decimal` value to Postgres type `money`\". The Python error path loses the source error's text; carry it as JavaScript does, with a test in each binding asserting the message."
+                    }
+                )
             }
         )
     }
