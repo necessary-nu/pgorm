@@ -14,9 +14,9 @@ use pgorm_query::{ColumnType, Name, TableCreateStatement, TableName, TypeName, V
 
 use super::{ColumnDefault, column_casts::ColumnCasts, key::ComparedPair};
 use crate::{
-    ActiveEnum, ActiveModelTrait, ActiveValue, ColumnDef, ColumnTrait, Disjoint, EntityTrait,
-    Error, Iterable, KindModel, KindVisitor, PrimaryKeyToColumn, PrimaryKeyTrait, RelationDef,
-    StaticName, table_label,
+    ActiveModelTrait, ActiveValue, ColumnDef, ColumnTrait, Disjoint, EntityTrait, Error, Iterable,
+    KindModel, KindVisitor, PrimaryKeyToColumn, PrimaryKeyTrait, RelationDef, StaticName,
+    table_label,
 };
 
 /// One column of a [`DisjointTable`]: its name, its definition, and the casts
@@ -343,22 +343,31 @@ impl DisjointKind {
     }
 }
 
-/// A disjoint entity as data: its base table, the base's kind column, the
-/// kind type, and each kind in declaration order with its table.
+/// A disjoint entity as data: its base table, the base's kind column and the
+/// kind type, which an unkinded entity lacks, and each kind in declaration
+/// order with its table.
 ///
 /// Every disjoint statement is built from one: the read
 /// ([`find`](Self::find)), the writes ([`insert`](Self::insert),
 /// [`update`](Self::update), [`change_kind`](Self::change_kind)) and the
-/// schema ([`create`](Self::create)). [`Disjoint`]'s methods build theirs
-/// from [`DisjointShape::of`]; tables known only at run time are described
-/// with [`DisjointShape::new`].
+/// schema ([`create`](Self::create)), the last two a kinded shape's alone.
+/// [`Disjoint`]'s methods build theirs from [`DisjointShape::of`]; tables
+/// known only at run time are described with [`DisjointShape::new`].
 // [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:sem:disjoint.unkinded]
 #[derive(Clone, Debug)]
 pub struct DisjointShape {
     pub(crate) base: DisjointTable,
-    pub(crate) kind: usize,
-    pub(crate) kind_type: ColumnType,
+    pub(crate) kinded: Option<KindedBy>,
     pub(crate) kinds: Vec<DisjointKind>,
+}
+
+/// Where a kinded shape's base holds each row's kind: the index of its kind
+/// column among the base's columns, and the kind type.
+#[derive(Clone, Debug)]
+pub(crate) struct KindedBy {
+    pub(crate) column: usize,
+    pub(crate) kind_type: ColumnType,
 }
 
 /// Describes each kind's table for [`DisjointShape::of`].
@@ -378,25 +387,28 @@ impl<D: Disjoint> KindVisitor<D> for TypedKind {
 
 impl DisjointShape {
     /// The shape `D` declares: its base's and its kinds' tables as their
-    /// entities declare them, each column cast by its typed column, and the
-    /// kinds in declaration order.
+    /// entities declare them, each column cast by its typed column, its kind
+    /// column where it has one, and the kinds in declaration order, each
+    /// named as [`Disjoint::kind_name`] names it.
+    // [spec:pgorm:sem:disjoint.unkinded]
     pub fn of<D: Disjoint>() -> Self {
         let base = DisjointTable::typed::<D::Base>();
-        let kind_column = D::kind_column();
-        // The kind column is one of the base's `Column`s, every one of which
-        // the base table lists, so the search always finds it.
-        let kind = base
-            .columns
-            .iter()
-            .position(|column| column.name.to_string() == kind_column.as_str())
-            .unwrap_or_default();
+        let kinded = D::kind_column().map(|kind_column| KindedBy {
+            // The kind column is one of the base's `Column`s, every one of
+            // which the base table lists, so the search always finds it.
+            column: base
+                .columns
+                .iter()
+                .position(|column| column.name.to_string() == kind_column.column.as_str())
+                .unwrap_or_default(),
+            kind_type: kind_column.kind_type.get_column_type().clone(),
+        });
         Self {
             base,
-            kind,
-            kind_type: D::Kind::db_type().get_column_type().clone(),
+            kinded,
             kinds: D::Kind::iter()
                 .map(|kind| DisjointKind {
-                    value: kind.to_value(),
+                    value: D::kind_name(kind).to_owned(),
                     table: D::visit_kind(kind, TypedKind),
                 })
                 .collect(),
@@ -468,15 +480,17 @@ impl DisjointShape {
         };
         let shape = Self {
             base,
-            kind,
-            kind_type: ColumnType::Enum {
-                name: Name::clone(&kind_type.name),
-                schema: kind_type.schema.clone(),
-                variants: kinds
-                    .iter()
-                    .map(|(value, _)| Name::runtime(value.clone()))
-                    .collect(),
-            },
+            kinded: Some(KindedBy {
+                column: kind,
+                kind_type: ColumnType::Enum {
+                    name: Name::clone(&kind_type.name),
+                    schema: kind_type.schema.clone(),
+                    variants: kinds
+                        .iter()
+                        .map(|(value, _)| Name::runtime(value.clone()))
+                        .collect(),
+                },
+            }),
             kinds: kinds
                 .into_iter()
                 .map(|(value, table)| DisjointKind { value, table })
@@ -493,21 +507,24 @@ impl DisjointShape {
     }
 
     /// The base's column holding each row's kind, as a value of the kind
-    /// type.
-    pub fn kind_column(&self) -> &DisjointColumn {
-        &self.base.columns[self.kind]
+    /// type, or `None` for an unkinded shape, whose base has none.
+    pub fn kind_column(&self) -> Option<&DisjointColumn> {
+        self.kinded
+            .as_ref()
+            .map(|kinded| &self.base.columns[kinded.column])
     }
 
-    /// The kind type, an enum of the kinds' values in order.
-    pub fn kind_type(&self) -> &ColumnType {
-        &self.kind_type
+    /// The kind type, an enum of the kinds' values in order, or `None` for
+    /// an unkinded shape.
+    pub fn kind_type(&self) -> Option<&ColumnType> {
+        self.kinded.as_ref().map(|kinded| &kinded.kind_type)
     }
 
-    /// The kind type's name, schema-qualified where it is, or `None` when
-    /// the kind type is no database enum, which [`check`](Self::check)
-    /// refuses.
+    /// The kind type's name, schema-qualified where it is, or `None` for an
+    /// unkinded shape and where the kind type is no database enum, which
+    /// [`check`](Self::check) refuses.
     pub fn kind_type_name(&self) -> Option<TypeName> {
-        match &self.kind_type {
+        match self.kind_type()? {
             ColumnType::Enum { name, schema, .. } => {
                 let type_name = TypeName::new(Name::clone(name));
                 Some(match schema {
@@ -532,16 +549,11 @@ impl DisjointShape {
             .enumerate()
             .find(|(_, kind)| kind.value == value)
             .ok_or_else(|| {
-                let values: Vec<String> = self
-                    .kinds
-                    .iter()
-                    .map(|kind| format!("`{}`", kind.value))
-                    .collect();
-                Error::Type(format!(
-                    "`{value}` is no kind of the disjoint entity over `{}`, whose kinds are {}",
-                    self.base.label,
-                    values.join(", ")
-                ))
+                no_such_kind(
+                    &self.base.label,
+                    value,
+                    self.kinds.iter().map(|kind| kind.value.as_str()),
+                )
             })
     }
 
@@ -564,11 +576,17 @@ impl DisjointShape {
     /// generated column, since a write sets it to the kind it writes. No
     /// kind table's key is generated or filled by the database — drawn from a
     /// sequence by `auto_increment`, an identity, a generated column or a
-    /// default — since a kind's row takes its key from its base row.
+    /// default — since a kind's row takes its key from its base row. An
+    /// unkinded shape has no kind column and is never written, so nothing of
+    /// it is refused.
     // [spec:pgorm:def:disjoint.declare+3]
     // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:sem:disjoint.unkinded]
     pub fn check(&self) -> Result<(), Error> {
-        let column = self.kind_column();
+        let Some(kinded) = &self.kinded else {
+            return Ok(());
+        };
+        let column = &self.base.columns[kinded.column];
         let def = &column.def;
         let label = &self.base.label;
         let name = column.name.to_string();
@@ -593,11 +611,11 @@ impl DisjointShape {
             }
             Some(ColumnDefault::Expr(_)) | None => {}
         }
-        if !same_enum(def.get_column_type(), &self.kind_type) {
+        if !same_enum(def.get_column_type(), &kinded.kind_type) {
             return Err(Error::Type(format!(
                 "the kind column `{label}`.`{name}` is {}, not the kind type {}",
                 describe(def.get_column_type()),
-                describe(&self.kind_type)
+                describe(&kinded.kind_type)
             )));
         }
         for kind in &self.kinds {
@@ -628,6 +646,21 @@ impl DisjointShape {
         Ok(())
     }
 
+    /// Where a kinded shape's base holds each row's kind; an unkinded shape,
+    /// which nothing holds to one kind per base row, is refused as
+    /// [`Error::Type`] naming its base as read-only, so that no write and no
+    /// schema is built from it.
+    // [spec:pgorm:sem:disjoint.unkinded]
+    pub(crate) fn kinded(&self) -> Result<&KindedBy, Error> {
+        self.kinded.as_ref().ok_or_else(|| {
+            Error::Type(format!(
+                "the disjoint entity over `{}` is unkinded: its base has no kind column, and \
+                 nothing in its schema holds a base row to one kind's table, so it is read-only",
+                self.base.label
+            ))
+        })
+    }
+
     /// Each base key column with `table`'s key column in the same place, in
     /// key order, and the enums the two compare as: the pairs a kind's row is
     /// keyed by its base row's key through.
@@ -646,6 +679,20 @@ impl DisjointShape {
             )
         })
     }
+}
+
+/// The [`Error::Type`] naming `value` as no kind of the disjoint entity over
+/// `base`, whose kinds are `kinds`.
+pub(crate) fn no_such_kind<'k>(
+    base: &str,
+    value: &str,
+    kinds: impl Iterator<Item = &'k str>,
+) -> Error {
+    let kinds: Vec<String> = kinds.map(|kind| format!("`{kind}`")).collect();
+    Error::Type(format!(
+        "`{value}` is no kind of the disjoint entity over `{base}`, whose kinds are {}",
+        kinds.join(", ")
+    ))
 }
 
 /// A table as an error names it, schema-qualified where it is.

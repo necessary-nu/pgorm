@@ -17,8 +17,8 @@ use pgorm::tests_cfg::{
     vehicle::{self, Vehicle},
 };
 use pgorm::{
-    ConnectionTrait, DatabaseConnection, Error, Schema, TransactionTrait, check_disjoint,
-    entity::prelude::*, result_column_name,
+    ConnectionTrait, DatabaseConnection, Error, KindedDisjoint, Schema, TransactionTrait,
+    check_disjoint, entity::prelude::*, result_column_name,
 };
 use pretty_assertions::assert_eq;
 use std::fmt::Debug;
@@ -223,7 +223,7 @@ pub enum Long {
     Other,
 }
 
-fn rendered<D: Disjoint>() -> Vec<String> {
+fn rendered<D: KindedDisjoint>() -> Vec<String> {
     Schema::new()
         .create_disjoint::<D>()
         .expect("the disjoint schema is generated")
@@ -232,7 +232,7 @@ fn rendered<D: Disjoint>() -> Vec<String> {
         .collect()
 }
 
-fn refusal<D: Disjoint>() -> String {
+fn refusal<D: KindedDisjoint>() -> String {
     match Schema::new().create_disjoint::<D>() {
         Err(Error::Type(message)) => message,
         other => panic!("expected the schema refused as a type error, got {other:?}"),
@@ -425,7 +425,7 @@ fn declaration_is_checked_before_anything() {
 }
 
 /// Run the statements `create_disjoint` returns, in order.
-async fn create<D: Disjoint>(db: &DatabaseConnection) -> Result<(), Error> {
+async fn create<D: KindedDisjoint>(db: &DatabaseConnection) -> Result<(), Error> {
     for statement in Schema::new().create_disjoint::<D>()? {
         db.execute(&statement.to_string(), &[]).await?;
     }

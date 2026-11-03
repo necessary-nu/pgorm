@@ -6,9 +6,9 @@ use super::{
     entity::{column_ddl, create_enum_from_column_type, write_primary_key},
 };
 use crate::{
-    ColumnPairs, ColumnType, Disjoint, DisjointKind, DisjointShape, DisjointTable, Error,
-    RelationDef, RelationType, Schema, TableBody, executor::result_name::bounded_identifier,
-    unpack_table_name,
+    ColumnPairs, ColumnType, DisjointKind, DisjointShape, DisjointTable, Error, KindedDisjoint,
+    RelationDef, RelationType, Schema, TableBody, entity::KindedBy,
+    executor::result_name::bounded_identifier, unpack_table_name,
 };
 use pgorm_query::{
     ColumnDef, ConditionType, Deferrability, Expr, ForeignKeyAction, FromItem, GeneratedKind, Name,
@@ -53,7 +53,8 @@ impl Schema {
     /// bare. A name it adds to a table that the table already declares, or
     /// adds twice, is refused with [`Error::Type`] naming both.
     // [spec:pgorm:sem:disjoint.schema+1]
-    pub fn create_disjoint<D: Disjoint>(&self) -> Result<Vec<DdlStatement>, Error> {
+    // [spec:pgorm:sem:disjoint.unkinded]
+    pub fn create_disjoint<D: KindedDisjoint>(&self) -> Result<Vec<DdlStatement>, Error> {
         DisjointShape::of::<D>().create()
     }
 }
@@ -67,12 +68,15 @@ impl DisjointShape {
     /// alone, as `create_table_from_entity` writes an entity's columns and
     /// primary key: it declares no relation, index or comment. A column whose
     /// default the description does not state has no `DEFAULT` to write, so
-    /// a table holding one is refused with [`Error::Type`] naming it.
+    /// a table holding one is refused with [`Error::Type`] naming it, and so
+    /// is an unkinded shape, whose schema pgorm does not write.
     // [spec:pgorm:sem:disjoint.schema+1]
     // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:sem:disjoint.unkinded]
     pub fn create(&self) -> Result<Vec<DdlStatement>, Error> {
+        let kinded = self.kinded()?;
         self.check()?;
-        let base = BaseTable::of(self);
+        let base = BaseTable::of(self, kinded);
         let kinds = self
             .kinds
             .iter()
@@ -92,7 +96,7 @@ impl DisjointShape {
                     base.key.iter().chain([base.kind.as_str()]),
                 ))),
         );
-        let kind_type = create_enum_from_column_type(&self.kind_type).ok_or_else(|| {
+        let kind_type = create_enum_from_column_type(&kinded.kind_type).ok_or_else(|| {
             Error::Type(format!(
                 "the kind type of the disjoint entity over `{}` is not a database enum, so \
                  there is no type to create",
@@ -164,7 +168,7 @@ struct BaseTable {
 }
 
 impl BaseTable {
-    fn of(shape: &DisjointShape) -> Self {
+    fn of(shape: &DisjointShape, kinded: &KindedBy) -> Self {
         let base = &shape.base;
         Self {
             table: base.table.clone(),
@@ -175,8 +179,8 @@ impl BaseTable {
                 .key()
                 .map(|column| column.def.get_column_type().clone())
                 .collect(),
-            kind: shape.kind_column().name.to_string(),
-            kind_type: shape.kind_type.clone(),
+            kind: base.columns[kinded.column].name.to_string(),
+            kind_type: kinded.kind_type.clone(),
             declared: column_names(base),
         }
     }

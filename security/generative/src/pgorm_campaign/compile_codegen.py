@@ -71,6 +71,25 @@ WIDE = (
     "    flag boolean NOT NULL\n);"
 )
 
+EXTENDED = (
+    SIMPLE + "\n\nCREATE TABLE owner_profile (\n"
+    "    owner_id integer PRIMARY KEY REFERENCES owner (id),\n"
+    "    bio text NOT NULL\n);"
+    "\n\nCREATE TABLE owner_badge (\n"
+    "    id integer PRIMARY KEY REFERENCES owner (id),\n"
+    "    level smallint NOT NULL\n);"
+)
+
+# The owner's two one-to-one extensions, named as an unkinded disjoint
+# entity's kinds; the unit kind is an owner with neither.
+UNKINDED = [
+    {
+        "base": {"table": "owner"},
+        "kinds": [{"table": "owner_profile"}, {"table": "owner_badge"}],
+        "unit": "plain",
+    }
+]
+
 KEYWORDS = (
     "CREATE TABLE rust_keyword (\n"
     "    id serial PRIMARY KEY,\n"
@@ -171,6 +190,19 @@ def option_cases():
             enum_extra_derives=["Hash"],
             enum_extra_attributes=["allow(dead_code)"],
         ),
+        _case(
+            "codegen-unkinded-disjoint",
+            EXTENDED,
+            "named extension tables become an unkinded disjoint enum on their base",
+            unkinded_disjoint=UNKINDED,
+        ),
+        _case(
+            "codegen-unkinded-disjoint-serde",
+            EXTENDED,
+            "the unkinded enum under serde, with no kind_attrs",
+            unkinded_disjoint=UNKINDED,
+            with_serde="both",
+        ),
     ]
 
 
@@ -195,6 +227,17 @@ def refusal_cases():
             "`enum_extra_derives` entry",
             "the enum derive list is validated on the same terms",
         ),
+        (
+            "codegen-unkinded-unkeyed",
+            {
+                "sql": RELATED,
+                "unkinded_disjoint": [
+                    {"base": {"table": "owner"}, "kinds": [{"table": "task"}]}
+                ],
+            },
+            "is not a foreign key onto the base's primary key",
+            "a named kind keyed by its own key is refused, not generated as ordinary",
+        ),
     )
     cases = [
         CompileCase(
@@ -203,7 +246,7 @@ def refusal_cases():
             verdict="refuse",
             phase="typeck",
             kind="codegen",
-            request={"id": identity, "sql": SIMPLE, **options},
+            request={"id": identity, "sql": options.pop("sql", SIMPLE), **options},
             expects=rejects(message=fragment),
             note=note,
         )

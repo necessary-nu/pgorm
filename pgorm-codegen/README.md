@@ -39,9 +39,37 @@ owners, so its output is refused.
 
 The tables `Schema::create_disjoint` writes for a `#[derive(Disjoint)]` enum
 generate as that enum again, in its base's module, beside the base's and the
-kinds' entities.
+kinds' entities. Tables keyed by a foreign key from their primary key onto a
+base's, with no kind column, generate as an `unkinded`, read-only one where
+`unkinded_disjoint` names them:
+
+```rust,no_run
+use pgorm_codegen::{EntityWriterOptions, TableIdent, UnkindedDisjoint, entities_from_sql};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let ddl = std::fs::read_to_string("schema.sql")?;
+    let table = |name: &str| TableIdent {
+        table: name.to_owned(),
+        schema: None,
+    };
+    let shops = UnkindedDisjoint {
+        base: table("shop"),
+        kinds: vec![table("web_shop"), table("storefront")],
+        unit: Some("dormant".to_owned()),
+    };
+    let output = entities_from_sql(
+        &ddl,
+        EntityWriterOptions {
+            unkinded_disjoint: vec![shops],
+            ..Default::default()
+        },
+    )?;
+    assert!(output.files.iter().any(|file| file.name == "shop.rs"));
+    Ok(())
+}
+```
 
 The stages are public too: `parse_schema` reads the text into the
-`TableCreateStatement`s `EntityTransformer::transform` takes, and
-`EntityWriter::generate` writes the entities, so statements built in code
-generate the same way.
+`TableCreateStatement`s `EntityTransformer::transform` takes beside the
+`EntityWriterContext`, and `EntityWriter::generate` writes the entities, so
+statements built in code generate the same way.

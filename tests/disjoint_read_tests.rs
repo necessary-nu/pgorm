@@ -20,7 +20,8 @@ use pgorm::tests_cfg::{
     vehicle::{self, Vehicle, VehicleKind},
 };
 use pgorm::{
-    ConnectionTrait, DatabaseConnection, Disjoint, Error, RuntimeError, Schema, entity::prelude::*,
+    ConnectionTrait, DatabaseConnection, Disjoint, Error, KindedDisjoint, RuntimeError, Schema,
+    entity::prelude::*,
 };
 use pretty_assertions::assert_eq;
 use std::num::NonZeroU64;
@@ -127,7 +128,7 @@ pub enum Loose {
 }
 
 /// Run the statements `create_disjoint` returns, in order.
-async fn create<D: Disjoint>(db: &DatabaseConnection) -> Result<(), Error> {
+async fn create<D: KindedDisjoint>(db: &DatabaseConnection) -> Result<(), Error> {
     for statement in Schema::new().create_disjoint::<D>()? {
         db.execute(&statement.to_string(), &[]).await?;
     }

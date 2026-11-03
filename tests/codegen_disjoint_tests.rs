@@ -17,7 +17,9 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 
 use pgorm::entity::prelude::*;
-use pgorm::{ConnectionTrait, Disjoint, Schema, TransactionTrait, check_disjoint, set};
+use pgorm::{
+    ConnectionTrait, Disjoint, KindedDisjoint, Schema, TransactionTrait, check_disjoint, set,
+};
 use pretty_assertions::assert_eq;
 use tokio_postgres::error::SqlState;
 
@@ -30,7 +32,7 @@ use codegen_disjoint::{car, flat, listing, truck, vehicle};
 const SCHEMA: &str = include_str!("codegen_disjoint/schema.sql");
 
 /// The statements `create_disjoint` returns for `D`, rendered.
-fn statements<D: Disjoint>() -> Vec<String> {
+fn statements<D: KindedDisjoint>() -> Vec<String> {
     Schema::new()
         .create_disjoint::<D>()
         .expect("the disjoint schema is generated")

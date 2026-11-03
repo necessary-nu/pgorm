@@ -9,9 +9,9 @@ golden fixtures under `pgorm-codegen/tests/`. A schema reaches the pipeline as
 DDL text, through `entities_from_sql` and `parse_schema` at the crate root,
 specified under [Schema from DDL text](#schema-from-ddl-text).
 
-> [spec:pgorm:def:codegen.entity+6]
+> [spec:pgorm:def:codegen.entity+7]
 > The entity generator is the pipeline
-> `EntityTransformer::transform(Vec<TableCreateStatement>) -> EntityWriter`
+> `EntityTransformer::transform(Vec<TableCreateStatement>, &EntityWriterContext) -> EntityWriter`
 > followed by `EntityWriter::generate(&EntityWriterContext) -> WriterOutput`.
 > An `Entity` carries `table_name`, `schema_name` (the source table's own
 > qualifier, `None` when it had none — `codegen.entity.transform`), `columns`
@@ -24,7 +24,8 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `EntityWriterContext` selects all generation options: `with_serde`, `with_copy_enums`, `schema_name`, `lib`,
 > `serde_skip_deserializing_primary_key`, `serde_skip_hidden_column`,
 > `model_extra_derives`, `model_extra_attributes`, `enum_extra_derives`,
-> and `enum_extra_attributes`. Extra derives are appended
+> `enum_extra_attributes`, and `unkinded_disjoint`, the one the transform
+> reads (`codegen.entity.disjoint.unkinded`). Extra derives are appended
 > to the generated derive lists; extra attributes are emitted as additional
 > `#[...]` lines on the Model struct or enum.
 >
@@ -1011,6 +1012,52 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `<table>`: its disjoint entity's <item> `<name>` is named as <the other>")``.
 > The kind type's name is claimed among the enums' type names
 > (`codegen.entity.collisions`) as `<Enum>Kind`.
+
+> [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+> Each `UnkindedDisjoint { base, kinds, unit }` that
+> `EntityWriterOptions::unkinded_disjoint` lists — the base's `TableIdent`,
+> each kind's table's `TableIdent` in the order its variants take, and the
+> name of a unit variant or `None` — MUST generate, in the base's module
+> after its `Relation` enum, a `#[derive(Disjoint)]` enum declared
+> `unkinded` (`[spec:pgorm:sem:disjoint.unkinded]`), named for the base
+> table in UpperCamelCase: one variant per kind's table, in the order given,
+> named for the table in UpperCamelCase and holding its `Model`, then a unit
+> variant named `unit` in UpperCamelCase where it is given. It derives what
+> `codegen.entity.disjoint`'s enum derives but `kind_attrs`, since no model
+> holds its kind enum. The tables are otherwise the ordinary entities they
+> are, nothing dropped: each kind's foreign key onto the base is its
+> `belongs_to`, and the base has the inverse `has_one` to each kind's table
+> (`codegen.entity.transform.inverse`). `EntityTransformer::transform` takes
+> the `EntityWriterContext` beside the statements and reads the option from
+> it, and `entities_from_sql` passes its own.
+>
+> A set is named, never guessed, since every table extending another one to
+> one is keyed so; and because it is named, a set that does not have the
+> shape MUST be refused rather than generated as ordinary entities. Each
+> table resolves as a foreign key's target does (`codegen.entity.transform`),
+> and the refusal is ``TransformError("unkinded disjoint entity over
+> `<base>`: <why>")``, `<base>` the base as the set names it, and a table in
+> `<why>` the identity it resolves to, or as the set names it where it
+> resolves to none; `<why>` is the first of: ``table `<table>` is not in the
+> schema``, of any table the set names; ``it names
+> table `<table>` twice`` (the base among its kinds included); ``it
+> names no kind's table``; ``it is named twice, and a base's module holds one
+> enum``; ``its base is the base of a disjoint entity whose kind column
+> `<column>` holds each row's kind`` (`codegen.entity.disjoint`); ``its base
+> has no primary key`` or ``its base's primary key ends WITHOUT OVERLAPS``,
+> either of which leaves a key naming other than one row; ``the primary key
+> of `<table>` is not a foreign key onto the base's primary key, column for
+> column`` — exactly the constrained columns of one of the table's foreign
+> keys onto the base, matching no `PERIOD`, its key's `i`th column paired
+> with the base key's `i`th, whatever the key's actions, deferrability and
+> enforcement, which a read does not depend on; ``column `<table>`.`<column>`
+> is not of the type of `<base>`.`<column>`, which it is keyed by``, the
+> generated variant otherwise not compiling; and, for `unit`, the refusal
+> `codegen.entity.keywords` words for a name with no legal Rust form, or
+> ``its unit variant `<name>` is named as the variant of `<table>` ``. The
+> enum and its `<Enum>Kind` are held to the module's names as
+> `codegen.entity.disjoint`'s enum is, its kind enum included since no column
+> names it, with that rule's refusal.
 
 ## Identifier hygiene
 

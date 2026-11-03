@@ -15,9 +15,12 @@ pub mod indexes;
 pub mod listing;
 pub mod lunch_set;
 pub mod rust_keyword;
+pub mod shop;
+pub mod storefront;
 pub mod truck;
 pub mod vehicle;
 pub mod vendor;
+pub mod web_shop;
 
 pub use cake::Entity as Cake;
 pub use cake_filling::Entity as CakeFilling;

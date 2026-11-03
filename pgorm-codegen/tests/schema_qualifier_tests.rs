@@ -116,7 +116,7 @@ fn a_table_declared_twice_is_refused() {
 
     let twice = vec![qualified_item(), qualified_item()];
 
-    match EntityTransformer::transform(twice) {
+    match EntityTransformer::transform(twice, &context(Opts::default())) {
         Err(Error::TransformError(message)) => {
             assert_eq!(message, "table `tenant_a.item` is declared twice");
         }
