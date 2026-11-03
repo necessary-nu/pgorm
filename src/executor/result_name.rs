@@ -6,9 +6,10 @@
 //! Every prefixed name is therefore composed here, by the writers and the
 //! readers alike, so both sides of the contract spell a long name the same
 //! bounded way; a binding that projects and decodes prefixed sources of its
-//! own composes their names through it too. The columns and constraints a
-//! disjoint schema names are bounded here as well, so a later statement that
-//! names one spells it as the schema did.
+//! own composes their names through it too. The constraints and indexes
+//! schema generation names, and the columns a disjoint schema adds, are
+//! bounded here as well, so a later statement that names one spells it as
+//! the schema did.
 
 /// PostgreSQL's identifier bound: `NAMEDATALEN - 1` bytes.
 const IDENT_MAX_BYTES: usize = 63;
@@ -52,6 +53,26 @@ pub(crate) fn bounded_identifier(full: String) -> String {
     }
     let pad = "_".repeat(head_max - end);
     format!("{}{pad}{hash:016x}", &full[..end])
+}
+
+/// The name schema generation gives a constraint or index it names itself:
+/// `{kind}-{table}`, then each of `columns`, `-`-joined, bounded by
+/// [`bounded_identifier`]. Left whole, a long name is truncated by the server
+/// to its first 63 bytes, so two names sharing them become one (`42710`) and
+/// a later statement naming either misses it.
+// [spec:pgorm:sem:schema.from-entity+11]
+// [spec:pgorm:sem:disjoint.schema+1]
+pub(crate) fn derived_name<'a>(
+    kind: &str,
+    table: &str,
+    columns: impl IntoIterator<Item = &'a str>,
+) -> String {
+    let mut name = format!("{kind}-{table}");
+    for column in columns {
+        name.push('-');
+        name.push_str(column);
+    }
+    bounded_identifier(name)
 }
 
 /// 64-bit FNV-1a. The spelling of a bounded alias must be reproducible by

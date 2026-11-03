@@ -209,6 +209,57 @@ mod palette {
     pub enum Relation {}
 }
 
+mod depot {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "depot")]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+/// A table whose name is long enough that every name schema generation
+/// derives on it runs to 63 bytes or past them, and two of each kind would
+/// truncate to one: its composite key, its two foreign keys and its two
+/// indexes.
+mod parcel {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "parcels_waiting_for_collection_at_every_regional_depot_today")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub tenant: i32,
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+        #[pgorm(indexed)]
+        pub origin_depot: i32,
+        #[pgorm(indexed)]
+        pub destination_depot: i32,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {
+        #[pgorm(
+            belongs_to = super::depot::Entity,
+            from = Column::OriginDepot,
+            to = super::depot::Column::Id
+        )]
+        Origin,
+        #[pgorm(
+            belongs_to = super::depot::Entity,
+            from = Column::DestinationDepot,
+            to = super::depot::Column::Id
+        )]
+        Destination,
+    }
+}
+
 /// An `ActiveEnum` whose `db_type()` is not `ColumnType::Enum`.
 #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]
 #[pgorm(rs_type = String, db_type = ColumnType::String(StringLen::N(1)))]
@@ -257,7 +308,7 @@ fn key_columns<K>(key: &TableKey<K>) -> Vec<String> {
         .collect()
 }
 
-// [spec:pgorm:sem:schema.from-entity+10/test]    table ref, comment, per-column projection, single-column key, unique keys, belongs-to foreign keys
+// [spec:pgorm:sem:schema.from-entity+11/test]    table ref, comment, per-column projection, single-column key, unique keys, belongs-to foreign keys
 #[test]
 fn create_table_from_entity_projects_columns() {
     let schema = Schema::new();
@@ -362,7 +413,7 @@ fn create_table_from_entity_projects_columns() {
     assert!(!widget::Relation::Factory.def().is_owner);
 }
 
-// [spec:pgorm:sem:schema.from-entity+10/test]    a composite key is the table's key, named pk-{table}
+// [spec:pgorm:sem:schema.from-entity+11/test]    a composite key is the table's key, named pk-{table}
 #[test]
 fn create_table_composite_key_emits_index() {
     let schema = Schema::new();
@@ -389,7 +440,7 @@ fn create_table_composite_key_emits_index() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+10/test]    the entity comment first, then the commented
+// [spec:pgorm:sem:schema.from-entity+11/test]    the entity comment first, then the commented
 // columns in Column order, targeting entity.table_ref() with the text quoted
 #[test]
 fn create_comments_from_entity_emits_statements() {
@@ -454,7 +505,7 @@ fn create_comments_from_entity_emits_statements() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity.index+1/test]    one statement per indexed column, named idx-{table}-{column}
+// [spec:pgorm:sem:schema.from-entity.index+2/test]    one statement per indexed column, named idx-{table}-{column}
 #[test]
 fn create_index_from_entity_names_indexed_columns() {
     let schema = Schema::new();
@@ -484,7 +535,7 @@ fn create_index_from_entity_names_indexed_columns() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity.index+1/test]    the index targets entity.table_ref(), so it is schema-qualified exactly when the entity declares one
+// [spec:pgorm:sem:schema.from-entity.index+2/test]    the index targets entity.table_ref(), so it is schema-qualified exactly when the entity declares one
 #[test]
 fn create_index_from_entity_uses_table_ref() {
     let schema = Schema::new();
@@ -588,8 +639,8 @@ fn create_enum_from_active_enum_errs_non_enum() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+10/test]    the projected DDL is accepted by Postgres and enforces what it declares
-// [spec:pgorm:sem:schema.from-entity.index+1/test]    the schema-qualified index executes and reaches pg_indexes under its generated name
+// [spec:pgorm:sem:schema.from-entity+11/test]    the projected DDL is accepted by Postgres and enforces what it declares
+// [spec:pgorm:sem:schema.from-entity.index+2/test]    the schema-qualified index executes and reaches pg_indexes under its generated name
 // [spec:pgorm:sem:schema.from-entity.enum+3/test]    the projected type is a usable Postgres enum
 #[pgorm_macros::test]
 async fn generated_schema_executes_on_postgres() -> Result<(), Error> {
@@ -775,7 +826,7 @@ async fn array_only_enum_schema_executes_on_postgres() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:schema.from-entity+10/test]    a composite key's generated
+// [spec:pgorm:sem:schema.from-entity+11/test]    a composite key's generated
 // column carries its identity, the supplied column nothing, and neither the
 // serial family nor an inline PRIMARY KEY
 #[test]
@@ -810,7 +861,7 @@ fn composite_key_identity_lands_on_its_column() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+10/test]    a one-column key that fills
+// [spec:pgorm:sem:schema.from-entity+11/test]    a one-column key that fills
 // itself — an identity or a default of its own — is not also drawn from the
 // serial family, which PostgreSQL refuses beside either (42601)
 #[test]
@@ -850,7 +901,7 @@ fn key_with_its_own_fill_is_not_serial() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+10/test]    the tables a key that fills
+// [spec:pgorm:sem:schema.from-entity+11/test]    the tables a key that fills
 // itself projects to are ones the server builds, and fill the key unasked
 #[pgorm_macros::test]
 async fn self_filling_keys_execute_on_postgres() -> Result<(), Error> {
@@ -897,7 +948,7 @@ async fn self_filling_keys_execute_on_postgres() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:schema.from-entity+10/test]    the comment statements execute, and only they
+// [spec:pgorm:sem:schema.from-entity+11/test]    the comment statements execute, and only they
 // attach anything: the text arrives in pg_description exactly as declared
 #[pgorm_macros::test]
 async fn entity_comments_land_in_pg_description() -> Result<(), Error> {
@@ -939,5 +990,129 @@ async fn entity_comments_land_in_pg_description() -> Result<(), Error> {
     drop(db);
     ctx.delete().await;
 
+    Ok(())
+}
+
+const PARCEL: &str = "parcels_waiting_for_collection_at_every_regional_depot_today";
+
+/// The names generation derives on `parcel`, each bounded as a composed
+/// result name is: its key, its two foreign keys, then its two indexes.
+fn parcel_names() -> [String; 5] {
+    [
+        format!("pk-{PARCEL}"),
+        format!("fk-{PARCEL}-origin_depot"),
+        format!("fk-{PARCEL}-destination_depot"),
+        format!("idx-{PARCEL}-origin_depot"),
+        format!("idx-{PARCEL}-destination_depot"),
+    ]
+    .map(|full| pgorm::result_column_name("", &full))
+}
+
+// [spec:pgorm:sem:schema.from-entity+11/test]    a derived key or foreign key name that would reach 63 bytes is bounded as composed result names are, its head kept, so two long names stay two
+// [spec:pgorm:sem:schema.from-entity.index+2/test]
+// [spec:pgorm:req:entity.relation.fk+6/test]
+#[test]
+fn derived_names_past_the_bound_are_bounded() {
+    let names = parcel_names();
+    for name in &names {
+        assert_eq!(name.len(), 63, "{name}");
+    }
+    assert!(names[0].starts_with(&format!("pk-{PARCEL}")[..47]));
+    assert_eq!(names[1][..47], names[2][..47]);
+    assert_ne!(names[1], names[2]);
+
+    let schema = Schema::new();
+    let table = schema
+        .create_table_from_entity(parcel::Entity)
+        .expect("the table is generated")
+        .to_string();
+    for name in &names[..3] {
+        assert!(
+            table.contains(&format!(r#"CONSTRAINT "{name}""#)),
+            "{name} in {table}"
+        );
+    }
+    let indexes: Vec<String> = schema
+        .create_index_from_entity(parcel::Entity)
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(
+        indexes,
+        [
+            format!(
+                r#"CREATE INDEX "{}" ON "{PARCEL}" ("origin_depot")"#,
+                names[3]
+            ),
+            format!(
+                r#"CREATE INDEX "{}" ON "{PARCEL}" ("destination_depot")"#,
+                names[4]
+            ),
+        ]
+    );
+
+    let short = schema
+        .create_table_from_entity(widget_tag::Entity)
+        .expect("the table is generated")
+        .to_string();
+    assert!(
+        short.contains(r#"CONSTRAINT "fk-widget_tag-widget_id""#),
+        "{short}"
+    );
+}
+
+// [spec:pgorm:sem:schema.from-entity+11/test]    the server creates every derived constraint and index under exactly the name generation gives it, none truncated and none colliding
+// [spec:pgorm:sem:schema.from-entity.index+2/test]
+#[pgorm_macros::test]
+async fn bounded_derived_names_are_the_servers_live() -> Result<(), Error> {
+    let ctx = TestContext::new("schema_gen_bounded_names").await;
+    let db = ctx.db.get().await?;
+    let schema = Schema::new();
+    db.execute(
+        &schema.create_table_from_entity(depot::Entity)?.to_string(),
+        &[],
+    )
+    .await?;
+    db.execute(
+        &schema.create_table_from_entity(parcel::Entity)?.to_string(),
+        &[],
+    )
+    .await?;
+    for index in schema.create_index_from_entity(parcel::Entity) {
+        db.execute(&index.to_string(), &[]).await?;
+    }
+
+    let [key, origin, destination, origin_index, destination_index] = parcel_names();
+    let mut constraints: Vec<String> = db
+        .query_all(
+            "SELECT conname::text FROM pg_constraint WHERE conrelid = $1::text::regclass \
+             AND contype IN ('p', 'f')",
+            &[&format!("\"{PARCEL}\"")],
+        )
+        .await?
+        .iter()
+        .map(|row| row.get(0))
+        .collect();
+    constraints.sort();
+    let mut expected = vec![key, origin, destination];
+    expected.sort();
+    assert_eq!(constraints, expected);
+    let mut indexes: Vec<String> = db
+        .query_all(
+            "SELECT indexname::text FROM pg_indexes WHERE tablename = $1 \
+             AND indexname NOT IN (SELECT conname FROM pg_constraint)",
+            &[&PARCEL],
+        )
+        .await?
+        .iter()
+        .map(|row| row.get(0))
+        .collect();
+    indexes.sort();
+    let mut expected = vec![origin_index, destination_index];
+    expected.sort();
+    assert_eq!(indexes, expected);
+
+    drop(db);
+    ctx.delete().await;
     Ok(())
 }

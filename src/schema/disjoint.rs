@@ -7,8 +7,10 @@ use super::{
 };
 use crate::{
     ColumnPairs, ColumnType, DisjointKind, DisjointShape, DisjointTable, Error, KindedDisjoint,
-    RelationDef, RelationType, Schema, TableBody, entity::KindedBy,
-    executor::result_name::bounded_identifier, unpack_table_name,
+    RelationDef, RelationType, Schema, TableBody,
+    entity::KindedBy,
+    executor::result_name::{bounded_identifier, derived_name},
+    unpack_table_name,
 };
 use pgorm_query::{
     ColumnDef, ConditionType, Deferrability, Expr, ForeignKeyAction, FromItem, GeneratedKind, Name,
@@ -90,7 +92,7 @@ impl DisjointShape {
             TableKey::new(Name::runtime(base.key.first.clone()))
                 .cols(base.key.rest.iter().cloned().map(Name::runtime))
                 .col(Name::runtime(base.kind.clone()))
-                .name(Name::runtime(constraint_name(
+                .name(Name::runtime(derived_name(
                     "uq",
                     &base.name,
                     base.key.iter().chain([base.kind.as_str()]),
@@ -214,7 +216,7 @@ impl BaseTable {
                 columns.push(def);
                 added.push((name.to_owned(), origin));
             }
-            let name = constraint_name("fk", &self.name, generated.iter());
+            let name = derived_name("fk", &self.name, generated.iter());
             keys.push(deferrable_key(
                 self.table.clone(),
                 kind.table.clone(),
@@ -294,7 +296,7 @@ fn kind_table(
         ColumnDef::new_with_type(Name::runtime(base.kind.clone()), base.kind_type.clone());
     kind_column.generated(Expr::val(value.clone()), GeneratedKind::Stored);
     create.col(&mut kind_column);
-    let name = constraint_name(
+    let name = derived_name(
         "fk",
         &table.name().to_string(),
         key.iter().chain([base.kind.as_str()]),
@@ -406,18 +408,6 @@ fn deferrable_key(
         deferrability: Some(Deferrability::DeferrableInitiallyImmediate),
         condition_type: ConditionType::All,
     }
-}
-
-/// `{kind}-{table}-{columns}`, `-`-joined as a derived foreign key's name
-/// is, and bounded to PostgreSQL's 63 bytes.
-// [spec:pgorm:sem:disjoint.schema+1]
-fn constraint_name<'a>(kind: &str, table: &str, columns: impl Iterator<Item = &'a str>) -> String {
-    let mut name = format!("{kind}-{table}");
-    for column in columns {
-        name.push('-');
-        name.push_str(column);
-    }
-    bounded_identifier(name)
 }
 
 fn column_names(table: &DisjointTable) -> Vec<String> {

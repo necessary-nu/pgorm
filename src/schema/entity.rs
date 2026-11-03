@@ -1,6 +1,7 @@
 use crate::{
     ActiveEnum, ColumnTrait, ColumnType, EntityTrait, Error, Iterable, PrimaryKeyArity,
     PrimaryKeyToColumn, PrimaryKeyTrait, RelationDef, RelationTrait, Schema, entity::ColumnDefault,
+    executor::result_name::derived_name,
 };
 use pgorm_query::{
     ColumnDef, Comment, CommentStatement, ForeignKeyCreateStatement, IdentityGeneration, Index,
@@ -204,7 +205,7 @@ where
     vec
 }
 
-// [spec:pgorm:sem:schema.from-entity.index+1]
+// [spec:pgorm:sem:schema.from-entity.index+2]
 pub(crate) fn create_index_from_entity<E>(entity: E) -> Vec<IndexCreateStatement>
 where
     E: EntityTrait,
@@ -215,7 +216,7 @@ where
         if !column_def.indexed {
             continue;
         }
-        let name = format!("idx-{}-{}", entity.to_string(), column.to_string());
+        let name = derived_name("idx", &entity.to_string(), [column.to_string().as_str()]);
         let stmt = Index::create(entity.table_ref(), column)
             .name(Name::runtime(name))
             .to_owned();
@@ -224,7 +225,7 @@ where
     vec
 }
 
-// [spec:pgorm:sem:schema.from-entity+10]    the comment statements, one stream per entity
+// [spec:pgorm:sem:schema.from-entity+11]    the comment statements, one stream per entity
 pub(crate) fn create_comments_from_entity<E>(entity: E) -> Vec<CommentStatement>
 where
     E: EntityTrait,
@@ -243,7 +244,7 @@ where
     vec
 }
 
-// [spec:pgorm:sem:schema.from-entity+10]
+// [spec:pgorm:sem:schema.from-entity+11]
 pub(crate) fn create_table_from_entity<E>(entity: E) -> Result<TableCreateStatement, Error>
 where
     E: EntityTrait,
@@ -254,7 +255,7 @@ where
 /// The table [`create_table_from_entity`] writes, with a foreign key for each
 /// belongs-to relation `writes_key` keeps: a disjoint kind's table leaves out
 /// the one its key to its base row implies.
-// [spec:pgorm:sem:schema.from-entity+10]
+// [spec:pgorm:sem:schema.from-entity+11]
 // [spec:pgorm:sem:disjoint.schema+1]
 pub(crate) fn table_from_entity<E, K>(
     entity: E,
@@ -309,7 +310,7 @@ where
 /// Each side's type is the one its [`ColumnPairs`](crate::ColumnPairs)
 /// recorded when the pair was named by entity columns; a pair named by bare
 /// names recorded none and passes unchecked.
-// [spec:pgorm:sem:schema.from-entity+10]
+// [spec:pgorm:sem:schema.from-entity+11]
 fn refuse_unkeyable<E: EntityTrait>(
     entity: &E,
     relation: &E::Relation,
@@ -338,7 +339,7 @@ fn refuse_unkeyable<E: EntityTrait>(
 /// OVERLAPS`, onto `stmt`, the table `table`'s: a composite key named
 /// `pk-{table}`, a one-column key keeping the name PostgreSQL derives,
 /// `{table}_pkey`.
-// [spec:pgorm:sem:schema.from-entity+10]
+// [spec:pgorm:sem:schema.from-entity+11]
 pub(crate) fn write_primary_key(
     stmt: &mut TableCreateStatement,
     table: &str,
@@ -355,13 +356,13 @@ pub(crate) fn write_primary_key(
         key = key.without_overlaps(period);
     }
     if composite {
-        stmt.primary_key(key.name(Name::runtime(format!("pk-{table}"))));
+        stmt.primary_key(key.name(Name::runtime(derived_name("pk", table, []))));
     } else {
         stmt.primary_key(key);
     }
 }
 
-// [spec:pgorm:sem:schema.from-entity+10]    column projection, and the serial family for a one-column key
+// [spec:pgorm:sem:schema.from-entity+11]    column projection, and the serial family for a one-column key
 fn column_def_from_entity_column<E>(column: E::Column) -> ColumnDef
 where
     E: EntityTrait,
@@ -379,7 +380,7 @@ where
 /// The column `name` of the definition `orm_column_def` as a `CREATE TABLE`
 /// writes it, drawn from the serial family when `serial` holds and the
 /// column names no fill of its own.
-// [spec:pgorm:sem:schema.from-entity+10]
+// [spec:pgorm:sem:schema.from-entity+11]
 pub(crate) fn column_ddl(name: Name, orm_column_def: crate::ColumnDef, serial: bool) -> ColumnDef {
     let mut column_def = ColumnDef::new_with_type(name, orm_column_def.col_type);
     if !orm_column_def.null {

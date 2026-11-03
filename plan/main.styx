@@ -16685,12 +16685,27 @@ children (
         id schema-gen-name-bounds
         title "Every constraint name schema generation derives fits PostgreSQL's 63-byte identifier limit"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T02:38:49.886751Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.schema (22c8f563): create_disjoint bounds its names through bounded_identifier (src/executor/result_name.rs: kept under 63 bytes, else a 47-byte head plus a 16-hex FNV hash), but create_table_from_entity's own derived names are not bounded: a relation's foreign key fk-{table}-{cols} and a composite key's pk-{table}. PostgreSQL truncates a longer identifier silently (NOTICE 42622), so two long names can collide and a later statement naming the constraint misses it. Route every derived name through the same composition, revise schema.from-entity, and test the long cases live."
+            }
+
+            {
+                at 2026-11-03T10:20:40.285118Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:26:11.756797Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

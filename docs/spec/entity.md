@@ -794,7 +794,7 @@ explicit limitations.
 > entity related to itself is well-formed where an unaliased join of the
 > `Related` path would name one table twice.
 
-> [spec:pgorm:req:entity.relation.fk+5]
+> [spec:pgorm:req:entity.relation.fk+6]
 > A `RelationDef` converts into DDL foreign-key forms via
 > `From<RelationDef> for ForeignKeyCreateStatement` and `for TableForeignKey`
 > (`src/entity/relation.rs`). The conversion maps every pair in `columns` to a
@@ -804,7 +804,9 @@ explicit limitations.
 > `deferrability` and the `enforcement` when present, and names the
 > constraint from `fk_name` when set; otherwise the name MUST be derived as
 > `fk-{from_table}-{from_cols joined with '-'}`, the from columns being
-> `from_key()`'s, the period's last. Both conversions unpack the table
+> `from_key()`'s, the period's last, and bounded to PostgreSQL's 63 bytes
+> as every name schema generation derives is
+> (`[spec:pgorm:sem:schema.from-entity]`). Both conversions unpack the table
 > references to bare tables (the schema of a `FromItem`'s `TableName`, and any bound
 > alias, are reduced away by `unpack_table_ref`).
 >

@@ -547,10 +547,10 @@ macro_rules! foreign_key_from_relation {
                 .iter()
                 .map(|from| from.to_string())
                 .collect();
-            format!(
-                "fk-{}-{}",
-                from_tbl.table().to_string(),
-                from_cols.join("-")
+            crate::executor::result_name::derived_name(
+                "fk",
+                &from_tbl.table().to_string(),
+                from_cols.iter().map(String::as_str),
             )
         };
         foreign_key.name(Name::runtime(name));
@@ -558,7 +558,7 @@ macro_rules! foreign_key_from_relation {
     }};
 }
 
-// [spec:pgorm:req:entity.relation.fk+5]
+// [spec:pgorm:req:entity.relation.fk+6]
 impl From<RelationDef> for ForeignKeyCreateStatement {
     fn from(relation: RelationDef) -> Self {
         foreign_key_from_relation!(relation, Self)
@@ -592,7 +592,7 @@ impl From<RelationDef> for ForeignKeyCreateStatement {
 ///     r#"ALTER TABLE "foo" ADD CONSTRAINT "foo-bar" FOREIGN KEY ("bar_id") REFERENCES "bar" ("bar_id")"#
 /// );
 /// ```
-// [spec:pgorm:req:entity.relation.fk+5]
+// [spec:pgorm:req:entity.relation.fk+6]
 impl From<RelationDef> for TableForeignKey {
     fn from(relation: RelationDef) -> Self {
         foreign_key_from_relation!(relation, Self)
