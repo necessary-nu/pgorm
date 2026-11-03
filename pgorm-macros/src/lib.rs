@@ -70,7 +70,7 @@ mod derives;
 /// let cake = Entity { tenant: "bakery" };
 /// assert_eq!(cake.schema_name(), Some("bakery"));
 /// ```
-// [spec:pgorm:req:macros.derive.names+1]
+// [spec:pgorm:req:macros.derive.names+2]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveEntity")]
 #[proc_macro_derive(EntityTrait, attributes(pgorm))]
@@ -162,7 +162,7 @@ pub fn derive_entity_trait(input: TokenStream) -> TokenStream {
 // [spec:pgorm:def:macros.derive+7]
 // [spec:pgorm:sem:macros.derive.entity-model+9]
 // [spec:pgorm:req:macros.derive.entity-model.reject+4]
-// [spec:pgorm:req:macros.derive.names+1]
+// [spec:pgorm:req:macros.derive.names+2]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveEntityModel")]
 #[proc_macro_derive(Entity, attributes(pgorm))]
@@ -341,7 +341,7 @@ pub fn derive_into_active_model(input: TokenStream) -> TokenStream {
 ///
 /// assert!(matches!(Tea::db_type().get_column_type(), ColumnType::Enum { .. }));
 /// ```
-// [spec:pgorm:req:macros.derive.names+1]
+// [spec:pgorm:req:macros.derive.names+2]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveActiveEnum", alias = "DeriveDisplay")]
 #[proc_macro_derive(ActiveEnum, attributes(pgorm))]
@@ -459,12 +459,104 @@ pub fn derive_active_enum(input: TokenStream) -> TokenStream {
 /// ```
 // [spec:pgorm:def:disjoint.declare+5]
 // [spec:pgorm:sem:disjoint.unkinded+1]
-// [spec:pgorm:req:macros.derive.names+1]
+// [spec:pgorm:req:macros.derive.names+2]
 #[cfg(feature = "derive")]
 #[proc_macro_derive(Disjoint, attributes(pgorm))]
 pub fn derive_disjoint(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     derives::expand_derive_disjoint(input)
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
+}
+
+/// Declare a reference from one entity to exactly one of several others,
+/// stored as one nullable column per target, each a foreign key the entity's
+/// own `belongs_to` relation declares.
+///
+/// `#[pgorm(entity = ..)]` names the entity whose rows hold the reference.
+/// Each variant naming a target holds the target's entity type,
+/// `Post(post::Entity)`, and names the column holding its key,
+/// `#[pgorm(column = Column::PostId)]`; at most one unit variant is a row
+/// referencing none of them. A column that is not the entity's, is not
+/// nullable, is named twice, or is not of its target's key type, a target
+/// the entity has no relation to, two variants naming one entity, and an
+/// enum with no variant naming a target do not compile.
+///
+/// The derive writes `<Enum>Key`, each variant holding its target's key, and
+/// `<Enum>Model`, each holding its target's `Model`, the unit variant holding
+/// nothing in either; it implements `OneOf` for the enum and `OneOfTarget`
+/// for each target entity.
+///
+/// # Attributes
+///
+/// - On the enum: `entity = path`, required; `key_attrs(..)` and
+///   `model_attrs(..)`, attributes `<Enum>Key` and `<Enum>Model` carry after
+///   their own derives (`Clone, Debug, PartialEq` and `Clone, Debug`), each
+///   written as it would be on the type: `model_attrs(derive(PartialEq))`.
+/// - On a variant naming a target: `column = path`, required.
+///
+/// # Usage
+///
+/// ```
+/// use pgorm::{OneOf, entity::prelude::*};
+///
+/// pub mod post {
+///     use pgorm::entity::prelude::*;
+///
+///     #[derive(Clone, Debug, PartialEq, Entity)]
+///     #[pgorm(table_name = "post")]
+///     pub struct Model {
+///         #[pgorm(primary_key)]
+///         pub id: i32,
+///     }
+///
+///     #[derive(Copy, Clone, Debug, Relation)]
+///     pub enum Relation {}
+/// }
+///
+/// pub mod comment {
+///     use pgorm::entity::prelude::*;
+///
+///     #[derive(Clone, Debug, PartialEq, Entity)]
+///     #[pgorm(table_name = "comment")]
+///     pub struct Model {
+///         #[pgorm(primary_key)]
+///         pub id: i32,
+///         pub post_id: Option<i32>,
+///     }
+///
+///     #[derive(Copy, Clone, Debug, Relation)]
+///     pub enum Relation {
+///         #[pgorm(
+///             belongs_to = super::post::Entity,
+///             from = Column::PostId,
+///             to = super::post::Column::Id
+///         )]
+///         Post,
+///     }
+/// }
+///
+/// #[derive(Clone, Copy, Debug, OneOf)]
+/// #[pgorm(entity = comment::Entity)]
+/// pub enum Commentable {
+///     #[pgorm(column = comment::Column::PostId)]
+///     Post(post::Entity),
+///     Detached,
+/// }
+///
+/// # fn main() -> Result<(), pgorm::Error> {
+/// let comment = comment::Model { id: 1, post_id: Some(7) };
+/// assert_eq!(Commentable::key(&comment)?, CommentableKey::Post(7));
+/// # Ok(())
+/// # }
+/// ```
+// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:req:macros.derive.names+2]
+#[cfg(feature = "derive")]
+#[proc_macro_derive(OneOf, attributes(pgorm))]
+pub fn derive_one_of(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    derives::expand_derive_one_of(input)
         .unwrap_or_else(Error::into_compile_error)
         .into()
 }
@@ -607,7 +699,7 @@ pub fn derive_migration_name(input: TokenStream) -> TokenStream {
 /// a value that was never null: a confusing constraint violation against a `NOT NULL`
 /// column, and silent data loss against a nullable one. The panic message names the
 /// type and carries serde's own error.
-// [spec:pgorm:req:macros.derive.names+1]
+// [spec:pgorm:req:macros.derive.names+2]
 #[cfg(feature = "derive")]
 #[doc(alias = "FromJsonQueryResult")]
 #[proc_macro_derive(JsonValueType)]
@@ -832,7 +924,7 @@ pub fn derive_created_range(input: TokenStream) -> TokenStream {
 /// assert_eq!(MyOther.to_string(), "my_other");
 /// ```
 // [spec:pgorm:sem:macros.derive.iden+3]
-// [spec:pgorm:req:macros.derive.names+1]
+// [spec:pgorm:req:macros.derive.names+2]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveSqlName", alias = "DeriveIden", alias = "Iden")]
 #[proc_macro_derive(SqlName, attributes(iden, method))]
@@ -862,7 +954,7 @@ pub fn derive_sql_name(input: TokenStream) -> TokenStream {
 /// assert_eq!(Shelf::Top.as_str(), "top_shelf");
 /// ```
 // [spec:pgorm:sem:macros.derive.iden+3]
-// [spec:pgorm:req:macros.derive.names+1]
+// [spec:pgorm:req:macros.derive.names+2]
 #[cfg(feature = "derive")]
 #[proc_macro_derive(StaticName, attributes(iden, method))]
 pub fn derive_static_name(input: TokenStream) -> TokenStream {

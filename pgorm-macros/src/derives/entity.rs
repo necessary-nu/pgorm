@@ -20,7 +20,7 @@ impl PartNames {
     /// is refused at the key rather than dropped: the composite derive's keys
     /// and `entity` with a message saying where they belong, anything else as
     /// unknown.
-    // [spec:pgorm:req:macros.derive.names+1]
+    // [spec:pgorm:req:macros.derive.names+2]
     fn parse(attrs: &[syn::Attribute]) -> syn::Result<Self> {
         let mut names = Self::default();
         for attr in attrs.iter().filter(|attr| attr.path().is_ident("pgorm")) {

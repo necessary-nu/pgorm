@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-03T17:30:45.402236Z
+last_sync_at 2026-11-03T17:46:10.358431Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -81,7 +81,7 @@ rule_versions (
     {id bindings.write-sources, version 0}
     {id bindings.writes, version 2}
     {id codegen.entity, version 7}
-    {id codegen.entity.compact, version 5}
+    {id codegen.entity.compact, version 6}
     {id codegen.entity.compact.attrs, version 13}
     {id codegen.entity.compact.model, version 2}
     {id codegen.entity.context, version 4}
@@ -124,7 +124,7 @@ rule_versions (
     {id conn.tx.retry, version 3}
     {id disjoint.declare, version 5}
     {id disjoint.evolve, version 1}
-    {id disjoint.one-of, version 0}
+    {id disjoint.one-of, version 1}
     {id disjoint.read, version 2}
     {id disjoint.schema, version 2}
     {id disjoint.unkinded, version 1}
@@ -234,8 +234,8 @@ rule_versions (
     {id macros.derive.from-query-result, version 4}
     {id macros.derive.iden, version 3}
     {id macros.derive.iden.query, version 1}
-    {id macros.derive.model, version 5}
-    {id macros.derive.names, version 1}
+    {id macros.derive.model, version 6}
+    {id macros.derive.names, version 2}
     {id macros.derive.one-form, version 0}
     {id macros.derive.partial-model, version 5}
     {id macros.derive.relation, version 7}
@@ -1944,6 +1944,11 @@ impl_evidence (
     ), covered_claims (
         {impl_name main, rule disjoint.evolve}
         {impl_name main, rule migration.commit-after}
+    )}
+    {id disjoint.one-of, covered_rules (
+        disjoint.one-of
+    ), covered_claims (
+        {impl_name main, rule disjoint.one-of}
     )}
     {id disjoint.read, covered_rules (
         disjoint.read

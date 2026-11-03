@@ -284,7 +284,7 @@ async fn partial_model_target_verifies(db: &DatabaseConnection) -> Result<(), Er
     Ok(())
 }
 
-// [spec:pgorm:sem:macros.derive.model+5/test]    an entity model reports its columns
+// [spec:pgorm:sem:macros.derive.model+6/test]    an entity model reports its columns
 async fn entity_model_target_verifies(db: &DatabaseConnection) -> Result<(), Error> {
     db.verify::<widget::Model>(NO_ROWS).await?;
 

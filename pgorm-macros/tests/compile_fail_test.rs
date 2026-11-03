@@ -14,7 +14,7 @@
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+9/test]    an unknown key at struct level, at field level, and in each derive reading a subset of the same vocabulary; a string where Rust code is expected; a column read or written two ways, and `save_with` and `save_array_with` apart; a `unique(..)` of no columns or one, a column twice, a path naming no column, a quoted column, a name twice or past 63 bytes, an unknown key, and one on a model given no `table_name`
 // [spec:pgorm:sem:macros.derive.entity+7/test]    a literal name given to the entity-trait derive
 // [spec:pgorm:sem:macros.derive.from-query-result+4/test]    an unknown field key, and a projection key refused as `PartialModel`'s
-// [spec:pgorm:sem:macros.derive.model+5/test]    a further model refuses the composite's container and field keys, and `enum_name` naming `variant`
+// [spec:pgorm:sem:macros.derive.model+6/test]    a further model refuses the composite's container and field keys, and `enum_name` naming `variant`
 // [spec:pgorm:sem:macros.derive.column+7/test]    an unknown variant key, and any key on the enum
 // [spec:pgorm:sem:macros.derive.active-model+7/test]    `IntoActiveModel` refuses a field key
 // [spec:pgorm:sem:macros.derive.partial-model+5/test]    an unknown field key, and the both-keys conflict the accumulating parser makes reachable
@@ -27,6 +27,7 @@
 // [spec:pgorm:sem:macros.derive.entity-model.column-def+10/test]    a generated column given both kinds, beside an identity, a default or `auto_increment`, and a virtual one keyed, unique or indexed
 // [spec:pgorm:def:disjoint.declare+5/test]    the refusals the disjoint derive words: not an enum, generic, no `base`, a quoted `base`, a key twice or unknown, no variants, a variant of another shape, a discriminant, a key on the payload, two kinds of one value, and a kind's value over 63 bytes, given or derived from its variant, refused at the value or the variant
 // [spec:pgorm:sem:disjoint.unkinded+1/test]    the refusals an `unkinded` declaration words: `kind`, `enum_name` or `schema_name` beside it, `unkinded` twice, a variant's `value`, a second unit variant, and no variant holding a kind's `Model`
+// [spec:pgorm:def:disjoint.one-of+1/test]    the refusals the one-of derive words: not an enum, generic, no `entity`, a quoted `entity` or `column`, a key twice or unknown, no variant naming a target, a variant of another shape, a discriminant, a target with no `column`, a unit variant with one, a second unit variant, and a key on the target
 #[test]
 fn compile_fail_tests() {
     let t = trybuild::TestCases::new();

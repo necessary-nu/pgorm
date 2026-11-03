@@ -1,5 +1,6 @@
 use super::column::under_domains;
 use super::disjoint::{self, enum_key};
+use super::one_of;
 use crate::{
     ActiveEnum, Column, ConjunctRelation, CreatedRangeType, Entity, EntityWriter,
     EntityWriterContext, Error, KindType, PrimaryKey, Relation, RelationType, TableIdent,
@@ -39,6 +40,7 @@ impl EntityTransformer {
         let mut ranges: BTreeMap<String, CreatedRangeType> = BTreeMap::new();
         let mut entities: BTreeMap<TableIdent, Entity> = BTreeMap::new();
         let mut unique_keys: BTreeMap<TableIdent, Vec<UniqueKey>> = BTreeMap::new();
+        let mut checks: BTreeMap<TableIdent, Vec<one_of::TableCheck>> = BTreeMap::new();
         for table_create in table_create_stmts.into_iter() {
             let ident = TableIdent::of(table_create.get_table_name());
             let table_name = ident.to_string();
@@ -176,12 +178,14 @@ impl EntityTransformer {
                 primary_keys,
                 without_overlaps,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: keys
                     .iter()
                     .filter(|key| key.columns.len() > 1)
                     .cloned()
                     .collect(),
             };
+            checks.insert(ident.clone(), one_of::table_checks(&table_create));
             entities.insert(ident.clone(), entity);
             unique_keys.insert(ident, keys);
         }
@@ -260,7 +264,7 @@ impl EntityTransformer {
                 entity.conjunct_relations.push(conjunct_relation);
             }
         }
-        let entities: Vec<Entity> = entities
+        let mut entities: Vec<Entity> = entities
             .into_values()
             .map(|mut v| {
                 // Filter duplicated conjunct relations
@@ -297,9 +301,14 @@ impl EntityTransformer {
                 v
             })
             .collect();
+        one_of::recognise(&mut entities, &checks);
         for entity in entities.iter() {
             entity.validate()?;
         }
+        refuse_one_of_name_clashes(
+            &entities,
+            &generated_type_names(&enums, &ranges, &kind_types),
+        )?;
         for active_enum in enums.values() {
             active_enum.validate()?;
         }
@@ -724,6 +733,103 @@ fn validate_identities(
     Ok(())
 }
 
+/// The items every entity's module declares, which no generated enum's name
+/// may take.
+const MODULE_ITEMS: [&str; 6] = [
+    "Model",
+    "Entity",
+    "Column",
+    "PrimaryKey",
+    "ActiveModel",
+    "Relation",
+];
+
+/// The Rust name of every type a schema's enums and range types generate,
+/// each with what generates it.
+// [spec:pgorm:sem:codegen.entity.disjoint+3]
+// [spec:pgorm:def:disjoint.one-of+1]
+fn generated_type_names(
+    enums: &BTreeMap<String, ActiveEnum>,
+    ranges: &BTreeMap<String, CreatedRangeType>,
+    kind_types: &BTreeMap<String, KindType>,
+) -> BTreeMap<String, String> {
+    let mut type_names: BTreeMap<String, String> = BTreeMap::new();
+    for (key, active_enum) in enums.iter() {
+        let name = match kind_types.get(key) {
+            Some(kind_type) => kind_type.rust_name.clone(),
+            None => active_enum.enum_name.to_string().to_upper_camel_case(),
+        };
+        type_names.insert(name, format!("enum `{key}`"));
+    }
+    for (key, range) in ranges.iter() {
+        type_names.insert(
+            range.name.to_string().to_upper_camel_case(),
+            format!("range type `{key}`"),
+        );
+    }
+    type_names
+}
+
+/// The items each one-of reference's derive declares in its table's module —
+/// the enum, its `<Enum>Key` and `<Enum>Model` — clash with none of the
+/// module's own, its disjoint entity's, an earlier one-of reference's, a type
+/// another generated item names, or a name the module's code means
+/// otherwise; and no two of its variants share a name.
+// [spec:pgorm:def:disjoint.one-of+1]
+fn refuse_one_of_name_clashes(
+    entities: &[Entity],
+    type_names: &BTreeMap<String, String>,
+) -> Result<(), Error> {
+    for entity in entities.iter().filter(|entity| !entity.one_of.is_empty()) {
+        let ident = entity.ident();
+        let used = names_used(entity);
+        let mut declared: BTreeMap<String, String> = BTreeMap::new();
+        if let Some(disjoint) = &entity.disjoint {
+            let name = entity.get_table_name_camel_case_ident().to_string();
+            declared.insert(name.clone(), "its disjoint entity's enum".to_owned());
+            declared.insert(
+                disjoint::kind_type_ident(&name),
+                "its disjoint entity's kind enum".to_owned(),
+            );
+            if disjoint.kinded.is_some() {
+                declared.insert(
+                    disjoint::active_model_ident(&name),
+                    "its disjoint entity's active model".to_owned(),
+                );
+            }
+        }
+        for one_of in &entity.one_of {
+            one_of.refuse_variant_clashes(&ident)?;
+            for (item, what) in one_of.items() {
+                let clash = if MODULE_ITEMS.contains(&item.as_str()) {
+                    Some(format!("the entity's own `{item}`"))
+                } else if let Some(other) = declared.get(&item) {
+                    Some(format!("{other} `{item}`"))
+                } else if let Some(source) = type_names.get(&item) {
+                    Some(format!("the type {source} generates"))
+                } else if used.contains(&item) {
+                    Some(format!("the `{item}` its module's code names"))
+                } else {
+                    None
+                };
+                if let Some(clash) = clash {
+                    return Err(Error::TransformError(format!(
+                        "table `{ident}`: its one-of reference's {what} `{item}` is named as \
+                         {clash}"
+                    )));
+                }
+            }
+            for (item, what) in one_of.items() {
+                declared.insert(
+                    item,
+                    format!("its one-of reference `{}`'s {what}", one_of.name),
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The items a disjoint entity's derive declares in its base's module — the
 /// enum, its `<Enum>Kind` and, for a kinded entity, its `<Enum>ActiveModel`
 /// — clash with none of the module's own: the items its entity declares, a
@@ -739,28 +845,7 @@ fn refuse_disjoint_name_clashes(
     ranges: &BTreeMap<String, CreatedRangeType>,
     kind_types: &BTreeMap<String, KindType>,
 ) -> Result<(), Error> {
-    const MODULE_ITEMS: [&str; 6] = [
-        "Model",
-        "Entity",
-        "Column",
-        "PrimaryKey",
-        "ActiveModel",
-        "Relation",
-    ];
-    let mut type_names: BTreeMap<String, String> = BTreeMap::new();
-    for (key, active_enum) in enums.iter() {
-        let name = match kind_types.get(key) {
-            Some(kind_type) => kind_type.rust_name.clone(),
-            None => active_enum.enum_name.to_string().to_upper_camel_case(),
-        };
-        type_names.insert(name, format!("enum `{key}`"));
-    }
-    for (key, range) in ranges.iter() {
-        type_names.insert(
-            range.name.to_string().to_upper_camel_case(),
-            format!("range type `{key}`"),
-        );
-    }
+    let type_names = generated_type_names(enums, ranges, kind_types);
     for (ident, entity) in entities.iter() {
         let Some(disjoint) = &entity.disjoint else {
             continue;

@@ -1,6 +1,7 @@
 mod disjoint;
 mod disjoint_evolve;
 mod entity;
+mod one_of;
 mod statement;
 
 pub use disjoint_evolve::{DisjointChange, DisjointGap, DisjointStep};
