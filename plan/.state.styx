@@ -1439,6 +1439,7 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
+    {id disjoint.bindings, kind @doing, author "brendan@necessary.nu", at 2026-11-03T03:58:29.872924Z}
 )
 
 impl_evidence (
@@ -1905,6 +1906,11 @@ impl_evidence (
         {impl_name main, rule disjoint.schema}
     ), rule_versions_seen (
         {id disjoint.schema, version 1}
+    )}
+    {id disjoint.write, covered_rules (
+        disjoint.write
+    ), covered_claims (
+        {impl_name main, rule disjoint.write}
     )}
     {id generative.acceptance, covered_rules (
         generative.acceptance

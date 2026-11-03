@@ -1,7 +1,12 @@
+use crate::query::{
+    DeleteKind, InsertKind, KindRows, UpdateKind, Writes, rekinded_base, returned, unwritten,
+    updated_base, written_part,
+};
 use crate::{
-    ActiveEnum, ColumnTrait, ColumnType, EntityName, EntityTrait, Error, FromQueryResult,
-    IntoPrimaryKey, Iterable, ModelTrait, PrimaryKeyToColumn, PrimaryKeyTrait, SelectDisjoint,
-    StaticName, entity::ColumnDefault,
+    ActiveEnum, ActiveModelTrait, ColumnTrait, ColumnType, EntityName, EntityTrait, Error,
+    FromQueryResult, Insert, IntoPrimaryKey, Iterable, ModelTrait, PrimaryKeyToColumn,
+    PrimaryKeyTrait, QueryFilter, QueryTrait, SelectDisjoint, StaticName, Update, WriteDisjoint,
+    entity::{ColumnDefault, filter_by_key},
 };
 use std::{fmt::Debug, hash::Hash};
 
@@ -67,6 +72,153 @@ pub trait Disjoint: Sized + Send {
         T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
     {
         SelectDisjoint::of(Self::Base::find_by_id(key))
+    }
+
+    /// Insert a value: the base row from `base`, its kind column holding
+    /// `kind`'s kind, and, for a kind with a table, the kind's row from
+    /// `kind`'s `ActiveModel`, its key read from the inserted base row, so a
+    /// key the database generates reaches it.
+    ///
+    /// The base's kind column and the kind row's key columns come from
+    /// `kind` and from the base row, so a value held in either — `Set` or
+    /// `Unchanged` — is refused as [`Error::Type`], as is a declaration
+    /// [`check_disjoint`] refuses, and nothing is sent.
+    ///
+    /// ```no_run
+    /// # use pgorm::{entity::prelude::*, tests_cfg::{car, vehicle::{self, Vehicle, VehicleActiveModel}}};
+    /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
+    /// let db = pool.get().await?;
+    ///
+    /// let (base, car) = Vehicle::insert(
+    ///     vehicle::ActiveModel {
+    ///         name: set("Mini"),
+    ///         ..Default::default()
+    ///     },
+    ///     VehicleActiveModel::Car(car::ActiveModel {
+    ///         seats: set(4_i16),
+    ///         ..Default::default()
+    ///     }),
+    /// )?
+    /// .exec_returning_model(&db)
+    /// .await?;
+    /// assert_eq!(car, Vehicle::Car(car::Model { id: base.id, seats: 4 }));
+    /// # Ok(())
+    /// # }
+    /// ```
+    // [spec:pgorm:sem:disjoint.write+1]
+    fn insert(
+        mut base: <Self::Base as EntityTrait>::ActiveModel,
+        kind: Self::ActiveModel,
+    ) -> Result<WriteDisjoint<Self>, Error> {
+        check_disjoint::<Self>()?;
+        unwritten(
+            &base,
+            Self::kind_column(),
+            Writes::Insert,
+            "it is the kind column, which an insert sets to the kind it is given, so the \
+             base's `ActiveModel` leaves it `NotSet`",
+        )?;
+        let written = kind.kind();
+        base.set(Self::kind_column(), written.to_value().into())?;
+        let mut insert = Insert::one(base).into_query();
+        insert.returning(returned::<Self::Base>());
+        let row = kind.visit(InsertKind)?;
+        Ok(WriteDisjoint::of(
+            written_part::<Self::Base>(insert),
+            row,
+            &|kind| {
+                if kind == written {
+                    KindRows::Written
+                } else {
+                    KindRows::Table
+                }
+            },
+        ))
+    }
+
+    /// Update a value: the set columns of the base row from `base` and of its
+    /// kind's row from `kind`'s `ActiveModel`, both found by the base's key,
+    /// which `base` holds `Set` or `Unchanged` as for
+    /// [`Update::one`](crate::Update::one).
+    ///
+    /// The row's kind is `kind`'s: a row of another kind, and a key no row
+    /// has, are [`Error::RecordNotFound`] from
+    /// [`exec_returning_model`](WriteDisjoint::exec_returning_model), with
+    /// both rows left as they were. Changing the kind is
+    /// [`change_kind`](Self::change_kind), so the base's kind column `Set`,
+    /// and the kind row's key columns `Set`, are refused as [`Error::Type`],
+    /// as is a declaration [`check_disjoint`] refuses, and a `NotSet` key of
+    /// the base is [`Error::PrimaryKeyNotSet`]; nothing is sent. With nothing
+    /// set in either, the write is a read of the row of that key and kind.
+    // [spec:pgorm:sem:disjoint.write+1]
+    fn update(
+        base: <Self::Base as EntityTrait>::ActiveModel,
+        kind: Self::ActiveModel,
+    ) -> Result<WriteDisjoint<Self>, Error> {
+        check_disjoint::<Self>()?;
+        unwritten(
+            &base,
+            Self::kind_column(),
+            Writes::Update,
+            "it is the kind column, and an update keeps the row's kind, which `change_kind` \
+             changes",
+        )?;
+        let current = kind.kind();
+        let update = Update::one(base)?.filter(Self::kind_column().eq(current.to_value()));
+        let row = kind.visit(UpdateKind)?;
+        let written = row.is_some();
+        Ok(WriteDisjoint::of(
+            updated_base::<Self::Base>(update),
+            row,
+            &|kind| {
+                if written && kind == current {
+                    KindRows::Written
+                } else {
+                    KindRows::Table
+                }
+            },
+        ))
+    }
+
+    /// Change the kind of the row of `key` to `kind`'s: delete its row from
+    /// every other kind's table, its current kind's among them, insert the
+    /// new kind's row from `kind`'s `ActiveModel` where that kind has a table,
+    /// and set the base row's kind column.
+    ///
+    /// A key no row has, and a row already of `kind`'s kind, are
+    /// [`Error::RecordNotFound`] from
+    /// [`exec_returning_model`](WriteDisjoint::exec_returning_model), with
+    /// nothing changed. The new row's key columns come from the base row, so
+    /// a value held in one is refused as [`Error::Type`], as is a declaration
+    /// [`check_disjoint`] refuses, and nothing is sent.
+    // [spec:pgorm:sem:disjoint.write+1]
+    fn change_kind<T>(key: T, kind: Self::ActiveModel) -> Result<WriteDisjoint<Self>, Error>
+    where
+        T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+    {
+        check_disjoint::<Self>()?;
+        let new = kind.kind();
+        let base = filter_by_key::<Self::Base, _, _>(Update::many(Self::Base::default()), key);
+        let mut inserted = Some(kind);
+        let mut rows = Vec::new();
+        for visited in Self::Kind::iter() {
+            let row = match inserted.take_if(|_| visited == new) {
+                Some(kind) => kind.visit(InsertKind)?,
+                None => Self::visit_kind(visited, DeleteKind)?,
+            };
+            rows.extend(row);
+        }
+        Ok(WriteDisjoint::of(
+            rekinded_base::<Self>(base, new),
+            rows,
+            &|kind| {
+                if kind == new {
+                    KindRows::Written
+                } else {
+                    KindRows::Deleted
+                }
+            },
+        ))
     }
 }
 
