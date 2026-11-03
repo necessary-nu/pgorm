@@ -30,8 +30,8 @@ use std::collections::{BTreeMap, BTreeSet};
 /// The `#[derive(Disjoint)]` enum a base's module declares: its kind column
 /// and kind type, which an unkinded enum lacks, and its kinds, in the kind
 /// type's order or the order the caller named them.
-// [spec:pgorm:sem:codegen.entity.disjoint+1]
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+// [spec:pgorm:sem:codegen.entity.disjoint+2]
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
 #[derive(Clone, Debug)]
 pub(crate) struct DisjointEnum {
     pub(crate) kinded: Option<KindColumn>,
@@ -66,7 +66,7 @@ pub(crate) struct Kind {
 /// Every table one row of which extends another's one to one is keyed the
 /// same way, so a set is named rather than guessed, and one named without the
 /// shape is refused.
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct UnkindedDisjoint {
     /// The base, whose module the enum is generated into, resolved as a
@@ -154,7 +154,7 @@ struct Shape {
 /// column, its cascading key replaced by a relation from its key to the
 /// base's; and every column of a kind type typed as the derive's
 /// `<Enum>Kind`. Returns the kind types by identity.
-// [spec:pgorm:sem:codegen.entity.disjoint+1]
+// [spec:pgorm:sem:codegen.entity.disjoint+2]
 pub(crate) fn recognise(
     entities: &mut BTreeMap<TableIdent, Entity>,
     unique_keys: &BTreeMap<TableIdent, Vec<UniqueKey>>,
@@ -229,7 +229,7 @@ pub(crate) fn recognise(
 /// `declared` is every table of the schema, which a set's names resolve
 /// against as a foreign key's target does; kinded entities are recognised
 /// first.
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
 pub(crate) fn unkinded(
     entities: &mut BTreeMap<TableIdent, Entity>,
     declared: &[TableIdent],
@@ -283,7 +283,7 @@ pub(crate) fn unkinded(
 /// The variants of the unkinded enum over `base_ident` with the tables
 /// `kinds` and the unit variant `unit`, or why the set does not have the
 /// shape.
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
 fn unkinded_kinds(
     entities: &BTreeMap<TableIdent, Entity>,
     base_ident: &TableIdent,
@@ -791,8 +791,13 @@ impl DisjointEnum {
     /// where it is not the variant's name in snake_case. An unkinded enum
     /// says `unkinded` and none of them, and takes no `kind_attrs`, since no
     /// `Model` holds its kind enum.
-    // [spec:pgorm:sem:codegen.entity.disjoint+1]
-    // [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+    ///
+    /// Its variants are named by the schema, for the kinds' values and
+    /// tables, not by the program, so clippy's `enum_variant_names`, which a
+    /// variant ending with the enum's name (`Shop::WebShop`) trips, is
+    /// allowed on it.
+    // [spec:pgorm:sem:codegen.entity.disjoint+2]
+    // [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
     pub(crate) fn tokens(
         &self,
         base: &Entity,
@@ -822,6 +827,7 @@ impl DisjointEnum {
             }
         });
         quote! {
+            #[allow(clippy::enum_variant_names)]
             #[derive(Clone, Debug, PartialEq #eq, Disjoint #extra)]
             #[pgorm(#(#keys),*)]
             pub enum #enum_iden {
@@ -835,7 +841,7 @@ impl KindColumn {
     /// The keys naming the kind column and the kind type of the enum named
     /// `ident` where they differ from the derive's defaults, and the kind
     /// type's derives.
-    // [spec:pgorm:sem:codegen.entity.disjoint+1]
+    // [spec:pgorm:sem:codegen.entity.disjoint+2]
     fn keys(&self, ident: &str, kind_derives: Option<TokenStream>) -> Vec<TokenStream> {
         let mut keys = Vec::new();
         let column: Ident =

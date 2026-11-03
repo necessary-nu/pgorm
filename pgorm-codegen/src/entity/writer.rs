@@ -52,7 +52,7 @@ pub struct EntityWriterOptions {
     /// The table sets to generate as unkinded disjoint entities, which
     /// [`EntityTransformer::transform`](crate::EntityTransformer::transform)
     /// reads and refuses where a set does not have the shape.
-    // [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+    // [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
     pub unkinded_disjoint: Vec<UnkindedDisjoint>,
 }
 
@@ -395,7 +395,7 @@ impl EntityWriter {
     /// `Eq` where every kind's `Model` does, and the serde derives with the
     /// `Model`s that it holds and its kind type, which its base's `Model`
     /// holds, so the base serializes as the kind entities do.
-    // [spec:pgorm:sem:codegen.entity.disjoint+1]
+    // [spec:pgorm:sem:codegen.entity.disjoint+2]
     pub fn gen_disjoint_enum(entity: &Entity, with_serde: &WithSerde) -> Option<TokenStream> {
         let disjoint = entity.disjoint.as_ref()?;
         let serde = match with_serde {
@@ -437,7 +437,7 @@ impl EntityWriter {
     }
 
     // [spec:pgorm:sem:codegen.entity.imports+4]    active-enum imports
-    // [spec:pgorm:sem:codegen.entity.disjoint+1]    a kind type from its base's module
+    // [spec:pgorm:sem:codegen.entity.disjoint+2]    a kind type from its base's module
     pub fn gen_import_active_enum(entity: &Entity) -> TokenStream {
         let mut imported: Vec<String> = Vec::new();
         let mut imports = TokenStream::new();

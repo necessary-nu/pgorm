@@ -18,7 +18,7 @@ has a row for it, and is never written through.
 
 ## Declaration
 
-> [spec:pgorm:def:disjoint.declare+4]
+> [spec:pgorm:def:disjoint.declare+5]
 > `#[derive(Disjoint)]` on an enum MUST declare a disjoint entity over the
 > base entity its container attribute names, `#[pgorm(base =
 > vehicle::Entity)]`. Each variant is a kind of base row. A variant with one
@@ -53,7 +53,12 @@ has a row for it, and is never written through.
 > the kind type has no such value. The derive MUST also generate
 > `<Enum>ActiveModel`, the same variants each holding its kind entity's
 > `ActiveModel`, which is what a write takes
-> (`[spec:pgorm:sem:disjoint.write]`).
+> (`[spec:pgorm:sem:disjoint.write]`). Each enum the derive generates, the
+> kind type, `<Enum>ActiveModel` and an unkinded entity's kind enum
+> ([Unkinded tables](#unkinded-tables)), carries
+> `#[allow(clippy::enum_variant_names)]`: its variants are the enum's, which
+> the lint judges where the enum is declared, and an `allow` written there
+> does not reach them.
 >
 > Each kind's entity MUST have a primary key of the same types, in the same
 > order, as the base's, since its row is keyed by the base row's key, and

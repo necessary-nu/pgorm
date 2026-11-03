@@ -554,7 +554,7 @@ known limitations.
 > configured, so a variant that `#[cfg]` removes is no value of the enum, as it is no
 > variant of the type, and a key that `cfg_attr` gives is read as written.
 
-> [spec:pgorm:sem:macros.derive.active-enum.expansion+5]
+> [spec:pgorm:sem:macros.derive.active-enum.expansion+6]
 > The expansion generates: a unit struct `{Enum}Enum` with an `SqlName` impl writing the
 > `enum_name`; when any variant has a string value (given, through `rename` or
 > `rename_all`, or the snake_case name a PostgreSQL enum's variant defaults to), an enum
@@ -575,7 +575,10 @@ known limitations.
 > by their `{:#X}` hex notation (`_`→`0x5F`, space→`0x20`); the empty string becomes
 > `__Empty`; a leading digit gets an `_` prefix. Known limitation: the conversion is
 > case-preserving but collision-blind — string values differing only in case map to the
-> same identifier and fail to compile.
+> same identifier and fail to compile. The enum carries
+> `#[allow(clippy::enum_variant_names)]`, since its variants are spelt by the escaping and
+> not by the program: values sharing a last word, `web_shop` and `pop_up_shop`, give
+> variants sharing a postfix, which the lint refuses.
 >
 > With `display`, the expansion also implements `std::fmt::Display`, writing each
 > variant's `display_value`, or else its identifier text. It is a key rather than a

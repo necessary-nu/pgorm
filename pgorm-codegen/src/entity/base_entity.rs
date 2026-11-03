@@ -59,7 +59,7 @@ pub struct Entity {
     pub(crate) without_overlaps: bool,
     /// The disjoint enum the entity's module declares, when its table is
     /// the base of one.
-    // [spec:pgorm:sem:codegen.entity.disjoint+1]
+    // [spec:pgorm:sem:codegen.entity.disjoint+2]
     pub(crate) disjoint: Option<DisjointEnum>,
 }
 

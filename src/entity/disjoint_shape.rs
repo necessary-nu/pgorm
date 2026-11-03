@@ -21,7 +21,7 @@ use crate::{
 
 /// One column of a [`DisjointTable`]: its name, its definition, and the casts
 /// a disjoint statement reads and writes it under.
-// [spec:pgorm:def:disjoint.declare+4]
+// [spec:pgorm:def:disjoint.declare+5]
 #[derive(Clone)]
 pub struct DisjointColumn {
     pub(crate) name: Name,
@@ -119,7 +119,7 @@ pub(crate) type WriteBody =
     dyn Fn(&dyn Fn(&RelationDef) -> bool) -> Result<TableCreateStatement, Error> + Send + Sync;
 
 /// One table of a [`DisjointShape`]: the base's or a kind's.
-// [spec:pgorm:def:disjoint.declare+4]
+// [spec:pgorm:def:disjoint.declare+5]
 #[derive(Clone)]
 pub struct DisjointTable {
     pub(crate) table: TableName,
@@ -324,7 +324,7 @@ impl DisjointValues {
 
 /// One kind of a [`DisjointShape`]: its value, and its table, which a kind
 /// without one lacks.
-// [spec:pgorm:def:disjoint.declare+4]
+// [spec:pgorm:def:disjoint.declare+5]
 #[derive(Clone, Debug)]
 pub struct DisjointKind {
     pub(crate) value: String,
@@ -353,7 +353,7 @@ impl DisjointKind {
 /// schema ([`create`](Self::create)), the last two a kinded shape's alone.
 /// [`Disjoint`]'s methods build theirs from [`DisjointShape::of`]; tables
 /// known only at run time are described with [`DisjointShape::new`].
-// [spec:pgorm:def:disjoint.declare+4]
+// [spec:pgorm:def:disjoint.declare+5]
 // [spec:pgorm:sem:disjoint.unkinded]
 #[derive(Clone, Debug)]
 pub struct DisjointShape {
@@ -579,7 +579,7 @@ impl DisjointShape {
     /// default — since a kind's row takes its key from its base row. An
     /// unkinded shape has no kind column and is never written, so nothing of
     /// it is refused.
-    // [spec:pgorm:def:disjoint.declare+4]
+    // [spec:pgorm:def:disjoint.declare+5]
     // [spec:pgorm:req:bindings.disjoint+1]
     // [spec:pgorm:sem:disjoint.unkinded]
     pub fn check(&self) -> Result<(), Error> {

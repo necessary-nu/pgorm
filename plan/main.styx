@@ -16741,12 +16741,34 @@ children (
         id codegen-enum-variant-names
         title "Generated disjoint enums compile clippy-clean whatever their tables are named"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T08:39:56.190722Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.codegen-unkinded (30391b0c): a generated disjoint enum can trip clippy::enum_variant_names when the generated module is private — kind table web_shop under base shop becomes Shop::WebShop, a variant ending in the enum's name — so a downstream crate running clippy -D warnings fails on code it did not write. The kinded generator has the same exposure. Decide between emitting #[allow(clippy::enum_variant_names)] on the generated enum (generated code the user does not hand-edit, as other generators do) and renaming, and test with a fixture whose table names trigger it, under clippy -D warnings."
+            }
+
+            {
+                at 2026-11-03T10:10:11.920887Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:21:00.178339Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Allow rather than rename: the variants are named by the schema (kind values, table names), the derive's default value is the variant's snake_case name, and clippy's enum_variant_names has three checks (a variant starting or ending with the enum's name, a prefix or postfix every variant shares) gated on a configurable threshold, so no renaming predicts it. codegen writes #[allow(clippy::enum_variant_names)] on every disjoint enum it generates, kinded and unkinded; the Disjoint derive puts it on <Enum>Kind, <Enum>ActiveModel and an unkinded kind enum (an allow on the program's enum does not reach them), and the ActiveEnum derive on {Enum}Variant, whose escaped variants (web_shop -> Web0x5Fshop) share a postfix whenever the values share a last word. Found, not fixed: codegen's Relation enum (three kind tables ending _shop give Relation { MallShop, PopUpShop, WebShop }) and the ActiveEnum enums codegen writes into pgorm_active_enums.rs (values web_shop, pop_up_shop, closed_shop) trip the same lint in a module not exported; fixing them changes every generated file's golden, the bindings' codegen fixtures included."
+            }
+
+            {
+                at 2026-11-03T10:21:00.459265Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
