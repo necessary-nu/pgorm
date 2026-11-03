@@ -261,19 +261,19 @@ slots!(S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4);
 slots!(S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4, S5 @ 5);
 slots!(S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4, S5 @ 5, S6 @ 6);
 
-/// THE prefix scheme: the alias the writer gives `column` of the `index`-th
-/// decoded source, `s{index}_{column}` — bounded to PostgreSQL's 63-byte
-/// identifier limit through [`result_column_name`], the same composition
-/// every prefixed read looks names up by.
+/// THE prefix scheme: the prefix of the `index`-th decoded source,
+/// `s{index}_`, under which [`result_column_name`] composes every alias of
+/// that source, bounded to PostgreSQL's 63-byte identifier limit — the same
+/// composition every prefixed read looks names up by.
 ///
 /// Both projection writers — [`project_source`] into a [`SelectStatement`]
 /// and the pipeline's `select_sources` terminal into prqlc's PL AST — mint
-/// their aliases here, and the per-prefix decode reads exactly these names,
-/// so the scheme is one code path rather than a convention three sites
-/// repeat.
+/// their aliases under it, and the per-prefix decodes read exactly these
+/// names, so the scheme is one code path rather than a convention every site
+/// repeats.
 // [spec:pgorm:sem:query.graph.writer+4]
-pub(crate) fn source_column_alias(index: usize, column: &str) -> String {
-    result_column_name(&format!("s{index}_"), column)
+pub(crate) fn source_prefix(index: usize) -> String {
+    format!("s{index}_")
 }
 
 /// THE read-cast discipline, derived from the column's own `select_as`
@@ -312,7 +312,7 @@ pub(crate) fn source_read_cast<C: ColumnTrait>(col: &C) -> Option<TypeName> {
 ///
 /// Appends, for every variant of `F`'s `Column` in iteration order,
 /// `col.select_as(Expr::col((qualifier, col)))` aliased as
-/// `s{index}_{col}` ([`source_column_alias`]) — the same enum-cast
+/// `s{index}_{col}` ([`source_prefix`]) — the same enum-cast
 /// discipline as `Select<E>`'s default list, with the alias being the plain
 /// SQL column name under the prefix, whatever the cast wrapped.
 ///
@@ -326,8 +326,9 @@ pub(crate) fn project_source<F: EntityTrait>(
     qualifier: Name,
     index: usize,
 ) {
+    let prefix = source_prefix(index);
     for col in <F::Column as Iterable>::iter() {
-        let alias = source_column_alias(index, col.as_str());
+        let alias = result_column_name(&prefix, col.as_str());
         let expr = Expr::col((Name::clone(&qualifier), col.into_name()));
         query.expr(SelectExpr::new_as(
             col.select_as(expr),

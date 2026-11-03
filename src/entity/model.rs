@@ -115,11 +115,7 @@ pub trait FromQueryResult: Sized {
         // The witness is judged before decoding: a projection of nothing but
         // nullable fields decodes an all-`NULL` row successfully, and that
         // shape is still an absent row, not a value.
-        let absent = match Self::expected_columns() {
-            Some(cols) => res.all_null(pre, cols.iter().map(ExpectedColumn::name)),
-            None => res.all_null_under(pre),
-        };
-        if absent {
+        if absent_row::<Self>(res, pre) {
             return Ok(None);
         }
         Self::from_query_result(res, pre).map(Some)
@@ -195,5 +191,21 @@ where
 {
     fn try_into_model(self) -> Result<M, Error> {
         Ok(self)
+    }
+}
+
+/// Whether `res` carries no `T` under `pre`, by the absence witness
+/// [`FromQueryResult::from_query_result_optional`] judges a row with: every
+/// column `T` reports reading is present and `NULL`, or, for a `T` that
+/// reports none, every column under `pre` is.
+///
+/// A read that needs only to know whether a joined row is there asks this
+/// rather than decoding the row, so a present row that would fail to decode
+/// still counts as present.
+// [spec:pgorm:req:exec.decode.absent]
+pub(crate) fn absent_row<T: FromQueryResult>(res: &QueryResult, pre: &str) -> bool {
+    match T::expected_columns() {
+        Some(cols) => res.all_null(pre, cols.iter().map(ExpectedColumn::name)),
+        None => res.all_null_under(pre),
     }
 }

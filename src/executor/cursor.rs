@@ -154,7 +154,7 @@ impl<S, K> Cursor<S, K> {
     /// the typed column set they were spelled from, so boundary values reach
     /// SQL under the same cast every value predicate applies.
     // [spec:pgorm:sem:exec.cursor.keyset+8]
-    fn with_boundary_casts<C: ColumnTrait>(mut self) -> Self {
+    pub(crate) fn with_boundary_casts<C: ColumnTrait>(mut self) -> Self {
         self.boundary_casts = BoundaryCast::capture::<C>(&self.order_columns);
         self
     }
