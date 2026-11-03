@@ -603,6 +603,40 @@ const pages = Account.find().orderBy(Account.col("id").asc()).paginate(50);
   `numPages` and `pages()`. `inspect("count")`, `inspect("returningChanges")`
   and the like show what a terminal sends.
 
+### Disjoint models
+
+A disjoint model stores a value of one of several kinds across tables: a base
+model whose every row has a kind, and a model for each kind that carries data
+of its own, keyed by the base row's key. It is pgorm's `DisjointShape`, so
+every statement is the one the Rust `#[derive(Disjoint)]` declaration of the
+same tables sends.
+
+```ts
+const kind = new TypeName("vehicle_kind", { schema: "app" });
+const Vehicle = model("vehicle", { schema: "app", columns: {
+  id: column("i32", { primaryKey: true, generated: "byDefault" }),
+  kind: column(kind, { values: ["car", "truck", "bike"] }),
+  name: column("text"),
+} });
+const Car = model("car", { schema: "app", columns: { id: column("i32", { primaryKey: true }), seats: column("i16") } });
+const Fleet = disjoint("vehicle", Vehicle, { car: Car, bike: null }, { schemaName: "app" });
+
+for (const statement of createDisjoint(Fleet)) await pool.execute(statement);
+const [base, kindOf, car] = await Fleet.insert({ name: "mini" }, "car", { seats: 4 }).returningModel(pool);
+const roomy = await Fleet.find().filterKind("car", Car.col("seats").gte(4)).all(pool);
+await Fleet.changeKind({ id: base.id }, "bike").returningModel(pool);
+```
+
+`disjoint(name, base, kinds, { kind, enumName, schemaName })` names the base's
+kind field and the kind type; what the Rust declaration refuses is a
+`ConstructionError` thrown as the model is declared. A read's row is
+`[base record, kind, kind record or null]`, typed as a union over the kinds;
+its terminals are `all`, `one` and `stream`, beside `count`, `paginate` and
+`cursor`. `insert`, `update` and `changeKind` are one statement each whose
+terminal `returningModel` reads back the written row; a write that touches
+no row is a `DecodeError`. A registered enum is `disjointEntity(name)`, its
+records the entities' own and its writes their ActiveModels (`ENTITIES.md`).
+
 ## Schema
 
 DDL is built from JavaScript as the statements are, through pgorm-query's DDL

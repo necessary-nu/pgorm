@@ -9,6 +9,7 @@
 mod codec;
 mod connect;
 mod decode;
+mod disjoint;
 pub mod entities;
 mod errors;
 mod models;
@@ -52,6 +53,7 @@ pub fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<()> {
     statements::export(cx)?;
     models::export(cx)?;
     entities::install(cx, registry)?;
+    disjoint::export(cx)?;
     #[cfg(debug_assertions)]
     probes::export(cx)?;
     let version = cx.string(env!("CARGO_PKG_VERSION"));

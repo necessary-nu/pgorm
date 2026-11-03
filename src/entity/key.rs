@@ -89,6 +89,22 @@ impl ColumnPairs {
         self.compared.push(compared);
     }
 
+    /// [`ColumnPairs::new`] with the enums each side compares as stated, for
+    /// columns a disjoint shape describes at run time.
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+    pub(crate) fn of_compared(from: Name, to: Name, compared: ComparedPair) -> Self {
+        let mut pairs = Self::new(from, to);
+        pairs.compared = vec![compared];
+        pairs
+    }
+
+    /// [`ColumnPairs::push`] with the enums each side compares as stated.
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+    pub(crate) fn push_compared(&mut self, from: Name, to: Name, compared: ComparedPair) {
+        self.rest.push((from, to));
+        self.compared.push(compared);
+    }
+
     /// Extend with a further pair, as a composite key requires.
     #[must_use]
     pub fn and<F, T>(mut self, from: F, to: T) -> Self

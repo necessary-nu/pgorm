@@ -45,6 +45,7 @@ pub struct Registry {
     types: HashMap<TypeId, String>,
     pub(crate) graphs: BTreeMap<String, Arc<dyn Factory>>,
     pub(crate) sources: BTreeMap<String, Arc<dyn super::sources::SourcesFactory>>,
+    pub(crate) disjoints: crate::disjoint::Registered,
 }
 
 impl Registry {
@@ -113,6 +114,22 @@ impl Registry {
             }),
         );
         Ok(self)
+    }
+
+    /// The registered entity `E`, which a disjoint enum's base or kind is.
+    pub(crate) fn backend<E: EntityTrait + 'static>(
+        &self,
+    ) -> Result<Arc<dyn EntityBackend>, RegistrationError> {
+        self.types
+            .get(&TypeId::of::<E>())
+            .and_then(|name| self.entities.get(name))
+            .cloned()
+            .ok_or_else(|| {
+                RegistrationError(format!(
+                    "register the entity {} before the disjoint entity over it",
+                    std::any::type_name::<E>()
+                ))
+            })
     }
 
     /// The registration of `E`, which a graph's sources name.

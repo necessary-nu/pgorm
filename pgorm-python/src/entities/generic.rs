@@ -7,8 +7,8 @@ use futures_util::future::BoxFuture;
 use pgorm::pgorm_query::{Expr, Name, SimpleExpr, Value, Values};
 use pgorm::{
     ActiveModelBehavior, ActiveModelTrait, ActiveValue, Change as RustChange, ColumnTrait,
-    EntityTrait, Error, Insert, IntoActiveModel, Iterable, ModelTrait, QueryFilter, QueryOrder,
-    QuerySelect, QueryTrait, StaticName, Update, Upserted,
+    EntityTrait, Error, FromQueryResult, Insert, IntoActiveModel, Iterable, ModelTrait,
+    QueryFilter, QueryOrder, QuerySelect, QueryTrait, StaticName, Update, Upserted,
 };
 
 use super::{backend::*, metadata::EntityInfo};
@@ -104,6 +104,11 @@ where
         write: VersionWrite,
     ) -> BoxFuture<'a, Result<Vec<Versions>, Error>> {
         Box::pin(self.write_versions(db, write))
+    }
+
+    // [spec:pgorm:req:bindings.disjoint+1]
+    fn decode(&self, row: &pgorm::QueryResult, prefix: &str) -> Result<Model, Error> {
+        E::Model::from_query_result(row, prefix).map(|value| self.model(value))
     }
 }
 

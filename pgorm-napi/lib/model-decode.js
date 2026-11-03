@@ -33,14 +33,17 @@ const TEXT = "text";
 
 /**
  * Where each source's fields are in a result, found by name, each column's
- * kind held to its field's: every result column read by exactly one field.
+ * kind held to its field's: every result column read by exactly one field,
+ * unless `exhaustive` is false, as it is for one kind's row of a disjoint
+ * read, whose other kinds' columns that row leaves unread.
  *
  * @param {string[]} names
  * @param {string[]} kinds
  * @param {readonly Source[]} sources
+ * @param {boolean} [exhaustive]
  * @returns {number[][]}
  */
-function plan(names, kinds, sources) {
+function plan(names, kinds, sources, exhaustive = true) {
   const at = new Map(names.map((name, index) => [name, index]));
   let read = 0;
   const plans = sources.map((source) =>
@@ -58,7 +61,7 @@ function plan(names, kinds, sources) {
       return index;
     })
   );
-  if (read !== names.length) {
+  if (exhaustive && read !== names.length) {
     const unread = names.filter((name) => !sources.some((source) => source.names.includes(name)));
     throw new DecodeError(`the result has columns no field reads: ${unread.join(", ")}`);
   }
@@ -109,16 +112,18 @@ function record(source, indexes, values) {
 
 /**
  * A decoder for a result of `sources`: one source's record, or a tuple of
- * each source's. It finds its columns on the first row it meets.
+ * each source's. It finds its columns on the first row it meets, every
+ * column read by one of them unless `exhaustive` is false.
  *
  * @param {readonly Source[]} sources
+ * @param {boolean} [exhaustive]
  * @returns {(names: string[], values: unknown[], kinds: string[]) => any}
  */
-export function decoder(sources) {
+export function decoder(sources, exhaustive = true) {
   /** @type {number[][] | null} */
   let plans = null;
   return (names, values, kinds) => {
-    plans ??= plan(names, kinds, sources);
+    plans ??= plan(names, kinds, sources, exhaustive);
     const found = plans;
     const records = sources.map((source, index) => record(source, /** @type {number[]} */ (found[index]), values));
     return records.length === 1 ? records[0] : records;

@@ -194,6 +194,65 @@ or the whole key's, `first(n)` and `last(n)` the window and `asc()` and
 `fetch_page`, `num_items`, `num_pages`, `num_items_and_pages` and the
 asynchronous iterator `pages` run it.
 
+## Disjoint models
+
+A disjoint model stores a value of one of several kinds across tables: a base
+model whose every row has a kind, and a model for each kind that carries data
+of its own, keyed by the base row's key. It is pgorm's `DisjointShape`, the
+description `#[derive(Disjoint)]` gives a Rust enum, so every statement — the
+read, the writes and the schema — is the one the Rust declaration of the same
+tables sends.
+
+```python
+import pgorm as p
+import pgorm.schema
+
+kind = p.TypeName("vehicle_kind", schema="app")
+Vehicles = p.Model("vehicle", {
+    "id": p.Column("i32", primary_key=True, generated="by_default"),
+    "kind": p.Column(kind, values=["car", "truck", "bike"]),
+    "name": p.Column("text"),
+}, schema="app")
+Cars = p.Model("car", {"id": p.Column("i32", primary_key=True), "seats": p.Column("i16")}, schema="app")
+Trucks = p.Model("truck", {"vehicle_id": p.Column("i32", primary_key=True), "axles": p.Column("i16")}, schema="app")
+
+Fleet = p.Disjoint("vehicle", Vehicles, {"car": Cars, "truck": Trucks, "bike": None}, schema_name="app")
+
+async def fleet(pool):
+    for statement in pgorm.schema.create_disjoint(Fleet):
+        await pool.execute(statement)
+    base, kind, car = await Fleet.insert({"name": "mini"}, "car", {"seats": 4}).returning_model(pool)
+    roomy = await Fleet.find().filter_kind("car", Cars.col("seats") >= 4).all(pool)
+    await Fleet.update({"id": base["id"], "name": "cooper"}, "car", {"seats": 5}).returning_model(pool)
+    await Fleet.change_kind({"id": base["id"]}, "bike").returning_model(pool)
+    return roomy
+```
+
+`Disjoint(name, base, kinds, *, kind="kind", enum_name=None, schema_name=None)`
+names the base's kind field and the kind type, `{name}_kind` unless
+`enum_name` names another; a model's enum column names its schema, so
+`schema_name` names the kind type's. What the Rust declaration refuses — no
+kinds, one model for two kinds, a kind model keyed by other types than the
+base, a kind field missing, nullable, generated or of another type, a kind
+model whose key the database fills — is a `ConstructionError` raised as the
+model is declared.
+
+`find()` and `find_by_key(key)` read each base row with its kind's row as a
+tuple `(base record, kind, kind record or None)`; `where`, `order_by`,
+`limit` and `offset` are a query's, `kind(k)` and `kinds([..])` narrow by
+kind, and `filter_kind(k, predicate)` to rows of one kind whose row passes
+the predicate. The terminals are `all`, `one` and `stream`, beside `count`,
+`paginate(size)` and `cursor(*fields)` over base fields. `insert(base, kind,
+values)`, `update(base, kind, values)` and `change_kind(key, kind, values)`
+build one statement each, its parts joined by data-modifying `WITH` clauses,
+whose terminal `returning_model(db)` reads back the written row. A write that
+touches no row — a key no row has, a row of another kind, a change to the
+row's own kind — changes nothing and is a `DecodeError`; a base kind field or
+a kind row's key given a value is refused before anything is sent.
+`pgorm.schema.create_disjoint(model)` gives the kind type, the tables and the
+constraints holding each base row to exactly its kind's table; a column
+declared `default=True` has no `DEFAULT` to write, so its table is refused.
+
 ## Records and types
 
 `all`, `one` and `optional` accept a Pool, an acquired Connection or a

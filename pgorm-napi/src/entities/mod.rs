@@ -38,10 +38,12 @@ use std::sync::Arc;
 use neon::{prelude::*, types::Finalize};
 use pgorm::{ActiveValue, pgorm_query::Condition};
 
-pub(crate) use adapter::PipelineColumn;
-use adapter::{Active, Change, Comparison, EntityBackend, Members, Read, Select, Write};
-use convert::{ModelHandle, Records, Wrote, column_value, entity_failure, names, record};
+use adapter::{Active, Change, Comparison, Members, Read, Select, Write};
+pub(crate) use adapter::{EntityBackend, Model, PipelineColumn};
+use convert::{ModelHandle, Records, Wrote, entity_failure, names};
+pub(crate) use convert::{column_value, record};
 pub use graph::{GraphBindings, GraphModel, GraphSlots, RegisteredSlot, Source};
+pub(crate) use info::registration_name;
 pub use registry::{RegistrationError, Registry};
 pub use sources::{SourceBindings, SourceModel, SourceTypes};
 

@@ -16,7 +16,7 @@ use crate::error::query_err;
 use crate::query::BASE_SOURCE;
 use crate::query::graph::source_prefix;
 use crate::{
-    ActiveEnum, ConnectionTrait, Cursor, CursorTrait, Disjoint, EntityTrait, Error,
+    ActiveEnum, ConnectionTrait, Cursor, CursorTrait, Disjoint, DisjointShape, EntityTrait, Error,
     FromQueryResult, Iterable, KeyOf, KindModel, KindVisitor, ModelTrait, Paginator,
     PaginatorTrait, PinBoxSendStream, PrimaryKeyToColumn, QueryResult, SelectDisjoint, Selector,
     SelectorRaw, SelectorTrait, StaticName, WriteDisjoint, check_disjoint, table_label,
@@ -26,13 +26,13 @@ use crate::{
 /// under `s0_`, and the value of `D` its kind gives.
 ///
 /// The row's kind is its base row's. A kind without a table is its unit
-/// variant; a kind with one decodes the row joined from its table, through
-/// the absence witness, into its variant. A row of a kind with a table whose
-/// joined row is absent, and a row with a joined row present for any other
-/// kind, are each an error naming the base table, the key and the kinds
-/// involved: neither is a state the constraints `Schema::create_disjoint`
-/// writes admit, so neither is read as a variant without its row, nor
-/// dropped.
+/// variant; a kind with one decodes the row joined from its table into its
+/// variant. A row of a kind with a table whose joined row is absent, and a
+/// row with a joined row present for any other kind, are each an error
+/// naming the base table, the key and the kinds involved
+/// ([`DisjointShape::judge`] judges them alike): neither is a state the
+/// constraints `Schema::create_disjoint` writes admit, so neither is read as
+/// a variant without its row, nor dropped.
 ///
 /// The type is nameable because the cursor and paginator signatures need it;
 /// it carries no data and is not constructed by callers.
@@ -54,6 +54,130 @@ impl<D> Clone for DisjointRow<D> {
 /// What one row of a disjoint read decodes into.
 pub type DisjointItem<D> = (<<D as Disjoint>::Base as EntityTrait>::Model, D);
 
+/// One kind's part of a row: its value, and for a kind with a table, the
+/// table, the decoded source it was projected as and whether its row is
+/// there.
+struct KindPart {
+    value: String,
+    table: Option<(String, usize, bool)>,
+}
+
+/// Judge one row's kinds: `own` is the row's kind, `kinds` every kind's part
+/// in declaration order. The row holds exactly its own kind's row, where its
+/// kind has a table, and no other kind's; the source to decode the own row
+/// from is returned, or `None` for a kind without a table. Anything else is
+/// the [`Error::Query`] naming the base table `base`, the key `key` gives,
+/// each column as `` `column` = value `` in key order, and the kinds
+/// involved.
+// [spec:pgorm:sem:disjoint.read+1]
+fn judge(
+    base: &str,
+    kinds: &[KindPart],
+    own: usize,
+    key: impl FnOnce() -> Vec<String>,
+) -> Result<Option<usize>, Error> {
+    let mut source = None;
+    let mut missing = None;
+    let mut strays = Vec::new();
+    for (index, kind) in kinds.iter().enumerate() {
+        match (&kind.table, index == own) {
+            (Some((_, at, true)), true) => source = Some(*at),
+            (Some((table, _, false)), true) => missing = Some(table),
+            (Some((table, _, true)), false) => strays.push((&kind.value, table)),
+            (Some((_, _, false)), false) | (None, _) => {}
+        }
+    }
+    if missing.is_none() && strays.is_empty() {
+        return Ok(source);
+    }
+    let mut faults = Vec::new();
+    if let Some(table) = missing {
+        faults.push(format!("no row in `{table}`, its kind's table"));
+    }
+    for (stray, table) in strays {
+        faults.push(format!(
+            "a row in `{table}`, the table of the kind `{stray}`"
+        ));
+    }
+    Err(query_err(format!(
+        "the `{base}` row whose key is ({key}) is of the kind `{kind}` but has {faults}: the \
+         constraints `Schema::create_disjoint` writes hold each base row to exactly its own \
+         kind's table, so this schema was not created by it",
+        key = key().join(", "),
+        kind = kinds
+            .get(own)
+            .map(|kind| kind.value.as_str())
+            .unwrap_or_default(),
+        faults = faults.join(" and "),
+    )))
+}
+
+/// The kind a row of a read of a [`DisjointShape`] is of, as
+/// [`DisjointShape::judge`] judges it.
+// [spec:pgorm:sem:disjoint.read+1]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DisjointJudged {
+    /// The index of the row's kind among the shape's kinds.
+    pub kind: usize,
+    /// The decoded source the kind's row is read from, as
+    /// [`DisjointShape::sources`] numbers it, or `None` for a kind without a
+    /// table.
+    pub source: Option<usize>,
+}
+
+impl DisjointShape {
+    /// Judge one row of a read of this shape: the kind its base row is of,
+    /// read from its kind column, and where its kind's row is.
+    ///
+    /// A row of a kind with a table whose joined row is absent, and a row
+    /// with a joined row present for another kind, are each the
+    /// [`Error::Query`] a typed read reports, naming the base table, the key
+    /// `key` gives each key column, in key order, and the kinds involved; a
+    /// kind the shape lacks is an [`Error::Type`], and a kind column that does
+    /// not read as text is the decode error reading it gives. A row's joined
+    /// row is there unless every column of it is `NULL`, as the absence
+    /// witness judges a typed one.
+    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:req:bindings.disjoint+1]
+    pub fn judge(
+        &self,
+        row: &QueryResult,
+        key: impl FnOnce() -> Vec<String>,
+    ) -> Result<DisjointJudged, Error> {
+        let base_prefix = source_prefix(BASE_SOURCE);
+        let label: String = row.try_get(&base_prefix, &self.kind_column().name.to_string())?;
+        let (kind, _) = self.kind(&label)?;
+        let mut sources = BASE_SOURCE;
+        let parts: Vec<KindPart> = self
+            .kinds
+            .iter()
+            .map(|entry| KindPart {
+                value: entry.value.clone(),
+                table: entry.table.as_ref().map(|table| {
+                    sources += 1;
+                    let names: Vec<String> = table
+                        .columns
+                        .iter()
+                        .map(|column| column.name.to_string())
+                        .collect();
+                    let absent =
+                        row.all_null(&source_prefix(sources), names.iter().map(String::as_str));
+                    (table.label.clone(), sources, !absent)
+                }),
+            })
+            .collect();
+        let key = || {
+            self.base
+                .key()
+                .zip(key())
+                .map(|(column, value)| format!("`{}` = {value}", column.name.to_string()))
+                .collect()
+        };
+        let source = judge(&self.base.label, &parts, kind, key)?;
+        Ok(DisjointJudged { kind, source })
+    }
+}
+
 // [spec:pgorm:sem:disjoint.read+1]
 impl<D: Disjoint> SelectorTrait for DisjointRow<D> {
     type Item = DisjointItem<D>;
@@ -65,137 +189,88 @@ impl<D: Disjoint> SelectorTrait for DisjointRow<D> {
         let kind = D::Kind::try_from_value(&label)?;
 
         let mut sources = BASE_SOURCE;
-        let mut value = None;
-        let mut missing = None;
-        let mut strays = Vec::new();
-        for visited in D::Kind::iter() {
-            let own = visited == kind;
-            let read = ReadKind {
-                res: &res,
-                sources: &mut sources,
-                decode: own,
-            };
-            match D::visit_kind(visited, read)? {
-                Joined::Unit(unit) if own => value = Some(unit),
-                Joined::Absent { table } if own => missing = Some(table),
-                Joined::Unit(_) | Joined::Absent { .. } => {}
-                Joined::Present {
-                    decoded: Some(decoded),
-                    ..
-                } => value = Some(decoded),
-                Joined::Present {
-                    decoded: None,
-                    table,
-                } => strays.push((visited, table)),
+        let mut own = 0;
+        let mut parts = Vec::new();
+        for (index, visited) in D::Kind::iter().enumerate() {
+            if visited == kind {
+                own = index;
             }
+            parts.push(D::visit_kind(
+                visited,
+                Presence {
+                    res: &res,
+                    sources: &mut sources,
+                },
+            ));
         }
+        let key = || {
+            <D::Base as EntityTrait>::PrimaryKey::iter()
+                .map(|key| {
+                    let column = key.into_column();
+                    format!("`{}` = {}", column.as_str(), base.get(column))
+                })
+                .collect()
+        };
+        let source = judge(&table_label(&D::Base::default()), &parts, own, key)?;
+        let value = D::visit_kind(kind, Decode { res: &res, source })?;
+        Ok((base, value))
+    }
+}
 
-        match value {
-            Some(value) if strays.is_empty() => Ok((base, value)),
-            _ => Err(inconsistent_row::<D>(&base, kind, missing, &strays)),
+/// Judges one kind's part of a row by the absence witness alone, so a row
+/// present for a kind that is not the row's own is reported as present even
+/// if it would not decode.
+///
+/// `sources` counts the kinds with a table visited so far, as the projection
+/// counted them (the shape's projection over the same kinds in the same
+/// order), so each kind is read under the prefix it was projected under.
+struct Presence<'r> {
+    res: &'r QueryResult,
+    sources: &'r mut usize,
+}
+
+impl<D: Disjoint> KindVisitor<D> for Presence<'_> {
+    type Output = KindPart;
+
+    // [spec:pgorm:sem:disjoint.read+1]
+    fn table<M: KindModel<D>>(self, kind: D::Kind) -> KindPart {
+        *self.sources += 1;
+        let present = !absent_row::<M>(self.res, &source_prefix(*self.sources));
+        KindPart {
+            value: kind.to_value(),
+            table: Some((table_label(&M::Entity::default()), *self.sources, present)),
+        }
+    }
+
+    fn unit(self, value: D) -> KindPart {
+        KindPart {
+            value: value.kind().to_value(),
+            table: None,
         }
     }
 }
 
-/// What one kind's part of a row holds.
-enum Joined<D> {
-    /// A kind with no table, as its value.
-    Unit(D),
-    /// A kind with a table, its joined row absent.
-    Absent { table: String },
-    /// A kind with a table, its joined row present: decoded into its variant
-    /// when it is the row's kind, and only witnessed otherwise.
-    Present { decoded: Option<D>, table: String },
-}
-
-/// Reads one kind's part of a row under the prefix its table was projected
-/// with.
-///
-/// `sources` counts the kinds with a table visited so far, as the projection
-/// counted them (`SelectDisjoint`'s visit over the same kinds in the same
-/// order), so each kind reads under the prefix it was projected under. Only
-/// the row's own kind is decoded; any other's row is judged by the absence
-/// witness alone, so a stray row is reported as stray even if it would not
-/// decode.
-struct ReadKind<'r> {
+/// Decodes the row's own kind into its variant: from the source its row was
+/// judged to be under, or as its unit variant.
+struct Decode<'r> {
     res: &'r QueryResult,
-    sources: &'r mut usize,
-    decode: bool,
+    source: Option<usize>,
 }
 
-impl<D: Disjoint> KindVisitor<D> for ReadKind<'_> {
-    type Output = Result<Joined<D>, Error>;
+impl<D: Disjoint> KindVisitor<D> for Decode<'_> {
+    type Output = Result<D, Error>;
 
     // [spec:pgorm:sem:disjoint.read+1]
     fn table<M: KindModel<D>>(self, _: D::Kind) -> Self::Output {
-        *self.sources += 1;
-        let prefix = source_prefix(*self.sources);
-        let table = table_label(&M::Entity::default());
-        if self.decode {
-            return Ok(match M::from_query_result_optional(self.res, &prefix)? {
-                Some(model) => Joined::Present {
-                    decoded: Some(model.into_variant()),
-                    table,
-                },
-                None => Joined::Absent { table },
-            });
-        }
-        Ok(if absent_row::<M>(self.res, &prefix) {
-            Joined::Absent { table }
-        } else {
-            Joined::Present {
-                decoded: None,
-                table,
-            }
-        })
+        let source = self
+            .source
+            .ok_or_else(|| query_err("a kind with a table was judged to have no row".to_owned()))?;
+        M::from_query_result(self.res, &source_prefix(source)).map(M::into_variant)
     }
 
     fn unit(self, value: D) -> Self::Output {
-        Ok(Joined::Unit(value))
+        Ok(value)
     }
-}
-
-/// The error for a row no schema `Schema::create_disjoint` wrote can hold: a
-/// row of a kind with a table but no row in it, or with a row in another
-/// kind's table.
-///
-/// It is [`Error::Query`], as `load_one`'s report of a key a `HasOne`
-/// relation matched twice is: the declaration is sound — `check_disjoint`
-/// passed, and refuses as [`Error::Type`] what it does not — and the rows the
-/// server returned contradict it, which only a schema other than the one the
-/// declaration describes can do.
-// [spec:pgorm:sem:disjoint.read+1]
-fn inconsistent_row<D: Disjoint>(
-    base: &<D::Base as EntityTrait>::Model,
-    kind: D::Kind,
-    missing: Option<String>,
-    strays: &[(D::Kind, String)],
-) -> Error {
-    let key: Vec<String> = <D::Base as EntityTrait>::PrimaryKey::iter()
-        .map(|key| {
-            let column = key.into_column();
-            format!("`{}` = {}", column.as_str(), base.get(column))
-        })
-        .collect();
-    let mut faults = Vec::new();
-    if let Some(table) = missing {
-        faults.push(format!("no row in `{table}`, its kind's table"));
-    }
-    for (stray, table) in strays {
-        faults.push(format!(
-            "a row in `{table}`, the table of the kind `{}`",
-            stray.to_value()
-        ));
-    }
-    query_err(format!(
-        "the `{base_table}` row whose key is ({key}) is of the kind `{kind}` but has {faults}: \
-         the constraints `Schema::create_disjoint` writes hold each base row to exactly its own \
-         kind's table, so this schema was not created by it",
-        base_table = table_label(&D::Base::default()),
-        key = key.join(", "),
-        kind = kind.to_value(),
-        faults = faults.join(" and "),
-    ))
 }
 
 // [spec:pgorm:sem:disjoint.read+1]
@@ -294,11 +369,14 @@ impl<D: Disjoint> SelectDisjoint<D> {
     where
         K: KeyOf<D::Base>,
     {
+        let shape = self.shape.clone();
         let selector = self.into_selector()?;
-        Ok(
-            Cursor::new(selector.query, Name::new(D::Base::default()), order_columns)
-                .with_boundary_casts::<<D::Base as EntityTrait>::Column>(),
+        Ok(Cursor::new(
+            selector.query,
+            Name::clone(shape.base().name()),
+            order_columns,
         )
+        .with_casts_by(|column| shape.boundary_cast(column)))
     }
 }
 

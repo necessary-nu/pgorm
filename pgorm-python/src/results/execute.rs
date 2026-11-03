@@ -61,7 +61,7 @@ pub(crate) fn fetch<'py>(
         }
         let records = rows
             .into_iter()
-            .map(PyRecord::decode)
+            .map(|row| PyRecord::decode(&row))
             .collect::<PyResult<Vec<_>>>()?;
         Python::attach(|py| match mode {
             0 => Ok(PyList::new(py, records)?.into_any().unbind()),

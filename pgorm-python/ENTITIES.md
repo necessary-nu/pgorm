@@ -266,3 +266,34 @@ their own behavior. The additional PostgreSQL wire exactness policies for
 dynamic `Record` results are scoped to that result form; they do not replace an
 application's typed decoder. `capabilities()` records this distinction and
 lists each registration as its `describe()` reports it.
+
+## Disjoint enums
+
+An application's `#[derive(Disjoint)]` enum registers beside its entities, its
+base and each kind's entity registered first:
+
+```rust
+registry.entity::<shipment::Entity>("app.Shipment")?;
+registry.entity::<parcel::Entity>("app.Parcel")?;
+registry.disjoint::<shipment::Shipment>("app.Shipments")?;
+```
+
+`pgorm.disjoint_entity(name)` gives the registration and
+`pgorm.disjoint_entities()` lists them. Its reads are a disjoint model's
+(`MODELS.md`), each row the base entity's record, the kind and the kind
+entity's record or None, every record the Rust model it was read as; its
+writes take the entities' ActiveModels:
+
+```python
+shipments = p.disjoint_entity("app.Shipments")
+active = p.entity("app.Shipment").active().set("label", "box")
+base, kind, parcel = await shipments.insert(
+    active, "parcel", p.entity("app.Parcel").active().set("weight_g", 500)
+).returning_model(pool)
+```
+
+An ActiveModel of another registration, the kind column set and a kind
+row's key set are refused before anything is sent. The registration's
+statements are `DisjointShape::of` the enum's, which `Vehicle::find()`,
+`Vehicle::insert` and `Schema::create_disjoint` build theirs from.
+

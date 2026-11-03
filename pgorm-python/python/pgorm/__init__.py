@@ -147,6 +147,8 @@ from .models import (
     Column, ModelColumn, Model, ModelRecord, ModelQuery, ModelRows, ModelInsert, ModelUpdate,
     ModelDelete, Relation, Graph,
     Cursor, Paginator,
+    Disjoint, DisjointEntity, DisjointQuery, DisjointWrite, DisjointCursor, DisjointPaginator,
+    disjoint_entity, disjoint_entities,
 )
 from .transactions import Transaction, TransactionMode, IsolationLevel
 from .copy import CopyOutStream, CopyRows, CopyRowStream, CopySource
@@ -199,6 +201,14 @@ __all__ = [
     "Graph",
     "Cursor",
     "Paginator",
+    "Disjoint",
+    "DisjointEntity",
+    "DisjointQuery",
+    "DisjointWrite",
+    "DisjointCursor",
+    "DisjointPaginator",
+    "disjoint_entity",
+    "disjoint_entities",
     "UnsupportedCapabilityError",
     "TypeName",
     "DataType",

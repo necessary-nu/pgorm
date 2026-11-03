@@ -393,12 +393,21 @@ impl NativeConnection {
         )
     }
 
+    /// A stream of `query`'s rows, each a `Record`, or what `decoder`, a
+    /// disjoint read's, decodes it as.
+    #[pyo3(signature = (query, decoder=None))]
     fn stream<'py>(
         &self,
         py: Python<'py>,
         query: &Bound<'_, PyAny>,
+        decoder: Option<PyRef<'_, crate::disjoint::NativeDisjoint>>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        crate::results::open(py, self.state.clone(), query)
+        crate::results::open(
+            py,
+            self.state.clone(),
+            query,
+            decoder.map(|decoder| decoder.row_decode()),
+        )
     }
 
     fn notify<'py>(

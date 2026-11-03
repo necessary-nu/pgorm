@@ -24,11 +24,31 @@
     "indexes": [],
     "table": "CREATE TABLE \"napi_entities\".\"notes\" ( \"id\" integer NOT NULL, \"account_id\" integer NOT NULL, \"body\" varchar NOT NULL, PRIMARY KEY (\"id\"), CONSTRAINT \"fk-notes-account_id\" FOREIGN KEY (\"account_id\") REFERENCES \"napi_entities\".\"accounts\" (\"id\") )"
   },
+  "app.Packet": {
+    "comments": [],
+    "enums": [],
+    "indexes": [],
+    "table": "CREATE TABLE \"napi_shipments\".\"packets\" ( \"shipment_id\" integer NOT NULL, \"weight_g\" integer NOT NULL, PRIMARY KEY (\"shipment_id\") )"
+  },
+  "app.Pallet": {
+    "comments": [],
+    "enums": [],
+    "indexes": [],
+    "table": "CREATE TABLE \"napi_shipments\".\"pallets\" ( \"id\" integer NOT NULL, \"volume_l\" smallint NOT NULL, \"fragile\" bool, PRIMARY KEY (\"id\") )"
+  },
   "app.Parcel": {
     "comments": [],
     "enums": [],
     "indexes": [],
     "table": "CREATE TABLE \"napi_entities\".\"parcels\" ( \"id\" integer NOT NULL, \"qty\" napi_entities.quantity NOT NULL, \"mood\" napi_entities.temper NOT NULL, \"codes\" napi_entities.code[] NOT NULL, PRIMARY KEY (\"id\") )"
+  },
+  "app.Shipment": {
+    "comments": [],
+    "enums": [
+      "CREATE TYPE \"napi_shipments\".\"shipment_kind\" AS ENUM ('packet', 'letter', 'pallet')"
+    ],
+    "indexes": [],
+    "table": "CREATE TABLE \"napi_shipments\".\"shipments\" ( \"id\" serial NOT NULL, \"kind\" napi_shipments.shipment_kind NOT NULL, \"label\" varchar NOT NULL, PRIMARY KEY (\"id\") )"
   },
   "app.Temper": {
     "refused": "Type Error: relation `Settles` of `tempers` cannot be a foreign key: `tempers`.`settles_into` references `tempers`.`mood`, and PostgreSQL implements no foreign key with a column typed as a domain over an enum on either side (42804)"

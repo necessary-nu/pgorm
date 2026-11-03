@@ -170,6 +170,10 @@ pub(crate) trait EntityBackend: Debug + Send + Sync {
         db: Database<'a>,
         write: VersionWrite,
     ) -> BoxFuture<'a, Result<Vec<Versions>, Error>>;
+    /// The model `row` holds under `prefix`, as the entity's own
+    /// `FromQueryResult` reads it: one source of a read that decodes several,
+    /// a disjoint one's.
+    fn decode(&self, row: &pgorm::QueryResult, prefix: &str) -> Result<Model, Error>;
 }
 
 pub(crate) trait SelectBackend: Debug + Send + Sync {
@@ -300,6 +304,12 @@ where
         write: VersionWrite,
     ) -> BoxFuture<'a, Result<Vec<Versions>, Error>> {
         Box::pin(self.write_versions(db, write))
+    }
+
+    // [spec:pgorm:req:bindings.disjoint+1]
+    fn decode(&self, row: &pgorm::QueryResult, prefix: &str) -> Result<Model, Error> {
+        <E::Model as pgorm::FromQueryResult>::from_query_result(row, prefix)
+            .map(|value| model_of::<E>(value, &self.info))
     }
 }
 
