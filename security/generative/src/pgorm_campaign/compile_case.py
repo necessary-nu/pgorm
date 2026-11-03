@@ -15,7 +15,10 @@ from dataclasses import dataclass, field
 # borrowck cases demonstrably coexist. Resolution is the one that bites — an
 # unresolved import swallows everything the module would otherwise have said —
 # and grouping by phase is the cheap general form of that, at one extra build.
-PHASES = ("resolve", "typeck", "borrowck")
+# Coherence bites per trait rather than per body: once two impls of a trait
+# conflict (E0119), rustc checks no impl of that trait against its supertraits,
+# anywhere in the crate, so a conflict would hide a sibling case's E0271.
+PHASES = ("resolve", "coherence", "typeck", "borrowck")
 
 # What a case claims, and therefore what a run can conclude.
 #

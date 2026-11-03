@@ -1072,6 +1072,7 @@ assertions (
     {id decimal-scale-returned, kind @complete, author "brendan@necessary.nu", at 2026-09-15T01:21:22.880525Z}
     {id deps-refresh-2026-10, kind @complete, author "brendan@necessary.nu", at 2026-10-09T14:33:12.059842Z}
     {id derives.expanded, kind @complete, author "brendan@necessary.nu", at 2026-11-02T12:46:54.155916Z}
+    {id disjoint.schema, kind @doing, author "brendan@necessary.nu", at 2026-11-03T01:21:19.756647Z}
     {id distinct-drops-collided-name, kind @complete, author "brendan@necessary.nu", at 2026-09-15T13:12:24.939449Z}
     {id distinct-drops-computed-column, kind @complete, author "brendan@necessary.nu", at 2026-09-15T13:12:22.724195Z}
     {id distinct-drops-sort-order, kind @complete, author "brendan@necessary.nu", at 2026-09-15T13:12:26.319579Z}
@@ -1416,6 +1417,7 @@ assertions (
     {id unrep.transaction-mode, kind @complete, author "brendan@necessary.nu", at 2026-09-02T15:45:38.889783Z}
     {id update-noop-filters, kind @complete, author "brendan@necessary.nu", at 2026-09-07T12:47:17.383924Z}
     {id update-nothing-distinct, kind @complete, author "brendan@necessary.nu", at 2026-09-21T14:57:13.616578Z}
+    {id upstream-necessary-nu, kind @complete, author "brendan@necessary.nu", at 2026-11-03T00:40:47.846477Z}
     {id value-decode-created-multiranges, kind @complete, author "brendan@necessary.nu", at 2026-10-25T23:08:16.108726Z}
     {id value-decode-created-ranges, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:42:57.820055Z}
     {id value-float-eq-hash, kind @complete, author "brendan@necessary.nu", at 2026-09-05T20:09:20.231538Z}
@@ -1432,7 +1434,6 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
-    {id upstream-necessary-nu, kind @complete, author "brendan@necessary.nu", at 2026-11-03T00:40:47.846477Z}
 )
 
 impl_evidence (
@@ -1875,6 +1876,11 @@ impl_evidence (
         {impl_name main, rule macros.derive.code-values}
     ), rule_versions_seen (
         {id macros.derive.code-values, version 2}
+    )}
+    {id disjoint.declare, covered_rules (
+        disjoint.declare
+    ), covered_claims (
+        {impl_name main, rule disjoint.declare}
     )}
     {id generative.acceptance, covered_rules (
         generative.acceptance

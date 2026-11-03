@@ -38,7 +38,14 @@ def _field(name, rust, attrs):
 
 
 def entity_module(
-    *, table, columns, schema=None, keys=(("id", "i32"),), relation="", hooks=False
+    *,
+    table,
+    columns,
+    schema=None,
+    keys=(("id", "i32"),),
+    relation="",
+    hooks=False,
+    given_key=False,
 ):
     """Render one `Entity` entity as module body text.
 
@@ -46,7 +53,9 @@ def entity_module(
     the derive requires it, and an entity generated without one would fail for
     a reason that says nothing about the shape under test. The derives write
     the rest: the behaviour, unless `hooks` says the case writes its own, and
-    a `Related` impl for each entity one relation reaches.
+    a `Related` impl for each entity one relation reaches. A one-column key is
+    drawn from a sequence unless `given_key` says its values are given, as a
+    disjoint kind's are.
     """
     header = f'table_name = "{table}"'
     if schema:
@@ -63,9 +72,9 @@ def entity_module(
         f"    #[pgorm({header})]",
         "    pub struct Model {",
     ]
-    composite = len(keys) > 1
+    given = given_key or len(keys) > 1
     for name, rust in keys:
-        key = "primary_key, auto_increment = false" if composite else "primary_key"
+        key = "primary_key, auto_increment = false" if given else "primary_key"
         lines.extend(_field(name, rust, key))
     for name, rust, attrs in columns:
         lines.extend(_field(name, rust, attrs))
@@ -403,7 +412,7 @@ def behaviour_cases():
             id="entity-behaviour-twice",
             obligation=OBLIGATION,
             verdict="reject",
-            phase="typeck",
+            phase="coherence",
             source=plain + "\n\n    impl ActiveModelBehavior for ActiveModel {}",
             expects=rejects("E0119"),
             note="without `hooks` the derive implements the behaviour, so a second is a conflict",
@@ -544,6 +553,137 @@ def negative_cases():
     ]
 
 
+def _disjoint(
+    variants, *, base_columns=(("kind", "super::FleetKind", ""),), car_key="i32"
+):
+    """A disjoint enum over `vehicle`, with `car` and `truck` entities for its
+    kinds to hold: `truck` keyed under a name of its own, `car` by `car_key`."""
+    modules = [
+        _nested("vehicle", entity_module(table="dj_vehicle", columns=base_columns)),
+        _nested(
+            "car",
+            entity_module(
+                table="dj_car",
+                columns=(("seats", "i16", ""),),
+                keys=(("id", car_key),),
+                given_key=True,
+            )
+            + "\n\n    #[derive(Clone, Debug, PartialEq, Model)]\n"
+            "    pub struct SeatsOnly {\n        pub seats: i16,\n    }",
+        ),
+        _nested(
+            "truck",
+            entity_module(
+                table="dj_truck",
+                columns=(("axles", "i16", ""),),
+                keys=(("vehicle_id", "i32"),),
+                given_key=True,
+            ),
+        ),
+    ]
+    enum = (
+        "    #[derive(Clone, Debug, PartialEq, Disjoint)]\n"
+        "    #[pgorm(base = vehicle::Entity)]\n"
+        "    pub enum Fleet {\n"
+        + "".join(f"        {v},\n" for v in variants)
+        + "    }"
+    )
+    return PRELUDE + "\n\n" + "\n\n".join([*modules, enum])
+
+
+def disjoint_cases():
+    """A disjoint enum, and the boundaries its derive's impls erect: a kind's
+    payload is its entity's `Model`, held by one variant, keyed as the base."""
+    tenant = entity_module(
+        table="dj_listing",
+        columns=(("kind", "super::ListingKind", ""),),
+        keys=(("tenant_id", "i32"), ("id", "i64")),
+    )
+    flat = entity_module(
+        table="dj_flat",
+        columns=(("rooms", "i16", ""),),
+        keys=(("tenant", "i32"), ("listing", "i64")),
+    )
+    composite = (
+        PRELUDE
+        + "\n\n"
+        + "\n\n".join(
+            [
+                _nested("listing", tenant),
+                _nested("flat", flat),
+                (
+                    "    #[derive(Clone, Debug, PartialEq, Disjoint)]\n"
+                    "    #[pgorm(base = listing::Entity)]\n"
+                    "    pub enum Listing {\n"
+                    "        Flat(flat::Model),\n"
+                    "        Plot,\n    }"
+                ),
+            ]
+        )
+    )
+    rejected = (
+        (
+            "disjoint-kind-twice",
+            ("Car(car::Model)", "Sedan(car::Model)"),
+            {},
+            rejects("E0119"),
+            "two variants holding one entity are two KindModel impls for one model",
+        ),
+        (
+            "disjoint-payload-not-model",
+            ("Car(car::Model)", "Note(String)"),
+            {},
+            rejects("E0277"),
+            "a payload that is not an entity's Model implements no ModelTrait",
+        ),
+        (
+            "disjoint-payload-further-model",
+            ("Car(car::SeatsOnly)",),
+            {},
+            rejects("E0271"),
+            "a further model of an entity is not the entity's Model",
+        ),
+        (
+            "disjoint-key-types-differ",
+            ("Car(car::Model)", "Bike"),
+            {"car_key": "i64"},
+            rejects("E0271"),
+            "a kind entity keyed by other types than the base's",
+        ),
+        (
+            "disjoint-kind-column-missing",
+            ("Truck(truck::Model)", "Bike"),
+            {"base_columns": (("label", "String", ""),)},
+            rejects("E0599"),
+            "the base's `Column::Kind` names the kind column unless `kind` names another",
+        ),
+    )
+    phases = {"disjoint-kind-twice": "coherence"}
+    return [
+        _accept(
+            "disjoint-declared",
+            _disjoint(("Car(car::Model)", "Truck(truck::Model)", "Bike")),
+            "kinds with tables, one keyed under its own name, and a unit kind",
+        ),
+        _accept(
+            "disjoint-composite-key",
+            composite,
+            "a two-column key, the kind's columns named otherwise than the base's",
+        ),
+    ] + [
+        CompileCase(
+            id=identity,
+            obligation=OBLIGATION,
+            verdict="reject",
+            phase=phases.get(identity, "typeck"),
+            source=_disjoint(variants, **options),
+            expects=expectation,
+            note=note,
+        )
+        for identity, variants, options, expectation, note in rejected
+    ]
+
+
 # [spec:pgorm:req:generative.compile-suite]
 def cases():
     return (
@@ -556,6 +696,7 @@ def cases():
         + relation_cases()
         + key_check_cases()
         + negative_cases()
+        + disjoint_cases()
     )
 
 

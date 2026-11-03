@@ -1,0 +1,47 @@
+error: a kind is a unit variant, with no table of its own (`Bike`), or holds its entity's `Model` as its one unnamed field (`Car(car::Model)`)
+ --> tests/compile-fail/disjoint_kinds.rs:7:9
+  |
+7 |     Car { model: car::Model },
+  |         ^^^^^^^^^^^^^^^^^^^^^
+
+error: a kind is a unit variant, with no table of its own (`Bike`), or holds its entity's `Model` as its one unnamed field (`Car(car::Model)`)
+  --> tests/compile-fail/disjoint_kinds.rs:13:8
+   |
+13 |     Car(car::Model, truck::Model),
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: a kind is a unit variant, with no table of its own (`Bike`), or holds its entity's `Model` as its one unnamed field (`Car(car::Model)`)
+  --> tests/compile-fail/disjoint_kinds.rs:19:8
+   |
+19 |     Car(),
+   |        ^^
+
+error: a kind's value is its variant's name in snake_case or its `value`, not a discriminant
+  --> tests/compile-fail/disjoint_kinds.rs:25:12
+   |
+25 |     Bike = 1,
+   |            ^
+
+error: unknown pgorm attribute `string_value`
+  --> tests/compile-fail/disjoint_kinds.rs:31:13
+   |
+31 |     #[pgorm(string_value = "bike")]
+   |             ^^^^^^^^^^^^
+
+error: a kind's `Model` takes no `#[pgorm(..)]`: its entity is configured where it is declared
+  --> tests/compile-fail/disjoint_kinds.rs:38:9
+   |
+38 |     Car(#[pgorm(ignore)] car::Model),
+   |         ^^^^^^^^^^^^^^^^
+
+error: `car` is already the value of `Car`: each kind is one value of the kind type
+  --> tests/compile-fail/disjoint_kinds.rs:45:21
+   |
+45 |     #[pgorm(value = "car")]
+   |                     ^^^^^
+
+error: `pickup_truck` is already the value of `Truck`: each kind is one value of the kind type
+  --> tests/compile-fail/disjoint_kinds.rs:54:5
+   |
+54 |     PickupTruck,
+   |     ^^^^^^^^^^^

@@ -140,8 +140,31 @@ pub enum Shelf {
 #[pgorm(range_name = "floatrange")]
 pub struct FloatRange(pub Range<f64>);
 
-// [spec:pgorm:def:macros.derive+6/test]    every derive in the catalogue is reachable and wired up
-// [spec:pgorm:req:macros.derive.names/test]    each derive by its name through the prelude, glob-imported by both its paths and beside the crate root's glob
+/// `Disjoint`, over a base whose kind column holds the kind type it writes.
+mod shelf {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Entity)]
+    #[pgorm(table_name = "shelf")]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        pub kind: super::StockKind,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+#[derive(Clone, Debug, PartialEq, Disjoint)]
+#[pgorm(base = shelf::Entity)]
+pub enum Stock {
+    Cake(cake::Model),
+    Empty,
+}
+
+// [spec:pgorm:def:macros.derive+7/test]    every derive in the catalogue is reachable and wired up
+// [spec:pgorm:req:macros.derive.names+1/test]    each derive by its name through the prelude, glob-imported by both its paths and beside the crate root's glob
 #[test]
 fn the_whole_derive_catalogue_is_exposed() {
     // Entity-side derives: the composite, and the entity-trait derive beside
@@ -188,6 +211,8 @@ fn the_whole_derive_catalogue_is_exposed() {
         <FloatRange as CreatedRange>::name(),
         pgorm::pgorm_query::TypeName::new(Name::runtime("floatrange"))
     );
+    assert_eq!(StockKind::values(), ["cake", "empty"]);
+    assert_eq!(Stock::Empty.kind(), StockKind::Empty);
 
     // The projection derives are compile-time contracts; assert the traits.
     fn assert_from_query_result<T: FromQueryResult>() {}
