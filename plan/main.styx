@@ -17079,4 +17079,130 @@ children (
             }
         )
     }
+
+    {
+        id disjoint-derive-macro-hygiene
+        title "The Disjoint derive compiles on an enum whose variants a macro_rules! macro writes"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T17:47:34.73026Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.evolve: an enum deriving Disjoint whose variants a macro_rules! macro writes fails to compile with E0425 on `visitor` and `kind`, identifiers the derive's generated code introduces under spans taken from the input, so macro hygiene separates their definitions from their uses. Give the derive's own bindings one consistent span (Span::call_site or mixed_site for every introduced identifier), check the other derives for the same pattern, and add a test that declares a disjoint enum through a macro_rules! macro."
+            }
+        )
+    }
+
+    {
+        id ident-oracle-disjoint-sites
+        title "The identifier oracle holds create_disjoint, the disjoint change functions and create_one_of to every hostile name"
+        kind @test
+        log (
+            {
+                at 2026-11-03T17:47:37.221399Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.evolve: security.ident-oracle's sites don't include create_disjoint, the five disjoint change functions (add_disjoint_kind, add_disjoint_kind_recreating, remove_disjoint_kind, add_disjoint_kind_table, remove_disjoint_kind_table), or create_one_of, though DisjointShape::new takes table, column, type and value names at run time (the bindings' route). Register each with the oracle so every hostile name lands only in its benign positions, including the derived names (ck-, the {type}_next temporary type, the generated key columns), which take the bounded spelling as the schema-gen sites do."
+            }
+        )
+    }
+
+    {
+        id disjoint-recreate-one-rewrite
+        title "Recreating a disjoint kind type rewrites the base table once, not twice"
+        kind @perf
+        log (
+            {
+                at 2026-11-03T17:47:39.330099Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.evolve: the recreating route (add_disjoint_kind_recreating, remove_disjoint_kind) rewrites the base table twice under its exclusive lock: once retyping its kind column, again re-adding the STORED generated key columns. Ordering the statements so both happen in one ALTER TABLE (or one rewrite) halves the lock time on a large base. Probe on 18.6 that the combined ALTER rewrites once, and keep the live tests."
+            }
+        )
+    }
+
+    {
+        id bindings-disjoint-evolve
+        title "Python and JavaScript write a disjoint model's kind changes as pgorm's DisjointShape does"
+        kind @feat
+        log (
+            {
+                at 2026-11-03T17:47:42.09892Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.evolve: DisjointShape gained add_kind, add_kind_recreating, remove_kind, add_kind_table and remove_kind_table (returning DisjointChange: steps of DdlStatements, each with an optional gap), so a binding can write kind changes as the typed Schema functions do. Neither binding exposes them, and bindings-surface.json is unchanged. Needs a bindings rule, both bindings, DisjointChange's steps and gaps surfaced in each language, and live tests."
+            }
+        )
+    }
+
+    {
+        id alter-column-type-collate
+        title "ALTER COLUMN ... TYPE with USING can also set the column's collation"
+        kind @feat
+        log (
+            {
+                at 2026-11-03T17:47:44.53115Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.evolve, which added TableAlterOption::AlterColumnTypeUsing (`ALTER COLUMN c TYPE t USING e`, sql.ddl.alter-table+14): PostgreSQL's form also takes COLLATE between the type and USING, which pgorm-query can't write. Add it if a caller needs it; low priority."
+            }
+        )
+    }
+
+    {
+        id codegen-check-not-dropped
+        title "Codegen never generates an entity that silently drops a table CHECK it read"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T17:47:46.640992Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "From disjoint.one-of (e21257e2), raised with the operator for a decision: to make the rule's near misses generate as plain fields, codegen.ddl.tables+12 / codegen.ddl.unsupported+20 now read any table-level CHECK within the DEFAULT expression subset and carry it on the statement, but the entity can't hold it, so create_table_from_entity on the generated entity writes the table without it. This reverses the 2026-10-08 decision \"CHECK stays refused (the entity holds none)\". Two ways out: (a) refuse every CHECK that is not exactly the one-of shape, as before, and make the near-miss tests expect the refusal, the rule's \"ordinary nullable fields\" then meaning columns no CHECK covers; or (b) let an entity declare CHECKs (a check(..) container attribute written by create_table_from_entity), so codegen keeps every CHECK it reads. Recommended: (a) now, (b) as its own feature if wanted. Waiting on the operator's choice."
+            }
+        )
+    }
+
+    {
+        id codegen-one-of-self-reference
+        title "Generated code for a one-of whose target is its own table compiles and round-trips"
+        kind @test
+        log (
+            {
+                at 2026-11-03T17:47:48.835096Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.one-of: codegen recognises a one-of CHECK whose targets include the table itself (a comment that may reference another comment), but no test compiles the generated code for that case, where the target entity is the entity's own module and the Related impl and the OneOfTarget impl both name Entity. Add it to the codegen live round trip."
+            }
+        )
+    }
+
+    {
+        id codegen-one-of-bounded-name
+        title "Codegen names a one-of enum correctly when its CHECK's name was bounded to 63 bytes"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T17:47:51.492826Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.one-of: Schema::create_one_of names its CHECK ck-{table}-{enum} through derived_name, which past 63 bytes becomes a 47-byte head plus a hash. Codegen names the generated enum for the constraint, so a long one comes back named from the truncated head and hash rather than the original enum. Decide how the enum's name survives: name it from the targets when the constraint name is bounded, or have create_one_of record the enum name (e.g. COMMENT ON CONSTRAINT) for codegen to read. Test with a long table and enum name."
+            }
+        )
+    }
+
+    {
+        id bindings-one-of
+        title "Python and JavaScript read, set and load a one-of reference and write its CHECK"
+        kind @feat
+        log (
+            {
+                at 2026-11-03T17:47:54.308669Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.one-of: OneOf has no Python or JavaScript surface. The rule doesn't ask for one, but a binding that registers entities with nullable foreign keys under a one-of CHECK would want to read the reference as a tagged key, set it (nulling the others), load the targets one query per table, and write create_one_of's CHECK. Write a bindings rule first; the typed design (OneOfTarget, TargetVisitor) may need a runtime description like DisjointShape for the bindings to drive."
+            }
+        )
+    }
 )
