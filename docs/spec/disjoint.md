@@ -18,7 +18,7 @@ has a row for it, and is never written through.
 
 ## Declaration
 
-> [spec:pgorm:def:disjoint.declare+3]
+> [spec:pgorm:def:disjoint.declare+4]
 > `#[derive(Disjoint)]` on an enum MUST declare a disjoint entity over the
 > base entity its container attribute names, `#[pgorm(base =
 > vehicle::Entity)]`. Each variant is a kind of base row. A variant with one
@@ -29,12 +29,17 @@ has a row for it, and is never written through.
 > shape or with a discriminant, a payload that is not an entity's `Model`
 > (a further model of an entity included), two variants holding the same
 > entity, two variants of one value, and an enum with no variants or with
-> generic parameters MUST NOT compile.
+> generic parameters MUST NOT compile. The derive is given its enum as
+> configured, so a variant that `#[cfg]` removes is no kind, of the kind type
+> or of anything else the derive generates, and a key that `cfg_attr` gives is
+> read as written.
 >
 > The derive MUST generate the kind type, `<Enum>Kind`, an `ActiveEnum`
 > stored as a PostgreSQL enum with one value per variant, in declaration
 > order, each spelled as its variant's name in snake_case unless the
-> variant's `#[pgorm(value = "...")]` gives another. The type is named
+> variant's `#[pgorm(value = "...")]` gives another, and a value over the 63
+> bytes PostgreSQL holds in an enum's value MUST NOT compile, refused at its
+> `value` or else its variant as an `ActiveEnum`'s is. The type is named
 > `<enum>_kind`, the enum's name in snake_case, unless `enum_name = "..."`
 > gives another, and `schema_name = "..."` qualifies it as it does an
 > `ActiveEnum`'s (`[spec:pgorm:syn:macros.derive.active-enum]`).

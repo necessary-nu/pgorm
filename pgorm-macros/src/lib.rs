@@ -457,7 +457,7 @@ pub fn derive_active_enum(input: TokenStream) -> TokenStream {
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+4]
 // [spec:pgorm:sem:disjoint.unkinded]
 // [spec:pgorm:req:macros.derive.names+1]
 #[cfg(feature = "derive")]

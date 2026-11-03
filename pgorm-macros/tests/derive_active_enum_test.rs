@@ -176,7 +176,7 @@ pub enum Displayed {
     Large,
 }
 
-// [spec:pgorm:syn:macros.derive.active-enum+5/test]    rename_all + per-variant rename + string_value
+// [spec:pgorm:syn:macros.derive.active-enum+6/test]    rename_all + per-variant rename + string_value
 #[test]
 fn container_and_variant_string_markers() {
     // Covered exhaustively by `derive_active_enum_value` above; this asserts the
@@ -195,7 +195,7 @@ fn container_and_variant_string_markers() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.active-enum+5/test]    an omitted `db_type` is the PostgreSQL enum
+// [spec:pgorm:syn:macros.derive.active-enum+6/test]    an omitted `db_type` is the PostgreSQL enum
 // [spec:pgorm:req:macros.derive.code-values+2/test]    `db_type` is an expression taken as written
 #[test]
 fn omitted_db_type_is_the_postgres_enum() {
@@ -226,7 +226,7 @@ fn omitted_db_type_is_the_postgres_enum() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.active-enum+5/test]    num_value
+// [spec:pgorm:syn:macros.derive.active-enum+6/test]    num_value
 #[test]
 fn num_value_variants() {
     assert_eq!(Numbered::One.to_value(), 1);
@@ -235,7 +235,7 @@ fn num_value_variants() {
     assert!(Numbered::try_from_value(&23).is_err());
 }
 
-// [spec:pgorm:syn:macros.derive.active-enum+5/test]    discriminant fallback, incl. unary minus
+// [spec:pgorm:syn:macros.derive.active-enum+6/test]    discriminant fallback, incl. unary minus
 #[test]
 fn variants_without_attributes_fall_back_to_their_discriminant() {
     assert_eq!(Discriminants::Below.to_value(), -3);
@@ -244,7 +244,7 @@ fn variants_without_attributes_fall_back_to_their_discriminant() {
     assert_eq!(Discriminants::try_from_value(&-3), Ok(Discriminants::Below));
 }
 
-// [spec:pgorm:syn:macros.derive.active-enum+5/test]    `display` and `display_value`
+// [spec:pgorm:syn:macros.derive.active-enum+6/test]    `display` and `display_value`
 #[test]
 fn display_writes_the_display_value_or_name() {
     // It plays no part in the stored value...
@@ -253,4 +253,67 @@ fn display_writes_the_display_value_or_name() {
     // ...it is what `display` writes, the variant's name where it is absent.
     assert_eq!(Displayed::Small.to_string(), "Small");
     assert_eq!(Displayed::Large.to_string(), "Large");
+}
+
+/// The longest values a PostgreSQL enum holds, 63 bytes, one of them spelt
+/// in 62 characters.
+#[derive(Debug, ActiveEnum, Eq, PartialEq)]
+pub enum Longest {
+    #[pgorm(string_value = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    Ascii,
+    #[pgorm(string_value = "éaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    Accented,
+}
+
+/// A value stored as text, which no label limit bounds.
+#[derive(Debug, ActiveEnum, Eq, PartialEq)]
+#[pgorm(rs_type = String, db_type = ColumnType::Text)]
+pub enum Texted {
+    #[pgorm(string_value = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    Long,
+}
+
+// [spec:pgorm:syn:macros.derive.active-enum+6/test]    a PostgreSQL enum's value may be 63 bytes, however many characters spell it; a value stored as text is not bounded
+#[test]
+fn values_up_to_the_label_limit_are_kept() {
+    assert_eq!(Longest::Ascii.to_value().len(), 63);
+    assert_eq!(Longest::Accented.to_value().len(), 63);
+    assert_eq!(Longest::Accented.to_value().chars().count(), 62);
+    assert_eq!(Texted::Long.to_value().len(), 64);
+}
+
+/// Variants a `#[cfg]` keeps or removes, and one whose value `cfg_attr`
+/// gives.
+#[derive(Debug, ActiveEnum, Eq, PartialEq)]
+pub enum Configured {
+    Kept,
+    #[cfg(not(test))]
+    Removed,
+    #[cfg(test)]
+    Included,
+    #[cfg_attr(test, pgorm(string_value = "given"))]
+    Attributed,
+}
+
+// [spec:pgorm:syn:macros.derive.active-enum+6/test]    a variant `#[cfg]` removes is no value of the type, and a `cfg_attr` key is read as written
+#[test]
+fn configured_variants_are_the_values() {
+    use pgorm::entity::prelude::Iterable;
+    assert_eq!(
+        Configured::iter().collect::<Vec<_>>(),
+        [
+            Configured::Kept,
+            Configured::Included,
+            Configured::Attributed
+        ]
+    );
+    assert_eq!(Configured::values(), ["kept", "included", "given"]);
+    assert_eq!(
+        Configured::name_values()
+            .iter()
+            .map(|value| pgorm::SqlName::to_string(&**value))
+            .collect::<Vec<_>>(),
+        ["kept", "included", "given"]
+    );
+    assert!(Configured::try_from_value(&"removed".to_owned()).is_err());
 }

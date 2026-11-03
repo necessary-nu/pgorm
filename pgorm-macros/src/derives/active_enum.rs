@@ -50,7 +50,7 @@ struct VariantKeys {
 impl VariantKeys {
     /// The keys on `variant`, any other being refused at the key; the
     /// `display_value` that only `display` reads is refused without it.
-    // [spec:pgorm:syn:macros.derive.active-enum+5]
+    // [spec:pgorm:syn:macros.derive.active-enum+6]
     fn parse(variant: &syn::Variant, display: bool) -> syn::Result<Self> {
         let mut keys = Self {
             string_value: None,
@@ -92,6 +92,29 @@ impl VariantKeys {
     }
 }
 
+/// The most bytes PostgreSQL holds in an enum's value, `NAMEDATALEN - 1`:
+/// `CREATE TYPE` refuses a longer one (`42602`), and an empty one is a value.
+const ENUM_LABEL_BYTES: usize = 63;
+
+/// Refuse a PostgreSQL enum's value longer than the server holds, at `span`,
+/// the value's literal or the variant it is derived from; a disjoint entity's
+/// kind type is expanded as an `ActiveEnum`, so its values are checked here
+/// too.
+// [spec:pgorm:syn:macros.derive.active-enum+6]
+fn check_enum_label(label: &str, span: Span) -> syn::Result<()> {
+    if label.len() > ENUM_LABEL_BYTES {
+        return Err(syn::Error::new(
+            span,
+            format!(
+                "`{label}` is {} bytes, and a PostgreSQL enum's value is at most \
+                 {ENUM_LABEL_BYTES}",
+                label.len()
+            ),
+        ));
+    }
+    Ok(())
+}
+
 /// The integer a variant's discriminant writes, a negative literal included.
 fn discriminant(variant: &syn::Variant) -> Result<Option<LitInt>, Error> {
     let span = variant.ident.span();
@@ -130,7 +153,7 @@ impl ActiveEnum {
     /// type the enum's name in snake_case unless `enum_name` says otherwise.
     /// An enum stored any other way names both keys, and its values are
     /// what its variants write, falling back to their discriminants.
-    // [spec:pgorm:syn:macros.derive.active-enum+5]
+    // [spec:pgorm:syn:macros.derive.active-enum+6]
     // [spec:pgorm:sem:macros.derive.boilerplate]
     // [spec:pgorm:req:macros.derive.code-values+2]
     fn new(input: syn::DeriveInput) -> Result<Self, Error> {
@@ -255,6 +278,13 @@ impl ActiveEnum {
                     variant_span => compile_error!("Missing macro attribute, either `string_value`, `num_value` or `rename` should be specified or specify repr[X] and have a value for every entry");
                 }));
             };
+            if postgres_enum && let Value::String(label) = &value {
+                let span = keys
+                    .string_value
+                    .as_ref()
+                    .map_or_else(|| variant.ident.span(), LitStr::span);
+                check_enum_label(label, span).map_err(Error::Syn)?;
+            }
 
             variants.push(ActiveEnumVariant {
                 variant,
