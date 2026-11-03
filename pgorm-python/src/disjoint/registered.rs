@@ -3,7 +3,9 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use pgorm::{Disjoint, DisjointShape, EntityTrait, Iterable, KindModel, KindVisitor};
+use pgorm::{
+    Disjoint, DisjointShape, EntityTrait, Iterable, KindModel, KindVisitor, KindedDisjoint,
+};
 use pyo3::prelude::*;
 use serde_json::json;
 
@@ -54,12 +56,15 @@ impl Registry {
     /// Register the `#[derive(Disjoint)]` enum `D` under `name`, its base and
     /// each kind's entity registered before it. A name or an enum registered
     /// twice, an entity not registered, and a declaration `check_disjoint`
-    /// refuses are each a `ConstructionError` raised as it is registered.
+    /// refuses are each a `ConstructionError` raised as it is registered. An
+    /// unkinded enum, which is read-only, is no `KindedDisjoint`, so it does
+    /// not register.
     // [spec:pgorm:req:bindings.disjoint+1]
     // [spec:pgorm:req:bindings.entities+3]
+    // [spec:pgorm:sem:disjoint.unkinded]
     pub fn disjoint<D>(&mut self, name: &str) -> PyResult<&mut Self>
     where
-        D: Disjoint + 'static,
+        D: KindedDisjoint + 'static,
     {
         if name.is_empty() || name.len() > 255 || name.contains('\0') {
             return Err(ConstructionError::new_err(
@@ -88,7 +93,7 @@ impl Registry {
         let description = json!({
             "name": name,
             "base": base.info().name,
-            "kind_field": shape.kind_column().name().to_string(),
+            "kind_field": shape.kind_column().map(|column| column.name().to_string()),
             "kind_type": kind_type(&shape),
             "kinds": shape
                 .kinds()

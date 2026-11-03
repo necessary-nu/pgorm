@@ -16331,6 +16331,9 @@ children (
             {
                 id disjoint.codegen-unkinded
                 title "Codegen reads tables keyed by a base that has no kind column as a read-only disjoint entity"
+                implements {
+                    main ([spec:pgorm:sem:disjoint.unkinded] [spec:pgorm:sem:codegen.entity.disjoint.unkinded])
+                }
                 deps (disjoint.codegen)
                 log (
                     {
@@ -16352,6 +16355,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Scope, filed by disjoint.bindings: bindings.codegen generates a registering crate and typed wrappers from a description of entities, graphs and source tuples; disjoint enums are registrable by hand (Registry::disjoint::<D>, disjoint_entity(name)) but the workflow does not carry them. Carrying them needs: the description schema (pgorm.codegen config input_schema_version and pgorm-napi/codegen's build description) to name a disjoint enum's Rust path and registration name; scaffold to emit registry.disjoint::<D>(name) after its entities; emit to type a registration's rows as a union over kinds ((base view, Literal kind, kind view | None) in Python, a tuple union in TypeScript) and its writes' ActiveModels; and the generated module's load-time check to compare the registration's describe() (bindings.disjoint's keys). Write the rule (a revision of bindings.codegen, or a sibling) when this node starts."
+                    }
+                )
+            }
+
+            {
+                id disjoint.bindings-unkinded
+                title "Python and JavaScript declare and register read-only unkinded disjoint models"
+                deps (disjoint.codegen-unkinded disjoint.bindings)
+                log (
+                    {
+                        at 2026-11-03T07:45:03.209189Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Scope, filed by disjoint.codegen-unkinded: no rule yet; extend bindings.disjoint (or write bindings.disjoint.unkinded) when this node starts. Rust has the unkinded read (disjoint.unkinded): #[derive(Disjoint)] with `unkinded`, DisjointShape with no kind column (kinded: Option<KindedBy>), reads by presence (kind_is/kind_in/filter_kind give presence conditions, judge decides by presence), every write and create refused as Error::Type read-only. What the bindings lack: (1) a run-time constructor for an unkinded shape — DisjointShape::new always takes a kind column and kind type, so add e.g. DisjointShape::unkinded(base, kinds) with the same refusals new has for kinds, values and keys; (2) disjoint(name, base, kinds, {unkinded: true}) in Python and JavaScript, the options kind/enum_name/schema_name refused beside it, at most one kind with no model, at least one with; (3) registration of a downstream unkinded #[derive(Disjoint)] enum — Registry::disjoint now requires D: KindedDisjoint in both bindings, so an unkinded enum does not register; a read-only registration path (D: Disjoint) that offers no insert/update/change_kind/create_disjoint on the model, the description's kind_field/kindField null (shape.kind_column() is already an Option there); (4) the type surface: a read-only disjoint model type in _disjoint.pyi / disjoint.d.ts without the write methods, so the type checkers refuse them as rustc does; (5) a read's triple carries the kind as its name (variant name in snake_case), the same string DisjointShape::kinds() reports; (6) live tests over hand-written tables with no kind column, two present rows and a missing unit kind as DecodeError, mirroring tests/disjoint_unkinded_tests.rs."
                     }
                 )
             }

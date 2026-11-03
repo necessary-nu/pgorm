@@ -1,13 +1,16 @@
 //! What `#[derive(Disjoint)]` declares: the kind type and its values, the
 //! kinds' entities in declaration order with their keys, the decoding of a
-//! kind's model into its variant, and an `<Enum>ActiveModel` taken apart.
+//! kind's model into its variant, an `<Enum>ActiveModel` taken apart, and an
+//! `unkinded` declaration's kinds, which no column holds.
 
 use pgorm::entity::prelude::*;
 use pgorm::tests_cfg::{
     car, flat,
     listing::{self, Listing, ListingActiveModel, ListingKind},
-    truck,
+    shop::{self, Shop, ShopKind},
+    storefront, truck,
     vehicle::{self, Vehicle, VehicleActiveModel, VehicleKind},
+    web_shop,
 };
 use pgorm::{ActiveKindVisitor, DisjointActiveModel, KindModel, KindVisitor};
 
@@ -30,11 +33,11 @@ impl<D: Disjoint> KindVisitor<D> for Describe {
             })
             .collect();
         let table = M::Entity::default().table_name().to_owned();
-        (kind.to_value(), Some((table, key)))
+        (D::kind_name(kind).to_owned(), Some((table, key)))
     }
 
     fn unit(self, value: D) -> Described {
-        (value.kind().to_value(), None)
+        (D::kind_name(value.kind()).to_owned(), None)
     }
 }
 
@@ -87,14 +90,14 @@ fn a_disjoint_says_what_differs_from_the_defaults() {
         ),
         other => panic!("expected a PostgreSQL enum, got {other:?}"),
     }
+    let listing = Listing::kind_column().expect("a kinded entity has a kind column");
+    assert_eq!(listing.column.as_str(), listing::Column::Category.as_str());
     assert_eq!(
-        Listing::kind_column().as_str(),
-        listing::Column::Category.as_str()
+        listing.kind_type.get_column_type(),
+        ListingKind::db_type().get_column_type()
     );
-    assert_eq!(
-        Vehicle::kind_column().as_str(),
-        vehicle::Column::Kind.as_str()
-    );
+    let vehicle = Vehicle::kind_column().expect("a kinded entity has a kind column");
+    assert_eq!(vehicle.column.as_str(), vehicle::Column::Kind.as_str());
 }
 
 // [spec:pgorm:def:disjoint.declare+3/test]    each kind with a table reaches its entity, its table and key columns, in declaration order, a unit kind none; a key may be composite and named otherwise than the base's
@@ -191,11 +194,11 @@ impl<D: Disjoint> ActiveKindVisitor<D> for SetColumns {
             .filter(|column| !active.is_not_set(*column))
             .map(|column| column.as_str().to_owned())
             .collect();
-        (kind.to_value(), set)
+        (D::kind_name(kind).to_owned(), set)
     }
 
     fn unit(self, kind: D::Kind) -> Self::Output {
-        (kind.to_value(), Vec::new())
+        (D::kind_name(kind).to_owned(), Vec::new())
     }
 }
 
@@ -269,4 +272,71 @@ fn kind_attrs_reach_the_kind_type() {
         RankedKind::Bike
     );
     assert_eq!(RankedKind::values(), VehicleKind::values());
+}
+
+// [spec:pgorm:sem:disjoint.unkinded/test]    an `unkinded` declaration has no kind column and no kind type: `<Enum>Kind` iterates its kinds in declaration order, each named as its variant in snake_case, a kind with a table reaches its entity and key, its unit kind none, and the check refuses nothing
+#[test]
+fn an_unkinded_declaration_has_no_kind_column() {
+    assert!(Shop::kind_column().is_none());
+    assert_eq!(
+        ShopKind::iter().collect::<Vec<_>>(),
+        [ShopKind::WebShop, ShopKind::Storefront, ShopKind::Dormant]
+    );
+    assert_eq!(
+        ShopKind::iter().map(Shop::kind_name).collect::<Vec<_>>(),
+        ["web_shop", "storefront", "dormant"]
+    );
+    assert_eq!(
+        describe::<Shop>(),
+        [
+            (
+                "web_shop".to_owned(),
+                Some((
+                    "web_shop".to_owned(),
+                    vec![key_column("shop_id", "Integer")]
+                ))
+            ),
+            (
+                "storefront".to_owned(),
+                Some(("storefront".to_owned(), vec![key_column("id", "Integer")]))
+            ),
+            ("dormant".to_owned(), None),
+        ]
+    );
+    let site = web_shop::Model {
+        shop_id: 3,
+        url: "https://example.com".to_owned(),
+    };
+    assert_eq!(
+        <web_shop::Model as KindModel<Shop>>::KIND,
+        ShopKind::WebShop
+    );
+    assert_eq!(
+        <web_shop::Model as KindModel<Shop>>::into_variant(site.clone()),
+        Shop::WebShop(site)
+    );
+    let street = storefront::Model {
+        id: 4,
+        street: "High Street".to_owned(),
+    };
+    assert_eq!(Shop::Storefront(street).kind(), ShopKind::Storefront);
+    assert_eq!(Shop::Dormant.kind(), ShopKind::Dormant);
+    assert_eq!(kind_key::<Shop, web_shop::Model>(5), 5);
+    assert!(pgorm::check_disjoint::<Shop>().is_ok());
+    assert!(shop::Column::iter().all(|column| column.as_str() != "kind"));
+}
+
+/// The shop's kinds again, the kind enum carrying derives of its own.
+#[derive(Clone, Debug, PartialEq, Disjoint)]
+#[pgorm(base = shop::Entity, unkinded, kind_attrs(derive(PartialOrd, Ord)))]
+pub enum RankedShop {
+    WebShop(web_shop::Model),
+    Dormant,
+}
+
+// [spec:pgorm:sem:disjoint.unkinded/test]    `kind_attrs` reaches an unkinded entity's kind enum as it does a kind type
+#[test]
+fn kind_attrs_reach_the_unkinded_kinds() {
+    assert!(RankedShopKind::WebShop < RankedShopKind::Dormant);
+    assert_eq!(RankedShop::kind_name(RankedShopKind::Dormant), "dormant");
 }

@@ -9,6 +9,13 @@ database. There are no triggers (`[spec:pgorm:req:sql.scope]` keeps them out
 of the builder) and no single-table mapping, in which every kind's columns
 would sit side by side in the base, mostly null.
 
+A schema pgorm did not write may hold the same tables without the kind
+column or the constraints: a base, and tables each keyed by a foreign key
+from its primary key onto the base's. Nothing there holds a base row to one
+kind's table, so such a schema is read through an unkinded declaration
+([Unkinded tables](#unkinded-tables)), which decodes each row by which table
+has a row for it, and is never written through.
+
 ## Declaration
 
 > [spec:pgorm:def:disjoint.declare+3]
@@ -205,3 +212,55 @@ would sit side by side in the base, mostly null.
 >
 > Deleting needs nothing of its own: the base entity's delete removes a base
 > row and, by the cascade, its kind's row.
+
+## Unkinded tables
+
+> [spec:pgorm:sem:disjoint.unkinded]
+> `#[derive(Disjoint)]` with the container key `unkinded`, `#[pgorm(base =
+> shop::Entity, unkinded)]`, MUST declare an unkinded disjoint entity: one
+> whose base has no kind column, a base row's kind being the kind whose table
+> has a row for it. A variant holding a kind's `Model` is a kind with a table,
+> keyed by the base's key as `[spec:pgorm:def:disjoint.declare]` requires and
+> refused as it refuses; a unit variant is the kind of a base row with a row
+> in no kind's table, so there is at most one, and with none such a row is not
+> one the entity describes. Having no kind column, the declaration has no kind
+> type: beside `unkinded`, the container's `kind`, `enum_name` and
+> `schema_name`, a variant's `value`, a second unit variant, and no variant
+> holding a kind's `Model`, which leaves nothing to tell kinds apart by,
+> MUST NOT compile. The derive MUST generate `<Enum>Kind` as an enum of the kinds in
+> declaration order that no column holds, with the derives the kind type has
+> and `kind_attrs(..)` after them, and not an `ActiveEnum`; and it generates
+> no `<Enum>ActiveModel`. A kind is named, by an error and by its
+> `DisjointShape`, as its variant's name in snake_case.
+>
+> Nothing in such a schema holds a base row to one kind's table, so pgorm
+> MUST NOT write through it, and that is the compiler's refusal, not a
+> run-time one: `insert`, `update` and `change_kind` are `Disjoint`'s only
+> where it is also `KindedDisjoint`, as `Schema::create_disjoint` takes only
+> a `KindedDisjoint`, and the derive implements that trait for a declaration
+> with a kind column alone, so a call on an unkinded entity does not compile,
+> the error naming it read-only. Nor is one registrable with a binding
+> (`[spec:pgorm:req:bindings.disjoint]`), whose registration takes a
+> `KindedDisjoint`. `check_disjoint` refuses nothing of an unkinded entity,
+> what it refuses being of a kind column and of the keys a write fills; a
+> `DisjointShape` of one refuses each write and `create` as `Error::Type`
+> naming its base as read-only, before anything is sent.
+>
+> `E::find()` and `find_by_id(key)` MUST read it as
+> `[spec:pgorm:sem:disjoint.read]` reads a kinded entity — one statement,
+> the base `LEFT JOIN`ed to each kind's table on the key, the same
+> projection, the same terminals, filters, ordering, limit, offset,
+> pagination, `count` and keyset cursors — but for the kind. A row decodes as
+> the kind whose table's joined row is present, judged by the absence witness
+> a kinded read uses, and as the unit kind when no kind's is. `kind(k)` and
+> `kinds([..])` restrict by presence: to base rows whose row in `k`'s table
+> is present, its first key column `IS NOT NULL` in the join, or for the unit
+> kind to base rows whose row in every kind's table is absent; and
+> `filter_kind::<M>(condition)` to base rows whose row in `M`'s table is
+> present and passes the condition. A base row with rows present in two or
+> more kinds' tables, and one with a row in none where the entity declares no
+> unit kind, MUST each be an `Error::Query` naming the base table, the key
+> and the kinds involved, as a kinded read's inconsistent rows are: `all`
+> fails at it, `stream` yields it as one `Err` item among the rows, and it is
+> never dropped nor read as one of its kinds, a restriction to one of them
+> included, which reads it and so reports it.

@@ -5,8 +5,10 @@
 mod common;
 
 use common::*;
-use pgorm_codegen::{EntityTransformer, EntityWriterContext, Error, WithSerde};
-use pgorm_query::{ColumnDef, ColumnType, Name, Table};
+use pgorm_codegen::{
+    EntityTransformer, EntityWriterContext, Error, TableIdent, UnkindedDisjoint, WithSerde,
+};
+use pgorm_query::{ColumnDef, ColumnType, ForeignKey, Name, Table};
 use std::path::Path;
 
 const HEADER: &str = concat!(
@@ -41,7 +43,7 @@ fn enum_schema() -> Vec<pgorm_query::TableCreateStatement> {
     )]
 }
 
-// [spec:pgorm:def:codegen.entity+6/test]    transform -> generate hands back named
+// [spec:pgorm:def:codegen.entity+7/test]    transform -> generate hands back named
 // files in memory; the writer itself never touches the filesystem
 #[test]
 fn pipeline_returns_output_files_without_writing_to_disk() {
@@ -67,7 +69,7 @@ fn pipeline_returns_output_files_without_writing_to_disk() {
     }
 }
 
-// [spec:pgorm:def:codegen.entity+6/test]    the Entity model's table name, column
+// [spec:pgorm:def:codegen.entity+7/test]    the Entity model's table name, column
 // facts (type, auto_increment, not_null, unique), relations, conjunct relations
 // and primary keys all reach the generated output
 #[test]
@@ -95,13 +97,13 @@ fn entity_model_carries_column_relation_and_pk_facts() {
     );
 }
 
-// [spec:pgorm:def:codegen.entity+6/test]    errors are the two-variant `Error` enum
+// [spec:pgorm:def:codegen.entity+7/test]    errors are the two-variant `Error` enum
 #[test]
 fn errors_are_the_two_variant_error_enum() {
     let untyped = Table::create(Name::runtime("cake"))
         .col(ColumnDef::new(Name::runtime("id")))
         .to_owned();
-    match EntityTransformer::transform(vec![untyped]) {
+    match EntityTransformer::transform(vec![untyped], &context(Opts::default())) {
         Err(Error::TransformError(msg)) => assert_eq!(
             msg,
             "table `cake` column `id`: column type should not be empty"
@@ -113,7 +115,7 @@ fn errors_are_the_two_variant_error_enum() {
     assert!(matches!(from_io, Error::StdIoError(_)));
 }
 
-// [spec:pgorm:def:codegen.entity+6/test]    every `EntityWriterContext` option
+// [spec:pgorm:def:codegen.entity+7/test]    every `EntityWriterContext` option
 // selects something in the generated output
 #[test]
 fn every_context_option_selects_generated_output() {
@@ -209,6 +211,39 @@ fn every_context_option_selects_generated_output() {
     assert_contains(
         model_extras.file("task.rs"),
         r#"#[serde(rename_all = "camelCase")]"#,
+    );
+
+    // unkinded_disjoint, which the transform reads
+    let table = |name: &str| TableIdent {
+        table: name.to_owned(),
+        schema: None,
+    };
+    let note = keyed_with(
+        "note",
+        &["task_id"],
+        vec![col("task_id").integer().not_null().to_owned()],
+    )
+    .foreign_key(ForeignKey::create(
+        Name::runtime("note"),
+        Name::runtime("task_id"),
+        Name::runtime("task"),
+        Name::runtime("id"),
+    ))
+    .to_owned();
+    let unkinded = generate(
+        [schema(), vec![note]].concat(),
+        Opts {
+            unkinded_disjoint: vec![UnkindedDisjoint {
+                base: table("task"),
+                kinds: vec![table("note")],
+                unit: Some("bare".to_owned()),
+            }],
+            ..Default::default()
+        },
+    );
+    assert_contains(
+        unkinded.file("task.rs"),
+        "#[pgorm(base = Entity, unkinded)] pub enum Task { Note(super::note::Model), Bare, }",
     );
 }
 

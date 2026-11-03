@@ -360,11 +360,14 @@ fn column_conversion_rejects_an_unrespellable_named_type() {
 // type — no placeholder code, and no panic
 #[test]
 fn transform_rejects_column_type_outside_mapping() {
-    let unsupported = EntityTransformer::transform(vec![keyed_with(
-        "device",
-        &["id"],
-        vec![serial("id"), typed("address", ColumnType::Inet)],
-    )]);
+    let unsupported = EntityTransformer::transform(
+        vec![keyed_with(
+            "device",
+            &["id"],
+            vec![serial("id"), typed("address", ColumnType::Inet)],
+        )],
+        &context(Opts::default()),
+    );
 
     match unsupported {
         Err(Error::TransformError(msg)) => assert_eq!(
