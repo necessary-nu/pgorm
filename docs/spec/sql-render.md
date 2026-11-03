@@ -1173,7 +1173,7 @@ an ideal Postgres renderer would emit.
 > `RESTRICT`, `CASCADE`, `SET NULL`, `NO ACTION`, `SET DEFAULT`) are rendered
 > by the same builder with identifiers quoted per `sql.render.ident-quoting`.
 
-> [spec:pgorm:req:sql.render.ddl.enum-type+5]
+> [spec:pgorm:req:sql.render.ddl.enum-type+6]
 > `CREATE TYPE` renders `CREATE TYPE name AS ENUM (…)` — the name via
 > `TypeRef`'s quoted, dot-joined parts, so a schema-qualified type renders
 > `"schema"."name"`. In cast and column-type position an
@@ -1183,6 +1183,15 @@ an ideal Postgres renderer would emit.
 > there, never SQL, and
 > `enumeration(Name::runtime("text, injected integer"))` yields a type
 > PostgreSQL refuses rather than an extra column.
+>
+> The two spellings MUST name the same type. PostgreSQL folds an unquoted
+> name to lower case, so a part written bare in a column or cast is one
+> whose quoted spelling is that same name, and every other part — mixed
+> case, a space, a restricted keyword — is quoted in both: `market.listing`
+> beside `"market"."listing"`, `"Book Shop"."Shelf Kind"` and
+> `"user"."order"[]` in both places. A column `create_table_from_entity` or
+> `create_disjoint` writes therefore has the type the enum's `CREATE TYPE`
+> created, whatever its name and schema are (live on 18.6).
 >
 > A LABEL is not a name. Each is carried as a `String` and emitted through
 > `push_param` — a `$N` parameter in the `build()` path and a quoted string

@@ -1479,6 +1479,7 @@ impl QueryBuilder {
                 },
                 // [spec:pgorm:req:sql.render.ident-quoting+7]
                 ColumnType::Named(type_name) => type_name.to_sql_string(),
+                // [spec:pgorm:req:sql.render.ddl.enum-type+6]    the name its `CREATE TYPE` quotes
                 ColumnType::Enum { name, schema, .. }
                 | ColumnType::CreatedRange { name, schema, .. }
                 | ColumnType::CreatedMultirange { name, schema, .. }
@@ -2307,7 +2308,7 @@ impl QueryBuilder {
         .unwrap()
     }
 
-    // [spec:pgorm:req:sql.render.ddl.enum-type+5] (ALTER TYPE label operands parameterized)
+    // [spec:pgorm:req:sql.render.ddl.enum-type+6] (ALTER TYPE label operands parameterized)
     fn prepare_alter_type_opt(&self, opt: &TypeAlterOpt, sql: &mut dyn SqlWriter) {
         match opt {
             TypeAlterOpt::Add(value, placement) => {
@@ -2342,7 +2343,7 @@ impl QueryBuilder {
     }
 
     // [spec:pgorm:req:sql.ddl.type-enum+7]
-    // [spec:pgorm:req:sql.render.ddl.enum-type+5]
+    // [spec:pgorm:req:sql.render.ddl.enum-type+6]
     pub(crate) fn prepare_type_create_statement(
         &self,
         create: &TypeCreateStatement,

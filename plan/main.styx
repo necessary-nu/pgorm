@@ -16699,12 +16699,27 @@ children (
         id qualified-enum-type-quoting
         title "A schema-qualified enum is quoted alike in its CREATE TYPE and in every column that uses it"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T02:38:50.06071Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.schema (22c8f563): a schema-qualified enum renders unquoted as a column type (market.listing_category) but quoted in CREATE TYPE (\"market\".\"listing_category\"). They agree only while both names are lower-case and need no quoting; a mixed-case or keyword name creates one type and declares columns of another (42704). Find where a column's enum type is rendered (pgorm-query's column type rendering for ColumnType::Enum with a schema) and quote it as an identifier pair the way CREATE TYPE does; live-test a mixed-case schema and type name through create_table_from_entity and create_disjoint."
+            }
+
+            {
+                at 2026-11-03T10:14:02.991352Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:19:48.231555Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-03T08:39:14.136613Z
+last_sync_at 2026-11-03T10:13:54.198098Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -381,7 +381,7 @@ rule_versions (
     {id sql.ddl, version 12}
     {id sql.ddl.alter-table, version 13}
     {id sql.ddl.column-def, version 13}
-    {id sql.ddl.column-types, version 7}
+    {id sql.ddl.column-types, version 8}
     {id sql.ddl.create-table, version 16}
     {id sql.ddl.create-table-as, version 1}
     {id sql.ddl.domain, version 3}
@@ -405,7 +405,7 @@ rule_versions (
     {id sql.render.custom-expr, version 3}
     {id sql.render.ddl.enum-type, version 5}
     {id sql.render.ddl.extension, version 3}
-    {id sql.render.ddl.types, version 7}
+    {id sql.render.ddl.types, version 8}
     {id sql.render.empty-in, version 1}
     {id sql.render.ident-quoting, version 7}
     {id sql.render.inject, version 3}
@@ -501,6 +501,7 @@ derived_priorities (
     {id codegen-compact-string-length, priority 0, derived_at 2026-11-02T14:23:29.374268Z}
     {id codegen-datetime-crate-option, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id codegen-enum-array-expanded, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
+    {id codegen-enum-variant-names, priority 0, derived_at 2026-11-03T10:13:54.198098Z}
     {id codegen-identity-collisions, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id codegen-interval-columns, priority 1, derived_at 2026-10-24T06:20:32.099314Z}
     {id codegen-junction-detection, priority 3, derived_at 2026-09-06T16:36:02.710141Z}
@@ -1444,6 +1445,7 @@ assertions (
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id bit-unbounded-renders-bit-one, kind @complete, author "brendan@necessary.nu", at 2026-11-03T10:13:23.143946Z}
+    {id qualified-enum-type-quoting, kind @complete, author "brendan@necessary.nu", at 2026-11-03T10:19:48.231555Z}
 )
 
 impl_evidence (
@@ -1903,6 +1905,9 @@ impl_evidence (
     ), covered_claims (
         {impl_name main, rule codegen.entity.disjoint.unkinded}
         {impl_name main, rule disjoint.unkinded}
+    ), rule_versions_seen (
+        {id codegen.entity.disjoint.unkinded, version 0}
+        {id disjoint.unkinded, version 0}
     )}
     {id disjoint.declare, covered_rules (
         disjoint.declare

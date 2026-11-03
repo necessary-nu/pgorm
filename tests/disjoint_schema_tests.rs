@@ -223,6 +223,54 @@ pub enum Long {
     Other,
 }
 
+/// A base in a schema whose name needs quoting, its kind type named in
+/// mixed case beside it and a column holding an array of an enum named by a
+/// reserved keyword in a schema named by another.
+pub mod shelf {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Entity)]
+    #[pgorm(table_name = "Shelf", schema_name = "Book Shop")]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        pub kind: super::ShelvedKind,
+        pub labels: Vec<super::Order>,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+pub mod novel {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Entity)]
+    #[pgorm(table_name = "Novel", schema_name = "Book Shop")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+        pub pages: i32,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+#[derive(Clone, Debug, PartialEq, Disjoint)]
+#[pgorm(base = shelf::Entity, enum_name = "Shelf Kind", schema_name = "Book Shop")]
+pub enum Shelved {
+    Novel(novel::Model),
+    Empty,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ActiveEnum)]
+#[pgorm(enum_name = "order", schema_name = "user")]
+pub enum Order {
+    First,
+    Second,
+}
+
 fn rendered<D: KindedDisjoint>() -> Vec<String> {
     Schema::new()
         .create_disjoint::<D>()
@@ -785,6 +833,116 @@ async fn bounded_names_are_the_servers_live() -> Result<(), Error> {
         .map(|row| row.get(0))
         .collect();
     assert_eq!(columns, [column]);
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:req:sql.ddl.column-types+8/test]    an enum's name and schema are quoted in a column's type wherever they need it, as its `CREATE TYPE` quotes them, so a mixed-case, spaced or keyword name declares the column of the type it creates
+// [spec:pgorm:req:sql.render.ddl.enum-type+6/test]
+// [spec:pgorm:sem:disjoint.schema+1/test]
+#[pgorm_macros::test]
+async fn quoted_enum_names_create_their_columns_live() -> Result<(), Error> {
+    use pgorm::set;
+
+    let statements = rendered::<Shelved>();
+    assert_eq!(
+        statements[0],
+        r#"CREATE TYPE "Book Shop"."Shelf Kind" AS ENUM ('novel', 'empty')"#
+    );
+    for (statement, column) in [
+        (
+            &statements[1],
+            r#""kind" "Book Shop"."Shelf Kind" NOT NULL"#,
+        ),
+        (&statements[1], r#""labels" "user"."order"[] NOT NULL"#),
+        (
+            &statements[2],
+            r#""kind" "Book Shop"."Shelf Kind" GENERATED ALWAYS AS ('novel') STORED"#,
+        ),
+    ] {
+        assert!(statement.contains(column), "{column} in {statement}");
+    }
+
+    let ctx = TestContext::new("disjoint_schema_quoted_enums").await;
+    let db = ctx.db.get().await?;
+    db.execute(r#"CREATE SCHEMA "Book Shop""#, &[]).await?;
+    db.execute(r#"CREATE SCHEMA "user""#, &[]).await?;
+    db.execute(
+        &Schema::new()
+            .create_enum_from_active_enum::<Order>()?
+            .to_string(),
+        &[],
+    )
+    .await?;
+    create::<Shelved>(&db).await?;
+
+    let types: Vec<(String, String, String)> = db
+        .query_all(
+            "SELECT attrelid::regclass::text, attname::text, format_type(atttypid, atttypmod) \
+             FROM pg_attribute WHERE attname IN ('kind', 'labels') \
+             AND attrelid IN ('\"Book Shop\".\"Shelf\"'::regclass, '\"Book Shop\".\"Novel\"'::regclass) \
+             ORDER BY 1, 2",
+            &[],
+        )
+        .await?
+        .iter()
+        .map(|row| (row.get(0), row.get(1), row.get(2)))
+        .collect();
+    let typed =
+        |table: &str, column: &str, ty: &str| (table.to_owned(), column.to_owned(), ty.to_owned());
+    assert_eq!(
+        types,
+        [
+            typed(
+                r#""Book Shop"."Novel""#,
+                "kind",
+                r#""Book Shop"."Shelf Kind""#
+            ),
+            typed(
+                r#""Book Shop"."Shelf""#,
+                "kind",
+                r#""Book Shop"."Shelf Kind""#
+            ),
+            typed(r#""Book Shop"."Shelf""#, "labels", r#""user"."order"[]"#),
+        ]
+    );
+
+    let labelled = |labels: Vec<Order>| shelf::ActiveModel {
+        labels: set(labels),
+        ..Default::default()
+    };
+    let novel = Shelved::insert(
+        labelled(vec![Order::First, Order::Second]),
+        ShelvedActiveModel::Novel(novel::ActiveModel {
+            pages: set(320),
+            ..Default::default()
+        }),
+    )?
+    .exec_returning_model(&db)
+    .await?;
+    let empty = Shelved::insert(labelled(vec![Order::Second]), ShelvedActiveModel::Empty)?
+        .exec_returning_model(&db)
+        .await?;
+    let read = Shelved::find()
+        .order_by_asc(shelf::Column::Id)
+        .all(&db)
+        .await?;
+    assert_eq!(read, [novel.clone(), empty.clone()]);
+    assert_eq!(
+        novel.1,
+        Shelved::Novel(novel::Model {
+            id: novel.0.id,
+            pages: 320
+        })
+    );
+    assert_eq!(empty.0.labels, [Order::Second]);
+    let novels = shelf::Entity::find()
+        .filter(shelf::Column::Kind.eq(ShelvedKind::Novel))
+        .all(&db)
+        .await?;
+    assert_eq!(novels, [novel.0]);
 
     drop(db);
     ctx.delete().await;
