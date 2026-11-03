@@ -4,61 +4,12 @@
 
 use pgorm::entity::prelude::*;
 use pgorm::tests_cfg::{
-    car, truck,
+    car, flat,
+    listing::{self, Listing, ListingActiveModel, ListingKind},
+    truck,
     vehicle::{self, Vehicle, VehicleActiveModel, VehicleKind},
 };
 use pgorm::{ActiveKindVisitor, DisjointActiveModel, KindModel, KindVisitor};
-
-/// A base keyed by two columns, its kind column under a name of its own, and
-/// a kind type named and placed by hand.
-pub mod listing {
-    use pgorm::entity::prelude::*;
-
-    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
-    #[pgorm(table_name = "listing", schema_name = "market")]
-    pub struct Model {
-        #[pgorm(primary_key, auto_increment = false)]
-        pub tenant_id: i32,
-        #[pgorm(primary_key, auto_increment = false)]
-        pub id: i64,
-        pub category: super::ListingKind,
-        pub title: String,
-    }
-
-    #[derive(Copy, Clone, Debug, Relation)]
-    pub enum Relation {}
-}
-
-/// A kind keyed by the listing's two columns under other names.
-pub mod flat {
-    use pgorm::entity::prelude::*;
-
-    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
-    #[pgorm(table_name = "flat", schema_name = "market")]
-    pub struct Model {
-        #[pgorm(primary_key, auto_increment = false)]
-        pub tenant: i32,
-        #[pgorm(primary_key, auto_increment = false)]
-        pub listing: i64,
-        pub rooms: i16,
-    }
-
-    #[derive(Copy, Clone, Debug, Relation)]
-    pub enum Relation {}
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Disjoint)]
-#[pgorm(
-    base = listing::Entity,
-    kind = listing::Column::Category,
-    enum_name = "listing_category",
-    schema_name = "market"
-)]
-pub enum Listing {
-    #[pgorm(value = "apartment")]
-    Flat(flat::Model),
-    BuildingPlot,
-}
 
 /// Each kind visited, as its value, its entity's table and its key columns
 /// with their types.
@@ -97,7 +48,7 @@ fn key_column(column: &str, column_type: &str) -> (String, String) {
     (column.to_owned(), column_type.to_owned())
 }
 
-// [spec:pgorm:def:disjoint.declare+1/test]    the kind type is a PostgreSQL enum named for the enum in snake_case, one value per variant in declaration order, each its variant's name in snake_case
+// [spec:pgorm:def:disjoint.declare+2/test]    the kind type is a PostgreSQL enum named for the enum in snake_case, one value per variant in declaration order, each its variant's name in snake_case
 #[test]
 fn kind_type_is_a_postgres_enum_of_variants() {
     assert_eq!(VehicleKind::name().to_string(), "vehicle_kind");
@@ -124,7 +75,7 @@ fn kind_type_is_a_postgres_enum_of_variants() {
     );
 }
 
-// [spec:pgorm:def:disjoint.declare+1/test]    `value`, `enum_name` and `schema_name` in place of the defaults, and `kind` naming the base's column
+// [spec:pgorm:def:disjoint.declare+2/test]    `value`, `enum_name` and `schema_name` in place of the defaults, and `kind` naming the base's column
 #[test]
 fn a_disjoint_says_what_differs_from_the_defaults() {
     assert_eq!(ListingKind::name().to_string(), "listing_category");
@@ -146,7 +97,7 @@ fn a_disjoint_says_what_differs_from_the_defaults() {
     );
 }
 
-// [spec:pgorm:def:disjoint.declare+1/test]    each kind with a table reaches its entity, its table and key columns, in declaration order, a unit kind none; a key may be composite and named otherwise than the base's
+// [spec:pgorm:def:disjoint.declare+2/test]    each kind with a table reaches its entity, its table and key columns, in declaration order, a unit kind none; a key may be composite and named otherwise than the base's
 #[test]
 fn kinds_reach_their_entities_in_order() {
     assert_eq!(
@@ -192,7 +143,7 @@ fn kind_key<D: Disjoint, M: KindModel<D>>(
     key
 }
 
-// [spec:pgorm:def:disjoint.declare+1/test]    a kind's model decodes into its variant, each value names its kind, and a kind entity's key is the base's key type
+// [spec:pgorm:def:disjoint.declare+2/test]    a kind's model decodes into its variant, each value names its kind, and a kind entity's key is the base's key type
 #[test]
 fn a_kind_model_is_its_variant() {
     let sedan = car::Model { id: 1, seats: 5 };
@@ -248,7 +199,7 @@ impl<D: Disjoint> ActiveKindVisitor<D> for SetColumns {
     }
 }
 
-// [spec:pgorm:def:disjoint.declare+1/test]    `<Enum>ActiveModel` holds each kind's `ActiveModel`, names its kind, and is taken apart into the kind's `ActiveModel`
+// [spec:pgorm:def:disjoint.declare+2/test]    `<Enum>ActiveModel` holds each kind's `ActiveModel`, names its kind, and is taken apart into the kind's `ActiveModel`
 #[test]
 fn an_active_model_is_taken_apart() {
     let truck = VehicleActiveModel::Truck(truck::ActiveModel {
@@ -280,7 +231,7 @@ fn an_active_model_is_taken_apart() {
     );
 }
 
-// [spec:pgorm:def:disjoint.declare+1/test]    a declaration whose types hold passes the run-time check, composite key and named kind column included
+// [spec:pgorm:def:disjoint.declare+2/test]    a declaration whose types hold passes the run-time check, composite key and named kind column included
 #[test]
 fn a_sound_declaration_passes_the_check() {
     assert!(pgorm::check_disjoint::<Vehicle>().is_ok());

@@ -248,6 +248,22 @@ pub(crate) fn create_table_from_entity<E>(entity: E) -> Result<TableCreateStatem
 where
     E: EntityTrait,
 {
+    table_from_entity(entity, |_| true)
+}
+
+/// The table [`create_table_from_entity`] writes, with a foreign key for each
+/// belongs-to relation `writes_key` keeps: a disjoint kind's table leaves out
+/// the one its key to its base row implies.
+// [spec:pgorm:sem:schema.from-entity+10]
+// [spec:pgorm:sem:disjoint.schema+1]
+pub(super) fn table_from_entity<E, K>(
+    entity: E,
+    writes_key: K,
+) -> Result<TableCreateStatement, Error>
+where
+    E: EntityTrait,
+    K: Fn(&RelationDef) -> bool,
+{
     let mut stmt = TableCreateStatement::new(entity.table_ref());
 
     if let Some(comment) = entity.comment() {
@@ -288,7 +304,7 @@ where
 
     for relation in E::Relation::iter() {
         let def = relation.def();
-        if def.is_owner {
+        if def.is_owner || !writes_key(&def) {
             continue;
         }
         refuse_unkeyable(&entity, &relation, &def)?;
