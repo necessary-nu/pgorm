@@ -79,12 +79,13 @@ has a row for it, and is never written through.
 
 ## Schema
 
-> [spec:pgorm:sem:disjoint.schema+1]
+> [spec:pgorm:sem:disjoint.schema+2]
 > `Schema::create_disjoint::<E>()` MUST run `check_disjoint::<E>()` first,
-> returning its refusal as its own, and otherwise return the statements that
-> create a disjoint entity's type and tables, a `Vec<DdlStatement>` in the
-> order they run (`DdlStatement` being a `CREATE TYPE`, a `CREATE TABLE` or
-> an `ALTER TABLE`, each rendering as its statement):
+> returning its refusal as its own, then refuse the keys below, and otherwise
+> return the statements that create a disjoint entity's type and tables, a
+> `Vec<DdlStatement>` in the order they run (`DdlStatement` being a `CREATE
+> TYPE`, a `CREATE TABLE` or an `ALTER TABLE`, each rendering as its
+> statement):
 >
 > 1. the kind type;
 > 2. the base table as `Schema::create_table_from_entity` writes it
@@ -103,6 +104,17 @@ has a row for it, and is never written through.
 >    key column's type, `GENERATED ALWAYS AS (CASE WHEN <kind column> =
 >    '<value>' THEN <column> END) STORED`, and for each such kind a foreign
 >    key from its columns to the kind table's key.
+>
+> A key these constraints cannot be written over MUST be refused as an
+> `Error::Type` naming the table and column, before any statement is
+> returned, rather than left to the server: a base key column that is a
+> generated column, which the base's generated columns would read and
+> PostgreSQL refuses a generated column reading (`42P17`); a base key column
+> of a domain over an enum, which no foreign key can match (`42804`), every
+> kind's key being of the base key's types; and a kind's key ending `WITHOUT
+> OVERLAPS`, which the base's plain foreign key onto that table matches no
+> key of (`42830`). A temporal base key is held, each kind table's foreign key
+> reaching the base's `UNIQUE` key, which takes its period as a plain column.
 >
 > The base's foreign keys come last because each side references the other.
 > The types the tables' other columns use are not among the statements;

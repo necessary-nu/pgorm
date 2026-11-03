@@ -14,7 +14,7 @@ use pgorm_query::{
     ColumnType, FromItem, Name, NamedTable, TableCreateStatement, TableName, TypeName, Value,
 };
 
-use super::{ColumnDefault, column_casts::ColumnCasts, key::ComparedPair};
+use super::{ColumnDefault, column_casts::ColumnCasts, compared_enum, key::ComparedPair};
 use crate::query::alias_apart;
 use crate::{
     ActiveModelTrait, ActiveValue, ColumnDef, ColumnTrait, Disjoint, EntityTrait, Error, Iterable,
@@ -133,6 +133,8 @@ pub struct DisjointTable {
     pub(crate) columns: Vec<DisjointColumn>,
     pub(crate) key: Vec<usize>,
     pub(crate) auto_increment: bool,
+    /// Whether the key's last column is its period, `WITHOUT OVERLAPS`.
+    pub(crate) without_overlaps: bool,
     pub(crate) body: TableBody,
 }
 
@@ -196,6 +198,7 @@ impl DisjointTable {
             columns,
             key: positions,
             auto_increment: false,
+            without_overlaps: false,
             body: TableBody::Columns,
         })
     }
@@ -220,6 +223,7 @@ impl DisjointTable {
             columns,
             key,
             auto_increment: E::PrimaryKey::auto_increment(),
+            without_overlaps: E::PrimaryKey::without_overlaps(),
             body: TableBody::Entity(Arc::new(|keep: &dyn Fn(&RelationDef) -> bool| {
                 crate::schema::table_from_entity(E::default(), keep)
             })),
@@ -699,6 +703,73 @@ impl DisjointShape {
         Ok(())
     }
 
+    /// Refuse, as [`Error::Type`] naming the table and column, a key the
+    /// disjoint schema cannot hold a base row to its kind's table by, which
+    /// PostgreSQL would refuse only once the statements ran.
+    ///
+    /// A base key column that is a generated column is read by the generated
+    /// columns keying each kind's table, and a generated column reads no
+    /// other (`42P17`). A key column of a domain over an enum can be matched
+    /// by no foreign key (`42804`), and a kind's key is of the base key's
+    /// types, so the base's says it for every table. A kind's key ending
+    /// `WITHOUT OVERLAPS` is matched by no plain foreign key, which the
+    /// base's onto the kind's table is (`42830`); a temporal base key is
+    /// matched by its `UNIQUE` key over the key columns and the kind column,
+    /// and is held.
+    // [spec:pgorm:sem:disjoint.schema+2]
+    pub(crate) fn keyable(&self) -> Result<(), Error> {
+        let base = &self.base;
+        for column in base.key() {
+            let name = column.name.to_string();
+            if let Some(ColumnDefault::Generated(..)) = column.def.default {
+                return Err(Error::Type(format!(
+                    "`{}`.`{name}`, the key of the disjoint entity's base, is a generated \
+                     column: the generated columns keying each kind's table read the base's \
+                     key, and PostgreSQL refuses a generated column reading another (42P17)",
+                    base.label
+                )));
+            }
+            if let (
+                ColumnType::Domain {
+                    name: domain,
+                    schema,
+                    ..
+                },
+                Some(enum_type),
+            ) = (
+                column.def.get_column_type(),
+                compared_enum(column.def.get_column_type()),
+            ) {
+                return Err(Error::Type(format!(
+                    "`{}`.`{name}`, the key of the disjoint entity's base, is of the domain `{}` \
+                     over the enum `{}`: each kind's table is keyed to its base row by a foreign \
+                     key on it, and PostgreSQL implements no foreign key with a column typed as \
+                     a domain over an enum (42804)",
+                    base.label,
+                    qualified(domain, schema),
+                    qualified(&enum_type.name, &enum_type.schema)
+                )));
+            }
+        }
+        for kind in &self.kinds {
+            let Some(table) = &kind.table else { continue };
+            if !table.without_overlaps {
+                continue;
+            }
+            if let Some(period) = table.key().last() {
+                return Err(Error::Type(format!(
+                    "`{}`.`{}`, the period of the key of the kind `{}`, makes the key \
+                     `WITHOUT OVERLAPS`: the base's foreign key onto a kind's table is a plain \
+                     one, which PostgreSQL matches to no temporal key (42830)",
+                    table.label,
+                    period.name.to_string(),
+                    kind.value
+                )));
+            }
+        }
+        Ok(())
+    }
+
     /// Where a kinded shape's base holds each row's kind; an unkinded shape,
     /// which nothing holds to one kind per base row, is refused as
     /// [`Error::Type`] naming its base as read-only, so that no write and no
@@ -784,6 +855,14 @@ fn same_enum(left: &ColumnType, right: &ColumnType) -> bool {
         _ => None,
     };
     matches!((identity(left), identity(right)), (Some(left), Some(right)) if left == right)
+}
+
+/// A type's name as an error names it, schema-qualified where it is.
+fn qualified(name: &Name, schema: &Option<Name>) -> String {
+    match schema {
+        Some(schema) => format!("{}.{}", schema.to_string(), name.to_string()),
+        None => name.to_string(),
+    }
 }
 
 /// A column type as an error names it: an enum by its name and values.

@@ -16671,12 +16671,34 @@ children (
         title "create_disjoint refuses the base key shapes PostgreSQL cannot hold to a kind: generated, temporal, and domain-over-enum key columns"
         kind @fix
         deps (disjoint.schema)
+        sealed true
         log (
             {
                 at 2026-11-03T02:38:49.712173Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.schema (22c8f563), each confirmed live and none refused before the statements are sent: a base key column that is itself a generated column (the base's CASE columns read it; PostgreSQL refuses a generated column referencing another with 42P17); a temporal key (WITHOUT OVERLAPS), onto which the plain foreign key from a kind table gets 42830; and key columns typed as a domain over an enum, which the disjoint foreign keys cannot match (42804) — the existing domain-over-enum refusal in create_table_from_entity covers only relation pairs. Refuse each in check_disjoint or create_disjoint with Error::Type naming the table and column, revise disjoint.schema (or disjoint.declare) to list them, and test each live."
+            }
+
+            {
+                at 2026-11-03T10:51:32.697419Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T11:00:28.903067Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Probed on 18.6 before refusing: a generated base key column fails at the base's CASE columns (42P17) and a base key of a domain over an enum at the first foreign key (42804), as filed; but a temporal (WITHOUT OVERLAPS) base key with plain kind keys is held: create_disjoint's statements run, the kind table's foreign key reaching the base's UNIQUE (id, valid_at, kind), and a row inserts and reads back through the disjoint entity. The 42830 is a kind's key ending WITHOUT OVERLAPS, onto which the base's plain foreign key matches no key. So create refuses the kind's temporal key and holds the base's, and the live test keeps both. The refusal is in create (DisjointShape::keyable), not check_disjoint: reads and writes of such a declaration are sound against a schema pgorm did not write; it is the schema PostgreSQL cannot hold."
+            }
+
+            {
+                at 2026-11-03T11:00:29.245237Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

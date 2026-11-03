@@ -8,7 +8,7 @@ use std::fmt;
 ///
 /// The enum is `#[non_exhaustive]` because a later list may hold a kind of
 /// statement none does yet.
-// [spec:pgorm:sem:disjoint.schema+1]
+// [spec:pgorm:sem:disjoint.schema+2]
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum DdlStatement {
