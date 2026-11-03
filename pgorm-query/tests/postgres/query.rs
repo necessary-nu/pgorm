@@ -1037,7 +1037,7 @@ fn select_58() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.case+2/test]
+// [spec:pgorm:def:sql.ast.case+3/test]
 #[test]
 fn select_59() {
     let query = Query::select()

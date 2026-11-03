@@ -73,7 +73,7 @@ fn some(answers: [Option<&str>; 4]) -> Vec<Option<String>> {
 /// `WHEN NULL` arm never fires and the row takes the `ELSE`. The searched
 /// form's `WHEN note IS NULL` — the spelling it is easy to mistake it for —
 /// catches the same row.
-// [spec:pgorm:def:sql.ast.case+2/test]    against a live server: the simple form compares by
+// [spec:pgorm:def:sql.ast.case+3/test]    against a live server: the simple form compares by
 // `=`, so a NULL operand matches no arm and takes the ELSE
 // [spec:pgorm:req:sql.render.case/test]
 // [spec:pgorm:req:sql.scope+23/test]
@@ -122,7 +122,7 @@ async fn a_null_operand_matches_no_arm(db: &DatabaseConnection) -> Result<(), Er
 
 /// With no `finally`, an operand that equals no arm's value — the NULL one and
 /// the unnamed one alike — yields NULL rather than an error or a default.
-// [spec:pgorm:def:sql.ast.case+2/test]    against a live server: no ELSE yields NULL
+// [spec:pgorm:def:sql.ast.case+3/test]    against a live server: no ELSE yields NULL
 async fn an_unmatched_operand_without_else_is_null(db: &DatabaseConnection) -> Result<(), Error> {
     let query = per_row(Expr::case_of(note()).when("a", "first"));
 
@@ -136,7 +136,7 @@ async fn an_unmatched_operand_without_else_is_null(db: &DatabaseConnection) -> R
 
 /// Arms are tried in the order they were added: a value named twice selects
 /// the first arm's result, so the arms render in call order.
-// [spec:pgorm:def:sql.ast.case+2/test]    against a live server: arms are tried in call order
+// [spec:pgorm:def:sql.ast.case+3/test]    against a live server: arms are tried in call order
 async fn the_first_matching_arm_wins(db: &DatabaseConnection) -> Result<(), Error> {
     let query = per_row(
         Expr::case_of(note())

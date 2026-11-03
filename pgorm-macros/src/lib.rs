@@ -377,8 +377,10 @@ pub fn derive_active_enum(input: TokenStream) -> TokenStream {
 /// - On the enum: `base = path`, required; `kind = path`, the base's column
 ///   holding each row's kind, the base's `Column::Kind` unless given;
 ///   `enum_name = "..."`, the kind type's name, `<enum>_kind` (the enum's
-///   name in snake_case) unless given; and `schema_name = "..."`, the
-///   kind type's schema.
+///   name in snake_case) unless given; `schema_name = "..."`, the
+///   kind type's schema; and `kind_attrs(..)`, attributes the kind type
+///   carries after its own derives, each written as it would be on the
+///   type: `kind_attrs(derive(Serialize, Deserialize))`.
 /// - On a variant: `value = "..."`, the kind's value, the variant's name in
 ///   snake_case unless given.
 ///
@@ -445,7 +447,7 @@ pub fn derive_active_enum(input: TokenStream) -> TokenStream {
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:disjoint.declare+2]
+// [spec:pgorm:def:disjoint.declare+3]
 // [spec:pgorm:req:macros.derive.names+1]
 #[cfg(feature = "derive")]
 #[proc_macro_derive(Disjoint, attributes(pgorm))]

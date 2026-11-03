@@ -4,17 +4,19 @@ use heck::ToSnakeCase;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::{
-    Attribute, Data, DeriveInput, Expr, Fields, Ident, LitStr, Type, Variant,
-    meta::ParseNestedMeta, parse_quote, spanned::Spanned,
+    Attribute, Data, DeriveInput, Expr, Fields, Ident, LitStr, Meta, Token, Type, Variant,
+    meta::ParseNestedMeta, parse_quote, punctuated::Punctuated, spanned::Spanned,
 };
 
 /// The container's keys: the base entity, the column holding each row's kind,
-/// and the kind type's SQL name.
+/// the kind type's SQL name, and attributes the kind type carries besides its
+/// own.
 struct Container {
     base: Type,
     kind: Option<Expr>,
     enum_name: Option<LitStr>,
     schema_name: Option<LitStr>,
+    kind_attrs: Vec<Meta>,
 }
 
 /// One variant: a kind of base row.
@@ -45,13 +47,14 @@ fn once<T>(meta: &ParseNestedMeta<'_>, slot: &mut Option<T>, value: T) -> syn::R
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.declare+2]
+// [spec:pgorm:def:disjoint.declare+3]
 // [spec:pgorm:req:macros.derive.code-values+2]
 fn container(input: &DeriveInput) -> syn::Result<Container> {
     let mut base = None;
     let mut kind = None;
     let mut enum_name = None;
     let mut schema_name = None;
+    let mut kind_attrs = None;
     for attr in input
         .attrs
         .iter()
@@ -66,6 +69,11 @@ fn container(input: &DeriveInput) -> syn::Result<Container> {
                 once(&meta, &mut enum_name, meta.value()?.parse::<LitStr>()?)
             } else if meta.path.is_ident("schema_name") {
                 once(&meta, &mut schema_name, meta.value()?.parse::<LitStr>()?)
+            } else if meta.path.is_ident("kind_attrs") {
+                let content;
+                syn::parenthesized!(content in meta.input);
+                let attrs = Punctuated::<Meta, Token![,]>::parse_terminated(&content)?;
+                once(&meta, &mut kind_attrs, attrs.into_iter().collect())
             } else {
                 Err(unknown_pgorm_key(&meta))
             }
@@ -83,10 +91,11 @@ fn container(input: &DeriveInput) -> syn::Result<Container> {
         kind,
         enum_name,
         schema_name,
+        kind_attrs: kind_attrs.unwrap_or_default(),
     })
 }
 
-// [spec:pgorm:def:disjoint.declare+2]
+// [spec:pgorm:def:disjoint.declare+3]
 fn kind(variant: &Variant) -> syn::Result<Kind> {
     let mut given = None;
     for attr in variant
@@ -149,7 +158,7 @@ fn kind(variant: &Variant) -> syn::Result<Kind> {
 
 /// `#[derive(Disjoint)]`: the kind type, the enum of the kinds' active models,
 /// and the traits a disjoint entity's schema, reads and writes are built on.
-// [spec:pgorm:def:disjoint.declare+2]
+// [spec:pgorm:def:disjoint.declare+3]
 pub fn expand_derive_disjoint(input: DeriveInput) -> syn::Result<TokenStream> {
     let Data::Enum(data) = &input.data else {
         return Err(syn::Error::new(
@@ -207,8 +216,10 @@ pub fn expand_derive_disjoint(input: DeriveInput) -> syn::Result<TokenStream> {
 }
 
 /// `<Enum>Kind`, and its `ActiveEnum` from the expansion the `ActiveEnum`
-/// derive writes, given the type's name and each value the derive was told.
-// [spec:pgorm:def:disjoint.declare+2]
+/// derive writes, given the type's name and each value the derive was told;
+/// `kind_attrs` follow in the order given, so a helper attribute can follow
+/// the derive in them that introduces it.
+// [spec:pgorm:def:disjoint.declare+3]
 fn kind_type(
     input: &DeriveInput,
     container: &Container,
@@ -246,9 +257,11 @@ fn kind_type(
         }
     };
     let active_enum = expand_derive_active_enum(active_enum)?;
+    let kind_attrs = &container.kind_attrs;
     Ok(quote! {
         #[doc = #doc]
         #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+        #( #[#kind_attrs] )*
         #vis enum #kind_ident {
             #( #docs #variants, )*
         }
@@ -259,7 +272,7 @@ fn kind_type(
 
 /// `<Enum>ActiveModel`: the enum's variants, each holding its kind entity's
 /// `ActiveModel` in place of its `Model`.
-// [spec:pgorm:def:disjoint.declare+2]
+// [spec:pgorm:def:disjoint.declare+3]
 fn active_model(input: &DeriveInput, kinds: &[Kind]) -> TokenStream {
     let ident = &input.ident;
     let vis = &input.vis;
@@ -292,7 +305,7 @@ fn active_model(input: &DeriveInput, kinds: &[Kind]) -> TokenStream {
 ///
 /// Each `Model` is a kind of one enum only once: a second variant holding it
 /// is a second `KindModel` impl for the same type, which coherence refuses.
-// [spec:pgorm:def:disjoint.declare+2]
+// [spec:pgorm:def:disjoint.declare+3]
 fn impl_disjoint(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> TokenStream {
     let ident = &input.ident;
     let kind_ident = format_ident!("{}Kind", ident);

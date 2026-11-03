@@ -160,7 +160,7 @@ fn column_types_map_through_the_vocabulary() {
     assert_contains(generated.file("owner.rs"), "pub name: String,");
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    a CREATE TYPE ... AS ENUM
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a CREATE TYPE ... AS ENUM
 // reaches the generated active enum through the columns that name it
 #[test]
 fn enum_type_reaches_the_generated_active_enum() {
@@ -207,7 +207,7 @@ fn composite_key_junction_becomes_conjunct_relations() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    a single-column unique index
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a single-column unique index
 // marks its column unique; a plain index states no entity fact
 #[test]
 fn unique_index_marks_its_column_unique() {
@@ -255,7 +255,7 @@ fn schema_qualified_table_names_are_kept() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    COMMENT ON statements are folded
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]    COMMENT ON statements are folded
 // into the table and column they describe
 #[test]
 fn comments_are_folded_into_their_table() {
@@ -331,13 +331,17 @@ fn a_column_collation_rides_on_the_statement() {
     assert_eq!(collations(&rendered), expected);
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a statement the bridge does
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    a statement the bridge does
 // not read is named, never skipped
 #[test]
 fn unsupported_statements_are_named() {
     assert_error(
-        "CREATE TABLE t (id int); ALTER TABLE t ADD COLUMN b int;",
-        "unsupported DDL: ALTER TABLE at statement 2",
+        "CREATE TABLE t (id int); ALTER TABLE t DROP COLUMN id;",
+        "unsupported DDL: ALTER TABLE ... DROP COLUMN on table `t` at statement 2",
+    );
+    assert_error(
+        "CREATE INDEX i ON t (id); CREATE TABLE t (id int); ALTER INDEX i RENAME TO j;",
+        "unsupported DDL: ALTER ... RENAME at statement 3",
     );
     assert_error(
         "CREATE TABLE t (id int); CREATE TRIGGER x BEFORE INSERT ON t EXECUTE FUNCTION f();",
@@ -373,7 +377,7 @@ fn unsupported_statements_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a CREATE TABLE clause with
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    a CREATE TABLE clause with
 // no entity meaning is named rather than dropped
 #[test]
 fn unsupported_table_clauses_are_named() {
@@ -407,7 +411,7 @@ fn unsupported_table_clauses_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    the same holds for column
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    the same holds for column
 // clauses the entity model has no room for
 #[test]
 fn unsupported_column_clauses_are_named() {
@@ -429,7 +433,7 @@ fn unsupported_column_clauses_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    what PostgreSQL 18's grammar
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    what PostgreSQL 18's grammar
 // added and the entity model cannot hold yet is named, not read as the older
 // shape each one resembles
 #[test]
@@ -466,7 +470,7 @@ fn postgres_18_constraints_are_named() {
 
 // [spec:pgorm:sem:codegen.ddl.tables+11/test]    an explicit ENFORCED on a column's
 // REFERENCES rides on the statement, and the entity is the plain key's
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    an ENFORCED anywhere else is
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    an ENFORCED anywhere else is
 // named, as PostgreSQL refuses it there
 #[test]
 fn an_explicit_enforced_rides_on_the_statement() {
@@ -572,7 +576,7 @@ fn a_not_null_constraint_rides_on_the_statement() {
     assert_eq!(from_sql(declared).files, from_sql(plain).files);
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    two NOT NULL clauses on one
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    two NOT NULL clauses on one
 // column that PostgreSQL would refuse to make one constraint of are refused
 #[test]
 fn conflicting_not_null_constraints_are_refused() {
@@ -638,7 +642,7 @@ fn types_codegen_cannot_render_reach_the_gate() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    an index clause the builder
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    an index clause the builder
 // cannot express is named
 #[test]
 fn unsupported_index_clauses_are_named() {
@@ -675,7 +679,7 @@ fn unsupported_index_clauses_are_named() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    a unique index folds into the unique
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a unique index folds into the unique
 // constraint that enforces it, keeping its name, columns and NULLS NOT DISTINCT; an explicit
 // ASC, `USING btree` and IF NOT EXISTS fold away with nothing lost
 #[test]
@@ -709,7 +713,7 @@ fn a_unique_index_folds_into_its_constraint() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a COMMENT the bridge cannot
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    a COMMENT the bridge cannot
 // attach is named
 #[test]
 fn unsupported_comment_targets_are_named() {
@@ -719,7 +723,7 @@ fn unsupported_comment_targets_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a statement that names an
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    a statement that names an
 // object the file does not declare is named too
 #[test]
 fn unresolved_references_are_named() {
@@ -741,7 +745,7 @@ fn unresolved_references_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a table declaring a second
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    a table declaring a second
 // primary key is named in every spelling PostgreSQL refuses (42P16), rather
 // than read as the composite key one `PRIMARY KEY (a, b)` declares
 #[test]
@@ -759,7 +763,7 @@ fn a_second_primary_key_is_named() {
     assert!(parse_schema("CREATE TABLE t (a int, b int, PRIMARY KEY (a, b));").is_ok());
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a key naming one column
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    a key naming one column
 // twice, which PostgreSQL refuses (42701), is named rather than read with or
 // without its repeat; a unique index doing so is named as a DESC column on one is
 #[test]
@@ -789,7 +793,7 @@ fn a_key_naming_a_column_twice_is_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a foreign key onto a table
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    a foreign key onto a table
 // or a column the file never declares is named too — by the transform gate the
 // whole pipeline runs, which is where every table is in hand at once
 #[test]
@@ -872,7 +876,7 @@ fn one_spelling_one_variant_round_trips() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    the round trip holds for the
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]    the round trip holds for the
 // statements outside the table too: an enum type and a unique index
 #[test]
 fn enum_and_unique_index_round_trip() {
@@ -1128,7 +1132,7 @@ fn a_foreign_keys_check_reaches_the_relation() {
     assert_eq!(from_sql(defaults).files, from_sql(plain).files);
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+18/test]    a foreign key's attribute clause
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    a foreign key's attribute clause
 // said twice, or INITIALLY DEFERRED on a NOT DEFERRABLE key, is named, as
 // PostgreSQL refuses each (42601); a deferrable key is still named
 #[test]
@@ -1222,4 +1226,116 @@ fn a_period_declared_before_the_key_is_refused() {
         "table `t`: the period `valid_at` of a WITHOUT OVERLAPS key is declared before another \
          key column; an entity's key follows its fields' order, its period last",
     );
+}
+
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]    an ALTER TABLE's added columns and constraints
+// fold into its table after the table's own, as the CREATE TABLE declaring them would make
+// it, whether it precedes or follows its table and whether or not it says ONLY
+#[test]
+fn an_alter_table_adds_to_its_table() {
+    let declared = "CREATE TABLE u (id int PRIMARY KEY); \
+         CREATE TABLE t (id int PRIMARY KEY, name text NOT NULL, \
+         b int NOT NULL REFERENCES u (id) DEFERRABLE, c int GENERATED ALWAYS AS (b * 2) STORED, \
+         CONSTRAINT t_name UNIQUE (name), \
+         CONSTRAINT t_c FOREIGN KEY (c) REFERENCES u (id) ON DELETE CASCADE);";
+    let altered = "CREATE TABLE u (id int); \
+         CREATE TABLE t (id int, name text NOT NULL); \
+         ALTER TABLE t ADD PRIMARY KEY (id), \
+         ADD COLUMN b int NOT NULL REFERENCES u (id) DEFERRABLE, \
+         ADD COLUMN c int GENERATED ALWAYS AS (b * 2) STORED, \
+         ADD CONSTRAINT t_name UNIQUE (name); \
+         ALTER TABLE ONLY t ADD CONSTRAINT t_c FOREIGN KEY (c) REFERENCES u (id) ON DELETE CASCADE; \
+         ALTER TABLE u ADD PRIMARY KEY (id);";
+    let before = "ALTER TABLE t ADD COLUMN b int; CREATE TABLE t (id int PRIMARY KEY);";
+    let rendered = |sql: &str| {
+        parse_schema(sql)
+            .expect("schema should parse")
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(rendered(altered), rendered(declared));
+    assert_eq!(
+        from_sql(altered).files,
+        from_sql(declared).files,
+        "the entities generated alike"
+    );
+    assert_eq!(
+        rendered(before),
+        [r#"CREATE TABLE "t" ( "id" integer NOT NULL, "b" integer, PRIMARY KEY ("id") )"#]
+    );
+}
+
+// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    an ALTER TABLE changing a table otherwise
+// than by adding to it is named, and so are IF EXISTS, ADD COLUMN IF NOT EXISTS, a constraint
+// added NOT VALID, an ALTER of another kind of relation, and an ALTER naming a table the file
+// never creates; a construct the bridge names inside an added column or constraint is named
+// at the ALTER's statement
+#[test]
+fn an_alter_table_changing_a_table_is_named() {
+    let table = "CREATE TABLE t (id int PRIMARY KEY, b int);";
+    for (alter, expected) in [
+        (
+            "ALTER TABLE t ALTER COLUMN b SET NOT NULL;",
+            "unsupported DDL: ALTER TABLE ... ALTER COLUMN on table `t` at statement 2",
+        ),
+        (
+            "ALTER TABLE t DROP CONSTRAINT t_pkey;",
+            "unsupported DDL: ALTER TABLE ... DROP CONSTRAINT on table `t` at statement 2",
+        ),
+        (
+            "ALTER TABLE t OWNER TO someone;",
+            "unsupported DDL: ALTER TABLE ... OWNER TO on table `t` at statement 2",
+        ),
+        (
+            "ALTER TABLE t ENABLE ROW LEVEL SECURITY;",
+            "unsupported DDL: ALTER TABLE ... ROW LEVEL SECURITY on table `t` at statement 2",
+        ),
+        (
+            "ALTER TABLE t ADD COLUMN c int, DROP COLUMN b;",
+            "unsupported DDL: ALTER TABLE ... DROP COLUMN on table `t` at statement 2",
+        ),
+        (
+            "ALTER TABLE IF EXISTS t ADD COLUMN c int;",
+            "unsupported DDL: ALTER TABLE IF EXISTS on table `t` at statement 2",
+        ),
+        (
+            "ALTER TABLE t ADD COLUMN IF NOT EXISTS c int;",
+            "unsupported DDL: ADD COLUMN IF NOT EXISTS on table `t` at statement 2",
+        ),
+        (
+            "ALTER TABLE t ADD CONSTRAINT t_b FOREIGN KEY (b) REFERENCES t (id) NOT VALID;",
+            "unsupported DDL: a constraint added NOT VALID on table `t` at statement 2",
+        ),
+        (
+            "ALTER INDEX t_pkey SET (fillfactor = 70);",
+            "unsupported DDL: ALTER INDEX at statement 2",
+        ),
+        (
+            "ALTER VIEW v ALTER COLUMN x SET DEFAULT 1;",
+            "unsupported DDL: ALTER VIEW at statement 2",
+        ),
+        (
+            "ALTER MATERIALIZED VIEW m SET TABLESPACE s;",
+            "unsupported DDL: ALTER MATERIALIZED VIEW at statement 2",
+        ),
+        (
+            "ALTER TABLE gone ADD COLUMN c int;",
+            "statement 2: no CREATE TABLE for table `gone`",
+        ),
+        (
+            "ALTER TABLE t ADD COLUMN c int CHECK (c > 0);",
+            "unsupported DDL: a CHECK constraint on column `t`.`c` at statement 2",
+        ),
+        (
+            "ALTER TABLE t ADD PRIMARY KEY (b);",
+            "statement 2: table `t` declares more than one primary key",
+        ),
+        (
+            "ALTER TABLE t ADD CONSTRAINT t_b UNIQUE (b) DEFERRABLE;",
+            "unsupported DDL: a deferrable constraint on table `t` at statement 2",
+        ),
+    ] {
+        assert_error(&format!("{table} {alter}"), expected);
+    }
 }

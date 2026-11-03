@@ -212,7 +212,7 @@ fn every_context_option_selects_generated_output() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.files+1/test]    one entity file per entity, plus
+// [spec:pgorm:req:codegen.entity.files+2/test]    one entity file per entity, plus
 // the index file and prelude
 #[test]
 fn generate_emits_entity_files_index_and_prelude() {
@@ -231,7 +231,7 @@ fn generate_emits_entity_files_index_and_prelude() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.files+1/test]    `pgorm_active_enums.rs` iff at
+// [spec:pgorm:req:codegen.entity.files+2/test]    `pgorm_active_enums.rs` iff at
 // least one enum was discovered
 #[test]
 fn active_enums_file_emitted_only_when_enums_exist() {
@@ -239,7 +239,7 @@ fn active_enums_file_emitted_only_when_enums_exist() {
     assert!(generate(enum_schema(), Opts::default()).has("pgorm_active_enums.rs"));
 }
 
-// [spec:pgorm:req:codegen.entity.files+1/test]    every generated file starts with
+// [spec:pgorm:req:codegen.entity.files+2/test]    every generated file starts with
 // the generated-by header
 #[test]
 fn every_generated_file_starts_with_the_header_line() {
@@ -255,7 +255,7 @@ fn every_generated_file_starts_with_the_header_line() {
     }
 }
 
-// [spec:pgorm:req:codegen.entity.files+1/test]    index file is `lib.rs` when `lib`
+// [spec:pgorm:req:codegen.entity.files+2/test]    index file is `lib.rs` when `lib`
 // is set and `mod.rs` otherwise
 #[test]
 fn index_file_name_follows_the_lib_flag() {
@@ -272,7 +272,7 @@ fn index_file_name_follows_the_lib_flag() {
     assert!(as_lib.has("lib.rs") && !as_lib.has("mod.rs"));
 }
 
-// [spec:pgorm:req:codegen.entity.files+1/test]    index file order: prelude, then
+// [spec:pgorm:req:codegen.entity.files+2/test]    index file order: prelude, then
 // entity modules alphabetically, then the active-enums module last
 #[test]
 fn index_file_lists_prelude_entities_then_active_enums() {
@@ -308,7 +308,7 @@ fn index_file_lists_prelude_entities_then_active_enums() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.files+1/test]    `prelude.rs` re-exports one
+// [spec:pgorm:req:codegen.entity.files+2/test]    `prelude.rs` re-exports one
 // `Entity` per entity
 #[test]
 fn prelude_reexports_every_entity() {
@@ -331,7 +331,7 @@ fn prelude_reexports_every_entity() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.files+1/test]    entity-file code blocks are
+// [spec:pgorm:req:codegen.entity.files+2/test]    entity-file code blocks are
 // joined with blank lines and left unformatted
 #[test]
 fn entity_file_blocks_are_joined_with_blank_lines() {

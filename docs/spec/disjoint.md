@@ -11,7 +11,7 @@ would sit side by side in the base, mostly null.
 
 ## Declaration
 
-> [spec:pgorm:def:disjoint.declare+2]
+> [spec:pgorm:def:disjoint.declare+3]
 > `#[derive(Disjoint)]` on an enum MUST declare a disjoint entity over the
 > base entity its container attribute names, `#[pgorm(base =
 > vehicle::Entity)]`. Each variant is a kind of base row. A variant with one
@@ -30,7 +30,11 @@ would sit side by side in the base, mostly null.
 > variant's `#[pgorm(value = "...")]` gives another. The type is named
 > `<enum>_kind`, the enum's name in snake_case, unless `enum_name = "..."`
 > gives another, and `schema_name = "..."` qualifies it as it does an
-> `ActiveEnum`'s (`[spec:pgorm:syn:macros.derive.active-enum]`). The base's
+> `ActiveEnum`'s (`[spec:pgorm:syn:macros.derive.active-enum]`).
+> `kind_attrs(..)` gives the kind type further attributes after its own
+> derives, each written as it would be on the type, so a
+> `kind_attrs(derive(Serialize, Deserialize), serde(..))` makes it
+> serializable as a field of a serializable base `Model` needs. The base's
 > kind column is the one `kind = vehicle::Column::Kind` names, the base's
 > `Column::Kind` by default, and a base with no such column MUST NOT
 > compile; a base row of a kind the enum does not list cannot exist, because
