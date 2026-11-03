@@ -7,7 +7,7 @@ authors = ["Michael P. Jung <michael.jung@terreon.de>"]
 description = "Connection pool for tokio-postgres, vendored from deadpool-postgres for pgorm"
 keywords = ["async", "database", "pool", "postgres"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/pgorm-rs/pgorm"
+repository = "https://github.com/necessary-nu/pgorm"
 readme = "README.md"
 
 [package.metadata.docs.rs]

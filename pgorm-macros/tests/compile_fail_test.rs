@@ -8,7 +8,7 @@
 //! `sql_type_match`'s unit tests instead.
 
 // [spec:pgorm:req:macros.derive.one-form/test]    a string `column_type` or function, a column read or written two ways, `save_with` and `save_array_with` apart, a literal name on the entity-trait derive, and an `on_condition` closure not of two tables are refused
-// [spec:pgorm:req:macros.derive.entity-model.reject+3/test]    struct must be `Model`; the entity must have a primary key
+// [spec:pgorm:req:macros.derive.entity-model.reject+4/test]    struct must be `Model`; the entity must have a primary key
 // [spec:pgorm:req:macros.derive.code-values+2/test]    a string where Rust code is expected is refused at the string, saying to remove the quotes: a relation's target, action and condition type, `rs_type`, `db_type`, `array_type`, `PartialModel`'s `entity` and `from_expr`, and a model field's `variant` and `default_expr`
 // [spec:pgorm:sem:macros.derive.entity-model.casing+4/test]    field names deriving no identifier
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+8/test]    an unknown key at struct level, at field level, and in each derive reading a subset of the same vocabulary; a string where Rust code is expected; a column read or written two ways, and `save_with` and `save_array_with` apart

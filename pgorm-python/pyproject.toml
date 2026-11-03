@@ -18,7 +18,7 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/pgorm-rs/pgorm"
+Repository = "https://github.com/necessary-nu/pgorm"
 
 [tool.maturin]
 bindings = "pyo3"
