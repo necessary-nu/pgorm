@@ -146,7 +146,7 @@ has a row for it, and is never written through.
 
 ## Reads
 
-> [spec:pgorm:sem:disjoint.read+1]
+> [spec:pgorm:sem:disjoint.read+2]
 > `E::find()` MUST read base rows with their kinds' rows in one statement:
 > the base `LEFT JOIN`ed to each kind's table on the key alone, each row read
 > as the pair `(base::Model, E)`. A row decodes by its base row's kind: a
@@ -180,10 +180,26 @@ has a row for it, and is never written through.
 > and each kind with a table's under the next index in declaration order, so
 > a kind's column never shadows a base column or another kind's of the same
 > name. No bookkeeping column is selected.
+>
+> Each table of the read MUST be read under an identifier of its own, since
+> PostgreSQL refuses two of one name in a statement (`42712`) even in two
+> schemas. The base is read under its bare name, and each kind's table, in
+> declaration order, under its bare name unless the base or an earlier kind's
+> table has it — `market.listing` and `archive.listing` are both `listing` —
+> when it is joined under an alias: its schema-qualified name as one
+> identifier, `"archive.listing"`, or, where the read already has that, as it
+> has an unqualified table's bare name, the same with `_2`, `_3` and on
+> appended, each bounded to 63 bytes as the result names are. The join, the
+> projection and the read's own conditions qualify the table's columns by
+> that identifier, which `SelectDisjoint::kind_qualifier::<M>()` and
+> `DisjointTable::qualifier` give. A typed column qualifies by its table's
+> bare name, so a condition on the columns of a kind's table read under an
+> alias names them through the alias, as one on an aliased graph slot's does
+> (`[spec:pgorm:req:query.graph.aliases]`).
 
 ## Writes
 
-> [spec:pgorm:sem:disjoint.write+1]
+> [spec:pgorm:sem:disjoint.write+2]
 > Every write MUST be one statement, its parts joined by data-modifying
 > `WITH` clauses, so that it applies whole or not at all with no
 > transaction, and its constraints are checked once, at its end
@@ -219,6 +235,15 @@ has a row for it, and is never written through.
 >   table, and set the base row's kind. The new row's key columns MUST be
 >   `NotSet`, as an insert's are. A key no row has, and a row that already
 >   has that kind, MUST be `Error::RecordNotFound` with nothing changed.
+>
+> Each part is named after the identifier the read reads its table under
+> (`[spec:pgorm:sem:disjoint.read]`), and a part writing a table read under an
+> alias targets the table under it, so tables of one name write as parts of
+> their own. An unqualified name in the statement means the part of that name
+> where there is one, and a kind's table with no schema that is read under an
+> alias has the bare name of an earlier table, whose part is so named, so a
+> write would read that part for it: every write of such a shape MUST be
+> refused, as `Error::Type` naming both tables, before anything is sent.
 >
 > Deleting needs nothing of its own: the base entity's delete removes a base
 > row and, by the cascade, its kind's row.

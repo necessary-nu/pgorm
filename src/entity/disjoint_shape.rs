@@ -10,9 +10,12 @@
 
 use std::{fmt, sync::Arc};
 
-use pgorm_query::{ColumnType, Name, TableCreateStatement, TableName, TypeName, Value};
+use pgorm_query::{
+    ColumnType, FromItem, Name, NamedTable, TableCreateStatement, TableName, TypeName, Value,
+};
 
 use super::{ColumnDefault, column_casts::ColumnCasts, key::ComparedPair};
+use crate::query::alias_apart;
 use crate::{
     ActiveModelTrait, ActiveValue, ColumnDef, ColumnTrait, Disjoint, EntityTrait, Error, Iterable,
     KindModel, KindVisitor, PrimaryKeyToColumn, PrimaryKeyTrait, RelationDef, StaticName,
@@ -123,6 +126,9 @@ pub(crate) type WriteBody =
 #[derive(Clone)]
 pub struct DisjointTable {
     pub(crate) table: TableName,
+    /// The identifier the shape reads the table under where its bare name is
+    /// an earlier table's, which [`DisjointShape`] gives it.
+    pub(crate) alias: Option<Name>,
     pub(crate) label: String,
     pub(crate) columns: Vec<DisjointColumn>,
     pub(crate) key: Vec<usize>,
@@ -134,6 +140,7 @@ impl fmt::Debug for DisjointTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DisjointTable")
             .field("table", &self.label)
+            .field("alias", &self.alias.as_ref().map(|alias| alias.to_string()))
             .field("columns", &self.columns)
             .field("key", &self.key)
             .field("auto_increment", &self.auto_increment)
@@ -184,6 +191,7 @@ impl DisjointTable {
         }
         Ok(Self {
             table,
+            alias: None,
             label,
             columns,
             key: positions,
@@ -207,6 +215,7 @@ impl DisjointTable {
             .collect();
         Self {
             table: entity.table_ref(),
+            alias: None,
             label: table_label(&entity),
             columns,
             key,
@@ -222,10 +231,34 @@ impl DisjointTable {
         &self.table
     }
 
-    /// The table's bare name, which a disjoint statement qualifies its
-    /// columns by.
+    /// The table's bare name.
     pub fn name(&self) -> &Name {
         self.table.table()
+    }
+
+    /// The identifier a disjoint statement qualifies the table's columns by:
+    /// its bare name, or, in a shape where an earlier table has that name,
+    /// the alias the shape reads it under, its schema-qualified name as one
+    /// identifier (`"archive.listing"`). A typed column qualifies by the bare
+    /// name, so a condition on an aliased table's columns names them through
+    /// this.
+    // [spec:pgorm:sem:disjoint.read+2]
+    pub fn qualifier(&self) -> &Name {
+        self.alias.as_ref().unwrap_or_else(|| self.table.table())
+    }
+
+    /// The table as a statement reads or writes it, under its alias where it
+    /// has one.
+    pub(crate) fn named(&self) -> NamedTable {
+        NamedTable {
+            name: self.table.clone(),
+            alias: self.alias.clone(),
+        }
+    }
+
+    /// The table as a statement joins it, under its alias where it has one.
+    pub(crate) fn joined(&self) -> FromItem {
+        FromItem::Table(self.named())
     }
 
     /// The table as an error names it, schema-qualified where it is.
@@ -303,7 +336,7 @@ impl DisjointTable {
 
 /// What a disjoint write gives one table's columns, in the table's column
 /// order: each `Set`, `Unchanged` or `NotSet`, as an `ActiveModel` holds it.
-// [spec:pgorm:sem:disjoint.write+1]
+// [spec:pgorm:sem:disjoint.write+2]
 #[derive(Clone, Debug)]
 pub struct DisjointValues {
     pub(crate) table: String,
@@ -413,6 +446,25 @@ impl DisjointShape {
                 })
                 .collect(),
         }
+        .apart()
+    }
+
+    /// The shape with each table read under an identifier of its own: the
+    /// base under its bare name, and each kind's table, in declaration
+    /// order, under its bare name where no earlier table has it and
+    /// otherwise under an alias apart from every earlier one.
+    // [spec:pgorm:sem:disjoint.read+2]
+    fn apart(mut self) -> Self {
+        self.base.alias = None;
+        let mut taken = vec![self.base.qualifier().to_string()];
+        for table in self.kinds.iter_mut().filter_map(|kind| kind.table.as_mut()) {
+            let bare = table.name().to_string();
+            table.alias = taken
+                .contains(&bare)
+                .then(|| alias_apart(&table.table, &|name| taken.iter().any(|t| t == name)));
+            taken.push(table.qualifier().to_string());
+        }
+        self
     }
 
     /// The shape of tables known only at run time: the base table, its
@@ -495,7 +547,8 @@ impl DisjointShape {
                 .into_iter()
                 .map(|(value, table)| DisjointKind { value, table })
                 .collect(),
-        };
+        }
+        .apart();
         shape.check()?;
         Ok(shape)
     }

@@ -14,9 +14,10 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 
 use pgorm::tests_cfg::{
-    car, flat,
+    archive_exhibit, car, flat,
+    gallery_exhibit::{self, Exhibit, ExhibitActiveModel, ExhibitKind},
     listing::{self, Listing, ListingActiveModel, ListingKind},
-    truck,
+    loan_exhibit, truck,
     vehicle::{self, Vehicle, VehicleActiveModel, VehicleKind},
 };
 use pgorm::{
@@ -192,7 +193,7 @@ async fn assert_read<C: ConnectionTrait>(
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.write+1/test]    `insert` writes a car and a truck with their rows, the key the database generates for the base reaching each kind's row, and a bike as its base row alone, each returning what a read of the row gives
+// [spec:pgorm:sem:disjoint.write+2/test]    `insert` writes a car and a truck with their rows, the key the database generates for the base reaching each kind's row, and a bike as its base row alone, each returning what a read of the row gives
 #[pgorm_macros::test]
 async fn insert_writes_every_kind_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_insert").await;
@@ -236,7 +237,7 @@ async fn insert_writes_every_kind_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.write+1/test]    `insert` refuses, as an `Error::Type` naming the table and column and with nothing written, a base kind column `Set` or `Unchanged` and a kind row's key `Set` or `Unchanged`
+// [spec:pgorm:sem:disjoint.write+2/test]    `insert` refuses, as an `Error::Type` naming the table and column and with nothing written, a base kind column `Set` or `Unchanged` and a kind row's key `Set` or `Unchanged`
 #[pgorm_macros::test]
 async fn insert_refuses_kind_and_key_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_insert_refused").await;
@@ -294,7 +295,7 @@ async fn insert_refuses_kind_and_key_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.write+1/test]    `update` writes the set columns of the base alone, of the kind's row alone and of both, found by the base's key, and with nothing set reads the row back; each returns what a read of the row gives, and the other rows are untouched
+// [spec:pgorm:sem:disjoint.write+2/test]    `update` writes the set columns of the base alone, of the kind's row alone and of both, found by the base's key, and with nothing set reads the row back; each returns what a read of the row gives, and the other rows are untouched
 #[pgorm_macros::test]
 async fn update_writes_either_row_or_both_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_update").await;
@@ -358,7 +359,7 @@ async fn update_writes_either_row_or_both_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.write+1/test]    `update` of a row as another kind, and of a key no row has, is `RecordNotFound` with every row as it was; the kind column `Set`, a kind row's key `Set` and a `NotSet` base key are refused before anything is sent
+// [spec:pgorm:sem:disjoint.write+2/test]    `update` of a row as another kind, and of a key no row has, is `RecordNotFound` with every row as it was; the kind column `Set`, a kind row's key `Set` and a `NotSet` base key are refused before anything is sent
 #[pgorm_macros::test]
 async fn update_misses_change_nothing_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_update_missed").await;
@@ -409,7 +410,7 @@ async fn update_misses_change_nothing_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.write+1/test]    `change_kind` moves a row from one kind's table to another's, from a kind with a table to the unit kind and back, deleting the old row and inserting the new one keyed by the base row, each returning what a read of the row gives
+// [spec:pgorm:sem:disjoint.write+2/test]    `change_kind` moves a row from one kind's table to another's, from a kind with a table to the unit kind and back, deleting the old row and inserting the new one keyed by the base row, each returning what a read of the row gives
 #[pgorm_macros::test]
 async fn change_kind_moves_rows_between_tables_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_change_kind").await;
@@ -472,7 +473,7 @@ async fn change_kind_moves_rows_between_tables_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.write+1/test]    `change_kind` to the row's own kind, with a table or without, and of a key no row has, is `RecordNotFound` with every row as it was; a key in the new kind's row is refused before anything is sent
+// [spec:pgorm:sem:disjoint.write+2/test]    `change_kind` to the row's own kind, with a table or without, and of a key no row has, is `RecordNotFound` with every row as it was; a key in the new kind's row is refused before anything is sent
 #[pgorm_macros::test]
 async fn change_kind_misses_change_nothing_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_change_missed").await;
@@ -511,7 +512,7 @@ async fn change_kind_misses_change_nothing_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.write+1/test]    inside a transaction each write is one statement too: inserts, updates and changes of kind commit together, a miss inside one leaves the transaction usable, and a rollback undoes them all
+// [spec:pgorm:sem:disjoint.write+2/test]    inside a transaction each write is one statement too: inserts, updates and changes of kind commit together, a miss inside one leaves the transaction usable, and a rollback undoes them all
 #[pgorm_macros::test]
 async fn writes_compose_inside_transaction_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_transaction").await;
@@ -636,7 +637,7 @@ async fn update_behind_kind_change(
         .expect("the update's task completes")
 }
 
-// [spec:pgorm:sem:disjoint.write+1/test]    an update waiting on a change of the row's kind that then commits is `RecordNotFound`, whether it sets base columns or the kind's row alone, and the change stands
+// [spec:pgorm:sem:disjoint.write+2/test]    an update waiting on a change of the row's kind that then commits is `RecordNotFound`, whether it sets base columns or the kind's row alone, and the change stands
 #[pgorm_macros::test]
 async fn update_behind_committed_kind_change_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_concurrent").await;
@@ -675,7 +676,7 @@ async fn update_behind_committed_kind_change_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.write+1/test]    deleting through the base entity removes the base row and, by the cascade, its kind's row
+// [spec:pgorm:sem:disjoint.write+2/test]    deleting through the base entity removes the base row and, by the cascade, its kind's row
 #[pgorm_macros::test]
 async fn base_delete_cascades_to_kind_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_delete").await;
@@ -704,7 +705,7 @@ async fn base_delete_cascades_to_kind_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.write+1/test]    a composite key in a schema of its own, its kind table's key named differently: insert, update and change of kind each pair the key column by column and return what a read of the row gives
+// [spec:pgorm:sem:disjoint.write+2/test]    a composite key in a schema of its own, its kind table's key named differently: insert, update and change of kind each pair the key column by column and return what a read of the row gives
 #[pgorm_macros::test]
 async fn composite_key_writes_pair_columns_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_composite").await;
@@ -807,7 +808,7 @@ async fn composite_key_writes_pair_columns_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.write+1/test]    a kind table's `money` and enum columns are written under their casts by insert, update and change of kind, and read back as written, beside a base key the database generates as a `bigint`
+// [spec:pgorm:sem:disjoint.write+2/test]    a kind table's `money` and enum columns are written under their casts by insert, update and change of kind, and read back as written, beside a base key the database generates as a `bigint`
 #[pgorm_macros::test]
 async fn kind_columns_write_under_casts_live() -> Result<(), Error> {
     use grade::Grade;
@@ -877,6 +878,88 @@ async fn kind_columns_write_under_casts_live() -> Result<(), Error> {
         })
     );
     assert_eq!(Stock::find_by_id(free.0.id).one(&db).await?, sold);
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:sem:disjoint.write+2/test]    a base and two kinds' tables all named `exhibit`, in three schemas: an insert, an update of both rows and changes of kind between the two same-named kinds' tables and the unit kind each write one statement whose parts are named apart, and return what a read gives
+#[pgorm_macros::test]
+async fn same_named_tables_write_apart_live() -> Result<(), Error> {
+    let ctx = TestContext::new("disjoint_write_same_named").await;
+    let db = ctx.db.get().await?;
+    db.batch_execute("CREATE SCHEMA gallery; CREATE SCHEMA archive; CREATE SCHEMA loan;")
+        .await?;
+    create::<Exhibit>(&db).await?;
+    let titled = |title: &str| gallery_exhibit::ActiveModel {
+        title: set(title),
+        ..Default::default()
+    };
+    let shelved = |shelf: &str| {
+        ExhibitActiveModel::Archived(archive_exhibit::ActiveModel {
+            shelf: set(shelf),
+            ..Default::default()
+        })
+    };
+    let lent = |lender: &str| {
+        ExhibitActiveModel::Loaned(loan_exhibit::ActiveModel {
+            lender: set(lender),
+            ..Default::default()
+        })
+    };
+
+    let (sunflowers, archived) = Exhibit::insert(titled("Sunflowers"), shelved("B4"))?
+        .exec_returning_model(&db)
+        .await?;
+    let id = sunflowers.id;
+    assert_eq!(sunflowers.kind, ExhibitKind::Archived);
+    assert_eq!(
+        archived,
+        Exhibit::Archived(archive_exhibit::Model {
+            id,
+            shelf: "B4".to_owned(),
+        })
+    );
+
+    let keyed = |title: &str| gallery_exhibit::ActiveModel {
+        id: ActiveValue::Unchanged(id),
+        title: set(title),
+        ..Default::default()
+    };
+    let moved = Exhibit::update(keyed("Sunflowers (1888)"), shelved("C1"))?
+        .exec_returning_model(&db)
+        .await?;
+    assert_eq!(moved.0.title, "Sunflowers (1888)");
+    assert_eq!(
+        moved.1,
+        Exhibit::Archived(archive_exhibit::Model {
+            id,
+            shelf: "C1".to_owned(),
+        })
+    );
+
+    let loaned = Exhibit::change_kind(id, lent("Orsay"))?
+        .exec_returning_model(&db)
+        .await?;
+    assert_eq!(loaned.0.kind, ExhibitKind::Loaned);
+    assert_eq!(
+        loaned.1,
+        Exhibit::Loaned(loan_exhibit::Model {
+            id,
+            lender: "Orsay".to_owned(),
+        })
+    );
+    let hung = Exhibit::change_kind(id, ExhibitActiveModel::Hung)?
+        .exec_returning_model(&db)
+        .await?;
+    assert_eq!(hung.1, Exhibit::Hung);
+    assert_eq!(
+        Exhibit::find().all(&db).await?,
+        [(hung.0.clone(), Exhibit::Hung)]
+    );
+    assert!(archive_exhibit::Entity::find().all(&db).await?.is_empty());
+    assert!(loan_exhibit::Entity::find().all(&db).await?.is_empty());
 
     drop(db);
     ctx.delete().await;

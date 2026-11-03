@@ -16,7 +16,9 @@
 pub mod common;
 
 use futures::TryStreamExt;
-use pgorm::tests_cfg::{cake, cake_filling, filling, fruit, vendor};
+use pgorm::tests_cfg::{
+    archive_exhibit, cake, cake_filling, filling, fruit, gallery_exhibit, loan_exhibit, vendor,
+};
 use pgorm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Error, Linked, LinkedAlias,
     LoaderTrait, Opt, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
@@ -197,7 +199,7 @@ async fn graph_required_slot() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:query.graph.aliases+1/test]    the same table enters the graph
+// [spec:pgorm:req:query.graph.aliases+2/test]    the same table enters the graph
 // twice under a caller-bound alias, which is the slot's identifier in the ON
 // clause and in the projection alike, so both copies decode independently
 #[pgorm_macros::test]
@@ -238,7 +240,7 @@ async fn graph_same_table_twice() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:query.graph.aliases+1/test]    `join_maybe_filtered` puts the
+// [spec:pgorm:req:query.graph.aliases+2/test]    `join_maybe_filtered` puts the
 // call-site predicate in ON, where unmatched roots survive decoding `None`,
 // rather than in WHERE, where the join silently tightens to INNER
 #[pgorm_macros::test]
@@ -1156,7 +1158,7 @@ fn sibling_cakes() -> SelectGraph<cake::Entity, (Opt<cake::Entity>,)> {
         )
 }
 
-// [spec:pgorm:req:query.graph.aliases+1/test]    a self-referencing path
+// [spec:pgorm:req:query.graph.aliases+2/test]    a self-referencing path
 // through a junction: the second visit to `cake_filling` is a `via_as` hop,
 // the edge after it starts from the alias, and the grouped read collects each
 // cake's siblings — where the same path with the second visit unaliased is
@@ -1315,7 +1317,7 @@ fn member(id: i32, nickname: &str) -> peers::member::Model {
     }
 }
 
-// [spec:pgorm:req:query.graph.aliases+1/test]    a `Linked` chain through one
+// [spec:pgorm:req:query.graph.aliases+2/test]    a `Linked` chain through one
 // junction twice folds into `via_as` hops, each starting from the alias
 // before it; the member table read as root and as slot projects its long
 // column under two bounded prefixes that decode their own values
@@ -1581,6 +1583,67 @@ async fn long_column_names_survive_graph_reads() -> Result<(), Error> {
         .all(&db)
         .await?;
     assert_eq!(sourced, [Some(graph[0].clone())]);
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:req:query.graph.aliases+2/test]    a graph whose root and slots are tables of one name in three schemas reads each table under its own identifier: a slot whose bare name repeats one the graph names is read under its schema-qualified name, and the next edge from it leaves from that name, so each slot decodes its own table's row
+#[pgorm_macros::test]
+async fn graph_same_named_tables_across_schemas() -> Result<(), Error> {
+    let ctx = TestContext::new("graph_same_named_tables").await;
+    let db = ctx.db.get().await?;
+    db.batch_execute(
+        "CREATE SCHEMA gallery; CREATE SCHEMA archive; CREATE SCHEMA loan; \
+         CREATE TABLE gallery.exhibit (id int PRIMARY KEY, kind text NOT NULL, title text NOT NULL); \
+         CREATE TABLE archive.exhibit (id int PRIMARY KEY, shelf text NOT NULL); \
+         CREATE TABLE loan.exhibit (id int PRIMARY KEY, lender text NOT NULL); \
+         INSERT INTO gallery.exhibit VALUES (1, 'archived', 'Sunflowers'), (2, 'loaned', 'Haystacks'); \
+         INSERT INTO archive.exhibit VALUES (1, 'B4'); \
+         INSERT INTO loan.exhibit VALUES (1, 'Orsay'), (2, 'Tate');",
+    )
+    .await?;
+
+    let rows = gallery_exhibit::Entity::graph()
+        .join_maybe::<archive_exhibit::Entity>(gallery_exhibit::Relation::Archived.def())
+        .join_maybe::<loan_exhibit::Entity>(
+            archive_exhibit::Entity::belongs_to(loan_exhibit::Entity)
+                .columns(archive_exhibit::Column::Id, loan_exhibit::Column::Id)
+                .into(),
+        )
+        .order_by_asc(gallery_exhibit::Column::Id)
+        .all(&db)
+        .await?;
+    let exhibit =
+        |id: i32, kind: gallery_exhibit::ExhibitKind, title: &str| gallery_exhibit::Model {
+            id,
+            kind,
+            title: title.to_owned(),
+        };
+    assert_eq!(
+        rows,
+        [
+            (
+                exhibit(1, gallery_exhibit::ExhibitKind::Archived, "Sunflowers"),
+                Some(archive_exhibit::Model {
+                    id: 1,
+                    shelf: "B4".to_owned(),
+                }),
+                Some(loan_exhibit::Model {
+                    id: 1,
+                    lender: "Orsay".to_owned(),
+                }),
+            ),
+            // The loan is reached through the archived row, which this
+            // exhibit lacks, not through the root, whose key it shares.
+            (
+                exhibit(2, gallery_exhibit::ExhibitKind::Loaned, "Haystacks"),
+                None,
+                None,
+            ),
+        ]
+    );
 
     drop(db);
     ctx.delete().await;

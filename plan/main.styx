@@ -16713,12 +16713,27 @@ children (
         id same-named-tables-across-schemas
         title "A read joining two tables of one name in different schemas aliases them apart, in a disjoint read and in the graph"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T03:29:28.599463Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.read (25889d69): a disjoint read LEFT JOINs each kind's table unaliased, so a base and a kind table, or two kind tables, of one name in different schemas (market.listing and archive.listing) make PostgreSQL refuse the statement (42712, table name specified more than once). The graph's joins have the same limit. Alias a joined table whenever its bare name repeats in the statement (the graph already has an aliasing vocabulary, query.graph.aliases), so the column qualifiers stay unambiguous, and test both paths live with same-named tables in two schemas."
+            }
+
+            {
+                at 2026-11-03T10:26:54.549303Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:49:39.276142Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

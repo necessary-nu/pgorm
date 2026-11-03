@@ -11,7 +11,6 @@ use pgorm_query::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    marker::PhantomData,
     str::FromStr,
 };
 
@@ -403,13 +402,7 @@ where
 fn root_graph<R: EntityTrait>(select: Select<R>) -> SelectGraph<R, ()> {
     let mut query = select.into_query();
     query.clear_selects();
-    let mut graph = SelectGraph {
-        query,
-        qualifiers: Vec::new(),
-        marker: PhantomData,
-    };
-    graph.project::<R>(Name::new(R::default()));
-    graph
+    SelectGraph::rooted(query)
 }
 
 fn key_columns(identity: &Key) -> String {

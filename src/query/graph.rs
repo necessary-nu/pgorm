@@ -23,10 +23,11 @@ use core::marker::PhantomData;
 use std::fmt;
 
 use pgorm_query::{
-    Condition, Expr, IntoName, JoinType, Name, SelectExpr, SelectStatement, TypeName,
+    Condition, Expr, FromItem, IntoName, JoinType, Name, NamedTable, SelectExpr, SelectStatement,
+    TableName, TypeName,
 };
 
-use super::helper::join_condition;
+use super::helper::{alias_apart, join_condition};
 use crate::executor::BoundaryCast;
 use crate::executor::result_name::result_column_name;
 use crate::{
@@ -401,7 +402,31 @@ pub struct SelectGraph<E: EntityTrait, S = (), R = Unsliced> {
     /// and the cursor's tiebreak qualifier, held once so the two cannot
     /// disagree about what a source is called.
     pub(crate) qualifiers: Vec<Name>,
+    /// Every table the graph names, the root and each edge's joined side, in
+    /// join order.
+    pub(crate) visits: Vec<Visit>,
     pub(crate) marker: PhantomData<(E, S, R)>,
+}
+
+/// A table a graph's statement names: the identifier its columns are
+/// qualified by, the table, and whether the graph aliased it apart from
+/// another table of its bare name, which makes the identifier the one an
+/// edge leaving from the table leaves from.
+// [spec:pgorm:req:query.graph.aliases+2]
+#[derive(Clone, Debug)]
+pub(crate) struct Visit {
+    qualifier: Name,
+    table: Option<TableName>,
+    apart: bool,
+}
+
+/// A table as a [`Visit`] compares it: its schema, where it has one, and its
+/// bare name, whatever types spell them.
+fn identity(table: &TableName) -> (Option<String>, String) {
+    (
+        table.schema().map(|schema| schema.to_string()),
+        table.table().to_string(),
+    )
 }
 
 impl<E: EntityTrait, S, R> fmt::Debug for SelectGraph<E, S, R> {
@@ -409,6 +434,7 @@ impl<E: EntityTrait, S, R> fmt::Debug for SelectGraph<E, S, R> {
         f.debug_struct("SelectGraph")
             .field("query", &self.query)
             .field("qualifiers", &self.qualifiers)
+            .field("visits", &self.visits)
             .finish()
     }
 }
@@ -418,6 +444,7 @@ impl<E: EntityTrait, S, R> Clone for SelectGraph<E, S, R> {
         SelectGraph {
             query: self.query.clone(),
             qualifiers: self.qualifiers.clone(),
+            visits: self.visits.clone(),
             marker: PhantomData,
         }
     }
@@ -433,9 +460,21 @@ impl<E: EntityTrait> SelectGraph<E, ()> {
     pub fn new() -> Self {
         let mut query = SelectStatement::new();
         query.from(E::default().table_ref());
+        Self::rooted(query)
+    }
+
+    /// The graph over `query`, whose `FROM` reads `E`'s table, its root
+    /// projected under the `s0_` prefix.
+    // [spec:pgorm:def:query.graph+1]
+    pub(crate) fn rooted(query: SelectStatement) -> Self {
         let mut graph = SelectGraph {
             query,
             qualifiers: Vec::new(),
+            visits: vec![Visit {
+                qualifier: Name::new(E::default()),
+                table: Some(E::default().table_ref()),
+                apart: false,
+            }],
             marker: PhantomData,
         };
         graph.project::<E>(Name::new(E::default()));
@@ -554,7 +593,7 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
     ///     .join(" ")
     /// );
     /// ```
-    // [spec:pgorm:req:query.graph.aliases+1]
+    // [spec:pgorm:req:query.graph.aliases+2]
     #[doc(alias("find_also_linked", "find_with_linked"))]
     pub fn via_as(mut self, rel: RelationDef, alias: impl IntoName) -> Self {
         self.edge(JoinType::LeftJoin, rel, Some(alias.into_name()), None);
@@ -665,7 +704,7 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
     /// is then projected ([`slot_edge`](Self::slot_edge)).
     // [spec:pgorm:def:query.graph+1]
     // [spec:pgorm:sem:query.graph.slots+2]
-    // [spec:pgorm:req:query.graph.aliases+1]
+    // [spec:pgorm:req:query.graph.aliases+2]
     fn edge(
         &mut self,
         join: JoinType,
@@ -673,12 +712,38 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
         alias: Option<Name>,
         extra: Option<OnCondition>,
     ) -> Name {
+        if let Some(from) = unaliased(&rel.from_tbl)
+            && let Some(visit) = self.visits.iter().find(|visit| {
+                visit.apart && visit.table.as_ref().map(identity) == Some(identity(from))
+            })
+        {
+            rel.from_tbl = rel.from_tbl.alias(Name::clone(&visit.qualifier));
+        }
+        let mut apart = false;
         if let Some(alias) = alias {
             rel.to_tbl = rel.to_tbl.alias(alias);
+        } else if let Some(to) = unaliased(&rel.to_tbl) {
+            let bare = to.table().to_string();
+            let repeated = self.visits.iter().any(|visit| {
+                visit.qualifier.to_string() == bare
+                    && visit.table.as_ref().map(identity) != Some(identity(to))
+            });
+            if repeated {
+                let taken =
+                    |name: &str| self.visits.iter().any(|v| v.qualifier.to_string() == name);
+                let alias = alias_apart(to, &taken);
+                rel.to_tbl = rel.to_tbl.alias(alias);
+                apart = true;
+            }
         }
         let left = Name::clone(rel.from_tbl.qualifier());
         let qualifier = Name::clone(rel.to_tbl.qualifier());
         let to_tbl = rel.to_tbl.clone();
+        self.visits.push(Visit {
+            qualifier: Name::clone(&qualifier),
+            table: to_tbl.table_name().cloned(),
+            apart,
+        });
         let mut condition = join_condition(rel);
         if let Some(extra) = extra {
             condition = Condition::all()
@@ -691,7 +756,7 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
 
     /// Join a decoded source through [`edge`](Self::edge), then project it
     /// under the next prefix by the identifier the join bound it to.
-    // [spec:pgorm:req:query.graph.aliases+1]
+    // [spec:pgorm:req:query.graph.aliases+2]
     fn slot_edge<F: EntityTrait>(
         &mut self,
         join: JoinType,
@@ -709,8 +774,17 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
         SelectGraph {
             query: self.query,
             qualifiers: self.qualifiers,
+            visits: self.visits,
             marker: PhantomData,
         }
+    }
+}
+
+/// The table `item` names under its own name, with no alias bound.
+fn unaliased(item: &FromItem) -> Option<&TableName> {
+    match item {
+        FromItem::Table(NamedTable { name, alias: None }) => Some(name),
+        _ => None,
     }
 }
 
@@ -748,7 +822,7 @@ macro_rules! grow {
             /// cursor tiebreak's qualifier. Distinctness is not checked
             /// client-side — joining a table the graph already names,
             /// unaliased, renders SQL PostgreSQL refuses.
-            // [spec:pgorm:req:query.graph.aliases+1]
+            // [spec:pgorm:req:query.graph.aliases+2]
             pub fn join_maybe_as<F: EntityTrait>(
                 mut self,
                 rel: RelationDef,
@@ -777,7 +851,7 @@ macro_rules! grow {
             /// query. There is no `join_one_filtered`: under an `INNER JOIN`
             /// the two placements select the same rows, and `filter` already
             /// spells it.
-            // [spec:pgorm:req:query.graph.aliases+1]
+            // [spec:pgorm:req:query.graph.aliases+2]
             pub fn join_maybe_filtered<F, C>(
                 mut self,
                 rel: RelationDef,
@@ -805,7 +879,7 @@ macro_rules! grow {
             /// [`join_one`](Self::join_one) with the joined side re-bound to a
             /// caller-supplied alias, on the terms
             /// [`join_maybe_as`](Self::join_maybe_as) states.
-            // [spec:pgorm:req:query.graph.aliases+1]
+            // [spec:pgorm:req:query.graph.aliases+2]
             pub fn join_one_as<F: EntityTrait>(
                 mut self,
                 rel: RelationDef,
@@ -938,10 +1012,10 @@ impl<E: EntityTrait, S, R> QueryTrait for SelectGraph<E, S, R> {
 // grows to the generated ceiling
 // [spec:pgorm:sem:query.graph.writer+4/test]    one prefixed block per decoded
 // source, in declaration order, under the source's effective identifier
-// [spec:pgorm:req:query.graph.aliases+1/test]    an `_as` slot is named by its
+// [spec:pgorm:req:query.graph.aliases+2/test]    an `_as` slot is named by its
 // alias everywhere, and `join_maybe_filtered` composes with the relation's
 // own `on_condition` instead of replacing it
-// [spec:pgorm:req:query.graph.aliases+1/test]    a `via_as` hop is named by its
+// [spec:pgorm:req:query.graph.aliases+2/test]    a `via_as` hop is named by its
 // alias in its own `ON`, in an authored condition's right side and in the
 // next edge's `ON` once that relation starts `from_alias`, and takes no prefix
 // [spec:pgorm:sem:query.graph.slice/test]    `limit` and `offset` bind on the
@@ -1367,6 +1441,43 @@ mod tests {
                 r#"LEFT JOIN "cake_filling" ON "cake"."id" = "cake_filling"."cake_id""#,
                 r#"LEFT JOIN "filling" ON "cake_filling"."filling_id" = "filling"."id""#,
             ],
+        );
+    }
+
+    // [spec:pgorm:req:query.graph.aliases+2/test]    a slot whose bare name the graph already qualifies another table by is joined under its schema-qualified name as one identifier, its projection and `ON` following, an edge leaving from it leaves from that name, and the same table joined twice stays the caller's to alias
+    #[test]
+    fn same_named_tables_are_aliased_apart() {
+        use crate::tests_cfg::{archive_exhibit, gallery_exhibit, loan_exhibit};
+        let loan = archive_exhibit::Entity::belongs_to(loan_exhibit::Entity)
+            .columns(archive_exhibit::Column::Id, loan_exhibit::Column::Id)
+            .into();
+        assert_renders(
+            gallery_exhibit::Entity::graph()
+                .join_maybe::<archive_exhibit::Entity>(gallery_exhibit::Relation::Archived.def())
+                .join_maybe::<loan_exhibit::Entity>(loan)
+                .as_query()
+                .to_string(),
+            &[
+                r#"SELECT "exhibit"."id" AS "s0_id", CAST("exhibit"."kind" AS text) AS "s0_kind", "exhibit"."title" AS "s0_title","#,
+                r#""archive.exhibit"."id" AS "s1_id", "archive.exhibit"."shelf" AS "s1_shelf","#,
+                r#""loan.exhibit"."id" AS "s2_id", "loan.exhibit"."lender" AS "s2_lender""#,
+                r#"FROM "gallery"."exhibit""#,
+                r#"LEFT JOIN "archive"."exhibit" AS "archive.exhibit" ON "exhibit"."id" = "archive.exhibit"."id""#,
+                r#"LEFT JOIN "loan"."exhibit" AS "loan.exhibit" ON "archive.exhibit"."id" = "loan.exhibit"."id""#,
+            ],
+        );
+
+        let twice = cake::Entity::graph()
+            .join_maybe::<fruit::Entity>(cake::Relation::Fruit.def())
+            .join_maybe::<fruit::Entity>(cake::Relation::Fruit.def())
+            .as_query()
+            .to_string();
+        assert!(
+            twice.ends_with(concat!(
+                r#"LEFT JOIN "fruit" ON "cake"."id" = "fruit"."cake_id" "#,
+                r#"LEFT JOIN "fruit" ON "cake"."id" = "fruit"."cake_id""#
+            )),
+            "{twice}"
         );
     }
 }

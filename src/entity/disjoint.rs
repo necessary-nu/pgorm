@@ -66,7 +66,7 @@ pub trait Disjoint: Sized + Send {
     ///
     /// The read takes what a [`Select`](crate::Select) of the base takes; see
     /// [`SelectDisjoint`].
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     fn find() -> SelectDisjoint<Self> {
         SelectDisjoint::of(Self::Base::find())
     }
@@ -74,7 +74,7 @@ pub trait Disjoint: Sized + Send {
     /// [`find`](Self::find) narrowed to the base row of one key, composite
     /// keys included, their parts borrowed as
     /// [`EntityTrait::find_by_id`] takes them.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     fn find_by_id<T>(key: T) -> SelectDisjoint<Self>
     where
         T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
@@ -114,7 +114,7 @@ pub trait Disjoint: Sized + Send {
     /// # Ok(())
     /// # }
     /// ```
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:sem:disjoint.unkinded]
     fn insert(
         base: <Self::Base as EntityTrait>::ActiveModel,
@@ -147,7 +147,7 @@ pub trait Disjoint: Sized + Send {
     /// as is a declaration [`check_disjoint`] refuses, and a `NotSet` key of
     /// the base is [`Error::PrimaryKeyNotSet`]; nothing is sent. With nothing
     /// set in either, the write is a read of the row of that key and kind.
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:sem:disjoint.unkinded]
     fn update(
         base: <Self::Base as EntityTrait>::ActiveModel,
@@ -177,7 +177,7 @@ pub trait Disjoint: Sized + Send {
     /// nothing changed. The new row's key columns come from the base row, so
     /// a value held in one is refused as [`Error::Type`], as is a declaration
     /// [`check_disjoint`] refuses, and nothing is sent.
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:sem:disjoint.unkinded]
     fn change_kind<T>(
         key: T,

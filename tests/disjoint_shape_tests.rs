@@ -620,3 +620,60 @@ async fn a_described_shape_judges_inconsistent_rows_live() -> Result<(), Error> 
     ctx.delete().await;
     Ok(())
 }
+
+// [spec:pgorm:sem:disjoint.write+2/test]    a kind's table with no schema, named as its schema-qualified base, is read under its name with `_2` appended, and every write of the shape is refused as `Error::Type` naming both before anything is sent, since its part would be read for the kind's table
+#[test]
+fn unqualified_kind_named_as_base_is_unwritten() {
+    let qualified = DisjointTable::new(
+        TableName::SchemaTable(Name::runtime("market"), Name::runtime("vehicle")),
+        base().columns().to_vec(),
+        &["id"],
+    )
+    .expect("the table is described");
+    let named_as_base = table("vehicle", car().columns().to_vec(), &["id"]);
+    let shape = DisjointShape::new(
+        qualified.clone(),
+        "kind",
+        kind_type(),
+        vec![
+            ("car".to_owned(), Some(named_as_base.clone())),
+            ("truck".to_owned(), Some(truck())),
+            ("bike".to_owned(), None),
+        ],
+    )
+    .expect("the shape is described");
+    let read = shape.find().to_string();
+    assert!(
+        read.contains(
+            r#"FROM "market"."vehicle" LEFT JOIN "vehicle" AS "vehicle_2" ON "vehicle"."id" = "vehicle_2"."id""#
+        ),
+        "{read}"
+    );
+    assert!(
+        read.contains(r#""vehicle_2"."seats" AS "s1_seats""#),
+        "{read}"
+    );
+
+    let refusal = "`vehicle` has no schema and is named as `market.vehicle`, whose part of a \
+                   write is named `vehicle`, so a write would read that part for it: qualify \
+                   `vehicle` by its schema";
+    let refused = |outcome: Result<SelectStatement, Error>| match outcome {
+        Err(Error::Type(message)) => message,
+        other => panic!("expected the write refused, got {other:?}"),
+    };
+    let base_values = values(&qualified, vec![set("name", "mini")]);
+    let seats = values(&named_as_base, vec![set("seats", 4_i16)]);
+    assert_eq!(
+        refused(shape.insert(&base_values, "car", Some(&seats))),
+        refusal
+    );
+    let keyed = values(
+        &qualified,
+        vec![("id".to_owned(), ActiveValue::Unchanged(Value::Int(Some(1))))],
+    );
+    assert_eq!(refused(shape.update(&keyed, "car", Some(&seats))), refusal);
+    assert_eq!(
+        refused(shape.change_kind(vec![Value::Int(Some(1))], "bike", None)),
+        refusal
+    );
+}
