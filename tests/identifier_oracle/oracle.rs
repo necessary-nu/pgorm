@@ -7,7 +7,8 @@
 //! must agree on every key, every array length and every leaf — except the
 //! leaves where the benign tree holds [`BENIGN`], which are the name's
 //! positions and must hold the hostile name instead (or, for a name the API
-//! derives from the caller's — `pk-{table}` — the same derivation of it). No
+//! derives from the caller's — `pk-{table}` — the same derivation of it,
+//! bounded to 63 bytes as pgorm bounds every name it composes). No
 //! per-site matcher is written: a site declares only the node kinds its name
 //! should land in, and the walk both finds those positions and proves nothing
 //! else moved.
@@ -207,6 +208,24 @@ impl Policy {
             return name.to_owned();
         }
         truncate_identifier(name)
+    }
+
+    /// The text the parser hands back at a position whose benign text is
+    /// `benign`, for the hostile `name`. The name itself reads back as
+    /// [`parsed_form`](Self::parsed_form) says. A name pgorm derives from it
+    /// — `idx-{table}-{column}`, `pk-{table}`, `fk-{table}-{columns}`, whose
+    /// benign text holds [`BENIGN`] among other text — is the same
+    /// derivation of the hostile name, bounded as pgorm bounds every name it
+    /// composes rather than left for the server to truncate
+    /// (`schema.from-entity`): the bounding is pgorm's own, through the
+    /// public function prefixed result names take, so the oracle holds the
+    /// position to exactly the name pgorm writes without composing it again.
+    fn expected(self, benign: &str, name: &str) -> String {
+        let substituted = benign.replace(BENIGN, name);
+        if benign == BENIGN || self == Self::Literal {
+            return self.parsed_form(&substituted);
+        }
+        self.parsed_form(&pgorm::result_column_name("", &substituted))
     }
 }
 
@@ -716,7 +735,7 @@ impl Walk<'_> {
                 }
             }
             (Json::String(b), Json::String(h)) if b.contains(BENIGN) => {
-                let expected = self.policy.parsed_form(&b.replace(BENIGN, self.name));
+                let expected = self.policy.expected(b, self.name);
                 if *h != expected {
                     let what = format!("the name reads back as {h:?}, not {expected:?}");
                     self.diff(what);
