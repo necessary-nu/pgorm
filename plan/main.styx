@@ -16617,6 +16617,13 @@ children (
                         kind @note
                         text "From disjoint.one-of (e21257e2), raised with the operator for a decision: to make the rule's near misses generate as plain fields, codegen.ddl.tables+12 / codegen.ddl.unsupported+20 now read any table-level CHECK within the DEFAULT expression subset and carry it on the statement, but the entity can't hold it, so create_table_from_entity on the generated entity writes the table without it. This reverses the 2026-10-08 decision \"CHECK stays refused (the entity holds none)\". Two ways out: (a) refuse every CHECK that is not exactly the one-of shape, as before, and make the near-miss tests expect the refusal, the rule's \"ordinary nullable fields\" then meaning columns no CHECK covers; or (b) let an entity declare CHECKs (a check(..) container attribute written by create_table_from_entity), so codegen keeps every CHECK it reads. Recommended: (a) now, (b) as its own feature if wanted. Waiting on the operator's choice."
                     }
+
+                    {
+                        at 2026-11-03T22:13:57.193916Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead, 2026-11-03, pending operator override: take (a). Codegen refuses every table CHECK that is not exactly the one-of shape, restoring the 2026-10-08 decision \"CHECK stays refused (the entity holds none)\" that disjoint.one-of reversed without approval. The near-miss tests expect the refusal, naming the constraint; the rule's \"ordinary nullable fields\" means columns no CHECK covers. Revise codegen.ddl.tables / codegen.ddl.unsupported and disjoint.one-of to say so. Option (b), entities declaring CHECKs, is not this node."
+                    }
                 )
             }
         )
@@ -17172,7 +17179,7 @@ children (
                 id bindings-composite-unique
                 title "The Python and JavaScript bindings' model DDL declares composite unique keys"
                 kind @feat
-                deps (unique-key-virtual-refused)
+                deps (entity-composite-unique)
                 log (
                     {
                         at 2026-11-03T14:52:16.37536Z
