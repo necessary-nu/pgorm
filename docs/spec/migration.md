@@ -78,9 +78,14 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > told. The old table name survives in exactly one place — as
 > `LEGACY_LEDGER_TABLE`, the name adoption looks for.
 
-> [spec:pgorm:sem:migration.up+4]
+> [spec:pgorm:sem:migration.up+5]
 > `up(db, steps)` acquires one pooled connection, opens one transaction, and
-> runs the entire batch inside it before committing. The transaction's first
+> runs the entire batch inside it before committing, unless a migration of
+> the batch asks to be committed before the next one runs
+> (`[spec:pgorm:req:migration.commit-after]`): then each transaction the batch
+> is split into acquires a pooled connection of its own and runs as this one
+> does, so the clear after one commit reaches the connection the next
+> transaction runs on. The transaction's first
 > statement is `SELECT pg_advisory_xact_lock($key)`, where `$key` is
 > `lock_key()`: a stable FNV-1a hash of `migration_table_name()`, spelled out in
 > the crate rather than delegated to `DefaultHasher` so that two processes built
@@ -141,8 +146,10 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > Because the whole batch shares one transaction, any error — from a
 > migration's own `up` or from the ledger insert — aborts and rolls back every
 > migration in that run together with its ledger rows and, on a fresh database,
-> the ledger table itself. There is no partial-batch commit and no per-migration
-> checkpoint.
+> the ledger table itself. The only commit inside a batch is the one a
+> migration asks for (`[spec:pgorm:req:migration.commit-after]`); a failure
+> after it rolls back the transaction it happens in, and the migrations
+> committed before it stay applied.
 >
 > The reverse direction is also checked: if the ledger holds a version with no
 > corresponding entry in `migrations()`, `get_migration_with_status` fails with

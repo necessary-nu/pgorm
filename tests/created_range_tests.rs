@@ -647,7 +647,7 @@ async fn the_server_refuses_what_it_cannot_store(db: &DatabaseConnection) -> Res
 /// records the type alone, so the range pgorm-query's builder declares over
 /// `numeric(10, 2)` ranges over `numeric`, its bounds held to no scale. The
 /// DDL bridge refuses the modifier for that reason.
-// [spec:pgorm:req:codegen.ddl.unsupported+19/test]
+// [spec:pgorm:req:codegen.ddl.unsupported+20/test]
 // [spec:pgorm:req:sql.ddl.type-range+2/test]
 async fn a_subtype_modifier_is_dropped(db: &DatabaseConnection) -> Result<(), Error> {
     db.batch_execute(

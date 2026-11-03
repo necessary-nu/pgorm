@@ -46,6 +46,7 @@ mod disjoint_shape;
 mod key;
 mod link;
 mod model;
+mod one_of;
 mod partial_model;
 /// Re-export common types from the entity
 pub mod prelude;
@@ -62,6 +63,7 @@ pub use disjoint_shape::*;
 pub use key::*;
 pub use link::*;
 pub use model::*;
+pub use one_of::*;
 pub use partial_model::*;
 // pub use prelude::*;
 pub use primary_key::*;
@@ -73,7 +75,7 @@ pub use relation::*;
 /// cannot resolve; an explicit import shadows a glob's in the macro namespace
 /// alone, so these name the traits while pgorm-macros' derives, expanding to
 /// `pgorm::pgorm_query::..`, are the derives.
-// [spec:pgorm:req:macros.derive.names+1]
+// [spec:pgorm:req:macros.derive.names+2]
 // [spec:pgorm:sem:macros.derive.iden+3]
 #[cfg(feature = "macros")]
 pub use pgorm_macros::{SqlName, StaticName};

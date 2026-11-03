@@ -414,7 +414,7 @@ fn key(kind: &str, order: &[usize]) -> (String, String) {
 /// (`54011`).
 // [spec:pgorm:req:sql.ddl.create-table+16/test]    against a live server: a 3- and a
 // 12-tuple key, and a computed one past twelve, each created in its own column order
-// [spec:pgorm:req:sql.ddl.alter-table+13/test]
+// [spec:pgorm:req:sql.ddl.alter-table+14/test]
 async fn wide_keys_keep_their_column_order(db: &DatabaseConnection) -> Result<(), Error> {
     let c = column_numbered;
     let create = wide("wide_created")

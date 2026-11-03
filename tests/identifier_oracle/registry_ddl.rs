@@ -488,6 +488,26 @@ pub fn sites() -> Vec<Site> {
             },
         },
         Site {
+            id: "ddl/alter-table.alter-column-type-using",
+            api: "TableAlterStatement::alter_column_type_using(Name, ..)",
+            kinds: &["AlterTableCmd.name"],
+            policy: Quoted,
+            render: |n| {
+                sql(&Table::alter(fixed("t")).alter_column_type_using(
+                    n_(n),
+                    ColumnType::Text,
+                    Expr::col(fixed("c")),
+                ))
+            },
+        },
+        Site {
+            id: "ddl/alter-table.drop-default",
+            api: "TableAlterStatement::drop_default(Name)",
+            kinds: &["AlterTableCmd.name"],
+            policy: Quoted,
+            render: |n| sql(&Table::alter(fixed("t")).drop_default(n_(n))),
+        },
+        Site {
             id: "ddl/alter-table.drop-column",
             api: "TableAlterStatement::drop_column(Name)",
             kinds: &["AlterTableCmd.name"],

@@ -158,7 +158,7 @@ fn domain_constraints_are_set_aside() {
     assert_eq!(generate(nullable), generate(bare));
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    a constraint PostgreSQL refuses on a
+// [spec:pgorm:req:codegen.ddl.unsupported+20/test]    a constraint PostgreSQL refuses on a
 // domain is named, as are a serial base, a base the file does not declare and a domain
 // column under a qualification the domain was not declared with
 #[test]

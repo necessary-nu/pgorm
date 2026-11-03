@@ -7,7 +7,7 @@ use pgorm_codegen::WithSerde;
 use pgorm_query::{ColumnDef, ColumnType, Name, StringLen, Table};
 
 // [spec:pgorm:req:macros.derive.one-form/test]    codegen writes the one form
-// [spec:pgorm:def:codegen.entity.compact+5/test]    the compact format emits
+// [spec:pgorm:def:codegen.entity.compact+6/test]    the compact format emits
 // imports, Model and Relation, in order, and leaves the `Related` impl one
 // relation reaches and the behaviour with no hooks to the derives
 #[test]
@@ -32,7 +32,7 @@ fn compact_format_emits_its_blocks_in_order() {
     assert_not_contains(fruit, "ActiveModelBehavior");
 }
 
-// [spec:pgorm:def:codegen.entity.compact+5/test]    the `schema_name` part of the
+// [spec:pgorm:def:codegen.entity.compact+6/test]    the `schema_name` part of the
 // Model attribute appears only when configured, and an entity with no relations
 // emits the empty `pub enum Relation {}`
 #[test]
@@ -240,7 +240,7 @@ fn compact_model_pk_membership_uses_raw_column_name() {
     );
 }
 
-// [spec:pgorm:def:codegen.entity.compact+5/test]    each section is one
+// [spec:pgorm:def:codegen.entity.compact+6/test]    each section is one
 // contiguous blank-line-separated block, with the generated header prepended
 #[test]
 fn sections_are_one_contiguous_block_each() {

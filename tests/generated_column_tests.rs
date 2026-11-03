@@ -397,7 +397,7 @@ async fn derived_values(db: &DatabaseConnection) -> Result<Vec<(i32, i32)>, Erro
 /// A new expression reaches the rows already written, for either kind: the
 /// stored column's table is rewritten to hold the new values, and the virtual
 /// column's is left alone, since it computes on read. Neither changes kind.
-// [spec:pgorm:req:sql.ddl.alter-table+13/test]    SET EXPRESSION recomputes existing
+// [spec:pgorm:req:sql.ddl.alter-table+14/test]    SET EXPRESSION recomputes existing
 // rows, rewriting the table for a stored column and not for a virtual one
 #[pgorm_macros::test]
 async fn set_expression_recomputes_existing_rows() -> Result<(), Error> {
@@ -456,7 +456,7 @@ async fn set_expression_recomputes_existing_rows() -> Result<(), Error> {
 
 /// Dropping a stored column's expression leaves each row the value it was
 /// last computed to, and the column plain: a later row writes its own value.
-// [spec:pgorm:req:sql.ddl.alter-table+13/test]    DROP EXPRESSION keeps a stored
+// [spec:pgorm:req:sql.ddl.alter-table+14/test]    DROP EXPRESSION keeps a stored
 // column's values and leaves it writable
 #[pgorm_macros::test]
 async fn drop_expression_keeps_stored_values() -> Result<(), Error> {
@@ -494,7 +494,7 @@ async fn drop_expression_keeps_stored_values() -> Result<(), Error> {
 /// could not have been created with (`42P17`); and a new expression for a
 /// virtual column once the table belongs to a publication (`0A000`), where a
 /// stored column's still goes through.
-// [spec:pgorm:req:sql.ddl.alter-table+13/test]    the refusals of SET and DROP
+// [spec:pgorm:req:sql.ddl.alter-table+14/test]    the refusals of SET and DROP
 // EXPRESSION, by SQLSTATE, and IF EXISTS passing over a plain column
 #[pgorm_macros::test]
 async fn expression_actions_refused_by_sqlstate() -> Result<(), Error> {
@@ -576,7 +576,7 @@ async fn expression_actions_refused_by_sqlstate() -> Result<(), Error> {
 /// stays. 19 takes it without rewriting the table, as for any virtual column,
 /// and checks the rows against the constraint instead: one that breaks it
 /// refuses the action (`23514`) and leaves the old expression in place.
-// [spec:pgorm:req:sql.ddl.alter-table+13/test]    SET EXPRESSION on a virtual
+// [spec:pgorm:req:sql.ddl.alter-table+14/test]    SET EXPRESSION on a virtual
 // column under a CHECK constraint, refused on 18 and checking the rows on 19
 // [spec:pgorm:req:sql.target+1/test]    18's answer in the default build, 19's
 // under pg-19

@@ -78,6 +78,37 @@ pub trait ModelTrait: Clone + Send + Debug {
     }
 }
 
+/// The field of a model holding one of its entity's columns, the column given
+/// by its discriminant in the entity's `Column` enum, `Column::PostId as
+/// usize`: what lets code that names a column as a value, as a derive's
+/// attribute does, hold that column's type to another at compile time.
+///
+/// The `Model` derive implements it for each field that reads a column.
+///
+/// ```
+/// use pgorm::{ColumnField, tests_cfg::fruit};
+///
+/// let fruit = fruit::Model {
+///     id: 1,
+///     name: "Orange".to_owned(),
+///     cake_id: Some(2),
+/// };
+/// let cake_id: &Option<i32> =
+///     ColumnField::<{ fruit::Column::CakeId as usize }>::field(&fruit);
+/// assert_eq!(cake_id, &Some(2));
+/// ```
+// [spec:pgorm:sem:macros.derive.model+6]
+// [spec:pgorm:def:disjoint.one-of+1]
+pub trait ColumnField<const COLUMN: usize> {
+    /// The type the model declares the field as, an `Option` where the column
+    /// is nullable.
+    type Value;
+
+    /// Borrow the field at its declared type, where [`ModelTrait::get`] gives
+    /// a `Value`.
+    fn field(&self) -> &Self::Value;
+}
+
 /// A Trait for implementing a [QueryResult]
 // [spec:pgorm:def:entity.traits.from-query-result+5]
 pub trait FromQueryResult: Sized {

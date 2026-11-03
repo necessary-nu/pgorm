@@ -45,7 +45,7 @@ fn declared_identity(
 /// changes what a value of it is. A constraint PostgreSQL refuses on a domain
 /// is named, as the server would refuse the file.
 // [spec:pgorm:sem:codegen.ddl.objects+11]
-// [spec:pgorm:req:codegen.ddl.unsupported+19]
+// [spec:pgorm:req:codegen.ddl.unsupported+20]
 pub(super) fn domain(
     stmt: &CreateDomainStmt,
     declared: &Declared,
@@ -80,7 +80,7 @@ pub(super) fn domain(
 
 /// How a constraint PostgreSQL refuses on a domain was written, or `None` for
 /// the four it takes.
-// [spec:pgorm:req:codegen.ddl.unsupported+19]
+// [spec:pgorm:req:codegen.ddl.unsupported+20]
 fn refused_on_domain(constraint: &Constraint) -> Option<&'static str> {
     let kind = ConstrType::try_from(constraint.contype).ok();
     if constraint.is_no_inherit {
@@ -122,7 +122,7 @@ fn refused_on_domain(constraint: &Constraint) -> Option<&'static str> {
 /// unqualified names with the schema when it runs it, which the parse tree
 /// does not, so reading one would place its table outside the schema.
 // [spec:pgorm:sem:codegen.ddl.objects+11]
-// [spec:pgorm:req:codegen.ddl.unsupported+19]
+// [spec:pgorm:req:codegen.ddl.unsupported+20]
 pub(super) fn schema(stmt: &CreateSchemaStmt, at: usize) -> Result<Option<String>, Error> {
     let name = match (stmt.schemaname.as_str(), &stmt.authrole) {
         ("", Some(role)) if role.roletype == RoleSpecType::RolespecCstring as i32 => {
@@ -185,7 +185,7 @@ pub(super) struct ParsedRange {
 /// it is created where an unqualified name is, not beside the range — or
 /// otherwise the name PostgreSQL derives, in the range's schema.
 // [spec:pgorm:sem:codegen.ddl.objects+11]
-// [spec:pgorm:req:codegen.ddl.unsupported+19]
+// [spec:pgorm:req:codegen.ddl.unsupported+20]
 pub(super) fn range_type(
     stmt: &CreateRangeStmt,
     declared: &Declared,
@@ -293,7 +293,7 @@ pub(super) struct ParsedIndex {
 }
 
 // [spec:pgorm:sem:codegen.ddl.objects+11]
-// [spec:pgorm:req:codegen.ddl.unsupported+19]
+// [spec:pgorm:req:codegen.ddl.unsupported+20]
 pub(super) fn index(stmt: &IndexStmt, at: usize) -> Result<ParsedIndex, Error> {
     let table = match stmt.relation.as_ref() {
         Some(relation) if !relation.relname.is_empty() => TableIdent {

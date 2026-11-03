@@ -340,6 +340,12 @@ impl TableCreateStatement {
         &self.unique_keys
     }
 
+    /// The table's `CHECK` constraints, in the order they were added.
+    // [spec:pgorm:req:sql.ddl.create-table+16]
+    pub fn get_checks(&self) -> &[Check] {
+        &self.check
+    }
+
     /// Append verbatim SQL after the table's own clauses — the escape hatch
     /// for table options this vocabulary has no spelling for. One suffix per
     /// statement: a second call replaces the first, so compose the whole tail

@@ -6,7 +6,7 @@ use quote::quote;
 use std::fmt;
 
 use crate::{
-    Column, ConjunctRelation, DisjointEnum, Error, PrimaryKey, Relation, UniqueKey,
+    Column, ConjunctRelation, DisjointEnum, Error, OneOfEnum, PrimaryKey, Relation, UniqueKey,
     util::{escape_rust_keyword, safe_ident},
 };
 
@@ -61,6 +61,10 @@ pub struct Entity {
     /// the base of one.
     // [spec:pgorm:sem:codegen.entity.disjoint+3]
     pub(crate) disjoint: Option<DisjointEnum>,
+    /// The `#[derive(OneOf)]` enums the entity's module declares, one per
+    /// `CHECK` holding nullable foreign-key columns to one target.
+    // [spec:pgorm:def:disjoint.one-of+1]
+    pub(crate) one_of: Vec<OneOfEnum>,
     /// The table's unique keys over two columns or more, in the table's
     /// order, which the entity declares with `unique(..)`.
     // [spec:pgorm:sem:codegen.entity.transform+17]
@@ -310,6 +314,7 @@ mod tests {
             conjunct_relations: vec![],
             without_overlaps: false,
             disjoint: None,
+            one_of: Vec::new(),
             unique_keys: Vec::new(),
             primary_keys: vec![PrimaryKey {
                 name: "id".to_owned(),

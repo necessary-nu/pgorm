@@ -28,7 +28,7 @@ pub trait MigrationName {
 /// Implement [`MigrationName`] for a migration, naming it for the file stem of
 /// the file it is written in. The derive and the trait share a name and live
 /// in different namespaces.
-// [spec:pgorm:req:macros.derive.names+1]
+// [spec:pgorm:req:macros.derive.names+2]
 pub use pgorm_macros::MigrationName;
 
 /// The migration definition
@@ -53,5 +53,20 @@ pub trait MigrationTrait: MigrationName + Send + Sync {
     // [spec:pgorm:req:migration.checksum+1]    opt-in by override, `None` by default
     fn checksum(&self) -> Option<String> {
         None
+    }
+
+    /// Whether [`up`](MigratorTrait::up) commits this migration, with its
+    /// ledger row, before the next migration of the batch runs, `false` by
+    /// default.
+    ///
+    /// Answering `true` is for a change PostgreSQL will not let one
+    /// transaction finish: a value `ALTER TYPE ... ADD VALUE` adds cannot be
+    /// used before the transaction that added it commits. Such a batch is not
+    /// all-or-nothing: a failure after the commit rolls back only the
+    /// transaction it happens in, the migrations committed before it stay
+    /// applied, and running `up` again resumes after them.
+    // [spec:pgorm:req:migration.commit-after]
+    fn commits_after(&self) -> bool {
+        false
     }
 }

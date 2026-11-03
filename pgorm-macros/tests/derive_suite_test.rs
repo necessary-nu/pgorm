@@ -164,7 +164,7 @@ pub enum Stock {
 }
 
 // [spec:pgorm:def:macros.derive+7/test]    every derive in the catalogue is reachable and wired up
-// [spec:pgorm:req:macros.derive.names+1/test]    each derive by its name through the prelude, glob-imported by both its paths and beside the crate root's glob
+// [spec:pgorm:req:macros.derive.names+2/test]    each derive by its name through the prelude, glob-imported by both its paths and beside the crate root's glob
 #[test]
 fn the_whole_derive_catalogue_is_exposed() {
     // Entity-side derives: the composite, and the entity-trait derive beside

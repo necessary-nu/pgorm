@@ -81,7 +81,7 @@ fn error(sql: &str) -> String {
 // [spec:pgorm:sem:codegen.ddl.objects+11/test]    a file that creates its schema generates
 // what the file without the `CREATE SCHEMA` does: the table and enum in the schema are
 // qualified by it, and the schema adds nothing else
-// [spec:pgorm:req:codegen.ddl.unsupported+19/test]
+// [spec:pgorm:req:codegen.ddl.unsupported+20/test]
 #[test]
 fn a_created_schema_generates_a_compiling_entity() {
     let generated = from_sql(SCHEMA, Opts::default());
@@ -115,7 +115,7 @@ fn a_created_schema_generates_a_compiling_entity() {
 // elements is read and contributes nothing: `IF NOT EXISTS`, an `AUTHORIZATION` role set
 // aside, a schema named for its role, and one named for a role keyword, which is read with
 // no name; a second creation saying `IF NOT EXISTS` is read too
-// [spec:pgorm:req:codegen.ddl.unsupported+19/test]
+// [spec:pgorm:req:codegen.ddl.unsupported+20/test]
 #[test]
 fn every_create_schema_form_is_read() {
     let bare = from_sql(in_the_schema(), Opts::default()).files;
@@ -137,7 +137,7 @@ fn every_create_schema_form_is_read() {
     }
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+19/test]    a schema created twice without
+// [spec:pgorm:req:codegen.ddl.unsupported+20/test]    a schema created twice without
 // `IF NOT EXISTS` is refused as the server refuses it, a schema named for its role
 // included, and a statement written inside a `CREATE SCHEMA` is named by its kind
 #[test]

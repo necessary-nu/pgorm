@@ -16321,6 +16321,13 @@ children (
                         kind @decision
                         text "Operator, 2026-11-03 (\"yes to both\"), on the lead's proposal. Adding a kind has two routes: by default ALTER TYPE ... ADD VALUE, then a commit, then the new kind's table, generated key columns and foreign keys — which needs a pgorm-migration opt-in for a migration that commits before the next runs, since up() runs a whole batch in one transaction and PostgreSQL cannot use an added enum value before its transaction commits; and, for a single atomic migration, recreating the kind type in one transaction (a new enum with every value, both kind columns retyped, the disjoint constraints and generated columns dropped and recreated, the old type dropped and the new one renamed), at the cost of rewriting the base and every kind table under an exclusive lock. Removing a kind always takes the recreate route (no ALTER TYPE ... DROP VALUE) and is refused while any base row has that kind. A unit kind gaining a table adds its foreign key NOT VALID, leaves the backfill to the migration, then VALIDATEs. A kind losing its table drops data, so only when asked explicitly. The rule goes to the operator before code."
                     }
+
+                    {
+                        at 2026-11-03T14:28:27.666874Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Probed on PostgreSQL 18.6 before code. Confirmed as the rule says: ALTER TYPE ... ADD VALUE ... AFTER/BEFORE, then using the value in the same transaction is 55P04 (\"unsafe use of new value\"), in the next one fine; the recreate sequence works end to end (temporary enum, drops, retype USING kind::text::new, DROP TYPE, RENAME, rewrite); a CHECK (kind <> 'v') refuses while rows hold the value (23514); a NOT VALID foreign key holds new rows at once and VALIDATE refuses while a row is missing; a schema-qualified quoted type (\"Book Shop\".\"Shelf Kind\") takes every statement. Two facts the code follows inside the rule's own words: (1) a kind table's kind column is a generated column, and PostgreSQL refuses USING on one (\"cannot specify USING when altering type of generated column\") while no cast joins two enum types (\"cannot be cast automatically\"), so the recreate retypes it by dropping it with its foreign key and writing it again of the new type — it is among \"the generated columns dropped first and written again after\"; (2) a default on the base's kind column blocks the retype (\"default ... cannot be cast automatically\"), so the recreate drops it before and sets the declaration's again after the rename. pgorm-query has no ALTER COLUMN ... TYPE ... USING and no DROP DEFAULT; both are added to sql.ddl.alter-table. remove_disjoint_kind_table also takes the table it drops, which the declaration as it will be no longer names; the spec text says so."
+                    }
                 )
             }
 
@@ -16344,6 +16351,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Operator, 2026-11-03 (\"yes to both\"), on the lead's proposal: the referencing model keeps one plain nullable foreign-key column per target, declared as ordinary belongs_to relations (pgorm maps a field to one column, and every existing path keeps working); #[derive(OneOf)] on an enum types the choice over those columns (#[pgorm(entity = comment::Entity)], each variant #[pgorm(column = Column::PostId)] naming its column and its target entity); reading gives the chosen target's key, setting it on the active model sets that column and clears the others, and loading gives the target's model, one query per target table as load_one does; \"attached to nothing\" comes from the enum, a unit variant relaxing the schema's CHECK (num_nonnulls(...) = 1) to <= 1; codegen recognises nullable foreign-key columns covered by exactly such a CHECK."
+                    }
+
+                    {
+                        at 2026-11-03T16:39:25.935207Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rule revised to +1 where the code forced it or the rule left it open. (1) load_one gives None for a key whose target row is absent, so the rule's \"the error load_one gives an unmatched key\" described nothing; OneOf::load now raises Error::Query itself, naming the table, the row's key, the target's key and the column. (2) The CHECK is named ck-{table}-{enum}, with the enum's name in snake_case and bounded through derived_name. It is named for the enum, not the columns, so codegen, which names the enum for the constraint, gets back the enum the schema was written from. (3) The column's type is checked at compile time through a new ColumnField<const COLUMN: usize> trait. The Model derive implements it for each field, keyed by `Column::X as usize` (macros.derive.model +6). (4) Loading reads each target through the entity's Related<T>, so a target with no Related relation does not compile, and neither do two variants naming one entity (E0119, one OneOfTarget impl per target). load refuses a Related relation that joins a column other than the variant's, as Error::Type before anything is sent. (5) key_attrs(..)/model_attrs(..), as kind_attrs; <Enum>Key derives Clone, Debug, PartialEq and <Enum>Model derives Clone, Debug. (6) Codegen: the DDL bridge now reads table-level CHECKs (within the DEFAULT expression subset) onto the statement (codegen.ddl.tables +12, codegen.ddl.unsupported +20), which reverses the earlier \"CHECK stays refused\" note. This is needed so that near misses (>= 1, an extra conjunct) generate plain fields as the rule says, rather than failing. An unnamed CHECK is named as PostgreSQL names it. The unit variant is None. Name clashes are refused."
                     }
                 )
             }
@@ -17062,6 +17076,132 @@ children (
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by derives.paths: the ActiveEnum derive's error for an unknown attribute key prints Rust debug output (`Some(Ident(..))`) instead of the key's name. Word it as the other derives' unknown-key errors are, with a compile-fail test pinning the message."
+            }
+        )
+    }
+
+    {
+        id disjoint-derive-macro-hygiene
+        title "The Disjoint derive compiles on an enum whose variants a macro_rules! macro writes"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T17:47:34.73026Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.evolve: an enum deriving Disjoint whose variants a macro_rules! macro writes fails to compile with E0425 on `visitor` and `kind`, identifiers the derive's generated code introduces under spans taken from the input, so macro hygiene separates their definitions from their uses. Give the derive's own bindings one consistent span (Span::call_site or mixed_site for every introduced identifier), check the other derives for the same pattern, and add a test that declares a disjoint enum through a macro_rules! macro."
+            }
+        )
+    }
+
+    {
+        id ident-oracle-disjoint-sites
+        title "The identifier oracle holds create_disjoint, the disjoint change functions and create_one_of to every hostile name"
+        kind @test
+        log (
+            {
+                at 2026-11-03T17:47:37.221399Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.evolve: security.ident-oracle's sites don't include create_disjoint, the five disjoint change functions (add_disjoint_kind, add_disjoint_kind_recreating, remove_disjoint_kind, add_disjoint_kind_table, remove_disjoint_kind_table), or create_one_of, though DisjointShape::new takes table, column, type and value names at run time (the bindings' route). Register each with the oracle so every hostile name lands only in its benign positions, including the derived names (ck-, the {type}_next temporary type, the generated key columns), which take the bounded spelling as the schema-gen sites do."
+            }
+        )
+    }
+
+    {
+        id disjoint-recreate-one-rewrite
+        title "Recreating a disjoint kind type rewrites the base table once, not twice"
+        kind @perf
+        log (
+            {
+                at 2026-11-03T17:47:39.330099Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.evolve: the recreating route (add_disjoint_kind_recreating, remove_disjoint_kind) rewrites the base table twice under its exclusive lock: once retyping its kind column, again re-adding the STORED generated key columns. Ordering the statements so both happen in one ALTER TABLE (or one rewrite) halves the lock time on a large base. Probe on 18.6 that the combined ALTER rewrites once, and keep the live tests."
+            }
+        )
+    }
+
+    {
+        id bindings-disjoint-evolve
+        title "Python and JavaScript write a disjoint model's kind changes as pgorm's DisjointShape does"
+        kind @feat
+        log (
+            {
+                at 2026-11-03T17:47:42.09892Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.evolve: DisjointShape gained add_kind, add_kind_recreating, remove_kind, add_kind_table and remove_kind_table (returning DisjointChange: steps of DdlStatements, each with an optional gap), so a binding can write kind changes as the typed Schema functions do. Neither binding exposes them, and bindings-surface.json is unchanged. Needs a bindings rule, both bindings, DisjointChange's steps and gaps surfaced in each language, and live tests."
+            }
+        )
+    }
+
+    {
+        id alter-column-type-collate
+        title "ALTER COLUMN ... TYPE with USING can also set the column's collation"
+        kind @feat
+        log (
+            {
+                at 2026-11-03T17:47:44.53115Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.evolve, which added TableAlterOption::AlterColumnTypeUsing (`ALTER COLUMN c TYPE t USING e`, sql.ddl.alter-table+14): PostgreSQL's form also takes COLLATE between the type and USING, which pgorm-query can't write. Add it if a caller needs it; low priority."
+            }
+        )
+    }
+
+    {
+        id codegen-check-not-dropped
+        title "Codegen never generates an entity that silently drops a table CHECK it read"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T17:47:46.640992Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "From disjoint.one-of (e21257e2), raised with the operator for a decision: to make the rule's near misses generate as plain fields, codegen.ddl.tables+12 / codegen.ddl.unsupported+20 now read any table-level CHECK within the DEFAULT expression subset and carry it on the statement, but the entity can't hold it, so create_table_from_entity on the generated entity writes the table without it. This reverses the 2026-10-08 decision \"CHECK stays refused (the entity holds none)\". Two ways out: (a) refuse every CHECK that is not exactly the one-of shape, as before, and make the near-miss tests expect the refusal, the rule's \"ordinary nullable fields\" then meaning columns no CHECK covers; or (b) let an entity declare CHECKs (a check(..) container attribute written by create_table_from_entity), so codegen keeps every CHECK it reads. Recommended: (a) now, (b) as its own feature if wanted. Waiting on the operator's choice."
+            }
+        )
+    }
+
+    {
+        id codegen-one-of-self-reference
+        title "Generated code for a one-of whose target is its own table compiles and round-trips"
+        kind @test
+        log (
+            {
+                at 2026-11-03T17:47:48.835096Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.one-of: codegen recognises a one-of CHECK whose targets include the table itself (a comment that may reference another comment), but no test compiles the generated code for that case, where the target entity is the entity's own module and the Related impl and the OneOfTarget impl both name Entity. Add it to the codegen live round trip."
+            }
+        )
+    }
+
+    {
+        id codegen-one-of-bounded-name
+        title "Codegen names a one-of enum correctly when its CHECK's name was bounded to 63 bytes"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T17:47:51.492826Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.one-of: Schema::create_one_of names its CHECK ck-{table}-{enum} through derived_name, which past 63 bytes becomes a 47-byte head plus a hash. Codegen names the generated enum for the constraint, so a long one comes back named from the truncated head and hash rather than the original enum. Decide how the enum's name survives: name it from the targets when the constraint name is bounded, or have create_one_of record the enum name (e.g. COMMENT ON CONSTRAINT) for codegen to read. Test with a long table and enum name."
+            }
+        )
+    }
+
+    {
+        id bindings-one-of
+        title "Python and JavaScript read, set and load a one-of reference and write its CHECK"
+        kind @feat
+        log (
+            {
+                at 2026-11-03T17:47:54.308669Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.one-of: OneOf has no Python or JavaScript surface. The rule doesn't ask for one, but a binding that registers entities with nullable foreign keys under a one-of CHECK would want to read the reference as a tagged key, set it (nulling the others), load the targets one query per table, and write create_one_of's CHECK. Write a bindings rule first; the typed design (OneOfTarget, TargetVisitor) may need a runtime description like DisjointShape for the bindings to drive."
             }
         )
     }

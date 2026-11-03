@@ -359,7 +359,8 @@ impl EntityWriter {
     }
 
     // [spec:pgorm:req:macros.derive.one-form]
-    // [spec:pgorm:def:codegen.entity.compact+5]
+    // [spec:pgorm:def:codegen.entity.compact+6]
+    // [spec:pgorm:def:disjoint.one-of+1]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_code_blocks(
         entity: &Entity,
@@ -387,6 +388,7 @@ impl EntityWriter {
             Self::gen_compact_relation_enum(entity),
         ];
         code_blocks.extend(Self::gen_disjoint_enum(entity, with_serde));
+        code_blocks.extend(entity.one_of.iter().map(crate::OneOfEnum::tokens));
         code_blocks.extend(Self::gen_impl_conjunct_related(entity));
         code_blocks
     }
@@ -728,6 +730,7 @@ mod tests {
                 }],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
@@ -795,6 +798,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![
                     PrimaryKey {
@@ -861,6 +865,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![
                     PrimaryKey {
@@ -905,6 +910,7 @@ mod tests {
                 }],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
@@ -983,6 +989,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
@@ -1044,6 +1051,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
@@ -1277,6 +1285,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
@@ -1341,6 +1350,7 @@ mod tests {
                 }],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
@@ -1405,6 +1415,7 @@ mod tests {
                 }],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
@@ -1452,6 +1463,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
@@ -1499,6 +1511,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
@@ -1549,6 +1562,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![
                     PrimaryKey {
@@ -1615,6 +1629,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
@@ -2033,6 +2048,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
@@ -2127,6 +2143,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
@@ -2207,6 +2224,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                one_of: Vec::new(),
                 unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),

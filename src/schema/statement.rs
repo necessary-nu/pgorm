@@ -1,4 +1,7 @@
-use pgorm_query::{TableAlterStatement, TableCreateStatement, extension::TypeCreateStatement};
+use pgorm_query::{
+    TableAlterStatement, TableCreateStatement, TableDropStatement,
+    extension::{TypeAlterStatement, TypeCreateStatement, TypeDropStatement},
+};
 use std::fmt;
 
 /// One statement of a list [`Schema`](crate::Schema) returns when the list
@@ -19,6 +22,15 @@ pub enum DdlStatement {
     /// A change to a table created before it, such as a foreign key to a
     /// table created after that one.
     AlterTable(TableAlterStatement),
+    /// A change to a type, such as a value added to an enum.
+    // [spec:pgorm:sem:disjoint.evolve+1]
+    AlterType(TypeAlterStatement),
+    /// A type dropped.
+    // [spec:pgorm:sem:disjoint.evolve+1]
+    DropType(TypeDropStatement),
+    /// A table dropped.
+    // [spec:pgorm:sem:disjoint.evolve+1]
+    DropTable(TableDropStatement),
 }
 
 impl fmt::Display for DdlStatement {
@@ -27,6 +39,9 @@ impl fmt::Display for DdlStatement {
             Self::CreateType(statement) => statement.fmt(f),
             Self::CreateTable(statement) => statement.fmt(f),
             Self::AlterTable(statement) => statement.fmt(f),
+            Self::AlterType(statement) => statement.fmt(f),
+            Self::DropType(statement) => statement.fmt(f),
+            Self::DropTable(statement) => statement.fmt(f),
         }
     }
 }

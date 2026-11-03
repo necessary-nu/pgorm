@@ -12,7 +12,7 @@ use pgorm_migration::prelude::*;
 /// A fresh database has nothing applied; `up` installs the tracking table and
 /// runs every pending migration in order.
 // [spec:pgorm:def:migration.runner+4/test]
-// [spec:pgorm:sem:migration.up+4/test]
+// [spec:pgorm:sem:migration.up+5/test]
 // [spec:pgorm:sem:migration.name+4/test]    asserted names are file stems
 // [spec:pgorm:req:migration.ledger-upgrade+2/test]    the fresh-install half: the legacy name is never created
 // [spec:pgorm:def:macros.derive+7/test]    `MigrationName` names each migration after the file stem
@@ -64,7 +64,7 @@ async fn fresh_install_applies_all_pending() -> Result<(), Error> {
 
 /// Re-running `up` on an already-migrated database is a no-op: no migration is
 /// re-applied and no extra ledger row is written.
-// [spec:pgorm:sem:migration.up+4/test]
+// [spec:pgorm:sem:migration.up+5/test]
 #[tokio::test]
 async fn repeated_up_is_idempotent() -> Result<(), Error> {
     let ctx = TestContext::new("pgorm_migration_idempotent").await;
@@ -91,7 +91,7 @@ async fn repeated_up_is_idempotent() -> Result<(), Error> {
 /// `steps` bounds how many pending migrations are applied, and `status` reports
 /// the split without altering it.
 // [spec:pgorm:def:migration.runner+4/test]
-// [spec:pgorm:sem:migration.up+4/test]
+// [spec:pgorm:sem:migration.up+5/test]
 #[tokio::test]
 async fn stepped_up_reports_status() -> Result<(), Error> {
     let ctx = TestContext::new("pgorm_migration_status").await;
@@ -145,8 +145,9 @@ async fn migration_table_name_is_overridable() -> Result<(), Error> {
 
 /// The whole `up` run shares one transaction, so a failing migration rolls back
 /// every migration in the run along with the ledger rows.
-// [spec:pgorm:sem:migration.up+4/test]
+// [spec:pgorm:sem:migration.up+5/test]
 // [spec:pgorm:req:migration.up-only/test]    no rollback path other than the transaction
+// [spec:pgorm:req:migration.commit-after/test]    a batch with no migration asking to be committed is one transaction
 #[tokio::test]
 async fn failed_migration_rolls_back_the_run() -> Result<(), Error> {
     let ctx = TestContext::new("pgorm_migration_abort").await;
@@ -206,7 +207,7 @@ async fn duplicate_migration_names_are_rejected() -> Result<(), Error> {
 
 /// The advisory key is a stable function of the ledger's name: it does not move
 /// between builds, and two migrators with different ledgers do not contend.
-// [spec:pgorm:sem:migration.up+4/test]
+// [spec:pgorm:sem:migration.up+5/test]
 #[test]
 fn lock_key_is_derived_from_the_ledger_name() {
     assert_eq!(
@@ -221,7 +222,7 @@ fn lock_key_is_derived_from_the_ledger_name() {
 
 /// Two runners racing one fresh database both succeed: the loser waits on the
 /// advisory lock, then recomputes the pending set and finds nothing to do.
-// [spec:pgorm:sem:migration.up+4/test]
+// [spec:pgorm:sem:migration.up+5/test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn concurrent_runners_queue_on_the_advisory_lock() -> Result<(), Error> {
     let ctx = TestContext::new("pgorm_migration_concurrent").await;
@@ -650,7 +651,7 @@ async fn a_read_never_widens_a_pre_checksum_ledger() -> Result<(), Error> {
 /// pool clear its statements, closing the insert, which is prepared again and
 /// writes the new default. A run that applies nothing leaves the insert
 /// prepared.
-// [spec:pgorm:sem:migration.up+4/test]    a committed batch that applied a migration clears the
+// [spec:pgorm:sem:migration.up+5/test]    a committed batch that applied a migration clears the
 // pool's statement caches, and a run that applied nothing does not
 // [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    the runner clears after the DDL it applied
 #[tokio::test]
@@ -702,7 +703,7 @@ async fn up_clears_the_pools_prepared_statements() -> Result<(), Error> {
 /// nothing, nor does a migrator that names no channel, which still clears the
 /// pool it was given, as the fence each is followed by shows: notifications
 /// reach a session in commit order.
-// [spec:pgorm:sem:migration.up+4/test]    a batch that applied a migration notifies the channel as
+// [spec:pgorm:sem:migration.up+5/test]    a batch that applied a migration notifies the channel as
 // it commits, and a run that applied nothing, or a migrator naming no channel, does not
 // [spec:pgorm:req:conn.pool.statement-cache.listen+1/test]    another pool listening on the default
 // channel clears once the runner's batch commits
@@ -1017,6 +1018,280 @@ async fn sql_file_migrations_run_and_detect_edits() -> Result<(), Error> {
     assert!(!has_column(db, "note", "pinned").await?);
 
     Written::up(db.clone(), None).await?;
+
+    ctx.delete().await;
+    Ok(())
+}
+
+fn sqlstate(err: &Error) -> Option<String> {
+    match err {
+        Error::Postgres(error) => error.as_db_error().map(|db| db.code().code().to_owned()),
+        _ => None,
+    }
+}
+
+async fn moods(db: &pgorm_migration::pgorm::DatabasePool) -> Result<Vec<String>, Error> {
+    let conn = db.get().await?;
+    Ok(conn
+        .query_one("SELECT enum_range(NULL::mood)::text[]", &[])
+        .await?
+        .get(0))
+}
+
+/// A value added to an enum created earlier can be used once the transaction
+/// adding it commits. Asked to by the migration adding it, the batch commits
+/// there and the next migration uses the value; asked by none, the batch is
+/// one transaction, in which the use is refused (`55P04`) and nothing is
+/// applied.
+// [spec:pgorm:req:migration.commit-after/test]    the batch commits after the migration asking, and a
+// batch with none is one transaction
+#[tokio::test]
+async fn a_batch_commits_after_a_migration_that_asks() -> Result<(), Error> {
+    use common::migrator::commit_after::{MoodCreated, Moods, Unsplit};
+
+    let ctx = TestContext::new("pgorm_migration_commit_after").await;
+    let db = &ctx.db;
+
+    MoodCreated::up(db.clone(), None).await?;
+    let err = Unsplit::up(db.clone(), None)
+        .await
+        .expect_err("a value used in the transaction adding it is refused");
+    assert_eq!(sqlstate(&err).as_deref(), Some("55P04"), "{err}");
+    assert_eq!(moods(db).await?, ["happy", "sad"]);
+    assert_eq!(count_rows(db, "pgorm_migrations").await?, 1);
+
+    Moods::up(db.clone(), None).await?;
+    assert_eq!(moods(db).await?, ["happy", "meh", "sad"]);
+    assert_eq!(count_rows(db, "feeling").await?, 1);
+    assert_eq!(count_rows(db, "pgorm_migrations").await?, 3);
+    assert!(
+        Moods::get_pending_migrations(&db.get().await?)
+            .await?
+            .is_empty()
+    );
+
+    ctx.delete().await;
+    Ok(())
+}
+
+/// A failure after the commit rolls back only the transaction it happens in:
+/// the migrations committed before it stay applied with their ledger rows, and
+/// the next run resumes after them.
+// [spec:pgorm:req:migration.commit-after/test]    a failure after a commit, then a run that resumes
+#[tokio::test]
+async fn a_failure_after_a_commit_keeps_what_committed() -> Result<(), Error> {
+    use common::migrator::commit_after::{FailingAfterCommit, Moods};
+
+    let ctx = TestContext::new("pgorm_migration_commit_after_failure").await;
+    let db = &ctx.db;
+
+    let err = FailingAfterCommit::up(db.clone(), None)
+        .await
+        .expect_err("the last migration writes a value the enum lacks");
+    assert_eq!(sqlstate(&err).as_deref(), Some("22P02"), "{err}");
+    assert_eq!(moods(db).await?, ["happy", "meh", "sad"]);
+    assert_eq!(count_rows(db, "feeling").await?, 0);
+    let applied: Vec<String> = FailingAfterCommit::get_applied_migrations(&db.get().await?)
+        .await?
+        .iter()
+        .map(|migration| migration.name().to_owned())
+        .collect();
+    assert_eq!(
+        applied,
+        ["m20240301_000001_create_mood", "m20240301_000002_add_meh"]
+    );
+
+    Moods::up(db.clone(), None).await?;
+    assert_eq!(moods(db).await?, ["happy", "meh", "sad"]);
+    assert_eq!(count_rows(db, "feeling").await?, 1);
+    assert_eq!(count_rows(db, "pgorm_migrations").await?, 3);
+
+    ctx.delete().await;
+    Ok(())
+}
+
+/// Two runners queued behind a held lock both finish, and each migration is
+/// applied once: whichever transaction holds the lock next recomputes the
+/// pending set against everything committed before it, so neither the value
+/// nor the row is added twice, which would be refused (`42710`, `23505`).
+// [spec:pgorm:req:migration.commit-after/test]    a runner queued behind the first applies nothing twice
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn runners_queued_behind_a_commit_apply_nothing_twice() -> Result<(), Error> {
+    use common::migrator::commit_after::Moods;
+    use pgorm_migration::pgorm::TransactionTrait;
+    use std::time::{Duration, Instant};
+
+    const WAITING: &str = "SELECT count(*) FROM pg_locks l JOIN pg_database d ON d.oid = l.database \
+                           WHERE l.locktype = 'advisory' AND NOT l.granted \
+                           AND d.datname = current_database()";
+
+    let ctx = TestContext::new("pgorm_migration_commit_after_queued").await;
+    let held = ctx.second_pool();
+    let watcher = ctx.second_pool();
+
+    let mut holder = held.get().await?;
+    let (first, second) = holder
+        .transaction(async |tx| {
+            tx.execute("SELECT pg_advisory_xact_lock($1)", &[&Moods::lock_key()])
+                .await?;
+            let first = ctx.db.clone();
+            let second = ctx.second_pool();
+            let runners = (
+                tokio::spawn(async move { Moods::up(first, None).await }),
+                tokio::spawn(async move { Moods::up(second, None).await }),
+            );
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                let waiting: i64 = watcher.get().await?.query_one(WAITING, &[]).await?.get(0);
+                if waiting == 2 {
+                    break;
+                }
+                assert!(Instant::now() < deadline, "both runners queue on the lock");
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            Ok::<_, Error>(runners)
+        })
+        .await
+        .map_err(|err| Error::Custom(err.to_string()))?;
+    drop(holder);
+    first.await.expect("the first runner panicked")?;
+    second.await.expect("the second runner panicked")?;
+
+    assert_eq!(moods(&ctx.db).await?, ["happy", "meh", "sad"]);
+    assert_eq!(count_rows(&ctx.db, "feeling").await?, 1);
+    assert_eq!(count_rows(&ctx.db, "pgorm_migrations").await?, 3);
+
+    ctx.delete().await;
+    Ok(())
+}
+
+/// Each commit of a batch clears the pool's statement caches and notifies the
+/// channel, inside the transaction it ends. Through a pool of one connection,
+/// the insert prepared before the batch is closed by the clear after the
+/// migration changing the domain's default commits, so the next migration,
+/// which writes through it on the same session, writes the new default; and
+/// the channel hears once per commit, where a batch of two migrations with no
+/// commit inside it is heard once.
+// [spec:pgorm:req:migration.commit-after/test]    every commit clears and notifies
+// [spec:pgorm:sem:migration.up+5/test]    each transaction of a split batch takes its connection from the
+// pool, after the clear
+#[tokio::test]
+async fn every_commit_clears_and_notifies() -> Result<(), Error> {
+    use common::migrator::commit_after::Redefaulted;
+    use common::migrator::domain_default::{Defaulted, INSERT, prepared_insert};
+    use futures::StreamExt;
+    use pgorm_migration::pgorm::{Listener, Notifications, STATEMENT_CACHE_CHANNEL, notify};
+    use std::time::Duration;
+
+    async fn payload(notifications: &mut Notifications) -> Result<String, Error> {
+        let notification = tokio::time::timeout(Duration::from_secs(10), notifications.next())
+            .await
+            .expect("a notification arrives in time")
+            .expect("the stream has not ended")?;
+        Ok(notification.payload().to_owned())
+    }
+
+    let ctx = TestContext::new("pgorm_migration_commit_after_clears").await;
+    let db = ctx.pool_of_one();
+    let (listener, mut notifications) = db.listener(Listener::DEFAULT_CAPACITY).await?;
+    listener.listen(STATEMENT_CACHE_CHANNEL).await?;
+
+    Defaulted::up(db.clone(), None).await?;
+    assert_eq!(payload(&mut notifications).await?, "");
+
+    let conn = db.get().await?;
+    assert_eq!(conn.query_one(INSERT, &[&1]).await?.get::<_, i32>(0), 2);
+    assert!(prepared_insert(&conn).await?.is_some());
+    drop(conn);
+
+    Redefaulted::up(db.clone(), None).await?;
+    assert_eq!(payload(&mut notifications).await?, "");
+    assert_eq!(payload(&mut notifications).await?, "");
+    let conn = db.get().await?;
+    let written: i32 = conn
+        .query_one("SELECT qty FROM line WHERE id = 10", &[])
+        .await?
+        .get(0);
+    assert_eq!(written, 3);
+    notify(&conn, STATEMENT_CACHE_CHANNEL, "fence").await?;
+    assert_eq!(payload(&mut notifications).await?, "fence");
+    drop(conn);
+
+    drop((listener, notifications));
+    ctx.delete().await;
+    Ok(())
+}
+
+/// A kind with a table added to a disjoint entity through the runner: the two
+/// steps `add_disjoint_kind` writes run as two migrations of one batch, the
+/// first answering `commits_after()`, so the second uses the value the first
+/// added. The entity then writes and reads the new kind beside the old.
+// [spec:pgorm:sem:disjoint.evolve+1/test]    each step one migration, every step but the last
+// answering `commits_after()`
+// [spec:pgorm:req:migration.commit-after/test]    a batch running the steps of a change
+#[tokio::test]
+async fn a_disjoint_kind_is_added_through_the_runner() -> Result<(), Error> {
+    use common::migrator::disjoint::{
+        Created, Fleet, FleetActiveModel, Vanned, VannedFleet, VannedFleetActiveModel, car, fleet,
+        van, vanned_fleet,
+    };
+    use pgorm::{Disjoint, QueryOrder, set};
+
+    let ctx = TestContext::new("pgorm_migration_disjoint_kind").await;
+    let db = &ctx.db;
+
+    Created::up(db.clone(), None).await?;
+    let conn = db.get().await?;
+    let (sedan, _) = Fleet::insert(
+        fleet::ActiveModel {
+            name: set("sedan"),
+            ..Default::default()
+        },
+        FleetActiveModel::Car(car::ActiveModel {
+            seats: set(5_i16),
+            ..Default::default()
+        }),
+    )?
+    .exec_returning_model(&conn)
+    .await?;
+    drop(conn);
+
+    Vanned::up(db.clone(), None).await?;
+    assert_eq!(count_rows(db, "pgorm_migrations").await?, 3);
+    let conn = db.get().await?;
+    let (camper, _) = VannedFleet::insert(
+        vanned_fleet::ActiveModel {
+            name: set("camper"),
+            ..Default::default()
+        },
+        VannedFleetActiveModel::Van(van::ActiveModel {
+            doors: set(4_i16),
+            ..Default::default()
+        }),
+    )?
+    .exec_returning_model(&conn)
+    .await?;
+    let read: Vec<VannedFleet> = VannedFleet::find()
+        .order_by_asc(vanned_fleet::Column::Id)
+        .all(&conn)
+        .await?
+        .into_iter()
+        .map(|(_, value)| value)
+        .collect();
+    assert_eq!(
+        read,
+        [
+            VannedFleet::Car(car::Model {
+                id: sedan.id,
+                seats: 5
+            }),
+            VannedFleet::Van(van::Model {
+                id: camper.id,
+                doors: 4
+            }),
+        ]
+    );
+    drop(conn);
 
     ctx.delete().await;
     Ok(())

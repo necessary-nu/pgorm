@@ -1499,7 +1499,7 @@ impl QueryBuilder {
         .unwrap()
     }
 
-    // [spec:pgorm:req:sql.ddl.alter-table+13]
+    // [spec:pgorm:req:sql.ddl.alter-table+14]
     pub(crate) fn prepare_table_alter_statement(
         &self,
         alter: &TableAlterStatement,
@@ -1571,7 +1571,7 @@ impl QueryBuilder {
                                 column_def.name.prepare(sql.as_writer());
                                 write!(sql, " SET NOT NULL").unwrap()
                             }
-                            // [spec:pgorm:req:sql.ddl.alter-table+13]
+                            // [spec:pgorm:req:sql.ddl.alter-table+14]
                             ColumnSpec::NotNull { name, no_inherit } => {
                                 let mut constraint =
                                     NotNullConstraint::new(column_def.name.clone());
@@ -1587,7 +1587,7 @@ impl QueryBuilder {
                             }
                             // A modified column's CHECK is a constraint the
                             // table gains, which ALTER TABLE spells as an ADD.
-                            // [spec:pgorm:req:sql.ddl.alter-table+13]
+                            // [spec:pgorm:req:sql.ddl.alter-table+14]
                             ColumnSpec::Check(check) => {
                                 write!(sql, "ADD ").unwrap();
                                 self.prepare_check_constraint(check, sql);
@@ -1608,6 +1608,24 @@ impl QueryBuilder {
                         }
                         false
                     });
+                }
+                // [spec:pgorm:req:sql.ddl.alter-table+14]
+                TableAlterOption::AlterColumnTypeUsing {
+                    column,
+                    column_type,
+                    using,
+                } => {
+                    write!(sql, "ALTER COLUMN ").unwrap();
+                    column.prepare(sql.as_writer());
+                    write!(sql, " TYPE ").unwrap();
+                    self.prepare_column_type(column_type, sql);
+                    write!(sql, " USING ").unwrap();
+                    self.prepare_simple_expr(using, sql);
+                }
+                TableAlterOption::DropDefault(column) => {
+                    write!(sql, "ALTER COLUMN ").unwrap();
+                    column.prepare(sql.as_writer());
+                    write!(sql, " DROP DEFAULT").unwrap();
                 }
                 TableAlterOption::DropColumn(column_name) => {
                     write!(sql, "DROP COLUMN ").unwrap();
@@ -1630,7 +1648,7 @@ impl QueryBuilder {
                     );
                     self.prepare_not_valid(*not_valid, sql);
                 }
-                // [spec:pgorm:req:sql.ddl.alter-table+13]
+                // [spec:pgorm:req:sql.ddl.alter-table+14]
                 TableAlterOption::AddPrimaryKey(key) => {
                     write!(sql, "ADD ").unwrap();
                     self.prepare_table_key("PRIMARY KEY", key, sql);
@@ -1677,7 +1695,7 @@ impl QueryBuilder {
     }
 
     /// Translate [`ColumnRenameStatement`] into SQL statement.
-    // [spec:pgorm:req:sql.ddl.alter-table+13]
+    // [spec:pgorm:req:sql.ddl.alter-table+14]
     pub(crate) fn prepare_column_rename_statement(
         &self,
         rename: &ColumnRenameStatement,
