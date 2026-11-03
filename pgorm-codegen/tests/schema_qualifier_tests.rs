@@ -34,7 +34,7 @@ const QUALIFIED: &str = "CREATE TABLE tenant_a.item (id int PRIMARY KEY);";
 
 // [spec:pgorm:sem:codegen.entity.transform+17/test]    the source table's schema
 // survives transformation and reaches the compact entity
-// [spec:pgorm:def:codegen.entity.compact+5/test]
+// [spec:pgorm:def:codegen.entity.compact+6/test]
 #[test]
 fn compact_entity_carries_the_source_schema() {
     let generated = from_sql(QUALIFIED, Opts::default());
@@ -255,7 +255,7 @@ fn an_ambiguous_unqualified_index_is_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.tables+11/test]    the bridge preserved the
+// [spec:pgorm:sem:codegen.ddl.tables+12/test]    the bridge preserved the
 // qualifier all along; it is the whole pipeline that now keeps it
 #[test]
 fn bridge_and_generated_entity_agree_on_schema() {

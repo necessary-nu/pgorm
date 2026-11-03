@@ -1,0 +1,47 @@
+error: you can only derive `OneOf` on enums
+ --> tests/compile-fail/one_of_declaration.rs:6:12
+  |
+6 | pub struct NotAnEnum {
+  |            ^^^^^^^^^
+
+error: a `OneOf` enum takes no generic parameters
+  --> tests/compile-fail/one_of_declaration.rs:12:17
+   |
+12 | pub enum Generic<T> {
+   |                 ^^^
+
+error: `OneOf` names the entity whose rows hold the reference: `#[pgorm(entity = comment::Entity)]`
+  --> tests/compile-fail/one_of_declaration.rs:19:10
+   |
+19 | pub enum NoEntity {
+   |          ^^^^^^^^
+
+error: `entity` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/one_of_declaration.rs:25:18
+   |
+25 | #[pgorm(entity = "pgorm::tests_cfg::comment::Entity")]
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unknown pgorm attribute `base`
+  --> tests/compile-fail/one_of_declaration.rs:32:53
+   |
+32 | #[pgorm(entity = pgorm::tests_cfg::comment::Entity, base = pgorm::tests_cfg::comment::Entity)]
+   |                                                     ^^^^
+
+error: `entity` is given twice
+  --> tests/compile-fail/one_of_declaration.rs:39:53
+   |
+39 | #[pgorm(entity = pgorm::tests_cfg::comment::Entity, entity = pgorm::tests_cfg::comment::Entity)]
+   |                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: a `OneOf` enum references one of several entities, and this enum has no variant naming one: `#[pgorm(column = Column::PostId)] Post(post::Entity)`
+  --> tests/compile-fail/one_of_declaration.rs:47:10
+   |
+47 | pub enum NoVariants {}
+   |          ^^^^^^^^^^
+
+error: a `OneOf` enum references one of several entities, and this enum has no variant naming one: `#[pgorm(column = Column::PostId)] Post(post::Entity)`
+  --> tests/compile-fail/one_of_declaration.rs:51:10
+   |
+51 | pub enum NoTarget {
+   |          ^^^^^^^^

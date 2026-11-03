@@ -2938,6 +2938,11 @@ impl_evidence (
     ), rule_versions_seen (
         {id testing.isolation, version 0}
     )}
+    {id disjoint.one-of, covered_rules (
+        disjoint.one-of
+    ), covered_claims (
+        {impl_name main, rule disjoint.one-of}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

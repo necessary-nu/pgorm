@@ -1,5 +1,6 @@
 mod disjoint;
 mod entity;
+mod one_of;
 mod statement;
 
 pub(crate) use entity::table_from_entity;

@@ -103,7 +103,7 @@ fn rust_files(dir: &Path, files: &mut Vec<PathBuf>) {
     }
 }
 
-// [spec:pgorm:req:macros.derive.names+1/test]    the declared derives are the rule's list, none `Derive`-prefixed
+// [spec:pgorm:req:macros.derive.names+2/test]    the declared derives are the rule's list, none `Derive`-prefixed
 #[test]
 fn derives_are_named_for_what_they_make() {
     let root = workspace();
@@ -120,6 +120,7 @@ fn derives_are_named_for_what_they_make() {
         "JsonValueType",
         "MigrationName",
         "Model",
+        "OneOf",
         "PartialModel",
         "Relation",
         "SqlName",
@@ -134,7 +135,7 @@ fn derives_are_named_for_what_they_make() {
     assert_eq!(query, ["SqlName", "StaticName"].map(String::from).into());
 }
 
-// [spec:pgorm:req:macros.derive.names+1/test]    no crate imports or re-exports an old name, under any alias
+// [spec:pgorm:req:macros.derive.names+2/test]    no crate imports or re-exports an old name, under any alias
 #[test]
 fn no_old_derive_name_is_imported_or_aliased() {
     let root = workspace();

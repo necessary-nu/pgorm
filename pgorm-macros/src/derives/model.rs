@@ -10,7 +10,7 @@ use syn::Ident;
 /// The entity a further model belongs to, from its container's `entity`:
 /// the one key `Model` reads there. Under the composite the entity is
 /// always `Entity`, and the composite reads the container itself.
-// [spec:pgorm:sem:macros.derive.model+5]
+// [spec:pgorm:sem:macros.derive.model+6]
 // [spec:pgorm:req:macros.derive.code-values+3]
 fn model_entity(attrs: &[syn::Attribute], reader: Reader) -> syn::Result<Option<Ident>> {
     let mut entity = None;
@@ -100,11 +100,43 @@ impl Model {
     fn expand(&self) -> syn::Result<TokenStream> {
         let expanded_impl_from_query_result = self.impl_from_query_result();
         let expanded_impl_model_trait = self.impl_model_trait();
+        let expanded_impl_column_fields = self.impl_column_fields();
 
         Ok(TokenStream::from_iter([
             expanded_impl_from_query_result,
             expanded_impl_model_trait,
+            expanded_impl_column_fields,
         ]))
+    }
+
+    /// `ColumnField` for each field reading a column, keyed by the column's
+    /// discriminant: the field's type reachable from a column named as a
+    /// value, which `OneOf` holds to its target's key.
+    // [spec:pgorm:sem:macros.derive.model+6]
+    // [spec:pgorm:def:disjoint.one-of+1]
+    fn impl_column_fields(&self) -> TokenStream {
+        let ident = &self.ident;
+        let entity_ident = &self.entity_ident;
+        let fields = self
+            .field_idents
+            .iter()
+            .zip(&self.field_types)
+            .zip(&self.column_idents)
+            .zip(&self.ignore_attrs)
+            .filter(|(_, ignore)| !**ignore)
+            .map(|(((field, field_type), column), _)| {
+                quote! {
+                    #[automatically_derived]
+                    impl pgorm::ColumnField<{ <#entity_ident as pgorm::entity::EntityTrait>::Column::#column as usize }> for #ident {
+                        type Value = #field_type;
+
+                        fn field(&self) -> &#field_type {
+                            &self.#field
+                        }
+                    }
+                }
+            });
+        quote!(#(#fields)*)
     }
 
     fn impl_from_query_result(&self) -> TokenStream {
@@ -127,7 +159,7 @@ impl Model {
             })
             .collect();
 
-        // [spec:pgorm:sem:macros.derive.model+5]    the reflected column shape
+        // [spec:pgorm:sem:macros.derive.model+6]    the reflected column shape
         let expected_columns: Vec<TokenStream> = column_idents
             .iter()
             .zip(&self.field_types)
@@ -219,7 +251,7 @@ impl Model {
 /// `ModelTrait` and `FromQueryResult` for a model, as `reader` reads its
 /// keys: every key under the composite, which validated them, and only
 /// `entity`, `variant` and `ignore` under `Model` itself.
-// [spec:pgorm:sem:macros.derive.model+5]
+// [spec:pgorm:sem:macros.derive.model+6]
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+9]    the field-key vocabulary this
 // derive shares with the `Entity` derive
 pub fn expand_derive_model(input: syn::DeriveInput, reader: Reader) -> syn::Result<TokenStream> {

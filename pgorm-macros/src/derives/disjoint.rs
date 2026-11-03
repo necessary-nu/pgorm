@@ -36,7 +36,11 @@ struct Kind {
 }
 
 /// Fill `slot` from `meta`, refusing a key given twice at the second.
-fn once<T>(meta: &ParseNestedMeta<'_>, slot: &mut Option<T>, value: T) -> syn::Result<()> {
+pub(super) fn once<T>(
+    meta: &ParseNestedMeta<'_>,
+    slot: &mut Option<T>,
+    value: T,
+) -> syn::Result<()> {
     if slot.is_some() {
         let key = meta
             .path

@@ -49,7 +49,7 @@ mod both_preludes {
     }
 }
 
-// [spec:pgorm:req:macros.derive.names+1/test]    the entity and migration preludes share no macro name between two macros
+// [spec:pgorm:req:macros.derive.names+2/test]    the entity and migration preludes share no macro name between two macros
 #[test]
 fn both_preludes_derive_without_ambiguity() {
     use pgorm::{EntityName, SqlName, StaticName};

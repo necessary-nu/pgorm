@@ -73,7 +73,7 @@ known limitations.
 > `EntityName` on it, and puts the entity-trait derive on it beside a
 > composite derive given no `table_name`.
 
-> [spec:pgorm:req:macros.derive.names+1]
+> [spec:pgorm:req:macros.derive.names+2]
 > Every derive MUST be named for what it makes or implements, as Rust's own
 > derives and serde's are, with no `Derive` prefix; a derive and a trait
 > live in different namespaces, so the two can share a name. The derives
@@ -81,8 +81,9 @@ known limitations.
 > (on a hand-written `Entity` struct whose names are computed), `Model` (a
 > further model of an entity), `Column` (a column enum for a custom
 > select), `Relation`, `ActiveEnum`, `Disjoint` (an enum stored as a base
-> table and its kinds' tables, `[spec:pgorm:def:disjoint.declare]`),
-> `IntoActiveModel`, `PartialModel`, `FromQueryResult`, `ValueType`,
+> table and its kinds' tables, `[spec:pgorm:def:disjoint.declare]`), `OneOf`
+> (a reference to one of several entities,
+> `[spec:pgorm:def:disjoint.one-of]`), `IntoActiveModel`, `PartialModel`, `FromQueryResult`, `ValueType`,
 > `JsonValueType` (a value stored as a JSON column), `CreatedRange`,
 > `MigrationName` (in pgorm-migration), and
 > pgorm-query's `SqlName` and `StaticName`, reachable from pgorm with no
@@ -482,9 +483,9 @@ known limitations.
 > spanned at the key. The composite derive writes the same impls for the `Column` it
 > makes, from each field's column name rather than an attribute.
 
-> [spec:pgorm:sem:macros.derive.model+5]
-> The `Model` derive (named-field structs only; otherwise a compile error) generates two
-> impls. `FromQueryResult`: each field is read with
+> [spec:pgorm:sem:macros.derive.model+6]
+> The `Model` derive (named-field structs only; otherwise a compile error) generates
+> `FromQueryResult`, `ModelTrait` and `ColumnField`. `FromQueryResult`: each field is read with
 > `row.try_get(pre, Column::<Variant>.as_str())`, where the variant name follows the
 > same trim/UpperCamelCase/keyword-escape/`variant` rules as
 > `[spec:pgorm:sem:macros.derive.entity-model.casing]`; `#[pgorm(ignore)]` fields are
@@ -496,7 +497,11 @@ known limitations.
 > assigns, answering `Error::Type("value does not match the type of {Model} field
 > {field}")` when the value is of another type. Ignored fields have no match arm, so
 > `get` on them panics with "field does not exist on {Model}" and `set` returns that
-> same text as `Error::Type`. The
+> same text as `Error::Type`. `ColumnField<{ Column::<Variant> as usize }>`, for each
+> field that is not ignored, keyed by its column's discriminant: its `Value` is the
+> field's type as declared and `field` borrows the field, so code that names a column
+> as a value reaches the column's type at compile time, as `OneOf` holds a column to
+> its target's key (`[spec:pgorm:def:disjoint.one-of]`). The
 > target entity defaults to `Entity`, overridable via `#[pgorm(entity = Ident)]`.
 > Derived by the program, the derive reads that `entity` and a field's `variant` and
 > `ignore` and nothing else, refusing any other key at the key; run by the composite,

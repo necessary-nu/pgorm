@@ -1,0 +1,59 @@
+error: a `OneOf` variant names its target entity as its one unnamed field (`Post(post::Entity)`), or is a unit variant, a row referencing none
+ --> tests/compile-fail/one_of_variants.rs:8:10
+  |
+8 |     Post { post: post::Entity },
+  |          ^^^^^^^^^^^^^^^^^^^^^^
+
+error: a `OneOf` variant names its target entity as its one unnamed field (`Post(post::Entity)`), or is a unit variant, a row referencing none
+  --> tests/compile-fail/one_of_variants.rs:15:9
+   |
+15 |     Post(post::Entity, photo::Entity),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: a `OneOf` variant names a target entity, or is the unit variant of a row referencing none: it takes no discriminant
+  --> tests/compile-fail/one_of_variants.rs:24:16
+   |
+24 |     Detached = 1,
+   |                ^
+
+error: a variant naming a target names the column holding its key: `#[pgorm(column = Column::PostId)]`
+  --> tests/compile-fail/one_of_variants.rs:30:5
+   |
+30 |     Post(post::Entity),
+   |     ^^^^
+
+error: the unit variant is a row referencing none of the targets, so it has no column
+  --> tests/compile-fail/one_of_variants.rs:38:22
+   |
+38 |     #[pgorm(column = pgorm::tests_cfg::comment::Column::PhotoId)]
+   |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `Detached` is already the unit variant: a row references none of the targets in one way
+  --> tests/compile-fail/one_of_variants.rs:48:5
+   |
+48 |     Orphaned,
+   |     ^^^^^^^^
+
+error: a target entity takes no `#[pgorm(..)]`: its column is the variant's `column`
+  --> tests/compile-fail/one_of_variants.rs:55:10
+   |
+55 |     Post(#[pgorm(ignore)] post::Entity),
+   |          ^^^^^^^^^^^^^^^^
+
+error: `column` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/one_of_variants.rs:61:22
+   |
+61 |     #[pgorm(column = "pgorm::tests_cfg::comment::Column::PostId")]
+   |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unknown pgorm attribute `value`
+  --> tests/compile-fail/one_of_variants.rs:68:65
+   |
+68 |     #[pgorm(column = pgorm::tests_cfg::comment::Column::PostId, value = "post")]
+   |                                                                 ^^^^^
+
+error: `column` is given twice
+  --> tests/compile-fail/one_of_variants.rs:75:65
+   |
+75 |     #[pgorm(column = pgorm::tests_cfg::comment::Column::PostId, column = pgorm::tests_cfg::comment::Column::PostId)]
+   |                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

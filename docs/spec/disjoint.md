@@ -371,7 +371,7 @@ has a row for it, and is never written through.
 
 ## References to one of several entities
 
-> [spec:pgorm:def:disjoint.one-of]
+> [spec:pgorm:def:disjoint.one-of+1]
 > `#[derive(OneOf)]` on an enum MUST declare a reference from one entity to
 > exactly one of several others, stored as one nullable column per target,
 > each a foreign key the entity's own `belongs_to` relation declares:
@@ -380,28 +380,67 @@ has a row for it, and is never written through.
 > Post(post::Entity)`, the payload naming the target entity. At most one unit
 > variant MAY say that a row references none of them. A column that is not
 > the entity's, is not nullable, appears twice, or whose type is not the
-> target's key type, and an enum with no variant naming a target, MUST NOT
-> compile.
+> target's key type, a target the entity has no `Related` relation to, two
+> variants naming one target, and an enum with no variant naming a target
+> MUST NOT compile. A column's type is the type of the field the entity's
+> `Model` declares for it, reachable from the column through the
+> `ColumnField` the `Model` derive implements
+> (`[spec:pgorm:sem:macros.derive.model]`).
 >
 > The derive MUST generate `<Enum>Key`, the same variants each holding its
 > target's key value (the unit variant, if any, holding nothing), and
-> `<Enum>Model`, the same variants each holding its target's `Model`. A
-> model's reference reads as its `<Enum>Key` — the variant whose column is
-> set — and a row with two columns set, or none where the enum has no unit
-> variant, MUST be an error naming the table, the key and the columns, never
-> read as one of them; setting an `<Enum>Key` on the entity's `ActiveModel`
-> sets that variant's column and sets every other one to null. Loading the
-> targets of a list of rows MUST read each target table once, for the keys
+> `<Enum>Model`, the same variants each holding its target's `Model`. They
+> derive `Clone`, `Debug` and `PartialEq`, and `Clone` and `Debug`, and
+> `key_attrs(..)` and `model_attrs(..)` give each further attributes after
+> its own derives, as `kind_attrs(..)` gives a disjoint entity's kind type
+> (`[spec:pgorm:def:disjoint.declare]`). A model's reference reads as its
+> `<Enum>Key`, `OneOf::key(&model)` — the variant whose column is set — and
+> a row with two columns set, or none where the enum has no unit variant,
+> MUST be an `Error::Query` naming the table, the key and the columns, never
+> read as one of them; setting an `<Enum>Key` on the entity's `ActiveModel`,
+> `OneOf::set(&mut active, key)`, sets that variant's column and sets every
+> other one to null. Loading the targets of a list of rows,
+> `OneOf::load(&models, db)`, MUST read each target table once, for the keys
 > its variant holds, as `load_one` reads a relation, and give each row its
-> `<Enum>Model`; a key its target table does not hold is the error `load_one`
-> gives an unmatched key.
+> `<Enum>Model`. The relation it reads is the entity's `Related` relation to
+> the target, and one that does not join exactly the variant's column to the
+> target's key MUST be refused as `Error::Type` before anything is sent; a
+> key its target table does not hold, which `load_one` gives as `None`, MUST
+> be an `Error::Query` naming the table, the row's key, the target's key and
+> the column, since the variant holds a `Model`.
 >
-> `Schema::create_one_of::<E>()` MUST return the `ALTER TABLE` adding a named
+> `Schema::create_one_of::<E>()` MUST return the `ALTER TABLE` adding a
 > `CHECK` on the entity's table: `num_nonnulls(<columns>) = 1`, or `<= 1`
 > where the enum has a unit variant, so PostgreSQL refuses a row referencing
 > two targets, and refuses one referencing none unless the enum says a row
-> may. The foreign keys are the relations' own, written by
-> `create_table_from_entity`. Codegen MUST generate the enum for nullable
-> foreign-key columns covered by exactly such a `CHECK`, named for the
-> constraint, and generate the columns as the ordinary nullable fields they
-> are when no such `CHECK` covers them.
+> may. It is named `ck-{table}-{enum}`, the table bare and the enum's name in
+> snake_case, bounded as prefixed result names are
+> (`[spec:pgorm:sem:query.graph.writer]`). The foreign keys are the
+> relations' own, written by `create_table_from_entity`.
+>
+> Codegen MUST generate the enum for nullable foreign-key columns covered by
+> exactly such a `CHECK`, named for the constraint, from DDL text and from
+> statements described in code alike, and generate the columns as the
+> ordinary nullable fields they are when no such `CHECK` covers them. Exactly
+> such a `CHECK` is an enforced table `CHECK` whose expression is
+> `num_nonnulls` of one or more distinct columns of the table compared `= 1`
+> or `<= 1`, each column nullable and the one column of a foreign key of the
+> table onto the one-column primary key of a table, of that key's type, and
+> that table one the entity's `Relation` reaches by that foreign key's
+> variant alone, so that the entity is `Related` to it. The enum is declared
+> in the table's module after its `Relation` enum, `#[pgorm(entity =
+> Entity)]`, deriving `Clone`, `Copy`, `Debug` and `OneOf` and allowing
+> `clippy::enum_variant_names`, as a disjoint enum does. It is named in
+> UpperCamelCase for the constraint's name after `ck-{table}-` where the name
+> begins so, as `create_one_of` writes it, so a schema it wrote generates the
+> enum it was written from, and for the whole name otherwise; an unnamed
+> `CHECK` is named as PostgreSQL names it, `{table}_check`, or
+> `{table}_{column}_check` over one column, numbered from 1 where an earlier
+> `CHECK` of the table took that name. It has a variant per
+> column, in the `CHECK`'s order, named for its target table in
+> UpperCamelCase and holding its entity, `#[pgorm(column = Column::PostId)]
+> Post(super::post::Entity)`, and for `<= 1` a unit variant `None`. A name
+> the enum, its `<Enum>Key` or `<Enum>Model` would take that the module
+> already declares or its code names otherwise, and two variants of one name,
+> MUST be refused as ``TransformError("table `<table>`: its one-of
+> reference's <item> `<name>` is named as <the other>")``.

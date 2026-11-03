@@ -348,7 +348,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## The entity file
 
-> [spec:pgorm:def:codegen.entity.compact+5]
+> [spec:pgorm:def:codegen.entity.compact+6]
 > The writer emits one form of entity, the composite derive's
 > (`[spec:pgorm:req:macros.derive.one-form]`), and no option selects another.
 > Per entity it emits, in order: the imports (`use pgorm::entity::prelude::*;`,
@@ -362,7 +362,9 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `Copy, Clone, Debug, Relation` whose variants carry
 > `#[pgorm(...)]` relation attributes (an entity with no relations emits the
 > empty `pub enum Relation {}`); for a disjoint entity's base, its
-> `#[derive(Disjoint)]` enum (`codegen.entity.disjoint`); and the `via`
+> `#[derive(Disjoint)]` enum (`codegen.entity.disjoint`); each
+> `#[derive(OneOf)]` enum a `CHECK` of its table generates
+> (`[spec:pgorm:def:disjoint.one-of]`), in the table's order; and the `via`
 > `Related` impls (`codegen.entity.relations.via`). The `Entity` derive writes
 > the `Entity`, `Column`, `PrimaryKey`, `ActiveModel` and the behaviour with no
 > hooks from the `Model`, and the `Relation` derive the enum's iteration and the
@@ -373,7 +375,8 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `Vec<TokenStream>`, one block per section: the import block (`gen_import`
 > extended with `gen_import_active_enum` and `gen_import_range_types`),
 > `gen_compact_model_struct`, `gen_compact_relation_enum`, `gen_disjoint_enum`
-> for a base, then zero or more `gen_impl_conjunct_related` blocks. `write_entities` prepends the
+> for a base, a block per one-of enum, then zero or more
+> `gen_impl_conjunct_related` blocks. `write_entities` prepends the
 > generated-file header and joins the stringified blocks with blank lines, so
 > each section is one contiguous block in the output (rendered shapes pinned
 > by `tests/compact/`).
@@ -1210,11 +1213,11 @@ compiling the C parser falls on people generating entities and on nobody else.
 > (`sql.ddl.create-table`), so a key the statement declares and the key the
 > bridge reads back from its rendering are one fact.
 
-> [spec:pgorm:req:codegen.ddl.unsupported+19]
+> [spec:pgorm:req:codegen.ddl.unsupported+20]
 > The supported subset is what the entity model can hold: `CREATE TABLE` with
 > its columns, `NULL`/`NOT NULL`, primary-key, unique and foreign-key
-> constraints, and its `DEFAULT`s and generation expressions within the subset
-> `codegen.entity.expressions` reads; `ALTER TABLE ... ADD COLUMN` and `ADD
+> constraints, and its `DEFAULT`s, generation expressions and table-level
+> `CHECK`s within the subset `codegen.entity.expressions` reads; `ALTER TABLE ... ADD COLUMN` and `ADD
 > CONSTRAINT`, adding the same to a table the file creates
 > (`codegen.ddl.objects`); `CREATE TYPE ... AS ENUM`; `CREATE TYPE ... AS RANGE`
 > and `CREATE DOMAIN` (`codegen.ddl.objects`); `CREATE INDEX`; `CREATE SCHEMA`,
@@ -1259,8 +1262,8 @@ compiling the C parser falls on people generating entities and on nobody else.
 > catalog-qualified table and collation names and temporary or unlogged
 > tables; column
 > `CHECK`,
-> `STORAGE` and `COMPRESSION` clauses, and an identity's sequence options; table-level `CHECK`
-> and `EXCLUDE` constraints, deferrable keys (a foreign key's deferrability
+> `STORAGE` and `COMPRESSION` clauses, and an identity's sequence options; table-level
+> `EXCLUDE` constraints, deferrable keys (a foreign key's deferrability
 > is read, `codegen.ddl.tables`), `NO INHERIT` on any
 > constraint but a `NOT NULL`, `INCLUDE`
 > columns, constraint index and storage options, and `MATCH` clauses;
@@ -1481,7 +1484,7 @@ compiling the C parser falls on people generating entities and on nobody else.
 > multi-dimensional array, and a non-integer type modifier are all named
 > rejections per `codegen.ddl.unsupported`.
 
-> [spec:pgorm:sem:codegen.ddl.tables+11]
+> [spec:pgorm:sem:codegen.ddl.tables+12]
 > A `CREATE TABLE` becomes a `TableCreateStatement` carrying the `TableName`
 > its name spells — `Table`, or `SchemaTable` when it is schema-qualified;
 > a catalog-qualified `db.schema.table` names a cross-database reference
@@ -1589,6 +1592,20 @@ compiling the C parser falls on people generating entities and on nobody else.
 > and `NOT ENFORCED` `Enforcement::NotEnforced`, each riding on the
 > statement as said. Attribute clauses after anything else — a key, a `NOT
 > NULL` — stay named (`codegen.ddl.unsupported`).
+>
+> A table-level `CHECK`, in the `CREATE TABLE` or added by an `ALTER
+> TABLE`, becomes one of the table's checks (`TableCreateStatement::check`,
+> read back by `get_checks`), keeping its name and its `NOT ENFORCED`. Its
+> expression is read into the subset `codegen.entity.expressions` holds and
+> lowered as a `DEFAULT`'s is, a construct outside it named as there,
+> ``... in the CHECK `<name>` of table `<t>` ``, or ``... in a CHECK of
+> table `<t>` `` when it is unnamed; a column it reads that the table lacks is
+> unresolved, ``statement <n>: table `<t>` has no column `<c>` ``. It rides
+> on the statement and reaches the generated entity only as the
+> `#[derive(OneOf)]` enum `[spec:pgorm:def:disjoint.one-of]` recognises in
+> it: the entity model holds no other `CHECK`, and a generated entity is the
+> image of a schema that already exists. A column's own `CHECK` stays named
+> (`codegen.ddl.unsupported`).
 >
 > A primary key ending `WITHOUT OVERLAPS` becomes the table's temporal key,
 > its period held apart from its other columns (`TableKey::without_overlaps`),
