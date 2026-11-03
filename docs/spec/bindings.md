@@ -1331,8 +1331,9 @@ Rust generic at run time, only use the ones compiled in.
 > with it. Declaring or registering sends nothing. What the Rust
 > declaration refuses — no kinds, a model given for two kinds, a kind
 > model whose key differs from the base's, a base whose kind field is
-> missing, nullable or of another type, a kind model whose key the database
-> generates — MUST be a `ConstructionError` raised as the model is declared.
+> missing, nullable, generated or of another type, a kind model whose key
+> the database generates or fills — MUST be a `ConstructionError` raised as
+> the model is declared.
 >
 > Reads, writes and the schema MUST be Rust's
 > (`[spec:pgorm:sem:disjoint.read]`, `[spec:pgorm:sem:disjoint.write]`,
