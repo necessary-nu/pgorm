@@ -200,14 +200,14 @@ known limitations.
 > the variant, not the key — which is the point of the two namespaces being separate
 > (`[spec:pgorm:def:entity.traits.column]`).
 
-> [spec:pgorm:req:macros.derive.entity-model.reject+3]
+> [spec:pgorm:req:macros.derive.entity-model.reject+4]
 > The `Entity` derive's input MUST be a struct named exactly `Model`; any other identifier
 > is the compile error "`Entity` is derived on the struct named `Model`",
 > spanned at the offending identifier rather than raised as a macro panic. The
 > entity MUST have at least one `#[pgorm(primary_key)]` field: with none, the derive
-> emits the compile error "Entity must have a primary key column. See
-> <https://github.com/pgorm-rs/pgorm/issues/485> for details." spanned at the struct's
-> identifier, and no `PrimaryKey` enum.
+> emits the compile error "Entity must have a primary key column. See SeaORM's issue
+> 485 <https://github.com/SeaQL/sea-orm/issues/485> for details." spanned at the
+> struct's identifier, and no `PrimaryKey` enum.
 
 > [spec:pgorm:syn:macros.derive.entity-model.attrs+8]
 > Struct-level `#[pgorm(...)]` keys recognised by the `Entity` derive: `table_name = Lit`,

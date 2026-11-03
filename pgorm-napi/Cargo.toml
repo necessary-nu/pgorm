@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.89"
 description = "Asynchronous PostgreSQL access through pgorm from Node.js and Deno, over Node-API"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/pgorm-rs/pgorm"
+repository = "https://github.com/necessary-nu/pgorm"
 publish = false
 
 # A separate workspace keeps the Node-API addon out of ordinary Rust builds,

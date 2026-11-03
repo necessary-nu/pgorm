@@ -1859,9 +1859,9 @@ mod tests {
         let entities = [
             // This tests that the JsonBinary column type is annotated
             // correctly in compact entity form. More information can be found
-            // in this issue:
+            // in SeaORM's issue 1344:
             //
-            // https://github.com/pgorm-rs/pgorm/issues/1344
+            // https://github.com/SeaQL/sea-orm/issues/1344
             Entity {
                 table_name: "task".to_owned(),
                 schema_name: None,
