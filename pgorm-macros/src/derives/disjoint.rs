@@ -1,4 +1,5 @@
 use super::active_enum::expand_derive_active_enum;
+use super::iterable::impl_iterable;
 use super::util::{bare_code, trim_starting_raw_identifier, unknown_pgorm_key};
 use heck::ToSnakeCase;
 use proc_macro2::TokenStream;
@@ -9,14 +10,15 @@ use syn::{
 };
 
 /// The container's keys: the base entity, the column holding each row's kind,
-/// the kind type's SQL name, and attributes the kind type carries besides its
-/// own.
+/// the kind type's SQL name, attributes the kind type carries besides its
+/// own, and `unkinded`, where the base has no kind column at all.
 struct Container {
     base: Type,
     kind: Option<Expr>,
     enum_name: Option<LitStr>,
     schema_name: Option<LitStr>,
     kind_attrs: Vec<Meta>,
+    unkinded: Option<Ident>,
 }
 
 /// One variant: a kind of base row.
@@ -55,6 +57,7 @@ fn container(input: &DeriveInput) -> syn::Result<Container> {
     let mut enum_name = None;
     let mut schema_name = None;
     let mut kind_attrs = None;
+    let mut unkinded = None;
     for attr in input
         .attrs
         .iter()
@@ -74,6 +77,8 @@ fn container(input: &DeriveInput) -> syn::Result<Container> {
                 syn::parenthesized!(content in meta.input);
                 let attrs = Punctuated::<Meta, Token![,]>::parse_terminated(&content)?;
                 once(&meta, &mut kind_attrs, attrs.into_iter().collect())
+            } else if meta.path.is_ident("unkinded") {
+                once(&meta, &mut unkinded, meta.path.require_ident()?.clone())
             } else {
                 Err(unknown_pgorm_key(&meta))
             }
@@ -92,7 +97,63 @@ fn container(input: &DeriveInput) -> syn::Result<Container> {
         enum_name,
         schema_name,
         kind_attrs: kind_attrs.unwrap_or_default(),
+        unkinded,
     })
+}
+
+/// Refuse what an `unkinded` declaration cannot hold: the container's keys
+/// describing a kind column and its kind type, and a variant's `value`, since
+/// it has neither; a second unit variant, since a unit kind is told by a base
+/// row having a row in no kind's table; and no variant holding a kind's
+/// `Model`, which leaves nothing to tell kinds apart by.
+// [spec:pgorm:sem:disjoint.unkinded]
+fn refuse_unkinded(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> syn::Result<()> {
+    let kind_keys = [
+        container.kind.as_ref().map(|kind| ("kind", kind.span())),
+        container
+            .enum_name
+            .as_ref()
+            .map(|name| ("enum_name", name.span())),
+        container
+            .schema_name
+            .as_ref()
+            .map(|name| ("schema_name", name.span())),
+    ];
+    if let Some((key, span)) = kind_keys.into_iter().flatten().next() {
+        return Err(syn::Error::new(
+            span,
+            format!(
+                "`{key}` describes a kind column and its kind type, and an `unkinded` entity \
+                 has neither: a row's kind is the kind whose table has a row for it"
+            ),
+        ));
+    }
+    if let Some(given) = kinds.iter().find_map(|kind| kind.given.as_ref()) {
+        return Err(syn::Error::new(
+            given.span(),
+            "an `unkinded` entity has no kind type, so a kind has no `value`: it is named by \
+             its variant",
+        ));
+    }
+    let mut units = kinds.iter().filter(|kind| kind.payload.is_none());
+    if let (Some(first), Some(second)) = (units.next(), units.next()) {
+        return Err(syn::Error::new(
+            second.variant.span(),
+            format!(
+                "`{}` is already the unit kind: an `unkinded` entity reads a base row with a row \
+                 in no kind's table as its one unit variant",
+                first.variant
+            ),
+        ));
+    }
+    if kinds.iter().all(|kind| kind.payload.is_none()) {
+        return Err(syn::Error::new(
+            input.ident.span(),
+            "an `unkinded` entity tells its kinds apart by their tables, and this enum has no \
+             variant holding a kind's `Model`",
+        ));
+    }
+    Ok(())
 }
 
 // [spec:pgorm:def:disjoint.declare+3]
@@ -198,6 +259,9 @@ pub fn expand_derive_disjoint(input: DeriveInput) -> syn::Result<TokenStream> {
         }
         kinds.push(kind);
     }
+    if container.unkinded.is_some() {
+        refuse_unkinded(&input, &container, &kinds)?;
+    }
 
     let ident = &input.ident;
     let enum_name = container.enum_name.as_ref().map_or_else(
@@ -210,16 +274,20 @@ pub fn expand_derive_disjoint(input: DeriveInput) -> syn::Result<TokenStream> {
         LitStr::value,
     );
     let mut expanded = kind_type(&input, &container, &kinds, &enum_name)?;
-    expanded.extend(active_model(&input, &kinds));
+    if container.unkinded.is_none() {
+        expanded.extend(active_model(&input, &kinds));
+    }
     expanded.extend(impl_disjoint(&input, &container, &kinds));
     Ok(expanded)
 }
 
 /// `<Enum>Kind`, and its `ActiveEnum` from the expansion the `ActiveEnum`
-/// derive writes, given the type's name and each value the derive was told;
-/// `kind_attrs` follow in the order given, so a helper attribute can follow
-/// the derive in them that introduces it.
+/// derive writes, given the type's name and each value the derive was told,
+/// or for an `unkinded` entity, whose kinds no column holds, its iteration
+/// alone; `kind_attrs` follow in the order given, so a helper attribute can
+/// follow the derive in them that introduces it.
 // [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:sem:disjoint.unkinded]
 fn kind_type(
     input: &DeriveInput,
     container: &Container,
@@ -229,11 +297,34 @@ fn kind_type(
     let ident = &input.ident;
     let vis = &input.vis;
     let kind_ident = format_ident!("{}Kind", ident);
+    let variants: Vec<&Ident> = kinds.iter().map(|kind| &kind.variant).collect();
+    let kind_attrs = &container.kind_attrs;
+    if container.unkinded.is_some() {
+        let doc = format!(
+            " The kinds of a [`{ident}`], an unkinded disjoint entity: each base row is of the \
+             kind whose table has a row for it."
+        );
+        let docs = kinds.iter().map(|kind| {
+            let doc = format!(" A [`{ident}::{}`], named `{}`.", kind.variant, kind.value);
+            quote!(#[doc = #doc])
+        });
+        let unit: syn::ItemEnum = parse_quote!(#vis enum #kind_ident { #( #variants, )* });
+        let iterable = impl_iterable(&kind_ident, vis, unit.variants.iter().collect::<Vec<_>>());
+        return Ok(quote! {
+            #[doc = #doc]
+            #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+            #( #[#kind_attrs] )*
+            #vis enum #kind_ident {
+                #( #docs #variants, )*
+            }
+
+            #iterable
+        });
+    }
     let doc = format!(
         " The kinds of a [`{ident}`]: the PostgreSQL enum `{enum_name}` its base row's kind \
          column holds."
     );
-    let variants: Vec<&Ident> = kinds.iter().map(|kind| &kind.variant).collect();
     let docs = kinds.iter().map(|kind| {
         let doc = format!(
             " A [`{ident}::{}`], stored as `{}`.",
@@ -257,7 +348,6 @@ fn kind_type(
         }
     };
     let active_enum = expand_derive_active_enum(active_enum)?;
-    let kind_attrs = &container.kind_attrs;
     Ok(quote! {
         #[doc = #doc]
         #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -300,21 +390,34 @@ fn active_model(input: &DeriveInput, kinds: &[Kind]) -> TokenStream {
     }
 }
 
-/// `Disjoint` for the enum, `KindModel` for each kind's `Model` and
-/// `DisjointActiveModel` for `<Enum>ActiveModel`.
+/// `Disjoint` for the enum and `KindModel` for each kind's `Model`, and for
+/// a kinded entity `KindedDisjoint` for the enum and `DisjointActiveModel`
+/// for `<Enum>ActiveModel`.
 ///
 /// Each `Model` is a kind of one enum only once: a second variant holding it
 /// is a second `KindModel` impl for the same type, which coherence refuses.
 // [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:sem:disjoint.unkinded]
 fn impl_disjoint(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> TokenStream {
     let ident = &input.ident;
     let kind_ident = format_ident!("{}Kind", ident);
-    let active_ident = format_ident!("{}ActiveModel", ident);
     let base = &container.base;
-    let kind_column = match &container.kind {
-        Some(kind) => quote!(#kind),
-        None => quote_spanned! {base.span()=> <#base as pgorm::EntityTrait>::Column::Kind },
+    let kind_column = match (&container.unkinded, &container.kind) {
+        (Some(_), _) => quote!(::core::option::Option::None),
+        (None, Some(kind)) => quote! {
+            ::core::option::Option::Some(pgorm::KindColumn {
+                column: #kind,
+                kind_type: <#kind_ident as pgorm::ActiveEnum>::db_type(),
+            })
+        },
+        (None, None) => quote_spanned! {base.span()=>
+            ::core::option::Option::Some(pgorm::KindColumn {
+                column: <#base as pgorm::EntityTrait>::Column::Kind,
+                kind_type: <#kind_ident as pgorm::ActiveEnum>::db_type(),
+            })
+        },
     };
+    let names = kinds.iter().map(|kind| &kind.value);
 
     let variants: Vec<&Ident> = kinds.iter().map(|kind| &kind.variant).collect();
     let patterns: Vec<TokenStream> = kinds
@@ -329,15 +432,6 @@ fn impl_disjoint(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> 
         match &kind.payload {
             Some(payload) => quote_spanned! {payload.span()=> visitor.table::<#payload>(kind) },
             None => quote!(visitor.unit(Self::#variant)),
-        }
-    });
-    let active_visits = kinds.iter().map(|kind| {
-        let variant = &kind.variant;
-        match &kind.payload {
-            Some(payload) => quote_spanned! {payload.span()=>
-                Self::#variant(active) => visitor.table::<#payload>(#kind_ident::#variant, active)
-            },
-            None => quote!(Self::#variant => visitor.unit(#kind_ident::#variant)),
         }
     });
     let kind_models = kinds.iter().filter_map(|kind| {
@@ -355,15 +449,24 @@ fn impl_disjoint(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> 
         })
     });
 
+    let kinded = container
+        .unkinded
+        .is_none()
+        .then(|| impl_kinded(ident, kinds, &variants, &patterns));
     quote! {
         #[automatically_derived]
         impl pgorm::Disjoint for #ident {
             type Base = #base;
             type Kind = #kind_ident;
-            type ActiveModel = #active_ident;
 
-            fn kind_column() -> <#base as pgorm::EntityTrait>::Column {
+            fn kind_column() -> ::core::option::Option<pgorm::KindColumn<#base>> {
                 #kind_column
+            }
+
+            fn kind_name(kind: #kind_ident) -> &'static str {
+                match kind {
+                    #( #kind_ident::#variants => #names, )*
+                }
             }
 
             fn kind(&self) -> #kind_ident {
@@ -380,6 +483,36 @@ fn impl_disjoint(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> 
         }
 
         #( #kind_models )*
+
+        #kinded
+    }
+}
+
+/// `KindedDisjoint` for the kinded enum `ident`, and `DisjointActiveModel` for
+/// its `<Enum>ActiveModel`.
+// [spec:pgorm:def:disjoint.declare+3]
+fn impl_kinded(
+    ident: &Ident,
+    kinds: &[Kind],
+    variants: &[&Ident],
+    patterns: &[TokenStream],
+) -> TokenStream {
+    let kind_ident = format_ident!("{}Kind", ident);
+    let active_ident = format_ident!("{}ActiveModel", ident);
+    let active_visits = kinds.iter().map(|kind| {
+        let variant = &kind.variant;
+        match &kind.payload {
+            Some(payload) => quote_spanned! {payload.span()=>
+                Self::#variant(active) => visitor.table::<#payload>(#kind_ident::#variant, active)
+            },
+            None => quote!(Self::#variant => visitor.unit(#kind_ident::#variant)),
+        }
+    });
+    quote! {
+        #[automatically_derived]
+        impl pgorm::KindedDisjoint for #ident {
+            type ActiveModel = #active_ident;
+        }
 
         #[automatically_derived]
         impl pgorm::DisjointActiveModel for #active_ident {

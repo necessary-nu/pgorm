@@ -49,7 +49,7 @@ impl Generated {
 /// Run the whole pipeline: schema statements in, generated files out.
 pub fn generate(stmts: Vec<TableCreateStatement>, opts: Opts) -> Generated {
     let ctx = context(opts);
-    let writer = EntityTransformer::transform(stmts).expect("transform should succeed");
+    let writer = EntityTransformer::transform(stmts, &ctx).expect("transform should succeed");
     Generated {
         files: writer
             .generate(&ctx)
@@ -63,7 +63,7 @@ pub fn generate(stmts: Vec<TableCreateStatement>, opts: Opts) -> Generated {
 /// The transform gate's refusal of a schema, by its exact message.
 #[track_caller]
 pub fn assert_transform_error(stmts: Vec<TableCreateStatement>, expected: &str) {
-    match EntityTransformer::transform(stmts) {
+    match EntityTransformer::transform(stmts, &context(Opts::default())) {
         Err(Error::TransformError(msg)) => assert_eq!(msg, expected),
         other => panic!("expected a TransformError, got {other:?}"),
     }

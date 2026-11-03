@@ -16,6 +16,7 @@ pub use column::*;
 pub(crate) use column_expr::{CaseExpr, CastType, ColumnExpr, CurrentKeyword, Operator};
 pub use conjunct_relation::*;
 pub use created_range::*;
+pub use disjoint::UnkindedDisjoint;
 pub(crate) use disjoint::{DisjointEnum, EnumHome, KindType, UniqueKey};
 pub use primary_key::*;
 pub use relation::*;

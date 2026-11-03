@@ -152,17 +152,20 @@ fn transform_reads_temporal_keys_and_refuses_temporal_unique() {
         ))
         .primary_key(TableKey::new(n("id")).without_overlaps(n("valid_at")))
         .to_owned();
-    let entities = pgorm_codegen::EntityTransformer::transform(vec![
-        room,
-        booking()
-            .primary_key(n("room_id"))
-            .foreign_key(
-                ForeignKey::create(n("booking"), n("room_id"), n("room"), n("id"))
-                    .period(n("during"), n("valid_at"))
-                    .to_owned(),
-            )
-            .to_owned(),
-    ])
+    let entities = pgorm_codegen::EntityTransformer::transform(
+        vec![
+            room,
+            booking()
+                .primary_key(n("room_id"))
+                .foreign_key(
+                    ForeignKey::create(n("booking"), n("room_id"), n("room"), n("id"))
+                        .period(n("during"), n("valid_at"))
+                        .to_owned(),
+                )
+                .to_owned(),
+        ],
+        &context(Opts::default()),
+    )
     .expect("temporal keys transform");
     let written = format!("{entities:?}");
     assert!(
@@ -202,12 +205,15 @@ fn a_key_naming_a_column_twice_is_refused() {
         ],
         "table `twice`: a key names column `b` twice",
     );
-    let keyed = pgorm_codegen::EntityTransformer::transform(vec![
-        twice()
-            .primary_key((n("a"), n("b")))
-            .unique(TableKey::new(n("b")).include([n("b")]))
-            .to_owned(),
-    ]);
+    let keyed = pgorm_codegen::EntityTransformer::transform(
+        vec![
+            twice()
+                .primary_key((n("a"), n("b")))
+                .unique(TableKey::new(n("b")).include([n("b")]))
+                .to_owned(),
+        ],
+        &context(Opts::default()),
+    );
     assert!(keyed.is_ok(), "{keyed:?}");
 }
 

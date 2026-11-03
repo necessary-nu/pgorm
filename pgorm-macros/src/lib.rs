@@ -368,9 +368,17 @@ pub fn derive_active_enum(input: TokenStream) -> TokenStream {
 /// The derive writes `<Enum>Kind`, the kind type: an `ActiveEnum` stored as a
 /// PostgreSQL enum with one value per variant, in declaration order. It also
 /// writes `<Enum>ActiveModel`, the variants each holding its kind entity's
-/// `ActiveModel`, which a write takes, and implements `Disjoint` for the enum,
-/// `KindModel` for each kind's `Model` and `DisjointActiveModel` for
-/// `<Enum>ActiveModel`.
+/// `ActiveModel`, which a write takes, and implements `Disjoint` and
+/// `KindedDisjoint` for the enum, `KindModel` for each kind's `Model` and
+/// `DisjointActiveModel` for `<Enum>ActiveModel`.
+///
+/// `unkinded` declares tables with no kind column, whose base rows' kinds are
+/// the kinds whose tables have a row for them: nothing in such a schema holds
+/// a row to one kind, so the entity is read and never written. `<Enum>Kind`
+/// is then an enum of the kinds no column holds, there is no
+/// `<Enum>ActiveModel`, and `Disjoint` alone is implemented, so a write or
+/// `Schema::create_disjoint` on it does not compile. A unit variant is a base
+/// row with a row in no kind's table, so there is at most one.
 ///
 /// # Attributes
 ///
@@ -380,9 +388,11 @@ pub fn derive_active_enum(input: TokenStream) -> TokenStream {
 ///   name in snake_case) unless given; `schema_name = "..."`, the
 ///   kind type's schema; and `kind_attrs(..)`, attributes the kind type
 ///   carries after its own derives, each written as it would be on the
-///   type: `kind_attrs(derive(Serialize, Deserialize))`.
+///   type: `kind_attrs(derive(Serialize, Deserialize))`; or `unkinded`, with
+///   `base` and `kind_attrs` alone.
 /// - On a variant: `value = "..."`, the kind's value, the variant's name in
-///   snake_case unless given.
+///   snake_case unless given; not on an `unkinded` entity's, which are
+///   named by their variants.
 ///
 /// What the types cannot tell, `pgorm::check_disjoint` refuses at run time:
 /// a kind column that is nullable, generated or not of the kind type, and a
@@ -448,6 +458,7 @@ pub fn derive_active_enum(input: TokenStream) -> TokenStream {
 /// # }
 /// ```
 // [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:sem:disjoint.unkinded]
 // [spec:pgorm:req:macros.derive.names+1]
 #[cfg(feature = "derive")]
 #[proc_macro_derive(Disjoint, attributes(pgorm))]

@@ -1,11 +1,13 @@
-use crate::{ActiveEnum, CreatedRangeType, Entity, Error, util::escape_rust_keyword};
+use crate::{
+    ActiveEnum, CreatedRangeType, Entity, Error, UnkindedDisjoint, util::escape_rust_keyword,
+};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::{collections::BTreeMap, str::FromStr};
 use syn::{punctuated::Punctuated, token::Comma};
 use tracing::info;
 
-// [spec:pgorm:def:codegen.entity+6]
+// [spec:pgorm:def:codegen.entity+7]
 #[derive(Clone, Debug)]
 pub struct EntityWriter {
     pub(crate) entities: Vec<Entity>,
@@ -33,7 +35,7 @@ pub enum WithSerde {
 }
 
 /// Every generation option, named. `Default` is the no-flags shape: no
-/// serde, `mod.rs`.
+/// serde, `mod.rs`, no unkinded disjoint entity.
 // [spec:pgorm:sem:codegen.entity.context+4]
 #[derive(Debug, Default)]
 pub struct EntityWriterOptions {
@@ -47,6 +49,11 @@ pub struct EntityWriterOptions {
     pub model_extra_attributes: Vec<String>,
     pub enum_extra_derives: Vec<String>,
     pub enum_extra_attributes: Vec<String>,
+    /// The table sets to generate as unkinded disjoint entities, which
+    /// [`EntityTransformer::transform`](crate::EntityTransformer::transform)
+    /// reads and refuses where a set does not have the shape.
+    // [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+    pub unkinded_disjoint: Vec<UnkindedDisjoint>,
 }
 
 #[derive(Debug)]
@@ -61,6 +68,7 @@ pub struct EntityWriterContext {
     pub(crate) model_extra_attributes: TokenStream,
     pub(crate) enum_extra_derives: TokenStream,
     pub(crate) enum_extra_attributes: TokenStream,
+    pub(crate) unkinded_disjoint: Vec<UnkindedDisjoint>,
 }
 
 impl WithSerde {
@@ -177,6 +185,7 @@ impl EntityWriterContext {
                 "enum_extra_attributes",
                 options.enum_extra_attributes,
             )?,
+            unkinded_disjoint: options.unkinded_disjoint,
         })
     }
 }

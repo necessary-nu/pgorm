@@ -327,27 +327,29 @@ impl DisjointShape {
     /// time, refusing what it refuses as [`Error::Type`]: a value held in the
     /// base's kind column or in the kind row's key, `row` given for a kind
     /// without a table or not given for one with a table, values of another
-    /// table, and a kind the shape lacks. [`check`](Self::check) is the
-    /// caller's to run.
+    /// table, a kind the shape lacks, and an unkinded shape, which is
+    /// read-only. [`check`](Self::check) is the caller's to run.
     // [spec:pgorm:sem:disjoint.write+1]
     // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:sem:disjoint.unkinded]
     pub fn insert(
         &self,
         base: &DisjointValues,
         kind: &str,
         row: Option<&DisjointValues>,
     ) -> Result<SelectStatement, Error> {
+        let column = self.kinded()?.column;
         let mut values = self.base.owns(base)?.to_vec();
         unwritten(
             &self.base,
             &values,
-            self.kind,
+            column,
             Writes::Insert,
             "it is the kind column, which an insert sets to the kind it is given, so the \
              base's `ActiveModel` leaves it `NotSet`",
         )?;
         let (written, entry) = self.kind(kind)?;
-        values[self.kind] = ActiveValue::Set(Value::from(entry.value.clone()));
+        values[column] = ActiveValue::Set(Value::from(entry.value.clone()));
         let mut insert = Query::insert();
         insert
             .into_table(self.base.table.clone())
@@ -384,21 +386,24 @@ impl DisjointShape {
     /// time, refusing what it refuses: the base's kind column `Set`, and a
     /// kind row's key `Set`, as [`Error::Type`], and a `NotSet` key part of
     /// `base` as [`Error::PrimaryKeyNotSet`], beside what
-    /// [`insert`](Self::insert) refuses of `row` and of `kind`. With nothing
-    /// set in either, the write is a read of the row of that key and kind.
+    /// [`insert`](Self::insert) refuses of `row`, of `kind` and of the shape.
+    /// With nothing set in either, the write is a read of the row of that key
+    /// and kind.
     // [spec:pgorm:sem:disjoint.write+1]
     // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:sem:disjoint.unkinded]
     pub fn update(
         &self,
         base: &DisjointValues,
         kind: &str,
         row: Option<&DisjointValues>,
     ) -> Result<SelectStatement, Error> {
+        let kinded = self.kinded()?;
         let values = self.base.owns(base)?;
         unwritten(
             &self.base,
             values,
-            self.kind,
+            kinded.column,
             Writes::Update,
             "it is the kind column, and an update keeps the row's kind, which `change_kind` \
              changes",
@@ -417,7 +422,7 @@ impl DisjointShape {
                 update.value(Name::clone(&column.name), column.casts.save(value.clone()));
             }
         }
-        let condition = key_filter(&self.base, key).add(self.kind_eq(entry.value.clone()));
+        let condition = key_filter(&self.base, key).add(self.kind_eq(kinded, entry.value.clone()));
         let row = self.update_kind(entry, row)?;
         let written = row.is_some();
         Ok(
@@ -471,15 +476,17 @@ impl DisjointShape {
     /// The statement [`Disjoint::change_kind`] builds, for a shape described
     /// at run time, refusing what it refuses as [`Error::Type`], beside a key
     /// of another arity than the base's and what [`insert`](Self::insert)
-    /// refuses of `row` and of `kind`.
+    /// refuses of `row`, of `kind` and of the shape.
     // [spec:pgorm:sem:disjoint.write+1]
     // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:sem:disjoint.unkinded]
     pub fn change_kind(
         &self,
         key: Vec<Value>,
         kind: &str,
         row: Option<&DisjointValues>,
     ) -> Result<SelectStatement, Error> {
+        let kinded = self.kinded()?;
         self.key_arity(key.len())?;
         let (new, entry) = self.kind(kind)?;
         let mut parts = Vec::new();
@@ -490,7 +497,7 @@ impl DisjointShape {
                 parts.push(self.delete_kind(table)?);
             }
         }
-        let column = self.kind_column();
+        let column = &self.base.columns[kinded.column];
         let mut update = UpdateStatement::new();
         update
             .table(self.base.table.clone())
@@ -498,10 +505,11 @@ impl DisjointShape {
                 Name::clone(&column.name),
                 column.casts.save(entry.value.clone().into()),
             )
-            .cond_where(
-                key_filter(&self.base, key)
-                    .add(self.kind_compare(BinOper::NotEqual, entry.value.clone())),
-            )
+            .cond_where(key_filter(&self.base, key).add(self.kind_compare(
+                kinded,
+                BinOper::NotEqual,
+                entry.value.clone(),
+            )))
             .returning(returned(&self.base));
         Ok(
             self.write(written_part(&self.base, update), parts, &|kind| {

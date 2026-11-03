@@ -1,0 +1,41 @@
+error: `kind` describes a kind column and its kind type, and an `unkinded` entity has neither: a row's kind is the kind whose table has a row for it
+ --> tests/compile-fail/disjoint_unkinded.rs:5:65
+  |
+5 | #[pgorm(base = pgorm::tests_cfg::shop::Entity, unkinded, kind = pgorm::tests_cfg::shop::Column::Name)]
+  |                                                                 ^^^^^
+
+error: `enum_name` describes a kind column and its kind type, and an `unkinded` entity has neither: a row's kind is the kind whose table has a row for it
+  --> tests/compile-fail/disjoint_unkinded.rs:11:70
+   |
+11 | #[pgorm(base = pgorm::tests_cfg::shop::Entity, unkinded, enum_name = "shop_kind")]
+   |                                                                      ^^^^^^^^^^^
+
+error: `schema_name` describes a kind column and its kind type, and an `unkinded` entity has neither: a row's kind is the kind whose table has a row for it
+  --> tests/compile-fail/disjoint_unkinded.rs:17:62
+   |
+17 | #[pgorm(base = pgorm::tests_cfg::shop::Entity, schema_name = "retail", unkinded)]
+   |                                                              ^^^^^^^^
+
+error: `unkinded` is given twice
+  --> tests/compile-fail/disjoint_unkinded.rs:23:58
+   |
+23 | #[pgorm(base = pgorm::tests_cfg::shop::Entity, unkinded, unkinded)]
+   |                                                          ^^^^^^^^
+
+error: an `unkinded` entity has no kind type, so a kind has no `value`: it is named by its variant
+  --> tests/compile-fail/disjoint_unkinded.rs:31:21
+   |
+31 |     #[pgorm(value = "online")]
+   |                     ^^^^^^^^
+
+error: `Dormant` is already the unit kind: an `unkinded` entity reads a base row with a row in no kind's table as its one unit variant
+  --> tests/compile-fail/disjoint_unkinded.rs:40:5
+   |
+40 |     Closed,
+   |     ^^^^^^
+
+error: an `unkinded` entity tells its kinds apart by their tables, and this enum has no variant holding a kind's `Model`
+  --> tests/compile-fail/disjoint_unkinded.rs:45:10
+   |
+45 | pub enum NoTables {
+   |          ^^^^^^^^

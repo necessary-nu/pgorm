@@ -13,7 +13,9 @@
 
 use std::io::{Read, Write};
 
-use pgorm_codegen::{EntityWriterOptions, WithSerde, entities_from_sql};
+use pgorm_codegen::{
+    EntityWriterOptions, TableIdent, UnkindedDisjoint, WithSerde, entities_from_sql,
+};
 use serde::{Deserialize, Serialize};
 
 /// One generation request: DDL text plus every `EntityWriterOptions` field.
@@ -46,6 +48,35 @@ struct Case {
     enum_extra_derives: Vec<String>,
     #[serde(default)]
     enum_extra_attributes: Vec<String>,
+    #[serde(default)]
+    unkinded_disjoint: Vec<UnkindedSet>,
+}
+
+/// A table as a case names it: its schema, where it is qualified, and its
+/// name.
+#[derive(Debug, Deserialize)]
+struct Table {
+    #[serde(default)]
+    schema: Option<String>,
+    table: String,
+}
+
+impl Table {
+    fn ident(&self) -> TableIdent {
+        TableIdent {
+            table: self.table.clone(),
+            schema: self.schema.clone(),
+        }
+    }
+}
+
+/// One `UnkindedDisjoint`, spelled as its fields are.
+#[derive(Debug, Deserialize)]
+struct UnkindedSet {
+    base: Table,
+    kinds: Vec<Table>,
+    #[serde(default)]
+    unit: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,6 +132,15 @@ fn options(case: &Case) -> Result<EntityWriterOptions, String> {
         model_extra_attributes: case.model_extra_attributes.clone(),
         enum_extra_derives: case.enum_extra_derives.clone(),
         enum_extra_attributes: case.enum_extra_attributes.clone(),
+        unkinded_disjoint: case
+            .unkinded_disjoint
+            .iter()
+            .map(|set| UnkindedDisjoint {
+                base: set.base.ident(),
+                kinds: set.kinds.iter().map(Table::ident).collect(),
+                unit: set.unit.clone(),
+            })
+            .collect(),
     })
 }
 

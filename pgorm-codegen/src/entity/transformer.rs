@@ -1,8 +1,9 @@
 use super::column::under_domains;
 use super::disjoint::{self, enum_key};
 use crate::{
-    ActiveEnum, Column, ConjunctRelation, CreatedRangeType, Entity, EntityWriter, Error, KindType,
-    PrimaryKey, Relation, RelationType, TableIdent, UniqueKey, WithSerde,
+    ActiveEnum, Column, ConjunctRelation, CreatedRangeType, Entity, EntityWriter,
+    EntityWriterContext, Error, KindType, PrimaryKey, Relation, RelationType, TableIdent,
+    UniqueKey, WithSerde,
     util::{escape_rust_keyword, repeated_column},
 };
 use heck::{ToSnakeCase, ToUpperCamelCase};
@@ -23,7 +24,12 @@ impl EntityTransformer {
     // [spec:pgorm:sem:codegen.entity.transform.inverse+1]
     // [spec:pgorm:sem:codegen.entity.transform.conjunct+2]
     // [spec:pgorm:req:codegen.entity.collisions+2]
-    pub fn transform(table_create_stmts: Vec<TableCreateStatement>) -> Result<EntityWriter, Error> {
+    // [spec:pgorm:def:codegen.entity+7]
+    // [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+    pub fn transform(
+        table_create_stmts: Vec<TableCreateStatement>,
+        context: &EntityWriterContext,
+    ) -> Result<EntityWriter, Error> {
         let declared: Vec<TableIdent> = table_create_stmts
             .iter()
             .map(|table_create| TableIdent::of(table_create.get_table_name()))
@@ -174,6 +180,7 @@ impl EntityTransformer {
         validate_references(&entities)?;
         refuse_unkeyable_references(&entities)?;
         let kind_types = disjoint::recognise(&mut entities, &unique_keys)?;
+        disjoint::unkinded(&mut entities, &declared, &context.unkinded_disjoint)?;
         validate_identities(&entities, &enums, &ranges, &kind_types)?;
         refuse_disjoint_name_clashes(&entities, &enums, &ranges, &kind_types)?;
         let mut inverse_relations: BTreeMap<TableIdent, Vec<Relation>> = BTreeMap::new();
@@ -684,12 +691,14 @@ fn validate_identities(
 }
 
 /// The items a disjoint entity's derive declares in its base's module — the
-/// enum, its `<Enum>Kind` and its `<Enum>ActiveModel` — clash with none of
-/// the module's own: the items its entity declares, a type it imports, or a
-/// name its code means as the prelude's or the language's, which an item of
-/// that name would shadow. The kind type is meant wherever the module names
-/// it, so only the other two are held to the last.
+/// enum, its `<Enum>Kind` and, for a kinded entity, its `<Enum>ActiveModel`
+/// — clash with none of the module's own: the items its entity declares, a
+/// type it imports, or a name its code means as the prelude's or the
+/// language's, which an item of that name would shadow. A kind type is meant
+/// wherever the module names it, so only the other two are held to the last;
+/// an unkinded entity's kind enum no column names, so it is held to them all.
 // [spec:pgorm:sem:codegen.entity.disjoint+1]
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
 fn refuse_disjoint_name_clashes(
     entities: &BTreeMap<TableIdent, Entity>,
     enums: &BTreeMap<String, ActiveEnum>,
@@ -719,15 +728,21 @@ fn refuse_disjoint_name_clashes(
         );
     }
     for (ident, entity) in entities.iter() {
-        if entity.disjoint.is_none() {
+        let Some(disjoint) = &entity.disjoint else {
             continue;
-        }
+        };
         let name = entity.get_table_name_camel_case_ident().to_string();
-        let declared = [
-            (name.clone(), "enum"),
-            (disjoint::kind_type_ident(&name), "kind type"),
-            (disjoint::active_model_ident(&name), "active model"),
-        ];
+        let declared = match disjoint.kinded {
+            Some(_) => vec![
+                (name.clone(), "enum"),
+                (disjoint::kind_type_ident(&name), "kind type"),
+                (disjoint::active_model_ident(&name), "active model"),
+            ],
+            None => vec![
+                (name.clone(), "enum"),
+                (disjoint::kind_type_ident(&name), "kind enum"),
+            ],
+        };
         let used = names_used(entity);
         for (item, what) in declared.iter() {
             let clash = if MODULE_ITEMS.contains(&item.as_str()) {
@@ -945,7 +960,8 @@ mod tests {
         table_create_stmts: Vec<TableCreateStatement>,
         files: Vec<(&str, &str)>,
     ) -> Result<(), Box<dyn Error>> {
-        let entities: HashMap<_, _> = EntityTransformer::transform(table_create_stmts)?
+        let context = crate::EntityWriterContext::new(crate::EntityWriterOptions::default())?;
+        let entities: HashMap<_, _> = EntityTransformer::transform(table_create_stmts, &context)?
             .entities
             .into_iter()
             .map(|entity| (entity.table_name.clone(), entity))

@@ -77,7 +77,7 @@ pub fn parse_schema(sql: &str) -> Result<Vec<TableCreateStatement>, Error> {
 // [spec:pgorm:def:codegen.ddl+4]
 pub fn entities_from_sql(sql: &str, options: EntityWriterOptions) -> Result<WriterOutput, Error> {
     let context = EntityWriterContext::new(options)?;
-    let writer = EntityTransformer::transform(parse_schema(sql)?)?;
+    let writer = EntityTransformer::transform(parse_schema(sql)?, &context)?;
     Ok(writer.generate(&context))
 }
 

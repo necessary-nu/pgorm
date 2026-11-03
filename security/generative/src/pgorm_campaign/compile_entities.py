@@ -554,10 +554,16 @@ def negative_cases():
 
 
 def _disjoint(
-    variants, *, base_columns=(("kind", "super::FleetKind", ""),), car_key="i32"
+    variants,
+    *,
+    base_columns=(("kind", "super::FleetKind", ""),),
+    car_key="i32",
+    container="base = vehicle::Entity",
+    tail="",
 ):
     """A disjoint enum over `vehicle`, with `car` and `truck` entities for its
-    kinds to hold: `truck` keyed under a name of its own, `car` by `car_key`."""
+    kinds to hold: `truck` keyed under a name of its own, `car` by `car_key`.
+    `container` is the enum's `#[pgorm(..)]`, and `tail` code that uses it."""
     modules = [
         _nested("vehicle", entity_module(table="dj_vehicle", columns=base_columns)),
         _nested(
@@ -583,12 +589,17 @@ def _disjoint(
     ]
     enum = (
         "    #[derive(Clone, Debug, PartialEq, Disjoint)]\n"
-        "    #[pgorm(base = vehicle::Entity)]\n"
+        f"    #[pgorm({container})]\n"
         "    pub enum Fleet {\n"
         + "".join(f"        {v},\n" for v in variants)
         + "    }"
     )
-    return PRELUDE + "\n\n" + "\n\n".join([*modules, enum])
+    return PRELUDE + "\n\n" + "\n\n".join([*modules, enum, *([tail] if tail else [])])
+
+
+# An unkinded entity's base has no kind column, and its derive says so.
+UNKINDED_BASE = (("label", "String", ""),)
+UNKINDED = "base = vehicle::Entity, unkinded"
 
 
 def disjoint_cases():
@@ -657,6 +668,36 @@ def disjoint_cases():
             rejects("E0599"),
             "the base's `Column::Kind` names the kind column unless `kind` names another",
         ),
+        (
+            "disjoint-unkinded-insert",
+            ("Car(car::Model)", "Bike"),
+            {
+                "base_columns": UNKINDED_BASE,
+                "container": UNKINDED,
+                "tail": (
+                    "    pub fn write(kind: car::ActiveModel) {\n"
+                    "        let _ = Fleet::insert(Default::default(), kind);\n"
+                    "    }"
+                ),
+            },
+            rejects("E0277"),
+            "an unkinded entity is no KindedDisjoint, which every write requires",
+        ),
+        (
+            "disjoint-unkinded-schema",
+            ("Car(car::Model)", "Truck(truck::Model)"),
+            {
+                "base_columns": UNKINDED_BASE,
+                "container": UNKINDED,
+                "tail": (
+                    "    pub fn schema() {\n"
+                    "        let _ = pgorm::Schema::new().create_disjoint::<Fleet>();\n"
+                    "    }"
+                ),
+            },
+            rejects("E0277"),
+            "an unkinded entity is no KindedDisjoint, which create_disjoint requires",
+        ),
     )
     phases = {"disjoint-kind-twice": "coherence"}
     return [
@@ -669,6 +710,20 @@ def disjoint_cases():
             "disjoint-composite-key",
             composite,
             "a two-column key, the kind's columns named otherwise than the base's",
+        ),
+        _accept(
+            "disjoint-unkinded-declared",
+            _disjoint(
+                ("Car(car::Model)", "Truck(truck::Model)", "Bike"),
+                base_columns=UNKINDED_BASE,
+                container=UNKINDED,
+                tail=(
+                    "    pub fn read() -> pgorm::SelectDisjoint<Fleet> {\n"
+                    "        Fleet::find().kind(FleetKind::Truck)\n"
+                    "    }"
+                ),
+            ),
+            "an unkinded entity over a base with no kind column, read by kind",
         ),
     ] + [
         CompileCase(
