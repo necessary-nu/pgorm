@@ -16911,4 +16911,158 @@ children (
             }
         )
     }
+
+    {
+        id codegen-enum-variant-names-all
+        title "Codegen's Relation enum and the enums in pgorm_active_enums.rs pass clippy's enum_variant_names"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:11.138424Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by enum-label-length's lane (codegen-enum-variant-names, 7cff255b), which fixed only the generated disjoint enums: codegen's Relation enum, and the enums it writes into pgorm_active_enums.rs, trip clippy's enum_variant_names the same way when every variant shares a suffix or prefix (three related tables, or three values, ending `_shop`). Fix as the disjoint case was (an allow the generated code carries, or names that don't share the affix) and decide which in the rule; it changes every generated golden, the bindings' codegen fixtures included."
+            }
+        )
+    }
+
+    {
+        id unique-key-virtual-refused
+        title "The Entity derive refuses a VIRTUAL generated column inside unique(..), as the field-level unique does"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:13.699834Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by entity-composite-unique (562c6dfc): `#[pgorm(unique(columns = (..)))]` accepts a VIRTUAL generated column, which PostgreSQL refuses at CREATE (0A000, a virtual generated column cannot be in a key), while the field-level `unique` already refuses it at compile time. Refuse it in the derive the same way, with a compile-fail test."
+            }
+        )
+    }
+
+    {
+        id bindings-composite-unique
+        title "The Python and JavaScript bindings' model DDL declares composite unique keys"
+        kind @feat
+        log (
+            {
+                at 2026-11-03T14:52:16.37536Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by entity-composite-unique (562c6dfc): Rust entities declare composite unique keys (`unique(..)`, EntityName::unique_keys, written by create_table_from_entity), but the Python and JavaScript bindings' model declarations have no way to declare one, so their model DDL can't write it. Needs a bindings rule (or a revision of the shared bindings entities rule), both bindings, describe() carrying it, and live tests."
+            }
+        )
+    }
+
+    {
+        id codegen-unique-parts-dropped
+        title "Codegen refuses a one-column unique key with INCLUDE or deferrability instead of reading it as a plain unique"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:19.120436Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by entity-composite-unique (pre-existing): a one-column unique key carrying INCLUDE or a deferrability, from a statement built in code, is read by codegen as the column's plain `unique`, silently dropping those parts. The composite case is already refused by name (transformer.rs, the `unique(..)` reading); do the same for one column, or give the entity a way to hold them."
+            }
+        )
+    }
+
+    {
+        id codegen-fk-covering-key-at-most-one
+        title "Codegen gives a foreign key whose columns contain the referencing table's unique key an at-most-one inverse, not has_many"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:21.693016Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.codegen's near-miss tests (pre-existing): a table keyed by `id` with a foreign key `(id, kind)` onto another table's UNIQUE pair (the disjoint near miss) is given a `has_many` inverse, though its primary key allows at most one row per referenced row. codegen-relation-cardinality infers at-most-one only when the FK's columns are each unique or equal the full primary key; the general rule is that an FK whose column set contains any unique key of the referencing table (primary or unique) is at most one."
+            }
+        )
+    }
+
+    {
+        id python-bind-refusal-text
+        title "Python reports pgorm's bind refusal text, as JavaScript does, not \"error serializing parameter 0\""
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:24.386677Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by money-beyond-entities: binding a value a column's type refuses (e.g. a Decimal to a money parameter where no cast applies) reports in Python as tokio-postgres's \"error serializing parameter 0\", while JavaScript reports pgorm's \"cannot bind a `Decimal` value to Postgres type `money`\". The Python error path loses the source error's text; carry it as JavaScript does, with a test in each binding asserting the message."
+            }
+        )
+    }
+
+    {
+        id bindings-between-casts
+        title "between on a binding's registered column binds its values under the column's casts"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:26.919675Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by money-beyond-entities: `between` on a binding's registered column goes through the plain expression method rather than ColumnTrait's, so its values bind bare instead of under the column's save_as cast, and a money column refuses them. Every value predicate on a registered column should take ColumnTrait's casts (the Rust rule: every value predicate carries save_as casts, between included); check the other predicates the bindings route the same way."
+            }
+        )
+    }
+
+    {
+        id pipeline-untyped-money-compare
+        title "A pipeline column read without an entity that holds money compares with a Decimal"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:29.553638Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by money-beyond-entities: a pipeline column read by name, with no entity behind it, that holds money refuses a Decimal compared with it (the bind is pinned to numeric, and money = numeric has no operator, 42883). The only route is `compares_as(\"numeric\")`, which is undocumented. Decide in the rule whether an untyped column learns its type (as pipeline-untyped-enum-casts did for enums) or compares_as is the documented answer, then document and test it."
+            }
+        )
+    }
+
+    {
+        id pipeline-created-range-bind
+        title "A bound Range compared with a created-range column in a pipeline binds under the created type"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:32.280341Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by money-beyond-entities (pre-existing, fails before that change too): in a pipeline, a bound Range compared with a column of a range type the schema created is pinned to its built-in range type, which doesn't cast to the created type, so the comparison fails. ColumnTrait avoids this by writing the value as text under the created type's cast; the pipeline should bind the same way."
+            }
+        )
+    }
+
+    {
+        id annotation-verbs-match
+        title "Every spec annotation's verb matches its rule's"
+        kind @chore
+        log (
+            {
+                at 2026-11-03T14:52:35.031923Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by derives.paths: eleven annotations cite a rule under the wrong verb, e.g. `exec.crud.exec-vocabulary` written as `sem` where the rule is `req` (src/executor/update.rs, src/executor/delete.rs, plan/main.styx), and others in pgorm-query/tests/surface/citations.rs and plan/decisions/*.md. nplan doesn't check this (filed in nplan's DEFECTS.md); fix every site, and also put the bindings.disjoint-unkinded and bindings.disjoint claims under the python and javascript impls, as bindings.codegen-disjoint's are, rather than main."
+            }
+        )
+    }
+
+    {
+        id active-enum-unknown-key-message
+        title "The ActiveEnum derive's unknown-key error names the key, not Rust debug output"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:38.032183Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by derives.paths: the ActiveEnum derive's error for an unknown attribute key prints Rust debug output (`Some(Ident(..))`) instead of the key's name. Word it as the other derives' unknown-key errors are, with a compile-fail test pinning the message."
+            }
+        )
+    }
 )
