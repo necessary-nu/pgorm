@@ -1073,7 +1073,6 @@ assertions (
     {id decimal-scale-returned, kind @complete, author "brendan@necessary.nu", at 2026-09-15T01:21:22.880525Z}
     {id deps-refresh-2026-10, kind @complete, author "brendan@necessary.nu", at 2026-10-09T14:33:12.059842Z}
     {id derives.expanded, kind @complete, author "brendan@necessary.nu", at 2026-11-02T12:46:54.155916Z}
-    {id disjoint.write, kind @doing, author "brendan@necessary.nu", at 2026-11-03T03:04:10.963286Z}
     {id distinct-drops-collided-name, kind @complete, author "brendan@necessary.nu", at 2026-09-15T13:12:24.939449Z}
     {id distinct-drops-computed-column, kind @complete, author "brendan@necessary.nu", at 2026-09-15T13:12:22.724195Z}
     {id distinct-drops-sort-order, kind @complete, author "brendan@necessary.nu", at 2026-09-15T13:12:26.319579Z}
@@ -2903,6 +2902,11 @@ impl_evidence (
         {impl_name main, rule testing.isolation}
     ), rule_versions_seen (
         {id testing.isolation, version 0}
+    )}
+    {id disjoint.write, covered_rules (
+        disjoint.write
+    ), covered_claims (
+        {impl_name main, rule disjoint.write}
     )}
 )
 

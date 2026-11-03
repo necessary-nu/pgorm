@@ -16257,6 +16257,21 @@ children (
                     main ([spec:pgorm:sem:disjoint.write])
                 }
                 deps (disjoint.read)
+                log (
+                    {
+                        at 2026-11-03T03:48:51.69666Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Shape, proved live on PostgreSQL 18.6. Each data-modifying WITH part is named for the bare table it writes (\"vehicle\", \"car\"), so the statement's SELECT is the read's own projection and joins (project_disjoint) and decode (DisjointRow) over the written rows: a target and a part's own body still resolve to the table, every other unqualified reference to the part. Kind parts read the base key from the base part (INSERT .. SELECT \"vehicle\".\"id\", .. FROM \"vehicle\"; UPDATE .. FROM / DELETE .. USING \"vehicle\"), the only order PostgreSQL forces, so a base part touching no row leaves every part touching none and the statement returns no row (RecordNotFound). update: base UPDATE .. WHERE key AND kind = k; a base setting nothing is a SELECT .. FOR KEY SHARE guard instead, which a concurrent change_kind (it writes the kind column, in the UNIQUE key) waits on, so a kind changed by a write that committed meanwhile is RecordNotFound; without the lock the update returned an Error::Query 'inconsistent row' (mutation-checked). An update setting nothing anywhere is a read under the same guard, as UpdateOne::exec_returning_model reads back (not NothingToSet). change_kind deletes from every kind table but the new kind's (the builder cannot know the current kind) and joins those ON FALSE. Disjoint::insert/update/change_kind return Result<WriteDisjoint<D>, Error>, refusing at construction (check_disjoint, Error::Type naming table.column, PrimaryKeyNotSet), so nothing is sent; the one terminal is exec_returning_model -> (Base::Model, D), per exec.crud.exec-vocabulary. disjoint.write revised to +1 to state the builder, terminal, error types, update's Set refusals and nothing-set read, the concurrency outcome, and change_kind's deletes."
+                    }
+
+                    {
+                        at 2026-11-03T03:49:11.598105Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found, not fixed (outside the rule). Two concurrent change_kind of one row to two different kinds: the later, blocked on the base row, re-checks kind <> new against the committed row and proceeds, but its DELETEs run on the statement's snapshot and cannot see the kind row the first one inserted, so it fails with 23503 on fk-{kind}-{key}-kind (nothing of it applies) rather than RecordNotFound or applying; confirmed live on 18.6 with two psql sessions. The constraints hold either way. A disjoint write runs no ActiveModelBehavior hooks, as the Insert/Update builders run none (only ActiveModelTrait::insert/update do)."
+                    }
+                )
             }
 
             {

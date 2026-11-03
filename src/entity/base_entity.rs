@@ -231,20 +231,7 @@ pub trait EntityTrait: EntityName {
     where
         T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKeyTrait>::ValueType>,
     {
-        let mut select = Self::find();
-        let mut keys = Self::PrimaryKey::iter();
-        for v in values.into_primary_key().into_value_tuple() {
-            if let Some(key) = keys.next() {
-                let col = key.into_column();
-                select = select.filter(col.eq(v));
-            } else {
-                panic!("primary key arity mismatch");
-            }
-        }
-        if keys.next().is_some() {
-            panic!("primary key arity mismatch");
-        }
-        select
+        filter_by_key::<Self, _, _>(Self::find(), values)
     }
 
     /// Delete a model based on primary key
@@ -291,21 +278,37 @@ pub trait EntityTrait: EntityName {
     where
         T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKeyTrait>::ValueType>,
     {
-        let mut delete = Delete::many(Self::default());
-        let mut keys = Self::PrimaryKey::iter();
-        for v in values.into_primary_key().into_value_tuple() {
-            if let Some(key) = keys.next() {
-                let col = key.into_column();
-                delete = delete.filter(col.eq(v));
-            } else {
-                panic!("primary key arity mismatch");
-            }
-        }
-        if keys.next().is_some() {
+        filter_by_key::<Self, _, _>(Delete::many(Self::default()), values)
+    }
+}
+
+/// `query` narrowed to the row of one primary key of `E`, each part of
+/// `values` compared with its key column under the column's casts: what
+/// [`EntityTrait::find_by_id`] and [`EntityTrait::delete_by_id`] narrow by,
+/// and a disjoint entity's `change_kind`.
+///
+/// # Panics
+///
+/// Panics if the arity of `values` does not match the arity of the primary key
+// [spec:pgorm:req:entity.traits.crud+4]
+pub(crate) fn filter_by_key<E, Q, T>(mut query: Q, values: T) -> Q
+where
+    E: EntityTrait,
+    Q: QueryFilter,
+    T: IntoPrimaryKey<<E::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+{
+    let mut keys = E::PrimaryKey::iter();
+    for v in values.into_primary_key().into_value_tuple() {
+        if let Some(key) = keys.next() {
+            query = query.filter(key.into_column().eq(v));
+        } else {
             panic!("primary key arity mismatch");
         }
-        delete
     }
+    if keys.next().is_some() {
+        panic!("primary key arity mismatch");
+    }
+    query
 }
 
 #[cfg(test)]

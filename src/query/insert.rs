@@ -3,7 +3,7 @@ use crate::{
     Iterable, QueryTrait, RuntimeError, StaticName,
 };
 use core::marker::PhantomData;
-use pgorm_query::{Expr, InsertStatement, OnConflict};
+use pgorm_query::{Expr, InsertStatement, OnConflict, SimpleExpr};
 
 /// The column shape an [`Insert`] has recorded from the models added to it.
 ///
@@ -70,6 +70,35 @@ impl InsertColumns {
             later_only,
         }
     }
+}
+
+/// Every column of `A`'s entity, in iteration order, with the value an insert
+/// of `am` writes into it: a `Set` or `Unchanged` value as its column's
+/// `save_as` writes it, so a cast, enum or money column is written as an
+/// ordinary insert writes it, and `None` for a column left `NotSet`.
+///
+/// A column the model does not carry contributes no value, exactly as a
+/// `NotSet` one does; where the other models of a batch do carry it, that is
+/// the disagreement [`Insert::ensure_uniform_columns`] reports.
+// [spec:pgorm:sem:query.build.insert+5]
+// [spec:pgorm:sem:disjoint.write+1]
+pub(crate) fn saved_values<A>(
+    mut am: A,
+) -> Vec<(<A::Entity as EntityTrait>::Column, Option<SimpleExpr>)>
+where
+    A: ActiveModelTrait,
+{
+    <A::Entity as EntityTrait>::Column::iter()
+        .map(|col| {
+            let value = match am.take(col).unwrap_or_else(|_| ActiveValue::not_set()) {
+                ActiveValue::Set(value) | ActiveValue::Unchanged(value) => {
+                    Some(col.save_as(Expr::val(value)))
+                }
+                ActiveValue::NotSet => None,
+            };
+            (col, value)
+        })
+        .collect()
 }
 
 /// Names the columns each side of a mismatch sets and the other does not,
@@ -312,25 +341,12 @@ where
     where
         M: IntoActiveModel<A>,
     {
-        let mut am: A = m.into_active_model();
-        let mut columns = Vec::new();
-        let mut values = Vec::new();
-        let mut present = Vec::new();
-        for col in <A::Entity as EntityTrait>::Column::iter() {
-            // A column this model does not carry contributes no value, exactly
-            // as a `NotSet` one does; where the other models of the batch do
-            // carry it, that is the disagreement `ensure_uniform_columns`
-            // reports.
-            let av = am.take(col).unwrap_or_else(|_| ActiveValue::not_set());
-            present.push(av.is_set() || av.is_unchanged());
-            match av {
-                ActiveValue::Set(value) | ActiveValue::Unchanged(value) => {
-                    columns.push(col);
-                    values.push(col.save_as(Expr::val(value)));
-                }
-                ActiveValue::NotSet => {}
-            }
-        }
+        let saved = saved_values::<A>(m.into_active_model());
+        let present: Vec<bool> = saved.iter().map(|(_, value)| value.is_some()).collect();
+        let (columns, values): (Vec<_>, Vec<_>) = saved
+            .into_iter()
+            .filter_map(|(col, value)| value.map(|value| (col, value)))
+            .unzip();
 
         match &self.columns {
             InsertColumns::Mismatch { .. } => return self,
