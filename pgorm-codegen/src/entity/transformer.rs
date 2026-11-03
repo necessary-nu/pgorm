@@ -25,7 +25,7 @@ impl EntityTransformer {
     // [spec:pgorm:sem:codegen.entity.transform.conjunct+2]
     // [spec:pgorm:req:codegen.entity.collisions+2]
     // [spec:pgorm:def:codegen.entity+7]
-    // [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+    // [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
     pub fn transform(
         table_create_stmts: Vec<TableCreateStatement>,
         context: &EntityWriterContext,
@@ -632,7 +632,7 @@ fn over_enum_domain(entity: &Entity, name: &str) -> bool {
 /// values of one enum that derive one identifier would each emit a duplicate
 /// definition.
 // [spec:pgorm:req:codegen.entity.collisions+2]
-// [spec:pgorm:sem:codegen.entity.disjoint+1]    a kind type claims the name its derive gives it
+// [spec:pgorm:sem:codegen.entity.disjoint+2]    a kind type claims the name its derive gives it
 fn validate_identities(
     entities: &BTreeMap<TableIdent, Entity>,
     enums: &BTreeMap<String, ActiveEnum>,
@@ -697,8 +697,8 @@ fn validate_identities(
 /// language's, which an item of that name would shadow. A kind type is meant
 /// wherever the module names it, so only the other two are held to the last;
 /// an unkinded entity's kind enum no column names, so it is held to them all.
-// [spec:pgorm:sem:codegen.entity.disjoint+1]
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+// [spec:pgorm:sem:codegen.entity.disjoint+2]
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
 fn refuse_disjoint_name_clashes(
     entities: &BTreeMap<TableIdent, Entity>,
     enums: &BTreeMap<String, ActiveEnum>,

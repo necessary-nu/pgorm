@@ -19,13 +19,13 @@
 // [spec:pgorm:sem:macros.derive.active-model+7/test]    `IntoActiveModel` refuses a field key
 // [spec:pgorm:sem:macros.derive.partial-model+5/test]    an unknown field key, and the both-keys conflict the accumulating parser makes reachable
 // [spec:pgorm:sem:macros.derive.value-type+6/test]    non-tuple input and an unread `#[pgorm(...)]` key
-// [spec:pgorm:syn:macros.derive.active-enum+5/test]    `db_type` without `rs_type`, `rs_type` without `db_type`, a number or a discriminant in a PostgreSQL enum, and an unknown key at either level, named
+// [spec:pgorm:syn:macros.derive.active-enum+6/test]    `db_type` without `rs_type`, `rs_type` without `db_type`, a number or a discriminant in a PostgreSQL enum, an unknown key at either level, named, and a PostgreSQL enum's value over 63 bytes, given or derived from its variant, spelt in one byte a character or more, refused at the value or the variant
 // [spec:pgorm:syn:macros.derive.relation+7/test]    `belongs_to` without `from` is rejected, `from` / `to` of unequal arity are rejected while the arity is still known, an `on_condition` closure takes two tables, a variant is one kind of relation, the enum's keys are `entity` alone, `hooks` included, and `related` is only `false`, on an entity one variant reaches
 // [spec:pgorm:sem:macros.derive.boilerplate/test]    the refusals the derives word for what they write: a lone `rs_type`, a PostgreSQL enum's number or discriminant, and a `related = false` that says nothing
 // [spec:pgorm:req:entity.relation.builder+1/test]    a builder given no columns has no conversion into a `RelationDef`
 // [spec:pgorm:sem:macros.derive.entity-model.primary-key+7/test]    an identity beside a second identity form, `auto_increment`, a default or a nullable field, `auto_increment = true` on a composite key, a thirteenth key column, and `primary_key` given twice on one field
 // [spec:pgorm:sem:macros.derive.entity-model.column-def+10/test]    a generated column given both kinds, beside an identity, a default or `auto_increment`, and a virtual one keyed, unique or indexed
-// [spec:pgorm:def:disjoint.declare+3/test]    the refusals the disjoint derive words: not an enum, generic, no `base`, a quoted `base`, a key twice or unknown, no variants, a variant of another shape, a discriminant, a key on the payload, and two kinds of one value
+// [spec:pgorm:def:disjoint.declare+5/test]    the refusals the disjoint derive words: not an enum, generic, no `base`, a quoted `base`, a key twice or unknown, no variants, a variant of another shape, a discriminant, a key on the payload, two kinds of one value, and a kind's value over 63 bytes, given or derived from its variant, refused at the value or the variant
 // [spec:pgorm:sem:disjoint.unkinded/test]    the refusals an `unkinded` declaration words: `kind`, `enum_name` or `schema_name` beside it, `unkinded` twice, a variant's `value`, a second unit variant, and no variant holding a kind's `Model`
 #[test]
 fn compile_fail_tests() {

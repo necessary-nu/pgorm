@@ -16,6 +16,7 @@ pub enum Relation {
     Website,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Clone, Debug, PartialEq, Eq, Disjoint)]
 #[pgorm(base = Entity, unkinded)]
 pub enum Shop {

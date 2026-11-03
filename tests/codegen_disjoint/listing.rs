@@ -17,6 +17,7 @@ pub enum Relation {
     Flat,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Clone, Debug, PartialEq, Eq, Disjoint)]
 #[pgorm(
     base = Entity,

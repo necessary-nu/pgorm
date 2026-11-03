@@ -39,7 +39,7 @@ pub fn result_column_name(pre: &str, col: &str) -> String {
 /// when strictly under 63 bytes, otherwise a 47-byte head and the hash of
 /// the whole, exactly 63 bytes.
 // [spec:pgorm:sem:query.graph.writer+4]
-// [spec:pgorm:sem:disjoint.schema+1]    the 63-byte bound on the names a disjoint schema gives
+// [spec:pgorm:sem:disjoint.schema+2]    the 63-byte bound on the names a disjoint schema gives
 pub(crate) fn bounded_identifier(full: String) -> String {
     if full.len() < IDENT_MAX_BYTES {
         return full;

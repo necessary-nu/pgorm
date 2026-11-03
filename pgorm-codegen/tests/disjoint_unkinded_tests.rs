@@ -86,7 +86,7 @@ fn holds(generated: &Generated, file: &str, fixture: &str) {
     assert!(written.contains(&flat(fixture)), "{file}: {written}");
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded/test]    each named set generates its base's entity holding a `#[derive(Disjoint)]` enum declared `unkinded`, a variant per kind's table in the order named and the named unit variant last, and each kind's entity as the ordinary entity it is, its foreign key its `belongs_to` and the base's inverse `has_one`, a composite key in a schema of its own included
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1/test]    each named set generates its base's entity holding a `#[derive(Disjoint)]` enum declared `unkinded`, a variant per kind's table in the order named and the named unit variant last, and each kind's entity as the ordinary entity it is, its foreign key its `belongs_to` and the base's inverse `has_one`, a composite key in a schema of its own included
 #[test]
 fn named_sets_generate_unkinded_enums() {
     let generated = from_sql(SCHEMA, with(sets()));
@@ -133,7 +133,7 @@ fn named_sets_generate_unkinded_enums() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded/test]    a set is named, never guessed: unnamed, the same tables generate the ordinary entities alone, and naming one set leaves the other ordinary
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1/test]    a set is named, never guessed: unnamed, the same tables generate the ordinary entities alone, and naming one set leaves the other ordinary
 #[test]
 fn unnamed_sets_generate_ordinary_entities() {
     let ordinary = from_sql(SCHEMA, Opts::default());
@@ -149,7 +149,7 @@ fn unnamed_sets_generate_ordinary_entities() {
     assert_eq!(shop_only.file("account.rs"), ordinary.file("account.rs"));
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded/test]    under serde the enum derives what the kinded enum derives, and no `kind_attrs`, since no model holds its kind enum
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1/test]    under serde the enum derives what the kinded enum derives, and no `kind_attrs`, since no model holds its kind enum
 #[test]
 fn unkinded_enum_under_serde_takes_no_kind_attrs() {
     let generated = from_sql(
@@ -190,7 +190,7 @@ fn shop_set(kinds: &[&str], unit: Option<&str>) -> Vec<UnkindedDisjoint> {
     )]
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded/test]    a named set the schema does not hold is refused naming why: a table it does not have, a table named twice or the base among its kinds, no kind's table, a base named twice, a base without a primary key or with a temporal one; an unqualified name resolves as a foreign key's target does
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1/test]    a named set the schema does not hold is refused naming why: a table it does not have, a table named twice or the base among its kinds, no kind's table, a base named twice, a base without a primary key or with a temporal one; an unqualified name resolves as a foreign key's target does
 #[test]
 fn a_named_set_the_schema_lacks_is_refused() {
     let prefix = "unkinded disjoint entity over `shop`: ";
@@ -254,7 +254,7 @@ fn a_named_set_the_schema_lacks_is_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded/test]    a named kind's table not keyed by a foreign key from exactly its primary key onto the base's, column for column and of one type, is refused rather than generated as an ordinary entity: no such key, a key from other columns, onto other columns or another table, pairing the columns otherwise, matching a PERIOD, and a key column of another type
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1/test]    a named kind's table not keyed by a foreign key from exactly its primary key onto the base's, column for column and of one type, is refused rather than generated as an ordinary entity: no such key, a key from other columns, onto other columns or another table, pairing the columns otherwise, matching a PERIOD, and a key column of another type
 #[test]
 fn a_named_kind_without_the_key_is_refused() {
     let unkeyed = |table: &str| {
@@ -325,7 +325,7 @@ fn a_named_kind_without_the_key_is_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded/test]    a base a kind column makes a kinded disjoint entity's is refused as unkinded, its kind column named
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1/test]    a base a kind column makes a kinded disjoint entity's is refused as unkinded, its kind column named
 #[test]
 fn a_kinded_base_named_unkinded_is_refused() {
     let kinded = include_str!("../../tests/codegen_disjoint/schema.sql")
@@ -342,7 +342,7 @@ fn a_kinded_base_named_unkinded_is_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded/test]    the unit variant is refused where its name has no Rust form or is a kind's variant's, and the enum's kind enum is held to the base module's names as the enum is
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1/test]    the unit variant is refused where its name has no Rust form or is a kind's variant's, and the enum's kind enum is held to the base module's names as the enum is
 #[test]
 fn the_unit_and_kind_enum_names_are_held() {
     assert_eq!(

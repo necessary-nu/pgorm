@@ -14,9 +14,10 @@ pub use common::{TestContext, setup::*};
 
 use futures::StreamExt;
 use pgorm::tests_cfg::{
-    car, flat,
+    archive_exhibit, car, flat,
+    gallery_exhibit::{self, Exhibit, ExhibitKind},
     listing::{self, Listing},
-    truck,
+    loan_exhibit, truck,
     vehicle::{self, Vehicle, VehicleKind},
 };
 use pgorm::{
@@ -248,7 +249,7 @@ fn names(rows: &[(vehicle::Model, Vehicle)]) -> Vec<&str> {
     rows.iter().map(|(base, _)| base.name.as_str()).collect()
 }
 
-// [spec:pgorm:sem:disjoint.read+1/test]    `all`, `one` and `stream` read each base row with its kind's row as the pair, a car and a truck decoded from their tables and a bike as its unit variant, in one statement
+// [spec:pgorm:sem:disjoint.read+2/test]    `all`, `one` and `stream` read each base row with its kind's row as the pair, a car and a truck decoded from their tables and a bike as its unit variant, in one statement
 #[pgorm_macros::test]
 async fn every_kind_reads_as_its_pair_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_read_pairs").await;
@@ -282,7 +283,7 @@ async fn every_kind_reads_as_its_pair_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.read+1/test]    `find_by_id` reads the row of one key, a key no row has is `RecordNotFound`, and a composite key in a schema of its own reads its kind's row and its unit kind alike
+// [spec:pgorm:sem:disjoint.read+2/test]    `find_by_id` reads the row of one key, a key no row has is `RecordNotFound`, and a composite key in a schema of its own reads its kind's row and its unit kind alike
 #[pgorm_macros::test]
 async fn find_by_id_reads_one_key_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_read_by_id").await;
@@ -340,7 +341,7 @@ async fn find_by_id_reads_one_key_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.read+1/test]    `kind` and `kinds` read only base rows of those kinds, and two `kind`s read none
+// [spec:pgorm:sem:disjoint.read+2/test]    `kind` and `kinds` read only base rows of those kinds, and two `kind`s read none
 #[pgorm_macros::test]
 async fn kind_and_kinds_narrow_by_kind_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_read_kinds").await;
@@ -377,7 +378,7 @@ async fn kind_and_kinds_narrow_by_kind_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.read+1/test]    a filter on a base column reads the base rows passing it; `filter_kind` reads only that kind's rows whose row passes it, a NULL-accepting condition included, where the same condition through `filter` is an ordinary WHERE over every kind's NULLs
+// [spec:pgorm:sem:disjoint.read+2/test]    a filter on a base column reads the base rows passing it; `filter_kind` reads only that kind's rows whose row passes it, a NULL-accepting condition included, where the same condition through `filter` is an ordinary WHERE over every kind's NULLs
 #[pgorm_macros::test]
 async fn filters_on_base_and_kind_columns_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_read_filters").await;
@@ -427,7 +428,7 @@ async fn filters_on_base_and_kind_columns_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.read+1/test]    ordering, `limit` and `offset` read a window of base rows, and `count` counts the rows the read matches
+// [spec:pgorm:sem:disjoint.read+2/test]    ordering, `limit` and `offset` read a window of base rows, and `count` counts the rows the read matches
 #[pgorm_macros::test]
 async fn ordering_and_slicing_read_base_rows_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_read_slice").await;
@@ -457,7 +458,7 @@ async fn ordering_and_slicing_read_base_rows_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.read+1/test]    `paginate` pages base rows as a Select's paginator does, and a keyset cursor over a base column reads forward and backward from a boundary, a kind restriction kept
+// [spec:pgorm:sem:disjoint.read+2/test]    `paginate` pages base rows as a Select's paginator does, and a keyset cursor over a base column reads forward and backward from a boundary, a kind restriction kept
 #[pgorm_macros::test]
 async fn pages_and_cursor_follow_the_base_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_read_pages").await;
@@ -498,7 +499,7 @@ async fn pages_and_cursor_follow_the_base_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.read+1/test]    eight kinds, seven with a table, read in one statement: every kind table's `name` and `sides` and the base's `name` decode apart, and a column whose prefixed name passes 63 bytes is read under its bounded name
+// [spec:pgorm:sem:disjoint.read+2/test]    eight kinds, seven with a table, read in one statement: every kind table's `name` and `sides` and the base's `name` decode apart, and a column whose prefixed name passes 63 bytes is read under its bounded name
 #[pgorm_macros::test]
 async fn many_kinds_read_without_shadowing_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_read_many").await;
@@ -631,7 +632,7 @@ fn inconsistency(outcome: Result<(vehicle::Model, Vehicle), Error>) -> String {
     }
 }
 
-// [spec:pgorm:sem:disjoint.read+1/test]    from tables written without the constraints, a car with no car row, a car with a truck row and a bike with a truck row are each an error naming the base table, the key and the kinds; `all` fails rather than dropping them, and `stream` yields every row, the consistent ones read
+// [spec:pgorm:sem:disjoint.read+2/test]    from tables written without the constraints, a car with no car row, a car with a truck row and a bike with a truck row are each an error naming the base table, the key and the kinds; `all` fails rather than dropping them, and `stream` yields every row, the consistent ones read
 #[pgorm_macros::test]
 async fn inconsistent_rows_are_errors_naming_them_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_read_lawless").await;
@@ -715,7 +716,7 @@ async fn inconsistent_rows_are_errors_naming_them_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.read+1/test]    `check_disjoint` runs before anything is sent: a declaration it refuses is its `Error::Type` from every terminal, the paginator and the cursor, against a database holding none of the tables
+// [spec:pgorm:sem:disjoint.read+2/test]    `check_disjoint` runs before anything is sent: a declaration it refuses is its `Error::Type` from every terminal, the paginator and the cursor, against a database holding none of the tables
 #[pgorm_macros::test]
 async fn a_refused_declaration_sends_nothing_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_read_refused").await;
@@ -741,6 +742,74 @@ async fn a_refused_declaration_sends_nothing_live() -> Result<(), Error> {
         refused(Loose::find().cursor_by(loose_base::Column::Id).err()),
         refusal
     );
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:sem:disjoint.read+2/test]    a base and two kinds' tables all named `exhibit`, in three schemas, read in one statement: each kind's table is read under its schema-qualified name, the rows decode by kind, narrowed by kind, by key and by a kind's column qualified as the read qualifies it, ordered and counted
+#[pgorm_macros::test]
+async fn same_named_tables_read_apart_live() -> Result<(), Error> {
+    let ctx = TestContext::new("disjoint_read_same_named").await;
+    let db = ctx.db.get().await?;
+    db.batch_execute("CREATE SCHEMA gallery; CREATE SCHEMA archive; CREATE SCHEMA loan;")
+        .await?;
+    create::<Exhibit>(&db).await?;
+    db.batch_execute(
+        "BEGIN; SET CONSTRAINTS ALL DEFERRED; \
+         INSERT INTO gallery.exhibit (id, kind, title) VALUES \
+             (1, 'archived', 'Sunflowers'), (2, 'loaned', 'Water Lilies'), (3, 'hung', 'Haystacks'); \
+         INSERT INTO archive.exhibit (id, shelf) VALUES (1, 'B4'); \
+         INSERT INTO loan.exhibit (id, lender) VALUES (2, 'Orsay'); \
+         COMMIT;",
+    )
+    .await?;
+    let base = |id: i32, kind: ExhibitKind, title: &str| gallery_exhibit::Model {
+        id,
+        kind,
+        title: title.to_owned(),
+    };
+    let sunflowers = (
+        base(1, ExhibitKind::Archived, "Sunflowers"),
+        Exhibit::Archived(archive_exhibit::Model {
+            id: 1,
+            shelf: "B4".to_owned(),
+        }),
+    );
+    let lilies = (
+        base(2, ExhibitKind::Loaned, "Water Lilies"),
+        Exhibit::Loaned(loan_exhibit::Model {
+            id: 2,
+            lender: "Orsay".to_owned(),
+        }),
+    );
+    let haystacks = (base(3, ExhibitKind::Hung, "Haystacks"), Exhibit::Hung);
+
+    assert_eq!(
+        Exhibit::find()
+            .order_by_asc(gallery_exhibit::Column::Id)
+            .all(&db)
+            .await?,
+        [sunflowers.clone(), lilies.clone(), haystacks.clone()]
+    );
+    assert_eq!(
+        Exhibit::find().kind(ExhibitKind::Loaned).all(&db).await?,
+        [lilies]
+    );
+    assert_eq!(Exhibit::find_by_id(3).one(&db).await?, haystacks);
+    let archive = Exhibit::find().kind_qualifier::<archive_exhibit::Model>();
+    assert_eq!(archive.to_string(), "archive.exhibit");
+    assert_eq!(
+        Exhibit::find()
+            .filter_kind::<archive_exhibit::Model>(
+                Expr::col((archive, archive_exhibit::Column::Shelf)).eq("B4")
+            )
+            .all(&db)
+            .await?,
+        [sunflowers]
+    );
+    assert_eq!(Exhibit::find().count(&db).await?, 3);
 
     drop(db);
     ctx.delete().await;

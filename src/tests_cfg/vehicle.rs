@@ -17,7 +17,7 @@ pub enum Relation {}
 
 /// A vehicle by its kind: a car and a truck each have a row of their own, a
 /// bike none.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 #[derive(Clone, Debug, PartialEq, Eq, Disjoint)]
 #[pgorm(base = Entity)]
 pub enum Vehicle {

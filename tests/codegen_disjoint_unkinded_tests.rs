@@ -29,7 +29,7 @@ use codegen_disjoint_unkinded::{account, company, person, shop, storefront, webs
 
 const SCHEMA: &str = include_str!("codegen_disjoint_unkinded/schema.sql");
 
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded/test]    the round trip: the schema the fixtures were generated from runs as written, the generated unkinded enums read each base row as the kind whose table has its row, the shop's dormant row as its unit kind and the account's composite rows by their keys, narrowed by kind, and each kind's row reaches its base row through the generated relations
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1/test]    the round trip: the schema the fixtures were generated from runs as written, the generated unkinded enums read each base row as the kind whose table has its row, the shop's dormant row as its unit kind and the account's composite rows by their keys, narrowed by kind, and each kind's row reaches its base row through the generated relations
 #[pgorm_macros::test]
 async fn generated_unkinded_entities_read_live() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_disjoint_unkinded").await;

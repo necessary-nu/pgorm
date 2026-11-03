@@ -18,6 +18,7 @@ pub enum Relation {
     Truck,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Clone, Debug, PartialEq, Eq, Disjoint, Serialize, Deserialize)]
 #[pgorm(base = Entity, kind_attrs(derive(Serialize, Deserialize)))]
 pub enum Vehicle {

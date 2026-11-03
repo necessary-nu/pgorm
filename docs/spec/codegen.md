@@ -763,11 +763,12 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Primary keys
 
-> [spec:pgorm:sem:codegen.entity.pk+4]
-> A key's facts surface as field attributes (`codegen.entity.compact.attrs`):
-> `primary_key` on each key column, followed by `without_overlaps` on a
-> temporal key's period, by `auto_increment = false` on a column that is
-> neither auto-increment, an identity nor a generated column, and by
+> [spec:pgorm:sem:codegen.entity.pk+5]
+> A key's facts surface as field attributes, in the order
+> `codegen.entity.compact.attrs` gives them: `primary_key` on each key
+> column, followed by `without_overlaps` on a temporal key's period, its last
+> column, and on every other key column by `auto_increment = false` where the
+> column is neither auto-increment, an identity nor a generated column; and
 > `identity` / `identity_by_default` on an identity. The derive reads them
 > into `PrimaryKeyTrait` (`macros.derive.entity-model.primary-key`): its
 > `ValueType` the key column's Rust type, or the tuple of them for a
@@ -934,7 +935,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Disjoint entities
 
-> [spec:pgorm:sem:codegen.entity.disjoint+1]
+> [spec:pgorm:sem:codegen.entity.disjoint+2]
 > A base table and its kinds' tables, constrained exactly as
 > `[spec:pgorm:sem:disjoint.schema]` writes them, MUST generate as one
 > disjoint entity, from DDL text and from statements described in code
@@ -954,7 +955,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > kind's `Model` does, and `Disjoint`, and under `with_serde` the serde
 > derives (`codegen.entity.serde.derives`) and `kind_attrs(derive(..))` of
 > them, so its kind type serializes as the base's `Model` holding it needs
-> (`[spec:pgorm:def:disjoint.declare]`).
+> (`[spec:pgorm:def:disjoint.declare]`). Before its derives it carries
+> `#[allow(clippy::enum_variant_names)]`: its variants are named by the
+> schema, not by the program, and the lint refuses a variant ending with the
+> enum's name, as a kind table `web_shop` of a base `shop` makes
+> `Shop::WebShop`, in a module the crate does not export.
 >
 > The kind type is not also generated into `pgorm_active_enums.rs`, since the
 > derive generates it, as `<Enum>Kind`: the base's kind column is a field of
@@ -1013,7 +1018,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > The kind type's name is claimed among the enums' type names
 > (`codegen.entity.collisions`) as `<Enum>Kind`.
 
-> [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+> [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
 > Each `UnkindedDisjoint { base, kinds, unit }` that
 > `EntityWriterOptions::unkinded_disjoint` lists — the base's `TableIdent`,
 > each kind's table's `TableIdent` in the order its variants take, and the
@@ -1022,9 +1027,9 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `unkinded` (`[spec:pgorm:sem:disjoint.unkinded]`), named for the base
 > table in UpperCamelCase: one variant per kind's table, in the order given,
 > named for the table in UpperCamelCase and holding its `Model`, then a unit
-> variant named `unit` in UpperCamelCase where it is given. It derives what
-> `codegen.entity.disjoint`'s enum derives but `kind_attrs`, since no model
-> holds its kind enum. The tables are otherwise the ordinary entities they
+> variant named `unit` in UpperCamelCase where it is given. It derives and
+> allows what `codegen.entity.disjoint`'s enum derives and allows, but
+> `kind_attrs`, since no model holds its kind enum. The tables are otherwise the ordinary entities they
 > are, nothing dropped: each kind's foreign key onto the base is its
 > `belongs_to`, and the base has the inverse `has_one` to each kind's table
 > (`codegen.entity.transform.inverse`). `EntityTransformer::transform` takes

@@ -16668,12 +16668,20 @@ children (
         id enum-label-length
         title "An enum value past PostgreSQL's 63-byte label limit is refused at compile time, for ActiveEnum and Disjoint kinds alike"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T01:45:53.734084Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.declare (0b45e379): neither ActiveEnum nor Disjoint checks a value against PostgreSQL's enum label limit (1 to 63 bytes, NAMEDATALEN - 1; CREATE TYPE refuses a longer or empty label with 42622 / 22023), so the mistake surfaces only when the type is created. Both derives know every value at expansion, so refuse an empty value or one over 63 bytes there, spanned at the variant, sharing one check (Disjoint's kind type already comes from ActiveEnum's expansion). Also from that node: #[cfg] on a Disjoint variant (and on an ActiveEnum variant) is not handled — decide whether a cfg'd variant is refused or carried through to the kind type and the visitor consistently, and test it."
+            }
+
+            {
+                at 2026-11-03T10:09:48.300607Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16683,12 +16691,34 @@ children (
         title "create_disjoint refuses the base key shapes PostgreSQL cannot hold to a kind: generated, temporal, and domain-over-enum key columns"
         kind @fix
         deps (disjoint.schema)
+        sealed true
         log (
             {
                 at 2026-11-03T02:38:49.712173Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.schema (22c8f563), each confirmed live and none refused before the statements are sent: a base key column that is itself a generated column (the base's CASE columns read it; PostgreSQL refuses a generated column referencing another with 42P17); a temporal key (WITHOUT OVERLAPS), onto which the plain foreign key from a kind table gets 42830; and key columns typed as a domain over an enum, which the disjoint foreign keys cannot match (42804) — the existing domain-over-enum refusal in create_table_from_entity covers only relation pairs. Refuse each in check_disjoint or create_disjoint with Error::Type naming the table and column, revise disjoint.schema (or disjoint.declare) to list them, and test each live."
+            }
+
+            {
+                at 2026-11-03T10:51:32.697419Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T11:00:28.903067Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Probed on 18.6 before refusing: a generated base key column fails at the base's CASE columns (42P17) and a base key of a domain over an enum at the first foreign key (42804), as filed; but a temporal (WITHOUT OVERLAPS) base key with plain kind keys is held: create_disjoint's statements run, the kind table's foreign key reaching the base's UNIQUE (id, valid_at, kind), and a row inserts and reads back through the disjoint entity. The 42830 is a kind's key ending WITHOUT OVERLAPS, onto which the base's plain foreign key matches no key. So create refuses the kind's temporal key and holds the base's, and the live test keeps both. The refusal is in create (DisjointShape::keyable), not check_disjoint: reads and writes of such a declaration are sound against a schema pgorm did not write; it is the schema PostgreSQL cannot hold."
+            }
+
+            {
+                at 2026-11-03T11:00:29.245237Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16725,12 +16755,27 @@ children (
         id same-named-tables-across-schemas
         title "A read joining two tables of one name in different schemas aliases them apart, in a disjoint read and in the graph"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T03:29:28.599463Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.read (25889d69): a disjoint read LEFT JOINs each kind's table unaliased, so a base and a kind table, or two kind tables, of one name in different schemas (market.listing and archive.listing) make PostgreSQL refuse the statement (42712, table name specified more than once). The graph's joins have the same limit. Alias a joined table whenever its bare name repeats in the statement (the graph already has an aliasing vocabulary, query.graph.aliases), so the column qualifiers stay unambiguous, and test both paths live with same-named tables in two schemas."
+            }
+
+            {
+                at 2026-11-03T10:26:54.549303Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:49:39.276142Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16753,12 +16798,34 @@ children (
         id codegen-enum-variant-names
         title "Generated disjoint enums compile clippy-clean whatever their tables are named"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T08:39:56.190722Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.codegen-unkinded (30391b0c): a generated disjoint enum can trip clippy::enum_variant_names when the generated module is private — kind table web_shop under base shop becomes Shop::WebShop, a variant ending in the enum's name — so a downstream crate running clippy -D warnings fails on code it did not write. The kinded generator has the same exposure. Decide between emitting #[allow(clippy::enum_variant_names)] on the generated enum (generated code the user does not hand-edit, as other generators do) and renaming, and test with a fixture whose table names trigger it, under clippy -D warnings."
+            }
+
+            {
+                at 2026-11-03T10:10:11.920887Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:21:00.178339Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Allow rather than rename: the variants are named by the schema (kind values, table names), the derive's default value is the variant's snake_case name, and clippy's enum_variant_names has three checks (a variant starting or ending with the enum's name, a prefix or postfix every variant shares) gated on a configurable threshold, so no renaming predicts it. codegen writes #[allow(clippy::enum_variant_names)] on every disjoint enum it generates, kinded and unkinded; the Disjoint derive puts it on <Enum>Kind, <Enum>ActiveModel and an unkinded kind enum (an allow on the program's enum does not reach them), and the ActiveEnum derive on {Enum}Variant, whose escaped variants (web_shop -> Web0x5Fshop) share a postfix whenever the values share a last word. Found, not fixed: codegen's Relation enum (three kind tables ending _shop give Relation { MallShop, PopUpShop, WebShop }) and the ActiveEnum enums codegen writes into pgorm_active_enums.rs (values web_shop, pop_up_shop, closed_shop) trip the same lint in a module not exported; fixing them changes every generated file's golden, the bindings' codegen fixtures included."
+            }
+
+            {
+                at 2026-11-03T10:21:00.459265Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

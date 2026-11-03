@@ -81,7 +81,7 @@ impl InsertColumns {
 /// `NotSet` one does; where the other models of a batch do carry it, that is
 /// the disagreement [`Insert::ensure_uniform_columns`] reports.
 // [spec:pgorm:sem:query.build.insert+5]
-// [spec:pgorm:sem:disjoint.write+1]
+// [spec:pgorm:sem:disjoint.write+2]
 pub(crate) fn saved_values<A>(
     mut am: A,
 ) -> Vec<(<A::Entity as EntityTrait>::Column, Option<SimpleExpr>)>

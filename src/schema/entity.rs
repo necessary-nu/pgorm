@@ -255,7 +255,7 @@ where
 /// belongs-to relation `writes_key` keeps: a disjoint kind's table leaves out
 /// the one its key to its base row implies.
 // [spec:pgorm:sem:schema.from-entity+10]
-// [spec:pgorm:sem:disjoint.schema+1]
+// [spec:pgorm:sem:disjoint.schema+2]
 pub(crate) fn table_from_entity<E, K>(
     entity: E,
     writes_key: K,

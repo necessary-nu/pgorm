@@ -52,7 +52,7 @@ impl Schema {
     /// `fk-{base}-{generated columns}`, each list `-`-joined and each table
     /// bare. A name it adds to a table that the table already declares, or
     /// adds twice, is refused with [`Error::Type`] naming both.
-    // [spec:pgorm:sem:disjoint.schema+1]
+    // [spec:pgorm:sem:disjoint.schema+2]
     // [spec:pgorm:sem:disjoint.unkinded]
     pub fn create_disjoint<D: KindedDisjoint>(&self) -> Result<Vec<DdlStatement>, Error> {
         DisjointShape::of::<D>().create()
@@ -70,12 +70,13 @@ impl DisjointShape {
     /// default the description does not state has no `DEFAULT` to write, so
     /// a table holding one is refused with [`Error::Type`] naming it, and so
     /// is an unkinded shape, whose schema pgorm does not write.
-    // [spec:pgorm:sem:disjoint.schema+1]
+    // [spec:pgorm:sem:disjoint.schema+2]
     // [spec:pgorm:req:bindings.disjoint+1]
     // [spec:pgorm:sem:disjoint.unkinded]
     pub fn create(&self) -> Result<Vec<DdlStatement>, Error> {
         let kinded = self.kinded()?;
         self.check()?;
+        self.keyable()?;
         let base = BaseTable::of(self, kinded);
         let kinds = self
             .kinds
@@ -119,7 +120,7 @@ impl DisjointShape {
 
 /// `table`'s `CREATE TABLE`, as its entity writes it with the belongs-to
 /// relations `keep` keeps, or from its columns alone.
-// [spec:pgorm:sem:disjoint.schema+1]
+// [spec:pgorm:sem:disjoint.schema+2]
 fn body(
     table: &DisjointTable,
     keep: &dyn Fn(&RelationDef) -> bool,
@@ -155,7 +156,7 @@ fn body(
 
 /// What every kind's table is written against: the base's table, key and
 /// kind column.
-// [spec:pgorm:sem:disjoint.schema+1]
+// [spec:pgorm:sem:disjoint.schema+2]
 struct BaseTable {
     table: TableName,
     name: String,
@@ -189,7 +190,7 @@ impl BaseTable {
     /// generated column per key column, null for every other kind, and a
     /// foreign key from them to the kind's table: refused when a name it adds
     /// is taken, and absent when no kind has a table.
-    // [spec:pgorm:sem:disjoint.schema+1]
+    // [spec:pgorm:sem:disjoint.schema+2]
     fn alter(&self, kinds: &[KindTable]) -> Result<Option<TableAlterStatement>, Error> {
         let mut added: Vec<(String, String)> = Vec::new();
         let mut columns = Vec::new();
@@ -239,7 +240,7 @@ impl BaseTable {
 
     /// Refuse `name`, the column generated for `origin`, when the base
     /// declares a column of that name or another generated column has it.
-    // [spec:pgorm:sem:disjoint.schema+1]
+    // [spec:pgorm:sem:disjoint.schema+2]
     fn refuse_taken(
         &self,
         name: &str,
@@ -273,7 +274,7 @@ struct KindTable {
 }
 
 /// `kind`'s table written against the base.
-// [spec:pgorm:sem:disjoint.schema+1]
+// [spec:pgorm:sem:disjoint.schema+2]
 fn kind_table(
     base: &BaseTable,
     kind: &DisjointKind,
@@ -384,7 +385,7 @@ fn is_key_to_base(relation: &RelationDef, base: &BaseTable, key: &KeyColumns) ->
 /// first columns, of `table`, to their second, of `ref_table`: named `name`
 /// and `DEFERRABLE INITIALLY IMMEDIATE`, so its check runs at the end of
 /// each statement unless a transaction defers it.
-// [spec:pgorm:sem:disjoint.schema+1]
+// [spec:pgorm:sem:disjoint.schema+2]
 fn deferrable_key(
     table: TableName,
     ref_table: TableName,
@@ -410,7 +411,7 @@ fn deferrable_key(
 
 /// `{kind}-{table}-{columns}`, `-`-joined as a derived foreign key's name
 /// is, and bounded to PostgreSQL's 63 bytes.
-// [spec:pgorm:sem:disjoint.schema+1]
+// [spec:pgorm:sem:disjoint.schema+2]
 fn constraint_name<'a>(kind: &str, table: &str, columns: impl Iterator<Item = &'a str>) -> String {
     let mut name = format!("{kind}-{table}");
     for column in columns {

@@ -29,7 +29,7 @@ use std::{fmt::Debug, hash::Hash};
 /// declaration order.
 ///
 /// What the types cannot tell, [`check_disjoint`] refuses.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 // [spec:pgorm:sem:disjoint.unkinded]
 pub trait Disjoint: Sized + Send {
     /// The entity each value has a row of.
@@ -66,7 +66,7 @@ pub trait Disjoint: Sized + Send {
     ///
     /// The read takes what a [`Select`](crate::Select) of the base takes; see
     /// [`SelectDisjoint`].
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     fn find() -> SelectDisjoint<Self> {
         SelectDisjoint::of(Self::Base::find())
     }
@@ -74,7 +74,7 @@ pub trait Disjoint: Sized + Send {
     /// [`find`](Self::find) narrowed to the base row of one key, composite
     /// keys included, their parts borrowed as
     /// [`EntityTrait::find_by_id`] takes them.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     fn find_by_id<T>(key: T) -> SelectDisjoint<Self>
     where
         T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
@@ -114,7 +114,7 @@ pub trait Disjoint: Sized + Send {
     /// # Ok(())
     /// # }
     /// ```
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:sem:disjoint.unkinded]
     fn insert(
         base: <Self::Base as EntityTrait>::ActiveModel,
@@ -147,7 +147,7 @@ pub trait Disjoint: Sized + Send {
     /// as is a declaration [`check_disjoint`] refuses, and a `NotSet` key of
     /// the base is [`Error::PrimaryKeyNotSet`]; nothing is sent. With nothing
     /// set in either, the write is a read of the row of that key and kind.
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:sem:disjoint.unkinded]
     fn update(
         base: <Self::Base as EntityTrait>::ActiveModel,
@@ -177,7 +177,7 @@ pub trait Disjoint: Sized + Send {
     /// nothing changed. The new row's key columns come from the base row, so
     /// a value held in one is refused as [`Error::Type`], as is a declaration
     /// [`check_disjoint`] refuses, and nothing is sent.
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:sem:disjoint.unkinded]
     fn change_kind<T>(
         key: T,
@@ -204,7 +204,7 @@ pub trait Disjoint: Sized + Send {
 
 /// A kinded entity's kind column: the base's column holding each row's
 /// kind, and the kind type it holds.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 #[derive(Clone, Debug)]
 pub struct KindColumn<E: EntityTrait> {
     /// The base's column, `NOT NULL` and of the kind type, which
@@ -237,7 +237,7 @@ pub struct KindColumn<E: EntityTrait> {
 /// # use pgorm::{Schema, tests_cfg::shop::Shop};
 /// let _ = Schema::new().create_disjoint::<Shop>();
 /// ```
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 // [spec:pgorm:sem:disjoint.unkinded]
 #[diagnostic::on_unimplemented(
     message = "`{Self}` is no `KindedDisjoint`, and an unkinded disjoint entity is read-only",
@@ -282,7 +282,7 @@ impl<D: Disjoint> ActiveKindVisitor<D> for KindValues {
 /// It decodes from a row, as every entity's `Model` does, and is required to
 /// here because a bound on its entity's `Model` is not one on the type
 /// itself: a read decodes a kind's joined row through this trait.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 #[diagnostic::on_unimplemented(
     message = "`{Self}` is not the `Model` of one of `{D}`'s kinds",
     label = "a kind with a table holds its entity's `Model`"
@@ -305,7 +305,7 @@ pub trait KindModel<D: Disjoint>:
 }
 
 /// What [`Disjoint::visit_kind`] calls for one kind of `D`.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 pub trait KindVisitor<D: Disjoint> {
     /// What the visit gives.
     type Output;
@@ -320,7 +320,7 @@ pub trait KindVisitor<D: Disjoint> {
 
 /// `<Enum>ActiveModel`: a value of a disjoint entity to write, each kind with
 /// a table holding its entity's `ActiveModel`.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 pub trait DisjointActiveModel: Clone + Debug + Send {
     /// The enum whose `ActiveModel` this is: each names the other, so an
     /// enum has exactly one.
@@ -336,7 +336,7 @@ pub trait DisjointActiveModel: Clone + Debug + Send {
 }
 
 /// What [`DisjointActiveModel::visit`] calls with the value it takes apart.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 pub trait ActiveKindVisitor<D: Disjoint> {
     /// What the visit gives.
     type Output;
@@ -366,7 +366,7 @@ pub trait ActiveKindVisitor<D: Disjoint> {
 /// It is what `Schema::create_disjoint` and every disjoint read and write are
 /// to run before anything is sent. Of an unkinded entity it refuses nothing:
 /// it has no kind column, and no write fills its kinds' keys.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 // [spec:pgorm:sem:disjoint.unkinded]
 pub fn check_disjoint<D: Disjoint>() -> Result<(), Error> {
     DisjointShape::of::<D>().check()

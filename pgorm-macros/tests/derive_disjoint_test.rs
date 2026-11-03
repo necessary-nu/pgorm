@@ -51,7 +51,7 @@ fn key_column(column: &str, column_type: &str) -> (String, String) {
     (column.to_owned(), column_type.to_owned())
 }
 
-// [spec:pgorm:def:disjoint.declare+3/test]    the kind type is a PostgreSQL enum named for the enum in snake_case, one value per variant in declaration order, each its variant's name in snake_case
+// [spec:pgorm:def:disjoint.declare+5/test]    the kind type is a PostgreSQL enum named for the enum in snake_case, one value per variant in declaration order, each its variant's name in snake_case
 #[test]
 fn kind_type_is_a_postgres_enum_of_variants() {
     assert_eq!(VehicleKind::name().to_string(), "vehicle_kind");
@@ -78,7 +78,7 @@ fn kind_type_is_a_postgres_enum_of_variants() {
     );
 }
 
-// [spec:pgorm:def:disjoint.declare+3/test]    `value`, `enum_name` and `schema_name` in place of the defaults, and `kind` naming the base's column
+// [spec:pgorm:def:disjoint.declare+5/test]    `value`, `enum_name` and `schema_name` in place of the defaults, and `kind` naming the base's column
 #[test]
 fn a_disjoint_says_what_differs_from_the_defaults() {
     assert_eq!(ListingKind::name().to_string(), "listing_category");
@@ -100,7 +100,7 @@ fn a_disjoint_says_what_differs_from_the_defaults() {
     assert_eq!(vehicle.column.as_str(), vehicle::Column::Kind.as_str());
 }
 
-// [spec:pgorm:def:disjoint.declare+3/test]    each kind with a table reaches its entity, its table and key columns, in declaration order, a unit kind none; a key may be composite and named otherwise than the base's
+// [spec:pgorm:def:disjoint.declare+5/test]    each kind with a table reaches its entity, its table and key columns, in declaration order, a unit kind none; a key may be composite and named otherwise than the base's
 #[test]
 fn kinds_reach_their_entities_in_order() {
     assert_eq!(
@@ -146,7 +146,7 @@ fn kind_key<D: Disjoint, M: KindModel<D>>(
     key
 }
 
-// [spec:pgorm:def:disjoint.declare+3/test]    a kind's model decodes into its variant, each value names its kind, and a kind entity's key is the base's key type
+// [spec:pgorm:def:disjoint.declare+5/test]    a kind's model decodes into its variant, each value names its kind, and a kind entity's key is the base's key type
 #[test]
 fn a_kind_model_is_its_variant() {
     let sedan = car::Model { id: 1, seats: 5 };
@@ -202,7 +202,7 @@ impl<D: Disjoint> ActiveKindVisitor<D> for SetColumns {
     }
 }
 
-// [spec:pgorm:def:disjoint.declare+3/test]    `<Enum>ActiveModel` holds each kind's `ActiveModel`, names its kind, and is taken apart into the kind's `ActiveModel`
+// [spec:pgorm:def:disjoint.declare+5/test]    `<Enum>ActiveModel` holds each kind's `ActiveModel`, names its kind, and is taken apart into the kind's `ActiveModel`
 #[test]
 fn an_active_model_is_taken_apart() {
     let truck = VehicleActiveModel::Truck(truck::ActiveModel {
@@ -234,7 +234,7 @@ fn an_active_model_is_taken_apart() {
     );
 }
 
-// [spec:pgorm:def:disjoint.declare+3/test]    a declaration whose types hold passes the run-time check, composite key and named kind column included
+// [spec:pgorm:def:disjoint.declare+5/test]    a declaration whose types hold passes the run-time check, composite key and named kind column included
 #[test]
 fn a_sound_declaration_passes_the_check() {
     assert!(pgorm::check_disjoint::<Vehicle>().is_ok());
@@ -258,7 +258,7 @@ pub enum Ranked {
     Bike,
 }
 
-// [spec:pgorm:def:disjoint.declare+3/test]    `kind_attrs` gives the kind type each attribute as written on it, derives and their helper attributes alike
+// [spec:pgorm:def:disjoint.declare+5/test]    `kind_attrs` gives the kind type each attribute as written on it, derives and their helper attributes alike
 #[test]
 fn kind_attrs_reach_the_kind_type() {
     assert!(RankedKind::Car < RankedKind::Truck);
@@ -339,4 +339,87 @@ pub enum RankedShop {
 fn kind_attrs_reach_the_unkinded_kinds() {
     assert!(RankedShopKind::WebShop < RankedShopKind::Dormant);
     assert_eq!(RankedShop::kind_name(RankedShopKind::Dormant), "dormant");
+}
+
+/// The vehicle's kinds as configured: a variant `#[cfg]` removes is no kind,
+/// and a `cfg_attr` gives a kind's `value`.
+#[derive(Clone, Debug, PartialEq, Disjoint)]
+#[pgorm(base = vehicle::Entity, enum_name = "vehicle_kind")]
+pub enum Configured {
+    #[cfg(not(test))]
+    Car(car::Model),
+    Truck(truck::Model),
+    #[cfg_attr(test, pgorm(value = "bike"))]
+    Cycle,
+}
+
+// [spec:pgorm:def:disjoint.declare+5/test]    a variant `#[cfg]` removes is no kind, of the kind type, the visitor or `<Enum>ActiveModel`, and a `cfg_attr` key is read as written
+#[test]
+fn configured_variants_are_the_kinds() {
+    assert_eq!(
+        ConfiguredKind::iter().collect::<Vec<_>>(),
+        [ConfiguredKind::Truck, ConfiguredKind::Cycle]
+    );
+    assert_eq!(ConfiguredKind::values(), ["truck", "bike"]);
+    assert_eq!(
+        describe::<Configured>(),
+        [
+            (
+                "truck".to_owned(),
+                Some((
+                    "truck".to_owned(),
+                    vec![key_column("vehicle_id", "Integer")]
+                ))
+            ),
+            ("bike".to_owned(), None),
+        ]
+    );
+    assert_eq!(ConfiguredActiveModel::Cycle.kind(), ConfiguredKind::Cycle);
+}
+
+/// Kinds every variant of which ends with the enum's name, in a module the
+/// crate does not export, where clippy's `enum_variant_names` lints them: the
+/// program allows it on the enum it writes, and the enums the derives
+/// generate from it allow it themselves.
+mod named_as_their_enum {
+    use pgorm::entity::prelude::*;
+    use pgorm::tests_cfg::{shop, storefront, truck, vehicle, web_shop};
+
+    #[allow(clippy::enum_variant_names)]
+    #[derive(Clone, Debug, PartialEq, Disjoint)]
+    #[pgorm(base = vehicle::Entity, enum_name = "vehicle_kind")]
+    pub enum Vehicle {
+        TruckVehicle(truck::Model),
+        BikeVehicle,
+        BoatVehicle,
+    }
+
+    #[allow(clippy::enum_variant_names)]
+    #[derive(Clone, Debug, PartialEq, Disjoint)]
+    #[pgorm(base = shop::Entity, unkinded)]
+    pub enum Shop {
+        WebShop(web_shop::Model),
+        StorefrontShop(storefront::Model),
+        ClosedShop,
+    }
+}
+
+// [spec:pgorm:def:disjoint.declare+5/test]    the kind type, `<Enum>ActiveModel` and an unkinded entity's kind enum allow clippy's `enum_variant_names`, which their variants, repeating the enum's, would otherwise trip though the enum allows it
+// [spec:pgorm:sem:macros.derive.active-enum.expansion+6/test]    and so does the kind type's `{Enum}Variant`, its variants the values escaped sharing a postfix
+#[test]
+fn variants_named_as_their_enum_compile_clean() {
+    use named_as_their_enum::{Shop, ShopKind, Vehicle, VehicleActiveModel, VehicleKind};
+    assert_eq!(
+        VehicleKind::values(),
+        ["truck_vehicle", "bike_vehicle", "boat_vehicle"]
+    );
+    assert_eq!(Vehicle::BikeVehicle.kind(), VehicleKind::BikeVehicle);
+    assert_eq!(
+        VehicleActiveModel::BikeVehicle.kind(),
+        VehicleKind::BikeVehicle
+    );
+    assert_eq!(
+        ShopKind::iter().map(Shop::kind_name).collect::<Vec<_>>(),
+        ["web_shop", "storefront_shop", "closed_shop"]
+    );
 }

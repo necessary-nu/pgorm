@@ -30,7 +30,7 @@ pub struct Column {
     /// Where the enum the column's type names is declared, when that is not
     /// `pgorm_active_enums`: a disjoint entity's kind type, which its derive
     /// declares in the base's module.
-    // [spec:pgorm:sem:codegen.entity.disjoint+1]
+    // [spec:pgorm:sem:codegen.entity.disjoint+2]
     pub(crate) enum_home: Option<EnumHome>,
 }
 
@@ -133,7 +133,7 @@ impl Column {
     /// and the module declaring it: `pgorm_active_enums`, the base's module
     /// for a disjoint entity's kind type, or `None` for the column's own.
     // [spec:pgorm:sem:codegen.entity.imports+4]
-    // [spec:pgorm:sem:codegen.entity.disjoint+1]
+    // [spec:pgorm:sem:codegen.entity.disjoint+2]
     pub(crate) fn enum_import(&self) -> Option<(String, Option<String>)> {
         let ColumnType::Enum { name, .. } = self.get_inner_col_type() else {
             return None;
@@ -167,6 +167,7 @@ impl Column {
 
     /// The field attribute declaring the column's identity, if it is one.
     // [spec:pgorm:sem:codegen.entity.compact.attrs+12]
+    // [spec:pgorm:sem:codegen.entity.pk+5]
     pub fn get_identity_attr(&self) -> Option<TokenStream> {
         self.identity.map(|identity| match identity {
             IdentityGeneration::Always => quote! { identity },

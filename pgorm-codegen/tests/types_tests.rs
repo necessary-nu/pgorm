@@ -456,8 +456,9 @@ fn column_conversion_reads_an_identity() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.pk+4/test]    in the compact format the same facts
-// surface as the `primary_key` / `auto_increment = false` field attributes
+// [spec:pgorm:sem:codegen.entity.pk+5/test]    a one-column serial key carries
+// `primary_key` alone, and each column of a composite key of plain columns
+// `primary_key, auto_increment = false`
 #[test]
 fn compact_primary_key_facts_surface_as_field_attributes() {
     let auto = generate(vec![cake()], Opts::default());

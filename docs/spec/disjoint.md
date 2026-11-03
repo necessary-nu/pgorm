@@ -18,7 +18,7 @@ has a row for it, and is never written through.
 
 ## Declaration
 
-> [spec:pgorm:def:disjoint.declare+3]
+> [spec:pgorm:def:disjoint.declare+5]
 > `#[derive(Disjoint)]` on an enum MUST declare a disjoint entity over the
 > base entity its container attribute names, `#[pgorm(base =
 > vehicle::Entity)]`. Each variant is a kind of base row. A variant with one
@@ -29,12 +29,17 @@ has a row for it, and is never written through.
 > shape or with a discriminant, a payload that is not an entity's `Model`
 > (a further model of an entity included), two variants holding the same
 > entity, two variants of one value, and an enum with no variants or with
-> generic parameters MUST NOT compile.
+> generic parameters MUST NOT compile. The derive is given its enum as
+> configured, so a variant that `#[cfg]` removes is no kind, of the kind type
+> or of anything else the derive generates, and a key that `cfg_attr` gives is
+> read as written.
 >
 > The derive MUST generate the kind type, `<Enum>Kind`, an `ActiveEnum`
 > stored as a PostgreSQL enum with one value per variant, in declaration
 > order, each spelled as its variant's name in snake_case unless the
-> variant's `#[pgorm(value = "...")]` gives another. The type is named
+> variant's `#[pgorm(value = "...")]` gives another, and a value over the 63
+> bytes PostgreSQL holds in an enum's value MUST NOT compile, refused at its
+> `value` or else its variant as an `ActiveEnum`'s is. The type is named
 > `<enum>_kind`, the enum's name in snake_case, unless `enum_name = "..."`
 > gives another, and `schema_name = "..."` qualifies it as it does an
 > `ActiveEnum`'s (`[spec:pgorm:syn:macros.derive.active-enum]`).
@@ -48,7 +53,12 @@ has a row for it, and is never written through.
 > the kind type has no such value. The derive MUST also generate
 > `<Enum>ActiveModel`, the same variants each holding its kind entity's
 > `ActiveModel`, which is what a write takes
-> (`[spec:pgorm:sem:disjoint.write]`).
+> (`[spec:pgorm:sem:disjoint.write]`). Each enum the derive generates, the
+> kind type, `<Enum>ActiveModel` and an unkinded entity's kind enum
+> ([Unkinded tables](#unkinded-tables)), carries
+> `#[allow(clippy::enum_variant_names)]`: its variants are the enum's, which
+> the lint judges where the enum is declared, and an `allow` written there
+> does not reach them.
 >
 > Each kind's entity MUST have a primary key of the same types, in the same
 > order, as the base's, since its row is keyed by the base row's key, and
@@ -69,12 +79,13 @@ has a row for it, and is never written through.
 
 ## Schema
 
-> [spec:pgorm:sem:disjoint.schema+1]
+> [spec:pgorm:sem:disjoint.schema+2]
 > `Schema::create_disjoint::<E>()` MUST run `check_disjoint::<E>()` first,
-> returning its refusal as its own, and otherwise return the statements that
-> create a disjoint entity's type and tables, a `Vec<DdlStatement>` in the
-> order they run (`DdlStatement` being a `CREATE TYPE`, a `CREATE TABLE` or
-> an `ALTER TABLE`, each rendering as its statement):
+> returning its refusal as its own, then refuse the keys below, and otherwise
+> return the statements that create a disjoint entity's type and tables, a
+> `Vec<DdlStatement>` in the order they run (`DdlStatement` being a `CREATE
+> TYPE`, a `CREATE TABLE` or an `ALTER TABLE`, each rendering as its
+> statement):
 >
 > 1. the kind type;
 > 2. the base table as `Schema::create_table_from_entity` writes it
@@ -93,6 +104,17 @@ has a row for it, and is never written through.
 >    key column's type, `GENERATED ALWAYS AS (CASE WHEN <kind column> =
 >    '<value>' THEN <column> END) STORED`, and for each such kind a foreign
 >    key from its columns to the kind table's key.
+>
+> A key these constraints cannot be written over MUST be refused as an
+> `Error::Type` naming the table and column, before any statement is
+> returned, rather than left to the server: a base key column that is a
+> generated column, which the base's generated columns would read and
+> PostgreSQL refuses a generated column reading (`42P17`); a base key column
+> of a domain over an enum, which no foreign key can match (`42804`), every
+> kind's key being of the base key's types; and a kind's key ending `WITHOUT
+> OVERLAPS`, which the base's plain foreign key onto that table matches no
+> key of (`42830`). A temporal base key is held, each kind table's foreign key
+> reaching the base's `UNIQUE` key, which takes its period as a plain column.
 >
 > The base's foreign keys come last because each side references the other.
 > The types the tables' other columns use are not among the statements;
@@ -136,7 +158,7 @@ has a row for it, and is never written through.
 
 ## Reads
 
-> [spec:pgorm:sem:disjoint.read+1]
+> [spec:pgorm:sem:disjoint.read+2]
 > `E::find()` MUST read base rows with their kinds' rows in one statement:
 > the base `LEFT JOIN`ed to each kind's table on the key alone, each row read
 > as the pair `(base::Model, E)`. A row decodes by its base row's kind: a
@@ -170,10 +192,26 @@ has a row for it, and is never written through.
 > and each kind with a table's under the next index in declaration order, so
 > a kind's column never shadows a base column or another kind's of the same
 > name. No bookkeeping column is selected.
+>
+> Each table of the read MUST be read under an identifier of its own, since
+> PostgreSQL refuses two of one name in a statement (`42712`) even in two
+> schemas. The base is read under its bare name, and each kind's table, in
+> declaration order, under its bare name unless the base or an earlier kind's
+> table has it — `market.listing` and `archive.listing` are both `listing` —
+> when it is joined under an alias: its schema-qualified name as one
+> identifier, `"archive.listing"`, or, where the read already has that, as it
+> has an unqualified table's bare name, the same with `_2`, `_3` and on
+> appended, each bounded to 63 bytes as the result names are. The join, the
+> projection and the read's own conditions qualify the table's columns by
+> that identifier, which `SelectDisjoint::kind_qualifier::<M>()` and
+> `DisjointTable::qualifier` give. A typed column qualifies by its table's
+> bare name, so a condition on the columns of a kind's table read under an
+> alias names them through the alias, as one on an aliased graph slot's does
+> (`[spec:pgorm:req:query.graph.aliases]`).
 
 ## Writes
 
-> [spec:pgorm:sem:disjoint.write+1]
+> [spec:pgorm:sem:disjoint.write+2]
 > Every write MUST be one statement, its parts joined by data-modifying
 > `WITH` clauses, so that it applies whole or not at all with no
 > transaction, and its constraints are checked once, at its end
@@ -209,6 +247,15 @@ has a row for it, and is never written through.
 >   table, and set the base row's kind. The new row's key columns MUST be
 >   `NotSet`, as an insert's are. A key no row has, and a row that already
 >   has that kind, MUST be `Error::RecordNotFound` with nothing changed.
+>
+> Each part is named after the identifier the read reads its table under
+> (`[spec:pgorm:sem:disjoint.read]`), and a part writing a table read under an
+> alias targets the table under it, so tables of one name write as parts of
+> their own. An unqualified name in the statement means the part of that name
+> where there is one, and a kind's table with no schema that is read under an
+> alias has the bare name of an earlier table, whose part is so named, so a
+> write would read that part for it: every write of such a shape MUST be
+> refused, as `Error::Type` naming both tables, before anything is sent.
 >
 > Deleting needs nothing of its own: the base entity's delete removes a base
 > row and, by the cascade, its kind's row.

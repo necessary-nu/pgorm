@@ -126,7 +126,7 @@ fn schema_expressions_reach_the_entity() {
     assert_eq!(expressions(&tables[2]).len(), 1);
 }
 
-// [spec:pgorm:sem:codegen.entity.pk+4/test]    a key whose every column is generated is the
+// [spec:pgorm:sem:codegen.entity.pk+5/test]    a key whose every column is generated is the
 // database's to fill: the key carries no `auto_increment = false`
 // [spec:pgorm:sem:codegen.entity.expressions+2/test]    and a VIRTUAL generated column in a key,
 // which PostgreSQL does not support (0A000), is refused

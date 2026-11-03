@@ -84,6 +84,17 @@ CREATE TABLE tenant_task_note (
         REFERENCES tenant_task (tenant_id, id) ON DELETE CASCADE
 );";
 
+mod serial_keys;
+
+const SERIAL_KEYS: &str = "CREATE TABLE tenant_order (
+    tenant_id int NOT NULL,
+    id serial NOT NULL,
+    total int NOT NULL,
+    PRIMARY KEY (tenant_id, id)
+);
+CREATE TABLE coded_row (code text PRIMARY KEY, seq serial NOT NULL);
+CREATE TABLE badge (id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY, label text NOT NULL);";
+
 fn from_sql(sql: &str) -> Generated {
     Generated {
         files: files(entities_from_sql(sql, Opts::default()).expect("schema should generate")),
@@ -998,7 +1009,7 @@ fn composite_key_identity_generates_a_compiling_entity() {
 
 // [spec:pgorm:sem:codegen.ddl.tables+11/test]    `BY DEFAULT` keeps its form, an
 // identity column is NOT NULL unasked, and each key column declares its own form
-// [spec:pgorm:sem:codegen.entity.pk+4/test]    a key every column of which is
+// [spec:pgorm:sem:codegen.entity.pk+5/test]    a key every column of which is
 // an identity is generated whole
 #[test]
 fn identity_forms_reach_their_columns() {
@@ -1170,7 +1181,7 @@ fn a_refused_foreign_key_check_is_named() {
 // [spec:pgorm:sem:codegen.entity.relations+5/test]    and reach the entity, whose key ends
 // `without_overlaps` and whose relation carries `from_period` / `to_period`, generating the
 // same keys back
-// [spec:pgorm:sem:codegen.entity.pk+4/test]
+// [spec:pgorm:sem:codegen.entity.pk+5/test]
 #[test]
 fn temporal_key_and_period_relation_round_trip() {
     let tables = parse_schema(TEMPORAL).expect("schema should parse");
@@ -1338,4 +1349,31 @@ fn an_alter_table_changing_a_table_is_named() {
     ] {
         assert_error(&format!("{table} {alter}"), expected);
     }
+}
+
+// [spec:pgorm:sem:codegen.entity.pk+5/test]    the key's attributes are read from its own columns: a serial column inside a composite key is a plain key column and the key is not generated, a serial column beside a key leaves the key supplied, and a one-column identity key is generated whole, each compiled and read through the derive
+#[test]
+fn keys_are_generated_by_their_own_columns() {
+    use serial_keys::{badge, coded_row, tenant_order};
+    let generated = from_sql(SERIAL_KEYS);
+    for (file, fixture) in [
+        (
+            "tenant_order.rs",
+            include_str!("serial_keys/tenant_order.rs"),
+        ),
+        ("coded_row.rs", include_str!("serial_keys/coded_row.rs")),
+        ("badge.rs", include_str!("serial_keys/badge.rs")),
+    ] {
+        assert_contains(generated.file(file), fixture);
+    }
+
+    assert!(!tenant_order::PrimaryKey::auto_increment());
+    assert_eq!(tenant_order::Column::Id.def(), ColumnType::Integer.def());
+    assert!(!coded_row::PrimaryKey::auto_increment());
+    assert_eq!(coded_row::Column::Seq.def(), ColumnType::Integer.def());
+    assert!(badge::PrimaryKey::auto_increment());
+    assert_eq!(
+        badge::Column::Id.def(),
+        ColumnType::Integer.def().identity()
+    );
 }

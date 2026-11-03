@@ -1,0 +1,8 @@
+CREATE TYPE "shop_kind" AS ENUM ('web_shop', 'pop_up_shop', 'closed_shop');
+CREATE TABLE "shop" ( "id" serial NOT NULL, "kind" shop_kind NOT NULL, "name" varchar NOT NULL, PRIMARY KEY ("id"), CONSTRAINT "uq-shop-id-kind" UNIQUE ("id", "kind") );
+CREATE TABLE "web_shop" ( "id" integer NOT NULL, "url" varchar NOT NULL, "kind" shop_kind GENERATED ALWAYS AS ('web_shop') STORED, PRIMARY KEY ("id"), CONSTRAINT "fk-web_shop-id-kind" FOREIGN KEY ("id", "kind") REFERENCES "shop" ("id", "kind") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE );
+CREATE TABLE "pop_up_shop" ( "id" integer NOT NULL, "site" varchar NOT NULL, "kind" shop_kind GENERATED ALWAYS AS ('pop_up_shop') STORED, PRIMARY KEY ("id"), CONSTRAINT "fk-pop_up_shop-id-kind" FOREIGN KEY ("id", "kind") REFERENCES "shop" ("id", "kind") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE );
+ALTER TABLE "shop" ADD COLUMN "web_shop_id" integer GENERATED ALWAYS AS ((CASE WHEN ("kind" = 'web_shop') THEN "id" END)) STORED, ADD COLUMN "pop_up_shop_id" integer GENERATED ALWAYS AS ((CASE WHEN ("kind" = 'pop_up_shop') THEN "id" END)) STORED, ADD CONSTRAINT "fk-shop-web_shop_id" FOREIGN KEY ("web_shop_id") REFERENCES "web_shop" ("id") DEFERRABLE INITIALLY IMMEDIATE, ADD CONSTRAINT "fk-shop-pop_up_shop_id" FOREIGN KEY ("pop_up_shop_id") REFERENCES "pop_up_shop" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+CREATE TABLE "store" ( "id" serial NOT NULL, "name" varchar NOT NULL, PRIMARY KEY ("id") );
+CREATE TABLE "web_store" ( "store_id" integer NOT NULL, "url" varchar NOT NULL, PRIMARY KEY ("store_id"), FOREIGN KEY ("store_id") REFERENCES "store" ("id") );
+CREATE TABLE "pop_up_store" ( "id" integer NOT NULL, "site" varchar NOT NULL, PRIMARY KEY ("id"), FOREIGN KEY ("id") REFERENCES "store" ("id") );
