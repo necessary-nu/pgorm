@@ -3,11 +3,12 @@
 //! everything else.
 
 use super::unsupported;
-use crate::{CastType, ColumnExpr, CurrentKeyword, Error, Operator};
+use crate::{CaseExpr, CastType, ColumnExpr, CurrentKeyword, Error, Operator};
 use pg_query::NodeEnum;
 use pg_query::protobuf::{
-    AConst, AExpr, AExprKind, BoolExpr, BoolExprType, CoercionForm, FuncCall, MinMaxOp, Node,
-    NullTest, NullTestType, SqlValueFunction, SqlValueFunctionOp, TypeCast, TypeName, a_const,
+    AConst, AExpr, AExprKind, BoolExpr, BoolExprType, CaseExpr as PgCaseExpr, CoercionForm,
+    FuncCall, MinMaxOp, Node, NullTest, NullTestType, SqlValueFunction, SqlValueFunctionOp,
+    TypeCast, TypeName, a_const,
 };
 
 /// The schema holding PostgreSQL's built-in functions and types, which the
@@ -45,6 +46,7 @@ pub(super) fn read(node: &Node, what: &str, at: usize) -> Result<ColumnExpr, Err
             _ => Err(refuse("an unrecognised GREATEST or LEAST")),
         },
         NodeEnum::TypeCast(cast) => type_cast(cast, what, at),
+        NodeEnum::CaseExpr(case) => case_expr(case, what, at),
         NodeEnum::SqlvalueFunction(function) => keyword(function).ok_or_else(|| {
             refuse(
                 "a SQL value function other than CURRENT_DATE, CURRENT_TIME or CURRENT_TIMESTAMP",
@@ -194,6 +196,35 @@ fn function(call: &FuncCall, what: &str, at: usize) -> Result<ColumnExpr, Error>
         return Err(refuse(&format!("a function quoted to be named `{name}`")));
     }
     call_of(&name, &call.args, what, at)
+}
+
+/// A searched `CASE`. The simple form, `CASE <operand> WHEN <value> ..`,
+/// compares one operand with each arm's value, which the subset's arms of
+/// conditions do not hold, so it is named.
+fn case_expr(case: &PgCaseExpr, what: &str, at: usize) -> Result<ColumnExpr, Error> {
+    let refuse = |construct: &str| unsupported(format!("{construct} in {what}"), at);
+    if case.arg.is_some() {
+        return Err(refuse("a CASE comparing an operand"));
+    }
+    let mut arms = case.args.iter().map(|arm| match &arm.node {
+        Some(NodeEnum::CaseWhen(arm)) => Ok((
+            read_boxed(&arm.expr, what, at)?,
+            read_boxed(&arm.result, what, at)?,
+        )),
+        _ => Err(refuse("a CASE arm codegen does not read")),
+    });
+    let first = arms
+        .next()
+        .unwrap_or_else(|| Err(refuse("a CASE with no WHEN")))?;
+    Ok(ColumnExpr::Case(Box::new(CaseExpr {
+        first,
+        rest: arms.collect::<Result<_, _>>()?,
+        otherwise: case
+            .defresult
+            .as_ref()
+            .map(|otherwise| read(otherwise, what, at))
+            .transpose()?,
+    })))
 }
 
 fn type_cast(cast: &TypeCast, what: &str, at: usize) -> Result<ColumnExpr, Error> {

@@ -36,8 +36,8 @@ pub(crate) struct SimpleCaseArm {
 ///
 /// let armless = CaseStatement::default();
 /// ```
-// [spec:pgorm:def:sql.ast.case+2]
-// [spec:pgorm:def:sql.ast.case+2/test]    the two `compile_fail,E0599` examples above:
+// [spec:pgorm:def:sql.ast.case+3]
+// [spec:pgorm:def:sql.ast.case+3/test]    the two `compile_fail,E0599` examples above:
 // neither an armless `new()` nor a `Default` exists to build a CASE with no WHEN
 #[derive(Debug, Clone, PartialEq)]
 pub struct CaseStatement {
@@ -131,6 +131,23 @@ impl CaseStatement {
         self.r#else = Some(r#else.into());
         self
     }
+
+    /// The arms in order, each as its condition and its result. A condition
+    /// is given as the expression it means, a `Condition` tree joined by its
+    /// `AND`s and `OR`s and negated where it is, so one built from a single
+    /// expression is that expression.
+    // [spec:pgorm:def:sql.ast.case+3]
+    pub fn get_arms(&self) -> impl Iterator<Item = (SimpleExpr, &SimpleExpr)> {
+        self.when
+            .iter()
+            .map(|arm| (arm.condition.to_simple_expr(), &arm.result))
+    }
+
+    /// The `ELSE` result, if [`finally`](Self::finally) set one.
+    // [spec:pgorm:def:sql.ast.case+3]
+    pub fn get_else(&self) -> Option<&SimpleExpr> {
+        self.r#else.as_ref()
+    }
 }
 
 #[allow(clippy::from_over_into)]
@@ -147,7 +164,7 @@ impl Into<SimpleExpr> for CaseStatement {
 /// yields a [`SimpleCaseStatement`]. It does not convert into an expression:
 /// PostgreSQL's grammar requires at least one `WHEN`, so a CASE with none has
 /// no expression to become.
-// [spec:pgorm:def:sql.ast.case+2]
+// [spec:pgorm:def:sql.ast.case+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct CaseOperand {
     operand: SimpleExpr,
@@ -198,7 +215,7 @@ impl CaseOperand {
 /// operand match no arm — not even `WHEN NULL` — and fall through to the
 /// `ELSE`, where the searched form's `WHEN x IS NULL` would match. The
 /// searched form, whose arms hold conditions, is [`CaseStatement`].
-// [spec:pgorm:def:sql.ast.case+2]
+// [spec:pgorm:def:sql.ast.case+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct SimpleCaseStatement {
     pub(crate) operand: SimpleExpr,
@@ -295,7 +312,7 @@ impl Expr {
     ///     r#"SELECT (CASE WHEN ("glyph"."aspect" IN (2, 4)) THEN TRUE ELSE FALSE END) AS "is_even" FROM "glyph""#
     /// );
     /// ```
-    // [spec:pgorm:def:sql.ast.case+2]
+    // [spec:pgorm:def:sql.ast.case+3]
     pub fn case<C, T>(cond: C, then: T) -> CaseStatement
     where
         C: IntoCondition,
@@ -340,7 +357,7 @@ impl Expr {
     ///     r#"SELECT "id" FROM "glyph" WHERE (CASE "image" WHEN 'a' THEN 1 WHEN 'b' THEN 2 ELSE 0 END) > 0"#
     /// );
     /// ```
-    // [spec:pgorm:def:sql.ast.case+2]
+    // [spec:pgorm:def:sql.ast.case+3]
     pub fn case_of<T>(operand: T) -> CaseOperand
     where
         T: Into<SimpleExpr>,

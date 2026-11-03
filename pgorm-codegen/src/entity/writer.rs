@@ -1,5 +1,4 @@
 use crate::{ActiveEnum, CreatedRangeType, Entity, Error, util::escape_rust_keyword};
-use heck::ToUpperCamelCase;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::{collections::BTreeMap, str::FromStr};
@@ -183,7 +182,7 @@ impl EntityWriterContext {
 }
 
 impl EntityWriter {
-    // [spec:pgorm:req:codegen.entity.files+1]
+    // [spec:pgorm:req:codegen.entity.files+2]
     pub fn generate(self, context: &EntityWriterContext) -> WriterOutput {
         let mut files = Vec::new();
         files.extend(self.write_entities(context));
@@ -249,7 +248,7 @@ impl EntityWriter {
             .collect()
     }
 
-    // [spec:pgorm:req:codegen.entity.files+1]
+    // [spec:pgorm:req:codegen.entity.files+2]
     pub fn write_index_file(&self, lib: bool) -> OutputFile {
         let mut lines = Vec::new();
         Self::write_doc_comment(&mut lines);
@@ -301,7 +300,7 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+6]
+    // [spec:pgorm:sem:codegen.entity.enums+7]
     pub fn write_pgorm_active_enums(
         &self,
         with_serde: &WithSerde,
@@ -351,7 +350,7 @@ impl EntityWriter {
     }
 
     // [spec:pgorm:req:macros.derive.one-form]
-    // [spec:pgorm:def:codegen.entity.compact+4]
+    // [spec:pgorm:def:codegen.entity.compact+5]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_code_blocks(
         entity: &Entity,
@@ -378,11 +377,28 @@ impl EntityWriter {
             ),
             Self::gen_compact_relation_enum(entity),
         ];
+        code_blocks.extend(Self::gen_disjoint_enum(entity, with_serde));
         code_blocks.extend(Self::gen_impl_conjunct_related(entity));
         code_blocks
     }
 
-    // [spec:pgorm:sem:codegen.entity.imports+3]
+    /// The `#[derive(Disjoint)]` enum of a disjoint entity's base, deriving
+    /// `Eq` where every kind's `Model` does, and the serde derives with the
+    /// `Model`s that it holds and its kind type, which its base's `Model`
+    /// holds, so the base serializes as the kind entities do.
+    // [spec:pgorm:sem:codegen.entity.disjoint+1]
+    pub fn gen_disjoint_enum(entity: &Entity, with_serde: &WithSerde) -> Option<TokenStream> {
+        let disjoint = entity.disjoint.as_ref()?;
+        let serde = match with_serde {
+            WithSerde::None => None,
+            WithSerde::Serialize => Some(quote! { Serialize }),
+            WithSerde::Deserialize => Some(quote! { Deserialize }),
+            WithSerde::Both => Some(quote! { Serialize, Deserialize }),
+        };
+        Some(disjoint.tokens(entity, &with_serde.extra_derive(), serde))
+    }
+
+    // [spec:pgorm:sem:codegen.entity.imports+4]
     pub fn gen_import(with_serde: &WithSerde) -> TokenStream {
         let prelude_import = quote!(
             use pgorm::entity::prelude::*;
@@ -411,27 +427,25 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.imports+3]    active-enum imports
+    // [spec:pgorm:sem:codegen.entity.imports+4]    active-enum imports
+    // [spec:pgorm:sem:codegen.entity.disjoint+1]    a kind type from its base's module
     pub fn gen_import_active_enum(entity: &Entity) -> TokenStream {
-        entity
-            .columns
-            .iter()
-            .fold(
-                (TokenStream::new(), Vec::new()),
-                |(mut ts, mut enums), col| {
-                    if let pgorm_query::ColumnType::Enum { name, .. } = col.get_inner_col_type()
-                        && !enums.contains(&name)
-                    {
-                        enums.push(name);
-                        let enum_name = format_ident!("{}", name.to_string().to_upper_camel_case());
-                        ts.extend([quote! {
-                            use super::pgorm_active_enums::#enum_name;
-                        }]);
-                    }
-                    (ts, enums)
-                },
-            )
-            .0
+        let mut imported: Vec<String> = Vec::new();
+        let mut imports = TokenStream::new();
+        for (name, module) in entity.columns.iter().filter_map(|col| col.enum_import()) {
+            if imported.contains(&name) {
+                continue;
+            }
+            let enum_name = format_ident!("{}", name);
+            imported.push(name);
+            if let Some(module) = module {
+                let module = format_ident!("{}", module);
+                imports.extend(quote! {
+                    use super::#module::#enum_name;
+                });
+            }
+        }
+        imports
     }
 
     // [spec:pgorm:sem:codegen.entity.relations.via+2]
@@ -635,6 +649,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "name".to_owned(),
@@ -645,6 +660,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![Relation {
@@ -667,6 +683,7 @@ mod tests {
                     to: "filling".to_owned(),
                 }],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -684,6 +701,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "filling_id".to_owned(),
@@ -694,6 +712,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![
@@ -730,6 +749,7 @@ mod tests {
                 ],
                 conjunct_relations: vec![],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![
                     PrimaryKey {
                         name: "cake_id".to_owned(),
@@ -752,6 +772,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "filling_id".to_owned(),
@@ -762,6 +783,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "price".to_owned(),
@@ -772,6 +794,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![Relation {
@@ -791,6 +814,7 @@ mod tests {
                 }],
                 conjunct_relations: vec![],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![
                     PrimaryKey {
                         name: "cake_id".to_owned(),
@@ -813,6 +837,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "name".to_owned(),
@@ -823,6 +848,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![],
@@ -831,6 +857,7 @@ mod tests {
                     to: "cake".to_owned(),
                 }],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -848,6 +875,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "name".to_owned(),
@@ -858,6 +886,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "cake_id".to_owned(),
@@ -868,6 +897,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![
@@ -904,6 +934,7 @@ mod tests {
                 ],
                 conjunct_relations: vec![],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -921,6 +952,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "_name_".to_owned(),
@@ -931,6 +963,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "fruitId".to_owned(),
@@ -941,6 +974,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![Relation {
@@ -960,6 +994,7 @@ mod tests {
                 }],
                 conjunct_relations: vec![],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -977,6 +1012,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "testing".to_owned(),
@@ -987,6 +1023,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "rust".to_owned(),
@@ -997,6 +1034,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "keywords".to_owned(),
@@ -1007,6 +1045,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "type".to_owned(),
@@ -1017,6 +1056,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "typeof".to_owned(),
@@ -1027,6 +1067,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "crate".to_owned(),
@@ -1037,6 +1078,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "self".to_owned(),
@@ -1047,6 +1089,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "self_id1".to_owned(),
@@ -1057,6 +1100,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "self_id2".to_owned(),
@@ -1067,6 +1111,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "fruit_id1".to_owned(),
@@ -1077,6 +1122,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "fruit_id2".to_owned(),
@@ -1087,6 +1133,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "cake_id".to_owned(),
@@ -1097,6 +1144,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![
@@ -1178,6 +1226,7 @@ mod tests {
                 ],
                 conjunct_relations: vec![],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1195,6 +1244,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "name".to_owned(),
@@ -1205,6 +1255,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "price".to_owned(),
@@ -1215,6 +1266,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![Relation {
@@ -1237,6 +1289,7 @@ mod tests {
                     to: "filling".to_owned(),
                 }],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1254,6 +1307,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "name".to_owned(),
@@ -1264,6 +1318,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "price".to_owned(),
@@ -1274,6 +1329,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![Relation {
@@ -1296,6 +1352,7 @@ mod tests {
                     to: "filling".to_owned(),
                 }],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1313,6 +1370,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "integers".to_owned(),
@@ -1323,6 +1381,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "integers_opt".to_owned(),
@@ -1333,11 +1392,13 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![],
                 conjunct_relations: vec![],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1355,6 +1416,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "floats".to_owned(),
@@ -1365,6 +1427,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "doubles".to_owned(),
@@ -1375,11 +1438,13 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![],
                 conjunct_relations: vec![],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1397,6 +1462,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "id2".to_owned(),
@@ -1407,6 +1473,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![Relation {
@@ -1426,6 +1493,7 @@ mod tests {
                 }],
                 conjunct_relations: vec![],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![
                     PrimaryKey {
                         name: "id1".to_owned(),
@@ -1448,6 +1516,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "parent_id1".to_owned(),
@@ -1458,6 +1527,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "parent_id2".to_owned(),
@@ -1468,6 +1538,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![Relation {
@@ -1487,6 +1558,7 @@ mod tests {
                 }],
                 conjunct_relations: vec![],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1875,6 +1947,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "payload".to_owned(),
@@ -1885,6 +1958,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "payload_binary".to_owned(),
@@ -1895,11 +1969,13 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![],
                 conjunct_relations: vec![],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1950,6 +2026,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "first_tea".to_owned(),
@@ -1967,6 +2044,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "second_tea".to_owned(),
@@ -1984,11 +2062,13 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![],
                 conjunct_relations: vec![],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -2006,6 +2086,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "first_tea".to_owned(),
@@ -2023,6 +2104,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "second_tea".to_owned(),
@@ -2040,6 +2122,7 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                     Column {
                         name: "size".to_owned(),
@@ -2058,11 +2141,13 @@ mod tests {
                         unique: false,
                         default: None,
                         generated: None,
+                        enum_home: None,
                     },
                 ],
                 relations: vec![],
                 conjunct_relations: vec![],
                 without_overlaps: false,
+                disjoint: None,
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],

@@ -7,7 +7,7 @@ use pgorm_codegen::WithSerde;
 use pgorm_query::{ColumnDef, ColumnType, Name, StringLen, Table};
 
 // [spec:pgorm:req:macros.derive.one-form/test]    codegen writes the one form
-// [spec:pgorm:def:codegen.entity.compact+4/test]    the compact format emits
+// [spec:pgorm:def:codegen.entity.compact+5/test]    the compact format emits
 // imports, Model and Relation, in order, and leaves the `Related` impl one
 // relation reaches and the behaviour with no hooks to the derives
 #[test]
@@ -32,7 +32,7 @@ fn compact_format_emits_its_blocks_in_order() {
     assert_not_contains(fruit, "ActiveModelBehavior");
 }
 
-// [spec:pgorm:def:codegen.entity.compact+4/test]    the `schema_name` part of the
+// [spec:pgorm:def:codegen.entity.compact+5/test]    the `schema_name` part of the
 // Model attribute appears only when configured, and an entity with no relations
 // emits the empty `pub enum Relation {}`
 #[test]
@@ -240,7 +240,7 @@ fn compact_model_pk_membership_uses_raw_column_name() {
     );
 }
 
-// [spec:pgorm:def:codegen.entity.compact+4/test]    each section is one
+// [spec:pgorm:def:codegen.entity.compact+5/test]    each section is one
 // contiguous blank-line-separated block, with the generated header prepended
 #[test]
 fn sections_are_one_contiguous_block_each() {
@@ -258,7 +258,7 @@ fn sections_are_one_contiguous_block_each() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.imports+3/test]    the import block is the prelude
+// [spec:pgorm:sem:codegen.entity.imports+4/test]    the import block is the prelude
 // import plus the serde import selected by `WithSerde`
 #[test]
 fn import_block_matches_the_with_serde_variant() {
@@ -289,7 +289,7 @@ fn import_block_matches_the_with_serde_variant() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.imports+3/test]    entity files import each active
+// [spec:pgorm:sem:codegen.entity.imports+4/test]    entity files import each active
 // enum once, in first-use column order, looking through `Array`
 #[test]
 fn entity_imports_each_enum_once_in_first_use() {
@@ -329,7 +329,7 @@ fn entity_imports_each_enum_once_in_first_use() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.imports+3/test]    `pgorm_active_enums.rs` heads
+// [spec:pgorm:sem:codegen.entity.imports+4/test]    `pgorm_active_enums.rs` heads
 // with the same import block, without any enum imports, directly below the
 // generated-file header
 #[test]
@@ -356,7 +356,7 @@ fn active_enums_file_imports_serde_not_enum_modules() {
     assert_not_contains(enums, "use super::pgorm_active_enums::TaskState;");
 }
 
-// [spec:pgorm:sem:codegen.entity.imports+3/test]    in entity files the imports sit
+// [spec:pgorm:sem:codegen.entity.imports+4/test]    in entity files the imports sit
 // directly below the generated-file header
 #[test]
 fn imports_sit_directly_below_the_generated_header() {

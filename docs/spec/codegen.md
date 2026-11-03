@@ -282,11 +282,12 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Output files
 
-> [spec:pgorm:req:codegen.entity.files+1]
+> [spec:pgorm:req:codegen.entity.files+2]
 > `EntityWriter::generate` MUST produce: one `<table_name_snake_case>.rs`
 > per entity; an index file named `lib.rs` when `lib` is true and `mod.rs`
 > otherwise; `prelude.rs`; `pgorm_active_enums.rs` if and only if at
-> least one enum was discovered; and `pgorm_range_types.rs`, one newtype per
+> least one enum was discovered that is not a disjoint entity's kind type,
+> which its derive declares (`codegen.entity.disjoint`); and `pgorm_range_types.rs`, one newtype per
 > range type a schema created (`codegen.entity.types`), if and only if a
 > column names one. Every generated file MUST start with the
 > header line
@@ -337,7 +338,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## The entity file
 
-> [spec:pgorm:def:codegen.entity.compact+4]
+> [spec:pgorm:def:codegen.entity.compact+5]
 > The writer emits one form of entity, the composite derive's
 > (`[spec:pgorm:req:macros.derive.one-form]`), and no option selects another.
 > Per entity it emits, in order: the imports (`use pgorm::entity::prelude::*;`,
@@ -350,8 +351,9 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > default, per `codegen.entity.context`); a `Relation` enum deriving
 > `Copy, Clone, Debug, Relation` whose variants carry
 > `#[pgorm(...)]` relation attributes (an entity with no relations emits the
-> empty `pub enum Relation {}`); and the `via` `Related` impls
-> (`codegen.entity.relations.via`). The `Entity` derive writes
+> empty `pub enum Relation {}`); for a disjoint entity's base, its
+> `#[derive(Disjoint)]` enum (`codegen.entity.disjoint`); and the `via`
+> `Related` impls (`codegen.entity.relations.via`). The `Entity` derive writes
 > the `Entity`, `Column`, `PrimaryKey`, `ActiveModel` and the behaviour with no
 > hooks from the `Model`, and the `Relation` derive the enum's iteration and the
 > `Related` impl each entity one relation reaches has
@@ -360,8 +362,8 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `gen_compact_code_blocks` assembles the file as an ordered
 > `Vec<TokenStream>`, one block per section: the import block (`gen_import`
 > extended with `gen_import_active_enum` and `gen_import_range_types`),
-> `gen_compact_model_struct`, `gen_compact_relation_enum`, then zero or more
-> `gen_impl_conjunct_related` blocks. `write_entities` prepends the
+> `gen_compact_model_struct`, `gen_compact_relation_enum`, `gen_disjoint_enum`
+> for a base, then zero or more `gen_impl_conjunct_related` blocks. `write_entities` prepends the
 > generated-file header and joins the stringified blocks with blank lines, so
 > each section is one contiguous block in the output (rendered shapes pinned
 > by `tests/compact/`).
@@ -480,7 +482,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > is decided by matching the raw DB column name against the entity's
 > `primary_keys` list.
 
-> [spec:pgorm:sem:codegen.entity.imports+3]
+> [spec:pgorm:sem:codegen.entity.imports+4]
 > `gen_import` builds the per-file import block: always
 > `use pgorm::entity::prelude::*;`, followed by the serde import selected
 > by `WithSerde` — `use serde::Serialize;` for `Serialize`,
@@ -489,7 +491,10 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > For entity files, `gen_import_active_enum` extends the block with one
 > `use super::pgorm_active_enums::<EnumName>;` per distinct enum among the
 > entity's column types (looked through `Array` via `get_inner_col_type`),
-> deduplicated in first-use column order, and `gen_import_range_types` with
+> deduplicated in first-use column order — a disjoint entity's kind type
+> from its base's module, `use super::<base>::<Enum>Kind;`, and in the base's
+> own file not at all, the derive declaring it there
+> (`codegen.entity.disjoint`) — and `gen_import_range_types` with
 > one `use super::pgorm_range_types::<RangeName>;` per distinct range or
 > multirange type a schema created, the same way. The same `gen_import` block —
 > without enum or range imports — heads `pgorm_active_enums.rs`
@@ -782,12 +787,13 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Column expressions
 
-> [spec:pgorm:sem:codegen.entity.expressions+1]
+> [spec:pgorm:sem:codegen.entity.expressions+2]
 > A column's `DEFAULT`, and the expression a generated column is computed
 > from, are read into one closed subset of PostgreSQL's expressions, which
 > the DDL bridge reads from the parse tree (`codegen.ddl.tables`), the
-> transform reads from a statement's `SimpleExpr` (`codegen.entity.transform`)
-> and the writer prints as Rust (`codegen.entity.compact.attrs`). The subset is: a column of the same table by
+> transform reads from a statement's `SimpleExpr` (`codegen.entity.transform`),
+> a `CASE` arm by arm through `CaseStatement::get_arms`
+> (`[spec:pgorm:def:sql.ast.case]`), and the writer prints as Rust (`codegen.entity.compact.attrs`). The subset is: a column of the same table by
 > its unqualified name; an `integer`, `bigint` or `numeric` literal, the last
 > kept as the exact decimal it spells (`1.50` stays `1.50`) within 18 digits;
 > a string literal; `TRUE`, `FALSE` and `NULL`; `CURRENT_DATE`,
@@ -797,9 +803,12 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > itself and pgorm writes bare (`sql.ast.func`); a cast to a type named by
 > its name and schema, with at most one unsized array dimension; the
 > arithmetic operators `+ - * / %`, the comparisons `= <> < > <= >=`, `||`,
-> `AND`, `OR` and `NOT`; and `IS [NOT] NULL`. Everything else is named where
-> it is met, never approximated (`codegen.ddl.unsupported`,
-> `codegen.entity.transform`).
+> `AND`, `OR` and `NOT`; `IS [NOT] NULL`; and the searched `CASE`, its `WHEN
+> <condition> THEN <result>` arms and its `ELSE`, which a disjoint schema's
+> generated key columns are (`[spec:pgorm:sem:disjoint.schema]`) — the
+> simple form, comparing one operand with each arm's value, is not in it.
+> Everything else is named where it is met, never approximated
+> (`codegen.ddl.unsupported`, `codegen.entity.transform`).
 >
 > The subset is codegen's own type, not `SimpleExpr`. The writer has to print
 > the Rust that builds an expression, and a `SimpleExpr` can hold what no
@@ -817,7 +826,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `.cast_as_type(pgorm::pgorm_query::TypeName::new(..)..)` for a qualified or
 > array type, the `Expr` method of each operator (`AND` and `OR` through
 > `.binary(pgorm::pgorm_query::BinOper::And | Or, ..)`), `.not()`,
-> `.is_null()` and `.is_not_null()` — every name either one
+> `.is_null()` and `.is_not_null()`, and `Expr::case(<condition>,
+> <result>)` followed by a `.case(..)` per further arm and `.finally(..)` for
+> the `ELSE`, a condition the subset builds as other than a `SimpleExpr` — a
+> column, a literal, a call, a `CASE` — taken through
+> `pgorm::pgorm_query::SimpleExpr::from` — every name either one
 > `pgorm::entity::prelude` exports or a path from `pgorm`. The schema built
 > from the generated entity carries each expression the bridge read, rendered
 > alike, and the live suite holds the server to storing it as it stored the
@@ -883,8 +896,9 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Active enums
 
-> [spec:pgorm:sem:codegen.entity.enums+6]
-> All discovered database enums are generated into a single
+> [spec:pgorm:sem:codegen.entity.enums+7]
+> All discovered database enums but a disjoint entity's kind type, which its
+> derive declares (`codegen.entity.disjoint`), are generated into a single
 > `pgorm_active_enums.rs`, in alphabetical order by enum name. Each becomes
 > `#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]`
 > (plus `Copy` when `with_copy_enums`, then serde derives, then
@@ -919,26 +933,84 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Disjoint entities
 
-> [spec:pgorm:sem:codegen.entity.disjoint]
+> [spec:pgorm:sem:codegen.entity.disjoint+1]
 > A base table and its kinds' tables, constrained exactly as
 > `[spec:pgorm:sem:disjoint.schema]` writes them, MUST generate as one
-> disjoint entity, from a live schema and from DDL text alike: the base's
-> entity and each kind table's, none with a field for a bookkeeping column,
-> and in the base's module a `#[derive(Disjoint)]` enum named for the base
-> table in UpperCamelCase. It has one variant per value of the kind type, in
-> the type's order, named as `codegen.entity.enums` names an enum's
-> variants: a payload variant holding the kind table's `Model` for a value
-> that has a table, and a unit variant for one that has none. A variant
-> carries `value = "..."` where its value is not its name in snake_case, and
-> the enum carries `enum_name` and `schema_name` where the kind type's name
-> is not the default the derive would give it. The kind type is not also
-> generated into `pgorm_active_enums.rs`, since the derive generates it.
+> disjoint entity, from DDL text and from statements described in code
+> (`EntityTransformer::transform`, each table whole as it stands in the
+> database, the columns and keys the `ALTER TABLE` adds among the base's)
+> alike: the base's entity and each kind table's, none with a field for a
+> bookkeeping column, and in the base's module, after its `Relation` enum, a
+> `#[derive(Disjoint)]` enum named for the base table in UpperCamelCase. It
+> has one variant per value of the kind type, in the type's order, named as
+> `codegen.entity.enums` names an enum's variants: a payload variant holding
+> the kind table's `Model` for a value that has a table, and a unit variant
+> for one that has none. A variant carries `value = "..."` where its value is
+> not its name in snake_case, and the enum carries `kind = Column::<Kind>`
+> where the kind column's variant is not `Kind`, and `enum_name` and
+> `schema_name` where the kind type's name is not the default the derive
+> would give it. It derives `Clone`, `Debug`, `PartialEq`, `Eq` where every
+> kind's `Model` does, and `Disjoint`, and under `with_serde` the serde
+> derives (`codegen.entity.serde.derives`) and `kind_attrs(derive(..))` of
+> them, so its kind type serializes as the base's `Model` holding it needs
+> (`[spec:pgorm:def:disjoint.declare]`).
+>
+> The kind type is not also generated into `pgorm_active_enums.rs`, since the
+> derive generates it, as `<Enum>Kind`: the base's kind column is a field of
+> that type, and a column of the kind type anywhere else one of it too,
+> imported from the base's module (`use super::vehicle::VehicleKind;`).
+> Neither bookkeeping key is a relation: each kind's entity carries in place
+> of its cascading key a `belongs_to` from its key to the base's, which that
+> key implies and `create_disjoint` writes no key for, and the base carries
+> the inverse `has_one` to each kind's table (`codegen.entity.transform.inverse`);
+> the base's keys to the kinds' tables generate nothing. So the generated
+> enum's `create_disjoint` writes the statements the schema was generated
+> from, and the kind entities are the ordinary entities, joinable to their
+> base, that `[spec:pgorm:def:disjoint.declare]` says they are.
+>
+> Exactly as written means: a base whose primary key does not end `WITHOUT
+> OVERLAPS`, with a kind column of an enum type directly, `NOT NULL`, and
+> no generated column, identity or serial, and a plain `UNIQUE` key over its
+> key columns then its kind column; every foreign key onto that pair is a
+> kind table's, the only key from that table to the base reading the kind
+> column, from its key columns then its kind column to the pair, `ON DELETE
+> CASCADE`, `ON UPDATE NO ACTION`; the kind table keyed by columns of the
+> base's key's types, in order, that the database does not fill, with no key
+> from exactly them to the base's key, and its kind column of the kind type,
+> nullable, stored generated as its value's literal and in no other key; for
+> each kind with a table one stored generated nullable column of the base per
+> key column, of its type, computed `CASE WHEN <kind column> = '<value>' THEN
+> <key column> END`, and one key from them, in key order, to the kind table's
+> key, `NO ACTION` both ways; no other key or unique key naming a bookkeeping
+> column; and every foreign key `DEFERRABLE INITIALLY IMMEDIATE` and
+> enforced. The names the constraints and the bookkeeping columns carry are
+> not compared: the shape is what PostgreSQL enforces, and the generated
+> enum's `create_disjoint` names them as it always does. A base all of whose
+> kinds are unit kinds is the shape too, its kind column and `UNIQUE` pair
+> alone.
 >
 > A set missing any part of the shape, or with any part different — a
 > foreign key's columns, action or deferrability, a generated column's
 > expression or `STORED`, the `UNIQUE` pair — MUST generate as the ordinary
 > entities it is, its generated columns as generated columns, with nothing
 > dropped, since only the full shape enforces what the enum would claim.
+>
+> What cannot be generated is refused as the transform gate refuses
+> (`codegen.entity.transform`), naming both sides: a base two of whose
+> columns each complete the shape, ``TransformError("table `<table>`: columns
+> `<a>` and `<b>` each make it the base of a disjoint entity, whose enum is
+> named for the table, so only one can be generated")``; a kind type two
+> bases share, ``TransformError("enum `<type>` is the kind type of the
+> disjoint entities of tables `<a>` and `<b>`; each one's derive declares a
+> kind type of its own")``; and an item the derive declares in the base's
+> module — the enum, `<Enum>Kind`, `<Enum>ActiveModel` — named as one of the
+> module's own (`Model`, `Entity`, `Column`, `PrimaryKey`, `ActiveModel`,
+> `Relation`), as a type another enum or a range type generates, or, the
+> enum and its active model, as a name the module's code means otherwise (a
+> base table `string` beside a `String` field), ``TransformError("table
+> `<table>`: its disjoint entity's <item> `<name>` is named as <the other>")``.
+> The kind type's name is claimed among the enums' type names
+> (`codegen.entity.collisions`) as `<Enum>Kind`.
 
 ## Identifier hygiene
 
@@ -1059,11 +1131,13 @@ compiling the C parser falls on people generating entities and on nobody else.
 > (`sql.ddl.create-table`), so a key the statement declares and the key the
 > bridge reads back from its rendering are one fact.
 
-> [spec:pgorm:req:codegen.ddl.unsupported+18]
+> [spec:pgorm:req:codegen.ddl.unsupported+19]
 > The supported subset is what the entity model can hold: `CREATE TABLE` with
 > its columns, `NULL`/`NOT NULL`, primary-key, unique and foreign-key
 > constraints, and its `DEFAULT`s and generation expressions within the subset
-> `codegen.entity.expressions` reads; `CREATE TYPE ... AS ENUM`; `CREATE TYPE ... AS RANGE`
+> `codegen.entity.expressions` reads; `ALTER TABLE ... ADD COLUMN` and `ADD
+> CONSTRAINT`, adding the same to a table the file creates
+> (`codegen.ddl.objects`); `CREATE TYPE ... AS ENUM`; `CREATE TYPE ... AS RANGE`
 > and `CREATE DOMAIN` (`codegen.ddl.objects`); `CREATE INDEX`; `CREATE SCHEMA`,
 > `IF NOT EXISTS` or not (`codegen.ddl.objects`); and `COMMENT ON TABLE`
 > / `COMMENT ON COLUMN` — with a column's `COLLATE` clause and a `NOT NULL`
@@ -1074,13 +1148,23 @@ compiling the C parser falls on people generating entities and on nobody else.
 > inside it that this schema cannot resolve is
 > ``TransformError("statement <n>: <problem>")``. `<n>` is the statement's
 > 1-based position in the text, and `<what>` names the construct the way its
-> author wrote it — `ALTER TABLE`, `CREATE TRIGGER`,
+> author wrote it — `ALTER SEQUENCE`, `CREATE TRIGGER`,
+> ``ALTER TABLE ... DROP COLUMN on table `t` ``,
 > ``a PARTITION BY clause on table `t` ``,
 > ``a CHECK constraint on column `t`.`c` `` — with `an unrecognised statement` as
 > the fallback for a statement kind the namer does not know.
 >
-> Named rejections MUST cover at least: every statement other than the seven
-> above; a statement written inside a `CREATE SCHEMA` as one of its elements,
+> Named rejections MUST cover at least: every statement other than the eight
+> above, `ALTER INDEX`, `ALTER VIEW`, `ALTER MATERIALIZED VIEW`, `ALTER
+> FOREIGN TABLE`, `ALTER SEQUENCE` and `ALTER TYPE` among them; on an `ALTER
+> TABLE`, every
+> change other than adding a column or a constraint, named as the subcommand
+> was written (`ALTER TABLE ... ALTER COLUMN`, `... DROP COLUMN`, `... DROP
+> CONSTRAINT`, `... OWNER TO`, `... ROW LEVEL SECURITY` and the rest, the
+> fallback `an ALTER TABLE subcommand codegen does not read`), `IF EXISTS`,
+> `ADD COLUMN IF NOT EXISTS`, and a constraint added `NOT VALID`, which the
+> server creates unchecked and records so where a `CREATE TABLE`'s is
+> checked, each ``on table `t` ``; a statement written inside a `CREATE SCHEMA` as one of its elements,
 > named by its kind (``CREATE TABLE inside CREATE SCHEMA `s` ``); a range type option PostgreSQL does not have, a `SUBTYPE` that is not
 > a type name or is a `serial` spelling, a type modifier on a `SUBTYPE`
 > (``a type modifier PostgreSQL drops on the SUBTYPE of range type `r` ``),
@@ -1128,9 +1212,10 @@ compiling the C parser falls on people generating entities and on nobody else.
 > named with the expression it sits in, ``TransformError("unsupported DDL:
 > <construct> in the DEFAULT of column `<t>`.`<c>` at statement <n>")`` or
 > ``... in the generation expression of column `<t>`.`<c>` ...``, and never read
-> as something near it. The constructs named are a subquery, `CASE` and every
+> as something near it. The constructs named are a subquery and every
 > other expression kind outside the subset (`an expression codegen does not
-> read`); a cast to a type with a modifier, `SETOF`, `%TYPE` or a sized or
+> read`), and a `CASE` comparing one operand with each arm's value, the simple
+> form (`a CASE comparing an operand`); a cast to a type with a modifier, `SETOF`, `%TYPE` or a sized or
 > multi-dimensional array bound (`a cast to a modified type`); a
 > schema-qualified function other than `pg_catalog`'s (`a schema-qualified
 > function`); an aggregate, window or `VARIADIC` call; a function written in
@@ -1432,10 +1517,10 @@ compiling the C parser falls on people generating entities and on nobody else.
 > a foreign key whose last pair is its period (`period(p, q)`), the grammar
 > putting `PERIOD` on the last column of each list and nowhere else.
 
-> [spec:pgorm:sem:codegen.ddl.objects+10]
+> [spec:pgorm:sem:codegen.ddl.objects+11]
 > Statements are resolved against each other rather than in file order: a
 > `CREATE TYPE ... AS ENUM` may follow the table whose column names it, and a
-> `CREATE INDEX` or `COMMENT ON` may precede its table. An enum type contributes
+> `CREATE INDEX`, `ALTER TABLE` or `COMMENT ON` may precede its table. An enum type contributes
 > its full identity — schema and name — and values to every column typed with
 > it (`codegen.ddl.types`), which
 > is where `transform` discovers enums; an enum type no column names contributes
@@ -1491,6 +1576,17 @@ compiling the C parser falls on people generating entities and on nobody else.
 > (`codegen.ddl.unsupported`): the server qualifies an element's unqualified
 > names with the schema as it runs it, which the parse tree does not record,
 > so the element read as written would be a table outside its schema.
+>
+> An `ALTER TABLE`'s `ADD COLUMN`s and `ADD CONSTRAINT`s are folded into the
+> table it names as the elements of its `CREATE TABLE` they could have been
+> written as, after the table's own and in file order, each read as that
+> element is and refused as it would be, at the `ALTER`'s statement: the
+> statement built is the one the `CREATE TABLE` declaring them would build,
+> which is the table the server holds once both have run. That is how a
+> table that references a table created after it gets its key, the form
+> `[spec:pgorm:sem:disjoint.schema]` writes a disjoint base's keys in, and
+> the form a dump writes keys in. `ALTER TABLE ONLY` is read as the plain
+> form: a table the bridge reads has no child for `ONLY` to exclude.
 >
 > A unique `CREATE INDEX` is folded into its table as the unique key that
 > enforces the same uniqueness — a `TableKey<Unique>`

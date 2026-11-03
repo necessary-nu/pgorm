@@ -57,7 +57,7 @@ fn won(id: i32) -> deal::Model {
 
 /// The file, run as written, creates its schema and the table in it, and
 /// the table the generated entity creates there is the same table.
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    against a live server: the file that
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]    against a live server: the file that
 // creates its schema runs as written, and the entity generated from it creates its table
 // in that schema
 #[pgorm_macros::test]
@@ -93,7 +93,7 @@ async fn generated_entities_create_the_schemas_table() -> Result<(), Error> {
 
 /// A row written through the generated entity is the schema's, a same-named
 /// table on `search_path` left empty, and reads back as written.
-// [spec:pgorm:sem:codegen.ddl.objects+10/test]    against a live server: the generated
+// [spec:pgorm:sem:codegen.ddl.objects+11/test]    against a live server: the generated
 // entity writes to and reads from the table in the created schema
 // [spec:pgorm:sem:codegen.entity.context+4/test]
 #[pgorm_macros::test]

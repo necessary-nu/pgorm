@@ -25,7 +25,7 @@
 // [spec:pgorm:req:entity.relation.builder+1/test]    a builder given no columns has no conversion into a `RelationDef`
 // [spec:pgorm:sem:macros.derive.entity-model.primary-key+7/test]    an identity beside a second identity form, `auto_increment`, a default or a nullable field, `auto_increment = true` on a composite key, a thirteenth key column, and `primary_key` given twice on one field
 // [spec:pgorm:sem:macros.derive.entity-model.column-def+10/test]    a generated column given both kinds, beside an identity, a default or `auto_increment`, and a virtual one keyed, unique or indexed
-// [spec:pgorm:def:disjoint.declare+2/test]    the refusals the disjoint derive words: not an enum, generic, no `base`, a quoted `base`, a key twice or unknown, no variants, a variant of another shape, a discriminant, a key on the payload, and two kinds of one value
+// [spec:pgorm:def:disjoint.declare+3/test]    the refusals the disjoint derive words: not an enum, generic, no `base`, a quoted `base`, a key twice or unknown, no variants, a variant of another shape, a discriminant, a key on the payload, and two kinds of one value
 #[test]
 fn compile_fail_tests() {
     let t = trybuild::TestCases::new();

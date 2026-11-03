@@ -90,8 +90,8 @@ impl CreatedRangeType {
 impl EntityWriter {
     /// `pgorm_range_types.rs`: the newtype of every range type a column
     /// names.
-    // [spec:pgorm:req:codegen.entity.files+1]
-    // [spec:pgorm:sem:codegen.entity.imports+3]
+    // [spec:pgorm:req:codegen.entity.files+2]
+    // [spec:pgorm:sem:codegen.entity.imports+4]
     pub fn write_pgorm_range_types(&self, with_serde: &WithSerde) -> OutputFile {
         let mut lines = Vec::new();
         Self::write_doc_comment(&mut lines);
@@ -110,7 +110,7 @@ impl EntityWriter {
     }
 
     /// The `use` of each range type's newtype an entity's columns name.
-    // [spec:pgorm:sem:codegen.entity.imports+3]
+    // [spec:pgorm:sem:codegen.entity.imports+4]
     pub fn gen_import_range_types(entity: &Entity) -> TokenStream {
         let mut imported: Vec<String> = Vec::new();
         let mut imports = TokenStream::new();

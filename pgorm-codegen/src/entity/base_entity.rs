@@ -6,7 +6,7 @@ use quote::quote;
 use std::fmt;
 
 use crate::{
-    Column, ConjunctRelation, Error, PrimaryKey, Relation,
+    Column, ConjunctRelation, DisjointEnum, Error, PrimaryKey, Relation,
     util::{escape_rust_keyword, safe_ident},
 };
 
@@ -57,6 +57,10 @@ pub struct Entity {
     /// 18's `WITHOUT OVERLAPS`.
     // [spec:pgorm:sem:codegen.entity.transform+16]
     pub(crate) without_overlaps: bool,
+    /// The disjoint enum the entity's module declares, when its table is
+    /// the base of one.
+    // [spec:pgorm:sem:codegen.entity.disjoint+1]
+    pub(crate) disjoint: Option<DisjointEnum>,
 }
 
 impl Entity {
@@ -253,6 +257,7 @@ mod tests {
                     unique: false,
                     default: None,
                     generated: None,
+                    enum_home: None,
                 },
                 Column {
                     name: "name".to_owned(),
@@ -263,6 +268,7 @@ mod tests {
                     unique: false,
                     default: None,
                     generated: None,
+                    enum_home: None,
                 },
             ],
             relations: vec![
@@ -299,6 +305,7 @@ mod tests {
             ],
             conjunct_relations: vec![],
             without_overlaps: false,
+            disjoint: None,
             primary_keys: vec![PrimaryKey {
                 name: "id".to_owned(),
             }],

@@ -93,7 +93,7 @@ macro_rules! ledger {
 // the entity and the range newtypes' file alike
 // [spec:pgorm:sem:codegen.entity.serde.derives+3/test]    and its derives
 // reach the Model and every range newtype
-// [spec:pgorm:sem:codegen.entity.imports+3/test]
+// [spec:pgorm:sem:codegen.entity.imports+4/test]
 #[test]
 fn each_serde_mode_generates_the_compiled_fixtures() {
     for (mode, ledger, range_types) in [

@@ -291,7 +291,7 @@ fn refusal<D: Disjoint>() -> String {
     }
 }
 
-// [spec:pgorm:def:disjoint.declare+2/test]    a nullable kind column, a generated one, one of text and one of another enum the kind type's name spells are each refused as `Error::Type` naming the table and column
+// [spec:pgorm:def:disjoint.declare+3/test]    a nullable kind column, a generated one, one of text and one of another enum the kind type's name spells are each refused as `Error::Type` naming the table and column
 #[test]
 fn kind_column_not_of_kind_type_is_refused() {
     assert_eq!(
@@ -316,7 +316,7 @@ fn kind_column_not_of_kind_type_is_refused() {
     );
 }
 
-// [spec:pgorm:def:disjoint.declare+2/test]    a kind entity whose key is drawn from a sequence, an identity, a generated column, a default, or a composite key's identity part is refused as `Error::Type` naming the kind's table and column
+// [spec:pgorm:def:disjoint.declare+3/test]    a kind entity whose key is drawn from a sequence, an identity, a generated column, a default, or a composite key's identity part is refused as `Error::Type` naming the kind's table and column
 #[test]
 fn kind_key_the_database_generates_is_refused() {
     assert_eq!(
@@ -347,14 +347,14 @@ fn kind_key_the_database_generates_is_refused() {
     );
 }
 
-// [spec:pgorm:def:disjoint.declare+2/test]    a base whose own key the database generates is sound, as is one whose kind column is the kind type
+// [spec:pgorm:def:disjoint.declare+3/test]    a base whose own key the database generates is sound, as is one whose kind column is the kind type
 #[test]
 fn a_generated_base_key_passes_the_check() {
     assert!(vehicle::PrimaryKey::auto_increment());
     assert!(check_disjoint::<Vehicle>().is_ok());
 }
 
-// [spec:pgorm:def:disjoint.declare+2/test]    the kind type created on a live server has the variants' values in declaration order, a base row of a listed kind round-trips through the kind column, and one of a kind the enum does not list cannot be written
+// [spec:pgorm:def:disjoint.declare+3/test]    the kind type created on a live server has the variants' values in declaration order, a base row of a listed kind round-trips through the kind column, and one of a kind the enum does not list cannot be written
 #[pgorm_macros::test]
 async fn kind_type_holds_only_the_listed_kinds_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_declare").await;

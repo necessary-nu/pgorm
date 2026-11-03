@@ -2,7 +2,8 @@ use super::{Declared, expr, types, unresolved, unsupported};
 use crate::{Error, TableIdent, util::repeated_column};
 use pg_query::NodeEnum;
 use pg_query::protobuf::{
-    CollateClause, ColumnDef as PgColumnDef, ConstrType, Constraint, CreateStmt, RangeVar,
+    AlterTableStmt, AlterTableType, CollateClause, ColumnDef as PgColumnDef, ConstrType,
+    Constraint, CreateStmt, ObjectType, RangeVar,
 };
 use pgorm_query::{
     Collation, ColumnDef, Deferrability, Enforcement, ForeignKey, ForeignKeyAction,
@@ -14,15 +15,143 @@ use std::collections::BTreeMap;
 /// The statements that describe a table from outside its `CREATE TABLE`,
 /// gathered before the table is built so they can be folded in.
 #[derive(Default)]
-pub(super) struct Attachments {
+pub(super) struct Attachments<'a> {
+    /// What `ALTER TABLE`s add to the table, in file order, each with the
+    /// position of the statement adding it.
+    pub(super) added: Vec<(usize, Added<'a>)>,
     pub(super) indexes: Vec<TableKey<Unique>>,
     pub(super) table_comment: Option<String>,
     pub(super) column_comments: BTreeMap<String, (usize, String)>,
 }
 
+/// One thing an `ALTER TABLE` adds: a column or a table constraint, each read
+/// as the `CREATE TABLE` element it could have been written as.
+pub(super) enum Added<'a> {
+    Column(&'a PgColumnDef),
+    Constraint(&'a Constraint),
+}
+
+/// An `ALTER TABLE`, as the table it names and what it adds.
+pub(super) struct Alter<'a> {
+    pub(super) table: TableIdent,
+    pub(super) added: Vec<Added<'a>>,
+}
+
+/// Read an `ALTER TABLE` that adds columns and constraints, which fold into
+/// the table as if its `CREATE TABLE` had declared them, after its own
+/// elements; any other change to a table is named. `ONLY` is read as the
+/// plain form: a table the bridge reads has no child for it to exclude.
+// [spec:pgorm:sem:codegen.ddl.objects+11]
+// [spec:pgorm:req:codegen.ddl.unsupported+19]
+pub(super) fn alter(stmt: &AlterTableStmt, at: usize) -> Result<Alter<'_>, Error> {
+    let statement = match ObjectType::try_from(stmt.objtype) {
+        Ok(ObjectType::ObjectTable) => None,
+        Ok(ObjectType::ObjectIndex) => Some("ALTER INDEX"),
+        Ok(ObjectType::ObjectView) => Some("ALTER VIEW"),
+        Ok(ObjectType::ObjectMatview) => Some("ALTER MATERIALIZED VIEW"),
+        Ok(ObjectType::ObjectForeignTable) => Some("ALTER FOREIGN TABLE"),
+        Ok(ObjectType::ObjectSequence) => Some("ALTER SEQUENCE"),
+        Ok(ObjectType::ObjectType) => Some("ALTER TYPE"),
+        _ => Some("an unrecognised statement"),
+    };
+    if let Some(statement) = statement {
+        return Err(unsupported(statement, at));
+    }
+    let Some(relation) = stmt
+        .relation
+        .as_ref()
+        .filter(|relation| !relation.relname.is_empty())
+    else {
+        return Err(unresolved("ALTER TABLE without a table name", at));
+    };
+    let context = format!("table `{}`", relation.relname);
+    let on = |what: &str| unsupported(format!("{what} on {context}"), at);
+    if stmt.missing_ok {
+        return Err(on("ALTER TABLE IF EXISTS"));
+    }
+    table_target(relation, &context, at)?;
+    let mut added = Vec::with_capacity(stmt.cmds.len());
+    for node in &stmt.cmds {
+        let Some(NodeEnum::AlterTableCmd(cmd)) = &node.node else {
+            return Err(on("an ALTER TABLE subcommand codegen does not read"));
+        };
+        let subtype = AlterTableType::try_from(cmd.subtype);
+        let def = cmd.def.as_ref().and_then(|def| def.node.as_ref());
+        added.push(match (subtype, def) {
+            (Ok(AlterTableType::AtAddColumn), Some(NodeEnum::ColumnDef(column))) => {
+                if cmd.missing_ok {
+                    return Err(on("ADD COLUMN IF NOT EXISTS"));
+                }
+                Added::Column(column)
+            }
+            (Ok(AlterTableType::AtAddConstraint), Some(NodeEnum::Constraint(constraint))) => {
+                // A constraint added NOT VALID is created unchecked and so
+                // recorded, where one a `CREATE TABLE` declares is checked.
+                if constraint.skip_validation {
+                    return Err(on("a constraint added NOT VALID"));
+                }
+                Added::Constraint(constraint)
+            }
+            (subtype, _) => return Err(on(alter_kind(subtype.ok()))),
+        });
+    }
+    Ok(Alter {
+        table: TableIdent {
+            table: relation.relname.clone(),
+            schema: schema_of(relation),
+        },
+        added,
+    })
+}
+
+/// How an `ALTER TABLE` subcommand the bridge does not read was written.
+// [spec:pgorm:req:codegen.ddl.unsupported+19]
+fn alter_kind(subtype: Option<AlterTableType>) -> &'static str {
+    match subtype {
+        Some(AlterTableType::AtDropColumn) => "ALTER TABLE ... DROP COLUMN",
+        Some(
+            AlterTableType::AtColumnDefault
+            | AlterTableType::AtDropNotNull
+            | AlterTableType::AtSetNotNull
+            | AlterTableType::AtSetExpression
+            | AlterTableType::AtDropExpression
+            | AlterTableType::AtSetStatistics
+            | AlterTableType::AtSetOptions
+            | AlterTableType::AtResetOptions
+            | AlterTableType::AtSetStorage
+            | AlterTableType::AtSetCompression
+            | AlterTableType::AtAlterColumnType
+            | AlterTableType::AtAddIdentity
+            | AlterTableType::AtSetIdentity
+            | AlterTableType::AtDropIdentity,
+        ) => "ALTER TABLE ... ALTER COLUMN",
+        Some(AlterTableType::AtDropConstraint) => "ALTER TABLE ... DROP CONSTRAINT",
+        Some(AlterTableType::AtAlterConstraint) => "ALTER TABLE ... ALTER CONSTRAINT",
+        Some(AlterTableType::AtValidateConstraint) => "ALTER TABLE ... VALIDATE CONSTRAINT",
+        Some(AlterTableType::AtAddIndexConstraint) => {
+            "ALTER TABLE ... ADD CONSTRAINT ... USING INDEX"
+        }
+        Some(AlterTableType::AtChangeOwner) => "ALTER TABLE ... OWNER TO",
+        Some(AlterTableType::AtAttachPartition) => "ALTER TABLE ... ATTACH PARTITION",
+        Some(AlterTableType::AtDetachPartition | AlterTableType::AtDetachPartitionFinalize) => {
+            "ALTER TABLE ... DETACH PARTITION"
+        }
+        Some(AlterTableType::AtAddInherit | AlterTableType::AtDropInherit) => {
+            "ALTER TABLE ... INHERIT"
+        }
+        Some(
+            AlterTableType::AtEnableRowSecurity
+            | AlterTableType::AtDisableRowSecurity
+            | AlterTableType::AtForceRowSecurity
+            | AlterTableType::AtNoForceRowSecurity,
+        ) => "ALTER TABLE ... ROW LEVEL SECURITY",
+        _ => "an ALTER TABLE subcommand codegen does not read",
+    }
+}
+
 /// The identity a `CREATE TABLE` declares — schema and all — which is the key
 /// every other statement, and the entity transformer, refers to a table by.
-// [spec:pgorm:sem:codegen.ddl.objects+10]
+// [spec:pgorm:sem:codegen.ddl.objects+11]
 pub(super) fn ident(stmt: &CreateStmt) -> TableIdent {
     stmt.relation
         .as_ref()
@@ -34,7 +163,7 @@ pub(super) fn ident(stmt: &CreateStmt) -> TableIdent {
 }
 
 /// The schema a DDL statement's name is qualified with, if any.
-// [spec:pgorm:sem:codegen.ddl.objects+10]
+// [spec:pgorm:sem:codegen.ddl.objects+11]
 pub(super) fn schema_of(relation: &RangeVar) -> Option<String> {
     Some(relation.schemaname.clone()).filter(|schema| !schema.is_empty())
 }
@@ -53,12 +182,13 @@ pub(super) fn build(
     stmt: &CreateStmt,
     at: usize,
     declared: &Declared,
-    attachments: Attachments,
+    attachments: Attachments<'_>,
 ) -> Result<TableCreateStatement, Error> {
     let table_name = name(stmt, at)?;
     let target = reject_table_features(stmt, &table_name, at)?;
 
     let Attachments {
+        added,
         indexes,
         table_comment,
         column_comments,
@@ -76,46 +206,46 @@ pub(super) fn build(
     let mut primary_key: Option<TableKey<Primary>> = None;
     let mut foreign_keys: Vec<ForeignKeyCreateStatement> = Vec::new();
     let mut unique_keys: Vec<TableKey<Unique>> = Vec::new();
-    let mut not_nulls: Vec<(String, NotNull)> = Vec::new();
+    let mut not_nulls: Vec<(String, (usize, NotNull))> = Vec::new();
 
     // A second primary key is refused rather than handed to the statement,
     // whose one slot would keep the later key and drop the earlier in silence.
-    let mut declare = |key: TableKey<Primary>| match primary_key.replace(key) {
+    let mut declare = |key: TableKey<Primary>, at: usize| match primary_key.replace(key) {
         Some(_) => Err(second_primary_key(&table_name, at)),
         None => Ok(()),
     };
-    for element in &stmt.table_elts {
-        match &element.node {
-            Some(NodeEnum::ColumnDef(def)) => {
+    let elements = stmt.table_elts.iter().map(|element| match &element.node {
+        Some(NodeEnum::ColumnDef(def)) => Ok((at, Added::Column(def))),
+        Some(NodeEnum::Constraint(constraint)) => Ok((at, Added::Constraint(constraint))),
+        Some(NodeEnum::TableLikeClause(_)) => Err(unsupported(
+            format!("a LIKE clause on table `{table_name}`"),
+            at,
+        )),
+        _ => Err(unsupported(
+            format!("a table element of table `{table_name}`"),
+            at,
+        )),
+    });
+    for element in elements.chain(added.into_iter().map(Ok)) {
+        match element? {
+            (at, Added::Column(def)) => {
                 let mut column = column(def, &target, &table_name, at, declared)?;
                 if column.primary_key {
-                    declare(TableKey::new(Name::runtime(column.name.as_str())))?;
+                    declare(TableKey::new(Name::runtime(column.name.as_str())), at)?;
                 }
                 foreign_keys.extend(column.foreign_key.take());
                 unique_keys.extend(column.unique_key.take());
                 columns.push(column);
             }
-            Some(NodeEnum::Constraint(constraint)) => {
+            (at, Added::Constraint(constraint)) => {
                 match table_constraint(constraint, &target, &table_name, at)? {
-                    TableConstraint::Primary(key) => declare(*key)?,
+                    TableConstraint::Primary(key) => declare(*key, at)?,
                     TableConstraint::Unique(key) => unique_keys.push(*key),
                     TableConstraint::ForeignKey(foreign_key) => foreign_keys.push(*foreign_key),
                     TableConstraint::NotNull(column, not_null) => {
-                        not_nulls.push((column, not_null))
+                        not_nulls.push((column, (at, not_null)))
                     }
                 }
-            }
-            Some(NodeEnum::TableLikeClause(_)) => {
-                return Err(unsupported(
-                    format!("a LIKE clause on table `{table_name}`"),
-                    at,
-                ));
-            }
-            _ => {
-                return Err(unsupported(
-                    format!("a table element of table `{table_name}`"),
-                    at,
-                ));
             }
         }
     }
@@ -131,7 +261,7 @@ pub(super) fn build(
 
     // A table-level NOT NULL is the column's own constraint, which PostgreSQL
     // creates whichever spelling declared it, so it joins the column's.
-    for (constrained, not_null) in not_nulls {
+    for (constrained, (at, not_null)) in not_nulls {
         let Some(column) = columns.iter_mut().find(|column| column.name == constrained) else {
             return Err(unresolved(
                 format!("table `{table_name}` has no column `{constrained}`"),
@@ -171,7 +301,7 @@ pub(super) fn build(
 /// column, as a table constraint beside a column's, or twice on one column.
 /// PostgreSQL refuses every such table (42P16), and none is a composite key:
 /// that is one `PRIMARY KEY (a, b)`.
-// [spec:pgorm:req:codegen.ddl.unsupported+18]
+// [spec:pgorm:req:codegen.ddl.unsupported+19]
 fn second_primary_key(table_name: &str, at: usize) -> Error {
     unresolved(
         format!("table `{table_name}` declares more than one primary key"),
@@ -181,7 +311,7 @@ fn second_primary_key(table_name: &str, at: usize) -> Error {
 
 /// Refuse every `CREATE TABLE` feature the entity model has no place for, and
 /// hand back the table name the rest of the build hangs off.
-// [spec:pgorm:req:codegen.ddl.unsupported+18]
+// [spec:pgorm:req:codegen.ddl.unsupported+19]
 fn reject_table_features(
     stmt: &CreateStmt,
     table_name: &str,
@@ -878,7 +1008,7 @@ fn named(created: &mut ForeignKeyCreateStatement, constraint: &Constraint) {
 }
 
 /// Constraint attributes that survive into no part of the entity model.
-// [spec:pgorm:req:codegen.ddl.unsupported+18]
+// [spec:pgorm:req:codegen.ddl.unsupported+19]
 fn reject_constraint_features(
     constraint: &Constraint,
     context: &str,
@@ -931,7 +1061,7 @@ fn constraint_type(constraint: &Constraint, context: &str, at: usize) -> Result<
 }
 
 /// How a constraint the bridge does not carry was written.
-// [spec:pgorm:req:codegen.ddl.unsupported+18]
+// [spec:pgorm:req:codegen.ddl.unsupported+19]
 fn constraint_kind(kind: ConstrType) -> &'static str {
     match kind {
         ConstrType::ConstrCheck => "a CHECK constraint",

@@ -1,7 +1,8 @@
 //! A column's expression — its `DEFAULT`, or the expression a generated column
 //! is computed from — in the closed subset codegen reads: columns, literals,
 //! `CURRENT_*` keywords, calls by name, casts, the arithmetic, comparison,
-//! concatenation and boolean operators, `NOT` and `IS [NOT] NULL`.
+//! concatenation and boolean operators, `NOT`, `IS [NOT] NULL` and the
+//! searched `CASE`.
 //!
 //! The DDL bridge reads PostgreSQL's parse tree into it and lowers it to the
 //! `SimpleExpr` the bridged statement carries; the transform reads a
@@ -12,7 +13,8 @@
 
 use heck::ToUpperCamelCase;
 use pgorm_query::{
-    BinOper, ColumnRef, Expr, Func, Function, Keyword, Name, SimpleExpr, TypeName, UnOper, Value,
+    BinOper, CaseStatement, ColumnRef, Expr, Func, Function, Keyword, Name, SimpleExpr, TypeName,
+    UnOper, Value,
 };
 use proc_macro2::{Literal, TokenStream};
 use quote::{format_ident, quote};
@@ -21,7 +23,7 @@ use rust_decimal::Decimal;
 use crate::util::escape_rust_keyword;
 
 /// One expression of the subset.
-// [spec:pgorm:sem:codegen.entity.expressions+1]
+// [spec:pgorm:sem:codegen.entity.expressions+2]
 #[derive(Clone, Debug, PartialEq)]
 pub enum ColumnExpr {
     /// A column of the same table, by name.
@@ -50,6 +52,25 @@ pub enum ColumnExpr {
     Not(Box<ColumnExpr>),
     /// `IS NULL`, or `IS NOT NULL` when the flag is set.
     IsNull(Box<ColumnExpr>, bool),
+    /// The searched `CASE`; the simple form, comparing one operand with each
+    /// arm's value, is outside the subset.
+    Case(Box<CaseExpr>),
+}
+
+/// A searched `CASE`: its `WHEN <condition> THEN <result>` arms in order,
+/// the first held apart because the grammar requires one, and its `ELSE`
+/// result.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CaseExpr {
+    pub first: (ColumnExpr, ColumnExpr),
+    pub rest: Vec<(ColumnExpr, ColumnExpr)>,
+    pub otherwise: Option<ColumnExpr>,
+}
+
+impl CaseExpr {
+    fn arms(&self) -> impl Iterator<Item = &(ColumnExpr, ColumnExpr)> {
+        std::iter::once(&self.first).chain(&self.rest)
+    }
 }
 
 /// The type a cast names.
@@ -208,7 +229,7 @@ impl ColumnExpr {
 
     /// The `SimpleExpr` this builds: the value the bridged statement carries,
     /// and the one the Rust [`to_rust`](Self::to_rust) prints builds.
-    // [spec:pgorm:sem:codegen.entity.expressions+1]
+    // [spec:pgorm:sem:codegen.entity.expressions+2]
     pub(crate) fn lower(&self) -> SimpleExpr {
         match self {
             Self::Column(name) => Expr::col(Name::runtime(name.as_str())).into(),
@@ -232,12 +253,25 @@ impl ColumnExpr {
             Self::Not(operand) => Expr::expr(operand.lower()).not(),
             Self::IsNull(operand, false) => Expr::expr(operand.lower()).is_null(),
             Self::IsNull(operand, true) => Expr::expr(operand.lower()).is_not_null(),
+            Self::Case(case) => {
+                let (condition, result) = &case.first;
+                let arms = case.rest.iter().fold(
+                    Expr::case(condition.lower(), result.lower()),
+                    |arms: CaseStatement, (condition, result)| {
+                        arms.case(condition.lower(), result.lower())
+                    },
+                );
+                match &case.otherwise {
+                    Some(otherwise) => arms.finally(otherwise.lower()).into(),
+                    None => arms.into(),
+                }
+            }
         }
     }
 
     /// Read a statement's expression back, or name the part of it outside
     /// the subset.
-    // [spec:pgorm:sem:codegen.entity.expressions+1]
+    // [spec:pgorm:sem:codegen.entity.expressions+2]
     pub(crate) fn read(expr: &SimpleExpr) -> Result<Self, String> {
         Ok(match expr {
             SimpleExpr::Column(ColumnRef::Column(name)) => Self::Column(name.to_string()),
@@ -289,6 +323,19 @@ impl ColumnExpr {
                 None => return Err(format!("the operator {oper:?}")),
             },
             SimpleExpr::Unary(UnOper::Not, operand) => Self::Not(Box::new(Self::read(operand)?)),
+            SimpleExpr::Case(case) => {
+                let mut arms = case
+                    .get_arms()
+                    .map(|(condition, result)| Ok((Self::read(&condition)?, Self::read(result)?)));
+                let first = arms
+                    .next()
+                    .unwrap_or_else(|| Err("a CASE with no arm".to_owned()))?;
+                Self::Case(Box::new(CaseExpr {
+                    first,
+                    rest: arms.collect::<Result<_, String>>()?,
+                    otherwise: case.get_else().map(Self::read).transpose()?,
+                }))
+            }
             other => return Err(format!("the expression {other:?}")),
         })
     }
@@ -331,13 +378,22 @@ impl ColumnExpr {
                 left.collect_columns(columns);
                 right.collect_columns(columns);
             }
+            Self::Case(case) => {
+                for (condition, result) in case.arms() {
+                    condition.collect_columns(columns);
+                    result.collect_columns(columns);
+                }
+                if let Some(otherwise) = &case.otherwise {
+                    otherwise.collect_columns(columns);
+                }
+            }
             _ => {}
         }
     }
 
     /// The Rust that builds [`lower`](Self::lower)'s `SimpleExpr`, inside an
     /// entity whose `Column` enum names the table's columns.
-    // [spec:pgorm:sem:codegen.entity.expressions+1]
+    // [spec:pgorm:sem:codegen.entity.expressions+2]
     pub(crate) fn to_rust(&self) -> TokenStream {
         match self {
             Self::Column(name) => {
@@ -418,6 +474,32 @@ impl ColumnExpr {
                     format_ident!("is_null")
                 };
                 quote! { #operand.#method() }
+            }
+            Self::Case(case) => {
+                let (condition, result) = (case.first.0.to_condition(), case.first.1.to_rust());
+                let rest = case.rest.iter().map(|(condition, result)| {
+                    let (condition, result) = (condition.to_condition(), result.to_rust());
+                    quote! { .case(#condition, #result) }
+                });
+                let otherwise = case.otherwise.as_ref().map(|otherwise| {
+                    let otherwise = otherwise.to_rust();
+                    quote! { .finally(#otherwise) }
+                });
+                quote! { Expr::case(#condition, #result) #( #rest )* #otherwise }
+            }
+        }
+    }
+
+    /// [`to_rust`](Self::to_rust)'s Rust as a CASE arm's condition, which
+    /// `Expr::case` takes as an `IntoCondition`: the operators, casts and
+    /// tests build a `SimpleExpr`, which is one, and anything else is made
+    /// one through `SimpleExpr::from`.
+    fn to_condition(&self) -> TokenStream {
+        match self {
+            Self::Binary(..) | Self::Not(_) | Self::IsNull(..) | Self::Cast(..) => self.to_rust(),
+            _ => {
+                let expr = self.to_expr();
+                quote! { pgorm::pgorm_query::SimpleExpr::from(#expr) }
             }
         }
     }
