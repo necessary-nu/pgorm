@@ -1320,32 +1320,56 @@ Rust generic at run time, only use the ones compiled in.
 
 ## Disjoint models
 
-> [spec:pgorm:req:bindings.disjoint]
+> [spec:pgorm:req:bindings.disjoint+1]
 > `disjoint(name, base, kinds, options)` MUST declare a disjoint model over a
 > base model (`bindings.models`), where `kinds` maps each kind's value, in
-> order, to the model of its table or to null for a kind with none, and the
-> options name the base's kind field and the kind type's `schema` and
-> `name`, defaulting as `[spec:pgorm:def:disjoint.declare]` does. A
-> downstream crate's `#[derive(Disjoint)]` enum MUST be registrable as an
-> entity is (`bindings.entities`), its base and kind entities registered
-> with it. Declaring or registering sends nothing. What the Rust
-> declaration refuses — no kinds, a model given for two kinds, a kind
-> model whose key differs from the base's, a base whose kind field is
-> missing, nullable, generated or of another type, a kind model whose key
-> the database generates or fills — MUST be a `ConstructionError` raised as
-> the model is declared.
+> order, to the model of its table or to null for a kind with none. The
+> options are named as `[spec:pgorm:def:disjoint.declare]`'s attributes are
+> and default as they do: `kind`, the base's kind field, `kind` by default;
+> and the kind type's `enum_name`, `{name}_kind` by default, and
+> `schema_name`, none by default. A model's enum column names its schema
+> (`bindings.models`), so a base's kind field is of the kind type only when
+> `schema_name` names that schema. A downstream crate's `#[derive(Disjoint)]`
+> enum MUST be registrable as an entity is (`bindings.entities`), its base
+> and kind entities registered before it, and `disjoint_entity(name)` and
+> `disjoint_entities()` give one registration and list them. Declaring or
+> registering sends nothing. What the Rust declaration refuses — no kinds, a
+> model given for two kinds, a kind model whose key differs from the base's,
+> a base whose kind field is missing, nullable, generated or of another
+> type, a kind model whose key the database generates or fills — MUST be a
+> `ConstructionError` raised as the model is declared or the enum
+> registered, as is a base or kind model read under an alias, since a
+> disjoint statement names each table bare.
 >
-> Reads, writes and the schema MUST be Rust's
-> (`[spec:pgorm:sem:disjoint.read]`, `[spec:pgorm:sem:disjoint.write]`,
-> `[spec:pgorm:sem:disjoint.schema]`): the same statements, the same
-> refusals, the same errors as `bindings.errors` classifies them. A read
-> gives each row as the base's record, the kind's value, and the kind's
-> record or null; `insert`, `update` and `change_kind` take the base's
-> values and a kind with its values. `describe()` MUST report a disjoint
-> model under these keys and no other, each spelled by the binding's naming
-> rule: `name`; `base`, the base model's name; `kind_field`; the kind type's
-> `schema` and `name`; and `kinds`, each with its `value` and its model's
-> name or null.
+> Either is pgorm's `DisjointShape`: described from the models, each column
+> of the type its kind is written with (`ArrayType::column_type`) and cast as
+> a column of that type is, or `DisjointShape::of` the registered enum. Every
+> statement is the shape's — the read and its narrowing by key and kind, its
+> cursor and pages, the writes and the schema — so reads, writes and the
+> schema MUST be Rust's (`[spec:pgorm:sem:disjoint.read]`,
+> `[spec:pgorm:sem:disjoint.write]`, `[spec:pgorm:sem:disjoint.schema]`):
+> the same statements, the same refusals, the same errors as
+> `bindings.errors` classifies them, a refusal before anything is sent being
+> a `ConstructionError`, and a row the constraints do not admit and a write
+> that reads back no row (`RecordNotFound`) a `DecodeError`. A read gives
+> each row as a triple — a tuple in Python, an array in JavaScript — of the
+> base's record, the kind's value, and the kind's record or null: a model's
+> records, an enum column the read projects as its text read back as its
+> enum, or the registered entities' own. Its terminals are `all`, `one` and
+> `stream`, beside `count`, `paginate` and `cursor`. `insert`, `update` and
+> `change_kind` take the base's values and a kind with its values — a
+> model's as fields, a registration's as its entities' ActiveModels — and
+> their one terminal, `returning_model`, gives the written row as a read
+> does. `create_disjoint(model)` gives the shape's statements as DDL: a
+> model's `generated` column is written as an identity, and a model column
+> whose default the declaration does not state (`default`) has no `DEFAULT`
+> to write, so a table holding one is refused with a `ConstructionError`.
+> `describe()` MUST report a disjoint model or registration under these keys
+> and no other, each spelled by the binding's naming rule: `name`; `base`,
+> the base model's table name or the base entity's registration name;
+> `kind_field`; `kind_type`, the kind type's `schema` and `name`; and
+> `kinds`, each with its `value` and its `model`, the kind model's table name
+> or the kind entity's registration name, or null.
 
 ## Pipelines
 

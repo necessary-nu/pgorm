@@ -488,21 +488,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     // [spec:pgorm:def:sql.value.created-range+5]
     // [spec:pgorm:req:sql.ast.cast-shape+2]
     fn select_enum_as(&self, expr: Expr) -> SimpleExpr {
-        let col_def = self.def();
-        let col_type = col_def.get_column_type();
-        if let ColumnType::CreatedMultirange { .. } = under_domains(col_type) {
-            return expr.cast_as_type(pgorm_query::TypeName::new(Text));
-        }
-        if money_type_name(col_type).is_some() {
-            return expr.cast_as_type(money_carrier(holds_array(col_type)));
-        }
-        cast_enum_as(expr, self, |col, _, col_type| {
-            let text = pgorm_query::TypeName::new(Text);
-            col.cast_as_type(match holds_array(col_type) {
-                true => text.array(),
-                false => text,
-            })
-        })
+        select_cast(self.def().get_column_type(), expr)
     }
 
     /// Cast value of a column into the correct type for database storage.
@@ -554,15 +540,49 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     // [spec:pgorm:def:sql.value.created-range+5]
     // [spec:pgorm:req:sql.ast.cast-shape+2]
     fn save_enum_as(&self, val: Expr) -> SimpleExpr {
-        let col_def = self.def();
-        let col_type = col_def.get_column_type();
-        if let Some(money) = money_type_name(col_type) {
-            return val.cast_as_type(money);
-        }
-        match created_range_type_name(col_type) {
-            Some(type_name) => val.as_range(type_name),
-            None => cast_enum_as(val, self, |col, type_name, _| col.cast_as_type(type_name)),
-        }
+        save_cast(self.def().get_column_type(), val)
+    }
+}
+
+/// The read cast [`ColumnTrait::select_enum_as`] gives a column of
+/// `col_type`: an enum, or an array of one, read as `text` or `text[]`, a
+/// created multirange as `text`, a `money` as `numeric`, and anything else
+/// as it is. A column described only at run time, as a disjoint shape's is,
+/// is read by this alone.
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+// [spec:pgorm:def:sql.value.created-range+5]
+// [spec:pgorm:req:sql.ast.cast-shape+2]
+pub(crate) fn select_cast(col_type: &ColumnType, expr: Expr) -> SimpleExpr {
+    if let ColumnType::CreatedMultirange { .. } = under_domains(col_type) {
+        return expr.cast_as_type(pgorm_query::TypeName::new(Text));
+    }
+    if money_type_name(col_type).is_some() {
+        return expr.cast_as_type(money_carrier(holds_array(col_type)));
+    }
+    cast_enum_as(expr, col_type, |col, _, col_type| {
+        let text = pgorm_query::TypeName::new(Text);
+        col.cast_as_type(match holds_array(col_type) {
+            true => text.array(),
+            false => text,
+        })
+    })
+}
+
+/// The write cast [`ColumnTrait::save_enum_as`] gives a value of a column of
+/// `col_type`: cast to the column's enum, `money` or created range, and
+/// anything else as it is.
+// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+// [spec:pgorm:def:sql.value.created-range+5]
+// [spec:pgorm:req:sql.ast.cast-shape+2]
+pub(crate) fn save_cast(col_type: &ColumnType, val: Expr) -> SimpleExpr {
+    if let Some(money) = money_type_name(col_type) {
+        return val.cast_as_type(money);
+    }
+    match created_range_type_name(col_type) {
+        Some(type_name) => val.as_range(type_name),
+        None => cast_enum_as(val, col_type, |col, type_name, _| {
+            col.cast_as_type(type_name)
+        }),
     }
 }
 

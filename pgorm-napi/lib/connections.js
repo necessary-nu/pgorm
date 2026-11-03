@@ -156,6 +156,41 @@ export async function runStatement(db, terminal, statement, options) {
 }
 
 /**
+ * The rows of a disjoint read's `statement`, the native half of a `Select`,
+ * as a stream on a pool's connection or a connection, each row read by
+ * `disjoint`'s codec.
+ * [spec:pgorm:req:bindings.disjoint+1]
+ *
+ * @param {unknown} db
+ * @param {unknown} statement
+ * @param {unknown} disjoint
+ * @param {unknown} options
+ * @returns {RowStream}
+ */
+export function disjointStream(db, statement, disjoint, options) {
+  if (db instanceof Pool) {
+    return new RowStream(async (token) => {
+      const connection = new Connection(await native.poolAcquire(poolHandle(db), token), TRUSTED);
+      try {
+        const handle = await native.connectionStream(connectionHandle(connection), statement, [], token, disjoint);
+        return [handle, () => connection.close()];
+      } catch (error) {
+        await connection.close();
+        throw error;
+      }
+    }, options ?? {}, TRUSTED);
+  }
+  if (db instanceof Connection) {
+    return new RowStream(
+      async (token) => [await native.connectionStream(connectionHandle(db), statement, [], token, disjoint), undefined],
+      options ?? {},
+      TRUSTED,
+    );
+  }
+  throw new TypeError("a disjoint read's rows stream from a Pool or a Connection");
+}
+
+/**
  * Run a registered entity's job — one of pgorm's own terminals, built by the
  * addon — on a pool's connection, a connection or a transaction, with the
  * operation a statement gets around it: the busy refusal, the abort, the
@@ -179,6 +214,9 @@ export async function runJob(db, job, options) {
 /** @type {(connection: Connection) => unknown} */
 let connectionHandle;
 
+/** @type {(pool: Pool) => unknown} */
+let poolHandle;
+
 /**
  * A pool of connections to one server, opened as they are first needed. TLS
  * verifies the server's certificate and host name unless the connection
@@ -187,6 +225,10 @@ let connectionHandle;
 export class Pool extends Queryable {
   /** @type {unknown} */
   #native;
+
+  static {
+    poolHandle = (pool) => pool.#native;
+  }
 
   /**
    * @param {string} dsn

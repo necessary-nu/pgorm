@@ -169,6 +169,10 @@ from ._versions import (
 )
 from ._graphs import EntityGraph as EntityGraph, EntityGraphQuery as EntityGraphQuery, EntityGraphCursor as EntityGraphCursor, graph as graph, graphs as graphs
 from ._entity_models import EntityModel as EntityModel, ActiveModel as ActiveModel, ActiveValue as ActiveValue, ActiveState as ActiveState
+from ._disjoint import (
+    _Disjoint as _Disjoint, _disjoint_model as _disjoint_model,
+    _disjoint_entity as _disjoint_entity, _disjoint_entities as _disjoint_entities,
+)
 from ._writes import (
     Insert as Insert, Update as Update, Delete as Delete, RawSQL as RawSQL,
     Conflict as Conflict, ConflictTarget as ConflictTarget, ConflictUpdate as ConflictUpdate,

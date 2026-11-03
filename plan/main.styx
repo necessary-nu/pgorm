@@ -16290,6 +16290,14 @@ children (
                     main ([spec:pgorm:req:bindings.disjoint])
                 }
                 deps (disjoint.write)
+                log (
+                    {
+                        at 2026-11-03T05:30:25.411265Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "One builder. pgorm gains DisjointShape (src/entity/disjoint_shape.rs): the base and kind tables (TableName, columns each a name, ColumnDef and casts, key indices, auto_increment, the CREATE TABLE body), the kind column and type, the kinds in order. DisjointShape::of::<D>() describes a #[derive(Disjoint)] enum, each column's casts its typed column's own select_as/save_as/compared_value (closures over the Copy column); DisjointShape::new describes run-time tables, casts from the ColumnType through select_cast/save_cast/compared_value_as, the functions ColumnTrait's defaults now call. Every disjoint builder runs over the shape: find/project/key_relation/kind_eq/kinds_in/kind_condition/cursor casts (query/disjoint.rs), insert/update/change_kind (query/disjoint_write.rs), create (schema/disjoint.rs), check (= check_disjoint), judge (executor/disjoint.rs, the row consistency decision shared with DisjointRow<D>'s typed decode). Disjoint::insert/update/change_kind, SelectDisjoint and Schema::create_disjoint are thin typed wrappers; every typed SQL golden and live test passes unchanged. Also public now: Cursor::statement/reversed, page_statement/count_statement (Paginator's own), QueryResult From<Row>/into_row, ArrayType::column_type (pgorm-query: the type a kind's column is written with). Both bindings hold a native core (shape + codec: models' tagged rows, or registered entities' adapters decoding at s{i}_ via a new EntityBackend::decode) and send only shape-built statements; registration Registry::disjoint::<D>(name) builds DisjointShape::of::<D>() with the TypeId-looked-up base/kind backends, so no derive change. bindings.disjoint revised +1: option names kind/enum_name/schema_name (the derive's), kind_type object and kinds' model key in describe, row triples, runtime schema (kind -> ArrayType::column_type, generated -> identity, unstated default refused), aliased models refused."
+                    }
+                )
             }
 
             {
@@ -16330,6 +16338,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Scope: no rule yet; write it when this node starts. An existing schema with a base table and tables keyed by its primary key (FK on the key, the key also the kind table's primary key) but no kind column: generate a read-only disjoint entity that decodes each row by which kind table has a row for it, and treats two present rows as an error. Read-only because nothing in such a schema enforces disjointness, so pgorm must not write through it as if something did. Decide how the generator is told a table set is meant this way (an explicit option rather than a guess, since any 1:1 extension table matches the shape)."
+                    }
+                )
+            }
+
+            {
+                id disjoint.bindings-codegen
+                title "The bindings' codegen workflow describes, registers and types an application's disjoint enums"
+                deps (disjoint.bindings)
+                log (
+                    {
+                        at 2026-11-03T05:29:31.145434Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Scope, filed by disjoint.bindings: bindings.codegen generates a registering crate and typed wrappers from a description of entities, graphs and source tuples; disjoint enums are registrable by hand (Registry::disjoint::<D>, disjoint_entity(name)) but the workflow does not carry them. Carrying them needs: the description schema (pgorm.codegen config input_schema_version and pgorm-napi/codegen's build description) to name a disjoint enum's Rust path and registration name; scaffold to emit registry.disjoint::<D>(name) after its entities; emit to type a registration's rows as a union over kinds ((base view, Literal kind, kind view | None) in Python, a tuple union in TypeScript) and its writes' ActiveModels; and the generated module's load-time check to compare the registration's describe() (bindings.disjoint's keys). Write the rule (a revision of bindings.codegen, or a sibling) when this node starts."
                     }
                 )
             }

@@ -32,7 +32,7 @@ pub struct PyRecord {
 }
 
 impl PyRecord {
-    pub(crate) fn decode(row: Row) -> PyResult<Self> {
+    pub(crate) fn decode(row: &Row) -> PyResult<Self> {
         let mut seen = HashSet::new();
         let mut fields = Vec::with_capacity(row.len());
         let mut values = Vec::with_capacity(row.len());
@@ -53,7 +53,7 @@ impl PyRecord {
                 table_oid: column.table_oid(),
                 column_id: column.column_id(),
             });
-            let value = super::decode::value(super::decode::Field::Row(&row, index))?;
+            let value = super::decode::value(super::decode::Field::Row(row, index))?;
             // A successful terminal guarantees representability in Python now,
             // including temporal bounds and f32 NaN payloads, not at a later getter.
             Python::attach(|py| value.to_python(py))?;
@@ -68,6 +68,25 @@ impl PyRecord {
             values,
             names,
         })
+    }
+
+    /// Read the column `name`, which holds an enum's label as its text, as
+    /// a value of the enum `enum_type`, or an array of it.
+    pub(crate) fn read_as_enum(&mut self, name: &str, enum_type: PyTypeName, array: bool) {
+        if let Some(index) = self.names.get(name) {
+            let value = self.values[*index].rust_value().clone();
+            if matches!(
+                value,
+                pgorm::pgorm_query::Value::String(_) | pgorm::pgorm_query::Value::Array(..)
+            ) {
+                self.values[*index] = PyValue::from_enum(value, enum_type, array);
+            }
+        }
+    }
+
+    /// The value of the column `name`, if the record has one.
+    pub(crate) fn value(&self, name: &str) -> Option<&PyValue> {
+        self.names.get(name).map(|index| &self.values[*index])
     }
 
     fn position(&self, name: &str) -> PyResult<usize> {

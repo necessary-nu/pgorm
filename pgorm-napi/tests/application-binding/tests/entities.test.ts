@@ -102,7 +102,16 @@ function refused(pattern: RegExp): (error: unknown) => true {
 // [spec:pgorm:req:bindings.entities+3/test]
 // [spec:pgorm:req:bindings.relation-conditions/test]
 test("the module names its registrations and describes each, and refuses a name it does not register", () => {
-  assert.deepStrictEqual(entities(), ["app.Account", "app.Membership", "app.Note", "app.Parcel", "app.Temper"]);
+  assert.deepStrictEqual(entities(), [
+    "app.Account",
+    "app.Membership",
+    "app.Note",
+    "app.Packet",
+    "app.Pallet",
+    "app.Parcel",
+    "app.Shipment",
+    "app.Temper",
+  ]);
   assert.deepStrictEqual(graphs(), ["app.AccountNotes", "app.AccountOnly", "app.MembershipOnly", "app.MixedNotes", "app.RequiredNotes"]);
   assert.throws(() => entity("app.Missing"), refused(/no entity is registered as "app.Missing"/));
   assert.throws(() => graph("app.Missing"), refused(/no graph is registered as "app.Missing"/));

@@ -9,6 +9,7 @@
 mod capabilities;
 mod config;
 mod copy;
+mod disjoint;
 pub mod entities;
 mod errors;
 mod execution;
@@ -76,6 +77,7 @@ pub fn install(module: &Bound<'_, PyModule>, registry: entities::Registry) -> Py
     results::register(module)?;
     models::register(module)?;
     entities::install(module, registry)?;
+    disjoint::register(module)?;
     graphs::install(module)?;
     pipeline::install(module)?;
     schema::install(module)?;

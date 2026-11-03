@@ -6,7 +6,7 @@ use async_stream::stream;
 use futures::Stream;
 use pg_query::{NodeEnum, protobuf::RawStmt};
 use pgorm_query::{
-    Asterisk, Expr, FromItem, IntoName, SelectStatement, SqlTemplate, Value, Values, alias,
+    Asterisk, Expr, FromItem, IntoName, SelectStatement, SqlTemplate, Value, alias,
     error::{Error as QueryError, TemplateError},
 };
 use std::{
@@ -53,24 +53,46 @@ pub struct ItemsAndPagesNumber {
 const COUNT_PROJECTION: &str = "COUNT(*) AS num_items";
 const COUNT_SUBQUERY_ALIAS: &str = "sub_query";
 
-/// The statement for one page and the values to bind to it.
+/// The statement a [`Paginator`] reads page `page` of `query` with, pages
+/// counted from zero: `query` with a limit of `page_size` and an offset of
+/// `page_size × page`, replacing its own.
+///
+/// For a caller that sends the statement itself and decodes its rows by its
+/// own means. A query with no projection, one whose limit keeps ties, and an
+/// offset past `u64` are refused.
 // [spec:pgorm:sem:exec.paginator.fetch+3]
 // [spec:pgorm:sem:exec.paginator.raw+6] (one shape for a built source and a raw one)
 // [spec:pgorm:req:exec.tie-limit+1]
-fn page_of(query: &SelectStatement, limit: u64, offset: u64) -> Result<(String, Values), Error> {
+// [spec:pgorm:req:bindings.disjoint+1]
+pub fn page_statement(
+    query: &SelectStatement,
+    page_size: NonZeroU64,
+    page: u64,
+) -> Result<SelectStatement, Error> {
+    let offset = page_size.get().checked_mul(page).ok_or_else(|| {
+        Error::Query(RuntimeError::Internal(format!(
+            "page {page} at page size {page_size} is past the largest representable offset"
+        )))
+    })?;
     ensure_select_list(query)?;
     refuse_tie_limit(query, "paginator")?;
     let mut query = query.clone();
-    query.limit(limit).offset(offset);
-    Ok(query.build())
+    query.limit(page_size.get()).offset(offset);
+    Ok(query)
 }
 
-/// The statement counting every row the paginator pages over, and the values to
-/// bind to it.
+/// The statement a [`Paginator`] counts every row of `query` with, its
+/// limit, offset and ordering dropped: `SELECT COUNT(*) AS num_items FROM
+/// (..) AS sub_query`.
+///
+/// For a caller that sends the statement itself: its one row's `num_items`
+/// is the count. A query with no projection, and one whose limit keeps ties,
+/// are refused.
 // [spec:pgorm:sem:exec.paginator.count]
 // [spec:pgorm:sem:exec.paginator.raw+6] (one shape for a built source and a raw one)
 // [spec:pgorm:req:exec.tie-limit+1]
-fn count_of(query: &SelectStatement) -> Result<(String, Values), Error> {
+// [spec:pgorm:req:bindings.disjoint+1]
+pub fn count_statement(query: &SelectStatement) -> Result<SelectStatement, Error> {
     ensure_select_list(query)?;
     refuse_tie_limit(query, "paginator")?;
     let mut counted = query.clone();
@@ -78,8 +100,7 @@ fn count_of(query: &SelectStatement) -> Result<(String, Values), Error> {
     Ok(SelectStatement::new()
         .expr(Expr::raw(COUNT_PROJECTION))
         .from_subquery(counted, alias(COUNT_SUBQUERY_ALIAS))
-        .to_owned()
-        .build())
+        .to_owned())
 }
 
 // LINT: warn if paginator is used without an order by clause
@@ -92,13 +113,7 @@ where
     /// Fetch a specific page; page index starts from zero
     // [spec:pgorm:sem:exec.paginator.fetch+3]
     pub async fn fetch_page(&self, page: u64) -> Result<Vec<S::Item>, Error> {
-        let offset = self.page_size.get().checked_mul(page).ok_or_else(|| {
-            Error::Query(RuntimeError::Internal(format!(
-                "page {page} at page size {} is past the largest representable offset",
-                self.page_size
-            )))
-        })?;
-        let (stmt, values) = page_of(&self.query, self.page_size.get(), offset)?;
+        let (stmt, values) = page_statement(&self.query, self.page_size, page)?.build();
         let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
         let values = values
             .iter()
@@ -122,7 +137,7 @@ where
     /// Get the total number of items
     // [spec:pgorm:sem:exec.paginator.count]
     pub async fn num_items(&self) -> Result<u64, Error> {
-        let (stmt, values) = count_of(&self.query)?;
+        let (stmt, values) = count_statement(&self.query)?.build();
         let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
         let values = values
             .iter()
@@ -561,6 +576,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pgorm_query::Values;
     use pretty_assertions::assert_eq;
 
     /// Token forms a `$N` walk over the text would corrupt, each with the
@@ -621,16 +637,16 @@ mod tests {
     /// The page of `query` at an arbitrary limit and offset, or a panic naming
     /// the statement that has none.
     fn paged(stmt: &str, query: &SelectStatement) -> (String, Values) {
-        match page_of(query, 10, 20) {
-            Ok(paged) => paged,
+        match page_statement(query, NonZeroU64::new(10).expect("ten is not zero"), 2) {
+            Ok(paged) => paged.build(),
             Err(error) => panic!("{stmt:?} has no page: {error}"),
         }
     }
 
     /// The count over `query`, or a panic naming the statement that has none.
     fn counted(stmt: &str, query: &SelectStatement) -> (String, Values) {
-        match count_of(query) {
-            Ok(counted) => counted,
+        match count_statement(query) {
+            Ok(counted) => counted.build(),
             Err(error) => panic!("{stmt:?} has no count: {error}"),
         }
     }

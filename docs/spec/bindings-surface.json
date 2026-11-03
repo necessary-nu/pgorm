@@ -25,6 +25,12 @@
       "DatabaseError": [],
       "DecodeError": [],
       "Delete": ["all_rows", "inspect", "returning", "using", "where", "with"],
+      "Disjoint": ["change_kind", "describe", "find", "find_by_key", "insert", "update"],
+      "DisjointCursor": ["after", "all", "asc", "before", "desc", "first", "inspect", "last"],
+      "DisjointEntity": ["change_kind", "describe", "find", "find_by_key", "insert", "update"],
+      "DisjointPaginator": ["fetch_page", "inspect", "num_items", "num_items_and_pages", "num_pages", "pages"],
+      "DisjointQuery": ["all", "count", "cursor", "filter_kind", "inspect", "kind", "kinds", "limit", "offset", "one", "order_by", "paginate", "stream", "where"],
+      "DisjointWrite": ["inspect", "returning_model"],
       "Entity": ["active", "col", "describe", "find", "insert", "insert_many", "update", "update_many"],
       "EntityColumn": ["add", "adjacent_to", "and", "as", "asc", "at", "between", "cast", "collate", "concat", "contained_by", "contains", "contains_text", "desc", "div", "ends_with", "eq", "gt", "gte", "ilike", "inspect", "iregex", "is_distinct_from", "is_in", "is_not_distinct_from", "is_not_in", "is_not_null", "is_null", "like", "lt", "lte", "matches", "mod", "mul", "ne", "not", "not_between", "not_extend_left_of", "not_extend_right_of", "not_ilike", "not_iregex", "not_like", "not_regex", "not_similar_to", "or", "over", "overlaps", "path_exists", "regex", "similar_to", "slice", "starts_with", "strictly_left_of", "strictly_right_of", "sub"],
       "EntityGraph": ["describe", "find"],
@@ -102,6 +108,8 @@
       "col": null,
       "connect": null,
       "delete": null,
+      "disjoint_entities": null,
+      "disjoint_entity": null,
       "domain_value": null,
       "entities": null,
       "entity": null,
@@ -162,6 +170,7 @@
       "comment_on_column": null,
       "comment_on_table": null,
       "create_domain": null,
+      "create_disjoint": null,
       "create_extension": null,
       "create_index": null,
       "create_materialized_view": null,
@@ -245,6 +254,13 @@
         }
       }
     },
+    "pgorm.Disjoint": {
+      "name": null,
+      "base": null,
+      "kind_field": null,
+      "kind_type": {"schema": null, "name": null},
+      "kinds": [{"value": null, "model": null}]
+    },
     "pgorm.Entity": {
       "name": null,
       "schema": null,
@@ -278,6 +294,13 @@
         }
       ],
       "rust": {"entity": null, "model": null, "active_model": null, "column": null}
+    },
+    "pgorm.DisjointEntity": {
+      "name": null,
+      "base": null,
+      "kind_field": null,
+      "kind_type": {"schema": null, "name": null},
+      "kinds": [{"value": null, "model": null}]
     },
     "pgorm.EntityGraph": {
       "name": null,
@@ -412,6 +435,7 @@
       "pgorm.Entity.withValue": "records are frozen plain objects, so the entity holds the operations on one (napi.records); Python's records have them as methods",
       "pgorm.column": "the factory for a class Python constructs by calling it (napi.naming)",
       "pgorm.model": "the factory for a class Python constructs by calling it (napi.naming)",
+      "pgorm.disjoint": "the factory for a class Python constructs by calling it (napi.naming)",
       "pgorm.copyFrom": "the factory for a class Python constructs by calling it (napi.naming)",
       "pgorm.copyTo": "the factory for a class Python constructs by calling it (napi.naming)",
       "pgorm.jsonDefault": "the factory for a class Python constructs by calling it (napi.naming)",

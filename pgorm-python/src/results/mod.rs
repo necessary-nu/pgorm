@@ -13,7 +13,7 @@ mod tests;
 pub(crate) use decode::{Field, value};
 pub(crate) use execute::{execute, fetch};
 pub use record::{PyField, PyRecord};
-pub(crate) use stream::open;
+pub(crate) use stream::{RowDecode, open};
 
 use pyo3::prelude::*;
 
