@@ -1,4 +1,4 @@
-//! The one composition of a prefixed result-set column name.
+//! The one bounding of a composed name to PostgreSQL's identifier limit.
 //!
 //! PostgreSQL truncates identifiers to 63 bytes (`NAMEDATALEN - 1`) — an
 //! alias past the bound is silently cut server-side, so a projection minting
@@ -6,7 +6,9 @@
 //! Every prefixed name is therefore composed here, by the writers and the
 //! readers alike, so both sides of the contract spell a long name the same
 //! bounded way; a binding that projects and decodes prefixed sources of its
-//! own composes their names through it too.
+//! own composes their names through it too. The columns and constraints a
+//! disjoint schema names are bounded here as well, so a later statement that
+//! names one spells it as the schema did.
 
 /// PostgreSQL's identifier bound: `NAMEDATALEN - 1` bytes.
 const IDENT_MAX_BYTES: usize = 63;
@@ -30,7 +32,15 @@ const IDENT_MAX_BYTES: usize = 63;
 /// collision the contract accepts and does not check for.
 // [spec:pgorm:sem:query.graph.writer+4]
 pub fn result_column_name(pre: &str, col: &str) -> String {
-    let full = format!("{pre}{col}");
+    bounded_identifier(format!("{pre}{col}"))
+}
+
+/// `full` bounded as [`result_column_name`] bounds its composition: kept
+/// when strictly under 63 bytes, otherwise a 47-byte head and the hash of
+/// the whole, exactly 63 bytes.
+// [spec:pgorm:sem:query.graph.writer+4]
+// [spec:pgorm:sem:disjoint.schema+1]    the 63-byte bound on the names a disjoint schema gives
+pub(crate) fn bounded_identifier(full: String) -> String {
     if full.len() < IDENT_MAX_BYTES {
         return full;
     }

@@ -100,6 +100,29 @@ pub enum Fleet {
     Boat,
 }
 
+/// A base whose kind column is computed rather than written.
+pub mod stamped_base {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Entity)]
+    #[pgorm(table_name = "stamped_base")]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        #[pgorm(generated_stored = Expr::val("given"))]
+        pub kind: super::StampedKind,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+#[derive(Clone, Debug, PartialEq, Disjoint)]
+#[pgorm(base = stamped_base::Entity)]
+pub enum Stamped {
+    Given(given_key::Model),
+}
+
 /// A kind entity whose one-column key is drawn from a sequence, as an `i32`
 /// key is unless it says otherwise.
 pub mod serial_key {
@@ -147,6 +170,21 @@ pub mod computed_key {
     pub enum Relation {}
 }
 
+/// A kind entity whose key the database fills when a write leaves it out.
+pub mod default_key {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Entity)]
+    #[pgorm(table_name = "default_key")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false, default_value = 0)]
+        pub id: i32,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
 /// A base for the key cases: its kind column holds `KeyedKind`.
 pub mod keyed_base {
     use pgorm::entity::prelude::*;
@@ -181,6 +219,16 @@ pub enum Keyed {
 pub enum IdentityKeyed {
     #[pgorm(value = "given")]
     Identity(identity_key::Model),
+    Unit,
+    #[pgorm(value = "serial")]
+    Other,
+}
+
+#[derive(Clone, Debug, PartialEq, Disjoint)]
+#[pgorm(base = keyed_base::Entity, enum_name = "keyed_kind")]
+pub enum DefaultKeyed {
+    #[pgorm(value = "given")]
+    Defaulted(default_key::Model),
     Unit,
     #[pgorm(value = "serial")]
     Other,
@@ -243,13 +291,18 @@ fn refusal<D: Disjoint>() -> String {
     }
 }
 
-// [spec:pgorm:def:disjoint.declare+1/test]    a nullable kind column, one of text and one of another enum the kind type's name spells are each refused as `Error::Type` naming the table and column
+// [spec:pgorm:def:disjoint.declare+2/test]    a nullable kind column, a generated one, one of text and one of another enum the kind type's name spells are each refused as `Error::Type` naming the table and column
 #[test]
 fn kind_column_not_of_kind_type_is_refused() {
     assert_eq!(
         refusal::<Nullable>(),
         "the kind column `nullable_base`.`kind` is nullable: every base row of a disjoint \
          entity has a kind, so the column is `NOT NULL`"
+    );
+    assert_eq!(
+        refusal::<Stamped>(),
+        "the kind column `stamped_base`.`kind` is a generated column: a write sets a base \
+         row's kind to the kind it writes, so no expression computes it"
     );
     assert_eq!(
         refusal::<Texted>(),
@@ -263,7 +316,7 @@ fn kind_column_not_of_kind_type_is_refused() {
     );
 }
 
-// [spec:pgorm:def:disjoint.declare+1/test]    a kind entity whose key is drawn from a sequence, an identity, a generated column, or a composite key's identity part is refused as `Error::Type` naming the kind's table and column
+// [spec:pgorm:def:disjoint.declare+2/test]    a kind entity whose key is drawn from a sequence, an identity, a generated column, a default, or a composite key's identity part is refused as `Error::Type` naming the kind's table and column
 #[test]
 fn kind_key_the_database_generates_is_refused() {
     assert_eq!(
@@ -278,6 +331,11 @@ fn kind_key_the_database_generates_is_refused() {
          its key from its base row, so the database does not generate it"
     );
     assert_eq!(
+        refusal::<DefaultKeyed>(),
+        "`default_key`.`id`, the key of the kind `given`, is given a default: a kind's row \
+         takes its key from its base row, so the database does not generate it"
+    );
+    assert_eq!(
         refusal::<ComputedKeyed>(),
         "`computed_key`.`id`, the key of the kind `given`, is a generated column: a kind's row \
          takes its key from its base row, so the database does not generate it"
@@ -289,14 +347,14 @@ fn kind_key_the_database_generates_is_refused() {
     );
 }
 
-// [spec:pgorm:def:disjoint.declare+1/test]    a base whose own key the database generates is sound, as is one whose kind column is the kind type
+// [spec:pgorm:def:disjoint.declare+2/test]    a base whose own key the database generates is sound, as is one whose kind column is the kind type
 #[test]
 fn a_generated_base_key_passes_the_check() {
     assert!(vehicle::PrimaryKey::auto_increment());
     assert!(check_disjoint::<Vehicle>().is_ok());
 }
 
-// [spec:pgorm:def:disjoint.declare+1/test]    the kind type created on a live server has the variants' values in declaration order, a base row of a listed kind round-trips through the kind column, and one of a kind the enum does not list cannot be written
+// [spec:pgorm:def:disjoint.declare+2/test]    the kind type created on a live server has the variants' values in declaration order, a base row of a listed kind round-trips through the kind column, and one of a kind the enum does not list cannot be written
 #[pgorm_macros::test]
 async fn kind_type_holds_only_the_listed_kinds_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_declare").await;
