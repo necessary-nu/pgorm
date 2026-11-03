@@ -16,7 +16,7 @@ pub enum Relation {}
 
 /// A shop by which table has a row for it: a web shop and a storefront each
 /// have one, a dormant shop neither.
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 #[derive(Clone, Debug, PartialEq, Eq, Disjoint)]
 #[pgorm(base = Entity, unkinded)]
 pub enum Shop {

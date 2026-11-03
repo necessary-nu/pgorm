@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-03T10:52:41.808438Z
+last_sync_at 2026-11-03T10:53:00.530688Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -2941,6 +2941,11 @@ impl_evidence (
         {impl_name main, rule testing.isolation}
     ), rule_versions_seen (
         {id testing.isolation, version 0}
+    )}
+    {id disjoint.bindings-unkinded, covered_rules (
+        bindings.disjoint-unkinded
+    ), covered_claims (
+        {impl_name main, rule bindings.disjoint-unkinded}
     )}
 )
 

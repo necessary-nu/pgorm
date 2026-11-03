@@ -17,13 +17,14 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 
 use futures::StreamExt;
+use pgorm::pgorm_query::TableName;
 use pgorm::tests_cfg::{
     shop::{self, Shop, ShopKind},
     storefront, web_shop,
 };
 use pgorm::{
-    ConnectionTrait, DatabaseConnection, Disjoint, DisjointShape, DisjointValues, Error,
-    RuntimeError, SelectDisjoint, entity::prelude::*,
+    ConnectionTrait, DatabaseConnection, Disjoint, DisjointColumn, DisjointShape, DisjointTable,
+    DisjointValues, Error, RuntimeError, SelectDisjoint, entity::prelude::*,
 };
 use pretty_assertions::assert_eq;
 use std::num::NonZeroU64;
@@ -94,7 +95,7 @@ async fn shop_tables(ctx: &TestContext) -> Result<DatabaseConnection, Error> {
     Ok(db)
 }
 
-// [spec:pgorm:sem:disjoint.unkinded/test]    `all`, `one` and `stream` read each base row as the kind whose table has its row, a shop with a row in neither table as the unit kind, and `find_by_id` reads one key, a key no row has being `RecordNotFound`
+// [spec:pgorm:sem:disjoint.unkinded+1/test]    `all`, `one` and `stream` read each base row as the kind whose table has its row, a shop with a row in neither table as the unit kind, and `find_by_id` reads one key, a key no row has being `RecordNotFound`
 #[pgorm_macros::test]
 async fn every_unkinded_row_reads_as_its_kind_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_unkinded_pairs").await;
@@ -123,7 +124,7 @@ async fn every_unkinded_row_reads_as_its_kind_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.unkinded/test]    `kind` and `kinds` narrow by presence — a kind with a table to its rows, the unit kind to base rows with a row in no kind's table — and `filter_kind` to its kind's rows passing the condition, a NULL-accepting one included, beside an ordinary filter on a base column
+// [spec:pgorm:sem:disjoint.unkinded+1/test]    `kind` and `kinds` narrow by presence — a kind with a table to its rows, the unit kind to base rows with a row in no kind's table — and `filter_kind` to its kind's rows passing the condition, a NULL-accepting one included, beside an ordinary filter on a base column
 #[pgorm_macros::test]
 async fn unkinded_reads_narrow_by_presence_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_unkinded_kinds").await;
@@ -163,7 +164,7 @@ async fn unkinded_reads_narrow_by_presence_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.unkinded/test]    ordering, `limit`, `offset` and `count` read base rows, `paginate` pages them, and a keyset cursor over a base column reads forward and backward, a kind restriction kept
+// [spec:pgorm:sem:disjoint.unkinded+1/test]    ordering, `limit`, `offset` and `count` read base rows, `paginate` pages them, and a keyset cursor over a base column reads forward and backward, a kind restriction kept
 #[pgorm_macros::test]
 async fn unkinded_reads_slice_page_and_cursor_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_unkinded_pages").await;
@@ -220,7 +221,7 @@ fn unexplained<T: std::fmt::Debug>(outcome: Result<T, Error>) -> String {
     }
 }
 
-// [spec:pgorm:sem:disjoint.unkinded/test]    a base row with rows in two kinds' tables is an error naming the base table, the key and both kinds, from `all` and from a restriction to either kind, and `stream` yields it among the rows read; a base row with a row in no kind's table is one where the entity declares no unit kind
+// [spec:pgorm:sem:disjoint.unkinded+1/test]    a base row with rows in two kinds' tables is an error naming the base table, the key and both kinds, from `all` and from a restriction to either kind, and `stream` yields it among the rows read; a base row with a row in no kind's table is one where the entity declares no unit kind
 #[pgorm_macros::test]
 async fn unexplained_unkinded_rows_are_errors_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_unkinded_lawless").await;
@@ -337,7 +338,7 @@ pub enum Account {
     Company(company::Model),
 }
 
-// [spec:pgorm:sem:disjoint.unkinded/test]    a composite key in a schema of its own joins each kind's table column for column and narrows by presence on it
+// [spec:pgorm:sem:disjoint.unkinded+1/test]    a composite key in a schema of its own joins each kind's table column for column and narrows by presence on it
 #[pgorm_macros::test]
 async fn a_composite_unkinded_key_reads_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_unkinded_composite").await;
@@ -385,7 +386,7 @@ async fn a_composite_unkinded_key_reads_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.unkinded/test]    a shape of an unkinded entity has no kind column, its check refuses nothing, and each write and its schema are refused as read-only before any statement is built
+// [spec:pgorm:sem:disjoint.unkinded+1/test]    a shape of an unkinded entity has no kind column, its check refuses nothing, and each write and its schema are refused as read-only before any statement is built
 #[test]
 fn an_unkinded_shape_refuses_writes_and_schema() {
     let shape = DisjointShape::of::<Shop>();
@@ -427,5 +428,84 @@ fn an_unkinded_shape_refuses_writes_and_schema() {
             .map(|kind| kind.value())
             .collect::<Vec<_>>(),
         ["web_shop", "storefront", "dormant"]
+    );
+}
+
+fn described(name: &str, key: &str, other: &str) -> DisjointTable {
+    DisjointTable::new(
+        TableName::Table(Name::runtime(name)),
+        vec![
+            DisjointColumn::new(key, ColumnType::Integer.def()),
+            DisjointColumn::new(other, ColumnType::Text.def()),
+        ],
+        &[key],
+    )
+    .expect("the table is described")
+}
+
+// [spec:pgorm:sem:disjoint.unkinded+1/test]    a shape described at run time with no kind column reads as the typed unkinded entity's, and refuses what `new` refuses of the kinds and what the derive refuses of an unkinded enum: a second kind without a table and no kind with one
+#[test]
+fn a_described_unkinded_shape_refuses_as_derives_do() {
+    let base = || described("shop", "id", "name");
+    let kinds = |kinds: Vec<(&str, Option<DisjointTable>)>| {
+        kinds
+            .into_iter()
+            .map(|(value, table)| (value.to_owned(), table))
+            .collect::<Vec<_>>()
+    };
+    let shape = DisjointShape::unkinded(
+        base(),
+        kinds(vec![
+            ("web_shop", Some(described("web_shop", "shop_id", "url"))),
+            ("storefront", Some(described("storefront", "id", "street"))),
+            ("dormant", None),
+        ]),
+    )
+    .expect("the shape is described");
+    assert!(shape.kind_column().is_none());
+    assert_eq!(
+        shape.find().to_string(),
+        DisjointShape::of::<Shop>().find().to_string()
+    );
+    let refused = |outcome: Result<DisjointShape, Error>| match outcome {
+        Err(Error::Type(message)) => message,
+        other => panic!("expected the shape refused, got {other:?}"),
+    };
+    assert_eq!(
+        refused(DisjointShape::unkinded(
+            base(),
+            kinds(vec![
+                ("web_shop", Some(described("web_shop", "shop_id", "url"))),
+                ("dormant", None),
+                ("closed", None),
+            ])
+        )),
+        "the unkinded disjoint entity over `shop` declares the kinds `dormant` and `closed` \
+         without a table: a base row with a row in no kind's table is of one kind, so at most \
+         one kind has none"
+    );
+    assert_eq!(
+        refused(DisjointShape::unkinded(
+            base(),
+            kinds(vec![("dormant", None)])
+        )),
+        "the unkinded disjoint entity over `shop` declares no kind with a table: with no kind \
+         column, a base row's kind is the kind whose table has a row for it, so at least one \
+         kind has a table"
+    );
+    assert_eq!(
+        refused(DisjointShape::unkinded(base(), Vec::new())),
+        "the disjoint entity over `shop` declares no kinds: it has at least one"
+    );
+    assert_eq!(
+        refused(DisjointShape::unkinded(
+            base(),
+            kinds(vec![
+                ("web_shop", Some(described("web_shop", "shop_id", "url"))),
+                ("online", Some(described("web_shop", "shop_id", "url"))),
+            ])
+        )),
+        "`web_shop` is the table of the kind `online` and of the kind `web_shop`: each kind has \
+         a table of its own"
     );
 }

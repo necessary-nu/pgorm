@@ -16362,6 +16362,9 @@ children (
             {
                 id disjoint.bindings-unkinded
                 title "Python and JavaScript declare and register read-only unkinded disjoint models"
+                implements {
+                    main ([spec:pgorm:req:bindings.disjoint-unkinded])
+                }
                 deps (disjoint.codegen-unkinded disjoint.bindings)
                 log (
                     {
@@ -16369,6 +16372,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Scope, filed by disjoint.codegen-unkinded: no rule yet; extend bindings.disjoint (or write bindings.disjoint.unkinded) when this node starts. Rust has the unkinded read (disjoint.unkinded): #[derive(Disjoint)] with `unkinded`, DisjointShape with no kind column (kinded: Option<KindedBy>), reads by presence (kind_is/kind_in/filter_kind give presence conditions, judge decides by presence), every write and create refused as Error::Type read-only. What the bindings lack: (1) a run-time constructor for an unkinded shape — DisjointShape::new always takes a kind column and kind type, so add e.g. DisjointShape::unkinded(base, kinds) with the same refusals new has for kinds, values and keys; (2) disjoint(name, base, kinds, {unkinded: true}) in Python and JavaScript, the options kind/enum_name/schema_name refused beside it, at most one kind with no model, at least one with; (3) registration of a downstream unkinded #[derive(Disjoint)] enum — Registry::disjoint now requires D: KindedDisjoint in both bindings, so an unkinded enum does not register; a read-only registration path (D: Disjoint) that offers no insert/update/change_kind/create_disjoint on the model, the description's kind_field/kindField null (shape.kind_column() is already an Option there); (4) the type surface: a read-only disjoint model type in _disjoint.pyi / disjoint.d.ts without the write methods, so the type checkers refuse them as rustc does; (5) a read's triple carries the kind as its name (variant name in snake_case), the same string DisjointShape::kinds() reports; (6) live tests over hand-written tables with no kind column, two present rows and a missing unit kind as DecodeError, mirroring tests/disjoint_unkinded_tests.rs."
+                    }
+
+                    {
+                        at 2026-11-03T10:53:37.659198Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
                     }
                 )
             }

@@ -7,6 +7,7 @@
 
 // [spec:pgorm:req:napi.typing+1]
 // [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint-unkinded]
 
 import type { Compiled, OrderBy, Predicate } from "./expressions.d.ts";
 import type { KeyOf, Model, RowOf, UpdateOf } from "./models.d.ts";
@@ -35,14 +36,20 @@ export interface DisjointOptions {
   readonly enumName?: string;
   /** The kind type's schema, none by default; a model's enum column names its schema. */
   readonly schemaName?: string | null;
+  readonly unkinded?: false;
+}
+
+/** An unkinded disjoint model's options: its base holds no kind, so nothing names one. */
+export interface UnkindedDisjointOptions {
+  readonly unkinded: true;
 }
 
 export interface DisjointDescription {
   readonly name: string;
   /** The base model's name. */
   readonly base: string;
-  readonly kindField: string;
-  readonly kindType: { readonly schema: string | null; readonly name: string };
+  readonly kindField: string | null;
+  readonly kindType: { readonly schema: string | null; readonly name: string | null };
   readonly kinds: readonly { readonly value: string; readonly model: string | null }[];
 }
 
@@ -87,10 +94,33 @@ export declare class Disjoint<B extends Model<any> = Model<any>, K extends Kinds
 }
 
 /**
- * Declare a disjoint model `name` over `base`, `kinds` mapping each kind's
- * value, in order, to the model of its table or to `null`. Declaring one
- * sends nothing; what pgorm's shape refuses is a `ConstructionError`.
+ * An unkinded disjoint model over `B`, its kinds `K`: a base with no kind
+ * field, each row of the kind whose table has a row for it, `null` in `K`
+ * standing for the kind of a row with none. It is read-only, so it has no
+ * writes, and `createDisjoint` takes none.
  */
+export interface UnkindedDisjoint<B extends Model<any> = Model<any>, K extends Kinds = Kinds> {
+  readonly name: string;
+  readonly base: B;
+  describe(): DisjointDescription;
+  /** Every base row with its kind's row, in one statement. */
+  find(): DisjointQuery<DisjointRow<B, K>, keyof K & string>;
+  /** The base row of `key`, which gives every key field and no other. */
+  findByKey(key: KeyOf<B>): DisjointQuery<DisjointRow<B, K>, keyof K & string>;
+}
+
+/**
+ * Declare a disjoint model `name` over `base`, `kinds` mapping each kind's
+ * value, in order, to the model of its table or to `null`; `{ unkinded: true }`
+ * declares an unkinded, read-only one. Declaring one sends nothing; what
+ * pgorm's shape refuses is a `ConstructionError`.
+ */
+export declare function disjoint<B extends Model<any>, const K extends Kinds>(
+  name: string,
+  base: B,
+  kinds: K,
+  options: UnkindedDisjointOptions,
+): UnkindedDisjoint<B, K>;
 export declare function disjoint<B extends Model<any>, const K extends Kinds>(
   name: string,
   base: B,
@@ -115,7 +145,23 @@ export declare class DisjointEntity {
   ): DisjointWrite<DisjointEntityRow>;
 }
 
-/** The disjoint enum the module registers as `name`. */
+/**
+ * A downstream crate's `#[derive(Disjoint)]` enum declared `unkinded`, which
+ * is read-only: `DisjointEntity` without its writes.
+ */
+export interface UnkindedDisjointEntity {
+  readonly name: string;
+  describe(): DisjointDescription;
+  find(): DisjointQuery<DisjointEntityRow, string>;
+  /** The base row of `key`, which names every base key column by its SQL name, and nothing else. */
+  findByKey(key: { readonly [column: string]: unknown }): DisjointQuery<DisjointEntityRow, string>;
+}
+
+/**
+ * The disjoint enum the module registers as `name`: an unkinded one refuses
+ * every write at run time, and a generated module types it as an
+ * `UnkindedDisjointEntity`.
+ */
 export declare function disjointEntity(name: string): DisjointEntity;
 
 /** The names of the disjoint enums the module registers. */

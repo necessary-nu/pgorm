@@ -253,6 +253,24 @@ a kind row's key given a value is refused before anything is sent.
 constraints holding each base row to exactly its kind's table; a column
 declared `default=True` has no `DEFAULT` to write, so its table is refused.
 
+Tables an existing schema holds with no kind column — a base, and tables each
+keyed by a foreign key from its primary key onto the base's — are declared
+`unkinded=True`, and read by which kind's table has a row for each base row,
+`None` naming at most one kind of a row with none:
+
+```python
+Shops = p.Disjoint("shop", Shop, {"web_shop": WebShop, "storefront": Storefront, "dormant": None}, unkinded=True)
+online = await Shops.find().kind("web_shop").all(pool)
+```
+
+Nothing there holds a base row to one kind's table, so such a model is
+read-only: it is a `Disjoint[Literal["unkinded"]]`, whose `insert`, `update`,
+`change_kind` and `create_disjoint` a type checker refuses, and each refuses
+with a `ConstructionError` at run time. `kind`, `enum_name` and `schema_name`
+are refused beside `unkinded`, and so are a second kind without a model and no
+kind with one. A base row with rows in two kinds' tables, or in none where
+every kind has a model, is a `DecodeError`.
+
 ## Records and types
 
 `all`, `one` and `optional` accept a Pool, an acquired Connection or a

@@ -190,24 +190,39 @@ fn described<'cx>(
     Ok((name, table_of(cx, table)?))
 }
 
-/// `disjointModel(name, base, kindColumn, kindField, kindType, kinds)`: the
-/// disjoint model `name` over the described `base`, its kind in the column
-/// `kindColumn` of the field `kindField`, its kind type `kindType`, and each
-/// kind in order, `[value, [model, table] or null]`. What the shape refuses
-/// is a `ConstructionError`, thrown as the model is declared.
+/// `disjointModel(name, base, kinded, kinds)`: the disjoint model `name`
+/// over the described `base` and each kind in order, `[value, [model, table]
+/// or null]`. A kinded model's `kinded` is `[kindColumn, kindField,
+/// kindType]`, its kind column, the field that column is of and its kind
+/// type; an unkinded model's is `null`, its base holding no kind. What the
+/// shape refuses is a `ConstructionError`, thrown as the model is declared.
 // [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint-unkinded]
 pub(crate) fn disjoint_model(mut cx: FunctionContext) -> JsResult<JsValue> {
     let name = cx.argument::<JsString>(0)?.value(&mut cx);
     let base = cx.argument::<JsValue>(1)?;
     let (base_name, base) = described(&mut cx, base)?;
-    let kind_column = cx.argument::<JsString>(2)?.value(&mut cx);
-    let kind_field = cx.argument::<JsString>(3)?.value(&mut cx);
-    let codec = Codec::get(&mut cx)?;
-    let kind_type = cx.argument::<JsValue>(4)?;
-    let Tag::Enum(kind_type) = read::kind(&mut cx, codec, kind_type)? else {
-        return cx.throw_type_error("a disjoint model's kind type is a TypeName");
+    let kinded = cx.argument::<JsValue>(2)?;
+    let kinded = match kinded.downcast::<JsArray, _>(&mut cx) {
+        Ok(kinded) => {
+            let column: Handle<JsValue> = kinded.get(&mut cx, 0)?;
+            let column = text(&mut cx, column, "kind column")?;
+            let field: Handle<JsValue> = kinded.get(&mut cx, 1)?;
+            let field = text(&mut cx, field, "kind field")?;
+            let codec = Codec::get(&mut cx)?;
+            let kind_type: Handle<JsValue> = kinded.get(&mut cx, 2)?;
+            let Tag::Enum(kind_type) = read::kind(&mut cx, codec, kind_type)? else {
+                return cx.throw_type_error("a disjoint model's kind type is a TypeName");
+            };
+            Some((column, field, kind_type))
+        }
+        Err(_) if kinded.is_a::<JsNull, _>(&mut cx) => None,
+        Err(_) => {
+            return cx
+                .throw_type_error("a disjoint model is kinded by [column, field, type] or null");
+        }
     };
-    let kinds = cx.argument::<JsArray>(5)?.to_vec(&mut cx)?;
+    let kinds = cx.argument::<JsArray>(3)?.to_vec(&mut cx)?;
     let mut descriptions = Vec::with_capacity(kinds.len());
     let mut tables = Vec::with_capacity(kinds.len());
     for kind in kinds {
@@ -226,11 +241,25 @@ pub(crate) fn disjoint_model(mut cx: FunctionContext) -> JsResult<JsValue> {
             tables.push((value, Some(table)));
         }
     }
-    let mut type_name = QueryTypeName::new(Name::runtime(&kind_type.name));
-    if let Some(schema) = &kind_type.schema {
-        type_name = type_name.schema(Name::runtime(schema));
-    }
-    let shape = match DisjointShape::new(base, &kind_column, type_name, tables) {
+    let (shape, kind_field, kind_type) = match kinded {
+        Some((kind_column, kind_field, kind_type)) => {
+            let mut type_name = QueryTypeName::new(Name::runtime(&kind_type.name));
+            if let Some(schema) = &kind_type.schema {
+                type_name = type_name.schema(Name::runtime(schema));
+            }
+            (
+                DisjointShape::new(base, &kind_column, type_name, tables),
+                Some(kind_field),
+                json!({"schema": kind_type.schema, "name": kind_type.name}),
+            )
+        }
+        None => (
+            DisjointShape::unkinded(base, tables),
+            None,
+            json!({"schema": null, "name": null}),
+        ),
+    };
+    let shape = match shape {
         Ok(shape) => shape,
         Err(error) => return throw(&mut cx, Failure::Construction(error.to_string())),
     };
@@ -241,7 +270,7 @@ pub(crate) fn disjoint_model(mut cx: FunctionContext) -> JsResult<JsValue> {
             "name": name,
             "base": base_name,
             "kindField": kind_field,
-            "kindType": {"schema": kind_type.schema, "name": kind_type.name},
+            "kindType": kind_type,
             "kinds": descriptions,
         }),
         rust: None,

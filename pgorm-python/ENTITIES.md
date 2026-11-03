@@ -297,3 +297,8 @@ row's key set are refused before anything is sent. The registration's
 statements are `DisjointShape::of` the enum's, which `Vehicle::find()`,
 `Vehicle::insert` and `Schema::create_disjoint` build theirs from.
 
+An enum declared `#[pgorm(base = .., unkinded)]` registers the same way and is
+read-only, as its Rust declaration is: its kinds are its variants' names in
+snake_case, its `describe()` has no kind field or kind type, and each write and
+`create_disjoint` is refused with a `ConstructionError`.
+

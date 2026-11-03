@@ -9,7 +9,7 @@ gives the statement. A statement is made by its function (``create_table``,
 for annotations and ``isinstance`` and cannot be called.
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Literal
 
 # [spec:pgorm:req:bindings.schema-api+2]
 from .._native import (
@@ -43,11 +43,14 @@ from .._native import (
 
 
 if TYPE_CHECKING:
-    from ..models.disjoint_query import _Disjoint
+    from ..models.disjoint import Disjoint, DisjointEntity
 
 
 # [spec:pgorm:req:bindings.disjoint+1]
-def create_disjoint(disjoint: "_Disjoint[Any]") -> list[DDL]:
+# [spec:pgorm:req:bindings.disjoint-unkinded]
+def create_disjoint(
+    disjoint: 'Disjoint[Literal["kinded"]] | DisjointEntity[Literal["kinded"]]',
+) -> list[DDL]:
     """The statements creating a disjoint model's kind type, tables and the
     constraints that hold each base row to exactly its kind's table, in the
     order they run: pgorm's ``DisjointShape::create``, which

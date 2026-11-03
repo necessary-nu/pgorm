@@ -120,20 +120,24 @@ pub(crate) fn table_of(table: &Bound<'_, PyAny>) -> PyResult<DisjointTable> {
 /// A model's name beside the description of its table.
 type Described<'py> = (String, Bound<'py, PyAny>);
 
-/// `_disjoint_model(name, base, kind_column, kind_field, kind_type, kinds)`:
-/// the disjoint model `name` over the table `base` describes, its kind in
-/// the column `kind_column` of the field `kind_field`, its kind type
-/// `kind_type`, and each kind in order, its value beside its model's name
-/// and table, or `None` for a kind without one. What the shape refuses is a
-/// `ConstructionError`, raised as the model is declared.
+/// Where a kinded model's base holds each row's kind: the column, the field
+/// it is the column of, and the kind type.
+type KindedBy<'py> = (String, String, PyRef<'py, PyTypeName>);
+
+/// `_disjoint_model(name, base, kinded, kinds)`: the disjoint model `name`
+/// over the table `base` describes and each kind in order, its value beside
+/// its model's name and table, or `None` for a kind without one. A kinded
+/// model's `kinded` is its kind column, the field that column is of and its
+/// kind type; an unkinded model's is `None`, its base holding no kind. What
+/// the shape refuses is a `ConstructionError`, raised as the model is
+/// declared.
 // [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint-unkinded]
 #[pyfunction(name = "_disjoint_model")]
 pub(crate) fn disjoint_model(
     name: &str,
     base: Described<'_>,
-    kind_column: &str,
-    kind_field: &str,
-    kind_type: PyRef<'_, PyTypeName>,
+    kinded: Option<KindedBy<'_>>,
     kinds: Vec<(String, Option<Described<'_>>)>,
 ) -> PyResult<NativeDisjoint> {
     let (base_name, base) = base;
@@ -151,12 +155,26 @@ pub(crate) fn disjoint_model(
             }
         }
     }
-    let mut type_name = TypeName::new(Name::runtime(&kind_type.name));
-    if let Some(schema) = &kind_type.schema {
-        type_name = type_name.schema(Name::runtime(schema));
-    }
-    let shape = DisjointShape::new(table_of(&base)?, kind_column, type_name, tables)
-        .map_err(|error| ConstructionError::new_err(error.to_string()))?;
+    let base = table_of(&base)?;
+    let (shape, kind_field, kind_type) = match &kinded {
+        Some((kind_column, kind_field, kind_type)) => {
+            let mut type_name = TypeName::new(Name::runtime(&kind_type.name));
+            if let Some(schema) = &kind_type.schema {
+                type_name = type_name.schema(Name::runtime(schema));
+            }
+            (
+                DisjointShape::new(base, kind_column, type_name, tables),
+                Some(kind_field.as_str()),
+                json!({"schema": kind_type.schema, "name": kind_type.name}),
+            )
+        }
+        None => (
+            DisjointShape::unkinded(base, tables),
+            None,
+            json!({"schema": null, "name": null}),
+        ),
+    };
+    let shape = shape.map_err(|error| ConstructionError::new_err(error.to_string()))?;
     Ok(NativeDisjoint {
         core: Arc::new(Core {
             shape,
@@ -165,7 +183,7 @@ pub(crate) fn disjoint_model(
                 "name": name,
                 "base": base_name,
                 "kind_field": kind_field,
-                "kind_type": {"schema": kind_type.schema, "name": kind_type.name},
+                "kind_type": kind_type,
                 "kinds": described,
             }),
             rust: None,

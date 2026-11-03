@@ -37,8 +37,9 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
     async def test_registration_declares_real_types_and_mapping(self):
         registrations = p.capabilities()["registrations"]["entities"]
         self.assertEqual([r["name"] for r in registrations],
-                         ["app.Account", "app.Booking", "app.Membership", "app.Note", "app.Old", "app.Pallet",
-                          "app.Parcel", "app.Room", "app.Shipment", "app.Stay", "app.Temper", "app.Till"])
+                         ["app.Account", "app.Auction", "app.Booking", "app.Listing", "app.Membership",
+                          "app.Note", "app.Old", "app.Pallet", "app.Parcel", "app.Room", "app.Sale",
+                          "app.Shipment", "app.Stay", "app.Temper", "app.Till"])
         self.assertEqual(p.entities(), [r["name"] for r in registrations])
         info = self.account.describe()
         self.assertTrue(info["rust"]["entity"].endswith("account::Entity"))

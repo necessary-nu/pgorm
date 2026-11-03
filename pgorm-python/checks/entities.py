@@ -63,6 +63,7 @@ def reject_execution_mismatch(project, output, environment):
 # [spec:pgorm:req:bindings.pipeline-sources+3/test]
 # [spec:pgorm:req:bindings.surface+2/test]
 # [spec:pgorm:req:bindings.disjoint+1/test]
+# [spec:pgorm:req:bindings.disjoint-unkinded/test]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("target/python-entities"))
@@ -290,19 +291,22 @@ def main():
                 "passed": True,
                 "registered_entities": [
                     "app.Account",
+                    "app.Auction",
                     "app.Booking",
+                    "app.Listing",
                     "app.Membership",
                     "app.Note",
                     "app.Old",
                     "app.Pallet",
                     "app.Parcel",
                     "app.Room",
+                    "app.Sale",
                     "app.Shipment",
                     "app.Stay",
                     "app.Temper",
                     "app.Till",
                 ],
-                "registered_disjoints": ["app.Shipments"],
+                "registered_disjoints": ["app.Listings", "app.Shipments"],
                 "graph_source_arities": list(range(1, 8)),
                 "pipeline_source_arities": list(range(1, 7)),
                 "rust_cursor_parity_cases": 8,

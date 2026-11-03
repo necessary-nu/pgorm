@@ -234,14 +234,19 @@ export class Disjoint extends Disjoined {
  * are `kind`, the base's kind field (`"kind"` by default), and the kind
  * type's `enumName` (`{name}_kind` by default) and `schemaName` (none by
  * default); a model's enum column names its schema, so the base's kind field
- * is of the kind type only when `schemaName` names it. Declaring one sends
- * nothing; what pgorm's shape refuses is a `ConstructionError` thrown here.
+ * is of the kind type only when `schemaName` names it. `unkinded: true`
+ * declares a base with no kind field instead, a row's kind being the kind
+ * whose table has a row for it, null standing for at most one kind of a row
+ * with none: such a model is read-only, and takes none of the other options.
+ * Declaring one sends nothing; what pgorm's shape refuses is a
+ * `ConstructionError` thrown here.
  *
  * @param {unknown} name
  * @param {unknown} base
  * @param {unknown} kinds
  * @param {unknown} [options]
  */
+// [spec:pgorm:req:bindings.disjoint-unkinded]
 export function disjoint(name, base, kinds, options = {}) {
   if (typeof name !== "string") throw new TypeError("a disjoint model's name is a string");
   const baseShape = modelOf(base, "a disjoint model's base");
@@ -250,12 +255,18 @@ export function disjoint(name, base, kinds, options = {}) {
   }
   if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
   for (const key of Object.keys(options)) {
-    if (key !== "kind" && key !== "enumName" && key !== "schemaName") {
+    if (key !== "kind" && key !== "enumName" && key !== "schemaName" && key !== "unkinded") {
       throw new TypeError(`${JSON.stringify(key)} is no disjoint model option`);
     }
   }
-  const { kind = "kind", enumName = `${name}_kind`, schemaName = null } =
-    /** @type {{ kind?: unknown, enumName?: unknown, schemaName?: unknown }} */ (options);
+  const { kind = "kind", enumName = `${name}_kind`, schemaName = null, unkinded = false } =
+    /** @type {{ kind?: unknown, enumName?: unknown, schemaName?: unknown, unkinded?: unknown }} */ (options);
+  if (typeof unkinded !== "boolean") throw new TypeError("a disjoint model's unkinded is a boolean");
+  if (unkinded && ["kind", "enumName", "schemaName"].some((key) => Object.hasOwn(options, key))) {
+    throw new ConstructionError(
+      "an unkinded disjoint model's base holds no kind: it takes no kind, enumName or schemaName",
+    );
+  }
   if (typeof kind !== "string") throw new TypeError("a disjoint model's kind field is a string");
   if (typeof enumName !== "string") throw new TypeError("a disjoint model's enumName is a string");
   if (schemaName !== null && typeof schemaName !== "string") throw new TypeError("a disjoint model's schemaName is a string");
@@ -266,20 +277,17 @@ export function disjoint(name, base, kinds, options = {}) {
     held.set(value, shape);
     return [value, shape === null ? null : [shape.name, described(shape)]];
   });
-  const field = baseShape.byField.get(kind);
-  if (field === undefined) {
-    throw new ConstructionError(
-      `${baseShape.name} has no field ${JSON.stringify(kind)}, the kind field a disjoint model's base holds each row's kind in`,
-    );
+  let kinded = null;
+  if (!unkinded) {
+    const field = baseShape.byField.get(kind);
+    if (field === undefined) {
+      throw new ConstructionError(
+        `${baseShape.name} has no field ${JSON.stringify(kind)}, the kind field a disjoint model's base holds each row's kind in`,
+      );
+    }
+    kinded = [field.sql, kind, new TypeName(enumName, { schema: schemaName ?? undefined })];
   }
-  const handle = native.disjointModel(
-    name,
-    [baseShape.name, described(baseShape)],
-    field.sql,
-    kind,
-    new TypeName(enumName, { schema: schemaName ?? undefined }),
-    listed,
-  );
+  const handle = native.disjointModel(name, [baseShape.name, described(baseShape)], kinded, listed);
   return new Disjoint(handle, baseShape, held, MADE);
 }
 

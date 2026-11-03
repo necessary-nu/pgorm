@@ -215,7 +215,7 @@ has a row for it, and is never written through.
 
 ## Unkinded tables
 
-> [spec:pgorm:sem:disjoint.unkinded]
+> [spec:pgorm:sem:disjoint.unkinded+1]
 > `#[derive(Disjoint)]` with the container key `unkinded`, `#[pgorm(base =
 > shop::Entity, unkinded)]`, MUST declare an unkinded disjoint entity: one
 > whose base has no kind column, a base row's kind being the kind whose table
@@ -239,12 +239,18 @@ has a row for it, and is never written through.
 > where it is also `KindedDisjoint`, as `Schema::create_disjoint` takes only
 > a `KindedDisjoint`, and the derive implements that trait for a declaration
 > with a kind column alone, so a call on an unkinded entity does not compile,
-> the error naming it read-only. Nor is one registrable with a binding
-> (`[spec:pgorm:req:bindings.disjoint]`), whose registration takes a
-> `KindedDisjoint`. `check_disjoint` refuses nothing of an unkinded entity,
+> the error naming it read-only. A binding registers one read-only
+> (`[spec:pgorm:req:bindings.disjoint-unkinded]`), its registration taking
+> any `Disjoint`. `check_disjoint` refuses nothing of an unkinded entity,
 > what it refuses being of a kind column and of the keys a write fills; a
 > `DisjointShape` of one refuses each write and `create` as `Error::Type`
 > naming its base as read-only, before anything is sent.
+> `DisjointShape::unkinded(base, kinds)` MUST describe one whose tables are
+> known only at run time, as `DisjointShape::new` describes a kinded one,
+> refusing as `Error::Type` what `new` refuses of the kinds — none, a value
+> given twice, one table for two kinds or for a kind and the base, a kind
+> table keyed by other types than the base — and what the derive refuses of
+> an unkinded enum, a second kind without a table and no kind with one.
 >
 > `E::find()` and `find_by_id(key)` MUST read it as
 > `[spec:pgorm:sem:disjoint.read]` reads a kinded entity — one statement,

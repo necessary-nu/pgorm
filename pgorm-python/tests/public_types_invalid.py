@@ -99,3 +99,11 @@ async def invalid(connection: p.Connection) -> None:
     accounts.columns["id"].validate(p.Value(1, "i64"))  # expected-error: attr-defined
     accounts.columns["id"].describe()  # expected-error: attr-defined
     p.entity("app.Account").col("id").describe()  # expected-error: attr-defined
+    # [spec:pgorm:req:bindings.disjoint-unkinded/test]    an unkinded disjoint model has no writes and no schema, and takes no kind options
+    shops = p.Disjoint("shops", accounts, {"online": accounts, "dormant": None}, unkinded=True)
+    shops.insert({"id": 1}, "online")  # expected-error: misc
+    shops.update({"id": 1}, "online")  # expected-error: misc
+    shops.change_kind({"id": 1}, "dormant")  # expected-error: misc
+    s.create_disjoint(shops)  # expected-error: arg-type
+    p.Disjoint("shops", accounts, {"dormant": None}, unkinded=True, kind="state")  # expected-error: call-overload
+    kinded: p.Disjoint = shops  # expected-error: assignment

@@ -12,6 +12,18 @@
     ],
     "table": "CREATE TABLE \"napi_entities\".\"accounts\" ( \"id\" integer NOT NULL, \"display name\" varchar NOT NULL, \"note\" varchar, \"version\" integer NOT NULL, \"mood\" napi_entities.mood NOT NULL, PRIMARY KEY (\"id\") )"
   },
+  "app.Auction": {
+    "comments": [],
+    "enums": [],
+    "indexes": [],
+    "table": "CREATE TABLE \"napi_listings\".\"auctions\" ( \"listing_id\" integer NOT NULL, \"reserve\" integer NOT NULL, PRIMARY KEY (\"listing_id\") )"
+  },
+  "app.Listing": {
+    "comments": [],
+    "enums": [],
+    "indexes": [],
+    "table": "CREATE TABLE \"napi_listings\".\"listings\" ( \"id\" integer NOT NULL, \"title\" varchar NOT NULL, PRIMARY KEY (\"id\") )"
+  },
   "app.Membership": {
     "comments": [],
     "enums": [],
@@ -41,6 +53,12 @@
     "enums": [],
     "indexes": [],
     "table": "CREATE TABLE \"napi_entities\".\"parcels\" ( \"id\" integer NOT NULL, \"qty\" napi_entities.quantity NOT NULL, \"mood\" napi_entities.temper NOT NULL, \"codes\" napi_entities.code[] NOT NULL, PRIMARY KEY (\"id\") )"
+  },
+  "app.Sale": {
+    "comments": [],
+    "enums": [],
+    "indexes": [],
+    "table": "CREATE TABLE \"napi_listings\".\"sales\" ( \"id\" integer NOT NULL, \"price\" integer NOT NULL, PRIMARY KEY (\"id\") )"
   },
   "app.Shipment": {
     "comments": [],

@@ -130,7 +130,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
     /// row with rows in two kinds' tables is read under either, and is the
     /// error a read of it is.
     // [spec:pgorm:sem:disjoint.read+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn kind(self, kind: D::Kind) -> Self {
         let condition = self.shape.of_kind(position::<D>(kind));
         self.filter(condition)
@@ -139,7 +139,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
     /// Read only base rows of one of `kinds`, by presence for an unkinded
     /// entity as [`kind`](Self::kind) reads one.
     // [spec:pgorm:sem:disjoint.read+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn kinds<I>(self, kinds: I) -> Self
     where
         I: IntoIterator<Item = D::Kind>,
@@ -159,7 +159,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
     /// [`filter`](QueryFilter::filter) is an ordinary `WHERE`, under which
     /// those `NULL`s are compared like any other.
     // [spec:pgorm:sem:disjoint.read+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn filter_kind<M: KindModel<D>>(self, condition: impl IntoCondition) -> Self {
         let condition = self
             .shape
@@ -439,7 +439,7 @@ impl DisjointShape {
     /// that table's first key column, which its key holds `NOT NULL`, is not
     /// `NULL` where the `LEFT JOIN` found it. For a kind without a table,
     /// whether its row in every kind's table is absent.
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     fn present(&self, index: usize) -> SimpleExpr {
         // A table keyed by no column is joined to no row (`project`).
         let key = |table: &DisjointTable| {
@@ -461,7 +461,7 @@ impl DisjointShape {
     /// column holding the kind's value, or, for an unkinded shape, its row
     /// in the kind's table present.
     // [spec:pgorm:sem:disjoint.read+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub(crate) fn of_kind(&self, index: usize) -> SimpleExpr {
         match &self.kinded {
             Some(kinded) => self.kind_eq(kinded, self.kinds[index].value.clone()),
@@ -473,7 +473,7 @@ impl DisjointShape {
     /// kind column among their values, or, for an unkinded shape, its row
     /// present in one of their tables, as [`of_kind`](Self::of_kind) tells.
     // [spec:pgorm:sem:disjoint.read+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub(crate) fn of_kinds(&self, indices: impl IntoIterator<Item = usize>) -> SimpleExpr {
         let indices = indices.into_iter();
         let Some(kinded) = &self.kinded else {
@@ -737,7 +737,7 @@ mod tests {
         r#"LEFT JOIN "storefront" ON "shop"."id" = "storefront"."id""#,
     ];
 
-    // [spec:pgorm:sem:disjoint.unkinded/test]    an unkinded read is the kinded read's statement with no kind column to project: the base under `s0_`, each kind's table LEFT JOINed on the key under its own prefix, `find_by_id` keying it
+    // [spec:pgorm:sem:disjoint.unkinded+1/test]    an unkinded read is the kinded read's statement with no kind column to project: the base under `s0_`, each kind's table LEFT JOINed on the key under its own prefix, `find_by_id` keying it
     #[test]
     fn an_unkinded_read_joins_every_kind_table() {
         assert_sql(Shop::find().build().0, &SHOP_READ);
@@ -746,7 +746,7 @@ mod tests {
         assert_eq!(values, Values(vec![Value::Int(Some(4))]));
     }
 
-    // [spec:pgorm:sem:disjoint.unkinded/test]    an unkinded read narrows by presence: a kind with a table to its first key column `IS NOT NULL`, the unit kind to every kind's key `IS NULL`, several kinds to either, and `filter_kind` to its kind's presence and the condition together
+    // [spec:pgorm:sem:disjoint.unkinded+1/test]    an unkinded read narrows by presence: a kind with a table to its first key column `IS NOT NULL`, the unit kind to every kind's key `IS NULL`, several kinds to either, and `filter_kind` to its kind's presence and the condition together
     #[test]
     fn unkinded_kinds_narrow_by_presence() {
         let tail = |select: SelectDisjoint<Shop>| {

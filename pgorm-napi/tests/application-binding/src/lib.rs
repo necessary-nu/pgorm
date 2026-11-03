@@ -5,6 +5,7 @@
 
 pub mod account;
 pub mod graphs;
+pub mod listings;
 pub mod membership;
 pub mod note;
 pub mod parcel;
@@ -35,6 +36,10 @@ pub fn registry() -> Result<Registry, RegistrationError> {
     registry.entity::<shipping::packet::Entity>("app.Packet")?;
     registry.entity::<shipping::pallet::Entity>("app.Pallet")?;
     registry.disjoint::<shipping::shipment::Shipment>("app.Shipments")?;
+    registry.entity::<listings::listing::Entity>("app.Listing")?;
+    registry.entity::<listings::auction::Entity>("app.Auction")?;
+    registry.entity::<listings::sale::Entity>("app.Sale")?;
+    registry.disjoint::<listings::listing::Listing>("app.Listings")?;
     graphs::register(&mut registry)?;
     sources::register(&mut registry)?;
     Ok(registry)

@@ -1375,6 +1375,37 @@ Rust generic at run time, only use the ones compiled in.
 > `kinds`, each with its `value` and its `model`, the kind model's table name
 > or the kind entity's registration name, or null.
 
+> [spec:pgorm:req:bindings.disjoint-unkinded]
+> `disjoint(name, base, kinds, {unkinded: true})` MUST declare an unkinded
+> disjoint model (`[spec:pgorm:sem:disjoint.unkinded]`) over a base model
+> with no kind field, `kinds` mapping each kind's value, in order, to the
+> model of its table or to null for the kind of a base row with a row in no
+> kind's table. It is pgorm's `DisjointShape::unkinded`, and what that
+> refuses — no kinds, a value given twice, one model for two kinds or for a
+> kind and the base, a kind model keyed by other types than the base, a
+> second kind with no model, no kind with one — MUST be a
+> `ConstructionError` raised as the model is declared, as are `kind`,
+> `enum_name` and `schema_name` given beside `unkinded`, there being no kind
+> field and no kind type to name. A downstream crate's `#[derive(Disjoint)]`
+> enum declared `unkinded` MUST register as a kinded one does
+> (`bindings.disjoint`), its base and kind entities registered before it,
+> through the same registration, which takes any `Disjoint`.
+>
+> Either reads as `[spec:pgorm:sem:disjoint.unkinded]` reads: every statement
+> is the shape's, and each row is the triple `bindings.disjoint` gives, its
+> kind the one whose row is present — a declared kind's value as `kinds`
+> gives it, a registered one's its variant's name in snake_case, as
+> `DisjointShape::kinds` names it. A base row with rows in two or more kinds'
+> tables, and one with a row in none where every kind has a model, MUST be a
+> `DecodeError` naming the base, the key and the kinds, never a row read as
+> one of its kinds or dropped. Nothing is written through one: each binding's
+> types MUST offer no `insert`, `update` or `change_kind` and no
+> `create_disjoint` for an unkinded model, so that a type checker refuses
+> each call as rustc refuses it, and a call made regardless, on a model or a
+> registration, is refused before anything is sent with a
+> `ConstructionError` naming the base as read-only, the shape's refusal. Its `describe()` has `bindings.disjoint`'s keys, its
+> `kind_field` null and its `kind_type`'s `schema` and `name` null.
+
 ## Pipelines
 
 Each binding composes pgorm's PRQL-shaped pipeline, `pgorm::pipeline`:

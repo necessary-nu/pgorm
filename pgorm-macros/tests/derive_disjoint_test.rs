@@ -274,7 +274,7 @@ fn kind_attrs_reach_the_kind_type() {
     assert_eq!(RankedKind::values(), VehicleKind::values());
 }
 
-// [spec:pgorm:sem:disjoint.unkinded/test]    an `unkinded` declaration has no kind column and no kind type: `<Enum>Kind` iterates its kinds in declaration order, each named as its variant in snake_case, a kind with a table reaches its entity and key, its unit kind none, and the check refuses nothing
+// [spec:pgorm:sem:disjoint.unkinded+1/test]    an `unkinded` declaration has no kind column and no kind type: `<Enum>Kind` iterates its kinds in declaration order, each named as its variant in snake_case, a kind with a table reaches its entity and key, its unit kind none, and the check refuses nothing
 #[test]
 fn an_unkinded_declaration_has_no_kind_column() {
     assert!(Shop::kind_column().is_none());
@@ -334,7 +334,7 @@ pub enum RankedShop {
     Dormant,
 }
 
-// [spec:pgorm:sem:disjoint.unkinded/test]    `kind_attrs` reaches an unkinded entity's kind enum as it does a kind type
+// [spec:pgorm:sem:disjoint.unkinded+1/test]    `kind_attrs` reaches an unkinded entity's kind enum as it does a kind type
 #[test]
 fn kind_attrs_reach_the_unkinded_kinds() {
     assert!(RankedShopKind::WebShop < RankedShopKind::Dormant);

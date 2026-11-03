@@ -107,11 +107,14 @@ function refused(pattern: RegExp): (error: unknown) => true {
 test("the module names its registrations and describes each, and refuses a name it does not register", () => {
   assert.deepStrictEqual(entities(), [
     "app.Account",
+    "app.Auction",
+    "app.Listing",
     "app.Membership",
     "app.Note",
     "app.Packet",
     "app.Pallet",
     "app.Parcel",
+    "app.Sale",
     "app.Shipment",
     "app.Temper",
     "app.Till",

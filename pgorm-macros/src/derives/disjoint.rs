@@ -106,7 +106,7 @@ fn container(input: &DeriveInput) -> syn::Result<Container> {
 /// it has neither; a second unit variant, since a unit kind is told by a base
 /// row having a row in no kind's table; and no variant holding a kind's
 /// `Model`, which leaves nothing to tell kinds apart by.
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 fn refuse_unkinded(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> syn::Result<()> {
     let kind_keys = [
         container.kind.as_ref().map(|kind| ("kind", kind.span())),
@@ -287,7 +287,7 @@ pub fn expand_derive_disjoint(input: DeriveInput) -> syn::Result<TokenStream> {
 /// alone; `kind_attrs` follow in the order given, so a helper attribute can
 /// follow the derive in them that introduces it.
 // [spec:pgorm:def:disjoint.declare+3]
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 fn kind_type(
     input: &DeriveInput,
     container: &Container,
@@ -397,7 +397,7 @@ fn active_model(input: &DeriveInput, kinds: &[Kind]) -> TokenStream {
 /// Each `Model` is a kind of one enum only once: a second variant holding it
 /// is a second `KindModel` impl for the same type, which coherence refuses.
 // [spec:pgorm:def:disjoint.declare+3]
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 fn impl_disjoint(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> TokenStream {
     let ident = &input.ident;
     let kind_ident = format_ident!("{}Kind", ident);

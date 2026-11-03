@@ -30,7 +30,7 @@ use std::{fmt::Debug, hash::Hash};
 ///
 /// What the types cannot tell, [`check_disjoint`] refuses.
 // [spec:pgorm:def:disjoint.declare+3]
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 pub trait Disjoint: Sized + Send {
     /// The entity each value has a row of.
     type Base: EntityTrait;
@@ -115,7 +115,7 @@ pub trait Disjoint: Sized + Send {
     /// # }
     /// ```
     // [spec:pgorm:sem:disjoint.write+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     fn insert(
         base: <Self::Base as EntityTrait>::ActiveModel,
         kind: <Self as KindedDisjoint>::ActiveModel,
@@ -148,7 +148,7 @@ pub trait Disjoint: Sized + Send {
     /// the base is [`Error::PrimaryKeyNotSet`]; nothing is sent. With nothing
     /// set in either, the write is a read of the row of that key and kind.
     // [spec:pgorm:sem:disjoint.write+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     fn update(
         base: <Self::Base as EntityTrait>::ActiveModel,
         kind: <Self as KindedDisjoint>::ActiveModel,
@@ -178,7 +178,7 @@ pub trait Disjoint: Sized + Send {
     /// a value held in one is refused as [`Error::Type`], as is a declaration
     /// [`check_disjoint`] refuses, and nothing is sent.
     // [spec:pgorm:sem:disjoint.write+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     fn change_kind<T>(
         key: T,
         kind: <Self as KindedDisjoint>::ActiveModel,
@@ -238,7 +238,7 @@ pub struct KindColumn<E: EntityTrait> {
 /// let _ = Schema::new().create_disjoint::<Shop>();
 /// ```
 // [spec:pgorm:def:disjoint.declare+3]
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 #[diagnostic::on_unimplemented(
     message = "`{Self}` is no `KindedDisjoint`, and an unkinded disjoint entity is read-only",
     label = "writes and `create_disjoint` take a disjoint entity with a kind column",
@@ -367,7 +367,7 @@ pub trait ActiveKindVisitor<D: Disjoint> {
 /// to run before anything is sent. Of an unkinded entity it refuses nothing:
 /// it has no kind column, and no write fills its kinds' keys.
 // [spec:pgorm:def:disjoint.declare+3]
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 pub fn check_disjoint<D: Disjoint>() -> Result<(), Error> {
     DisjointShape::of::<D>().check()
 }

@@ -3,6 +3,7 @@
 pub mod account;
 pub mod booking;
 pub mod graphs;
+pub mod listings;
 pub mod membership;
 pub mod note;
 pub mod old;
@@ -39,6 +40,10 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     registry.entity::<shipping::parcel::Entity>("app.Parcel")?;
     registry.entity::<shipping::pallet::Entity>("app.Pallet")?;
     registry.disjoint::<shipping::shipment::Shipment>("app.Shipments")?;
+    registry.entity::<listings::listing::Entity>("app.Listing")?;
+    registry.entity::<listings::auction::Entity>("app.Auction")?;
+    registry.entity::<listings::sale::Entity>("app.Sale")?;
+    registry.disjoint::<listings::listing::Listing>("app.Listings")?;
     graphs::register(&mut registry)?;
     sources::register(&mut registry)?;
     pgorm_python::install(module, registry)
