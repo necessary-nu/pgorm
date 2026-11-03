@@ -96,7 +96,7 @@ known limitations.
 > beside derive_more's and strum's, and pgorm-macros' own name derive is
 > folded into pgorm-query's `SqlName`, which already does more.
 
-> [spec:pgorm:req:macros.derive.code-values+2]
+> [spec:pgorm:req:macros.derive.code-values+3]
 > An attribute value that is Rust code MUST be written as Rust code — a path
 > as a path, a type as a type, an expression as an expression — and is
 > taken as written, with no implicit prefix: `belongs_to =
@@ -107,9 +107,11 @@ known limitations.
 > the relation targets and column pairs, the periods, `on_condition`,
 > `column_type`, `db_type`, `array_type`, `rs_type`, `default_expr`,
 > `default_value`, the generated expressions, `from_expr`, `from_col`, the
-> foreign-key actions, `enforcement`, `deferrability`, `condition_type` and
-> `PartialModel`'s `entity`. A value that is SQL or a name stays a string —
-> `table_name`, `schema_name`, `column_name`, `fk_name`, an `ActiveEnum`'s
+> foreign-key actions, `enforcement`, `deferrability`, `condition_type`,
+> the `columns` of an entity's `unique(..)` (`columns = (Column::A, Column::B)`)
+> and `PartialModel`'s `entity`. A value that is SQL or a name stays a string —
+> `table_name`, `schema_name`, `column_name`, `fk_name`, a `unique` key's
+> `name`, an `ActiveEnum`'s
 > `enum_name`, `string_value`, `display_value`, `range_name`,
 > `multirange_name`, `iden`, `comment`, and the `select_as` and `save_as`
 > cast types — as do the case styles of `rename` and `rename_all`, which
@@ -212,7 +214,7 @@ known limitations.
 > 485 <https://github.com/SeaQL/sea-orm/issues/485> for details." spanned at the
 > struct's identifier, and no `PrimaryKey` enum.
 
-> [spec:pgorm:syn:macros.derive.entity-model.attrs+8]
+> [spec:pgorm:syn:macros.derive.entity-model.attrs+9]
 > Struct-level `#[pgorm(...)]` keys recognised by the `Entity` derive: `table_name = Lit`,
 > `schema_name = Lit`, `comment = Lit`, bare `table_iden`, bare `hooks`
 > (`macros.derive.boilerplate`), and `rename_all = "style"`
@@ -222,6 +224,29 @@ known limitations.
 > effective together with `table_name`) adds a `Table` variant to `Column`, which
 > iterating the columns skips, whose `def()` arm panics with "Table
 > cannot be used as a column".
+>
+> `unique(..)`, given once per key, declares a unique key over two columns or
+> more, which `EntityName::unique_keys` returns in declaration order
+> (`[spec:pgorm:req:entity.traits.entity-name]`) and
+> `create_table_from_entity` writes (`[spec:pgorm:sem:schema.from-entity]`):
+> `columns = (..)`, a tuple of `Column` paths written bare in key order, as a
+> relation's `from` is, each `Column::<Variant>` of the model's own columns,
+> which the derive writes as that column's SQL name since the key is data
+> (`EntityName::unique_keys`), beside an optional `name = "..."`, the constraint's
+> name, which PostgreSQL derives when it is absent, and an optional bare
+> `nulls_not_distinct`, under which nulls are equal: `unique(name =
+> "uq-roster-team-shirt", columns = (Column::Team, Column::Shirt))`. The
+> columns are one value rather than words of the list because two keys
+> sharing a column would repeat a word of one attribute, which
+> `clippy::duplicated_attributes` refuses in the program deriving it. The
+> derive MUST refuse, spanned where the mistake is written: no `columns`;
+> fewer than two, a one-column key being its field's `unique`; a column
+> named twice, which PostgreSQL refuses (`42701`); a path naming none of the
+> model's columns; a quoted column; a key
+> given twice; a name that is empty or past 63 bytes, which PostgreSQL would
+> refuse or truncate; any other key; and `unique` on a `Model` given no
+> `table_name`, whose `EntityName` the program writes and whose
+> `unique_keys` it writes there.
 >
 > Field-level keys: bare `primary_key`, `without_overlaps`, `nullable`, `indexed`,
 > `unique`, `ignore`, `identity`, `identity_by_default`;
@@ -421,7 +446,7 @@ known limitations.
 > (`macros.derive.entity-model.casing`) — and a `PrimaryKeyToColumn` impl whose
 > `into_column`/`from_column` map variants to the same-named variants of `Column`.
 
-> [spec:pgorm:sem:macros.derive.entity+6]
+> [spec:pgorm:sem:macros.derive.entity+7]
 > The `EntityTrait` derive wires up an entity's `Entity` struct: the composite derive
 > puts it on the unit struct it writes, and an entity whose names are computed at run
 > time puts it on the struct it writes itself (`macros.derive.one-form`). It always
@@ -436,7 +461,7 @@ known limitations.
 >
 > Any other key MUST be a compile error spanned at the key, never dropped unread: one
 > of the composite's container keys — `table_name`, `schema_name`, `comment`,
-> `table_iden`, `rename_all`, `hooks` — naming the composite derive on the `Model` as
+> `table_iden`, `rename_all`, `hooks`, `unique` — naming the composite derive on the `Model` as
 > where it goes; `entity`, which names the entity a model or relation belongs to, saying the
 > derive is written on the entity itself; and any other as unknown, listing the five
 > keys the derive reads.

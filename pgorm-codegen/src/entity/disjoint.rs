@@ -30,7 +30,7 @@ use std::collections::{BTreeMap, BTreeSet};
 /// The `#[derive(Disjoint)]` enum a base's module declares: its kind column
 /// and kind type, which an unkinded enum lacks, and its kinds, in the kind
 /// type's order or the order the caller named them.
-// [spec:pgorm:sem:codegen.entity.disjoint+1]
+// [spec:pgorm:sem:codegen.entity.disjoint+2]
 // [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
 #[derive(Clone, Debug)]
 pub(crate) struct DisjointEnum {
@@ -90,11 +90,15 @@ pub(crate) struct EnumHome {
     pub(crate) module: Option<String>,
 }
 
-/// A unique key of a table as it was read: its columns in order, and whether
-/// it is the plain key the disjoint schema writes — no `NULLS NOT DISTINCT`,
-/// `INCLUDE` or deferrability.
+/// A unique key of a table as it was read: its name when it has one, its
+/// columns in order, whether nulls are equal under it, and whether it is the
+/// plain key the disjoint schema writes — no `NULLS NOT DISTINCT`, `INCLUDE`
+/// or deferrability.
+#[derive(Clone, Debug)]
 pub(crate) struct UniqueKey {
+    pub(crate) name: Option<String>,
     pub(crate) columns: Vec<String>,
+    pub(crate) nulls_not_distinct: bool,
     pub(crate) plain: bool,
 }
 
@@ -154,7 +158,7 @@ struct Shape {
 /// column, its cascading key replaced by a relation from its key to the
 /// base's; and every column of a kind type typed as the derive's
 /// `<Enum>Kind`. Returns the kind types by identity.
-// [spec:pgorm:sem:codegen.entity.disjoint+1]
+// [spec:pgorm:sem:codegen.entity.disjoint+2]
 pub(crate) fn recognise(
     entities: &mut BTreeMap<TableIdent, Entity>,
     unique_keys: &BTreeMap<TableIdent, Vec<UniqueKey>>,
@@ -414,6 +418,15 @@ fn apply(entities: &mut BTreeMap<TableIdent, Entity>, shape: Shape) {
         .retain(|column| !bookkeeping.contains(&column.name));
     base.relations
         .retain(|relation| !base_keys.contains(&relation.columns));
+    // The shape's own UNIQUE pair is written by `create_disjoint`, so the
+    // entity declaring it too would write it twice.
+    let pair: Vec<String> = base_key
+        .iter()
+        .cloned()
+        .chain([kind_column.clone()])
+        .collect();
+    base.unique_keys
+        .retain(|key| !(key.plain && key.columns == pair));
     base.disjoint = Some(DisjointEnum {
         kinded: Some(KindColumn {
             column: kind_column.clone(),
@@ -791,7 +804,7 @@ impl DisjointEnum {
     /// where it is not the variant's name in snake_case. An unkinded enum
     /// says `unkinded` and none of them, and takes no `kind_attrs`, since no
     /// `Model` holds its kind enum.
-    // [spec:pgorm:sem:codegen.entity.disjoint+1]
+    // [spec:pgorm:sem:codegen.entity.disjoint+2]
     // [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
     pub(crate) fn tokens(
         &self,
@@ -835,7 +848,7 @@ impl KindColumn {
     /// The keys naming the kind column and the kind type of the enum named
     /// `ident` where they differ from the derive's defaults, and the kind
     /// type's derives.
-    // [spec:pgorm:sem:codegen.entity.disjoint+1]
+    // [spec:pgorm:sem:codegen.entity.disjoint+2]
     fn keys(&self, ident: &str, kind_derives: Option<TokenStream>) -> Vec<TokenStream> {
         let mut keys = Vec::new();
         let column: Ident =

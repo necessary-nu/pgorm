@@ -8,7 +8,7 @@ executes SQL.
 
 ## Table projection
 
-> [spec:pgorm:sem:schema.from-entity+11]
+> [spec:pgorm:sem:schema.from-entity+12]
 > `Schema::create_table_from_entity::<E>()` returns one `TableCreateStatement`
 > for `E`, or the refusal below: the table ref from `entity.table_ref()`, the
 > entity comment if any,
@@ -20,8 +20,11 @@ executes SQL.
 > `GENERATED ALWAYS AS (<expr>) { STORED | VIRTUAL }` of the kind it declares,
 > whichever its definition holds (`entity.traits.column-def`) — and its
 > comment. A key is the table's (`sql.ddl.create-table`): the entity's
-> primary key becomes the table's, and each `unique` column a one-column
-> unique key, added in `E::Column` order.
+> primary key becomes the table's, each `unique` column a one-column
+> unique key, added in `E::Column` order, and then each key
+> `EntityName::unique_keys` returns, in its order, under the name it gives
+> or none and `NULLS NOT DISTINCT` when it says so
+> (`[spec:pgorm:req:entity.traits.entity-name]`).
 >
 > The primary key is `E::PrimaryKey`'s columns in order, at any arity, the
 > last written `WITHOUT OVERLAPS` when `E::PrimaryKey::without_overlaps()`
@@ -78,7 +81,10 @@ executes SQL.
 > written: an enum with the same enum, a domain over a base that is no enum
 > with that base or the same domain, and a domain over an array of an enum,
 > or an array of such a domain, with the same type, all of which the server
-> keys. This is the only way generation fails.
+> keys. The only other way generation fails is a unique key
+> `EntityName::unique_keys` describes with no columns, which an `EntityName`
+> written by hand can say and PostgreSQL cannot write (`UNIQUE ()`): it is
+> `Error::Type` naming the entity.
 >
 > Comments ride on the create statement (`get_comment()`,
 > `ColumnSpec::Comment`) but are inert there — executing it attaches nothing

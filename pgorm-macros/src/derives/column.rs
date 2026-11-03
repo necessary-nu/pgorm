@@ -15,7 +15,7 @@ pub(crate) struct ColumnVariant {
 
 /// Refuse every key on the enum itself: `Column` reads only a variant's
 /// `column_name`.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+8]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+9]
 fn refuse_container_keys(attrs: &[Attribute]) -> syn::Result<()> {
     for attr in attrs.iter().filter(|attr| attr.path().is_ident("pgorm")) {
         attr.parse_nested_meta(|meta| Err(unknown_pgorm_key(&meta)))?;

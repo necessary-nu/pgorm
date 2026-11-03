@@ -116,7 +116,7 @@ async fn rooms(db: &DatabaseConnection) -> Result<Vec<room::Model>, Error> {
 /// An update and a delete by key reach that version alone.
 // [spec:pgorm:def:entity.traits.primary-key+7/test]    against a live server: a temporal key is
 // generated WITHOUT OVERLAPS, and looked up, updated and deleted by equality, period included
-// [spec:pgorm:sem:schema.from-entity+11/test]
+// [spec:pgorm:sem:schema.from-entity+12/test]
 #[pgorm_macros::test]
 async fn a_temporal_key_names_one_version() -> Result<(), Error> {
     let ctx = TestContext::new("temporal_entity_key").await;

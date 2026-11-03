@@ -60,7 +60,7 @@ pub(crate) fn bounded_identifier(full: String) -> String {
 /// [`bounded_identifier`]. Left whole, a long name is truncated by the server
 /// to its first 63 bytes, so two names sharing them become one (`42710`) and
 /// a later statement naming either misses it.
-// [spec:pgorm:sem:schema.from-entity+11]
+// [spec:pgorm:sem:schema.from-entity+12]
 // [spec:pgorm:sem:disjoint.schema+1]
 pub(crate) fn derived_name<'a>(
     kind: &str,

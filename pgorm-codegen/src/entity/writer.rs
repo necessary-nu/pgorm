@@ -395,7 +395,7 @@ impl EntityWriter {
     /// `Eq` where every kind's `Model` does, and the serde derives with the
     /// `Model`s that it holds and its kind type, which its base's `Model`
     /// holds, so the base serializes as the kind entities do.
-    // [spec:pgorm:sem:codegen.entity.disjoint+1]
+    // [spec:pgorm:sem:codegen.entity.disjoint+2]
     pub fn gen_disjoint_enum(entity: &Entity, with_serde: &WithSerde) -> Option<TokenStream> {
         let disjoint = entity.disjoint.as_ref()?;
         let serde = match with_serde {
@@ -437,7 +437,7 @@ impl EntityWriter {
     }
 
     // [spec:pgorm:sem:codegen.entity.imports+4]    active-enum imports
-    // [spec:pgorm:sem:codegen.entity.disjoint+1]    a kind type from its base's module
+    // [spec:pgorm:sem:codegen.entity.disjoint+2]    a kind type from its base's module
     pub fn gen_import_active_enum(entity: &Entity) -> TokenStream {
         let mut imported: Vec<String> = Vec::new();
         let mut imports = TokenStream::new();
@@ -501,7 +501,7 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.compact.attrs+12]
+    // [spec:pgorm:sem:codegen.entity.compact.attrs+13]
     // [spec:pgorm:sem:codegen.entity.compact.model+2]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_model_struct(
@@ -586,6 +586,7 @@ impl EntityWriter {
             },
             None => quote! {},
         };
+        let unique_keys = Self::gen_unique_keys(entity);
         let extra_derive = with_serde.extra_derive();
 
         quote! {
@@ -593,6 +594,7 @@ impl EntityWriter {
             #[pgorm(
                 #schema_name
                 table_name = #table_name
+                #(, #unique_keys)*
             )]
             #model_extra_attributes
             pub struct Model {
@@ -602,6 +604,34 @@ impl EntityWriter {
                 )*
             }
         }
+    }
+
+    /// The container's `unique(..)` keys, one per unique key over two columns
+    /// or more, in the table's order: the constraint's name when it has one,
+    /// `nulls_not_distinct` when it says so, and `columns`, a tuple of the
+    /// `Column` variants their fields derive.
+    // [spec:pgorm:sem:codegen.entity.compact.attrs+13]
+    fn gen_unique_keys(entity: &Entity) -> Vec<TokenStream> {
+        entity
+            .unique_keys
+            .iter()
+            .map(|key| {
+                let name = key.name.as_ref().map(|name| quote! { name = #name, });
+                let nulls_not_distinct = key
+                    .nulls_not_distinct
+                    .then(|| quote! { nulls_not_distinct, });
+                let columns = key.columns.iter().map(|name| {
+                    let variant = entity
+                        .columns
+                        .iter()
+                        .find(|column| &column.name == name)
+                        .map(crate::Column::get_name_camel_case)
+                        .expect("a unique key's columns are the table's");
+                    quote! { Column::#variant }
+                });
+                quote! { unique(#name #nulls_not_distinct columns = (#(#columns),*)) }
+            })
+            .collect()
     }
 
     pub fn gen_compact_relation_enum(entity: &Entity) -> TokenStream {
@@ -693,6 +723,7 @@ mod tests {
                 }],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -759,6 +790,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![
                     PrimaryKey {
                         name: "cake_id".to_owned(),
@@ -824,6 +856,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![
                     PrimaryKey {
                         name: "cake_id".to_owned(),
@@ -867,6 +900,7 @@ mod tests {
                 }],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -944,6 +978,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1004,6 +1039,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1236,6 +1272,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1299,6 +1336,7 @@ mod tests {
                 }],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1362,6 +1400,7 @@ mod tests {
                 }],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1408,6 +1447,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1454,6 +1494,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1503,6 +1544,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![
                     PrimaryKey {
                         name: "id1".to_owned(),
@@ -1568,6 +1610,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -1985,6 +2028,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -2078,6 +2122,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],
@@ -2157,6 +2202,7 @@ mod tests {
                 conjunct_relations: vec![],
                 without_overlaps: false,
                 disjoint: None,
+                unique_keys: Vec::new(),
                 primary_keys: vec![PrimaryKey {
                     name: "id".to_owned(),
                 }],

@@ -5,7 +5,7 @@ use crate::{
 };
 use pgorm_query::{
     ColumnDef, Comment, CommentStatement, ForeignKeyCreateStatement, IdentityGeneration, Index,
-    IndexCreateStatement, Name, SqlName, TableCreateStatement, TableKey,
+    IndexCreateStatement, Name, SqlName, TableCreateStatement, TableKey, Unique,
     extension::{IntoTypeRef, Type, TypeCreateStatement},
 };
 use std::collections::HashSet;
@@ -225,7 +225,7 @@ where
     vec
 }
 
-// [spec:pgorm:sem:schema.from-entity+11]    the comment statements, one stream per entity
+// [spec:pgorm:sem:schema.from-entity+12]    the comment statements, one stream per entity
 pub(crate) fn create_comments_from_entity<E>(entity: E) -> Vec<CommentStatement>
 where
     E: EntityTrait,
@@ -244,7 +244,7 @@ where
     vec
 }
 
-// [spec:pgorm:sem:schema.from-entity+11]
+// [spec:pgorm:sem:schema.from-entity+12]
 pub(crate) fn create_table_from_entity<E>(entity: E) -> Result<TableCreateStatement, Error>
 where
     E: EntityTrait,
@@ -255,7 +255,7 @@ where
 /// The table [`create_table_from_entity`] writes, with a foreign key for each
 /// belongs-to relation `writes_key` keeps: a disjoint kind's table leaves out
 /// the one its key to its base row implies.
-// [spec:pgorm:sem:schema.from-entity+11]
+// [spec:pgorm:sem:schema.from-entity+12]
 // [spec:pgorm:sem:disjoint.schema+1]
 pub(crate) fn table_from_entity<E, K>(
     entity: E,
@@ -289,6 +289,9 @@ where
             stmt.unique(column);
         }
     }
+    for key in entity.unique_keys() {
+        stmt.unique(unique_key(&entity, key)?);
+    }
 
     for relation in E::Relation::iter() {
         let def = relation.def();
@@ -302,6 +305,31 @@ where
     Ok(stmt.take())
 }
 
+/// The table key `key` of `entity` describes, or [`Error::Type`] for one
+/// naming no column, which an `EntityName` written by hand can describe and
+/// PostgreSQL cannot write (`UNIQUE ()`).
+// [spec:pgorm:sem:schema.from-entity+12]
+fn unique_key<E: EntityTrait>(
+    entity: &E,
+    key: &crate::UniqueKey,
+) -> Result<TableKey<Unique>, Error> {
+    let Some((first, rest)) = key.columns.split_first() else {
+        return Err(Error::Type(format!(
+            "`{}` declares a unique key with no columns",
+            entity.to_string()
+        )));
+    };
+    let mut table_key =
+        TableKey::new(Name::runtime(*first)).cols(rest.iter().copied().map(Name::runtime));
+    if let Some(name) = key.name {
+        table_key = table_key.name(Name::runtime(name));
+    }
+    if key.nulls_not_distinct {
+        table_key = table_key.nulls_not_distinct();
+    }
+    Ok(table_key)
+}
+
 /// Refuse a foreign key PostgreSQL cannot implement: one matching a pair
 /// with a column typed as a domain over an enum on either side, which the
 /// server answers `42804` (incompatible types) whatever the other side is —
@@ -310,7 +338,7 @@ where
 /// Each side's type is the one its [`ColumnPairs`](crate::ColumnPairs)
 /// recorded when the pair was named by entity columns; a pair named by bare
 /// names recorded none and passes unchecked.
-// [spec:pgorm:sem:schema.from-entity+11]
+// [spec:pgorm:sem:schema.from-entity+12]
 fn refuse_unkeyable<E: EntityTrait>(
     entity: &E,
     relation: &E::Relation,
@@ -339,7 +367,7 @@ fn refuse_unkeyable<E: EntityTrait>(
 /// OVERLAPS`, onto `stmt`, the table `table`'s: a composite key named
 /// `pk-{table}`, a one-column key keeping the name PostgreSQL derives,
 /// `{table}_pkey`.
-// [spec:pgorm:sem:schema.from-entity+11]
+// [spec:pgorm:sem:schema.from-entity+12]
 pub(crate) fn write_primary_key(
     stmt: &mut TableCreateStatement,
     table: &str,
@@ -362,7 +390,7 @@ pub(crate) fn write_primary_key(
     }
 }
 
-// [spec:pgorm:sem:schema.from-entity+11]    column projection, and the serial family for a one-column key
+// [spec:pgorm:sem:schema.from-entity+12]    column projection, and the serial family for a one-column key
 fn column_def_from_entity_column<E>(column: E::Column) -> ColumnDef
 where
     E: EntityTrait,
@@ -380,7 +408,7 @@ where
 /// The column `name` of the definition `orm_column_def` as a `CREATE TABLE`
 /// writes it, drawn from the serial family when `serial` holds and the
 /// column names no fill of its own.
-// [spec:pgorm:sem:schema.from-entity+11]
+// [spec:pgorm:sem:schema.from-entity+12]
 pub(crate) fn column_ddl(name: Name, orm_column_def: crate::ColumnDef, serial: bool) -> ColumnDef {
     let mut column_def = ColumnDef::new_with_type(name, orm_column_def.col_type);
     if !orm_column_def.null {

@@ -41,7 +41,7 @@ fn statements<D: KindedDisjoint>() -> Vec<String> {
         .collect()
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint+1/test]    the round trip: the schema the vehicle and listing fixtures' `create_disjoint` writes, generated from, is the schema the generated enums' `create_disjoint` writes, statement for statement, and the generated declarations pass the run-time check
+// [spec:pgorm:sem:codegen.entity.disjoint+2/test]    the round trip: the schema the vehicle and listing fixtures' `create_disjoint` writes, generated from, is the schema the generated enums' `create_disjoint` writes, statement for statement, and the generated declarations pass the run-time check
 #[test]
 fn generated_enums_write_the_schema_read_from() {
     let file: Vec<&str> = SCHEMA
@@ -85,7 +85,7 @@ fn refused_by<T: std::fmt::Debug>(outcome: Result<T, Error>, constraint: &str) {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint+1/test]    against a live server: the schema runs as written, the generated base and kind entities write and read their rows as ordinary entities, each kind's row reaching its base row and the base row its kind's through the generated relations, and the constraints the generated enum stands for still refuse a car with no row of its own
+// [spec:pgorm:sem:codegen.entity.disjoint+2/test]    against a live server: the schema runs as written, the generated base and kind entities write and read their rows as ordinary entities, each kind's row reaching its base row and the base row its kind's through the generated relations, and the constraints the generated enum stands for still refuse a car with no row of its own
 #[pgorm_macros::test]
 async fn generated_entities_write_the_schema_live() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_disjoint").await;

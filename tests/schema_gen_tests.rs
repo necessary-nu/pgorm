@@ -209,6 +209,73 @@ mod palette {
     pub enum Relation {}
 }
 
+/// A table holding two composite unique keys: one named, one left for
+/// PostgreSQL to name and treating nulls as equal.
+mod roster {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(
+        table_name = "roster",
+        unique(name = "uq-roster-team-shirt", columns = (Column::Team, Column::Shirt)),
+        unique(nulls_not_distinct, columns = (Column::Team, Column::Nickname))
+    )]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        pub team: i32,
+        pub shirt: i16,
+        pub nickname: Option<String>,
+        #[pgorm(unique)]
+        pub badge: i32,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+/// An entity whose names are written by hand, its `EntityName` describing its
+/// unique keys too: one over two columns, and one over none, which no table
+/// can hold.
+mod hand_keyed {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
+    pub struct Entity;
+
+    impl EntityName for Entity {
+        fn table_name(&self) -> &str {
+            "hand_keyed"
+        }
+
+        fn unique_keys(&self) -> &'static [pgorm::UniqueKey] {
+            &[
+                pgorm::UniqueKey {
+                    name: Some("uq-hand"),
+                    columns: &["a", "b"],
+                    nulls_not_distinct: false,
+                },
+                pgorm::UniqueKey {
+                    name: None,
+                    columns: &[],
+                    nulls_not_distinct: false,
+                },
+            ]
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        pub a: i32,
+        pub b: i32,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
 mod depot {
     use pgorm::entity::prelude::*;
 
@@ -308,7 +375,7 @@ fn key_columns<K>(key: &TableKey<K>) -> Vec<String> {
         .collect()
 }
 
-// [spec:pgorm:sem:schema.from-entity+11/test]    table ref, comment, per-column projection, single-column key, unique keys, belongs-to foreign keys
+// [spec:pgorm:sem:schema.from-entity+12/test]    table ref, comment, per-column projection, single-column key, unique keys, belongs-to foreign keys
 #[test]
 fn create_table_from_entity_projects_columns() {
     let schema = Schema::new();
@@ -413,7 +480,7 @@ fn create_table_from_entity_projects_columns() {
     assert!(!widget::Relation::Factory.def().is_owner);
 }
 
-// [spec:pgorm:sem:schema.from-entity+11/test]    a composite key is the table's key, named pk-{table}
+// [spec:pgorm:sem:schema.from-entity+12/test]    a composite key is the table's key, named pk-{table}
 #[test]
 fn create_table_composite_key_emits_index() {
     let schema = Schema::new();
@@ -440,7 +507,7 @@ fn create_table_composite_key_emits_index() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+11/test]    the entity comment first, then the commented
+// [spec:pgorm:sem:schema.from-entity+12/test]    the entity comment first, then the commented
 // columns in Column order, targeting entity.table_ref() with the text quoted
 #[test]
 fn create_comments_from_entity_emits_statements() {
@@ -639,7 +706,7 @@ fn create_enum_from_active_enum_errs_non_enum() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+11/test]    the projected DDL is accepted by Postgres and enforces what it declares
+// [spec:pgorm:sem:schema.from-entity+12/test]    the projected DDL is accepted by Postgres and enforces what it declares
 // [spec:pgorm:sem:schema.from-entity.index+2/test]    the schema-qualified index executes and reaches pg_indexes under its generated name
 // [spec:pgorm:sem:schema.from-entity.enum+3/test]    the projected type is a usable Postgres enum
 #[pgorm_macros::test]
@@ -826,7 +893,7 @@ async fn array_only_enum_schema_executes_on_postgres() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:schema.from-entity+11/test]    a composite key's generated
+// [spec:pgorm:sem:schema.from-entity+12/test]    a composite key's generated
 // column carries its identity, the supplied column nothing, and neither the
 // serial family nor an inline PRIMARY KEY
 #[test]
@@ -861,7 +928,7 @@ fn composite_key_identity_lands_on_its_column() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+11/test]    a one-column key that fills
+// [spec:pgorm:sem:schema.from-entity+12/test]    a one-column key that fills
 // itself — an identity or a default of its own — is not also drawn from the
 // serial family, which PostgreSQL refuses beside either (42601)
 #[test]
@@ -901,7 +968,7 @@ fn key_with_its_own_fill_is_not_serial() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+11/test]    the tables a key that fills
+// [spec:pgorm:sem:schema.from-entity+12/test]    the tables a key that fills
 // itself projects to are ones the server builds, and fill the key unasked
 #[pgorm_macros::test]
 async fn self_filling_keys_execute_on_postgres() -> Result<(), Error> {
@@ -948,7 +1015,7 @@ async fn self_filling_keys_execute_on_postgres() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:schema.from-entity+11/test]    the comment statements execute, and only they
+// [spec:pgorm:sem:schema.from-entity+12/test]    the comment statements execute, and only they
 // attach anything: the text arrives in pg_description exactly as declared
 #[pgorm_macros::test]
 async fn entity_comments_land_in_pg_description() -> Result<(), Error> {
@@ -1008,7 +1075,7 @@ fn parcel_names() -> [String; 5] {
     .map(|full| pgorm::result_column_name("", &full))
 }
 
-// [spec:pgorm:sem:schema.from-entity+11/test]    a derived key or foreign key name that would reach 63 bytes is bounded as composed result names are, its head kept, so two long names stay two
+// [spec:pgorm:sem:schema.from-entity+12/test]    a derived key or foreign key name that would reach 63 bytes is bounded as composed result names are, its head kept, so two long names stay two
 // [spec:pgorm:sem:schema.from-entity.index+2/test]
 // [spec:pgorm:req:entity.relation.fk+6/test]
 #[test]
@@ -1061,7 +1128,7 @@ fn derived_names_past_the_bound_are_bounded() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+11/test]    the server creates every derived constraint and index under exactly the name generation gives it, none truncated and none colliding
+// [spec:pgorm:sem:schema.from-entity+12/test]    the server creates every derived constraint and index under exactly the name generation gives it, none truncated and none colliding
 // [spec:pgorm:sem:schema.from-entity.index+2/test]
 #[pgorm_macros::test]
 async fn bounded_derived_names_are_the_servers_live() -> Result<(), Error> {
@@ -1111,6 +1178,105 @@ async fn bounded_derived_names_are_the_servers_live() -> Result<(), Error> {
     let mut expected = vec![origin_index, destination_index];
     expected.sort();
     assert_eq!(indexes, expected);
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:sem:schema.from-entity+12/test]    an entity's composite unique keys are written after its columns' own, in declaration order, under the name each declares or none
+// [spec:pgorm:req:entity.traits.entity-name+5/test]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+9/test]
+#[test]
+fn composite_unique_keys_are_written() {
+    let table = Schema::new()
+        .create_table_from_entity(roster::Entity)
+        .expect("the table is generated")
+        .to_string();
+    assert_eq!(
+        table,
+        [
+            r#"CREATE TABLE "roster" ("#,
+            r#""id" serial NOT NULL,"#,
+            r#""team" integer NOT NULL,"#,
+            r#""shirt" smallint NOT NULL,"#,
+            r#""nickname" varchar,"#,
+            r#""badge" integer NOT NULL,"#,
+            r#"PRIMARY KEY ("id"),"#,
+            r#"UNIQUE ("badge"),"#,
+            r#"CONSTRAINT "uq-roster-team-shirt" UNIQUE ("team", "shirt"),"#,
+            r#"UNIQUE NULLS NOT DISTINCT ("team", "nickname")"#,
+            r#")"#,
+        ]
+        .join(" ")
+    );
+    assert_eq!(roster::Entity.unique_keys().len(), 2);
+    assert!(gadget::Entity.unique_keys().is_empty());
+}
+
+// [spec:pgorm:sem:schema.from-entity+12/test]    a unique key an `EntityName` written by hand describes with no columns is refused as `Error::Type` naming the entity, since PostgreSQL cannot write `UNIQUE ()`
+// [spec:pgorm:req:entity.traits.entity-name+5/test]
+#[test]
+fn a_unique_key_of_no_columns_is_refused() {
+    match Schema::new().create_table_from_entity(hand_keyed::Entity) {
+        Err(Error::Type(message)) => {
+            assert_eq!(
+                message,
+                "`hand_keyed` declares a unique key with no columns"
+            )
+        }
+        other => panic!("expected the table refused, got {other:?}"),
+    }
+}
+
+// [spec:pgorm:sem:schema.from-entity+12/test]    the server holds each composite unique key as declared: a repeated pair is refused under the declared name, and under the key treating nulls as equal two null nicknames in one team are too
+#[pgorm_macros::test]
+async fn composite_unique_keys_hold_live() -> Result<(), Error> {
+    use pgorm::set;
+    use tokio_postgres::error::SqlState;
+
+    let ctx = TestContext::new("schema_gen_composite_unique").await;
+    let db = ctx.db.get().await?;
+    db.execute(
+        &Schema::new()
+            .create_table_from_entity(roster::Entity)?
+            .to_string(),
+        &[],
+    )
+    .await?;
+    let player = |team: i32, shirt: i16, nickname: Option<&str>, badge: i32| roster::ActiveModel {
+        team: set(team),
+        shirt: set(shirt),
+        nickname: set(nickname.map(str::to_owned)),
+        badge: set(badge),
+        ..Default::default()
+    };
+    let refused_by = |outcome: Result<roster::Model, Error>| match outcome {
+        Err(Error::Postgres(error)) => {
+            assert_eq!(error.code(), Some(&SqlState::UNIQUE_VIOLATION), "{error}");
+            error
+                .as_db_error()
+                .and_then(|db| db.constraint())
+                .map(str::to_owned)
+        }
+        other => panic!("expected a unique violation, got {other:?}"),
+    };
+    player(1, 9, None, 1).insert(&db).await?;
+    player(2, 9, None, 2).insert(&db).await?;
+    player(1, 10, Some("ace"), 3).insert(&db).await?;
+    assert_eq!(
+        refused_by(player(1, 9, Some("twin"), 4).insert(&db).await),
+        Some("uq-roster-team-shirt".to_owned())
+    );
+    assert_eq!(
+        refused_by(player(1, 11, None, 5).insert(&db).await),
+        Some("roster_team_nickname_key".to_owned())
+    );
+    player(3, 11, Some("ace"), 6).insert(&db).await?;
+    assert_eq!(
+        refused_by(player(3, 12, Some("ace"), 7).insert(&db).await),
+        Some("roster_team_nickname_key".to_owned())
+    );
 
     drop(db);
     ctx.delete().await;

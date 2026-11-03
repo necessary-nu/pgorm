@@ -256,7 +256,7 @@ fn unholdable_domain_arrays_are_named() {
 
 // [spec:pgorm:sem:codegen.entity.types+12/test]    a domain column is a field of its base's
 // Rust type, an array of one a `Vec` of it, an enum or a created range's newtype included
-// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    the compact writer names every
+// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    the compact writer names every
 // domain column's type, the domain and its base spelled in full
 #[test]
 fn domain_columns_generate_a_compiling_entity() {
@@ -364,7 +364,7 @@ fn referencing(declared: &str, key: &str, reference: &str) -> String {
 const UNKEYABLE: &str = "and PostgreSQL implements no foreign key with a column typed as a \
                          domain over an enum on either side (42804)";
 
-// [spec:pgorm:sem:codegen.entity.transform+16/test]    a foreign key matching a column typed
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    a foreign key matching a column typed
 // as a domain over an enum, through further domains too, is refused on either side whatever
 // the other side is, in a composite key and a self-reference as alone
 #[test]
@@ -403,7 +403,7 @@ fn keys_over_an_enum_domain_are_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+16/test]    a statement built in code is held to
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    a statement built in code is held to
 // the same refusal, and every pairing PostgreSQL keys still generates its relation: an enum
 // with itself, a domain over an integer with the integer or itself, a domain over an array of
 // an enum with itself

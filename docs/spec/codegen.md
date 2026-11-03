@@ -42,7 +42,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Schema discovery → Entity model
 
-> [spec:pgorm:sem:codegen.entity.transform+16]
+> [spec:pgorm:sem:codegen.entity.transform+17]
 > `EntityTransformer::transform` builds one `Entity` per input
 > `TableCreateStatement`. A table's identity is the `TableIdent` its
 > `TableName` spells: the bare name, and the schema qualifying it when the
@@ -122,7 +122,16 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > ``TransformError("table `<table>` column `<column>`: column type should
 > not be empty")``. A key is the table's (`sql.ddl.create-table`), so `unique`
 > comes from the table: a column is unique when some unique key of the table
-> covers that one column and nothing else. The primary key's columns are the
+> covers that one column and nothing else, and every unique key over two
+> columns or more is one of the entity's unique keys, in the table's order,
+> keeping its name when it has one and `NULLS NOT DISTINCT`
+> (`[spec:pgorm:req:entity.traits.entity-name]`), so the table the entity
+> creates holds the uniqueness the schema does and a foreign key onto such a
+> key finds it. One with an `INCLUDE` list or a deferrability, which only a
+> statement built in code carries (the DDL bridge refuses both), has no
+> entity form and is refused: ``TransformError("table `<table>`: an entity
+> cannot hold a unique key of several columns with an INCLUDE list")``, and
+> `with a deferrability` likewise. The primary key's columns are the
 > table's primary key's (`get_primary_key()`), one column or a tuple, in key
 > order; a table has one, so there is no second source to merge and no
 > duplicate `PrimaryKey` variant to generate. Every column whose (possibly
@@ -369,7 +378,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > each section is one contiguous block in the output (rendered shapes pinned
 > by `tests/compact/`).
 
-> [spec:pgorm:sem:codegen.entity.compact.attrs+12]
+> [spec:pgorm:sem:codegen.entity.compact.attrs+13]
 > In the compact Model, each field's `#[pgorm(...)]` attribute assembles
 > parts in this fixed order: `column_name = "..."` when the DB column name
 > is not already snake_case; `primary_key` when the column is in the primary
@@ -389,6 +398,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `Float`, `Double` or `Bytea` column besides; `nullable` (only alongside a
 > `column_type`) when the column is nullable; and `unique` when the column is
 > unique. Fields needing none of these carry no `#[pgorm]` attribute.
+> The container attribute carries, after `table_name`, one `unique(..)` per
+> unique key of the entity over two columns or more, in its order: `name =
+> "..."` when the key has a name, `nulls_not_distinct` when it says so, then
+> `columns = (..)`, the `Column` variants its columns' fields derive
+> (`macros.derive.entity-model.attrs`).
 >
 > A compact entity carries each column's full type, so that the table it
 > creates (`Schema::create_table_from_entity`) is the table described, every
@@ -934,7 +948,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Disjoint entities
 
-> [spec:pgorm:sem:codegen.entity.disjoint+1]
+> [spec:pgorm:sem:codegen.entity.disjoint+2]
 > A base table and its kinds' tables, constrained exactly as
 > `[spec:pgorm:sem:disjoint.schema]` writes them, MUST generate as one
 > disjoint entity, from DDL text and from statements described in code
@@ -964,7 +978,9 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > of its cascading key a `belongs_to` from its key to the base's, which that
 > key implies and `create_disjoint` writes no key for, and the base carries
 > the inverse `has_one` to each kind's table (`codegen.entity.transform.inverse`);
-> the base's keys to the kinds' tables generate nothing. So the generated
+> the base's keys to the kinds' tables generate nothing, and nor does its
+> `UNIQUE` pair, which `create_disjoint` writes, while every other unique key
+> of the base's over two columns or more is the base entity's `unique(..)`. So the generated
 > enum's `create_disjoint` writes the statements the schema was generated
 > from, and the kind entities are the ordinary entities, joinable to their
 > base, that `[spec:pgorm:def:disjoint.declare]` says they are.
@@ -994,7 +1010,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > foreign key's columns, action or deferrability, a generated column's
 > expression or `STORED`, the `UNIQUE` pair — MUST generate as the ordinary
 > entities it is, its generated columns as generated columns, with nothing
-> dropped, since only the full shape enforces what the enum would claim.
+> dropped, since only the full shape enforces what the enum would claim:
+> its `UNIQUE` pair is the base entity's `unique(..)`
+> (`codegen.entity.transform`), so the kind entity's relation onto that pair
+> becomes a foreign key PostgreSQL can create (without the pair it refuses
+> it, `42830`).
 >
 > What cannot be generated is refused as the transform gate refuses
 > (`codegen.entity.transform`), naming both sides: a base two of whose
@@ -1010,6 +1030,9 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > enum and its active model, as a name the module's code means otherwise (a
 > base table `string` beside a `String` field), ``TransformError("table
 > `<table>`: its disjoint entity's <item> `<name>` is named as <the other>")``.
+> A name inside a `derive(..)` list is a macro's, which no item of the module
+> shadows, so it is no such name: a base table `debug` generates the enum
+> `Debug` beside `#[derive(Debug)]`.
 > The kind type's name is claimed among the enums' type names
 > (`codegen.entity.collisions`) as `<Enum>Kind`.
 
@@ -1083,7 +1106,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > in the writer are downstream of that check and cannot panic on validated
 > input.
 
-> [spec:pgorm:req:codegen.entity.collisions+2]
+> [spec:pgorm:req:codegen.entity.collisions+3]
 > Every identity the writer derives from a DB name MUST be one name's alone,
 > and the `transform` gate refuses a schema in which two names claim one. The
 > namespaces checked are: the module name a table derives — and with it the
@@ -1091,7 +1114,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > both across the schema; the field name a column derives, within its table;
 > the type name an enum or a range type a schema created derives, across the
 > schema and across the two kinds, since both are imported into one entity
-> module; and the variant name a value derives, within its enum. Keyword escaping
+> module; and the variant name a value derives, within its enum. Each is the
+> name the writer declares: a schema-qualified enum's type name is its own
+> name's, its schema no part of it, so `market.grade` and `"GRADE"` both
+> claim `Grade`, and `market.listing_category` does not claim the
+> `MarketListingCategory` an unqualified `market_listing_category` declares. Keyword escaping
 > (`codegen.entity.keywords`) is applied before the comparison, so the rescue
 > cannot itself introduce a collision.
 >

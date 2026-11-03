@@ -284,7 +284,7 @@ fn unkeyed_table<E: EntityTrait>(entity: E) -> TableCreateStatement {
     table.take()
 }
 
-// [spec:pgorm:sem:schema.from-entity+11/test]    a belongs-to relation with a column typed as a
+// [spec:pgorm:sem:schema.from-entity+12/test]    a belongs-to relation with a column typed as a
 // domain over an enum on either side is refused as Error::Type naming the entity, the relation
 // and the pair, whichever side the domain is on and however deep it nests
 #[test]
@@ -320,7 +320,7 @@ fn domain_enum_keys_are_refused_by_name() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+11/test]    generation refuses exactly the foreign keys the
+// [spec:pgorm:sem:schema.from-entity+12/test]    generation refuses exactly the foreign keys the
 // server refuses: each refused relation's key is answered 42804 when sent by hand, and an entity
 // whose every pairing the server keys is created with all of its keys, live
 #[pgorm_macros::test]

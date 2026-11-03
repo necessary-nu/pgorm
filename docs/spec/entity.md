@@ -32,10 +32,16 @@ explicit limitations.
 > whose names are computed, or a key the arity guard of `entity.traits.crud` refuses —
 > meets the same bounds.
 
-> [spec:pgorm:req:entity.traits.entity-name+4]
+> [spec:pgorm:req:entity.traits.entity-name+5]
 > `EntityName::table_name` is the only required method and MUST return the table's SQL
 > name. `schema_name` and `comment` default to `None`; `module_name` defaults to
-> `table_name()`. `table_ref` MUST produce a schema-qualified `TableName`
+> `table_name()`; `unique_keys` — the table's unique keys over two columns or
+> more, static data as the table's name is: each a `UniqueKey` of the
+> constraint's name or `None`, its columns' SQL names in key order and whether
+> nulls are equal under it, which `create_table_from_entity` writes — defaults
+> to none, and is what the composite derive's `unique(..)` keys declare
+> (`macros.derive.entity-model.attrs`). `table_ref` MUST produce a
+> schema-qualified `TableName`
 > (`(Name::runtime(schema), entity)`) when `schema_name` returns `Some`, and a bare
 > `TableName::Table` otherwise (`src/entity/base_entity.rs`). It is the DDL-position
 > type, so schema projection targets take it directly; query positions widen it to a

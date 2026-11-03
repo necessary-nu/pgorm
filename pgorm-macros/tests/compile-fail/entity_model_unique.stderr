@@ -1,0 +1,53 @@
+error: a `unique` key names two columns or more; a one-column key is its field's `unique`
+ --> tests/compile-fail/entity_model_unique.rs:5:47
+  |
+5 |     #[pgorm(table_name = "one_column", unique(columns = (Column::A)))]
+  |                                               ^^^^^^^
+
+error: this column is named twice in one `unique` key, which PostgreSQL refuses
+  --> tests/compile-fail/entity_model_unique.rs:21:82
+   |
+21 |     #[pgorm(table_name = "column_twice", unique(columns = (Column::A, Column::B, Column::A)))]
+   |                                                                                  ^^^^^^
+
+error: `columns` is Rust code, written bare: remove the quotes
+  --> tests/compile-fail/entity_model_unique.rs:37:72
+   |
+37 |     #[pgorm(table_name = "quoted_column", unique(columns = (Column::A, "b")))]
+   |                                                                        ^^^
+
+error: a `unique` key names its columns: `columns = (Column::A, Column::B)`
+  --> tests/compile-fail/entity_model_unique.rs:53:40
+   |
+53 |     #[pgorm(table_name = "no_columns", unique(name = "uq-a"))]
+   |                                        ^^^^^^
+
+error: duplicate `name` in `unique`
+  --> tests/compile-fail/entity_model_unique.rs:69:62
+   |
+69 |     #[pgorm(table_name = "name_twice", unique(name = "uq-a", name = "uq-b", columns = (Column::A, Column::B)))]
+   |                                                              ^^^^
+
+error: a constraint's name is 1 to 63 bytes, PostgreSQL's identifier limit
+  --> tests/compile-fail/entity_model_unique.rs:85:57
+   |
+85 |     #[pgorm(table_name = "name_too_long", unique(name = "uq-name_too_long-a-b-and-a-good-many-more-words-than-fit-in-a-name", column...
+   |                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unknown `unique` key: `unique` reads `columns`, `name` and `nulls_not_distinct`
+   --> tests/compile-fail/entity_model_unique.rs:101:48
+    |
+101 |     #[pgorm(table_name = "unknown_key", unique(deferrable, columns = (Column::A, Column::B)))]
+    |                                                ^^^^^^^^^^
+
+error: `unique` is written into the `EntityName` the derive implements from `table_name`; an entity whose names are computed implements `EntityName::unique_keys` with its own
+   --> tests/compile-fail/entity_model_unique.rs:117:13
+    |
+117 |     #[pgorm(unique(columns = (Column::A, Column::B)))]
+    |             ^^^^^^
+
+error: a `unique` key's column is one of this model's columns, written `Column::<Variant>`
+   --> tests/compile-fail/entity_model_unique.rs:133:71
+    |
+133 |     #[pgorm(table_name = "not_a_column", unique(columns = (Column::A, Column::Nope)))]
+    |                                                                       ^^^^^^

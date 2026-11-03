@@ -13,7 +13,8 @@ use quote::quote;
 use std::str::FromStr;
 use syn::{
     Attribute, Data, Expr, Field, Fields, Lit, LitStr, Path, Token, Type, meta::ParseNestedMeta,
-    parenthesized, punctuated::Punctuated, spanned::Spanned, token::Comma, token::Paren,
+    parenthesized, parse::ParseStream, punctuated::Punctuated, spanned::Spanned, token::Comma,
+    token::Paren,
 };
 
 /// The most columns a primary key can have: `PrimaryKeyTrait::ValueType` is a
@@ -133,7 +134,7 @@ const WRITE: Direction = Direction {
 /// direction, so a second key of the pair, or the same key again, is refused
 /// rather than left to override the first.
 // [spec:pgorm:req:macros.derive.one-form]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+8]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+9]
 fn conversion(
     meta: &ParseNestedMeta,
     declared: &Option<Conversion>,
@@ -215,8 +216,8 @@ fn conversion_arms(
 /// are entity-wide and accumulate across every field. A key whose value is Rust
 /// code takes it bare; `default_value` is an expression of the column's value,
 /// so a string literal there is that string.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+8]
-// [spec:pgorm:req:macros.derive.code-values+2]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+9]
+// [spec:pgorm:req:macros.derive.code-values+3]
 fn parse_field_attrs(
     field: &Field,
     column_name: Option<String>,
@@ -489,9 +490,167 @@ fn serde_field_rename(attrs: &[Attribute]) -> syn::Result<Option<String>> {
     Ok(rename)
 }
 
+/// One `unique(..)` container key: a unique key over two columns or more,
+/// `columns = (Column::A, Column::B)` written bare as a relation's `from`
+/// is and read as those columns' SQL names, under `name = ".."` or left for
+/// PostgreSQL to name, and treating nulls as equal under
+/// `nulls_not_distinct`. The columns are one tuple value rather than words
+/// of the list, since two keys sharing a column would otherwise repeat a
+/// word of the attribute, which `clippy::duplicated_attributes` refuses in
+/// the program deriving it.
+struct CompositeUnique {
+    key: Span,
+    name: Option<LitStr>,
+    nulls_not_distinct: bool,
+    columns: Vec<Path>,
+}
+
+impl CompositeUnique {
+    /// Read the key's list. `columns` is required, and a column named twice
+    /// is refused, as PostgreSQL refuses the key (`42701`), and so is a list
+    /// of one column, which is that field's own `unique`; a name is 1 to 63
+    /// bytes, the identifier PostgreSQL would otherwise refuse or truncate.
+    // [spec:pgorm:syn:macros.derive.entity-model.attrs+9]
+    // [spec:pgorm:req:macros.derive.code-values+3]
+    fn parse(meta: &ParseNestedMeta) -> syn::Result<Self> {
+        let mut unique = Self {
+            key: meta.path.span(),
+            name: None,
+            nulls_not_distinct: false,
+            columns: Vec::new(),
+        };
+        let mut columns: Option<Span> = None;
+        meta.parse_nested_meta(|item| {
+            if item.path.is_ident("columns") {
+                if columns.is_some() {
+                    return Err(item.error("duplicate `columns` in `unique`"));
+                }
+                columns = Some(item.path.span());
+                unique.columns = Self::columns(item.value()?)?;
+            } else if item.path.is_ident("name") {
+                if unique.name.is_some() {
+                    return Err(item.error("duplicate `name` in `unique`"));
+                }
+                let name: LitStr = item.value()?.parse()?;
+                if !(1..=63).contains(&name.value().len()) {
+                    return Err(syn::Error::new(
+                        name.span(),
+                        "a constraint's name is 1 to 63 bytes, PostgreSQL's identifier limit",
+                    ));
+                }
+                unique.name = Some(name);
+            } else if item.path.is_ident("nulls_not_distinct") {
+                if unique.nulls_not_distinct {
+                    return Err(item.error("duplicate `nulls_not_distinct` in `unique`"));
+                }
+                unique.nulls_not_distinct = true;
+            } else {
+                return Err(item.error(
+                    "unknown `unique` key: `unique` reads `columns`, `name` and \
+                     `nulls_not_distinct`",
+                ));
+            }
+            Ok(())
+        })?;
+        match columns {
+            None => Err(syn::Error::new(
+                unique.key,
+                "a `unique` key names its columns: `columns = (Column::A, Column::B)`",
+            )),
+            Some(span) if unique.columns.len() < 2 => Err(syn::Error::new(
+                span,
+                "a `unique` key names two columns or more; a one-column key is its field's \
+                 `unique`",
+            )),
+            Some(_) => Ok(unique),
+        }
+    }
+
+    /// The `columns` value: a tuple of `Column` paths, or one path, each
+    /// written bare and none twice.
+    fn columns(value: ParseStream) -> syn::Result<Vec<Path>> {
+        let refuse_quoted = |value: ParseStream| -> syn::Result<()> {
+            if value.peek(LitStr) {
+                let string: LitStr = value.parse()?;
+                return Err(syn::Error::new(
+                    string.span(),
+                    "`columns` is Rust code, written bare: remove the quotes",
+                ));
+            }
+            Ok(())
+        };
+        refuse_quoted(value)?;
+        if !value.peek(Paren) {
+            return Ok(vec![value.call(Path::parse_mod_style)?]);
+        }
+        let content;
+        parenthesized!(content in value);
+        let mut columns: Vec<Path> = Vec::new();
+        while !content.is_empty() {
+            refuse_quoted(&content)?;
+            let path = content.call(Path::parse_mod_style)?;
+            if columns.contains(&path) {
+                return Err(syn::Error::new(
+                    path.span(),
+                    "this column is named twice in one `unique` key, which PostgreSQL refuses",
+                ));
+            }
+            columns.push(path);
+            if !content.is_empty() {
+                content.parse::<Token![,]>()?;
+            }
+        }
+        Ok(columns)
+    }
+
+    /// The `UniqueKey` constant the key is, each column by the SQL name of the
+    /// `Column` variant its path names. A path naming no variant of this
+    /// model's `Column` is refused at the path, since the key is written
+    /// into the entity's `EntityName` as data, not resolved as code.
+    // [spec:pgorm:syn:macros.derive.entity-model.attrs+9]
+    fn expand(&self, columns: &[ColumnVariant]) -> syn::Result<TokenStream> {
+        let names = self
+            .columns
+            .iter()
+            .map(|path| {
+                let variant = match path.segments.iter().collect::<Vec<_>>().as_slice() {
+                    [column, variant] if column.ident == "Column" => Some(&variant.ident),
+                    _ => None,
+                };
+                variant
+                    .and_then(|variant| {
+                        columns
+                            .iter()
+                            .find(|column| column.iterated && column.variant.ident == *variant)
+                    })
+                    .map(|column| column.name.clone())
+                    .ok_or_else(|| {
+                        syn::Error::new(
+                            path.span(),
+                            "a `unique` key's column is one of this model's columns, \
+                             written `Column::<Variant>`",
+                        )
+                    })
+            })
+            .collect::<syn::Result<Vec<String>>>()?;
+        let name = match &self.name {
+            Some(name) => quote! { Some(#name) },
+            None => quote! { None },
+        };
+        let nulls_not_distinct = self.nulls_not_distinct;
+        Ok(quote! {
+            pgorm::UniqueKey {
+                name: #name,
+                columns: &[#(#names),*],
+                nulls_not_distinct: #nulls_not_distinct,
+            }
+        })
+    }
+}
+
 /// Method to derive an Model
 // [spec:pgorm:sem:macros.derive.entity-model+9]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+8]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+9]
 // [spec:pgorm:sem:macros.derive.entity-model.casing+4]
 // [spec:pgorm:sem:macros.derive.entity-model.column-def+10]
 // [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
@@ -506,6 +665,7 @@ pub fn expand_derive_entity_model(
     let mut schema_name = quote! { None };
     let mut table_iden = false;
     let mut rename_all: Option<CaseStyle> = None;
+    let mut uniques: Vec<CompositeUnique> = Vec::new();
 
     attrs
         .iter()
@@ -526,6 +686,8 @@ pub fn expand_derive_entity_model(
                     rename_all = Some((&meta).try_into()?);
                 } else if meta.path.is_ident("hooks") {
                     // Read by `declares_hooks`, for the `ActiveModel`.
+                } else if meta.path.is_ident("unique") {
+                    uniques.push(CompositeUnique::parse(&meta)?);
                 } else {
                     return Err(unknown_pgorm_key(&meta));
                 }
@@ -534,31 +696,14 @@ pub fn expand_derive_entity_model(
             })
         })?;
 
-    let entity_def = table_name
-        .as_ref()
-        .map(|table_name| {
-            quote! {
-                #[doc = " Generated by pgorm-macros"]
-                #[derive(Copy, Clone, Default, Debug, pgorm::prelude::EntityTrait)]
-                pub struct Entity;
-
-                #[automatically_derived]
-                impl pgorm::prelude::EntityName for Entity {
-                    fn schema_name(&self) -> Option<&str> {
-                        #schema_name
-                    }
-
-                    fn table_name(&self) -> &str {
-                        #table_name
-                    }
-
-                    fn comment(&self) -> Option<&str> {
-                        #comment
-                    }
-                }
-            }
-        })
-        .unwrap_or_default();
+    if let (None, Some(unique)) = (&table_name, uniques.first()) {
+        return Err(syn::Error::new(
+            unique.key,
+            "`unique` is written into the `EntityName` the derive implements from \
+             `table_name`; an entity whose names are computed implements \
+             `EntityName::unique_keys` with its own",
+        ));
+    }
 
     let serde_rename_all = serde_rename_all(&attrs)?;
 
@@ -839,6 +984,49 @@ pub fn expand_derive_entity_model(
         }
     };
 
+    let unique_keys = match uniques.as_slice() {
+        [] => None,
+        uniques => {
+            let keys = uniques
+                .iter()
+                .map(|unique| unique.expand(&columns_enum))
+                .collect::<syn::Result<Vec<_>>>()?;
+            Some(quote! {
+                fn unique_keys(&self) -> &'static [pgorm::UniqueKey] {
+                    &[#(#keys),*]
+                }
+            })
+        }
+    };
+
+    let entity_def = table_name
+        .as_ref()
+        .map(|table_name| {
+            quote! {
+                #[doc = " Generated by pgorm-macros"]
+                #[derive(Copy, Clone, Default, Debug, pgorm::prelude::EntityTrait)]
+                pub struct Entity;
+
+                #[automatically_derived]
+                impl pgorm::prelude::EntityName for Entity {
+                    fn schema_name(&self) -> Option<&str> {
+                        #schema_name
+                    }
+
+                    fn table_name(&self) -> &str {
+                        #table_name
+                    }
+
+                    fn comment(&self) -> Option<&str> {
+                        #comment
+                    }
+
+                    #unique_keys
+                }
+            }
+        })
+        .unwrap_or_default();
+
     let column_ident = Ident::new("Column", Span::call_site());
     let column_impls = column_impls(&column_ident, &syn::parse_quote!(pub), &columns_enum);
     let column_variants = columns_enum.iter().map(|column| &column.variant);
@@ -905,7 +1093,11 @@ pub fn declares_hooks(attrs: &[Attribute]) -> bool {
     for attr in attrs.iter().filter(|attr| attr.path().is_ident("pgorm")) {
         let _ = attr.parse_nested_meta(|meta| {
             hooks |= meta.path.is_ident("hooks");
-            let _: Option<Expr> = meta.value().and_then(|value| value.parse()).ok();
+            if meta.input.peek(Paren) {
+                let _: TokenStream = meta.input.parse::<proc_macro2::Group>()?.stream();
+            } else {
+                let _: Option<Expr> = meta.value().and_then(|value| value.parse()).ok();
+            }
             Ok(())
         });
     }

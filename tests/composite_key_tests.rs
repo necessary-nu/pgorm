@@ -220,7 +220,7 @@ fn new_ticket(tenant_id: i32, title: &str) -> ticket::ActiveModel {
     }
 }
 
-// [spec:pgorm:sem:schema.from-entity+11/test]    the generated part of a
+// [spec:pgorm:sem:schema.from-entity+12/test]    the generated part of a
 // composite key gets its identity in the table schema-gen builds, and nothing
 // else in the key does
 // [spec:pgorm:sem:exec.crud.insert+6/test]    an insert leaving the generated

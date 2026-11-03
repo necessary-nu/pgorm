@@ -7,7 +7,7 @@ use syn::{Data, DataStruct, Field, Fields, Type, punctuated::IntoIter};
 /// `ActiveModelBehavior` with no hooks unless the program writes its own.
 // [spec:pgorm:sem:macros.derive.active-model+7]
 // [spec:pgorm:sem:macros.derive.boilerplate]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+8]    the field-key vocabulary this
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+9]    the field-key vocabulary this
 // expansion shares with the `Entity` derive
 pub fn expand_active_model(ident: Ident, data: Data, hooks: bool) -> syn::Result<TokenStream> {
     // including ignored fields

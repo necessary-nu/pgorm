@@ -11,7 +11,7 @@ use syn::Ident;
 /// the one key `Model` reads there. Under the composite the entity is
 /// always `Entity`, and the composite reads the container itself.
 // [spec:pgorm:sem:macros.derive.model+5]
-// [spec:pgorm:req:macros.derive.code-values+2]
+// [spec:pgorm:req:macros.derive.code-values+3]
 fn model_entity(attrs: &[syn::Attribute], reader: Reader) -> syn::Result<Option<Ident>> {
     let mut entity = None;
     if reader == Reader::Composite {
@@ -220,7 +220,7 @@ impl Model {
 /// keys: every key under the composite, which validated them, and only
 /// `entity`, `variant` and `ignore` under `Model` itself.
 // [spec:pgorm:sem:macros.derive.model+5]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+8]    the field-key vocabulary this
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+9]    the field-key vocabulary this
 // derive shares with the `Entity` derive
 pub fn expand_derive_model(input: syn::DeriveInput, reader: Reader) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();

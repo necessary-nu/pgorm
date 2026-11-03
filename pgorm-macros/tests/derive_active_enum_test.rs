@@ -196,7 +196,7 @@ fn container_and_variant_string_markers() {
 }
 
 // [spec:pgorm:syn:macros.derive.active-enum+5/test]    an omitted `db_type` is the PostgreSQL enum
-// [spec:pgorm:req:macros.derive.code-values+2/test]    `db_type` is an expression taken as written
+// [spec:pgorm:req:macros.derive.code-values+3/test]    `db_type` is an expression taken as written
 #[test]
 fn omitted_db_type_is_the_postgres_enum() {
     let col = <TestEnum as ActiveEnum>::db_type();
