@@ -11,7 +11,7 @@ would sit side by side in the base, mostly null.
 
 ## Declaration
 
-> [spec:pgorm:def:disjoint.declare+1]
+> [spec:pgorm:def:disjoint.declare+2]
 > `#[derive(Disjoint)]` on an enum MUST declare a disjoint entity over the
 > base entity its container attribute names, `#[pgorm(base =
 > vehicle::Entity)]`. Each variant is a kind of base row. A variant with one
@@ -47,9 +47,10 @@ would sit side by side in the base, mostly null.
 > joined and written on its own, subject to the constraints
 > (`[spec:pgorm:sem:disjoint.schema]`), and a foreign key elsewhere can point
 > at the base, meaning a row of any kind, or at one kind's table. What the
-> types cannot tell — a kind column that is nullable or not of the kind type
-> (its name, schema and values), or a kind entity whose key the database
-> generates (drawn from a sequence, an identity or a generated column), when
+> types cannot tell — a kind column that is nullable, generated, or not of
+> the kind type (its name, schema and values), when a write sets it to the
+> kind it writes, or a kind entity whose key the database generates or fills
+> (drawn from a sequence, an identity, a generated column or a default), when
 > its values must come from the base row — MUST be refused as an
 > `Error::Type` naming the table and column, by `check_disjoint::<E>()`,
 > which `Schema::create_disjoint` and every read and write run before

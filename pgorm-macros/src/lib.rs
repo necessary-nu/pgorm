@@ -383,8 +383,9 @@ pub fn derive_active_enum(input: TokenStream) -> TokenStream {
 ///   snake_case unless given.
 ///
 /// What the types cannot tell, `pgorm::check_disjoint` refuses at run time:
-/// a kind column that is nullable or not of the kind type, and a kind entity
-/// whose key the database generates, since its key is its base row's.
+/// a kind column that is nullable, generated or not of the kind type, and a
+/// kind entity whose key the database generates or fills, since its key is
+/// its base row's.
 ///
 /// # Usage
 ///
@@ -444,7 +445,7 @@ pub fn derive_active_enum(input: TokenStream) -> TokenStream {
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:disjoint.declare+1]
+// [spec:pgorm:def:disjoint.declare+2]
 // [spec:pgorm:req:macros.derive.names+1]
 #[cfg(feature = "derive")]
 #[proc_macro_derive(Disjoint, attributes(pgorm))]
