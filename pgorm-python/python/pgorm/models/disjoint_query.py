@@ -14,13 +14,17 @@ from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast
 
 from .. import _native as p
 from .queries import orderings_of, predicate_of
-from .record import Database, ModelRecord
+from .record import Database
 
 if TYPE_CHECKING:
     from ..results import RowStream
     from ..runtime import Connection, Pool
 
-R = TypeVar("R", ModelRecord, p.EntityModel)
+# A row of a disjoint read: the base's record, the kind and the kind's record
+# or None, typed by a model or a registration, or by a generated module as a
+# union over the kinds.
+# [spec:pgorm:req:bindings.codegen-disjoint]
+T = TypeVar("T")
 
 # PostgreSQL reads LIMIT and OFFSET as bigint.
 ROWS_MAX = 2**63 - 1
@@ -34,7 +38,7 @@ def _rows(value: object, what: str) -> int:
     return value
 
 
-class _Disjoint(ABC, Generic[R]):
+class _Disjoint(ABC, Generic[T]):
     """What a disjoint model and a registered one share: the native shape
     and codec, and the view each native row is read through."""
 
@@ -43,9 +47,10 @@ class _Disjoint(ABC, Generic[R]):
     _native: p._Disjoint
 
     @abstractmethod
-    def _row(self, item: Any) -> tuple[R, str, R | None]:
+    def _row(self, item: Any) -> T:
         """A native read's row as ``(base record, kind, kind record or
-        None)``."""
+        None)``, each record as the model, registration or generated module
+        views it."""
 
     @abstractmethod
     def _key(self, key: Mapping[str, Any]) -> list[Any]:
@@ -72,11 +77,11 @@ class _Disjoint(ABC, Generic[R]):
         ``kinds``, each a ``value`` and its ``model``'s name or ``None``."""
         return self._native.describe()
 
-    def find(self) -> DisjointQuery[R]:
+    def find(self) -> DisjointQuery[T]:
         """Every base row with its kind's row, in one statement."""
         return DisjointQuery(self, self._native.find())
 
-    def find_by_key(self, key: Mapping[str, Any]) -> DisjointQuery[R]:
+    def find_by_key(self, key: Mapping[str, Any]) -> DisjointQuery[T]:
         """The base row of the key ``key`` gives, every key part and no other
         named."""
         return DisjointQuery(self, self._native.narrow_key(self._native.find(), self._key(key)))
@@ -84,39 +89,39 @@ class _Disjoint(ABC, Generic[R]):
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class DisjointQuery(Generic[R]):
+class DisjointQuery(Generic[T]):
     """A read of a disjoint model: each base row with its kind's row, one row
     of the statement each, given as ``(base record, kind, kind record or
     None)``."""
 
-    owner: _Disjoint[R]
+    owner: _Disjoint[T]
     select: p.Select
 
-    def where(self, predicate: p.Expr | p.Condition) -> DisjointQuery[R]:
+    def where(self, predicate: p.Expr | p.Condition) -> DisjointQuery[T]:
         """Rows passing ``predicate``, an ordinary ``WHERE``: a kind table's
         column is ``NULL`` in every row of another kind."""
         return replace(self, select=self.select.where(predicate_of(predicate)))
 
-    def order_by(self, *orderings: p.OrderBy) -> DisjointQuery[R]:
+    def order_by(self, *orderings: p.OrderBy) -> DisjointQuery[T]:
         return replace(self, select=self.select.order_by(*orderings_of(orderings)))
 
-    def limit(self, rows: int | None) -> DisjointQuery[R]:
+    def limit(self, rows: int | None) -> DisjointQuery[T]:
         return replace(self, select=self.select.limit(None if rows is None else _rows(rows, "a limit")))
 
-    def offset(self, rows: int | None) -> DisjointQuery[R]:
+    def offset(self, rows: int | None) -> DisjointQuery[T]:
         return replace(self, select=self.select.offset(None if rows is None else _rows(rows, "an offset")))
 
-    def kind(self, kind: str) -> DisjointQuery[R]:
+    def kind(self, kind: str) -> DisjointQuery[T]:
         """Only base rows of the kind ``kind``."""
         return replace(self, select=self.owner._native.narrow_kind(self.select, kind))
 
-    def kinds(self, kinds: Sequence[str]) -> DisjointQuery[R]:
+    def kinds(self, kinds: Sequence[str]) -> DisjointQuery[T]:
         """Only base rows of one of ``kinds``."""
         if not isinstance(kinds, (list, tuple)):
             raise TypeError("kinds are a list or tuple of kinds' values")
         return replace(self, select=self.owner._native.narrow_kinds(self.select, list(kinds)))
 
-    def filter_kind(self, kind: str, predicate: p.Expr | p.Condition) -> DisjointQuery[R]:
+    def filter_kind(self, kind: str, predicate: p.Expr | p.Condition) -> DisjointQuery[T]:
         """Only base rows of the kind ``kind`` whose row passes
         ``predicate``: the kind is part of the condition, so one a missing row
         satisfies reads no row of another kind."""
@@ -129,17 +134,17 @@ class DisjointQuery(Generic[R]):
         """The SQL and values ``all`` or ``one`` sends."""
         return self.owner._native.inspect(self.select, terminal=terminal)
 
-    async def all(self, db: Database) -> list[tuple[R, str, R | None]]:
+    async def all(self, db: Database) -> list[T]:
         """Every row; a row the constraints do not admit is a ``DecodeError``."""
         items = await self.owner._native.run(db, self.select, "all")
         return [self.owner._row(item) for item in items]
 
-    async def one(self, db: Database) -> tuple[R, str, R | None]:
+    async def one(self, db: Database) -> T:
         """The first row of the read narrowed to one, a ``DecodeError`` when
         there is none."""
         return self.owner._row(await self.owner._native.run(db, self.select, "one"))
 
-    async def stream(self, db: Connection | Pool) -> RowStream[tuple[R, str, R | None]]:
+    async def stream(self, db: Connection | Pool) -> RowStream[T]:
         """The rows as they arrive; a row that does not decode ends the
         stream as its error."""
         from ..results import RowStream
@@ -165,11 +170,11 @@ class DisjointQuery(Generic[R]):
         counts them."""
         return await self.owner._native.run(db, self.owner._native.counted(self.select), "count")
 
-    def paginate(self, page_size: int) -> DisjointPaginator[R]:
+    def paginate(self, page_size: int) -> DisjointPaginator[T]:
         """Pages of ``page_size`` rows, numbered from zero."""
         return DisjointPaginator(self, page_size)
 
-    def cursor(self, *fields: str) -> DisjointCursor[R]:
+    def cursor(self, *fields: str) -> DisjointCursor[T]:
         """A keyset cursor ordered by the base's ``fields``, its boundaries
         bound under their columns' casts."""
         if not fields:
@@ -181,17 +186,17 @@ class DisjointQuery(Generic[R]):
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class DisjointWrite(Generic[R]):
+class DisjointWrite(Generic[T]):
     """An insert, update or change of kind: one statement, its parts joined
     by data-modifying ``WITH`` clauses, which reads back the written row."""
 
-    owner: _Disjoint[R]
+    owner: _Disjoint[T]
     select: p.Select
 
     def inspect(self) -> p.Compiled:
         return self.owner._native.inspect(self.select, terminal="write")
 
-    async def returning_model(self, db: Database) -> tuple[R, str, R | None]:
+    async def returning_model(self, db: Database) -> T:
         """Send the write and read back what a read of the written row gives.
         A write that touches no row — a key no row has, a row of another kind,
         a change to the row's own kind — changes nothing and is a
@@ -203,11 +208,11 @@ class DisjointWrite(Generic[R]):
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class DisjointPaginator(Generic[R]):
+class DisjointPaginator(Generic[T]):
     """Pages of a disjoint read, each the read with pgorm's paginator's limit
     and offset, replacing its own."""
 
-    query: DisjointQuery[R]
+    query: DisjointQuery[T]
     page_size: int
 
     def __post_init__(self) -> None:
@@ -228,7 +233,7 @@ class DisjointPaginator(Generic[R]):
             raise TypeError('a paginator inspects a page, or its "count"')
         return native.inspect(self._page(page))
 
-    async def fetch_page(self, db: Database, page: int) -> list[tuple[R, str, R | None]]:
+    async def fetch_page(self, db: Database, page: int) -> list[T]:
         items = await self.query.owner._native.run(db, self._page(page), "all")
         return [self.query.owner._row(item) for item in items]
 
@@ -242,7 +247,7 @@ class DisjointPaginator(Generic[R]):
         items = await self.num_items(db)
         return items, -(-items // self.page_size)
 
-    async def pages(self, db: Database) -> AsyncIterator[list[tuple[R, str, R | None]]]:
+    async def pages(self, db: Database) -> AsyncIterator[list[T]]:
         """Each page in turn from the first, ending at the first empty one."""
         page = 0
         while rows := await self.fetch_page(db, page):
@@ -254,12 +259,12 @@ class DisjointPaginator(Generic[R]):
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class DisjointCursor(Generic[R]):
+class DisjointCursor(Generic[T]):
     """A keyset cursor over a disjoint read, as pgorm's ``Cursor`` pages
     one: ordered by base fields, each base row one row of the read, so the
     order fields are the whole keyset. Every method returns a new cursor."""
 
-    query: DisjointQuery[R]
+    query: DisjointQuery[T]
     fields: tuple[str, ...]
     after_values: tuple[Any, ...] | None = None
     before_values: tuple[Any, ...] | None = None
@@ -274,22 +279,22 @@ class DisjointCursor(Generic[R]):
             )
         return self.query.owner._boundary(self.fields, values)
 
-    def after(self, *values: Any) -> DisjointCursor[R]:
+    def after(self, *values: Any) -> DisjointCursor[T]:
         return replace(self, after_values=tuple(self._values(values)))
 
-    def before(self, *values: Any) -> DisjointCursor[R]:
+    def before(self, *values: Any) -> DisjointCursor[T]:
         return replace(self, before_values=tuple(self._values(values)))
 
-    def first(self, rows: int) -> DisjointCursor[R]:
+    def first(self, rows: int) -> DisjointCursor[T]:
         return replace(self, window=(False, _rows(rows, "a window's rows")))
 
-    def last(self, rows: int) -> DisjointCursor[R]:
+    def last(self, rows: int) -> DisjointCursor[T]:
         return replace(self, window=(True, _rows(rows, "a window's rows")))
 
-    def asc(self) -> DisjointCursor[R]:
+    def asc(self) -> DisjointCursor[T]:
         return replace(self, descending=False)
 
-    def desc(self) -> DisjointCursor[R]:
+    def desc(self) -> DisjointCursor[T]:
         return replace(self, descending=True)
 
     def _statement(self) -> tuple[p.Select, bool]:
@@ -305,7 +310,7 @@ class DisjointCursor(Generic[R]):
     def inspect(self) -> p.Compiled:
         return self.query.owner._native.inspect(self._statement()[0])
 
-    async def all(self, db: Database) -> list[tuple[R, str, R | None]]:
+    async def all(self, db: Database) -> list[T]:
         """The window's rows in the cursor's order: a ``last`` window is read
         backwards and returned forwards."""
         statement, reversed_ = self._statement()

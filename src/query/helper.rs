@@ -1,4 +1,5 @@
 use crate::entity::{compared_column, compared_value};
+use crate::executor::result_name::bounded_identifier;
 use crate::{
     ColumnPairs, ColumnTrait, EntityTrait, IntoKey, IntoSimpleExpr, Iterable, ModelTrait,
     PrimaryKeyToColumn, QueryTrait, RelationDef, RelationTrait,
@@ -1097,7 +1098,7 @@ pub trait QueryFilter: Sized {
     ///
     /// Each key column is compared as [`belongs_to`](QueryFilter::belongs_to)
     /// compares it, under the alias instead of the entity's own name.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
     fn belongs_to_tbl_alias<M>(mut self, model: &M, tbl_alias: impl IntoName) -> Self
     where
         M: ModelTrait,
@@ -1136,7 +1137,7 @@ pub(crate) fn join_condition(mut rel: RelationDef) -> Condition {
 }
 
 // [spec:pgorm:sem:query.build.join+5]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
 fn join_tbl_on_condition(from_tbl: Name, to_tbl: Name, columns: ColumnPairs) -> Condition {
     let mut cond = Condition::all();
     for ((owner_key, foreign_key), compared) in columns.compared_pairs() {
@@ -1162,7 +1163,7 @@ fn join_tbl_on_condition(from_tbl: Name, to_tbl: Name, columns: ColumnPairs) -> 
 /// One side of a join pair as the equality compares it: cast to the enum when
 /// its column's domain is over one, which is the only way PostgreSQL compares
 /// such a column with anything.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
 fn compared_side(column: Expr, enum_type: &Option<TypeName>) -> Expr {
     match enum_type {
         Some(enum_type) => Expr::expr(column.cast_as_type(enum_type.clone())),
@@ -1173,10 +1174,36 @@ fn compared_side(column: Expr, enum_type: &Option<TypeName>) -> Expr {
 /// The full table name a [`FromItem`] contributes to a foreign key: schema
 /// qualification included, so a `REFERENCES` clause names the table the
 /// relation actually points at rather than whatever `search_path` resolves.
-// [spec:pgorm:sem:schema.from-entity+10]
+// [spec:pgorm:sem:schema.from-entity+12]
 pub(crate) fn unpack_table_name(from_item: &FromItem) -> pgorm_query::TableName {
     match from_item.table_name() {
         Some(name) => name.clone(),
         None => pgorm_query::TableName::Table(Name::clone(from_item.qualifier())),
     }
+}
+
+/// The identifier a joined table is read under when its bare name is one
+/// the statement already qualifies another table's columns by, as
+/// `archive.listing` beside `market.listing`, which PostgreSQL would
+/// otherwise refuse (`42712`, or `42P09` for a reference to either).
+///
+/// It is the table's schema-qualified name as one identifier,
+/// `"archive.listing"`, and where `taken` holds that too, as it does for an
+/// unqualified table's bare name, the same with `_2`, `_3` and on appended;
+/// each is bounded to PostgreSQL's 63 bytes as a result name is, so two long
+/// names are not truncated into one.
+// [spec:pgorm:req:query.graph.aliases+2]
+// [spec:pgorm:sem:disjoint.read+2]
+pub(crate) fn alias_apart(table: &pgorm_query::TableName, taken: &dyn Fn(&str) -> bool) -> Name {
+    let label = match table.schema() {
+        Some(schema) => format!("{}.{}", schema.to_string(), table.table().to_string()),
+        None => table.table().to_string(),
+    };
+    let mut alias = bounded_identifier(label.clone());
+    let mut suffix = 2;
+    while taken(&alias) {
+        alias = bounded_identifier(format!("{label}_{suffix}"));
+        suffix += 1;
+    }
+    Name::runtime(alias)
 }

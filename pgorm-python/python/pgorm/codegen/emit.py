@@ -142,7 +142,53 @@ def graph_code(
     return code, stub
 
 
+# [spec:pgorm:req:bindings.codegen-disjoint]
+def disjoint_code(
+    entry: dict[str, Any], disjoint: dict[str, Any], entities: dict[str, dict[str, Any]]
+) -> tuple[list[str], list[str]]:
+    """A registered disjoint enum's row type, a union over its kinds, and its
+    view: a kinded enum's writable, an unkinded one's, with no kind field,
+    read-only."""
+
+    def model(name: str, what: str) -> str:
+        if name not in entities:
+            raise CodegenError(f"the disjoint enum's {what} is missing from generated entity exports")
+        return str(entities[name]["python"])
+
+    base = model(disjoint["base"], "base")
+    kinds = [(kind["value"], kind["model"] and model(kind["model"], "kind")) for kind in disjoint["kinds"]]
+    name = entry["python"]
+    row = name + "Row"
+    shape = " | ".join(
+        f"tuple[{base}Model, Literal[{value!r}], {kind + 'Model' if kind else 'None'}]"
+        for value, kind in kinds
+    )
+    decoded = "{" + ", ".join(
+        f"{value!r}: {kind + 'Model' if kind else 'None'}" for value, kind in kinds
+    ) + "}"
+    if disjoint["kind_field"] is None:
+        view = f"DisjointView[{row}]"
+        constructor = "DisjointView"
+    else:
+        values = ", ".join(repr(value) for value, _ in kinds)
+        actives = " | ".join(kind + "Active" for _, kind in kinds if kind) or "Never"
+        view = f"WritableDisjointView[{row}, Literal[{values}], {base}Active, {actives}]"
+        constructor = "WritableDisjointView"
+    code = [
+        f"{row}: TypeAlias = {shape}",
+        "",
+        f"def _decode_{name}(row: Any) -> {row}:",
+        f"    return cast({row}, wrap_disjoint_row(row, {base}Model, {decoded}))",
+        "",
+        f"{name}: {view} = {constructor}(p.disjoint_entity({entry['name']!r}), _decode_{name})",
+        "",
+    ]
+    stub = [f"{row}: TypeAlias = {shape}", f"{name}: {view}", ""]
+    return code, stub
+
+
 # [spec:pgorm:req:bindings.codegen]
+# [spec:pgorm:req:bindings.codegen-disjoint]
 # [spec:pgorm:req:python.codegen+3]
 def emit(project: str | PathLike[str]) -> Path:
     from .. import capabilities
@@ -154,7 +200,7 @@ def emit(project: str | PathLike[str]) -> Path:
         raise CodegenError(
             "project must contain a scaffolded application.json"
         ) from error
-    raw_keys = {"schema_version", "module", "entity_crate", "entities", "graphs"}
+    raw_keys = {"schema_version", "module", "entity_crate", "entities", "graphs", "disjoints"}
     if not isinstance(description, dict) or set(description) - raw_keys - {
         "entity_package",
         "compatibility",
@@ -185,7 +231,7 @@ def emit(project: str | PathLike[str]) -> Path:
         raise CodegenError("installed native build is incompatible with this scaffold")
     expected = {**expected, "features": actual["features"]}
     registrations = {}
-    for family in ("entities", "graphs"):
+    for family in ("entities", "graphs", "disjoints"):
         registrations[family] = {
             entry["name"]: entry for entry in actual["registrations"][family]
         }
@@ -201,9 +247,10 @@ def emit(project: str | PathLike[str]) -> Path:
         "from datetime import date, datetime, time",
         "from decimal import Decimal",
         "from uuid import UUID",
-        "from typing import Any, TypeAlias, cast",
+        "from typing import Any, Literal, Never, TypeAlias, cast",
         "import pgorm as p",
         "from pgorm._registered import ActiveView, EntityView, GraphView, ModelView, wrap_row",
+        "from pgorm._registered.disjoints import DisjointView, WritableDisjointView, wrap_disjoint_row",
         "",
     ]
     code = [
@@ -220,25 +267,21 @@ def emit(project: str | PathLike[str]) -> Path:
     ]
     names = []
     entities = {entry["name"]: entry for entry in description["entities"]}
-    for family in ("entities", "graphs"):
+    for family in ("entities", "graphs", "disjoints"):
         for entry in description[family]:
             registered = registrations[family][entry["name"]]
-            generated, stub = (
-                graph_code(entry, registered, entities)
-                if family == "graphs"
-                else entity_code(entry, registered)
-            )
+            if family == "entities":
+                generated, stub = entity_code(entry, registered)
+                names.extend(
+                    [entry["python"], entry["python"] + "Model", entry["python"] + "Active"]
+                )
+            else:
+                generated, stub = (graph_code if family == "graphs" else disjoint_code)(
+                    entry, registered, entities
+                )
+                names.extend([entry["python"], entry["python"] + "Row"])
             code.extend(generated)
             stubs.extend(stub)
-            names.extend(
-                [entry["python"], entry["python"] + "Row"]
-                if family == "graphs"
-                else [
-                    entry["python"],
-                    entry["python"] + "Model",
-                    entry["python"] + "Active",
-                ]
-            )
     code.append(f"__all__ = {names!r}\n")
     code_text = "\n".join(code)
     stub_text = "\n".join(stubs)

@@ -7,11 +7,11 @@ use std::marker::PhantomData;
 use pgorm_query::{AliasName, IntoName, Name, SqlName, TypeName};
 
 use crate::ColumnTrait;
-use crate::entity::compared_enum;
+use crate::entity::{compared_enum, compared_value_cast};
 
 use super::adapter::{self, BinOp, PlExpr, UnOp};
+use super::compare::{Operand, bin, operand};
 use super::funcs::CastType;
-use super::sources::typed_cast;
 
 /// A scalar expression, branded with the lifetime of the pipeline stage that
 /// is allowed to consume it.
@@ -30,8 +30,14 @@ pub struct Expr<'brand> {
     /// The enum an entity column whose domain is over one compares as. Only
     /// the column itself carries it: what an operator builds from the column
     /// is a new expression of its own type.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
     pub(super) compares_as: Option<TypeName>,
+    /// The type a value compared with this entity column is cast to, as its
+    /// `ColumnTrait` casts a compared value ([`compared_value_cast`]). Only
+    /// the column itself carries it, as it carries `compares_as`.
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
+    pub(super) values_as: Option<TypeName>,
+    pub(super) operand: Operand,
     pub(super) _brand: PhantomData<fn(&'brand ()) -> &'brand ()>,
 }
 
@@ -39,20 +45,9 @@ pub(super) fn branded<'brand>(node: PlExpr) -> Expr<'brand> {
     Expr {
         node,
         compares_as: None,
+        values_as: None,
+        operand: Operand::Written,
         _brand: PhantomData,
-    }
-}
-
-impl Expr<'_> {
-    /// The node an operand of a comparison or an extremum is written as: cast
-    /// to the enum when it is a column whose domain is over one, PostgreSQL
-    /// resolving no operator or aggregate for the domain itself.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+14]
-    pub(super) fn compared(self) -> PlExpr {
-        match &self.compares_as {
-            Some(enum_type) => typed_cast(self.node, enum_type),
-            None => self.node,
-        }
     }
 }
 
@@ -113,20 +108,21 @@ pub fn this<'brand>(column: impl IntoName) -> Expr<'brand> {
 /// when its domain is over one: what the column says of its type holds under
 /// any name its relation is read by.
 // [spec:pgorm:sem:pipeline.qualify+3]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
 pub(super) fn entity_column<'brand, C: ColumnTrait>(qualifier: String, column: &C) -> Expr<'brand> {
     let mut expr = branded(adapter::ident_in(
         vec![qualifier],
         SqlName::to_string(column),
     ));
     expr.compares_as = compared_enum(column.def().get_column_type());
+    expr.values_as = compared_value_cast(column);
     expr
 }
 
 /// An entity column is a table-qualified expression: the column enum carries
 /// its entity, so the qualification is recovered rather than restated.
 // [spec:pgorm:sem:pipeline.qualify+3]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
 impl<'brand, C: ColumnTrait> From<C> for Expr<'brand> {
     fn from(column: C) -> Self {
         entity_column(SqlName::to_string(&*column.entity_name()), &column)
@@ -159,7 +155,7 @@ macro_rules! literal {
         impl<'brand> From<$ty> for Expr<'brand> {
             fn from(value: $ty) -> Self {
                 let conv = $conv;
-                branded(adapter::$make(conv(value)))
+                operand(adapter::$make(conv(value)), Operand::Literal)
             }
         }
     };
@@ -170,14 +166,6 @@ literal!(i64, lit_int, std::convert::identity);
 literal!(f64, lit_float, std::convert::identity);
 literal!(bool, lit_bool, std::convert::identity);
 literal!(&str, lit_str, std::convert::identity);
-
-/// A binary operator's application, each side that is a column whose domain
-/// is over an enum cast to the enum ([`Expr::compared`]): the comparisons and
-/// `coalesce` need it, and no other operator applies to an enum at all.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
-fn bin<'brand>(lhs: Expr<'brand>, op: BinOp, rhs: Expr<'brand>) -> Expr<'brand> {
-    branded(adapter::binary(lhs.compared(), op, rhs.compared()))
-}
 
 /// Everything you can do to an expression.
 ///
@@ -308,13 +296,15 @@ pub trait ExprOps<'brand>: Into<Expr<'brand>> + Sized {
         I: IntoIterator,
         I::Item: Into<Expr<'brand>>,
     {
+        let operand = self.into();
+        let values_as = operand.values_as.clone();
         let items = items
             .into_iter()
-            .map(|item| item.into().compared())
+            .map(|item| item.into().compared_with(values_as.as_ref()))
             .collect::<Vec<_>>();
         branded(adapter::call(
             "in",
-            vec![adapter::array(items), self.into().compared()],
+            vec![adapter::array(items), operand.compared()],
         ))
     }
 
@@ -342,7 +332,7 @@ pub trait ExprOps<'brand>: Into<Expr<'brand>> + Sized {
     /// assert_eq!(sql, "SELECT * FROM line WHERE CAST(mood AS mood) = 'glad'");
     /// # Ok::<_, pgorm::pipeline::PipelineError>(())
     /// ```
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
     fn compares_as(self, enum_type: impl Into<TypeName>) -> Expr<'brand> {
         let mut expr = self.into();
         expr.compares_as = Some(enum_type.into());

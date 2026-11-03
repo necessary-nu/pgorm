@@ -1688,7 +1688,7 @@ fn column_pairs_keep_the_two_sides_equal() {
     balanced(&composite.rev().columns);
 }
 
-// [spec:pgorm:req:entity.relation.fk+5/test]    `From<RelationDef>` for both
+// [spec:pgorm:req:entity.relation.fk+6/test]    `From<RelationDef>` for both
 // `ForeignKeyCreateStatement` and `TableForeignKey` maps every column pair,
 // applies the `on_delete` / `on_update` actions, takes the constraint name from
 // `fk_name` when set and otherwise derives `fk-{from_table}-{from_cols}`, and

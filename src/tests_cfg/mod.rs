@@ -3,6 +3,7 @@
 //! Configurations for test cases and examples. Not intended for actual use.
 
 pub mod active_enums;
+pub mod archive_exhibit;
 pub mod cake;
 pub mod cake_filling;
 pub mod cake_filling_price;
@@ -11,8 +12,10 @@ pub mod entity_linked;
 pub mod filling;
 pub mod flat;
 pub mod fruit;
+pub mod gallery_exhibit;
 pub mod indexes;
 pub mod listing;
+pub mod loan_exhibit;
 pub mod lunch_set;
 pub mod rust_keyword;
 pub mod shop;

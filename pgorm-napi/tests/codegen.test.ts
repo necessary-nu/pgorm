@@ -93,6 +93,26 @@ test("a build description names a crate, unique registrations and exports, and R
   assert.throws(invalid({ entities: [{ name: "", rust: "account::Entity", typescript: "A" }] }), refused(/1–255/));
 });
 
+// [spec:pgorm:req:bindings.codegen-disjoint/test]    a build description's disjoint enums are named by Rust path, registration and export, each unique and none colliding with another export, or refused before anything is written
+test("a build description names each disjoint enum once", () => {
+  const disjoints = [{ name: "app.Shipments", rust: "shipping::shipment::Shipment", typescript: "Shipments" }];
+  assert.deepStrictEqual(validate({ ...base, disjoints }, fixture).disjoints, disjoints);
+  assert.deepStrictEqual(validate(base, fixture).disjoints, []);
+  const invalid = (entry: object) => () => validate({ ...base, disjoints: [...disjoints, entry] }, fixture);
+  assert.throws(
+    invalid({ name: "app.Shipments", rust: "shipping::Other", typescript: "Other" }),
+    refused(/registration app.Shipments is named twice/),
+  );
+  assert.throws(
+    invalid({ name: "app.Other", rust: "shipping::shipment::Shipment", typescript: "Other" }),
+    refused(/each Rust disjoint enum is registered once/),
+  );
+  assert.throws(invalid({ name: "app.Other", rust: "shipping::Other", typescript: "Account" }), refused(/export Account is named twice/));
+  assert.throws(invalid({ name: "app.Other", rust: "shipping::Other", typescript: "disjointEntity" }), refused(/public JavaScript identifier/));
+  assert.throws(invalid({ name: "app.Other", rust: "shipping::Other<T>", typescript: "Other" }), refused(/without expressions or generics/));
+  assert.throws(invalid({ name: "app.Other", rust: "shipping::Other", typescript: "Other", fields: {} }), refused(/"fields" is no field/));
+});
+
 // [spec:pgorm:req:napi.codegen-types/test]
 test("each described kind becomes the TypeScript type its records read and its writes take", () => {
   const read = (kind: string | null, extra: object = {}) => columnType({ kind, nullable: false, ...extra }, false);

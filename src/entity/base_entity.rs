@@ -25,7 +25,7 @@ pub use pgorm_query::StaticName;
 pub use pgorm_query::SqlName;
 
 /// A Trait for mapping an Entity to a database table
-// [spec:pgorm:req:entity.traits.entity-name+4]
+// [spec:pgorm:req:entity.traits.entity-name+5]
 pub trait EntityName: StaticName + Default {
     /// Method to get the name for the schema, defaults to [Option::None] if not set
     fn schema_name(&self) -> Option<&str> {
@@ -52,6 +52,32 @@ pub trait EntityName: StaticName + Default {
             None => self.into_table_name(),
         }
     }
+
+    /// The table's unique keys over two columns or more, in declaration
+    /// order, which `Schema::create_table_from_entity` writes after its
+    /// columns' own: what `#[pgorm(unique(..))]` declares, and none by
+    /// default. A one-column key is that column's `unique`.
+    fn unique_keys(&self) -> &'static [UniqueKey] {
+        &[]
+    }
+}
+
+/// A unique key over two columns or more of an entity's table, as
+/// [`EntityName::unique_keys`] describes it: the constraint's name, or `None`
+/// for PostgreSQL to name it, the columns by their SQL names in key order,
+/// and whether nulls are equal under it (`NULLS NOT DISTINCT`).
+///
+/// It is static data, as the table's name is, so the derive writes it as a
+/// constant and nothing is built until a statement is.
+// [spec:pgorm:req:entity.traits.entity-name+5]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UniqueKey {
+    /// The constraint's name, or `None` for PostgreSQL to choose one.
+    pub name: Option<&'static str>,
+    /// The key's columns, by their SQL names, in key order.
+    pub columns: &'static [&'static str],
+    /// Whether nulls are equal under the key.
+    pub nulls_not_distinct: bool,
 }
 
 /// An abstract base class for defining Entities.

@@ -16,6 +16,7 @@ import {
   Conflict,
   ConstructionError,
   DatabaseError,
+  Decimal,
   DecodeError,
   entities,
   entity,
@@ -43,6 +44,7 @@ const Account = entity("app.Account");
 const Note = entity("app.Note");
 const Membership = entity("app.Membership");
 const Parcel = entity("app.Parcel");
+const Till = entity("app.Till");
 
 before(async () => {
   database = await scratchDatabase("pgorm_napi_entities");
@@ -66,6 +68,7 @@ before(async () => {
          id int4 PRIMARY KEY, qty napi_entities.quantity, mood napi_entities.temper NOT NULL,
          codes napi_entities.code[] NOT NULL
        )`,
+      "CREATE TABLE napi_entities.tills (id int4 PRIMARY KEY, takings money NOT NULL, floats money[])",
     ]
   ) {
     await pool().execute(sql);
@@ -74,7 +77,7 @@ before(async () => {
 
 beforeEach(async () => {
   await pool().execute(
-    "TRUNCATE napi_entities.accounts, napi_entities.notes, napi_entities.memberships, napi_entities.parcels",
+    "TRUNCATE napi_entities.accounts, napi_entities.notes, napi_entities.memberships, napi_entities.parcels, napi_entities.tills",
   );
 });
 
@@ -99,18 +102,22 @@ function refused(pattern: RegExp): (error: unknown) => true {
   };
 }
 
-// [spec:pgorm:req:bindings.entities+3/test]
+// [spec:pgorm:req:bindings.entities+4/test]
 // [spec:pgorm:req:bindings.relation-conditions/test]
 test("the module names its registrations and describes each, and refuses a name it does not register", () => {
   assert.deepStrictEqual(entities(), [
     "app.Account",
+    "app.Auction",
+    "app.Listing",
     "app.Membership",
     "app.Note",
     "app.Packet",
     "app.Pallet",
     "app.Parcel",
+    "app.Sale",
     "app.Shipment",
     "app.Temper",
+    "app.Till",
   ]);
   assert.deepStrictEqual(graphs(), ["app.AccountNotes", "app.AccountOnly", "app.MembershipOnly", "app.MixedNotes", "app.RequiredNotes"]);
   assert.throws(() => entity("app.Missing"), refused(/no entity is registered as "app.Missing"/));
@@ -227,7 +234,7 @@ test("an ActiveModel holds each column's state, and its writes run the applicati
   assert.throws(() => Account.active().set("mood", "wild"), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.entities+3/test]    a registered entity whose columns are domains, over an
+// [spec:pgorm:req:bindings.entities+4/test]    a registered entity whose columns are domains, over an
 // integer, over an enum and an array of one over text, describes, reads, writes and compares
 // through them as through their base types
 // [spec:pgorm:req:bindings.schema-domains+2/test]    a domain column reports, binds and reads as the
@@ -319,13 +326,56 @@ test("a registered column whose domain is over an enum is a member, and a pipeli
   const rows = async (pipeline: pl.Pipeline) =>
     (await pool().query(pipeline.select(pipelineId).sort(pipelineId))).map((row) => row.id);
   const typed = pl.col("parcels", mood);
-  assert.match(pl.from(Parcel).filter(typed.eq("busy")).inspect().sql, /CAST\(mood AS napi_entities\.mood\) = \$1/);
+  assert.match(
+    pl.from(Parcel).filter(typed.eq("busy")).inspect().sql,
+    /CAST\(mood AS napi_entities\.mood\) = CAST\(\$1::text AS napi_entities\.mood\)/,
+  );
   assert.deepStrictEqual(await rows(pl.from(Parcel).filter(typed.eq("busy"))), [2]);
   assert.deepStrictEqual(await rows(pl.from(Parcel).filter(typed.lt("busy"))), [1, 3]);
   const peer = pl.source(Parcel).named("peer");
   const joined = pl.from(Parcel).join(peer, typed.eq(pl.col("peer", mood))).filter(pl.col("peer", "id").eq(3));
   assert.deepStrictEqual(await rows(joined), [1, 3]);
   await assert.rejects(rows(pl.from(Parcel).filter(pl.col("parcels", "mood").eq("busy"))), undefinedOperator);
+});
+
+// [spec:pgorm:req:bindings.entities+4/test]    a money column, and an array of it, is a decimal column:
+// described as one, set, compared and read back as a Decimal through the entity's own casts, and
+// compared as money by a pipeline that reads the registered column, where the column named by text
+// takes no Decimal
+test("a registered entity's money columns bind and read as decimals", async () => {
+  assert.deepStrictEqual(
+    Till.describe().columns.map((column: { name: string; kind: string | null }) => [column.name, column.kind]),
+    [["id", "i32"], ["takings", "decimal"], ["floats", "decimal[]"]],
+  );
+  const written = await Till.active().set("id", 1).set("takings", new Decimal("12.345"))
+    .set("floats", [new Decimal("1.5"), new Decimal("2")]).insert(pool());
+  assert.deepStrictEqual([String(written.takings), (written.floats as Decimal[]).map(String)], ["12.35", ["1.50", "2.00"]]);
+  assert.equal(Till.tagged(written, "takings").kind, "decimal");
+  await Till.active().set("id", 2).set("takings", new Decimal("3")).insert(pool());
+
+  const takings = Till.col("takings");
+  const ids = (records: readonly EntityRecord[]) => records.map((record) => record.id).sort();
+  assert.deepStrictEqual(ids(await Till.find().where(takings.eq(new Decimal("12.35"))).all(pool())), [1]);
+  assert.deepStrictEqual(
+    ids(await Till.find().where(takings.isIn([new Decimal("3"), new Decimal("12.35")])).all(pool())),
+    [1, 2],
+  );
+  assert.deepStrictEqual(
+    ids(await Till.find().where(Till.col("floats").eq([new Decimal("1.5"), new Decimal("2")])).all(pool())),
+    [1],
+  );
+
+  const column = pl.col("tills", takings);
+  const tillId = pl.col("tills", "id");
+  const piped = async (pipeline: pl.Pipeline) =>
+    (await pool().query(pipeline.select(tillId).sort(tillId))).map((row) => row.id);
+  assert.match(pl.from(Till).filter(column.gt(new Decimal("5"))).inspect().sql, /CAST\(\$1::numeric AS money\)/);
+  assert.deepStrictEqual(await piped(pl.from(Till).filter(column.gt(new Decimal("5")))), [1]);
+  assert.deepStrictEqual(await piped(pl.from(Till).filterWith((binder) => column.lte(binder.bind(3)))), [2]);
+  await assert.rejects(
+    piped(pl.from(Till).filter(pl.col("tills", "takings").gt(new Decimal("5")))),
+    refused(/cannot bind a `Decimal` value to Postgres type `money`/),
+  );
 });
 
 // [spec:pgorm:req:bindings.entity-writes/test]
@@ -435,7 +485,7 @@ test("a registered graph's cursor pages by keyset, resuming inside a root's slot
   assert.throws(() => cursor.after("x"), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.entities+3/test]
+// [spec:pgorm:req:bindings.entities+4/test]
 // [spec:pgorm:req:bindings.registered-pools/test]
 test("an entity's operations run on a connection or a transaction, with a statement's refusals and aborts", async () => {
   await seed();

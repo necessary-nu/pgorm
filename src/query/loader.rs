@@ -11,7 +11,6 @@ use pgorm_query::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    marker::PhantomData,
     str::FromStr,
 };
 
@@ -403,13 +402,7 @@ where
 fn root_graph<R: EntityTrait>(select: Select<R>) -> SelectGraph<R, ()> {
     let mut query = select.into_query();
     query.clear_selects();
-    let mut graph = SelectGraph {
-        query,
-        qualifiers: Vec::new(),
-        marker: PhantomData,
-    };
-    graph.project::<R>(Name::new(R::default()));
-    graph
+    SelectGraph::rooted(query)
 }
 
 fn key_columns(identity: &Key) -> String {
@@ -483,7 +476,7 @@ where
 /// definition of it: `None` but for a column whose domain is over an enum. A
 /// name the entity does not resolve is `None` here, [`extract_key`] having
 /// already refused it.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
 fn key_casts<F: EntityTrait>(from_col: &Key) -> Vec<Option<TypeName>> {
     from_col
         .iter()
@@ -524,7 +517,7 @@ fn prepare_condition(
 /// column, and every value bound against it, cast to the enum, PostgreSQL
 /// resolving no operator for the domain itself.
 // [spec:pgorm:sem:query.loader.batching+8]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
 fn compared_key_predicate(
     columns: Vec<ColumnRef>,
     casts: &[Option<TypeName>],

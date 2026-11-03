@@ -75,7 +75,7 @@ fn refused(sql: &str) -> String {
 // [spec:pgorm:sem:codegen.entity.expressions+2/test]    and reach the entity as the Rust that
 // builds the same expressions: the schema built from the generated entities carries each
 // expression the bridge read, rendered alike
-// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]
 #[test]
 fn schema_expressions_reach_the_entity() {
     let generated = files(SCHEMA, Opts::default());
@@ -126,7 +126,7 @@ fn schema_expressions_reach_the_entity() {
     assert_eq!(expressions(&tables[2]).len(), 1);
 }
 
-// [spec:pgorm:sem:codegen.entity.pk+4/test]    a key whose every column is generated is the
+// [spec:pgorm:sem:codegen.entity.pk+5/test]    a key whose every column is generated is the
 // database's to fill: the key carries no `auto_increment = false`
 // [spec:pgorm:sem:codegen.entity.expressions+2/test]    and a VIRTUAL generated column in a key,
 // which PostgreSQL does not support (0A000), is refused
@@ -264,7 +264,7 @@ fn a_column_filled_twice_is_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+16/test]    a caller-built statement's expressions are
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    a caller-built statement's expressions are
 // read through the same subset, and what the entity could not hold is refused by name
 // [spec:pgorm:sem:codegen.entity.expressions+2/test]    a caller-built searched CASE is read
 // back arm by arm, a `Condition` arm as the expression it means

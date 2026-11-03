@@ -47,7 +47,7 @@ class RegisteredDisjoint(unittest.IsolatedAsyncioTestCase):
 
     # [spec:pgorm:req:bindings.disjoint+1/test]    a registered disjoint enum is listed, described under the declared keys and reported in the capability manifest beside its base and kind entities; a name the module does not register is refused
     async def test_registration_describes_the_enum(self):
-        self.assertEqual(p.disjoint_entities(), ["app.Shipments"])
+        self.assertEqual(p.disjoint_entities(), ["app.Listings", "app.Shipments"])
         description = self.shipments.describe()
         self.assertEqual(
             description,
@@ -63,7 +63,7 @@ class RegisteredDisjoint(unittest.IsolatedAsyncioTestCase):
                 ],
             },
         )
-        self.assertEqual(p.capabilities()["registrations"]["disjoints"], [description])
+        self.assertIn(description, p.capabilities()["registrations"]["disjoints"])
         p.require_capability("disjoint_entity")
         with self.assertRaises(p.UnsupportedCapabilityError):
             p.disjoint_entity("app.Missing")
@@ -162,6 +162,95 @@ class RegisteredDisjoint(unittest.IsolatedAsyncioTestCase):
                 write()
         with self.assertRaises(TypeError):
             shipments.insert({"label": "x"}, "letter")
+
+
+
+# Listings as an existing schema holds them: no kind column, each kind's
+# table keyed by a foreign key onto the listing's.
+LISTINGS = (
+    "CREATE TABLE python_listings.listings (id integer PRIMARY KEY, title text NOT NULL)",
+    "CREATE TABLE python_listings.auctions "
+    "(listing_id integer PRIMARY KEY REFERENCES python_listings.listings (id), reserve integer NOT NULL)",
+    "CREATE TABLE python_listings.sales "
+    "(id integer PRIMARY KEY REFERENCES python_listings.listings (id), price integer NOT NULL)",
+    "INSERT INTO python_listings.listings VALUES (1, 'lamp'), (2, 'chair'), (3, 'desk')",
+    "INSERT INTO python_listings.auctions VALUES (1, 50)",
+    "INSERT INTO python_listings.sales VALUES (2, 80)",
+)
+
+
+class RegisteredUnkinded(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=2)
+        await self.pool.execute(p.RawSQL("CREATE SCHEMA python_listings"))
+        for statement in LISTINGS:
+            await self.pool.execute(p.RawSQL(statement))
+        self.listings = p.disjoint_entity("app.Listings")
+        self.listing = p.entity("app.Listing")
+        self.auction = p.entity("app.Auction")
+
+    async def asyncTearDown(self):
+        await self.pool.execute(p.RawSQL("DROP SCHEMA python_listings CASCADE"))
+        await self.pool.close()
+
+    @staticmethod
+    def plain(row):
+        base, kind, record = row
+        return (dict(base), kind, None if record is None else dict(record))
+
+    # [spec:pgorm:req:bindings.disjoint-unkinded/test]    a downstream crate's unkinded enum registers through the same registration, describes itself with no kind field or kind type, reads each row as the kind whose table has its row, the unit kind where none does, its kinds named as its variants in snake_case, narrows by presence, and reports a row in two kinds' tables as a DecodeError
+    async def test_unkinded_enum_registers_and_reads(self):
+        self.assertEqual(
+            self.listings.describe(),
+            {
+                "name": "app.Listings",
+                "base": "app.Listing",
+                "kind_field": None,
+                "kind_type": {"schema": None, "name": None},
+                "kinds": [
+                    {"value": "auction", "model": "app.Auction"},
+                    {"value": "sale", "model": "app.Sale"},
+                    {"value": "draft", "model": None},
+                ],
+            },
+        )
+        ordered = self.listings.find().order_by(self.listing.col("id").asc())
+        everything = [
+            ({"id": 1, "title": "lamp"}, "auction", {"listing_id": 1, "reserve": 50}),
+            ({"id": 2, "title": "chair"}, "sale", {"id": 2, "price": 80}),
+            ({"id": 3, "title": "desk"}, "draft", None),
+        ]
+        rows = await ordered.all(self.pool)
+        self.assertEqual([self.plain(row) for row in rows], everything)
+        self.assertEqual(rows[0][2].entity_name, "app.Auction")
+        self.assertEqual([self.plain(row) for row in await ordered.kind("draft").all(self.pool)], everything[2:])
+        self.assertEqual(
+            [self.plain(row) for row in await ordered.filter_kind("auction", self.auction.col("reserve").gt(10)).all(self.pool)],
+            everything[:1],
+        )
+        self.assertEqual(await self.listings.find().kinds(["auction", "sale"]).count(self.pool), 2)
+        await self.pool.execute(p.RawSQL("INSERT INTO python_listings.sales VALUES (1, 70)"))
+        with self.assertRaises(p.DecodeError) as raised:
+            await self.listings.find_by_key({"id": 1}).one(self.pool)
+        self.assertIn("of an unkinded disjoint entity has a row in", str(raised.exception))
+
+    # [spec:pgorm:req:bindings.disjoint-unkinded/test]    a registered unkinded enum's writes and schema are refused with a ConstructionError naming its base read-only, before anything is sent
+    async def test_unkinded_registration_is_read_only(self):
+        listings = self.listings
+        base = self.listing.active().set("id", 9).set("title", "rug")
+        refused = [
+            lambda: listings.insert(base, "draft"),
+            lambda: listings.insert(base, "auction", self.auction.active().set("reserve", 1)),
+            lambda: listings.update(self.listing.active().set("id", 1).set("title", "x"), "draft"),
+            lambda: listings.change_kind({"id": 1}, "draft"),
+            lambda: s.create_disjoint(listings),
+        ]
+        for index, write in enumerate(refused):
+            with self.subTest(index=index), self.assertRaises(p.ConstructionError) as raised:
+                write()
+            self.assertIn("is unkinded", str(raised.exception))
+        count = await self.pool.one(p.RawSQL("SELECT count(*) AS n FROM python_listings.listings"))
+        self.assertEqual(count["n"], 3)
 
 
 if __name__ == "__main__":

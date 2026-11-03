@@ -10,9 +10,12 @@
 
 use std::{fmt, sync::Arc};
 
-use pgorm_query::{ColumnType, Name, TableCreateStatement, TableName, TypeName, Value};
+use pgorm_query::{
+    ColumnType, FromItem, Name, NamedTable, TableCreateStatement, TableName, TypeName, Value,
+};
 
-use super::{ColumnDefault, column_casts::ColumnCasts, key::ComparedPair};
+use super::{ColumnDefault, column_casts::ColumnCasts, compared_enum, key::ComparedPair};
+use crate::query::alias_apart;
 use crate::{
     ActiveModelTrait, ActiveValue, ColumnDef, ColumnTrait, Disjoint, EntityTrait, Error, Iterable,
     KindModel, KindVisitor, PrimaryKeyToColumn, PrimaryKeyTrait, RelationDef, StaticName,
@@ -21,7 +24,7 @@ use crate::{
 
 /// One column of a [`DisjointTable`]: its name, its definition, and the casts
 /// a disjoint statement reads and writes it under.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 #[derive(Clone)]
 pub struct DisjointColumn {
     pub(crate) name: Name,
@@ -119,14 +122,19 @@ pub(crate) type WriteBody =
     dyn Fn(&dyn Fn(&RelationDef) -> bool) -> Result<TableCreateStatement, Error> + Send + Sync;
 
 /// One table of a [`DisjointShape`]: the base's or a kind's.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 #[derive(Clone)]
 pub struct DisjointTable {
     pub(crate) table: TableName,
+    /// The identifier the shape reads the table under where its bare name is
+    /// an earlier table's, which [`DisjointShape`] gives it.
+    pub(crate) alias: Option<Name>,
     pub(crate) label: String,
     pub(crate) columns: Vec<DisjointColumn>,
     pub(crate) key: Vec<usize>,
     pub(crate) auto_increment: bool,
+    /// Whether the key's last column is its period, `WITHOUT OVERLAPS`.
+    pub(crate) without_overlaps: bool,
     pub(crate) body: TableBody,
 }
 
@@ -134,6 +142,7 @@ impl fmt::Debug for DisjointTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DisjointTable")
             .field("table", &self.label)
+            .field("alias", &self.alias.as_ref().map(|alias| alias.to_string()))
             .field("columns", &self.columns)
             .field("key", &self.key)
             .field("auto_increment", &self.auto_increment)
@@ -184,10 +193,12 @@ impl DisjointTable {
         }
         Ok(Self {
             table,
+            alias: None,
             label,
             columns,
             key: positions,
             auto_increment: false,
+            without_overlaps: false,
             body: TableBody::Columns,
         })
     }
@@ -207,10 +218,12 @@ impl DisjointTable {
             .collect();
         Self {
             table: entity.table_ref(),
+            alias: None,
             label: table_label(&entity),
             columns,
             key,
             auto_increment: E::PrimaryKey::auto_increment(),
+            without_overlaps: E::PrimaryKey::without_overlaps(),
             body: TableBody::Entity(Arc::new(|keep: &dyn Fn(&RelationDef) -> bool| {
                 crate::schema::table_from_entity(E::default(), keep)
             })),
@@ -222,10 +235,34 @@ impl DisjointTable {
         &self.table
     }
 
-    /// The table's bare name, which a disjoint statement qualifies its
-    /// columns by.
+    /// The table's bare name.
     pub fn name(&self) -> &Name {
         self.table.table()
+    }
+
+    /// The identifier a disjoint statement qualifies the table's columns by:
+    /// its bare name, or, in a shape where an earlier table has that name,
+    /// the alias the shape reads it under, its schema-qualified name as one
+    /// identifier (`"archive.listing"`). A typed column qualifies by the bare
+    /// name, so a condition on an aliased table's columns names them through
+    /// this.
+    // [spec:pgorm:sem:disjoint.read+2]
+    pub fn qualifier(&self) -> &Name {
+        self.alias.as_ref().unwrap_or_else(|| self.table.table())
+    }
+
+    /// The table as a statement reads or writes it, under its alias where it
+    /// has one.
+    pub(crate) fn named(&self) -> NamedTable {
+        NamedTable {
+            name: self.table.clone(),
+            alias: self.alias.clone(),
+        }
+    }
+
+    /// The table as a statement joins it, under its alias where it has one.
+    pub(crate) fn joined(&self) -> FromItem {
+        FromItem::Table(self.named())
     }
 
     /// The table as an error names it, schema-qualified where it is.
@@ -303,7 +340,7 @@ impl DisjointTable {
 
 /// What a disjoint write gives one table's columns, in the table's column
 /// order: each `Set`, `Unchanged` or `NotSet`, as an `ActiveModel` holds it.
-// [spec:pgorm:sem:disjoint.write+1]
+// [spec:pgorm:sem:disjoint.write+2]
 #[derive(Clone, Debug)]
 pub struct DisjointValues {
     pub(crate) table: String,
@@ -324,7 +361,7 @@ impl DisjointValues {
 
 /// One kind of a [`DisjointShape`]: its value, and its table, which a kind
 /// without one lacks.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 #[derive(Clone, Debug)]
 pub struct DisjointKind {
     pub(crate) value: String,
@@ -353,8 +390,8 @@ impl DisjointKind {
 /// schema ([`create`](Self::create)), the last two a kinded shape's alone.
 /// [`Disjoint`]'s methods build theirs from [`DisjointShape::of`]; tables
 /// known only at run time are described with [`DisjointShape::new`].
-// [spec:pgorm:def:disjoint.declare+3]
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:def:disjoint.declare+5]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 #[derive(Clone, Debug)]
 pub struct DisjointShape {
     pub(crate) base: DisjointTable,
@@ -390,7 +427,7 @@ impl DisjointShape {
     /// entities declare them, each column cast by its typed column, its kind
     /// column where it has one, and the kinds in declaration order, each
     /// named as [`Disjoint::kind_name`] names it.
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn of<D: Disjoint>() -> Self {
         let base = DisjointTable::typed::<D::Base>();
         let kinded = D::kind_column().map(|kind_column| KindedBy {
@@ -413,6 +450,25 @@ impl DisjointShape {
                 })
                 .collect(),
         }
+        .apart()
+    }
+
+    /// The shape with each table read under an identifier of its own: the
+    /// base under its bare name, and each kind's table, in declaration
+    /// order, under its bare name where no earlier table has it and
+    /// otherwise under an alias apart from every earlier one.
+    // [spec:pgorm:sem:disjoint.read+2]
+    fn apart(mut self) -> Self {
+        self.base.alias = None;
+        let mut taken = vec![self.base.qualifier().to_string()];
+        for table in self.kinds.iter_mut().filter_map(|kind| kind.table.as_mut()) {
+            let bare = table.name().to_string();
+            table.alias = taken
+                .contains(&bare)
+                .then(|| alias_apart(&table.table, &|name| taken.iter().any(|t| t == name)));
+            taken.push(table.qualifier().to_string());
+        }
+        self
     }
 
     /// The shape of tables known only at run time: the base table, its
@@ -432,50 +488,12 @@ impl DisjointShape {
         kind_type: TypeName,
         kinds: Vec<(String, Option<DisjointTable>)>,
     ) -> Result<Self, Error> {
-        let label = base.label.clone();
-        if kinds.is_empty() {
-            return Err(Error::Type(format!(
-                "the disjoint entity over `{label}` declares no kinds: it has at least one"
-            )));
-        }
-        let mut tables: Vec<(String, String)> = vec![(label.clone(), "the base".to_owned())];
-        for (index, (value, table)) in kinds.iter().enumerate() {
-            if kinds[..index].iter().any(|(other, _)| other == value) {
-                return Err(Error::Type(format!(
-                    "the disjoint entity over `{label}` declares the kind `{value}` twice"
-                )));
-            }
-            let Some(table) = table else { continue };
-            if let Some((_, owner)) = tables.iter().find(|(taken, _)| *taken == table.label) {
-                return Err(Error::Type(format!(
-                    "`{}` is the table of the kind `{value}` and of {owner}: each kind has a \
-                     table of its own",
-                    table.label
-                )));
-            }
-            tables.push((table.label.clone(), format!("the kind `{value}`")));
-            let base_key: Vec<&ColumnType> = base
-                .key()
-                .map(|column| column.def.get_column_type())
-                .collect();
-            let kind_key: Vec<&ColumnType> = table
-                .key()
-                .map(|column| column.def.get_column_type())
-                .collect();
-            if base_key != kind_key {
-                return Err(Error::Type(format!(
-                    "the key of `{}`, the table of the kind `{value}`, is ({}), not the base \
-                     `{label}`'s ({}): a kind's row is keyed by its base row's key",
-                    table.label,
-                    types(&kind_key),
-                    types(&base_key)
-                )));
-            }
-        }
+        held_apart(&base, &kinds)?;
         let Some((kind, _)) = base.column(kind_column) else {
             return Err(Error::Type(format!(
-                "`{label}` has no column `{kind_column}`, the kind column a disjoint entity's \
-                 base holds each row's kind in"
+                "`{}` has no column `{kind_column}`, the kind column a disjoint entity's \
+                 base holds each row's kind in",
+                base.label
             )));
         };
         let shape = Self {
@@ -495,9 +513,57 @@ impl DisjointShape {
                 .into_iter()
                 .map(|(value, table)| DisjointKind { value, table })
                 .collect(),
-        };
+        }
+        .apart();
         shape.check()?;
         Ok(shape)
+    }
+
+    /// The shape of an unkinded entity's tables known only at run time: the
+    /// base table, which has no kind column, and the kinds in order, each its
+    /// value and its table, or `None` for the one kind of a base row with a
+    /// row in no kind's table.
+    ///
+    /// What [`new`](Self::new) refuses of the kinds, this refuses, and, as
+    /// the derive refuses them, a second kind without a table and no kind
+    /// with one, which would leave nothing to tell kinds apart by. The shape
+    /// is read-only: each write and [`create`](Self::create) of it is
+    /// refused as [`Error::Type`] naming its base.
+    // [spec:pgorm:sem:disjoint.unkinded+1]
+    // [spec:pgorm:req:bindings.disjoint-unkinded]
+    pub fn unkinded(
+        base: DisjointTable,
+        kinds: Vec<(String, Option<DisjointTable>)>,
+    ) -> Result<Self, Error> {
+        held_apart(&base, &kinds)?;
+        let label = &base.label;
+        let units: Vec<&str> = kinds
+            .iter()
+            .filter(|(_, table)| table.is_none())
+            .map(|(value, _)| value.as_str())
+            .collect();
+        if let [first, second, ..] = units[..] {
+            return Err(Error::Type(format!(
+                "the unkinded disjoint entity over `{label}` declares the kinds `{first}` and \
+                 `{second}` without a table: a base row with a row in no kind's table is of \
+                 one kind, so at most one kind has none"
+            )));
+        }
+        if units.len() == kinds.len() {
+            return Err(Error::Type(format!(
+                "the unkinded disjoint entity over `{label}` declares no kind with a table: \
+                 with no kind column, a base row's kind is the kind whose table has a row for \
+                 it, so at least one kind has a table"
+            )));
+        }
+        Ok(Self {
+            base,
+            kinded: None,
+            kinds: kinds
+                .into_iter()
+                .map(|(value, table)| DisjointKind { value, table })
+                .collect(),
+        })
     }
 
     /// The base table, whose every row is of one kind, read as the decoded
@@ -579,9 +645,9 @@ impl DisjointShape {
     /// default — since a kind's row takes its key from its base row. An
     /// unkinded shape has no kind column and is never written, so nothing of
     /// it is refused.
-    // [spec:pgorm:def:disjoint.declare+3]
+    // [spec:pgorm:def:disjoint.declare+5]
     // [spec:pgorm:req:bindings.disjoint+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn check(&self) -> Result<(), Error> {
         let Some(kinded) = &self.kinded else {
             return Ok(());
@@ -646,11 +712,78 @@ impl DisjointShape {
         Ok(())
     }
 
+    /// Refuse, as [`Error::Type`] naming the table and column, a key the
+    /// disjoint schema cannot hold a base row to its kind's table by, which
+    /// PostgreSQL would refuse only once the statements ran.
+    ///
+    /// A base key column that is a generated column is read by the generated
+    /// columns keying each kind's table, and a generated column reads no
+    /// other (`42P17`). A key column of a domain over an enum can be matched
+    /// by no foreign key (`42804`), and a kind's key is of the base key's
+    /// types, so the base's says it for every table. A kind's key ending
+    /// `WITHOUT OVERLAPS` is matched by no plain foreign key, which the
+    /// base's onto the kind's table is (`42830`); a temporal base key is
+    /// matched by its `UNIQUE` key over the key columns and the kind column,
+    /// and is held.
+    // [spec:pgorm:sem:disjoint.schema+2]
+    pub(crate) fn keyable(&self) -> Result<(), Error> {
+        let base = &self.base;
+        for column in base.key() {
+            let name = column.name.to_string();
+            if let Some(ColumnDefault::Generated(..)) = column.def.default {
+                return Err(Error::Type(format!(
+                    "`{}`.`{name}`, the key of the disjoint entity's base, is a generated \
+                     column: the generated columns keying each kind's table read the base's \
+                     key, and PostgreSQL refuses a generated column reading another (42P17)",
+                    base.label
+                )));
+            }
+            if let (
+                ColumnType::Domain {
+                    name: domain,
+                    schema,
+                    ..
+                },
+                Some(enum_type),
+            ) = (
+                column.def.get_column_type(),
+                compared_enum(column.def.get_column_type()),
+            ) {
+                return Err(Error::Type(format!(
+                    "`{}`.`{name}`, the key of the disjoint entity's base, is of the domain `{}` \
+                     over the enum `{}`: each kind's table is keyed to its base row by a foreign \
+                     key on it, and PostgreSQL implements no foreign key with a column typed as \
+                     a domain over an enum (42804)",
+                    base.label,
+                    qualified(domain, schema),
+                    qualified(&enum_type.name, &enum_type.schema)
+                )));
+            }
+        }
+        for kind in &self.kinds {
+            let Some(table) = &kind.table else { continue };
+            if !table.without_overlaps {
+                continue;
+            }
+            if let Some(period) = table.key().last() {
+                return Err(Error::Type(format!(
+                    "`{}`.`{}`, the period of the key of the kind `{}`, makes the key \
+                     `WITHOUT OVERLAPS`: the base's foreign key onto a kind's table is a plain \
+                     one, which PostgreSQL matches to no temporal key (42830)",
+                    table.label,
+                    period.name.to_string(),
+                    kind.value
+                )));
+            }
+        }
+        Ok(())
+    }
+
     /// Where a kinded shape's base holds each row's kind; an unkinded shape,
     /// which nothing holds to one kind per base row, is refused as
     /// [`Error::Type`] naming its base as read-only, so that no write and no
     /// schema is built from it.
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub(crate) fn kinded(&self) -> Result<&KindedBy, Error> {
         self.kinded.as_ref().ok_or_else(|| {
             Error::Type(format!(
@@ -679,6 +812,59 @@ impl DisjointShape {
             )
         })
     }
+}
+
+/// Refuse the kinds of a shape described at run time where a declaration's
+/// types would not compile: none, a value given twice, one table for two
+/// kinds or for a kind and the base, and a kind table keyed by other types
+/// than the base, in its order.
+// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:sem:disjoint.unkinded+1]
+fn held_apart(
+    base: &DisjointTable,
+    kinds: &[(String, Option<DisjointTable>)],
+) -> Result<(), Error> {
+    let label = &base.label;
+    if kinds.is_empty() {
+        return Err(Error::Type(format!(
+            "the disjoint entity over `{label}` declares no kinds: it has at least one"
+        )));
+    }
+    let base_key: Vec<&ColumnType> = base
+        .key()
+        .map(|column| column.def.get_column_type())
+        .collect();
+    let mut tables: Vec<(&str, String)> = vec![(label.as_str(), "the base".to_owned())];
+    for (index, (value, table)) in kinds.iter().enumerate() {
+        if kinds[..index].iter().any(|(other, _)| other == value) {
+            return Err(Error::Type(format!(
+                "the disjoint entity over `{label}` declares the kind `{value}` twice"
+            )));
+        }
+        let Some(table) = table else { continue };
+        if let Some((_, owner)) = tables.iter().find(|(taken, _)| *taken == table.label) {
+            return Err(Error::Type(format!(
+                "`{}` is the table of the kind `{value}` and of {owner}: each kind has a \
+                 table of its own",
+                table.label
+            )));
+        }
+        tables.push((table.label.as_str(), format!("the kind `{value}`")));
+        let kind_key: Vec<&ColumnType> = table
+            .key()
+            .map(|column| column.def.get_column_type())
+            .collect();
+        if base_key != kind_key {
+            return Err(Error::Type(format!(
+                "the key of `{}`, the table of the kind `{value}`, is ({}), not the base \
+                 `{label}`'s ({}): a kind's row is keyed by its base row's key",
+                table.label,
+                types(&kind_key),
+                types(&base_key)
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// The [`Error::Type`] naming `value` as no kind of the disjoint entity over
@@ -731,6 +917,14 @@ fn same_enum(left: &ColumnType, right: &ColumnType) -> bool {
         _ => None,
     };
     matches!((identity(left), identity(right)), (Some(left), Some(right)) if left == right)
+}
+
+/// A type's name as an error names it, schema-qualified where it is.
+fn qualified(name: &Name, schema: &Option<Name>) -> String {
+    match schema {
+        Some(schema) => format!("{}.{}", schema.to_string(), name.to_string()),
+        None => name.to_string(),
+    }
 }
 
 /// A column type as an error names it: an enum by its name and values.

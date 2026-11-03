@@ -223,6 +223,226 @@ pub enum Long {
     Other,
 }
 
+/// A base whose key is a generated column, which the base's generated key
+/// columns cannot read (`42P17`).
+pub mod computed_base {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Entity)]
+    #[pgorm(table_name = "computed_base")]
+    pub struct Model {
+        #[pgorm(primary_key, generated_stored = Expr::col(Column::Seed).add(1))]
+        pub id: i32,
+        pub seed: i32,
+        pub kind: super::ComputedKind,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+#[derive(Clone, Debug, PartialEq, Disjoint)]
+#[pgorm(base = computed_base::Entity)]
+pub enum Computed {
+    Part(plain::Model),
+    Bare,
+}
+
+/// A base in a schema whose name needs quoting, its kind type named in
+/// mixed case beside it and a column holding an array of an enum named by a
+/// reserved keyword in a schema named by another.
+pub mod shelf {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Entity)]
+    #[pgorm(table_name = "Shelf", schema_name = "Book Shop")]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        pub kind: super::ShelvedKind,
+        pub labels: Vec<super::Order>,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+pub mod novel {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Entity)]
+    #[pgorm(table_name = "Novel", schema_name = "Book Shop")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+        pub pages: i32,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+#[derive(Clone, Debug, PartialEq, Disjoint)]
+#[pgorm(base = shelf::Entity, enum_name = "Shelf Kind", schema_name = "Book Shop")]
+pub enum Shelved {
+    Novel(novel::Model),
+    Empty,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ActiveEnum)]
+#[pgorm(enum_name = "order", schema_name = "user")]
+pub enum Order {
+    First,
+    Second,
+}
+
+/// A kind entity keyed by an `i32` and an `int4range`, as a temporal key is.
+pub mod spanned {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "spanned")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+        #[pgorm(primary_key, auto_increment = false)]
+        pub valid_at: Range<i32>,
+        pub note: String,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+/// A base whose key is temporal, `WITHOUT OVERLAPS`, which the disjoint
+/// schema holds: a kind table's foreign key reaches the base's `UNIQUE` key
+/// over the key columns and the kind column.
+pub mod period_base {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "period_base")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+        #[pgorm(primary_key, without_overlaps)]
+        pub valid_at: Range<i32>,
+        pub kind: super::PeriodKind,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+#[derive(Clone, Debug, PartialEq, Disjoint)]
+#[pgorm(base = period_base::Entity)]
+pub enum Period {
+    Part(spanned::Model),
+    Bare,
+}
+
+/// The mood a [`Mooded`] row is keyed by, through the domain `cheerful`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ActiveEnum)]
+#[pgorm(enum_name = "mood")]
+pub enum Mood {
+    Happy,
+    Sad,
+}
+
+/// A kind entity keyed by the domain `cheerful`, over the enum `mood`.
+pub mod mood_part {
+    use super::Mood;
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "mood_part")]
+    pub struct Model {
+        #[pgorm(
+            primary_key,
+            auto_increment = false,
+            column_type = ColumnType::Domain { name: Name::runtime("cheerful"), schema: None, base: Arc::new(Mood::db_type().get_column_type().clone()) }
+        )]
+        pub mood: Mood,
+        pub note: String,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+/// A base keyed by the domain `cheerful`, over the enum `mood`, which no
+/// foreign key of the disjoint schema can match (`42804`).
+pub mod mood_base {
+    use super::Mood;
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "mood_base")]
+    pub struct Model {
+        #[pgorm(
+            primary_key,
+            auto_increment = false,
+            column_type = ColumnType::Domain { name: Name::runtime("cheerful"), schema: None, base: Arc::new(Mood::db_type().get_column_type().clone()) }
+        )]
+        pub mood: Mood,
+        pub kind: super::MoodedKind,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+#[derive(Clone, Debug, PartialEq, Disjoint)]
+#[pgorm(base = mood_base::Entity)]
+pub enum Mooded {
+    Part(mood_part::Model),
+    Bare,
+}
+
+/// A kind entity whose key is temporal, `WITHOUT OVERLAPS`, onto which the
+/// base's plain foreign key cannot reach (`42830`).
+pub mod temporal_part {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "temporal_part")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+        #[pgorm(primary_key, without_overlaps)]
+        pub valid_at: Range<i32>,
+        pub note: String,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+/// A base keyed by an `i32` and an `int4range`, plainly.
+pub mod span_base {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "span_base")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+        #[pgorm(primary_key, auto_increment = false)]
+        pub valid_at: Range<i32>,
+        pub kind: super::SpanKind,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+#[derive(Clone, Debug, PartialEq, Disjoint)]
+#[pgorm(base = span_base::Entity)]
+pub enum Span {
+    Part(temporal_part::Model),
+    Bare,
+}
+
 fn rendered<D: KindedDisjoint>() -> Vec<String> {
     Schema::new()
         .create_disjoint::<D>()
@@ -239,7 +459,7 @@ fn refusal<D: KindedDisjoint>() -> String {
     }
 }
 
-// [spec:pgorm:sem:disjoint.schema+1/test]    the kind type, the base with its UNIQUE key, each kind table with its generated kind column and cascading key, then one ALTER adding the base's generated key columns and keys, in that order; car's own relation to its base writes no second key
+// [spec:pgorm:sem:disjoint.schema+2/test]    the kind type, the base with its UNIQUE key, each kind table with its generated kind column and cascading key, then one ALTER adding the base's generated key columns and keys, in that order; car's own relation to its base writes no second key
 #[test]
 fn vehicle_schema_renders_in_run_order() {
     assert_eq!(
@@ -308,7 +528,7 @@ fn vehicle_schema_renders_in_run_order() {
     );
 }
 
-// [spec:pgorm:sem:disjoint.schema+1/test]    a composite key, a named kind column and schema-qualified tables: each key pairs column by column, and every reference names its schema
+// [spec:pgorm:sem:disjoint.schema+2/test]    a composite key, a named kind column and schema-qualified tables: each key pairs column by column, and every reference names its schema
 #[test]
 fn composite_schema_pairs_every_key_column() {
     assert_eq!(
@@ -374,7 +594,7 @@ fn long_names() -> [String; 4] {
     ]
 }
 
-// [spec:pgorm:sem:disjoint.schema+1/test]    a name composed past 63 bytes is bounded to 63 as result names are, with its head kept, and the statements spell it so
+// [spec:pgorm:sem:disjoint.schema+2/test]    a name composed past 63 bytes is bounded to 63 as result names are, with its head kept, and the statements spell it so
 #[test]
 fn names_past_the_bound_are_bounded() {
     let names = long_names();
@@ -394,7 +614,7 @@ fn names_past_the_bound_are_bounded() {
     assert!(statements.contains(&format!("('{LONG_VALUE}')")));
 }
 
-// [spec:pgorm:sem:disjoint.schema+1/test]    a generated column a base declares, a kind column a kind table declares, and one name generated twice are each refused as `Error::Type` naming both
+// [spec:pgorm:sem:disjoint.schema+2/test]    a generated column a base declares, a kind column a kind table declares, and one name generated twice are each refused as `Error::Type` naming both
 #[test]
 fn generated_name_collisions_are_refused() {
     assert_eq!(
@@ -414,7 +634,7 @@ fn generated_name_collisions_are_refused() {
     );
 }
 
-// [spec:pgorm:sem:disjoint.schema+1/test]    `check_disjoint` runs first, its refusal returned as the schema's
+// [spec:pgorm:sem:disjoint.schema+2/test]    `check_disjoint` runs first, its refusal returned as the schema's
 #[test]
 fn declaration_is_checked_before_anything() {
     let checked = match check_disjoint::<Loose>() {
@@ -422,6 +642,31 @@ fn declaration_is_checked_before_anything() {
         other => panic!("expected the declaration refused, got {other:?}"),
     };
     assert_eq!(refusal::<Loose>(), checked);
+}
+
+// [spec:pgorm:sem:disjoint.schema+2/test]    a base key that is a generated column, a base key of a domain over an enum and a kind's key ending `WITHOUT OVERLAPS` are each refused as `Error::Type` naming the table and column, where a temporal base key is written
+#[test]
+fn unkeyable_key_shapes_are_refused() {
+    assert_eq!(
+        refusal::<Computed>(),
+        "`computed_base`.`id`, the key of the disjoint entity's base, is a generated column: \
+         the generated columns keying each kind's table read the base's key, and PostgreSQL \
+         refuses a generated column reading another (42P17)"
+    );
+    assert_eq!(
+        refusal::<Mooded>(),
+        "`mood_base`.`mood`, the key of the disjoint entity's base, is of the domain \
+         `cheerful` over the enum `mood`: each kind's table is keyed to its base row by a \
+         foreign key on it, and PostgreSQL implements no foreign key with a column typed as a \
+         domain over an enum (42804)"
+    );
+    assert_eq!(
+        refusal::<Span>(),
+        "`temporal_part`.`valid_at`, the period of the key of the kind `part`, makes the key \
+         `WITHOUT OVERLAPS`: the base's foreign key onto a kind's table is a plain one, which \
+         PostgreSQL matches to no temporal key (42830)"
+    );
+    assert!(rendered::<Period>()[1].contains(r#"PRIMARY KEY ("id", "valid_at" WITHOUT OVERLAPS)"#));
 }
 
 /// Run the statements `create_disjoint` returns, in order.
@@ -463,7 +708,7 @@ const TRUCK_WITH_ROW: &str = "WITH v AS (INSERT INTO vehicle (kind, name) VALUES
      18000 FROM v RETURNING vehicle_id";
 const CAR_ALONE: &str = "INSERT INTO vehicle (kind, name) VALUES ('car', 'ghost')";
 
-// [spec:pgorm:sem:disjoint.schema+1/test]    the probe matrix: a car with its row in one statement, a bike alone, a change of kind in one statement and a cascading delete succeed; a car with no row, a truck row for a car, a vehicle with two kinds' rows, a change of kind leaving the old row and deleting a kind's row alone are refused
+// [spec:pgorm:sem:disjoint.schema+2/test]    the probe matrix: a car with its row in one statement, a bike alone, a change of kind in one statement and a cascading delete succeed; a car with no row, a truck row for a car, a vehicle with two kinds' rows, a change of kind leaving the old row and deleting a kind's row alone are refused
 #[pgorm_macros::test]
 async fn every_state_the_enum_omits_is_refused_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_schema").await;
@@ -570,7 +815,7 @@ async fn every_state_the_enum_omits_is_refused_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.schema+1/test]    every key is DEFERRABLE INITIALLY IMMEDIATE: inside a transaction a violation is reported by the statement causing it, and under SET CONSTRAINTS ALL DEFERRED a two-statement insert commits while one left incomplete is refused at COMMIT; the server holds the names, actions and STORED columns the statements give, and no second key for car's relation
+// [spec:pgorm:sem:disjoint.schema+2/test]    every key is DEFERRABLE INITIALLY IMMEDIATE: inside a transaction a violation is reported by the statement causing it, and under SET CONSTRAINTS ALL DEFERRED a two-statement insert commits while one left incomplete is refused at COMMIT; the server holds the names, actions and STORED columns the statements give, and no second key for car's relation
 #[pgorm_macros::test]
 async fn keys_are_checked_per_statement_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_schema_txn").await;
@@ -667,7 +912,7 @@ async fn keys_are_checked_per_statement_live() -> Result<(), Error> {
 
 const LISTING: &str = "INSERT INTO market.listing (tenant_id, id, category, title) VALUES ($1, $2, $3::text::market.listing_category, 'listed')";
 
-// [spec:pgorm:sem:disjoint.schema+1/test]    a composite key in a schema of its own: an apartment with its flat in one statement, a building plot alone, a change of kind in one statement and a cascading delete succeed; an apartment with no flat, a flat for a building plot or for another tenant's key, and deleting a flat alone are refused
+// [spec:pgorm:sem:disjoint.schema+2/test]    a composite key in a schema of its own: an apartment with its flat in one statement, a building plot alone, a change of kind in one statement and a cascading delete succeed; an apartment with no flat, a flat for a building plot or for another tenant's key, and deleting a flat alone are refused
 #[pgorm_macros::test]
 async fn composite_keys_hold_every_row_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_schema_composite").await;
@@ -752,7 +997,7 @@ async fn composite_keys_hold_every_row_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.schema+1/test]    names bounded to 63 bytes are the server's names: it creates every constraint and column under exactly the name the statements give, none truncated
+// [spec:pgorm:sem:disjoint.schema+2/test]    names bounded to 63 bytes are the server's names: it creates every constraint and column under exactly the name the statements give, none truncated
 #[pgorm_macros::test]
 async fn bounded_names_are_the_servers_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_schema_names").await;
@@ -785,6 +1030,177 @@ async fn bounded_names_are_the_servers_live() -> Result<(), Error> {
         .map(|row| row.get(0))
         .collect();
     assert_eq!(columns, [column]);
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:req:sql.ddl.column-types+8/test]    an enum's name and schema are quoted in a column's type wherever they need it, as its `CREATE TYPE` quotes them, so a mixed-case, spaced or keyword name declares the column of the type it creates
+// [spec:pgorm:req:sql.render.ddl.enum-type+6/test]
+// [spec:pgorm:sem:disjoint.schema+2/test]
+#[pgorm_macros::test]
+async fn quoted_enum_names_create_their_columns_live() -> Result<(), Error> {
+    use pgorm::set;
+
+    let statements = rendered::<Shelved>();
+    assert_eq!(
+        statements[0],
+        r#"CREATE TYPE "Book Shop"."Shelf Kind" AS ENUM ('novel', 'empty')"#
+    );
+    for (statement, column) in [
+        (
+            &statements[1],
+            r#""kind" "Book Shop"."Shelf Kind" NOT NULL"#,
+        ),
+        (&statements[1], r#""labels" "user"."order"[] NOT NULL"#),
+        (
+            &statements[2],
+            r#""kind" "Book Shop"."Shelf Kind" GENERATED ALWAYS AS ('novel') STORED"#,
+        ),
+    ] {
+        assert!(statement.contains(column), "{column} in {statement}");
+    }
+
+    let ctx = TestContext::new("disjoint_schema_quoted_enums").await;
+    let db = ctx.db.get().await?;
+    db.execute(r#"CREATE SCHEMA "Book Shop""#, &[]).await?;
+    db.execute(r#"CREATE SCHEMA "user""#, &[]).await?;
+    db.execute(
+        &Schema::new()
+            .create_enum_from_active_enum::<Order>()?
+            .to_string(),
+        &[],
+    )
+    .await?;
+    create::<Shelved>(&db).await?;
+
+    let types: Vec<(String, String, String)> = db
+        .query_all(
+            "SELECT attrelid::regclass::text, attname::text, format_type(atttypid, atttypmod) \
+             FROM pg_attribute WHERE attname IN ('kind', 'labels') \
+             AND attrelid IN ('\"Book Shop\".\"Shelf\"'::regclass, '\"Book Shop\".\"Novel\"'::regclass) \
+             ORDER BY 1, 2",
+            &[],
+        )
+        .await?
+        .iter()
+        .map(|row| (row.get(0), row.get(1), row.get(2)))
+        .collect();
+    let typed =
+        |table: &str, column: &str, ty: &str| (table.to_owned(), column.to_owned(), ty.to_owned());
+    assert_eq!(
+        types,
+        [
+            typed(
+                r#""Book Shop"."Novel""#,
+                "kind",
+                r#""Book Shop"."Shelf Kind""#
+            ),
+            typed(
+                r#""Book Shop"."Shelf""#,
+                "kind",
+                r#""Book Shop"."Shelf Kind""#
+            ),
+            typed(r#""Book Shop"."Shelf""#, "labels", r#""user"."order"[]"#),
+        ]
+    );
+
+    let labelled = |labels: Vec<Order>| shelf::ActiveModel {
+        labels: set(labels),
+        ..Default::default()
+    };
+    let novel = Shelved::insert(
+        labelled(vec![Order::First, Order::Second]),
+        ShelvedActiveModel::Novel(novel::ActiveModel {
+            pages: set(320),
+            ..Default::default()
+        }),
+    )?
+    .exec_returning_model(&db)
+    .await?;
+    let empty = Shelved::insert(labelled(vec![Order::Second]), ShelvedActiveModel::Empty)?
+        .exec_returning_model(&db)
+        .await?;
+    let read = Shelved::find()
+        .order_by_asc(shelf::Column::Id)
+        .all(&db)
+        .await?;
+    assert_eq!(read, [novel.clone(), empty.clone()]);
+    assert_eq!(
+        novel.1,
+        Shelved::Novel(novel::Model {
+            id: novel.0.id,
+            pages: 320
+        })
+    );
+    assert_eq!(empty.0.labels, [Order::Second]);
+    let novels = shelf::Entity::find()
+        .filter(shelf::Column::Kind.eq(ShelvedKind::Novel))
+        .all(&db)
+        .await?;
+    assert_eq!(novels, [novel.0]);
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:sem:disjoint.schema+2/test]    against a live server: each refused key shape sends nothing, leaving no table behind, and a temporal base key's schema runs and holds a row of a kind with a table, written and read through the disjoint entity
+#[pgorm_macros::test]
+async fn unkeyable_key_shapes_send_nothing_live() -> Result<(), Error> {
+    let ctx = TestContext::new("disjoint_key_shapes").await;
+    let db = ctx.db.get().await?;
+    db.batch_execute(
+        "CREATE EXTENSION IF NOT EXISTS btree_gist; \
+         CREATE TYPE mood AS ENUM ('happy', 'sad'); CREATE DOMAIN cheerful AS mood;",
+    )
+    .await?;
+    let tables = async |db: &DatabaseConnection| -> Result<i64, Error> {
+        Ok(db
+            .query_one(
+                "SELECT count(*) FROM pg_tables WHERE schemaname = current_schema()",
+                &[],
+            )
+            .await?
+            .get(0))
+    };
+    for (outcome, refused) in [
+        (create::<Computed>(&db).await, refusal::<Computed>()),
+        (create::<Mooded>(&db).await, refusal::<Mooded>()),
+        (create::<Span>(&db).await, refusal::<Span>()),
+    ] {
+        match outcome {
+            Err(Error::Type(message)) => assert_eq!(message, refused),
+            other => panic!("expected the schema refused, got {other:?}"),
+        }
+    }
+    assert_eq!(tables(&db).await?, 0);
+
+    create::<Period>(&db).await?;
+    let valid_at = Range::from(1..10);
+    let written = Period::insert(
+        period_base::ActiveModel {
+            id: set(1),
+            valid_at: set(valid_at.clone()),
+            ..Default::default()
+        },
+        PeriodActiveModel::Part(spanned::ActiveModel {
+            note: set("held"),
+            ..Default::default()
+        }),
+    )?
+    .exec_returning_model(&db)
+    .await?;
+    assert_eq!(
+        written.1,
+        Period::Part(spanned::Model {
+            id: 1,
+            valid_at: valid_at.clone(),
+            note: "held".to_owned(),
+        })
+    );
+    assert_eq!(Period::find().all(&db).await?, [written]);
 
     drop(db);
     ctx.delete().await;

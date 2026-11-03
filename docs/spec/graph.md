@@ -390,7 +390,7 @@ chapter is stated twice anywhere else.
 
 ## Aliasing
 
-> [spec:pgorm:req:query.graph.aliases+1]
+> [spec:pgorm:req:query.graph.aliases+2]
 > The same table enters a graph twice under a caller-bound alias:
 > `join_maybe_as::<F>(rel, alias)` / `join_one_as::<F>(rel, alias)` take
 > the alias as `impl IntoName` — the `AliasName` token for a static name
@@ -402,6 +402,24 @@ chapter is stated twice anywhere else.
 > renders SQL PostgreSQL refuses ("table name specified more than once"),
 > so the mistake errors at execution rather than silently self-joining —
 > the same ceiling the alias token carries everywhere.
+>
+> Another table whose bare name the graph already qualifies columns by is no
+> such mistake — `archive.listing` joined beside a root `market.listing` —
+> and an edge joining it unaliased MUST join it under an alias of the graph's:
+> its schema-qualified name as one identifier, `"archive.listing"`, or, where
+> the graph already has that, as it has an unqualified table's bare name, the
+> same with `_2`, `_3` and on appended, each bounded to 63 bytes as result
+> names are (`[spec:pgorm:sem:query.graph.writer]`). It is then the slot's or
+> hop's one identifier, as a caller-bound alias is, and an edge whose
+> relation leaves from that table by its own name leaves from it: the table's
+> full name names one visit, so the graph re-points the edge, where a
+> caller-bound alias of a table joined twice leaves it the relation's to
+> point (`RelationDef::from_alias`, below). The tables the graph compares
+> are its root's and its edges', and two are one table when their schema and
+> bare name are. A call-site predicate or a typed column qualifies by the
+> bare name, which means the first table of that name, so a condition on the
+> aliased table's columns names them through the alias, which `join_maybe_as`
+> binds where the caller would rather choose it.
 >
 > A hop is re-bound on the same terms. `via_as(rel, alias)` is `via(rel)`
 > (`[spec:pgorm:def:query.graph]`) with `rel.to_tbl` re-bound to the

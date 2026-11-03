@@ -72,7 +72,7 @@ use crate::{
 ///
 /// [`QueryTrait::query`] remains the raw escape hatch it is on every builder:
 /// a projection edited through it stands outside the decode.
-// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.read+2]
 pub struct SelectDisjoint<D: Disjoint> {
     pub(crate) query: SelectStatement,
     pub(crate) shape: DisjointShape,
@@ -100,7 +100,7 @@ impl<D: Disjoint> Clone for SelectDisjoint<D> {
 /// The index of the base among a disjoint read's decoded sources, the
 /// root's in a graph: its columns are projected under `s0_`, and each kind
 /// with a table takes the next index.
-// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.read+2]
 pub(crate) const BASE_SOURCE: usize = 0;
 
 impl<D: Disjoint> SelectDisjoint<D> {
@@ -108,7 +108,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
     /// `WHERE` kept, its projection regenerated — the base's columns under
     /// `s0_`, then each kind with a table joined and projected under the next
     /// prefix, in declaration order.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     pub(crate) fn of(select: Select<D::Base>) -> Self {
         let shape = DisjointShape::of::<D>();
         let mut query = select.query;
@@ -129,8 +129,8 @@ impl<D: Disjoint> SelectDisjoint<D> {
     /// its unit kind, whose row in every kind's table is absent, so a base
     /// row with rows in two kinds' tables is read under either, and is the
     /// error a read of it is.
-    // [spec:pgorm:sem:disjoint.read+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.read+2]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn kind(self, kind: D::Kind) -> Self {
         let condition = self.shape.of_kind(position::<D>(kind));
         self.filter(condition)
@@ -138,8 +138,8 @@ impl<D: Disjoint> SelectDisjoint<D> {
 
     /// Read only base rows of one of `kinds`, by presence for an unkinded
     /// entity as [`kind`](Self::kind) reads one.
-    // [spec:pgorm:sem:disjoint.read+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.read+2]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn kinds<I>(self, kinds: I) -> Self
     where
         I: IntoIterator<Item = D::Kind>,
@@ -158,13 +158,45 @@ impl<D: Disjoint> SelectDisjoint<D> {
     /// are null, not every truck. A condition on a kind's column given to
     /// [`filter`](QueryFilter::filter) is an ordinary `WHERE`, under which
     /// those `NULL`s are compared like any other.
-    // [spec:pgorm:sem:disjoint.read+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.read+2]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn filter_kind<M: KindModel<D>>(self, condition: impl IntoCondition) -> Self {
         let condition = self
             .shape
             .kind_condition(position::<D>(M::KIND), condition.into_condition());
         self.filter(condition)
+    }
+
+    /// The identifier the read qualifies the columns of `M`'s table by, `M`
+    /// a kind's `Model`: the table's bare name, or, where the base or an
+    /// earlier kind's table has that name, the alias it is joined under, its
+    /// schema-qualified name as one identifier.
+    ///
+    /// A typed column qualifies by the bare name, so a condition on the
+    /// columns of a kind's table read under an alias names them through
+    /// this, as one on an aliased graph slot's names them through its alias:
+    ///
+    /// ```
+    /// use pgorm::{entity::prelude::*, tests_cfg::{archive_exhibit, gallery_exhibit::Exhibit}};
+    ///
+    /// let archive = Exhibit::find().kind_qualifier::<archive_exhibit::Model>();
+    /// assert_eq!(archive.to_string(), "archive.exhibit");
+    /// let sql = Exhibit::find()
+    ///     .filter_kind::<archive_exhibit::Model>(
+    ///         Expr::col((archive, archive_exhibit::Column::Shelf)).eq("B4"),
+    ///     )
+    ///     .build()
+    ///     .0;
+    /// assert!(sql.ends_with(r#""archive.exhibit"."shelf" = $2"#), "{sql}");
+    /// ```
+    // [spec:pgorm:sem:disjoint.read+2]
+    pub fn kind_qualifier<M: KindModel<D>>(&self) -> Name {
+        let table = &self.shape.kinds[position::<D>(M::KIND)].table;
+        // `M` holds a kind with a table, which a shape of `D` describes.
+        table.as_ref().map_or_else(
+            || Name::new(M::Entity::default()),
+            |table| Name::clone(table.qualifier()),
+        )
     }
 
     /// Read at most `limit` base rows, or, given `None`, remove a limit set
@@ -174,7 +206,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
     /// most one row per key — so the limit counts base rows. A
     /// [paginator](Self::paginate)'s pages and a [cursor](Self::cursor_by)'s
     /// window replace it, as they do a [`Select`]'s.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     pub fn limit(mut self, limit: impl Into<Option<u64>>) -> Self {
         match limit.into() {
             Some(limit) => self.query.limit(limit),
@@ -185,7 +217,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
 
     /// Skip the first `offset` base rows, or, given `None`, remove an offset
     /// set before, on the terms [`limit`](Self::limit) states.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     pub fn offset(mut self, offset: impl Into<Option<u64>>) -> Self {
         match offset.into() {
             Some(offset) => self.query.offset(offset),
@@ -204,8 +236,8 @@ fn position<D: Disjoint>(kind: D::Kind) -> usize {
 }
 
 /// Where a disjoint statement reads one kind's table from.
-// [spec:pgorm:sem:disjoint.read+1]
-// [spec:pgorm:sem:disjoint.write+1]
+// [spec:pgorm:sem:disjoint.read+2]
+// [spec:pgorm:sem:disjoint.write+2]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum KindRows {
     /// The table as the statement's snapshot holds it, which is the table a
@@ -222,25 +254,26 @@ pub(crate) enum KindRows {
 
 impl DisjointTable {
     /// The name a disjoint write gives the `WITH` part that writes the
-    /// table: the table's own name, bare.
+    /// table: the identifier the read qualifies its columns by, its bare name
+    /// unless the shape reads it under an alias.
     ///
-    /// Every reference to the table outside a part's target then means the
-    /// rows the part wrote, so the statement's `SELECT`, the read's
+    /// Every reference by that identifier outside a part's target then means
+    /// the rows the part wrote, so the statement's `SELECT`, the read's
     /// projection and joins ([`DisjointShape::project`]), reads the written
     /// row wherever the read reads the table, and a later part reads the base
     /// row through the same name. A part's target, and a part's own body,
     /// still name the table: PostgreSQL resolves neither to a `WITH` query. A
     /// schema-qualified table keeps its schema where it is a target and drops
     /// it here, as its qualifier in the read's projection already does.
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     pub(crate) fn written(&self) -> TableName {
-        TableName::Table(Name::clone(self.name()))
+        TableName::Table(Name::clone(self.qualifier()))
     }
 
     /// Each column of the table with the name a read gives it as the decoded
     /// source `source`, in column order: a graph's writer's name for its
     /// sources' columns.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     // [spec:pgorm:sem:query.graph.writer+4]
     fn result_columns(&self, source: usize) -> impl Iterator<Item = (&DisjointColumn, String)> {
         let prefix = source_prefix(source);
@@ -255,7 +288,7 @@ impl DisjointTable {
 
 /// Project every column of `table` onto `query` under the prefix of the
 /// decoded source `index`, each read through its `select_as`.
-// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.read+2]
 fn project_table(
     query: &mut SelectStatement,
     table: &DisjointTable,
@@ -274,13 +307,13 @@ fn project_table(
 /// Each key column of `table` compared with the value `key` gives it, in key
 /// order, as `EntityTrait::find_by_id` compares a key: the column and the
 /// value each under the column's casts.
-// [spec:pgorm:sem:disjoint.read+1]
-// [spec:pgorm:sem:disjoint.write+1]
+// [spec:pgorm:sem:disjoint.read+2]
+// [spec:pgorm:sem:disjoint.write+2]
 pub(crate) fn key_filter(table: &DisjointTable, key: impl IntoIterator<Item = Value>) -> Condition {
     let mut condition = Condition::all();
     for (column, value) in table.key().zip(key) {
         let compared = column.casts.compared_column(Expr::col((
-            Name::clone(table.name()),
+            Name::clone(table.qualifier()),
             Name::clone(&column.name),
         )));
         condition = condition.add(compared.binary(BinOper::Equal, column.casts.compared(value)));
@@ -292,7 +325,7 @@ impl DisjointShape {
     /// The condition narrowing a read to the base row whose key `key` gives,
     /// in key order, as [`Disjoint::find_by_id`] narrows it; a key of another
     /// arity than the base's is refused as [`Error::Type`].
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     // [spec:pgorm:req:bindings.disjoint+1]
     pub fn key_is(&self, key: Vec<Value>) -> Result<Condition, Error> {
         self.key_arity(key.len())?;
@@ -320,7 +353,7 @@ impl DisjointShape {
     /// time; [`kind_is`](Self::kind_is), [`kind_in`](Self::kind_in) and
     /// [`filter_kind`](Self::filter_kind) give the conditions that narrow it
     /// by kind.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     // [spec:pgorm:req:bindings.disjoint+1]
     pub fn find(&self) -> SelectStatement {
         let mut query = SelectStatement::new();
@@ -333,17 +366,17 @@ impl DisjointShape {
     /// base's columns under `s0_`, then each kind with a table joined from
     /// where `rows` says for the kind at that index and projected under the
     /// next prefix, in declaration order.
-    // [spec:pgorm:sem:disjoint.read+1]
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.read+2]
+    // [spec:pgorm:sem:disjoint.write+2]
     pub(crate) fn project(&self, query: &mut SelectStatement, rows: &dyn Fn(usize) -> KindRows) {
-        project_table(query, &self.base, self.base.name(), BASE_SOURCE);
+        project_table(query, &self.base, self.base.qualifier(), BASE_SOURCE);
         let mut sources = BASE_SOURCE;
         for (index, kind) in self.kinds.iter().enumerate() {
             let Some(table) = &kind.table else { continue };
             sources += 1;
             let rows = rows(index);
             let from = match rows {
-                KindRows::Table => FromItem::from(table.table.clone()),
+                KindRows::Table => table.joined(),
                 KindRows::Written | KindRows::Deleted => FromItem::from(table.written()),
             };
             let qualifier = Name::clone(from.qualifier());
@@ -368,8 +401,8 @@ impl DisjointShape {
     /// The relation from the base to `table`, read as `to_tbl`, on the key:
     /// each base key column to `table`'s key column in the same place, each
     /// side cast to the enum its domain is over where it is one.
-    // [spec:pgorm:sem:disjoint.read+1]
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.read+2]
+    // [spec:pgorm:sem:disjoint.write+2]
     pub(crate) fn key_relation(
         &self,
         table: &DisjointTable,
@@ -403,7 +436,7 @@ impl DisjointShape {
     /// has: the base is source 0, projected under
     /// [`source_prefix`](crate::source_prefix)`(0)`, and each kind with a
     /// table the index [`sources`](Self::sources) pairs it with.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     // [spec:pgorm:req:bindings.disjoint+1]
     pub fn result_names(&self, source: usize) -> Option<Vec<String>> {
         let table = match source {
@@ -417,7 +450,7 @@ impl DisjointShape {
     fn kind_compared(&self, kinded: &KindedBy) -> Expr {
         let column = &self.base.columns[kinded.column];
         column.casts.compared_column(Expr::col((
-            Name::clone(self.base.name()),
+            Name::clone(self.base.qualifier()),
             Name::clone(&column.name),
         )))
     }
@@ -439,14 +472,13 @@ impl DisjointShape {
     /// that table's first key column, which its key holds `NOT NULL`, is not
     /// `NULL` where the `LEFT JOIN` found it. For a kind without a table,
     /// whether its row in every kind's table is absent.
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     fn present(&self, index: usize) -> SimpleExpr {
         // A table keyed by no column is joined to no row (`project`).
         let key = |table: &DisjointTable| {
-            table
-                .key()
-                .next()
-                .map(|column| Expr::col((Name::clone(table.name()), Name::clone(&column.name))))
+            table.key().next().map(|column| {
+                Expr::col((Name::clone(table.qualifier()), Name::clone(&column.name)))
+            })
         };
         if let Some(table) = &self.kinds[index].table {
             return key(table).map_or(SimpleExpr::Constant(false.into()), Expr::is_not_null);
@@ -460,8 +492,8 @@ impl DisjointShape {
     /// The condition a base row of the kind at `index` passes: its kind
     /// column holding the kind's value, or, for an unkinded shape, its row
     /// in the kind's table present.
-    // [spec:pgorm:sem:disjoint.read+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.read+2]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub(crate) fn of_kind(&self, index: usize) -> SimpleExpr {
         match &self.kinded {
             Some(kinded) => self.kind_eq(kinded, self.kinds[index].value.clone()),
@@ -472,8 +504,8 @@ impl DisjointShape {
     /// The condition a base row of one of the kinds at `indices` passes: its
     /// kind column among their values, or, for an unkinded shape, its row
     /// present in one of their tables, as [`of_kind`](Self::of_kind) tells.
-    // [spec:pgorm:sem:disjoint.read+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.read+2]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub(crate) fn of_kinds(&self, indices: impl IntoIterator<Item = usize>) -> SimpleExpr {
         let indices = indices.into_iter();
         let Some(kinded) = &self.kinded else {
@@ -494,7 +526,7 @@ impl DisjointShape {
     /// The condition narrowing a read to base rows of the kind `kind`, which
     /// [`SelectDisjoint::kind`] adds; a value no kind has is refused as
     /// [`Error::Type`].
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     // [spec:pgorm:req:bindings.disjoint+1]
     pub fn kind_is(&self, kind: &str) -> Result<SimpleExpr, Error> {
         let (index, _) = self.kind(kind)?;
@@ -504,7 +536,7 @@ impl DisjointShape {
     /// The condition narrowing a read to base rows of one of `kinds`, which
     /// [`SelectDisjoint::kinds`] adds; a value no kind has is refused as
     /// [`Error::Type`].
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     // [spec:pgorm:req:bindings.disjoint+1]
     pub fn kind_in<S: AsRef<str>>(&self, kinds: &[S]) -> Result<SimpleExpr, Error> {
         let indices = kinds
@@ -519,7 +551,7 @@ impl DisjointShape {
     /// [`SelectDisjoint::filter_kind`] adds: the kind is part of it, so a
     /// condition a missing row satisfies reads no row of another kind. A
     /// value no kind has is refused as [`Error::Type`].
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     pub fn filter_kind(
         &self,
         kind: &str,
@@ -545,7 +577,7 @@ impl DisjointShape {
     /// [`Error::Type`].
     ///
     /// Its [`statement`](Cursor::statement) is what a page of it sends.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     // [spec:pgorm:req:bindings.disjoint+1]
     pub fn cursor_by<S: AsRef<str>>(
         &self,
@@ -569,13 +601,13 @@ impl DisjointShape {
             ));
         }
         Ok(
-            Cursor::new(query, Name::clone(self.base.name()), Key::from(names))
+            Cursor::new(query, Name::clone(self.base.qualifier()), Key::from(names))
                 .with_casts_by(|column| self.boundary_cast(column)),
         )
     }
 }
 
-// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.read+2]
 impl<D: Disjoint> QueryFilter for SelectDisjoint<D> {
     type QueryStatement = SelectStatement;
 
@@ -584,7 +616,7 @@ impl<D: Disjoint> QueryFilter for SelectDisjoint<D> {
     }
 }
 
-// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.read+2]
 impl<D: Disjoint> QueryOrder for SelectDisjoint<D> {
     type QueryStatement = SelectStatement;
 
@@ -593,7 +625,7 @@ impl<D: Disjoint> QueryOrder for SelectDisjoint<D> {
     }
 }
 
-// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.read+2]
 impl<D: Disjoint> QueryTrait for SelectDisjoint<D> {
     type QueryStatement = SelectStatement;
 
@@ -610,13 +642,15 @@ impl<D: Disjoint> QueryTrait for SelectDisjoint<D> {
     }
 }
 
-// [spec:pgorm:sem:disjoint.read+1/test]    the read's one statement: the base projected under `s0_` and each kind's table LEFT JOINed on the key and projected under its own prefix, no bookkeeping column selected; `find_by_id` keys it, composite and schema-qualified keys included; `kind`, `kinds` and `filter_kind` narrow it by kind, the last with the kind inside the condition; `limit` and `offset` bind on it
+// [spec:pgorm:sem:disjoint.read+2/test]    the read's one statement: the base projected under `s0_` and each kind's table LEFT JOINed on the key and projected under its own prefix, no bookkeeping column selected; `find_by_id` keys it, composite and schema-qualified keys included; `kind`, `kinds` and `filter_kind` narrow it by kind, the last with the kind inside the condition; `limit` and `offset` bind on it
 #[cfg(test)]
 mod tests {
     use super::SelectDisjoint;
     use crate::tests_cfg::{
-        car,
+        archive_exhibit, car,
+        gallery_exhibit::{Exhibit, ExhibitKind},
         listing::{Listing, ListingKind},
+        loan_exhibit,
         shop::{Shop, ShopKind},
         storefront, truck,
         vehicle::{self, Vehicle, VehicleKind},
@@ -737,7 +771,7 @@ mod tests {
         r#"LEFT JOIN "storefront" ON "shop"."id" = "storefront"."id""#,
     ];
 
-    // [spec:pgorm:sem:disjoint.unkinded/test]    an unkinded read is the kinded read's statement with no kind column to project: the base under `s0_`, each kind's table LEFT JOINed on the key under its own prefix, `find_by_id` keying it
+    // [spec:pgorm:sem:disjoint.unkinded+1/test]    an unkinded read is the kinded read's statement with no kind column to project: the base under `s0_`, each kind's table LEFT JOINed on the key under its own prefix, `find_by_id` keying it
     #[test]
     fn an_unkinded_read_joins_every_kind_table() {
         assert_sql(Shop::find().build().0, &SHOP_READ);
@@ -746,7 +780,7 @@ mod tests {
         assert_eq!(values, Values(vec![Value::Int(Some(4))]));
     }
 
-    // [spec:pgorm:sem:disjoint.unkinded/test]    an unkinded read narrows by presence: a kind with a table to its first key column `IS NOT NULL`, the unit kind to every kind's key `IS NULL`, several kinds to either, and `filter_kind` to its kind's presence and the condition together
+    // [spec:pgorm:sem:disjoint.unkinded+1/test]    an unkinded read narrows by presence: a kind with a table to its first key column `IS NOT NULL`, the unit kind to every kind's key `IS NULL`, several kinds to either, and `filter_kind` to its kind's presence and the condition together
     #[test]
     fn unkinded_kinds_narrow_by_presence() {
         let tail = |select: SelectDisjoint<Shop>| {
@@ -774,6 +808,42 @@ mod tests {
                     .filter_kind::<storefront::Model>(storefront::Column::Street.eq("Main"))
             ),
             r#""storefront"."id" IS NOT NULL AND "storefront"."street" = $1"#
+        );
+    }
+
+    // [spec:pgorm:sem:disjoint.read+2/test]    a kind's table named as the base, and a second kind's named as both, are joined under their schema-qualified names as one identifier, every qualifier of the read following, the kind narrowing included, and `kind_qualifier` gives each
+    #[test]
+    fn same_named_kind_tables_are_aliased_apart() {
+        let read = [
+            r#"SELECT "exhibit"."id" AS "s0_id", CAST("exhibit"."kind" AS text) AS "s0_kind", "exhibit"."title" AS "s0_title","#,
+            r#""archive.exhibit"."id" AS "s1_id", "archive.exhibit"."shelf" AS "s1_shelf","#,
+            r#""loan.exhibit"."id" AS "s2_id", "loan.exhibit"."lender" AS "s2_lender""#,
+            r#"FROM "gallery"."exhibit""#,
+            r#"LEFT JOIN "archive"."exhibit" AS "archive.exhibit" ON "exhibit"."id" = "archive.exhibit"."id""#,
+            r#"LEFT JOIN "loan"."exhibit" AS "loan.exhibit" ON "exhibit"."id" = "loan.exhibit"."id""#,
+        ];
+        assert_sql(Exhibit::find().build().0, &read);
+        assert_sql(
+            Exhibit::find().kind(ExhibitKind::Loaned).build().0,
+            &[
+                &read.join(" "),
+                r#"WHERE "exhibit"."kind" = CAST($1::text AS gallery.exhibit_kind)"#,
+            ],
+        );
+        let select = Exhibit::find();
+        assert_eq!(
+            select
+                .kind_qualifier::<archive_exhibit::Model>()
+                .to_string(),
+            "archive.exhibit"
+        );
+        assert_eq!(
+            select.kind_qualifier::<loan_exhibit::Model>().to_string(),
+            "loan.exhibit"
+        );
+        assert_eq!(
+            Vehicle::find().kind_qualifier::<car::Model>().to_string(),
+            "car"
         );
     }
 }

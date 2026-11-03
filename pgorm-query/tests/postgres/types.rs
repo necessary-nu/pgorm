@@ -4,7 +4,7 @@ use pgorm_query::extension::Type;
 
 // [spec:pgorm:req:sql.ddl.type-enum+7/test]
 #[test]
-// [spec:pgorm:req:sql.render.ddl.enum-type+5/test]
+// [spec:pgorm:req:sql.render.ddl.enum-type+6/test]
 fn create_1() {
     assert_eq!(
         Type::create(Font::Table)

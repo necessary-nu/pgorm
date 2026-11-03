@@ -272,3 +272,9 @@ Its statements are `DisjointShape::of` the enum's, which the enum's own
 `find`, `insert` and `Schema::create_disjoint` build theirs from, and
 `createDisjoint(Shipments)` gives its schema.
 
+An enum declared `#[pgorm(base = .., unkinded)]` registers the same way and is
+read-only, as its Rust declaration is: typed as an `UnkindedDisjointEntity`,
+its kinds its variants' names in snake_case and its `describe()` without a
+kind field or kind type, each write and `createDisjoint` refusing with a
+`ConstructionError`.
+

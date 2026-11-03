@@ -32,10 +32,16 @@ explicit limitations.
 > whose names are computed, or a key the arity guard of `entity.traits.crud` refuses —
 > meets the same bounds.
 
-> [spec:pgorm:req:entity.traits.entity-name+4]
+> [spec:pgorm:req:entity.traits.entity-name+5]
 > `EntityName::table_name` is the only required method and MUST return the table's SQL
 > name. `schema_name` and `comment` default to `None`; `module_name` defaults to
-> `table_name()`. `table_ref` MUST produce a schema-qualified `TableName`
+> `table_name()`; `unique_keys` — the table's unique keys over two columns or
+> more, static data as the table's name is: each a `UniqueKey` of the
+> constraint's name or `None`, its columns' SQL names in key order and whether
+> nulls are equal under it, which `create_table_from_entity` writes — defaults
+> to none, and is what the composite derive's `unique(..)` keys declare
+> (`macros.derive.entity-model.attrs`). `table_ref` MUST produce a
+> schema-qualified `TableName`
 > (`(Name::runtime(schema), entity)`) when `schema_name` returns `Some`, and a bare
 > `TableName::Table` otherwise (`src/entity/base_entity.rs`). It is the DDL-position
 > type, so schema projection targets take it directly; query positions widen it to a
@@ -156,7 +162,7 @@ explicit limitations.
 > (`[spec:pgorm:sem:macros.derive.entity-model.column-def]`) and a hand-written
 > definition meets when its schema is created.
 
-> [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+> [spec:pgorm:sem:entity.traits.column.enum-cast+15]
 > Enum-typed columns are transparently cast at the SQL boundary
 > (`src/entity/column.rs`). On read, `select_as` / `select_enum_as` casts an enum
 > column to `text` — or `text[]` when the column type is `Array` of an enum — and
@@ -269,7 +275,21 @@ explicit limitations.
 > comparisons, `in_array`, its operand and each member, `coalesce` and
 > `is_null` among them — casts every side that carries one, as the `min` and
 > `max` aggregates cast their argument; sorting, grouping, projecting and
-> `count` keep the bare column. The type comes from the entity wherever one
+> `count` keep the bare column.
+>
+> A pipeline's entity column also carries the type its `ColumnTrait` casts a
+> compared value to, wherever what that trait writes is a cast of the value
+> itself — an enum, `money` and an array of it, a created range, a domain
+> needing a cast, a `save_as` type — and a literal or a bound value compared
+> with the column, by a comparison, `coalesce` or `in_array`, on either side,
+> is cast to it as `ColumnTrait` casts it, so a `money` column compares with a
+> `Decimal` (`CAST($1::numeric AS money)`) where a bare value would leave the
+> server no operator (`42883`, *money = numeric*) or bind the value as a type
+> it is not. A bound value's placeholder is pinned inside the cast to the type
+> its value binds as, as `sql.render.cast-param-type` pins a statement's; a
+> literal is cast as written. Arithmetic, another column, `null` and any
+> other expression stay as written, and a column whose values travel bare, or
+> that a `save_with` function writes as anything but a cast, casts nothing. The type comes from the entity wherever one
 > is known: a relation read under a name of its own keeps it, its columns
 > written `Named::col(column)`, qualified by the name and carrying what the
 > entity column carries. Where none is — `col(table, column)` over a table no
@@ -794,7 +814,7 @@ explicit limitations.
 > entity related to itself is well-formed where an unaliased join of the
 > `Related` path would name one table twice.
 
-> [spec:pgorm:req:entity.relation.fk+5]
+> [spec:pgorm:req:entity.relation.fk+6]
 > A `RelationDef` converts into DDL foreign-key forms via
 > `From<RelationDef> for ForeignKeyCreateStatement` and `for TableForeignKey`
 > (`src/entity/relation.rs`). The conversion maps every pair in `columns` to a
@@ -804,7 +824,9 @@ explicit limitations.
 > `deferrability` and the `enforcement` when present, and names the
 > constraint from `fk_name` when set; otherwise the name MUST be derived as
 > `fk-{from_table}-{from_cols joined with '-'}`, the from columns being
-> `from_key()`'s, the period's last. Both conversions unpack the table
+> `from_key()`'s, the period's last, and bounded to PostgreSQL's 63 bytes
+> as every name schema generation derives is
+> (`[spec:pgorm:sem:schema.from-entity]`). Both conversions unpack the table
 > references to bare tables (the schema of a `FromItem`'s `TableName`, and any bound
 > alias, are reduced away by `unpack_table_ref`).
 >

@@ -1,10 +1,12 @@
 """Run only against the independent application-binding wheel."""
 
 import asyncio
+from decimal import Decimal
 import os
 import unittest
 
 import pgorm as p
+from pgorm import pipeline as pl
 from pgorm import schema as s
 from pgorm._registered.versions import InsertManyView, InsertView, UpdateManyView, UpdateView
 
@@ -31,12 +33,13 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
     def active(self, identity, name="Nora"):
         return self.account.active().set("id", identity).set("display name", name)
 
-    # [spec:pgorm:req:bindings.entities+3/test]
+    # [spec:pgorm:req:bindings.entities+4/test]
     async def test_registration_declares_real_types_and_mapping(self):
         registrations = p.capabilities()["registrations"]["entities"]
         self.assertEqual([r["name"] for r in registrations],
-                         ["app.Account", "app.Booking", "app.Membership", "app.Note", "app.Old", "app.Pallet",
-                          "app.Parcel", "app.Room", "app.Shipment", "app.Stay", "app.Temper"])
+                         ["app.Account", "app.Auction", "app.Booking", "app.Listing", "app.Membership",
+                          "app.Note", "app.Old", "app.Pallet", "app.Parcel", "app.Room", "app.Sale",
+                          "app.Shipment", "app.Stay", "app.Temper", "app.Till"])
         self.assertEqual(p.entities(), [r["name"] for r in registrations])
         info = self.account.describe()
         self.assertTrue(info["rust"]["entity"].endswith("account::Entity"))
@@ -213,6 +216,45 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             mood.is_in("busy")
 
+    # [spec:pgorm:req:bindings.entities+4/test]    a money column, and an array of it, is a decimal
+    # column: described as one, set, compared and read back as a Decimal through the entity's own
+    # casts, and compared as money by a pipeline that reads the registered column, where the column
+    # named by text takes no Decimal
+    async def test_money_columns_are_decimals(self):
+        await self.pool.execute(p.RawSQL(
+            "CREATE TABLE python_entities.tills (id integer PRIMARY KEY, takings money NOT NULL, floats money[])"))
+        till = p.entity("app.Till")
+        kinds = [(column["name"], column["kind"]) for column in till.describe()["columns"]]
+        self.assertEqual(kinds, [("id", "i32"), ("takings", "decimal"), ("floats", "decimal[]")])
+        takings = till.col("takings")
+        async with self.pool.connection() as connection:
+            written = await (till.active().set("id", 1).set("takings", Decimal("12.345"))
+                             .set("floats", [Decimal("1.5"), Decimal("2")]).insert(connection))
+            self.assertEqual((written["takings"], written["floats"]),
+                             (Decimal("12.35"), [Decimal("1.50"), Decimal("2.00")]))
+            self.assertEqual(written.tagged("takings").kind, "decimal")
+            await till.active().set("id", 2).set("takings", Decimal("3")).insert(connection)
+
+            async def ids(predicate):
+                return sorted(row["id"] for row in await till.find().where(predicate).all(connection))
+
+            self.assertEqual(await ids(takings == Decimal("12.35")), [1])
+            self.assertEqual(await ids(takings < Decimal("10")), [2])
+            self.assertEqual(await ids(takings.is_in([Decimal("3"), Decimal("12.35")])), [1, 2])
+            self.assertEqual(await ids(till.col("floats") == [Decimal("1.5"), Decimal("2")]), [1])
+
+            column = pl.col("tills", takings)
+            identifier = pl.col("tills", "id")
+
+            async def piped(query):
+                return sorted(row["id"] for row in await query.select(identifier).all(connection))
+
+            self.assertIn("CAST($1::numeric AS money)", pl.from_(till).filter(column > Decimal("5")).inspect().sql)
+            self.assertEqual(await piped(pl.from_(till).filter(column > Decimal("5"))), [1])
+            self.assertEqual(await piped(pl.from_(till).filter_with(lambda binder: column <= binder.bind(3))), [2])
+            with self.assertRaises(p.ConstructionError):
+                await piped(pl.from_(till).filter(pl.col("tills", "takings") > Decimal("5")))
+
     # [spec:pgorm:req:bindings.entity-reads+2/test]
     async def test_one_never_widens_a_zero_limit(self):
         async with self.pool.connection() as connection:
@@ -338,7 +380,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
                 await connection.one(p.RawSQL("SELECT $1::integer AS n", [p.Value("text", "text")]))
             self.assertTrue(await connection.ping())
 
-    # [spec:pgorm:req:bindings.entities+3/test]
+    # [spec:pgorm:req:bindings.entities+4/test]
     # [spec:pgorm:req:bindings.cancellation/test]
     async def test_cancellation_interrupts_an_active_rust_hook(self):
         async with self.pool.connection() as connection:

@@ -47,6 +47,7 @@ def install(wheel, destination, environment):
 
 
 # [spec:pgorm:req:bindings.codegen/test]
+# [spec:pgorm:req:bindings.codegen-disjoint/test]
 # [spec:pgorm:req:python.typing+2/test]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -168,7 +169,15 @@ def main():
             capture_output=True,
         )
         print(invalid.stdout, end="")
-        expected = ("arg-type", "assignment", "attr-defined", "union-attr")
+        expected = (
+            "arg-type",
+            "assignment",
+            "attr-defined",
+            "union-attr",
+            "arg-type",
+            "arg-type",
+            "attr-defined",
+        )
         if (
             invalid.returncode != 1
             or invalid.stdout.count("error:") != len(expected)
@@ -206,13 +215,14 @@ def main():
                 "passed": True,
                 "wheel": wheel.name,
                 "fresh_installs": 3,
-                "generated_entities": 4,
+                "generated_entities": 10,
                 "generated_graphs": 3,
-                "database_cases": 6,
+                "generated_disjoints": 2,
+                "database_cases": 7,
                 "deterministic_emission": True,
                 "compatibility_checked": True,
                 "type_checker": checker,
-                "invalid_typing_cases": 4,
+                "invalid_typing_cases": 7,
                 "installed_signatures": True,
                 "package_typing": True,
             },

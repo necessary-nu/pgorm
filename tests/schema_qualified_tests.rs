@@ -77,7 +77,7 @@ async fn main() -> Result<(), Error> {
     result
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+16/test]    preserving the source
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    preserving the source
 // table's schema qualifier is what keeps generated CRUD off a same-named table
 // on the `search_path`
 // [spec:pgorm:def:codegen.entity.compact+5/test]
@@ -132,7 +132,7 @@ where
         .await
 }
 
-// [spec:pgorm:req:entity.traits.entity-name+4/test]    an entity handed straight to a raw
+// [spec:pgorm:req:entity.traits.entity-name+5/test]    an entity handed straight to a raw
 // builder's table position is qualified as `table_ref` qualifies it, so a select, a join and
 // each write reach `tenant_a.item` and never the `public.item` the `search_path` holds
 // [spec:pgorm:def:sql.types.table-ref+7/test]

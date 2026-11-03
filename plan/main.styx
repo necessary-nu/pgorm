@@ -16303,6 +16303,9 @@ children (
             {
                 id disjoint.evolve
                 title "A kind can be added to or removed from an existing disjoint entity"
+                implements {
+                    main ([spec:pgorm:sem:disjoint.evolve] [spec:pgorm:req:migration.commit-after])
+                }
                 deps (disjoint.schema)
                 log (
                     {
@@ -16311,12 +16314,22 @@ children (
                         kind @note
                         text "Scope: no rule yet; write it when this node starts and put it to the operator before code. What it has to settle: adding a kind needs two transactions, because PostgreSQL cannot use a value ALTER TYPE ... ADD VALUE added inside the transaction that added it (first the value, then the kind table, the base's generated key columns and the foreign keys); removing a kind has no ALTER TYPE ... DROP VALUE to use, so the kind type is recreated and the kind column retyped, refused while any base row still has that kind; a unit kind gaining a table, or a payload kind losing one, is the same column-and-constraint change on an existing value. Every name involved is deterministic per disjoint.schema, so the statements can name what they alter. Decide whether this is Schema statements a migration runs, a pgorm-migration helper, or both, and how up() splits the two transactions."
                     }
+
+                    {
+                        at 2026-11-03T10:23:48.026317Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Operator, 2026-11-03 (\"yes to both\"), on the lead's proposal. Adding a kind has two routes: by default ALTER TYPE ... ADD VALUE, then a commit, then the new kind's table, generated key columns and foreign keys — which needs a pgorm-migration opt-in for a migration that commits before the next runs, since up() runs a whole batch in one transaction and PostgreSQL cannot use an added enum value before its transaction commits; and, for a single atomic migration, recreating the kind type in one transaction (a new enum with every value, both kind columns retyped, the disjoint constraints and generated columns dropped and recreated, the old type dropped and the new one renamed), at the cost of rewriting the base and every kind table under an exclusive lock. Removing a kind always takes the recreate route (no ALTER TYPE ... DROP VALUE) and is refused while any base row has that kind. A unit kind gaining a table adds its foreign key NOT VALID, leaves the backfill to the migration, then VALIDATEs. A kind losing its table drops data, so only when asked explicitly. The rule goes to the operator before code."
+                    }
                 )
             }
 
             {
                 id disjoint.one-of
                 title "A reference can point at exactly one of several entities"
+                implements {
+                    main ([spec:pgorm:def:disjoint.one-of])
+                }
                 deps (disjoint.write)
                 log (
                     {
@@ -16324,6 +16337,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Scope: no rule yet; write it when this node starts and put it to the operator before code. Sketch from the 2026-11-02 discussion: a reference whose type is an enum, Commentable::Post(post_id) / Commentable::Photo(photo_id), stored as one nullable foreign key column per variant plus a CHECK that exactly one is set (num_nonnulls(...) = 1); \"attached to nothing\" comes from the enum, as a unit variant or an Option around it, and relaxes the CHECK to at most one. Open: whether the model carries the raw columns with the enum as a typed accessor or one field spanning several columns (pgorm maps a field to one column today), how load_one / the graph resolve it to the target's model, and what codegen recognises. A target may itself be a disjoint base."
+                    }
+
+                    {
+                        at 2026-11-03T10:23:50.700413Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Operator, 2026-11-03 (\"yes to both\"), on the lead's proposal: the referencing model keeps one plain nullable foreign-key column per target, declared as ordinary belongs_to relations (pgorm maps a field to one column, and every existing path keeps working); #[derive(OneOf)] on an enum types the choice over those columns (#[pgorm(entity = comment::Entity)], each variant #[pgorm(column = Column::PostId)] naming its column and its target entity); reading gives the chosen target's key, setting it on the active model sets that column and clears the others, and loading gives the target's model, one query per target table as load_one does; \"attached to nothing\" comes from the enum, a unit variant relaxing the schema's CHECK (num_nonnulls(...) = 1) to <= 1; codegen recognises nullable foreign-key columns covered by exactly such a CHECK."
                     }
                 )
             }
@@ -16348,6 +16368,10 @@ children (
             {
                 id disjoint.bindings-codegen
                 title "The bindings' codegen workflow describes, registers and types an application's disjoint enums"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.codegen-disjoint])
+                    python ([spec:pgorm:req:bindings.codegen-disjoint])
+                }
                 deps (disjoint.bindings)
                 log (
                     {
@@ -16356,12 +16380,22 @@ children (
                         kind @note
                         text "Scope, filed by disjoint.bindings: bindings.codegen generates a registering crate and typed wrappers from a description of entities, graphs and source tuples; disjoint enums are registrable by hand (Registry::disjoint::<D>, disjoint_entity(name)) but the workflow does not carry them. Carrying them needs: the description schema (pgorm.codegen config input_schema_version and pgorm-napi/codegen's build description) to name a disjoint enum's Rust path and registration name; scaffold to emit registry.disjoint::<D>(name) after its entities; emit to type a registration's rows as a union over kinds ((base view, Literal kind, kind view | None) in Python, a tuple union in TypeScript) and its writes' ActiveModels; and the generated module's load-time check to compare the registration's describe() (bindings.disjoint's keys). Write the rule (a revision of bindings.codegen, or a sibling) when this node starts."
                     }
+
+                    {
+                        at 2026-11-03T11:22:30.986715Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
                 )
             }
 
             {
                 id disjoint.bindings-unkinded
                 title "Python and JavaScript declare and register read-only unkinded disjoint models"
+                implements {
+                    main ([spec:pgorm:req:bindings.disjoint-unkinded])
+                }
                 deps (disjoint.codegen-unkinded disjoint.bindings)
                 log (
                     {
@@ -16369,6 +16403,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Scope, filed by disjoint.codegen-unkinded: no rule yet; extend bindings.disjoint (or write bindings.disjoint.unkinded) when this node starts. Rust has the unkinded read (disjoint.unkinded): #[derive(Disjoint)] with `unkinded`, DisjointShape with no kind column (kinded: Option<KindedBy>), reads by presence (kind_is/kind_in/filter_kind give presence conditions, judge decides by presence), every write and create refused as Error::Type read-only. What the bindings lack: (1) a run-time constructor for an unkinded shape — DisjointShape::new always takes a kind column and kind type, so add e.g. DisjointShape::unkinded(base, kinds) with the same refusals new has for kinds, values and keys; (2) disjoint(name, base, kinds, {unkinded: true}) in Python and JavaScript, the options kind/enum_name/schema_name refused beside it, at most one kind with no model, at least one with; (3) registration of a downstream unkinded #[derive(Disjoint)] enum — Registry::disjoint now requires D: KindedDisjoint in both bindings, so an unkinded enum does not register; a read-only registration path (D: Disjoint) that offers no insert/update/change_kind/create_disjoint on the model, the description's kind_field/kindField null (shape.kind_column() is already an Option there); (4) the type surface: a read-only disjoint model type in _disjoint.pyi / disjoint.d.ts without the write methods, so the type checkers refuse them as rustc does; (5) a read's triple carries the kind as its name (variant name in snake_case), the same string DisjointShape::kinds() reports; (6) live tests over hand-written tables with no kind column, two present rows and a missing unit kind as DecodeError, mirroring tests/disjoint_unkinded_tests.rs."
+                    }
+
+                    {
+                        at 2026-11-03T10:53:37.659198Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
                     }
                 )
             }
@@ -16597,12 +16638,20 @@ children (
         id bit-unbounded-renders-bit-one
         title "An unlengthed Bit column type renders as PostgreSQL reads it, not as bit(1)"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-02T21:41:31.780712Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by bpchar-unbounded-round-trip (ebba1f67): ColumnType::Bit(None) renders `bit`, which PostgreSQL reads as bit(1), the flaw Char(None) had. Codegen maps no bit column today, so no generated entity is affected, but create_table_from_entity on a Bit(None) column writes bit(1). Decide what Bit(None) means (an unbounded bit string has no spelling in PostgreSQL: `varbit` is the unbounded type, `bit` is always fixed-width), most likely that Bit(None) cannot be written and ColumnDef's bit builder takes a width, and make the rendering say what the type is; live-check format_type for each spelling."
+            }
+
+            {
+                at 2026-11-03T10:13:23.143946Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16612,12 +16661,20 @@ children (
         title "A money column reads and writes as a decimal through the bindings, the pipeline and COPY rows, as it does through an entity"
         kind @fix
         deps (codegen-money-decodes)
+        sealed true
         log (
             {
                 at 2026-11-02T21:41:31.883789Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by codegen-money-decodes (337a9933), which made an entity's money column (and arrays of money, and domains over either) read cast to numeric and write cast to money, carried by Decimal with no new Value variant. Three paths still do not: (1) the Python and JavaScript bindings' entity kinds report a money column as needing an explicit tagged value (a tagged decimal works); make its kind decimal in both, with describe() and the shared surface file updated; (2) pipeline comparisons bind a money column's value bare, as pipelines do for every save_as column, so `money = numeric` fails at the server (42883) instead of casting — check whether pipeline-untyped-enum-casts' mechanism generalises to every save_as cast rather than adding a money special case; (3) COPY rows (copy_in_rows / copy_out_rows) still refuse money. Each with a live test."
+            }
+
+            {
+                at 2026-11-03T10:43:27.991145Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16648,12 +16705,20 @@ children (
         id enum-label-length
         title "An enum value past PostgreSQL's 63-byte label limit is refused at compile time, for ActiveEnum and Disjoint kinds alike"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T01:45:53.734084Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.declare (0b45e379): neither ActiveEnum nor Disjoint checks a value against PostgreSQL's enum label limit (1 to 63 bytes, NAMEDATALEN - 1; CREATE TYPE refuses a longer or empty label with 42622 / 22023), so the mistake surfaces only when the type is created. Both derives know every value at expansion, so refuse an empty value or one over 63 bytes there, spanned at the variant, sharing one check (Disjoint's kind type already comes from ActiveEnum's expansion). Also from that node: #[cfg] on a Disjoint variant (and on an ActiveEnum variant) is not handled — decide whether a cfg'd variant is refused or carried through to the kind type and the visitor consistently, and test it."
+            }
+
+            {
+                at 2026-11-03T10:09:48.300607Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16663,12 +16728,34 @@ children (
         title "create_disjoint refuses the base key shapes PostgreSQL cannot hold to a kind: generated, temporal, and domain-over-enum key columns"
         kind @fix
         deps (disjoint.schema)
+        sealed true
         log (
             {
                 at 2026-11-03T02:38:49.712173Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.schema (22c8f563), each confirmed live and none refused before the statements are sent: a base key column that is itself a generated column (the base's CASE columns read it; PostgreSQL refuses a generated column referencing another with 42P17); a temporal key (WITHOUT OVERLAPS), onto which the plain foreign key from a kind table gets 42830; and key columns typed as a domain over an enum, which the disjoint foreign keys cannot match (42804) — the existing domain-over-enum refusal in create_table_from_entity covers only relation pairs. Refuse each in check_disjoint or create_disjoint with Error::Type naming the table and column, revise disjoint.schema (or disjoint.declare) to list them, and test each live."
+            }
+
+            {
+                at 2026-11-03T10:51:32.697419Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T11:00:28.903067Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Probed on 18.6 before refusing: a generated base key column fails at the base's CASE columns (42P17) and a base key of a domain over an enum at the first foreign key (42804), as filed; but a temporal (WITHOUT OVERLAPS) base key with plain kind keys is held: create_disjoint's statements run, the kind table's foreign key reaching the base's UNIQUE (id, valid_at, kind), and a row inserts and reads back through the disjoint entity. The 42830 is a kind's key ending WITHOUT OVERLAPS, onto which the base's plain foreign key matches no key. So create refuses the kind's temporal key and holds the base's, and the live test keeps both. The refusal is in create (DisjointShape::keyable), not check_disjoint: reads and writes of such a declaration are sound against a schema pgorm did not write; it is the schema PostgreSQL cannot hold."
+            }
+
+            {
+                at 2026-11-03T11:00:29.245237Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16677,12 +16764,27 @@ children (
         id schema-gen-name-bounds
         title "Every constraint name schema generation derives fits PostgreSQL's 63-byte identifier limit"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T02:38:49.886751Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.schema (22c8f563): create_disjoint bounds its names through bounded_identifier (src/executor/result_name.rs: kept under 63 bytes, else a 47-byte head plus a 16-hex FNV hash), but create_table_from_entity's own derived names are not bounded: a relation's foreign key fk-{table}-{cols} and a composite key's pk-{table}. PostgreSQL truncates a longer identifier silently (NOTICE 42622), so two long names can collide and a later statement naming the constraint misses it. Route every derived name through the same composition, revise schema.from-entity, and test the long cases live."
+            }
+
+            {
+                at 2026-11-03T10:20:40.285118Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:26:11.756797Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16691,12 +16793,27 @@ children (
         id qualified-enum-type-quoting
         title "A schema-qualified enum is quoted alike in its CREATE TYPE and in every column that uses it"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T02:38:50.06071Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.schema (22c8f563): a schema-qualified enum renders unquoted as a column type (market.listing_category) but quoted in CREATE TYPE (\"market\".\"listing_category\"). They agree only while both names are lower-case and need no quoting; a mixed-case or keyword name creates one type and declares columns of another (42704). Find where a column's enum type is rendered (pgorm-query's column type rendering for ColumnType::Enum with a schema) and quote it as an identifier pair the way CREATE TYPE does; live-test a mixed-case schema and type name through create_table_from_entity and create_disjoint."
+            }
+
+            {
+                at 2026-11-03T10:14:02.991352Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:19:48.231555Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16705,12 +16822,27 @@ children (
         id same-named-tables-across-schemas
         title "A read joining two tables of one name in different schemas aliases them apart, in a disjoint read and in the graph"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T03:29:28.599463Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.read (25889d69): a disjoint read LEFT JOINs each kind's table unaliased, so a base and a kind table, or two kind tables, of one name in different schemas (market.listing and archive.listing) make PostgreSQL refuse the statement (42712, table name specified more than once). The graph's joins have the same limit. Alias a joined table whenever its bare name repeats in the statement (the graph already has an aliasing vocabulary, query.graph.aliases), so the column qualifiers stay unambiguous, and test both paths live with same-named tables in two schemas."
+            }
+
+            {
+                at 2026-11-03T10:26:54.549303Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:49:39.276142Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16719,12 +16851,27 @@ children (
         id entity-composite-unique
         title "An entity declares a composite UNIQUE constraint, and codegen keeps one it reads"
         kind @feat
+        sealed true
         log (
             {
                 at 2026-11-03T03:53:21.038292Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.codegen (bdfd9dcb): an entity cannot express a composite UNIQUE constraint (only a column's own unique and indexes). Codegen therefore drops one it reads: in a near-miss disjoint shape the base's UNIQUE (id, kind) is lost, and the kind table's relation onto that pair then makes create_table_from_entity write a foreign key PostgreSQL refuses (42830, no unique constraint matching the referenced columns). Give the Entity derive a container key for a named composite unique (bare column paths, e.g. unique(name = \"uq-x\", Column::A, Column::B)), render it in create_table_from_entity, have codegen emit it, and test the near-miss round trip live. Also from that node, both small: validate_identities checks a schema-qualified enum's name collisions as UpperCamel(\"schema.name\") (MarketListingCategory) rather than the Rust name actually written; and the disjoint name-clash check refuses a base table named like a derive macro (debug), more than it needs to."
+            }
+
+            {
+                at 2026-11-03T10:26:47.812754Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:51:01.215259Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -16733,12 +16880,188 @@ children (
         id codegen-enum-variant-names
         title "Generated disjoint enums compile clippy-clean whatever their tables are named"
         kind @fix
+        sealed true
         log (
             {
                 at 2026-11-03T08:39:56.190722Z
                 author "brendan@necessary.nu"
                 kind @note
                 text "Found by disjoint.codegen-unkinded (30391b0c): a generated disjoint enum can trip clippy::enum_variant_names when the generated module is private — kind table web_shop under base shop becomes Shop::WebShop, a variant ending in the enum's name — so a downstream crate running clippy -D warnings fails on code it did not write. The kinded generator has the same exposure. Decide between emitting #[allow(clippy::enum_variant_names)] on the generated enum (generated code the user does not hand-edit, as other generators do) and renaming, and test with a fixture whose table names trigger it, under clippy -D warnings."
+            }
+
+            {
+                at 2026-11-03T10:10:11.920887Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-03T10:21:00.178339Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Allow rather than rename: the variants are named by the schema (kind values, table names), the derive's default value is the variant's snake_case name, and clippy's enum_variant_names has three checks (a variant starting or ending with the enum's name, a prefix or postfix every variant shares) gated on a configurable threshold, so no renaming predicts it. codegen writes #[allow(clippy::enum_variant_names)] on every disjoint enum it generates, kinded and unkinded; the Disjoint derive puts it on <Enum>Kind, <Enum>ActiveModel and an unkinded kind enum (an allow on the program's enum does not reach them), and the ActiveEnum derive on {Enum}Variant, whose escaped variants (web_shop -> Web0x5Fshop) share a postfix whenever the values share a last word. Found, not fixed: codegen's Relation enum (three kind tables ending _shop give Relation { MallShop, PopUpShop, WebShop }) and the ActiveEnum enums codegen writes into pgorm_active_enums.rs (values web_shop, pop_up_shop, closed_shop) trip the same lint in a module not exported; fixing them changes every generated file's golden, the bindings' codegen fixtures included."
+            }
+
+            {
+                at 2026-11-03T10:21:00.459265Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
+            }
+        )
+    }
+
+    {
+        id codegen-enum-variant-names-all
+        title "Codegen's Relation enum and the enums in pgorm_active_enums.rs pass clippy's enum_variant_names"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:11.138424Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by enum-label-length's lane (codegen-enum-variant-names, 7cff255b), which fixed only the generated disjoint enums: codegen's Relation enum, and the enums it writes into pgorm_active_enums.rs, trip clippy's enum_variant_names the same way when every variant shares a suffix or prefix (three related tables, or three values, ending `_shop`). Fix as the disjoint case was (an allow the generated code carries, or names that don't share the affix) and decide which in the rule; it changes every generated golden, the bindings' codegen fixtures included."
+            }
+        )
+    }
+
+    {
+        id unique-key-virtual-refused
+        title "The Entity derive refuses a VIRTUAL generated column inside unique(..), as the field-level unique does"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:13.699834Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by entity-composite-unique (562c6dfc): `#[pgorm(unique(columns = (..)))]` accepts a VIRTUAL generated column, which PostgreSQL refuses at CREATE (0A000, a virtual generated column cannot be in a key), while the field-level `unique` already refuses it at compile time. Refuse it in the derive the same way, with a compile-fail test."
+            }
+        )
+    }
+
+    {
+        id bindings-composite-unique
+        title "The Python and JavaScript bindings' model DDL declares composite unique keys"
+        kind @feat
+        log (
+            {
+                at 2026-11-03T14:52:16.37536Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by entity-composite-unique (562c6dfc): Rust entities declare composite unique keys (`unique(..)`, EntityName::unique_keys, written by create_table_from_entity), but the Python and JavaScript bindings' model declarations have no way to declare one, so their model DDL can't write it. Needs a bindings rule (or a revision of the shared bindings entities rule), both bindings, describe() carrying it, and live tests."
+            }
+        )
+    }
+
+    {
+        id codegen-unique-parts-dropped
+        title "Codegen refuses a one-column unique key with INCLUDE or deferrability instead of reading it as a plain unique"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:19.120436Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by entity-composite-unique (pre-existing): a one-column unique key carrying INCLUDE or a deferrability, from a statement built in code, is read by codegen as the column's plain `unique`, silently dropping those parts. The composite case is already refused by name (transformer.rs, the `unique(..)` reading); do the same for one column, or give the entity a way to hold them."
+            }
+        )
+    }
+
+    {
+        id codegen-fk-covering-key-at-most-one
+        title "Codegen gives a foreign key whose columns contain the referencing table's unique key an at-most-one inverse, not has_many"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:21.693016Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by disjoint.codegen's near-miss tests (pre-existing): a table keyed by `id` with a foreign key `(id, kind)` onto another table's UNIQUE pair (the disjoint near miss) is given a `has_many` inverse, though its primary key allows at most one row per referenced row. codegen-relation-cardinality infers at-most-one only when the FK's columns are each unique or equal the full primary key; the general rule is that an FK whose column set contains any unique key of the referencing table (primary or unique) is at most one."
+            }
+        )
+    }
+
+    {
+        id python-bind-refusal-text
+        title "Python reports pgorm's bind refusal text, as JavaScript does, not \"error serializing parameter 0\""
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:24.386677Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by money-beyond-entities: binding a value a column's type refuses (e.g. a Decimal to a money parameter where no cast applies) reports in Python as tokio-postgres's \"error serializing parameter 0\", while JavaScript reports pgorm's \"cannot bind a `Decimal` value to Postgres type `money`\". The Python error path loses the source error's text; carry it as JavaScript does, with a test in each binding asserting the message."
+            }
+        )
+    }
+
+    {
+        id bindings-between-casts
+        title "between on a binding's registered column binds its values under the column's casts"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:26.919675Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by money-beyond-entities: `between` on a binding's registered column goes through the plain expression method rather than ColumnTrait's, so its values bind bare instead of under the column's save_as cast, and a money column refuses them. Every value predicate on a registered column should take ColumnTrait's casts (the Rust rule: every value predicate carries save_as casts, between included); check the other predicates the bindings route the same way."
+            }
+        )
+    }
+
+    {
+        id pipeline-untyped-money-compare
+        title "A pipeline column read without an entity that holds money compares with a Decimal"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:29.553638Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by money-beyond-entities: a pipeline column read by name, with no entity behind it, that holds money refuses a Decimal compared with it (the bind is pinned to numeric, and money = numeric has no operator, 42883). The only route is `compares_as(\"numeric\")`, which is undocumented. Decide in the rule whether an untyped column learns its type (as pipeline-untyped-enum-casts did for enums) or compares_as is the documented answer, then document and test it."
+            }
+        )
+    }
+
+    {
+        id pipeline-created-range-bind
+        title "A bound Range compared with a created-range column in a pipeline binds under the created type"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:32.280341Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by money-beyond-entities (pre-existing, fails before that change too): in a pipeline, a bound Range compared with a column of a range type the schema created is pinned to its built-in range type, which doesn't cast to the created type, so the comparison fails. ColumnTrait avoids this by writing the value as text under the created type's cast; the pipeline should bind the same way."
+            }
+        )
+    }
+
+    {
+        id annotation-verbs-match
+        title "Every spec annotation's verb matches its rule's"
+        kind @chore
+        log (
+            {
+                at 2026-11-03T14:52:35.031923Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by derives.paths: eleven annotations cite a rule under the wrong verb, e.g. `exec.crud.exec-vocabulary` written as `sem` where the rule is `req` (src/executor/update.rs, src/executor/delete.rs, plan/main.styx), and others in pgorm-query/tests/surface/citations.rs and plan/decisions/*.md. nplan doesn't check this (filed in nplan's DEFECTS.md); fix every site, and also put the bindings.disjoint-unkinded and bindings.disjoint claims under the python and javascript impls, as bindings.codegen-disjoint's are, rather than main."
+            }
+        )
+    }
+
+    {
+        id active-enum-unknown-key-message
+        title "The ActiveEnum derive's unknown-key error names the key, not Rust debug output"
+        kind @fix
+        log (
+            {
+                at 2026-11-03T14:52:38.032183Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Found by derives.paths: the ActiveEnum derive's error for an unknown attribute key prints Rust debug output (`Some(Ident(..))`) instead of the key's name. Word it as the other derives' unknown-key errors are, with a compile-fail test pinning the message."
             }
         )
     }

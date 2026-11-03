@@ -13,19 +13,19 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// The most columns an entity's primary key can have: its `ValueType` is a
 /// tuple for a composite key, and pgorm's key traits stop at 12 parts.
-// [spec:pgorm:sem:codegen.entity.transform+16]
+// [spec:pgorm:sem:codegen.entity.transform+17]
 const MAX_KEY_COLUMNS: usize = 12;
 
 #[derive(Clone, Debug)]
 pub struct EntityTransformer;
 
 impl EntityTransformer {
-    // [spec:pgorm:sem:codegen.entity.transform+16]
+    // [spec:pgorm:sem:codegen.entity.transform+17]
     // [spec:pgorm:sem:codegen.entity.transform.inverse+1]
     // [spec:pgorm:sem:codegen.entity.transform.conjunct+2]
-    // [spec:pgorm:req:codegen.entity.collisions+2]
+    // [spec:pgorm:req:codegen.entity.collisions+3]
     // [spec:pgorm:def:codegen.entity+7]
-    // [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+    // [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
     pub fn transform(
         table_create_stmts: Vec<TableCreateStatement>,
         context: &EntityWriterContext,
@@ -44,15 +44,18 @@ impl EntityTransformer {
             let table_name = ident.to_string();
             refuse_temporal_constraints(&table_create, &table_name)?;
             refuse_repeated_key_columns(&table_create, &table_name)?;
+            refuse_unheld_composite_uniques(&table_create, &table_name)?;
             let keys: Vec<UniqueKey> = table_create
                 .get_unique_keys()
                 .iter()
                 .map(|key| UniqueKey {
+                    name: key.get_name().map(|name| name.to_string()),
                     columns: key
                         .get_columns()
                         .iter()
                         .map(|name| name.to_string())
                         .collect(),
+                    nulls_not_distinct: key.is_nulls_not_distinct(),
                     plain: !key.is_nulls_not_distinct()
                         && key.get_include().is_empty()
                         && key.get_deferrability().is_none(),
@@ -173,6 +176,11 @@ impl EntityTransformer {
                 primary_keys,
                 without_overlaps,
                 disjoint: None,
+                unique_keys: keys
+                    .iter()
+                    .filter(|key| key.columns.len() > 1)
+                    .cloned()
+                    .collect(),
             };
             entities.insert(ident.clone(), entity);
             unique_keys.insert(ident, keys);
@@ -309,7 +317,7 @@ impl EntityTransformer {
 /// keeps suffix 0, and several are numbered from their count down in the
 /// order they are declared, so the first declared is the count and the last
 /// is 1.
-// [spec:pgorm:sem:codegen.entity.transform+16]
+// [spec:pgorm:sem:codegen.entity.transform+17]
 fn number_relations(relations: &mut [Relation]) {
     let mut ref_table_counts: BTreeMap<TableIdent, usize> = BTreeMap::new();
     for relation in relations.iter() {
@@ -384,7 +392,7 @@ fn inverse_relation(
 /// that bare name — the reading `search_path` would give it in any schema that
 /// generates at all, since two tables sharing a bare name are refused before
 /// this is reached (`validate_distinct_names`).
-// [spec:pgorm:sem:codegen.entity.transform+16]
+// [spec:pgorm:sem:codegen.entity.transform+17]
 pub(crate) fn resolve_reference<'a>(
     declared: &'a [TableIdent],
     reference: &TableIdent,
@@ -406,7 +414,7 @@ pub(crate) fn resolve_reference<'a>(
 /// single columns, and a key ending `WITHOUT OVERLAPS` has two at least, so
 /// read as its columns it would claim a uniqueness the table does not have.
 /// A temporal primary key and a `PERIOD` foreign key the entity holds.
-// [spec:pgorm:sem:codegen.entity.transform+16]
+// [spec:pgorm:sem:codegen.entity.transform+17]
 fn refuse_temporal_constraints(table: &TableCreateStatement, name: &str) -> Result<(), Error> {
     let temporal_unique = table
         .get_unique_keys()
@@ -420,12 +428,35 @@ fn refuse_temporal_constraints(table: &TableCreateStatement, name: &str) -> Resu
     Ok(())
 }
 
+/// A unique key over two columns or more is the entity's `unique(..)`, which
+/// holds its name, its columns and `NULLS NOT DISTINCT`; one with an
+/// `INCLUDE` list or a deferrability, which only a statement built in code
+/// carries (the DDL bridge refuses both), would be generated as a key it is
+/// not, so it is refused by name.
+// [spec:pgorm:sem:codegen.entity.transform+17]
+fn refuse_unheld_composite_uniques(table: &TableCreateStatement, name: &str) -> Result<(), Error> {
+    for key in table.get_unique_keys() {
+        if key.get_columns().len() < 2 {
+            continue;
+        }
+        let what = match (key.get_include().is_empty(), key.get_deferrability()) {
+            (false, _) => "an INCLUDE list",
+            (true, Some(_)) => "a deferrability",
+            (true, None) => continue,
+        };
+        return Err(Error::TransformError(format!(
+            "table `{name}`: an entity cannot hold a unique key of several columns with {what}"
+        )));
+    }
+    Ok(())
+}
+
 /// A primary or unique key naming a column twice, which PostgreSQL refuses
 /// (`42701`) and a caller-built statement can still hold. Read as written it
 /// would generate a `PrimaryKey` enum with one variant twice, which does not
 /// compile, and a unique key over `(a, a)` would mark `a` unique on its own;
 /// so it is refused by name, never read as the key without its repeat.
-// [spec:pgorm:sem:codegen.entity.transform+16]
+// [spec:pgorm:sem:codegen.entity.transform+17]
 fn refuse_repeated_key_columns(table: &TableCreateStatement, name: &str) -> Result<(), Error> {
     let primary = table
         .get_primary_key()
@@ -496,7 +527,7 @@ fn refuse_unwritable_expressions(
 /// column: an entity's key is its key fields in the order they are written,
 /// and the derive takes `WITHOUT OVERLAPS` on the last of them alone, so the
 /// generated entity would not compile.
-// [spec:pgorm:sem:codegen.entity.transform+16]
+// [spec:pgorm:sem:codegen.entity.transform+17]
 fn refuse_period_before_key(
     columns: &[Column],
     primary_keys: &[PrimaryKey],
@@ -521,7 +552,7 @@ fn refuse_period_before_key(
 /// single file, and an unqualified reference to that name could mean either;
 /// the schemas are what tells them apart, and a generation run has one output
 /// directory to tell them apart in.
-// [spec:pgorm:req:codegen.entity.collisions+2]
+// [spec:pgorm:req:codegen.entity.collisions+3]
 fn validate_distinct_names(declared: &[TableIdent]) -> Result<(), Error> {
     let mut claimed: HashMap<&str, &TableIdent> = HashMap::new();
     for ident in declared.iter() {
@@ -545,7 +576,7 @@ fn validate_distinct_names(declared: &[TableIdent]) -> Result<(), Error> {
 /// Every relation joins tables and columns this schema has: a generated file
 /// names its target's module and columns, so a foreign key onto a table the
 /// caller did not pass would generate Rust that does not compile.
-// [spec:pgorm:sem:codegen.entity.transform+16]
+// [spec:pgorm:sem:codegen.entity.transform+17]
 fn validate_references(entities: &BTreeMap<TableIdent, Entity>) -> Result<(), Error> {
     for (table_name, entity) in entities.iter() {
         for relation in entity.relations.iter() {
@@ -587,7 +618,7 @@ fn validate_references(entities: &BTreeMap<TableIdent, Entity>) -> Result<(), Er
 /// whatever the other side is. DDL text is never run, so the server's refusal
 /// cannot have kept one out; generated, it would be a relation
 /// `Schema::create_table_from_entity` refuses in turn.
-// [spec:pgorm:sem:codegen.entity.transform+16]
+// [spec:pgorm:sem:codegen.entity.transform+17]
 fn refuse_unkeyable_references(entities: &BTreeMap<TableIdent, Entity>) -> Result<(), Error> {
     for (table_name, entity) in entities.iter() {
         for relation in entity.relations.iter() {
@@ -612,7 +643,7 @@ fn refuse_unkeyable_references(entities: &BTreeMap<TableIdent, Entity>) -> Resul
 
 /// Whether `entity`'s column `name` is typed as a domain over an enum,
 /// through any further domains; a domain over an array of one is keyed.
-// [spec:pgorm:sem:codegen.entity.transform+16]
+// [spec:pgorm:sem:codegen.entity.transform+17]
 fn over_enum_domain(entity: &Entity, name: &str) -> bool {
     entity
         .columns
@@ -631,8 +662,8 @@ fn over_enum_domain(entity: &Entity, name: &str) -> bool {
 /// and declare the module twice; two columns of a table, two enums or two
 /// values of one enum that derive one identifier would each emit a duplicate
 /// definition.
-// [spec:pgorm:req:codegen.entity.collisions+2]
-// [spec:pgorm:sem:codegen.entity.disjoint+1]    a kind type claims the name its derive gives it
+// [spec:pgorm:req:codegen.entity.collisions+3]
+// [spec:pgorm:sem:codegen.entity.disjoint+3]    a kind type claims the name its derive gives it
 fn validate_identities(
     entities: &BTreeMap<TableIdent, Entity>,
     enums: &BTreeMap<String, ActiveEnum>,
@@ -668,9 +699,12 @@ fn validate_identities(
     }
     let mut enum_types = Claims::default();
     for (enum_name, active_enum) in enums.iter() {
+        // The name the writer declares, its schema no part of it: the
+        // qualified key would claim `MarketGrade` for `market.grade`, which
+        // declares `Grade`.
         let type_name = match kind_types.get(enum_name) {
             Some(kind_type) => kind_type.rust_name.clone(),
-            None => enum_name.to_upper_camel_case(),
+            None => active_enum.enum_name.to_string().to_upper_camel_case(),
         };
         enum_types.claim("enums", "type name", type_name, enum_name)?;
         let mut variants = Claims::default();
@@ -697,8 +731,8 @@ fn validate_identities(
 /// language's, which an item of that name would shadow. A kind type is meant
 /// wherever the module names it, so only the other two are held to the last;
 /// an unkinded entity's kind enum no column names, so it is held to them all.
-// [spec:pgorm:sem:codegen.entity.disjoint+1]
-// [spec:pgorm:sem:codegen.entity.disjoint.unkinded]
+// [spec:pgorm:sem:codegen.entity.disjoint+3]
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
 fn refuse_disjoint_name_clashes(
     entities: &BTreeMap<TableIdent, Entity>,
     enums: &BTreeMap<String, ActiveEnum>,
@@ -769,18 +803,24 @@ fn refuse_disjoint_name_clashes(
 /// first segment of each path its imports, `Model`, relation attributes and
 /// `Related` impls write. A later segment is looked up in the one before it,
 /// and a `Relation` variant is declared in its enum, so neither can be
-/// shadowed by an item of the module.
+/// shadowed by an item of the module. Nor can a `derive(..)` list's names,
+/// which are looked up among macros, where no item of the module is: a base
+/// table named `debug` declares an enum `Debug` beside `#[derive(Debug)]`.
+// [spec:pgorm:sem:codegen.entity.disjoint+3]
 fn names_used(entity: &Entity) -> BTreeSet<String> {
     fn collect(stream: TokenStream, names: &mut BTreeSet<String>) {
         let mut colons = 0;
+        let mut derive = false;
         for tree in stream {
             match &tree {
+                TokenTree::Group(_) if derive => {}
                 TokenTree::Ident(ident) if colons < 2 => {
                     names.insert(ident.to_string());
                 }
                 TokenTree::Group(group) => collect(group.stream(), names),
                 _ => {}
             }
+            derive = matches!(&tree, TokenTree::Ident(ident) if ident == "derive");
             colons = match &tree {
                 TokenTree::Punct(punct) if punct.as_char() == ':' => colons + 1,
                 _ => 0,
@@ -815,7 +855,7 @@ fn names_used(entity: &Entity) -> BTreeSet<String> {
 
 /// The DB name that claimed each derived identifier, so a second claim on one
 /// can name both sides.
-// [spec:pgorm:req:codegen.entity.collisions+2]
+// [spec:pgorm:req:codegen.entity.collisions+3]
 #[derive(Default)]
 struct Claims(HashMap<String, String>);
 

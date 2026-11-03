@@ -5,12 +5,14 @@
 
 pub mod account;
 pub mod graphs;
+pub mod listings;
 pub mod membership;
 pub mod note;
 pub mod parcel;
 pub mod shipping;
 pub mod sources;
 pub mod temper;
+pub mod till;
 
 #[cfg(test)]
 mod parity;
@@ -21,7 +23,7 @@ use neon::prelude::*;
 use pgorm_napi::{RegistrationError, Registry};
 
 /// The application's registrations.
-// [spec:pgorm:req:bindings.entities+3/test]
+// [spec:pgorm:req:bindings.entities+4/test]
 pub fn registry() -> Result<Registry, RegistrationError> {
     let mut registry = Registry::default();
     registry.entity::<account::Entity>("app.Account")?;
@@ -29,10 +31,15 @@ pub fn registry() -> Result<Registry, RegistrationError> {
     registry.entity::<membership::Entity>("app.Membership")?;
     registry.entity::<parcel::Entity>("app.Parcel")?;
     registry.entity::<temper::Entity>("app.Temper")?;
+    registry.entity::<till::Entity>("app.Till")?;
     registry.entity::<shipping::shipment::Entity>("app.Shipment")?;
     registry.entity::<shipping::packet::Entity>("app.Packet")?;
     registry.entity::<shipping::pallet::Entity>("app.Pallet")?;
     registry.disjoint::<shipping::shipment::Shipment>("app.Shipments")?;
+    registry.entity::<listings::listing::Entity>("app.Listing")?;
+    registry.entity::<listings::auction::Entity>("app.Auction")?;
+    registry.entity::<listings::sale::Entity>("app.Sale")?;
+    registry.disjoint::<listings::listing::Listing>("app.Listings")?;
     graphs::register(&mut registry)?;
     sources::register(&mut registry)?;
     Ok(registry)
@@ -52,7 +59,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
 mod tests {
     use super::*;
 
-    // [spec:pgorm:req:bindings.entities+3/test]
+    // [spec:pgorm:req:bindings.entities+4/test]
     #[test]
     fn registry_refuses_duplicate_names_and_entities() -> Result<(), RegistrationError> {
         let mut registry = Registry::default();

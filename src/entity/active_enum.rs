@@ -571,7 +571,7 @@ mod tests {
         assert_eq!(EnumVariant::_0x300x20123.to_string(), "0 123");
     }
 
-    // [spec:pgorm:sem:macros.derive.active-enum.expansion+5/test]    `display` writes each variant's `display_value`, or its name
+    // [spec:pgorm:sem:macros.derive.active-enum.expansion+6/test]    `display` writes each variant's `display_value`, or its name
     #[test]
     fn test_derive_display() {
         #[derive(Debug, PartialEq, ActiveEnum)]

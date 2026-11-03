@@ -5,7 +5,8 @@ use std::marker::PhantomData;
 use pgorm_query::Value;
 
 use super::adapter;
-use super::expr::{Expr, branded};
+use super::compare::{Operand, operand};
+use super::expr::Expr;
 
 /// Mints `$N` placeholders against the values the pipeline will carry.
 ///
@@ -66,7 +67,9 @@ impl<'brand> Binder<'brand> {
     /// match: position `N` in the SQL is position `N` in the values, whether
     /// or not every binding survived.
     pub fn bind(&mut self, value: impl Into<Value>) -> Expr<'brand> {
-        self.values.push(value.into());
-        branded(adapter::param(self.values.len()))
+        let value = value.into();
+        let pin = value.source_type_name();
+        self.values.push(value);
+        operand(adapter::param(self.values.len()), Operand::Bound(pin))
     }
 }

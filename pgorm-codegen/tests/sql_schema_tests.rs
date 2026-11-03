@@ -84,6 +84,17 @@ CREATE TABLE tenant_task_note (
         REFERENCES tenant_task (tenant_id, id) ON DELETE CASCADE
 );";
 
+mod serial_keys;
+
+const SERIAL_KEYS: &str = "CREATE TABLE tenant_order (
+    tenant_id int NOT NULL,
+    id serial NOT NULL,
+    total int NOT NULL,
+    PRIMARY KEY (tenant_id, id)
+);
+CREATE TABLE coded_row (code text PRIMARY KEY, seq serial NOT NULL);
+CREATE TABLE badge (id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY, label text NOT NULL);";
+
 fn from_sql(sql: &str) -> Generated {
     Generated {
         files: files(entities_from_sql(sql, Opts::default()).expect("schema should generate")),
@@ -846,7 +857,7 @@ fn rendered_ddl_round_trips_through_the_bridge() {
 // [spec:pgorm:sem:codegen.ddl.types+10/test]    each of these variants has a
 // spelling no other shares, so each reads back as itself, the unbounded
 // `bpchar` beside `char(1)` among them
-// [spec:pgorm:req:sql.ddl.column-types+7/test]
+// [spec:pgorm:req:sql.ddl.column-types+8/test]
 #[test]
 fn one_spelling_one_variant_round_trips() {
     let statements = || {
@@ -873,6 +884,62 @@ fn one_spelling_one_variant_round_trips() {
     assert_eq!(
         from_sql(&text).files,
         generate(statements(), Opts::default()).files
+    );
+}
+
+// [spec:pgorm:sem:codegen.ddl.types+10/test]    the unlengthed bit type,
+// rendered `"bit"`, reads back as itself, and a bare `bit` as the grammar
+// reads it, `bit(1)`
+// [spec:pgorm:req:sql.ddl.column-types+8/test]
+#[test]
+fn bit_spellings_read_back_as_themselves() {
+    let table = keyed_with(
+        "flags",
+        &["id"],
+        vec![
+            serial("id"),
+            typed("free", ColumnType::Bit(None)),
+            typed("one", ColumnType::Bit(Some(1))),
+            typed("eight", ColumnType::Bit(Some(8))),
+            typed("vary", ColumnType::VarBit(8)),
+        ],
+    );
+    let tables = parse_schema(&format!("{table};")).expect("schema should parse");
+    assert_eq!(
+        tables.iter().map(ToString::to_string).collect::<Vec<_>>(),
+        [table.to_string()]
+    );
+
+    let bare =
+        parse_schema("CREATE TABLE t (b bit, q pg_catalog.bit);").expect("schema should parse");
+    let types: Vec<_> = bare[0]
+        .get_columns()
+        .iter()
+        .map(|column| column.get_column_type().cloned())
+        .collect();
+    assert_eq!(
+        types,
+        [Some(ColumnType::Bit(Some(1))), Some(ColumnType::Bit(None))]
+    );
+}
+
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    a unique index or
+// constraint over two columns, read from DDL, generates as the entity's
+// `unique(..)` under its name
+#[test]
+fn composite_unique_keys_generate_from_ddl() {
+    let generated = from_sql(
+        "CREATE TABLE seat (id serial PRIMARY KEY, \"row\" int NOT NULL, number int NOT NULL, \
+         holder text, CONSTRAINT seat_pair UNIQUE NULLS NOT DISTINCT (holder, \"row\")); \
+         CREATE UNIQUE INDEX seat_place ON seat (\"row\", number);",
+    );
+    assert_contains(
+        generated.file("seat.rs"),
+        r#"#[pgorm(
+            table_name = "seat",
+            unique(name = "seat_pair", nulls_not_distinct, columns = (Column::Holder, Column::Row)),
+            unique(name = "seat_place", columns = (Column::Row, Column::Number))
+        )]"#,
     );
 }
 
@@ -975,7 +1042,7 @@ fn array_of_ranges_generates_a_vec() {
 // [spec:pgorm:sem:codegen.ddl.tables+11/test]    an identity inside a composite
 // key is carried, not refused, and the generated entity declares it on its
 // column and compiles: the key is not generated whole, the column is
-// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    `identity` follows
+// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    `identity` follows
 // `primary_key`, and the identity column carries no `auto_increment = false`
 #[test]
 fn composite_key_identity_generates_a_compiling_entity() {
@@ -998,7 +1065,7 @@ fn composite_key_identity_generates_a_compiling_entity() {
 
 // [spec:pgorm:sem:codegen.ddl.tables+11/test]    `BY DEFAULT` keeps its form, an
 // identity column is NOT NULL unasked, and each key column declares its own form
-// [spec:pgorm:sem:codegen.entity.pk+4/test]    a key every column of which is
+// [spec:pgorm:sem:codegen.entity.pk+5/test]    a key every column of which is
 // an identity is generated whole
 #[test]
 fn identity_forms_reach_their_columns() {
@@ -1078,7 +1145,7 @@ fn a_composite_foreign_key_joins_on_both_pairs() {
 // NOT ENFORCED, declared on its column or at table level, ride on the statement
 // [spec:pgorm:sem:codegen.entity.relations+5/test]    and reach the relation the
 // entity declares, which generates the same key back
-// [spec:pgorm:sem:codegen.entity.transform+16/test]
+// [spec:pgorm:sem:codegen.entity.transform+17/test]
 #[test]
 fn a_foreign_keys_check_reaches_the_relation() {
     let generated = from_sql(KEY_STAY);
@@ -1170,7 +1237,7 @@ fn a_refused_foreign_key_check_is_named() {
 // [spec:pgorm:sem:codegen.entity.relations+5/test]    and reach the entity, whose key ends
 // `without_overlaps` and whose relation carries `from_period` / `to_period`, generating the
 // same keys back
-// [spec:pgorm:sem:codegen.entity.pk+4/test]
+// [spec:pgorm:sem:codegen.entity.pk+5/test]
 #[test]
 fn temporal_key_and_period_relation_round_trip() {
     let tables = parse_schema(TEMPORAL).expect("schema should parse");
@@ -1217,7 +1284,7 @@ fn temporal_key_and_period_relation_round_trip() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+16/test]    a temporal key whose period the table
+// [spec:pgorm:sem:codegen.entity.transform+17/test]    a temporal key whose period the table
 // declares before another key column is refused, its entity's key following its fields' order
 #[test]
 fn a_period_declared_before_the_key_is_refused() {
@@ -1338,4 +1405,31 @@ fn an_alter_table_changing_a_table_is_named() {
     ] {
         assert_error(&format!("{table} {alter}"), expected);
     }
+}
+
+// [spec:pgorm:sem:codegen.entity.pk+5/test]    the key's attributes are read from its own columns: a serial column inside a composite key is a plain key column and the key is not generated, a serial column beside a key leaves the key supplied, and a one-column identity key is generated whole, each compiled and read through the derive
+#[test]
+fn keys_are_generated_by_their_own_columns() {
+    use serial_keys::{badge, coded_row, tenant_order};
+    let generated = from_sql(SERIAL_KEYS);
+    for (file, fixture) in [
+        (
+            "tenant_order.rs",
+            include_str!("serial_keys/tenant_order.rs"),
+        ),
+        ("coded_row.rs", include_str!("serial_keys/coded_row.rs")),
+        ("badge.rs", include_str!("serial_keys/badge.rs")),
+    ] {
+        assert_contains(generated.file(file), fixture);
+    }
+
+    assert!(!tenant_order::PrimaryKey::auto_increment());
+    assert_eq!(tenant_order::Column::Id.def(), ColumnType::Integer.def());
+    assert!(!coded_row::PrimaryKey::auto_increment());
+    assert_eq!(coded_row::Column::Seq.def(), ColumnType::Integer.def());
+    assert!(badge::PrimaryKey::auto_increment());
+    assert_eq!(
+        badge::Column::Id.def(),
+        ColumnType::Integer.def().identity()
+    );
 }

@@ -193,7 +193,7 @@ fn an_interval_modifier_beyond_the_spec_is_named() {
 
 // [spec:pgorm:sem:codegen.entity.types+12/test]    an interval column is an
 // `Interval` field, an array of them a `Vec<Interval>`, whatever the qualifier
-// [spec:pgorm:sem:codegen.entity.compact.attrs+12/test]    the compact writer
+// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    the compact writer
 // names the column type exactly where the field's `Interval` does not: a
 // qualifier or a precision, alone or as an array's element
 // [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    no interval

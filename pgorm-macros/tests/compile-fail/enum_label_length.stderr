@@ -1,0 +1,29 @@
+error: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` is 64 bytes, and a PostgreSQL enum's value is at most 63
+ --> tests/compile-fail/enum_label_length.rs:6:28
+  |
+6 |     #[pgorm(string_value = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+  |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `labe_label_label_label_label_label_label_label_label_label_label` is 64 bytes, and a PostgreSQL enum's value is at most 63
+  --> tests/compile-fail/enum_label_length.rs:12:5
+   |
+12 |     LabeLabelLabelLabelLabelLabelLabelLabelLabelLabelLabel,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `éaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` is 64 bytes, and a PostgreSQL enum's value is at most 63
+  --> tests/compile-fail/enum_label_length.rs:17:28
+   |
+17 |     #[pgorm(string_value = "éaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` is 64 bytes, and a PostgreSQL enum's value is at most 63
+  --> tests/compile-fail/enum_label_length.rs:24:21
+   |
+24 |     #[pgorm(value = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `labe_label_label_label_label_label_label_label_label_label_label` is 64 bytes, and a PostgreSQL enum's value is at most 63
+  --> tests/compile-fail/enum_label_length.rs:32:5
+   |
+32 |     LabeLabelLabelLabelLabelLabelLabelLabelLabelLabelLabel,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -4,6 +4,7 @@
 
 #[path = "../../application-binding/src/account.rs"]
 pub mod account;
+pub mod courier;
 #[path = "../../application-binding/src/note.rs"]
 pub mod note;
 pub mod sample;

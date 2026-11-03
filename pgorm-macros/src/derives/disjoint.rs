@@ -49,8 +49,8 @@ fn once<T>(meta: &ParseNestedMeta<'_>, slot: &mut Option<T>, value: T) -> syn::R
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.declare+3]
-// [spec:pgorm:req:macros.derive.code-values+2]
+// [spec:pgorm:def:disjoint.declare+5]
+// [spec:pgorm:req:macros.derive.code-values+3]
 fn container(input: &DeriveInput) -> syn::Result<Container> {
     let mut base = None;
     let mut kind = None;
@@ -106,7 +106,7 @@ fn container(input: &DeriveInput) -> syn::Result<Container> {
 /// it has neither; a second unit variant, since a unit kind is told by a base
 /// row having a row in no kind's table; and no variant holding a kind's
 /// `Model`, which leaves nothing to tell kinds apart by.
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 fn refuse_unkinded(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> syn::Result<()> {
     let kind_keys = [
         container.kind.as_ref().map(|kind| ("kind", kind.span())),
@@ -156,7 +156,7 @@ fn refuse_unkinded(input: &DeriveInput, container: &Container, kinds: &[Kind]) -
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 fn kind(variant: &Variant) -> syn::Result<Kind> {
     let mut given = None;
     for attr in variant
@@ -219,7 +219,7 @@ fn kind(variant: &Variant) -> syn::Result<Kind> {
 
 /// `#[derive(Disjoint)]`: the kind type, the enum of the kinds' active models,
 /// and the traits a disjoint entity's schema, reads and writes are built on.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 pub fn expand_derive_disjoint(input: DeriveInput) -> syn::Result<TokenStream> {
     let Data::Enum(data) = &input.data else {
         return Err(syn::Error::new(
@@ -286,8 +286,12 @@ pub fn expand_derive_disjoint(input: DeriveInput) -> syn::Result<TokenStream> {
 /// or for an `unkinded` entity, whose kinds no column holds, its iteration
 /// alone; `kind_attrs` follow in the order given, so a helper attribute can
 /// follow the derive in them that introduces it.
-// [spec:pgorm:def:disjoint.declare+3]
-// [spec:pgorm:sem:disjoint.unkinded]
+///
+/// It and `<Enum>ActiveModel` repeat the enum's variants, which clippy's
+/// `enum_variant_names` judges where the enum is declared, so it is allowed
+/// on them: an `allow` the program writes on its enum cannot reach them.
+// [spec:pgorm:def:disjoint.declare+5]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 fn kind_type(
     input: &DeriveInput,
     container: &Container,
@@ -313,6 +317,7 @@ fn kind_type(
         return Ok(quote! {
             #[doc = #doc]
             #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+            #[allow(clippy::enum_variant_names)]
             #( #[#kind_attrs] )*
             #vis enum #kind_ident {
                 #( #docs #variants, )*
@@ -351,6 +356,7 @@ fn kind_type(
     Ok(quote! {
         #[doc = #doc]
         #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+        #[allow(clippy::enum_variant_names)]
         #( #[#kind_attrs] )*
         #vis enum #kind_ident {
             #( #docs #variants, )*
@@ -362,7 +368,7 @@ fn kind_type(
 
 /// `<Enum>ActiveModel`: the enum's variants, each holding its kind entity's
 /// `ActiveModel` in place of its `Model`.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 fn active_model(input: &DeriveInput, kinds: &[Kind]) -> TokenStream {
     let ident = &input.ident;
     let vis = &input.vis;
@@ -384,6 +390,7 @@ fn active_model(input: &DeriveInput, kinds: &[Kind]) -> TokenStream {
     quote! {
         #[doc = #doc]
         #[derive(Clone, Debug, PartialEq)]
+        #[allow(clippy::enum_variant_names)]
         #vis enum #active_ident {
             #( #variants, )*
         }
@@ -396,8 +403,8 @@ fn active_model(input: &DeriveInput, kinds: &[Kind]) -> TokenStream {
 ///
 /// Each `Model` is a kind of one enum only once: a second variant holding it
 /// is a second `KindModel` impl for the same type, which coherence refuses.
-// [spec:pgorm:def:disjoint.declare+3]
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:def:disjoint.declare+5]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 fn impl_disjoint(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> TokenStream {
     let ident = &input.ident;
     let kind_ident = format_ident!("{}Kind", ident);
@@ -490,7 +497,7 @@ fn impl_disjoint(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> 
 
 /// `KindedDisjoint` for the kinded enum `ident`, and `DisjointActiveModel` for
 /// its `<Enum>ActiveModel`.
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 fn impl_kinded(
     ident: &Ident,
     kinds: &[Kind],

@@ -466,7 +466,7 @@ closed, and a transaction by the block or callback it was opened for ending.
 > finishes it is abandoned, and when its outcome is unknown its connection or
 > transaction is discarded.
 
-> [spec:pgorm:req:bindings.copy-rows]
+> [spec:pgorm:req:bindings.copy-rows+1]
 > `copy_in_rows(statement, rows)` and `copy_out_rows(statement)` MUST run a
 > binary COPY as rows of values through `conn.copy.rows`, on a pool, a
 > connection and a transaction or savepoint, held and released as `copy_in`
@@ -490,9 +490,10 @@ closed, and a transaction by the block or callback it was opened for ending.
 > `copy_out_rows` gives a `CopyRowStream`: an async iterator of rows, each a
 > sequence of values decoded by its column's type as a result column of that
 > type is (`bindings.values`), fetched as they arrive with bounded buffering,
-> one pull at a time. Its `columns` names the columns. A field that does not
-> decode is a `DecodeError` naming the column and closes the stream,
-> discarding its connection. Its end and its closing behave as `copy_out`'s
+> one pull at a time, a `money` field read as the decimal `conn.copy.rows`
+> reads it as, which no query's result column of `money` is. Its `columns`
+> names the columns. A field that does not decode is a `DecodeError` naming
+> the column and closes the stream, discarding its connection. Its end and its closing behave as `copy_out`'s
 > stream does.
 
 > [spec:pgorm:req:bindings.listen+2]
@@ -1154,7 +1155,7 @@ registrations. The program reaches each registration by name, and every
 operation on one is the entity's own Rust API. A binding cannot instantiate a
 Rust generic at run time, only use the ones compiled in.
 
-> [spec:pgorm:req:bindings.entities+3]
+> [spec:pgorm:req:bindings.entities+4]
 > Each binding MUST let a downstream application crate register its own
 > entities, `SelectGraph` shapes and pipeline source tuples, for any entity
 > whose model converts into its ActiveModel, and build one native module from
@@ -1174,7 +1175,10 @@ Rust generic at run time, only use the ones compiled in.
 > serializes under, its `sql_type`, the `rust_type` its model reads it as,
 > `nullable`, `primary_key`, the `kind` its values bind and read as, spelled
 > as a model's is (`bindings.models`) and null for a type that takes a
-> `Value`, and an enum's `values` (null for any other column);
+> `Value` — a `money` column's being `decimal`, as the entity reads it cast
+> to `numeric` and writes it cast to `money`
+> (`[spec:pgorm:sem:entity.traits.column.enum-cast]`) — and an enum's
+> `values` (null for any other column);
 > `primary_key`, and `primary_key_without_overlaps`, whether that key ends
 > `WITHOUT OVERLAPS`; `relations`, each with its `name`, `type` (has one or
 > has many), the `from` and `to` tables, each its `schema` and `table`, its
@@ -1318,6 +1322,26 @@ Rust generic at run time, only use the ones compiled in.
 > native module and every registration it names describe as they did when it
 > was written, and refuse to load otherwise.
 
+> [spec:pgorm:req:bindings.codegen-disjoint]
+> The codegen workflow (`bindings.codegen`) MUST carry an application's
+> `#[derive(Disjoint)]` enums beside its entities: the description names
+> each by its Rust path, its registration name and its export, a name or a
+> Rust path repeated, and an export colliding with another, refused before
+> anything is written as an entity's are; the generated crate registers each
+> after the entities (`bindings.disjoint`); and generation refuses, before it
+> writes the module, an enum whose base or kind entity the description does
+> not export. The typed wrapper of a registration MUST type its rows as a
+> union over its kinds, one alternative per kind holding the base's record,
+> the kind's value as a literal and the kind's record, or null for a kind
+> without a table, each record the generated type of that entity, so a
+> checker narrows a row's record by its kind; a kinded enum's `insert`,
+> `update` and `change_kind` take the base's and each kind's generated
+> ActiveModel and give the written row as a read does, and an unkinded enum's
+> wrapper offers no write and no schema, as `bindings.disjoint-unkinded`
+> types it. The generated module's load-time check MUST compare every
+> registered enum's `describe()` with the one it was written from, as it
+> compares each entity's.
+
 ## Disjoint models
 
 > [spec:pgorm:req:bindings.disjoint+1]
@@ -1370,6 +1394,37 @@ Rust generic at run time, only use the ones compiled in.
 > `kind_field`; `kind_type`, the kind type's `schema` and `name`; and
 > `kinds`, each with its `value` and its `model`, the kind model's table name
 > or the kind entity's registration name, or null.
+
+> [spec:pgorm:req:bindings.disjoint-unkinded]
+> `disjoint(name, base, kinds, {unkinded: true})` MUST declare an unkinded
+> disjoint model (`[spec:pgorm:sem:disjoint.unkinded]`) over a base model
+> with no kind field, `kinds` mapping each kind's value, in order, to the
+> model of its table or to null for the kind of a base row with a row in no
+> kind's table. It is pgorm's `DisjointShape::unkinded`, and what that
+> refuses — no kinds, a value given twice, one model for two kinds or for a
+> kind and the base, a kind model keyed by other types than the base, a
+> second kind with no model, no kind with one — MUST be a
+> `ConstructionError` raised as the model is declared, as are `kind`,
+> `enum_name` and `schema_name` given beside `unkinded`, there being no kind
+> field and no kind type to name. A downstream crate's `#[derive(Disjoint)]`
+> enum declared `unkinded` MUST register as a kinded one does
+> (`bindings.disjoint`), its base and kind entities registered before it,
+> through the same registration, which takes any `Disjoint`.
+>
+> Either reads as `[spec:pgorm:sem:disjoint.unkinded]` reads: every statement
+> is the shape's, and each row is the triple `bindings.disjoint` gives, its
+> kind the one whose row is present — a declared kind's value as `kinds`
+> gives it, a registered one's its variant's name in snake_case, as
+> `DisjointShape::kinds` names it. A base row with rows in two or more kinds'
+> tables, and one with a row in none where every kind has a model, MUST be a
+> `DecodeError` naming the base, the key and the kinds, never a row read as
+> one of its kinds or dropped. Nothing is written through one: each binding's
+> types MUST offer no `insert`, `update` or `change_kind` and no
+> `create_disjoint` for an unkinded model, so that a type checker refuses
+> each call as rustc refuses it, and a call made regardless, on a model or a
+> registration, is refused before anything is sent with a
+> `ConstructionError` naming the base as read-only, the shape's refusal. Its `describe()` has `bindings.disjoint`'s keys, its
+> `kind_field` null and its `kind_type`'s `schema` and `name` null.
 
 ## Pipelines
 

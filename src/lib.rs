@@ -80,7 +80,7 @@ pub use schema::*;
 /// `SqlName` and `StaticName` arrive through that glob too, `entity` pairing
 /// the traits with pgorm-macros' derives.
 // [spec:pgorm:req:macros.derive.names+1]
-// [spec:pgorm:def:disjoint.declare+3]
+// [spec:pgorm:def:disjoint.declare+5]
 #[cfg(feature = "macros")]
 pub use pgorm_macros::{
     ActiveEnum, Column, CreatedRange, Disjoint, Entity, EntityTrait, FromQueryResult,

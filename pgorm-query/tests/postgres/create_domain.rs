@@ -378,7 +378,7 @@ fn a_drop_names_domains_in_order() {
 // qualified by its schema, through the part policy every type name takes, alone, as an
 // array and as another domain's base; and two domain types are equal by name, schema
 // and base
-// [spec:pgorm:req:sql.ddl.column-types+7/test]
+// [spec:pgorm:req:sql.ddl.column-types+8/test]
 #[test]
 fn a_domain_column_renders_its_name() {
     let sql = Table::create(n("line"))

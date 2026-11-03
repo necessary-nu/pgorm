@@ -6,7 +6,7 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.entities+3]
+// [spec:pgorm:req:bindings.entities+4]
 
 import type { Compiled, ComparisonOperand, Expr, Operand, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Conflict, ConflictUpdate } from "./writes.d.ts";

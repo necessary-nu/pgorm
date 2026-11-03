@@ -137,6 +137,11 @@ features = ["extension-module"]
         lines.append(
             f"    registry.entity::<app_entities::{entry['rust']}>({rust_string(entry['name'])})?;"
         )
+    # [spec:pgorm:req:bindings.codegen-disjoint]
+    for entry in description["disjoints"]:
+        lines.append(
+            f"    registry.disjoint::<app_entities::{entry['rust']}>({rust_string(entry['name'])})?;"
+        )
     for entry in description["graphs"]:
         lines.append(
             f"    registry.graph({rust_string(entry['name'])}, app_entities::{entry['rust']})?;"

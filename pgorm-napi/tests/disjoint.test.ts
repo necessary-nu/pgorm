@@ -12,6 +12,7 @@ import {
   DecodeError,
   DDL,
   disjoint,
+  type Disjoint,
   ForeignKeyViolationError,
   model,
   type Model,
@@ -373,4 +374,125 @@ test("inconsistent rows are decode errors", async () => {
     undecodable(/a row in `disjoint\.truck`, the table of the kind `truck`/),
   );
   await assert.rejects(vehicleModel.find().all(pool()), undecodable());
+});
+
+const SHOPS = "unkinded";
+
+function shop() {
+  return model("shop", { schema: SHOPS, columns: { id: column("i32", { primaryKey: true }), name: column("text") } });
+}
+
+function webShop() {
+  return model("web_shop", {
+    schema: SHOPS,
+    columns: { shopId: column("i32", { name: "shop_id", primaryKey: true }), url: column("text") },
+  });
+}
+
+function storefront() {
+  return model("storefront", { schema: SHOPS, columns: { id: column("i32", { primaryKey: true }), street: column("text") } });
+}
+
+function shops() {
+  return disjoint("shop", shop(), { web_shop: webShop(), storefront: storefront(), dormant: null }, { unkinded: true });
+}
+
+// [spec:pgorm:req:bindings.disjoint-unkinded/test]    an unkinded model describes itself with no kind field or kind type, narrows by presence, and refuses what the derive refuses — a second kind without a model, no kind with one, the kinds' refusals — and a kind option beside unkinded, each a ConstructionError thrown as it is declared
+test("an unkinded declaration reads by presence and refuses what the derive refuses", () => {
+  const shopModel = shops();
+  assert.deepStrictEqual(shopModel.describe(), {
+    name: "shop",
+    base: "shop",
+    kindField: null,
+    kindType: { schema: null, name: null },
+    kinds: [
+      { value: "web_shop", model: "web_shop" },
+      { value: "storefront", model: "storefront" },
+      { value: "dormant", model: null },
+    ],
+  });
+  assert.match(shopModel.find().inspect().sql, /LEFT JOIN "unkinded"\."web_shop" ON "shop"\."id" = "web_shop"\."shop_id"/);
+  assert.match(shopModel.find().kind("web_shop").inspect().sql, /WHERE "web_shop"\."shop_id" IS NOT NULL$/);
+  const cases: Array<[string, () => unknown, RegExp?]> = [
+    [
+      "two kinds without a model",
+      () => disjoint("shop", shop(), { web_shop: webShop(), dormant: null, closed: null }, { unkinded: true }),
+      /declares the kinds `dormant` and `closed` without a table/,
+    ],
+    ["no kind with a model", () => disjoint("shop", shop(), { dormant: null }, { unkinded: true })],
+    ["no kinds", () => disjoint("shop", shop(), {}, { unkinded: true })],
+    ["one model for two kinds", () => disjoint("shop", shop(), { web_shop: webShop(), online: webShop() }, { unkinded: true })],
+    [
+      "a kind option",
+      // @ts-expect-error an unkinded model's base holds no kind
+      () => disjoint("shop", shop(), { web_shop: webShop() }, { unkinded: true, kind: "state" }),
+      /takes no kind, enumName or schemaName/,
+    ],
+    [
+      "a kind type option",
+      // @ts-expect-error nor names a kind type
+      () => disjoint("shop", shop(), { web_shop: webShop() }, { unkinded: true, schemaName: SHOPS }),
+    ],
+  ];
+  for (const [what, declare, pattern] of cases) {
+    assert.throws(declare, refused(pattern), what);
+  }
+});
+
+// [spec:pgorm:req:bindings.disjoint-unkinded/test]    a write and the schema of an unkinded model are refused with a ConstructionError naming its base read-only, before anything is sent, and its type offers none of them
+test("an unkinded model's writes and schema are refused read-only", () => {
+  const shopModel = shops();
+  const writable = shopModel as unknown as Disjoint;
+  for (const write of [
+    () => writable.insert({ name: "x" }, "dormant"),
+    () => writable.insert({ name: "x" }, "web_shop", { url: "u" } as never),
+    () => writable.update({ id: 1, name: "x" }, "dormant"),
+    () => writable.changeKind({ id: 1 }, "dormant"),
+    () => createDisjoint(writable),
+  ]) {
+    assert.throws(write, refused(/is unkinded: .* so it is read-only/));
+  }
+  // @ts-expect-error an unkinded model has no writes
+  assert.equal(typeof shopModel.insert, "function");
+  // @ts-expect-error nor a schema
+  assert.throws(() => createDisjoint(shopModel), refused(/read-only/));
+});
+
+// [spec:pgorm:req:bindings.disjoint-unkinded/test]    each base row reads as the kind whose table has its row, one with a row in none as the kind without a model; reads narrow by presence and count; a row in two kinds' tables, and one in none where every kind has a model, is a DecodeError naming the base, the key and the kinds
+test("unkinded rows read by presence, and unexplained rows are decode errors", async () => {
+  for (const sql of [
+    `DROP SCHEMA IF EXISTS ${SHOPS} CASCADE`,
+    `CREATE SCHEMA ${SHOPS}`,
+    `CREATE TABLE ${SHOPS}.shop (id integer PRIMARY KEY, name text NOT NULL)`,
+    `CREATE TABLE ${SHOPS}.web_shop (shop_id integer PRIMARY KEY REFERENCES ${SHOPS}.shop (id), url text NOT NULL)`,
+    `CREATE TABLE ${SHOPS}.storefront (id integer PRIMARY KEY REFERENCES ${SHOPS}.shop (id), street text NOT NULL)`,
+    `INSERT INTO ${SHOPS}.shop VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma'), (4, 'delta')`,
+    `INSERT INTO ${SHOPS}.web_shop VALUES (1, 'https://alpha.example'), (4, 'https://delta.example')`,
+    `INSERT INTO ${SHOPS}.storefront VALUES (2, 'Main Street')`,
+  ]) {
+    await pool().execute(sql);
+  }
+  const shopModel = shops();
+  const ordered = shopModel.find().orderBy(shopModel.base.col("id").asc());
+  const everything = [
+    [{ id: 1, name: "alpha" }, "web_shop", { shopId: 1, url: "https://alpha.example" }],
+    [{ id: 2, name: "beta" }, "storefront", { id: 2, street: "Main Street" }],
+    [{ id: 3, name: "gamma" }, "dormant", null],
+    [{ id: 4, name: "delta" }, "web_shop", { shopId: 4, url: "https://delta.example" }],
+  ];
+  assert.deepStrictEqual(await ordered.all(pool()), everything);
+  assert.deepStrictEqual(await shopModel.findByKey({ id: 3 }).one(pool()), everything[2]);
+  assert.deepStrictEqual(await ordered.kind("web_shop").all(pool()), [everything[0], everything[3]]);
+  assert.deepStrictEqual(await ordered.kinds(["storefront", "dormant"]).all(pool()), everything.slice(1, 3));
+  assert.equal(await shopModel.find().count(pool()), 4);
+
+  await pool().execute(`INSERT INTO ${SHOPS}.storefront VALUES (4, 'Side Street')`);
+  await assert.rejects(
+    shopModel.findByKey({ id: 4 }).one(pool()),
+    undecodable(/the `unkinded\.shop` row whose key is \(`id` = 4\) of an unkinded disjoint entity has a row in `unkinded\.web_shop`/),
+  );
+  await assert.rejects(ordered.all(pool()), undecodable());
+  const outlets = disjoint("shop", shop(), { web_shop: webShop(), storefront: storefront() }, { unkinded: true });
+  await assert.rejects(outlets.findByKey({ id: 3 }).one(pool()), undecodable(/has a row in none of its kinds' tables/));
+  await pool().execute(`DROP SCHEMA ${SHOPS} CASCADE`);
 });

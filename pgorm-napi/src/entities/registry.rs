@@ -52,7 +52,7 @@ impl Registry {
     /// Register an entity's real `EntityTrait`, model, columns and
     /// ActiveModel under `name`. A name or a Rust type registered twice is
     /// refused, and nothing is added.
-    // [spec:pgorm:req:bindings.entities+3]
+    // [spec:pgorm:req:bindings.entities+4]
     // [spec:pgorm:req:napi.application+2]
     pub fn entity<E>(&mut self, name: &str) -> Result<&mut Self, RegistrationError>
     where
@@ -184,7 +184,7 @@ mod tests {
         pub enum Relation {}
     }
 
-    // [spec:pgorm:req:bindings.entities+3/test]    a name or a Rust entity registered
+    // [spec:pgorm:req:bindings.entities+4/test]    a name or a Rust entity registered
     // twice, a name out of bounds and a graph of an unregistered entity are each
     // refused, and nothing is added
     #[test]

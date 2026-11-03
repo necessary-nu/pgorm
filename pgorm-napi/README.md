@@ -637,6 +637,15 @@ terminal `returningModel` reads back the written row; a write that touches
 no row is a `DecodeError`. A registered enum is `disjointEntity(name)`, its
 records the entities' own and its writes their ActiveModels (`ENTITIES.md`).
 
+`disjoint(name, base, kinds, { unkinded: true })` declares tables an existing
+schema holds with no kind column, read by which kind's table has a row for
+each base row, `null` naming at most one kind of a row with none. Nothing there
+holds a base row to one kind's table, so the model is read-only: its type is
+an `UnkindedDisjoint`, with no `insert`, `update` or `changeKind`, which
+`createDisjoint` does not take, and each refuses with a `ConstructionError` at
+run time. A base row with rows in two kinds' tables, or in none where every
+kind has a model, is a `DecodeError`.
+
 ## Schema
 
 DDL is built from JavaScript as the statements are, through pgorm-query's DDL

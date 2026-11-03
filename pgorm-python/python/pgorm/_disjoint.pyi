@@ -46,9 +46,7 @@ class _Disjoint:
 def _disjoint_model(
     name: str,
     base: tuple[str, dict[str, Any]],
-    kind_column: str,
-    kind_field: str,
-    kind_type: TypeName,
+    kinded: tuple[str, str, TypeName] | None,
     kinds: list[tuple[str, tuple[str, dict[str, Any]] | None]],
 ) -> _Disjoint: ...
 def _disjoint_entity(name: str) -> _Disjoint: ...

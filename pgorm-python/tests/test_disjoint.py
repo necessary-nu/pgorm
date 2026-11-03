@@ -3,6 +3,7 @@ the statements pgorm's shape builds, and the schema, reads and writes on a
 live server."""
 
 import os
+from typing import Any, cast
 import unittest
 from unittest.mock import patch
 
@@ -430,6 +431,186 @@ class DisjointDatabase(unittest.IsolatedAsyncioTestCase):
         self.assertIn("a row in `python_disjoint.truck`, the table of the kind `truck`", str(raised.exception))
         with self.assertRaises(p.DecodeError):
             await model.find().all(self.pool)
+
+
+
+SHOPS = "python_unkinded"
+
+# A schema written with no kind column: each kind's table keyed by a foreign
+# key from its primary key onto the shop's, a shop of no kind's table dormant.
+SHOP_TABLES = (
+    f"CREATE TABLE {SHOPS}.shop (id integer PRIMARY KEY, name text NOT NULL)",
+    f"CREATE TABLE {SHOPS}.web_shop (shop_id integer PRIMARY KEY REFERENCES {SHOPS}.shop (id), url text NOT NULL)",
+    f"CREATE TABLE {SHOPS}.storefront (id integer PRIMARY KEY REFERENCES {SHOPS}.shop (id), street text NOT NULL)",
+    f"INSERT INTO {SHOPS}.shop VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma'), (4, 'delta')",
+    f"INSERT INTO {SHOPS}.web_shop VALUES (1, 'https://alpha.example'), (4, 'https://delta.example')",
+    f"INSERT INTO {SHOPS}.storefront VALUES (2, 'Main Street')",
+)
+
+
+def shop():
+    return p.Model(
+        "shop", {"id": p.Column("i32", primary_key=True), "name": p.Column("text")}, schema=SHOPS
+    )
+
+
+def web_shop():
+    return p.Model(
+        "web_shop",
+        {"shop_id": p.Column("i32", primary_key=True), "url": p.Column("text")},
+        schema=SHOPS,
+    )
+
+
+def storefront():
+    return p.Model(
+        "storefront",
+        {"id": p.Column("i32", primary_key=True), "street": p.Column("text")},
+        schema=SHOPS,
+    )
+
+
+def shops(**kinds):
+    return p.Disjoint(
+        "shop",
+        shop(),
+        kinds or {"web_shop": web_shop(), "storefront": storefront(), "dormant": None},
+        unkinded=True,
+    )
+
+
+class UnkindedDeclaration(unittest.TestCase):
+    # [spec:pgorm:req:bindings.disjoint-unkinded/test]    an unkinded model describes itself with no kind field or kind type, reads and narrows by presence, and refuses what the derive refuses — a second kind without a model, no kind with one, the kinds' refusals — and a kind option beside unkinded, each a ConstructionError raised as it is declared
+    def test_unkinded_declaration_reads_by_presence(self):
+        with patch("socket.socket", side_effect=AssertionError("a declaration connected")):
+            model = shops()
+        self.assertEqual(
+            model.describe(),
+            {
+                "name": "shop",
+                "base": "shop",
+                "kind_field": None,
+                "kind_type": {"schema": None, "name": None},
+                "kinds": [
+                    {"value": "web_shop", "model": "web_shop"},
+                    {"value": "storefront", "model": "storefront"},
+                    {"value": "dormant", "model": None},
+                ],
+            },
+        )
+        self.assertIsNone(model.kind_field)
+        self.assertEqual(
+            model.find().inspect().sql,
+            'SELECT "shop"."id" AS "s0_id", "shop"."name" AS "s0_name", '
+            '"web_shop"."shop_id" AS "s1_shop_id", "web_shop"."url" AS "s1_url", '
+            '"storefront"."id" AS "s2_id", "storefront"."street" AS "s2_street" '
+            'FROM "python_unkinded"."shop" '
+            'LEFT JOIN "python_unkinded"."web_shop" ON "shop"."id" = "web_shop"."shop_id" '
+            'LEFT JOIN "python_unkinded"."storefront" ON "shop"."id" = "storefront"."id"',
+        )
+        self.assertTrue(model.find().kind("web_shop").inspect().sql.endswith('WHERE "web_shop"."shop_id" IS NOT NULL'))
+        refused = {
+            "two kinds without a model": lambda: shops(web_shop=web_shop(), dormant=None, closed=None),
+            "no kind with a model": lambda: shops(dormant=None),
+            "no kinds": lambda: p.Disjoint("shop", shop(), {}, unkinded=True),
+            "one model for two kinds": lambda: shops(web_shop=web_shop(), online=web_shop()),
+            "key types": lambda: shops(
+                web_shop=p.Model("web_shop", {"shop_id": p.Column("i64", primary_key=True)}, schema=SHOPS)
+            ),
+            "a kind option": lambda: p.Disjoint(
+                "shop", shop(), {"web_shop": web_shop()}, unkinded=True, kind="state"
+            ),
+            "a kind type option": lambda: p.Disjoint(
+                "shop", shop(), {"web_shop": web_shop()}, unkinded=True, schema_name=SHOPS
+            ),
+        }
+        for case, declare in refused.items():
+            with self.subTest(case=case), self.assertRaises(p.ConstructionError):
+                declare()
+        with self.assertRaises(p.ConstructionError) as raised:
+            refused["two kinds without a model"]()
+        self.assertIn("declares the kinds `dormant` and `closed` without a table", str(raised.exception))
+
+    # [spec:pgorm:req:bindings.disjoint-unkinded/test]    a write and the schema of an unkinded model are refused with a ConstructionError naming its base read-only, before anything is sent
+    def test_unkinded_writes_are_refused_read_only(self):
+        model = cast(Any, shops())
+        writes = [
+            lambda: model.insert({"name": "x"}, "dormant"),
+            lambda: model.insert({"name": "x"}, "web_shop", {"url": "u"}),
+            lambda: model.update({"id": 1, "name": "x"}, "dormant"),
+            lambda: model.change_kind({"id": 1}, "dormant"),
+            lambda: ps.create_disjoint(model),
+        ]
+        with patch("socket.socket", side_effect=AssertionError("a refused write connected")):
+            for index, write in enumerate(writes):
+                with self.subTest(index=index), self.assertRaises(p.ConstructionError) as raised:
+                    write()
+                self.assertIn("is unkinded", str(raised.exception))
+                self.assertIn("so it is read-only", str(raised.exception))
+
+
+class UnkindedDatabase(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=2)
+        await self.pool.execute(p.RawSQL(f"CREATE SCHEMA {SHOPS}"))
+        for sql in SHOP_TABLES:
+            await self.pool.execute(p.RawSQL(sql))
+
+    async def asyncTearDown(self):
+        await self.pool.execute(p.RawSQL(f"DROP SCHEMA {SHOPS} CASCADE"))
+        await self.pool.close()
+
+    @staticmethod
+    def plain(row):
+        base, kind, record = row
+        return (dict(base), kind, None if record is None else dict(record))
+
+    # [spec:pgorm:req:bindings.disjoint-unkinded/test]    each base row reads as the kind whose table has its row, one with a row in none as the kind without a model; reads narrow by presence, count, page and run on a connection; a row in two kinds' tables, and one in none where every kind has a model, is a DecodeError naming the base, the key and the kinds
+    async def test_unkinded_rows_read_by_presence(self):
+        model = shops()
+        ordered = model.find().order_by(model.base.col("id").asc())
+        everything = [
+            ({"id": 1, "name": "alpha"}, "web_shop", {"shop_id": 1, "url": "https://alpha.example"}),
+            ({"id": 2, "name": "beta"}, "storefront", {"id": 2, "street": "Main Street"}),
+            ({"id": 3, "name": "gamma"}, "dormant", None),
+            ({"id": 4, "name": "delta"}, "web_shop", {"shop_id": 4, "url": "https://delta.example"}),
+        ]
+        self.assertEqual([self.plain(row) for row in await ordered.all(self.pool)], everything)
+        async with self.pool.connection() as connection:
+            self.assertEqual(self.plain(await model.find_by_key({"id": 3}).one(connection)), everything[2])
+        self.assertEqual([self.plain(row) for row in await ordered.kind("web_shop").all(self.pool)],
+                         [everything[0], everything[3]])
+        self.assertEqual([self.plain(row) for row in await ordered.kind("dormant").all(self.pool)], [everything[2]])
+        self.assertEqual(
+            [self.plain(row) for row in await ordered.kinds(["storefront", "dormant"]).all(self.pool)],
+            everything[1:3],
+        )
+        streets = storefront()
+        self.assertEqual(
+            [self.plain(row) for row in await model.find().filter_kind(
+                "storefront", streets.col("street") == "Main Street").all(self.pool)],
+            [everything[1]],
+        )
+        self.assertEqual(await model.find().count(self.pool), 4)
+        self.assertEqual(
+            [[row[0]["id"] for row in page] async for page in ordered.paginate(3).pages(self.pool)],
+            [[1, 2, 3], [4]],
+        )
+
+        await self.pool.execute(p.RawSQL(f"INSERT INTO {SHOPS}.storefront VALUES (4, 'Side Street')"))
+        with self.assertRaises(p.DecodeError) as raised:
+            await model.find_by_key({"id": 4}).one(self.pool)
+        self.assertIn(
+            "the `python_unkinded.shop` row whose key is (`id` = 4) of an unkinded disjoint entity "
+            "has a row in `python_unkinded.web_shop`",
+            str(raised.exception),
+        )
+        with self.assertRaises(p.DecodeError):
+            await ordered.all(self.pool)
+        outlets = p.Disjoint("shop", shop(), {"web_shop": web_shop(), "storefront": storefront()}, unkinded=True)
+        with self.assertRaises(p.DecodeError) as raised:
+            await outlets.find_by_key({"id": 3}).one(self.pool)
+        self.assertIn("has a row in none of its kinds' tables", str(raised.exception))
 
 
 if __name__ == "__main__":

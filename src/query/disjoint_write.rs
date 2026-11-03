@@ -15,13 +15,13 @@ use core::marker::PhantomData;
 use std::fmt;
 
 use pgorm_query::{
-    BinOper, CommonTableExpression, Condition, Expr, FromItem, InsertStatement,
-    IntoSubQueryStatement, LockType, Name, Query, ReturningClause, SelectStatement,
-    UpdateStatement, Value, WithClause,
+    BinOper, CommonTableExpression, Condition, Expr, InsertStatement, IntoSubQueryStatement,
+    LockType, Name, Query, ReturningClause, SelectStatement, UpdateStatement, Value, WithClause,
 };
 
 use super::disjoint::{KindRows, key_filter};
 use super::helper::join_condition;
+use crate::entity::KindedBy;
 use crate::{
     ActiveValue, Disjoint, DisjointKind, DisjointShape, DisjointTable, DisjointValues, Error,
     QueryTrait,
@@ -43,7 +43,7 @@ use crate::{
 /// [`check_disjoint`](crate::check_disjoint) and refused what the write must
 /// not be given, so a value of this type is a statement that can be sent;
 /// [`QueryTrait::build`] renders it.
-// [spec:pgorm:sem:disjoint.write+1]
+// [spec:pgorm:sem:disjoint.write+2]
 pub struct WriteDisjoint<D: Disjoint> {
     pub(crate) query: SelectStatement,
     marker: PhantomData<fn() -> D>,
@@ -78,7 +78,7 @@ impl<D: Disjoint> WriteDisjoint<D> {
 
 /// Which values a write writes: an insert writes `Set` and `Unchanged`
 /// values alike, an update `Set` ones alone.
-// [spec:pgorm:sem:disjoint.write+1]
+// [spec:pgorm:sem:disjoint.write+2]
 #[derive(Clone, Copy, Debug)]
 enum Writes {
     /// An insert: everything but `NotSet`.
@@ -107,7 +107,7 @@ fn held(value: &ActiveValue<Value>) -> Option<Value> {
 /// Refuse, as [`Error::Type`] naming the table and column, a value in the
 /// column at `index` of `table` that `writes` would write, where the column's
 /// value comes from elsewhere for the reason `why` gives.
-// [spec:pgorm:sem:disjoint.write+1]
+// [spec:pgorm:sem:disjoint.write+2]
 fn unwritten(
     table: &DisjointTable,
     values: &[ActiveValue<Value>],
@@ -176,9 +176,9 @@ fn kind_row<'k, 'v>(
     }
 }
 
-/// Every column of `table`, in order, qualified by its bare name: what a part
-/// returns, as stored, for the statement's `SELECT` to cast as the read casts
-/// it.
+/// Every column of `table`, in order, qualified as the read qualifies it: what
+/// a part returns, as stored, for the statement's `SELECT` to cast as the read
+/// casts it.
 ///
 /// Qualified because a part that also reads another part (`UPDATE .. FROM`,
 /// `DELETE .. USING`) sees two relations whose columns may share names.
@@ -186,30 +186,67 @@ fn qualified_columns(table: &DisjointTable) -> Vec<(Name, Name)> {
     table
         .columns
         .iter()
-        .map(|column| (Name::clone(table.name()), Name::clone(&column.name)))
+        .map(|column| (Name::clone(table.qualifier()), Name::clone(&column.name)))
         .collect()
 }
 
 /// The `RETURNING` of a part writing `table`.
-// [spec:pgorm:sem:disjoint.write+1]
+// [spec:pgorm:sem:disjoint.write+2]
 fn returned(table: &DisjointTable) -> ReturningClause {
     Query::returning().columns(qualified_columns(table))
 }
 
-/// The part of a write that writes `table`, named as the table.
-// [spec:pgorm:sem:disjoint.write+1]
+/// The part of a write that writes `table`, named as the read qualifies the
+/// table.
+// [spec:pgorm:sem:disjoint.write+2]
 fn written_part(
     table: &DisjointTable,
     statement: impl IntoSubQueryStatement,
 ) -> CommonTableExpression {
-    CommonTableExpression::new(Name::clone(table.name()), statement)
+    CommonTableExpression::new(Name::clone(table.qualifier()), statement)
 }
 
 impl DisjointShape {
+    /// Where a kinded shape's base holds each row's kind, as
+    /// [`kinded`](Self::kinded) refuses it, and refusing too a shape a write
+    /// would read the wrong rows of.
+    ///
+    /// A write names each part after the identifier its table is read under,
+    /// and an unqualified name in the statement means the part of that name
+    /// where there is one, before any table. A kind's table with no schema
+    /// that is read under an alias has the bare name of an earlier table,
+    /// whose part a write names so, and a write reading the kind's table
+    /// would read that part instead; it is refused as [`Error::Type`] naming
+    /// both, so that nothing is sent.
+    // [spec:pgorm:sem:disjoint.write+2]
+    pub(crate) fn writable(&self) -> Result<&KindedBy, Error> {
+        let kinded = self.kinded()?;
+        let tables: Vec<&DisjointTable> = std::iter::once(&self.base)
+            .chain(self.sources().map(|(_, _, table)| table))
+            .collect();
+        for (index, table) in tables.iter().enumerate() {
+            if table.alias.is_none() || table.table().schema().is_some() {
+                continue;
+            }
+            let bare = table.name().to_string();
+            if let Some(earlier) = tables[..index]
+                .iter()
+                .find(|earlier| earlier.qualifier().to_string() == bare)
+            {
+                return Err(Error::Type(format!(
+                    "`{}` has no schema and is named as `{}`, whose part of a write is named \
+                     `{bare}`, so a write would read that part for it: qualify `{}` by its schema",
+                    table.label, earlier.label, table.label
+                )));
+            }
+        }
+        Ok(kinded)
+    }
+
     /// The condition pairing a row of `table` with the base's part on the
     /// key, column by column.
     fn key_condition(&self, table: &DisjointTable) -> Result<Condition, Error> {
-        self.key_relation(table, FromItem::from(table.table.clone()))
+        self.key_relation(table, table.joined())
             .map(join_condition)
             .ok_or_else(|| {
                 Error::Type(format!(
@@ -241,7 +278,7 @@ impl DisjointShape {
 
     /// The part inserting `kind`'s row from `row`, its key read from the
     /// base's part, or none for a kind without a table.
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     fn insert_kind(
         &self,
         kind: &DisjointKind,
@@ -270,7 +307,7 @@ impl DisjointShape {
         select.from(base);
         let mut insert = InsertStatement::new();
         insert
-            .into_table(table.table.clone())
+            .into_table(table.named())
             .columns(columns)
             .select_from(select)?
             .returning(returned(table));
@@ -280,7 +317,7 @@ impl DisjointShape {
     /// The part updating the set columns of `kind`'s row from `row`, found by
     /// the base part's key, or none for a kind without a table or a row
     /// setting nothing.
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     fn update_kind(
         &self,
         kind: &DisjointKind,
@@ -291,7 +328,7 @@ impl DisjointShape {
         };
         unwritten_key(table, values, kind, Writes::Update)?;
         let mut update = UpdateStatement::new();
-        update.table(table.table.clone());
+        update.table(table.named());
         for (column, value) in table.columns.iter().zip(values) {
             if let ActiveValue::Set(value) = value {
                 update.value(Name::clone(&column.name), column.casts.save(value.clone()));
@@ -308,11 +345,11 @@ impl DisjointShape {
     }
 
     /// The part deleting the base row's row from `table`.
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     fn delete_kind(&self, table: &DisjointTable) -> Result<CommonTableExpression, Error> {
         let mut delete = Query::delete();
         delete
-            .from_table(table.table.clone())
+            .from_table(table.named())
             .using(self.base.written())
             .cond_where(self.key_condition(table)?)
             .returning(returned(table));
@@ -329,16 +366,16 @@ impl DisjointShape {
     /// without a table or not given for one with a table, values of another
     /// table, a kind the shape lacks, and an unkinded shape, which is
     /// read-only. [`check`](Self::check) is the caller's to run.
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:req:bindings.disjoint+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn insert(
         &self,
         base: &DisjointValues,
         kind: &str,
         row: Option<&DisjointValues>,
     ) -> Result<SelectStatement, Error> {
-        let column = self.kinded()?.column;
+        let column = self.writable()?.column;
         let mut values = self.base.owns(base)?.to_vec();
         unwritten(
             &self.base,
@@ -389,16 +426,16 @@ impl DisjointShape {
     /// [`insert`](Self::insert) refuses of `row`, of `kind` and of the shape.
     /// With nothing set in either, the write is a read of the row of that key
     /// and kind.
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:req:bindings.disjoint+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn update(
         &self,
         base: &DisjointValues,
         kind: &str,
         row: Option<&DisjointValues>,
     ) -> Result<SelectStatement, Error> {
-        let kinded = self.kinded()?;
+        let kinded = self.writable()?;
         let values = self.base.owns(base)?;
         unwritten(
             &self.base,
@@ -448,7 +485,7 @@ impl DisjointShape {
     /// committed, so a row whose kind changed meanwhile is no row,
     /// `Error::RecordNotFound`, rather than a base row of the old kind
     /// returned beside a kind row the change deleted.
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     fn updated_base(
         &self,
         mut update: UpdateStatement,
@@ -477,16 +514,16 @@ impl DisjointShape {
     /// at run time, refusing what it refuses as [`Error::Type`], beside a key
     /// of another arity than the base's and what [`insert`](Self::insert)
     /// refuses of `row`, of `kind` and of the shape.
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:req:bindings.disjoint+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn change_kind(
         &self,
         key: Vec<Value>,
         kind: &str,
         row: Option<&DisjointValues>,
     ) -> Result<SelectStatement, Error> {
-        let kinded = self.kinded()?;
+        let kinded = self.writable()?;
         self.key_arity(key.len())?;
         let (new, entry) = self.kind(kind)?;
         let mut parts = Vec::new();
@@ -523,7 +560,7 @@ impl DisjointShape {
     }
 }
 
-// [spec:pgorm:sem:disjoint.write+1]
+// [spec:pgorm:sem:disjoint.write+2]
 impl<D: Disjoint> QueryTrait for WriteDisjoint<D> {
     type QueryStatement = SelectStatement;
 
@@ -540,11 +577,12 @@ impl<D: Disjoint> QueryTrait for WriteDisjoint<D> {
     }
 }
 
-// [spec:pgorm:sem:disjoint.write+1/test]    the SQL of each write for the vehicle fixture: an insert of a payload kind and of a unit kind, an update of both rows, of the base alone, of the kind row alone and of neither, and a change of kind to a payload kind and to the unit kind, each one WITH statement whose SELECT is the read's projection over the parts named as their tables; a composite key pairs column by column
+// [spec:pgorm:sem:disjoint.write+2/test]    the SQL of each write for the vehicle fixture: an insert of a payload kind and of a unit kind, an update of both rows, of the base alone, of the kind row alone and of neither, and a change of kind to a payload kind and to the unit kind, each one WITH statement whose SELECT is the read's projection over the parts named as their tables; a composite key pairs column by column
 #[cfg(test)]
 mod tests {
     use crate::tests_cfg::{
-        car, flat,
+        archive_exhibit, car, flat,
+        gallery_exhibit::{self, Exhibit, ExhibitActiveModel},
         listing::{self, Listing, ListingActiveModel},
         truck,
         vehicle::{self, Vehicle, VehicleActiveModel},
@@ -827,6 +865,38 @@ mod tests {
                 r#"WHERE "listing"."tenant_id" = "flat"."tenant" AND "listing"."id" = "flat"."listing""#,
             )),
             "{sql}"
+        );
+    }
+
+    // [spec:pgorm:sem:disjoint.write+2/test]    a write of a kind whose table is named as the base's names its part, its target and its `RETURNING` after the alias the read joins the table under, so the base's part and the kind's are two, and the other same-named kind is read from its table under its own alias
+    #[test]
+    fn same_named_tables_write_parts_apart() {
+        let insert = Exhibit::insert(
+            gallery_exhibit::ActiveModel {
+                title: set("Sunflowers"),
+                ..Default::default()
+            },
+            ExhibitActiveModel::Archived(archive_exhibit::ActiveModel {
+                shelf: set("B4"),
+                ..Default::default()
+            }),
+        )
+        .expect("the insert is built");
+        assert_sql(
+            &insert,
+            &[
+                r#"WITH "exhibit" AS (INSERT INTO "gallery"."exhibit" ("kind", "title") VALUES (CAST($1::text AS gallery.exhibit_kind), $2)"#,
+                r#"RETURNING "exhibit"."id", "exhibit"."kind", "exhibit"."title")"#,
+                r#", "archive.exhibit" AS (INSERT INTO "archive"."exhibit" AS "archive.exhibit" ("id", "shelf") SELECT "exhibit"."id", $3 FROM "exhibit""#,
+                r#"RETURNING "archive.exhibit"."id", "archive.exhibit"."shelf")"#,
+                r#"SELECT "exhibit"."id" AS "s0_id", CAST("exhibit"."kind" AS text) AS "s0_kind", "exhibit"."title" AS "s0_title","#,
+                r#""archive.exhibit"."id" AS "s1_id", "archive.exhibit"."shelf" AS "s1_shelf","#,
+                r#""loan.exhibit"."id" AS "s2_id", "loan.exhibit"."lender" AS "s2_lender""#,
+                r#"FROM "exhibit""#,
+                r#"LEFT JOIN "archive.exhibit" ON "exhibit"."id" = "archive.exhibit"."id""#,
+                r#"LEFT JOIN "loan"."exhibit" AS "loan.exhibit" ON "exhibit"."id" = "loan.exhibit"."id""#,
+            ],
+            vec!["archived".into(), "Sunflowers".into(), "B4".into()],
         );
     }
 }

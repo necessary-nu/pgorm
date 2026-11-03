@@ -71,7 +71,7 @@ struct VariantAttrs {
 
 impl VariantAttrs {
     // [spec:pgorm:syn:macros.derive.relation+7]
-    // [spec:pgorm:req:macros.derive.code-values+2]
+    // [spec:pgorm:req:macros.derive.code-values+3]
     fn parse(variant: &syn::Variant) -> syn::Result<Self> {
         let mut attrs = Self::default();
         for attr in variant

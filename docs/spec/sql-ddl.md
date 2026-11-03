@@ -452,7 +452,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > program text reaches that position. Anything expressible through the typed
 > setters MUST use them instead.
 
-> [spec:pgorm:req:sql.ddl.column-types+7]
+> [spec:pgorm:req:sql.ddl.column-types+8]
 > `prepare_column_type` defines the `ColumnType` → Postgres type-name
 > contract, and it is total: every variant has exactly one Postgres spelling
 > and none can fail. It MUST spell: `Char(Some(n))`→`char(n)`,
@@ -466,7 +466,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > `Interval(Any(Some(p)))`→`interval(p)`,
 > `Interval(Fields(f))`→`interval FIELDS`, where a second-bearing field
 > spells its own precision (`SECOND(3)`, `HOUR TO SECOND(3)`);
-> `Bytea`→`bytea`; `Bit(Some(n))`→`bit(n)`, `Bit(None)`→`bit`;
+> `Bytea`→`bytea`; `Bit(Some(n))`→`bit(n)`, `Bit(None)`→`"bit"`;
 > `VarBit(n)`→`varbit(n)`; `Boolean`→`bool`; `Money`→`money`; `Json`→`json`;
 > `JsonBinary`→`jsonb`; `Uuid`→`uuid`; `Array(t)`→ recursive element spelling
 > plus `[]`; `Vector(Some(n))`→`vector(n)`, `Vector(None)`→`vector`;
@@ -488,6 +488,15 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > (`codegen.ddl.types`) came back as `char(1)`. `ColumnDef::char()` is SQL's
 > bare `char` and builds `Char(Some(1))`, as `ValueType::column_type()` does
 > for a Rust `char` (`sql.value.value-type`).
+>
+> `Bit(None)` is the bit type with no length limit (type modifier `-1`), whose
+> columns hold a bit string of any length, each value keeping its own. It has
+> no keyword spelling: PostgreSQL reads a bare `bit` as `bit(1)` (live on
+> 18.6), so it is written as the quoted type name `"bit"`, which is how
+> `format_type` prints it and what codegen reads back as `Bit(None)`
+> (`codegen.ddl.types`). `ColumnDef::bit(length)` builds `Bit(length)`, SQL's
+> bare `bit` being `bit(Some(1))`, and the Python and JavaScript `DataType`
+> `"bit"` with no length is `bit(1)`. `VarBit(n)` is `varbit(n)`.
 
 > [spec:pgorm:req:sql.ddl.alter-table+13]
 > `TableAlterStatement` names one table and collects `TableAlterOption`s:

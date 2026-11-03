@@ -8,14 +8,16 @@
 //! were generated from created and written through against a live server, at
 //! the workspace root (`tests/codegen_disjoint_tests.rs`), whose module tree
 //! they are. The ones generated under serde are compiled here, in
-//! `disjoint_serde`.
+//! `disjoint_serde`, and so are the ones whose variants end with their enum's
+//! name, in `disjoint_variant_names`, under the workspace's clippy.
 
 mod common;
 mod disjoint_serde;
+mod disjoint_variant_names;
 
 use common::*;
 use pgorm::{ActiveEnum, Disjoint};
-use pgorm_codegen::{WithSerde, entities_from_sql};
+use pgorm_codegen::{TableIdent, UnkindedDisjoint, WithSerde, entities_from_sql};
 use pgorm_query::{
     ColumnDef, ColumnType, Deferrability, Expr, ForeignKey, ForeignKeyAction, GeneratedKind, Name,
     Table, TableCreateStatement, TableKey,
@@ -63,7 +65,7 @@ fn n(name: &str) -> Name {
     Name::runtime(name)
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint+1/test]    the statements `create_disjoint` writes for the vehicle and the composite listing, read as DDL text, generate each base's entity with its `#[derive(Disjoint)]` enum and each kind's entity, with no field for a bookkeeping column, a relation from each kind's key to its base and the base's to each kind, `kind`, `enum_name` and `schema_name` where they differ from the derive's defaults, and no `pgorm_active_enums.rs` for the kind types the derives declare
+// [spec:pgorm:sem:codegen.entity.disjoint+3/test]    the statements `create_disjoint` writes for the vehicle and the composite listing, read as DDL text, generate each base's entity with its `#[derive(Disjoint)]` enum and each kind's entity, with no field for a bookkeeping column, a relation from each kind's key to its base and the base's to each kind, `kind`, `enum_name` and `schema_name` where they differ from the derive's defaults, and no `pgorm_active_enums.rs` for the kind types the derives declare
 // [spec:pgorm:sem:codegen.ddl.objects+11/test]    the ALTER TABLE adding the bases' generated key columns and keys folds into the base
 #[test]
 fn disjoint_tables_generate_one_disjoint_entity() {
@@ -197,7 +199,7 @@ fn described_vehicle() -> Vec<TableCreateStatement> {
     ]
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint+1/test]    a schema described in code, each table whole as it stands in the database, generates as the same DDL text does
+// [spec:pgorm:sem:codegen.entity.disjoint+3/test]    a schema described in code, each table whole as it stands in the database, generates as the same DDL text does
 #[test]
 fn described_tables_generate_as_ddl_text_does() {
     let described = generate(described_vehicle(), Opts::default());
@@ -227,7 +229,7 @@ fn fields(file: &str) -> Vec<String> {
         .collect()
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint+1/test]    a set with any part of the shape missing or different — the base's UNIQUE pair, a kind's key's columns, action or deferrability, a kind column's expression, STORED or nullability, a kind's key the database fills or a key of its own to the base, a base key column's expression, STORED or key, and the base's kind column's nullability — generates as the ordinary entities it is, every column kept and every generated column generated
+// [spec:pgorm:sem:codegen.entity.disjoint+3/test]    a set with any part of the shape missing or different — the base's UNIQUE pair, a kind's key's columns, action or deferrability, a kind column's expression, STORED or nullability, a kind's key the database fills or a key of its own to the base, a base key column's expression, STORED or key, and the base's kind column's nullability — generates as the ordinary entities it is, every column kept and every generated column generated
 #[test]
 fn near_misses_generate_ordinary_entities() {
     let car_key = r#"CONSTRAINT "fk-car-id-kind" FOREIGN KEY ("id", "kind") REFERENCES "vehicle" ("id", "kind") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"#;
@@ -418,7 +420,7 @@ fn near_misses_generate_ordinary_entities() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint+1/test]    a column of a kind type elsewhere is typed as the derive's kind type, imported from the base's module, and an enum the kind type is not is generated as ever
+// [spec:pgorm:sem:codegen.entity.disjoint+3/test]    a column of a kind type elsewhere is typed as the derive's kind type, imported from the base's module, and an enum the kind type is not is generated as ever
 // [spec:pgorm:sem:codegen.entity.imports+4/test]
 #[test]
 fn a_kind_type_elsewhere_is_the_derives() {
@@ -442,7 +444,7 @@ fn a_kind_type_elsewhere_is_the_derives() {
     assert_not_contains(generated.file("vehicle.rs"), "use super::");
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint+1/test]    every variant is named as an enum's values are, carrying `value` where its value is not its name in snake_case, and the enum `enum_name` where its kind type is not named for it; a base all of whose kinds are unit kinds is a disjoint entity too
+// [spec:pgorm:sem:codegen.entity.disjoint+3/test]    every variant is named as an enum's values are, carrying `value` where its value is not its name in snake_case, and the enum `enum_name` where its kind type is not named for it; a base all of whose kinds are unit kinds is a disjoint entity too
 #[test]
 fn variants_say_what_differs_from_the_derive() {
     let generated = from_sql(
@@ -467,7 +469,7 @@ fn variants_say_what_differs_from_the_derive() {
     assert!(!generated.has("pgorm_active_enums.rs"));
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint+1/test]    a base with two kind columns each completing the shape, a kind type two bases share, and a disjoint enum, kind type or active model named as an item of the base's module, a type it imports or a name its code means otherwise, are refused naming both
+// [spec:pgorm:sem:codegen.entity.disjoint+3/test]    a base with two kind columns each completing the shape, a kind type two bases share, and a disjoint enum, kind type or active model named as an item of the base's module, a type it imports or a name its code means otherwise, are refused naming both
 #[test]
 fn disjoint_names_that_clash_are_refused() {
     let unit = |table: &str, columns: &str| {
@@ -519,6 +521,20 @@ fn disjoint_names_that_clash_are_refused() {
     );
 }
 
+// [spec:pgorm:sem:codegen.entity.disjoint+3/test]    a disjoint enum named as a derive the module's code lists, a base table named `debug`, is generated: a `derive(..)` list's names are macros, which no item of the module shadows
+#[test]
+fn a_base_named_like_a_derive_is_generated() {
+    let generated = from_sql(
+        "CREATE TYPE debug_kind AS ENUM ('trace', 'span'); \
+         CREATE TABLE debug (id int PRIMARY KEY, kind debug_kind NOT NULL, UNIQUE (id, kind));",
+        Opts::default(),
+    );
+    assert_contains(
+        generated.file("debug.rs"),
+        "#[derive(Clone, Debug, PartialEq, Eq, Disjoint)] #[pgorm(base = Entity)] pub enum Debug",
+    );
+}
+
 /// A row of each kind of the serde-generated vehicle, as its base row and
 /// its disjoint value.
 fn serde_vehicles() -> Vec<(
@@ -548,7 +564,7 @@ fn serde_vehicles() -> Vec<(
     ]
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint+1/test]    under serde the disjoint enum derives serde as the `Model`s it holds do, and its kind type through `kind_attrs`, so the base's `Model` serializes with its kind field
+// [spec:pgorm:sem:codegen.entity.disjoint+3/test]    under serde the disjoint enum derives serde as the `Model`s it holds do, and its kind type through `kind_attrs`, so the base's `Model` serializes with its kind field
 #[test]
 fn disjoint_entities_serialize_under_serde() {
     let generated = from_sql(
@@ -581,7 +597,7 @@ fn disjoint_entities_serialize_under_serde() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.disjoint+1/test]    a name the base's code reaches through a path, as a junction's `Relation` variant named for the base, is no clash
+// [spec:pgorm:sem:codegen.entity.disjoint+3/test]    a name the base's code reaches through a path, as a junction's `Relation` variant named for the base, is no clash
 #[test]
 fn a_junction_to_the_base_is_no_clash() {
     let sql = format!(
@@ -597,4 +613,108 @@ fn a_junction_to_the_base_is_no_clash() {
         "super::vehicle_garage::Relation::Vehicle.def().rev()",
     );
     assert_contains(vehicle, "#[derive(Clone, Debug, PartialEq, Eq, Disjoint)]");
+}
+
+const NEAR_MISS: &str = include_str!("../../tests/codegen_near_miss/schema.sql");
+
+// [spec:pgorm:sem:codegen.entity.disjoint+3/test]    a near miss keeps its tables' composite unique keys: the base's UNIQUE pair the kind's foreign key references is generated as the base entity's `unique(..)` beside its other, so the entities create the tables they were read from (live in `tests/codegen_near_miss_tests.rs`)
+// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]
+#[test]
+fn near_miss_keeps_its_unique_keys() {
+    let generated = from_sql(NEAR_MISS, Opts::default());
+    for (file, fixture) in [
+        (
+            "shelf.rs",
+            include_str!("../../tests/codegen_near_miss/shelf.rs"),
+        ),
+        (
+            "book.rs",
+            include_str!("../../tests/codegen_near_miss/book.rs"),
+        ),
+        (
+            "pgorm_active_enums.rs",
+            include_str!("../../tests/codegen_near_miss/pgorm_active_enums.rs"),
+        ),
+    ] {
+        holds(&generated, file, fixture);
+    }
+}
+
+/// The store's tables, named as an unkinded disjoint entity with a unit kind.
+fn stores() -> UnkindedDisjoint {
+    let table = |name: &str| TableIdent {
+        table: name.to_owned(),
+        schema: None,
+    };
+    UnkindedDisjoint {
+        base: table("store"),
+        kinds: vec![table("web_store"), table("pop_up_store")],
+        unit: Some("closed_store".to_owned()),
+    }
+}
+
+// [spec:pgorm:sem:codegen.entity.disjoint+3/test]    a kinded enum every variant of which ends with its name, `Shop::WebShop`, carries the allow of clippy's `enum_variant_names`, and compiles clippy-clean in a module that is not exported
+// [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1/test]    and so does an unkinded one, `Store::WebStore`
+#[test]
+fn variants_named_as_their_enum_compile_clean() {
+    use disjoint_variant_names::{pop_up_shop, shop, store, web_shop, web_store};
+    let generated = from_sql(
+        include_str!("disjoint_variant_names/schema.sql"),
+        Opts {
+            unkinded_disjoint: vec![stores()],
+            ..Default::default()
+        },
+    );
+    for (file, fixture) in [
+        ("shop.rs", include_str!("disjoint_variant_names/shop.rs")),
+        (
+            "web_shop.rs",
+            include_str!("disjoint_variant_names/web_shop.rs"),
+        ),
+        (
+            "pop_up_shop.rs",
+            include_str!("disjoint_variant_names/pop_up_shop.rs"),
+        ),
+        ("store.rs", include_str!("disjoint_variant_names/store.rs")),
+        (
+            "web_store.rs",
+            include_str!("disjoint_variant_names/web_store.rs"),
+        ),
+        (
+            "pop_up_store.rs",
+            include_str!("disjoint_variant_names/pop_up_store.rs"),
+        ),
+    ] {
+        holds(&generated, file, fixture);
+    }
+
+    let site = shop::Shop::WebShop(web_shop::Model {
+        id: 1,
+        url: "https://example.com".to_owned(),
+    });
+    assert_eq!(site.kind(), shop::ShopKind::WebShop);
+    assert_eq!(
+        shop::Shop::PopUpShop(pop_up_shop::Model {
+            id: 2,
+            site: "market".to_owned(),
+        })
+        .kind(),
+        shop::ShopKind::PopUpShop
+    );
+    assert_eq!(shop::Shop::ClosedShop.kind(), shop::ShopKind::ClosedShop);
+    assert_eq!(
+        shop::ShopKind::values(),
+        ["web_shop", "pop_up_shop", "closed_shop"]
+    );
+    let online = store::Store::WebStore(web_store::Model {
+        store_id: 3,
+        url: "https://example.org".to_owned(),
+    });
+    assert_eq!(online.kind(), store::StoreKind::WebStore);
+    assert_eq!(
+        store::Store::ClosedStore.kind(),
+        store::StoreKind::ClosedStore
+    );
+    pgorm::check_disjoint::<shop::Shop>().expect("the generated shop is sound");
+    pgorm::check_disjoint::<store::Store>().expect("the generated store is sound");
 }

@@ -1,9 +1,11 @@
 // @ts-check
 
 // An application's build description, validated: the module to generate,
-// the Rust crate holding its entities, and the entities, graphs and source
-// tuples to register, each under a registration name and a TypeScript export.
+// the Rust crate holding its entities, and the entities, graphs, source
+// tuples and disjoint enums to register, each under a registration name and a
+// TypeScript export.
 // [spec:pgorm:req:bindings.codegen]
+// [spec:pgorm:req:bindings.codegen-disjoint]
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
@@ -17,7 +19,8 @@ const RESERVED = new Set([
   "else", "enum", "export", "extends", "false", "finally", "for", "function", "if", "implements", "import",
   "in", "instanceof", "interface", "let", "new", "null", "package", "private", "protected", "public",
   "return", "static", "super", "switch", "this", "throw", "true", "try", "typeof", "var", "void", "while",
-  "with", "yield", "undefined", "NaN", "Infinity", "entity", "graph", "pipeline", "checkRegistrations",
+  "with", "yield", "undefined", "NaN", "Infinity", "entity", "graph", "pipeline", "disjointEntity",
+  "checkRegistrations",
 ]);
 
 const RUST_KEYWORDS = new Set([
@@ -101,6 +104,7 @@ function only(entry, keys, what) {
  * @property {{ name: string, rust: string, typescript: string }[]} entities
  * @property {{ name: string, rust: string, typescript: string }[]} graphs
  * @property {{ name: string, rust: string[], typescript: string }[]} sources
+ * @property {{ name: string, rust: string, typescript: string }[]} disjoints
  */
 
 /**
@@ -117,7 +121,7 @@ export function validate(config, base) {
     throw new CodegenError("the build description is an object");
   }
   const raw = /** @type {Record<string, unknown>} */ (config);
-  only(raw, ["schema_version", "module", "entity_crate", "entities", "graphs", "sources"], "the build description");
+  only(raw, ["schema_version", "module", "entity_crate", "entities", "graphs", "sources", "disjoints"], "the build description");
   if (raw.schema_version !== 1) throw new CodegenError("schema_version is 1");
   const module = identifier(raw.module, "module");
   if (typeof raw.entity_crate !== "string") throw new CodegenError("entity_crate is a path");
@@ -162,6 +166,10 @@ export function validate(config, base) {
       return checked;
     });
   });
+  const disjoints = kind(raw.disjoints, "disjoints", (entry) => rustPath(entry.rust));
+  if (new Set(disjoints.map((entry) => entry.rust)).size !== disjoints.length) {
+    throw new CodegenError("each Rust disjoint enum is registered once");
+  }
   return {
     schema_version: 1,
     module,
@@ -169,6 +177,7 @@ export function validate(config, base) {
     entities: /** @type {Description["entities"]} */ (entities),
     graphs: /** @type {Description["graphs"]} */ (graphs),
     sources: /** @type {Description["sources"]} */ (sources),
+    disjoints: /** @type {Description["disjoints"]} */ (disjoints),
   };
 }
 

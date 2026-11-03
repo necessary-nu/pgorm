@@ -37,7 +37,7 @@ use crate::{
 ///
 /// The type is nameable because the cursor and paginator signatures need it;
 /// it carries no data and is not constructed by callers.
-// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.read+2]
 pub struct DisjointRow<D>(PhantomData<fn() -> D>);
 
 impl<D> fmt::Debug for DisjointRow<D> {
@@ -74,8 +74,8 @@ struct KindPart {
 /// A kinded row holds exactly its own kind's row, where its kind has a
 /// table, and no other kind's. An unkinded row is of the one kind whose row
 /// is present, or of the unit kind where none is.
-// [spec:pgorm:sem:disjoint.read+1]
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:sem:disjoint.read+2]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 fn judge(
     base: &str,
     kinds: &[KindPart],
@@ -125,7 +125,7 @@ fn judge(
 /// present is its kind, and with none present it is its unit kind. None
 /// present where it has no unit kind, and two or more present, are the
 /// [`Error::Query`] [`judge`] describes.
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 fn judge_presence(
     base: &str,
     kinds: &[KindPart],
@@ -181,7 +181,7 @@ fn judge_presence(
 
 /// The kind a row of a read of a [`DisjointShape`] is of, as
 /// [`DisjointShape::judge`] judges it.
-// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.read+2]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DisjointJudged {
     /// The index of the row's kind among the shape's kinds.
@@ -207,9 +207,9 @@ impl DisjointShape {
     /// text is the decode error reading it gives. A row's joined row is there
     /// unless every column of it is `NULL`, as the absence witness judges a
     /// typed one.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     // [spec:pgorm:req:bindings.disjoint+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn judge(
         &self,
         row: &QueryResult,
@@ -254,7 +254,7 @@ impl DisjointShape {
     }
 }
 
-// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.read+2]
 impl<D: Disjoint> SelectorTrait for DisjointRow<D> {
     type Item = DisjointItem<D>;
 
@@ -327,7 +327,7 @@ struct Presence<'r> {
 impl<D: Disjoint> KindVisitor<D> for Presence<'_> {
     type Output = KindPart;
 
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     fn table<M: KindModel<D>>(self, kind: D::Kind) -> KindPart {
         *self.sources += 1;
         let present = !absent_row::<M>(self.res, &source_prefix(*self.sources));
@@ -355,7 +355,7 @@ struct Decode<'r> {
 impl<D: Disjoint> KindVisitor<D> for Decode<'_> {
     type Output = Result<D, Error>;
 
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     fn table<M: KindModel<D>>(self, _: D::Kind) -> Self::Output {
         let source = self
             .source
@@ -368,11 +368,11 @@ impl<D: Disjoint> KindVisitor<D> for Decode<'_> {
     }
 }
 
-// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.read+2]
 impl<D: Disjoint> SelectDisjoint<D> {
     /// Convert into the [`Selector`] every terminal runs through, once the
     /// declaration has passed [`check_disjoint`].
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     fn into_selector(self) -> Result<Selector<DisjointRow<D>>, Error> {
         check_disjoint::<D>()?;
         Ok(Selector {
@@ -386,14 +386,14 @@ impl<D: Disjoint> SelectDisjoint<D> {
     ///
     /// The row limit is narrowed to one row, as on [`Selector::one`]:
     /// `find_by_id(key).one(db)` is the row of that key.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     pub async fn one<C: ConnectionTrait>(self, db: &C) -> Result<DisjointItem<D>, Error> {
         self.into_selector()?.one(db).await
     }
 
     /// Fetch every row, as on [`Selector::all`]: the first row that fails to
     /// decode, an inconsistent one included, is the read's error.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     pub async fn all<C: ConnectionTrait>(self, db: &C) -> Result<Vec<DisjointItem<D>>, Error> {
         self.into_selector()?.all(db).await
     }
@@ -401,7 +401,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
     /// Stream the rows, decoding each as it arrives, as on
     /// [`Selector::stream`]: a row that fails to decode, an inconsistent one
     /// included, is one `Err` item and the stream goes on.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     pub async fn stream<'b, C: ConnectionTrait>(
         self,
         db: &C,
@@ -419,7 +419,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
     /// Fallible where `PaginatorTrait::paginate` is not, because
     /// [`check_disjoint`] runs before anything is sent, and here that is
     /// before the paginator exists.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     pub fn paginate<'db, C>(
         self,
         db: &'db C,
@@ -434,7 +434,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
 
     /// Count the base rows the read matches, as [`PaginatorTrait::count`]
     /// does.
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     pub async fn count<C: ConnectionTrait>(self, db: &C) -> Result<u64, Error> {
         self.into_selector()?.count(db).await
     }
@@ -456,7 +456,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
     /// # Ok(())
     /// # }
     /// ```
-    // [spec:pgorm:sem:disjoint.read+1]
+    // [spec:pgorm:sem:disjoint.read+2]
     pub fn cursor_by<K>(
         self,
         order_columns: K,
@@ -475,7 +475,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
     }
 }
 
-// [spec:pgorm:sem:disjoint.write+1]
+// [spec:pgorm:sem:disjoint.write+2]
 impl<D: Disjoint> WriteDisjoint<D> {
     /// Send the write, one statement, and return the pair a read of the
     /// written row gives, decoded as a [`SelectDisjoint<D>`]'s row is.
@@ -486,7 +486,7 @@ impl<D: Disjoint> WriteDisjoint<D> {
     /// [`Error::RecordNotFound`], having changed nothing. A constraint the
     /// write breaks is the statement's error, reported at its end, and
     /// nothing of it applies.
-    // [spec:pgorm:sem:disjoint.write+1]
+    // [spec:pgorm:sem:disjoint.write+2]
     pub async fn exec_returning_model<C: ConnectionTrait>(
         self,
         db: &C,
@@ -504,7 +504,7 @@ impl<D: Disjoint> WriteDisjoint<D> {
 
 /// A disjoint read's rows are decoded by [`DisjointRow`], so that is what its
 /// cursor selects.
-// [spec:pgorm:sem:disjoint.read+1]
+// [spec:pgorm:sem:disjoint.read+2]
 impl<D: Disjoint> CursorTrait for SelectDisjoint<D> {
     type Selector = DisjointRow<D>;
 }

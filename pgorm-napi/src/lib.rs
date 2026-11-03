@@ -42,7 +42,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
 /// into one module: what an application's own `#[neon::main]` calls, having
 /// registered its entities, in a crate that depends on this one without its
 /// `standalone-module` feature.
-// [spec:pgorm:req:bindings.entities+3]
+// [spec:pgorm:req:bindings.entities+4]
 // [spec:pgorm:req:napi.application+2]
 pub fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<()> {
     runtime::runtime(cx)?;

@@ -12,12 +12,30 @@ base's record, the kind's value, and the kind's record or ``None``.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, cast
+from typing import Any, Generic, Literal, TypeVar, cast, overload
 
 from .. import _native as p
 from .disjoint_query import DisjointWrite, _Disjoint
 from .model import Model
 from .record import ModelRecord
+
+# Whether a disjoint model is written through: a kinded one is, an unkinded
+# one, whose base holds no kind, is read-only, and its writes and schema take
+# a self of the kinded type alone, so a type checker refuses them.
+# [spec:pgorm:req:bindings.disjoint-unkinded]
+W = TypeVar("W", Literal["kinded"], Literal["unkinded"], default=Literal["kinded"])
+
+ModelRow = tuple[ModelRecord, str, ModelRecord | None]
+EntityRow = tuple[p.EntityModel, str, p.EntityModel | None]
+
+# A registration's row as a generated module types it, a union over its
+# kinds, or an `EntityRow` where none does.
+# [spec:pgorm:req:bindings.codegen-disjoint]
+ER = TypeVar("ER", default=EntityRow)
+
+# The unset `kind` option, told apart from one given as "kind".
+_UNSET: Any = object()
+
 
 def _named(fields: Mapping[str, Any], expected: Sequence[str], what: str) -> None:
     if not isinstance(fields, Mapping):
@@ -77,7 +95,8 @@ def _pairs(model: Model, values: Mapping[str, Any] | None) -> list[tuple[str, p.
 
 
 # [spec:pgorm:req:bindings.disjoint+1]
-class Disjoint(_Disjoint[ModelRecord]):
+# [spec:pgorm:req:bindings.disjoint-unkinded]
+class Disjoint(_Disjoint[ModelRow], Generic[W]):
     """A disjoint model over ``base``: each row of its table has a kind,
     held in its ``kind`` field, and ``kinds`` maps each kind's value, in
     order, to the model of its table or to ``None`` for a kind with none.
@@ -89,13 +108,42 @@ class Disjoint(_Disjoint[ModelRecord]):
     kinds, one model for two kinds, a kind model keyed by other types than
     the base, a kind field missing, nullable, generated or of another type, a
     kind model whose key the database fills — is a ``ConstructionError``
-    raised here."""
+    raised here.
+
+    ``unkinded=True`` declares a base with no kind field, a row's kind being
+    the kind whose table has a row for it, ``None`` standing for at most one
+    kind of a row with none: a ``Disjoint[Literal["unkinded"]]``, which is
+    read-only, and beside which ``kind``, ``enum_name`` and ``schema_name``
+    are refused."""
 
     __slots__ = ("base", "kinds", "kind_field")
 
     base: Model
     kinds: Mapping[str, Model | None]
-    kind_field: str
+    kind_field: str | None
+
+    @overload
+    def __init__(
+        self: Disjoint[Literal["kinded"]],
+        name: str,
+        base: Model,
+        kinds: Mapping[str, Model | None],
+        *,
+        kind: str = ...,
+        enum_name: str | None = ...,
+        schema_name: str | None = ...,
+        unkinded: Literal[False] = ...,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self: Disjoint[Literal["unkinded"]],
+        name: str,
+        base: Model,
+        kinds: Mapping[str, Model | None],
+        *,
+        unkinded: Literal[True],
+    ) -> None: ...
 
     def __init__(
         self,
@@ -103,12 +151,21 @@ class Disjoint(_Disjoint[ModelRecord]):
         base: Model,
         kinds: Mapping[str, Model | None],
         *,
-        kind: str = "kind",
+        kind: str = _UNSET,
         enum_name: str | None = None,
         schema_name: str | None = None,
+        unkinded: bool = False,
     ) -> None:
         if type(name) is not str:
             raise TypeError("a disjoint model's name is a str")
+        if type(unkinded) is not bool:
+            raise TypeError("a disjoint model's unkinded is a bool")
+        if unkinded and (kind is not _UNSET or enum_name is not None or schema_name is not None):
+            raise p.ConstructionError(
+                "an unkinded disjoint model's base holds no kind: it takes no kind, enum_name "
+                "or schema_name"
+            )
+        kind = "kind" if kind is _UNSET else kind
         if type(kind) is not str:
             raise TypeError("a disjoint model's kind field is a str")
         base = _model(base, "a disjoint model's base")
@@ -123,27 +180,29 @@ class Disjoint(_Disjoint[ModelRecord]):
                 model = _model(model, f"the kind {value!r}'s model")
             held[value] = model
             described.append((value, None if model is None else (model.table.name, _table(model))))
-        if kind not in base.columns:
-            raise p.ConstructionError(
-                f"{base.table.name} has no field {kind!r}, the kind field a disjoint model's "
-                "base holds each row's kind in"
+        kinded: tuple[str, str, p.TypeName] | None = None
+        if not unkinded:
+            if kind not in base.columns:
+                raise p.ConstructionError(
+                    f"{base.table.name} has no field {kind!r}, the kind field a disjoint model's "
+                    "base holds each row's kind in"
+                )
+            kinded = (
+                base._sql(kind),
+                kind,
+                p.TypeName(f"{name}_kind" if enum_name is None else enum_name, schema=schema_name),
             )
         object.__setattr__(self, "_native", p._disjoint_model(
-            name,
-            (base.table.name, _table(base)),
-            base._sql(kind),
-            kind,
-            p.TypeName(f"{name}_kind" if enum_name is None else enum_name, schema=schema_name),
-            described,
+            name, (base.table.name, _table(base)), kinded, described,
         ))
         object.__setattr__(self, "base", base)
         object.__setattr__(self, "kinds", held)
-        object.__setattr__(self, "kind_field", kind)
+        object.__setattr__(self, "kind_field", None if unkinded else kind)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("a disjoint model never changes")
 
-    def _row(self, item: Any) -> tuple[ModelRecord, str, ModelRecord | None]:
+    def _row(self, item: Any) -> ModelRow:
         native, index, source = item
         value = self._native.kinds()[index]
         base = ModelRecord(
@@ -179,8 +238,11 @@ class Disjoint(_Disjoint[ModelRecord]):
         return _pairs(model, values)
 
     def insert(
-        self, base: Mapping[str, Any], kind: str, values: Mapping[str, Any] | None = None
-    ) -> DisjointWrite[ModelRecord]:
+        self: Disjoint[Literal["kinded"]],
+        base: Mapping[str, Any],
+        kind: str,
+        values: Mapping[str, Any] | None = None,
+    ) -> DisjointWrite[ModelRow]:
         """Insert a value of the kind ``kind``: the base row from ``base``,
         its kind field holding ``kind``, and for a kind with a table its row
         from ``values``, its key read from the inserted base row. The base's
@@ -191,8 +253,11 @@ class Disjoint(_Disjoint[ModelRecord]):
         )
 
     def update(
-        self, base: Mapping[str, Any], kind: str, values: Mapping[str, Any] | None = None
-    ) -> DisjointWrite[ModelRecord]:
+        self: Disjoint[Literal["kinded"]],
+        base: Mapping[str, Any],
+        kind: str,
+        values: Mapping[str, Any] | None = None,
+    ) -> DisjointWrite[ModelRow]:
         """Update a value of the kind ``kind``: the fields ``base`` sets of the
         base row whose key it holds, and those ``values`` sets of its kind's
         row. A row of another kind, and a key no row has, read back nothing."""
@@ -201,8 +266,11 @@ class Disjoint(_Disjoint[ModelRecord]):
         )
 
     def change_kind(
-        self, key: Mapping[str, Any], kind: str, values: Mapping[str, Any] | None = None
-    ) -> DisjointWrite[ModelRecord]:
+        self: Disjoint[Literal["kinded"]],
+        key: Mapping[str, Any],
+        kind: str,
+        values: Mapping[str, Any] | None = None,
+    ) -> DisjointWrite[ModelRow]:
         """Change the kind of the row of ``key`` to ``kind``, its row in the
         new kind's table, where it has one, from ``values``."""
         return DisjointWrite(
@@ -214,10 +282,13 @@ class Disjoint(_Disjoint[ModelRecord]):
 
 
 # [spec:pgorm:req:bindings.disjoint+1]
-class DisjointEntity(_Disjoint[p.EntityModel]):
+# [spec:pgorm:req:bindings.disjoint-unkinded]
+class DisjointEntity(_Disjoint[ER], Generic[W, ER]):
     """A downstream crate's ``#[derive(Disjoint)]`` enum, which the native
     module registers with its base and kind entities: its records are the
-    entities' own models, and a write takes their ``ActiveModel``s."""
+    entities' own models, and a write takes their ``ActiveModel``s. An enum
+    declared ``unkinded`` is a ``DisjointEntity[Literal["unkinded"]]``, which
+    is read-only."""
 
     __slots__ = ()
 
@@ -229,8 +300,8 @@ class DisjointEntity(_Disjoint[p.EntityModel]):
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("a disjoint entity never changes")
 
-    def _row(self, item: Any) -> tuple[p.EntityModel, str, p.EntityModel | None]:
-        return cast(tuple[p.EntityModel, str, p.EntityModel | None], tuple(item))
+    def _row(self, item: Any) -> ER:
+        return cast(ER, tuple(item))
 
     def _key(self, key: Mapping[str, Any]) -> list[Any]:
         columns = self._native.key_columns()
@@ -247,31 +318,49 @@ class DisjointEntity(_Disjoint[p.EntityModel]):
         return list(values)
 
     def insert(
-        self, base: p.ActiveModel, kind: str, active: p.ActiveModel | None = None
-    ) -> DisjointWrite[p.EntityModel]:
+        self: DisjointEntity[Literal["kinded"], ER],
+        base: p.ActiveModel,
+        kind: str,
+        active: p.ActiveModel | None = None,
+    ) -> DisjointWrite[ER]:
         """Insert a value of the kind ``kind`` from the base entity's
         ``ActiveModel`` and, for a kind with a table, its entity's."""
-        return DisjointWrite(self, self._native.insert(base, kind, active))
+        return DisjointWrite(self, self._native.insert(_active(base), kind, _active(active)))
 
     def update(
-        self, base: p.ActiveModel, kind: str, active: p.ActiveModel | None = None
-    ) -> DisjointWrite[p.EntityModel]:
+        self: DisjointEntity[Literal["kinded"], ER],
+        base: p.ActiveModel,
+        kind: str,
+        active: p.ActiveModel | None = None,
+    ) -> DisjointWrite[ER]:
         """Update a value of the kind ``kind``, as ``Disjoint.update`` does."""
-        return DisjointWrite(self, self._native.update(base, kind, active))
+        return DisjointWrite(self, self._native.update(_active(base), kind, _active(active)))
 
     def change_kind(
-        self, key: Mapping[str, Any], kind: str, active: p.ActiveModel | None = None
-    ) -> DisjointWrite[p.EntityModel]:
+        self: DisjointEntity[Literal["kinded"], ER],
+        key: Mapping[str, Any],
+        kind: str,
+        active: p.ActiveModel | None = None,
+    ) -> DisjointWrite[ER]:
         """Change the kind of the row of ``key``, as ``Disjoint.change_kind``
         does."""
-        return DisjointWrite(self, self._native.change_kind(self._key(key), kind, active))
+        return DisjointWrite(self, self._native.change_kind(self._key(key), kind, _active(active)))
 
     def __repr__(self) -> str:
         return f"DisjointEntity({self.name!r})"
 
 
-def disjoint_entity(name: str) -> DisjointEntity:
-    """The disjoint enum the native module registers as ``name``."""
+def _active(active: Any) -> Any:
+    """The native ActiveModel a write takes: a generated module's view of one
+    holds it."""
+    from .._registered.entities import ActiveView
+
+    return active.native if isinstance(active, ActiveView) else active
+
+
+def disjoint_entity(name: str) -> DisjointEntity[Any, Any]:
+    """The disjoint enum the native module registers as ``name``: kinded or
+    unkinded as the enum is declared, which a generated module types."""
     return DisjointEntity(p._disjoint_entity(name))
 
 

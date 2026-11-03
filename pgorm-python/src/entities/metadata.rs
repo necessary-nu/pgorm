@@ -35,7 +35,10 @@ impl InputKind {
             ColumnType::BigInteger => ArrayType::BigInt,
             ColumnType::Float => ArrayType::Float,
             ColumnType::Double => ArrayType::Double,
-            ColumnType::Decimal(_) => ArrayType::Decimal,
+            // A `money` column is read as `numeric` and written cast to
+            // `money` by the entity's own casts, so its values are decimals.
+            // [spec:pgorm:req:bindings.entities+4]
+            ColumnType::Decimal(_) | ColumnType::Money => ArrayType::Decimal,
             ColumnType::Boolean => ArrayType::Bool,
             ColumnType::Date => ArrayType::Date,
             ColumnType::Time => ArrayType::Time,
@@ -160,7 +163,7 @@ impl InputKind {
     }
 
     /// The kind as `describe()` spells it.
-    // [spec:pgorm:req:bindings.entities+3]
+    // [spec:pgorm:req:bindings.entities+4]
     fn key(&self) -> Option<String> {
         self.tag().map(|tag| tag.key())
     }
@@ -299,7 +302,7 @@ impl EntityInfo {
     }
 
     /// The registration as `describe()` gives it.
-    // [spec:pgorm:req:bindings.entities+3]
+    // [spec:pgorm:req:bindings.entities+4]
     pub(crate) fn describe(&self) -> Json {
         json!({
             "name": self.name,
@@ -330,7 +333,7 @@ mod tests {
         InputKind::from_column(ty).key()
     }
 
-    // [spec:pgorm:req:bindings.entities+3/test]    a range column is described by its range kind,
+    // [spec:pgorm:req:bindings.entities+4/test]    a range column is described by its range kind,
     // and a registered entity's range field takes a `pgorm.Range` as its value
     #[test]
     fn range_columns_take_their_range_kind() -> PyResult<()> {
@@ -349,8 +352,11 @@ mod tests {
             .as_deref(),
             Some("daterange[]")
         );
-        assert_eq!(key(&ColumnType::Money), None);
-        assert_eq!(key(&ColumnType::Array(Arc::new(ColumnType::Money))), None);
+        assert_eq!(key(&ColumnType::Money).as_deref(), Some("decimal"));
+        assert_eq!(
+            key(&ColumnType::Array(Arc::new(ColumnType::Money))).as_deref(),
+            Some("decimal[]")
+        );
 
         Python::initialize();
         Python::attach(|py| {
@@ -379,7 +385,7 @@ mod tests {
         })
     }
 
-    // [spec:pgorm:req:bindings.entities+3/test]    a created range column is described by its
+    // [spec:pgorm:req:bindings.entities+4/test]    a created range column is described by its
     // created kind, and a registered entity's field takes a `pgorm.Range` and reads back tagged
     // with the type
     #[test]
