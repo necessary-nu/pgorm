@@ -368,7 +368,7 @@ impl DisjointShape {
     /// read-only. [`check`](Self::check) is the caller's to run.
     // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:req:bindings.disjoint+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn insert(
         &self,
         base: &DisjointValues,
@@ -428,7 +428,7 @@ impl DisjointShape {
     /// and kind.
     // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:req:bindings.disjoint+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn update(
         &self,
         base: &DisjointValues,
@@ -516,7 +516,7 @@ impl DisjointShape {
     /// refuses of `row`, of `kind` and of the shape.
     // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:req:bindings.disjoint+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn change_kind(
         &self,
         key: Vec<Value>,

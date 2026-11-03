@@ -26,7 +26,7 @@
 // [spec:pgorm:sem:macros.derive.entity-model.primary-key+7/test]    an identity beside a second identity form, `auto_increment`, a default or a nullable field, `auto_increment = true` on a composite key, a thirteenth key column, and `primary_key` given twice on one field
 // [spec:pgorm:sem:macros.derive.entity-model.column-def+10/test]    a generated column given both kinds, beside an identity, a default or `auto_increment`, and a virtual one keyed, unique or indexed
 // [spec:pgorm:def:disjoint.declare+5/test]    the refusals the disjoint derive words: not an enum, generic, no `base`, a quoted `base`, a key twice or unknown, no variants, a variant of another shape, a discriminant, a key on the payload, two kinds of one value, and a kind's value over 63 bytes, given or derived from its variant, refused at the value or the variant
-// [spec:pgorm:sem:disjoint.unkinded/test]    the refusals an `unkinded` declaration words: `kind`, `enum_name` or `schema_name` beside it, `unkinded` twice, a variant's `value`, a second unit variant, and no variant holding a kind's `Model`
+// [spec:pgorm:sem:disjoint.unkinded+1/test]    the refusals an `unkinded` declaration words: `kind`, `enum_name` or `schema_name` beside it, `unkinded` twice, a variant's `value`, a second unit variant, and no variant holding a kind's `Model`
 #[test]
 fn compile_fail_tests() {
     let t = trybuild::TestCases::new();

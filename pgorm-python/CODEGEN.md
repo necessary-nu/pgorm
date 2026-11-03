@@ -144,6 +144,24 @@ models; each `Opt` slot contributes `Model | None`. Required slots remain
 non-optional. The wrapper delegates queries and cursors to the registered
 native graph, then wraps the decoded models without rebuilding SQL.
 
+A `#[derive(Disjoint)]` enum is described under `disjoints`, each entry its
+`name`, `rust` path and `python` export, its base and kind entities among the
+described entities:
+
+```json
+"disjoints": [{"name": "app.Shipments", "rust": "shipping::shipment::Shipment", "python": "Shipments"}]
+```
+
+Its view and a `NameRow` alias are exported. A row is a union over the kinds,
+`tuple[ShipmentModel, Literal['parcel'], ParcelModel] | tuple[ShipmentModel,
+Literal['letter'], None] | ...`, each record the entity's generated model. A
+kinded enum's view is a `WritableDisjointView` whose `insert`, `update` and
+`change_kind` take the base's and the kinds' generated ActiveModels and a kind
+of the enum, and which `pgorm.schema.create_disjoint` takes; an unkinded
+enum's is a read-only `DisjointView` with neither. Emission refuses an enum
+whose base or kind entity is not exported, and the import check compares each
+enum's `describe()` as it compares an entity's.
+
 ## Verify the workflow
 
 From the repository root, with Maturin installed in `target/python-dev`:

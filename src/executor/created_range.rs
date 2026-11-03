@@ -126,7 +126,7 @@ impl<'a> CreatedRangeCodec<'a> {
 /// A field of `ty`, a range or multirange type a schema created, as its text
 /// form: the binary form read through the subtype's codec, then written as
 /// `Display` writes the range or multirange.
-// [spec:pgorm:req:conn.copy.rows+3]
+// [spec:pgorm:req:conn.copy.rows+4]
 pub(crate) fn created_range_text(ty: &Type, raw: &[u8]) -> Result<String, WireError> {
     let codec = CreatedRangeCodec::of(ty)?;
     match ty.kind() {
@@ -190,7 +190,7 @@ type Completing<'a> = Pin<Box<dyn Future<Output = Result<Option<Type>, Error>> +
 /// subtype, a domain included. A domain's base and an array's member are
 /// completed as the type itself is; a type `postgres-types` knows, or one
 /// `pg_range` holds no multirange for, is as the driver described it.
-// [spec:pgorm:req:conn.copy.rows+3]
+// [spec:pgorm:req:conn.copy.rows+4]
 pub(crate) fn completed_multiranges<'a, C>(client: &'a C, ty: &'a Type) -> Completing<'a>
 where
     C: GenericClient,
@@ -222,7 +222,7 @@ where
 /// preparing a statement whose parameter is declared with it: the driver
 /// describes a statement's parameters through its own type lookup, so the
 /// subtype comes back as every other type the driver reports does.
-// [spec:pgorm:req:conn.copy.rows+3]
+// [spec:pgorm:req:conn.copy.rows+4]
 async fn multirange_subtype<C: GenericClient>(client: &C, oid: Oid) -> Result<Option<Type>, Error> {
     let row = client
         .query_opt(

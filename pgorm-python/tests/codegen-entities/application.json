@@ -6,7 +6,17 @@
     {"name": "app.Account", "rust": "account::Entity", "python": "Account", "fields": {"display name": "display_name"}},
     {"name": "app.Note", "rust": "note::Entity", "python": "Note"},
     {"name": "app.IntervalSpan", "rust": "interval_span::Entity", "python": "IntervalSpan"},
-    {"name": "app.StockLine", "rust": "stock_line::Entity", "python": "StockLine"}
+    {"name": "app.StockLine", "rust": "stock_line::Entity", "python": "StockLine"},
+    {"name": "app.Delivery", "rust": "courier::delivery::Entity", "python": "Delivery"},
+    {"name": "app.Parcel", "rust": "courier::parcel::Entity", "python": "Parcel"},
+    {"name": "app.Pallet", "rust": "courier::pallet::Entity", "python": "Pallet"},
+    {"name": "app.Offer", "rust": "courier::offer::Entity", "python": "Offer"},
+    {"name": "app.Auction", "rust": "courier::auction::Entity", "python": "Auction"},
+    {"name": "app.Sale", "rust": "courier::sale::Entity", "python": "Sale"}
+  ],
+  "disjoints": [
+    {"name": "app.Deliveries", "rust": "courier::delivery::Delivery", "python": "Deliveries"},
+    {"name": "app.Offers", "rust": "courier::offer::Offer", "python": "Offers"}
   ],
   "graphs": [
     {"name": "app.AccountOnly", "rust": "account_only", "python": "AccountOnly"},

@@ -75,7 +75,7 @@ struct KindPart {
 /// table, and no other kind's. An unkinded row is of the one kind whose row
 /// is present, or of the unit kind where none is.
 // [spec:pgorm:sem:disjoint.read+2]
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 fn judge(
     base: &str,
     kinds: &[KindPart],
@@ -125,7 +125,7 @@ fn judge(
 /// present is its kind, and with none present it is its unit kind. None
 /// present where it has no unit kind, and two or more present, are the
 /// [`Error::Query`] [`judge`] describes.
-// [spec:pgorm:sem:disjoint.unkinded]
+// [spec:pgorm:sem:disjoint.unkinded+1]
 fn judge_presence(
     base: &str,
     kinds: &[KindPart],
@@ -209,7 +209,7 @@ impl DisjointShape {
     /// typed one.
     // [spec:pgorm:sem:disjoint.read+2]
     // [spec:pgorm:req:bindings.disjoint+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn judge(
         &self,
         row: &QueryResult,

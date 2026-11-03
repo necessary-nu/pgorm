@@ -461,7 +461,7 @@ impl NativeCopyIn {
     /// as `write` queues data. A row of another width, or a value its
     /// column's type does not take, raises a construction error naming the
     /// column, and nothing of the batch is queued.
-    // [spec:pgorm:req:bindings.copy-rows]
+    // [spec:pgorm:req:bindings.copy-rows+1]
     fn write_rows<'py>(
         &self,
         py: Python<'py>,
@@ -643,7 +643,7 @@ impl RowsOut {
                 .enumerate()
                 .map(|(index, (raw, column))| {
                     value(Field::Copy {
-                        ty: column.type_(),
+                        column,
                         raw: raw.as_deref(),
                         index,
                     })
@@ -754,7 +754,7 @@ impl NativeCopyOut {
     /// The rows that have arrived, at least one, as a list of tuples of
     /// values; `None` at the end. A field that does not decode raises a
     /// decode error and closes the stream, discarding its connection.
-    // [spec:pgorm:req:bindings.copy-rows]
+    // [spec:pgorm:req:bindings.copy-rows+1]
     fn next_rows<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.state.connection.pool.check_owner(py)?;
         if self.state.rows.is_none() {
@@ -833,7 +833,7 @@ impl NativeCopyOut {
 
     /// The names of the columns each row holds, in order, as the server
     /// describes them.
-    // [spec:pgorm:req:bindings.copy-rows]
+    // [spec:pgorm:req:bindings.copy-rows+1]
     fn columns(&self) -> PyResult<Vec<String>> {
         let rows =
             self.state.rows.as_ref().ok_or_else(|| {

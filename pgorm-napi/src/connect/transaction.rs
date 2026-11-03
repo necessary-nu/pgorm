@@ -812,7 +812,7 @@ fn transaction_closed(mut cx: FunctionContext) -> JsResult<JsBoolean> {
 
 /// `transactionJob(transaction, job, abort)`: a registered entity's job in
 /// the transaction, holding its lock as a statement does.
-// [spec:pgorm:req:bindings.entities+3]
+// [spec:pgorm:req:bindings.entities+4]
 // [spec:pgorm:req:bindings.registered-pools]
 fn transaction_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = state(&mut cx)?;

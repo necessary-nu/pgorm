@@ -93,9 +93,20 @@ fn column(row: &Row, index: usize) -> Result<Tagged, Failure> {
     })
 }
 
-/// One field of a COPY of rows, read as a result column of its type is.
-// [spec:pgorm:req:bindings.copy-rows]
+/// One field of a COPY of rows, read as a result column of its type is. A
+/// `money` field is the count of its currency's minor units, which pgorm
+/// reads as a `Decimal` at the places the COPY's description learned; a
+/// query's `money` column has no places beside it and is refused, as a query
+/// reads it cast to `numeric`.
+// [spec:pgorm:req:bindings.copy-rows+1]
 pub(crate) fn field(column: &CopyColumn, raw: Option<&[u8]>) -> Result<Tagged, Failure> {
+    if column.money_places().is_some() {
+        return match column.decode(raw) {
+            Ok(value) => Ok(Tagged::value(value)),
+            Err(pgorm::Error::Type(message)) => Err(Failure::Decode(message)),
+            Err(error) => Err(Failure::Decode(error.to_string())),
+        };
+    }
     decode(column.type_(), raw).map_err(|error| {
         Failure::Decode(format!(
             "COPY column {:?} of type `{}` cannot be decoded: {error}",

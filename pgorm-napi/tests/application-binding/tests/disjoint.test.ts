@@ -14,6 +14,7 @@ import {
   disjointEntity,
   entity,
   Pool,
+  type UnkindedDisjointEntity,
 } from "../../../lib/index.js";
 import { scratchDatabase } from "../../support.ts";
 
@@ -65,7 +66,7 @@ async function seed() {
 
 // [spec:pgorm:req:bindings.disjoint+1/test]    a registered disjoint enum is listed and described under the declared keys beside its base and kind entities; a name the module does not register is refused; its schema is Schema::create_disjoint's
 test("the registration describes the enum", () => {
-  assert.deepStrictEqual(disjointEntities(), ["app.Shipments"]);
+  assert.deepStrictEqual(disjointEntities(), ["app.Listings", "app.Shipments"]);
   assert.deepStrictEqual(Shipments.describe(), {
     name: "app.Shipments",
     base: "app.Shipment",
@@ -145,4 +146,77 @@ test("updates, changes of kind and refusals", async () => {
   }
   assert.throws(() => Shipments.findByKey({ label: "x" }), TypeError);
   assert.throws(() => Shipments.insert({ label: "x" } as never, "letter"), TypeError);
+});
+
+/** Listings as an existing schema holds them: no kind column, each kind's table keyed by a foreign key onto the listing's. */
+const LISTINGS = [
+  "DROP SCHEMA IF EXISTS napi_listings CASCADE",
+  "CREATE SCHEMA napi_listings",
+  "CREATE TABLE napi_listings.listings (id integer PRIMARY KEY, title text NOT NULL)",
+  "CREATE TABLE napi_listings.auctions (listing_id integer PRIMARY KEY REFERENCES napi_listings.listings (id), reserve integer NOT NULL)",
+  "CREATE TABLE napi_listings.sales (id integer PRIMARY KEY REFERENCES napi_listings.listings (id), price integer NOT NULL)",
+  "INSERT INTO napi_listings.listings VALUES (1, 'lamp'), (2, 'chair'), (3, 'desk')",
+  "INSERT INTO napi_listings.auctions VALUES (1, 50)",
+  "INSERT INTO napi_listings.sales VALUES (2, 80)",
+];
+
+const Listings: UnkindedDisjointEntity = disjointEntity("app.Listings");
+const Listing = entity("app.Listing");
+const Auction = entity("app.Auction");
+
+// [spec:pgorm:req:bindings.disjoint-unkinded/test]    a downstream crate's unkinded enum registers through the same registration, describes itself with no kind field or kind type, reads each row as the kind whose table has its row, the unit kind where none does, its kinds named as its variants in snake_case, narrows by presence, and reports a row in two kinds' tables as a DecodeError
+test("an unkinded enum registers and reads by presence", async () => {
+  for (const statement of LISTINGS) await pool().execute(statement);
+  assert.deepStrictEqual(Listings.describe(), {
+    name: "app.Listings",
+    base: "app.Listing",
+    kindField: null,
+    kindType: { schema: null, name: null },
+    kinds: [
+      { value: "auction", model: "app.Auction" },
+      { value: "sale", model: "app.Sale" },
+      { value: "draft", model: null },
+    ],
+  });
+  const ordered = Listings.find().orderBy(Listing.col("id").asc());
+  const everything = [
+    [{ id: 1, title: "lamp" }, "auction", { listing_id: 1, reserve: 50 }],
+    [{ id: 2, title: "chair" }, "sale", { id: 2, price: 80 }],
+    [{ id: 3, title: "desk" }, "draft", null],
+  ];
+  assert.deepStrictEqual(await ordered.all(pool()), everything);
+  assert.deepStrictEqual(await ordered.kind("draft").all(pool()), everything.slice(2));
+  assert.deepStrictEqual(await ordered.filterKind("auction", Auction.col("reserve").gt(10)).all(pool()), everything.slice(0, 1));
+  assert.equal(await Listings.find().kinds(["auction", "sale"]).count(pool()), 2);
+  await pool().execute("INSERT INTO napi_listings.sales VALUES (1, 70)");
+  await assert.rejects(Listings.findByKey({ id: 1 }).one(pool()), (error: unknown) => {
+    assert.ok(error instanceof DecodeError, `expected a DecodeError, got ${error}`);
+    assert.match(error.message, /of an unkinded disjoint entity has a row in/);
+    return true;
+  });
+});
+
+// [spec:pgorm:req:bindings.disjoint-unkinded/test]    a registered unkinded enum's writes and schema are refused with a ConstructionError naming its base read-only, before anything is sent, and its type offers none of them
+test("an unkinded registration is read-only", async () => {
+  for (const statement of LISTINGS) await pool().execute(statement);
+  const writable = disjointEntity("app.Listings");
+  const draft = Listing.active().set("id", 9).set("title", "rug");
+  for (const write of [
+    () => writable.insert(draft, "draft"),
+    () => writable.insert(draft, "auction", Auction.active().set("reserve", 1)),
+    () => writable.update(Listing.active().set("id", 1).set("title", "x"), "draft"),
+    () => writable.changeKind({ id: 1 }, "draft"),
+    () => createDisjoint(writable),
+  ]) {
+    assert.throws(write, (error: unknown) => {
+      assert.ok(error instanceof ConstructionError, `expected a ConstructionError, got ${error}`);
+      assert.match(error.message, /is unkinded: .* so it is read-only/);
+      return true;
+    });
+  }
+  // @ts-expect-error an unkinded registration has no writes
+  assert.equal(typeof Listings.insert, "function");
+  // @ts-expect-error nor a schema
+  assert.throws(() => createDisjoint(Listings), ConstructionError);
+  assert.equal((await pool().one("SELECT count(*)::int AS n FROM napi_listings.listings")).n, 3);
 });

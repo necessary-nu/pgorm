@@ -4,6 +4,12 @@ from decimal import Decimal
 from typing import assert_type
 from pgorm import Connection, Interval
 from pgorm.app import (
+    Deliveries,
+    DeliveriesRow,
+    Delivery,
+    Offers,
+    OffersRow,
+    Parcel,
     Account,
     AccountActive,
     AccountModel,
@@ -63,3 +69,9 @@ async def consumer(connection: Connection) -> None:
     assert_type(line.labels, list[str] | None)
     assert_type(line.amount, Decimal)
     assert_type(StockLine.active().set_qty(None).set_small(1), StockLineActive)
+    delivered = await Deliveries.insert(
+        Delivery.active().set_label("box"), "parcel", Parcel.active().set_weight_g(1)
+    ).returning_model(connection)
+    assert_type(delivered, DeliveriesRow)
+    assert_type(await Deliveries.find().kind("parcel").all(connection), list[DeliveriesRow])
+    assert_type(await Offers.find().all(connection), list[OffersRow])

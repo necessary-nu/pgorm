@@ -543,7 +543,7 @@ export declare abstract class Queryable {
    * own.
    */
   copyOut(statement: CopyTo, options?: OperationOptions): Promise<CopyOutStream>;
-  // [spec:pgorm:req:bindings.copy-rows]
+  // [spec:pgorm:req:bindings.copy-rows+1]
   /**
    * Run a binary `COPY … FROM STDIN` whose rows are arrays of values, one for
    * each column the server describes for the statement, in order, and

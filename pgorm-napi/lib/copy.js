@@ -8,7 +8,7 @@
 // bind parameters, so `inspect()` gives its SQL, every value in it a
 // literal, and no values.
 // [spec:pgorm:req:bindings.copy]
-// [spec:pgorm:req:bindings.copy-rows]
+// [spec:pgorm:req:bindings.copy-rows+1]
 
 import { arg, Builder, trusted, TRUSTED } from "./builder.js";
 import { pump } from "./copy-feed.js";

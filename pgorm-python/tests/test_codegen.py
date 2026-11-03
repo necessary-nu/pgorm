@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 from pgorm.codegen.config import CodegenError, rust_path, rust_string, validate
-from pgorm.codegen.emit import attributes, entity_code
+from pgorm.codegen.emit import attributes, disjoint_code, entity_code
 from pgorm.codegen.types import field_type
 
 
@@ -52,6 +52,55 @@ class CodegenTests(unittest.TestCase):
         )
         with self.assertRaises(CodegenError):
             validate(data, self.base)
+
+    # [spec:pgorm:req:bindings.codegen-disjoint/test]    a description's disjoint enums are named by Rust path, registration and export, each unique and none colliding with another export, or refused before anything is written
+    def test_disjoint_enums_are_described_uniquely(self):
+        data = copy.deepcopy(self.config)
+        data["disjoints"] = [{"name": "app.Things", "rust": "thing::Things", "python": "Things"}]
+        self.assertEqual(validate(data, self.base)["disjoints"], data["disjoints"])
+        for update in (
+            {"name": "app.Things", "rust": "thing::Other", "python": "Other"},
+            {"name": "app.Other", "rust": "thing::Things", "python": "Other"},
+            {"name": "app.Other", "rust": "thing::Other", "python": "ThingsRow"},
+            {"name": "app.Other", "rust": "thing::Other", "python": "ThingModel"},
+            {"name": "app.Other", "rust": "thing::Other", "python": "WritableDisjointView"},
+            {"name": "app.Other", "rust": "thing::<T>", "python": "Other"},
+            {"name": "app.Other", "rust": "thing::Other", "python": "Other", "fields": {}},
+        ):
+            broken = copy.deepcopy(data)
+            broken["disjoints"].append(update)
+            with self.subTest(update=update), self.assertRaises(CodegenError):
+                validate(broken, self.base)
+
+    # [spec:pgorm:req:bindings.codegen-disjoint/test]    a disjoint enum's rows are typed as a union over its kinds, a kinded enum's view writes through its entities' ActiveModels, an unkinded one's reads alone, and an enum whose base or kind entity is not exported is refused
+    def test_disjoint_rows_type_as_union_over_kinds(self):
+        entities = {
+            name: {"python": name.split(".")[1]} for name in ("app.Box", "app.Crate", "app.Bag")
+        }
+        described = {
+            "kind_field": "kind",
+            "base": "app.Box",
+            "kinds": [{"value": "crate", "model": "app.Crate"}, {"value": "loose", "model": None}],
+        }
+        code, stubs = disjoint_code({"name": "app.Boxes", "python": "Boxes"}, described, entities)
+        self.assertIn(
+            "BoxesRow: TypeAlias = tuple[BoxModel, Literal['crate'], CrateModel] "
+            "| tuple[BoxModel, Literal['loose'], None]",
+            stubs,
+        )
+        self.assertIn(
+            "Boxes: WritableDisjointView[BoxesRow, Literal['crate', 'loose'], BoxActive, CrateActive]",
+            stubs,
+        )
+        ast.parse("\n".join(code))
+        _, unkinded = disjoint_code(
+            {"name": "app.Boxes", "python": "Boxes"}, {**described, "kind_field": None}, entities
+        )
+        self.assertIn("Boxes: DisjointView[BoxesRow]", unkinded)
+        for missing in ({**described, "base": "app.Missing"},
+                        {**described, "kinds": [{"value": "x", "model": "app.Missing"}]}):
+            with self.subTest(missing=missing), self.assertRaises(CodegenError):
+                disjoint_code({"name": "app.Boxes", "python": "Boxes"}, missing, entities)
 
     # [spec:pgorm:req:bindings.codegen/test]
     def test_build_input_does_not_accept_code(self):

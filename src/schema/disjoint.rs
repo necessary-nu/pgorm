@@ -55,7 +55,7 @@ impl Schema {
     /// bare. A name it adds to a table that the table already declares, or
     /// adds twice, is refused with [`Error::Type`] naming both.
     // [spec:pgorm:sem:disjoint.schema+2]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn create_disjoint<D: KindedDisjoint>(&self) -> Result<Vec<DdlStatement>, Error> {
         DisjointShape::of::<D>().create()
     }
@@ -74,7 +74,7 @@ impl DisjointShape {
     /// is an unkinded shape, whose schema pgorm does not write.
     // [spec:pgorm:sem:disjoint.schema+2]
     // [spec:pgorm:req:bindings.disjoint+1]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn create(&self) -> Result<Vec<DdlStatement>, Error> {
         let kinded = self.kinded()?;
         self.check()?;

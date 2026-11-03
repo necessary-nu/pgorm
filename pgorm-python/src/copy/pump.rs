@@ -54,7 +54,7 @@ impl Unopened {
     }
 }
 
-// [spec:pgorm:req:bindings.copy-rows]
+// [spec:pgorm:req:bindings.copy-rows+1]
 pub(crate) async fn open_in<'a, C>(
     db: &'a mut C,
     statement: &CopyFrom,
@@ -79,7 +79,7 @@ where
     .map_err(Unopened::Refused)
 }
 
-// [spec:pgorm:req:bindings.copy-rows]
+// [spec:pgorm:req:bindings.copy-rows+1]
 pub(crate) async fn open_out<'a, C>(
     db: &'a mut C,
     statement: &CopyTo,

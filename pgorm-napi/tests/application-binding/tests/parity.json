@@ -60,7 +60,7 @@
     "values": [["text","busy"]]
   },
   "pipeline-registered-column": {
-    "sql": "SELECT * FROM napi_entities.parcels WHERE CAST(mood AS napi_entities.mood) = $1",
+    "sql": "SELECT * FROM napi_entities.parcels WHERE CAST(mood AS napi_entities.mood) = CAST($1::text AS napi_entities.mood)",
     "values": [["text","busy"]]
   }
 }

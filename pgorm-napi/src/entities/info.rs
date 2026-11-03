@@ -51,7 +51,7 @@ fn scalar(ty: &ColumnType) -> Option<ArrayType> {
 /// binding has no kind for, whose values a caller declares with `Value`. A
 /// domain's values travel as its base type's do, so a domain column is the
 /// kind of the type it is over.
-// [spec:pgorm:req:bindings.entities+3]
+// [spec:pgorm:req:bindings.entities+4]
 // [spec:pgorm:req:bindings.schema-domains+2]
 pub(crate) fn column_tag(ty: &ColumnType) -> Option<Tag> {
     let name =
@@ -82,6 +82,10 @@ pub(crate) fn column_tag(ty: &ColumnType) -> Option<Tag> {
         }
         ColumnType::Array(member) => column_tag(member).map(|tag| Tag::Array(Box::new(tag))),
         ColumnType::Domain { base, .. } => column_tag(base),
+        // A `money` column is read as `numeric` and written cast to `money`
+        // by the entity's own casts, so its values are decimals; no range
+        // the binding knows is over it, so `scalar` does not name it.
+        ColumnType::Money => Some(Tag::Scalar(ArrayType::Decimal)),
         other => scalar(other).map(Tag::Scalar),
     }
 }
@@ -220,7 +224,7 @@ impl EntityInfo {
     }
 
     /// The registration as `describe()` gives it.
-    // [spec:pgorm:req:bindings.entities+3]
+    // [spec:pgorm:req:bindings.entities+4]
     pub(crate) fn describe(&self) -> Result<Json, Failure> {
         Ok(json!({
             "name": self.name,
@@ -245,7 +249,7 @@ impl EntityInfo {
 /// holds its foreign key's rows to. `onCondition` is present or absent only:
 /// it is a Rust closure over the two tables' aliases, which has no rendering
 /// of its own until a join supplies them.
-// [spec:pgorm:req:bindings.entities+3]
+// [spec:pgorm:req:bindings.entities+4]
 // [spec:pgorm:req:bindings.relation-conditions]
 fn relation_json(name: &str, def: &RelationDef) -> Json {
     json!({
@@ -321,7 +325,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:req:bindings.entities+3/test]
+    // [spec:pgorm:req:bindings.entities+4/test]
     // [spec:pgorm:req:bindings.relation-conditions/test]
     #[test]
     fn join_condition_shape_is_reported() {
@@ -343,7 +347,7 @@ mod tests {
             .map(|tag| kind_key(tag).unwrap_or_else(|failure| panic!("{failure}")))
     }
 
-    // [spec:pgorm:req:bindings.entities+3/test]    each column type maps to the kind
+    // [spec:pgorm:req:bindings.entities+4/test]    each column type maps to the kind
     // a decoded column of it carries, so a registered column's values bind and
     // read as the binding's own; a type it has no kind for takes a `Value`
     #[test]
@@ -381,7 +385,7 @@ mod tests {
             key(&created).as_deref(),
             Some("range \"floatrange\" of f64")
         );
-        assert_eq!(key(&ColumnType::Money), None);
+        assert_eq!(key(&ColumnType::Money).as_deref(), Some("decimal"));
         assert_eq!(
             key(&ColumnType::Interval(IntervalSpec::Any(None))).as_deref(),
             Some("interval")
@@ -423,10 +427,17 @@ mod tests {
             labels(&calm),
             Some(vec!["calm".to_owned(), "tense".to_owned()])
         );
-        assert_eq!(key(&over("money", ColumnType::Money)), None);
+        assert_eq!(
+            key(&over(
+                "money",
+                ColumnType::Array(Arc::new(ColumnType::Money))
+            ))
+            .as_deref(),
+            Some("decimal[]")
+        );
     }
 
-    // [spec:pgorm:req:bindings.entities+3/test]
+    // [spec:pgorm:req:bindings.entities+4/test]
     #[test]
     fn only_types_without_a_kind_have_no_tag() {
         let untagged: Vec<&str> = ColumnType::variants()
@@ -434,6 +445,6 @@ mod tests {
             .filter(|ty| column_tag(ty).is_none())
             .map(Variants::variant_name)
             .collect();
-        assert_eq!(untagged, ["Bit", "VarBit", "Money", "Named", "LTree"]);
+        assert_eq!(untagged, ["Bit", "VarBit", "Named", "LTree"]);
     }
 }

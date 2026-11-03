@@ -4,7 +4,7 @@
 use std::{any::TypeId, collections::BTreeMap, sync::Arc};
 
 use neon::prelude::*;
-use pgorm::{Disjoint, DisjointShape, Iterable, KindModel, KindVisitor, KindedDisjoint};
+use pgorm::{Disjoint, DisjointShape, Iterable, KindModel, KindVisitor};
 use serde_json::json;
 
 use super::{Core, DisjointHandle, RowCodec};
@@ -53,14 +53,16 @@ impl Registry {
     /// Register the `#[derive(Disjoint)]` enum `D` under `name`, its base and
     /// each kind's entity registered before it. A name or an enum registered
     /// twice, an entity not registered, and a declaration `check_disjoint`
-    /// refuses are each refused, and nothing is added. An unkinded enum,
-    /// which is read-only, is no `KindedDisjoint`, so it does not register.
+    /// refuses are each refused, and nothing is added. An unkinded enum
+    /// registers the same way and is read-only: its shape refuses every
+    /// write and its schema.
     // [spec:pgorm:req:bindings.disjoint+1]
-    // [spec:pgorm:req:bindings.entities+3]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:req:bindings.disjoint-unkinded]
+    // [spec:pgorm:req:bindings.entities+4]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn disjoint<D>(&mut self, name: &str) -> Result<&mut Self, RegistrationError>
     where
-        D: KindedDisjoint + 'static,
+        D: Disjoint + 'static,
     {
         crate::entities::registration_name(name)?;
         let rust = TypeId::of::<D>();

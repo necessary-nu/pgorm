@@ -7,8 +7,22 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
-import { Decimal, pipeline as pl, Pool, Uuid } from "../lib/index.js";
-import { Account, AccountNotes, AccountOnly, AccountWithNote, MixedNotes, Note, Sample } from "../lib/app.js";
+import { createDisjoint, Decimal, pipeline as pl, Pool, Uuid } from "../lib/index.js";
+import {
+  Account,
+  AccountNotes,
+  AccountOnly,
+  AccountWithNote,
+  Deliveries,
+  Delivery,
+  MixedNotes,
+  Note,
+  Offer,
+  Offers,
+  Pallet,
+  Parcel,
+  Sample,
+} from "../lib/app.js";
 import { typed } from "./consumer.ts";
 import { scratchDatabase } from "./support.ts";
 
@@ -39,10 +53,17 @@ before(async () => {
        )`,
       "INSERT INTO napi_entities.accounts VALUES (1, 'Ann', NULL, 1, 'calm'), (2, 'Bob', 'b', 1, 'busy')",
       "INSERT INTO napi_entities.notes VALUES (10, 1, 'a1'), (11, 1, 'a2')",
+      "CREATE SCHEMA napi_courier",
+      "CREATE TABLE napi_courier.offers (id integer PRIMARY KEY, title text NOT NULL)",
+      "CREATE TABLE napi_courier.auctions (offer_id integer PRIMARY KEY, reserve integer NOT NULL)",
+      "CREATE TABLE napi_courier.sales (id integer PRIMARY KEY, price integer NOT NULL)",
+      "INSERT INTO napi_courier.offers VALUES (1, 'lamp'), (2, 'desk')",
+      "INSERT INTO napi_courier.auctions VALUES (1, 50)",
     ]
   ) {
     await pool().execute(sql);
   }
+  for (const statement of createDisjoint(Deliveries)) await pool().execute(statement);
 });
 
 after(async () => {
@@ -85,4 +106,25 @@ test("records, graph rows and source rows read as the declarations type them", a
     .selectSources(AccountWithNote, { qualifiers: ["accounts", "n"] })
     .all(pool());
   assert.deepStrictEqual(selected.map(([account, note]) => [account?.id, note?.id ?? null]), [[1, 10], [1, 11], [2, null]]);
+});
+
+// [spec:pgorm:req:bindings.codegen-disjoint/test]    a generated disjoint enum reads and writes its rows as its entities' records through their ActiveModels, and an unkinded one reads by presence and refuses every write
+test("a generated disjoint enum's rows read and write as its declarations type them", async () => {
+  assert.equal(Deliveries.name, "app.Deliveries");
+  const [box, kind, parcel] = await Deliveries.insert(Delivery.active().set("label", "box"), "parcel", Parcel.active().set("weight_g", 500))
+    .returningModel(pool());
+  assert.deepStrictEqual([box.label, kind, parcel], ["box", "parcel", { delivery_id: box.id, weight_g: 500 }]);
+  const letter = await Deliveries.insert(Delivery.active().set("label", "note"), "letter").returningModel(pool());
+  assert.deepStrictEqual([letter[1], letter[2]], ["letter", null]);
+  const moved = await Deliveries.changeKind({ id: box.id }, "pallet", Pallet.active().set("volume_l", 12).set("fragile", null))
+    .returningModel(pool());
+  assert.deepStrictEqual(moved[2], { id: box.id, volume_l: 12, fragile: null });
+  const rows = await Deliveries.find().orderBy(Delivery.col("id").asc()).all(pool());
+  assert.deepStrictEqual(rows.map(([base, value]) => [base.label, value]), [["box", "pallet"], ["note", "letter"]]);
+  assert.equal(await Deliveries.find().kind("letter").count(pool()), 1);
+
+  assert.equal(Offers.describe().kindField, null);
+  const offered = await Offers.find().orderBy(Offer.col("id").asc()).all(pool());
+  assert.deepStrictEqual(offered, [[{ id: 1, title: "lamp" }, "auction", { offer_id: 1, reserve: 50 }], [{ id: 2, title: "desk" }, "draft", null]]);
+  assert.throws(() => createDisjoint(Offers as never), /read-only/);
 });

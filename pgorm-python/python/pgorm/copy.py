@@ -209,7 +209,7 @@ def _row_source(rows: object) -> AsyncGenerator[object]:
     return _rows_of(rows)
 
 
-# [spec:pgorm:req:bindings.copy-rows]
+# [spec:pgorm:req:bindings.copy-rows+1]
 async def copy_in_rows(
     native: _native._Connection | _native._Transaction,
     statement: _native.CopyFrom[Literal["binary"]],
@@ -242,7 +242,7 @@ async def copy_in_rows(
     return await copy.finish()
 
 
-# [spec:pgorm:req:bindings.copy-rows]
+# [spec:pgorm:req:bindings.copy-rows+1]
 class CopyRowStream:
     """A binary COPY TO's rows as an async iterator of tuples of values.
 

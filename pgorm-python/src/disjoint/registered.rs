@@ -3,9 +3,7 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use pgorm::{
-    Disjoint, DisjointShape, EntityTrait, Iterable, KindModel, KindVisitor, KindedDisjoint,
-};
+use pgorm::{Disjoint, DisjointShape, EntityTrait, Iterable, KindModel, KindVisitor};
 use pyo3::prelude::*;
 use serde_json::json;
 
@@ -57,14 +55,15 @@ impl Registry {
     /// each kind's entity registered before it. A name or an enum registered
     /// twice, an entity not registered, and a declaration `check_disjoint`
     /// refuses are each a `ConstructionError` raised as it is registered. An
-    /// unkinded enum, which is read-only, is no `KindedDisjoint`, so it does
-    /// not register.
+    /// unkinded enum registers the same way and is read-only: its shape
+    /// refuses every write and its schema.
     // [spec:pgorm:req:bindings.disjoint+1]
-    // [spec:pgorm:req:bindings.entities+3]
-    // [spec:pgorm:sem:disjoint.unkinded]
+    // [spec:pgorm:req:bindings.disjoint-unkinded]
+    // [spec:pgorm:req:bindings.entities+4]
+    // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn disjoint<D>(&mut self, name: &str) -> PyResult<&mut Self>
     where
-        D: KindedDisjoint + 'static,
+        D: Disjoint + 'static,
     {
         if name.is_empty() || name.len() > 255 || name.contains('\0') {
             return Err(ConstructionError::new_err(

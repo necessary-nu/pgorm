@@ -359,7 +359,7 @@ async fn generated_columns_hold_values_to_their_modifiers() -> Result<(), Error>
 
 /// The generated entity's `money` columns are read as `numeric` and written
 /// cast to `money` from the `numeric` a `Decimal` placeholder is pinned to.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    a `money` column, and an
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    a `money` column, and an
 // array of it, is read cast to `numeric` and written cast to `money`
 #[test]
 fn money_columns_cast_through_numeric() {
@@ -385,7 +385,7 @@ fn money_columns_cast_through_numeric() {
 /// generated entity's `Decimal` fields: the row inserted, read back whole and
 /// by its columns, found by a comparison with each, and updated through
 /// `RETURNING`, each value at the currency's two places, a third rounded off.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+14/test]    against a live server: a
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    against a live server: a
 // `money` column, and an array of it, is read as `numeric` and written through
 // `numeric` to `money`, which compares with the column as well as assigns to it
 // [spec:pgorm:sem:codegen.entity.types+12/test]
@@ -453,6 +453,93 @@ async fn a_money_column_reads_and_writes_as_decimal() -> Result<(), Error> {
     assert_eq!(
         (updated.cost, updated.fees),
         (Some(Decimal::new(5679, 2)), vec![Decimal::new(0, 2)])
+    );
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+/// A pipeline compares the generated entity's `money` columns as their
+/// `ColumnTrait` compares them: a bound `Decimal`, its placeholder pinned to
+/// `numeric`, a literal and each listed value are cast to `money`, rounded to
+/// the currency's places as the column rounds what it stores, and the row
+/// reads back whole through `select_sources`.
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    against a live server: a
+// pipeline's bound, literal and listed values compared with a `money` column, or with
+// an array of it, are cast to `money`, either side of the comparison
+#[pgorm_macros::test]
+async fn a_pipeline_compares_a_money_column_as_money() -> Result<(), Error> {
+    use pgorm::pipeline::{ExprOps, Pipeline};
+
+    let ctx = TestContext::new("codegen_column_types_money_pipeline").await;
+    let db = ctx.db.get().await?;
+    entity_table(&db).await?;
+    Insert::many([
+        specimen(1).into_active_model(),
+        specimen::Model {
+            cost: None,
+            ..specimen(2)
+        }
+        .into_active_model(),
+    ])
+    .exec(&db)
+    .await?;
+
+    let conn = &db;
+    let ids = |pipeline: Pipeline| async move {
+        pipeline
+            .sort(specimen::Column::Id)
+            .select(specimen::Column::Id)
+            .into_tuple::<i32>()
+            .expect("the pipeline compiles")
+            .all(conn)
+            .await
+    };
+    let cost = Decimal::new(1234, 2);
+    let bound = Pipeline::from(specimen::Entity)
+        .filter_with(|binder| specimen::Column::Cost.eq(binder.bind(cost)));
+    assert_eq!(ids(bound).await?, [1]);
+    let rounded = Pipeline::from(specimen::Entity).filter_with(|binder| {
+        binder
+            .bind(Decimal::new(12341, 3))
+            .lt(specimen::Column::Cost)
+    });
+    assert_eq!(ids(rounded).await?, Vec::<i32>::new());
+    let literal = Pipeline::from(specimen::Entity).filter(
+        specimen::Column::Cost
+            .gt(12)
+            .and(specimen::Column::Cost.lte(12.5)),
+    );
+    assert_eq!(ids(literal).await?, [1]);
+    let listed = Pipeline::from(specimen::Entity).filter_with(|binder| {
+        specimen::Column::Cost.in_array([binder.bind(Decimal::ONE), binder.bind(cost)])
+    });
+    assert_eq!(ids(listed).await?, [1]);
+    let fees = Pipeline::from(specimen::Entity).filter_with(|binder| {
+        specimen::Column::Fees
+            .eq(binder.bind(vec![Decimal::new(15, 1), Decimal::TWO]))
+            .and(specimen::Column::Cost.is_null())
+    });
+    assert_eq!(ids(fees).await?, [2]);
+
+    let read = Pipeline::from(specimen::Entity)
+        .filter_with(|binder| specimen::Column::Cost.gte(binder.bind(cost)))
+        .select_sources(specimen::Entity)
+        .all(&db)
+        .await?;
+    let read: Vec<_> = read
+        .into_iter()
+        .flatten()
+        .map(|model| (model.id, model.cost, model.fees))
+        .collect();
+    assert_eq!(
+        read,
+        [(
+            1,
+            Some(cost),
+            vec![Decimal::new(150, 2), Decimal::new(200, 2)]
+        )]
     );
 
     drop(db);

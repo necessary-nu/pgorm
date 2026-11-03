@@ -100,6 +100,7 @@ def validate(data: object, base: str | PathLike[str]) -> dict[str, Any]:
         "entity_crate",
         "entities",
         "graphs",
+        "disjoints",
     }:
         raise CodegenError("unknown or invalid application configuration")
     if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
@@ -136,8 +137,14 @@ def validate(data: object, base: str | PathLike[str]) -> dict[str, Any]:
         "EntityView",
         "GraphView",
         "wrap_row",
+        "DisjointView",
+        "WritableDisjointView",
+        "wrap_disjoint_row",
+        "Literal",
+        "Never",
     }
-    for family in ("entities", "graphs"):
+    # [spec:pgorm:req:bindings.codegen-disjoint]
+    for family in ("entities", "graphs", "disjoints"):
         entries = data.get(family, [])
         if not isinstance(entries, list):
             raise CodegenError(f"{family} must be a list")
@@ -163,7 +170,7 @@ def validate(data: object, base: str | PathLike[str]) -> dict[str, Any]:
             if (
                 name in names
                 or exports.intersection(symbols)
-                or (family == "entities" and path in types)
+                or (family != "graphs" and path in types)
             ):
                 raise CodegenError(
                     "registration names, entity types and Python exports must be unique"

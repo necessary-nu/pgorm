@@ -129,11 +129,27 @@ fn project_into<E: EntityTrait>(nodes: &mut Vec<PlExpr>, qualifier: &str, index:
 // [spec:pgorm:sem:pipeline.select-sources+4]
 // [spec:pgorm:sem:query.graph.writer+4]
 pub(super) fn typed_cast(column: PlExpr, cast: &pgorm_query::TypeName) -> PlExpr {
+    pinned_cast(column, None, cast)
+}
+
+/// [`typed_cast`] of a bound placeholder pinned to `pin`, the type its value
+/// binds as: `CAST($1::numeric AS money)`. The server takes a cast operand's
+/// type from the cast's target where nothing pins it, and the driver would
+/// then send the value in a form that type does not read, as
+/// `sql.render.cast-param-type` explains of a statement's placeholder. A pin
+/// is one of the fixed names `Value::source_type_name` gives.
+// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
+pub(super) fn pinned_cast(
+    operand: PlExpr,
+    pin: Option<&str>,
+    cast: &pgorm_query::TypeName,
+) -> PlExpr {
+    let pin = pin.map(|pin| format!("::{pin}")).unwrap_or_default();
     adapter::assembled(
         vec![
             Piece::Text("CAST(".to_owned()),
-            Piece::Node(column),
-            Piece::Text(format!(" AS {})", cast.to_sql_string())),
+            Piece::Node(operand),
+            Piece::Text(format!("{pin} AS {})", cast.to_sql_string())),
         ],
         None,
     )
@@ -485,7 +501,7 @@ impl<S: SelectableSource> Named<S> {
     /// # Ok::<_, pgorm::pipeline::PipelineError>(())
     /// ```
     // [spec:pgorm:sem:pipeline.self-join+1]
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
     pub fn col<'brand>(&self, column: <S::Entity as EntityTrait>::Column) -> Expr<'brand> {
         entity_column(self.name.clone(), &column)
     }

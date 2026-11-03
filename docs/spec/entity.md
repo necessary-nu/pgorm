@@ -162,7 +162,7 @@ explicit limitations.
 > (`[spec:pgorm:sem:macros.derive.entity-model.column-def]`) and a hand-written
 > definition meets when its schema is created.
 
-> [spec:pgorm:sem:entity.traits.column.enum-cast+14]
+> [spec:pgorm:sem:entity.traits.column.enum-cast+15]
 > Enum-typed columns are transparently cast at the SQL boundary
 > (`src/entity/column.rs`). On read, `select_as` / `select_enum_as` casts an enum
 > column to `text` — or `text[]` when the column type is `Array` of an enum — and
@@ -275,7 +275,21 @@ explicit limitations.
 > comparisons, `in_array`, its operand and each member, `coalesce` and
 > `is_null` among them — casts every side that carries one, as the `min` and
 > `max` aggregates cast their argument; sorting, grouping, projecting and
-> `count` keep the bare column. The type comes from the entity wherever one
+> `count` keep the bare column.
+>
+> A pipeline's entity column also carries the type its `ColumnTrait` casts a
+> compared value to, wherever what that trait writes is a cast of the value
+> itself — an enum, `money` and an array of it, a created range, a domain
+> needing a cast, a `save_as` type — and a literal or a bound value compared
+> with the column, by a comparison, `coalesce` or `in_array`, on either side,
+> is cast to it as `ColumnTrait` casts it, so a `money` column compares with a
+> `Decimal` (`CAST($1::numeric AS money)`) where a bare value would leave the
+> server no operator (`42883`, *money = numeric*) or bind the value as a type
+> it is not. A bound value's placeholder is pinned inside the cast to the type
+> its value binds as, as `sql.render.cast-param-type` pins a statement's; a
+> literal is cast as written. Arithmetic, another column, `null` and any
+> other expression stay as written, and a column whose values travel bare, or
+> that a `save_with` function writes as anything but a cast, casts nothing. The type comes from the entity wherever one
 > is known: a relation read under a name of its own keeps it, its columns
 > written `Named::col(column)`, qualified by the name and carrying what the
 > entity column carries. Where none is — `col(table, column)` over a table no
