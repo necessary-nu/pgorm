@@ -16285,12 +16285,34 @@ children (
                 id active-enum-unknown-key-message
                 title "The ActiveEnum derive's unknown-key error names the key, not Rust debug output"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:38.032183Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by derives.paths: the ActiveEnum derive's error for an unknown attribute key prints Rust debug output (`Some(Ident(..))`) instead of the key's name. Word it as the other derives' unknown-key errors are, with a compile-fail test pinning the message."
+                    }
+
+                    {
+                        at 2026-11-04T21:59:55.364466Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T22:00:08.013793Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Re-diagnosed: already fixed before this node was filed. e1815a14 (derives.boilerplate, 2026-11-02 22:58) replaced both `Unknown attribute parameter found: {:?}` sites in active_enum.rs (enum level and variant level) with util::unknown_pgorm_key, the wording every other derive uses (\"unknown pgorm attribute `<key>`\", spanned at the key). The message is already pinned by pgorm-macros/tests/compile-fail/active_enum_storage.{rs,stderr} (`enum_nmae` on the enum, `string_valeu` on a variant), under syn:macros.derive.active-enum+6/test (\"an unknown key at either level\"), and that test passes on 29c5b0e9. No code, test or spec change was needed; the node closes on that evidence."
+                    }
+
+                    {
+                        at 2026-11-04T22:00:09.051918Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
