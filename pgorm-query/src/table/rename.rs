@@ -90,7 +90,7 @@ impl std::fmt::Display for TableRenameStatement {
 ///     r#"ALTER TABLE "font" RENAME COLUMN "new_col" TO "new_column""#
 /// );
 /// ```
-// [spec:pgorm:req:sql.ddl.alter-table+14]
+// [spec:pgorm:req:sql.ddl.alter-table+15]
 #[derive(Debug, Clone)]
 pub struct ColumnRenameStatement {
     pub(crate) table: TableName,
@@ -165,7 +165,7 @@ impl std::fmt::Display for ColumnRenameStatement {
 /// constraints holds (`42710`); a constraint the table inherited is renamed
 /// only through the parent, whose rename reaches every child's copy (`42P16`
 /// on the child).
-// [spec:pgorm:req:sql.ddl.alter-table+14]
+// [spec:pgorm:req:sql.ddl.alter-table+15]
 #[derive(Debug, Clone)]
 pub struct ConstraintRenameStatement {
     pub(crate) table: TableName,

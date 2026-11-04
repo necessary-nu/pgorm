@@ -685,12 +685,27 @@ children (
                 title "ALTER COLUMN ... TYPE with USING can also set the column's collation"
                 kind @feat
                 deps (disjoint.evolve)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:44.53115Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.evolve, which added TableAlterOption::AlterColumnTypeUsing (`ALTER COLUMN c TYPE t USING e`, sql.ddl.alter-table+14): PostgreSQL's form also takes COLLATE between the type and USING, which pgorm-query can't write. Add it if a caller needs it; low priority."
+                    }
+
+                    {
+                        at 2026-11-04T23:22:53.278404Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:37:56.559191Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

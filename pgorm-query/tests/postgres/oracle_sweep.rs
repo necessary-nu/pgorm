@@ -546,7 +546,7 @@ fn sweep_merge_shapes() {
 
 // [spec:pgorm:req:sql.render.oracle+4/test]    table DDL
 // [spec:pgorm:req:sql.ddl.create-table+16/test]
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]
 #[test]
 fn sweep_table_ddl_shapes() {
     sweep([
@@ -608,6 +608,14 @@ fn sweep_table_ddl_shapes() {
                 Expr::col(Glyph::Image)
                     .cast_as(Name::runtime("text"))
                     .cast_as(Name::runtime("image_kind")),
+            )
+            .to_string(),
+        Table::alter(Glyph::Table)
+            .alter_column_type_collated_using(
+                Glyph::Image,
+                ColumnType::Text,
+                (Name::runtime("pg_catalog"), Name::runtime("C")),
+                Expr::col(Glyph::Image).cast_as(Name::runtime("text")),
             )
             .to_string(),
         Table::create(Glyph::Table)
