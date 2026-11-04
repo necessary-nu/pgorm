@@ -202,7 +202,7 @@ fn schema_family_matches_its_golden_file() {
 }
 
 // [spec:pgorm:req:bindings.pipeline/test]
-// [spec:pgorm:req:bindings.pipeline-expressions+2/test]
+// [spec:pgorm:req:bindings.pipeline-expressions+3/test]
 // [spec:pgorm:req:bindings.pipeline-binder/test]
 #[test]
 fn pipeline_family_matches_its_golden_file() {

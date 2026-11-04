@@ -27,14 +27,17 @@ use super::funcs::CastType;
 #[derive(Debug, Clone)]
 pub struct Expr<'brand> {
     pub(super) node: PlExpr,
-    /// The enum an entity column whose domain is over one compares as. Only
-    /// the column itself carries it: what an operator builds from the column
-    /// is a new expression of its own type.
+    /// The type this column is cast to as a comparison's operand: the enum an
+    /// entity column whose domain is over one compares as, or the type
+    /// [`compares_as`](ExprOps::compares_as) names. Only the column itself
+    /// carries it: what an operator builds from the column is a new
+    /// expression of its own type.
     // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
     pub(super) compares_as: Option<TypeName>,
-    /// The type a value compared with this entity column is cast to, as its
-    /// `ColumnTrait` casts a compared value ([`compared_value_cast`]). Only
-    /// the column itself carries it, as it carries `compares_as`.
+    /// The type a value compared with this column is cast to: an entity
+    /// column's, as its `ColumnTrait` casts a compared value
+    /// ([`compared_value_cast`]), or the type `compares_as` names. Only the
+    /// column itself carries it, as it carries `compares_as`.
     // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
     pub(super) values_as: Option<TypeName>,
     pub(super) operand: Operand,
@@ -131,7 +134,7 @@ impl<'brand, C: ColumnTrait> From<C> for Expr<'brand> {
 
 /// An alias token reads back the name it declared, unqualified — the name
 /// belongs to the pipeline, not to a table.
-// [spec:pgorm:req:pipeline.surface+3]
+// [spec:pgorm:req:pipeline.surface+4]
 impl<'brand> From<AliasName> for Expr<'brand> {
     fn from(token: AliasName) -> Self {
         name(token.as_str())
@@ -139,7 +142,7 @@ impl<'brand> From<AliasName> for Expr<'brand> {
 }
 
 /// A runtime alias reads an introduced name under the same resolution rules.
-// [spec:pgorm:req:bindings.pipeline-expressions+2]
+// [spec:pgorm:req:bindings.pipeline-expressions+3]
 impl<'brand> From<Name> for Expr<'brand> {
     fn from(alias: Name) -> Self {
         name(&SqlName::to_string(&*alias))
@@ -190,7 +193,8 @@ literal!(&str, lit_str, std::convert::identity);
 /// each operator casts it to the enum, either side, PostgreSQL resolving no
 /// operator for the domain itself. Only the column carries the type, so a
 /// [`col`] reference or a token naming such a column's projection compares
-/// as the domain unless [`compares_as`](ExprOps::compares_as) names the enum.
+/// as the domain unless [`compares_as`](ExprOps::compares_as) names the enum,
+/// as it names `money` for a `money` column the pipeline reads by name.
 ///
 /// The comparison names (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `is_null`,
 /// `is_not_null`) are also [`ColumnTrait`] method names. Both can be in
@@ -199,7 +203,7 @@ literal!(&str, lit_str, std::convert::identity);
 /// and the ORM spelling is then `ColumnTrait::gt(&col, v)`. A module usually
 /// speaks one of the two dialects, so importing the pipeline where it is
 /// used keeps them apart.
-// [spec:pgorm:req:pipeline.surface+3]
+// [spec:pgorm:req:pipeline.surface+4]
 // Every operator here consumes its receiver: these build an expression, they
 // never inspect one, so `is_null` takes `self` like the rest of the trait.
 #[allow(clippy::wrong_self_convention)]
@@ -308,20 +312,26 @@ pub trait ExprOps<'brand>: Into<Expr<'brand>> + Sized {
         ))
     }
 
-    /// Compare this expression as the enum `enum_type`, as an entity column
-    /// whose domain is over that enum compares: every comparison, `in_array`,
-    /// `coalesce`, `min` and `max` cast it to the enum, and sorting, grouping
-    /// and projecting keep it as it is.
+    /// Compare this expression as the type `type_name`, as an entity column
+    /// whose `ColumnTrait` compares as that type compares: every comparison,
+    /// `in_array`, `coalesce`, `min` and `max` cast it to the type, each
+    /// literal or bound value a comparison, `in_array` or `coalesce` sets
+    /// beside it is cast to the type too, and sorting, grouping and
+    /// projecting keep it as it is.
     ///
     /// The pipeline learns a column's type from its entity alone. A column it
     /// reads without one — [`col`] over a table no entity describes, an
     /// [`alias`](pgorm_query::alias) token naming a projection — is compared
-    /// as the type the server gives it, and PostgreSQL resolves no operator
-    /// for a domain over an enum, not even against its own values (`42883`).
-    /// This names the enum such a column compares as, schema-qualified where
-    /// the enum is ([`TypeName::schema`]). A relation read under a name keeps
-    /// its entity's types through [`Named::col`](super::Named::col), which
-    /// needs no naming.
+    /// as the type the server gives it, and a value compared with it as the
+    /// value's own: PostgreSQL resolves no operator for a domain over an enum,
+    /// not even against its own values, nor one between `money` and the
+    /// `numeric` a `Decimal` binds as (`42883`). This names the type such a
+    /// column compares as — the enum a domain is over, `money` — qualified
+    /// by its schema where the type is ([`TypeName::schema`]). The cast of a
+    /// column that already is the type costs nothing: the server drops a cast
+    /// to an expression's own type. A relation read under a name keeps its
+    /// entity's types through [`Named::col`](super::Named::col), which needs
+    /// no naming.
     ///
     /// ```
     /// use pgorm::pipeline::{ExprOps, Pipeline, alias, col};
@@ -329,13 +339,16 @@ pub trait ExprOps<'brand>: Into<Expr<'brand>> + Sized {
     /// let (sql, _) = Pipeline::from(alias("line"))
     ///     .filter(col(alias("line"), alias("mood")).compares_as(alias("mood")).eq("glad"))
     ///     .into_sql()?;
-    /// assert_eq!(sql, "SELECT * FROM line WHERE CAST(mood AS mood) = 'glad'");
+    /// assert_eq!(sql, "SELECT * FROM line WHERE CAST(mood AS mood) = CAST('glad' AS mood)");
     /// # Ok::<_, pgorm::pipeline::PipelineError>(())
     /// ```
     // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
-    fn compares_as(self, enum_type: impl Into<TypeName>) -> Expr<'brand> {
+    // [spec:pgorm:req:pipeline.surface+4]
+    fn compares_as(self, type_name: impl Into<TypeName>) -> Expr<'brand> {
+        let type_name = type_name.into();
         let mut expr = self.into();
-        expr.compares_as = Some(enum_type.into());
+        expr.values_as = Some(type_name.clone());
+        expr.compares_as = Some(type_name);
         expr
     }
 
@@ -363,7 +376,7 @@ pub trait ExprOps<'brand>: Into<Expr<'brand>> + Sized {
 
     /// Name a projection with an owned identifier computed at runtime.
     /// Reserved-name validation is identical to [`as_`](ExprOps::as_).
-    // [spec:pgorm:req:bindings.pipeline-expressions+2]
+    // [spec:pgorm:req:bindings.pipeline-expressions+3]
     fn as_runtime(self, name: Name) -> Expr<'brand> {
         branded(adapter::aliased(
             self.into().node,
@@ -382,15 +395,15 @@ pub trait ExprOps<'brand>: Into<Expr<'brand>> + Sized {
     }
 }
 
-// [spec:pgorm:req:pipeline.surface+3]
+// [spec:pgorm:req:pipeline.surface+4]
 impl<'brand> ExprOps<'brand> for Expr<'brand> {}
 
-// [spec:pgorm:req:pipeline.surface+3]
+// [spec:pgorm:req:pipeline.surface+4]
 impl<'brand> ExprOps<'brand> for AliasName {}
 
 impl<'brand> ExprOps<'brand> for Name {}
 
-// [spec:pgorm:req:pipeline.surface+3]
+// [spec:pgorm:req:pipeline.surface+4]
 impl<'brand, C: ColumnTrait> ExprOps<'brand> for C {}
 
 /// A list of expressions, as the transforms that project, group and sort
@@ -410,7 +423,7 @@ impl<'brand, C: ColumnTrait> ExprOps<'brand> for C {}
 ///     .select([C::Id, C::Name])                       // homogeneous
 ///     .select((C::Id, sum(C::Id).as_(total), total)); // mixed
 /// ```
-// [spec:pgorm:req:pipeline.surface+3]
+// [spec:pgorm:req:pipeline.surface+4]
 pub trait ExprList<'brand> {
     /// The expressions, in the order written.
     fn into_exprs(self) -> Vec<Expr<'brand>>;

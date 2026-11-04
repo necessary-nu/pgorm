@@ -1465,7 +1465,7 @@ placeholders belong to the stage that minted them.
 > `ConstructionError` from `inspect()` or the terminal, before anything is
 > sent.
 
-> [spec:pgorm:req:bindings.pipeline-expressions+2]
+> [spec:pgorm:req:bindings.pipeline-expressions+3]
 > Pipeline expressions MUST be objects of their own, lowered into
 > `pgorm::pipeline::Expr` only as a stage takes them, never mixed with the
 > statement builders' expressions: `col(table, column)`, qualified as prqlc
@@ -1474,8 +1474,10 @@ placeholders belong to the stage that minted them.
 > `lte`, and, or, not, negation, `add` .. `rem`, `coalesce`, `is_null`,
 > `is_not_null`, `in_array`, `cast` over pgorm's closed `CastType` set, `as`,
 > `asc` and `desc`; `compares_as(type)`, a name or a `TypeName`, lowered
-> through `ExprOps::compares_as`, the enum a column no registration types
-> compares as (`entity.traits.column.enum-cast`); `case(arms, otherwise)`;
+> through `ExprOps::compares_as`, the type a column no registration types
+> compares as — the enum a domain is over, `money` — the column and each
+> value compared with it cast to it (`pipeline.surface`); `case(arms,
+> otherwise)`;
 > and the aggregates and window functions pgorm's pipeline has, each at the
 > argument count it takes. `over()` builds a window's partition, ordering
 > and ROWS or RANGE frame, and takes no value, bound or not, as pgorm's `Over`

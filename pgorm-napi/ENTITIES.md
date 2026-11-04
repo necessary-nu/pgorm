@@ -237,7 +237,8 @@ the entity's own column under the qualifier its relation is read by — its
 table's name, or the name of a `pl.source(entity).named(..)` — compared as the
 entity types it, so a column whose domain is over an enum compares as the enum.
 `pl.col(qualifier, "name")` only qualifies, and such a column needs
-`.comparesAs(new TypeName(name, { schema }))` to be compared at all.
+`.comparesAs(new TypeName(name, { schema }))` to be compared at all, as a
+`money` column needs `.comparesAs("money")` to be compared with a `Decimal`.
 
 Each source is projected under the qualifier given for it, or its table's
 name. A row's source that the join left empty is `null`, read through the

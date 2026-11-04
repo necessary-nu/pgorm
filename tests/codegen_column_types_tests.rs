@@ -468,9 +468,11 @@ async fn a_money_column_reads_and_writes_as_decimal() -> Result<(), Error> {
 // [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]    against a live server: a
 // pipeline's bound, literal and listed values compared with a `money` column, or with
 // an array of it, are cast to `money`, either side of the comparison
+// [spec:pgorm:req:pipeline.surface+4/test]    the column read by name, with no entity,
+// compares with a bound `Decimal` once compares_as names `money`, and refuses it unnamed
 #[pgorm_macros::test]
 async fn a_pipeline_compares_a_money_column_as_money() -> Result<(), Error> {
-    use pgorm::pipeline::{ExprOps, Pipeline};
+    use pgorm::pipeline::{ExprOps, Pipeline, col};
 
     let ctx = TestContext::new("codegen_column_types_money_pipeline").await;
     let db = ctx.db.get().await?;
@@ -522,6 +524,19 @@ async fn a_pipeline_compares_a_money_column_as_money() -> Result<(), Error> {
             .and(specimen::Column::Cost.is_null())
     });
     assert_eq!(ids(fees).await?, [2]);
+
+    let untyped = |named: bool| {
+        Pipeline::from(Name::runtime("specimen")).filter_with(move |binder| {
+            let column = col(Name::runtime("specimen"), Name::runtime("cost"));
+            match named {
+                true => column.compares_as(Name::runtime("money")),
+                false => column,
+            }
+            .gte(binder.bind(cost))
+        })
+    };
+    assert_eq!(ids(untyped(true)).await?, [1]);
+    assert!(ids(untyped(false)).await.is_err());
 
     let read = Pipeline::from(specimen::Entity)
         .filter_with(|binder| specimen::Column::Cost.gte(binder.bind(cost)))

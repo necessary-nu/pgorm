@@ -84,14 +84,14 @@ fn entity_columns_are_qualified_by_construction() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn cast_renders_as_postgres_cast() {
     let built = sql_of(Pipeline::from(INVOICE).derive(total().cast(CastType::Integer).as_("t")));
     assert_eq!(built, "SELECT *, CAST(total AS integer) AS t FROM invoice");
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn in_array_of_bound_params_renders_in_list() {
     let built = sql_of(
@@ -101,21 +101,21 @@ fn in_array_of_bound_params_renders_in_list() {
     assert_eq!(built, "SELECT * FROM invoice WHERE total IN ($1, $2)");
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn in_array_of_literals_inlines_them() {
     let built = sql_of(Pipeline::from(INVOICE).filter(total().in_array([1, 2, 3])));
     assert_eq!(built, "SELECT * FROM invoice WHERE total IN (1, 2, 3)");
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn take_range_renders_limit_offset() {
     let built = sql_of(Pipeline::from(INVOICE).take_range(21..=30));
     assert_eq!(built, "SELECT * FROM invoice LIMIT 10 OFFSET 20");
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn case_renders_case_when() {
     let built = sql_of(
@@ -188,7 +188,7 @@ fn hostile_literals_stay_one_statement() {
     }
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn null_handling_renders_is_null_forms() {
     let built = sql_of(Pipeline::from(INVOICE).filter(total().is_null().or(total().is_not_null())));
@@ -198,7 +198,7 @@ fn null_handling_renders_is_null_forms() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn coalesce_and_arithmetic_render_inline() {
     let built = sql_of(Pipeline::from(INVOICE).derive([
@@ -214,7 +214,7 @@ fn coalesce_and_arithmetic_render_inline() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn aggregate_functions_render_expected_sql() {
     let built = sql_of(
@@ -375,7 +375,7 @@ fn counting_distinct_values_needs_no_rewrite() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn filter_after_aggregate_lands_in_having() {
     let spent = alias("total_spent");
@@ -397,7 +397,7 @@ fn filter_after_aggregate_lands_in_having() {
     assert!(parsed.having_clause.is_some());
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn filter_after_window_nests_through_cte() {
     let rn = alias("rn");
@@ -419,7 +419,7 @@ fn filter_after_window_nests_through_cte() {
     assert!(parsed.where_clause.is_some());
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn window_frame_renders_rows_between() {
     let built = sql_of(Pipeline::from(INVOICE).window(
@@ -432,7 +432,7 @@ fn window_frame_renders_rows_between() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn window_over_the_whole_relation_needs_no_keys() {
     let built = sql_of(Pipeline::from(INVOICE).window(sum(total()).as_(alias("grand")), over()));
@@ -640,7 +640,7 @@ fn a_filter_after_a_written_window_nests_it() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn lag_lead_first_last_render_window_calls() {
     let built = sql_of(Pipeline::from(INVOICE).window(
@@ -665,7 +665,7 @@ fn lag_lead_first_last_render_window_calls() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn join_takes_an_explicit_condition() {
     let built = sql_of(Pipeline::from(INVOICE).join(
@@ -712,7 +712,7 @@ fn literals_inline_and_bound_values_do_not() {
     assert_eq!(values.0.len(), 1);
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]    one, a list, or a mix
+// [spec:pgorm:req:pipeline.surface+4/test]    one, a list, or a mix
 #[test]
 fn expression_lists_take_every_shape() {
     let one = sql_of(Pipeline::from(cake::Entity).select(cake::Column::Id));
@@ -733,7 +733,7 @@ fn expression_lists_take_every_shape() {
     assert_eq!(mixed, "SELECT name, id + 1 AS n, id * 2 FROM cake");
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]
+// [spec:pgorm:req:pipeline.surface+4/test]
 #[test]
 fn scopes_compose_as_pipeline_functions() {
     fn expensive(pipeline: Pipeline) -> Pipeline {
@@ -3197,8 +3197,11 @@ fn domain_enum_columns_compare_as_the_enum() {
 // reference or an alias token as the enum compares_as names, schema-qualified
 // and quoted by the type-name policy, while projecting and grouping keep each
 // bare and a col reference left unnamed compares as it is
+// [spec:pgorm:req:pipeline.surface+4/test]    compares_as casts the column and
+// each literal or bound value compared with it to the type it names, `money`
+// included, a bound value's placeholder pinned to its own type
 #[test]
-fn untyped_columns_compare_as_the_named_enum() {
+fn untyped_columns_compare_as_the_named_type() {
     use cheerful::line;
     use pgorm_query::TypeName;
 
@@ -3228,9 +3231,26 @@ fn untyped_columns_compare_as_the_named_enum() {
         .expect("pipeline compiles");
     assert_eq!(
         bound,
-        r#"SELECT * FROM line WHERE CAST(mood AS app."Mood") IN ($1, 'calm')"#
+        r#"SELECT * FROM line WHERE CAST(mood AS app."Mood") IN (CAST($1::text AS app."Mood"), CAST('calm' AS app."Mood"))"#
     );
     assert_eq!(values.0, [Value::from("glad")]);
+
+    let (bound, values) = Pipeline::from(alias("till"))
+        .filter_with(|binder| {
+            let takings = col(alias("till"), alias("takings")).compares_as(alias("money"));
+            takings
+                .clone()
+                .gt(binder.bind(rust_decimal::Decimal::new(5, 0)))
+                .and(takings.lte(12.5))
+        })
+        .into_sql()
+        .expect("pipeline compiles");
+    assert_eq!(
+        bound,
+        "SELECT * FROM till WHERE CAST(takings AS money) > CAST($1::numeric AS money) \
+         AND CAST(takings AS money) <= CAST(12.5 AS money)"
+    );
+    assert_eq!(values.0.len(), 1);
 
     let m = alias("m");
     assert_eq!(
@@ -3241,7 +3261,7 @@ fn untyped_columns_compare_as_the_named_enum() {
                 .select(m)
         ),
         "WITH table_0 AS (SELECT mood AS m FROM line) \
-         SELECT m FROM table_0 WHERE CAST(m AS mood) >= 'calm'"
+         SELECT m FROM table_0 WHERE CAST(m AS mood) >= CAST('calm' AS mood)"
     );
     assert_eq!(
         sql_of(

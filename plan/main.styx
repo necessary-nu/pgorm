@@ -17225,12 +17225,34 @@ children (
                 title "A pipeline column read without an entity that holds money compares with a Decimal"
                 kind @fix
                 deps (money-beyond-entities)
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:29.553638Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by money-beyond-entities: a pipeline column read by name, with no entity behind it, that holds money refuses a Decimal compared with it (the bind is pinned to numeric, and money = numeric has no operator, 42883). The only route is `compares_as(\"numeric\")`, which is undocumented. Decide in the rule whether an untyped column learns its type (as pipeline-untyped-enum-casts did for enums) or compares_as is the documented answer, then document and test it."
+                    }
+
+                    {
+                        at 2026-11-04T23:39:25.695045Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:45:12.686823Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "The mechanism pipeline-untyped-enum-casts gave untyped columns generalises, so it is used rather than documenting compares_as(\"numeric\"). That mechanism is the caller naming the type an untyped column compares as (ExprOps::compares_as). An entity column carries two casts: compares_as (the column, cast to the enum when its domain is over one) and values_as (each literal or bound value compared with it, as ColumnTrait::compared_value casts it: an enum, money, a created range, a domain, a save_as type). compares_as(T) set only the first, so it reached the domain-over-enum case and nothing else: a money column named by text left a Decimal bare (money > numeric, 42883; probed on PG 18.6). compares_as(T) now sets both to T, so an untyped column compares exactly as an entity column whose ColumnTrait casts its values to T: compares_as(money) gives CAST(takings AS money) > CAST($1::numeric AS money). The cast of a column already of type T is free: EXPLAIN VERBOSE on PG 18.6 shows CAST(m AS money) and CAST(e AS mood) dropped from the filter. This also makes the domain-over-enum case match entity-cast's text ('the operators then cast it as they cast an entity column so typed'), which the old code did not for values. It covers every save_as that is a cast of the value; a save_with function writing anything else has no type to name, as for entity columns. compares_as(\"numeric\") keeps working (column and values cast to numeric). Rules revised: pipeline.surface v4, bindings.pipeline-expressions v3; enum-cast v15 left as is (still true). Created ranges need pipeline-created-range-bind's bind fix before compares_as(created) helps a bound Range."
+                    }
+
+                    {
+                        at 2026-11-04T23:53:59.610858Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

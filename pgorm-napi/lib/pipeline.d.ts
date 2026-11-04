@@ -83,10 +83,12 @@ export declare class PipelineExpr {
   inArray(values: readonly PipelineOperand[]): PipelineExpr;
   cast(type: CastType): PipelineExpr;
   /**
-   * Compared as the enum `type` names, as a registered column whose domain is
-   * over that enum compares: every comparison, `inArray`, `coalesce`, `min`
-   * and `max` cast it to the enum, which PostgreSQL needs of such a column
-   * where no registration types it.
+   * Compared as the type `type` names, as a registered column of that type
+   * compares: every comparison, `inArray`, `coalesce`, `min` and `max` cast
+   * it to the type, and each value a comparison, `inArray` or `coalesce` sets
+   * beside it is cast too, which PostgreSQL needs of a column whose domain
+   * is over an enum, or of a `money` column compared with a `Decimal`, where
+   * no registration types it.
    */
   comparesAs(type: string | TypeName): PipelineExpr;
   /** The name a projected expression takes: an identifier, or an {@link alias} a later stage reads it by. */

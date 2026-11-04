@@ -1480,6 +1480,7 @@ assertions (
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id bindings-between-casts, kind @complete, author "brendan@necessary.nu", at 2026-11-04T23:37:56.777488Z}
+    {id pipeline-untyped-money-compare, kind @complete, author "brendan@necessary.nu", at 2026-11-04T23:53:59.610858Z}
 )
 
 impl_evidence (
