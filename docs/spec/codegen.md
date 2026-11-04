@@ -1233,11 +1233,14 @@ compiling the C parser falls on people generating entities and on nobody else.
 > (`sql.ddl.create-table`), so a key the statement declares and the key the
 > bridge reads back from its rendering are one fact.
 
-> [spec:pgorm:req:codegen.ddl.unsupported+20]
+> [spec:pgorm:req:codegen.ddl.unsupported+21]
 > The supported subset is what the entity model can hold: `CREATE TABLE` with
 > its columns, `NULL`/`NOT NULL`, primary-key, unique and foreign-key
-> constraints, and its `DEFAULT`s, generation expressions and table-level
-> `CHECK`s within the subset `codegen.entity.expressions` reads; `ALTER TABLE ... ADD COLUMN` and `ADD
+> constraints, its `DEFAULT`s and generation expressions within the subset
+> `codegen.entity.expressions` reads, and the table-level `CHECK` of a one-of
+> reference (`[spec:pgorm:def:disjoint.one-of]`), which the bridge reads
+> within that subset as it reads every table-level `CHECK`, the transform
+> refusing by name each that is not one (`codegen.ddl.tables`); `ALTER TABLE ... ADD COLUMN` and `ADD
 > CONSTRAINT`, adding the same to a table the file creates
 > (`codegen.ddl.objects`); `CREATE TYPE ... AS ENUM`; `CREATE TYPE ... AS RANGE`
 > and `CREATE DOMAIN` (`codegen.ddl.objects`); `CREATE INDEX`; `CREATE SCHEMA`,
@@ -1504,7 +1507,7 @@ compiling the C parser falls on people generating entities and on nobody else.
 > multi-dimensional array, and a non-integer type modifier are all named
 > rejections per `codegen.ddl.unsupported`.
 
-> [spec:pgorm:sem:codegen.ddl.tables+12]
+> [spec:pgorm:sem:codegen.ddl.tables+13]
 > A `CREATE TABLE` becomes a `TableCreateStatement` carrying the `TableName`
 > its name spells — `Table`, or `SchemaTable` when it is schema-qualified;
 > a catalog-qualified `db.schema.table` names a cross-database reference
@@ -1621,11 +1624,12 @@ compiling the C parser falls on people generating entities and on nobody else.
 > ``... in the CHECK `<name>` of table `<t>` ``, or ``... in a CHECK of
 > table `<t>` `` when it is unnamed; a column it reads that the table lacks is
 > unresolved, ``statement <n>: table `<t>` has no column `<c>` ``. It rides
-> on the statement and reaches the generated entity only as the
-> `#[derive(OneOf)]` enum `[spec:pgorm:def:disjoint.one-of]` recognises in
-> it: the entity model holds no other `CHECK`, and a generated entity is the
-> image of a schema that already exists. A column's own `CHECK` stays named
-> (`codegen.ddl.unsupported`).
+> on the statement, and the transform generates it as the `#[derive(OneOf)]`
+> enum `[spec:pgorm:def:disjoint.one-of]` recognises in it or refuses it,
+> naming it: the entity model holds no other `CHECK`, and a generated entity
+> is the image of a schema that already exists, so one that dropped a `CHECK`
+> it read would create a table other than the one it was read from. A
+> column's own `CHECK` stays named (`codegen.ddl.unsupported`).
 >
 > A primary key ending `WITHOUT OVERLAPS` becomes the table's temporal key,
 > its period held apart from its other columns (`TableKey::without_overlaps`),

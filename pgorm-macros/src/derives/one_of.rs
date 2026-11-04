@@ -60,7 +60,7 @@ fn attrs(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<Vec<Meta>> {
         .collect())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+2]
 // [spec:pgorm:req:macros.derive.code-values+3]
 fn container(input: &DeriveInput) -> syn::Result<Container> {
     let mut entity = None;
@@ -97,7 +97,7 @@ fn container(input: &DeriveInput) -> syn::Result<Container> {
     })
 }
 
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+2]
 // [spec:pgorm:req:macros.derive.code-values+3]
 fn reference(variant: &Variant) -> syn::Result<Reference> {
     let mut column = None;
@@ -173,7 +173,7 @@ fn reference(variant: &Variant) -> syn::Result<Reference> {
 /// `#[derive(OneOf)]`: `<Enum>Key` and `<Enum>Model`, `OneOf` for the enum
 /// and `OneOfTarget` for each target, with the checks that hold each column
 /// to the entity, to its target's key type and to one variant.
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+2]
 pub fn expand_derive_one_of(input: DeriveInput) -> syn::Result<TokenStream> {
     let Data::Enum(data) = &input.data else {
         return Err(syn::Error::new(
@@ -229,7 +229,7 @@ pub fn expand_derive_one_of(input: DeriveInput) -> syn::Result<TokenStream> {
 ///
 /// Both repeat the enum's variants, which clippy's `enum_variant_names`
 /// judges where the enum is declared, so it is allowed on them.
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+2]
 fn generated_enums(
     input: &DeriveInput,
     container: &Container,
@@ -290,7 +290,7 @@ fn generated_enums(
 /// `OneOf` for the enum: its entity, its generated enums, its name in
 /// snake_case, its unit variant, and a visit of its targets, each requiring
 /// the entity's relation to the target.
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+2]
 fn impl_one_of(
     input: &DeriveInput,
     container: &Container,
@@ -337,7 +337,7 @@ fn impl_one_of(
 /// entity's `Column`, so another entity's does not compile, and is read
 /// through the field its entity's `Model` declares for it, bound as `Option`
 /// of the target's key type, so a field of any other type does not compile.
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+2]
 fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenStream {
     let base = &container.entity;
     let key_ident = format_ident!("{}Key", ident);
@@ -401,7 +401,7 @@ fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenSt
 /// A constant for each pair of targets refusing, as it is evaluated, two
 /// variants naming one column. Both columns are the entity's `Column`, so
 /// equal discriminants are one column, however each path is written.
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+2]
 fn distinct_columns(targets: &[&Target]) -> TokenStream {
     let mut checks = TokenStream::new();
     for (index, second) in targets.iter().enumerate() {

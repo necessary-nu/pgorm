@@ -37,7 +37,7 @@ fn statements() -> Vec<&'static str> {
         .collect()
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    the round trip: the schema the comment fixture writes, generated from, is the schema the generated entities and the generated enum's `create_one_of` write, statement for statement
+// [spec:pgorm:def:disjoint.one-of+2/test]    the round trip: the schema the comment fixture writes, generated from, is the schema the generated entities and the generated enum's `create_one_of` write, statement for statement
 #[test]
 fn generated_enum_writes_the_schema_read_from() -> Result<(), Error> {
     let schema = Schema::new();
@@ -59,7 +59,7 @@ fn generated_enum_writes_the_schema_read_from() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    on the schema it was generated from, the generated enum writes each reference, reads it back, loads each row's target, and the schema refuses a row referencing two
+// [spec:pgorm:def:disjoint.one-of+2/test]    on the schema it was generated from, the generated enum writes each reference, reads it back, loads each row's target, and the schema refuses a row referencing two
 #[pgorm_macros::test]
 async fn generated_reference_reads_writes_and_loads_live() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_one_of").await;

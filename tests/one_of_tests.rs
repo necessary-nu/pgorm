@@ -179,7 +179,7 @@ async fn refused<C: ConnectionTrait>(db: &C, sql: &str, state: &SqlState) {
     }
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    `create_one_of` adds the named CHECK `num_nonnulls(..) <= 1` where the enum has a unit variant: PostgreSQL refuses a row referencing two targets and accepts one referencing none
+// [spec:pgorm:def:disjoint.one-of+2/test]    `create_one_of` adds the named CHECK `num_nonnulls(..) <= 1` where the enum has a unit variant: PostgreSQL refuses a row referencing two targets and accepts one referencing none
 #[pgorm_macros::test]
 async fn check_with_a_unit_variant_allows_none_live() -> Result<(), Error> {
     let ctx = TestContext::new("one_of_check_unit").await;
@@ -230,7 +230,7 @@ async fn check_with_a_unit_variant_allows_none_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    without a unit variant the CHECK is `num_nonnulls(..) = 1`: PostgreSQL refuses a row referencing none as well as one referencing two
+// [spec:pgorm:def:disjoint.one-of+2/test]    without a unit variant the CHECK is `num_nonnulls(..) = 1`: PostgreSQL refuses a row referencing none as well as one referencing two
 #[pgorm_macros::test]
 async fn check_without_a_unit_variant_requires_one_live() -> Result<(), Error> {
     let ctx = TestContext::new("one_of_check_exact").await;
@@ -260,7 +260,7 @@ async fn check_without_a_unit_variant_requires_one_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    each key written through `set` reads back as itself, the unit variant included, and setting another key on the row's `ActiveModel` sets its column and nulls the old one in the stored row
+// [spec:pgorm:def:disjoint.one-of+2/test]    each key written through `set` reads back as itself, the unit variant included, and setting another key on the row's `ActiveModel` sets its column and nulls the old one in the stored row
 #[pgorm_macros::test]
 async fn set_and_read_each_variant_live() -> Result<(), Error> {
     let ctx = TestContext::new("one_of_set_read").await;
@@ -302,7 +302,7 @@ async fn set_and_read_each_variant_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    loading a mixed list reads each target table once, in one statement for the keys its variant holds, and gives each row its `<Enum>Model` in order, the unit variant for a row referencing none; a list referencing one target reads one table, and an empty list reads none
+// [spec:pgorm:def:disjoint.one-of+2/test]    loading a mixed list reads each target table once, in one statement for the keys its variant holds, and gives each row its `<Enum>Model` in order, the unit variant for a row referencing none; a list referencing one target reads one table, and an empty list reads none
 #[pgorm_macros::test]
 async fn load_reads_each_target_once_live() -> Result<(), Error> {
     let ctx = TestContext::new("one_of_load").await;
@@ -376,7 +376,7 @@ async fn load_reads_each_target_once_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    a key its target table does not hold, which `load_one` gives as `None`, is an error naming the table, the key and the column; a row against its declaration fails the load as `key` fails it, before anything is sent
+// [spec:pgorm:def:disjoint.one-of+2/test]    a key its target table does not hold, which `load_one` gives as `None`, is an error naming the table, the key and the column; a row against its declaration fails the load as `key` fails it, before anything is sent
 #[pgorm_macros::test]
 async fn load_refuses_an_unmatched_key_live() -> Result<(), Error> {
     let ctx = TestContext::new("one_of_unmatched").await;
@@ -429,7 +429,7 @@ async fn load_refuses_an_unmatched_key_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    a relation to a target joining another column than the variant's is refused as `Error::Type` before anything is sent
+// [spec:pgorm:def:disjoint.one-of+2/test]    a relation to a target joining another column than the variant's is refused as `Error::Type` before anything is sent
 #[pgorm_macros::test]
 async fn load_refuses_a_relation_of_another_column_live() -> Result<(), Error> {
     let ctx = TestContext::new("one_of_relation").await;

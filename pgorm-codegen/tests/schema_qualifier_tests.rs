@@ -255,7 +255,7 @@ fn an_ambiguous_unqualified_index_is_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.tables+12/test]    the bridge preserved the
+// [spec:pgorm:sem:codegen.ddl.tables+13/test]    the bridge preserved the
 // qualifier all along; it is the whole pipeline that now keeps it
 #[test]
 fn bridge_and_generated_entity_agree_on_schema() {

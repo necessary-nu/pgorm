@@ -16618,6 +16618,7 @@ children (
                 title "Codegen never generates an entity that silently drops a table CHECK it read"
                 kind @fix
                 deps (disjoint.one-of)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:46.640992Z
@@ -16631,6 +16632,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Lead, 2026-11-03, pending operator override: take (a). Codegen refuses every table CHECK that is not exactly the one-of shape, restoring the 2026-10-08 decision \"CHECK stays refused (the entity holds none)\" that disjoint.one-of reversed without approval. The near-miss tests expect the refusal, naming the constraint; the rule's \"ordinary nullable fields\" means columns no CHECK covers. Revise codegen.ddl.tables / codegen.ddl.unsupported and disjoint.one-of to say so. Option (b), entities declaring CHECKs, is not this node."
+                    }
+
+                    {
+                        at 2026-11-04T23:38:20.782437Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:48:45.903544Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

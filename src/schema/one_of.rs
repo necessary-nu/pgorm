@@ -24,7 +24,7 @@ impl Schema {
     ///     r#"ALTER TABLE "comment" ADD CONSTRAINT "ck-comment-commentable" CHECK (num_nonnulls("post_id", "photo_id") <= 1)"#
     /// );
     /// ```
-    // [spec:pgorm:def:disjoint.one-of+1]
+    // [spec:pgorm:def:disjoint.one-of+2]
     pub fn create_one_of<O: OneOf>(&self) -> TableAlterStatement {
         let entity = <O::Entity as Default>::default();
         let set = O::columns().into_iter().fold(

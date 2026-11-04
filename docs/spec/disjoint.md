@@ -393,7 +393,7 @@ has a row for it, and is never written through.
 
 ## References to one of several entities
 
-> [spec:pgorm:def:disjoint.one-of+1]
+> [spec:pgorm:def:disjoint.one-of+2]
 > `#[derive(OneOf)]` on an enum MUST declare a reference from one entity to
 > exactly one of several others, stored as one nullable column per target,
 > each a foreign key the entity's own `belongs_to` relation declares:
@@ -442,8 +442,13 @@ has a row for it, and is never written through.
 >
 > Codegen MUST generate the enum for nullable foreign-key columns covered by
 > exactly such a `CHECK`, named for the constraint, from DDL text and from
-> statements described in code alike, and generate the columns as the
-> ordinary nullable fields they are when no such `CHECK` covers them. Exactly
+> statements described in code alike, and MUST refuse every other table
+> `CHECK`, near misses included, as ``TransformError("table `<table>`: an
+> entity cannot hold the CHECK `<name>`, which is not a one-of
+> reference's")``, an unnamed one named as below: the entity holds no other
+> `CHECK`, so an entity generated without it would not create the table it
+> was read from (`[spec:pgorm:sem:codegen.ddl.tables]`). Columns no `CHECK`
+> covers are the ordinary nullable fields they are. Exactly
 > such a `CHECK` is an enforced table `CHECK` whose expression is
 > `num_nonnulls` of one or more distinct columns of the table compared `= 1`
 > or `<= 1`, each column nullable and the one column of a foreign key of the
