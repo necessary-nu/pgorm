@@ -38,7 +38,7 @@ use std::sync::Arc;
 use neon::{prelude::*, types::Finalize};
 use pgorm::{ActiveValue, pgorm_query::Condition};
 
-use adapter::{Active, Change, Comparison, Members, Read, Select, Write};
+use adapter::{Active, Between, Change, Comparison, Members, Read, Select, Write};
 pub(crate) use adapter::{EntityBackend, Model, PipelineColumn};
 use convert::{ModelHandle, Records, Wrote, entity_failure, names};
 pub(crate) use convert::{column_value, record};
@@ -100,6 +100,7 @@ const EXPORTS: &[(&str, Export)] = &[
     ("entityColumns", entity_columns),
     ("entityCol", entity_col),
     ("entityCompare", entity_compare),
+    ("entityBetween", entity_between),
     ("entityIn", entity_in),
     ("entityFind", entity_find),
     ("entityActive", entity_active),
@@ -276,9 +277,11 @@ fn entity_col(mut cx: FunctionContext) -> JsResult<JsValue> {
 }
 
 /// `entityCompare(entity, column, operator, value)`: the column compared
-/// through its `ColumnTrait` method, the value converted to the column's
-/// declared kind and written through its `save_as`.
+/// through its `ColumnTrait` method — a comparison, or `IS [NOT] DISTINCT
+/// FROM` — the value converted to the column's declared kind and written
+/// through its `save_as`.
 // [spec:pgorm:req:bindings.entity-reads+2]
+// [spec:pgorm:req:bindings.column-operators+2]
 fn entity_compare(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
     let column = text!(cx, 1);
@@ -289,24 +292,56 @@ fn entity_compare(mut cx: FunctionContext) -> JsResult<JsValue> {
         "gte" => Comparison::Ge,
         "lt" => Comparison::Lt,
         "lte" => Comparison::Le,
+        "isDistinctFrom" => Comparison::IsDistinctFrom,
+        "isNotDistinctFrom" => Comparison::IsNotDistinctFrom,
         _ => return cx.throw_type_error("unknown comparison"),
     };
-    let info = match entity.info().column(&column) {
-        Ok(info) => info.clone(),
-        Err(failure) => return throw(&mut cx, failure),
-    };
-    let data = cx.argument::<JsValue>(3)?;
-    if data.is_a::<JsNull, _>(&mut cx) {
-        return read::refuse(
-            &mut cx,
-            format!("{column} compared with null is never true: test it with isNull()"),
-        );
-    }
-    let value = column_value(&mut cx, &info, data)?;
+    let value = compared_value(&mut cx, &*entity, &column, 3)?;
     match entity.compare(&column, comparison, value) {
         Ok(expr) => Ok(cx.boxed(Node::Expr(expr)).upcast()),
         Err(failure) => throw(&mut cx, failure),
     }
+}
+
+/// `entityBetween(entity, column, negated, symmetric, lower, upper)`: the
+/// column's `[NOT] BETWEEN [SYMMETRIC]` through its `ColumnTrait` method,
+/// each bound converted as a compared value is.
+// [spec:pgorm:req:bindings.column-operators+2]
+fn entity_between(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let entity = held!(cx, EntityHandle, 0);
+    let column = text!(cx, 1);
+    let negated = cx.argument::<JsBoolean>(2)?.value(&mut cx);
+    let symmetric = cx.argument::<JsBoolean>(3)?.value(&mut cx);
+    let lower = compared_value(&mut cx, &*entity, &column, 4)?;
+    let upper = compared_value(&mut cx, &*entity, &column, 5)?;
+    let between = Between { negated, symmetric };
+    match entity.between(&column, between, lower, upper) {
+        Ok(expr) => Ok(cx.boxed(Node::Expr(expr)).upcast()),
+        Err(failure) => throw(&mut cx, failure),
+    }
+}
+
+/// The value at argument `index`, compared with `column`: converted to the
+/// column's declared kind, `null` refused, as a comparison never holds for
+/// it.
+fn compared_value(
+    cx: &mut FunctionContext,
+    entity: &dyn EntityBackend,
+    column: &str,
+    index: usize,
+) -> NeonResult<pgorm::pgorm_query::Value> {
+    let info = match entity.info().column(column) {
+        Ok(info) => info.clone(),
+        Err(failure) => return throw(cx, failure),
+    };
+    let data = cx.argument::<JsValue>(index)?;
+    if data.is_a::<JsNull, _>(cx) {
+        return read::refuse(
+            cx,
+            format!("{column} compared with null is never true: test it with isNull()"),
+        );
+    }
+    column_value(cx, &info, data)
 }
 
 /// `entityIn(entity, column, negated, values | select)`: the column's

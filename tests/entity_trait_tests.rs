@@ -756,9 +756,10 @@ fn sql(expr: pgorm_query::SimpleExpr) -> String {
 
 const SELECT_ITEM: &str = r#"SELECT "item"."id", "item"."name", "item"."note" FROM "item" WHERE "#;
 
-// [spec:pgorm:def:entity.traits.column+7/test]    the expression-building surface
-// `ColumnTrait` wraps around `Expr`: comparisons, ranges, pattern matching and
-// its sugar, aggregates, null checks, set membership and subqueries — plus
+// [spec:pgorm:def:entity.traits.column+8/test]    the expression-building surface
+// `ColumnTrait` wraps around `Expr`: comparisons, ranges and their symmetric
+// forms, null-safe comparisons, pattern matching and its sugar, aggregates,
+// null checks, set membership and subqueries — plus
 // `def`, `entity_name`, `as_column_ref`, `into_expr` and `into_returning_expr`
 #[test]
 fn column_trait_expression_surface() {
@@ -810,6 +811,24 @@ fn column_trait_expression_surface() {
     assert_eq!(
         sql(item::Column::Id.not_between(2, 3)),
         format!(r#"{SELECT_ITEM}"item"."id" NOT BETWEEN 2 AND 3"#)
+    );
+    assert_eq!(
+        sql(item::Column::Id.between_symmetric(3, 2)),
+        format!(r#"{SELECT_ITEM}"item"."id" BETWEEN SYMMETRIC 3 AND 2"#)
+    );
+    assert_eq!(
+        sql(item::Column::Id.not_between_symmetric(3, 2)),
+        format!(r#"{SELECT_ITEM}"item"."id" NOT BETWEEN SYMMETRIC 3 AND 2"#)
+    );
+
+    // Null-safe comparisons.
+    assert_eq!(
+        sql(item::Column::Note.is_distinct_from("x")),
+        format!(r#"{SELECT_ITEM}"item"."note" IS DISTINCT FROM 'x'"#)
+    );
+    assert_eq!(
+        sql(item::Column::Note.is_not_distinct_from(Option::<String>::None)),
+        format!(r#"{SELECT_ITEM}"item"."note" IS NOT DISTINCT FROM NULL"#)
     );
 
     // Pattern matching, and the three sugar forms that place the wildcards.
@@ -908,7 +927,7 @@ fn column_trait_expression_surface() {
     let _: ColumnType = pgorm_query::ColumnType::Integer;
 }
 
-// [spec:pgorm:def:entity.traits.column+7/test]    the column-to-column family
+// [spec:pgorm:def:entity.traits.column+8/test]    the column-to-column family
 // `eq_col` / `ne_col` / `gt_col` / `gte_col` / `lt_col` / `lte_col` and the
 // expression form `eq_expr` — each side qualified by its own entity, same SQL as
 // the `Expr::col` escape they replace, and the value-taking `eq` left alone

@@ -45,10 +45,11 @@ export type BindValue = Exclude<Param, null>;
 export type Operand = Expr | BindValue;
 
 /**
- * What a comparison or a membership test of the expression `S` takes as its
- * value: a model's column or a registered entity's column takes what its
- * declared kind converts, a `Range` or `Multirange` for a range or multirange
- * kind, and any other expression an {@link Operand}.
+ * What a comparison, a membership test, `between` or a distinctness test of
+ * the expression `S` takes as its value: a model's column or a registered
+ * entity's column takes what its declared kind converts, a `Range` or
+ * `Multirange` for a range or multirange kind, and any other expression an
+ * {@link Operand}.
  *
  * `Expr`'s methods find it through their receiver, `this`, rather than each
  * column redeclaring them: a `Range` is no `Operand`, and a column whose
@@ -59,10 +60,10 @@ export type ComparisonOperand<S> = S extends ModelColumn<any, infer I> ? I
   : Operand;
 
 /**
- * What `between`, the distinctness tests, containment, overlap and the range
- * positions of the expression `S` take as a value: a model's column takes
- * what its declared kind converts, and any other expression, a registered
- * entity's column included, an {@link Operand}.
+ * What containment, overlap and the range positions of the expression `S`
+ * take as a value: a model's column takes what its declared kind converts,
+ * and any other expression, a registered entity's column included, an
+ * {@link Operand}.
  */
 export type ModelOperand<S> = S extends ModelColumn<any, infer I> ? I : Operand;
 
@@ -124,8 +125,8 @@ export declare class Expr extends Builder {
    * values, which a bound string array is not.
    */
   pathExists(path: string | Quantified): Expr;
-  isDistinctFrom<S>(this: S, other: ModelOperand<S>): Expr;
-  isNotDistinctFrom<S>(this: S, other: ModelOperand<S>): Expr;
+  isDistinctFrom<S>(this: S, other: ComparisonOperand<S>): Expr;
+  isNotDistinctFrom<S>(this: S, other: ComparisonOperand<S>): Expr;
   and(other: Expr): Expr;
   or(other: Expr): Expr;
   not(): Expr;
@@ -137,8 +138,8 @@ export declare class Expr extends Builder {
    */
   isIn<S>(this: S, source: readonly ComparisonOperand<S>[] | Select): Expr;
   isNotIn<S>(this: S, source: readonly ComparisonOperand<S>[] | Select): Expr;
-  between<S>(this: S, lower: ModelOperand<S>, upper: ModelOperand<S>, options?: { readonly symmetric?: boolean }): Expr;
-  notBetween<S>(this: S, lower: ModelOperand<S>, upper: ModelOperand<S>, options?: { readonly symmetric?: boolean }): Expr;
+  between<S>(this: S, lower: ComparisonOperand<S>, upper: ComparisonOperand<S>, options?: { readonly symmetric?: boolean }): Expr;
+  notBetween<S>(this: S, lower: ComparisonOperand<S>, upper: ComparisonOperand<S>, options?: { readonly symmetric?: boolean }): Expr;
   /**
    * A pattern match; the pattern is bound, and `escape` is one character, or
    * `""` to turn escaping off. `any(..)` or `all(..)` over patterns takes no

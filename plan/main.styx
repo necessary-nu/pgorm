@@ -17202,12 +17202,20 @@ children (
                 title "between on a binding's registered column binds its values under the column's casts"
                 kind @fix
                 deps (money-beyond-entities)
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:26.919675Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by money-beyond-entities: `between` on a binding's registered column goes through the plain expression method rather than ColumnTrait's, so its values bind bare instead of under the column's save_as cast, and a money column refuses them. Every value predicate on a registered column should take ColumnTrait's casts (the Rust rule: every value predicate carries save_as casts, between included); check the other predicates the bindings route the same way."
+                    }
+
+                    {
+                        at 2026-11-04T23:37:56.777488Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

@@ -21,6 +21,15 @@ pub(crate) enum Comparison {
     Ge,
     Lt,
     Le,
+    IsDistinctFrom,
+    IsNotDistinctFrom,
+}
+
+/// Which of `[NOT] BETWEEN [SYMMETRIC]` a column is tested by.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Between {
+    pub(crate) negated: bool,
+    pub(crate) symmetric: bool,
 }
 
 /// What a column's membership is tested against: values of the column's
@@ -66,6 +75,13 @@ pub(crate) trait EntityBackend: Debug + Send + Sync {
         column: &str,
         comparison: Comparison,
         value: Value,
+    ) -> Result<SimpleExpr, Error>;
+    fn between(
+        &self,
+        column: &str,
+        between: Between,
+        lower: Value,
+        upper: Value,
     ) -> Result<SimpleExpr, Error>;
     fn membership(
         &self,

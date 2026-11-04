@@ -37,6 +37,16 @@ pub(crate) enum Comparison {
     Ge,
     Lt,
     Le,
+    IsDistinctFrom,
+    IsNotDistinctFrom,
+}
+
+/// Which of `[NOT] BETWEEN [SYMMETRIC]` a column is tested by, through its
+/// `ColumnTrait` method of that meaning.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Between {
+    pub(crate) negated: bool,
+    pub(crate) symmetric: bool,
 }
 
 /// A read terminal of `Select<E>`.
@@ -157,6 +167,13 @@ pub(crate) trait EntityBackend: Debug + Send + Sync {
         comparison: Comparison,
         value: Value,
     ) -> Result<SimpleExpr, Failure>;
+    fn between(
+        &self,
+        column: &str,
+        between: Between,
+        lower: Value,
+        upper: Value,
+    ) -> Result<SimpleExpr, Failure>;
     fn membership(
         &self,
         column: &str,
@@ -273,6 +290,25 @@ where
             Comparison::Ge => column.gte(value),
             Comparison::Lt => column.lt(value),
             Comparison::Le => column.lte(value),
+            Comparison::IsDistinctFrom => column.is_distinct_from(value),
+            Comparison::IsNotDistinctFrom => column.is_not_distinct_from(value),
+        })
+    }
+
+    // [spec:pgorm:req:bindings.column-operators+2]
+    fn between(
+        &self,
+        name: &str,
+        between: Between,
+        lower: Value,
+        upper: Value,
+    ) -> Result<SimpleExpr, Failure> {
+        let column = column::<E>(&self.info, name)?;
+        Ok(match (between.negated, between.symmetric) {
+            (false, false) => column.between(lower, upper),
+            (true, false) => column.not_between(lower, upper),
+            (false, true) => column.between_symmetric(lower, upper),
+            (true, true) => column.not_between_symmetric(lower, upper),
         })
     }
 

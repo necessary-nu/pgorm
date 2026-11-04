@@ -100,7 +100,11 @@ const first = await query.optional(pool);    // Select::one_opt, LIMIT 1
   comparisons are that trait's: a value converts to the column's declared
   kind and is written through its `save_as`, so an enum's label is cast to
   its type; an expression, and `any(..)` or `all(..)`, are compared as
-  written; `null` is refused. Its
+  written; `null` is refused. `between` and `notBetween`, with
+  `{ symmetric }` or without, and `isDistinctFrom` and `isNotDistinctFrom`
+  are the trait's too, their values converted and cast the same way, so a
+  `money` column's bounds are cast to `money`; a bound that is an expression
+  takes the whole test as written. Its
   `isIn` and `isNotIn` are the trait's too, over a list of values converted
   the same way or over a `Select`'s rows (`in_subquery`), so a column whose
   domain is over an enum is a member as the enum, which is the only way

@@ -37,7 +37,7 @@ impl PyExpr {
     /// `BETWEEN`, or with `symmetric` `BETWEEN SYMMETRIC`, which sorts its
     /// bounds first, so they hold in whichever order they are given.
     #[pyo3(signature = (lower, upper, *, symmetric=false))]
-    fn between(
+    pub(crate) fn between(
         &self,
         lower: &Bound<'_, PyAny>,
         upper: &Bound<'_, PyAny>,
@@ -52,7 +52,7 @@ impl PyExpr {
         }))
     }
     #[pyo3(signature = (lower, upper, *, symmetric=false))]
-    fn not_between(
+    pub(crate) fn not_between(
         &self,
         lower: &Bound<'_, PyAny>,
         upper: &Bound<'_, PyAny>,

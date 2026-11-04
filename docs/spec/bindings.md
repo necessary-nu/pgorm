@@ -996,7 +996,7 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > `all(..)` beside a comparison, is taken as written; a `Value` only of the
 > field's own kind; and null never, which `is_null()` tests.
 
-> [spec:pgorm:req:bindings.column-operators+1]
+> [spec:pgorm:req:bindings.column-operators+2]
 > A model's column and a registered entity's column MUST each be an
 > expression: every expression method applies to it, reading the column as
 > written, and it goes wherever an expression goes. A model column's other
@@ -1005,9 +1005,18 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > and `overlaps`, and `strictly_left_of`, `strictly_right_of`,
 > `not_extend_right_of`, `not_extend_left_of` and `adjacent_to` — MUST
 > convert their values as the column's comparisons do
-> (`bindings.model-columns`). Every other method takes its operands as
-> `bindings.expressions` does, and a registered column's comparisons are
-> those `bindings.entity-reads` names. Neither column describes itself: a
+> (`bindings.model-columns`). A registered column's `between` and
+> `not_between`, `SYMMETRIC` or not, and its `is_distinct_from` and
+> `is_not_distinct_from` MUST be its `ColumnTrait`'s methods of the same
+> meaning: each value converted as its comparisons convert one
+> (`bindings.entity-reads`) and compared under the same casts, so a bound
+> compared with a `money` column is cast to `money` and a column whose
+> domain is over an enum is tested as the enum, where a bound left bare
+> would reach no operator (`42883`) or bind as a type it is not. A bound or
+> value that is an expression takes the whole test as written, and null is
+> refused. Every other method takes its operands as `bindings.expressions`
+> does, and a registered column's comparisons are those
+> `bindings.entity-reads` names. Neither column describes itself: a
 > model column's declaration is read through its model's `describe()`
 > (`bindings.models`), and a registered column's through its registration's
 > (`bindings.entities`).
