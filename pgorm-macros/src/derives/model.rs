@@ -252,7 +252,7 @@ impl Model {
 /// keys: every key under the composite, which validated them, and only
 /// `entity`, `variant` and `ignore` under `Model` itself.
 // [spec:pgorm:sem:macros.derive.model+6]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+9]    the field-key vocabulary this
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+10]    the field-key vocabulary this
 // derive shares with the `Entity` derive
 pub fn expand_derive_model(input: syn::DeriveInput, reader: Reader) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();

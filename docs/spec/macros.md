@@ -215,7 +215,7 @@ known limitations.
 > 485 <https://github.com/SeaQL/sea-orm/issues/485> for details." spanned at the
 > struct's identifier, and no `PrimaryKey` enum.
 
-> [spec:pgorm:syn:macros.derive.entity-model.attrs+9]
+> [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
 > Struct-level `#[pgorm(...)]` keys recognised by the `Entity` derive: `table_name = Lit`,
 > `schema_name = Lit`, `comment = Lit`, bare `table_iden`, bare `hooks`
 > (`macros.derive.boilerplate`), and `rename_all = "style"`
@@ -243,7 +243,9 @@ known limitations.
 > derive MUST refuse, spanned where the mistake is written: no `columns`;
 > fewer than two, a one-column key being its field's `unique`; a column
 > named twice, which PostgreSQL refuses (`42701`); a path naming none of the
-> model's columns; a quoted column; a key
+> model's columns; a column declared `generated_virtual`, which PostgreSQL
+> cannot key (`0A000`) as it cannot the field-level `unique`
+> (`[spec:pgorm:sem:macros.derive.entity-model.column-def]`); a quoted column; a key
 > given twice; a name that is empty or past 63 bytes, which PostgreSQL would
 > refuse or truncate; any other key; and `unique` on a `Model` given no
 > `table_name`, whose `EntityName` the program writes and whose

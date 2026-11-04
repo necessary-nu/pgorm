@@ -17135,12 +17135,20 @@ children (
                 title "The Entity derive refuses a VIRTUAL generated column inside unique(..), as the field-level unique does"
                 kind @fix
                 deps (entity-composite-unique)
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:13.699834Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by entity-composite-unique (562c6dfc): `#[pgorm(unique(columns = (..)))]` accepts a VIRTUAL generated column, which PostgreSQL refuses at CREATE (0A000, a virtual generated column cannot be in a key), while the field-level `unique` already refuses it at compile time. Refuse it in the derive the same way, with a compile-fail test."
+                    }
+
+                    {
+                        at 2026-11-04T21:57:05.162729Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

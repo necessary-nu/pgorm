@@ -1186,7 +1186,7 @@ async fn bounded_derived_names_are_the_servers_live() -> Result<(), Error> {
 
 // [spec:pgorm:sem:schema.from-entity+12/test]    an entity's composite unique keys are written after its columns' own, in declaration order, under the name each declares or none
 // [spec:pgorm:req:entity.traits.entity-name+5/test]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+9/test]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+10/test]
 #[test]
 fn composite_unique_keys_are_written() {
     let table = Schema::new()
