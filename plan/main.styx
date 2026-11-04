@@ -17158,12 +17158,34 @@ children (
                 title "Codegen refuses a one-column unique key with INCLUDE or deferrability instead of reading it as a plain unique"
                 kind @fix
                 deps (entity-composite-unique)
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:19.120436Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by entity-composite-unique (pre-existing): a one-column unique key carrying INCLUDE or a deferrability, from a statement built in code, is read by codegen as the column's plain `unique`, silently dropping those parts. The composite case is already refused by name (transformer.rs, the `unique(..)` reading); do the same for one column, or give the entity a way to hold them."
+                    }
+
+                    {
+                        at 2026-11-04T22:52:07.127549Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:24:04.825773Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "The note named INCLUDE and deferrability; NULLS NOT DISTINCT on a one-column key is the same loss and reachable from DDL text (`col text UNIQUE NULLS NOT DISTINCT`, a table constraint, a unique index): the column's `unique` cannot hold it, and dropping it admits a second null (probed on 18.6: the NND key refuses it). So a one-column unique key carrying any of the three is refused by name, `table `t` column `c`: an entity cannot hold a unique key of one column with NULLS NOT DISTINCT` (or `an INCLUDE list`, `a deferrability`). A one-column key's name stays dropped, as before: it changes no row the key admits, and refusing it would refuse every pg_dump, which names every key. Giving the field's `unique` a way to hold NND is a derive feature, not this node. codegen.entity.transform +18."
+                    }
+
+                    {
+                        at 2026-11-04T23:26:29.172994Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

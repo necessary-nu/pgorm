@@ -42,7 +42,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Schema discovery → Entity model
 
-> [spec:pgorm:sem:codegen.entity.transform+17]
+> [spec:pgorm:sem:codegen.entity.transform+18]
 > `EntityTransformer::transform` builds one `Entity` per input
 > `TableCreateStatement`. A table's identity is the `TableIdent` its
 > `TableName` spells: the bare name, and the schema qualifying it when the
@@ -131,7 +131,15 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > statement built in code carries (the DDL bridge refuses both), has no
 > entity form and is refused: ``TransformError("table `<table>`: an entity
 > cannot hold a unique key of several columns with an INCLUDE list")``, and
-> `with a deferrability` likewise. The primary key's columns are the
+> `with a deferrability` likewise. A column's `unique` holds neither those
+> nor `NULLS NOT DISTINCT`, under which the key refuses a second null, so a
+> one-column key carrying any of the three is refused the same way rather
+> than read as the plain key it is not: ``TransformError("table `<table>`
+> column `<column>`: an entity cannot hold a unique key of one column with
+> NULLS NOT DISTINCT")``, and `with an INCLUDE list` and `with a
+> deferrability` likewise. Its name the column's `unique` does not hold
+> either, and is left for the server to give, as a key's name changes no row
+> it admits. The primary key's columns are the
 > table's primary key's (`get_primary_key()`), one column or a tuple, in key
 > order; a table has one, so there is no second source to merge and no
 > duplicate `PrimaryKey` variant to generate. Every column whose (possibly

@@ -264,7 +264,7 @@ fn a_column_filled_twice_is_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    a caller-built statement's expressions are
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    a caller-built statement's expressions are
 // read through the same subset, and what the entity could not hold is refused by name
 // [spec:pgorm:sem:codegen.entity.expressions+2/test]    a caller-built searched CASE is read
 // back arm by arm, a `Condition` arm as the expression it means

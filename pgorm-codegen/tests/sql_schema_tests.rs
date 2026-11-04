@@ -924,7 +924,7 @@ fn bit_spellings_read_back_as_themselves() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    a unique index or
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    a unique index or
 // constraint over two columns, read from DDL, generates as the entity's
 // `unique(..)` under its name
 #[test]
@@ -942,6 +942,27 @@ fn composite_unique_keys_generate_from_ddl() {
             unique(name = "seat_place", columns = (Column::Row, Column::Number))
         )]"#,
     );
+}
+
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    a one-column unique key read
+// from DDL with NULLS NOT DISTINCT, on its column, as a table constraint or as a
+// unique index, is refused rather than generated as the column's plain `unique`,
+// which admits a second null
+#[test]
+fn one_column_nulls_not_distinct_refused_from_ddl() {
+    for sql in [
+        "CREATE TABLE seat (id serial PRIMARY KEY, holder text UNIQUE NULLS NOT DISTINCT);",
+        "CREATE TABLE seat (id serial PRIMARY KEY, holder text, \
+         CONSTRAINT seat_holder UNIQUE NULLS NOT DISTINCT (holder));",
+        "CREATE TABLE seat (id serial PRIMARY KEY, holder text); \
+         CREATE UNIQUE INDEX seat_holder ON seat (holder) NULLS NOT DISTINCT;",
+    ] {
+        assert_error(
+            sql,
+            "table `seat` column `holder`: an entity cannot hold a unique key of one column \
+             with NULLS NOT DISTINCT",
+        );
+    }
 }
 
 // [spec:pgorm:sem:codegen.ddl.objects+11/test]    the round trip holds for the
@@ -1146,7 +1167,7 @@ fn a_composite_foreign_key_joins_on_both_pairs() {
 // NOT ENFORCED, declared on its column or at table level, ride on the statement
 // [spec:pgorm:sem:codegen.entity.relations+5/test]    and reach the relation the
 // entity declares, which generates the same key back
-// [spec:pgorm:sem:codegen.entity.transform+17/test]
+// [spec:pgorm:sem:codegen.entity.transform+18/test]
 #[test]
 fn a_foreign_keys_check_reaches_the_relation() {
     let generated = from_sql(KEY_STAY);
@@ -1285,7 +1306,7 @@ fn temporal_key_and_period_relation_round_trip() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    a temporal key whose period the table
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    a temporal key whose period the table
 // declares before another key column is refused, its entity's key following its fields' order
 #[test]
 fn a_period_declared_before_the_key_is_refused() {
