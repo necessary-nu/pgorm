@@ -22,7 +22,7 @@ pub struct EntityTransformer;
 
 impl EntityTransformer {
     // [spec:pgorm:sem:codegen.entity.transform+18]
-    // [spec:pgorm:sem:codegen.entity.transform.inverse+1]
+    // [spec:pgorm:sem:codegen.entity.transform.inverse+2]
     // [spec:pgorm:sem:codegen.entity.transform.conjunct+2]
     // [spec:pgorm:req:codegen.entity.collisions+3]
     // [spec:pgorm:def:codegen.entity+7]
@@ -350,10 +350,16 @@ fn number_relations(relations: &mut [Relation]) {
 }
 
 /// The relation `rel`, a foreign key of `ident`'s table, gives the table it
-/// references, and that table: `HasOne` when the key is unique and `HasMany`
-/// otherwise. A self-referencing key would duplicate itself, and a suffixed
-/// one has no `Related` impl to build the inverse from, so neither gives one.
-// [spec:pgorm:sem:codegen.entity.transform.inverse+1]
+/// references, and that table: `HasOne` when the key admits at most one row
+/// of `ident`'s table per row it references, and `HasMany` otherwise. A
+/// self-referencing key would duplicate itself, and a suffixed one has no
+/// `Related` impl to build the inverse from, so neither gives one.
+///
+/// The key admits at most one when its columns contain the primary key or
+/// one of `unique_column_sets`, the table's unique keys: two rows referencing
+/// one row agree on every column of the key, so on that unique key's too. A
+/// unique key with a column the foreign key lacks constrains it not at all.
+// [spec:pgorm:sem:codegen.entity.transform.inverse+2]
 fn inverse_relation(
     ident: &TableIdent,
     entity: &Entity,
@@ -363,25 +369,21 @@ fn inverse_relation(
     if rel.self_referencing || rel.num_suffix > 0 {
         return None;
     }
-    let key_columns: BTreeSet<String> = rel.columns.iter().cloned().collect();
-    let every_column_unique = rel.columns.iter().all(|column| {
-        entity
-            .columns
-            .iter()
-            .filter(|col| col.unique)
-            .any(|col| col.name.as_str() == column)
-    });
-    // a unique constraint over exactly the key's columns constrains
-    // the key as a whole, which one-column-at-a-time cannot see
-    let key_is_unique = unique_column_sets.contains(&key_columns);
-    let key_is_primary = key_columns.len() == entity.primary_keys.len()
-        && entity
-            .primary_keys
-            .iter()
-            .all(|primary_key| key_columns.contains(&primary_key.name));
-    let unique = every_column_unique || key_is_unique || key_is_primary;
+    let key_columns: BTreeSet<&str> = rel.columns.iter().map(String::as_str).collect();
+    let primary_key: BTreeSet<&str> = entity
+        .primary_keys
+        .iter()
+        .map(|primary_key| primary_key.name.as_str())
+        .collect();
+    let at_most_one = std::iter::once(primary_key)
+        .chain(
+            unique_column_sets
+                .iter()
+                .map(|set| set.iter().map(String::as_str).collect()),
+        )
+        .any(|unique| !unique.is_empty() && unique.is_subset(&key_columns));
     let mut inverse = rel.clone();
-    inverse.rel_type = if unique {
+    inverse.rel_type = if at_most_one {
         RelationType::HasOne
     } else {
         RelationType::HasMany

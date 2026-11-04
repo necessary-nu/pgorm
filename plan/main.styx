@@ -17195,12 +17195,27 @@ children (
                 title "Codegen gives a foreign key whose columns contain the referencing table's unique key an at-most-one inverse, not has_many"
                 kind @fix
                 deps (entity-composite-unique)
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:21.693016Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.codegen's near-miss tests (pre-existing): a table keyed by `id` with a foreign key `(id, kind)` onto another table's UNIQUE pair (the disjoint near miss) is given a `has_many` inverse, though its primary key allows at most one row per referenced row. codegen-relation-cardinality infers at-most-one only when the FK's columns are each unique or equal the full primary key; the general rule is that an FK whose column set contains any unique key of the referencing table (primary or unique) is at most one."
+                    }
+
+                    {
+                        at 2026-11-04T23:28:02.214034Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:35:09.965359Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

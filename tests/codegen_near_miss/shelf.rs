@@ -19,6 +19,6 @@ pub struct Model {
 #[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
-    #[pgorm(has_many = super::book::Entity)]
+    #[pgorm(has_one = super::book::Entity)]
     Book,
 }

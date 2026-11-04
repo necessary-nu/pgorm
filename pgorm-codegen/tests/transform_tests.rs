@@ -836,7 +836,7 @@ fn junction(name: &str, left: (&str, &str), right: (&str, &str)) -> TableCreateS
         .to_owned()
 }
 
-// [spec:pgorm:sem:codegen.entity.transform.inverse+1/test]    a non-unique FK
+// [spec:pgorm:sem:codegen.entity.transform.inverse+2/test]    a non-unique FK
 // gives the referenced entity a `HasMany` back-reference
 #[test]
 fn inverse_has_many_for_non_unique_foreign_key() {
@@ -850,7 +850,7 @@ fn inverse_has_many_for_non_unique_foreign_key() {
     assert_not_contains(generated.file("cake.rs"), "from = Column::CakeId");
 }
 
-// [spec:pgorm:sem:codegen.entity.transform.inverse+1/test]    a FK whose every
+// [spec:pgorm:sem:codegen.entity.transform.inverse+2/test]    a FK whose every
 // column is unique in the owning table inverts to `HasOne`
 #[test]
 fn inverse_has_one_for_unique_foreign_key() {
@@ -883,7 +883,7 @@ fn inverse_has_one_for_unique_foreign_key() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform.inverse+1/test]    a FK whose column
+// [spec:pgorm:sem:codegen.entity.transform.inverse+2/test]    a FK whose column
 // set is exactly the owning table's primary key also inverts to `HasOne`
 #[test]
 fn inverse_has_one_for_whole_primary_key_fk() {
@@ -915,7 +915,7 @@ fn inverse_has_one_for_whole_primary_key_fk() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform.inverse+1/test]    a unique constraint
+// [spec:pgorm:sem:codegen.entity.transform.inverse+2/test]    a unique constraint
 // over exactly the FK's columns constrains the key as a whole, which reading one
 // column at a time cannot see: the inverse is `HasOne`
 #[test]
@@ -1011,8 +1011,36 @@ fn inverse_has_one_for_composite_unique_foreign_key() {
     assert_not_contains(generated.file("fruit.rs"), "#[pgorm(unique)] pub cake_id");
 }
 
+// [spec:pgorm:sem:codegen.entity.transform.inverse+2/test]    a FK whose columns
+// contain a unique key of the owning table, its primary key or a unique key over
+// fewer columns, inverts to `HasOne`; one sharing only some columns of a unique
+// key inverts to `HasMany`
+#[test]
+fn inverse_has_one_for_key_containing_a_key() {
+    let generated = generate_sql(
+        "CREATE TABLE shelf (id serial PRIMARY KEY, kind int NOT NULL, \
+           UNIQUE (id, kind)); \
+         CREATE TABLE book (id int PRIMARY KEY, kind int NOT NULL, \
+           FOREIGN KEY (id, kind) REFERENCES shelf (id, kind)); \
+         CREATE TABLE cake (id int NOT NULL, kind int NOT NULL, PRIMARY KEY (id, kind)); \
+         CREATE TABLE fruit (id serial PRIMARY KEY, cake_id int, cake_kind int, \
+           UNIQUE (cake_id), FOREIGN KEY (cake_id, cake_kind) REFERENCES cake (id, kind)); \
+         CREATE TABLE crumb (id serial PRIMARY KEY, cake_id int, cake_kind int, batch int, \
+           UNIQUE (cake_id, batch), \
+           FOREIGN KEY (cake_id, cake_kind) REFERENCES cake (id, kind));",
+        Opts::default(),
+    );
+    assert_contains(
+        generated.file("shelf.rs"),
+        "#[pgorm(has_one = super::book::Entity)] Book,",
+    );
+    let cake = generated.file("cake.rs");
+    assert_contains(cake, "#[pgorm(has_one = super::fruit::Entity)] Fruit,");
+    assert_contains(cake, "#[pgorm(has_many = super::crumb::Entity)] Crumb,");
+}
+
 // [spec:pgorm:sem:codegen.entity.transform+18/test]
-// [spec:pgorm:sem:codegen.entity.transform.inverse+1/test]    a `UniqueKey` spec
+// [spec:pgorm:sem:codegen.entity.transform.inverse+2/test]    a `UniqueKey` spec
 // on the column definition marks the column unique on this path too, so its FK
 // inverts to `HasOne`
 #[test]
@@ -1050,7 +1078,7 @@ fn inverse_has_one_for_inline_unique_key_column() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform.inverse+1/test]    self-referencing and
+// [spec:pgorm:sem:codegen.entity.transform.inverse+2/test]    self-referencing and
 // suffixed relations produce no inverse
 #[test]
 fn no_inverse_for_self_referencing_or_suffixed_relations() {
@@ -1099,7 +1127,7 @@ fn no_inverse_for_self_referencing_or_suffixed_relations() {
     assert_contains(suffixed.file("fruit.rs"), "pub enum Relation { }");
 }
 
-// [spec:pgorm:sem:codegen.entity.transform.inverse+1/test]    an inverse relation
+// [spec:pgorm:sem:codegen.entity.transform.inverse+2/test]    an inverse relation
 // is dropped when the target entity already relates to that table
 #[test]
 fn inverse_dropped_when_target_already_relates_back() {

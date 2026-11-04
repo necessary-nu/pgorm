@@ -259,20 +259,24 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > the schemas sort like. Before writing, each entity's `relations` are sorted
 > by referenced table name and its `conjunct_relations` by target name.
 
-> [spec:pgorm:sem:codegen.entity.transform.inverse+1]
+> [spec:pgorm:sem:codegen.entity.transform.inverse+2]
 > For every non-self-referencing relation with `num_suffix == 0`, the
 > transformer adds an inverse relation to the referenced entity, pointing
 > back at the FK-owning table with empty column lists. The inverse type is
-> `HasOne` when the FK is unique and `HasMany` otherwise, and a key is unique
-> in any of three ways: every one of its columns is a unique column of the
-> owning table; some unique index of the owning table covers exactly the
-> key's columns, compared as sets; or the key's column set is exactly the
-> owning table's full primary-key set. The middle case is the one a
-> column-at-a-time reading cannot see — a composite `UNIQUE` over the key's
-> columns constrains the key as a whole while leaving every column of it free
-> on its own — and it is exact in both directions: a unique index over a
-> superset of the key constrains the key not at all, and is not read as
-> uniqueness. Self-referencing relations and
+> `HasOne` when the FK admits at most one row of the owning table per row it
+> references and `HasMany` otherwise, and it admits at most one exactly when
+> its column set contains a unique key of the owning table, compared as
+> sets: the full primary-key set, or the columns of any unique key, a unique
+> column's being that one column. Two rows referencing one row agree on
+> every column of the FK, so on every column of a key it contains, which
+> admits one row per value; a row whose FK holds a null references nothing.
+> So a table keyed by `id` whose FK `(id, kind)` references another table's
+> `UNIQUE (id, kind)` is at most one per referenced row, as is a FK over
+> `(a, b)` of a table with `UNIQUE (a)`, and a composite `UNIQUE` over
+> exactly the FK's columns constrains the FK as a whole while leaving every
+> column of it free on its own. A unique key with a column the FK lacks — a
+> unique index over a superset of the FK's columns — constrains the FK not at
+> all, and is not read as uniqueness. Self-referencing relations and
 > suffixed relations produce no inverse (the suffixed case would emit a
 > `Relation` variant with no usable `Related` impl). An inverse relation is
 > dropped when the target entity already has any relation to that table.
