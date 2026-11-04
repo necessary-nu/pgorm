@@ -25,12 +25,20 @@ use tokio_postgres::error::SqlState;
 mod codegen_one_of;
 
 use codegen_one_of::comment::{Commentable, CommentableKey, CommentableModel};
+use codegen_one_of::self_reference::remark::{Subject, SubjectKey, SubjectModel};
+use codegen_one_of::self_reference::{remark, topic};
 use codegen_one_of::{comment, photo, post};
 
 const SCHEMA: &str = include_str!("codegen_one_of/schema.sql");
 
+const SELF_REFERENCE: &str = include_str!("codegen_one_of/self_reference/schema.sql");
+
 fn statements() -> Vec<&'static str> {
-    SCHEMA
+    split(SCHEMA)
+}
+
+fn split(schema: &'static str) -> Vec<&'static str> {
+    schema
         .split(";\n")
         .map(str::trim)
         .filter(|statement| !statement.is_empty())
@@ -117,6 +125,72 @@ async fn generated_reference_reads_writes_and_loads_live() -> Result<(), Error> 
             assert_eq!(error.code(), Some(&SqlState::CHECK_VIOLATION), "{error}")
         }
         other => panic!("expected a row referencing two targets refused, got {other:?}"),
+    }
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:def:disjoint.one-of+2/test]    the round trip of a one-of whose target is its own table: the schema the remark fixture writes, generated from, is the schema the generated entities and enum write, the enum's variant naming its module's own `Entity`
+#[test]
+fn generated_self_reference_writes_the_schema_read_from() -> Result<(), Error> {
+    let schema = Schema::new();
+    let written = [
+        schema.create_table_from_entity(topic::Entity)?.to_string(),
+        schema.create_table_from_entity(remark::Entity)?.to_string(),
+        schema.create_one_of::<Subject>().to_string(),
+    ];
+    assert_eq!(split(SELF_REFERENCE), written);
+    Ok(())
+}
+
+// [spec:pgorm:def:disjoint.one-of+2/test]    live, a remark refers to a topic or to another remark through the generated enum, reads each back, loads each row's target, its own table's included, and the schema refuses a remark referring to none
+#[pgorm_macros::test]
+async fn generated_self_reference_reads_writes_and_loads_live() -> Result<(), Error> {
+    let ctx = TestContext::new("codegen_one_of_self").await;
+    let db = ctx.db.get().await?;
+    for statement in split(SELF_REFERENCE) {
+        db.execute(statement, &[]).await?;
+    }
+    let topic = topic::ActiveModel {
+        title: set("weather"),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await?;
+    let remark = |key: SubjectKey| -> Result<remark::ActiveModel, Error> {
+        let mut active = remark::ActiveModel {
+            body: set("rain"),
+            ..Default::default()
+        };
+        Subject::set(&mut active, key)?;
+        Ok(active)
+    };
+    let opening = remark(SubjectKey::Topic(topic.id))?.insert(&db).await?;
+    let reply = remark(SubjectKey::Remark(opening.id))?.insert(&db).await?;
+    assert_eq!(Subject::key(&opening)?, SubjectKey::Topic(topic.id));
+    assert_eq!(Subject::key(&reply)?, SubjectKey::Remark(opening.id));
+
+    let loaded = Subject::load(&[opening.clone(), reply], &db).await?;
+    match loaded.as_slice() {
+        [
+            SubjectModel::Topic(on_topic),
+            SubjectModel::Remark(replied_to),
+        ] => {
+            assert_eq!((on_topic, replied_to), (&topic, &opening))
+        }
+        other => panic!("loaded {other:?}"),
+    }
+
+    match db
+        .execute("INSERT INTO remark (body) VALUES ('nothing')", &[])
+        .await
+    {
+        Err(Error::Postgres(error)) => {
+            assert_eq!(error.code(), Some(&SqlState::CHECK_VIOLATION), "{error}")
+        }
+        other => panic!("expected a remark referring to none refused, got {other:?}"),
     }
 
     drop(db);

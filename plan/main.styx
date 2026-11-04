@@ -16588,12 +16588,27 @@ children (
                 title "Generated code for a one-of whose target is its own table compiles and round-trips"
                 kind @test
                 deps (codegen-check-not-dropped)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:48.835096Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.one-of: codegen recognises a one-of CHECK whose targets include the table itself (a comment that may reference another comment), but no test compiles the generated code for that case, where the target entity is the entity's own module and the Related impl and the OneOfTarget impl both name Entity. Add it to the codegen live round trip."
+                    }
+
+                    {
+                        at 2026-11-04T23:50:01.780424Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:55:27.562584Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

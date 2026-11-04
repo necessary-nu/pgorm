@@ -8,3 +8,4 @@
 pub mod comment;
 pub mod photo;
 pub mod post;
+pub mod self_reference;

@@ -159,6 +159,26 @@ fn a_one_of_check_generates_its_enum() {
     }
 }
 
+// [spec:pgorm:def:disjoint.one-of+2/test]    a CHECK whose targets include its own table generates the enum, the variant naming the module's own `Entity`, which its `Relation` enum's self-reference makes `Related` to itself (compiled and run in `tests/codegen_one_of_tests.rs`)
+#[test]
+fn a_self_referencing_one_of_generates_its_enum() {
+    let generated = from_sql(include_str!(
+        "../../tests/codegen_one_of/self_reference/schema.sql"
+    ));
+    for (file, fixture) in [
+        (
+            "remark.rs",
+            include_str!("../../tests/codegen_one_of/self_reference/remark.rs"),
+        ),
+        (
+            "topic.rs",
+            include_str!("../../tests/codegen_one_of/self_reference/topic.rs"),
+        ),
+    ] {
+        holds(&generated, file, fixture);
+    }
+}
+
 // [spec:pgorm:def:disjoint.one-of+2/test]    a schema described in code, each table whole with its CHECK, generates as the same DDL text does
 #[test]
 fn described_tables_generate_as_ddl_text_does() {
