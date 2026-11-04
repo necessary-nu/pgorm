@@ -348,7 +348,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## The entity file
 
-> [spec:pgorm:def:codegen.entity.compact+6]
+> [spec:pgorm:def:codegen.entity.compact+7]
 > The writer emits one form of entity, the composite derive's
 > (`[spec:pgorm:req:macros.derive.one-form]`), and no option selects another.
 > Per entity it emits, in order: the imports (`use pgorm::entity::prelude::*;`,
@@ -361,7 +361,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > default, per `codegen.entity.context`); a `Relation` enum deriving
 > `Copy, Clone, Debug, Relation` whose variants carry
 > `#[pgorm(...)]` relation attributes (an entity with no relations emits the
-> empty `pub enum Relation {}`); for a disjoint entity's base, its
+> empty `pub enum Relation {}`), carrying `#[allow(clippy::enum_variant_names)]`
+> before its derives, since its variants are named by the schema's tables and
+> the lint refuses three sharing a word (`WebShop`, `PopUpShop`, `ClosedShop`)
+> or one ending with the enum's name (a table `customer_relation`) in a module
+> the crate does not export; for a disjoint entity's base, its
 > `#[derive(Disjoint)]` enum (`codegen.entity.disjoint`); each
 > `#[derive(OneOf)]` enum a `CHECK` of its table generates
 > (`[spec:pgorm:def:disjoint.one-of]`), in the table's order; and the `via`
@@ -915,7 +919,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Active enums
 
-> [spec:pgorm:sem:codegen.entity.enums+7]
+> [spec:pgorm:sem:codegen.entity.enums+8]
 > All discovered database enums but a disjoint entity's kind type, which its
 > derive declares (`codegen.entity.disjoint`), are generated into a single
 > `pgorm_active_enums.rs`, in alphabetical order by enum name. Each becomes
@@ -928,7 +932,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > DB name is not the Rust enum name in snake_case, plus `schema_name = "<schema>"`
 > when the described type is schema-qualified, so the generated entity round-trips the
 > full type identity; the attribute is omitted when it would be empty, and
-> `enum_extra_attributes` follow it as further attribute lines. Enums are keyed
+> `enum_extra_attributes` follow it as further attribute lines. Before its
+> derives the enum carries `#[allow(clippy::enum_variant_names)]`: its
+> variants are named by the type's values, not by the program, and the lint
+> refuses three sharing a word (`web_shop`, `pop_up_shop`, `closed_shop`) in a
+> module the crate does not export. Enums are keyed
 > by that identity; two same-named enums under
 > different qualifications MUST be refused ("enum `<n>` is used under two
 > qualifications; the generated Rust enum can carry only one") rather than

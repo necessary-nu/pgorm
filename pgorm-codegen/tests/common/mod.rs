@@ -44,6 +44,26 @@ impl Generated {
     pub fn has(&self, name: &str) -> bool {
         self.files.iter().any(|(n, _)| n == name)
     }
+
+    /// Assert that the generated `file` is `fixture`, its header and
+    /// rustfmt's trailing commas aside.
+    #[track_caller]
+    pub fn holds(&self, file: &str, fixture: &str) {
+        let flat = |src: &str| norm(src).replace(" , )", " )").replace(" , }", " }");
+        let written = flat(self.file(file));
+        assert!(written.contains(&flat(fixture)), "{file}: {written}");
+    }
+}
+
+pub fn generate_sql(sql: &str, opts: Opts) -> Generated {
+    Generated {
+        files: pgorm_codegen::entities_from_sql(sql, opts)
+            .unwrap_or_else(|error| panic!("{error}: {sql}"))
+            .files
+            .into_iter()
+            .map(|file| (file.name, file.content))
+            .collect(),
+    }
 }
 
 /// Run the whole pipeline: schema statements in, generated files out.

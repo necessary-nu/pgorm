@@ -16,6 +16,7 @@ pub struct Model {
     pub label: Option<String>,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(has_many = super::book::Entity)]

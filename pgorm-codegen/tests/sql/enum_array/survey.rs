@@ -19,5 +19,6 @@ pub struct Model {
     pub log: Option<Vec<Mood>>,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}

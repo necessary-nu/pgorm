@@ -309,7 +309,7 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+7]
+    // [spec:pgorm:sem:codegen.entity.enums+8]
     pub fn write_pgorm_active_enums(
         &self,
         with_serde: &WithSerde,
@@ -359,7 +359,7 @@ impl EntityWriter {
     }
 
     // [spec:pgorm:req:macros.derive.one-form]
-    // [spec:pgorm:def:codegen.entity.compact+6]
+    // [spec:pgorm:def:codegen.entity.compact+7]
     // [spec:pgorm:def:disjoint.one-of+1]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_code_blocks(
@@ -641,10 +641,16 @@ impl EntityWriter {
             .collect()
     }
 
+    /// The entity's `Relation` enum. Its variants are named by the schema,
+    /// for the tables it relates to, so clippy's `enum_variant_names`, which
+    /// variants sharing an affix (`WebShop`, `PopUpShop`, `ClosedShop`) or one
+    /// ending with the enum's name trip, is allowed on it.
+    // [spec:pgorm:def:codegen.entity.compact+7]
     pub fn gen_compact_relation_enum(entity: &Entity) -> TokenStream {
         let relation_enum_name = entity.get_relation_enum_name();
         let attrs = entity.get_relation_attrs();
         quote! {
+            #[allow(clippy::enum_variant_names)]
             #[derive(Copy, Clone, Debug, Relation)]
             pub enum Relation {
                 #(

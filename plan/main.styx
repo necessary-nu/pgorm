@@ -1867,12 +1867,20 @@ children (
                 title "Codegen's Relation enum and the enums in pgorm_active_enums.rs pass clippy's enum_variant_names"
                 kind @fix
                 deps (codegen-enum-variant-names)
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:11.138424Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by enum-label-length's lane (codegen-enum-variant-names, 7cff255b), which fixed only the generated disjoint enums: codegen's Relation enum, and the enums it writes into pgorm_active_enums.rs, trip clippy's enum_variant_names the same way when every variant shares a suffix or prefix (three related tables, or three values, ending `_shop`). Fix as the disjoint case was (an allow the generated code carries, or names that don't share the affix) and decide which in the rule; it changes every generated golden, the bindings' codegen fixtures included."
+                    }
+
+                    {
+                        at 2026-11-04T22:47:10.313511Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

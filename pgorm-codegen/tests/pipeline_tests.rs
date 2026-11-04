@@ -381,7 +381,9 @@ fn entity_file_blocks_are_joined_with_blank_lines() {
     );
     assert!(blocks[0].starts_with("use pgorm :: entity :: prelude"));
     assert!(blocks[1].starts_with("# [derive (Clone , Debug , PartialEq , Entity"));
-    assert!(blocks[2].starts_with("# [derive (Copy , Clone , Debug , Relation)]"));
+    assert!(blocks[2].starts_with(
+        "# [allow (clippy :: enum_variant_names)] # [derive (Copy , Clone , Debug , Relation)]"
+    ));
 
     // unformatted TokenStream text: no rustfmt-style newlines inside a block
     assert!(
