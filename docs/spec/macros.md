@@ -126,6 +126,21 @@ known limitations.
 > `Enforcement`, `ConditionType` and `ArrayType` — are members of the entity
 > prelude (`[spec:pgorm:def:entity.prelude]`).
 
+> [spec:pgorm:req:macros.derive.hygiene]
+> A derive MUST expand on a declaration a `macro_rules!` macro writes as it
+> does on one written out, whichever of its tokens the macro's caller passes
+> in and whichever the macro writes itself. Such an input carries spans of
+> two hygiene contexts, and a local is resolved only within the context of
+> its own span, so a parameter or local a derive introduces MUST carry the
+> same span at its binding and at every use: the derive's call site
+> wherever the two would otherwise differ, as they do between a binding the
+> derive writes and a use inside an expression it spans at an input token
+> (a variant's payload, a target entity, a column path) so that a type
+> error points at what the program wrote. A disjoint enum whose variants the
+> caller passes, and a one-of enum whose targets the caller passes and whose
+> column paths the macro completes, compile and declare what their written
+> out forms declare.
+
 > [spec:pgorm:sem:macros.derive.boilerplate]
 > A derive MUST write what follows from what it was told, so an entity's
 > module holds only what the program decides:

@@ -16541,6 +16541,9 @@ children (
                 id disjoint-derive-macro-hygiene
                 title "The Disjoint derive compiles on an enum whose variants a macro_rules! macro writes"
                 kind @fix
+                implements {
+                    main ([spec:pgorm:req:macros.derive.hygiene])
+                }
                 deps (disjoint.declare)
                 log (
                     {
@@ -16548,6 +16551,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.evolve: an enum deriving Disjoint whose variants a macro_rules! macro writes fails to compile with E0425 on `visitor` and `kind`, identifiers the derive's generated code introduces under spans taken from the input, so macro hygiene separates their definitions from their uses. Give the derive's own bindings one consistent span (Span::call_site or mixed_site for every introduced identifier), check the other derives for the same pattern, and add a test that declares a disjoint enum through a macro_rules! macro."
+                    }
+
+                    {
+                        at 2026-11-04T22:01:09.012318Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
                     }
                 )
             }

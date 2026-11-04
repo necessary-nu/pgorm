@@ -69,8 +69,7 @@ pub mod bike {
 /// The base of one declaration of the fleet: an entity over `$table`, whose
 /// kind column is of `$kind`. Each version of the declaration a change starts
 /// from or ends at has its own, as a program's entity code has before and
-/// after it changes. The enums are written out beside them, since the
-/// `Disjoint` derive does not take its variants through a `macro_rules!`.
+/// after it changes. The enums are written out beside them.
 macro_rules! fleet_base {
     ($base:ident, $table:literal, $kind:ident) => {
         pub mod $base {

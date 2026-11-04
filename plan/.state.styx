@@ -2990,6 +2990,11 @@ impl_evidence (
     ), rule_versions_seen (
         {id testing.isolation, version 0}
     )}
+    {id disjoint-derive-macro-hygiene, covered_rules (
+        macros.derive.hygiene
+    ), covered_claims (
+        {impl_name main, rule macros.derive.hygiene}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}
