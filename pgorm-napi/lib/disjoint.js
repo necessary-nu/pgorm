@@ -25,6 +25,7 @@ import { CreateTable } from "./schema.js";
 import { CreateType } from "./schema-types.js";
 import { TypeName } from "./values.js";
 
+// [spec:pgorm:req:bindings.model-unique-keys]
 /**
  * A model's table as the native shape is described from.
  *
@@ -44,6 +45,11 @@ function described(shape) {
       values: column.values,
     })),
     key: shape.primaryKey.map((field) => field.sql),
+    uniqueKeys: shape.uniqueKeys.map((key) => ({
+      name: key.name,
+      columns: key.fields.map((field) => field.sql),
+      nullsNotDistinct: key.nullsNotDistinct,
+    })),
   };
 }
 

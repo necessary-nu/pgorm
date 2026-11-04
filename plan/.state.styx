@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-03T17:46:10.358431Z
+last_sync_at 2026-11-04T23:26:07.500509Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -37,8 +37,9 @@ rule_versions (
     {id bindings.model-columns, version 1}
     {id bindings.model-reads, version 0}
     {id bindings.model-records, version 1}
+    {id bindings.model-unique-keys, version 0}
     {id bindings.model-writes, version 1}
-    {id bindings.models, version 4}
+    {id bindings.models, version 5}
     {id bindings.operands, version 0}
     {id bindings.optional, version 0}
     {id bindings.pagination, version 0}
@@ -468,6 +469,7 @@ derived_priorities (
     {id active-model-json-column-names, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id active-model-json-error-atomicity, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id active-model-unknown-column, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
+    {id alter-column-type-collate, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
     {id annotation-verbs-match, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id api-doc-honesty, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id between-render-parens, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
@@ -483,7 +485,9 @@ derived_priorities (
     {id bindings-between-casts, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id bindings-composite-unique, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id bindings-copy-created-multiranges, priority 3, derived_at 2026-10-26T20:21:09.753689Z}
+    {id bindings-disjoint-evolve, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
     {id bindings-expression-gaps, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
+    {id bindings-one-of, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
     {id bindings-tx-closure-only, priority 2, derived_at 2026-10-26T20:21:09.753689Z}
     {id binoper-missing-variants, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id bit-unbounded-renders-bit-one, priority 0, derived_at 2026-11-02T23:02:57.694884Z}
@@ -506,6 +510,7 @@ derived_priorities (
     {id campaign-refuses-stale-build, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id check-clauses-shared, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id codegen-accepts-create-schema, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
+    {id codegen-check-not-dropped, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
     {id codegen-column-expressions, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
     {id codegen-compact-string-length, priority 0, derived_at 2026-11-02T14:23:29.374268Z}
     {id codegen-datetime-crate-option, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
@@ -517,6 +522,8 @@ derived_priorities (
     {id codegen-interval-columns, priority 1, derived_at 2026-10-24T06:20:32.099314Z}
     {id codegen-junction-detection, priority 3, derived_at 2026-09-06T16:36:02.710141Z}
     {id codegen-money-decodes, priority 0, derived_at 2026-11-02T15:57:08.842122Z}
+    {id codegen-one-of-bounded-name, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
+    {id codegen-one-of-self-reference, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
     {id codegen-quotes-custom-type, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id codegen-refused-fk, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id codegen-refuses-nested-arrays, priority 0, derived_at 2026-11-02T15:57:08.842122Z}
@@ -569,7 +576,9 @@ derived_priorities (
     {id derives.expanded, priority 0, derived_at 2026-11-02T14:23:29.374268Z}
     {id derives.names, priority 2, derived_at 2026-11-02T14:23:29.374268Z}
     {id derives.paths, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
+    {id disjoint-derive-macro-hygiene, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
     {id disjoint-key-shapes-refused, priority 3, derived_at 2026-11-03T03:28:07.911135Z}
+    {id disjoint-recreate-one-rewrite, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
     {id disjoint.bindings, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
     {id disjoint.bindings-codegen, priority 3, derived_at 2026-11-03T07:11:51.915781Z}
     {id disjoint.bindings-unkinded, priority 3, derived_at 2026-11-03T08:39:14.136613Z}
@@ -645,6 +654,7 @@ derived_priorities (
     {id graph-unicode-alias-collisions, priority 3, derived_at 2026-09-07T22:03:19.945209Z}
     {id graph-via-as, priority 0, derived_at 2026-10-24T06:20:32.099314Z}
     {id grouped, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
+    {id ident-oracle-disjoint-sites, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
     {id ident-oracle-load-flake, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id identifier-bypass-surfaces, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id identifier-render-oracle, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
@@ -704,6 +714,7 @@ derived_priorities (
     {id napi-connections, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
     {id napi-domain-entity-test, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id napi-entities, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
+    {id napi-listen-abort-race, priority 0, derived_at 2026-11-04T23:26:07.500509Z}
     {id napi-model-created-multirange, priority 0, derived_at 2026-11-01T03:02:37.492868Z}
     {id napi-model-range-operands, priority 0, derived_at 2026-11-01T13:23:50.339566Z}
     {id napi-models, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
@@ -1722,6 +1733,12 @@ impl_evidence (
         {impl_name python, rule python.value-tags}
         {impl_name python, rule python.values}
     )}
+    {id bindings-composite-unique, covered_rules (
+        bindings.model-unique-keys
+    ), covered_claims (
+        {impl_name javascript, rule bindings.model-unique-keys}
+        {impl_name python, rule bindings.model-unique-keys}
+    )}
     {id codegen.generate, covered_rules (
         codegen.entity
         codegen.entity.compact
@@ -1949,6 +1966,8 @@ impl_evidence (
         disjoint.one-of
     ), covered_claims (
         {impl_name main, rule disjoint.one-of}
+    ), rule_versions_seen (
+        {id disjoint.one-of, version 1}
     )}
     {id disjoint.read, covered_rules (
         disjoint.read

@@ -96,25 +96,39 @@ fn column_of(column: &Bound<'_, PyAny>) -> PyResult<DisjointColumn> {
     })
 }
 
+/// A unique key of a model's table, as Python describes it: the
+/// constraint's name or `None`, its columns' names in key order, and whether
+/// nulls are equal under it.
+type DescribedKey = (Option<String>, Vec<String>, bool);
+
 /// One model's table, as Python describes it: its schema, its name, its
-/// columns in field order and its key's columns.
+/// columns in field order, its key's columns and its unique keys.
+// [spec:pgorm:req:bindings.model-unique-keys]
 pub(crate) fn table_of(table: &Bound<'_, PyAny>) -> PyResult<DisjointTable> {
-    let table = table.cast::<PyDict>()?;
-    let schema: Option<String> = item(table, "schema")?.extract()?;
-    let name: String = item(table, "table")?.extract()?;
-    let columns = item(table, "columns")?
+    let described = table.cast::<PyDict>()?;
+    let schema: Option<String> = item(described, "schema")?.extract()?;
+    let name: String = item(described, "table")?.extract()?;
+    let columns = item(described, "columns")?
         .extract::<Vec<Bound<'_, PyAny>>>()?
         .iter()
         .map(column_of)
         .collect::<PyResult<Vec<_>>>()?;
-    let key: Vec<String> = item(table, "key")?.extract()?;
+    let key: Vec<String> = item(described, "key")?.extract()?;
     let table = match schema {
         Some(schema) => TableName::SchemaTable(Name::runtime(schema), Name::runtime(name)),
         None => TableName::Table(Name::runtime(name)),
     };
     let key: Vec<&str> = key.iter().map(String::as_str).collect();
-    DisjointTable::new(table, columns, &key)
-        .map_err(|error| ConstructionError::new_err(error.to_string()))
+    let unique_keys: Vec<DescribedKey> = item(described, "unique_keys")?.extract()?;
+    let construction = |error: pgorm::Error| ConstructionError::new_err(error.to_string());
+    let mut table = DisjointTable::new(table, columns, &key).map_err(construction)?;
+    for (name, columns, nulls_not_distinct) in &unique_keys {
+        let columns: Vec<&str> = columns.iter().map(String::as_str).collect();
+        table = table
+            .with_unique_key(name.as_deref(), &columns, *nulls_not_distinct)
+            .map_err(construction)?;
+    }
+    Ok(table)
 }
 
 /// A model's name beside the description of its table.

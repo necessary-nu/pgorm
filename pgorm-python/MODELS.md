@@ -40,10 +40,20 @@ non-boolean flag, a `generated` or `values` of the wrong type and an unknown
 a generated column with a default and labels on a column that is no enum a
 `ConstructionError`. An unknown option is Python's own `TypeError`.
 
+`unique_keys=[{"fields": ("realm", "handle"), "name": "members_realm_handle",
+"nulls_not_distinct": True}]` declares the table's unique keys, as an entity's
+`unique(..)` does: each of one field or several in key order, its `name` and
+`nulls_not_distinct` optional (`pgorm.models.model.UniqueKey` types it). A key
+naming no field, a field the model lacks or one field twice, and a name that is
+no identifier, is a `ConstructionError`; a key that is no mapping, an unknown
+option or a mistyped value a `TypeError`. `create_disjoint` writes each into
+its model's table.
+
 A `Column` is a declaration and has no methods: a model converts each value
 through its field's column where it takes one, and `Value(data, kind)` is the
 conversion a program calls. `model.describe()` reports the declaration as data:
-the table's `schema`, `table` and `alias`, the `primary_key` fields, and under
+the table's `schema`, `table` and `alias`, the `primary_key` fields, the
+`unique_keys` (each its `name`, `fields` and `nulls_not_distinct`), and under
 `fields` each field's SQL `column`, its `kind` (`i64`, `text[]`,
 `enum "app"."mood"`, `range "app"."floatrange" of f64`), `nullable`,
 `primary_key`, `default`, `generated` and an enum's `values`: the keys

@@ -3,7 +3,7 @@
 
 use super::{
     DdlStatement,
-    entity::{column_ddl, create_enum_from_column_type, write_primary_key},
+    entity::{column_ddl, create_enum_from_column_type, unique_key, write_primary_key},
 };
 use crate::{
     ColumnPairs, ColumnType, DisjointKind, DisjointShape, DisjointTable, Error, KindedDisjoint,
@@ -66,9 +66,10 @@ impl DisjointShape {
     /// order they run, as [`Schema::create_disjoint`] describes them;
     /// [`check`](Self::check) runs first, and its refusal is this one's.
     ///
-    /// A table a shape described at run time is written from its columns
-    /// alone, as `create_table_from_entity` writes an entity's columns and
-    /// primary key: it declares no relation, index or comment. A column whose
+    /// A table a shape described at run time is written from its columns,
+    /// as `create_table_from_entity` writes an entity's columns, primary key
+    /// and unique keys, the keys [`DisjointTable::with_unique_key`] gave it:
+    /// it declares no relation, index or comment. A column whose
     /// default the description does not state has no `DEFAULT` to write, so
     /// a table holding one is refused with [`Error::Type`] naming it, and so
     /// is an unkinded shape, whose schema pgorm does not write.
@@ -107,14 +108,16 @@ impl DisjointShape {
 }
 
 /// `table`'s `CREATE TABLE`, as its entity writes it with the belongs-to
-/// relations `keep` keeps, or from its columns alone.
+/// relations `keep` keeps, or from its columns, with the unique keys
+/// [`DisjointTable::with_unique_key`] gave it.
 // [spec:pgorm:sem:disjoint.schema+2]
+// [spec:pgorm:req:bindings.model-unique-keys]
 fn body(
     table: &DisjointTable,
     keep: &dyn Fn(&RelationDef) -> bool,
 ) -> Result<TableCreateStatement, Error> {
-    match &table.body {
-        TableBody::Entity(write) => write(keep),
+    let mut stmt = match &table.body {
+        TableBody::Entity(write) => write(keep)?,
         TableBody::Columns => {
             let mut stmt = TableCreateStatement::new(table.table.clone());
             for column in &table.columns {
@@ -137,9 +140,19 @@ fn body(
                 .map(|column| Name::clone(&column.name))
                 .collect();
             write_primary_key(&mut stmt, &table.name().to_string(), keys, None);
-            Ok(stmt)
+            stmt
         }
+    };
+    for key in &table.unique_keys {
+        let columns: Vec<&str> = key.columns.iter().map(String::as_str).collect();
+        stmt.unique(unique_key(
+            &table.label,
+            key.name.as_deref(),
+            &columns,
+            key.nulls_not_distinct,
+        )?);
     }
+    Ok(stmt)
 }
 
 /// What every kind's table is written against: the base's table, key and

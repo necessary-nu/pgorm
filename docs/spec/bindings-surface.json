@@ -242,6 +242,7 @@
       "table": null,
       "alias": null,
       "primary_key": null,
+      "unique_keys": [{"name": null, "fields": null, "nulls_not_distinct": null}],
       "fields": {
         "*": {
           "column": null,

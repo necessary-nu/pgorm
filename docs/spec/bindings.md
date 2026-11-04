@@ -950,10 +950,11 @@ decode into records of its fields, and its relations, graphs, cursors and
 pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 `Paginator`.
 
-> [spec:pgorm:req:bindings.models+4]
-> `model(name, columns, schema)` MUST declare a model of a table,
-> schema-qualified when a schema is given, from a mapping of fields, each a
-> `Column(kind, options)`. The kind is one every result decodes as — any
+> [spec:pgorm:req:bindings.models+5]
+> `model(name, columns, schema, unique_keys)` MUST declare a model of a
+> table, schema-qualified when a schema is given, from a mapping of fields,
+> each a `Column(kind, options)`, and the table's unique keys
+> (`bindings.model-unique-keys`). The kind is one every result decodes as — any
 > value kind but `u64` and `char`, which no column decodes as — or a
 > schema-qualified `TypeName`, `CreatedRange` or `CreatedMultirange`, as a
 > decoded row names each type. The options are `name` (the SQL column, the
@@ -976,7 +977,8 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > (`bindings.value-tags`) is the conversion a program calls. `describe()`
 > MUST report the model as data, under these keys and no other, each spelled
 > by the binding's naming rule: `schema`, `table` and `alias`, its table's;
-> `primary_key`, its key fields; and `fields`, mapping each field to its SQL
+> `primary_key`, its key fields; `unique_keys`, its unique keys
+> (`bindings.model-unique-keys`); and `fields`, mapping each field to its SQL
 > `column`, its `kind`, `nullable`, `primary_key`, `default`, `generated`
 > (always or by default, or null) and an enum's `values` (null for any other
 > column). A kind is spelled as a decoded column's is compared
@@ -986,6 +988,30 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > `text[]`, `enum "app"."mood"`, `range "app"."floatrange" of f64` — a type
 > written as its schema and name, each double-quoted with its own quotes
 > doubled, joined by a dot, or as its quoted name alone.
+
+> [spec:pgorm:req:bindings.model-unique-keys]
+> A model's `unique_keys` MUST declare its table's unique keys, in order, as
+> an entity's `unique(..)` declares them
+> (`[spec:pgorm:req:entity.traits.entity-name]`): each key an object of
+> `fields`, one field or a non-empty list of them in key order, and the
+> options `name`, the constraint's name, which PostgreSQL chooses when none
+> is given, and `nulls_not_distinct`, whether nulls are equal under the key.
+> A key may be of one field, a model's column having no `unique` of its own.
+> A key naming no field, a field the model lacks or one field twice, which
+> PostgreSQL refuses (`42701`), and a name pgorm would not take as an
+> identifier MUST be a `ConstructionError` raised as the model is declared,
+> and a key that is not an object, or names an option it does not know, a
+> `TypeError` (`bindings.argument-errors`). Declaring them sends nothing,
+> and `as(alias)` keeps them. `describe()` reports each, in order, as its
+> `name`, null when none was given, its `fields` as a list and
+> `nulls_not_distinct`.
+>
+> The tables `create_disjoint` writes from models (`bindings.disjoint`) MUST
+> each write its model's keys after its primary key, each a `UNIQUE`
+> constraint over its fields' SQL columns, as pgorm's `DisjointTable` writes
+> the keys `with_unique_key` gives it, which refuses also what a model cannot
+> declare: a `VIRTUAL` generated column, which PostgreSQL cannot key
+> (`0A000`).
 
 > [spec:pgorm:req:bindings.model-columns+1]
 > `col(field)` MUST be a model field's column, qualified as the model's

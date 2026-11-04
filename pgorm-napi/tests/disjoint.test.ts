@@ -19,6 +19,7 @@ import {
   NotNullViolationError,
   Pool,
   TypeName,
+  UniqueViolationError,
 } from "../lib/index.js";
 import { scratchDatabase } from "./support.ts";
 
@@ -272,6 +273,45 @@ test("the schema runs and holds rows to kinds", async () => {
     { schemaName: SCHEMA },
   );
   assert.throws(() => createDisjoint(undeclared), refused(/has a default its description does not state/));
+});
+
+// [spec:pgorm:req:bindings.model-unique-keys/test]    createDisjoint writes the base's and each kind model's unique keys after its primary key, which the server then holds, nulls equal under a key declared nullsNotDistinct
+test("the schema writes the models' unique keys", async () => {
+  const fleet = model("fleet", {
+    schema: SCHEMA,
+    columns: {
+      id: column("i32", { primaryKey: true, generated: "byDefault" }),
+      kind: column(new TypeName("fleet_kind", { schema: SCHEMA }), { values: ["van", "cart"] }),
+      code: column("text"),
+      depot: column("text", { nullable: true }),
+    },
+    uniqueKeys: [{ fields: ["depot", "code"], name: "fleet_depot_code", nullsNotDistinct: true }],
+  });
+  const van = model("van", {
+    schema: SCHEMA,
+    columns: { id: column("i32", { primaryKey: true }), plate: column("text") },
+    uniqueKeys: [{ fields: "plate" }],
+  });
+  const fleets = disjoint("fleet", fleet, { van, cart: null }, { schemaName: SCHEMA });
+  const statements = createDisjoint(fleets);
+  const [base, kind] = statements.slice(1, 3).map((statement) => statement.inspect().sql);
+  assert.ok(
+    base?.includes(
+      'PRIMARY KEY ("id"), CONSTRAINT "fleet_depot_code" UNIQUE NULLS NOT DISTINCT ("depot", "code"), ' +
+        'CONSTRAINT "uq-fleet-id-kind" UNIQUE ("id", "kind")',
+    ),
+    base,
+  );
+  assert.ok(kind?.includes('PRIMARY KEY ("id"), UNIQUE ("plate"), CONSTRAINT "fk-van-id-kind"'), kind);
+  for (const statement of statements) await pool().execute(statement);
+  const violates = (constraint: string) => (error: unknown) => {
+    assert.ok(error instanceof UniqueViolationError, `expected a UniqueViolationError, got ${error}`);
+    assert.equal(error.constraint, constraint);
+    return true;
+  };
+  await fleets.insert({ code: "a" }, "van", { plate: "P1" }).returningModel(pool());
+  await assert.rejects(fleets.insert({ code: "b" }, "van", { plate: "P1" }).returningModel(pool()), violates("van_plate_key"));
+  await assert.rejects(fleets.insert({ code: "a" }, "cart").returningModel(pool()), violates("fleet_depot_code"));
 });
 
 // [spec:pgorm:req:bindings.disjoint+1/test]    an insert of each kind returns what a read of its row gives, each row the base's record, the kind and the kind's record or null, an enum column of a kind's table read as its enum; reads narrow by key, kind, kinds and a kind's condition, order, slice, count, page, stream and read through a keyset cursor

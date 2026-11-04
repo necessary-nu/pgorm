@@ -17179,6 +17179,10 @@ children (
                 id bindings-composite-unique
                 title "The Python and JavaScript bindings' model DDL declares composite unique keys"
                 kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:bindings.model-unique-keys])
+                    python ([spec:pgorm:req:bindings.model-unique-keys])
+                }
                 deps (entity-composite-unique)
                 log (
                     {

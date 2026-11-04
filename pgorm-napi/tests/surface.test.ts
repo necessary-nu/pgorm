@@ -227,7 +227,8 @@ function assertDeclared(owner: string, descriptions: readonly unknown[]) {
 }
 
 // [spec:pgorm:req:bindings.surface+2/test]
-// [spec:pgorm:req:bindings.models+4/test]
+// [spec:pgorm:req:bindings.models+5/test]
+// [spec:pgorm:req:bindings.model-unique-keys/test]
 test("a model's describe() reports exactly the keys the surface declares", () => {
   const declared = pgorm.model("accounts", {
     schema: "app",
@@ -235,6 +236,7 @@ test("a model's describe() reports exactly the keys the surface declares", () =>
       id: pgorm.column("i64", { primaryKey: true, generated: "always" }),
       mood: pgorm.column(new pgorm.TypeName("mood", { schema: "app" }), { nullable: true, values: ["calm"] }),
     },
+    uniqueKeys: [{ fields: ["mood", "id"], name: "accounts_mood_id" }],
   });
   assertDeclared("pgorm.Model", [declared.describe(), declared.as("a").describe()]);
 });

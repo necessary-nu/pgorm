@@ -290,7 +290,12 @@ where
         }
     }
     for key in entity.unique_keys() {
-        stmt.unique(unique_key(&entity, key)?);
+        stmt.unique(unique_key(
+            &entity.to_string(),
+            key.name,
+            key.columns,
+            key.nulls_not_distinct,
+        )?);
     }
 
     for relation in E::Relation::iter() {
@@ -305,26 +310,29 @@ where
     Ok(stmt.take())
 }
 
-/// The table key `key` of `entity` describes, or [`Error::Type`] for one
-/// naming no column, which an `EntityName` written by hand can describe and
-/// PostgreSQL cannot write (`UNIQUE ()`).
+/// The unique key of the table `label` over `columns`, in key order, named
+/// `name` or left for PostgreSQL to name: [`Error::Type`] for one naming no
+/// column, which an `EntityName` written by hand or a table described at run
+/// time can describe and PostgreSQL cannot write (`UNIQUE ()`).
 // [spec:pgorm:sem:schema.from-entity+12]
-fn unique_key<E: EntityTrait>(
-    entity: &E,
-    key: &crate::UniqueKey,
+// [spec:pgorm:req:bindings.model-unique-keys]
+pub(crate) fn unique_key(
+    label: &str,
+    name: Option<&str>,
+    columns: &[&str],
+    nulls_not_distinct: bool,
 ) -> Result<TableKey<Unique>, Error> {
-    let Some((first, rest)) = key.columns.split_first() else {
+    let Some((first, rest)) = columns.split_first() else {
         return Err(Error::Type(format!(
-            "`{}` declares a unique key with no columns",
-            entity.to_string()
+            "`{label}` declares a unique key with no columns"
         )));
     };
     let mut table_key =
         TableKey::new(Name::runtime(*first)).cols(rest.iter().copied().map(Name::runtime));
-    if let Some(name) = key.name {
+    if let Some(name) = name {
         table_key = table_key.name(Name::runtime(name));
     }
-    if key.nulls_not_distinct {
+    if nulls_not_distinct {
         table_key = table_key.nulls_not_distinct();
     }
     Ok(table_key)

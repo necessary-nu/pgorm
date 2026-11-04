@@ -5,7 +5,8 @@
 // the statement builders. Declaring a model sends nothing and runs no DDL,
 // and claims no Rust entity: no derive, `EntityTrait` or ActiveModel hook is
 // behind it.
-// [spec:pgorm:req:bindings.models+4]
+// [spec:pgorm:req:bindings.models+5]
+// [spec:pgorm:req:bindings.model-unique-keys]
 
 import { Condition } from "./conditions.js";
 import { ConstructionError } from "./errors.js";
@@ -16,6 +17,7 @@ import { fieldOf, qualified, register, shapeOf } from "./model-shape.js";
 import { deleteRows, insertMany, insertOne, picked, updateSet } from "./model-writes.js";
 import { relation } from "./relations.js";
 import { Table } from "./select.js";
+import { isIdentifier } from "./values.js";
 
 /** Marks a construction from `model()`. */
 const MADE = Symbol("pgorm-napi model");
@@ -42,6 +44,57 @@ function fieldsOf(columns) {
   return fields;
 }
 
+const KEY_OPTIONS = new Set(["fields", "name", "nullsNotDistinct"]);
+
+/**
+ * One of a model's unique keys, its fields among `fields`, refused as
+ * PostgreSQL or the Rust derive would refuse it.
+ *
+ * @param {unknown} key
+ * @param {ReadonlyMap<string, import("./model-shape.js").Field>} fields
+ * @returns {import("./model-shape.js").UniqueKey}
+ */
+function uniqueKeyOf(key, fields) {
+  if (typeof key !== "object" || key === null || Array.isArray(key)) {
+    throw new TypeError("a unique key is an object of its fields and options");
+  }
+  for (const option of Object.keys(key)) {
+    if (!KEY_OPTIONS.has(option)) throw new TypeError(`${JSON.stringify(option)} is no unique key option`);
+  }
+  const { fields: given = [], name = null, nullsNotDistinct = false } =
+    /** @type {{ fields?: unknown, name?: unknown, nullsNotDistinct?: unknown }} */ (key);
+  const named = typeof given === "string" ? [given] : given;
+  if (!Array.isArray(named)) throw new TypeError("a unique key's fields are a field or an array of them");
+  /** @type {import("./model-shape.js").Field[]} */
+  const keyed = [];
+  for (const field of named) {
+    if (typeof field !== "string") throw new TypeError("a unique key's field is named by a string");
+    const declared = fields.get(field);
+    if (!declared) throw new ConstructionError(`a unique key names ${JSON.stringify(field)}, which is no field of the model`);
+    if (keyed.includes(declared)) {
+      throw new ConstructionError(`a unique key names ${JSON.stringify(field)} twice, which PostgreSQL refuses`);
+    }
+    keyed.push(declared);
+  }
+  if (keyed.length === 0) throw new ConstructionError("a unique key names at least one field");
+  if (name !== null) {
+    if (typeof name !== "string") throw new TypeError("a unique key's name is a string");
+    if (!isIdentifier(name)) throw new ConstructionError("an identifier is 1–63 UTF-8 bytes without NUL");
+  }
+  if (typeof nullsNotDistinct !== "boolean") throw new TypeError("a unique key's nullsNotDistinct is a boolean");
+  return Object.freeze({ name, fields: Object.freeze(keyed), nullsNotDistinct });
+}
+
+/**
+ * @param {unknown} keys
+ * @param {readonly import("./model-shape.js").Field[]} fields
+ */
+function uniqueKeysOf(keys, fields) {
+  if (!Array.isArray(keys)) throw new TypeError("a model's uniqueKeys are an array of keys");
+  const byField = new Map(fields.map((field) => [field.field, field]));
+  return Object.freeze(keys.map((key) => uniqueKeyOf(key, byField)));
+}
+
 /**
  * A model: a table and its columns' declarations. Its methods build the
  * queries and writes over it, each a new value; nothing about a model
@@ -53,9 +106,10 @@ export class Model {
    * @param {string | null} schema
    * @param {string | null} alias
    * @param {readonly import("./model-shape.js").Field[]} fields
+   * @param {readonly import("./model-shape.js").UniqueKey[]} uniqueKeys
    * @param {symbol} token
    */
-  constructor(name, schema, alias, fields, token) {
+  constructor(name, schema, alias, fields, uniqueKeys, token) {
     if (token !== MADE) throw new TypeError("a Model is made by model(name, { columns })");
     const table = new Table(name, { schema: schema ?? undefined, alias: alias ?? undefined });
     const qualifier = alias ?? name;
@@ -70,6 +124,7 @@ export class Model {
       fields,
       byField: new Map(fields.map((field) => [field.field, field])),
       primaryKey: fields.filter((field) => field.column.primaryKey),
+      uniqueKeys,
     });
     Object.freeze(this);
   }
@@ -110,7 +165,7 @@ export class Model {
    */
   as(alias) {
     const shape = shapeOf(this);
-    return new Model(shape.name, shape.schema, alias, shape.fields, MADE);
+    return new Model(shape.name, shape.schema, alias, shape.fields, shape.uniqueKeys, MADE);
   }
 
   /**
@@ -240,7 +295,7 @@ export class Model {
     return graphOf(shapeOf(this));
   }
 
-  /** The declaration as data: the table, and each field's column. */
+  /** The declaration as data: the table, its keys, and each field's column. */
   describe() {
     const shape = shapeOf(this);
     return {
@@ -248,6 +303,11 @@ export class Model {
       table: shape.name,
       alias: shape.alias,
       primaryKey: shape.primaryKey.map((field) => field.field),
+      uniqueKeys: shape.uniqueKeys.map((key) => ({
+        name: key.name,
+        fields: key.fields.map((field) => field.field),
+        nullsNotDistinct: key.nullsNotDistinct,
+      })),
       fields: Object.fromEntries(shape.fields.map(({ field, sql, column }) => [field, {
         column: sql,
         kind: columnKey(column),
@@ -270,12 +330,16 @@ export class Model {
 export function model(name, declaration) {
   if (typeof name !== "string") throw new TypeError("a model's table name is a string");
   if (typeof declaration !== "object" || declaration === null) {
-    throw new TypeError("a model's declaration is { columns, schema? }");
+    throw new TypeError("a model's declaration is { columns, schema?, uniqueKeys? }");
   }
   for (const key of Object.keys(declaration)) {
-    if (key !== "columns" && key !== "schema") throw new TypeError(`${JSON.stringify(key)} is no model option`);
+    if (key !== "columns" && key !== "schema" && key !== "uniqueKeys") {
+      throw new TypeError(`${JSON.stringify(key)} is no model option`);
+    }
   }
-  const { columns, schema = null } = /** @type {{ columns?: unknown, schema?: unknown }} */ (declaration);
+  const { columns, schema = null, uniqueKeys = [] } =
+    /** @type {{ columns?: unknown, schema?: unknown, uniqueKeys?: unknown }} */ (declaration);
   if (schema !== null && typeof schema !== "string") throw new TypeError("a model's schema is a string");
-  return new Model(name, schema, null, fieldsOf(columns), MADE);
+  const fields = fieldsOf(columns);
+  return new Model(name, schema, null, fields, uniqueKeysOf(uniqueKeys, fields), MADE);
 }

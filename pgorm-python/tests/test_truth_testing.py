@@ -9,7 +9,8 @@ from pgorm import _native, pipeline as pl, schema as s
 from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, versions as version_views
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
-    Column, Model, ModelRecord, Relation, cursors, disjoint_query, graphs, queries, record, writes,
+    Column, Model, ModelRecord, Relation, cursors, disjoint_query, graphs, model, queries, record,
+    writes,
 )
 from pgorm.runtime import PoolStatus
 
@@ -35,6 +36,7 @@ EXEMPT = {
     # Registrations and declarations: they name what a query reads and are
     # true as any declared object is; the queries they start refuse.
     p.Entity, p.EntityGraph, Model, Column, Relation, pl.SourceSelection, pl.Binder,
+    model.UniqueKey, model._DeclaredKey,
     views.EntityView, graph_views.GraphView, FieldType,
     p.Disjoint, p.DisjointEntity, disjoint_query._Disjoint,
     disjoint_views.DisjointView, disjoint_views.WritableDisjointView, disjoint_views._Decoded,

@@ -70,7 +70,7 @@ async function seed(): Promise<void> {
 
 const byId = Account.col("id").asc();
 
-// [spec:pgorm:req:bindings.models+4/test]
+// [spec:pgorm:req:bindings.models+5/test]
 test("a declaration is data: it sends nothing, and describes its table and fields", () => {
   const unconnected = model("nowhere", { schema: "absent", columns: { id: column("i32", { primaryKey: true }) } });
   assert.equal(unconnected.find().inspect().sql, 'SELECT "nowhere"."id" FROM "absent"."nowhere"');
@@ -98,7 +98,7 @@ test("a declaration is data: it sends nothing, and describes its table and field
   assert.equal(Account.alias, null);
 });
 
-// [spec:pgorm:req:bindings.models+4/test]
+// [spec:pgorm:req:bindings.models+5/test]
 // [spec:pgorm:req:bindings.argument-errors+1/test]
 test("a declaration that cannot be used is refused as it is made", () => {
   const unknown = { nullabel: true } as unknown as Record<string, never>;
@@ -124,6 +124,48 @@ test("a declaration that cannot be used is refused as it is made", () => {
   assert.throws(() => model("t", { columns: { a: column("text") }, table: "x" } as never), mistyped(/"table" is no model option/));
   assert.throws(() => model("", { columns: { a: column("text") } }), ConstructionError);
   assert.throws(() => model("t", { columns: { a: column("text", { name: "x".repeat(64) }) } }), ConstructionError);
+});
+
+// [spec:pgorm:req:bindings.model-unique-keys/test]    a model declares its unique keys in order, one field or several, named or not and NULLS NOT DISTINCT or not, describes each and keeps them under an alias, sending nothing
+test("a model declares and describes its unique keys", () => {
+  const columns = {
+    id: column("i32", { primaryKey: true }),
+    handle: column("text", { name: "user handle" }),
+    realm: column("text", { nullable: true }),
+  };
+  const members = model("members", {
+    columns,
+    uniqueKeys: [
+      { fields: ["realm", "handle"], name: "members_realm_handle", nullsNotDistinct: true },
+      { fields: "handle" },
+    ],
+  });
+  const expected = [
+    { name: "members_realm_handle", fields: ["realm", "handle"], nullsNotDistinct: true },
+    { name: null, fields: ["handle"], nullsNotDistinct: false },
+  ];
+  assert.deepStrictEqual(members.describe().uniqueKeys, expected);
+  assert.deepStrictEqual(members.as("m").describe().uniqueKeys, expected);
+  assert.deepStrictEqual(model("members", { columns }).describe().uniqueKeys, []);
+});
+
+// [spec:pgorm:req:bindings.model-unique-keys/test]    a unique key naming no field, a field the model lacks or a field twice, or a name that is no identifier, is a ConstructionError as the model is declared; a key of another type, an unknown option and a mistyped field, name or flag a TypeError
+test("a unique key PostgreSQL or the derive would refuse is refused as the model is declared", () => {
+  const columns = { id: column("i32", { primaryKey: true }), handle: column("text") };
+  const declare = (...keys: unknown[]) => model("members", { columns, uniqueKeys: keys as never });
+  assert.throws(() => declare({ fields: [] }), refused(/at least one field/));
+  assert.throws(() => declare({}), refused(/at least one field/));
+  assert.throws(() => declare({ fields: ["handle", "missing"] }), refused(/"missing", which is no field/));
+  assert.throws(() => declare({ fields: ["handle", "id", "handle"] }), refused(/"handle" twice/));
+  assert.throws(() => declare({ fields: ["handle"], name: "" }), refused(/identifier/));
+  assert.throws(() => declare({ fields: ["handle"], name: "k".repeat(64) }), refused(/identifier/));
+  assert.throws(() => model("members", { columns, uniqueKeys: { fields: "handle" } as never }), mistyped(/an array of keys/));
+  assert.throws(() => declare(["handle", "id"]), mistyped(/a unique key is an object/));
+  assert.throws(() => declare({ fields: ["handle"], nullsDistinct: false }), mistyped(/"nullsDistinct" is no unique key option/));
+  assert.throws(() => declare({ fields: 7 }), mistyped(/a field or an array/));
+  assert.throws(() => declare({ fields: [7] }), mistyped(/named by a string/));
+  assert.throws(() => declare({ fields: ["handle"], name: 7 }), mistyped(/name is a string/));
+  assert.throws(() => declare({ fields: ["handle"], nullsNotDistinct: 1 }), mistyped(/is a boolean/));
 });
 
 // [spec:pgorm:req:bindings.model-writes+1/test]
@@ -289,7 +331,7 @@ test("a result that breaks the declaration is a DecodeError, never a value", asy
   assert.equal((await partial.find().all(pool())).length, 4);
 });
 
-// [spec:pgorm:req:bindings.models+4/test]
+// [spec:pgorm:req:bindings.models+5/test]
 // [spec:pgorm:req:bindings.model-records+1/test]
 // [spec:pgorm:req:bindings.created-ranges+1/test]
 test("a created multirange field is projected as its text and read as the multirange of its declared subtype", async () => {

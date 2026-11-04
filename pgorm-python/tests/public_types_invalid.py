@@ -78,6 +78,7 @@ async def invalid(connection: p.Connection) -> None:
     )
     sqlstate: str = p.DatabaseError("client failure").sqlstate  # expected-error: assignment
     accounts = p.Model("accounts", {"id": p.Column("i64", primary_key=True)})
+    p.Model("accounts", {"id": p.Column("i64")}, unique_keys=[{"fields": "id", "nulls_distinct": True}])  # expected-error: typeddict-unknown-key
     p.Column("i32", generated="sometimes")  # expected-error: arg-type
     accounts.graph().join_one(accounts.col("id"))  # expected-error: arg-type
     accounts.find().cursor("id").first("2")  # expected-error: arg-type

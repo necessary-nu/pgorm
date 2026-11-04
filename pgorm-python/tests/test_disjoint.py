@@ -286,6 +286,48 @@ class DisjointDatabase(unittest.IsolatedAsyncioTestCase):
             ps.create_disjoint(undeclared)
         self.assertIn("has a default its description does not state", str(raised.exception))
 
+    # [spec:pgorm:req:bindings.model-unique-keys/test]    create_disjoint writes the base's and each kind model's unique keys after its primary key, which the server then holds, nulls equal under a key declared nulls_not_distinct
+    async def test_schema_writes_the_models_unique_keys(self):
+        fleet = p.Model(
+            "fleet",
+            {
+                "id": p.Column("i32", primary_key=True, generated="by_default"),
+                "kind": p.Column(
+                    p.TypeName("fleet_kind", schema=SCHEMA), values=["van", "cart"]
+                ),
+                "code": p.Column("text"),
+                "depot": p.Column("text", nullable=True),
+            },
+            schema=SCHEMA,
+            unique_keys=[
+                {"fields": ["depot", "code"], "name": "fleet_depot_code", "nulls_not_distinct": True}
+            ],
+        )
+        van = p.Model(
+            "van",
+            {"id": p.Column("i32", primary_key=True), "plate": p.Column("text")},
+            schema=SCHEMA,
+            unique_keys=[{"fields": "plate"}],
+        )
+        fleets = p.Disjoint("fleet", fleet, {"van": van, "cart": None}, schema_name=SCHEMA)
+        statements = ps.create_disjoint(fleets)
+        tables = [statement.inspect().sql for statement in statements[1:3]]
+        self.assertIn(
+            'PRIMARY KEY ("id"), CONSTRAINT "fleet_depot_code" UNIQUE NULLS NOT DISTINCT '
+            '("depot", "code"), CONSTRAINT "uq-fleet-id-kind" UNIQUE ("id", "kind")',
+            tables[0],
+        )
+        self.assertIn('PRIMARY KEY ("id"), UNIQUE ("plate"), CONSTRAINT "fk-van-id-kind"', tables[1])
+        for statement in statements:
+            await self.pool.execute(statement)
+        await fleets.insert({"code": "a"}, "van", {"plate": "P1"}).returning_model(self.pool)
+        with self.assertRaises(p.UniqueViolationError) as raised:
+            await fleets.insert({"code": "b"}, "van", {"plate": "P1"}).returning_model(self.pool)
+        self.assertEqual(raised.exception.constraint, "van_plate_key")
+        with self.assertRaises(p.UniqueViolationError) as raised:
+            await fleets.insert({"code": "a"}, "cart").returning_model(self.pool)
+        self.assertEqual(raised.exception.constraint, "fleet_depot_code")
+
     # [spec:pgorm:req:bindings.disjoint+1/test]    an insert of each kind returns what a read of its row gives, each row the base's record, the kind and the kind's record or None, an enum column of a kind's table read as its enum; reads narrow by key, kind, kinds and a kind's condition, order, slice, count, page, stream and read through a keyset cursor
     async def test_inserts_and_reads(self):
         mini, lorry, bmx = await self.seed()

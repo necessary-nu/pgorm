@@ -70,7 +70,7 @@ def _labels(values: object) -> tuple[str, ...]:
     return labels
 
 
-# [spec:pgorm:req:bindings.models+4]
+# [spec:pgorm:req:bindings.models+5]
 @dataclass(frozen=True, slots=True)
 class Column:
     kind: str | p.TypeName | p.CreatedRange | p.CreatedMultirange

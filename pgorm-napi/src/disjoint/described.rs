@@ -136,8 +136,47 @@ fn column_of<'cx>(
     })
 }
 
+/// A list of names a described table gives, each a string.
+fn names<'cx>(
+    cx: &mut FunctionContext<'cx>,
+    list: Handle<'cx, JsValue>,
+    what: &str,
+) -> NeonResult<Vec<String>> {
+    let Ok(list) = list.downcast::<JsArray, _>(cx) else {
+        return cx.throw_type_error(format!("a described table's {what} is an array"));
+    };
+    list.to_vec(cx)?
+        .into_iter()
+        .map(|name| text(cx, name, what))
+        .collect()
+}
+
+/// `table` with the unique key `key` describes: `{ name, columns,
+/// nullsNotDistinct }`, its name null for PostgreSQL to choose one.
+// [spec:pgorm:req:bindings.model-unique-keys]
+fn with_unique_key<'cx>(
+    cx: &mut FunctionContext<'cx>,
+    table: DisjointTable,
+    key: Handle<'cx, JsValue>,
+) -> NeonResult<DisjointTable> {
+    let Ok(key) = key.downcast::<JsObject, _>(cx) else {
+        return cx.throw_type_error("a described unique key is an object");
+    };
+    let name = property(cx, key, "name")?;
+    let name = optional_text(cx, name, "unique key's name")?;
+    let columns = property(cx, key, "columns")?;
+    let columns = names(cx, columns, "unique key's columns")?;
+    let nulls_not_distinct = property(cx, key, "nullsNotDistinct")?;
+    let nulls_not_distinct = flag(cx, nulls_not_distinct)?;
+    let columns: Vec<&str> = columns.iter().map(String::as_str).collect();
+    table
+        .with_unique_key(name.as_deref(), &columns, nulls_not_distinct)
+        .or_else(|error| throw(cx, Failure::Construction(error.to_string())))
+}
+
 /// One model's table, as JavaScript describes it: its schema, its name, its
-/// columns in field order and its key's columns.
+/// columns in field order, its key's columns and its unique keys.
+// [spec:pgorm:req:bindings.model-unique-keys]
 pub(crate) fn table_of<'cx>(
     cx: &mut FunctionContext<'cx>,
     table: Handle<'cx, JsValue>,
@@ -159,21 +198,23 @@ pub(crate) fn table_of<'cx>(
         .map(|column| column_of(cx, column))
         .collect::<NeonResult<Vec<_>>>()?;
     let key = property(cx, table, "key")?;
-    let Ok(key) = key.downcast::<JsArray, _>(cx) else {
-        return cx.throw_type_error("a described table's key is an array");
+    let key = names(cx, key, "key")?;
+    let unique_keys = property(cx, table, "uniqueKeys")?;
+    let Ok(unique_keys) = unique_keys.downcast::<JsArray, _>(cx) else {
+        return cx.throw_type_error("a described table's unique keys are an array");
     };
-    let key: Vec<String> = key
-        .to_vec(cx)?
-        .into_iter()
-        .map(|column| text(cx, column, "key column"))
-        .collect::<NeonResult<_>>()?;
+    let unique_keys = unique_keys.to_vec(cx)?;
     let table = match schema {
         Some(schema) => TableName::SchemaTable(Name::runtime(schema), Name::runtime(name)),
         None => TableName::Table(Name::runtime(name)),
     };
     let key: Vec<&str> = key.iter().map(String::as_str).collect();
-    DisjointTable::new(table, columns, &key)
-        .or_else(|error| throw(cx, Failure::Construction(error.to_string())))
+    let mut table = DisjointTable::new(table, columns, &key)
+        .or_else(|error| throw(cx, Failure::Construction(error.to_string())))?;
+    for key in unique_keys {
+        table = with_unique_key(cx, table, key)?;
+    }
+    Ok(table)
 }
 
 /// A model's name beside its described table.

@@ -211,7 +211,8 @@ class DescriptionTests(unittest.TestCase):
         self.assertEqual(unreached, [], "declared keys no live description reached")
 
     # [spec:pgorm:req:bindings.surface+2/test]
-    # [spec:pgorm:req:bindings.models+4/test]
+    # [spec:pgorm:req:bindings.models+5/test]
+    # [spec:pgorm:req:bindings.model-unique-keys/test]
     def test_model_description_has_the_declared_keys(self):
         model = p.Model(
             "accounts",
@@ -220,6 +221,7 @@ class DescriptionTests(unittest.TestCase):
                 "mood": p.Column(p.TypeName("mood", schema="app"), nullable=True, values=["calm"]),
             },
             schema="app",
+            unique_keys=[{"fields": ["mood", "id"], "name": "accounts_mood_id"}],
         )
         self.assert_declared("pgorm.Model", [model.describe(), model.as_("a").describe()])
 

@@ -563,6 +563,12 @@ const pages = Account.find().orderBy(Account.col("id").asc()).paginate(50);
   enum's `values`. A declaration of the wrong shape — an unknown option, an
   option of the wrong type — throws a `TypeError` as it is made, and one that
   cannot be used a `ConstructionError`.
+- **Unique keys**: `uniqueKeys: [{ fields: ["realm", "handle"], name,
+  nullsNotDistinct }]` declares the table's unique keys, as an entity's
+  `unique(..)` does, each of one field or several, its `name` and
+  `nullsNotDistinct` optional. A key naming no field, a field the model lacks
+  or one field twice is a `ConstructionError`; `describe()` reports them under
+  `uniqueKeys`, and `createDisjoint` writes them into each model's table.
 - **Records** are checked against the declaration as they decode: the
   result's columns are exactly the ones selected, each of its declared kind —
   an `int8` read into an `i32` field, or another schema's enum, is a
