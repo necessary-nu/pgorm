@@ -32,7 +32,7 @@ use std::fmt;
 /// its pool's statement caches after each
 /// ([`DatabasePool::clear_statement_caches`](crate::DatabasePool::clear_statement_caches)),
 /// as pgorm-migration does after each commit.
-// [spec:pgorm:sem:disjoint.evolve+1]
+// [spec:pgorm:sem:disjoint.evolve+2]
 #[derive(Debug, Clone)]
 pub struct DisjointChange {
     steps: Vec<DisjointStep>,
@@ -52,7 +52,7 @@ impl DisjointChange {
 
 /// One step of a [`DisjointChange`]: statements run in order in one
 /// transaction, and what the program writes once it commits, if anything.
-// [spec:pgorm:sem:disjoint.evolve+1]
+// [spec:pgorm:sem:disjoint.evolve+2]
 #[derive(Debug, Clone)]
 pub struct DisjointStep {
     statements: Vec<DdlStatement>,
@@ -74,7 +74,7 @@ impl DisjointStep {
 
 /// What the program writes between two steps of a [`DisjointChange`]: a row
 /// in a kind's table for every base row of that kind.
-// [spec:pgorm:sem:disjoint.evolve+1]
+// [spec:pgorm:sem:disjoint.evolve+2]
 #[derive(Debug, Clone)]
 pub struct DisjointGap {
     kind: String,
@@ -118,7 +118,7 @@ impl Schema {
     /// # use pgorm::{Schema, tests_cfg::shop::{Shop, ShopKind}};
     /// let _ = Schema::new().add_disjoint_kind::<Shop>(ShopKind::WebShop);
     /// ```
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     pub fn add_disjoint_kind<D: KindedDisjoint>(
         &self,
         kind: D::Kind,
@@ -127,9 +127,9 @@ impl Schema {
     }
 
     /// Add `kind` in one step that recreates the kind type and rewrites the
-    /// base and every kind table: [`DisjointShape::add_kind_recreating`] of
+    /// base and every kind table once: [`DisjointShape::add_kind_recreating`] of
     /// [`DisjointShape::of::<D>`](DisjointShape::of).
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     pub fn add_disjoint_kind_recreating<D: KindedDisjoint>(
         &self,
         kind: D::Kind,
@@ -140,7 +140,7 @@ impl Schema {
     /// Remove `value`, which the database's kind type holds and `D` does not
     /// declare: [`DisjointShape::remove_kind`] of
     /// [`DisjointShape::of::<D>`](DisjointShape::of).
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     pub fn remove_disjoint_kind<D: KindedDisjoint>(
         &self,
         value: &str,
@@ -151,7 +151,7 @@ impl Schema {
     /// Give `kind`, a unit kind in the database, the table `D` declares for
     /// it: [`DisjointShape::add_kind_table`] of
     /// [`DisjointShape::of::<D>`](DisjointShape::of).
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     pub fn add_disjoint_kind_table<D: KindedDisjoint>(
         &self,
         kind: D::Kind,
@@ -162,7 +162,7 @@ impl Schema {
     /// Drop `table`, the table of `kind`, which `D` declares a unit kind:
     /// [`DisjointShape::remove_kind_table`] of
     /// [`DisjointShape::of::<D>`](DisjointShape::of).
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     pub fn remove_disjoint_kind_table<D: KindedDisjoint>(
         &self,
         kind: D::Kind,
@@ -187,7 +187,7 @@ impl DisjointShape {
     /// [`check`](Self::check) runs first and its refusal is this one's, and
     /// a value the shape does not declare is refused as [`Error::Type`]
     /// naming it.
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     pub fn add_kind(&self, value: &str) -> Result<DisjointChange, Error> {
         let evolve = Evolve::of(self)?;
         let (position, kind) = self.kind(value)?;
@@ -213,14 +213,14 @@ impl DisjointShape {
 
     /// Add the kind `value`, which this shape declares and the database's
     /// kind type does not hold yet, in one step that recreates the kind type
-    /// and so rewrites the base and every kind table, holding an exclusive
-    /// lock on each while it runs: the price of one atomic change.
+    /// and so rewrites the base and every kind table once, holding an
+    /// exclusive lock on each while it runs: the price of one atomic change.
     ///
     /// [`check`](Self::check) runs first and its refusal is this one's, and
     /// a value the shape does not declare is refused as [`Error::Type`]
     /// naming it. The step is described at [`remove_kind`](Self::remove_kind),
     /// which takes it too.
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     pub fn add_kind_recreating(&self, value: &str) -> Result<DisjointChange, Error> {
         let evolve = Evolve::of(self)?;
         let (_, kind) = self.kind(value)?;
@@ -239,19 +239,22 @@ impl DisjointShape {
     /// kind (`23514`); the next drops it. Then a new enum of the shape's
     /// values, in order, is created as `{type}_next`; each kind table's kind
     /// column, a generated column PostgreSQL retypes by no `USING`, is
-    /// dropped with its foreign key, and the base's generated key columns,
-    /// their foreign keys and its `UNIQUE` key are dropped; the base's kind
-    /// column loses its default and is retyped `USING` its text; the type it
-    /// replaces is dropped and the new one given its name; and the base's default
-    /// and `UNIQUE` key, each kind table's kind column and foreign key, and the
-    /// base's generated key columns and foreign keys are written again as
-    /// [`create`](Self::create) writes them. A kind losing its table loses
-    /// it through [`remove_kind_table`](Self::remove_kind_table) first: one
-    /// still there keeps the replaced type in use, and the step fails.
+    /// dropped with its foreign key; in one statement, which rewrites the
+    /// base once, the base's generated key columns, their foreign keys and its
+    /// `UNIQUE` key are dropped, its kind column loses its default and is
+    /// retyped `USING` its text, and its generated key columns are written
+    /// again over the new type; the type it replaces is dropped and the new
+    /// one given its name; and the base's default and `UNIQUE` key, each kind
+    /// table's kind column and foreign key, and the base's foreign keys from
+    /// its generated key columns, which reference the kind tables, are
+    /// written again as [`create`](Self::create) writes them. A kind losing
+    /// its table loses it through [`remove_kind_table`](Self::remove_kind_table)
+    /// first: one still there keeps the replaced type in use, and the step
+    /// fails.
     ///
     /// [`check`](Self::check) runs first and its refusal is this one's, and
     /// a value the shape declares is refused as [`Error::Type`] naming it.
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     pub fn remove_kind(&self, value: &str) -> Result<DisjointChange, Error> {
         let evolve = Evolve::of(self)?;
         if self.kind(value).is_ok() {
@@ -290,7 +293,7 @@ impl DisjointShape {
     /// [`check`](Self::check) runs first and its refusal is this one's, and
     /// a value the shape does not declare, or declares without a table, is
     /// refused as [`Error::Type`] naming it.
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     pub fn add_kind_table(&self, value: &str) -> Result<DisjointChange, Error> {
         let evolve = Evolve::of(self)?;
         let (_, kind) = self.kind(value)?;
@@ -332,7 +335,7 @@ impl DisjointShape {
     /// [`check`](Self::check) runs first and its refusal is this one's, and
     /// a value the shape does not declare, or declares with a table, is
     /// refused as [`Error::Type`] naming it.
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     pub fn remove_kind_table(
         &self,
         value: &str,
@@ -374,7 +377,7 @@ impl DisjointStep {
 /// What every change is written against: the base, each kind with a table,
 /// its table and the base's generated key columns and foreign key for it, as
 /// [`DisjointShape::create`] writes them, and the kind type.
-// [spec:pgorm:sem:disjoint.evolve+1]
+// [spec:pgorm:sem:disjoint.evolve+2]
 struct Evolve<'s> {
     shape: &'s DisjointShape,
     base: BaseTable,
@@ -457,7 +460,7 @@ impl<'s> Evolve<'s> {
     /// The statements recreating the kind type with the shape's values in
     /// order, as [`DisjointShape::remove_kind`] describes them, the kind
     /// `added` new among them, with its table where it has one.
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     fn recreate(&self, added: Option<&str>) -> Vec<DdlStatement> {
         let base = &self.base;
         let kind = || Name::runtime(base.kind.clone());
@@ -501,6 +504,12 @@ impl<'s> Evolve<'s> {
                 .cast_as(Name::runtime("text"))
                 .cast_as_type(next_name),
         );
+        // Retyping the kind column and adding a STORED column each rewrite the
+        // base; in one statement PostgreSQL rewrites it once. The columns'
+        // expressions take the new type, which the rename below keeps.
+        for column in self.tables.iter().flat_map(|(_, keys)| &keys.columns) {
+            retype.add_column(column.clone());
+        }
         statements.push(DdlStatement::AlterTable(retype));
         statements.push(DdlStatement::DropType(
             Type::drop(self.kind_type.type_ref(&self.kind_type.name)).to_owned(),
@@ -526,10 +535,14 @@ impl<'s> Evolve<'s> {
         if let Some((table, _)) = added.and_then(|value| self.table_of(value)) {
             statements.push(DdlStatement::CreateTable(table.create.clone()));
         }
-        statements.extend(
-            base.alter(self.tables.iter().map(|(_, keys)| keys), false)
-                .map(DdlStatement::AlterTable),
-        );
+        let mut foreign_keys = self.tables.iter().map(|(_, keys)| keys.foreign_key.clone());
+        if let Some(first) = foreign_keys.next() {
+            let mut keyed = Table::alter(base.table.clone()).add_foreign_key(first);
+            for foreign_key in foreign_keys {
+                keyed.add_foreign_key(foreign_key);
+            }
+            statements.push(DdlStatement::AlterTable(keyed));
+        }
         statements
     }
 }
