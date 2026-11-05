@@ -3280,6 +3280,39 @@ fn untyped_columns_compare_as_the_named_type() {
     );
 }
 
+// [spec:pgorm:def:sql.value.created-range+6/test]    a bound built-in range
+// or multirange compared under a column's cast goes through its text: pinned
+// to its own type, then cast to text and to the column's, by a comparison on
+// either side and by in_array, while one compared bare stays a placeholder
+#[test]
+fn bound_ranges_compare_through_their_text() {
+    use pgorm_query::{Multirange, Range};
+
+    let (sql, values) = Pipeline::from(alias("booking"))
+        .filter_with(|binder| {
+            let slot = || col(alias("booking"), alias("slot")).compares_as(alias("slot"));
+            let range = binder.bind(Range::from(1..5));
+            slot()
+                .eq(range.clone())
+                .or(binder.bind(Range::from(7..9)).lt(slot()))
+                .or(slot().in_array([binder.bind(Range::from(2..3))]))
+                .or(col(alias("booking"), alias("seats")).eq(range))
+                .or(col(alias("booking"), alias("slots"))
+                    .compares_as(alias("slots"))
+                    .eq(binder.bind(Multirange::from_iter([Range::from(1..2)]))))
+        })
+        .into_sql()
+        .expect("pipeline compiles");
+    assert_eq!(
+        sql,
+        "SELECT * FROM booking WHERE CAST(slot AS slot) = CAST($1::int4range::text AS slot) \
+         OR CAST($2::int4range::text AS slot) < CAST(slot AS slot) \
+         OR CAST(slot AS slot) IN (CAST($3::int4range::text AS slot)) OR seats = $1 \
+         OR CAST(slots AS slots) = CAST($4::int4multirange::text AS slots)"
+    );
+    assert_eq!(values.0.len(), 4);
+}
+
 /// A till whose `takings` are `money`, with an array of them, a `state` of
 /// the enum `till_state`, and a `code` written through a `save_as` cast.
 mod till {

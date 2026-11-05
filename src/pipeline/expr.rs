@@ -325,13 +325,15 @@ pub trait ExprOps<'brand>: Into<Expr<'brand>> + Sized {
     /// as the type the server gives it, and a value compared with it as the
     /// value's own: PostgreSQL resolves no operator for a domain over an enum,
     /// not even against its own values, nor one between `money` and the
-    /// `numeric` a `Decimal` binds as (`42883`). This names the type such a
-    /// column compares as — the enum a domain is over, `money` — qualified
-    /// by its schema where the type is ([`TypeName::schema`]). The cast of a
-    /// column that already is the type costs nothing: the server drops a cast
-    /// to an expression's own type. A relation read under a name keeps its
-    /// entity's types through [`Named::col`](super::Named::col), which needs
-    /// no naming.
+    /// `numeric` a `Decimal` binds as (`42883`), and no range type a schema
+    /// created reads a built-in range but through its text, which a bound one
+    /// compared with the column is written as. This names the type such a
+    /// column compares as — the enum a domain is over, `money`, the created
+    /// range — qualified by its schema where the type is
+    /// ([`TypeName::schema`]). The cast of a column that already is the type
+    /// costs nothing: the server drops a cast to an expression's own type. A
+    /// relation read under a name keeps its entity's types through
+    /// [`Named::col`](super::Named::col), which needs no naming.
     ///
     /// ```
     /// use pgorm::pipeline::{ExprOps, Pipeline, alias, col};

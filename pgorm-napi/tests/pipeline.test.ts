@@ -16,6 +16,7 @@ import {
   LifecycleError,
   pipeline as pl,
   Pool,
+  Range,
   Table,
   TypeName,
   Value,
@@ -52,6 +53,9 @@ before(async () => {
       "INSERT INTO app.lines VALUES (1, 'calm'), (2, 'glad'), (3, 'calm'), (4, 'glad')",
       "CREATE TABLE app.tills (id int8 PRIMARY KEY, takings money NOT NULL)",
       "INSERT INTO app.tills VALUES (1, 12.35), (2, 3)",
+      "CREATE TYPE app.slot AS RANGE (subtype = int4)",
+      "CREATE TABLE app.bookings (id int8 PRIMARY KEY, seats app.slot NOT NULL)",
+      "INSERT INTO app.bookings VALUES (1, '[1,5)'), (2, '[7,9)')",
     ]
   ) {
     await pool().execute(sql);
@@ -162,6 +166,20 @@ test("a money column compares with a Decimal as the money it is named as", async
   assert.deepStrictEqual(await ids(tills.filterWith((binder) => takings.lte(binder.bind(new Decimal("3"))))), [2n]);
   assert.deepStrictEqual(await ids(tills.filter(takings.inArray([new Decimal("3"), new Decimal("12.35")]))), [1n, 2n]);
   await assert.rejects(ids(tills.filter(pl.col("tills", "takings").gt(new Decimal("5")))), ConstructionError);
+});
+
+// [spec:pgorm:req:bindings.pipeline-expressions+3/test]    a built-in range bound in a pipeline and
+// compared with a created range's column, which comparesAs names, is written through its text
+test("a built-in range compared with a created range's column binds through its text", async () => {
+  const bookings = pl.from(new Table("bookings", { schema: "app" }));
+  const bookingId = pl.col("bookings", "id");
+  const seats = pl.col("bookings", "seats").comparesAs(new TypeName("slot", { schema: "app" }));
+  const range = new Value(new Range(1, 5), "int4range");
+  assert.equal(
+    bookings.filter(seats.eq(range)).inspect().sql,
+    "SELECT * FROM app.bookings WHERE CAST(seats AS app.slot) = CAST($1::int4range::text AS app.slot)",
+  );
+  assert.deepStrictEqual((await pool().query(bookings.filter(seats.eq(range)).select(bookingId))).map((row) => row.id), [1n]);
 });
 
 // [spec:pgorm:req:bindings.pipeline-expressions+3/test]

@@ -558,7 +558,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// newtype's `FromStr` parses. A `money` column is read as `numeric`
     /// ([`money_type_name`]).
     // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
-    // [spec:pgorm:def:sql.value.created-range+5]
+    // [spec:pgorm:def:sql.value.created-range+6]
     // [spec:pgorm:req:sql.ast.cast-shape+2]
     fn select_enum_as(&self, expr: Expr) -> SimpleExpr {
         select_cast(self.def().get_column_type(), expr)
@@ -610,7 +610,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// type by name, there being no cast to it from a built-in range type. A
     /// `money` column's value is cast to its `money` ([`money_type_name`]).
     // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
-    // [spec:pgorm:def:sql.value.created-range+5]
+    // [spec:pgorm:def:sql.value.created-range+6]
     // [spec:pgorm:req:sql.ast.cast-shape+2]
     fn save_enum_as(&self, val: Expr) -> SimpleExpr {
         save_cast(self.def().get_column_type(), val)
@@ -623,7 +623,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
 /// as it is. A column described only at run time, as a disjoint shape's is,
 /// is read by this alone.
 // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
-// [spec:pgorm:def:sql.value.created-range+5]
+// [spec:pgorm:def:sql.value.created-range+6]
 // [spec:pgorm:req:sql.ast.cast-shape+2]
 pub(crate) fn select_cast(col_type: &ColumnType, expr: Expr) -> SimpleExpr {
     if let ColumnType::CreatedMultirange { .. } = under_domains(col_type) {
@@ -645,7 +645,7 @@ pub(crate) fn select_cast(col_type: &ColumnType, expr: Expr) -> SimpleExpr {
 /// `col_type`: cast to the column's enum, `money` or created range, and
 /// anything else as it is.
 // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
-// [spec:pgorm:def:sql.value.created-range+5]
+// [spec:pgorm:def:sql.value.created-range+6]
 // [spec:pgorm:req:sql.ast.cast-shape+2]
 pub(crate) fn save_cast(col_type: &ColumnType, val: Expr) -> SimpleExpr {
     if let Some(money) = money_type_name(col_type) {

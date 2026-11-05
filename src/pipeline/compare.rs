@@ -26,6 +26,14 @@ pub(super) enum Operand {
     /// type from the cast's target, so the placeholder is pinned to its own,
     /// as `sql.render.cast-param-type` pins a statement's.
     Bound(Option<Cow<'static, str>>),
+    /// A bound built-in range or multirange, with the type it binds as. Cast
+    /// to a column's type it goes through its text, the one form every range
+    /// type reads: PostgreSQL has no cast from a built-in range to a range
+    /// type a schema created (`42846`), so `Expr::as_range` writes the value
+    /// as its text, and the pipeline, which mints the placeholder before the
+    /// comparison that casts it, has the server write it.
+    // [spec:pgorm:def:sql.value.created-range+6]
+    BoundRange(Cow<'static, str>),
 }
 
 pub(super) fn operand<'brand>(node: PlExpr, operand: Operand) -> Expr<'brand> {
@@ -56,6 +64,9 @@ impl Expr<'_> {
         match (self.operand, values_as) {
             (Operand::Literal, Some(cast)) => typed_cast(self.node, cast),
             (Operand::Bound(pin), Some(cast)) => pinned_cast(self.node, pin.as_deref(), cast),
+            (Operand::BoundRange(pin), Some(cast)) => {
+                pinned_cast(self.node, Some(&format!("{pin}::text")), cast)
+            }
             (operand, _) => Expr { operand, ..self }.compared(),
         }
     }

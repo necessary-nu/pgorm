@@ -378,6 +378,9 @@ class PipelineDomainEnums(unittest.IsolatedAsyncioTestCase):
             "INSERT INTO pipeline_enums.lines VALUES (1, 'calm'), (2, 'glad'), (3, 'calm'), (4, 'glad')",
             "CREATE TABLE pipeline_enums.tills (id integer PRIMARY KEY, takings money NOT NULL)",
             "INSERT INTO pipeline_enums.tills VALUES (1, 12.35), (2, 3)",
+            "CREATE TYPE pipeline_enums.slot AS RANGE (SUBTYPE = int4)",
+            "CREATE TABLE pipeline_enums.spans (id integer PRIMARY KEY, span pipeline_enums.slot NOT NULL)",
+            "INSERT INTO pipeline_enums.spans VALUES (1, '[1,5)'), (2, '[7,9)')",
         ):
             await self.connection.execute(p.RawSQL(statement))
 
@@ -461,6 +464,20 @@ class PipelineDomainEnums(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await ids(base.filter(takings.in_array([Decimal("3"), Decimal("12.35")]))), [1, 2])
         with self.assertRaises(p.ConstructionError):
             await ids(base.filter(pl.col("tills", "takings") > Decimal("5")))
+
+    # [spec:pgorm:req:bindings.pipeline-expressions+3/test]    a built-in range bound in a pipeline
+    # and compared with a created range's column, which compares_as names, is written through its text
+    async def test_created_range_reads_bound_range_as_text(self):
+        span = pl.col("spans", "span").compares_as(p.TypeName("slot", schema="pipeline_enums"))
+        query = (pl.from_(p.Table("spans", schema="pipeline_enums"))
+                 .filter(span == p.Value(p.Range(1, 5), "int4range"))
+                 .select(pl.col("spans", "id")))
+        self.assertEqual(
+            query.inspect().sql,
+            "SELECT id FROM pipeline_enums.spans WHERE CAST(span AS pipeline_enums.slot) "
+            "= CAST($1::int4range::text AS pipeline_enums.slot)",
+        )
+        self.assertEqual([row["id"] for row in await query.all(self.connection)], [1])
 
 
 if __name__ == "__main__":

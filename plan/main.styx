@@ -17261,12 +17261,27 @@ children (
                 id pipeline-created-range-bind
                 title "A bound Range compared with a created-range column in a pipeline binds under the created type"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:32.280341Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by money-beyond-entities (pre-existing, fails before that change too): in a pipeline, a bound Range compared with a column of a range type the schema created is pinned to its built-in range type, which doesn't cast to the created type, so the comparison fails. ColumnTrait avoids this by writing the value as text under the created type's cast; the pipeline should bind the same way."
+                    }
+
+                    {
+                        at 2026-11-04T23:56:07.113885Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:16:27.994273Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
