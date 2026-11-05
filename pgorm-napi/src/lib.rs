@@ -18,6 +18,7 @@ mod one_of;
 mod params;
 #[cfg(debug_assertions)]
 mod probes;
+mod raw;
 mod rows;
 mod runtime;
 mod settle;
@@ -58,6 +59,7 @@ pub fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<()> {
     disjoint::export(cx)?;
     migration_file::export(cx)?;
     one_of::export(cx)?;
+    raw::export(cx)?;
     #[cfg(debug_assertions)]
     probes::export(cx)?;
     let version = cx.string(env!("CARGO_PKG_VERSION"));

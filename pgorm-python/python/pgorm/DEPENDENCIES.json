@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Locked Cargo graph, including build and platform-conditional dependencies; a superset of any one wheel",
-  "cargo_lock_sha256": "8477f26d0235abf28036c712200a36fcabf3e034f26472d020a54c2b946ee444",
+  "cargo_lock_sha256": "1d40b48c0abe5c8d902a3959fd71d0dd1c5217ba4770834602a1093efdcb805c",
   "python_runtime_dependencies": [],
   "packages": [
     {
@@ -2694,6 +2694,23 @@
     },
     {
       "name": "pgorm-query-derive-internals",
+      "version": "0.2.0",
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/necessary-nu/pgorm",
+      "source": "pgorm workspace",
+      "notices": [
+        {
+          "source": "LICENSE-APACHE",
+          "sha256": "769f80b5bcb42ed0af4e4d2fd74e1ac9bf843cb80c5a29219d1ef3544428a6bb"
+        },
+        {
+          "source": "LICENSE-MIT",
+          "sha256": "105fba85b65585b4f8ff4d405f8cfbd297f3a4cdab21643e117bc5dc9baa9072"
+        }
+      ]
+    },
+    {
+      "name": "pgorm-sql-check",
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/necessary-nu/pgorm",

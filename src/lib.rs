@@ -209,8 +209,32 @@ pub use pgorm_sql_macro::sql;
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:macros.prql]
+// [spec:pgorm:def:macros.prql+1]
 pub use pgorm_sql_macro::prql;
+
+/// The checks behind [`sql!`](crate::sql) and [`prql!`](crate::prql), run on
+/// text at run time: [`check_sql`](sql_check::check_sql) holds SQL to
+/// PostgreSQL 18's grammar, and [`compile_prql`](sql_check::compile_prql)
+/// compiles PRQL to SQL the grammar accepts and counts its placeholders. The
+/// macros run the same code while a crate compiles, so a refusal reads the
+/// same either way. They are for text a program has only once it runs, such
+/// as a statement read from a file, and for the language bindings, which have
+/// no compile step.
+///
+/// ```
+/// use pgorm::sql_check::{check_sql, compile_prql};
+///
+/// assert!(check_sql("SELECT name FROM cake WHERE id = $1").is_ok());
+/// let refused = check_sql("SELEC name FROM cake").unwrap_err();
+/// assert_eq!(refused.token(), Some("SELEC"));
+///
+/// let compiled = compile_prql("from cake | filter price < $1 | select {name}")?;
+/// assert_eq!(compiled.sql(), "SELECT name FROM cake WHERE price < $1");
+/// assert_eq!(compiled.placeholders(), 1);
+/// # Ok::<(), pgorm::sql_check::PrqlRejection>(())
+/// ```
+// [spec:pgorm:req:macros.runtime]
+pub use pgorm_sql_check as sql_check;
 
 pub use pgorm_query;
 pub use pgorm_query::{AliasName, Values, alias};

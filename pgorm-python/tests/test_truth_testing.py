@@ -33,7 +33,7 @@ EXEMPT = {
     # open resource is. The streams themselves refuse, since a stream's truth
     # would say nothing of whether rows remain.
     p.Pool, p.Connection, p.Transaction,
-    _native._Pool, _native._Connection, _native._Transaction, _native._Stream,
+    _native._Pool, _native._Connection, _native._Transaction, _native._Retrying, _native._Stream,
     _native._CopyIn, _native._CopyOut, _native._Listener, _native._Disjoint,
     _native._DisjointChange,
     # Registrations and declarations: they name what a query reads and are
@@ -64,7 +64,7 @@ BUILT_ELSEWHERE = {
     views.QueryView, graph_views.GraphQueryView, graph_views.GraphCursorView,
     version_views.UpdateView, version_views.UpdateManyView, version_views._InsertView,
     version_views.InsertView, version_views.InsertManyView, p.Notification, p.Listener, p.RowStream,
-    p.CopyOutStream, p.CopyRowStream,
+    p.CopyOutStream, p.CopyRowStream, p.EntityRawQuery, views.RawQueryView,
 }
 
 # Bases the model writes share and no program builds: every write refuses
@@ -144,6 +144,7 @@ def other_samples():
         model.col("id"), model.find(), model.delete(), model.insert({"id": 1}), model.insert_many([]),
         model.update({"id": 2}), model.insert({"id": 1}).returning("id"),
         model.graph(), model.find().cursor("id"), model.find().paginate(2),
+        model.find_by_statement(p.RawSQL("SELECT 1")), p.from_statement(p.RawSQL("SELECT 1")),
         *disjoint_samples(),
     ]
 

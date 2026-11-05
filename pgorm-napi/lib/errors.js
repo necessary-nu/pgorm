@@ -5,16 +5,60 @@
 // [spec:pgorm:req:napi.errors+3]
 
 /** The base class of every error pgorm-napi rejects with. */
-export class PgormError extends Error {}
+export class PgormError extends Error {
+  /**
+   * Whether the transaction this failure ended is worth running again, as
+   * pgorm's `Error::is_retryable` answers: a serialization failure or a
+   * deadlock. Only a `DatabaseError` can be.
+   * [spec:pgorm:req:bindings.transaction-retry]
+   */
+  get isRetryable() {
+    return false;
+  }
+}
 
 /** The server could not be reached, or the connection to it broke. */
 export class ConnectionError extends PgormError {}
 
-/** An argument could not become the value pgorm sends. */
-export class ConstructionError extends PgormError {}
+/**
+ * An argument could not become the value pgorm sends. One the driver
+ * refused as it encoded a parameter, pgorm's `BindRefusal`, says which
+ * `$N` it was and why; any other has neither.
+ * [spec:pgorm:req:bindings.refusal-fields]
+ */
+export class ConstructionError extends PgormError {
+  /**
+   * @param {string} message
+   * @param {{ parameter?: number, reason?: string | null }} [details]
+   */
+  constructor(message, details = {}) {
+    super(message);
+    /** @type {number | null} */
+    this.parameter = details.parameter ?? null;
+    /** @type {string | null} */
+    this.reason = details.reason ?? null;
+  }
+}
 
-/** A result could not be decoded into the JavaScript value asked for. */
-export class DecodeError extends PgormError {}
+/**
+ * A result could not be decoded into the JavaScript value asked for. One the
+ * driver could not read, pgorm's `DecodeRefusal`, says what it was reading
+ * and why; any other has neither.
+ * [spec:pgorm:req:bindings.refusal-fields]
+ */
+export class DecodeError extends PgormError {
+  /**
+   * @param {string} message
+   * @param {{ reading?: string, reason?: string | null }} [details]
+   */
+  constructor(message, details = {}) {
+    super(message);
+    /** @type {string | null} */
+    this.reading = details.reading ?? null;
+    /** @type {string | null} */
+    this.reason = details.reason ?? null;
+  }
+}
 
 /** pgorm or the binding failed in a way no input should cause. */
 export class InternalError extends PgormError {}
@@ -42,6 +86,14 @@ export class DatabaseError extends PgormError {
     this.column = details.column;
     this.datatype = details.datatype;
     this.constraint = details.constraint;
+    this.#retryable = details.isRetryable === true;
+  }
+
+  #retryable;
+
+  /** @override */
+  get isRetryable() {
+    return this.#retryable;
   }
 }
 

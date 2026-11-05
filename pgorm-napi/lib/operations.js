@@ -142,6 +142,7 @@ export async function scoped(handle, transaction, use) {
  * @param {unknown} error
  * @returns {Promise<unknown>}
  */
+// [spec:pgorm:req:bindings.rollback-failed]
 async function rolledBack(handle, error) {
   if (!native.transactionClosed(handle)) {
     try {

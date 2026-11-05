@@ -449,7 +449,9 @@ test("records stream from a pool or a connection, and a transaction has no strea
     assert.deepStrictEqual(first, [{ name: "Ann" }]);
   });
   await pool().transaction(async (transaction) => {
-    assert.throws(() => Account.find().stream(transaction as never), TypeError);
+    const inside = [];
+    for await (const record of Account.select("id").orderBy(byId).stream(transaction)) inside.push(record.id);
+    assert.deepStrictEqual(inside, [1n, 2n, 3n]);
     assert.equal(await Account.find().count(transaction), 3);
   });
   await pool().execute("UPDATE app.account SET mood = 'wild' WHERE id = 3");
@@ -510,7 +512,7 @@ test("a delete removes the rows its condition matches and returns what it remove
 });
 
 // [spec:pgorm:req:bindings.model-writes+2/test]
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+1/test]
 test("a model's writes run in a transaction and roll back with it", async () => {
   await assert.rejects(
     pool().transaction(async (transaction) => {

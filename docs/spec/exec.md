@@ -335,6 +335,18 @@ These rules capture what the code does today, including known gaps.
 > refuses to prepare at all fails as `Error::Postgres` before any column is
 > compared.
 
+> [spec:pgorm:def:exec.verify.describe]
+> `VerifyStatement::describe(sql)` prepares `sql` as `verify` does, through
+> `prepare` and not `prepare_cached`, and gives the result columns the
+> server describes, in order, each a `DescribedColumn` holding its name and
+> its PostgreSQL type, without running the statement. It is the description
+> `verify` checks a target against, offered for a decode target whose
+> columns are known only at run time: a language binding's declared model
+> checks its fields against it with the same test its row decode applies
+> (`bindings.verify`). A statement the server refuses to prepare is its
+> `Error::Postgres`, and a statement returning no rows, such as an `UPDATE`
+> without `RETURNING`, describes no columns.
+
 > [spec:pgorm:sem:exec.verify.accepts+1]
 > `TryGetable::accepts(ty)` answers whether a column of PostgreSQL type
 > `ty` can be decoded into the implementing Rust type. Every built-in impl

@@ -68,7 +68,7 @@ export declare class Graph<S extends readonly Model<any>[], I extends readonly u
   all(db: Queryable, options?: OperationOptions): Promise<GraphItem<I>[]>;
   one(db: Queryable, options?: OperationOptions): Promise<GraphItem<I>>;
   optional(db: Queryable, options?: OperationOptions): Promise<GraphItem<I> | null>;
-  stream(db: Pool | Connection, options?: OperationOptions): RowStream<GraphItem<I>>;
+  stream(db: Queryable, options?: OperationOptions): RowStream<GraphItem<I>>;
   /**
    * Each root with the records its one slot holds for it, the root's
    * primary key ordered behind the graph's ordering and the rows grouped by

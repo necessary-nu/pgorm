@@ -308,8 +308,8 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         async with await Account.find().order_by(by_account).stream(self.pool) as rows:
             self.assertEqual([row["name"] async for row in rows], ["Ann", "Bob", "Cy"])
         async with self.pool.transaction() as transaction:
-            with self.assertRaises(TypeError):
-                await Account.find().stream(transaction)
+            async with await Account.find().order_by(by_account).stream(transaction) as rows:
+                self.assertEqual([row["name"] async for row in rows], ["Ann", "Bob", "Cy"])
 
     # [spec:pgorm:req:bindings.model-writes+2/test]
     async def test_writes_read_each_rows_two_versions(self):

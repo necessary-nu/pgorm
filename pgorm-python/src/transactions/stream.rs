@@ -1,0 +1,82 @@
+//! A stream of a statement's rows inside a transaction: the scope task owning
+//! the borrowed transaction opens it, and the stream holds the transaction's
+//! reservation until its last row.
+
+use super::{State, copy::Lease, scope::Command, state::Pending};
+use crate::{
+    errors::{LifecycleError, database_error},
+    expressions::Compiled,
+};
+use pgorm::{ConnectionTrait, DatabaseTransaction, Error, ValueHolder};
+use pyo3::prelude::*;
+use std::sync::Arc;
+use tokio::sync::oneshot;
+use tokio_postgres::{RowStream, types::ToSql};
+use tokio_util::sync::CancellationToken;
+
+impl State {
+    /// Reserve the transaction and have its owner open `compiled`'s rows.
+    /// A statement the server refuses leaves the transaction as any failed
+    /// statement does.
+    // [spec:pgorm:req:bindings.streams+1]
+    pub(crate) async fn stream(
+        self: &Arc<Self>,
+        compiled: Compiled,
+    ) -> PyResult<(Lease, RowStream)> {
+        self.ensure_open()?;
+        let busy = self.busy.clone().try_lock_owned().map_err(|_| {
+            LifecycleError::new_err("transaction has an active operation or nested savepoint")
+        })?;
+        let (opened, open) = oneshot::channel();
+        let mut pending = Pending::new(self.root.aborted.clone());
+        self.commands
+            .send(Command::Stream { compiled, opened })
+            .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
+        let result = open
+            .await
+            .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
+        match result {
+            Ok(rows) => Ok((Lease::new(busy, pending), rows)),
+            Err(error) => {
+                pending.complete();
+                Err(database_error(error, &self.connection.pool.secrets))
+            }
+        }
+    }
+
+    /// A token that fires once this transaction or savepoint has ended, by
+    /// any route.
+    pub(crate) fn ended(&self) -> CancellationToken {
+        let ended = CancellationToken::new();
+        let fire = ended.clone();
+        let (aborted, finished, abandoned, own) = (
+            self.root.aborted.clone(),
+            self.root.finished.clone(),
+            self.abandoned.clone(),
+            self.finished.clone(),
+        );
+        tokio::spawn(async move {
+            tokio::select! {
+                _ = aborted.cancelled() => (),
+                _ = finished.cancelled() => (),
+                _ = abandoned.cancelled() => (),
+                _ = own.cancelled() => (),
+            }
+            fire.cancel();
+        });
+        ended
+    }
+}
+
+/// Open `compiled`'s rows on the owner's transaction.
+pub(super) async fn open(
+    tx: &DatabaseTransaction<'_>,
+    compiled: Compiled,
+) -> Result<RowStream, Error> {
+    let values: Vec<_> = compiled.values.0.into_iter().map(ValueHolder).collect();
+    tx.query_raw(
+        &compiled.sql,
+        values.iter().map(|value| value as &(dyn ToSql + Sync)),
+    )
+    .await
+}

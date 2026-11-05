@@ -137,7 +137,9 @@ function imported(imports: readonly string[]): Set<string> {
 function code(body: string): string {
   return body
     .replace(/\/\/[^\n]*/g, "")
-    .replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\$]|\\.|\$(?!\{))*`/g, '""');
+    // A template literal is text, an interpolation in it of no braces of its
+    // own included, so a tagged template's `${..}` does not end it early.
+    .replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\$]|\\.|\$(?!\{)|\$\{[^{}`]*\})*`/g, '""');
 }
 
 function names(body: string, name: string): boolean {

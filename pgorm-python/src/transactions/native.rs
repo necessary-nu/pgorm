@@ -102,8 +102,30 @@ impl NativeTransaction {
         self.state.check(py)?;
         let state = self.state.clone();
         future_into_py(py, async move {
-            match state.request(None, commit).await? {
+            match state.request(None, commit, false).await? {
                 Output::Finished => Ok(()),
+                _ => Err(InternalError::new_err("unexpected transaction completion")),
+            }
+        })
+    }
+
+    /// End one attempt of a retrying transaction, committing it or rolling
+    /// it back, `retryable` saying whether the failure that ended the block
+    /// is one to run it again after: `True` once pgorm has opened the next
+    /// attempt, `False` once the transaction has ended.
+    // [spec:pgorm:req:bindings.transaction-retry]
+    fn finish_attempt<'py>(
+        &self,
+        py: Python<'py>,
+        commit: bool,
+        retryable: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.state.check(py)?;
+        let state = self.state.clone();
+        future_into_py(py, async move {
+            match state.request(None, commit, retryable).await? {
+                Output::Retrying => Ok(true),
+                Output::Finished => Ok(false),
                 _ => Err(InternalError::new_err("unexpected transaction completion")),
             }
         })
@@ -136,6 +158,24 @@ impl NativeTransaction {
         )
     }
 
+    /// A stream of `query`'s rows, each a `Record`, or what `decoder`, a
+    /// disjoint read's, decodes it as, reserving this transaction until its
+    /// last row.
+    #[pyo3(signature = (query, decoder=None))]
+    fn stream<'py>(
+        &self,
+        py: Python<'py>,
+        query: &Bound<'_, PyAny>,
+        decoder: Option<PyRef<'_, crate::disjoint::NativeDisjoint>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        results::open(
+            py,
+            results::Source::Transaction(self.state.clone()),
+            query,
+            decoder.map(|decoder| decoder.row_decode()),
+        )
+    }
+
     fn notify<'py>(
         &self,
         py: Python<'py>,
@@ -154,5 +194,44 @@ impl NativeTransaction {
 impl Drop for NativeTransaction {
     fn drop(&mut self) {
         self.state.abandoned.cancel();
+    }
+}
+
+/// A transaction pgorm runs again from `BEGIN` while it fails retryably,
+/// handing Python each attempt's frame in turn.
+#[pyclass(name = "_Retrying", module = "pgorm._native", frozen)]
+pub(crate) struct NativeRetrying {
+    pub(crate) inner: Arc<super::retry::Retrying>,
+}
+
+impl fmt::Debug for NativeRetrying {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NativeRetrying").finish_non_exhaustive()
+    }
+}
+
+#[pymethods]
+impl NativeRetrying {
+    /// The next attempt's transaction, once pgorm has opened it.
+    fn attempt<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.inner.connection().pool.check_owner(py)?;
+        let inner = self.inner.clone();
+        future_into_py(py, async move {
+            Ok(NativeTransaction {
+                state: inner.attempt().await?,
+            })
+        })
+    }
+
+    fn abort(&self, py: Python<'_>) -> PyResult<()> {
+        self.inner.connection().pool.check_owner(py)?;
+        self.inner.abort();
+        Ok(())
+    }
+}
+
+impl Drop for NativeRetrying {
+    fn drop(&mut self) {
+        self.inner.abort();
     }
 }

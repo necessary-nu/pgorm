@@ -2,32 +2,38 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { call, col, select, Table, With } from "@necessary/pgorm";
+import { col, ConstructionError, Decimal, deleteFrom, Table, update } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
   const cake = new Table("cake");
-  const sold = new Table("sold");
-  const query = select(cake.col("name"), sold.col("units"))
-    .from(cake)
-    .join(sold, cake.col("id").eq(sold.col("cake_id")))
-    .orderBy(cake.col("name").asc())
-    .with(new With(
-      "sold",
-      select(col("cake_id"), call("sum", col("quantity")).as("units")).from(new Table("order_line")).groupBy(col("cake_id")),
-    ));
+  const bakery = new Table("bakery");
 
+  // Every cake sold in Bergen goes up by fifty cents.
+  const raise = update(cake)
+    .set("price", cake.col("price").add(new Decimal("0.50")))
+    .from(bakery)
+    .where(cake.col("bakery_id").eq(bakery.col("id")))
+    .where(bakery.col("city").eq("Bergen"));
   assert.equal(
-    query.inspect().sql,
-    [
-      `WITH "sold" AS (SELECT "cake_id", SUM("quantity") AS "units" FROM "order_line" GROUP BY "cake_id")`,
-      `SELECT "cake"."name", "sold"."units" FROM "cake"`,
-      `INNER JOIN "sold" ON "cake"."id" = "sold"."cake_id" ORDER BY "cake"."name" ASC`,
-    ].join(" "),
+    raise.inspect().sql,
+    `UPDATE "cake" SET "price" = "cake"."price" + $1 FROM "bakery" WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2`,
   );
-  assert.deepEqual(await pool.query(query), [
-    { name: "Carrot Cake", units: 1n },
-    { name: "Chocolate Fudge", units: 2n },
-    { name: "Lemon Drizzle", units: 1n },
-  ]);
+  assert.equal(await pool.execute(raise), 2);
+
+  // Lee's order lines go.
+  const orderLine = new Table("order_line");
+  const order = new Table("order");
+  const forget = deleteFrom(orderLine)
+    .using(order)
+    .where(orderLine.col("order_id").eq(order.col("id")))
+    .where(order.col("customer_id").eq(2));
+  assert.equal(
+    forget.inspect().sql,
+    `DELETE FROM "order_line" USING "order" WHERE "order_line"."order_id" = "order"."id" AND "order"."customer_id" = $1`,
+  );
+  assert.equal(await pool.execute(forget), 1);
+
+  // A delete that says nothing of which rows is refused.
+  assert.throws(() => deleteFrom(orderLine).inspect(), ConstructionError);
 }

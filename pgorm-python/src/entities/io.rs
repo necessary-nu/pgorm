@@ -17,14 +17,25 @@ pub(crate) fn select<'py>(
     query: Select,
     terminal: Terminal,
 ) -> PyResult<Bound<'py, PyAny>> {
-    let target = Executor::extract(py, connection)?;
     if query.compile(terminal).1.0.len() > 65535 {
         return Err(ConstructionError::new_err(
             "PostgreSQL supports at most 65535 query parameters",
         ));
     }
+    models(py, connection, Work::Entity(query, terminal), terminal)
+}
+
+/// The models `work`, a read of a registration's, gives on `connection`: a
+/// list for `all`, and one or `None` otherwise.
+pub(crate) fn models<'py>(
+    py: Python<'py>,
+    connection: &Bound<'_, PyAny>,
+    work: Work,
+    terminal: Terminal,
+) -> PyResult<Bound<'py, PyAny>> {
+    let target = Executor::extract(py, connection)?;
     future_into_py(py, async move {
-        let Output::Models(models) = target.run(Work::Entity(query, terminal)).await? else {
+        let Output::Models(models) = target.run(work).await? else {
             return Err(InternalError::new_err("unexpected entity result"));
         };
         Python::attach(|py| {

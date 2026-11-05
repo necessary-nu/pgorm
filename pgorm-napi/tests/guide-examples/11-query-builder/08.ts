@@ -2,38 +2,32 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { col, ConstructionError, Decimal, deleteFrom, Table, update } from "@necessary/pgorm";
+import { col, Conflict, ConstructionError, insert, Table } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const cake = new Table("cake");
-  const bakery = new Table("bakery");
+  const customer = new Table("customer");
+  const signUp = (name: string, email: string) =>
+    insert(customer)
+      .columns("name", "email")
+      .values(name, email)
+      .onConflict(Conflict.on("email").update("name"))
+      .returning([col("id")]);
 
-  // Every cake sold in Bergen goes up by fifty cents.
-  const raise = update(cake)
-    .set("price", cake.col("price").add(new Decimal("0.50")))
-    .from(bakery)
-    .where(cake.col("bakery_id").eq(bakery.col("id")))
-    .where(bakery.col("city").eq("Bergen"));
   assert.equal(
-    raise.inspect().sql,
-    `UPDATE "cake" SET "price" = "cake"."price" + $1 FROM "bakery" WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2`,
+    signUp("Kimberly", "kim@example.com").inspect().sql,
+    `INSERT INTO "customer" ("name", "email") VALUES ($1, $2) ON CONFLICT ("email") DO UPDATE SET "name" = "excluded"."name" RETURNING "id"`,
   );
-  assert.equal(await pool.execute(raise), 2);
 
-  // Lee's order lines go.
-  const orderLine = new Table("order_line");
-  const order = new Table("order");
-  const forget = deleteFrom(orderLine)
-    .using(order)
-    .where(orderLine.col("order_id").eq(order.col("id")))
-    .where(order.col("customer_id").eq(2));
-  assert.equal(
-    forget.inspect().sql,
-    `DELETE FROM "order_line" USING "order" WHERE "order_line"."order_id" = "order"."id" AND "order"."customer_id" = $1`,
-  );
-  assert.equal(await pool.execute(forget), 1);
+  // Kim's address is taken, so her row is updated and keeps its id.
+  assert.deepEqual(await pool.one(signUp("Kimberly", "kim@example.com")), { id: 1 });
+  // A new address is a new customer. Its id is 4, not 3: the insert that
+  // conflicted drew 3 from the id's sequence before it conflicted.
+  assert.deepEqual(await pool.one(signUp("Mo", "mo@example.com")), { id: 4 });
 
-  // A delete that says nothing of which rows is refused.
-  assert.throws(() => deleteFrom(orderLine).inspect(), ConstructionError);
+  const kim = await pool.one("SELECT name FROM customer WHERE id = 1");
+  assert.equal(kim.name, "Kimberly");
+
+  // A row of one value, for two columns.
+  assert.throws(() => insert(customer).columns("name", "email").values("Mo"), ConstructionError);
 }

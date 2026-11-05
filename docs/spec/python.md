@@ -164,6 +164,13 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > Neither API may be an implicit fallback for unsupported builder operations.
 > Campaign-generated protected queries MUST obey their stricter raw-slot rules.
 
+> [spec:pgorm:req:python.discard]
+> `Connection.discard()` MUST close the connection rather than return it to
+> its pool, through pgorm's `DatabaseConnection::discard`, for a connection
+> whose state the program no longer trusts: the connection is closed at once,
+> an operation holding it is interrupted and discards it, and the pool opens a
+> fresh one when it next needs one.
+
 > [spec:pgorm:req:python.pipeline+1]
 > `pgorm.pipeline.null()` MUST be `literal(None)` under a name of its own; a
 > pipeline's own terminals are both bindings' (`bindings.pipeline-terminals`).

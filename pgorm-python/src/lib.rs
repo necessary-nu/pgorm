@@ -21,6 +21,7 @@ mod listen;
 mod models;
 mod one_of;
 pub mod pipeline;
+mod raw;
 pub mod results;
 mod runtime;
 pub mod schema;
@@ -76,6 +77,7 @@ pub fn install(module: &Bound<'_, PyModule>, registry: entities::Registry) -> Py
     copy::register(module)?;
     listen::register(module)?;
     results::register(module)?;
+    raw::register(module)?;
     models::register(module)?;
     entities::install(module, registry)?;
     disjoint::register(module)?;

@@ -4,20 +4,23 @@ from __future__ import annotations
 
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from collections.abc import AsyncIterator, Awaitable, Callable
-from typing import TYPE_CHECKING, Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, TypeVar
 
 from . import _native
 from .copy import CopyOutStream, CopyRows, CopyRowStream, CopySource, copy_in, copy_in_rows
-from .results import Query, Record
+from .results import Query, Record, RowStream
 
 if TYPE_CHECKING:
+    from .models.model import Model
     from .runtime import Connection
+
+T = TypeVar("T")
 
 TransactionMode: TypeAlias = Literal["default", "read_write", "read_only", "deferrable"]
 IsolationLevel: TypeAlias = Literal["read_uncommitted", "read_committed", "repeatable_read", "serializable"]
 
 
-# [spec:pgorm:req:bindings.transactions]
+# [spec:pgorm:req:bindings.transactions+1]
 # [spec:pgorm:req:python.transactions+3]
 @asynccontextmanager
 async def _scope(
@@ -55,15 +58,64 @@ async def _roll_back(native: _native._Transaction, error: BaseException) -> None
             # as the CancelledError itself, so a failed ROLLBACK never
             # replaces one.
             if isinstance(error, Exception):
-                # An error a native future delivers is re-raised without
-                # implicit chaining, so the context is set here.
-                failure.__context__ = error
-                raise
+                raise _native._rollback_failed(error, failure) from error
             return
         except BaseException:
             await native.abort()
             raise
     await native.wait_closed()
+
+
+def _retryable(error: BaseException) -> bool:
+    return isinstance(error, _native.PgormError) and error.is_retryable
+
+
+# [spec:pgorm:req:bindings.transaction-retry]
+async def _with_retry(
+    retrying: _native._Retrying, parent: Connection, work: Callable[[Transaction], Awaitable[T]]
+) -> T:
+    """Run ``work`` in each attempt pgorm opens, until one commits or pgorm
+    gives up on it: a block whose exception is retryable, or whose
+    ``COMMIT`` fails retryably, runs again from ``BEGIN`` while retries
+    remain."""
+    while True:
+        native = await retrying.attempt()
+        transaction = Transaction(native, parent)
+        try:
+            result = await work(transaction)
+        except BaseException as error:
+            if await _attempt_rolled_back(retrying, native, error):
+                continue
+            raise
+        try:
+            again = await native.finish_attempt(True, False)
+        except BaseException:
+            retrying.abort()
+            raise
+        if not again:
+            return result
+
+
+async def _attempt_rolled_back(
+    retrying: _native._Retrying, native: _native._Transaction, error: BaseException
+) -> bool:
+    """Roll an attempt back after ``error``: whether pgorm opened another."""
+    if native.closed():
+        retrying.abort()
+        return False
+    try:
+        return await native.finish_attempt(False, _retryable(error))
+    except _native.LifecycleError:
+        retrying.abort()
+        return False
+    except _native.PgormError as failure:
+        retrying.abort()
+        if isinstance(error, Exception):
+            raise _native._rollback_failed(error, failure) from error
+        return False
+    except BaseException:
+        retrying.abort()
+        raise
 
 
 # [spec:pgorm:req:python.transactions+3]
@@ -107,6 +159,25 @@ class Transaction:
 
     async def optional(self, query: Query) -> Record | None:
         return await self._native.fetch(query, "optional")
+
+    async def stream(self, query: Query) -> RowStream:
+        """Open a stream of ``query``'s rows, which reserves this transaction
+        until its last row. Closed before its last row, it discards the
+        transaction with its connection, as a connection's stream discards
+        its connection; so does the block ending while it is open."""
+        return RowStream(await self._native.stream(query), None, release_connection=False)
+
+    async def batch_execute(self, script: str) -> None:
+        """Run ``script``, statements separated by ``;`` with no parameters,
+        unprepared through the simple-query protocol."""
+        await _native._batch_execute(self._native, script)
+
+    async def verify(self, statement: _native.RawSQL, model: Model) -> None:
+        """Check ``model`` against what ``statement`` returns, without running
+        it; see ``Connection.verify``."""
+        from .raw import verify
+
+        await verify(self, statement, model)
 
     async def copy_in(self, statement: _native.CopyFrom[Any], source: CopySource) -> int:
         """Run a COPY FROM inside this transaction; see ``Connection.copy_in``.

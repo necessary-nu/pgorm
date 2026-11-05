@@ -53,9 +53,10 @@ for (const [statementCacheSize, kept] of [[64, 1n], [0, 0n]] as const) {
 }
 ```
 
-Rust's `batch_execute` runs a script of several statements through the
-simple-query protocol, preparing nothing. JavaScript has no such method: each
-call runs one statement, prepared.
+`batchExecute` runs a script of several statements through the
+simple-query protocol, preparing nothing, as Rust's `batch_execute` does
+([Raw SQL](10-raw-sql.md)): nothing it runs is cached. Every other terminal
+runs one statement, prepared.
 
 ## When the server notices
 

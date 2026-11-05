@@ -1,16 +1,32 @@
 """Asyncio ownership and context managers for the native PostgreSQL resources."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from functools import partial
 from pathlib import Path
-from typing import Any, Literal, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, TypeVar
 
 from . import _native
 from .copy import CopyOutStream, CopyRows, CopyRowStream, CopySource, copy_in, copy_in_rows
 from .listen import Listener
 from .results import Query, Record, RowStream
-from .transactions import IsolationLevel, Transaction, TransactionMode, _scope
+from .transactions import IsolationLevel, Transaction, TransactionMode, _scope, _with_retry
+
+if TYPE_CHECKING:
+    from .models.model import Model
+
+T = TypeVar("T")
+
+# The most retries a transaction takes, a Rust u32.
+_RETRIES_MAX = 2**32 - 1
+
+
+def _retries(retries: object) -> int:
+    if type(retries) is not int:
+        raise TypeError("retries is an int")
+    if not 0 <= retries <= _RETRIES_MAX:
+        raise _native.ConstructionError("retries is a non-negative int within u32")
+    return retries
 
 
 # The largest listener capacity the native side holds, a Rust usize.
@@ -149,10 +165,37 @@ class Pool:
             async with connection.transaction(mode=mode, isolation=isolation) as transaction:
                 yield transaction
 
+    async def transaction_with_retry(
+        self,
+        work: Callable[[Transaction], Awaitable[T]],
+        *,
+        retries: int,
+        mode: TransactionMode = "default",
+        isolation: IsolationLevel | None = None,
+    ) -> T:
+        """Run ``work`` in a transaction on a connection of its own, and again
+        from ``BEGIN`` while it fails retryably; see
+        ``Connection.transaction_with_retry``."""
+        async with self.connection() as connection:
+            return await connection.transaction_with_retry(
+                work, retries=retries, mode=mode, isolation=isolation
+            )
+
     async def execute(self, query: Query) -> int:
         """Execute a native builder or explicit RawSQL and return affected rows."""
         async with self.connection() as connection:
             return await connection.execute(query)
+
+    async def batch_execute(self, script: str) -> None:
+        """Run a script on a connection of its own; see ``Connection.batch_execute``."""
+        await _native._batch_execute(self._native, script)
+
+    async def verify(self, statement: _native.RawSQL, model: "Model") -> None:
+        """Check ``model`` against what ``statement`` returns, on a connection
+        of its own; see ``Connection.verify``."""
+        from .raw import verify
+
+        await verify(self, statement, model)
 
     async def query(self, query: Query) -> list[Record]:
         async with self.connection() as connection:
@@ -274,11 +317,56 @@ class Connection:
         exception rolls back; see ``Transaction``."""
         return _scope(partial(self._native.begin, mode=mode, isolation=isolation), self)
 
+    async def transaction_with_retry(
+        self,
+        work: Callable[[Transaction], Awaitable[T]],
+        *,
+        retries: int,
+        mode: TransactionMode = "default",
+        isolation: IsolationLevel | None = None,
+    ) -> T:
+        """Run ``work`` in a transaction, and again from ``BEGIN``, up to
+        ``retries`` more times, while it fails with a serialization failure
+        or a deadlock, as Rust's ``transaction_with_retry`` does: an exception
+        from ``work`` whose ``is_retryable`` is true, or a ``COMMIT`` that
+        fails so. ``work`` receives each attempt's ``Transaction`` and its
+        result is returned once an attempt commits. It may run more than once,
+        so whatever it does outside the database happens again each time.
+        Any other failure, or one past the last retry, propagates as a
+        transaction block's does."""
+        retrying = await self._native.begin_retrying(
+            _retries(retries), mode=mode, isolation=isolation
+        )
+        return await _with_retry(retrying, self, work)
+
     async def ping(self) -> bool:
         return await self._native.ping()
 
     async def execute(self, query: Query) -> int:
         return await self._native.execute(query)
+
+    async def batch_execute(self, script: str) -> None:
+        """Run ``script``, statements separated by ``;`` with no parameters,
+        as Rust's ``batch_execute`` does: sent as it is through the
+        simple-query protocol, nothing prepared. It is for DDL and fixed
+        scripts, never for values a user supplied."""
+        await _native._batch_execute(self._native, script)
+
+    async def verify(self, statement: _native.RawSQL, model: "Model") -> None:
+        """Check ``model`` against the result the server describes for
+        ``statement``, without running it, as Rust's ``verify`` does: every
+        field's column must be returned, of a type the field's kind reads,
+        or ``DecodeError`` names the field. The statement's values are
+        neither bound nor checked."""
+        from .raw import verify
+
+        await verify(self, statement, model)
+
+    async def discard(self) -> None:
+        """Close this connection rather than return it to its pool, as Rust's
+        ``discard`` does, for a connection whose state the program no longer
+        trusts. The pool opens a new one when it next needs one."""
+        await self._native.discard()
 
     async def query(self, query: Query) -> list[Record]:
         """Materialize all rows through Rust decoders, preserving output names."""

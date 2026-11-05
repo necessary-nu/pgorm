@@ -260,6 +260,27 @@ db.verify::<PriceList>(fixed).await?;
 # }
 ```
 
+The description `verify` checks against is
+[`describe`](crate::VerifyStatement::describe), for a decode target known
+only when the program runs: each result column's name and PostgreSQL type,
+in order, from a statement prepared and never run.
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("raw_sql_describe").await;
+# let db = scratch.pool.get().await?;
+use pgorm::{VerifyStatement, types::Type};
+
+let columns = db.describe("SELECT name, price FROM cake WHERE id = $1").await?;
+let described: Vec<(&str, &Type)> = columns.iter().map(|column| (column.name(), column.type_())).collect();
+assert_eq!(described, [("name", &Type::VARCHAR), ("price", &Type::NUMERIC)]);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
 ## Statements the query builder built
 
 A statement built with [the query builder](crate::guide::query_builder) renders to
@@ -329,6 +350,21 @@ refuse. It takes no values: write `$1` placeholders in the SQL and pass the
 values where it runs. A literal holding a `;`-separated script is checked
 whole, for `batch_execute`.
 
+Text a program has only once it runs, such as a statement read from a file,
+is checked the same way at run time by
+[`sql_check::check_sql`](crate::sql_check::check_sql), the code `sql!` runs.
+Its refusal says where the parser stopped:
+
+```rust
+use pgorm::sql_check::check_sql;
+
+assert!(check_sql("SELECT name FROM baker WHERE bakery_id = $1").is_ok());
+
+let refused = check_sql("SELEC name FROM baker WHERE bakery_id = $1").unwrap_err();
+assert_eq!(refused.message(), r#"syntax error at or near "SELEC""#);
+assert_eq!((refused.token(), refused.offset()), (Some("SELEC"), Some(0)));
+```
+
 ## PRQL compiled at compile time
 
 [PRQL](https://prql-lang.org) is a query language that reads as a pipeline
@@ -373,4 +409,17 @@ let (sql, values) = pgorm::prql!("from cake | filter price < $1");
 
 Like `sql!`, it does not know the schema. For a query assembled from parts
 at run time, such as a filter a user chose, [the pipeline](crate::guide::pipeline)
-is the same compiler with a builder in front of it.
+is the same compiler with a builder in front of it. PRQL text a program has
+only once it runs compiles through
+[`sql_check::compile_prql`](crate::sql_check::compile_prql), which refuses
+what `prql!` refuses and counts the placeholders the values must match:
+
+```rust
+use pgorm::sql_check::compile_prql;
+
+let compiled = compile_prql("from cake | filter price < $1 | sort name | select {name, price}")?;
+assert_eq!(compiled.sql(), "SELECT name, price FROM cake WHERE price < $1 ORDER BY name");
+assert!(compiled.check_arity(1).is_ok());
+assert!(compiled.check_arity(2).is_err());
+# Ok::<(), pgorm::sql_check::PrqlRejection>(())
+```

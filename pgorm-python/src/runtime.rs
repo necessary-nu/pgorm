@@ -367,6 +367,46 @@ impl NativeConnection {
         })
     }
 
+    /// Open a transaction pgorm runs again from `BEGIN`, up to `retries`
+    /// times, while an attempt fails with a serialization failure or a
+    /// deadlock.
+    #[pyo3(signature=(retries, *, mode="default", isolation=None))]
+    fn begin_retrying<'py>(
+        &self,
+        py: Python<'py>,
+        retries: u32,
+        mode: &str,
+        isolation: Option<&str>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.state.pool.check_owner(py)?;
+        self.state.ensure_open()?;
+        let mode = crate::transactions::mode(mode, isolation)?;
+        let state = self.state.clone();
+        future_into_py(py, async move {
+            Ok(crate::transactions::NativeRetrying {
+                inner: crate::transactions::begin_retrying(state, mode, retries)?,
+            })
+        })
+    }
+
+    /// Close the connection rather than return it to its pool, as Rust's
+    /// `DatabaseConnection::discard` does.
+    // [spec:pgorm:req:python.discard]
+    fn discard<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.state.pool.check_owner(py)?;
+        // Cancelled rather than closed: closing would hand an idle
+        // connection back to its pool, and an operation holding it discards
+        // it as it is cut off.
+        self.state.cancelled.cancel();
+        let state = self.state.clone();
+        future_into_py(py, async move {
+            if let Some(connection) = state.slot.lock().await.take() {
+                connection.discard();
+            }
+            Ok(())
+        })
+    }
+
     fn execute<'py>(
         &self,
         py: Python<'py>,
@@ -406,7 +446,7 @@ impl NativeConnection {
     ) -> PyResult<Bound<'py, PyAny>> {
         crate::results::open(
             py,
-            self.state.clone(),
+            crate::results::Source::Connection(self.state.clone()),
             query,
             decoder.map(|decoder| decoder.row_decode()),
         )
@@ -474,5 +514,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<NativePool>()?;
     module.add_class::<NativeConnection>()?;
     module.add_class::<crate::transactions::NativeTransaction>()?;
+    module.add_class::<crate::transactions::NativeRetrying>()?;
     Ok(())
 }

@@ -1665,6 +1665,7 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
+    {id napi.guide-gaps.transaction-streams, kind @doing, author "brendan@necessary.nu", at 2026-11-05T21:41:44.216428Z}
 )
 
 impl_evidence (
@@ -3329,6 +3330,95 @@ impl_evidence (
         {impl_name main, rule error.model.decode-refusal}
     ), rule_versions_seen (
         {id error.model.decode-refusal, version 0}
+    )}
+    {id guide.python-gaps.raw-sql, covered_rules (
+        bindings.batch-execute
+        bindings.prql-text
+        bindings.raw-models
+        bindings.raw-pages
+        bindings.sql-check
+        bindings.verify
+        exec.verify.describe
+        macros.runtime
+    ), covered_claims (
+        {impl_name main, rule exec.verify.describe}
+        {impl_name main, rule macros.runtime}
+        {impl_name python, rule bindings.batch-execute}
+        {impl_name python, rule bindings.prql-text}
+        {impl_name python, rule bindings.raw-models}
+        {impl_name python, rule bindings.raw-pages}
+        {impl_name python, rule bindings.sql-check}
+        {impl_name python, rule bindings.verify}
+    )}
+    {id guide.python-gaps.builder-functions, covered_rules (
+        bindings.json-operators
+        bindings.named-functions
+        bindings.template
+        sql.render.template-pieces
+    ), covered_claims (
+        {impl_name main, rule sql.render.template-pieces}
+        {impl_name python, rule bindings.json-operators}
+        {impl_name python, rule bindings.named-functions}
+        {impl_name python, rule bindings.template}
+    )}
+    {id guide.python-gaps.transaction-surface, covered_rules (
+        bindings.refusal-fields
+        bindings.rollback-failed
+        bindings.transaction-retry
+        python.discard
+    ), covered_claims (
+        {impl_name python, rule bindings.refusal-fields}
+        {impl_name python, rule bindings.rollback-failed}
+        {impl_name python, rule bindings.transaction-retry}
+        {impl_name python, rule python.discard}
+    )}
+    {id napi.guide-gaps.batch-execute, covered_rules (
+        bindings.batch-execute
+    ), covered_claims (
+        {impl_name javascript, rule bindings.batch-execute}
+    )}
+    {id napi.guide-gaps.raw-into-model, covered_rules (
+        bindings.raw-models
+    ), covered_claims (
+        {impl_name javascript, rule bindings.raw-models}
+    )}
+    {id napi.guide-gaps.verify, covered_rules (
+        bindings.verify
+    ), covered_claims (
+        {impl_name javascript, rule bindings.verify}
+    )}
+    {id napi.guide-gaps.raw-pages, covered_rules (
+        bindings.raw-pages
+    ), covered_claims (
+        {impl_name javascript, rule bindings.raw-pages}
+    )}
+    {id napi.guide-gaps.sql-grammar-check, covered_rules (
+        bindings.sql-check
+    ), covered_claims (
+        {impl_name javascript, rule bindings.sql-check}
+    )}
+    {id napi.guide-gaps.prql-text, covered_rules (
+        bindings.prql-text
+    ), covered_claims (
+        {impl_name javascript, rule bindings.prql-text}
+    )}
+    {id napi.guide-gaps.expression-functions, covered_rules (
+        bindings.json-operators
+        bindings.named-functions
+        bindings.template
+    ), covered_claims (
+        {impl_name javascript, rule bindings.json-operators}
+        {impl_name javascript, rule bindings.named-functions}
+        {impl_name javascript, rule bindings.template}
+    )}
+    {id napi.guide-gaps.transaction-retry, covered_rules (
+        bindings.refusal-fields
+        bindings.rollback-failed
+        bindings.transaction-retry
+    ), covered_claims (
+        {impl_name javascript, rule bindings.refusal-fields}
+        {impl_name javascript, rule bindings.rollback-failed}
+        {impl_name javascript, rule bindings.transaction-retry}
     )}
 )
 

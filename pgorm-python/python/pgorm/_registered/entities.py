@@ -174,5 +174,36 @@ class QueryView(Generic[M]):
         row = await self._query.optional(connection)
         return None if row is None else self._model_class(row)
 
+    def from_raw_sql(self, statement) -> "RawQueryView[M]":
+        return RawQueryView(self._query.from_raw_sql(statement), self._model_class)
+
+    def __bool__(self) -> bool:
+        return bool(self._query)
+
+
+class RawQueryView(Generic[M]):
+    """A raw statement whose rows decode into the registration's models, as
+    Rust's ``Select::from_raw_sql`` decodes them."""
+
+    __slots__ = ("_query", "_model_class")
+
+    def __init__(self, query: native_types.EntityRawQuery, model: type[M]):
+        if query.entity_name != model._entity_name:
+            raise TypeError(f"the query is {query.entity_name}'s, not {model._entity_name}'s")
+        self._query, self._model_class = query, model
+
+    def inspect(self):
+        return self._query.inspect()
+
+    async def all(self, connection) -> list[M]:
+        return [self._model_class(row) for row in await self._query.all(connection)]
+
+    async def one(self, connection) -> M:
+        return self._model_class(await self._query.one(connection))
+
+    async def optional(self, connection) -> M | None:
+        row = await self._query.optional(connection)
+        return None if row is None else self._model_class(row)
+
     def __bool__(self) -> bool:
         return bool(self._query)

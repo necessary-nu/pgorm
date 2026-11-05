@@ -95,9 +95,9 @@ oven from overlapping:
 import assert from "node:assert/strict";
 import { CheckViolationError, Decimal, ExclusionViolationError } from "@necessary/pgorm";
 
-await pool.execute("ALTER TABLE cake ADD CONSTRAINT cake_price_positive CHECK (price > 0)");
-await pool.execute("CREATE EXTENSION IF NOT EXISTS btree_gist");
-await pool.execute(`
+await pool.batchExecute(`
+  ALTER TABLE cake ADD CONSTRAINT cake_price_positive CHECK (price > 0);
+  CREATE EXTENSION IF NOT EXISTS btree_gist;
   CREATE TABLE oven_booking (
     oven integer NOT NULL,
     during tstzrange NOT NULL,
@@ -116,9 +116,8 @@ await pool.execute(book, [1, at("06:00"), at("08:00")]);
 await assert.rejects(pool.execute(book, [1, at("07:00"), at("09:00")]), ExclusionViolationError);
 ```
 
-Rust runs those three statements as one script with `batch_execute`. A
-JavaScript statement is one statement, as each terminal prepares it, so a
-script is run one statement at a time ([Raw SQL](10-raw-sql.md)).
+The three statements run as one script with `batchExecute`, as Rust runs
+them with `batch_execute` ([Raw SQL](10-raw-sql.md)).
 
 Any other refusal is read off the server's SQLSTATE. Rust compares the code
 with tokio-postgres's `SqlState` constants, such as `SqlState::UNDEFINED_TABLE`,
@@ -136,11 +135,22 @@ assert.equal(missing.sqlstate, "42P01");
 assert.equal(missing.severity, "ERROR");
 ```
 
-Rust's `is_retryable` answers whether an error is one PostgreSQL expects the
-client to retry the whole transaction after. JavaScript has no such method:
-a serialization failure is a `DatabaseError` whose `sqlstate` is `40001`, and
-a deadlock one whose `sqlstate` is `40P01`. [Transactions](08-transactions.md)
-shows the retrying.
+Every error's `isRetryable` answers whether it is one PostgreSQL expects the
+client to retry the whole transaction after, as Rust's `is_retryable` does:
+true for a serialization failure (`40001`) or a deadlock (`40P01`), and false
+for every other, an error the program made among them.
+[Transactions](08-transactions.md) shows `transactionWithRetry`, which reads
+it:
+
+```ts
+import assert from "node:assert/strict";
+import { DatabaseError, PgormError } from "@necessary/pgorm";
+
+const missing = await pool.query("SELECT * FROM pastry").catch((error: unknown) => error);
+assert.ok(missing instanceof DatabaseError);
+assert.equal(missing.isRetryable, false);
+assert.equal(new PgormError("made here").isRetryable, false);
+```
 
 ## What could not cross
 
@@ -150,7 +160,10 @@ it, or on its way out, because JavaScript has no value that holds the
 column's exactly. Rust reports both as driver errors, each with a classifier:
 `bind_refusal` says which `$N` parameter was refused, and `decode_refusal`
 what was being read. JavaScript reports them as a `ConstructionError` and a
-`DecodeError`, whose messages say the same, with no fields beside the message:
+`DecodeError`, whose messages say the same and whose fields are the
+classifiers': a refused parameter's `parameter`, its one-based `$N`, and
+`reason`; and an unread result's `reading` and `reason`. Any other
+`ConstructionError` or `DecodeError` holds `null` in each:
 
 ```ts
 import assert from "node:assert/strict";
@@ -160,6 +173,8 @@ import { ConstructionError, DecodeError } from "@necessary/pgorm";
 const tooWide = await pool.execute("SELECT $1::smallint", [100_000]).catch((error: unknown) => error);
 assert.ok(tooWide instanceof ConstructionError);
 assert.match(tooWide.message, /^parameter \$1 cannot be bound/);
+assert.equal(tooWide.parameter, 1);
+assert.equal(tooWide.reason, "value `100000` is out of range for Postgres type `int2`");
 
 // No Temporal type is a time of day at a fixed offset.
 const unreadable = await pool.one("SELECT '12:00+01'::timetz AS opens").catch((error: unknown) => error);
@@ -202,10 +217,10 @@ state it reports:
 | `AttrNotSet` | none: a write is a plain object, never converted into a record |
 | `Type` | a `DecodeError` for a value a field cannot hold, or a `ConstructionError` for a value a parameter cannot |
 | `Json`, `Conversion`, `UnpackInsertId` | a `ConstructionError` going in, or a `DecodeError` coming out |
-| `RollbackFailed` | a `SuppressedError` from `transaction(fn)`: the rollback's failure as its `error`, and what the callback threw as its `suppressed` ([Transactions](08-transactions.md)) |
+| `RollbackFailed` | a `SuppressedError` from `transaction(fn)` or `transactionWithRetry(fn)`: the rollback's failure as its `error`, and what the callback threw as its `suppressed` ([Transactions](08-transactions.md)) |
 | `Query` | a `DecodeError` for a read that cannot be carried out as asked, such as a relation's key that matches no row |
 | `Pool` | a `ConnectionError` when a connection cannot be opened, a `DatabaseError` when the server refuses to open one, a `TimeoutError` when none comes free in time |
-| `Verify` | none: [Raw SQL](10-raw-sql.md) says what JavaScript lacks there |
+| `Verify` | a `DecodeError` from `verify`, naming the column at fault ([Raw SQL](10-raw-sql.md)) |
 | `QueryBuilder` | a `ConstructionError`, thrown as a builder is called or when a statement is inspected or run |
 | `Listen` | a `ConstructionError` for a channel name that is too long, and a `ConnectionError` for a listener that fell behind ([LISTEN and NOTIFY](18-listen-notify.md)) |
 | `Custom` | a `ConstructionError` carrying a registered entity's hook's refusal ([Registered Rust entities](24-registered-entities.md)) |

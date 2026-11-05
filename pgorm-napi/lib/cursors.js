@@ -226,9 +226,11 @@ export function cursorOver(keyed) {
  * whose rows it counts.
  *
  * @typedef {object} Pageable
- * @property {(limit: number, offset: number) => import("./select.js").Select} page
- * @property {import("./select.js").Select} counted
- * @property {readonly import("./model-decode.js").Source[]} sources
+ * @property {(limit: number, offset: number) => import("./select.js").Select | import("./raw-sql.js").Held} page
+ * @property {import("./select.js").Select | import("./raw-sql.js").Held} counted
+ * @property {readonly import("./model-decode.js").Source[] | null} sources The sources each row
+ *   decodes as, or `null` for rows as plain objects.
+ * @property {boolean} [exhaustive] Whether every column is a field's, as a built query's is.
  */
 
 /**
@@ -283,7 +285,13 @@ export class Paginator {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async fetchPage(db, page, options) {
-    return await decodeAll(db, this.#page(page), this.#pageable.sources, options);
+    const { sources, exhaustive = true } = this.#pageable;
+    if (sources === null) {
+      const query = /** @type {{ query?: unknown }} */ (db)?.query;
+      if (typeof query !== "function") throw new TypeError("a page is read on a Pool, a Connection or a Transaction");
+      return await query.call(db, this.#page(page), options);
+    }
+    return await decodeAll(db, this.#page(page), sources, options, exhaustive);
   }
 
   /**

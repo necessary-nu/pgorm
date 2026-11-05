@@ -13,6 +13,8 @@ import type { DDL } from "./schema.d.ts";
 import type { Pipeline } from "./pipeline.d.ts";
 import type { CopyFrom, CopyOutStream, CopyRows, CopyRowStream, CopySource, CopyTo } from "./copy.d.ts";
 import type { Listener, ListenerOptions } from "./listen.d.ts";
+import type { Paginator } from "./graphs.d.ts";
+import type { Model } from "./models.d.ts";
 
 export * from "./expressions.d.ts";
 export * from "./json.d.ts";
@@ -42,16 +44,43 @@ export declare const version: string;
 export declare const STATEMENT_CACHE_CHANNEL: string;
 
 /** The base class of every error pgorm-napi rejects with. */
-export declare class PgormError extends Error {}
+export declare class PgormError extends Error {
+  /**
+   * Whether the transaction this failure ended is worth running again, as
+   * pgorm's `Error::is_retryable` answers: a serialization failure (`40001`)
+   * or a deadlock (`40P01`). Only a `DatabaseError` can be.
+   */
+  get isRetryable(): boolean;
+}
 
 /** The server could not be reached, or the connection to it broke. */
 export declare class ConnectionError extends PgormError {}
 
-/** An argument could not become the value pgorm sends. */
-export declare class ConstructionError extends PgormError {}
+/**
+ * An argument could not become the value pgorm sends. One the driver refused
+ * as it encoded a parameter, pgorm's `BindRefusal`, carries which `$N` it was
+ * and why; any other carries `null` for both.
+ */
+export declare class ConstructionError extends PgormError {
+  constructor(message: string, details?: { parameter?: number; reason?: string | null });
+  /** The one-based `$N` of the parameter the driver refused. */
+  readonly parameter: number | null;
+  /** The codec's refusal of the value. */
+  readonly reason: string | null;
+}
 
-/** A result could not be decoded into the JavaScript value asked for. */
-export declare class DecodeError extends PgormError {}
+/**
+ * A result could not be decoded into the JavaScript value asked for. One the
+ * driver could not read, pgorm's `DecodeRefusal`, carries what it was reading
+ * and why; any other carries `null` for both.
+ */
+export declare class DecodeError extends PgormError {
+  constructor(message: string, details?: { reading?: string; reason?: string | null });
+  /** What the driver was reading, e.g. `"error deserializing column 0"`. */
+  readonly reading: string | null;
+  /** The decoder's refusal of the value. */
+  readonly reason: string | null;
+}
 
 /**
  * pgorm or the binding failed in a way no input should cause, such as a panic
@@ -83,6 +112,8 @@ export interface DatabaseErrorDetails {
   /** The domain whose `CHECK` or `NOT NULL` refused a value. */
   readonly datatype: string | null;
   readonly constraint: string | null;
+  /** Whether pgorm's `Error::is_retryable` says the transaction is worth running again. */
+  readonly isRetryable?: boolean;
 }
 
 /**
@@ -497,12 +528,61 @@ export interface TransactionOptions extends OperationOptions {
   readonly isolation?: "readUncommitted" | "readCommitted" | "repeatableRead" | "serializable" | null;
 }
 
+/** How a retrying transaction opens, and how many times it runs again. */
+export interface RetryOptions extends TransactionOptions {
+  /** How many more times the transaction may run after its first attempt. */
+  readonly retries: number;
+}
+
 // [spec:pgorm:req:bindings.statements]
 /**
  * A statement a builder made, which a terminal runs as `inspect()` builds it,
  * its values bound.
  */
 export type Statement = Select | Insert | Update | Delete | Merge | DDL | Pipeline;
+
+// [spec:pgorm:req:bindings.sql-check]
+/**
+ * `text`, held to PostgreSQL 18's grammar and returned unchanged, as Rust's
+ * `sql!` holds a literal while its crate compiles; a script is held to it
+ * statement by statement. What the grammar rejects is a
+ * {@link ConstructionError} whose message reprints the line with a caret
+ * under the token the parser stopped at. Call it once, where a module
+ * defines its statements.
+ */
+export declare function sql<T extends string>(text: T): T;
+
+// [spec:pgorm:req:bindings.prql-text]
+/**
+ * `text`, PRQL, compiled to PostgreSQL SQL held to the grammar, with `values`
+ * for its placeholders in order, as Rust's `prql!` expands: one value per
+ * distinct placeholder. The pair runs as SQL text and its array do.
+ */
+export declare function prql(text: string, values?: readonly Param[]): { readonly sql: string; readonly values: readonly Param[] };
+
+// [spec:pgorm:req:bindings.raw-models]
+/**
+ * A raw statement whose rows decode into a declared model's records, as
+ * Rust's `SelectorRaw` decodes them — each field read from the column of its
+ * SQL name and held to its declared kind, other columns left unread — or,
+ * from {@link fromStatement}, are plain rows. pgorm adds nothing to the SQL,
+ * so `one` and `optional` add no `LIMIT`. `paginate` and `count` read the
+ * statement as a subquery, a {@link ConstructionError} unless it is one
+ * row-returning `SELECT`, as Rust's `SelectorRaw::paginate` refuses one.
+ */
+export declare class SelectorRaw<R> {
+  private constructor();
+  inspect(): { readonly sql: string; readonly values: readonly Param[] };
+  all(db: Queryable, options?: OperationOptions): Promise<R[]>;
+  one(db: Queryable, options?: OperationOptions): Promise<R>;
+  optional(db: Queryable, options?: OperationOptions): Promise<R | null>;
+  stream(db: Queryable, options?: OperationOptions): RowStream<R>;
+  paginate(pageSize: number): Paginator<R>;
+  count(db: Queryable, options?: OperationOptions): Promise<number>;
+}
+
+/** SQL text and its parameters as a raw statement of plain rows, which pages and counts. */
+export declare function fromStatement(sql: string, params?: readonly Param[]): SelectorRaw<Row>;
 
 /**
  * What a pool, a connection and a transaction run bound SQL through: SQL text
@@ -573,6 +653,22 @@ export declare abstract class Queryable {
    * `22023`.
    */
   notify(channel: string, payload: string, options?: OperationOptions): Promise<void>;
+  // [spec:pgorm:req:bindings.batch-execute]
+  /**
+   * Run `script`, statements separated by `;` with no parameters, as Rust's
+   * `batch_execute` does: sent as it is through the simple-query protocol,
+   * nothing prepared. It is for DDL and fixed scripts, never for values a
+   * user supplied.
+   */
+  batchExecute(script: string, options?: OperationOptions): Promise<void>;
+  // [spec:pgorm:req:bindings.verify]
+  /**
+   * Check `model` against the result the server describes for `statement`,
+   * without running it, as Rust's `verify` does: every field's column
+   * returned, of a type the field's kind reads, or a {@link DecodeError}
+   * naming the field. The statement's values are neither bound nor checked.
+   */
+  verify(sql: string, model: Model, options?: OperationOptions): Promise<void>;
 }
 
 /**
@@ -599,6 +695,8 @@ export declare class Pool extends Queryable implements AsyncDisposable {
   connection<T>(use: (connection: Connection) => Promise<T>, options?: OperationOptions): Promise<T>;
   /** Run `use` in a transaction on a connection of its own: committed when it resolves, rolled back when it throws. */
   transaction<T>(use: (transaction: Transaction) => Promise<T>, options?: TransactionOptions): Promise<T>;
+  /** {@link Connection.transactionWithRetry} on a connection of its own. */
+  transactionWithRetry<T>(use: (transaction: Transaction) => Promise<T>, options: RetryOptions): Promise<T>;
   /** The rows of a statement, one per pull, over a connection the stream holds until it ends. */
   stream<O extends QueryOptions = QueryOptions>(statement: Statement, options?: O): RowStream<RowFor<O>>;
   stream<O extends QueryOptions = QueryOptions>(sql: string, params?: readonly Param[], options?: O): RowStream<RowFor<O>>;
@@ -632,6 +730,16 @@ export declare class Connection extends Queryable implements AsyncDisposable {
    * ROLLBACK failed; a failed commit or ROLLBACK discards the connection.
    */
   transaction<T>(use: (transaction: Transaction) => Promise<T>, options?: TransactionOptions): Promise<T>;
+  // [spec:pgorm:req:bindings.transaction-retry]
+  /**
+   * Run `use` in a transaction, and again from `BEGIN`, up to `retries` more
+   * times, while it fails with a serialization failure or a deadlock, as
+   * Rust's `transaction_with_retry` does: `use` rejecting with an error whose
+   * {@link PgormError.isRetryable} is true, or a `COMMIT` failing so. `use`
+   * receives each attempt's {@link Transaction}, and may run more than once,
+   * so whatever it does outside the database happens again each time.
+   */
+  transactionWithRetry<T>(use: (transaction: Transaction) => Promise<T>, options: RetryOptions): Promise<T>;
   /**
    * The rows of `sql`, one per pull. The stream holds the connection until its
    * last row, which frees it, or until it is closed early, which discards it.
@@ -661,9 +769,17 @@ export declare class Transaction extends Queryable {
    * settles: released when it resolves, rolled back to when it throws.
    */
   transaction<T>(use: (transaction: Transaction) => Promise<T>, options?: OperationOptions): Promise<T>;
+  // [spec:pgorm:req:bindings.streams+1]
+  /**
+   * The rows of `sql`, one per pull. The stream holds the transaction until
+   * its last row, refusing other work meanwhile; closed before then, it
+   * discards the transaction with its connection.
+   */
+  stream<O extends QueryOptions = QueryOptions>(statement: Statement, options?: O): RowStream<RowFor<O>>;
+  stream<O extends QueryOptions = QueryOptions>(sql: string, params?: readonly Param[], options?: O): RowStream<RowFor<O>>;
 }
 
-// [spec:pgorm:req:bindings.streams]
+// [spec:pgorm:req:bindings.streams+1]
 /**
  * A statement's rows as an async iterator, one row per pull. Its connection
  * is released at the last row, by `close()`, or when a `for await` loop leaves

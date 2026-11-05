@@ -9,6 +9,8 @@ use super::backend::{Change, Select, Terminal};
 use crate::{
     errors::ConstructionError,
     expressions::{Compiled, OrderBy, PyCondition, PyExpr},
+    statements::RawSQL,
+    transactions::work::Work,
 };
 
 #[derive(Clone, Debug)]
@@ -121,6 +123,17 @@ impl PyEntityQuery {
     ) -> PyResult<Bound<'py, PyAny>> {
         super::io::select(py, connection, self.inner.clone(), Terminal::Optional)
     }
+    /// `statement`'s rows in place of this query's, decoded into the
+    /// entity's models as Rust's `Select::from_raw_sql` decodes them.
+    // [spec:pgorm:req:bindings.raw-models]
+    #[pyo3(name = "from_raw_sql")]
+    fn raw_sql(&self, statement: PyRef<'_, RawSQL>) -> PyResult<PyEntityRawQuery> {
+        Ok(PyEntityRawQuery {
+            inner: self.inner.clone(),
+            statement: statement.inspect()?,
+        })
+    }
+
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "entity queries cannot be tested as Python booleans",
@@ -128,5 +141,67 @@ impl PyEntityQuery {
     }
     fn __repr__(&self) -> String {
         format!("EntityQuery({:?})", self.entity_name())
+    }
+}
+
+/// A raw statement whose rows decode into a registration's models.
+#[derive(Clone, Debug)]
+#[pyclass(name = "EntityRawQuery", module = "pgorm", frozen, from_py_object)]
+pub struct PyEntityRawQuery {
+    pub(crate) inner: Select,
+    pub(crate) statement: Compiled,
+}
+
+impl PyEntityRawQuery {
+    fn run<'py>(
+        &self,
+        py: Python<'py>,
+        connection: &Bound<'_, PyAny>,
+        terminal: Terminal,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let work = Work::EntityRaw(self.inner.clone(), self.statement.clone(), terminal);
+        super::io::models(py, connection, work, terminal)
+    }
+}
+
+#[pymethods]
+impl PyEntityRawQuery {
+    #[getter]
+    fn entity_name(&self) -> &str {
+        &self.inner.info().name
+    }
+
+    fn inspect(&self) -> Compiled {
+        self.statement.clone()
+    }
+
+    fn all<'py>(
+        &self,
+        py: Python<'py>,
+        connection: &Bound<'_, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.run(py, connection, Terminal::All)
+    }
+    fn one<'py>(
+        &self,
+        py: Python<'py>,
+        connection: &Bound<'_, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.run(py, connection, Terminal::One)
+    }
+    fn optional<'py>(
+        &self,
+        py: Python<'py>,
+        connection: &Bound<'_, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.run(py, connection, Terminal::Optional)
+    }
+    fn __bool__(&self) -> PyResult<bool> {
+        Err(ConstructionError::new_err(
+            "entity queries cannot be tested as Python booleans",
+        ))
+    }
+    fn __repr__(&self) -> String {
+        format!("EntityRawQuery({:?})", self.entity_name())
     }
 }

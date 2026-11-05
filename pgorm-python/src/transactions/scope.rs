@@ -9,6 +9,7 @@ use crate::{
     copy::{Columns, CopyFrom, CopyTo, Message, Piece, Unopened},
     errors::{InternalError, Redactions, database_error},
     execution::Database,
+    expressions::Compiled,
 };
 use futures_util::future::BoxFuture;
 use pgorm::{DatabaseTransaction, Error, TransactionError, TransactionTrait};
@@ -36,7 +37,7 @@ impl Failure {
     }
 }
 
-type Reply = oneshot::Sender<Result<Output, Failure>>;
+pub(super) type Reply = oneshot::Sender<Result<Output, Failure>>;
 
 /// The wait for a frame to open, answered with the error Python raises.
 pub(super) type Opened = oneshot::Sender<PyResult<()>>;
@@ -48,6 +49,9 @@ pub(super) enum Command {
     },
     Finish {
         commit: bool,
+        /// For a rollback: whether the block's failure is one a retrying
+        /// transaction runs again after.
+        retryable: bool,
         reply: Reply,
     },
     Begin {
@@ -68,6 +72,12 @@ pub(super) enum Command {
         rows: Option<Columns>,
         pieces: mpsc::Sender<Piece>,
         opened: oneshot::Sender<Result<(), Unopened>>,
+    },
+    /// A statement's rows, read by a stream that holds the frame's
+    /// reservation until its last row.
+    Stream {
+        compiled: Compiled,
+        opened: oneshot::Sender<Result<tokio_postgres::RowStream, Error>>,
     },
 }
 
@@ -113,8 +123,9 @@ impl Completion {
 /// How a frame's command loop ended short of discarding it: the error its
 /// closure returns, so that pgorm rolls the frame back.
 pub(super) enum Exit {
-    /// Python rolled the frame back; the reply goes once the rollback has.
-    RolledBack(Reply),
+    /// Python rolled the frame back, saying whether its failure is one to
+    /// retry; the reply goes once the rollback has.
+    RolledBack(Reply, bool),
     /// The frame's handle was dropped or its command channel closed.
     Abandoned,
 }
@@ -131,14 +142,23 @@ pub(super) struct Halt {
 }
 
 impl Halt {
-    pub(super) async fn run<T>(&self, transaction: impl Future<Output = T>) -> Option<T> {
-        tokio::select! {
-            _ = self.discard.cancelled() => None,
-            _ = async {
-                self.ending.cancelled().await;
-                tokio::time::sleep(Duration::from_secs(5)).await;
-            } => None,
-            ended = transaction => Some(ended),
+    /// The future holds owned tokens rather than a borrow of the halt, so a
+    /// transaction future whose closure is called for any lifetime stays
+    /// `Send` around it.
+    pub(super) fn run<T>(
+        &self,
+        transaction: impl Future<Output = T>,
+    ) -> impl Future<Output = Option<T>> {
+        let (discard, ending) = (self.discard.clone(), self.ending.clone());
+        async move {
+            tokio::select! {
+                _ = discard.cancelled_owned() => None,
+                _ = async move {
+                    ending.cancelled_owned().await;
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                } => None,
+                ended = transaction => Some(ended),
+            }
         }
     }
 
@@ -181,20 +201,37 @@ impl Frame {
         commands: mpsc::UnboundedReceiver<Command>,
         opened: Opened,
     ) -> Self {
+        Self::halted_by(state, commands, opened, Halt::default())
+    }
+
+    /// A frame given up through `halt`, which every attempt of a retrying
+    /// transaction shares.
+    pub(super) fn halted_by(
+        state: Arc<State>,
+        commands: mpsc::UnboundedReceiver<Command>,
+        opened: Opened,
+        halt: Halt,
+    ) -> Self {
         Self {
             state,
             commands,
             opened: Some(opened),
             committed: None,
             finished: None,
-            halt: Halt::default(),
+            halt,
         }
+    }
+
+    /// The reply a commit is waiting on, which a retrying transaction
+    /// answers once pgorm has committed or decided to run it again.
+    pub(super) fn take_committed(&mut self) -> Option<Reply> {
+        self.committed.take()
     }
 
     /// Serve the frame's commands inside its transaction, a savepoint's frame
     /// nested inside while it is open: `Ok` once Python commits, an `Exit`
     /// once it rolls back or the handle is abandoned.
-    // [spec:pgorm:req:bindings.transactions]
+    // [spec:pgorm:req:bindings.transactions+1]
     pub(super) fn serve<'a>(
         &'a mut self,
         tx: &'a mut DatabaseTransaction<'_>,
@@ -263,17 +300,29 @@ impl Frame {
                             return self.halt.discard().await;
                         }
                     }
+                    // [spec:pgorm:req:bindings.streams+1]
+                    Command::Stream { compiled, opened } => {
+                        let result = tokio::select! {
+                            _ = self.state.abandoned.cancelled() => return self.halt.discard().await,
+                            result = super::stream::open(&*tx, compiled) => result,
+                        };
+                        if opened.send(result).is_err() {
+                            return self.halt.discard().await;
+                        }
+                    }
                     Command::Finish {
                         commit: true,
                         reply,
+                        ..
                     } => {
                         self.committed = Some(reply);
                         return Ok(());
                     }
                     Command::Finish {
                         commit: false,
+                        retryable,
                         reply,
-                    } => return Err(Exit::RolledBack(reply)),
+                    } => return Err(Exit::RolledBack(reply, retryable)),
                     Command::Begin {
                         child,
                         receiver,
@@ -325,13 +374,13 @@ impl Frame {
                 }
                 Completion::failed(self.committed.take(), Failure::Pgorm(error))
             }
-            Err(TransactionError::Transaction(Exit::RolledBack(reply))) => {
+            Err(TransactionError::Transaction(Exit::RolledBack(reply, _))) => {
                 Completion::finished(Some(reply))
             }
             Err(TransactionError::Transaction(Exit::Abandoned)) => Completion::finished(None),
             Err(TransactionError::RollbackFailed { cause, rollback }) => Completion::failed(
                 match cause {
-                    Exit::RolledBack(reply) => Some(reply),
+                    Exit::RolledBack(reply, _) => Some(reply),
                     Exit::Abandoned => None,
                 },
                 Failure::Pgorm(rollback),

@@ -328,6 +328,43 @@ mod tests {
         );
     }
 
+    // [spec:pgorm:req:sql.render.template-pieces/test]
+    #[test]
+    fn pieces_take_their_values_between_them() {
+        let template = SqlTemplate::from_pieces(
+            &["coalesce(", ", ", ") > $$ $9 $$"],
+            [SimpleExpr::Value(1.into()), SimpleExpr::Value(2.into())],
+        )
+        .unwrap();
+        assert_eq!(
+            template.segments,
+            vec![
+                Segment::Text("coalesce(".to_owned()),
+                Segment::Value(SimpleExpr::Value(1.into())),
+                Segment::Text(", ".to_owned()),
+                Segment::Value(SimpleExpr::Value(2.into())),
+                Segment::Text(") > $$ $9 $$".to_owned()),
+            ]
+        );
+        assert_eq!(
+            SqlTemplate::from_pieces(&["$2 + ", ""], [SimpleExpr::Value(1.into())]).unwrap_err(),
+            Error::Template {
+                template: "$2 + ".to_owned(),
+                reason: TemplateError::MarkerInText { index: 2 },
+            }
+        );
+        assert!(matches!(
+            SqlTemplate::from_pieces(&["'", "'"], [SimpleExpr::Value(1.into())]),
+            Err(Error::Template {
+                reason: TemplateError::UnreferencedValue {
+                    index: 1,
+                    supplied: 1
+                },
+                ..
+            })
+        ));
+    }
+
     #[test]
     fn resolve_accepts_a_template_with_no_placeholders() {
         assert_eq!(
@@ -449,6 +486,65 @@ impl SqlTemplate {
         let values: Vec<SimpleExpr> = values.into_iter().map(SimpleExpr::Value).collect();
         Ok(Self {
             segments: resolve(&sql, Grammar::Sql, &values)?,
+        })
+    }
+
+    /// Pair the pieces of a template literal with the values written between
+    /// them: `pieces[0]`, then `values[0]`, then `pieces[1]`, and so on, the
+    /// shape of a Python t-string's or a JavaScript tagged template's parts.
+    ///
+    /// This is the door the language bindings' `template` uses, holding its
+    /// text to their languages' template literals as far as the language
+    /// allows, where Rust's own [`Expr::template`](crate::Expr::template)
+    /// holds it to program text by its type. The pieces are SQL, read as
+    /// [`from_sql`](SqlTemplate::from_sql) reads it, and the values go
+    /// between them, so a piece cannot write a `$N` marker of its own: one
+    /// that does is refused with
+    /// [`TemplateError::MarkerInText`](crate::error::TemplateError::MarkerInText).
+    /// A value that lands inside a quoted region or an identifier, where
+    /// PostgreSQL would read no parameter, is refused by the census as a value
+    /// nothing reads.
+    ///
+    /// ```
+    /// use pgorm_query::{tests_cfg::*, *};
+    ///
+    /// let short = SqlTemplate::from_pieces(&["char_length(", ") < 40"], [Expr::val("Fudge").into()]);
+    /// assert!(short.is_ok());
+    ///
+    /// // `$1` in a piece is SQL text claiming a value the interpolations hold.
+    /// let marker = SqlTemplate::from_pieces(&["$1 < ", ""], [Expr::val(1).into()]);
+    /// assert!(marker.is_err());
+    ///
+    /// // A value inside a string literal is never read as a parameter.
+    /// let quoted = SqlTemplate::from_pieces(&["'", "'"], [Expr::val(1).into()]);
+    /// assert!(quoted.is_err());
+    /// ```
+    // [spec:pgorm:req:sql.render.template-pieces]
+    pub fn from_pieces<S, I>(pieces: &[S], values: I) -> Result<Self>
+    where
+        S: AsRef<str>,
+        I: IntoIterator<Item = SimpleExpr>,
+    {
+        let values: Vec<SimpleExpr> = values.into_iter().collect();
+        let mut joined = String::new();
+        for (index, piece) in pieces.iter().enumerate() {
+            let piece = piece.as_ref();
+            if let Some(Chunk::Placeholder(marker)) = scan(piece, Grammar::Sql)?
+                .into_iter()
+                .find(|chunk| matches!(chunk, Chunk::Placeholder(_)))
+            {
+                return Err(Error::Template {
+                    template: piece.to_owned(),
+                    reason: TemplateError::MarkerInText { index: marker },
+                });
+            }
+            if index > 0 {
+                joined.push_str(&format!("${index}"));
+            }
+            joined.push_str(piece);
+        }
+        Ok(Self {
+            segments: resolve(&joined, Grammar::Sql, &values)?,
         })
     }
 
