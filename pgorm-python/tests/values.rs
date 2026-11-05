@@ -122,7 +122,7 @@ fn rust_output_rejects_lost_temporal_precision() -> PyResult<()> {
 }
 
 // [spec:pgorm:req:bindings.values/test]
-// [spec:pgorm:req:bindings.value-tags/test]
+// [spec:pgorm:req:bindings.value-tags+1/test]
 #[test]
 fn arrays_and_json_null_keep_rust_identity() -> PyResult<()> {
     Python::initialize();

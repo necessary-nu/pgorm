@@ -249,7 +249,7 @@ try_getable_range_family!(jiff::Timestamp);
 /// as in every array. The `CreatedRange` derive reads an array column of its
 /// type through this rather than `Vec<Range<T>>`, which a crate built without
 /// `postgres-array` lacks and which only a built-in range's subtype has.
-// [spec:pgorm:def:sql.value.created-range+8]
+// [spec:pgorm:def:sql.value.created-range+9]
 #[doc(hidden)]
 pub fn try_get_created_ranges<T, I>(res: &QueryResult, idx: I) -> Result<Vec<Range<T>>, TryGetError>
 where
@@ -274,7 +274,7 @@ where
 /// `CreatedRange` derive reads an array of a created multirange through, the
 /// driver reporting the multirange with no subtype, so the column's
 /// `select_as` casts it to `text[]`.
-// [spec:pgorm:def:sql.value.created-range+8]
+// [spec:pgorm:def:sql.value.created-range+9]
 #[doc(hidden)]
 pub fn try_get_texts<I>(res: &QueryResult, idx: I) -> Result<Vec<String>, TryGetError>
 where
@@ -298,7 +298,7 @@ where
 // multiranges are reported by tokio-postgres as simple types, and an array of
 // their ranges is read by `try_get_created_ranges`, so the range alone
 // decodes here.
-// [spec:pgorm:def:sql.value.created-range+8]
+// [spec:pgorm:def:sql.value.created-range+9]
 try_getable_range!(i16);
 try_getable_range!(f32);
 try_getable_range!(f64);

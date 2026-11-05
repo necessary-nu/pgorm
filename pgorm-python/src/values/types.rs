@@ -11,7 +11,7 @@ pub(crate) fn unrepresented() -> PyErr {
     UnsupportedCapabilityError::new_err("a kind of pgorm value pgorm-python does not represent")
 }
 
-// [spec:pgorm:req:bindings.value-tags]
+// [spec:pgorm:req:bindings.value-tags+1]
 /// An owned, identifier-only PostgreSQL type name, optionally schema qualified.
 #[pyclass(name = "TypeName", module = "pgorm", frozen, eq, from_py_object)]
 #[derive(Clone, Debug, PartialEq, Eq)]

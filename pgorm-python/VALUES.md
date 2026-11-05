@@ -67,7 +67,8 @@ Use `Value.json(None)` as an array item to distinguish it from SQL NULL.
 Nested and heterogeneous arrays are rejected.
 
 Enum labels retain their schema and type name separately from their Rust
-string payload. `type_name` and `element_type` expose that identity. Type-name
+string payload. `type_name` and `element_type` expose that identity; an
+array's `type_name` is its element type's, as JavaScript's `typeName` is. Type-name
 parts are 1–63 UTF-8 bytes without NUL; case, punctuation and Unicode remain
 unchanged. Lowering uses Rust's identifier-only `TypeName` API. Neither type
 declaration nor value construction performs DDL.

@@ -263,7 +263,7 @@ option.
 > range's kind is never inferred: a range operand or parameter needs the
 > `Value` that declares its kind.
 
-> [spec:pgorm:req:bindings.value-tags]
+> [spec:pgorm:req:bindings.value-tags+1]
 > Each binding's `Value` MUST declare what a plain native value cannot: the
 > kind of a value, so integer widths, enum types and temporal variants stay
 > distinct; SQL NULL of a kind, `Value.null(kind)`; a JSON document,
@@ -274,7 +274,10 @@ option.
 > Construction does no I/O and MUST convert at once, refusing data the kind
 > cannot hold exactly with a `ConstructionError`. A `Value` is immutable, can
 > be bound any number of times, and the plain value it hands out is owned
-> independently.
+> independently. Its type name (`type_name`, `typeName`) MUST be the
+> schema-qualified `TypeName` the server names its type by — an enum's, or a
+> created range's or multirange's — an array's being its element kind's, and
+> none for any other kind; its element kind is the array's alone.
 >
 > A result read tagged MUST give each column as a `Value` carrying its kind:
 > an integer's width, an enum's schema-qualified type, an array's element kind,

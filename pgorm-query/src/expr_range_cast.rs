@@ -39,7 +39,7 @@ impl Expr {
     ///     r#"INSERT INTO "character" ("character") VALUES (CAST($1::text AS booking.slot))"#
     /// );
     /// ```
-    // [spec:pgorm:def:sql.value.created-range+8]
+    // [spec:pgorm:def:sql.value.created-range+9]
     // [spec:pgorm:req:sql.ast.cast-shape+2]
     pub fn as_range(self, type_name: TypeName) -> SimpleExpr {
         let operand = match SimpleExpr::from(self) {
@@ -54,7 +54,7 @@ impl Expr {
 /// multirange as its text form, an array of them as the array of their
 /// texts, which casts to the type's array as one text casts to the type,
 /// and anything else as it is.
-// [spec:pgorm:def:sql.value.created-range+8]
+// [spec:pgorm:def:sql.value.created-range+9]
 fn range_as_text(value: Value) -> Value {
     match value {
         Value::Range(_, range) => Value::String(range.map(|range| Box::new(range_text(&range)))),

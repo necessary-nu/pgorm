@@ -39,7 +39,7 @@ use crate::{
     TryIntoModel, ValueHolder,
     error::{query_err, type_err},
     executor::created_range::{
-        CreatedRangeCodec, completed_multiranges, created_range_text, is_created_multirange,
+        CreatedRangeCodec, CreatedRangeText, completed_multiranges, is_created_multirange,
         is_created_range,
     },
 };
@@ -648,7 +648,7 @@ fn scalar(ty: &Type, kind: &ArrayType, raw: &[u8]) -> Result<Value, WireError> {
             Value::String(Some(Box::new(String::from_sql(&Type::TEXT, raw)?)))
         }
         ArrayType::String if matches!(ty.kind(), Kind::Range(_) | Kind::Multirange(_)) => {
-            Value::String(Some(Box::new(created_range_text(ty, raw)?)))
+            Value::String(Some(Box::new(CreatedRangeText::from_sql(ty, raw)?.0)))
         }
         ArrayType::String => Value::String(Some(Box::new(String::from_sql(ty, raw)?))),
         ArrayType::Bytes => Value::Bytes(Some(Box::new(Vec::<u8>::from_sql(ty, raw)?))),

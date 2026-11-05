@@ -89,6 +89,8 @@ class CreatedRangeValueTests(unittest.TestCase):
         array = p.Value.array(kind, [p.Range(1, 5, "[]"), None, "[7,9)", p.Value(p.Range(2, 3), kind)])
         self.assertEqual(array.kind, "array")
         self.assertEqual(array.element_type, kind)
+        self.assertEqual(array.type_name, p.TypeName("slot", schema="app"))
+        self.assertIsNone(array.created_type)
         self.assertEqual(array.value, [p.Range(1, 5, "[]"), None, p.Range(7, 9), p.Range(2, 3)])
         self.assertEqual([item["data"] for item in array.snapshot()["data"]], ["[1,5]", None, "[7,9)", "[2,3)"])
         self.assertEqual(array.snapshot()["data"][0]["type"]["kind"], "created_range")

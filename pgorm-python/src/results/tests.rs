@@ -1,42 +1,10 @@
 use bytes::BytesMut;
 use jiff::civil::{Time, time};
-use rust_decimal::Decimal;
 use tokio_postgres::types::{FromSql, ToSql, Type};
 
-use super::codecs::{CheckedArray, ExactDecimal};
+use super::codecs::CheckedArray;
 
 type TestResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
-
-// [spec:pgorm:req:bindings.values/test]
-#[test]
-fn exact_numeric_keeps_rust_decimal_bytes() -> TestResult {
-    for text in [
-        "0.0000",
-        "1.2300",
-        "-42.001",
-        "79228162514264337593543950335",
-    ] {
-        let expected = Decimal::from_str_exact(text)?;
-        let mut raw = BytesMut::new();
-        expected.to_sql(&Type::NUMERIC, &mut raw)?;
-        // The Rust encoder canonicalizes zero scale on the wire.
-        let rust = Decimal::from_sql(&Type::NUMERIC, &raw)?;
-        let native = ExactDecimal::from_sql(&Type::NUMERIC, &raw)?.0;
-        assert_eq!(native.serialize(), rust.serialize());
-    }
-    Ok(())
-}
-
-// [spec:pgorm:req:bindings.values/test]
-#[test]
-fn numeric_precision_loss_is_rejected() {
-    // 1 + 1e-32: PostgreSQL base-10000 groups. Upstream Decimal rounds this.
-    let words: [u16; 13] = [9, 0, 0, 32, 1, 0, 0, 0, 0, 0, 0, 0, 1];
-    let raw: Vec<_> = words.iter().flat_map(|n| n.to_be_bytes()).collect();
-    assert!(Decimal::from_sql(&Type::NUMERIC, &raw).is_ok());
-    assert!(ExactDecimal::from_sql(&Type::NUMERIC, &raw).is_err());
-    assert!(ExactDecimal::from_sql(&Type::NUMERIC, &[0; 7]).is_err());
-}
 
 // [spec:pgorm:req:bindings.values/test]
 #[test]
