@@ -1,23 +1,18 @@
-use super::backend::{CursorPlan, Query};
+use super::backend::Query;
 use crate::{
     errors::{ConstructionError, InternalError},
     execution::Executor,
     transactions::work::{Output, Work},
 };
-use pyo3::{
-    IntoPyObjectExt,
-    prelude::*,
-    types::{PyList, PyTuple},
-};
+use pyo3::{prelude::*, types::PyList};
 use pyo3_async_runtimes::tokio::future_into_py;
 
 pub(crate) enum Read {
     All,
     Optional,
-    Cursor(CursorPlan),
 }
 
-// [spec:pgorm:req:bindings.entity-graphs+3]
+// [spec:pgorm:req:bindings.entity-graphs+4]
 pub(crate) fn read<'py>(
     py: Python<'py>,
     connection: &Bound<'_, PyAny>,
@@ -32,26 +27,14 @@ pub(crate) fn read<'py>(
         ));
     }
     future_into_py(py, async move {
-        let work = match terminal {
-            Read::Cursor(plan) => Work::Cursor(query, plan),
-            _ => Work::Graph(query, optional),
-        };
+        let work = Work::Graph(query, optional);
         let Output::Graph(rows) = target.run(work).await? else {
             return Err(InternalError::new_err("unexpected graph result"));
         };
         Python::attach(|py| {
             let rows = rows
                 .into_iter()
-                .map(|row| {
-                    for model in row.iter().flatten() {
-                        model.validate(py)?;
-                    }
-                    if row.len() == 1 {
-                        row.into_iter().next().flatten().into_py_any(py)
-                    } else {
-                        Ok(PyTuple::new(py, row)?.into_any().unbind())
-                    }
-                })
+                .map(|row| crate::entities::reads::row_object(py, row))
                 .collect::<PyResult<Vec<_>>>()?;
             if optional {
                 Ok(rows.into_iter().next().unwrap_or_else(|| py.None()))

@@ -182,7 +182,7 @@ test("the module names its registrations and describes each, and refuses a name 
   ]);
 });
 
-// [spec:pgorm:req:bindings.entity-reads+3/test]
+// [spec:pgorm:req:bindings.entity-reads+4/test]
 test("a query reads records through Select's terminals, keyed by SQL column", async () => {
   await seed();
   const busy = await Account.find().where(Account.col("mood").eq("busy")).all(pool());
@@ -206,7 +206,7 @@ test("a query reads records through Select's terminals, keyed by SQL column", as
   assert.equal(counted.n, 1n);
 });
 
-// [spec:pgorm:req:bindings.entity-reads+3/test]
+// [spec:pgorm:req:bindings.entity-reads+4/test]
 test("one and optional narrow a row limit and never widen one of zero", async () => {
   await seed();
   const none = Account.find().orderBy(Account.col("id").asc()).limit(0);
@@ -263,7 +263,7 @@ test("an ActiveModel holds each column's state, and its writes run the applicati
 // [spec:pgorm:req:bindings.schema-domains+2/test]    a domain column reports, binds and reads as the
 // kind it is over, and a check refuses a value written to it as a CheckViolationError naming the
 // domain
-// [spec:pgorm:req:bindings.entity-reads+3/test]    a column whose domain is over an enum compares as
+// [spec:pgorm:req:bindings.entity-reads+4/test]    a column whose domain is over an enum compares as
 // the enum
 test("a registered entity's domain columns read, write and compare as the types they are over", async () => {
   assert.deepStrictEqual(
@@ -314,7 +314,7 @@ test("a registered entity's domain columns read, write and compare as the types 
   assert.deepStrictEqual(ids(await Parcel.find().orderBy(byId).all(pool())), [1, 2, 3, 4]);
 });
 
-// [spec:pgorm:req:bindings.entity-reads+3/test]    a column whose domain is over an enum is a
+// [spec:pgorm:req:bindings.entity-reads+4/test]    a column whose domain is over an enum is a
 // member of a list of values and of a subquery's rows as the enum, either way round, where the
 // column's plain expression is refused with 42883
 // [spec:pgorm:req:bindings.pipeline-sources+3/test]    a registered column a pipeline reads
@@ -453,7 +453,7 @@ test("a registered column's between and distinctness tests compare under its cas
   assert.throws(() => takings.isDistinctFrom(null as never), refused(/compared with null is never true/));
 });
 
-// [spec:pgorm:req:bindings.entity-reads+3/test]    any(..) / all(..) over a list compares through the
+// [spec:pgorm:req:bindings.entity-reads+4/test]    any(..) / all(..) over a list compares through the
 // column's ColumnTrait, the list one array of its declared kind cast as eq_any's is: money as money[],
 // a column whose domain is over an enum as the enum, where the plain expression is refused; over an
 // expression it is compared as written
@@ -519,7 +519,7 @@ test("a decode refusal names the column the driver read and the decoder's reason
   }
 });
 
-// [spec:pgorm:req:bindings.entity-reads+3/test]    any(..) / all(..) over a list of ranges compared
+// [spec:pgorm:req:bindings.entity-reads+4/test]    any(..) / all(..) over a list of ranges compared
 // with a column of a range type the schema created is the array of their texts cast to the type's
 // array
 // [spec:pgorm:req:bindings.quantifiers+3/test]    a list of ranges, of no kind the list alone names,
@@ -691,7 +691,7 @@ test("an entity's insert has Rust's other insert terminals of its row count, no 
   assert.equal((await Account.find().all(pool())).length, 7);
 });
 
-// [spec:pgorm:req:bindings.entity-graphs+3/test]
+// [spec:pgorm:req:bindings.entity-graphs+4/test]
 test("a registered graph decodes its root and slots, an absent optional slot null", async () => {
   await seed();
   type Pair = [Record<string, unknown>, Record<string, unknown> | null];
@@ -719,7 +719,7 @@ test("a registered graph decodes its root and slots, an absent optional slot nul
   assert.throws(() => graph("app.AccountNotes").find({ aliases: ["accounts"] }), refused(/names a source twice/));
 });
 
-// [spec:pgorm:req:bindings.entity-graphs+3/test]
+// [spec:pgorm:req:bindings.entity-graphs+4/test]
 test("a registered graph's cursor pages by keyset, resuming inside a root's slot rows", async () => {
   await seed();
   const cursor = graph("app.AccountNotes").find({ aliases: ["n"] }).cursor("id");
@@ -733,7 +733,9 @@ test("a registered graph's cursor pages by keyset, resuming inside a root's slot
   assert.deepStrictEqual(last.map(([account]) => account.id), [2, 3]);
   const descending = await cursor.desc().first(1).all(pool()) as [Record<string, unknown>, unknown][];
   assert.deepStrictEqual(descending.map(([account]) => account.id), [3]);
-  assert.throws(() => cursor.afterWith(1), refused(/takes 2 values, and 1 were given/));
+  assert.throws(() => cursor.afterWith(1, 10, 3), refused(/does not match 1 or 2 key column/));
+  const resumedAtRoot = await cursor.afterWith(1).first(5).all(pool()) as [Record<string, unknown>, unknown][];
+  assert.deepStrictEqual(resumedAtRoot.map(([account]) => account.id), [2, 3]);
   assert.throws(() => cursor.after("x"), ConstructionError);
 });
 

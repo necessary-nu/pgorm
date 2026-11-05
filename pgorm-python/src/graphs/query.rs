@@ -1,17 +1,25 @@
 use super::{
-    backend::{Change, CursorPlan, Query},
+    backend::{Change, Query},
     cursor::PyEntityGraphCursor,
 };
 use crate::{
-    errors::ConstructionError,
+    entities::{
+        reads::NativeRowDecoder,
+        reads_py::{CursorState, PyEntityPaginator, compiled, counted, stream},
+    },
+    errors::{ConstructionError, InternalError},
+    execution::Executor,
     expressions::{Compiled, OrderBy, PyCondition, PyExpr},
+    transactions::work::{Output, Read, Work},
 };
 use pgorm::pgorm_query::{Expr, IntoCondition, Name};
+use pyo3::types::PyList;
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,
     types::{PyInt, PyTuple},
 };
+use pyo3_async_runtimes::tokio::future_into_py;
 
 #[derive(Clone, Debug)]
 #[pyclass(name = "EntityGraphQuery", module = "pgorm", frozen, from_py_object)]
@@ -86,36 +94,120 @@ impl PyEntityGraphQuery {
         Ok(Self { inner })
     }
 
+    /// The SQL and values a terminal sends, `optional` with its `LIMIT 1`
+    /// and `count` the paginator's count.
     #[pyo3(signature = (*, terminal="all"))]
     fn inspect(&self, terminal: &str) -> PyResult<Compiled> {
         let optional = match terminal {
             "all" => false,
             "optional" => true,
+            "count" => {
+                return compiled(
+                    self.inner
+                        .pages()
+                        .statement(std::num::NonZeroU64::MIN, None)
+                        .map_err(|error| ConstructionError::new_err(error.to_string()))?,
+                );
+            }
             _ => return Err(PyTypeError::new_err("unknown graph terminal")),
         };
-        let (sql, values) = self.inner.compile(optional);
-        if values.0.len() > 65535 {
-            return Err(ConstructionError::new_err(
-                "PostgreSQL supports at most 65535 query parameters",
-            ));
-        }
-        Ok(Compiled { sql, values })
+        compiled(self.inner.compile(optional))
     }
 
-    fn cursor(&self, column: &str) -> PyResult<PyEntityGraphCursor> {
-        self.inner.info().bindings.sources[0]
-            .entity
-            .column(column)?;
+    /// A keyset cursor ordered by root columns, `SelectGraph::cursor_by`,
+    /// every source's primary key after them as tiebreaks.
+    #[pyo3(signature = (*columns))]
+    fn cursor(&self, columns: Vec<String>) -> PyResult<PyEntityGraphCursor> {
+        self.cursor_on(0, columns)
+    }
+
+    /// A keyset cursor ordered by columns of decoded source `source`, the
+    /// first slot being 1, `SelectGraph::cursor_by_on::<I, _>`: the source's
+    /// own key, then the root's and the other slots', as tiebreaks.
+    #[pyo3(signature = (source, *columns))]
+    fn cursor_on(&self, source: usize, columns: Vec<String>) -> PyResult<PyEntityGraphCursor> {
+        let entity = &self
+            .inner
+            .info()
+            .bindings
+            .sources
+            .get(source)
+            .ok_or_else(|| ConstructionError::new_err(format!("the graph has no source {source}")))?
+            .entity;
+        for column in &columns {
+            entity.column(column)?;
+        }
         Ok(PyEntityGraphCursor {
-            query: self.inner.clone(),
-            plan: CursorPlan {
-                column: column.to_owned(),
-                before: None,
-                after: None,
-                descending: false,
-                window: None,
-            },
+            state: CursorState::new(self.inner.cursor(source, &columns)?),
         })
+    }
+
+    /// How many rows the graph reads, by `PaginatorTrait::count`.
+    fn count<'py>(
+        &self,
+        py: Python<'py>,
+        connection: &Bound<'_, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.inspect("count")?;
+        let pages = self.inner.pages();
+        let read: Read = Box::new(move |db| {
+            Box::pin(async move {
+                let (items, _) = pages.count(db, std::num::NonZeroU64::MIN).await?;
+                Ok(Output::Count(items))
+            })
+        });
+        counted(py, connection, read)
+    }
+
+    /// Pages of `page_size` rows of the join, `PaginatorTrait::paginate`.
+    fn paginate(&self, page_size: &Bound<'_, PyAny>) -> PyResult<PyEntityPaginator> {
+        PyEntityPaginator::new(self.inner.pages(), page_size)
+    }
+
+    /// Each root with its one `Opt` slot's models, `all_grouped`.
+    fn all_grouped<'py>(
+        &self,
+        py: Python<'py>,
+        connection: &Bound<'_, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let read = self.inner.grouped()?;
+        let target = Executor::extract(py, connection)?;
+        future_into_py(py, async move {
+            let Output::Grouped(groups) = target.run(Work::Read(read)).await? else {
+                return Err(InternalError::new_err("unexpected grouped graph result"));
+            };
+            Python::attach(|py| {
+                let groups = groups
+                    .into_iter()
+                    .map(|(root, slots)| {
+                        root.validate(py)?;
+                        for slot in &slots {
+                            slot.validate(py)?;
+                        }
+                        Ok((Py::new(py, root)?, PyList::new(py, slots)?.unbind()))
+                    })
+                    .collect::<PyResult<Vec<_>>>()?;
+                Ok(PyList::new(py, groups)?.into_any().unbind())
+            })
+        })
+    }
+
+    /// The rows one per pull, `SelectGraph::stream`'s decode of each as it
+    /// arrives, over a connection the stream holds until it ends.
+    fn stream<'py>(
+        &self,
+        py: Python<'py>,
+        connection: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let decoder = NativeRowDecoder {
+            decode: self.inner.decode(),
+        };
+        stream(
+            py,
+            connection,
+            compiled(self.inner.compile(false))?,
+            Some(decoder),
+        )
     }
 
     fn all<'py>(

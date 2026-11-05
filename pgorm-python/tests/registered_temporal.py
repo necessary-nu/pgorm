@@ -13,8 +13,8 @@ def days(start, end):
     return p.Range(date(2026, *start), date(2026, *end))
 
 
-# [spec:pgorm:req:bindings.entity-reads+3/test]
-# [spec:pgorm:req:bindings.entity-graphs+3/test]
+# [spec:pgorm:req:bindings.entity-reads+4/test]
+# [spec:pgorm:req:bindings.entity-graphs+4/test]
 class RegisteredTemporal(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=1)

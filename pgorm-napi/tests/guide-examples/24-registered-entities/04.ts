@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Conflict, createSchema, entity, fromEntity } from "@necessary/pgorm";
+import { ConstructionError, createSchema, entity, fromEntity } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
@@ -11,21 +11,21 @@ export default async function example({ pool }: GuideContext): Promise<void> {
   for (const statement of fromEntity(Account).enums) await pool.execute(statement);
   await pool.execute(fromEntity(Account).table);
 
-  const ids = await Account.insertMany([
-    Account.active().set("id", 1).set("display name", "Ann"),
-    Account.active().set("id", 2).set("display name", "Bob"),
-  ]).returningPks(pool);
-  assert.deepEqual(ids, [1, 2]);
+  const draft = Account.active().set("id", 1).set("display name", "Ann");
+  // `new` set the version and the mood.
+  assert.equal(draft.get("version").state, "set");
 
-  const raised = await Account.updateMany()
-    .set("version", 5)
-    .where(Account.col("id").gte(2))
-    .returningChanges(pool);
-  assert.deepEqual(raised.map(({ old, new: now }) => [old.version, now.version]), [[1, 5]]);
+  const ann = await draft.insert(pool);
+  assert.equal(ann["display name"], "Ann|before");
+  assert.equal(ann.version, 1);
 
-  const upserted = await Account.insert(Account.active().set("id", 1).set("display name", "Anne"))
-    .onConflict(Conflict.on("id").update("display name"))
-    .returningUpsert(pool);
-  assert.equal(upserted?.kind, "updated");
-  assert.equal(upserted?.new["display name"], "Anne");
+  const changed = await Account.intoActive(ann).set("note", "seen").update(pool);
+  assert.equal(changed.version, 2);
+  assert.equal(Account.intoActive(changed).get("note").state, "unchanged");
+
+  await assert.rejects(
+    Account.active().set("id", 2).set("display name", "reject_before").insert(pool),
+    (error: unknown) => error instanceof ConstructionError && /before_save refused/.test(error.message),
+  );
+  assert.equal(await Account.intoActive(changed).delete(pool), 1);
 }

@@ -1,11 +1,16 @@
 use std::sync::Arc;
 
 use pgorm::{
-    EntityTrait, GraphItem, GraphRow, IntoActiveModel, Opt, Req, SelectorTrait, Slot, Slots,
+    EntityTrait, GraphItem, GraphRow, IntoActiveModel, Opt, Req, SelectGraph, SelectorTrait, Slot,
+    Slots,
 };
 use pyo3::prelude::*;
 
-use crate::entities::{PyEntityModel, Registry, generic::ModelAdapter, metadata::EntityInfo};
+use super::keysets::{grouped_by, root_keyset, slot_keyset};
+use crate::entities::{
+    PyEntityModel, Registry, generic::ModelAdapter, metadata::EntityInfo, reads::Keyset,
+};
+use crate::{errors::ConstructionError, transactions::work::Read};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Source {
@@ -20,9 +25,33 @@ pub struct GraphBindings {
     pub(crate) sources: Vec<Source>,
 }
 
-pub(crate) trait RegisteredSlot: Slot {
+/// A registered graph's keyset cursor, built where the slot tuple's
+/// positions are known.
+#[doc(hidden)]
+#[derive(Debug)]
+pub struct SlotKeyset(pub(crate) Arc<dyn Keyset>);
+
+/// A registered graph's grouped read, which only a tuple of one `Opt` slot
+/// has.
+#[doc(hidden)]
+pub struct GroupedRead(pub(crate) Read);
+
+impl std::fmt::Debug for GroupedRead {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GroupedRead").finish_non_exhaustive()
+    }
+}
+
+pub(crate) trait RegisteredSlot: Slot<Out: Send> {
     fn source(registry: &Registry) -> PyResult<Source>;
     fn model(value: Self::Out, source: &Source) -> Option<PyEntityModel>;
+    /// `all_grouped` of a graph whose one slot this is.
+    fn grouped<E>(graph: SelectGraph<E, (Self,)>, bindings: &GraphBindings) -> PyResult<Read>
+    where
+        E: EntityTrait + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: Send + Sync + 'static,
+        Self: Sized + Send + Sync + 'static;
 }
 
 impl<F> RegisteredSlot for Req<F>
@@ -45,6 +74,18 @@ where
             }),
         })
     }
+    fn grouped<E>(_: SelectGraph<E, (Self,)>, _: &GraphBindings) -> PyResult<Read>
+    where
+        E: EntityTrait + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: Send + Sync + 'static,
+    {
+        Err(grouped_refused())
+    }
+}
+
+fn grouped_refused() -> PyErr {
+    ConstructionError::new_err("all_grouped reads a graph of one Opt slot, as Rust's does")
 }
 
 impl<F> RegisteredSlot for Opt<F>
@@ -67,6 +108,14 @@ where
             }),
         })
     }
+    fn grouped<E>(graph: SelectGraph<E, (Self,)>, bindings: &GraphBindings) -> PyResult<Read>
+    where
+        E: EntityTrait + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: Send + Sync + 'static,
+    {
+        Ok(grouped_by::<E, F>(graph, bindings))
+    }
 }
 
 /// Native conversion machinery for Rust's existing graph tuple arities.
@@ -80,9 +129,24 @@ where
     fn bindings(registry: &Registry) -> PyResult<GraphBindings>;
     #[doc(hidden)]
     fn models(row: GraphItem<E, Self>, bindings: &GraphBindings) -> Vec<Option<PyEntityModel>>;
+    /// `cursor_by` over root columns for source 0, `cursor_by_on::<I, _>`
+    /// over slot `I`'s otherwise.
+    #[doc(hidden)]
+    fn keyset(
+        graph: &SelectGraph<E, Self>,
+        source: usize,
+        columns: &[String],
+        bindings: &GraphBindings,
+    ) -> PyResult<SlotKeyset>;
+    #[doc(hidden)]
+    fn grouped(graph: SelectGraph<E, Self>, bindings: &GraphBindings) -> PyResult<GroupedRead>;
 }
 
-// [spec:pgorm:req:bindings.entity-graphs+3]
+fn no_source(source: usize) -> PyErr {
+    ConstructionError::new_err(format!("the graph has no slot {source}"))
+}
+
+// [spec:pgorm:req:bindings.entity-graphs+4]
 impl<E> GraphSlots<E> for ()
 where
     E: EntityTrait + Send + Sync + 'static,
@@ -105,11 +169,25 @@ where
             }),
         })]
     }
+    fn keyset(
+        graph: &SelectGraph<E, Self>,
+        source: usize,
+        columns: &[String],
+        bindings: &GraphBindings,
+    ) -> PyResult<SlotKeyset> {
+        match source {
+            0 => root_keyset(graph, columns, bindings).map(SlotKeyset),
+            other => Err(no_source(other)),
+        }
+    }
+    fn grouped(_: SelectGraph<E, Self>, _: &GraphBindings) -> PyResult<GroupedRead> {
+        Err(grouped_refused())
+    }
 }
 
 macro_rules! slots {
-    ($($slot:ident @ $at:tt),+) => {
-        // [spec:pgorm:req:bindings.entity-graphs+3]
+    ($grouped:ident; $($slot:ident @ $at:tt),+) => {
+        // [spec:pgorm:req:bindings.entity-graphs+4]
         impl<E, $($slot),+> GraphSlots<E> for ($($slot,)+)
         where
             E: EntityTrait + Send + Sync + 'static,
@@ -124,13 +202,35 @@ macro_rules! slots {
                 let root = PyEntityModel { inner: Arc::new(ModelAdapter::<E> { value: row.0, info: bindings.sources[0].entity.clone() }) };
                 vec![Some(root), $($slot::model(row.$at, &bindings.sources[$at]),)+]
             }
+            fn keyset(
+                graph: &SelectGraph<E, Self>,
+                source: usize,
+                columns: &[String],
+                bindings: &GraphBindings,
+            ) -> PyResult<SlotKeyset> {
+                match source {
+                    0 => root_keyset(graph, columns, bindings).map(SlotKeyset),
+                    $($at => slot_keyset::<$at, E, Self>(graph, columns, bindings).map(SlotKeyset),)+
+                    other => Err(no_source(other)),
+                }
+            }
+            fn grouped(graph: SelectGraph<E, Self>, bindings: &GraphBindings) -> PyResult<GroupedRead> {
+                slots!(@grouped $grouped graph bindings $($slot)+)
+            }
         }
-    }
+    };
+    (@grouped one $graph:ident $bindings:ident $slot:ident) => {
+        <$slot as RegisteredSlot>::grouped($graph, $bindings).map(GroupedRead)
+    };
+    (@grouped many $graph:ident $bindings:ident $($slot:ident)+) => {{
+        let _ = ($graph, $bindings);
+        Err(grouped_refused())
+    }};
 }
 
-slots!(S1 @ 1);
-slots!(S1 @ 1, S2 @ 2);
-slots!(S1 @ 1, S2 @ 2, S3 @ 3);
-slots!(S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4);
-slots!(S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4, S5 @ 5);
-slots!(S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4, S5 @ 5, S6 @ 6);
+slots!(one; S1 @ 1);
+slots!(many; S1 @ 1, S2 @ 2);
+slots!(many; S1 @ 1, S2 @ 2, S3 @ 3);
+slots!(many; S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4);
+slots!(many; S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4, S5 @ 5);
+slots!(many; S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4, S5 @ 5, S6 @ 6);

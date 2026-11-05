@@ -15,7 +15,7 @@ mod config;
 mod copy;
 pub(crate) mod job;
 mod listen;
-mod stream;
+pub(crate) mod stream;
 mod transaction;
 
 use std::{

@@ -10,17 +10,21 @@ use std::{any::Any, fmt::Debug, marker::PhantomData, sync::Arc};
 
 use futures_util::future::BoxFuture;
 use pgorm::pgorm_query::{
-    BinOper, CommentStatement, Condition, Expr, IndexCreateStatement, Name, NullOrdering,
+    BinOper, CommentStatement, Condition, Expr, IndexCreateStatement, JoinType, Name, NullOrdering,
     OnConflict, Order, SelectStatement, SimpleExpr, TableCreateStatement, Value, Values,
     extension::TypeCreateStatement,
 };
 use pgorm::{
     ActiveModelBehavior, ActiveModelTrait, ActiveValue, Change as RustChange, ColumnTrait,
     EntityTrait, Error, IntoActiveModel, Iterable, ModelTrait, QueryFilter, QueryOrder,
-    QuerySelect, QueryTrait, StaticName, Update, Upserted,
+    QuerySelect, QueryTrait, RelationDef, RelationTrait, SelectModel, SelectorTrait, StaticName,
+    Update, Upserted,
 };
 
-use super::info::EntityInfo;
+use super::{
+    info::EntityInfo,
+    reads::{Decode, Keyset, Pages},
+};
 use crate::{connect::job::Database, errors::Failure};
 
 pub(crate) type Model = Arc<dyn ModelBackend>;
@@ -104,6 +108,8 @@ pub(crate) enum Change {
     Order(SimpleExpr, Order, Option<NullOrdering>),
     Limit(Option<u64>),
     Offset(Option<u64>),
+    /// `QuerySelect::join` of the relation the registered entity names so.
+    Join(JoinType, Arc<dyn EntityBackend>, String),
 }
 
 pub(crate) enum Written {
@@ -216,6 +222,8 @@ pub(crate) trait EntityBackend: Debug + Send + Sync {
     fn source(&self) -> pgorm::pipeline::Source;
     fn select(&self) -> Select;
     fn active(&self) -> Active;
+    /// The `RelationDef` of the `Relation` variant whose name is `name`.
+    fn relation(&self, name: &str) -> Result<RelationDef, Failure>;
     fn column(&self, column: &str) -> Result<SimpleExpr, Failure>;
     fn compare(
         &self,
@@ -270,6 +278,15 @@ pub(crate) trait SelectBackend: Debug + Send + Sync {
     fn change(&self, change: Change) -> Select;
     fn compile(&self, read: Read) -> (String, Values);
     fn run<'a>(&'a self, db: Database<'a>, read: Read) -> BoxFuture<'a, Result<Vec<Model>, Error>>;
+    /// The statement of `select_only` and `columns` over `columns`, `one` and
+    /// `optional` narrowed to one row.
+    fn projected(&self, columns: &[String], read: Read) -> Result<SelectStatement, Failure>;
+    fn statement(&self) -> SelectStatement;
+    fn pages(&self) -> Arc<dyn Pages>;
+    /// `Select::cursor_by` over `columns`, in order.
+    fn cursor(&self, columns: &[String]) -> Result<Arc<dyn Keyset>, Failure>;
+    /// The decode `Select::stream` runs on each row.
+    fn decode(&self) -> Decode;
 }
 
 pub(crate) trait ModelBackend: Debug + Send + Sync {
@@ -292,7 +309,7 @@ pub(crate) trait ActiveBackend: Debug + Send + Sync {
 }
 
 /// The entity's column of SQL name `name`.
-fn column<E: EntityTrait>(info: &EntityInfo, name: &str) -> Result<E::Column, Failure> {
+pub(crate) fn column<E: EntityTrait>(info: &EntityInfo, name: &str) -> Result<E::Column, Failure> {
     <E::Column as Iterable>::iter()
         .find(|column| column.as_str() == name)
         .ok_or_else(|| Failure::Construction(format!("{} has no column {name:?}", info.name)))
@@ -344,6 +361,15 @@ where
         })
     }
 
+    fn relation(&self, name: &str) -> Result<RelationDef, Failure> {
+        E::Relation::iter()
+            .find(|relation| format!("{relation:?}") == name)
+            .map(|relation| relation.def())
+            .ok_or_else(|| {
+                Failure::Construction(format!("{} declares no relation {name}", self.info.name))
+            })
+    }
+
     fn column(&self, name: &str) -> Result<SimpleExpr, Failure> {
         Ok(Expr::col(column::<E>(&self.info, name)?.as_column_ref()).into())
     }
@@ -375,7 +401,7 @@ where
         })
     }
 
-    // [spec:pgorm:req:bindings.entity-reads+3]
+    // [spec:pgorm:req:bindings.entity-reads+4]
     fn quantified(
         &self,
         name: &str,
@@ -407,7 +433,7 @@ where
         })
     }
 
-    // [spec:pgorm:req:bindings.entity-reads+3]
+    // [spec:pgorm:req:bindings.entity-reads+4]
     fn membership(
         &self,
         name: &str,
@@ -530,7 +556,7 @@ pub(crate) struct SelectAdapter<E: EntityTrait> {
     pub(crate) info: Arc<EntityInfo>,
 }
 
-// [spec:pgorm:req:bindings.entity-reads+3]
+// [spec:pgorm:req:bindings.entity-reads+4]
 impl<E> SelectBackend for SelectAdapter<E>
 where
     E: EntityTrait + Send + Sync + 'static,
@@ -551,6 +577,10 @@ where
             Change::Order(expr, order, None) => query.order_by(expr, order),
             Change::Limit(limit) => query.limit(limit),
             Change::Offset(offset) => query.offset(offset),
+            Change::Join(kind, entity, relation) => match entity.relation(&relation) {
+                Ok(def) => query.join(kind, def),
+                Err(_) => query,
+            },
         };
         Arc::new(Self {
             query,
@@ -578,6 +608,39 @@ where
                 .into_iter()
                 .map(|value| model_of::<E>(value, &self.info))
                 .collect())
+        })
+    }
+
+    // [spec:pgorm:req:bindings.entity-reads+4]
+    fn projected(&self, columns: &[String], read: Read) -> Result<SelectStatement, Failure> {
+        let columns = columns
+            .iter()
+            .map(|name| column::<E>(&self.info, name))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut query = self.query.clone().select_only().columns(columns);
+        if read != Read::All {
+            QueryTrait::query(&mut query).narrow_limit_to_one();
+        }
+        Ok(QueryTrait::into_query(query))
+    }
+
+    fn statement(&self) -> SelectStatement {
+        QueryTrait::as_query(&self.query).clone()
+    }
+
+    fn pages(&self) -> Arc<dyn Pages> {
+        super::select_reads::pages(self)
+    }
+
+    fn cursor(&self, columns: &[String]) -> Result<Arc<dyn Keyset>, Failure> {
+        super::select_reads::cursor(self, columns)
+    }
+
+    fn decode(&self) -> Decode {
+        let info = self.info.clone();
+        Arc::new(move |row| {
+            let value = SelectModel::<E::Model>::from_raw_query_result(row)?;
+            Ok(vec![Some(model_of::<E>(value, &info))])
         })
     }
 }

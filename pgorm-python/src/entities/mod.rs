@@ -9,8 +9,12 @@ pub(crate) mod io;
 pub(crate) mod metadata;
 mod model;
 pub(crate) mod query;
+pub(crate) mod reads;
+pub(crate) mod reads_py;
 mod registry;
 mod relations;
+mod select_reads;
+mod selection;
 #[cfg(test)]
 mod variants;
 mod versions;
@@ -21,8 +25,10 @@ pub(crate) use inserts::TERMINALS as insert_terminals;
 pub use inserts::{PyEntityInsert, PyEntityInsertMany};
 pub use model::PyEntityModel;
 pub use query::PyEntityQuery;
+pub use reads_py::{PyEntityCursor, PyEntityPaginator};
 pub(crate) use registry::NativeRegistry;
 pub use registry::Registry;
+pub use selection::{PyEntityRelation, PyEntitySelection};
 pub(crate) use versions::TERMINALS as version_terminals;
 pub use versions::{PyChange, PyEntityUpdate, PyEntityUpdateMany, PyUpserted};
 
@@ -64,6 +70,18 @@ impl PyEntity {
         }
     }
 
+    /// The relation the entity's `Relation` enum declares under `name`, for
+    /// a query to join.
+    fn relation(&self, name: &str) -> PyResult<PyEntityRelation> {
+        self.backend
+            .relation(name)
+            .map_err(|error| crate::errors::ConstructionError::new_err(error.to_string()))?;
+        Ok(PyEntityRelation {
+            entity: self.backend.clone(),
+            name: name.to_owned(),
+        })
+    }
+
     fn active(&self) -> PyActiveModel {
         PyActiveModel {
             inner: self.backend.active(),
@@ -102,6 +120,12 @@ pub(crate) fn install(module: &Bound<'_, PyModule>, registry: Registry) -> PyRes
     module.add_class::<PyEntity>()?;
     module.add_class::<PyEntityColumn>()?;
     module.add_class::<PyEntityQuery>()?;
+    module.add_class::<PyEntitySelection>()?;
+    module.add_class::<PyEntityPaginator>()?;
+    module.add_class::<reads_py::PyEntityPages>()?;
+    module.add_class::<PyEntityCursor>()?;
+    module.add_class::<PyEntityRelation>()?;
+    module.add_class::<reads::NativeRowDecoder>()?;
     module.add_class::<PyEntityModel>()?;
     module.add_class::<PyActiveModel>()?;
     module.add_class::<PyActiveValue>()?;
@@ -129,6 +153,21 @@ pub(crate) fn capabilities() -> serde_json::Map<String, serde_json::Value> {
         ("entity.all", "pgorm::Select<E>::all"),
         ("entity.one", "pgorm::Select<E>::one"),
         ("entity.optional", "pgorm::Select<E>::one_opt"),
+        ("entity.count", "pgorm::PaginatorTrait::count"),
+        ("entity.stream", "pgorm::Select<E>::stream"),
+        (
+            "entity.paginate",
+            "pgorm::PaginatorTrait::paginate, Paginator::{fetch_page,num_items_and_pages}",
+        ),
+        (
+            "entity.cursor",
+            "pgorm::Select<E>::cursor_by, pgorm::Cursor",
+        ),
+        (
+            "entity.join",
+            "pgorm::QuerySelect::join, RelationTrait::def",
+        ),
+        ("entity.select", "pgorm::QuerySelect::{select_only,columns}"),
         ("entity.model", "pgorm::ModelTrait"),
         (
             "entity.active",

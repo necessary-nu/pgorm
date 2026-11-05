@@ -3,11 +3,15 @@ use std::{fmt::Debug, sync::Arc};
 
 use futures_util::future::BoxFuture;
 use pgorm::pgorm_query::{
-    BinOper, Condition, NullOrdering, OnConflict, Order, SelectStatement, SimpleExpr, Value, Values,
+    BinOper, Condition, JoinType, NullOrdering, OnConflict, Order, SelectStatement, SimpleExpr,
+    Value, Values,
 };
-use pgorm::{ActiveValue, Error};
+use pgorm::{ActiveValue, Error, RelationDef};
 
-use super::metadata::EntityInfo;
+use super::{
+    metadata::EntityInfo,
+    reads::{Decode, Keyset, Pages},
+};
 
 pub(crate) type Model = Arc<dyn ModelBackend>;
 pub(crate) type Active = Arc<dyn ActiveBackend>;
@@ -99,6 +103,8 @@ pub(crate) enum Change {
     Order(SimpleExpr, Order, Option<NullOrdering>),
     Limit(Option<u64>),
     Offset(Option<u64>),
+    /// `QuerySelect::join` of the relation the registered entity names so.
+    Join(JoinType, Arc<dyn EntityBackend>, String),
 }
 
 pub(crate) trait EntityBackend: Debug + Send + Sync {
@@ -106,6 +112,8 @@ pub(crate) trait EntityBackend: Debug + Send + Sync {
     fn schema(&self) -> Result<crate::schema::PyEntitySchema, Error>;
     fn select(&self) -> Select;
     fn active(&self) -> Active;
+    /// The `RelationDef` of the `Relation` variant whose name is `name`.
+    fn relation(&self, name: &str) -> Result<RelationDef, Error>;
     fn expression(&self, column: &str) -> Result<SimpleExpr, Error>;
     /// The column as a pipeline reads it, compared as the entity types it.
     fn pipeline_column(&self, column: &str) -> Result<Arc<dyn PipelineColumn>, Error>;
@@ -225,6 +233,14 @@ pub(crate) trait SelectBackend: Debug + Send + Sync {
         db: Database<'a>,
         terminal: Terminal,
     ) -> BoxFuture<'a, Result<Vec<Model>, Error>>;
+    /// The statement of `Select::select` over `columns`, `one` and `optional`
+    /// narrowed to one row.
+    fn projected(&self, columns: &[String], terminal: Terminal) -> Result<(String, Values), Error>;
+    fn pages(&self) -> Arc<dyn Pages>;
+    /// `Select::cursor_by` over `columns`, in order.
+    fn cursor(&self, columns: &[String]) -> Result<Arc<dyn Keyset>, Error>;
+    /// The decode `Select::stream` runs on each row.
+    fn decode(&self) -> Decode;
 }
 
 pub(crate) trait ModelBackend: Debug + Send + Sync {

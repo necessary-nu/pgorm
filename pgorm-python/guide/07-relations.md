@@ -580,10 +580,11 @@ decoded source as the query names it. Its `all` is `SelectGraph::all`, and its
 row is the root's `EntityModel` when the graph has no slot, and otherwise a
 tuple of `EntityModel`s, `None` for an optional slot that matched nothing.
 
-`cursor(column)` is `SelectGraph::cursor_by` on one root column, with the
-root's and every slot's primary key added as tiebreaks: `after` and `before`
-take that column's value, and `after_with` and `before_with` the whole key,
-the column first, then the root's other key columns and each slot's, in
-order. Here a registered graph differs from a model's: it has no `stream`,
-`all_grouped`, `paginate` or `count`, and its cursor orders by one root column
-only.
+`cursor(*columns)` is `SelectGraph::cursor_by` on root columns, and
+`cursor_on(source, *columns)` `cursor_by_on` on a slot's, with every decoded
+source's primary key added as tiebreaks: `after` and `before` take the order
+columns' values, and `after_with` and `before_with` those or the whole key,
+the order columns first, then the ordered source's other key columns and
+each other source's, in order. `stream`, `all_grouped`, `paginate` and
+`count` are `SelectGraph`'s own, `all_grouped` on a graph of one `Opt` slot
+only, as in Rust.

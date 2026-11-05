@@ -117,6 +117,9 @@ class EntityView(Generic[M, A]):
     def col(self, name):
         return self._entity.col(name)
 
+    def relation(self, name):
+        return self._entity.relation(name)
+
     def find(self) -> "QueryView[M]":
         return QueryView(self._entity.find(), self._model_class)
 
@@ -173,6 +176,28 @@ class QueryView(Generic[M]):
     async def optional(self, connection) -> M | None:
         row = await self._query.optional(connection)
         return None if row is None else self._model_class(row)
+
+    def join(self, relation, *, kind=native_types.Join.Inner) -> "QueryView[M]":
+        return QueryView(self._query.join(relation, kind=kind), self._model_class)
+
+    def select(self, *columns):
+        return self._query.select(*columns)
+
+    async def count(self, connection) -> int:
+        return await self._query.count(connection)
+
+    async def stream(self, connection):
+        return (await self._query.stream(connection))._decoding(self._model_class)
+
+    def paginate(self, page_size):
+        from .reads import PaginatorView
+
+        return PaginatorView(self._query.paginate(page_size), self._model_class)
+
+    def cursor(self, *columns):
+        from .reads import CursorView
+
+        return CursorView(self._query.cursor(*columns), self._model_class)
 
     def __bool__(self) -> bool:
         return bool(self._query)

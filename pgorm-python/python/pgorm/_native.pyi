@@ -163,7 +163,9 @@ from ._json import (
     is_json as is_json, is_not_json as is_not_json,
 )
 from ._results import Record as Record, Field as Field
-from ._entities import Entity as Entity, EntityColumn as EntityColumn, EntityQuery as EntityQuery, EntityRelation as EntityRelation, EntitySelection as EntitySelection, EntityPaginator as EntityPaginator, EntityCursor as EntityCursor, _RowDecoder as _RowDecoder, entity as entity, entities as entities
+from ._entities import Entity as Entity, EntityQuery as EntityQuery, entity as entity, entities as entities
+from ._entity_columns import EntityColumn as EntityColumn
+from ._entity_reads import EntityRelation as EntityRelation, EntitySelection as EntitySelection, EntityPaginator as EntityPaginator, EntityCursor as EntityCursor, _RowDecoder as _RowDecoder
 from ._versions import (
     Change as Change, Upserted as Upserted, EntityUpdate as EntityUpdate,
     EntityUpdateMany as EntityUpdateMany, EntityInsert as EntityInsert,

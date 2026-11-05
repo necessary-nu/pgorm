@@ -7,7 +7,7 @@ import unittest
 import pgorm as p
 from pgorm import _native, pipeline as pl, schema as s
 from pgorm.schema import changes
-from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, versions as version_views
+from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, reads as read_views, versions as version_views
 from pgorm.codegen import source
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
@@ -35,10 +35,10 @@ EXEMPT = {
     p.Pool, p.Connection, p.Transaction,
     _native._Pool, _native._Connection, _native._Transaction, _native._Stream,
     _native._CopyIn, _native._CopyOut, _native._Listener, _native._Disjoint,
-    _native._DisjointChange,
+    _native._DisjointChange, _native._RowDecoder, _native._EntityPages,
     # Registrations and declarations: they name what a query reads and are
     # true as any declared object is; the queries they start refuse.
-    p.Entity, p.EntityGraph, Model, Column, Relation, pl.SourceSelection, pl.Binder,
+    p.Entity, p.EntityGraph, p.EntityRelation, Model, Column, Relation, pl.SourceSelection, pl.Binder,
     model.UniqueKey, model._DeclaredKey,
     views.EntityView, graph_views.GraphView, FieldType,
     # The layout the codegen writes source with: build-time values no query
@@ -61,6 +61,7 @@ EXEMPT = {
 BUILT_ELSEWHERE = {
     p.EntityColumn, p.EntityQuery, p.EntityUpdate, p.EntityUpdateMany, p.EntityInsert,
     p.EntityInsertMany, p.EntityGraphQuery, p.EntityGraphCursor, pl.SelectedSources, s.EntitySchema,
+    p.EntityCursor, p.EntityPaginator, p.EntitySelection, read_views.PaginatorView, read_views.CursorView,
     views.QueryView, graph_views.GraphQueryView, graph_views.GraphCursorView,
     version_views.UpdateView, version_views.UpdateManyView, version_views._InsertView,
     version_views.InsertView, version_views.InsertManyView, p.Notification, p.Listener, p.RowStream,

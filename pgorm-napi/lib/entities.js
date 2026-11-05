@@ -14,6 +14,7 @@ import { Condition } from "./conditions.js";
 import { runJob } from "./connections.js";
 import { Expr } from "./expressions.js";
 import { EntityColumn, EntityQuery, QUERIES } from "./entity-queries.js";
+import { EntityRelation, READS } from "./entity-reads.js";
 import { EntityInsert, EntityInsertMany, EntityUpdate, EntityUpdateMany, inserted, VERSIONS } from "./entity-versions.js";
 import { native } from "./operations.js";
 
@@ -41,6 +42,23 @@ export function recordOf(entity, columns, [values, handle]) {
   const record = Object.freeze(Object.fromEntries(columns.map((column, index) => [column, values[index]])));
   models.set(record, { handle, entity });
   return record;
+}
+
+/**
+ * The rows of a read of several sources, `[columns per source, ([values,
+ * model] | null)[][]]`: a row of one source as its record, and otherwise a
+ * tuple of each source's, null for an absent one.
+ *
+ * @param {readonly string[]} entities
+ * @param {[string[][], ([unknown[], unknown] | null)[][]]} outcome
+ */
+export function rowsOf(entities, [columns, rows]) {
+  return rows.map((row) => {
+    const records = row.map((pair, index) =>
+      pair === null ? null : recordOf(/** @type {string} */ (entities[index]), /** @type {string[]} */ (columns[index]), pair)
+    );
+    return records.length === 1 ? records[0] : records;
+  });
 }
 
 /**
@@ -142,6 +160,18 @@ export class Entity extends Handle {
   /** `E::find()`. */
   find() {
     return new EntityQuery(native.entityFind(this.#native), this.#name, QUERIES);
+  }
+
+  /**
+   * The relation the entity's `Relation` enum declares under `name`, for a
+   * query to join.
+   *
+   * @param {string} name
+   */
+  relation(name) {
+    if (typeof name !== "string") throw new TypeError("a relation's name is a string");
+    native.entityRelation(this.#native, name);
+    return new EntityRelation(this.#native, this.#name, name, READS);
   }
 
   /** A new ActiveModel from `ActiveModelBehavior::new`, its defaults included. */
