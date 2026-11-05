@@ -17937,4 +17937,32 @@ children (
             }
         )
     }
+
+    {
+        id value-codecs
+        title "Every value codec lives once, in pgorm, reads exactly, and both bindings map each column type to the same kind"
+        kind @fix
+        children (
+            {
+                id value-codecs.builtin-range-codec
+                title "Both bindings decode built-in ranges and multiranges through pgorm's range_from_sql/multirange_from_sql, with no decoder of their own"
+                kind @refactor
+                deps (typed-binds.shared-range-codec)
+            }
+
+            {
+                id value-codecs.char-created-range-kind
+                title "Both bindings give a created range over char(n) the same kind, through one shared column-type mapping"
+                kind @fix
+                deps (typed-binds.shared-range-codec)
+            }
+
+            {
+                id value-codecs.copy-numeric-exact
+                title "pgorm's binary COPY rows reads a numeric exactly, refusing a value rust_decimal would round, as a created range's numeric bound is read"
+                kind @fix
+                deps (typed-binds.shared-range-codec)
+            }
+        )
+    }
 )
