@@ -1,6 +1,6 @@
 use crate::{
-    ConnectionTrait, EntityTrait, FromQueryResult, PartialModelTrait, QueryResult, Select,
-    SelectProjected, TryGetableMany, error::*,
+    ConnectionTrait, EntityTrait, FromQueryResult, PartialModelTrait, QueryResult, QueryTrait,
+    Select, SelectProjected, TryGetableMany, error::*,
 };
 use futures::{Stream, StreamExt};
 use pgorm_query::{SelectStatement, Values};
@@ -54,8 +54,29 @@ pub(crate) fn refuse_tie_limit(query: &SelectStatement, reader: &str) -> Result<
     Ok(())
 }
 
-/// Defines a type to do `SELECT` operations through a [SelectStatement] on a Model
-// [spec:pgorm:def:exec.crud+1]
+/// A `SELECT` statement and the decode target its rows are read into.
+///
+/// It renders as the [`Select`] it came from does, through [`QueryTrait`]:
+/// what [`into_partial_model`](Select::into_partial_model),
+/// [`into_model`](SelectProjected::into_model),
+/// [`into_tuple`](SelectProjected::into_tuple) or
+/// [`into_values`](SelectProjected::into_values) will run can be asserted
+/// and logged before it runs.
+///
+/// ```
+/// use pgorm::{entity::*, query::*, tests_cfg::cake};
+///
+/// let names = cake::Entity::find()
+///     .select(cake::Column::Name)
+///     .filter(cake::Column::Id.gt(2))
+///     .into_tuple::<(String,)>();
+///
+/// assert_eq!(
+///     names.build().0,
+///     r#"SELECT "cake"."name" FROM "cake" WHERE "cake"."id" > $1"#
+/// );
+/// ```
+// [spec:pgorm:def:exec.crud+2]
 #[derive(Clone, Debug)]
 pub struct Selector<S>
 where
@@ -78,7 +99,7 @@ where
 }
 
 /// A Trait for any type that can perform SELECT queries
-// [spec:pgorm:def:exec.crud+1]
+// [spec:pgorm:def:exec.crud+2]
 pub trait SelectorTrait {
     #[allow(missing_docs)]
     type Item: Sized;
@@ -501,6 +522,26 @@ where
         M: PartialModelTrait,
     {
         M::select_cols(self.select_only()).into_model::<M>()
+    }
+}
+
+// [spec:pgorm:def:exec.crud+2]
+impl<S> QueryTrait for Selector<S>
+where
+    S: SelectorTrait,
+{
+    type QueryStatement = SelectStatement;
+
+    fn query(&mut self) -> &mut SelectStatement {
+        &mut self.query
+    }
+
+    fn as_query(&self) -> &SelectStatement {
+        &self.query
+    }
+
+    fn into_query(self) -> SelectStatement {
+        self.query
     }
 }
 

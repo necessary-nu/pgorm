@@ -1504,3 +1504,44 @@ fn last_hop_alias_matches_the_emitted_join() {
         Some(r#""r2"."id" ASC"#)
     );
 }
+
+// [spec:pgorm:def:exec.crud+2/test]    a decoded selector renders the statement
+// the `Select` it came from does, whichever decode target it reads into
+#[test]
+fn decoded_selectors_render_their_statement() {
+    let query = || {
+        cake::Entity::find()
+            .select_only()
+            .column(cake::Column::Name)
+            .filter(cake::Column::Id.gt(2))
+    };
+    let expected = query().build();
+    assert_eq!(query().into_tuple::<(String,)>().build(), expected);
+    assert_eq!(
+        query().into_values::<(String,), cake::Column>().build(),
+        expected
+    );
+    assert_eq!(
+        query().into_model::<cake::Model>().as_query().to_string(),
+        query().as_query().to_string()
+    );
+
+    #[derive(pgorm::PartialModel)]
+    #[pgorm(entity = cake::Entity)]
+    struct Shout {
+        #[pgorm(from_expr = Func::upper(Expr::col((cake::Entity, cake::Column::Name))))]
+        shout: String,
+    }
+
+    let partial = cake::Entity::find()
+        .filter(cake::Column::Id.gt(2))
+        .into_partial_model::<Shout>();
+    assert_eq!(
+        partial.build().0,
+        r#"SELECT UPPER("cake"."name") AS "shout" FROM "cake" WHERE "cake"."id" > $1"#
+    );
+    assert_eq!(
+        partial.into_query().to_string(),
+        r#"SELECT UPPER("cake"."name") AS "shout" FROM "cake" WHERE "cake"."id" > 2"#
+    );
+}

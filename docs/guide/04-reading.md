@@ -316,12 +316,10 @@ assert_eq!(
     }
 );
 
-// `select_cols` is the projection `into_partial_model` selects.
-use pgorm::PartialModelTrait;
-
+// A decoded query renders the statement it will run.
 let lemon = cake::Entity::find().filter(cake::Column::Id.eq(2));
 assert_eq!(
-    MenuLine::select_cols(lemon.clone().select_only()).build().0,
+    lemon.clone().into_partial_model::<MenuLine>().build().0,
     r#"SELECT UPPER("cake"."name") AS "shout", "cake"."gluten_free" AS "free_from_gluten" FROM "cake" WHERE "cake"."id" = $1"#
 );
 assert_eq!(

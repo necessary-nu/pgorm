@@ -4250,6 +4250,20 @@ children (
                         kind @note
                         text "Found by guide.rust (reading chapter). After into_tuple, into_model, into_values or into_partial_model a Selector has no build() or as_query(), so the SQL it will run cannot be asserted or logged; the guide imports PartialModelTrait (not in the prelude) and calls select_cols on the Select instead."
                     }
+
+                    {
+                        at 2026-11-05T17:23:29.573118Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T17:26:56.527132Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Selector<S> implements QueryTrait, the same build surface Select, SelectGraph, the writes and the disjoint selects have, rather than a pair of inherent build/as_query methods: one rendering vocabulary for every statement-carrying type, query() included so apply_if works on a decoded selector too. SelectorRaw is left as it is: it is made from the caller's own (String, Values), which the caller already holds. The guide's reading chapter renders into_partial_model::<MenuLine>() directly and no longer imports PartialModelTrait for select_cols. Neither binding has a counterpart: Python's EntityQuery and JavaScript's entity queries have no separate decode-target object, and both render through inspect()/compile."
+                    }
                 )
             }
 
@@ -10306,6 +10320,7 @@ children (
                 id template-static-text
                 title "Expr::template takes its SQL as program text, a &'static str, as cast_as_raw and TypeName::raw do"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:39:52.24982Z
@@ -10326,6 +10341,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Expr::template, template_with_expr, template_with_exprs and SqlTemplate::new, the constructors of a template authored for the machinery, take &'static str, as Expr::raw, cast_as_raw and TypeName::raw do. SqlTemplate::from_sql keeps Into<String>: it reads real SQL a caller sends at run time, and pgorm's raw-statement paginator (SelectorRaw::paginate, src/executor/paginator.rs wrap_raw_select) wraps the caller's runtime statement through it, so it stands with the raw-SQL entry points (query_raw, SelectorRaw, Python's RawSQL, JavaScript's raw terminals) that the operator has settled take caller text; its docs and sql.render.custom-expr say which door is which. The one test that built a template from another statement's rendered text (pgorm-query/tests/postgres/query.rs select_60) now writes the template as a literal. Bindings: neither exposes a template constructor; Python's RawSQL and JavaScript's raw terminals are the settled raw surface and are unchanged."
+                    }
+
+                    {
+                        at 2026-11-05T17:23:29.336124Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

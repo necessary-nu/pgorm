@@ -88,7 +88,7 @@ struct IntScaledBakery {
     double_margin: f64,
 }
 
-// [spec:pgorm:def:exec.crud+1/test]    `Select::into_partial_model` re-targets
+// [spec:pgorm:def:exec.crud+2/test]    `Select::into_partial_model` re-targets
 // the decoded type, and `one` / `all` run through the same selector
 // [spec:pgorm:def:query.build.query-trait+2/test]    a field read from a bare
 // function call, `from_expr = Func::upper(..)`
