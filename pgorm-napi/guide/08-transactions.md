@@ -109,11 +109,15 @@ discards it already.
 
 A transaction has a `transaction` method of its own, which opens a savepoint:
 a transaction nested inside the first, which commits into it or rolls back
-alone. Here the order survives a line that fails:
+alone. A savepoint's failure is a rejection like any other, so the callback
+around it catches the failures it can live with and lets the rest end the
+whole transaction, as Rust's `?` passes a savepoint's `TransactionError` on.
+Here the order survives a line naming a cake that does not exist, and any
+other failure ends the whole order:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { Decimal, ForeignKeyViolationError } from "@necessary/pgorm";
 
 const placedAt = Temporal.Instant.from("2026-11-04T10:00:00Z");
 const { order, skipped } = await pool.transaction(async (tx) => {
@@ -124,7 +128,10 @@ const { order, skipped } = await pool.transaction(async (tx) => {
       await tx.transaction((savepoint) =>
         OrderLine.insert({ orderId: order.id, cakeId, quantity: 1, price: new Decimal("3.00") }).execute(savepoint)
       );
-    } catch {
+    } catch (error) {
+      // No such cake: the savepoint rolled the line back, and the order goes
+      // on without it. Anything else is the order's failure too.
+      if (!(error instanceof ForeignKeyViolationError)) throw error;
       skipped.push(cakeId);
     }
   }
@@ -134,6 +141,12 @@ const { order, skipped } = await pool.transaction(async (tx) => {
 const lines = await OrderLine.find().where(OrderLine.col("orderId").eq(order.id)).count(pool);
 assert.deepEqual([lines, skipped], [2, [99]]);
 ```
+
+A savepoint whose `ROLLBACK TO SAVEPOINT` fails rejects with a
+`SuppressedError`, the rollback's failure as its `error` and the callback's as
+its `suppressed`, where Rust's becomes `Error::RollbackFailed`. The enclosing
+transaction is then in a state nobody knows; letting the rejection through
+rolls it back too.
 
 Without the savepoint, the failed insert would have aborted the whole
 transaction: PostgreSQL refuses every later statement in a transaction one

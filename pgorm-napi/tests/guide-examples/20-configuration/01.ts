@@ -8,7 +8,7 @@ import type { GuideContext } from "../../../guide/context.ts";
 export default async function example({ url }: GuideContext): Promise<void> {
   const settings = "-c search_path=kitchen,public -c statement_timeout=5s";
   const configured = new URL(url);
-  configured.search += `&application_name=bakery-web&options=${encodeURIComponent(settings)}`;
+  configured.search += `&application_name=bakery-web&target_session_attrs=read-write&options=${encodeURIComponent(settings)}`;
 
   await using web = new Pool(configured.toString());
   const seen = await web.one(

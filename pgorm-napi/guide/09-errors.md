@@ -120,7 +120,10 @@ Rust runs those three statements as one script with `batch_execute`. A
 JavaScript statement is one statement, as each terminal prepares it, so a
 script is run one statement at a time ([Raw SQL](10-raw-sql.md)).
 
-Any other refusal is read off the server's SQLSTATE:
+Any other refusal is read off the server's SQLSTATE. Rust compares the code
+with tokio-postgres's `SqlState` constants, such as `SqlState::UNDEFINED_TABLE`,
+and reads the server's whole report from `as_db_error`; JavaScript's
+`DatabaseError` is that report, its `sqlstate` the five-character code:
 
 ```ts
 import assert from "node:assert/strict";
@@ -198,7 +201,8 @@ state it reports:
 | `NothingToSet` | a `ConstructionError` from an update that sets no field, when it is built |
 | `AttrNotSet` | none: a write is a plain object, never converted into a record |
 | `Type` | a `DecodeError` for a value a field cannot hold, or a `ConstructionError` for a value a parameter cannot |
-| `Json`, `Conversion`, `UnpackInsertId`, `ConvertFromU64` | a `ConstructionError` going in, or a `DecodeError` coming out |
+| `Json`, `Conversion`, `UnpackInsertId` | a `ConstructionError` going in, or a `DecodeError` coming out |
+| `RollbackFailed` | a `SuppressedError` from `transaction(fn)`: the rollback's failure as its `error`, and what the callback threw as its `suppressed` ([Transactions](08-transactions.md)) |
 | `Query` | a `DecodeError` for a read that cannot be carried out as asked, such as a relation's key that matches no row |
 | `Pool` | a `ConnectionError` when a connection cannot be opened, a `DatabaseError` when the server refuses to open one, a `TimeoutError` when none comes free in time |
 | `Verify` | none: [Raw SQL](10-raw-sql.md) says what JavaScript lacks there |

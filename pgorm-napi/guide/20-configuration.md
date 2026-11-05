@@ -30,8 +30,10 @@ The connection string is parsed as tokio-postgres's `Config` is, the
 configuration Rust's pool takes: a URL, or libpq's `key=value` form. Whatever
 Rust sets with `Config`'s builder methods, JavaScript writes into the string:
 `host`, `port`, `user`, `password`, `dbname`, `application_name`,
-`keepalives_idle`, and `options`, which passes server settings for every
-session, such as a `search_path` or a `statement_timeout`. In a URL each is a
+`keepalives_idle`, `target_session_attrs`, which Rust sets with a
+`TargetSessionAttrs` and a string spells `read-write` to refuse a read-only
+standby, and `options`, which passes server settings for every session, such
+as a `search_path` or a `statement_timeout`. In a URL each is a
 query parameter, its value percent-encoded with `encodeURIComponent`.
 `URLSearchParams` writes a space as `+`, which the parser does not read as a
 space, so it does not suit these values:
@@ -42,7 +44,7 @@ import { Pool } from "@necessary/pgorm";
 
 const settings = "-c search_path=kitchen,public -c statement_timeout=5s";
 const configured = new URL(url);
-configured.search += `&application_name=bakery-web&options=${encodeURIComponent(settings)}`;
+configured.search += `&application_name=bakery-web&target_session_attrs=read-write&options=${encodeURIComponent(settings)}`;
 
 await using web = new Pool(configured.toString());
 const seen = await web.one(
