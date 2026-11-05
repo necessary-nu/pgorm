@@ -2,81 +2,11 @@
 
 use std::error::Error;
 
-use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use pgorm::pgorm_query::{IpNetwork, MacAddress};
-use rust_decimal::Decimal;
-use tokio_postgres::types::{FromSql, Kind, ToSql, Type};
+use tokio_postgres::types::{FromSql, Kind, Type};
 
 type CodecError = Box<dyn Error + Send + Sync>;
-
-/// The upstream Decimal decoder can round. Accept only exact values and scale.
-// [spec:pgorm:req:bindings.values]
-#[derive(Debug)]
-pub(super) struct ExactDecimal(pub Decimal);
-
-impl<'a> FromSql<'a> for ExactDecimal {
-    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, CodecError> {
-        let input = Numeric::read(raw)?;
-        if input.scale > 28 {
-            return Err("numeric scale exceeds Rust Decimal's exact range".into());
-        }
-        let value = Decimal::from_sql(ty, raw)?;
-        let mut encoded = BytesMut::new();
-        value.to_sql(ty, &mut encoded)?;
-        let output = Numeric::read(&encoded)?;
-        if value.scale() != u32::from(input.scale) || input.canonical() != output.canonical() {
-            return Err("numeric cannot be represented exactly by Rust Decimal".into());
-        }
-        Ok(Self(value))
-    }
-
-    fn accepts(ty: &Type) -> bool {
-        <Decimal as FromSql>::accepts(ty)
-    }
-}
-
-struct Numeric {
-    weight: i16,
-    sign: u16,
-    scale: u16,
-    digits: Vec<u16>,
-}
-
-impl Numeric {
-    fn read(raw: &[u8]) -> Result<Self, CodecError> {
-        if raw.len() < 8 || !raw.len().is_multiple_of(2) {
-            return Err("invalid numeric binary representation".into());
-        }
-        let word = |i| u16::from_be_bytes([raw[i], raw[i + 1]]);
-        if usize::from(word(0)) * 2 + 8 != raw.len() {
-            return Err("invalid numeric digit count".into());
-        }
-        let digits: Vec<_> = (8..raw.len()).step_by(2).map(word).collect();
-        if digits.iter().any(|digit| *digit >= 10_000) || !matches!(word(4), 0 | 0x4000) {
-            return Err("non-finite or invalid numeric is unsupported".into());
-        }
-        Ok(Self {
-            weight: word(2) as i16,
-            sign: word(4),
-            scale: word(6),
-            digits,
-        })
-    }
-
-    fn canonical(&self) -> (i32, u16, &[u16]) {
-        let start = self.digits.iter().position(|d| *d != 0);
-        let end = self.digits.iter().rposition(|d| *d != 0);
-        match (start, end) {
-            (Some(start), Some(end)) => (
-                i32::from(self.weight) - start as i32,
-                self.sign,
-                &self.digits[start..=end],
-            ),
-            _ => (0, 0, &[]),
-        }
-    }
-}
 
 /// Rust Value arrays cannot preserve extra dimensions or non-default bounds.
 #[derive(Debug)]

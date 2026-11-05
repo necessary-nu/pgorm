@@ -8,30 +8,28 @@
 
 use std::{collections::HashSet, error::Error, ops::Bound};
 
-use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use jiff::{
     Timestamp,
     civil::{Date, DateTime, Time},
 };
 use pgorm::{
-    CopyColumn,
+    CopyColumn, CreatedRangeCodec, CreatedRangeText, ExactDecimal,
     pgorm_query::{
         ArrayType, Interval, IpNetwork, MacAddress, Multirange, Range, RangeType, Value, Vector,
         base_type,
     },
 };
 use postgres_protocol::types::{self as wire, RangeBound};
-use rust_decimal::Decimal;
 use tokio_postgres::{
     Row,
-    types::{FromSql, Kind, ToSql, Type},
+    types::{FromSql, Kind, Type},
 };
 use uuid::Uuid;
 
 use crate::{
     errors::Failure,
-    values::{CreatedKind, Tag, Tagged, TypeName, created, json::ExactJson},
+    values::{CreatedKind, Tag, Tagged, TypeName, json::ExactJson},
 };
 
 type CodecError = Box<dyn Error + Send + Sync>;
@@ -163,25 +161,6 @@ fn built_in(ty: &Type) -> Option<RangeType> {
     })
 }
 
-/// The value kind of a created range's subtype.
-fn subtype_kind(subtype: &Type) -> Option<ArrayType> {
-    Some(match *base_type(subtype) {
-        Type::INT2 => ArrayType::SmallInt,
-        Type::INT4 => ArrayType::Int,
-        Type::INT8 => ArrayType::BigInt,
-        Type::FLOAT4 => ArrayType::Float,
-        Type::FLOAT8 => ArrayType::Double,
-        Type::NUMERIC => ArrayType::Decimal,
-        Type::TEXT | Type::VARCHAR | Type::BPCHAR => ArrayType::String,
-        Type::DATE => ArrayType::Date,
-        Type::TIME => ArrayType::Time,
-        Type::TIMESTAMP => ArrayType::DateTime,
-        Type::TIMESTAMPTZ => ArrayType::DateTimeWithTimeZone,
-        Type::UUID => ArrayType::Uuid,
-        _ => return None,
-    })
-}
-
 /// The kind a column of `ty` decodes as.
 // [spec:pgorm:req:bindings.value-tags]
 // [spec:pgorm:req:napi.temporal+1]
@@ -203,7 +182,7 @@ fn tag(ty: &Type) -> Result<Tag, CodecError> {
                     ArrayType::Range(range)
                 }));
             }
-            let Some(subtype) = subtype_kind(subtype) else {
+            let Some(subtype) = CreatedRangeCodec::subtype_kind(subtype) else {
                 return Err(format!(
                     "the range type ranges over `{subtype}`, which no created range kind does"
                 )
@@ -266,7 +245,7 @@ fn scalar(ty: &Type, raw: Option<&[u8]>) -> Result<Tagged, CodecError> {
         // the label list can be older than an `ALTER TYPE ... ADD VALUE`, so
         // the label is not checked against it.
         Tag::Enum(_) => Value::String(Some(Box::new(String::from_sql(&Type::TEXT, raw)?))),
-        Tag::Created(kind) => Value::String(Some(Box::new(created_text(ty, kind, raw)?))),
+        Tag::Created(_) => Value::String(Some(Box::new(CreatedRangeText::from_sql(ty, raw)?.0))),
         Tag::Scalar(kind) => value(ty, kind, raw)?,
         Tag::Array(_) => return Err("nested arrays are not supported".into()),
     };
@@ -381,129 +360,12 @@ fn read_multirange(
     Ok(ranges)
 }
 
-/// A column of a range type a schema created: read in binary through the
-/// subtype's codec, and held as the text form that type's values travel as.
-// [spec:pgorm:req:bindings.created-ranges+3]
-fn created_text(ty: &Type, kind: &CreatedKind, raw: &[u8]) -> Result<String, CodecError> {
-    let (Kind::Range(subtype) | Kind::Multirange(subtype)) = ty.kind() else {
-        return Err("expected a range".into());
-    };
-    let ranges = if kind.multirange {
-        read_multirange(subtype, raw, &kind.subtype)?
-    } else {
-        vec![read_range(subtype, raw, &kind.subtype)?]
-    };
-    created::text(&kind.subtype, ranges, kind.multirange)
-        .ok_or_else(|| "a bound does not convert to the range's subtype".into())
-}
-
-/// A `numeric` that rust_decimal, and so pgorm, holds exactly: its upstream
-/// decoder can round, so the value it reads is written back and compared.
-// [spec:pgorm:req:bindings.values]
-// [spec:pgorm:req:napi.values+1]
-#[derive(Debug)]
-pub(crate) struct ExactDecimal(pub(crate) Decimal);
-
-impl<'a> FromSql<'a> for ExactDecimal {
-    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, CodecError> {
-        let input = Numeric::read(raw)?;
-        if input.scale > 28 {
-            return Err("the numeric has more than 28 fractional digits, a decimal's most".into());
-        }
-        let value = Decimal::from_sql(ty, raw)?;
-        let mut encoded = BytesMut::new();
-        value.to_sql(ty, &mut encoded)?;
-        let output = Numeric::read(&encoded)?;
-        if value.scale() != u32::from(input.scale) || input.canonical() != output.canonical() {
-            return Err("the numeric has no exact decimal: its coefficient exceeds 96 bits".into());
-        }
-        Ok(Self(value))
-    }
-
-    fn accepts(ty: &Type) -> bool {
-        <Decimal as FromSql>::accepts(ty)
-    }
-}
-
-struct Numeric {
-    weight: i16,
-    sign: u16,
-    scale: u16,
-    digits: Vec<u16>,
-}
-
-impl Numeric {
-    fn read(raw: &[u8]) -> Result<Self, CodecError> {
-        if raw.len() < 8 || !raw.len().is_multiple_of(2) {
-            return Err("invalid numeric binary representation".into());
-        }
-        let word = |i: usize| u16::from_be_bytes([raw[i], raw[i + 1]]);
-        if usize::from(word(0)) * 2 + 8 != raw.len() {
-            return Err("invalid numeric digit count".into());
-        }
-        let digits: Vec<_> = (8..raw.len()).step_by(2).map(word).collect();
-        if !matches!(word(4), 0 | 0x4000) {
-            return Err("the numeric is NaN or infinite, which a decimal cannot hold".into());
-        }
-        if digits.iter().any(|digit| *digit >= 10_000) {
-            return Err("invalid numeric digit".into());
-        }
-        Ok(Self {
-            weight: i16::from_be_bytes([raw[2], raw[3]]),
-            sign: word(4),
-            scale: word(6),
-            digits,
-        })
-    }
-
-    fn canonical(&self) -> (i32, u16, &[u16]) {
-        let start = self.digits.iter().position(|digit| *digit != 0);
-        let end = self.digits.iter().rposition(|digit| *digit != 0);
-        match (start, end) {
-            (Some(start), Some(end)) => (
-                i32::from(self.weight) - i32::try_from(start).unwrap_or(i32::MAX),
-                self.sign,
-                &self.digits[start..=end],
-            ),
-            _ => (0, 0, &[]),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use bytes::BytesMut;
     use pgorm::pgorm_query::tests_cfg::Variants;
 
     use super::*;
-
-    fn numeric(text: &str) -> Vec<u8> {
-        let mut out = BytesMut::new();
-        match Decimal::from_str_exact(text) {
-            Ok(value) => match value.to_sql(&Type::NUMERIC, &mut out) {
-                Ok(_) => out.to_vec(),
-                Err(error) => panic!("{error}"),
-            },
-            Err(error) => panic!("{error}"),
-        }
-    }
-
-    // [spec:pgorm:req:bindings.values/test]
-    #[test]
-    fn numerics_decode_exactly_or_not_at_all() -> Result<(), CodecError> {
-        assert_eq!(
-            ExactDecimal::from_sql(&Type::NUMERIC, &numeric("19.9900"))?
-                .0
-                .to_string(),
-            "19.9900"
-        );
-        // NaN: no digits, the NaN sign word.
-        let nan = [0, 0, 0, 0, 0xC0, 0, 0, 0];
-        assert!(ExactDecimal::from_sql(&Type::NUMERIC, &nan).is_err());
-        // Scale 29, one digit group: more fractional digits than a decimal keeps.
-        let fine = [0, 1, 0xFF, 0xF8, 0, 0, 0, 29, 0, 1];
-        assert!(ExactDecimal::from_sql(&Type::NUMERIC, &fine).is_err());
-        Ok(())
-    }
 
     // [spec:pgorm:req:bindings.created-ranges+3/test]
     #[test]
@@ -534,7 +396,12 @@ mod tests {
             },
             &mut raw,
         )?;
-        assert_eq!(created_text(&ty, &kind, &raw)?, "[1.5,2.5)");
+        let read = scalar(&ty, Some(&raw))?;
+        assert_eq!(read.tag, Tag::Created(kind));
+        assert_eq!(
+            read.datum,
+            Value::String(Some(Box::new("[1.5,2.5)".into())))
+        );
         Ok(())
     }
 

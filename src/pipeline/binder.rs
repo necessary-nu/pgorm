@@ -70,7 +70,7 @@ impl<'brand> Binder<'brand> {
     /// A built-in range or multirange, or an array of either, compared under
     /// the cast of a range type a schema created, or of its array, is written
     /// through its text by the server, the one form both read.
-    // [spec:pgorm:def:sql.value.created-range+8]
+    // [spec:pgorm:def:sql.value.created-range+9]
     pub fn bind(&mut self, value: impl Into<Value>) -> Expr<'brand> {
         let value = value.into();
         let bound = match (&value, value.source_type_name()) {

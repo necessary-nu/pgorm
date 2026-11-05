@@ -14,14 +14,15 @@ use neon::{
     prelude::*,
     types::{JsBigInt, buffer::TypedArray},
 };
-use pgorm::pgorm_query::{
-    ArrayType, Interval, IpNetwork, MacAddress, Multirange, Range, Value, Vector,
+use pgorm::{
+    CreatedRangeCodec,
+    pgorm_query::{ArrayType, Interval, IpNetwork, MacAddress, Multirange, Range, Value, Vector},
 };
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
 use super::{
-    CREATED_SUBTYPES, CreatedKind, Tag, Tagged, TypeName, created,
+    CreatedKind, Tag, Tagged, TypeName,
     json::{self, MAX_SAFE_INTEGER},
 };
 use crate::{
@@ -128,7 +129,7 @@ pub(crate) fn kind<'cx>(
             let multirange = description.field(cx, 3);
             let multirange = multirange.downcast_or_throw::<JsBoolean, _>(cx)?.value(cx);
             let subtype = match ArrayType::from_kind_name(&subtype) {
-                Some(kind) if CREATED_SUBTYPES.contains(&kind) => kind,
+                Some(kind) if CreatedRangeCodec::new(&kind, multirange).is_some() => kind,
                 _ => {
                     return refuse(
                         cx,
@@ -633,7 +634,7 @@ fn created_text<'cx>(
     };
     let ranges = if data.is_a::<JsString, _>(cx) {
         let text = string(cx, data)?;
-        match created::ranges(&kind.subtype, &text, kind.multirange) {
+        match kind.codec().and_then(|codec| codec.ranges(&text)) {
             Some(ranges) => ranges,
             None => {
                 let subtype = kind.subtype.kind_name();
@@ -643,7 +644,7 @@ fn created_text<'cx>(
     } else {
         ranges(cx, codec, data, &kind.subtype, kind.multirange)?
     };
-    match created::text(&kind.subtype, ranges, kind.multirange) {
+    match kind.codec().and_then(|codec| codec.text(ranges)) {
         Some(text) => Ok(text),
         None => refuse(cx, "a bound does not convert to the subtype"),
     }

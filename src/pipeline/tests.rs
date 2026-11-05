@@ -3280,7 +3280,7 @@ fn untyped_columns_compare_as_the_named_type() {
     );
 }
 
-// [spec:pgorm:def:sql.value.created-range+8/test]    a bound built-in range
+// [spec:pgorm:def:sql.value.created-range+9/test]    a bound built-in range
 // or multirange compared under a column's cast goes through its text: pinned
 // to its own type, then cast to text and to the column's, by a comparison on
 // either side and by in_array, while one compared bare stays a placeholder

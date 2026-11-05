@@ -1530,6 +1530,7 @@ assertions (
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id typed-binds.napi-range-array-operand, kind @complete, author "brendan@necessary.nu", at 2026-11-05T06:06:46.155153Z}
     {id typed-binds.created-range-array-value, kind @complete, author "brendan@necessary.nu", at 2026-11-05T06:27:28.67808Z}
+    {id typed-binds.shared-range-codec, kind @complete, author "brendan@necessary.nu", at 2026-11-05T07:06:21.774062Z}
 )
 
 impl_evidence (

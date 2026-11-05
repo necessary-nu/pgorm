@@ -248,7 +248,7 @@ pub(crate) fn under_domains(col_type: &ColumnType) -> &ColumnType {
 /// the [`TypeName`] a value written to it is cast to: a domain over one is
 /// cast to by the domain's name, which reads the same text, and an array of
 /// either to its array, which reads an array of the texts.
-// [spec:pgorm:def:sql.value.created-range+8]
+// [spec:pgorm:def:sql.value.created-range+9]
 pub(crate) fn created_range_type_name(col_type: &ColumnType) -> Option<pgorm_query::TypeName> {
     match col_type {
         ColumnType::CreatedRange { name, schema, .. }

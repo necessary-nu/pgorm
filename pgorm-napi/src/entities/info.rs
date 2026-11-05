@@ -15,7 +15,7 @@ use serde_json::{Value as Json, json};
 use crate::{
     errors::Failure,
     models::kind_key,
-    values::{CREATED_SUBTYPES, CreatedKind, Tag, TypeName},
+    values::{CreatedKind, Tag, TypeName},
 };
 
 /// The scalar kind a column type's values are, where it has one.
@@ -73,11 +73,13 @@ pub(crate) fn column_tag(ty: &ColumnType) -> Option<Tag> {
             schema,
             subtype,
         } => {
-            let subtype = scalar(subtype).filter(|kind| CREATED_SUBTYPES.contains(kind))?;
+            let multirange = matches!(ty, ColumnType::CreatedMultirange { .. });
+            let subtype = scalar(subtype)
+                .filter(|kind| pgorm::CreatedRangeCodec::new(kind, multirange).is_some())?;
             Some(Tag::Created(CreatedKind {
                 name: name(n, schema),
                 subtype,
-                multirange: matches!(ty, ColumnType::CreatedMultirange { .. }),
+                multirange,
             }))
         }
         ColumnType::Array(member) => column_tag(member).map(|tag| Tag::Array(Box::new(tag))),
