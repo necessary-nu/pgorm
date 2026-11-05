@@ -21,7 +21,7 @@ impl fmt::Display for Boom {
 
 impl StdError for Boom {}
 
-// [spec:pgorm:def:error.model+11/test]    the variants pgorm constructs itself, and how each renders
+// [spec:pgorm:def:error.model+12/test]    the variants pgorm constructs itself, and how each renders
 #[test]
 fn error_variants_render_expected_messages() {
     let cases: Vec<(Error, &str)> = vec![
@@ -72,7 +72,53 @@ fn error_variants_render_expected_messages() {
     }
 }
 
-// [spec:pgorm:def:error.model+11/test]    PartialEq/Eq compare rendered messages, not payloads
+/// A closure error of the caller's own that converts into pgorm's.
+#[derive(Debug)]
+struct Refusal;
+
+impl From<Refusal> for Error {
+    fn from(_: Refusal) -> Self {
+        Error::Custom("refused".to_owned())
+    }
+}
+
+// [spec:pgorm:sem:conn.tx.compose/test]    Connection and Transaction flatten; RollbackFailed keeps both errors
+// [spec:pgorm:def:error.model+12/test]    RollbackFailed renders both errors and sources the cause
+#[test]
+fn transaction_error_converts_into_error() {
+    use pgorm::TransactionError;
+
+    let connection = Error::from(TransactionError::<Error>::Connection(Error::NothingToSet));
+    assert!(matches!(connection, Error::NothingToSet), "{connection:?}");
+    let closure = Error::from(TransactionError::Transaction(Error::RecordNotFound));
+    assert!(matches!(closure, Error::RecordNotFound), "{closure:?}");
+    let converted = Error::from(TransactionError::Transaction(Refusal));
+    assert!(matches!(converted, Error::Custom(ref message) if message == "refused"));
+
+    let both = Error::from(TransactionError::RollbackFailed {
+        cause: Refusal,
+        rollback: Error::PrimaryKeyNotSet,
+    });
+    assert!(
+        matches!(
+            &both,
+            Error::RollbackFailed { cause, rollback }
+                if matches!(**cause, Error::Custom(_)) && matches!(**rollback, Error::PrimaryKeyNotSet)
+        ),
+        "{both:?}"
+    );
+    assert_eq!(
+        both.to_string(),
+        "Custom Error: refused; its ROLLBACK failed: A primary key value is not set"
+    );
+    assert_eq!(
+        StdError::source(&both).map(ToString::to_string),
+        Some("Custom Error: refused".to_owned())
+    );
+    assert!(!both.is_retryable());
+}
+
+// [spec:pgorm:def:error.model+12/test]    PartialEq/Eq compare rendered messages, not payloads
 #[test]
 fn error_eq_compares_rendered_messages() {
     fn assert_is_eq<T: Eq>() {}
@@ -98,7 +144,7 @@ fn error_eq_compares_rendered_messages() {
     assert_eq!(Error::RecordNotFound, Error::RecordNotFound);
 }
 
-// [spec:pgorm:def:error.model+11/test]    ColumnFromStrError covers FromStr failures on entity columns
+// [spec:pgorm:def:error.model+12/test]    ColumnFromStrError covers FromStr failures on entity columns
 #[test]
 fn column_from_str_error_reports_bad_input() {
     assert!(matches!(
@@ -115,7 +161,7 @@ fn column_from_str_error_reports_bad_input() {
     );
 }
 
-// [spec:pgorm:def:error.model+11/test]    Result defaults to Error but still takes a foreign one
+// [spec:pgorm:def:error.model+12/test]    Result defaults to Error but still takes a foreign one
 #[test]
 fn result_alias_defaults_to_error() {
     fn defaulted() -> pgorm::Result<u8> {
@@ -183,7 +229,7 @@ async fn query_err_surfaces_through_loader_misuse() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:error.model+11/test]    ConnectionTrait failures arrive as Postgres, rendering the server detail
+// [spec:pgorm:def:error.model+12/test]    ConnectionTrait failures arrive as Postgres, rendering the server detail
 #[pgorm_macros::test]
 async fn error_postgres_carries_server_detail() -> Result<(), Error> {
     let ctx = TestContext::new("error_model_postgres_errmodel").await;
@@ -234,7 +280,7 @@ async fn error_postgres_carries_server_detail() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:error.model+11/test]    DatabasePool::get surfaces pool exhaustion as Error::Pool
+// [spec:pgorm:def:error.model+12/test]    DatabasePool::get surfaces pool exhaustion as Error::Pool
 #[pgorm_macros::test]
 async fn error_pool_from_acquisition_timeout() -> Result<(), Error> {
     let ctx = TestContext::new("error_model_pool_errmodel").await;
@@ -268,7 +314,7 @@ async fn error_pool_from_acquisition_timeout() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:error.model+11/test]    the builder layer's refusals convert
+// [spec:pgorm:def:error.model+12/test]    the builder layer's refusals convert
 // in via `From`, so `?` crosses the crate boundary without a `map_err`
 #[test]
 fn query_builder_errors_convert_via_from() {

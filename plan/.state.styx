@@ -1583,7 +1583,7 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
-    {id instrumented-tx-conn-trait, kind @doing, author "brendan@necessary.nu", at 2026-11-05T15:43:02.42844Z}
+    {id instrumented-tx-conn-trait, kind @complete, author "brendan@necessary.nu", at 2026-11-05T15:52:07.355141Z}
 )
 
 impl_evidence (
@@ -3153,6 +3153,11 @@ impl_evidence (
         conn.driver-types
     ), covered_claims (
         {impl_name main, rule conn.driver-types}
+    )}
+    {id savepoint-error-composes, covered_rules (
+        conn.tx.compose
+    ), covered_claims (
+        {impl_name main, rule conn.tx.compose}
     )}
 )
 

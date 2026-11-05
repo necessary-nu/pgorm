@@ -246,6 +246,7 @@ it promised, before or instead of sending a statement:
 | [`Verify`](crate::Error::Verify) | a decode target that does not match the statement it would read |
 | [`QueryBuilder`](crate::Error::QueryBuilder) | the query builder refused its input, such as a template whose placeholders do not match its values |
 | [`Listen`](crate::Error::Listen) | a `LISTEN` channel name that is too long, or a listener that fell behind ([LISTEN and NOTIFY](crate::guide::listen_notify)) |
+| [`RollbackFailed`](crate::Error::RollbackFailed) | a transaction's closure failed and its `ROLLBACK` failed too, carried out of a [`TransactionError`](crate::TransactionError) by `?`: both errors, the closure's as `cause` |
 | [`Custom`](crate::Error::Custom) | a message of your own, such as a hook's refusal |
 
 ```rust
@@ -330,5 +331,7 @@ kinds it does not name. Two errors compare equal when their messages do.
 
 A closure run in a transaction returns its own error, which comes back
 inside a [`TransactionError`](crate::TransactionError) that says whether the
-closure, the `BEGIN` or `COMMIT`, or the rollback failed;
-[Transactions](crate::guide::transactions) covers it.
+closure, the `BEGIN` or `COMMIT`, or the rollback failed. A
+`TransactionError` converts into an `Error` for `?`, as a savepoint's does
+inside the closure around it;
+[Transactions](crate::guide::transactions) covers both.

@@ -6,7 +6,7 @@ it.
 
 ## Taxonomy
 
-> [spec:pgorm:def:error.model+11]
+> [spec:pgorm:def:error.model+12]
 > `Error` is the crate-wide error enum. Driver and pool failures convert in
 > via `From`: `Postgres(tokio_postgres::Error)` (the variant every
 > `ConnectionTrait` call and transaction commit produces on database failure;
@@ -20,7 +20,13 @@ it.
 > (`conn.listen`): a channel name too long to listen on, and the overflow
 > that ends its notifications, so `?` carries them across the crate boundary
 > without a hand-written `map_err` at every ORM-level call site. The
-> `From` impl is that variant's construction site. The remaining variants
+> `From` impl is that variant's construction site. A transaction's
+> `TransactionError<E>` converts in too (`conn.tx.compose`), so `?` carries a
+> savepoint's failure into the closure it is nested in: as the error it holds,
+> or, for a `ROLLBACK` that failed after the closure did,
+> `RollbackFailed { cause: Box<Error>, rollback: Box<Error> }`, whose
+> construction site that conversion is, its `source()` the cause. The
+> remaining variants
 > are constructed by pgorm itself: `Conversion { from, into, source }`,
 > `Query(RuntimeError)`, `ConvertFromU64(&'static str)`, `UnpackInsertId`,
 > `PrimaryKeyNotSet`, `AttrNotSet(String)`, `Type(String)`,

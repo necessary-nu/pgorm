@@ -252,9 +252,10 @@ assert!(db.query_one("SELECT * FROM no_such_table", &[]).await.is_err());
 // One transaction commits, with a savepoint inside it; one rolls back.
 db.transaction(async |txn| {
     cake::Entity::find().count(&txn).await?;
-    txn.transaction(async |savepoint| cake::Entity::find().count(&savepoint).await)
-        .await
-        .map_err(|error| Error::Custom(error.to_string()))
+    let counted = txn
+        .transaction(async |savepoint| cake::Entity::find().count(&savepoint).await)
+        .await?;
+    Ok::<_, Error>(counted)
 })
 .await?;
 let refused = db

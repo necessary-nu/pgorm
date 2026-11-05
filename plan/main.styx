@@ -1686,6 +1686,7 @@ children (
                 title "An instrumented transaction's &mut handle is a ConnectionTrait, as a plain transaction's is"
                 kind @fix
                 deps (tx-closure-only)
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:39:49.154195Z
@@ -1706,6 +1707,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Rather than a second hand-written forwarding impl for &mut InstrumentedTransaction<'_, M> beside the one for &mut DatabaseTransaction<'_>, the forwarding impl is now one blanket impl<C: ConnectionTrait> ConnectionTrait for &mut C (src/database/connection.rs), replacing the DatabaseTransaction-only one. That covers every closure handle at once, so none can be left out again, and removes the duplicated 60-line body; it also makes &mut DatabaseConnection and &mut InstrumentedConnection connections, which is harmless (no impl overlaps: &mut C is distinct from C, and &DatabaseConnection is a shared reference). conn.pool.conn-trait +9 (one impl over every implementor) and metric.layer.delegate +5 (the instrumented handle passes as &txn), both owned by infra.conn / infra.metrics, which get a re-cover commit. The bindings have no counterpart: their handles are internal."
+                    }
+
+                    {
+                        at 2026-11-05T15:52:07.355141Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -4266,6 +4274,9 @@ children (
                 id savepoint-error-composes
                 title "A savepoint's TransactionError converts into its enclosing closure's error, so ? works on a nested transaction"
                 kind @feat
+                implements {
+                    main ([spec:pgorm:sem:conn.tx.compose])
+                }
                 deps (tx-closure-only)
                 log (
                     {
@@ -4273,6 +4284,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (transactions chapter). TransactionTrait::transaction on a DatabaseTransaction (a savepoint) returns Result<T, TransactionError<E>>, while the enclosing closure returns Result<_, E>, and no From connects them (src/database/transaction.rs), so ? on a nested savepoint needs a hand-written map_err over the variants. The guide inspects is_err() instead."
+                    }
+
+                    {
+                        at 2026-11-05T15:52:28.302494Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:59:53.342041Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Design: impl<E: Into<Error>> From<TransactionError<E>> for Error (src/database/transaction.rs). Connection(e) -> e, Transaction(e) -> e.into(), and RollbackFailed { cause, rollback } -> a new Error::RollbackFailed { cause: Box<Error>, rollback: Box<Error> } (source() = cause, Display \"{cause}; its ROLLBACK failed: {rollback}\", not retryable whatever the cause). The new variant is what keeps a savepoint's failed ROLLBACK TO SAVEPOINT from being lost: keeping only the cause would report a savepoint that rolled back cleanly, and the enclosing transaction (and transaction_with_retry) must see it. Considered and rejected: Error::Transaction(Box<TransactionError<Error>>) (only one of its variants could ever occur); a generic impl From<TransactionError<E>> for E (orphan rule forbids it — a closure error type of the caller's own implements the conversion itself, which the guide says). The conversion also lets a fn returning Error take a whole transaction's outcome with ?; there the flattening is the caller's choice, and Error::RollbackFailed means the connection is to be discarded. New rule conn.tx.compose (owned here); error.model +12 lists the variant. Bindings: no counterpart problem — Python's nested `async with tx.transaction()` and JS's tx.transaction(cb) propagate exceptions into the enclosing scope, and a failed rollback already carries both errors (__context__ / SuppressedError, bindings.tx)."
                     }
                 )
             }

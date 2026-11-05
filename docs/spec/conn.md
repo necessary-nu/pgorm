@@ -845,6 +845,37 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > that to discard it (`DatabaseConnection::discard`) rather than lend it
 > again.
 
+> [spec:pgorm:sem:conn.tx.compose]
+> A savepoint's failure MUST reach the closure it is nested in through `?`,
+> as a statement's does. The savepoint's `transaction` returns a
+> `TransactionError<E>` while the enclosing closure returns its own error, so
+> pgorm implements `From<TransactionError<E>> for Error` for every
+> `E: Into<Error>`: `Connection(error)` becomes `error`, `Transaction(error)`
+> becomes `error.into()`, and `RollbackFailed { cause, rollback }` becomes
+> `Error::RollbackFailed { cause, rollback }`, both boxed (`error.model`).
+> A closure whose error is a type of the caller's own gets `?` by implementing
+> the same conversion into it.
+>
+> The conversion MUST NOT drop a failed rollback for its cause. A savepoint
+> whose `ROLLBACK TO SAVEPOINT` failed has left the enclosing transaction in
+> a state nobody knows, and the enclosing closure, its caller, and a
+> `transaction_with_retry` deciding whether to replay all have to see that
+> it did; reporting only the cause would describe a savepoint that rolled
+> back cleanly. `Error::RollbackFailed` keeps the cause as its `source()`, as
+> `TransactionError::RollbackFailed` does, and is not retryable
+> (`conn.tx.retry`) whatever its cause: a failed rollback is not a refusal
+> the server asks the client to replay, and a replay that succeeded would
+> bury it. Flattening `Connection` and `Transaction` loses nothing the
+> enclosing transaction acts on: either way the savepoint is over and its
+> error is the enclosing closure's to return or handle.
+>
+> The same conversion applies to a transaction opened on a connection, in a
+> function whose error is `Error`. Flattening there is the caller's choice,
+> made by writing `?`; the `TransactionError` it flattens is still what
+> `transaction` returns. `Error::RollbackFailed` then means what
+> `TransactionError::RollbackFailed` means: the connection's state is
+> unknown, and it is to be discarded.
+
 > [spec:pgorm:sem:conn.tx.retry+3]
 > `DatabaseConnection::transaction_with_retry(opts, max_retries, f)` is
 > `transaction_with` plus replay: it retries the whole begin/run/commit cycle —

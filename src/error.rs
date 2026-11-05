@@ -1,7 +1,7 @@
 use tokio_postgres::error::SqlState;
 
 /// An error from unsuccessful database operations
-// [spec:pgorm:def:error.model+11]
+// [spec:pgorm:def:error.model+12]
 #[derive(thiserror::Error, Debug)]
 #[doc(alias = "DbErr")]
 #[non_exhaustive]
@@ -64,6 +64,23 @@ pub enum Error {
     /// A listener refused a channel name, or stopped its notifications
     #[error("Listen Error: {0}")]
     Listen(#[from] ListenError),
+    /// What `?` makes of a transaction's
+    /// [`TransactionError::RollbackFailed`](crate::TransactionError::RollbackFailed):
+    /// its closure failed with `cause`, and the `ROLLBACK` that followed
+    /// failed with `rollback`.
+    ///
+    /// How that transaction ended is unknown. A savepoint's is settled by the
+    /// transaction it was nested in, whose own rollback discards it; a
+    /// transaction opened on a connection leaves the connection's state
+    /// unknown, so [`discard`](crate::DatabaseConnection::discard) it.
+    #[error("{cause}; its ROLLBACK failed: {rollback}")]
+    RollbackFailed {
+        /// The closure's own error, which is why the transaction failed
+        #[source]
+        cause: Box<Error>,
+        /// What the `ROLLBACK` failed with
+        rollback: Box<Error>,
+    },
     /// A custom error
     #[error("Custom Error: {0}")]
     Custom(String),
@@ -156,7 +173,7 @@ pub enum ListenError {
 ///
 /// assert!(first_cake_id().is_err());
 /// ```
-// [spec:pgorm:def:error.model+11]    crate-root Result alias
+// [spec:pgorm:def:error.model+12]    crate-root Result alias
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Runtime error
@@ -168,7 +185,7 @@ pub enum RuntimeError {
     Internal(String),
 }
 
-// [spec:pgorm:def:error.model+11]    Display-string equality
+// [spec:pgorm:def:error.model+12]    Display-string equality
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         self.to_string() == other.to_string()
