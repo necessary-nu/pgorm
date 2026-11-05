@@ -561,7 +561,7 @@ async fn the_server_refuses_what_it_cannot_store(db: &DatabaseConnection) -> Res
 /// `Vec<Multirange<T>>` are written element by element and read back in
 /// order, each element canonical as it would be alone, the empty range kept
 /// apart from every value and an empty array from a NULL one.
-// [spec:pgorm:def:sql.value.array+6/test]    `Vec<Range<T>>` and `Vec<Multirange<T>>` convert
+// [spec:pgorm:def:sql.value.array+7/test]    `Vec<Range<T>>` and `Vec<Multirange<T>>` convert
 // [spec:pgorm:def:exec.decode.range+4/test]    and decode as arrays
 // [spec:pgorm:def:sql.value.range+5/test]
 async fn arrays_of_ranges_round_trip_through_an_entity(

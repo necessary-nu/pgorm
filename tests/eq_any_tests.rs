@@ -15,7 +15,9 @@ pub mod common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 pub use pgorm::entity::*;
-pub use pgorm::{ConnectionTrait, Error, QueryFilter, QueryOrder, QuerySelect, set};
+pub use pgorm::{
+    ConnectionTrait, Error, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, set,
+};
 use pgorm::{QueryTrait, pgorm_query::Query};
 
 async fn seed(db: &impl ConnectionTrait) -> Vec<i32> {
@@ -34,7 +36,7 @@ async fn seed(db: &impl ConnectionTrait) -> Vec<i32> {
     ids
 }
 
-// [spec:pgorm:req:sql.ast.expr.eq-any+1/test]    against a live server:
+// [spec:pgorm:req:sql.ast.expr.eq-any+2/test]    against a live server:
 // a three-element list and an empty one are the same statement with different
 // parameter payloads, and both select what the predicate says they should
 // [spec:pgorm:def:entity.traits.column+9/test]
@@ -83,7 +85,38 @@ pub async fn eq_any_round_trips_one_array_parameter() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:sql.ast.expr.eq-any+1/test]    against a live server:
+// [spec:pgorm:req:sql.ast.expr.eq-any+2/test]    against a live server: string
+// slices are elements as `eq` takes one, on the column and on a bare
+// expression, and bind one `text[]`
+// [spec:pgorm:def:sql.value.array+7/test]
+#[pgorm_macros::test]
+pub async fn eq_any_takes_string_slices() {
+    let ctx = TestContext::new("eq_any_takes_string_slices").await;
+    create_tables(&ctx.db).await.unwrap();
+    let db = ctx.db.get().await.unwrap();
+    let ids = seed(&db).await;
+
+    let named = Bakery::find()
+        .filter(bakery::Column::Name.eq_any(["Top Bakery", "Corner Bakery", "Nowhere"]))
+        .order_by_asc(bakery::Column::Id)
+        .all(&db)
+        .await
+        .unwrap();
+    assert_eq!(named.iter().map(|b| b.id).collect::<Vec<_>>(), ids[1..]);
+
+    let wanted = String::from("SeaSide Bakery");
+    let others = Bakery::find()
+        .filter(pgorm_query::Expr::col((bakery::Entity, bakery::Column::Name)).ne_all([&wanted]))
+        .count(&db)
+        .await
+        .unwrap();
+    assert_eq!(others, 2);
+
+    drop(db);
+    ctx.delete().await;
+}
+
+// [spec:pgorm:req:sql.ast.expr.eq-any+2/test]    against a live server:
 // `<> ALL` is the complement of `= ANY`, and an empty list is vacuously true —
 // the asymmetry `is_in` / `is_not_in` need two different constants to express
 #[pgorm_macros::test]

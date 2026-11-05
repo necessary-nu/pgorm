@@ -314,7 +314,8 @@ element). An array of an enum is an array of the enum's type.
 
 The other direction, a scalar column against a list of values, is
 [`eq_any`](crate::ColumnTrait::eq_any), which binds the whole list as one
-array parameter, so a statement has the same SQL however long the list is:
+array parameter, so a statement has the same SQL however long the list is.
+Its items are what `eq` takes, string slices among them:
 
 ```rust
 mod menu {
@@ -383,7 +384,7 @@ assert_eq!(chocolate, ["Party"]);
 
 let named: Vec<String> = menu::Entity::find()
     .select(menu::Column::Name)
-    .filter(menu::Column::Name.eq_any(tags(&["Party", "Picnic"])))
+    .filter(menu::Column::Name.eq_any(["Party", "Picnic"]))
     .into_tuple()
     .all(&db)
     .await?;
@@ -937,7 +938,7 @@ mod shelf {
 use pgorm::entity::prelude::*;
 
 let (sql, _) = shelf::Entity::find()
-    .filter(shelf::Column::Label.eq_any(["top".to_owned(), "middle".to_owned()]))
+    .filter(shelf::Column::Label.eq_any(["top", "middle"]))
     .build();
 assert_eq!(
     sql,

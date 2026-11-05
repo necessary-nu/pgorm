@@ -54,7 +54,7 @@ today, including panicking edges and deliberate failsafes.
 > `MergeStatement` do not, and a caller who wants a second copy of one writes
 > `.to_owned()`.
 
-> [spec:pgorm:req:sql.surface+39]
+> [spec:pgorm:req:sql.surface+40]
 > The crate's exports are an explicit list, not a set of module globs.
 > `pgorm-query/src/lib.rs` MUST name every exported item in `pub use` statements
 > grouped by what the items are for — names, expressions, values, query
@@ -239,8 +239,9 @@ today, including panicking edges and deliberate failsafes.
 > `POSTGRES_TARGET`, the PostgreSQL release a build targets (`sql.target`);
 > `base_type`, the type a value of a domain travels as, every domain
 > looked through to the type at the bottom (`sql.value.base-type`);
-> and `ExprTrait`, the operator vocabulary every expression type implements
-> (`sql.ast.expr.operators`). An
+> `ExprTrait`, the operator vocabulary every expression type implements
+> (`sql.ast.expr.operators`); and `ArrayElement`, what an array parameter's
+> element type is read from (`sql.value.array`). An
 > item leaves the list with the state it described: `Frame` went when a
 > frame's bounds stopped being one enum, the frame builder replacing it
 > (`sql.ast.window-statement`), `StandaloneIndexKind` when the primary-key
@@ -988,7 +989,7 @@ today, including panicking edges and deliberate failsafes.
 > `in_subquery`/`not_in_subquery` MUST build `IN (SELECT ...)` /
 > `NOT IN (SELECT ...)` from a `SelectStatement`.
 
-> [spec:pgorm:req:sql.ast.expr.eq-any+1]
+> [spec:pgorm:req:sql.ast.expr.eq-any+2]
 > `eq_any`/`ne_all` MUST build the same membership tests over a *single array
 > parameter*: `eq_any` the comparison `= ANY(<array>)` and `ne_all` its
 > complement `<> ALL(<array>)`, with the operand collection gathered into one
@@ -1000,9 +1001,12 @@ today, including panicking edges and deliberate failsafes.
 > short literal list written into the query, and `eq_any` when the length varies
 > at runtime.
 >
-> The operand type MUST be bound `Into<Value> + ValueType`, not `Into<Value>`
-> alone: the array's element tag is read from the Rust type, so an empty list is
-> still a typed array (see `sql.value.array`).
+> The operand type MUST be bound `ArrayElement`, not `Into<Value>` alone: the
+> array's element tag is read from the Rust type, so an empty list is still a
+> typed array (see `sql.value.array`). Every `ValueType` is an `ArrayElement`,
+> and so are `&str`, `&String` and `&[u8]`, so `eq_any(["a", "b"])` takes the
+> string slices `eq("a")` does, binding one `text[]`. `ColumnTrait`'s
+> `eq_any` and `ne_all` take the same bound.
 >
 > The negation MUST be spelled `<> ALL`, not `NOT (… = ANY …)`. The two are
 > equivalent under three-valued logic — a NULL element makes both NULL, as it

@@ -4279,6 +4279,20 @@ children (
                         kind @note
                         text "Found by guide.rust (values chapter). eq_any and ne_all bound their items on V: ValueType (src/entity/column.rs:524), so eq_any([\"a\", \"b\"]) is E0277 while eq(\"a\") compiles; the guide's examples use Strings. Related, as a note only: eq takes any Into<Value> rather than the column's own type, so Days.eq(0b111_1111) on an i64 field binds int4."
                     }
+
+                    {
+                        at 2026-11-05T17:03:33.822407Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T17:08:02.58586Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "The element bound is a new pgorm_query::ArrayElement (Into<Value> + element_type()), what Value::array reads the array's element type from: a blanket impl for every ValueType, plus &str and &String (text[]) and &[u8] (bytea[]), the borrowed spellings that convert into a Value but cannot be read out of one, so they could never be ValueType. Cow<str> was left out: rustc refuses it beside the blanket (E0119). The method is element_type, not array_type, so ValueType and ArrayElement imported together leave neither call ambiguous. ExprTrait::eq_any/ne_all, ColumnTrait::eq_any/ne_all and Value::array take it. On the note's related point, that eq takes any Into<Value> rather than the column's own type: assessed and not changed here. A Column enum's variants share one type, and ColumnTrait has no per-column Rust type to bound on, so typing eq by the field would need a marker type per column from the derive, a redesign of the column API. What reaches the server is sound as it stands: a bare value's placeholder is typed by the column it is compared with and binding-coerce converts an integer into that type checked (Days.eq(0b111_1111) on an int8 column binds int8 bytes), and a save_as column pins the value's own type inside the cast, CAST($1::int4 AS bit(7)), whose result is the same bits. Neither binding has the bug: both take their lists dynamically."
+                    }
                 )
             }
 
@@ -4286,6 +4300,7 @@ children (
                 id value-type-try-from-collision
                 title "ValueType's conversion from a Value does not collide with TryFrom::try_from when the prelude is in scope"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:39:50.394533Z
@@ -4306,6 +4321,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "The lead's decision (rename the ValueType method) is built, under the name from_value rather than the suggested try_from_value: ActiveEnum already has try_from_value(&Self::Value), every ActiveEnum implements ValueType too, and the two traits are routinely imported together (ActiveEnum through the prelude), so try_from_value would have recreated the E0034 for every enum. from_value(Value) -> Result follows serde_json::from_value's precedent for a fallible read out of a value tree. Every impl and caller is renamed: pgorm-query's own impls, the ValueType/JsonValueType/ActiveEnum/CreatedRange/Model/ActiveModel derives' generated code, pgorm's created-range decoding, tests and the guide (Decimal::from_value(price) with the trait and the prelude in scope). Neither binding has a counterpart: Python and JavaScript read values through their own decoders, not a ValueType trait."
+                    }
+
+                    {
+                        at 2026-11-05T17:03:33.118468Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

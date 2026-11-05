@@ -7,11 +7,11 @@
 //! call, a cast and an aggregate compare and combine exactly as a column does.
 
 use crate::{
-    ArrayType, BinOper, CaseStatement, Expr, Func, FunctionCall, Grouping, IntoCollation,
-    IntoColumnRef, IntoLikeExpr, IntoName, IntoValueTuple, JsonArray, JsonArrayAgg, JsonArrayQuery,
-    JsonExists, JsonInput, JsonObject, JsonObjectAgg, JsonParse, JsonQuery, JsonSerialize,
-    JsonTest, JsonValue, Keyword, Name, SelectStatement, SimpleCaseStatement, SimpleExpr, SqlJson,
-    TypeName, UnOper, Value, ValueType,
+    ArrayElement, ArrayType, BinOper, CaseStatement, Expr, Func, FunctionCall, Grouping,
+    IntoCollation, IntoColumnRef, IntoLikeExpr, IntoName, IntoValueTuple, JsonArray, JsonArrayAgg,
+    JsonArrayQuery, JsonExists, JsonInput, JsonObject, JsonObjectAgg, JsonParse, JsonQuery,
+    JsonSerialize, JsonTest, JsonValue, Keyword, Name, SelectStatement, SimpleCaseStatement,
+    SimpleExpr, SqlJson, TypeName, UnOper, Value,
     value_range_text::{multirange_text, range_text},
 };
 
@@ -1609,10 +1609,26 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     ///     r#"SELECT "id" FROM "character" WHERE "character"."size_w" = ANY(ARRAY []::int4[])"#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ast.expr.eq-any+1]
+    /// The elements are any [`ArrayElement`], so string slices make a `text[]`
+    /// as `eq` takes one:
+    /// ```
+    /// use pgorm_query::{tests_cfg::*, *};
+    ///
+    /// let query = Query::select()
+    ///     .columns([Char::Id])
+    ///     .from(Char::Table)
+    ///     .and_where(Expr::col(Char::Character).eq_any(["A", "B"]))
+    ///     .to_owned();
+    ///
+    /// assert_eq!(
+    ///     query.to_string(),
+    ///     r#"SELECT "id" FROM "character" WHERE "character" = ANY(ARRAY ['A','B'])"#
+    /// );
+    /// ```
+    // [spec:pgorm:req:sql.ast.expr.eq-any+2]
     fn eq_any<V, I>(self, v: I) -> SimpleExpr
     where
-        V: Into<Value> + ValueType,
+        V: ArrayElement,
         I: IntoIterator<Item = V>,
     {
         self.binary(BinOper::Equal, Func::any(Value::array(v)))
@@ -1654,10 +1670,10 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     /// );
     /// assert_eq!(values.0.len(), 1);
     /// ```
-    // [spec:pgorm:req:sql.ast.expr.eq-any+1]
+    // [spec:pgorm:req:sql.ast.expr.eq-any+2]
     fn ne_all<V, I>(self, v: I) -> SimpleExpr
     where
-        V: Into<Value> + ValueType,
+        V: ArrayElement,
         I: IntoIterator<Item = V>,
     {
         self.binary(BinOper::NotEqual, Func::all(Value::array(v)))

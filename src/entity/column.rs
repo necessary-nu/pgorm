@@ -1,6 +1,6 @@
 use crate::{EntityName, IntoSimpleExpr, Iterable, SqlName, StaticName};
 use pgorm_query::{
-    BinOper, Expr, ExprTrait, Func, Name, SelectStatement, SimpleExpr, Value, ValueType,
+    ArrayElement, BinOper, Expr, ExprTrait, Func, Name, SelectStatement, SimpleExpr, Value,
 };
 use std::str::FromStr;
 
@@ -520,10 +520,19 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     ///         .to_string(),
     ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."id" = ANY(ARRAY [2,3])"#
     /// );
+    ///
+    /// // String slices are elements as `eq` takes one, the list a `text[]`.
+    /// assert_eq!(
+    ///     cake::Entity::find()
+    ///         .filter(cake::Column::Name.eq_any(["Apple Pie", "Lemon Tart"]))
+    ///         .build()
+    ///         .0,
+    ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."name" = ANY($1)"#
+    /// );
     /// ```
     fn eq_any<V, I>(&self, v: I) -> SimpleExpr
     where
-        V: Into<Value> + ValueType,
+        V: ArrayElement,
         I: IntoIterator<Item = V>,
     {
         self.compare_any(BinOper::Equal, Value::array(v))
@@ -546,7 +555,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// ```
     fn ne_all<V, I>(&self, v: I) -> SimpleExpr
     where
-        V: Into<Value> + ValueType,
+        V: ArrayElement,
         I: IntoIterator<Item = V>,
     {
         self.compare_all(BinOper::NotEqual, Value::array(v))

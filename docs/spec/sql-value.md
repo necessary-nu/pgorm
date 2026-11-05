@@ -158,7 +158,7 @@ including panic semantics and quirks inherited from sea-query.
 
 ## Arrays
 
-> [spec:pgorm:def:sql.value.array+6]
+> [spec:pgorm:def:sql.value.array+7]
 > `ArrayType` is the element-type tag carried by `Value::Array`; its variants
 > mirror the scalar `Value` variants (`Bool` through `Bytes`, `Json`, the six
 > temporal tags, `Uuid`, `Decimal`, `IpNetwork`, `MacAddress`, `Vector`), plus
@@ -184,9 +184,13 @@ including panic semantics and quirks inherited from sea-query.
 > `ValueType::column_type()` for `Vec<T>` is
 > `ColumnType::Array(Arc::new(T::column_type()))`.
 >
-> `Value::array(values)` gathers any `IntoIterator` of `V: Into<Value> +
-> ValueType` into one `Value::Array`, taking the element tag from
-> `V::array_type()` rather than from the elements. Reading the tag from the Rust
+> `Value::array(values)` gathers any `IntoIterator` of `V: ArrayElement` into
+> one `Value::Array`, taking the element tag from `V::element_type()` rather
+> than from the elements. `ArrayElement` is implemented for every `ValueType`
+> (its `array_type()`) and for the borrowed spellings that convert into a
+> `Value` but cannot be read back out of one: `&str` and `&String` (`String`)
+> and `&[u8]` (`Bytes`). Its method is named apart from `ValueType`'s, so the
+> two traits imported together leave neither call ambiguous. Reading the tag from the Rust
 > type is what makes an empty collection representable: an untagged empty array
 > has no element to infer a type from, and so no inline spelling PostgreSQL can
 > resolve. It is the constructor behind the array-parameter predicates

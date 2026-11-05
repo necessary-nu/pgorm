@@ -214,7 +214,7 @@ fn empty_array_literal_names_element_type() {
     assert_eq!(Value::array([1, 2]).to_string(), "ARRAY [1,2]");
 }
 
-// [spec:pgorm:def:sql.value.array+6/test]    `Value::array` tags the element
+// [spec:pgorm:def:sql.value.array+7/test]    `Value::array` tags the element
 // type from `V`, not from the elements, so an empty list is still typed
 #[test]
 fn value_array_tags_element_type_from_rust() {

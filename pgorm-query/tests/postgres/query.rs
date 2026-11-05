@@ -3223,7 +3223,7 @@ fn empty_in_2() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.eq-any+1/test]    `eq_any` spends one
+// [spec:pgorm:req:sql.ast.expr.eq-any+2/test]    `eq_any` spends one
 // placeholder whatever the list length, so the SQL text a statement cache keys
 // on no longer varies with cardinality the way `IN` makes it
 #[test]
@@ -3271,7 +3271,7 @@ fn eq_any_binds_one_array_parameter() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.eq-any+1/test]    the negation is spelled
+// [spec:pgorm:req:sql.ast.expr.eq-any+2/test]    the negation is spelled
 // `<> ALL`, the shape PostgreSQL's own parser gives `NOT IN`, rather than a
 // `NOT` wrapped around `= ANY`
 #[test]
@@ -3295,7 +3295,7 @@ fn ne_all_negates_with_one_parameter() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.eq-any+1/test]    an empty list needs no
+// [spec:pgorm:req:sql.ast.expr.eq-any+2/test]    an empty list needs no
 // constant fall-back: an empty array carries the vacuous truth of the predicate
 // natively, where an empty `IN` has to be rewritten
 #[test]

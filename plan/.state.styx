@@ -1584,7 +1584,8 @@ assertions (
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id func-aggregate-expr-methods, kind @complete, author "brendan@necessary.nu", at 2026-11-05T16:49:48.80288Z}
-    {id value-type-try-from-collision, kind @doing, author "brendan@necessary.nu", at 2026-11-05T16:50:07.177454Z}
+    {id value-type-try-from-collision, kind @complete, author "brendan@necessary.nu", at 2026-11-05T17:03:33.118468Z}
+    {id membership-takes-str, kind @doing, author "brendan@necessary.nu", at 2026-11-05T17:03:33.822407Z}
 )
 
 impl_evidence (

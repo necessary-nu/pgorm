@@ -372,10 +372,10 @@ where
     }
 }
 
-// [spec:pgorm:def:sql.value.array+6]
+// [spec:pgorm:def:sql.value.array+7]
 impl<T> NotU8 for Range<T> where T: RangeElement {}
 
-// [spec:pgorm:def:sql.value.array+6]
+// [spec:pgorm:def:sql.value.array+7]
 impl<T> NotU8 for Multirange<T> where T: RangeElement {}
 
 // [spec:pgorm:def:sql.value.range+5]
@@ -549,7 +549,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:def:sql.value.array+6/test]    a `Vec` of ranges or multiranges is an array of
+    // [spec:pgorm:def:sql.value.array+7/test]    a `Vec` of ranges or multiranges is an array of
     // them, tagged with the range type and refusing another's
     #[test]
     fn a_vec_of_ranges_is_an_array() {
