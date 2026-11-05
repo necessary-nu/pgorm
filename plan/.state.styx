@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T19:25:59.004975Z
+last_sync_at 2026-11-05T19:59:21.964054Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -2939,8 +2939,6 @@ impl_evidence (
         sql.surface
     ), covered_claims (
         {impl_name main, rule sql.surface}
-    ), rule_versions_seen (
-        {id sql.surface, version 38}
     )}
     {id query-second-tier, covered_rules (
         sql.scope
@@ -3011,6 +3009,16 @@ impl_evidence (
         {impl_name main, rule sql.render.table-function}
         {impl_name main, rule sql.render.table-sample}
         {impl_name main, rule sql.render.tie-limit}
+    ), rule_versions_seen (
+        {id exec.tie-limit, version 1}
+        {id sql.ast.expr.similar-to, version 3}
+        {id sql.ast.select.group-distinct, version 0}
+        {id sql.ast.select.table-function, version 3}
+        {id sql.ast.select.table-sample, version 0}
+        {id sql.ast.select.tie-limit, version 2}
+        {id sql.render.table-function, version 2}
+        {id sql.render.table-sample, version 0}
+        {id sql.render.tie-limit, version 0}
     )}
     {id sql-views, covered_rules (
         sql.ddl.create-table-as
@@ -3326,6 +3334,8 @@ impl_evidence (
         sql.render.placeholder-typing
     ), covered_claims (
         {impl_name main, rule sql.render.placeholder-typing}
+    ), rule_versions_seen (
+        {id sql.render.placeholder-typing, version 2}
     )}
     {id typed-binds.python-decode-reason, covered_rules (
         error.model.decode-refusal
