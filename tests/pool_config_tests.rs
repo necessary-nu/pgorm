@@ -7,10 +7,9 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use pgorm::entity::prelude::*;
 use pgorm::{
-    Config, DatabasePool, MakeTlsConnect, ManagerConfig, NoTls, PoolBuilder, RecyclingMethod,
-    Socket, StatementCacheSize, TlsConnect,
+    Config, DatabaseMultiPool, DatabasePool, MakeTlsConnect, ManagerConfig, NoTls, PoolBuilder,
+    PoolConfig, RecyclingMethod, Socket, StatementCacheSize, TlsConnect,
 };
-use pgorm_pool::PoolConfig;
 use pretty_assertions::assert_eq;
 
 fn database_url() -> String {
@@ -217,37 +216,32 @@ pub async fn connect_with_errs_on_build_failure() -> Result<(), Error> {
     Ok(())
 }
 
-fn pool_for<'a>(
-    pools: &'a BTreeMap<Arc<String>, DatabasePool>,
-    tag: &str,
-) -> Option<&'a DatabasePool> {
-    pools
-        .iter()
-        .find(|(key, _)| key.as_str() == tag)
-        .map(|(_, pool)| pool)
-}
-
-// [spec:pgorm:sem:conn.pool.multi+2/test]    one pool per builder entry, tagged and keyed by its map key
+// [spec:pgorm:sem:conn.pool.multi+3/test]    one pool per builder entry, tagged and keyed by its map key
 #[pgorm_macros::test]
 pub async fn connect_multi_builds_tagged_pools() -> Result<(), Error> {
     let mut builders: BTreeMap<String, Box<dyn Fn(PoolBuilder) -> PoolBuilder>> = BTreeMap::new();
     builders.insert("reader".to_owned(), Box::new(|builder| builder.max_size(2)));
     builders.insert("writer".to_owned(), Box::new(|builder| builder.max_size(3)));
 
-    let pools = pgorm::connect_multi_with_builder(maintenance_config(), builders)?;
+    let pools: DatabaseMultiPool =
+        pgorm::connect_multi_with_builder(maintenance_config(), builders)?;
 
     assert_eq!(
-        pools.keys().map(|key| key.as_str()).collect::<Vec<_>>(),
+        pools.iter().map(|(tag, _)| tag).collect::<Vec<_>>(),
         vec!["reader", "writer"],
         "the result is keyed by tag"
     );
 
-    for (key, pool) in &pools {
-        assert_eq!(&pool.tag(), key, "each pool carries its own map key as tag");
+    for (tag, pool) in pools.iter() {
+        assert_eq!(
+            pool.tag().as_str(),
+            tag,
+            "each pool carries its own map key as tag"
+        );
     }
 
-    let reader = pool_for(&pools, "reader").expect("reader pool");
-    let writer = pool_for(&pools, "writer").expect("writer pool");
+    let reader = pools.get("reader").expect("reader pool");
+    let writer = pools.get("writer").expect("writer pool");
 
     assert_eq!(
         reader.status().max_size,
@@ -255,13 +249,22 @@ pub async fn connect_multi_builds_tagged_pools() -> Result<(), Error> {
         "each entry's own builder shapes its own pool"
     );
     assert_eq!(writer.status().max_size, 3);
+    assert_eq!(
+        pools
+            .status()
+            .into_iter()
+            .map(|(tag, status)| (tag, status.max_size))
+            .collect::<Vec<_>>(),
+        vec![("reader", 2), ("writer", 3)],
+        "status reports every pool by tag"
+    );
 
     // Selection is explicit by tag only: an unknown key resolves to nothing,
     // there is no fallback onto a sibling pool.
-    assert!(pool_for(&pools, "missing").is_none());
+    assert!(pools.get("missing").is_none());
 
     // Every pool clones the one shared config, so they reach the same database.
-    for pool in pools.values() {
+    for (_, pool) in pools.iter() {
         let conn = pool.get().await?;
         let database: String = conn
             .query_one("SELECT current_database()", &[])
@@ -281,11 +284,18 @@ pub async fn connect_multi_builds_tagged_pools() -> Result<(), Error> {
         session_setting(&conn, "application_name").await?,
         "pgorm-multi-fast"
     );
+    drop(conn);
+
+    pools.close();
+    assert!(
+        pools.iter().all(|(_, pool)| pool.is_closed()),
+        "close closes every pool"
+    );
 
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.pool.multi+2/test]    one unbuildable entry fails the whole construction
+// [spec:pgorm:sem:conn.pool.multi+3/test]    one unbuildable entry fails the whole construction
 #[pgorm_macros::test]
 pub async fn connect_multi_errs_on_build_failure() -> Result<(), Error> {
     let mut builders: BTreeMap<String, Box<dyn Fn(PoolBuilder) -> PoolBuilder>> = BTreeMap::new();
