@@ -24,7 +24,7 @@ mod schema_parity;
 
 use pyo3::prelude::*;
 
-// [spec:pgorm:req:bindings.entities+4/test]
+// [spec:pgorm:req:bindings.entities+5/test]
 #[pymodule(gil_used = true)]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     let mut registry = pgorm_python::entities::Registry::default();
@@ -56,7 +56,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use super::*;
 
-    // [spec:pgorm:req:bindings.entities+4/test]
+    // [spec:pgorm:req:bindings.entities+5/test]
     #[test]
     fn registry_refuses_name_and_type_collisions() -> PyResult<()> {
         Python::initialize();

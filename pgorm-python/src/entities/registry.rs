@@ -26,7 +26,7 @@ pub struct Registry {
 impl Registry {
     /// Register the real entity, model, columns and ActiveModel implementation.
     /// Duplicate names or duplicate Rust entity types are rejected atomically.
-    // [spec:pgorm:req:bindings.entities+4]
+    // [spec:pgorm:req:bindings.entities+5]
     pub fn entity<E>(&mut self, name: &str) -> PyResult<&mut Self>
     where
         E: EntityTrait + Send + Sync + 'static,
@@ -92,7 +92,7 @@ fn names(
 }
 
 /// `entities()`: the names of the entities this module registers.
-// [spec:pgorm:req:bindings.entities+4]
+// [spec:pgorm:req:bindings.entities+5]
 #[pyfunction(pass_module)]
 pub(crate) fn entities(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
     names(module, |registry| {
@@ -101,7 +101,7 @@ pub(crate) fn entities(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
 }
 
 /// `graphs()`: the names of the graph shapes this module registers.
-// [spec:pgorm:req:bindings.entities+4]
+// [spec:pgorm:req:bindings.entities+5]
 #[pyfunction(pass_module)]
 pub(crate) fn graphs(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
     names(module, |registry| registry.graphs.keys().cloned().collect())
@@ -109,7 +109,7 @@ pub(crate) fn graphs(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
 
 /// `pipeline.source_tuples()`: the names of the source tuples this module
 /// registers.
-// [spec:pgorm:req:bindings.entities+4]
+// [spec:pgorm:req:bindings.entities+5]
 #[pyfunction(pass_module)]
 pub(crate) fn pipeline_source_tuples(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
     names(module, |registry| {

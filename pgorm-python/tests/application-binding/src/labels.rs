@@ -7,7 +7,15 @@ pub mod label {
     use serde::{Deserialize, Serialize};
 
     #[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize, Deserialize)]
-    #[pgorm(table_name = "labels", schema_name = "python_shipments")]
+    #[pgorm(
+        table_name = "labels",
+        schema_name = "python_shipments",
+        unique(
+            name = "labels_text_parcel",
+            nulls_not_distinct,
+            columns = (Column::Text, Column::ParcelId)
+        )
+    )]
     pub struct Model {
         #[pgorm(primary_key)]
         pub id: i32,

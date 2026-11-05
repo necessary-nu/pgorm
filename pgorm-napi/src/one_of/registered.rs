@@ -65,7 +65,7 @@ impl Registry {
     /// twice, and an entity not registered, are each refused, and nothing is
     /// added.
     // [spec:pgorm:req:bindings.one-of+1]
-    // [spec:pgorm:req:bindings.entities+4]
+    // [spec:pgorm:req:bindings.entities+5]
     pub fn one_of<O: OneOf>(&mut self, name: &str) -> Result<&mut Self, RegistrationError> {
         crate::entities::registration_name(name)?;
         let rust = TypeId::of::<O>();

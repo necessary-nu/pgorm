@@ -53,7 +53,7 @@ impl Registry {
     /// twice, and an entity not registered, are each a `ConstructionError`
     /// raised as it is registered.
     // [spec:pgorm:req:bindings.one-of+1]
-    // [spec:pgorm:req:bindings.entities+4]
+    // [spec:pgorm:req:bindings.entities+5]
     pub fn one_of<O: OneOf>(&mut self, name: &str) -> PyResult<&mut Self> {
         if name.is_empty() || name.len() > 255 || name.contains('\0') {
             return Err(ConstructionError::new_err(

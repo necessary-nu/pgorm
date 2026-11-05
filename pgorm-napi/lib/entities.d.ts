@@ -6,7 +6,7 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.entities+4]
+// [spec:pgorm:req:bindings.entities+5]
 
 import type { Compiled, ComparisonOperand, Expr, Operand, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Conflict, ConflictUpdate } from "./writes.d.ts";
@@ -131,6 +131,12 @@ export interface EntityDescription {
   readonly primaryKey: readonly string[];
   /** Whether the key's last column is a period matched `WITHOUT OVERLAPS`. */
   readonly primaryKeyWithoutOverlaps: boolean;
+  /** The table's unique keys over two columns or more: each its name, null where PostgreSQL names it, its columns and whether nulls are equal under it. */
+  readonly uniqueKeys: readonly {
+    readonly name: string | null;
+    readonly columns: readonly string[];
+    readonly nullsNotDistinct: boolean;
+  }[];
   readonly relations: readonly {
     readonly name: string;
     readonly type: "hasOne" | "hasMany";

@@ -1193,7 +1193,7 @@ registrations. The program reaches each registration by name, and every
 operation on one is the entity's own Rust API. A binding cannot instantiate a
 Rust generic at run time, only use the ones compiled in.
 
-> [spec:pgorm:req:bindings.entities+4]
+> [spec:pgorm:req:bindings.entities+5]
 > Each binding MUST let a downstream application crate register its own
 > entities, `SelectGraph` shapes and pipeline source tuples, for any entity
 > whose model converts into its ActiveModel, and build one native module from
@@ -1218,7 +1218,11 @@ Rust generic at run time, only use the ones compiled in.
 > (`[spec:pgorm:sem:entity.traits.column.enum-cast]`) — and an enum's
 > `values` (null for any other column);
 > `primary_key`, and `primary_key_without_overlaps`, whether that key ends
-> `WITHOUT OVERLAPS`; `relations`, each with its `name`, `type` (has one or
+> `WITHOUT OVERLAPS`; `unique_keys`, the table's unique keys over two columns
+> or more as the entity's `EntityName::unique_keys` declares them
+> (`[spec:pgorm:req:entity.traits.entity-name]`), each its `name`, null where
+> PostgreSQL names the constraint, its `columns` by their SQL names in key
+> order and `nulls_not_distinct`; `relations`, each with its `name`, `type` (has one or
 > has many), the `from` and `to` tables, each its `schema` and `table`, its
 > `columns` as pairs, its `PERIOD` pair as `period`, `condition_type` and
 > `on_condition` (`bindings.relation-conditions`), `enforcement` and

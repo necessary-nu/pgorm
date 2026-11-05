@@ -22,7 +22,7 @@
     "comments": [],
     "enums": [],
     "indexes": [],
-    "table": "CREATE TABLE \"napi_shipments\".\"labels\" ( \"id\" integer NOT NULL, \"text\" varchar NOT NULL, \"packet_id\" integer, \"pallet_id\" integer, PRIMARY KEY (\"id\"), CONSTRAINT \"fk-labels-packet_id\" FOREIGN KEY (\"packet_id\") REFERENCES \"napi_shipments\".\"packets\" (\"shipment_id\"), CONSTRAINT \"fk-labels-pallet_id\" FOREIGN KEY (\"pallet_id\") REFERENCES \"napi_shipments\".\"pallets\" (\"id\") )"
+    "table": "CREATE TABLE \"napi_shipments\".\"labels\" ( \"id\" integer NOT NULL, \"text\" varchar NOT NULL, \"packet_id\" integer, \"pallet_id\" integer, PRIMARY KEY (\"id\"), CONSTRAINT \"labels_text_packet\" UNIQUE NULLS NOT DISTINCT (\"text\", \"packet_id\"), CONSTRAINT \"fk-labels-packet_id\" FOREIGN KEY (\"packet_id\") REFERENCES \"napi_shipments\".\"packets\" (\"shipment_id\"), CONSTRAINT \"fk-labels-pallet_id\" FOREIGN KEY (\"pallet_id\") REFERENCES \"napi_shipments\".\"pallets\" (\"id\") )"
   },
   "app.Listing": {
     "comments": [],

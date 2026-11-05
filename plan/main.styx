@@ -17479,6 +17479,22 @@ children (
                 title "A registered entity's describe() reports its unique keys, as a model's does"
                 kind @fix
                 deps (bindings-composite-unique)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T01:46:52.034359Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T01:59:45.708617Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {

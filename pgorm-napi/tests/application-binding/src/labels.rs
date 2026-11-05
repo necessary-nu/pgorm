@@ -6,7 +6,15 @@ pub mod label {
     use pgorm::entity::prelude::*;
 
     #[derive(Clone, Debug, PartialEq, Eq, Entity)]
-    #[pgorm(table_name = "labels", schema_name = "napi_shipments")]
+    #[pgorm(
+        table_name = "labels",
+        schema_name = "napi_shipments",
+        unique(
+            name = "labels_text_packet",
+            nulls_not_distinct,
+            columns = (Column::Text, Column::PacketId)
+        )
+    )]
     pub struct Model {
         #[pgorm(primary_key, auto_increment = false)]
         pub id: i32,

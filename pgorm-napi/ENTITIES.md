@@ -119,7 +119,9 @@ const first = await query.optional(pool);    // Select::one_opt, LIMIT 1
   `columns`, each one's SQL `name`, the `jsonKey` its Rust field serializes
   under, `sqlType`, `rustType`, `nullable`, `primaryKey`, `kind` and an enum's
   `values`; the `primaryKey` and whether it ends `WITHOUT OVERLAPS`
-  (`primaryKeyWithoutOverlaps`); every relation with its columns, period,
+  (`primaryKeyWithoutOverlaps`); the `uniqueKeys` its entity's `unique(..)`
+  declares, each its `name`, `columns` and `nullsNotDistinct`; every relation
+  with its columns, period,
   condition type (`all` or `any`), whether an `on_condition` adds a condition
   of its own, enforcement and deferrability; and under `rust` the Rust types
   behind it. These are the keys Python's `describe()` reports, each spelled in
