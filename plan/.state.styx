@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T05:38:46.202507Z
+last_sync_at 2026-11-05T06:02:16.430683Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -988,8 +988,10 @@ derived_priorities (
     {id tx-closure-send, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id type-part-keyword-names, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id typed-binds.created-range-array-column, priority 3, derived_at 2026-11-05T05:31:58.723137Z}
+    {id typed-binds.created-range-array-value, priority 3, derived_at 2026-11-05T06:02:16.430683Z}
     {id typed-binds.created-range-quantified, priority 3, derived_at 2026-11-05T03:45:45.445825Z}
     {id typed-binds.empty-quantified-list, priority 3, derived_at 2026-11-05T03:45:45.445825Z}
+    {id typed-binds.napi-range-array-operand, priority 3, derived_at 2026-11-05T06:02:16.430683Z}
     {id typed-binds.python-decode-reason, priority 3, derived_at 2026-11-05T02:15:29.773078Z}
     {id typed-binds.python-expression-operands, priority 3, derived_at 2026-11-05T02:15:29.773078Z}
     {id typed-binds.quantified-casts, priority 3, derived_at 2026-11-05T02:15:29.773078Z}

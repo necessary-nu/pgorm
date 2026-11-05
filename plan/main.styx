@@ -17833,7 +17833,29 @@ children (
                         kind @status
                         text "Doing → Done (nplan complete)"
                     }
+
+                    {
+                        at 2026-11-05T06:02:02.407434Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead, 2026-11-05: accepted the lane's carve-out from bindings.created-ranges (now +2). A registered entity's column holding an array of a created range or multirange is read and written in both bindings, because a usable Rust type would otherwise read back silently as a list of strings. Declared Values, result columns, COPY and declared model columns still refuse it; making it a full value kind is typed-binds.created-range-array-value."
+                        after_done true
+                    }
                 )
+            }
+
+            {
+                id typed-binds.created-range-array-value
+                title "An array of a created range or multirange is a binding value kind both ways: a declared Value, a result column, COPY and a declared model's column"
+                kind @feat
+                deps (typed-binds.created-range-array-column)
+            }
+
+            {
+                id typed-binds.napi-range-array-operand
+                title "pgorm-napi's generic declarations type a created-range array column's operand, so a caller needs no EntityColumn of unknown"
+                kind @fix
+                deps (typed-binds.created-range-array-column)
             }
         )
     }
