@@ -285,6 +285,21 @@ test("an aborted pull leaves the listener open; an aborted listen closes it", as
 });
 
 // [spec:pgorm:req:bindings.listen+2/test]
+// [spec:pgorm:req:bindings.cancellation/test]
+test("an abort before a finished listen settles still rejects it and closes the listener", async () => {
+  await using listener = await pool().listener();
+  const cut = new AbortController();
+  const listening = listener.listen("napi_settled_late", { signal: cut.signal });
+  // Holding this thread, as a busy runner does, lets the runtime finish the
+  // LISTEN before the abort reaches it.
+  const until = performance.now() + 50;
+  while (performance.now() < until);
+  cut.abort(new Error("cut off late"));
+  await assert.rejects(listening, /cut off late/);
+  assert.equal(listener.closed, true);
+});
+
+// [spec:pgorm:req:bindings.listen+2/test]
 test("closing the pool closes its listeners, ending a pull in flight", async () => {
   const closing = new Pool(scratch(), { maxSize: 1 });
   const listener = await closing.listener();

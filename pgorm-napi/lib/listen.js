@@ -72,6 +72,13 @@ export class Listener {
   async #send(verb, channel, options) {
     const signal = signalOption(options);
     await abortable(signal, (token) => native.listenerSend(this.#native, verb, channel, token));
+    // The statement can finish on the runtime before the abort reaches it,
+    // its result still queued for this thread: the call was aborted first,
+    // so it is cancelled all the same, and the server may have listened.
+    if (signal?.aborted) {
+      await this.#finish();
+      throw signal.reason;
+    }
   }
 
   /**
