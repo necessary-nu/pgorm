@@ -20,7 +20,7 @@ the modules under `tests/identifier_oracle/`.
 
 ## The property
 
-> [spec:pgorm:req:security.ident-oracle+16]
+> [spec:pgorm:req:security.ident-oracle+17]
 > Every public API that renders a caller-supplied name into SQL text MUST be
 > registered with the oracle. A new identifier-bearing API is incomplete until
 > it is registered, and an unregistered site is not covered by this rule. The
@@ -62,7 +62,10 @@ the modules under `tests/identifier_oracle/`.
 > whose `-`-separated parts is itself a name pgorm composed and bounded — a
 > disjoint base's foreign key `fk-{base}-{value}_{column}`, named for its
 > generated key column — carries that part's derivation, bounded, inside its
-> own. A disjoint kind's value is an enum label, a value, from which pgorm
+> own. A constraint name only its table has to hold uniquely, the one-of
+> `CHECK`'s `ck-{table}-{enum}`, drops the caller's part when the whole
+> would pass 63 bytes (`ck-{enum}`), and carries the whole derivation
+> whenever it fits. A disjoint kind's value is an enum label, a value, from which pgorm
 > also composes identifiers (the generated key columns, their foreign key,
 > the `CHECK` refusing a removed kind): standing alone it must come back as
 > the value's bytes, which no identifier limit truncates, and within a name

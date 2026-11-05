@@ -13,11 +13,10 @@
 
 mod common;
 
+use common::runtime_name as n;
 use common::*;
-use pgorm_codegen::entities_from_sql;
 use pgorm_query::{
-    Check, ColumnDef, Enforcement, Expr, ForeignKey, Func, Name, SimpleExpr, Table,
-    TableCreateStatement,
+    Check, ColumnDef, Enforcement, Expr, ForeignKey, Func, SimpleExpr, Table, TableCreateStatement,
 };
 
 const SCHEMA: &str = include_str!("../../tests/codegen_one_of/schema.sql");
@@ -25,25 +24,6 @@ const SCHEMA: &str = include_str!("../../tests/codegen_one_of/schema.sql");
 /// The tables the comment's references reach, as DDL text.
 const TARGETS: &str = "CREATE TABLE post (id serial PRIMARY KEY, title varchar NOT NULL); \
                        CREATE TABLE photo (id bigserial PRIMARY KEY, url varchar NOT NULL);";
-
-fn from_sql(sql: &str) -> Generated {
-    Generated {
-        files: entities_from_sql(sql, Opts::default())
-            .unwrap_or_else(|error| panic!("{error}: {sql}"))
-            .files
-            .into_iter()
-            .map(|file| (file.name, file.content))
-            .collect(),
-    }
-}
-
-fn refused(sql: &str) -> String {
-    match entities_from_sql(sql, Opts::default()) {
-        Err(pgorm_codegen::Error::TransformError(message)) => message,
-        Err(other) => panic!("expected a TransformError, got {other:?}"),
-        Ok(_) => panic!("expected a TransformError, got entities: {sql}"),
-    }
-}
 
 /// The comment table, its columns, the post and photo it may reference, and
 /// `check` among its constraints.
@@ -54,24 +34,11 @@ fn comment(check: &str) -> String {
     )
 }
 
-/// Assert that the generated `file` is `fixture`, rustfmt's trailing commas
-/// aside.
-#[track_caller]
-fn holds(generated: &Generated, file: &str, fixture: &str) {
-    let flat = |src: &str| norm(src).replace(" , )", " )").replace(" , }", " }");
-    let written = flat(generated.file(file));
-    assert!(written.contains(&flat(fixture)), "{file}: {written}");
-}
-
 /// The refusal of the comment table's `CHECK` named `name`.
 fn unheld(name: &str) -> String {
     format!(
         "table `comment`: an entity cannot hold the CHECK `{name}`, which is not a one-of reference's"
     )
-}
-
-fn n(name: &str) -> Name {
-    Name::runtime(name)
 }
 
 fn num_nonnulls(columns: &[&str]) -> SimpleExpr {
@@ -155,7 +122,7 @@ fn a_one_of_check_generates_its_enum() {
             include_str!("../../tests/codegen_one_of/photo.rs"),
         ),
     ] {
-        holds(&generated, file, fixture);
+        generated.holds(file, fixture);
     }
 }
 
@@ -175,7 +142,7 @@ fn a_self_referencing_one_of_generates_its_enum() {
             include_str!("../../tests/codegen_one_of/self_reference/topic.rs"),
         ),
     ] {
-        holds(&generated, file, fixture);
+        generated.holds(file, fixture);
     }
 }
 
@@ -205,7 +172,7 @@ fn long_named_one_of_keeps_its_enum_name() {
             include_str!("../../tests/codegen_one_of/long_names/release.rs"),
         ),
     ] {
-        holds(&generated, file, fixture);
+        generated.holds(file, fixture);
     }
 }
 
@@ -380,15 +347,7 @@ fn described_near_misses_are_refused() {
         Check::new(count().eq(1).and(Expr::col(n("body")).ne(""))),
         Check::new(count().eq(1)).enforcement(Enforcement::NotEnforced),
     ] {
-        match pgorm_codegen::EntityTransformer::transform(
-            described(check),
-            &context(Opts::default()),
-        ) {
-            Err(pgorm_codegen::Error::TransformError(message)) => {
-                assert_eq!(message, unheld("comment_check"))
-            }
-            other => panic!("expected the CHECK refused, got {other:?}"),
-        }
+        assert_transform_error(described(check), &unheld("comment_check"));
     }
 }
 

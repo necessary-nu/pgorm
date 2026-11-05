@@ -112,7 +112,7 @@ struct Collected<'a> {
 /// A qualified name is not held to the schemas the file creates: `public`
 /// exists unasked, and a dump of some schemas names others it never creates.
 // [spec:pgorm:req:codegen.ddl.unsupported+21]
-// [spec:pgorm:sem:codegen.ddl.objects+11]
+// [spec:pgorm:sem:codegen.ddl.objects+12]
 fn collect(parsed: &pg_query::protobuf::ParseResult) -> Result<Collected<'_>, Error> {
     let mut collected = Collected::default();
     let mut schemas = BTreeSet::new();
@@ -171,7 +171,7 @@ fn collect(parsed: &pg_query::protobuf::ParseResult) -> Result<Collected<'_>, Er
 
 /// Record a type the file declares, refusing a second declaration of one
 /// identity — whichever kinds the two are.
-// [spec:pgorm:sem:codegen.ddl.objects+11]
+// [spec:pgorm:sem:codegen.ddl.objects+12]
 fn declare(
     declared: &mut Declared,
     identity: TypeIdentity,
@@ -191,7 +191,7 @@ fn declare(
 /// Resolve the collected statements against each other: declared types into
 /// the columns naming them, what `ALTER TABLE`s add, indexes and comments into
 /// the table they describe.
-// [spec:pgorm:sem:codegen.ddl.objects+11]
+// [spec:pgorm:sem:codegen.ddl.objects+12]
 fn build(collected: Collected<'_>) -> Result<Vec<TableCreateStatement>, Error> {
     let Collected {
         declared: types,

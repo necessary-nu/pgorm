@@ -6,7 +6,6 @@ mod common;
 
 use common::*;
 use pgorm::{ColumnTrait, ColumnTypeTrait, EntityName, Iterable, StaticName};
-use pgorm_codegen::{Error, WriterOutput, entities_from_sql};
 use pgorm_query::extension::Type;
 use pgorm_query::{ColumnDef, ColumnType, Name, Schema, Table, TableCreateStatement};
 use std::sync::Arc;
@@ -48,46 +47,16 @@ fn described() -> Vec<(&'static str, ColumnType, bool)> {
     ]
 }
 
-/// Token text with the trailing commas rustfmt writes into a fixture and the
-/// writer does not, so the two compare as the same program.
-fn flat(src: &str) -> String {
-    norm(src).replace(" , }", " }").replace(" , )", " )")
-}
-
-fn files(output: WriterOutput) -> Generated {
-    Generated {
-        files: output
-            .files
-            .into_iter()
-            .map(|file| (file.name, file.content))
-            .collect(),
-    }
-}
-
-#[track_caller]
-fn from_sql(sql: &str, opts: Opts) -> Generated {
-    files(entities_from_sql(sql, opts).expect("the schema generates"))
-}
-
-#[track_caller]
-fn error(sql: &str) -> String {
-    match entities_from_sql(sql, Opts::default()) {
-        Err(Error::TransformError(message)) => message,
-        Err(other) => panic!("expected a TransformError, got {other:?}"),
-        Ok(_) => panic!("expected an error, got generated entities"),
-    }
-}
-
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a file that creates its schema generates
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a file that creates its schema generates
 // what the file without the `CREATE SCHEMA` does: the table and enum in the schema are
 // qualified by it, and the schema adds nothing else
 // [spec:pgorm:req:codegen.ddl.unsupported+21/test]
 #[test]
 fn a_created_schema_generates_a_compiling_entity() {
-    let generated = from_sql(SCHEMA, Opts::default());
+    let generated = from_sql_with(SCHEMA, Opts::default());
     assert_eq!(
         generated.files,
-        from_sql(in_the_schema(), Opts::default()).files
+        from_sql_with(in_the_schema(), Opts::default()).files
     );
     let written = flat(generated.file("deal.rs"));
     assert!(
@@ -111,14 +80,14 @@ fn a_created_schema_generates_a_compiling_entity() {
     }
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    every form of `CREATE SCHEMA` without
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    every form of `CREATE SCHEMA` without
 // elements is read and contributes nothing: `IF NOT EXISTS`, an `AUTHORIZATION` role set
 // aside, a schema named for its role, and one named for a role keyword, which is read with
 // no name; a second creation saying `IF NOT EXISTS` is read too
 // [spec:pgorm:req:codegen.ddl.unsupported+21/test]
 #[test]
 fn every_create_schema_form_is_read() {
-    let bare = from_sql(in_the_schema(), Opts::default()).files;
+    let bare = from_sql_with(in_the_schema(), Opts::default()).files;
     for schema in [
         "CREATE SCHEMA IF NOT EXISTS sales;",
         "CREATE SCHEMA sales AUTHORIZATION sales_owner;",
@@ -130,7 +99,7 @@ fn every_create_schema_form_is_read() {
         "CREATE SCHEMA \"Sales\"; CREATE SCHEMA sales;",
     ] {
         assert_eq!(
-            from_sql(&format!("{schema}\n{}", in_the_schema()), Opts::default()).files,
+            from_sql_with(&format!("{schema}\n{}", in_the_schema()), Opts::default()).files,
             bare,
             "{schema}"
         );
@@ -176,7 +145,7 @@ fn refused_schema_shapes_are_named() {
             "unsupported DDL: GRANT or REVOKE inside CREATE SCHEMA at statement 1",
         ),
     ] {
-        assert_eq!(error(sql), expected, "{sql}");
+        assert_eq!(refused(sql), expected, "{sql}");
     }
 }
 
@@ -217,7 +186,7 @@ fn rendered_created_schema_reads_back_whole() {
         .collect::<Vec<_>>()
         .join("\n");
     assert_eq!(
-        from_sql(&text, Opts::default()).files,
+        from_sql_with(&text, Opts::default()).files,
         generate(vec![table], Opts::default()).files,
     );
 }

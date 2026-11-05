@@ -7,7 +7,7 @@ mod common;
 
 use common::*;
 use pgorm::{ColumnTrait, ColumnTypeTrait, Iterable, StaticName};
-use pgorm_codegen::{WriterOutput, entities_from_sql, parse_schema};
+use pgorm_codegen::parse_schema;
 use pgorm_query::{ColumnType, Name};
 use std::sync::Arc;
 
@@ -65,22 +65,6 @@ fn described() -> Vec<(&'static str, ColumnType)> {
     ]
 }
 
-/// Token text with the trailing commas rustfmt writes into a fixture and the
-/// writer does not, so the two compare as the same program.
-fn flat(src: &str) -> String {
-    norm(src).replace(" , }", " }").replace(" , )", " )")
-}
-
-fn files(output: WriterOutput) -> Generated {
-    Generated {
-        files: output
-            .files
-            .into_iter()
-            .map(|file| (file.name, file.content))
-            .collect(),
-    }
-}
-
 // [spec:pgorm:sem:codegen.ddl.types+10/test]    an array of an enum the file creates reads
 // as an array of that enum by its full identity, a schema-qualified one included, and so
 // does a domain over one
@@ -105,8 +89,7 @@ fn the_bridge_reads_an_enum_array_column() {
 // spelled with the enum's column type as its array's element
 #[test]
 fn enum_arrays_generate_a_compiling_entity() {
-    let generated =
-        files(entities_from_sql(SCHEMA, Opts::default()).expect("the schema generates"));
+    let generated = from_sql(SCHEMA);
     let written = flat(generated.file("survey.rs"));
     assert!(
         written.contains(&flat(include_str!("sql/enum_array/survey.rs"))),

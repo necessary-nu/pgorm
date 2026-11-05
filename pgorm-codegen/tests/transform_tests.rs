@@ -1017,7 +1017,7 @@ fn inverse_has_one_for_composite_unique_foreign_key() {
 // key inverts to `HasMany`
 #[test]
 fn inverse_has_one_for_key_containing_a_key() {
-    let generated = generate_sql(
+    let generated = from_sql(
         "CREATE TABLE shelf (id serial PRIMARY KEY, kind int NOT NULL, \
            UNIQUE (id, kind)); \
          CREATE TABLE book (id int PRIMARY KEY, kind int NOT NULL, \
@@ -1028,7 +1028,6 @@ fn inverse_has_one_for_key_containing_a_key() {
          CREATE TABLE crumb (id serial PRIMARY KEY, cake_id int, cake_kind int, batch int, \
            UNIQUE (cake_id, batch), \
            FOREIGN KEY (cake_id, cake_kind) REFERENCES cake (id, kind));",
-        Opts::default(),
     );
     assert_contains(
         generated.file("shelf.rs"),

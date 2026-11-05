@@ -20,7 +20,7 @@ use super::{
         one_of_named,
     },
     oracle::{
-        Policy::{DerivedLabel, Literal, Quoted, TypePart},
+        Policy::{DerivedLabel, Literal, Quoted, TableScoped, TypePart},
         Rendered, Site,
     },
 };
@@ -620,7 +620,7 @@ fn one_of_sites() -> Vec<Site> {
             id: "pgorm/one-of.check.table",
             api: "Schema::create_one_of with a runtime EntityName::table_name",
             kinds: &["Constraint.conname", "AlterTableStmt.relation.relname"],
-            policy: Quoted,
+            policy: TableScoped,
             render: |n| one_of(n, None),
         },
         Site {

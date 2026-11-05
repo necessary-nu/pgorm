@@ -1637,7 +1637,7 @@ compiling the C parser falls on people generating entities and on nobody else.
 > a foreign key whose last pair is its period (`period(p, q)`), the grammar
 > putting `PERIOD` on the last column of each list and nowhere else.
 
-> [spec:pgorm:sem:codegen.ddl.objects+11]
+> [spec:pgorm:sem:codegen.ddl.objects+12]
 > Statements are resolved against each other rather than in file order: a
 > `CREATE TYPE ... AS ENUM` may follow the table whose column names it, and a
 > `CREATE INDEX`, `ALTER TABLE` or `COMMENT ON` may precede its table. An enum type contributes
@@ -1712,7 +1712,12 @@ compiling the C parser falls on people generating entities and on nobody else.
 > enforces the same uniqueness — a `TableKey<Unique>`
 > (`sql.ddl.create-table`) — keeping its name, its columns and
 > `NULLS NOT DISTINCT`; `codegen.entity.transform` then reads a single-column
-> unique key as that column's `unique` flag. A table constraint's key is
+> unique key as that column's `unique` flag, except one carrying an `INCLUDE`
+> list, a deferrability or `NULLS NOT DISTINCT`, which the flag cannot hold
+> and the transform refuses by name rather than reading it as the plain key.
+> Of the three only `NULLS NOT DISTINCT` reaches it from an index: a unique
+> index's `INCLUDE` is refused here (`codegen.ddl.unsupported`), and an index
+> has no deferrability. A table constraint's key is
 > plain column names under the default `btree`, so what a unique index can
 > say and a constraint cannot is a named rejection per
 > `codegen.ddl.unsupported` rather than dropped: a `DESC` key column, and an

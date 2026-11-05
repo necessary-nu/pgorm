@@ -41,7 +41,7 @@ pub(super) struct Alter<'a> {
 /// the table as if its `CREATE TABLE` had declared them, after its own
 /// elements; any other change to a table is named. `ONLY` is read as the
 /// plain form: a table the bridge reads has no child for it to exclude.
-// [spec:pgorm:sem:codegen.ddl.objects+11]
+// [spec:pgorm:sem:codegen.ddl.objects+12]
 // [spec:pgorm:req:codegen.ddl.unsupported+21]
 pub(super) fn alter(stmt: &AlterTableStmt, at: usize) -> Result<Alter<'_>, Error> {
     let statement = match ObjectType::try_from(stmt.objtype) {
@@ -151,7 +151,7 @@ fn alter_kind(subtype: Option<AlterTableType>) -> &'static str {
 
 /// The identity a `CREATE TABLE` declares — schema and all — which is the key
 /// every other statement, and the entity transformer, refers to a table by.
-// [spec:pgorm:sem:codegen.ddl.objects+11]
+// [spec:pgorm:sem:codegen.ddl.objects+12]
 pub(super) fn ident(stmt: &CreateStmt) -> TableIdent {
     stmt.relation
         .as_ref()
@@ -163,7 +163,7 @@ pub(super) fn ident(stmt: &CreateStmt) -> TableIdent {
 }
 
 /// The schema a DDL statement's name is qualified with, if any.
-// [spec:pgorm:sem:codegen.ddl.objects+11]
+// [spec:pgorm:sem:codegen.ddl.objects+12]
 pub(super) fn schema_of(relation: &RangeVar) -> Option<String> {
     Some(relation.schemaname.clone()).filter(|schema| !schema.is_empty())
 }

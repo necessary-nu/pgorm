@@ -5,9 +5,7 @@
 mod common;
 
 use common::*;
-use pgorm_codegen::{
-    EntityTransformer, EntityWriterContext, Error, TableIdent, UnkindedDisjoint, WithSerde,
-};
+use pgorm_codegen::{EntityWriterContext, Error, TableIdent, UnkindedDisjoint, WithSerde};
 use pgorm_query::{ColumnDef, ColumnType, ForeignKey, Name, Table};
 use std::path::Path;
 
@@ -103,13 +101,10 @@ fn errors_are_the_two_variant_error_enum() {
     let untyped = Table::create(Name::runtime("cake"))
         .col(ColumnDef::new(Name::runtime("id")))
         .to_owned();
-    match EntityTransformer::transform(vec![untyped], &context(Opts::default())) {
-        Err(Error::TransformError(msg)) => assert_eq!(
-            msg,
-            "table `cake` column `id`: column type should not be empty"
-        ),
-        other => panic!("expected Error::TransformError, got {other:?}"),
-    }
+    assert_transform_error(
+        vec![untyped],
+        "table `cake` column `id`: column type should not be empty",
+    );
 
     let from_io: Error = std::io::Error::other("boom").into();
     assert!(matches!(from_io, Error::StdIoError(_)));

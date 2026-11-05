@@ -1899,6 +1899,29 @@ children (
                     }
                 )
             }
+
+            {
+                id codegen.test-helpers-shared
+                title "pgorm-codegen's test files share one holds/from_sql helper instead of each carrying a copy"
+                kind @test
+                deps (codegen-enum-variant-names-all)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T00:28:22.482448Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:40:28.8974Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
         )
     }
 
@@ -17448,6 +17471,29 @@ children (
                 title "A binding model's named unique key that collides with a constraint name the disjoint schema generates is refused before the server"
                 kind @fix
                 deps (bindings-composite-unique)
+            }
+
+            {
+                id unique-keys.objects-wording
+                title "codegen.ddl.objects says which one-column unique keys the transform refuses rather than reading as the column's unique"
+                kind @docs
+                deps (codegen-unique-parts-dropped)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T00:25:46.326762Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:27:31.843976Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
         )
     }

@@ -4,11 +4,10 @@
 
 mod common;
 
+use common::runtime_name as n;
 use common::*;
-use pgorm_codegen::{entities_from_sql, parse_schema};
-use pgorm_query::{
-    ColumnDef, ColumnSpec, Expr, Func, GeneratedKind, Name, Query, TableCreateStatement,
-};
+use pgorm_codegen::parse_schema;
+use pgorm_query::{ColumnDef, ColumnSpec, Expr, Func, GeneratedKind, Query, TableCreateStatement};
 
 const SCHEMA: &str = include_str!("sql/expressions/schema.sql");
 
@@ -20,21 +19,6 @@ mod formula;
 mod stock_code;
 #[path = "sql/expressions/stock_item.rs"]
 mod stock_item;
-
-fn files(sql: &str, opts: Opts) -> Generated {
-    Generated {
-        files: entities_from_sql(sql, opts)
-            .expect("schema should generate")
-            .files
-            .into_iter()
-            .map(|file| (file.name, file.content))
-            .collect(),
-    }
-}
-
-fn n(name: &str) -> Name {
-    Name::runtime(name)
-}
 
 /// Each column's `DEFAULT` or generation expression, as the column, the
 /// kind and the expression rendered.
@@ -61,15 +45,6 @@ fn expressions(table: &TableCreateStatement) -> Vec<String> {
     found
 }
 
-#[track_caller]
-fn refused(sql: &str) -> String {
-    match entities_from_sql(sql, Opts::default()) {
-        Err(pgorm_codegen::Error::TransformError(message)) => message,
-        Err(other) => panic!("expected a TransformError for {sql}, got {other:?}"),
-        Ok(_) => panic!("expected a TransformError for {sql}, got entities"),
-    }
-}
-
 // [spec:pgorm:sem:codegen.ddl.tables+13/test]    a column's DEFAULT and generation expression,
 // stored or virtual, ride on the bridged statement
 // [spec:pgorm:sem:codegen.entity.expressions+2/test]    and reach the entity as the Rust that
@@ -78,7 +53,7 @@ fn refused(sql: &str) -> String {
 // [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]
 #[test]
 fn schema_expressions_reach_the_entity() {
-    let generated = files(SCHEMA, Opts::default());
+    let generated = from_sql_with(SCHEMA, Opts::default());
     for (file, fixture) in [
         (
             "stock_item.rs",
