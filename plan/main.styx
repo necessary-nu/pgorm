@@ -10571,12 +10571,36 @@ children (
                 id pipeline-model-read-casts
                 title "Pipeline terminals decode an entity's Model with its read casts, so a model with an enum column decodes"
                 kind @fix
+                implements {
+                    main ([spec:pgorm:sem:pipeline.terminal] [spec:pgorm:def:exec.verify])
+                }
                 log (
                     {
                         at 2026-11-05T14:39:51.620981Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (pipeline chapter). Pipeline::from(cake::Entity).all::<cake::Model>(&db) fails WrongType on the flavor enum column: all, one, one_opt and into_model decode from SELECT * without the read casts select_sources applies (src/pipeline/terminal.rs), so the server sends the enum where the model reads text. The guide steers model reads to select_sources and says why."
+                    }
+
+                    {
+                        at 2026-11-05T15:36:37.084648Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Design (lane decision, pending operator override): the read cast is a property of what the decode target reads, so ExpectedColumn carries it (ExpectedColumn::selected_as(&column) probes the column's own select_as through graph::source_read_cast; read_cast() reports it) and the Model and PartialModel derives report it per field. The pipeline's model terminals (into_model, all, one, one_opt) end the pipeline in a projection of M's columns ONLY when M reports a cast column: `select {this.id, this.name, tea = CAST(this.tea AS text)}`. Otherwise SQL is unchanged (into_sql == model SQL). Rejected: always projecting M's columns — prqlc pushes a projection after append into the first UNION branch only, and refuses one after intersect/remove (\"wildcard usage is not yet supported\"), so every model read after a set operation would break; decode-side enum acceptance — cannot cover money, created multiranges or select_as overrides. `this.` qualifies so a column named like a PRQL std binding (date, rank, count) resolves to the column; the terminal's own aliases are screened as identifiers but not as reserved aliases, since they end the pipeline (probed: prqlc accepts `count = ...` as a final alias). A join of relations sharing a column name is refused as Compile(\"Ambiguous name\") — documented, select_sources is the per-source decode. Also fixed: PartialModel's from_col projected its column through column_as without select_as, so a renamed enum field failed WrongType on Select::into_partial_model too."
+                    }
+                )
+            }
+
+            {
+                id api-honesty.pipeline-select-after-append
+                title "A projection after a pipeline's append projects the whole union, not only its first branch"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T15:37:00.604494Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by pipeline-model-read-casts. Pipeline::from(cake::Entity).append(cake::Entity).select(cake::Column::Id).into_sql() gives \"SELECT id FROM cake UNION ALL SELECT * FROM cake AS table_0\": prqlc pushes the projection into the union's first branch and leaves the second a wildcard, so the branches' column counts differ (PostgreSQL refuses the UNION) or, where they happen to match, the second branch is not projected at all. Embedding the appended pipeline first (Pipeline::from(appended).select(..)) gives the right \"WITH table_0 AS (.. UNION ALL ..) SELECT id FROM table_0\", so the fix is likely a settle before a projection that follows a pending append, as set_op settles before a set operation that would reassociate. After intersect or remove the same projection is refused as Compile(\"This wildcard usage is not yet supported\"). The model terminals' cast projection (pipeline.terminal+1) inherits this for a model with a cast column read after an append."
                     }
                 )
             }
@@ -16757,6 +16781,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (entities chapter). Three gaps in #[derive(IntoActiveModel)]: (1) derived in a crate other than its entity's, it fails E0119 against the Entity derive's `impl IntoActiveModel<ActiveModel> for <Entity as EntityTrait>::Model` (pgorm-macros/src/derives/active_model.rs:92; the impl header names the projection rather than `Model`, and coherence across crates does not see past it), so a form cannot live beside the handler that uses it; (2) `#[pgorm(active_model = ..)]` parses a bare syn::Ident (derives/into_active_model.rs:11), not a path, unlike every other code-valued key (macros.derive.code-values), so `active_model = customer::ActiveModel` is a parse error; (3) IntoActiveValue is implemented only for the primitive types in src/entity/active_model.rs:593-640, not for ActiveEnum, ValueType, JsonValueType or CreatedRange types, so a form field of any of those does not compile. The guide (docs/guide/02-entities.md) shows a form beside its entity with String fields."
+                    }
+                )
+            }
+
+            {
+                id derives.partial-model-from-col-read-cast
+                title "A PartialModel field reading a column through from_col selects it under the column's read cast, so a renamed enum field decodes"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T15:37:00.867155Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found and fixed by pipeline-model-read-casts. The PartialModel derive wrote a from_col field as QuerySelect::column_as(select, col, alias(field)), which takes any IntoSimpleExpr and so applies no select_as: a field `#[pgorm(from_col = Column::Tea)] kind: Tea` over an enum column came back as the enum type and failed WrongType on Select::into_partial_model, where a default field (QuerySelect::column) is cast. The derive now writes column_as(select, ColumnTrait::select_as(&col, col.into_expr()), alias(field)), and reports the column's read cast in expected_columns (macros.derive.partial-model+6). Tested by tests/pipeline_live_tests.rs model_terminals_apply_read_casts (the Brew partial model, read through both a pipeline and Select::into_partial_model)."
                     }
                 )
             }

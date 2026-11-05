@@ -523,7 +523,7 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Termination
 
-> [spec:pgorm:sem:pipeline.terminal]
+> [spec:pgorm:sem:pipeline.terminal+1]
 > `into_sql()` yields `(String, Values)`, the raw-SQL currency of
 > `exec.crud.selector-entry`: `into_model::<M>()` and `into_tuple::<T>()`
 > stage exactly those entry points (`SelectorRaw::from_statement`,
@@ -533,6 +533,26 @@ of the crate, compiled in every build. Rules are grouped under
 > stage before compiling — the pipeline is still a pipeline at that point,
 > so the limit belongs to it, in contrast to `SelectorRaw::one`, which
 > executes its text as written.
+>
+> The model terminals (`into_model`, `all`, `one`, `one_opt`) compile the
+> pipeline as `M` reads it. Where `M::expected_columns()` reports a column
+> carrying a read cast (`exec.verify`) — an entity model's enum column, read
+> as its `text`, a `money` column read as `numeric`, a
+> `#[pgorm(select_as = "…")]` override — the wildcard a pipeline otherwise
+> selects would deliver the column's own type, which the field does not
+> decode, so the pipeline ends in one more projection: every column `M`
+> reports, in its order, each referred to as `this.<name>` and a cast column
+> written `CAST(this.<name> AS type)` under its own name, the type through
+> the `TypeName` part policy `select_sources` writes its casts by. `this`
+> keeps a column named like one of PRQL's own (`date`, `rank`) a column.
+> The aliases end the pipeline, so they pass the identifier screen and not
+> the reserved-alias one: no later stage exists to resolve one to the PRQL
+> name it shares. A type that reports no columns, or none carrying a cast,
+> is compiled as written — `into_sql` and the model terminals then emit the
+> same text. The projection names `M`'s columns bare, so it needs a relation
+> in which each name means one column; after a join of relations sharing one
+> prqlc refuses it as `Compile` ("Ambiguous name"), which is the case
+> `select_sources` exists for.
 
 > [spec:pgorm:sem:pipeline.select-sources+4]
 > `select_sources(sources)` is the model-decode terminal: where

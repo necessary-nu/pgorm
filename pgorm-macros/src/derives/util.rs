@@ -64,7 +64,7 @@ pub(crate) const COMPOSITE_KEYS: [&str; 7] = [
 /// The field keys `PartialModel` reads that the `FromQueryResult` it writes
 /// does not.
 // [spec:pgorm:sem:macros.derive.from-query-result+4]
-// [spec:pgorm:sem:macros.derive.partial-model+5]
+// [spec:pgorm:sem:macros.derive.partial-model+6]
 pub(crate) const PROJECTION_FIELD_KEYS: [&str; 2] = ["from_col", "from_expr"];
 
 /// Every field-level `#[pgorm(...)]` key the `Entity` derive defines. The
@@ -194,7 +194,7 @@ pub(crate) fn format_field_ident(field: Field) -> Ident {
 /// A field's type as written, rendered without the spaces tokenisation leaves
 /// between its parts, so a diagnostic spells `Option<i32>` rather than
 /// `Option < i32 >`.
-// [spec:pgorm:def:exec.verify]    the `rust_type` an `ExpectedColumn` carries
+// [spec:pgorm:def:exec.verify+1]    the `rust_type` an `ExpectedColumn` carries
 pub(crate) fn spell_type(ty: &Type) -> String {
     ty.to_token_stream()
         .to_string()

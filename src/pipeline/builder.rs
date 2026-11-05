@@ -691,7 +691,7 @@ impl Pipeline {
         self.select_nodes(nodes)
     }
 
-    fn select_nodes(mut self, mut nodes: Vec<PlExpr>) -> Self {
+    pub(super) fn select_nodes(mut self, mut nodes: Vec<PlExpr>) -> Self {
         // Read the shape off the names the relation actually answers to: a
         // list written against two sources a settle has since collapsed into
         // one binding is one source's columns, not two.

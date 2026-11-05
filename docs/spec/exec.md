@@ -316,7 +316,7 @@ These rules capture what the code does today, including known gaps.
 
 ## Statement verification (`exec.verify`)
 
-> [spec:pgorm:def:exec.verify]
+> [spec:pgorm:def:exec.verify+1]
 > `VerifyStatement::verify::<M>(sql)` (`src/executor/verify.rs`) prepares
 > `sql` on the connection and checks the result columns PostgreSQL
 > describes against the columns `M` reports. It is implemented for
@@ -333,7 +333,13 @@ These rules capture what the code does today, including known gaps.
 > — one entry per column the type reads, in read order. An
 > `ExpectedColumn` carries the column `name`, the `rust_type` spelling of
 > the field decoding it, and that type's acceptance function
-> (`exec.verify.accepts`). Every reported name MUST appear among the
+> (`exec.verify.accepts`). A column read through a cast also carries its
+> read cast: `ExpectedColumn::selected_as(&column)` takes it off the entity
+> column's own `select_as` answer, by the probe the graph's writer uses
+> (`query.graph.writer`), and `read_cast()` reports it, `None` for a column
+> read as the server sends it. Verification ignores it — a raw statement
+> states its own casts — and a reader that writes the projection itself
+> applies it (`pipeline.terminal`). Every reported name MUST appear among the
 > statement's result columns, and each matched column's PostgreSQL type
 > MUST satisfy `accepts`. The first failure of either test is returned and
 > the remaining columns are not examined. Names are matched bare — the

@@ -382,7 +382,7 @@ async fn composed_scopes_bind_params_in_order() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:pipeline.terminal/test]    the model terminal goes straight
+// [spec:pgorm:sem:pipeline.terminal+1/test]    the model terminal goes straight
 // from a pipeline to entity models on a connection
 #[pgorm_macros::test]
 async fn terminal_decodes_entity_models() {
@@ -1468,6 +1468,120 @@ async fn select_sources_applies_read_casts() -> Result<(), pgorm::Error> {
     drop(db);
     ctx.delete().await;
     Ok(())
+}
+
+// [spec:pgorm:sem:pipeline.terminal+1/test]    the model terminals decode an
+// entity's model whatever its columns read through: an enum, an enum array,
+// a select_as override, and a partial model's enum column
+#[pgorm_macros::test]
+async fn model_terminals_apply_read_casts() -> Result<(), pgorm::Error> {
+    let ctx = TestContext::new("pipeline_model_read_casts").await;
+    let db = ctx.db.get().await?;
+    db.batch_execute(
+        r#"CREATE TABLE cast_probe (id integer PRIMARY KEY, amount numeric NOT NULL);
+           INSERT INTO cast_probe VALUES (1, 12.5);
+           CREATE TYPE tea AS ENUM ('EverydayTea', 'BreakfastTea');
+           CREATE TABLE tea_pot (id integer PRIMARY KEY, teas tea[] NOT NULL);
+           INSERT INTO tea_pot VALUES (1, ARRAY['EverydayTea']::tea[]);
+           CREATE TABLE kettle (id integer PRIMARY KEY, tea tea NOT NULL);
+           INSERT INTO kettle VALUES (1, 'EverydayTea'), (2, 'BreakfastTea');"#,
+    )
+    .await?;
+
+    assert_eq!(
+        Pipeline::from(cast_probe::Entity)
+            .all::<cast_probe::Model, _>(&db)
+            .await?,
+        [cast_probe::Model {
+            id: 1,
+            amount: "12.5".to_owned(),
+        }]
+    );
+    assert_eq!(
+        Pipeline::from(tea_pot::Entity)
+            .one::<tea_pot::Model, _>(&db)
+            .await?,
+        tea_pot::Model {
+            id: 1,
+            teas: vec![Tea::EverydayTea],
+        }
+    );
+
+    let breakfast = Pipeline::from(kettle::Entity)
+        .filter(kettle::Column::Tea.eq("BreakfastTea"))
+        .one_opt::<kettle::Model, _>(&db)
+        .await?;
+    assert_eq!(
+        breakfast,
+        Some(kettle::Model {
+            id: 2,
+            tea: Tea::BreakfastTea,
+        })
+    );
+    let kettles: Vec<kettle::Model> = Pipeline::from(kettle::Entity)
+        .sort(kettle::Column::Id)
+        .into_model::<kettle::Model>()?
+        .all(&db)
+        .await?;
+    assert_eq!(kettles.len(), 2);
+
+    // A partial model reads `kind`, which the pipeline names, under the cast
+    // of the column it names.
+    let brews: Vec<kettle::Brew> = Pipeline::from(kettle::Entity)
+        .derive(kettle::Column::Tea.as_(alias("kind")))
+        .sort(kettle::Column::Id)
+        .all(&db)
+        .await?;
+    assert_eq!(
+        brews,
+        [
+            kettle::Brew {
+                id: 1,
+                kind: Tea::EverydayTea,
+            },
+            kettle::Brew {
+                id: 2,
+                kind: Tea::BreakfastTea,
+            },
+        ]
+    );
+    // The partial model's renamed enum column reads through its cast on the
+    // entity's own select too.
+    let selected: Vec<kettle::Brew> =
+        pgorm::QueryOrder::order_by_asc(kettle::Entity::find(), kettle::Column::Id)
+            .into_partial_model::<kettle::Brew>()
+            .all(&db)
+            .await?;
+    assert_eq!(selected, brews);
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+mod kettle {
+    use super::Tea;
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "kettle")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+        pub tea: Tea,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+
+    /// A partial model reading the enum under a name of its own.
+    #[derive(Debug, PartialEq, PartialModel)]
+    #[pgorm(entity = Entity)]
+    pub struct Brew {
+        pub id: i32,
+        #[pgorm(from_col = Column::Tea)]
+        pub kind: Tea,
+    }
 }
 
 mod tea_pot {

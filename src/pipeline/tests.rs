@@ -3386,3 +3386,92 @@ fn compared_values_cast_as_their_column_writes_them() {
          AND state = CAST('open' AS till_state) AND takings IS NOT NULL"
     );
 }
+
+/// What a model terminal compiles for `M`, held to the grammar oracle as
+/// `sql_of` holds `into_sql`.
+fn model_sql_of<M: crate::FromQueryResult>(pipeline: Pipeline) -> String {
+    let (sql, _) = pipeline
+        .into_sql_for::<M>()
+        .expect("pipeline compiles for the model");
+    if let Err(err) = pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT) {
+        panic!("PostgreSQL grammar rejected the emitted SQL: {err}\n  {sql}");
+    }
+    sql
+}
+
+// [spec:pgorm:sem:pipeline.terminal+1/test]    a model reading an enum column
+// ends the pipeline in its projection, the enum cast to text under its own name
+#[test]
+fn model_terminal_casts_what_the_model_reads() {
+    let built = model_sql_of::<lunch_set::Model>(
+        Pipeline::from(lunch_set::Entity)
+            .filter(lunch_set::Column::Id.gt(1))
+            .sort(lunch_set::Column::Name)
+            .take(1),
+    );
+    assert_eq!(
+        built,
+        "SELECT id, name, CAST(tea AS text) AS tea FROM lunch_set WHERE id > 1 \
+         ORDER BY name LIMIT 1"
+    );
+}
+
+// [spec:pgorm:sem:pipeline.terminal+1/test]    a model reading no column
+// through a cast decodes the relation as the pipeline wrote it
+#[test]
+fn model_terminal_leaves_an_uncast_model_alone() {
+    let pipeline = Pipeline::from(cake::Entity).filter(cake::Column::Id.gt(1));
+    assert_eq!(
+        model_sql_of::<cake::Model>(pipeline.clone()),
+        sql_of(pipeline)
+    );
+}
+
+// [spec:pgorm:sem:pipeline.terminal+1/test]    the projection reads through
+// `this`, so a column named like one of PRQL's own resolves to the column, and
+// its alias ends the pipeline, so the reserved-alias screen does not apply to it
+#[test]
+fn model_terminal_reads_columns_named_like_prql() {
+    assert_eq!(
+        model_sql_of::<ledger::Model>(Pipeline::from(ledger::Entity)),
+        "SELECT id, date, CAST(rank AS text) AS rank FROM ledger"
+    );
+}
+
+/// An entity whose columns share their names with PRQL's own.
+mod ledger {
+    use crate as pgorm;
+    use crate::entity::prelude::*;
+    use crate::tests_cfg::active_enums::Tea;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "ledger")]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        pub date: String,
+        pub rank: Tea,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+// [spec:pgorm:sem:pipeline.terminal+1/test]    the projection lists the
+// model's columns bare, so a join of two relations sharing a name is refused
+// as ambiguous rather than decoding one relation's column as the other's
+#[test]
+fn model_terminal_refuses_an_ambiguous_join() {
+    let err = Pipeline::from(lunch_set::Entity)
+        .join(
+            JoinSide::Inner,
+            cake::Entity,
+            lunch_set::Column::Id.eq(cake::Column::Id),
+        )
+        .into_sql_for::<lunch_set::Model>()
+        .expect_err("id and name are ambiguous");
+    assert!(
+        matches!(err, PipelineError::Compile(ref text) if text.contains("Ambiguous")),
+        "{err}"
+    );
+}

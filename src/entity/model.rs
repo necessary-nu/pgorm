@@ -97,7 +97,7 @@ pub trait ModelTrait: Clone + Send + Debug {
 ///     ColumnField::<{ fruit::Column::CakeId as usize }>::field(&fruit);
 /// assert_eq!(cake_id, &Some(2));
 /// ```
-// [spec:pgorm:sem:macros.derive.model+6]
+// [spec:pgorm:sem:macros.derive.model+7]
 // [spec:pgorm:def:disjoint.one-of+4]
 pub trait ColumnField<const COLUMN: usize> {
     /// The type the model declares the field as, an `Option` where the column
@@ -163,7 +163,7 @@ pub trait FromQueryResult: Sized {
     /// default answers [`None`]: a hand-written implementation decodes by means
     /// only it knows, so it is reported as unverifiable rather than treated as
     /// verified. Overriding this method opts such an implementation back in.
-    // [spec:pgorm:def:exec.verify]    the column-shape reflection hook
+    // [spec:pgorm:def:exec.verify+1]    the column-shape reflection hook
     fn expected_columns() -> Option<Vec<ExpectedColumn>> {
         None
     }

@@ -28,6 +28,21 @@ enum ColumnAs {
     Expr { expr: syn::Expr, field_name: String },
 }
 
+impl ColumnAs {
+    /// The entity column the field reads, whose read cast the field's
+    /// reported column carries, or `None` for an expression.
+    // [spec:pgorm:sem:macros.derive.partial-model+6]
+    fn column(&self) -> Option<TokenStream> {
+        match self {
+            ColumnAs::Col { entity, col } => {
+                Some(quote!(<#entity as pgorm::EntityTrait>::Column::#col))
+            }
+            ColumnAs::ColAlias { col, .. } => Some(quote!(#col)),
+            ColumnAs::Expr { .. } => None,
+        }
+    }
+}
+
 struct PartialModel {
     ident: syn::Ident,
     fields: Vec<ColumnAs>,
@@ -42,14 +57,7 @@ impl PartialModel {
             return Err(Error::NotSupportGeneric(input.generics.params.span()));
         }
 
-        let decode = expand_from_query_result(
-            input.ident.clone(),
-            input.data.clone(),
-            input.generics.clone(),
-            Decoder::PartialModel,
-        )
-        .map_err(Error::Syn)?;
-
+        let data = input.data.clone();
         let syn::Data::Struct(
             syn::DataStruct {
                 fields: syn::Fields::Named(syn::FieldsNamed { named: fields, .. }),
@@ -142,6 +150,16 @@ impl PartialModel {
             column_as_list.push(col_as);
         }
 
+        let columns: Vec<Option<TokenStream>> =
+            column_as_list.iter().map(ColumnAs::column).collect();
+        let decode = expand_from_query_result(
+            input.ident.clone(),
+            data,
+            input.generics,
+            Decoder::PartialModel(&columns),
+        )
+        .map_err(Error::Syn)?;
+
         Ok(Self {
             ident: input.ident,
             fields: column_as_list,
@@ -164,7 +182,7 @@ impl PartialModel {
                 quote!(let #select_ident =  pgorm::QuerySelect::column(#select_ident, #col_value);)
             },
             ColumnAs::ColAlias { col, field } => {
-                quote!(let #select_ident =  pgorm::QuerySelect::column_as(#select_ident, #col, pgorm::pgorm_query::alias(#field));)
+                quote!(let #select_ident =  pgorm::QuerySelect::column_as(#select_ident, pgorm::ColumnTrait::select_as(&#col, pgorm::ColumnTrait::into_expr(#col)), pgorm::pgorm_query::alias(#field));)
             },
             ColumnAs::Expr { expr, field_name } => {
                 quote!(let #select_ident =  pgorm::QuerySelect::column_as(#select_ident, #expr, pgorm::pgorm_query::alias(#field_name));)
@@ -183,7 +201,7 @@ impl PartialModel {
     }
 }
 
-// [spec:pgorm:sem:macros.derive.partial-model+5]
+// [spec:pgorm:sem:macros.derive.partial-model+6]
 // [spec:pgorm:req:macros.derive.code-values+3]
 pub fn expand_derive_partial_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
@@ -229,7 +247,7 @@ struct PartialModel{
     expr_field : i32
 }
 "#;
-    // [spec:pgorm:sem:macros.derive.partial-model+5/test]
+    // [spec:pgorm:sem:macros.derive.partial-model+6/test]
     #[test]
     fn test_load_macro_input() -> StdResult<()> {
         let input = parse_str::<DeriveInput>(CODE_SNIPPET)?;

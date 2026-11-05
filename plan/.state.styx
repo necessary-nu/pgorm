@@ -3148,6 +3148,13 @@ impl_evidence (
     ), rule_versions_seen (
         {id error.model.decode-refusal, version 0}
     )}
+    {id pipeline-model-read-casts, covered_rules (
+        exec.verify
+        pipeline.terminal
+    ), covered_claims (
+        {impl_name main, rule exec.verify}
+        {impl_name main, rule pipeline.terminal}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

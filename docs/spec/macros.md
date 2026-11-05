@@ -500,7 +500,7 @@ known limitations.
 > spanned at the key. The composite derive writes the same impls for the `Column` it
 > makes, from each field's column name rather than an attribute.
 
-> [spec:pgorm:sem:macros.derive.model+6]
+> [spec:pgorm:sem:macros.derive.model+7]
 > The `Model` derive (named-field structs only; otherwise a compile error) generates
 > `FromQueryResult`, `ModelTrait` and `ColumnField`. `FromQueryResult`: each field is read with
 > `row.try_get(pre, Column::<Variant>.as_str())`, where the variant name follows the
@@ -508,8 +508,10 @@ known limitations.
 > `[spec:pgorm:sem:macros.derive.entity-model.casing]`; `#[pgorm(ignore)]` fields are
 > filled with `Default::default()` instead. `expected_columns` reports the same
 > column names, each paired with its field type's spelling and that type's
-> `TryGetable::accepts`, so an entity model can be checked against a raw statement
-> (`exec.verify`); ignored fields read no column and are left out. `ModelTrait`: `get` clones the field and
+> `TryGetable::accepts` and carrying the read cast of its column
+> (`ExpectedColumn::selected_as`), so an entity model can be checked against a raw
+> statement (`exec.verify`) and a pipeline's model terminals cast what it reads
+> (`pipeline.terminal`); ignored fields read no column and are left out. `ModelTrait`: `get` clones the field and
 > converts it `.into()` a `Value`; `set` converts through `ValueType::try_from` and
 > assigns, answering `Error::Type("value does not match the type of {Model} field
 > {field}")` when the value is of another type. Ignored fields have no match arm, so
@@ -690,23 +692,25 @@ known limitations.
 
 ## Projection and value derives
 
-> [spec:pgorm:sem:macros.derive.partial-model+5]
+> [spec:pgorm:sem:macros.derive.partial-model+6]
 > The `PartialModel` derive accepts only non-generic named-field structs (generics and other
 > shapes are compile errors). The container attribute `entity = Type` names the source
 > entity, written as a type; it is required unless every field carries `from_col` or
 > `from_expr`, and its absence otherwise produces "you need specific which entity you
 > are using". Per field: no attribute selects
 > `<entity as EntityTrait>::Column::{UpperCamelCase(field)}`; `from_col = path` selects
-> the column the path names, taken as written (`from_col = cake::Column::Name`), aliased
-> to the field name; `from_expr = <expr>` selects the expression aliased to the field
-> name. The expansion implements `PartialModelTrait::select_cols` by chaining
+> the column the path names, taken as written (`from_col = cake::Column::Name`), under
+> the column's own `select_as` and aliased to the field name; `from_expr = <expr>`
+> selects the expression aliased to the field name. The expansion implements `PartialModelTrait::select_cols` by chaining
 > `QuerySelect::column` / `column_as` calls; the chain's type is `S::Projected`, so a
 > struct with no fields — whose chain is empty and whose body is therefore the
 > unprojected `S` — does not compile. It also implements `FromQueryResult` for the
 > struct as that derive does (`[spec:pgorm:sem:macros.derive.from-query-result]`),
 > reading `skip` and stepping over the projection's own keys, so the struct derives
 > `PartialModel` alone and a `FromQueryResult` derived beside it is a conflicting
-> implementation.
+> implementation. Each field that reads an entity column, by default or through
+> `from_col`, reports that column's read cast (`ExpectedColumn::selected_as`), so a
+> pipeline's model terminals cast it (`pipeline.terminal`).
 >
 > Every key accumulates across all meta items of all `#[pgorm(...)]` attributes on the
 > item, so a later key cannot erase an earlier one and the derive can never generate a
