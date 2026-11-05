@@ -26,7 +26,7 @@ pub(super) fn holds_money(ty: &Type) -> bool {
 
 /// The places of the currency the session's `lc_monetary` names, as the
 /// server converts a `money` to `numeric` at them.
-// [spec:pgorm:req:conn.copy.rows+4]
+// [spec:pgorm:req:conn.copy.rows+5]
 pub(super) async fn money_places<C>(client: &C) -> Result<u32, Error>
 where
     C: GenericClient,
@@ -43,7 +43,7 @@ where
 /// and an integer, whole units, are taken), and its amount multiplied out to
 /// the currency's minor units, rounded half away from zero as PostgreSQL's
 /// cast of a `numeric` to `money` rounds it.
-// [spec:pgorm:req:conn.copy.rows+4]
+// [spec:pgorm:req:conn.copy.rows+5]
 pub(super) fn money_to_sql<T: ToSql>(
     value: &T,
     ty: &Type,
@@ -107,7 +107,7 @@ fn minor_units(amount: Decimal, places: u32) -> Result<i64, WireError> {
 
 /// A field of a `money` column, or an array of one, counted in a currency of
 /// `places`, as the `Decimal` amount the server's cast to `numeric` gives.
-// [spec:pgorm:req:conn.copy.rows+4]
+// [spec:pgorm:req:conn.copy.rows+5]
 pub(super) fn decode_money(ty: &Type, places: u32, raw: Option<&[u8]>) -> Result<Value, WireError> {
     let amount = |raw: &[u8]| -> Result<Value, WireError> {
         let units = i64::from_sql(&Type::INT8, raw)?;

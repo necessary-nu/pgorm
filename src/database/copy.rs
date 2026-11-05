@@ -102,7 +102,7 @@ pub trait CopyTrait {
     /// The description prepares a `SELECT` of those columns and runs
     /// nothing; a table or column that does not exist is refused here, and
     /// the connection is left as it was.
-    // [spec:pgorm:req:conn.copy.rows+4]
+    // [spec:pgorm:req:conn.copy.rows+5]
     async fn copy_in_columns<F>(
         &mut self,
         statement: &CopyFromStatement<F>,
@@ -114,7 +114,7 @@ pub trait CopyTrait {
     /// types, as the server describes them: its table's columns the server
     /// does not generate, or its statement's result columns. A write source
     /// is prepared, never run.
-    // [spec:pgorm:req:conn.copy.rows+4]
+    // [spec:pgorm:req:conn.copy.rows+5]
     async fn copy_out_columns<F>(
         &mut self,
         statement: &CopyToStatement<F>,
@@ -133,7 +133,7 @@ pub trait CopyTrait {
     /// any other, so it is the COPY's start that refuses the list and closes
     /// the connection. Leave generated columns out of the list, or give no
     /// list, which leaves them out already.
-    // [spec:pgorm:req:conn.copy.rows+4]
+    // [spec:pgorm:req:conn.copy.rows+5]
     async fn copy_in_rows(
         &mut self,
         statement: &CopyFromStatement<CopyBinary>,
@@ -149,7 +149,7 @@ pub trait CopyTrait {
     /// Start a binary `COPY … TO STDOUT` whose rows arrive as pgorm
     /// [`Value`](pgorm_query::Value)s, each field decoded by the type
     /// [`copy_out_columns`](Self::copy_out_columns) describes for its column.
-    // [spec:pgorm:req:conn.copy.rows+4]
+    // [spec:pgorm:req:conn.copy.rows+5]
     async fn copy_out_rows(
         &mut self,
         statement: &CopyToStatement<CopyBinary>,

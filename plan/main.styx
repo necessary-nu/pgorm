@@ -17962,6 +17962,22 @@ children (
                 title "pgorm's binary COPY rows reads a numeric exactly, refusing a value rust_decimal would round, as a created range's numeric bound is read"
                 kind @fix
                 deps (typed-binds.shared-range-codec)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T08:11:05.035353Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T08:16:34.416051Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
         )
     }

@@ -31,12 +31,11 @@ use pgorm_query::{
     MacAddress, Multirange, Query, Range, RangeType, StaticName, Value, Vector, base_type,
 };
 use postgres_protocol::types::{self as wire, RangeBound};
-use rust_decimal::Decimal;
 use tokio_postgres::types::{FromSql, IsNull, Kind, ToSql, Type};
 
 use crate::{
-    ActiveModelTrait, CopyInSink, CopyOutStream, EntityTrait, Error, Iterable, ModelTrait,
-    TryIntoModel, ValueHolder,
+    ActiveModelTrait, CopyInSink, CopyOutStream, EntityTrait, Error, ExactDecimal, Iterable,
+    ModelTrait, TryIntoModel, ValueHolder,
     error::{query_err, type_err},
     executor::created_range::{
         CreatedRangeCodec, CreatedRangeText, completed_multiranges, is_created_multirange,
@@ -53,7 +52,7 @@ type WireError = Box<dyn StdError + Sync + Send>;
 /// One column of a COPY's rows: its name and its PostgreSQL type, as the
 /// server describes the statement, and for a `money` column the places of
 /// its currency.
-// [spec:pgorm:req:conn.copy.rows+4]
+// [spec:pgorm:req:conn.copy.rows+5]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CopyColumn {
     name: String,
@@ -79,7 +78,7 @@ impl CopyColumn {
     /// whose places only the session's `lc_monetary` knows, so a `money`
     /// column, an array of one or a domain over either, reads and writes as
     /// a `Decimal` only with them. A description asks the server.
-    // [spec:pgorm:req:conn.copy.rows+4]
+    // [spec:pgorm:req:conn.copy.rows+5]
     #[must_use]
     pub fn with_money_places(self, places: u32) -> Self {
         Self {
@@ -114,7 +113,7 @@ impl CopyColumn {
     ///
     /// [`Error::Type`] naming the column, when its type is one no `Value`
     /// holds or the bytes are not that type's binary form.
-    // [spec:pgorm:req:conn.copy.rows+4]
+    // [spec:pgorm:req:conn.copy.rows+5]
     pub fn decode(&self, raw: Option<&[u8]>) -> Result<Value, Error> {
         let decoded = match self.money_places() {
             Some(places) => decode_money(&self.type_, places, raw),
@@ -131,7 +130,7 @@ impl CopyColumn {
 
 /// The columns each row of a COPY FROM carries: the statement's column list
 /// from its table, or every column the server does not generate.
-// [spec:pgorm:req:conn.copy.rows+4]
+// [spec:pgorm:req:conn.copy.rows+5]
 pub(crate) async fn copy_in_columns<C, F>(
     client: &C,
     statement: &CopyFromStatement<F>,
@@ -158,7 +157,7 @@ where
 /// with no column list has them, or its statement's result columns. A
 /// `SELECT` source the server would refuse is refused first, as `copy_out`
 /// refuses it.
-// [spec:pgorm:req:conn.copy.rows+4]
+// [spec:pgorm:req:conn.copy.rows+5]
 pub(crate) async fn copy_out_columns<C, F>(
     client: &C,
     statement: &CopyToStatement<F>,
@@ -187,7 +186,7 @@ where
 /// columns, which COPY leaves out in both directions, so those are read from
 /// the catalog and dropped, and each multirange type a schema created is
 /// completed with its subtype.
-// [spec:pgorm:req:conn.copy.rows+4]
+// [spec:pgorm:req:conn.copy.rows+5]
 async fn described<C>(client: &C, sql: &str, whole_table: bool) -> Result<Vec<CopyColumn>, Error>
 where
     C: GenericClient,
@@ -246,7 +245,7 @@ const CRITICAL_FLAGS: u32 = 0xFFFF_0000;
 /// so a value that type cannot take is refused before anything is sent.
 /// [`CopyRowSink`] is this over a [`CopyInSink`]; the bindings use it
 /// directly, with their own values.
-// [spec:pgorm:req:conn.copy.rows+4]
+// [spec:pgorm:req:conn.copy.rows+5]
 #[derive(Debug, Clone)]
 pub struct CopyRowEncoder {
     columns: Vec<CopyColumn>,
@@ -356,7 +355,7 @@ enum Framing {
 ///
 /// [`CopyRowStream`] is this over a [`CopyOutStream`]; the bindings use it
 /// directly, decoding each field into their own values.
-// [spec:pgorm:req:conn.copy.rows+4]
+// [spec:pgorm:req:conn.copy.rows+5]
 #[derive(Debug)]
 pub struct CopyRowDecoder {
     columns: Vec<CopyColumn>,
@@ -536,7 +535,7 @@ impl<'a> FromSql<'a> for Element<'a> {
 }
 
 /// A field of `ty`, an array of a supported type included.
-// [spec:pgorm:req:conn.copy.rows+4]
+// [spec:pgorm:req:conn.copy.rows+5]
 fn decode(ty: &Type, raw: Option<&[u8]>) -> Result<Value, WireError> {
     let ty = base_type(ty);
     let Kind::Array(member) = ty.kind() else {
@@ -579,7 +578,7 @@ fn range_type(ty: &Type) -> Option<RangeType> {
 /// The value kind a non-array type reads as: a range or multirange type a
 /// schema created reads as the `String` of its text form, the `Value` its
 /// newtype is.
-// [spec:pgorm:req:conn.copy.rows+4]
+// [spec:pgorm:req:conn.copy.rows+5]
 fn kind(ty: &Type) -> Result<ArrayType, WireError> {
     match ty.kind() {
         Kind::Enum(_) => return Ok(ArrayType::String),
@@ -660,7 +659,9 @@ fn scalar(ty: &Type, kind: &ArrayType, raw: &[u8]) -> Result<Value, WireError> {
         ArrayType::DateTimeWithTimeZone => {
             Value::DateTimeWithTimeZone(Some(Box::new(Timestamp::from_sql(ty, raw)?)))
         }
-        ArrayType::Decimal => Value::Decimal(Some(Box::new(Decimal::from_sql(ty, raw)?))),
+        // rust_decimal's own decoder rounds a `numeric` past what a
+        // `Decimal` holds exactly, so a COPY TO would not write back.
+        ArrayType::Decimal => Value::Decimal(Some(Box::new(ExactDecimal::from_sql(ty, raw)?.0))),
         ArrayType::IpNetwork => {
             let inet = wire::inet_from_sql(raw)?;
             Value::IpNetwork(Some(Box::new(IpNetwork::new(inet.addr(), inet.netmask())?)))
@@ -745,7 +746,7 @@ const GATHER: usize = 64 * 1024;
 /// row refused is not written: the sink goes on taking rows. Rows are
 /// gathered and sent in chunks. Dropping the sink unfinished aborts the COPY
 /// as dropping a [`CopyInSink`] does: nothing is written.
-// [spec:pgorm:req:conn.copy.rows+4]
+// [spec:pgorm:req:conn.copy.rows+5]
 #[derive(Debug)]
 pub struct CopyRowSink<'a> {
     sink: CopyInSink<'a>,
@@ -846,7 +847,7 @@ fn entity_column<E: EntityTrait>(name: &str) -> Option<E::Column> {
 /// Rows are pulled as the stream is polled, as a [`CopyOutStream`]'s chunks
 /// are, and the stream ends after the last row; a failure, the server's or a
 /// field that does not decode, is an `Err` item, after which it ends.
-// [spec:pgorm:req:conn.copy.rows+4]
+// [spec:pgorm:req:conn.copy.rows+5]
 #[derive(Debug)]
 pub struct CopyRowStream<'a> {
     stream: CopyOutStream<'a>,
@@ -970,7 +971,7 @@ mod tests {
         Ok(rows)
     }
 
-    // [spec:pgorm:req:conn.copy.rows+4/test]    the framing reads rows split anywhere, a byte at a time included
+    // [spec:pgorm:req:conn.copy.rows+5/test]    the framing reads rows split anywhere, a byte at a time included
     #[test]
     fn copy_rows_split_anywhere() -> Result<(), Error> {
         let data = encoded(&rows())?;
@@ -981,7 +982,7 @@ mod tests {
         Ok(())
     }
 
-    // [spec:pgorm:req:conn.copy.rows+4/test]    data that is not the format, or stops before its trailer, is refused
+    // [spec:pgorm:req:conn.copy.rows+5/test]    data that is not the format, or stops before its trailer, is refused
     #[test]
     fn copy_rows_malformed_data_refused() -> Result<(), Error> {
         let data = encoded(&rows())?;
@@ -1013,7 +1014,7 @@ mod tests {
         Ok(())
     }
 
-    // [spec:pgorm:req:conn.copy.rows+4/test]    a refused row leaves the encoder's output as it was
+    // [spec:pgorm:req:conn.copy.rows+5/test]    a refused row leaves the encoder's output as it was
     #[test]
     fn copy_rows_refused_row_writes_nothing() {
         let encoder = CopyRowEncoder::new(columns());
@@ -1041,7 +1042,7 @@ mod tests {
         )
     }
 
-    // [spec:pgorm:req:conn.copy.rows+4/test]    a multirange type a schema created, its kind completed, writes from its text and reads back as the text Display writes; the simple type the driver reports, and one over a subtype no RangeSubtype reads, have no value
+    // [spec:pgorm:req:conn.copy.rows+5/test]    a multirange type a schema created, its kind completed, writes from its text and reads back as the text Display writes; the simple type the driver reports, and one over a subtype no RangeSubtype reads, have no value
     #[test]
     fn created_multirange_reads_as_its_text() -> Result<(), Error> {
         let reach = multirange_column("floatmultirange", Kind::Multirange(Type::FLOAT8));
