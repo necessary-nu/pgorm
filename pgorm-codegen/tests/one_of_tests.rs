@@ -16,7 +16,8 @@ mod common;
 use common::runtime_name as n;
 use common::*;
 use pgorm_query::{
-    Check, ColumnDef, Enforcement, Expr, ForeignKey, Func, SimpleExpr, Table, TableCreateStatement,
+    Check, ColumnDef, Enforcement, Expr, ExprTrait, ForeignKey, Func, SimpleExpr, Table,
+    TableCreateStatement,
 };
 
 const SCHEMA: &str = include_str!("../../tests/codegen_one_of/schema.sql");

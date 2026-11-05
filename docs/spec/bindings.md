@@ -881,7 +881,7 @@ the same terminals that run raw SQL.
 > (`bindings.pipeline-expressions`). The literal path and the bound path stay
 > apart: neither replaces the other.
 
-> [spec:pgorm:req:bindings.expressions+3]
+> [spec:pgorm:req:bindings.expressions+4]
 > An expression MUST lower into pgorm-query's own builders. `col` is a column,
 > qualified by a table and its schema. An operand that is not an expression is
 > a value bound as a parameter, never interpolated: inferred as a parameter
@@ -904,8 +904,14 @@ the same terminals that run raw SQL.
 > `LikeExpr`, the class constructed over the pattern's text. Its
 > `escape(character)` escapes with that one character instead, any other
 > text, the empty string and NUL among it, a `ConstructionError`; and its
-> `no_escape()` turns escaping off. A `LikeExpr` is no expression, and
-> nothing but these six methods reads one. `regex` (`~`), `not_regex`
+> `no_escape()` turns escaping off. `LikeExpr.literal(text)`,
+> `LikeExpr.containing(text)`, `LikeExpr.starting_with(text)` and
+> `LikeExpr.ending_with(text)` (`startingWith` and `endingWith` in
+> JavaScript, static methods of the class there as in Python) build one over
+> literal text through pgorm-query's constructors of those names, its `%`,
+> `_` and escape character escaped, so a user's search text matches itself.
+> A `LikeExpr` is no expression, and nothing but these six methods reads
+> one. `regex` (`~`), `not_regex`
 > (`!~`), `iregex` (`~*`) and `not_iregex` (`!~*`) match a POSIX regular
 > expression. `matches` (`@@`) is `BinOper::Matches`, full-text search or a
 > `jsonpath` predicate. `path_exists` (`@?`) takes a `jsonpath` as text,

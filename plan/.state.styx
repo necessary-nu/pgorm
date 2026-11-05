@@ -33,7 +33,7 @@ rule_versions (
     {id bindings.entity-versions, version 3}
     {id bindings.entity-writes, version 1}
     {id bindings.errors, version 5}
-    {id bindings.expressions, version 3}
+    {id bindings.expressions, version 4}
     {id bindings.from-subqueries, version 0}
     {id bindings.graphs, version 0}
     {id bindings.identifiers, version 3}
@@ -175,7 +175,7 @@ rule_versions (
     {id error.model.decode-refusal, version 0}
     {id error.model.runtime, version 3}
     {id error.model.sql-class, version 4}
-    {id exec.crud, version 1}
+    {id exec.crud, version 2}
     {id exec.crud.delete, version 1}
     {id exec.crud.exec-result, version 1}
     {id exec.crud.insert, version 6}
@@ -334,8 +334,8 @@ rule_versions (
     {id query.build.insert.empty-failsafe, version 5}
     {id query.build.insert.uniform-columns, version 4}
     {id query.build.join, version 5}
-    {id query.build.modifiers, version 10}
-    {id query.build.query-trait, version 0}
+    {id query.build.modifiers, version 11}
+    {id query.build.query-trait, version 2}
     {id query.build.select-defaults, version 0}
     {id query.build.update, version 4}
     {id query.graph, version 1}
@@ -377,16 +377,16 @@ rule_versions (
     {id sql.ast.build, version 3}
     {id sql.ast.case, version 3}
     {id sql.ast.cast-shape, version 2}
-    {id sql.ast.condition, version 1}
+    {id sql.ast.condition, version 2}
     {id sql.ast.condition.flattening, version 0}
     {id sql.ast.condition.holder, version 2}
     {id sql.ast.copy, version 2}
     {id sql.ast.copy.parts, version 0}
     {id sql.ast.delete, version 4}
-    {id sql.ast.expr, version 7}
+    {id sql.ast.expr, version 8}
     {id sql.ast.expr.in, version 1}
-    {id sql.ast.expr.operators, version 5}
-    {id sql.ast.expr.similar-to, version 1}
+    {id sql.ast.expr.operators, version 6}
+    {id sql.ast.expr.similar-to, version 3}
     {id sql.ast.func, version 12}
     {id sql.ast.insert, version 3}
     {id sql.ast.insert.arity, version 0}
@@ -400,7 +400,7 @@ rule_versions (
     {id sql.ast.select.group-distinct, version 0}
     {id sql.ast.select.join, version 1}
     {id sql.ast.select.projection, version 2}
-    {id sql.ast.select.table-function, version 2}
+    {id sql.ast.select.table-function, version 3}
     {id sql.ast.select.table-sample, version 0}
     {id sql.ast.select.tie-limit, version 2}
     {id sql.ast.select.union, version 2}
@@ -432,7 +432,7 @@ rule_versions (
     {id sql.render.condition-chain, version 1}
     {id sql.render.copy, version 0}
     {id sql.render.cte, version 5}
-    {id sql.render.custom-expr, version 3}
+    {id sql.render.custom-expr, version 4}
     {id sql.render.ddl.enum-type, version 6}
     {id sql.render.ddl.extension, version 3}
     {id sql.render.ddl.types, version 8}
@@ -446,6 +446,7 @@ rule_versions (
     {id sql.render.operators, version 8}
     {id sql.render.param-vs-inline, version 1}
     {id sql.render.parens, version 5}
+    {id sql.render.placeholder-typing, version 2}
     {id sql.render.placeholders, version 1}
     {id sql.render.precedence, version 14}
     {id sql.render.returning, version 4}
@@ -458,9 +459,9 @@ rule_versions (
     {id sql.render.update-delete, version 3}
     {id sql.render.value-literals, version 5}
     {id sql.render.window, version 7}
-    {id sql.render.writer, version 2}
+    {id sql.render.writer, version 3}
     {id sql.scope, version 23}
-    {id sql.surface, version 38}
+    {id sql.surface, version 40}
     {id sql.token, version 1}
     {id sql.token.limits, version 3}
     {id sql.token.quoted, version 3}
@@ -476,14 +477,14 @@ rule_versions (
     {id sql.types.table-ref, version 7}
     {id sql.value, version 3}
     {id sql.value.accessor-panics, version 2}
-    {id sql.value.array, version 6}
+    {id sql.value.array, version 7}
     {id sql.value.conversions, version 1}
     {id sql.value.interval, version 2}
     {id sql.value.interval-text, version 1}
     {id sql.value.kinds, version 0}
     {id sql.value.render, version 2}
     {id sql.value.tuple, version 3}
-    {id sql.value.value-type, version 4}
+    {id sql.value.value-type, version 5}
     {id testing.isolation, version 0}
 )
 
@@ -1272,6 +1273,7 @@ assertions (
     {id decide.statement, kind @complete, author "brendan@necessary.nu", at 2026-09-02T01:17:07.694429Z}
     {id decide.turso, kind @complete, author "brendan@necessary.nu", at 2026-09-02T00:54:51.122793Z}
     {id decimal-scale-returned, kind @complete, author "brendan@necessary.nu", at 2026-09-15T01:21:22.880525Z}
+    {id decoded-selector-renders, kind @complete, author "brendan@necessary.nu", at 2026-11-05T17:30:17.721767Z}
     {id deps-refresh-2026-10, kind @complete, author "brendan@necessary.nu", at 2026-10-09T14:33:12.059842Z}
     {id derives.expanded, kind @complete, author "brendan@necessary.nu", at 2026-11-02T12:46:54.155916Z}
     {id disjoint-key-shapes-refused, kind @complete, author "brendan@necessary.nu", at 2026-11-03T11:00:29.245237Z}
@@ -1314,6 +1316,7 @@ assertions (
     {id ergo.with-carry, kind @complete, author "brendan@necessary.nu", at 2026-09-03T21:27:18.318285Z}
     {id exec-vocabulary-annotation-verb, kind @complete, author "brendan@necessary.nu", at 2026-11-02T21:06:55.540292Z}
     {id from-json-serialization, kind @complete, author "brendan@necessary.nu", at 2026-09-06T00:46:10.825951Z}
+    {id func-aggregate-expr-methods, kind @complete, author "brendan@necessary.nu", at 2026-11-05T16:49:48.80288Z}
     {id generative-interval-kind, kind @complete, author "brendan@necessary.nu", at 2026-10-18T17:11:32.48455Z}
     {id generative-killpg-eperm, kind @complete, author "brendan@necessary.nu", at 2026-10-26T00:24:07.526807Z}
     {id generative-live-wire-kinds, kind @complete, author "brendan@necessary.nu", at 2026-10-18T18:33:19.713463Z}
@@ -1325,7 +1328,9 @@ assertions (
     {id graph-related-one, kind @complete, author "brendan@necessary.nu", at 2026-10-23T19:58:05.348074Z}
     {id graph-unicode-alias-collisions, kind @complete, author "brendan@necessary.nu", at 2026-09-07T21:59:36.946216Z}
     {id graph-via-as, kind @complete, author "brendan@necessary.nu", at 2026-10-25T22:56:58.951948Z}
+    {id guide.example-name-escaping, kind @complete, author "brendan@necessary.nu", at 2026-11-05T20:01:50.036752Z}
     {id guide.python-gaps.binding-fixes, kind @complete, author "brendan@necessary.nu", at 2026-11-05T18:05:52.145361Z}
+    {id guide.python-gaps.partial-model-skip, kind @complete, author "brendan@necessary.nu", at 2026-11-05T21:33:51.667821Z}
     {id ident-oracle-disjoint-sites, kind @complete, author "brendan@necessary.nu", at 2026-11-05T00:07:10.622369Z}
     {id ident-oracle-load-flake, kind @complete, author "brendan@necessary.nu", at 2026-10-25T23:04:46.93252Z}
     {id identifier-bypass-surfaces, kind @complete, author "brendan@necessary.nu", at 2026-09-24T23:28:56.9273Z}
@@ -1354,6 +1359,7 @@ assertions (
     {id json-server-bug-guards, kind @complete, author "brendan@necessary.nu", at 2026-10-07T10:36:54.511877Z}
     {id like-escape-off, kind @complete, author "brendan@necessary.nu", at 2026-10-19T07:57:31.911135Z}
     {id like-ilike-render-parens, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:15:58.738564Z}
+    {id like-pattern-from-text, kind @complete, author "brendan@necessary.nu", at 2026-11-05T17:51:53.689033Z}
     {id like-sugar-escaping, kind @complete, author "brendan@necessary.nu", at 2026-09-08T09:25:55.102226Z}
     {id linked-fold, kind @complete, author "brendan@necessary.nu", at 2026-09-06T16:32:33.531154Z}
     {id literal-temporal-precision, kind @complete, author "brendan@necessary.nu", at 2026-09-15T12:48:16.275282Z}
@@ -1367,6 +1373,7 @@ assertions (
     {id macro-partial-model-attrs, kind @complete, author "brendan@necessary.nu", at 2026-09-06T00:46:01.627583Z}
     {id macro-sea-attr-name, kind @complete, author "brendan@necessary.nu", at 2026-09-06T00:46:13.386141Z}
     {id macro-unknown-attrs, kind @complete, author "brendan@necessary.nu", at 2026-09-06T00:45:57.119701Z}
+    {id membership-takes-str, kind @complete, author "brendan@necessary.nu", at 2026-11-05T17:16:51.640708Z}
     {id merge-beyond-pg16, kind @complete, author "brendan@necessary.nu", at 2026-10-07T06:22:45.178693Z}
     {id metrics-rollback-honest, kind @complete, author "brendan@necessary.nu", at 2026-09-21T16:05:51.114928Z}
     {id migration-checksums, kind @complete, author "brendan@necessary.nu", at 2026-09-05T20:17:20.974605Z}
@@ -1611,6 +1618,7 @@ assertions (
     {id supply-chain-detached-workspaces, kind @complete, author "brendan@necessary.nu", at 2026-10-09T13:39:40.322092Z}
     {id supply-chain-unscanned, kind @complete, author "brendan@necessary.nu", at 2026-09-21T18:22:29.034891Z}
     {id table-key-distinct-columns, kind @complete, author "brendan@necessary.nu", at 2026-10-08T17:00:43.03556Z}
+    {id template-static-text, kind @complete, author "brendan@necessary.nu", at 2026-11-05T17:23:29.336124Z}
     {id test-run-isolation, kind @complete, author "brendan@necessary.nu", at 2026-10-23T22:25:20.936686Z}
     {id tokenizer-backslash-standard, kind @complete, author "brendan@necessary.nu", at 2026-09-23T23:26:31.551166Z}
     {id transaction-stale-plan-recovery, kind @complete, author "brendan@necessary.nu", at 2026-09-06T12:12:04.84501Z}
@@ -1660,6 +1668,7 @@ assertions (
     {id value-decode-created-ranges, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:42:57.820055Z}
     {id value-float-eq-hash, kind @complete, author "brendan@necessary.nu", at 2026-09-05T20:09:20.231538Z}
     {id value-serde-impls, kind @complete, author "brendan@necessary.nu", at 2026-10-18T19:16:24.718286Z}
+    {id value-type-try-from-collision, kind @complete, author "brendan@necessary.nu", at 2026-11-05T17:03:33.118468Z}
     {id varied-schemas, kind @complete, author "brendan@necessary.nu", at 2026-09-08T09:05:31.028259Z}
     {id verify.codegen, kind @complete, author "brendan@necessary.nu", at 2026-09-02T09:24:36.309541Z}
     {id verify.conn, kind @complete, author "brendan@necessary.nu", at 2026-09-02T09:40:21.722896Z}
@@ -1672,7 +1681,6 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
-    {id guide.python-gaps.partial-model-skip, kind @complete, author "brendan@necessary.nu", at 2026-11-05T21:33:51.667821Z}
 )
 
 impl_evidence (
@@ -2980,8 +2988,6 @@ impl_evidence (
         sql.surface
     ), covered_claims (
         {impl_name main, rule sql.surface}
-    ), rule_versions_seen (
-        {id sql.surface, version 38}
     )}
     {id query-second-tier, covered_rules (
         sql.scope
@@ -3054,9 +3060,9 @@ impl_evidence (
         {impl_name main, rule sql.render.tie-limit}
     ), rule_versions_seen (
         {id exec.tie-limit, version 1}
-        {id sql.ast.expr.similar-to, version 1}
+        {id sql.ast.expr.similar-to, version 3}
         {id sql.ast.select.group-distinct, version 0}
-        {id sql.ast.select.table-function, version 2}
+        {id sql.ast.select.table-function, version 3}
         {id sql.ast.select.table-sample, version 0}
         {id sql.ast.select.tie-limit, version 2}
         {id sql.render.table-function, version 2}
@@ -3372,6 +3378,13 @@ impl_evidence (
         {impl_name main, rule testing.isolation}
     ), rule_versions_seen (
         {id testing.isolation, version 0}
+    )}
+    {id typed-binds.polymorphic-operands, covered_rules (
+        sql.render.placeholder-typing
+    ), covered_claims (
+        {impl_name main, rule sql.render.placeholder-typing}
+    ), rule_versions_seen (
+        {id sql.render.placeholder-typing, version 2}
     )}
     {id typed-binds.python-decode-reason, covered_rules (
         error.model.decode-refusal

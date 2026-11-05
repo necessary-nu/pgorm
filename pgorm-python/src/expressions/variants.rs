@@ -60,7 +60,7 @@ const SPELLED: [&str; 44] = [
     "a.adjacent_to(b)",
 ];
 
-// [spec:pgorm:req:bindings.expressions+3/test]
+// [spec:pgorm:req:bindings.expressions+4/test]
 #[test]
 fn every_binary_operator_is_written_or_left_out() -> PyResult<()> {
     Python::initialize();

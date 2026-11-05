@@ -89,8 +89,8 @@ fn impl_value_type(
 
         #[automatically_derived]
         impl pgorm::pgorm_query::ValueType for #name {
-            fn try_from(v: pgorm::Value) -> std::result::Result<Self, pgorm::pgorm_query::ValueTypeError> {
-                <#field_type as pgorm::pgorm_query::ValueType>::try_from(v).map(|v| #name(v))
+            fn from_value(v: pgorm::Value) -> std::result::Result<Self, pgorm::pgorm_query::ValueTypeError> {
+                <#field_type as pgorm::pgorm_query::ValueType>::from_value(v).map(|v| #name(v))
             }
 
             fn type_name() -> std::string::String {

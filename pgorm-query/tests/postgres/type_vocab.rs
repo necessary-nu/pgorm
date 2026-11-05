@@ -440,7 +440,7 @@ fn template_from_item_renumbers_into_the_enclosing_statement() {
     assert_eq!(values.0, vec![1i32.into(), 2i32.into(), 9i32.into()]);
 }
 
-// [spec:pgorm:req:sql.render.custom-expr+3/test]    `from_sql` reads the `$` grammar of real SQL
+// [spec:pgorm:req:sql.render.custom-expr+4/test]    `from_sql` reads the `$` grammar of real SQL
 // — quoted regions and comments opaque, `$$` a dollar-quote opener — and refuses a census the
 // supplied values cannot satisfy
 #[test]
@@ -596,7 +596,7 @@ fn the_binary_operator_vocabulary_is_complete() {
     }
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+5/test]    the null-safe comparisons join the IS family,
+// [spec:pgorm:req:sql.ast.expr.operators+6/test]    the null-safe comparisons join the IS family,
 // so they render bare under a logical operator rather than parenthesised
 #[test]
 fn null_safe_comparisons_bind_like_the_is_family() {
@@ -615,7 +615,7 @@ fn null_safe_comparisons_bind_like_the_is_family() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+5/test]    SYMMETRIC is part of the operator, so the
+// [spec:pgorm:req:sql.ast.expr.operators+6/test]    SYMMETRIC is part of the operator, so the
 // ternary's `AND` still unwraps and the bounds render bare
 #[test]
 fn symmetric_between_keeps_its_bounds_unparenthesised() {
@@ -637,7 +637,7 @@ fn symmetric_between_keeps_its_bounds_unparenthesised() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+5/test]    AT TIME ZONE takes an ordinary expression on
+// [spec:pgorm:req:sql.ast.expr.operators+6/test]    AT TIME ZONE takes an ordinary expression on
 // the right, so a bound zone name and a column both reach it
 #[test]
 fn at_time_zone_takes_any_zone_expression() {

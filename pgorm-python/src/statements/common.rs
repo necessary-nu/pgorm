@@ -1,6 +1,6 @@
 use pgorm::pgorm_query::{
-    BinOper, ColumnRef, Condition, Expr, IntoCondition, OrderedStatement, Query, ReturningClause,
-    SelectStatement, SimpleExpr, Values,
+    BinOper, ColumnRef, Condition, Expr, ExprTrait, IntoCondition, OrderedStatement, Query,
+    ReturningClause, SelectStatement, SimpleExpr, Values,
 };
 use pyo3::{
     exceptions::PyTypeError,

@@ -156,10 +156,7 @@ fn a_create_default_is_always_an_operand() {
         (Expr::val(1).add(2), "(1 + 2)"),
         (Expr::val(-1).into(), "-1"),
         (Expr::current_date().into(), "CURRENT_DATE"),
-        (
-            Expr::val("a").collate(n("C")).into(),
-            r#"('a' COLLATE "C")"#,
-        ),
+        (Expr::val("a").collate(n("C")), r#"('a' COLLATE "C")"#),
     ];
     for (default, spelled) in defaults {
         let sql = Domain::create(n("d"), ColumnType::Boolean)

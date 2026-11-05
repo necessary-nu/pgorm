@@ -458,7 +458,7 @@ fn cursors() -> Vec<(&'static str, (String, Values))> {
 #[allow(dead_code)]
 struct AccountLine {
     id: i64,
-    #[pgorm(from_expr = Expr::expr(Func::upper(Expr::col((account::Entity, account::Column::Name)))))]
+    #[pgorm(from_expr = Func::upper(Expr::col((account::Entity, account::Column::Name))))]
     shout: String,
     #[pgorm(from_col = account::Column::DisplayName)]
     display: Option<String>,

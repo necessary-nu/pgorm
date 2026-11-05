@@ -95,7 +95,9 @@ explicit limitations.
 > comparisons `is_distinct_from` / `is_not_distinct_from`; pattern matching
 > `like`, `not_like`, and the sugar `starts_with`, `ends_with` and
 > `contains`, whose search text is LITERAL: `%`, `_` and `\` in it are
-> escaped before the pattern is built (`s%`, `%s`, `%s%`), so
+> escaped before the pattern is built (`s%`, `%s`, `%s%`) — they are
+> `LikeExpr::starting_with`, `ending_with` and `containing`
+> (`sql.ast.expr.similar-to`), the one escaping pgorm has — so
 > `contains("%")` matches a percent sign rather than every row — a pattern
 > is `like`'s job and `like`/`not_like` take theirs verbatim; aggregates `max`, `min`, `sum`, `count`; null checks `is_null`,
 > `is_not_null`, `if_null`; set membership `is_in` / `is_not_in`, its
@@ -857,7 +859,7 @@ explicit limitations.
 
 ## Prelude
 
-> [spec:pgorm:def:entity.prelude+11]
+> [spec:pgorm:def:entity.prelude+12]
 > `pgorm::entity::prelude` (`src/entity/prelude.rs`) is the glob a file that
 > talks to the database imports instead of naming what it needs one item at a
 > time. Membership is chosen from what code actually writes, and is public API:
@@ -875,8 +877,11 @@ explicit limitations.
 > `QueryResult`, `DecodeSelect`, `DecodeRaw` (`exec.crud.selector-entry`); the
 > connection types `DatabasePool`, `DatabaseConnection`, `DatabaseTransaction`,
 > `ConnectionTrait`, `TransactionTrait`; `Iterable`, `Condition`, `JoinType`,
-> `Value`, the `error` module's contents, and the handful of `pgorm_query`
-> names an entity definition needs (`Expr`, `Name`, `StringLen`,
+> `Value`, the `error` module's contents, `ExprTrait`, without which a
+> function call, a cast or a column's aggregate could be built but not
+> compared (`Column::Id.count().gt(2)`, `sql.ast.expr.operators`), and the
+> handful of `pgorm_query` names an entity definition needs (`Expr`, `Name`,
+> `StringLen`,
 > `ForeignKeyAction`, `Func`, `Arc`, and `ConditionType`, `Deferrability`,
 > `Enforcement` and `ArrayType`, which with `ForeignKeyAction` and `ColumnType`
 > a derive's attributes name as written, with no prefix of the derive's

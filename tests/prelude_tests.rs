@@ -39,7 +39,7 @@ async fn _paged<C: ConnectionTrait>(db: &C) -> Result<u64, Error> {
         .await
 }
 
-// [spec:pgorm:def:entity.prelude+11/test]    a query built, an active model set, a
+// [spec:pgorm:def:entity.prelude+12/test]    a query built, an active model set, a
 // statement decoded and a column enumerated, with the prelude as the only import
 #[test]
 fn prelude_carries_what_a_query_needs() {
@@ -105,7 +105,7 @@ fn prelude_carries_what_a_query_needs() {
     );
 }
 
-// [spec:pgorm:def:entity.prelude+11/test]    `Func`, the vocabulary an entity's
+// [spec:pgorm:def:entity.prelude+12/test]    `Func`, the vocabulary an entity's
 // `default_expr` names a function default in, with the prelude as the only import
 #[test]
 fn prelude_carries_the_function_vocabulary() {
@@ -137,7 +137,7 @@ mod interval_columns {
     pub enum Relation {}
 }
 
-// [spec:pgorm:def:entity.prelude+11/test]    the interval vocabulary: a field's
+// [spec:pgorm:def:entity.prelude+12/test]    the interval vocabulary: a field's
 // `Interval` and the `IntervalSpec`, `PgInterval` and `IntervalPrecision` its
 // `column_type` names resolve through the glob
 #[test]

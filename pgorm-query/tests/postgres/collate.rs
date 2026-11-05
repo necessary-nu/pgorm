@@ -37,7 +37,7 @@ fn collname(clause: &serde_json::Value) -> Vec<String> {
         .collect()
 }
 
-// [spec:pgorm:req:sql.ast.expr.collate/test]    `collate` puts an expression under a named
+// [spec:pgorm:req:sql.ast.expr.collate+2/test]    `collate` puts an expression under a named
 // collation, bare or schema-qualified
 // [spec:pgorm:req:sql.render.collate/test]    the clause renders inside its own parentheses,
 // each part of the name quoted
@@ -146,7 +146,7 @@ fn a_collated_default_stays_the_default() {
     assert!(default["raw_expr"].get("CollateClause").is_some(), "{sql}");
 }
 
-// [spec:pgorm:req:sql.ast.expr.collate/test]    ORDER BY takes a collation through its sort
+// [spec:pgorm:req:sql.ast.expr.collate+2/test]    ORDER BY takes a collation through its sort
 // key's expression, as the grammar does
 // [spec:pgorm:req:sql.render.collate/test]
 #[test]
@@ -154,7 +154,7 @@ fn an_ordering_takes_a_collated_expression() {
     let sql = Query::select()
         .column(Glyph::Image)
         .from(Glyph::Table)
-        .order_by_expr_with_nulls(image().collate(c()).into(), Order::Desc, NullOrdering::Last)
+        .order_by_expr_with_nulls(image().collate(c()), Order::Desc, NullOrdering::Last)
         .to_string();
     assert_eq!(
         sql,

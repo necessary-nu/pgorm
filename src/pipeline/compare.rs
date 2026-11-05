@@ -30,7 +30,7 @@ pub(super) enum Operand {
     /// type it binds as. Cast to a column's type it goes through its text,
     /// the one form every range type and its array read: PostgreSQL has no
     /// cast from a built-in range, nor its array, to a range type a schema
-    /// created (`42846`), so `Expr::as_range` writes the value as its text,
+    /// created (`42846`), so `ExprTrait::as_range` writes the value as its text,
     /// and the pipeline, which mints the placeholder before the comparison
     /// that casts it, has the server write it.
     // [spec:pgorm:def:sql.value.created-range+9]

@@ -250,7 +250,7 @@ let raise = Update::many(cake::Entity)
     .filter(cake::Column::BakeryId.eq(1));
 assert_eq!(
     raise.build().0,
-    r#"UPDATE "cake" SET "price" = "price" + $1 WHERE "cake"."bakery_id" = $2"#
+    r#"UPDATE "cake" SET "price" = "price" + $1::numeric WHERE "cake"."bakery_id" = $2"#
 );
 assert_eq!(raise.exec(&db).await?, 3);
 

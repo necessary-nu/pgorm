@@ -1209,7 +1209,15 @@ silently turned into `None`.
 
 pgorm-query is a fork of sea-query with everything that is not PostgreSQL
 removed. It is re-exported as `pgorm::pgorm_query`, and the prelude brings
-in `Expr`, `Func`, `Name` and `alias`.
+in `Expr`, `ExprTrait`, `Func`, `Name` and `alias`.
+
+The operators (`eq`, `gt`, `like`, `is_in`, `cast_as`, `count`, ...) are the
+methods of one trait, `ExprTrait`, which every expression implements: `Expr`,
+`SimpleExpr`, a function call, a `CASE`. So `Func::lower(..).eq(..)` and
+`Column::Id.count().gt(2)` compile as written, where SeaORM needed
+`Expr::expr(..)` around the call. A module that imports names one by one
+names `ExprTrait` beside `Expr`; without it the compiler's help names the
+trait.
 
 | sea-query | pgorm-query |
 | --- | --- |
@@ -1221,8 +1229,10 @@ in `Expr`, `Func`, `Name` and `alias`.
 | a `&str` or `String` used as a name | `alias(..)` or `Name::runtime(..)`: no implicit conversion |
 | `TableRef` | `TableName` in DDL, `FromItem` in queries |
 | `Expr::cust("..")` | `Expr::raw("..")`, which takes a `&'static str` |
-| `Expr::cust_with_values(..)`, `cust_with_expr(s)` | `Expr::template(..)`, `template_with_expr(s)`, which check the placeholders |
+| `Expr::cust_with_values(..)`, `cust_with_expr(s)` | `Expr::template(..)`, `template_with_expr(s)`, which check the placeholders and take their SQL as a `&'static str` |
 | `Expr::asterisk()` | `Asterisk` |
+| `ValueType::try_from(value)` | `ValueType::from_value(value)`, which no other trait in scope shares |
+| `Expr::expr(Func::upper(..)).eq(..)`, `Expr::expr(col.count()).gt(..)` | `Func::upper(..).eq(..)`, `col.count().gt(..)` |
 | `build(PostgresQueryBuilder)` | `build()` |
 | `to_string(PostgresQueryBuilder)` | `to_string()` |
 | `or_where`, `Cond`, `any!`, `all!` | `Condition::any()` and `Condition::all()` |

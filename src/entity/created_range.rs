@@ -1,4 +1,4 @@
-use pgorm_query::{Expr, SimpleExpr, TypeName, Value};
+use pgorm_query::{Expr, ExprTrait, SimpleExpr, TypeName, Value};
 
 /// A Rust type standing for a range type a schema created with `CREATE TYPE
 /// ... AS RANGE`, or for the multirange PostgreSQL creates beside it: a

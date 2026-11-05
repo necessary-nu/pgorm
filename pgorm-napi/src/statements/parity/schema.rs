@@ -5,7 +5,7 @@ use std::{str::FromStr, sync::Arc};
 
 use pgorm::pgorm_query::{
     Check, ColumnDef, ColumnType, ConstraintChange, ConstraintDrop, Deferrability, Domain,
-    DomainCheck, Enforcement, Expr, ForeignKeyAction, ForeignKeyCreateStatement, Func,
+    DomainCheck, Enforcement, Expr, ExprTrait, ForeignKeyAction, ForeignKeyCreateStatement, Func,
     GeneratedKind, IdentityGeneration, Index, IndexColumn, IndexOrder, IndexType,
     NotNullConstraint, Schema, Sequence, SequenceOption, SequenceType, SimpleExpr, StringLen,
     Table, TableKey, TableName, TypeName, Unique, Values,

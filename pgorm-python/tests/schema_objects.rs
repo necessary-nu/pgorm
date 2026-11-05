@@ -3,11 +3,11 @@
 //! directly, must match the SQL Python builds for them.
 use pgorm::pgorm_query::{
     BinOper, Check, ColumnDef, ColumnType, Comment, ConstraintChange, ConstraintDrop,
-    Deferrability, Domain, Enforcement, Expr, ForeignKeyAction, ForeignKeyCreateStatement, Func,
-    GeneratedKind, IdentityGeneration, Index, IndexColumn, IndexOrder, IndexType, MaterializedView,
-    Name, NotNullConstraint, Query, Schema, SelectStatement, Sequence, SequenceOption,
-    SequenceType, SimpleExpr, StringLen, Table, TableKey, TableName, TypeName, Unique, Values,
-    View, ViewCheckOption, error,
+    Deferrability, Domain, Enforcement, Expr, ExprTrait, ForeignKeyAction,
+    ForeignKeyCreateStatement, Func, GeneratedKind, IdentityGeneration, Index, IndexColumn,
+    IndexOrder, IndexType, MaterializedView, Name, NotNullConstraint, Query, Schema,
+    SelectStatement, Sequence, SequenceOption, SequenceType, SimpleExpr, StringLen, Table,
+    TableKey, TableName, TypeName, Unique, Values, View, ViewCheckOption, error,
     extension::{Extension, RangeDefinition, Type, TypeRef},
 };
 use pgorm_python::expressions::Compiled;

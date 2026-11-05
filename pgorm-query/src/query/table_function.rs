@@ -44,7 +44,7 @@ use crate::{ColumnType, FromItem, FunctionCall, IntoName, Name};
 /// ```
 ///
 /// [`with_ordinality`]: Self::with_ordinality
-// [spec:pgorm:req:sql.ast.select.table-function+2]
+// [spec:pgorm:req:sql.ast.select.table-function+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct TableFunction {
     pub(crate) functions: Vec<TableCall>,

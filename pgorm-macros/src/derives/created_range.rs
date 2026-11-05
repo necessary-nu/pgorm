@@ -244,7 +244,7 @@ fn expand(parsed: &CreatedRange) -> TokenStream {
 
         #[automatically_derived]
         impl pgorm::pgorm_query::ValueType for #ident {
-            fn try_from(
+            fn from_value(
                 value: pgorm::Value,
             ) -> std::result::Result<Self, pgorm::pgorm_query::ValueTypeError> {
                 match value {

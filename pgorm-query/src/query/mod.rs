@@ -112,7 +112,7 @@ impl Query {
     /// The target is a table name, optionally schema-qualified and aliased,
     /// and the source is any relation a `FROM` clause takes: a table, a
     /// subquery, a values list, a function call or a validated fragment.
-    // [spec:pgorm:req:sql.ast.merge+1]
+    // [spec:pgorm:req:sql.ast.merge+2]
     pub fn merge<T, S, C>(target: T, source: S, on: C) -> PendingMerge
     where
         T: IntoNamedTable,

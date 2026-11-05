@@ -1,5 +1,6 @@
 #![allow(unused_imports, dead_code)]
 
+use pgorm_query::ExprTrait;
 pub mod common;
 
 pub use common::{TestContext, setup::*};
