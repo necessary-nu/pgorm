@@ -1978,12 +1978,20 @@ children (
                 id codegen-error-display
                 title "pgorm-codegen's Error displays its message, not the message's Debug form"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:39:51.011501Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (codegen chapter). pgorm-codegen/src/error.rs:25-27 formats with {e:?}, so Display shows \"unsupported DDL: SET at statement 1\" with the quotes and inner quotes escaped. The guide matches on Error::TransformError(message) instead of printing."
+                    }
+
+                    {
+                        at 2026-11-05T15:29:23.905758Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -1998,6 +2006,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (codegen chapter). Generated files are token text (`# [derive (Clone , Debug ...`), so a user runs rustfmt over them (e.g. prettyplease would format them in-process). Cosmetic, alongside: a column's DEFAULT false is written default_expr = Expr::val(false) where default_value = false is the idiom the Entities chapter teaches."
+                    }
+
+                    {
+                        at 2026-11-05T15:29:24.05945Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
                     }
                 )
             }

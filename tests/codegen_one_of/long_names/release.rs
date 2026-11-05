@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "release")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -13,6 +13,8 @@ pub struct Model {
 pub enum Relation {
     #[pgorm(has_many = super::note::Entity)]
     Note,
-    #[pgorm(has_many = super::remark_left_on_an_issue_or_a_release_in_the_project_archive::Entity)]
+    #[pgorm(
+        has_many = super::remark_left_on_an_issue_or_a_release_in_the_project_archive::Entity
+    )]
     RemarkLeftOnAnIssueOrAReleaseInTheProjectArchive,
 }

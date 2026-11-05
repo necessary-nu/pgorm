@@ -10,7 +10,7 @@ const QUALIFIED: &str = "CREATE TABLE tenant_a.item (id int PRIMARY KEY);";
 
 // [spec:pgorm:sem:codegen.entity.transform+18/test]    the source table's schema
 // survives transformation and reaches the compact entity
-// [spec:pgorm:def:codegen.entity.compact+7/test]
+// [spec:pgorm:def:codegen.entity.compact+8/test]
 #[test]
 fn compact_entity_carries_the_source_schema() {
     let generated = from_sql_with(QUALIFIED, Opts::default());
@@ -247,7 +247,7 @@ fn bridge_and_generated_entity_agree_on_schema() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+8/test]    a schema-qualified enum's
+// [spec:pgorm:sem:codegen.entity.enums+9/test]    a schema-qualified enum's
 // schema survives into the generated ActiveEnum attribute, so the
 // entity round-trips the type it was described with
 #[test]
@@ -289,7 +289,7 @@ fn unqualified_reference_needs_an_unqualified_declaration() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+8/test]    one bare Rust enum cannot
+// [spec:pgorm:sem:codegen.entity.enums+9/test]    one bare Rust enum cannot
 // stand for two differently-qualified database types: the collision is
 // refused rather than generated
 #[test]

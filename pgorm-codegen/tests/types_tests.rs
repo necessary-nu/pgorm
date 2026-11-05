@@ -98,7 +98,7 @@ fn float_and_double_columns_suppress_the_eq_derive() {
     );
     assert_contains(
         no_floats.file("sample.rs"),
-        "#[derive(Clone, Debug, PartialEq, Entity, Eq)]",
+        "#[derive(Clone, Debug, PartialEq, Eq, Entity)]",
     );
 
     let with_float = generate(
@@ -212,7 +212,7 @@ const HOSTILE_ATTR: &str = r#"#[pgorm(column_type = ColumnType::named("ev\"il ty
 mod hostile_entity {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Entity, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "sample")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -248,7 +248,7 @@ fn attribute_string_value(attr: &str) -> String {
         .value()
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    the compact attribute
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]    the compact attribute
 // carries a named type's name as a rendered string literal, so a name holding a
 // quote arrives at the derive as the name that was described rather than as
 // tokens that escaped the literal
@@ -308,7 +308,7 @@ fn hostile_named_type_survives_the_compact_attribute() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    and the entity the
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]    and the entity the
 // derive builds from it names the type that was described, character for
 // character
 #[test]
@@ -497,7 +497,7 @@ fn range_columns_are_typed_by_their_subtype() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    an array needs a
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]    an array needs a
 // `column_type` exactly when its element does, since the derive infers an
 // array as an array of what the element's Rust type infers: `text[]` would be
 // created as `varchar[]`, and `citext[]` as `varchar[]` too
@@ -534,7 +534,7 @@ fn arrays_name_the_element_type_they_cannot_infer() {
     let sample = generated.file("sample.rs");
     for field in [
         r#"#[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Text)))] pub tags: Vec<String>,"#,
-        r#"#[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Decimal(Some((10u32, 2u32))))))]
+        r#"#[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Decimal(Some((10, 2))))))]
            pub prices: Vec<Decimal>,"#,
         // One run of fields with nothing between them: the arrays whose
         // element the derive infers carry no attribute.
@@ -553,7 +553,7 @@ fn arrays_name_the_element_type_they_cannot_infer() {
 mod text_array_entity {
     use pgorm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, Entity, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "sample")]
     pub struct Model {
         #[pgorm(primary_key)]
@@ -571,7 +571,7 @@ mod text_array_entity {
     pub enum Relation {}
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    and the derive builds
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]    and the derive builds
 // the array of the element type named, not of the one `String` infers
 #[test]
 fn derived_array_columns_keep_their_element_type() {

@@ -58,15 +58,10 @@ fn a_created_schema_generates_a_compiling_entity() {
         generated.files,
         from_sql_with(in_the_schema(), Opts::default()).files
     );
-    let written = flat(generated.file("deal.rs"));
-    assert!(
-        written.contains(&flat(include_str!("sql/created_schema/deal.rs"))),
-        "{written}"
-    );
-    assert!(
-        norm(generated.file("pgorm_active_enums.rs")).contains(&norm(include_str!(
-            "sql/created_schema/pgorm_active_enums.rs"
-        )))
+    generated.holds("deal.rs", "sql/created_schema/deal.rs");
+    generated.holds(
+        "pgorm_active_enums.rs",
+        "sql/created_schema/pgorm_active_enums.rs",
     );
 
     assert_eq!(deal::Entity.schema_name(), Some("sales"));

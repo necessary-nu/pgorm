@@ -109,18 +109,9 @@ fn a_one_of_check_generates_its_enum() {
         ["comment.rs", "photo.rs", "post.rs", "mod.rs", "prelude.rs"]
     );
     for (file, fixture) in [
-        (
-            "comment.rs",
-            include_str!("../../tests/codegen_one_of/comment.rs"),
-        ),
-        (
-            "post.rs",
-            include_str!("../../tests/codegen_one_of/post.rs"),
-        ),
-        (
-            "photo.rs",
-            include_str!("../../tests/codegen_one_of/photo.rs"),
-        ),
+        ("comment.rs", "../../tests/codegen_one_of/comment.rs"),
+        ("post.rs", "../../tests/codegen_one_of/post.rs"),
+        ("photo.rs", "../../tests/codegen_one_of/photo.rs"),
     ] {
         generated.holds(file, fixture);
     }
@@ -135,11 +126,11 @@ fn a_self_referencing_one_of_generates_its_enum() {
     for (file, fixture) in [
         (
             "remark.rs",
-            include_str!("../../tests/codegen_one_of/self_reference/remark.rs"),
+            "../../tests/codegen_one_of/self_reference/remark.rs",
         ),
         (
             "topic.rs",
-            include_str!("../../tests/codegen_one_of/self_reference/topic.rs"),
+            "../../tests/codegen_one_of/self_reference/topic.rs",
         ),
     ] {
         generated.holds(file, fixture);
@@ -155,21 +146,13 @@ fn long_named_one_of_keeps_its_enum_name() {
     for (file, fixture) in [
         (
             "remark_left_on_an_issue_or_a_release_in_the_project_archive.rs",
-            include_str!(
-                "../../tests/codegen_one_of/long_names/remark_left_on_an_issue_or_a_release_in_the_project_archive.rs"
-            ),
+            "../../tests/codegen_one_of/long_names/remark_left_on_an_issue_or_a_release_in_the_project_archive.rs",
         ),
-        (
-            "note.rs",
-            include_str!("../../tests/codegen_one_of/long_names/note.rs"),
-        ),
-        (
-            "issue.rs",
-            include_str!("../../tests/codegen_one_of/long_names/issue.rs"),
-        ),
+        ("note.rs", "../../tests/codegen_one_of/long_names/note.rs"),
+        ("issue.rs", "../../tests/codegen_one_of/long_names/issue.rs"),
         (
             "release.rs",
-            include_str!("../../tests/codegen_one_of/long_names/release.rs"),
+            "../../tests/codegen_one_of/long_names/release.rs",
         ),
     ] {
         generated.holds(file, fixture);

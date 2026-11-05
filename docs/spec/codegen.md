@@ -9,7 +9,7 @@ golden fixtures under `pgorm-codegen/tests/`. A schema reaches the pipeline as
 DDL text, through `entities_from_sql` and `parse_schema` at the crate root,
 specified under [Schema from DDL text](#schema-from-ddl-text).
 
-> [spec:pgorm:def:codegen.entity+8]
+> [spec:pgorm:def:codegen.entity+9]
 > The entity generator is the pipeline
 > `EntityTransformer::transform(Vec<TableCreateStatement>, &EntityWriterContext) -> EntityWriter`
 > followed by `EntityWriter::generate(&EntityWriterContext) -> WriterOutput`.
@@ -18,8 +18,9 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > (name, `ColumnType`, `auto_increment`, `identity`, `not_null`, `unique`), `relations`,
 > `conjunct_relations`,
 > and `primary_keys`. A `WriterOutput` is a list of `OutputFile { name, content }`
-> — the writer never touches the filesystem; its caller writes the files and
-> runs `rustfmt` over them.
+> — the writer never touches the filesystem; its caller writes the files as
+> they are, their content formatted Rust that needs no `rustfmt` run after it
+> (`codegen.entity.files`).
 >
 > `EntityWriterContext` selects all generation options: `with_serde`, `with_copy_enums`, `schema_name`, `lib`,
 > `serde_skip_deserializing_primary_key`, `serde_skip_hidden_column`,
@@ -308,7 +309,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Output files
 
-> [spec:pgorm:req:codegen.entity.files+2]
+> [spec:pgorm:req:codegen.entity.files+3]
 > `EntityWriter::generate` MUST produce: one `<table_name_snake_case>.rs`
 > per entity; an index file named `lib.rs` when `lib` is true and `mod.rs`
 > otherwise; `prelude.rs`; `pgorm_active_enums.rs` if and only if at
@@ -326,8 +327,23 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > exist, and `pub mod pgorm_range_types;` last when range types do.
 > `prelude.rs` MUST contain one
 > `pub use super::<table_name_snake_case>::Entity as <TableNameCamelCase>;`
-> per entity. Entity-file code blocks are joined with blank lines; content
-> is unformatted `TokenStream` text (callers are expected to run rustfmt).
+> per entity.
+>
+> Every file is formatted Rust, laid out as a person writes it, with no
+> formatter run over it afterwards. Each block of items is printed by
+> prettyplease, the formatter that runs in-process over a syntax tree; the
+> blocks follow the header each after a blank line, `pub mod prelude;` a block
+> of its own in the index file; the functions of an `impl` are separated by a
+> blank line; and the file ends with a newline. A `#[pgorm(..)]` attribute's
+> arguments are expressions, and are printed as a call's are: on the
+> attribute's line where they fit, otherwise one to a line indented under it,
+> with no comma after the last, as the guide writes an attribute, so an
+> expression inside one — a domain's `ColumnType::Domain { .. }` struct
+> literal, a generation expression's method chain — reads as Rust rather than
+> as loose tokens. A `use` that fits rustfmt's 100 columns is one line. The
+> fixtures the workspace compiles, which `cargo fmt --check` covers with it,
+> are the writer's output byte for byte, so rustfmt leaves the files it would
+> format as they are written.
 
 > [spec:pgorm:sem:codegen.entity.context+4]
 > `EntityWriterContext::new` takes one `EntityWriterOptions` struct — every
@@ -364,14 +380,14 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## The entity file
 
-> [spec:pgorm:def:codegen.entity.compact+7]
+> [spec:pgorm:def:codegen.entity.compact+8]
 > The writer emits one form of entity, the composite derive's
 > (`[spec:pgorm:req:macros.derive.one-form]`), and no option selects another.
-> Per entity it emits, in order: the imports (`use pgorm::entity::prelude::*;`,
-> serde imports, and one `use super::pgorm_active_enums::<EnumName>;` per
-> distinct enum used by the entity's columns); a single `Model` struct
-> deriving `Clone, Debug, PartialEq, Entity` (plus `Eq`, serde
-> derives, and extra derives) annotated with
+> Per entity it emits, in order: the imports (`use pgorm::entity::prelude::*;`
+> and the serde imports, then the `use` of each sibling module whose types the
+> entity's columns name, `codegen.entity.imports`); a single `Model` struct
+> deriving `Clone, Debug, PartialEq`, `Eq` where it can, and `Entity`, then
+> the serde derives and extra derives, annotated with
 > `#[pgorm(schema_name = "...", table_name = "...")]` (`schema_name` only
 > when the entity has one — its source table's qualifier, else the configured
 > default, per `codegen.entity.context`); a `Relation` enum deriving
@@ -392,16 +408,17 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > (`[spec:pgorm:sem:macros.derive.boilerplate]`), so the file writes none of them.
 >
 > `gen_compact_code_blocks` assembles the file as an ordered
-> `Vec<TokenStream>`, one block per section: the import block (`gen_import`
-> extended with `gen_import_active_enum` and `gen_import_range_types`),
-> `gen_compact_model_struct`, `gen_compact_relation_enum`, `gen_disjoint_enum`
-> for a base, a block per one-of enum, then zero or more
-> `gen_impl_conjunct_related` blocks. `write_entities` prepends the
-> generated-file header and joins the stringified blocks with blank lines, so
-> each section is one contiguous block in the output (rendered shapes pinned
-> by `tests/compact/`).
+> `Vec<TokenStream>`, one block per section: the crates' imports
+> (`gen_import`), the sibling modules' (`gen_import_super`, empty where there
+> are none), `gen_compact_model_struct`, `gen_compact_relation_enum`,
+> `gen_disjoint_enum` for a base, a block per one-of enum, then zero or more
+> `gen_impl_conjunct_related` blocks. `write_entities` formats each block and
+> writes them after the generated-file header, each after a blank line
+> (`codegen.entity.files`), so each section is one contiguous block in the
+> output, an empty one leaving nothing (the files pinned byte for byte by
+> `tests/compact/`).
 
-> [spec:pgorm:sem:codegen.entity.compact.attrs+13]
+> [spec:pgorm:sem:codegen.entity.compact.attrs+14]
 > In the compact Model, each field's `#[pgorm(...)]` attribute assembles
 > parts in this fixed order: `column_name = "..."` when the DB column name
 > is not already snake_case; `primary_key` when the column is in the primary
@@ -412,9 +429,12 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > the column is one, key or not — the derive refuses an identity or a
 > generation expression beside `auto_increment`, so an identity key column
 > carries `primary_key, identity` and a generated one `primary_key,
-> generated_stored = ..`; `default_expr = ..`, `generated_stored = ..` or
-> `generated_virtual = ..` when the column has a `DEFAULT` or is generated,
-> the Rust that builds the expression written bare
+> generated_stored = ..`; `default_value = ..` when the column's `DEFAULT` is
+> a literal, written as the value it is — `default_value = false`,
+> `default_value = 1`, `default_value = "untitled"` — as the guide's Entities
+> chapter declares a constant default, and otherwise `default_expr = ..`, or
+> `generated_stored = ..` or `generated_virtual = ..` when the column is
+> generated, the Rust that builds the expression written bare
 > (`codegen.entity.expressions`); `column_type = <expression>` wherever the type the
 > derive infers from the field's Rust type
 > (`macros.derive.entity-model.column-def`) is not the column's own, and on a
@@ -432,14 +452,15 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > length, precision, scale and qualifier included, and a value written
 > through it is held to them. The `column_type` value is the type's whole
 > `ColumnType` expression as `codegen.entity.types` spells it, its integers
-> carrying a `u32` suffix. `String` infers an unbounded `varchar`, so
-> `varchar(3)` states `ColumnType::String(StringLen::N(3u32))`
+> written bare, as the guide writes them: each is a `u32` the variant holds,
+> which a bare literal infers. `String` infers an unbounded `varchar`, so
+> `varchar(3)` states `ColumnType::String(StringLen::N(3))`
 > (`StringLen::Max` stating itself too), every `Char` — `char(2)` states
-> `ColumnType::Char(Some(2u32))`, and `char` alone, which is `char(1)`,
-> `ColumnType::Char(Some(1u32))` — states its length or
+> `ColumnType::Char(Some(2))`, and `char` alone, which is `char(1)`,
+> `ColumnType::Char(Some(1))` — states its length or
 > `ColumnType::Char(None)`, `text` states `ColumnType::Text` and a named type
 > `ColumnType::named("...")`; `Decimal` infers an unconstrained `numeric`, so
-> `numeric(10, 2)` states `ColumnType::Decimal(Some((10u32, 2u32)))` and
+> `numeric(10, 2)` states `ColumnType::Decimal(Some((10, 2)))` and
 > `money` `ColumnType::Money`; `Json` infers `json`, so `jsonb` states
 > `ColumnType::JsonBinary`; and `Interval` infers an unqualified `interval`,
 > so an interval carrying a field qualifier or a precision states its
@@ -502,11 +523,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > quote, a comment opener or Rust syntax is data inside the program, never
 > program.
 
-> [spec:pgorm:sem:codegen.entity.compact.model+2]
+> [spec:pgorm:sem:codegen.entity.compact.model+3]
 > `gen_compact_model_struct` emits the compact `Model` as one block: the
-> derive attribute `Clone, Debug, PartialEq, Entity` followed by
-> the `Eq` slot, the serde fragment (`codegen.entity.serde.derives`), and
-> `model_extra_derives`; the struct attribute
+> derive attribute `Clone, Debug, PartialEq`, the `Eq` slot, and `Entity`, in
+> the order the guide derives them, followed by the serde fragment
+> (`codegen.entity.serde.derives`) and `model_extra_derives`; the struct attribute
 > `#[pgorm(schema_name = "...", table_name = "...")]` (the `schema_name =`
 > part present only when the entity has a schema name, and carrying the
 > entity's, not the option's, when the two differ —
@@ -520,25 +541,28 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > is decided by matching the raw DB column name against the entity's
 > `primary_keys` list.
 
-> [spec:pgorm:sem:codegen.entity.imports+4]
+> [spec:pgorm:sem:codegen.entity.imports+5]
 > `gen_import` builds the per-file import block: always
 > `use pgorm::entity::prelude::*;`, followed by the serde import selected
 > by `WithSerde` — `use serde::Serialize;` for `Serialize`,
 > `use serde::Deserialize;` for `Deserialize`,
 > `use serde::{Deserialize, Serialize};` for `Both`, nothing for `None`.
-> For entity files, `gen_import_active_enum` extends the block with one
-> `use super::pgorm_active_enums::<EnumName>;` per distinct enum among the
-> entity's column types (looked through `Array` via `get_inner_col_type`),
-> deduplicated in first-use column order — a disjoint entity's kind type
-> from its base's module, `use super::<base>::<Enum>Kind;`, and in the base's
-> own file not at all, the derive declaring it there
-> (`codegen.entity.disjoint`) — and `gen_import_range_types` with
-> one `use super::pgorm_range_types::<RangeName>;` per distinct range or
-> multirange type a schema created, the same way. The same `gen_import` block —
+> For entity files, `gen_import_super` writes, as a block of its own after a
+> blank line, the `use` of each type the entity's columns name from a sibling
+> module (looked through `Array` via `get_inner_col_type`): an enum from
+> `super::pgorm_active_enums`, a disjoint entity's kind type from its base's
+> module, `use super::<base>::<Enum>Kind;`, and in the base's own file not at
+> all, the derive declaring it there (`codegen.entity.disjoint`), and a range
+> or multirange type a schema created from `super::pgorm_range_types`. Each
+> module is imported once, a module giving several types naming them in
+> braces (`use super::pgorm_active_enums::{Flavor, Size};`), and the modules
+> and the types in each are sorted, as rustfmt sorts a block of imports, so a
+> person reads one `use` per module and rustfmt leaves the block as it
+> stands. The same `gen_import` block —
 > without enum or range imports — heads `pgorm_active_enums.rs`
 > (`codegen.entity.enums`) and `pgorm_range_types.rs`, whose newtypes carry
-> the serde derives (`codegen.entity.serde`); in every file the imports sit directly below
-> the `write_doc_comment` header required by `codegen.entity.files`.
+> the serde derives (`codegen.entity.serde`); in every file the imports sit
+> directly below the header `codegen.entity.files` requires.
 
 ## Type mapping
 
@@ -780,17 +804,17 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > gets `#[serde(skip)]`, not `#[serde(skip_deserializing)]`. With
 > `WithSerde::None` both flags are inert.
 
-> [spec:pgorm:sem:codegen.entity.serde.derives+3]
+> [spec:pgorm:sem:codegen.entity.serde.derives+4]
 > `WithSerde::extra_derive` is the single producer of the serde derive
 > fragment: an empty stream for `None`, otherwise a leading-comma fragment
 > (`, Serialize`, `, Deserialize`, or `, Serialize, Deserialize` for
-> `Both`). The Model writer splices it at a fixed slot — after
-> the base derives and the conditional `Eq`, before `model_extra_derives` —
-> so a serde-enabled compact Model derives exactly
-> `Clone, Debug, PartialEq, Entity, Eq, Serialize, Deserialize`
+> `Both`). The Model writer splices it at a fixed slot — after `Entity`,
+> which follows the base derives and the conditional `Eq`, and before
+> `model_extra_derives` — so a serde-enabled compact Model derives exactly
+> `Clone, Debug, PartialEq, Eq, Entity, Serialize, Deserialize`
 > (pinned by `tests/compact_with_serde/cake_both.rs`). The same fragment is
-> appended to generated active enums after their base derives and optional
-> `Copy` (`codegen.entity.enums`), and to each range newtype after
+> appended to generated active enums after `ActiveEnum`
+> (`codegen.entity.enums`), and to each range newtype after
 > `CreatedRange` (`codegen.entity.types`), so a newtype over a
 > `Range<i32>` derives exactly
 > `Clone, Debug, PartialEq, Eq, CreatedRange, Serialize, Deserialize`
@@ -826,7 +850,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Column expressions
 
-> [spec:pgorm:sem:codegen.entity.expressions+2]
+> [spec:pgorm:sem:codegen.entity.expressions+3]
 > A column's `DEFAULT`, and the expression a generated column is computed
 > from, are read into one closed subset of PostgreSQL's expressions, which
 > the DDL bridge reads from the parse tree (`codegen.ddl.tables`), the
@@ -858,7 +882,9 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > expression is the `SimpleExpr` the bridged statement carries; printed, it
 > is the Rust that builds that same `SimpleExpr` inside the entity's module:
 > `Expr::col(Column::<X>)`, `Expr::val(..)` (`Decimal::new(m, s)` for a
-> numeric, an `i64`-suffixed literal for a `bigint`),
+> numeric, an `i64`-suffixed literal for a `bigint`, which no bare literal of
+> its size is; a `DEFAULT` that is a literal alone is written as its value,
+> which `default_value` takes, `codegen.entity.compact.attrs`),
 > `pgorm::pgorm_query::Keyword::Null`, `Expr::current_date()` and its two
 > siblings, `Func::named(Name::runtime("f"))` with an `.arg(..)` per
 > argument, `.cast_as(Name::runtime("t"))`, or
@@ -935,13 +961,13 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Active enums
 
-> [spec:pgorm:sem:codegen.entity.enums+8]
+> [spec:pgorm:sem:codegen.entity.enums+9]
 > All discovered database enums but a disjoint entity's kind type, which its
 > derive declares (`codegen.entity.disjoint`), are generated into a single
 > `pgorm_active_enums.rs`, in alphabetical order by enum name. Each becomes
-> `#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]`
-> (plus `Copy` when `with_copy_enums`, then serde derives, then
-> `enum_extra_derives`), naming neither `rs_type` nor `db_type`, which is how the
+> `#[derive(Clone, Debug, PartialEq, Eq, ActiveEnum)]`, the order the guide
+> derives an enum in — `Clone, Copy, Debug, ..` when `with_copy_enums` — and
+> after `ActiveEnum` the serde derives, then `enum_extra_derives`, naming neither `rs_type` nor `db_type`, which is how the
 > derive is told the values are a PostgreSQL enum's (`macros.derive.active-enum`),
 > and saying only what differs from the derive's defaults
 > (`macros.derive.boilerplate`): `#[pgorm(enum_name = "<db name>")]` where the

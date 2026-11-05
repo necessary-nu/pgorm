@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(schema_name = "schema_name", table_name = "_cake_filling_")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -17,7 +17,7 @@ pub enum Relation {
         from = Column::CakeId,
         to = super::cake::Column::Id,
         on_update = ForeignKeyAction::Cascade,
-        on_delete = ForeignKeyAction::Cascade,
+        on_delete = ForeignKeyAction::Cascade
     )]
     Cake,
     #[pgorm(
@@ -25,7 +25,7 @@ pub enum Relation {
         from = Column::FillingId,
         to = super::filling::Column::Id,
         on_update = ForeignKeyAction::Cascade,
-        on_delete = ForeignKeyAction::Cascade,
+        on_delete = ForeignKeyAction::Cascade
     )]
     Filling,
 }

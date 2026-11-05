@@ -1,6 +1,6 @@
 use std::{error, fmt, io};
 
-// [spec:pgorm:def:codegen.entity+8]
+// [spec:pgorm:def:codegen.entity+9]
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {
@@ -22,7 +22,7 @@ impl Error {
 
 /// The message itself: a `TransformError`'s text as written, and an
 /// `StdIoError`'s as the I/O error displays it.
-// [spec:pgorm:def:codegen.entity+8]
+// [spec:pgorm:def:codegen.entity+9]
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

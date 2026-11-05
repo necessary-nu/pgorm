@@ -2,7 +2,7 @@ use pgorm::entity::prelude::*;
 
 use super::pgorm_active_enums::Stage;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(schema_name = "sales", table_name = "deal")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]

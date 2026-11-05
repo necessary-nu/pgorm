@@ -1,14 +1,14 @@
-use pgorm::entity::prelude:: * ;
+use pgorm::entity::prelude::*;
 use serde::Deserialize;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity, Deserialize)]
 #[pgorm(table_name = "cake")]
 pub struct Model {
     #[pgorm(primary_key)]
     #[serde(skip_deserializing)]
     pub id: i32,
     #[pgorm(column_type = ColumnType::Text, nullable)]
-    pub name: Option<String> ,
+    pub name: Option<String>,
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -22,6 +22,7 @@ impl Related<super::filling::Entity> for Entity {
     fn to() -> RelationDef {
         super::cake_filling::Relation::Filling.def()
     }
+
     fn via() -> Option<RelationDef> {
         Some(super::cake_filling::Relation::Cake.def().rev())
     }

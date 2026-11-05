@@ -55,7 +55,7 @@ async fn expressions_of(
 /// matters comes back as the server parsed it the first time. A row the
 /// entity inserts with nothing set takes the defaults and is computed by the
 /// generated columns, a key the server computes included.
-// [spec:pgorm:sem:codegen.entity.expressions+2/test]    against a live server: the entities generated
+// [spec:pgorm:sem:codegen.entity.expressions+3/test]    against a live server: the entities generated
 // from a schema create its DEFAULTs and generation expressions, stored and virtual, unchanged
 #[pgorm_macros::test]
 async fn generated_entities_keep_their_expressions() -> Result<(), Error> {

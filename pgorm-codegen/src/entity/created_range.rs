@@ -3,7 +3,7 @@ use pgorm_query::{ColumnType, Name};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-use crate::{Entity, EntityWriter, OutputFile, WithSerde};
+use crate::{EntityWriter, OutputFile, WithSerde, entity::format};
 
 /// A range type a schema created, or the multirange created beside it, as
 /// the newtype the generated entities name it by: one per type, as an enum
@@ -52,7 +52,7 @@ impl CreatedRangeType {
     /// and the serde derives follow the Model's: a Model serializing a field
     /// of this type needs the type to serialize.
     // [spec:pgorm:sem:codegen.entity.types+13]
-    // [spec:pgorm:sem:codegen.entity.serde.derives+3]
+    // [spec:pgorm:sem:codegen.entity.serde.derives+4]
     pub fn impl_created_range(&self, with_serde: &WithSerde) -> TokenStream {
         let ident = Self::rs_type(&self.name);
         let Some(subtype) = created_range_subtype(&self.subtype) else {
@@ -90,40 +90,16 @@ impl CreatedRangeType {
 impl EntityWriter {
     /// `pgorm_range_types.rs`: the newtype of every range type a column
     /// names.
-    // [spec:pgorm:req:codegen.entity.files+2]
-    // [spec:pgorm:sem:codegen.entity.imports+4]
+    // [spec:pgorm:req:codegen.entity.files+3]
+    // [spec:pgorm:sem:codegen.entity.imports+5]
     pub fn write_pgorm_range_types(&self, with_serde: &WithSerde) -> OutputFile {
-        let mut lines = Vec::new();
-        Self::write_doc_comment(&mut lines);
-        Self::write(&mut lines, vec![Self::gen_import(with_serde)]);
-        lines.push("".to_owned());
-        let code_blocks = self
+        let ranges = self
             .ranges
             .values()
-            .map(|range| range.impl_created_range(with_serde))
-            .collect();
-        Self::write(&mut lines, code_blocks);
+            .map(|range| range.impl_created_range(with_serde));
         OutputFile {
             name: "pgorm_range_types.rs".to_owned(),
-            content: lines.join("\n"),
+            content: format::file(std::iter::once(Self::gen_import(with_serde)).chain(ranges)),
         }
-    }
-
-    /// The `use` of each range type's newtype an entity's columns name.
-    // [spec:pgorm:sem:codegen.entity.imports+4]
-    pub fn gen_import_range_types(entity: &Entity) -> TokenStream {
-        let mut imported: Vec<String> = Vec::new();
-        let mut imports = TokenStream::new();
-        for column in entity.columns.iter() {
-            if let ColumnType::CreatedRange { name, .. }
-            | ColumnType::CreatedMultirange { name, .. } = column.get_inner_col_type()
-                && !imported.contains(&name.to_string())
-            {
-                imported.push(name.to_string());
-                let ident = CreatedRangeType::rs_type(name);
-                imports.extend(quote! { use super::pgorm_range_types::#ident; });
-            }
-        }
-        imports
     }
 }

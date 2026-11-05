@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "child")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -15,7 +15,7 @@ pub enum Relation {
     #[pgorm(
         belongs_to = super::parent::Entity,
         from = (Column::ParentId1, Column::ParentId2),
-        to = (super::parent::Column::Id1, super::parent::Column::Id2),
+        to = (super::parent::Column::Id1, super::parent::Column::Id2)
     )]
     Parent,
 }

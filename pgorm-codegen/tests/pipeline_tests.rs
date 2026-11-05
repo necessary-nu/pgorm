@@ -41,7 +41,7 @@ fn enum_schema() -> Vec<pgorm_query::TableCreateStatement> {
     )]
 }
 
-// [spec:pgorm:def:codegen.entity+8/test]    transform -> generate hands back named
+// [spec:pgorm:def:codegen.entity+9/test]    transform -> generate hands back named
 // files in memory; the writer itself never touches the filesystem
 #[test]
 fn pipeline_returns_output_files_without_writing_to_disk() {
@@ -67,7 +67,7 @@ fn pipeline_returns_output_files_without_writing_to_disk() {
     }
 }
 
-// [spec:pgorm:def:codegen.entity+8/test]    the Entity model's table name, column
+// [spec:pgorm:def:codegen.entity+9/test]    the Entity model's table name, column
 // facts (type, auto_increment, not_null, unique), relations, conjunct relations
 // and primary keys all reach the generated output
 #[test]
@@ -95,7 +95,7 @@ fn entity_model_carries_column_relation_and_pk_facts() {
     );
 }
 
-// [spec:pgorm:def:codegen.entity+8/test]    errors are the two-variant `Error` enum
+// [spec:pgorm:def:codegen.entity+9/test]    errors are the two-variant `Error` enum
 #[test]
 fn errors_are_the_two_variant_error_enum() {
     let untyped = Table::create(Name::runtime("cake"))
@@ -110,7 +110,7 @@ fn errors_are_the_two_variant_error_enum() {
     assert!(matches!(from_io, Error::StdIoError(_)));
 }
 
-// [spec:pgorm:def:codegen.entity+8/test]    an `Error` displays its message as
+// [spec:pgorm:def:codegen.entity+9/test]    an `Error` displays its message as
 // written, a quote in it unescaped, and an I/O error as that displays itself
 #[test]
 fn an_error_displays_its_message() {
@@ -133,7 +133,7 @@ fn an_error_displays_its_message() {
     assert_eq!(expected, r#"disk "full""#);
 }
 
-// [spec:pgorm:def:codegen.entity+8/test]    every `EntityWriterContext` option
+// [spec:pgorm:def:codegen.entity+9/test]    every `EntityWriterContext` option
 // selects something in the generated output
 #[test]
 fn every_context_option_selects_generated_output() {
@@ -184,7 +184,7 @@ fn every_context_option_selects_generated_output() {
     );
     assert_contains(
         enums.file("pgorm_active_enums.rs"),
-        "#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy, Hash)]",
+        "#[derive(Clone, Copy, Debug, PartialEq, Eq, ActiveEnum, Hash)]",
     );
     assert_contains(enums.file("pgorm_active_enums.rs"), "#[non_exhaustive]");
 
@@ -224,7 +224,7 @@ fn every_context_option_selects_generated_output() {
     );
     assert_contains(
         model_extras.file("task.rs"),
-        "#[derive(Clone, Debug, PartialEq, Entity, Eq, Default)]",
+        "#[derive(Clone, Debug, PartialEq, Eq, Entity, Default)]",
     );
     assert_contains(
         model_extras.file("task.rs"),
@@ -265,7 +265,7 @@ fn every_context_option_selects_generated_output() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.files+2/test]    one entity file per entity, plus
+// [spec:pgorm:req:codegen.entity.files+3/test]    one entity file per entity, plus
 // the index file and prelude
 #[test]
 fn generate_emits_entity_files_index_and_prelude() {
@@ -284,7 +284,7 @@ fn generate_emits_entity_files_index_and_prelude() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.files+2/test]    `pgorm_active_enums.rs` iff at
+// [spec:pgorm:req:codegen.entity.files+3/test]    `pgorm_active_enums.rs` iff at
 // least one enum was discovered
 #[test]
 fn active_enums_file_emitted_only_when_enums_exist() {
@@ -292,7 +292,7 @@ fn active_enums_file_emitted_only_when_enums_exist() {
     assert!(generate(enum_schema(), Opts::default()).has("pgorm_active_enums.rs"));
 }
 
-// [spec:pgorm:req:codegen.entity.files+2/test]    every generated file starts with
+// [spec:pgorm:req:codegen.entity.files+3/test]    every generated file starts with
 // the generated-by header
 #[test]
 fn every_generated_file_starts_with_the_header_line() {
@@ -308,7 +308,7 @@ fn every_generated_file_starts_with_the_header_line() {
     }
 }
 
-// [spec:pgorm:req:codegen.entity.files+2/test]    index file is `lib.rs` when `lib`
+// [spec:pgorm:req:codegen.entity.files+3/test]    index file is `lib.rs` when `lib`
 // is set and `mod.rs` otherwise
 #[test]
 fn index_file_name_follows_the_lib_flag() {
@@ -325,7 +325,7 @@ fn index_file_name_follows_the_lib_flag() {
     assert!(as_lib.has("lib.rs") && !as_lib.has("mod.rs"));
 }
 
-// [spec:pgorm:req:codegen.entity.files+2/test]    index file order: prelude, then
+// [spec:pgorm:req:codegen.entity.files+3/test]    index file order: prelude, then
 // entity modules alphabetically, then the active-enums module last
 #[test]
 fn index_file_lists_prelude_entities_then_active_enums() {
@@ -350,18 +350,18 @@ fn index_file_lists_prelude_entities_then_active_enums() {
         lines,
         [
             HEADER,
-            "pub mod prelude ;",
-            "pub mod cake ;",
-            "pub mod cake_filling ;",
-            "pub mod filling ;",
-            "pub mod fruit ;",
-            "pub mod task ;",
-            "pub mod pgorm_active_enums ;",
+            "pub mod prelude;",
+            "pub mod cake;",
+            "pub mod cake_filling;",
+            "pub mod filling;",
+            "pub mod fruit;",
+            "pub mod task;",
+            "pub mod pgorm_active_enums;",
         ]
     );
 }
 
-// [spec:pgorm:req:codegen.entity.files+2/test]    `prelude.rs` re-exports one
+// [spec:pgorm:req:codegen.entity.files+3/test]    `prelude.rs` re-exports one
 // `Entity` per entity
 #[test]
 fn prelude_reexports_every_entity() {
@@ -376,38 +376,54 @@ fn prelude_reexports_every_entity() {
         lines,
         [
             HEADER,
-            "pub use super :: cake :: Entity as Cake ;",
-            "pub use super :: cake_filling :: Entity as CakeFilling ;",
-            "pub use super :: filling :: Entity as Filling ;",
-            "pub use super :: fruit :: Entity as Fruit ;",
+            "pub use super::cake::Entity as Cake;",
+            "pub use super::cake_filling::Entity as CakeFilling;",
+            "pub use super::filling::Entity as Filling;",
+            "pub use super::fruit::Entity as Fruit;",
         ]
     );
 }
 
-// [spec:pgorm:req:codegen.entity.files+2/test]    entity-file code blocks are
-// joined with blank lines and left unformatted
+// [spec:pgorm:req:codegen.entity.files+3/test]    an entity file is formatted
+// Rust with no formatter run after it: the header, each section a block after a
+// blank line, an attribute's arguments one to a line where they do not fit on
+// its own, with no comma after the last, and a final newline
 #[test]
-fn entity_file_blocks_are_joined_with_blank_lines() {
+fn entity_files_are_formatted_rust() {
     let generated = generate(cake_schema(), Opts::default());
     let fruit = generated.file("fruit.rs");
-
-    let blocks = blocks(fruit);
     assert_eq!(
-        blocks.len(),
-        3,
-        "one block per compact section: {blocks:#?}"
-    );
-    assert!(blocks[0].starts_with("use pgorm :: entity :: prelude"));
-    assert!(blocks[1].starts_with("# [derive (Clone , Debug , PartialEq , Entity"));
-    assert!(blocks[2].starts_with(
-        "# [allow (clippy :: enum_variant_names)] # [derive (Copy , Clone , Debug , Relation)]"
-    ));
+        fruit,
+        format!(
+            "{HEADER}
 
-    // unformatted TokenStream text: no rustfmt-style newlines inside a block
-    assert!(
-        !blocks[1].contains('\n'),
-        "blocks are single unformatted lines"
+use pgorm::entity::prelude::*;
+
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
+#[pgorm(table_name = \"fruit\")]
+pub struct Model {{
+    #[pgorm(primary_key)]
+    pub id: i32,
+    pub name: String,
+    pub cake_id: Option<i32>,
+}}
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Copy, Clone, Debug, Relation)]
+pub enum Relation {{
+    #[pgorm(
+        belongs_to = super::cake::Entity,
+        from = Column::CakeId,
+        to = super::cake::Column::Id,
+        on_update = ForeignKeyAction::Cascade,
+        on_delete = ForeignKeyAction::Cascade
+    )]
+    Cake,
+}}
+"
+        )
     );
+    assert_eq!(blocks(fruit).len(), 3, "one block per compact section");
 }
 
 // [spec:pgorm:sem:codegen.entity.context+4/test]    `bonus_derive` folds extra
@@ -425,11 +441,11 @@ fn context_folds_extra_derives_into_comma_fragment() {
 
     assert_contains(
         generated.file("task.rs"),
-        "#[derive(Clone, Debug, PartialEq, Entity, Eq, Default, Hash)]",
+        "#[derive(Clone, Debug, PartialEq, Eq, Entity, Default, Hash)]",
     );
     assert_contains(
         generated.file("pgorm_active_enums.rs"),
-        "#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Hash, PartialOrd)]",
+        "#[derive(Clone, Debug, PartialEq, Eq, ActiveEnum, Hash, PartialOrd)]",
     );
 }
 

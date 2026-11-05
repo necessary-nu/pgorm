@@ -228,24 +228,14 @@ fn unholdable_domain_arrays_are_named() {
 
 // [spec:pgorm:sem:codegen.entity.types+13/test]    a domain column is a field of its base's
 // Rust type, an array of one a `Vec` of it, an enum or a created range's newtype included
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    the compact writer names every
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]    the compact writer names every
 // domain column's type, the domain and its base spelled in full
 #[test]
 fn domain_columns_generate_a_compiling_entity() {
     let generated = from_sql(SCHEMA);
-    let written = flat(generated.file("stock_line.rs"));
-    assert!(
-        written.contains(&flat(include_str!("sql/domain/stock_line.rs"))),
-        "{written}"
-    );
-    assert!(
-        norm(generated.file("pgorm_active_enums.rs"))
-            .contains(&norm(include_str!("sql/domain/pgorm_active_enums.rs")))
-    );
-    assert!(
-        norm(generated.file("pgorm_range_types.rs"))
-            .contains(&norm(include_str!("sql/domain/pgorm_range_types.rs")))
-    );
+    generated.holds("stock_line.rs", "sql/domain/stock_line.rs");
+    generated.holds("pgorm_active_enums.rs", "sql/domain/pgorm_active_enums.rs");
+    generated.holds("pgorm_range_types.rs", "sql/domain/pgorm_range_types.rs");
 
     for (column, (name, col_type)) in stock_line::Column::iter().zip(described()) {
         assert_eq!(column.as_str(), name);
