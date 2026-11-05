@@ -93,7 +93,7 @@ pub struct ChildView {
     next: i32,
 }
 
-// [spec:pgorm:req:macros.derive.code-values+3/test]    a relation's target, column pair,
+// [spec:pgorm:req:macros.derive.code-values+4/test]    a relation's target, column pair,
 // actions, key check, condition type and closure condition, all bare
 #[test]
 fn relation_keys_are_taken_as_written() {
@@ -112,7 +112,7 @@ fn relation_keys_are_taken_as_written() {
     assert!(def.on_condition.is_some());
 }
 
-// [spec:pgorm:req:macros.derive.code-values+3/test]    `variant` names the field's `Column`
+// [spec:pgorm:req:macros.derive.code-values+4/test]    `variant` names the field's `Column`
 // variant, and the defaults and generation are expressions, a negative literal included
 #[test]
 fn field_keys_are_taken_as_written() {
@@ -141,7 +141,7 @@ fn field_keys_are_taken_as_written() {
     assert_eq!(child::Column::Note.def(), ColumnType::Text.def());
 }
 
-// [spec:pgorm:req:macros.derive.code-values+3/test]    `rs_type` is a type, generics
+// [spec:pgorm:req:macros.derive.code-values+4/test]    `rs_type` is a type, generics
 // included; `db_type` an expression, omitted for a PostgreSQL enum; `array_type` an expression
 #[test]
 fn type_keys_are_taken_as_written() {
@@ -160,7 +160,7 @@ fn type_keys_are_taken_as_written() {
     );
 }
 
-// [spec:pgorm:req:macros.derive.code-values+3/test]    `PartialModel`'s entity is a type,
+// [spec:pgorm:req:macros.derive.code-values+4/test]    `PartialModel`'s entity is a type,
 // `from_col` a column path and `from_expr` an expression
 #[test]
 fn projection_keys_are_taken_as_written() {
@@ -169,6 +169,6 @@ fn projection_keys_are_taken_as_written() {
         .0;
     assert_eq!(
         sql,
-        r#"SELECT "child"."id", "child"."note" AS "text", "score" + $1 AS "next" FROM "child""#
+        r#"SELECT "child"."id", "child"."note" AS "text", "score" + $1::int4 AS "next" FROM "child""#
     );
 }

@@ -37,7 +37,7 @@ impl InputKind {
             ColumnType::Double => ArrayType::Double,
             // A `money` column is read as `numeric` and written cast to
             // `money` by the entity's own casts, so its values are decimals.
-            // [spec:pgorm:req:bindings.entities+5]
+            // [spec:pgorm:req:bindings.entities+6]
             ColumnType::Decimal(_) | ColumnType::Money => ArrayType::Decimal,
             ColumnType::Boolean => ArrayType::Bool,
             ColumnType::Date => ArrayType::Date,
@@ -199,7 +199,7 @@ impl InputKind {
     }
 
     /// The kind as `describe()` spells it.
-    // [spec:pgorm:req:bindings.entities+5]
+    // [spec:pgorm:req:bindings.entities+6]
     fn key(&self) -> Option<String> {
         self.tag().map(|tag| tag.key())
     }
@@ -266,16 +266,24 @@ pub(crate) struct EntityInfo {
     /// `EntityName::unique_keys` declares them.
     pub(crate) unique_keys: &'static [pgorm::UniqueKey],
     pub(crate) relations: Vec<Json>,
+    /// The registered entity value whose names the registration's statements
+    /// read, kept type-erased because the metadata is shared by every adapter
+    /// of the registration whatever its Rust type.
+    entity: std::sync::Arc<dyn std::any::Any + Send + Sync>,
 }
 
 impl EntityInfo {
-    pub(crate) fn of<E: EntityTrait>(name: &str) -> PyResult<Self> {
+    /// The metadata of `entity` registered under `name`, its table and
+    /// schema the instance's own.
+    pub(crate) fn of<E>(name: &str, entity: E) -> PyResult<Self>
+    where
+        E: EntityTrait + Send + Sync + 'static,
+    {
         if name.is_empty() || name.len() > 255 || name.contains('\0') {
             return Err(ConstructionError::new_err(
                 "registration names require 1–255 UTF-8 bytes without NUL",
             ));
         }
-        let entity = E::default();
         let table = entity.table_name().to_owned();
         let schema = entity.schema_name().map(str::to_owned);
         validate_name(&table)?;
@@ -331,6 +339,16 @@ impl EntityInfo {
             column_type: std::any::type_name::<E::Column>(),
             model_type: std::any::type_name::<E::Model>(),
             active_type: std::any::type_name::<E::ActiveModel>(),
+            entity: std::sync::Arc::new(entity),
+        })
+    }
+
+    /// The entity value this registration's statements name their table by,
+    /// refused for a type the registration was not made for.
+    // [spec:pgorm:req:bindings.entities+6]
+    pub(crate) fn entity<E: EntityTrait>(&self) -> Result<E, pgorm::Error> {
+        self.entity.downcast_ref::<E>().copied().ok_or_else(|| {
+            pgorm::Error::Type("ActiveModel belongs to another entity registration".to_owned())
         })
     }
 
@@ -342,7 +360,7 @@ impl EntityInfo {
     }
 
     /// The registration as `describe()` gives it.
-    // [spec:pgorm:req:bindings.entities+5]
+    // [spec:pgorm:req:bindings.entities+6]
     pub(crate) fn describe(&self) -> Json {
         json!({
             "name": self.name,
@@ -382,7 +400,7 @@ mod tests {
         InputKind::from_column(ty).key()
     }
 
-    // [spec:pgorm:req:bindings.entities+5/test]    a range column is described by its range kind,
+    // [spec:pgorm:req:bindings.entities+6/test]    a range column is described by its range kind,
     // and a registered entity's range field takes a `pgorm.Range` as its value
     #[test]
     fn range_columns_take_their_range_kind() -> PyResult<()> {
@@ -434,7 +452,7 @@ mod tests {
         })
     }
 
-    // [spec:pgorm:req:bindings.entities+5/test]    a created range column is described by its
+    // [spec:pgorm:req:bindings.entities+6/test]    a created range column is described by its
     // created kind, and a registered entity's field takes a `pgorm.Range` and reads back tagged
     // with the type
     #[test]

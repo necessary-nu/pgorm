@@ -361,7 +361,7 @@ async def main() -> None:
             Cake.col("bakery_id") == 1
         )
         assert raise_.inspect().sql == (
-            'UPDATE "cake" SET "price" = "cake"."price" + $1 WHERE "cake"."bakery_id" = $2'
+            'UPDATE "cake" SET "price" = "cake"."price" + $1::numeric WHERE "cake"."bakery_id" = $2'
         )
         assert await raise_.execute(pool) == 3
 

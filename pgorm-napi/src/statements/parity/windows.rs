@@ -3,9 +3,9 @@
 use std::ops::Bound;
 
 use pgorm::pgorm_query::{
-    ArrayType, BinOper, Expr, ExtendedWindow, FrameClause, FrameExclusion, FrameType, FromItem,
-    Func, Multirange, NamedTable, Order, OverStatement, Query, Range, RangeType, SelectStatement,
-    SimpleExpr, TableName, TypeName, Value, Values, WindowStatement,
+    ArrayType, BinOper, Expr, ExprTrait, ExtendedWindow, FrameClause, FrameExclusion, FrameType,
+    FromItem, Func, Multirange, NamedTable, Order, OverStatement, Query, Range, RangeType,
+    SelectStatement, SimpleExpr, TableName, TypeName, Value, Values, WindowStatement,
 };
 
 use super::n;

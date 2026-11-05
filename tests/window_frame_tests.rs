@@ -96,11 +96,9 @@ async fn bound_sums(
 ) -> Result<Vec<Option<i64>>, Error> {
     let (sql, values) = query.build();
     let rows: Vec<(Option<i64>,)> =
-        SelectorRaw::<SelectGetableTuple<(Option<i64>,)>>::into_tuple::<(Option<i64>,)>(
-            sql, values,
-        )
-        .all(db)
-        .await?;
+        SelectorRaw::<SelectGetableTuple<(Option<i64>,)>>::into_tuple(&sql, values)
+            .all(db)
+            .await?;
     Ok(rows.into_iter().map(|(sum,)| sum).collect())
 }
 

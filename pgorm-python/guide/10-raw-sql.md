@@ -217,7 +217,9 @@ column from its text, so SQL written for it casts the column,
 `SELECT *` decodes into `Cake` with no cast.
 
 Rust starts the same decode from other places too: `Select::from_raw_sql` on
-an entity's `find()`, and `FromQueryResult::find_by_statement`. Python has
+an entity's `find()`, `FromQueryResult::find_by_statement` and the
+`SelectorRaw` constructors, each taking the SQL text and its values in the
+one shape its connection methods take them. Python has
 neither yet: a model's queries are built, not written, and `ModelRecord` is
 how a written statement's row becomes a model's record. A registered Rust
 entity's model, an `EntityModel`, cannot be decoded from a raw statement's

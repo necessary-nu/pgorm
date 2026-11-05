@@ -25,7 +25,7 @@ pub(crate) fn subquery(value: &Bound<'_, PyAny>) -> PyResult<Option<SelectStatem
 /// one array value through Rust's `Expr::array`, which can be cast and
 /// compared as a value where a subquery's rows cannot. The subquery is read
 /// as any embedded one is, so it is checked as `embedded` checks it.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 #[pyfunction(name = "array")]
 pub(crate) fn subquery_array(select: PyRef<'_, PySelect>) -> PyResult<PyExpr> {
     Ok(PyExpr::from_rust(Expr::array(select.embedded()?)))
@@ -33,7 +33,7 @@ pub(crate) fn subquery_array(select: PyRef<'_, PySelect>) -> PyResult<PyExpr> {
 
 /// `exists(select)`: `EXISTS (select)` through Rust's `Expr::exists`,
 /// whether the subquery yields a row.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 #[pyfunction(name = "exists")]
 pub(crate) fn subquery_exists(select: PyRef<'_, PySelect>) -> PyResult<PyExpr> {
     Ok(PyExpr::from_rust(Expr::exists(select.embedded()?)))
@@ -42,7 +42,7 @@ pub(crate) fn subquery_exists(select: PyRef<'_, PySelect>) -> PyResult<PyExpr> {
 /// `scalar(select)`: `(select)`, a subquery read as the one value of its one
 /// row, NULL when it yields none. PostgreSQL refuses one of more than one
 /// column (`42601`) and, as it runs, one yielding more than one row (`21000`).
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 #[pyfunction(name = "scalar")]
 pub(crate) fn subquery_scalar(select: PyRef<'_, PySelect>) -> PyResult<PyExpr> {
     let select = SubQueryStatement::SelectStatement(select.embedded()?);
@@ -128,7 +128,7 @@ impl PyQuantified {
 
 #[pymethods]
 impl PyQuantified {
-    // [spec:pgorm:req:python.truth-testing+4]
+    // [spec:pgorm:req:python.truth-testing+5]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "ANY and ALL cannot be tested as Python booleans",

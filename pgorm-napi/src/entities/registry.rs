@@ -4,7 +4,7 @@
 
 use std::{
     any::TypeId,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     marker::PhantomData,
     sync::Arc,
 };
@@ -42,7 +42,12 @@ impl From<Failure> for RegistrationError {
 #[derive(Debug, Default)]
 pub struct Registry {
     pub(crate) entities: BTreeMap<String, Arc<dyn EntityBackend>>,
+    /// The first registration of each Rust entity type, which a graph or a
+    /// source tuple over the type reads its metadata from.
     types: HashMap<TypeId, String>,
+    /// Every registered type with the table its instance names, so one table
+    /// is not registered twice under one type.
+    tables: HashSet<(TypeId, Option<String>, String)>,
     pub(crate) graphs: BTreeMap<String, Arc<dyn Factory>>,
     pub(crate) sources: BTreeMap<String, Arc<dyn super::sources::SourcesFactory>>,
     pub(crate) disjoints: crate::disjoint::Registered,
@@ -51,9 +56,10 @@ pub struct Registry {
 
 impl Registry {
     /// Register an entity's real `EntityTrait`, model, columns and
-    /// ActiveModel under `name`. A name or a Rust type registered twice is
-    /// refused, and nothing is added.
-    // [spec:pgorm:req:bindings.entities+5]
+    /// ActiveModel under `name`, its statements naming `E::default()`'s
+    /// table. A name or a Rust type registered twice is refused, and nothing
+    /// is added.
+    // [spec:pgorm:req:bindings.entities+6]
     // [spec:pgorm:req:napi.application+2]
     pub fn entity<E>(&mut self, name: &str) -> Result<&mut Self, RegistrationError>
     where
@@ -61,20 +67,40 @@ impl Registry {
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
-        if self.entities.contains_key(name) || self.types.contains_key(&TypeId::of::<E>()) {
+        self.entity_in(name, E::default())
+    }
+
+    /// Register `entity`, an instance of an entity whose names are computed
+    /// at run time, under `name`: every statement of the registration names
+    /// the instance's table, as Rust's `_in` constructors do. A type may be
+    /// registered once for each table its instances name; a name, or a type
+    /// and table already registered, is refused, and nothing is added.
+    // [spec:pgorm:req:bindings.entities+6]
+    pub fn entity_in<E>(&mut self, name: &str, entity: E) -> Result<&mut Self, RegistrationError>
+    where
+        E: EntityTrait + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: Send + Sync + 'static,
+    {
+        let table = (
+            TypeId::of::<E>(),
+            entity.schema_name().map(str::to_owned),
+            entity.table_name().to_owned(),
+        );
+        if self.entities.contains_key(name) || self.tables.contains(&table) {
             return Err(RegistrationError(format!(
                 "{name:?} or its Rust entity is already registered"
             )));
         }
-        let info = Arc::new(EntityInfo::of::<E>(name)?);
+        let info = Arc::new(EntityInfo::of(name, entity)?);
         self.entities.insert(
             name.to_owned(),
-            Arc::new(EntityAdapter::<E> {
-                info,
-                entity: PhantomData,
-            }),
+            Arc::new(EntityAdapter::<E> { info, entity }),
         );
-        self.types.insert(TypeId::of::<E>(), name.to_owned());
+        self.types
+            .entry(TypeId::of::<E>())
+            .or_insert_with(|| name.to_owned());
+        self.tables.insert(table);
         Ok(self)
     }
 
@@ -189,7 +215,7 @@ mod tests {
         pub enum Relation {}
     }
 
-    // [spec:pgorm:req:bindings.entities+5/test]    a name or a Rust entity registered
+    // [spec:pgorm:req:bindings.entities+6/test]    a name or a Rust entity registered
     // twice, a name out of bounds and a graph of an unregistered entity are each
     // refused, and nothing is added
     #[test]

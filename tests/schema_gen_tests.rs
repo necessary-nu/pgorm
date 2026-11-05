@@ -1185,7 +1185,7 @@ async fn bounded_derived_names_are_the_servers_live() -> Result<(), Error> {
 }
 
 // [spec:pgorm:sem:schema.from-entity+12/test]    an entity's composite unique keys are written after its columns' own, in declaration order, under the name each declares or none
-// [spec:pgorm:req:entity.traits.entity-name+5/test]
+// [spec:pgorm:req:entity.traits.entity-name+6/test]
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+10/test]
 #[test]
 fn composite_unique_keys_are_written() {
@@ -1215,7 +1215,7 @@ fn composite_unique_keys_are_written() {
 }
 
 // [spec:pgorm:sem:schema.from-entity+12/test]    a unique key an `EntityName` written by hand describes with no columns is refused as `Error::Type` naming the entity, since PostgreSQL cannot write `UNIQUE ()`
-// [spec:pgorm:req:entity.traits.entity-name+5/test]
+// [spec:pgorm:req:entity.traits.entity-name+6/test]
 #[test]
 fn a_unique_key_of_no_columns_is_refused() {
     match Schema::new().create_table_from_entity(hand_keyed::Entity) {

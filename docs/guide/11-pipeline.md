@@ -94,6 +94,48 @@ assert_eq!(
 # }
 ```
 
+An entity's own model decodes straight out of a pipeline over the entity. A
+pipeline that projects nothing selects `*`, which sends an enum column as the
+enum, while the model reads it as its text, as the entity's own queries
+select it. So when the type you decode reads a column through a cast, the
+terminal ends the pipeline by selecting the columns the type reads, each
+cast column under its cast:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("pipeline_models").await;
+# let db = scratch.pool.get().await?;
+use pgorm::pipeline::{ExprOps, Pipeline};
+use pgorm_guide_support::cake::{self, Column as C, Flavor};
+
+let lemon: cake::Model = Pipeline::from(cake::Entity)
+    .filter(C::Flavor.eq("lemon"))
+    .one(&db)
+    .await?;
+assert_eq!(lemon.name, "Lemon Drizzle");
+assert_eq!(lemon.flavor, Flavor::Lemon);
+
+let (sql, _) = Pipeline::from(cake::Entity)
+    .filter(C::Flavor.eq("lemon"))
+    .into_sql()?;
+assert_eq!(sql, "SELECT * FROM cake WHERE flavor = CAST('lemon' AS flavor)");
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+`into_sql` shows the pipeline as written; the cake read runs
+`SELECT id, name, CAST(flavor AS text) AS flavor, price, gluten_free, bakery_id`
+over it. A type that reads no column through a cast decodes from the
+pipeline's own SQL. The added projection names columns bare, the way the
+type reads them, so it needs a relation in which each of those names means
+one column. After a join of two tables that share one, such as `id`, it is
+refused as ambiguous, and
+[`select_sources`](crate::pipeline::Pipeline::select_sources), below, is the
+way to decode each table's model.
+
 ## The steps
 
 | Step | What it does | SQL it usually becomes |
@@ -335,14 +377,14 @@ assert_eq!(
 # }
 ```
 
-To decode the entities themselves rather than columns of your choosing, end
-with [`select_sources`](crate::pipeline::Pipeline::select_sources), listing
-the relations the pipeline read. It projects each source's columns the way
-the entity's own queries read them, an enum column as its text among them,
-which the `*` an unprojected pipeline selects does not: `all::<cake::Model>()`
-over one fails to decode the cake's flavor. Each listed source decodes as an
-`Option` of its model, because a right or full join can leave either side
-absent:
+To decode the joined entities themselves rather than columns of your
+choosing, end with
+[`select_sources`](crate::pipeline::Pipeline::select_sources), listing the
+relations the pipeline read. It projects each source's columns the way the
+entity's own queries read them, an enum column as its text among them, each
+source under a prefix of its own, so two tables sharing a column name stay
+apart. Each listed source decodes as an `Option` of its model, because a
+right or full join can leave either side absent:
 
 ```rust
 # #[tokio::main(flavor = "current_thread")]
@@ -653,6 +695,40 @@ assert_eq!(
         ("Sunrise".to_owned(),),
     ]
 );
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+A step after a combination reads the whole combined relation. The
+combination is written as a `WITH` query first and the step reads it, so a
+projection or a grouping after an `append` applies to the rows of both
+relations rather than to the first one's alone. Every cake, counted twice:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("pipeline_append_then_group").await;
+# let db = scratch.pool.get().await?;
+use pgorm::pipeline::{ExprOps, Pipeline, alias, count_rows};
+use pgorm_guide_support::cake::{self, Column as C};
+
+let cakes = alias("cakes");
+let twice = Pipeline::from(cake::Entity)
+    .append(cake::Entity)
+    .group(C::BakeryId)
+    .aggregate(count_rows().as_(cakes));
+
+let (sql, _) = twice.clone().into_sql()?;
+assert!(
+    sql.starts_with("WITH table_0 AS (SELECT * FROM cake UNION ALL SELECT * FROM cake")
+        && sql.ends_with("FROM table_0 GROUP BY bakery_id"),
+    "{sql}"
+);
+let mut rows: Vec<(i32, i64)> = twice.into_tuple()?.all(&db).await?;
+rows.sort();
+assert_eq!(rows, [(1, 6), (2, 4)]);
 # drop(db);
 # scratch.finish().await;
 # Ok(())

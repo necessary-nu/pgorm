@@ -1,6 +1,6 @@
 use crate::keywords::Position;
+use crate::like::LikeEscape;
 use crate::query::RowLimit;
-use crate::types::LikeEscape;
 use crate::{
     extension::{
         ExtensionCreateStatement, ExtensionDropOpt, ExtensionDropStatement, TypeAlterAddOpt,
@@ -52,6 +52,7 @@ mod sequence;
 mod set_operation;
 #[path = "query_builder_subscript.rs"]
 mod subscript;
+mod typed_operands;
 #[path = "query_builder_view.rs"]
 mod view;
 #[path = "query_builder_window.rs"]
@@ -405,7 +406,7 @@ impl QueryBuilder {
 
     // [spec:pgorm:sem:sql.render.empty-in+1]
     // [spec:pgorm:req:sql.render.subquery+5] (SubQuery/Tuple/Values expression arms)
-    // [spec:pgorm:req:sql.render.custom-expr+3]
+    // [spec:pgorm:req:sql.render.custom-expr+4]
     fn prepare_simple_expr(&self, simple_expr: &SimpleExpr, sql: &mut dyn SqlWriter) {
         match simple_expr {
             SimpleExpr::Column(column_ref) => {
@@ -465,7 +466,7 @@ impl QueryBuilder {
             SimpleExpr::Raw(s) => {
                 write!(sql, "{s}").unwrap();
             }
-            // [spec:pgorm:req:sql.render.custom-expr+3]
+            // [spec:pgorm:req:sql.render.custom-expr+4]
             SimpleExpr::Template(template) => {
                 for segment in template.segments() {
                     match segment {
@@ -524,7 +525,7 @@ impl QueryBuilder {
     /// `LIKE` / `ILIKE` / `SIMILAR TO`.
     // [spec:pgorm:def:sql.render.operators+8]
     fn prepare_like_expr(&self, like: &LikeExpr, sql: &mut dyn SqlWriter) {
-        sql.push_param(like.pattern.clone().into());
+        sql.push_param(like.pattern().into());
         match like.escape {
             Some(LikeEscape::Char(escape)) => {
                 write!(sql, " ESCAPE ").unwrap();
@@ -869,7 +870,11 @@ impl QueryBuilder {
             if func.mods[i].distinct {
                 write!(sql, "DISTINCT ").unwrap();
             }
-            self.prepare_simple_expr(expr, sql);
+            if typed_operands::function_reads_type(&func.func, i) {
+                self.prepare_typed_operand(expr, sql);
+            } else {
+                self.prepare_simple_expr(expr, sql);
+            }
         }
         write!(sql, ")").unwrap();
 

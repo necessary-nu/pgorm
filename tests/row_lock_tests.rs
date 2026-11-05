@@ -10,6 +10,7 @@
 //! lock is observed from a second connection, whose `NOWAIT` read of the
 //! locked rows fails while the first holds them.
 
+use pgorm_query::ExprTrait;
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
@@ -60,12 +61,10 @@ fn aliased(alias: &str) -> NamedTable {
 
 /// Run `query` through `build`, its values bound, counting the rows it reads.
 async fn count<C: ConnectionTrait>(db: &C, query: SelectStatement) -> Result<usize, Error> {
-    Ok(
-        Selector::<SelectGetableTuple<i32>>::into_tuple::<i32>(query)
-            .all(db)
-            .await?
-            .len(),
-    )
+    Ok(Selector::<SelectGetableTuple<i32>>::into_tuple(query)
+        .all(db)
+        .await?
+        .len())
 }
 
 fn locking(from: impl IntoFromItem, of: &str) -> SelectStatement {

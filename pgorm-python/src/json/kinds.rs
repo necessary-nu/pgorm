@@ -2,8 +2,8 @@
 //! straight from an operand: `FORMAT JSON` and `IS [NOT] JSON`.
 
 use pgorm::pgorm_query::{
-    Expr, JsonExistsBehavior, JsonInput, JsonKind, JsonQueryBehavior, JsonTest, JsonValueBehavior,
-    SimpleExpr, Value,
+    Expr, ExprTrait, JsonExistsBehavior, JsonInput, JsonKind, JsonQueryBehavior, JsonTest,
+    JsonValueBehavior, SimpleExpr, Value,
 };
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
@@ -54,7 +54,7 @@ pub enum PyJsonKind {
 
 #[pymethods]
 impl PyJsonKind {
-    // [spec:pgorm:req:python.truth-testing+4]
+    // [spec:pgorm:req:python.truth-testing+5]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "SQL/JSON clauses cannot be tested as Python booleans",

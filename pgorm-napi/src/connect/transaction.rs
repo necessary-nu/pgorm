@@ -15,16 +15,18 @@ use futures_util::future::BoxFuture;
 use neon::{prelude::*, types::Finalize};
 use pgorm::{
     DatabaseTransaction, IsolationLevel, TransactionError, TransactionMode, TransactionTrait,
+    metric::InstrumentedTransaction,
 };
 use tokio::sync::{Mutex, OwnedMutexGuard, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    Abort, ConnectionHandle, ConnectionState, Operation, Outcome, Statement, abort_argument,
+    Abort, ConnectionHandle, ConnectionState, Held, Operation, Outcome, Statement, abort_argument,
     copy::{
         self, CopyInHandle, CopyOutHandle, InLink, InState, OutLink, OutState, Release, Settle,
     },
     job::{Database, Job, Output, taken},
+    metrics::Metrics,
 };
 use crate::{
     errors::{Failure, Redactions, failure},
@@ -396,6 +398,24 @@ enum Ended {
     Ran(Completion),
 }
 
+/// The transaction a frame serves: a plain one, or pgorm's metrics wrapper
+/// around one on an instrumented pool's connection, whose savepoints are
+/// instrumented too.
+// [spec:pgorm:req:bindings.metrics]
+enum Tx<'a, 't> {
+    Plain(&'a mut DatabaseTransaction<'t>),
+    Metered(&'a mut InstrumentedTransaction<'t, Metrics>),
+}
+
+impl Tx<'_, '_> {
+    fn database(&self) -> Database<'_> {
+        match self {
+            Self::Plain(tx) => Database::Transaction(tx),
+            Self::Metered(tx) => Database::MeteredTransaction(tx),
+        }
+    }
+}
+
 /// One frame: its commands, and what outlives the closure serving them.
 struct Frame {
     state: Arc<State>,
@@ -431,10 +451,7 @@ impl Frame {
     /// nested inside while it is open: `Ok` once JavaScript commits, an `Exit`
     /// once it rolls back or the handle is collected unfinished.
     // [spec:pgorm:req:bindings.transactions]
-    fn serve<'a>(
-        &'a mut self,
-        tx: &'a mut DatabaseTransaction<'_>,
-    ) -> BoxFuture<'a, Result<(), Exit>> {
+    fn serve<'a>(&'a mut self, mut tx: Tx<'a, '_>) -> BoxFuture<'a, Result<(), Exit>> {
         Box::pin(async move {
             self.finished = Some(Finished(self.state.finished.clone()));
             if self
@@ -455,9 +472,10 @@ impl Frame {
                 };
                 match command {
                     Command::Run { statement, reply } => {
+                        let db = tx.database();
                         let outcome = tokio::select! {
                             () = self.state.abandoned.cancelled() => return self.halt.discard().await,
-                            outcome = statement.run(&*tx, &self.secrets) => outcome,
+                            outcome = statement.run(&db, &self.secrets) => outcome,
                         };
                         if reply.send(outcome).is_err() {
                             return self.halt.discard().await;
@@ -466,7 +484,7 @@ impl Frame {
                     Command::Job { job, reply } => {
                         let outcome = tokio::select! {
                             () = self.state.abandoned.cancelled() => return self.halt.discard().await,
-                            outcome = job(Database::Transaction(&*tx), &self.secrets) => outcome,
+                            outcome = job(tx.database(), &self.secrets) => outcome,
                         };
                         if reply.send(outcome).is_err() {
                             return self.halt.discard().await;
@@ -492,9 +510,16 @@ impl Frame {
                         lock,
                     } => {
                         let stop = self.state.copy_stop(abort);
-                        let settle =
-                            copy::copy_in(&mut *tx, &copy, link, opened, &stop, &self.secrets)
-                                .await;
+                        let settle = match &mut tx {
+                            Tx::Plain(tx) => {
+                                copy::copy_in(&mut **tx, &copy, link, opened, &stop, &self.secrets)
+                                    .await
+                            }
+                            Tx::Metered(tx) => {
+                                copy::copy_in(&mut **tx, &copy, link, opened, &stop, &self.secrets)
+                                    .await
+                            }
+                        };
                         if self.state.after_copy(settle, lock, release) {
                             return self.halt.discard().await;
                         }
@@ -508,9 +533,16 @@ impl Frame {
                         lock,
                     } => {
                         let stop = self.state.copy_stop(abort);
-                        let settle =
-                            copy::copy_out(&mut *tx, &copy, link, opened, &stop, &self.secrets)
-                                .await;
+                        let settle = match &mut tx {
+                            Tx::Plain(tx) => {
+                                copy::copy_out(&mut **tx, &copy, link, opened, &stop, &self.secrets)
+                                    .await
+                            }
+                            Tx::Metered(tx) => {
+                                copy::copy_out(&mut **tx, &copy, link, opened, &stop, &self.secrets)
+                                    .await
+                            }
+                        };
                         if self.state.after_copy(settle, lock, release) {
                             return self.halt.discard().await;
                         }
@@ -523,9 +555,20 @@ impl Frame {
                     } => {
                         let mut frame = Frame::new(child.clone(), receiver, opened);
                         let halt = frame.halt.clone();
-                        let ended = halt
-                            .run(tx.transaction(async |savepoint| frame.serve(savepoint).await))
-                            .await;
+                        let ended = match &mut tx {
+                            Tx::Plain(tx) => {
+                                halt.run(tx.transaction(async |savepoint| {
+                                    frame.serve(Tx::Plain(savepoint)).await
+                                }))
+                                .await
+                            }
+                            Tx::Metered(tx) => {
+                                halt.run(tx.transaction(async |savepoint| {
+                                    frame.serve(Tx::Metered(savepoint)).await
+                                }))
+                                .await
+                            }
+                        };
                         let completion = match frame.end(ended) {
                             Ended::Ran(completion) => completion,
                             Ended::Refused(opened, error) => {
@@ -633,9 +676,14 @@ async fn begin(
                 };
                 let mut frame = Frame::new(owner.clone(), receiver, opened);
                 let halt = frame.halt.clone();
-                let ended = halt
-                    .run(db.transaction_with(mode, async |tx| frame.serve(tx).await))
-                    .await;
+                let ended = match db {
+                    Held::Plain(db) => halt
+                        .run(db.transaction_with(mode, async |tx| frame.serve(Tx::Plain(tx)).await))
+                        .await,
+                    Held::Metered(db) => halt
+                        .run(db.transaction_with(mode, async |tx| frame.serve(Tx::Metered(tx)).await))
+                        .await,
+                };
                 match frame.end(ended) {
                     Ended::Ran(completion) => Some(completion),
                     Ended::Refused(opened, error) => {
@@ -812,7 +860,7 @@ fn transaction_closed(mut cx: FunctionContext) -> JsResult<JsBoolean> {
 
 /// `transactionJob(transaction, job, abort)`: a registered entity's job in
 /// the transaction, holding its lock as a statement does.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 // [spec:pgorm:req:bindings.registered-pools]
 fn transaction_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = state(&mut cx)?;

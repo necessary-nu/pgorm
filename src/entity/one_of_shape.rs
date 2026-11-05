@@ -12,7 +12,7 @@
 use std::fmt;
 
 use pgorm_query::{
-    Check, Expr, Func, Name, SimpleExpr, Table, TableAlterStatement, TableName, Value,
+    Check, Expr, ExprTrait, Func, Name, SimpleExpr, Table, TableAlterStatement, TableName, Value,
 };
 
 use super::{column_casts::ColumnCasts, disjoint_shape::types};

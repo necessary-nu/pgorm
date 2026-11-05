@@ -452,7 +452,7 @@ enum ResultCol {
 // ordinal, plus `find_by_statement`
 // [spec:pgorm:req:exec.decode.many-arity/test]    a short column slice is a
 // type error, surplus names are ignored, and the index path is unchecked
-// [spec:pgorm:def:exec.crud+1/test]    `find_by_statement` builds a `SelectorRaw`
+// [spec:pgorm:def:exec.crud+2/test]    `find_by_statement` builds a `SelectorRaw`
 // over `SelectGetableValue` through `with_columns`
 #[pgorm_macros::test]
 async fn decode_many() -> Result<(), Error> {
@@ -490,7 +490,7 @@ async fn decode_many() -> Result<(), Error> {
     // `find_by_statement` names the columns by iterating the `C` identifier
     // enum, so the decoded tuple follows the enum's declaration order.
     let named: (i32, String) =
-        <(i32, String)>::find_by_statement::<ResultCol>(SQL.to_owned(), Values(Vec::new()))
+        <(i32, String)>::find_by_statement::<ResultCol, _>(SQL, Values(Vec::new()))
             .one(&db)
             .await?;
     assert_eq!(named, (1, "word".to_owned()));

@@ -810,6 +810,14 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+A step after a combination reads the whole combined relation, as in Rust:
+the combination is written as a `WITH` query first and the step reads it, so
+`pl.from_(Cake).append(pl.source(Cake)).select(pl.col("cake", "name"))` projects the rows
+of both operands, `WITH table_0 AS (SELECT * FROM cake UNION ALL SELECT *
+FROM cake) SELECT name FROM table_0`, and a column named against an operand's
+table still resolves after `intersect` or `remove`. A `distinct` directly
+after `append` still folds into `UNION DISTINCT`, as above.
+
 ## When a pipeline fails
 
 What can go wrong with a pipeline is mostly found when it compiles, in

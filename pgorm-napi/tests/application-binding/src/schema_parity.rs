@@ -8,18 +8,26 @@ use std::collections::BTreeMap;
 use pgorm::{EntityTrait, Schema};
 use serde_json::{Value as Json, json};
 
-use crate::{account, booking, labels, listings, membership, note, parcel, shipping, temper, till};
+use crate::{
+    account, booking, labels, listings, membership, note, parcel, shipping, temper, tenant_note,
+    till,
+};
 
 /// The entity's table, enum, index and comment statements as SQL, or the
 /// message `Schema::create_table_from_entity` refuses its table with.
 fn generated<E: EntityTrait>() -> Json {
+    generated_in(E::default())
+}
+
+/// The same statements for the table `entity` names.
+fn generated_in<E: EntityTrait>(entity: E) -> Json {
     let schema = Schema::new();
-    match schema.create_table_from_entity(E::default()) {
+    match schema.create_table_from_entity(entity) {
         Ok(table) => json!({
             "table": table.to_string(),
-            "enums": schema.create_enum_from_entity(E::default()).iter().map(ToString::to_string).collect::<Vec<_>>(),
-            "indexes": schema.create_index_from_entity(E::default()).iter().map(ToString::to_string).collect::<Vec<_>>(),
-            "comments": schema.create_comments_from_entity(E::default()).iter().map(ToString::to_string).collect::<Vec<_>>(),
+            "enums": schema.create_enum_from_entity(entity).iter().map(ToString::to_string).collect::<Vec<_>>(),
+            "indexes": schema.create_index_from_entity(entity).iter().map(ToString::to_string).collect::<Vec<_>>(),
+            "comments": schema.create_comments_from_entity(entity).iter().map(ToString::to_string).collect::<Vec<_>>(),
         }),
         Err(error) => json!({ "refused": error.to_string() }),
     }
@@ -64,6 +72,16 @@ fn entity_schemas_match_the_golden_file() {
             generated::<shipping::pallet::Entity>(),
         ),
         ("app.Label".to_owned(), generated::<labels::label::Entity>()),
+        (
+            "app.TenantNote".to_owned(),
+            generated::<tenant_note::Entity>(),
+        ),
+        (
+            "app.AcmeTenantNote".to_owned(),
+            generated_in(tenant_note::Entity {
+                tenant: "napi_acme",
+            }),
+        ),
     ]);
 
     let account = &built["app.Account"];

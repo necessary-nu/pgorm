@@ -118,7 +118,7 @@ pub async fn insert_and_delete_repository(db: &DatabaseConnection) -> Result<(),
 
 // [spec:pgorm:sem:exec.crud.insert+6/test]    a client-supplied primary key is
 // answered from the RETURNING row like any other, not echoed back from the model
-// [spec:pgorm:sem:query.build.insert+5/test]    which is why `Insert::add` keeps
+// [spec:pgorm:sem:query.build.insert+6/test]    which is why `Insert::add` keeps
 // no primary-key value tuple to echo
 // [spec:pgorm:sem:exec.crud.update+7/test]    `UpdateOne::exec_returning_model`
 // returns the model

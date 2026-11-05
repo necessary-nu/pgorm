@@ -204,3 +204,7 @@ from ._from_items import (
     Table as Table, FromItem as FromItem, SampleMethod as SampleMethod,
     TableFunction as TableFunction,
 )
+from ._metrics import (
+    METRICS_HOOKS as METRICS_HOOKS, QueryContext as QueryContext,
+    QueryFingerprint as QueryFingerprint, _MetricsAnswer as _MetricsAnswer,
+)

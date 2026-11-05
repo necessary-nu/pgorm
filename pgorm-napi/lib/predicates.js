@@ -3,7 +3,7 @@
 // The predicates over an expression: NULL tests, membership, ranges of
 // values, patterns and text tests. LIKE's family also takes `any(..)` or
 // `all(..)` over patterns, which carry no escape.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 // [spec:pgorm:req:bindings.quantifiers+3]
 
 import { arg, args, Handle, made, trusted, TRUSTED } from "./builder.js";
@@ -23,6 +23,43 @@ export class LikeExpr extends Handle {
   constructor(handle, token) {
     trusted(token, "LikeExpr", "likeExpr(pattern)");
     super(handle);
+  }
+
+  /**
+   * A pattern matching exactly `text`, its `%`, `_` and escape character
+   * escaped.
+   *
+   * @param {string} text
+   */
+  static literal(text) {
+    return new LikeExpr(native.likeExprText(text, "literal"), TRUSTED);
+  }
+
+  /**
+   * `%text%` over literal text.
+   *
+   * @param {string} text
+   */
+  static containing(text) {
+    return new LikeExpr(native.likeExprText(text, "containing"), TRUSTED);
+  }
+
+  /**
+   * `text%` over literal text.
+   *
+   * @param {string} text
+   */
+  static startingWith(text) {
+    return new LikeExpr(native.likeExprText(text, "startingWith"), TRUSTED);
+  }
+
+  /**
+   * `%text` over literal text.
+   *
+   * @param {string} text
+   */
+  static endingWith(text) {
+    return new LikeExpr(native.likeExprText(text, "endingWith"), TRUSTED);
   }
 
   /**

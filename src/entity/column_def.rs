@@ -1,7 +1,7 @@
 //! Column-type introspection and [`ColumnDef`] construction.
 
 use super::*;
-use pgorm_query::{ColumnRef, GeneratedKind, IdentityGeneration, SelectExpr};
+use pgorm_query::{ColumnRef, ExprTrait, GeneratedKind, IdentityGeneration, SelectExpr};
 
 /// pgorm's utility methods that act on [ColumnType]
 pub trait ColumnTypeTrait {
@@ -46,16 +46,6 @@ fn enum_name(col_type: &ColumnType) -> Option<&Name> {
         ColumnType::Array(col_type) => enum_name(col_type),
         _ => None,
     }
-}
-
-/// The `LIKE`-metacharacter escape behind the substring sugar: `%`, `_` and
-/// the escape character itself become literal, so search text matches
-/// itself and nothing else.
-// [spec:pgorm:def:entity.traits.column+9]
-pub(crate) fn escape_like_text(text: &str) -> String {
-    text.replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_")
 }
 
 /// A type's name and schema as the structured [`TypeName`] a cast renders.
@@ -475,6 +465,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{ColumnTrait, EntityTrait};
+    use pgorm_query::ExprTrait;
 
     // [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    every
     // value-position operand passes through `save_as` — between, if_null and

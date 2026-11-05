@@ -123,7 +123,9 @@ impl Pipeline {
         sources: impl IntoIterator<Item = DescribedSource>,
     ) -> Result<Pipeline, PipelineError> {
         let mut projection = Vec::new();
+        let mut count = 0;
         for (index, source) in sources.into_iter().enumerate() {
+            count = index + 1;
             let prefix = source_prefix(index);
             for (column, read_as) in source.columns {
                 let alias = result_column_name(&prefix, &column);
@@ -135,7 +137,7 @@ impl Pipeline {
                 projection.push(adapter::aliased(node, alias));
             }
         }
-        let mut pipeline = appended_projection(self, projection)?;
+        let mut pipeline = appended_projection(self, projection, count)?;
         pipeline.reshaped = Some("select");
         Ok(pipeline)
     }

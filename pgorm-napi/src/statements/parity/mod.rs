@@ -133,7 +133,7 @@ pub(crate) fn check(file: &str, built: Vec<(&str, (String, Values))>) {
 }
 
 // [spec:pgorm:req:bindings.select+4/test]
-// [spec:pgorm:req:bindings.expressions+3/test]
+// [spec:pgorm:req:bindings.expressions+4/test]
 // [spec:pgorm:req:bindings.quantifiers+3/test]
 // [spec:pgorm:req:bindings.cte-options/test]
 #[test]

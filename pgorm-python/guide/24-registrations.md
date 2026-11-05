@@ -543,6 +543,24 @@ registered twice, or a Rust entity registered under two names, is refused
 there, before the entry is added. `install` fails on a module that already
 has a registry.
 
+`Registry::entity` registers `E::default()`, and every statement of the
+registration names that value's table. An entity whose names are computed at
+run time, such as a schema per tenant, is registered once for each value it
+serves with `Registry::entity_in`, and each registration reads and writes its
+own value's table, as Rust's `Entity::find_in(entity)` and the other `_in`
+constructors do:
+
+```rust
+registry.entity::<note::Entity>("app.Note")?;
+registry.entity_in("app.AcmeNote", note::Entity { tenant: "acme" })?;
+```
+
+Python picks the tenant by the name it asks for, `p.entity("app.AcmeNote")`,
+since a Python program has no Rust value to hand over itself. A Rust type is
+registered once for each table its values name, so the same type and table
+under two names is the duplicate refused above. A graph or a source tuple
+over the type reads the metadata of its first registration.
+
 The crate is a library named `_native`, of crate types `cdylib` and `rlib`.
 It depends on the checkout's `pgorm-python` with its default
 `standalone-module` feature off, so that the module initializer is the

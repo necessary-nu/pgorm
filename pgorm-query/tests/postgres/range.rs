@@ -301,7 +301,7 @@ fn range_values_agree_on_identity() {
     assert!(std::mem::size_of::<Value>() <= 4 * std::mem::size_of::<usize>());
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+5/test]    `overlaps` is `&&` between its operands, bound
+// [spec:pgorm:req:sql.ast.expr.operators+6/test]    `overlaps` is `&&` between its operands, bound
 // or inlined, and the parser reads one operator expression
 #[test]
 fn overlaps_renders_the_overlap_operator() {

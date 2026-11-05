@@ -31,12 +31,12 @@ fn the_generated_json_impls() {
     }
 
     assert_eq!(
-        <Meta as ValueType>::try_from(value).expect("round trips"),
+        <Meta as ValueType>::from_value(value).expect("round trips"),
         Meta {
             tags: vec!["a".to_owned()]
         }
     );
-    assert!(<Meta as ValueType>::try_from(pgorm::Value::Json(None)).is_err());
+    assert!(<Meta as ValueType>::from_value(pgorm::Value::Json(None)).is_err());
     assert_eq!(<Meta as ValueType>::type_name(), "Meta");
     assert_eq!(<Meta as ValueType>::column_type(), ColumnType::Json);
     assert_eq!(<Meta as ValueType>::array_type(), ArrayType::Json);

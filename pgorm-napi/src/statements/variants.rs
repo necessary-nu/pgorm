@@ -18,7 +18,7 @@ fn spelled<T: Clone>(table: &[(&str, T)], rest: impl IntoIterator<Item = T>) -> 
         .collect()
 }
 
-// [spec:pgorm:req:bindings.expressions+3/test]
+// [spec:pgorm:req:bindings.expressions+4/test]
 #[test]
 fn every_binary_operator_is_spelled_or_left_out() {
     // What another method writes: exprLogic, exprUnary, exprIn, exprBetween,

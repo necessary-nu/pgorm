@@ -288,7 +288,7 @@ test("a registered one-of enum's describe() reports exactly the keys the surface
 });
 
 // [spec:pgorm:req:bindings.surface+2/test]
-// [spec:pgorm:req:bindings.entities+5/test]
+// [spec:pgorm:req:bindings.entities+6/test]
 test("a registered entity's describe() reports exactly the keys the surface declares", {
   skip: pgorm.entities().length === 0 && "the module registers no entity; checks/entities.js runs this against an application's",
 }, () => {

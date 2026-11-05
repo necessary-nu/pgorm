@@ -1,13 +1,13 @@
 //! `Expr`'s NULL tests, membership in a list or a subquery's rows, and
 //! `[NOT] BETWEEN [SYMMETRIC]`.
 
-use pgorm::pgorm_query::Expr;
+use pgorm::pgorm_query::{Expr, ExprTrait};
 use pyo3::prelude::*;
 
 use super::{PyExpr, coerce, construct::sequence};
 use crate::statements::subquery;
 
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 #[pymethods]
 impl PyExpr {
     fn is_null(&self) -> Self {

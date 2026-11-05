@@ -2,14 +2,18 @@
 //! drives the COPY, while the native handle holds the transaction's
 //! reservation until the COPY ends.
 
-use super::{State, scope::Command, state::Pending};
+use super::{
+    State,
+    scope::{Command, Tx},
+    state::Pending,
+};
 use crate::{
     copy::{
         Columns, CopyFrom, CopyTo, Message, Piece, Unopened, drive_in, drive_out, open_in, open_out,
     },
     errors::{LifecycleError, database_error},
 };
-use pgorm::{DatabaseTransaction, Error};
+use pgorm::Error;
 use pyo3::prelude::*;
 use std::sync::Arc;
 use tokio::sync::{OwnedMutexGuard, mpsc, oneshot};
@@ -129,13 +133,17 @@ pub(super) enum RanIn {
 
 /// Run a COPY FROM on the owner's transaction.
 pub(super) async fn run_in(
-    tx: &mut DatabaseTransaction<'_>,
+    tx: &mut Tx<'_, '_>,
     statement: &CopyFrom,
     rows: Option<&Columns>,
     messages: &mut mpsc::Receiver<Message>,
     opened: oneshot::Sender<Result<(), Unopened>>,
 ) -> RanIn {
-    match open_in(tx, statement, rows).await {
+    let started = match tx {
+        Tx::Plain(tx) => open_in(&mut **tx, statement, rows).await,
+        Tx::Metered(tx) => open_in(&mut **tx, statement, rows).await,
+    };
+    match started {
         Err(Unopened::Undescribed(error)) => {
             let _ = opened.send(Err(Unopened::Undescribed(error)));
             RanIn::Undescribed
@@ -155,13 +163,17 @@ pub(super) async fn run_in(
 /// still in a known state. A refusal aborts it as any failed statement does;
 /// a reader gone part way leaves the server sending.
 pub(super) async fn run_out(
-    tx: &mut DatabaseTransaction<'_>,
+    tx: &mut Tx<'_, '_>,
     statement: &CopyTo,
     rows: Option<&Columns>,
     pieces: &mpsc::Sender<Piece>,
     opened: oneshot::Sender<Result<(), Unopened>>,
 ) -> bool {
-    match open_out(tx, statement, rows).await {
+    let started = match tx {
+        Tx::Plain(tx) => open_out(&mut **tx, statement, rows).await,
+        Tx::Metered(tx) => open_out(&mut **tx, statement, rows).await,
+    };
+    match started {
         Err(unopened) => opened.send(Err(unopened)).is_ok(),
         Ok(stream) => {
             if opened.send(Ok(())).is_err() {

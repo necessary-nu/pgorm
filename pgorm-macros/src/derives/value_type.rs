@@ -1,11 +1,11 @@
 use super::sql_type_match::{arr_type_match, col_type_match, unwrap_option};
-use super::util::bare_code;
+use super::util::{bare_code, into_active_value};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, Type, spanned::Spanned};
 
-// [spec:pgorm:sem:macros.derive.value-type+6]
-// [spec:pgorm:req:macros.derive.code-values+3]
+// [spec:pgorm:sem:macros.derive.value-type+7]
+// [spec:pgorm:req:macros.derive.code-values+4]
 pub fn expand_derive_value_type(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let syn::DeriveInput {
         ident: name,
@@ -60,6 +60,7 @@ pub fn expand_derive_value_type(input: syn::DeriveInput) -> syn::Result<TokenStr
     Ok(impl_value_type(
         &name,
         &ty,
+        inner_type,
         &col_type_match(col_type, inner_type, field_span)?,
         &arr_type_match(arr_type, inner_type, field_span),
     ))
@@ -68,10 +69,24 @@ pub fn expand_derive_value_type(input: syn::DeriveInput) -> syn::Result<TokenStr
 fn impl_value_type(
     name: &Ident,
     field_type: &Type,
+    inner_type: &Type,
     column_type: &TokenStream,
     array_type: &TokenStream,
 ) -> TokenStream {
+    let into_active_value = into_active_value(name);
     quote!(
+        #into_active_value
+
+        // The null of the value the newtype holds: an `Option` field's is its
+        // payload's, since `Option<T>` itself has no `Nullable`, a column of
+        // either newtype being as nullable as the type underneath.
+        #[automatically_derived]
+        impl pgorm::pgorm_query::Nullable for #name {
+            fn null() -> pgorm::Value {
+                <#inner_type as pgorm::pgorm_query::Nullable>::null()
+            }
+        }
+
         #[automatically_derived]
         impl std::convert::From<#name> for pgorm::Value {
             fn from(source: #name) -> Self {
@@ -89,8 +104,8 @@ fn impl_value_type(
 
         #[automatically_derived]
         impl pgorm::pgorm_query::ValueType for #name {
-            fn try_from(v: pgorm::Value) -> std::result::Result<Self, pgorm::pgorm_query::ValueTypeError> {
-                <#field_type as pgorm::pgorm_query::ValueType>::try_from(v).map(|v| #name(v))
+            fn from_value(v: pgorm::Value) -> std::result::Result<Self, pgorm::pgorm_query::ValueTypeError> {
+                <#field_type as pgorm::pgorm_query::ValueType>::from_value(v).map(|v| #name(v))
             }
 
             fn type_name() -> std::string::String {

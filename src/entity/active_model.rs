@@ -255,7 +255,7 @@ pub trait ActiveModelTrait: Clone + Debug {
     /// the two must stand or fall together.
     ///
     /// [txn]: crate::DatabaseTransaction
-    // [spec:pgorm:req:entity.active-model.persistence+2]
+    // [spec:pgorm:req:entity.active-model.persistence+3]
     // [spec:pgorm:req:entity.active-model.hooks+1]
     #[doc(alias = "save")]
     async fn insert<'a, C>(self, db: &'a C) -> Result<<Self::Entity as EntityTrait>::Model, Error>
@@ -264,11 +264,26 @@ pub trait ActiveModelTrait: Clone + Debug {
         Self: ActiveModelBehavior + 'a,
         C: ConnectionTrait,
     {
-        // tracing::debug!("Insert ActiveModel: {:?}", self);
+        self.insert_in(Self::Entity::default(), db).await
+    }
+
+    /// [`insert`](ActiveModelTrait::insert) into the table `entity` names,
+    /// hooks and all, as [`Insert::one_in`] writes it: for an entity whose
+    /// names are computed at run time.
+    // [spec:pgorm:req:entity.active-model.persistence+3]
+    // [spec:pgorm:req:entity.active-model.hooks+1]
+    async fn insert_in<'a, C>(
+        self,
+        entity: Self::Entity,
+        db: &'a C,
+    ) -> Result<<Self::Entity as EntityTrait>::Model, Error>
+    where
+        <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
+        Self: ActiveModelBehavior + 'a,
+        C: ConnectionTrait,
+    {
         let am = ActiveModelBehavior::before_save(self, db, true).await?;
-        // tracing::debug!("before save");
-        let model = Insert::one(am).exec_returning_model(db).await?;
-        // tracing::debug!("before save");
+        let model = Insert::one_in(entity, am).exec_returning_model(db).await?;
         Self::after_save(model, db, true).await
     }
 
@@ -300,7 +315,7 @@ pub trait ActiveModelTrait: Clone + Debug {
     /// the two must stand or fall together.
     ///
     /// [txn]: crate::DatabaseTransaction
-    // [spec:pgorm:req:entity.active-model.persistence+2]
+    // [spec:pgorm:req:entity.active-model.persistence+3]
     // [spec:pgorm:req:entity.active-model.hooks+1]
     #[doc(alias = "save")]
     async fn update<'a, C>(self, db: &'a C) -> Result<<Self::Entity as EntityTrait>::Model, Error>
@@ -309,9 +324,26 @@ pub trait ActiveModelTrait: Clone + Debug {
         Self: ActiveModelBehavior + 'a,
         C: ConnectionTrait,
     {
+        self.update_in(Self::Entity::default(), db).await
+    }
+
+    /// [`update`](ActiveModelTrait::update) of a row of the table `entity`
+    /// names, hooks and all, as [`Update::one_in`] writes it.
+    // [spec:pgorm:req:entity.active-model.persistence+3]
+    // [spec:pgorm:req:entity.active-model.hooks+1]
+    async fn update_in<'a, C>(
+        self,
+        entity: Self::Entity,
+        db: &'a C,
+    ) -> Result<<Self::Entity as EntityTrait>::Model, Error>
+    where
+        <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
+        Self: ActiveModelBehavior + 'a,
+        C: ConnectionTrait,
+    {
         let am = ActiveModelBehavior::before_save(self, db, false).await?;
         let model: <Self::Entity as EntityTrait>::Model =
-            Update::one(am)?.exec_returning_model(db).await?;
+            Update::one_in(entity, am)?.exec_returning_model(db).await?;
         Self::after_save(model, db, false).await
     }
 
@@ -347,9 +379,20 @@ pub trait ActiveModelTrait: Clone + Debug {
         Self: ActiveModelBehavior + 'a,
         C: ConnectionTrait,
     {
+        self.delete_in(Self::Entity::default(), db).await
+    }
+
+    /// [`delete`](ActiveModelTrait::delete) from the table `entity` names,
+    /// hooks and all, as [`Delete::one_in`] deletes from it.
+    // [spec:pgorm:req:entity.active-model.hooks+1]
+    async fn delete_in<'a, C>(self, entity: Self::Entity, db: &'a C) -> Result<u64, Error>
+    where
+        Self: ActiveModelBehavior + 'a,
+        C: ConnectionTrait,
+    {
         let am = ActiveModelBehavior::before_delete(self, db).await?;
         let am_clone = am.clone();
-        let delete_res = Delete::one(am)?.exec(db).await?;
+        let delete_res = Delete::one_in(entity, am)?.exec(db).await?;
         ActiveModelBehavior::after_delete(am_clone, db).await?;
         Ok(delete_res)
     }

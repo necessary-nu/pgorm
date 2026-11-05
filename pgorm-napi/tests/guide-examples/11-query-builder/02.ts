@@ -20,7 +20,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
   ]);
 
   const raise = update(cake).set("price", col("price").add(new Decimal("0.50"))).where(col("bakery_id").eq(2));
-  assert.equal(raise.inspect().sql, `UPDATE "cake" SET "price" = "price" + $1 WHERE "bakery_id" = $2`);
+  assert.equal(raise.inspect().sql, `UPDATE "cake" SET "price" = "price" + $1::numeric WHERE "bakery_id" = $2`);
   assert.equal(await pool.execute(raise), 2);
 
   const deleted = await pool.query(deleteFrom(cake).where(col("id").eq(5)).returning([col("name")]));

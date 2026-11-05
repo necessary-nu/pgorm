@@ -6,7 +6,7 @@
 //! `UpdateOne::exec_returning_change` — so JavaScript reaches the entity's
 //! own semantics rather than a reimplementation of them.
 
-use std::{any::Any, fmt::Debug, marker::PhantomData, sync::Arc};
+use std::{any::Any, fmt::Debug, sync::Arc};
 
 use futures_util::future::BoxFuture;
 use pgorm::pgorm_query::{
@@ -321,10 +321,11 @@ pub(crate) fn column<E: EntityTrait>(info: &EntityInfo, name: &str) -> Result<E:
 #[derive(Debug)]
 pub(crate) struct EntityAdapter<E> {
     pub(crate) info: Arc<EntityInfo>,
-    pub(crate) entity: PhantomData<E>,
+    /// The registered entity value, whose table every statement names.
+    pub(crate) entity: E,
 }
 
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 impl<E> EntityBackend for EntityAdapter<E>
 where
     E: EntityTrait + Send + Sync + 'static,
@@ -339,20 +340,20 @@ where
     fn schema(&self) -> Result<EntitySchema, Error> {
         let schema = pgorm::Schema::new();
         Ok(EntitySchema {
-            table: schema.create_table_from_entity(E::default())?,
-            enums: schema.create_enum_from_entity(E::default()),
-            indexes: schema.create_index_from_entity(E::default()),
-            comments: schema.create_comments_from_entity(E::default()),
+            table: schema.create_table_from_entity(self.entity)?,
+            enums: schema.create_enum_from_entity(self.entity),
+            indexes: schema.create_index_from_entity(self.entity),
+            comments: schema.create_comments_from_entity(self.entity),
         })
     }
 
     fn source(&self) -> pgorm::pipeline::Source {
-        pgorm::pipeline::IntoSource::into_source(E::default())
+        pgorm::pipeline::IntoSource::into_source(self.entity)
     }
 
     fn select(&self) -> Select {
         Arc::new(SelectAdapter::<E> {
-            query: E::find(),
+            query: E::find_in(self.entity),
             info: self.info.clone(),
         })
     }
@@ -527,13 +528,13 @@ where
     ) -> Result<Vec<Versions>, Error> {
         match write {
             VersionWrite::Change(active) => {
-                let change = Update::one(concrete::<E>(&active)?)?
+                let change = Update::one_in(self.entity, concrete::<E>(&active)?)?
                     .exec_returning_change(&db)
                     .await?;
                 Ok(vec![self.change(change)])
             }
             VersionWrite::Changes(assignments, filter) => {
-                let mut update = Update::many(E::default());
+                let mut update = Update::many(self.entity);
                 for (name, assignment) in assignments {
                     let column = column::<E>(&self.info, &name)
                         .map_err(|failure| Error::Custom(failure.message().to_owned()))?;
@@ -774,10 +775,11 @@ where
 
     fn run<'a>(&'a self, db: Database<'a>, write: Write) -> BoxFuture<'a, Result<Written, Error>> {
         Box::pin(async move {
+            let (entity, active) = (self.info.entity::<E>()?, self.value.clone());
             let model = match write {
-                Write::Insert => self.value.clone().insert(&db).await?,
-                Write::Update => self.value.clone().update(&db).await?,
-                Write::Delete => return self.value.clone().delete(&db).await.map(Written::Count),
+                Write::Insert => active.insert_in(entity, &db).await?,
+                Write::Update => active.update_in(entity, &db).await?,
+                Write::Delete => return active.delete_in(entity, &db).await.map(Written::Count),
             };
             Ok(Written::Model(model_of::<E>(model, &self.info)))
         })

@@ -2,9 +2,9 @@
 //! directly.
 
 use pgorm::pgorm_query::{
-    Asterisk, BinOper, CommonTableExpression, Expr, FromItem, Func, NamedTable, OnConflict,
-    Overriding, Query, ReturningRow, SelectStatement, SimpleExpr, TableName, TypeName, Value,
-    Values, WithClause,
+    Asterisk, BinOper, CommonTableExpression, Expr, ExprTrait, FromItem, Func, NamedTable,
+    OnConflict, Overriding, Query, ReturningRow, SelectStatement, SimpleExpr, TableName, TypeName,
+    Value, Values, WithClause,
 };
 
 use super::n;

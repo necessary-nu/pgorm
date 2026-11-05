@@ -7,7 +7,7 @@
 // a transaction. A record is a frozen plain object keyed by SQL column name,
 // behind which the module keeps the Rust model it was read as, so that
 // `intoActive` converts the real model rather than rebuilding one.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 
 import { Handle, TRUSTED } from "./builder.js";
 import { Condition } from "./conditions.js";

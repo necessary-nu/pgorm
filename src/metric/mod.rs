@@ -5,8 +5,13 @@ pub use fingerprint::{QueryContext, QueryFingerprint};
 pub use pool::InstrumentedPool;
 
 use crate::{
-    ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, SqlText, TransactionTrait,
-    database::sealed::{Close, Handle, Open, Token},
+    ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, RetryableError, SqlText,
+    TransactionError, TransactionMode, TransactionTrait,
+    database::{
+        OpenWith,
+        sealed::{Close, Handle, Open, Token},
+        with_mode, with_retry,
+    },
 };
 use async_trait::async_trait;
 use fingerprint::FingerprintSuffix;
@@ -102,7 +107,7 @@ pub trait MetricsCollector: Clone + Send + Sync + 'static {
     /// drops, every hook is `async`, and `Drop::drop` is not.
     ///
     /// [`record_query_error`]: MetricsCollector::record_query_error
-    // [spec:pgorm:sem:metric.layer.tx+4]    the semantic an implementor reads at the trait
+    // [spec:pgorm:sem:metric.layer.tx+5]    the semantic an implementor reads at the trait
     async fn record_transaction_rollback(&self, duration: Duration);
 }
 
@@ -197,7 +202,7 @@ impl MetricsCollector for LoggingMetrics {
 }
 
 /// A connection wrapper that instruments all database operations
-// [spec:pgorm:def:metric.layer+2]    connection wrapper
+// [spec:pgorm:def:metric.layer+3]    connection wrapper
 #[derive(Debug)]
 pub struct InstrumentedConnection<M: MetricsCollector> {
     connection: DatabaseConnection,
@@ -218,9 +223,49 @@ impl<M: MetricsCollector> InstrumentedConnection<M> {
         &self.connection
     }
 
+    /// The wrapped connection, given back: what runs on it from here is not
+    /// reported.
+    // [spec:pgorm:def:metric.layer+3]    the connection wrapper given back
+    pub fn into_inner(self) -> DatabaseConnection {
+        self.connection
+    }
+
     /// Get a reference to the metrics collector
     pub fn metrics(&self) -> &M {
         &self.metrics
+    }
+
+    /// [`DatabaseConnection::transaction_with`], reported as
+    /// [`transaction`](TransactionTrait::transaction) reports: the closure is
+    /// given an [`InstrumentedTransaction`], and the configured `BEGIN` is
+    /// timed and reported as any opening is.
+    // [spec:pgorm:sem:metric.layer.tx+5]    a configured transaction on an instrumented connection
+    pub async fn transaction_with<T, E, F>(
+        &mut self,
+        mode: TransactionMode,
+        f: F,
+    ) -> Result<T, TransactionError<E>>
+    where
+        F: AsyncFnOnce(&mut InstrumentedTransaction<'_, M>) -> Result<T, E>,
+    {
+        with_mode(self, mode, f).await
+    }
+
+    /// [`DatabaseConnection::transaction_with_retry`], each attempt reported
+    /// as one transaction: its opening, its statements, and its commit or
+    /// rollback.
+    // [spec:pgorm:sem:metric.layer.tx+5]    every retried attempt reported as a transaction
+    pub async fn transaction_with_retry<T, E, F>(
+        &mut self,
+        mode: TransactionMode,
+        max_retries: u32,
+        f: F,
+    ) -> Result<T, TransactionError<E>>
+    where
+        F: AsyncFnMut(&mut InstrumentedTransaction<'_, M>) -> Result<T, E>,
+        E: RetryableError,
+    {
+        with_retry(self, mode, max_retries, f).await
     }
 }
 
@@ -303,7 +348,7 @@ impl<M: MetricsCollector> ConnectionTrait for InstrumentedConnection<M> {
 /// The handle a transaction closure on an [`InstrumentedConnection`] is given:
 /// a [`DatabaseTransaction`] whose statements, savepoints and ending are
 /// reported to the collector.
-// [spec:pgorm:sem:metric.layer.tx+4]    an instrumented handle for every instrumented transaction
+// [spec:pgorm:sem:metric.layer.tx+5]    an instrumented handle for every instrumented transaction
 #[derive(Debug)]
 pub struct InstrumentedTransaction<'a, M: MetricsCollector> {
     transaction: DatabaseTransaction<'a>,
@@ -402,7 +447,7 @@ impl<M: MetricsCollector> ConnectionTrait for InstrumentedTransaction<'_, M> {
 // only to code after its definition, a child module's included.
 mod copy;
 
-// [spec:pgorm:sem:metric.layer.tx+4]    a transaction opened on an instrumented connection
+// [spec:pgorm:sem:metric.layer.tx+5]    a transaction opened on an instrumented connection
 impl<M: MetricsCollector> TransactionTrait for InstrumentedConnection<M> {}
 
 impl<M: MetricsCollector> Handle for InstrumentedConnection<M> {
@@ -415,7 +460,16 @@ impl<M: MetricsCollector> Open for InstrumentedConnection<M> {
     }
 }
 
-// [spec:pgorm:sem:metric.layer.tx+4]    a savepoint inside an instrumented transaction
+impl<M: MetricsCollector> OpenWith for InstrumentedConnection<M> {
+    async fn open_with(
+        &mut self,
+        mode: TransactionMode,
+    ) -> Result<InstrumentedTransaction<'_, M>, Error> {
+        begun(self.metrics.clone(), self.connection.open_with(mode)).await
+    }
+}
+
+// [spec:pgorm:sem:metric.layer.tx+5]    a savepoint inside an instrumented transaction
 impl<M: MetricsCollector> TransactionTrait for InstrumentedTransaction<'_, M> {}
 
 impl<M: MetricsCollector> Handle for InstrumentedTransaction<'_, M> {
@@ -430,7 +484,7 @@ impl<M: MetricsCollector> Open for InstrumentedTransaction<'_, M> {
 
 /// Time `opening` and report it: `record_transaction_begin` once it is open,
 /// `record_query_error` under `"begin"` if the server refused it.
-// [spec:pgorm:sem:metric.layer.tx+4]    a timed BEGIN or SAVEPOINT
+// [spec:pgorm:sem:metric.layer.tx+5]    a timed BEGIN or SAVEPOINT
 async fn begun<'t, M: MetricsCollector>(
     metrics: M,
     opening: impl Future<Output = Result<DatabaseTransaction<'t>, Error>>,
@@ -456,7 +510,7 @@ async fn begun<'t, M: MetricsCollector>(
     }
 }
 
-// [spec:pgorm:sem:metric.layer.tx+4]    the ending a closure's outcome selects, reported
+// [spec:pgorm:sem:metric.layer.tx+5]    the ending a closure's outcome selects, reported
 impl<M: MetricsCollector> Close for InstrumentedTransaction<'_, M> {
     /// A successful commit reports `record_transaction_commit`. A failed one
     /// reports the error through `record_query_error` under `"commit"` and then

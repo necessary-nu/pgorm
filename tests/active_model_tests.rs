@@ -1028,7 +1028,7 @@ where
     Ok(())
 }
 
-// [spec:pgorm:req:entity.active-model.persistence+2/test]    `insert` comes back
+// [spec:pgorm:req:entity.active-model.persistence+3/test]    `insert` comes back
 // with the database-generated key populated (the single `INSERT ... RETURNING`
 // round trip), `update` returns the freshly written `Model`, and `delete`
 // returns the rows-affected count, keyed on the primary key
@@ -1100,7 +1100,7 @@ async fn active_model_persistence() -> Result<(), Error> {
 // caller's choice, not a reading of the model: `update` accepts a primary key in
 // either the `Set` or the `Unchanged` state, the two states an inference would
 // have had to tell apart
-// [spec:pgorm:req:entity.active-model.persistence+2/test]
+// [spec:pgorm:req:entity.active-model.persistence+3/test]
 #[pgorm_macros::test]
 async fn update_accepts_set_or_unchanged_key() -> Result<(), Error> {
     let ctx = TestContext::new("update_accepts_set_or_unchanged_key").await;

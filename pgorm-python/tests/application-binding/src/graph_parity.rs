@@ -1,5 +1,5 @@
 use crate::{account, graphs, note};
-use pgorm::pgorm_query::{Expr, Name, Order};
+use pgorm::pgorm_query::{Expr, ExprTrait, Name, Order};
 use pgorm::{QueryFilter, QueryOrder, QueryTrait};
 use pgorm_python::expressions::Compiled;
 use pyo3::{prelude::*, types::PyDict};
@@ -72,7 +72,7 @@ fn graphs_require_sources_and_unique_names() -> PyResult<()> {
 }
 
 // [spec:pgorm:req:bindings.entity-graphs+4/test]
-// [spec:pgorm:req:bindings.entities+5/test]
+// [spec:pgorm:req:bindings.entities+6/test]
 #[test]
 fn temporal_keys_and_period_relations_match_rust() -> PyResult<()> {
     use crate::{room, stay};
