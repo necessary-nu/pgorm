@@ -530,10 +530,10 @@ test("a registered created range's quantified comparisons bind as the array of t
   assert.deepStrictEqual(await ids(Booking.find().where(span.overlaps(all([new Range(2, 3), new Range(1, 1.6)])))), [1]);
 });
 
-// [spec:pgorm:req:bindings.created-ranges+2/test]    a registered column of an array of a created
+// [spec:pgorm:req:bindings.created-ranges+3/test]    a registered column of an array of a created
 // range takes an array of the kind's values, the empty array and null elements included, as the array
 // of their texts cast to the type's array, compares through the column's casts, and reads back as an
-// array; no program declares such an array as a Value
+// array, a declared Value of the array's kind included
 test("a registered created range array binds as the array of the ranges' texts", async () => {
   await Booking.active().set("id", 1).set("span", new Range(1, 2)).set("spares", [new Range(1.5, 2.5), new Range(3, 4)])
     .insert(pool());
@@ -556,10 +556,9 @@ test("a registered created range array binds as the array of the ranges' texts",
   assert.deepStrictEqual(moved.spares, found.spares);
   assert.throws(() => Booking.active().set("spares", ["nope"]), ConstructionError);
   assert.throws(() => Booking.active().set("span", Booking.tagged(found, "spares")), ConstructionError);
-  assert.throws(
-    () => Value.array(new CreatedRange("floatrange", "f64", { schema: "napi_entities" }), [new Range(1, 2)]),
-    ConstructionError,
-  );
+  const declared = Value.array(new CreatedRange("floatrange", "f64", { schema: "napi_entities" }), [new Range(5, 6)]);
+  assert.deepStrictEqual(await ids(Booking.find().where(spares.ne(declared))), [1, 2]);
+  assert.throws(() => Booking.active().set("spares", Value.array(new CreatedRange("floatrange", "f64"), [])), ConstructionError);
 });
 
 // [spec:pgorm:req:bindings.entity-writes/test]

@@ -189,8 +189,11 @@ writes back to its column (an `int4range` literal there is `42804`). A created
 range is continuous whatever its subtype, so `[1,5]` reads back as written. The
 driver reports a created multirange as a simple type with no subtype, so a
 column of one raises `DecodeError`; select it cast to `text` and pass the text
-to `Value(text, CreatedMultirange(...))`. Arrays of a created range are refused
-both ways. The pipeline and SQL/JSON's `JsonDefault` refuse a created range's
+to `Value(text, CreatedMultirange(...))`. `Value.array(CreatedRange(...), items)`
+is an array of the kind, each item converted as a value of it is and held as its
+text, and is cast to the type's array where it is written; a result column of
+an array of a created range decodes element by element to it, and a query's
+array of a created multirange raises `DecodeError` as a column of one does. The pipeline and SQL/JSON's `JsonDefault` refuse a created range's
 value, as they refuse a qualified enum's, having no place for its cast.
 
 ## Intervals

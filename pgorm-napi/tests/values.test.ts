@@ -8,6 +8,7 @@ import { Buffer } from "node:buffer";
 import { after, before, test } from "node:test";
 
 import {
+  col as statementCol,
   ConstructionError,
   CreatedMultirange,
   CreatedRange,
@@ -437,7 +438,7 @@ test("an empty array and an SQL NULL array still name their element kind", async
   throwsConstruction(() => Value.array("i32", [new Value(1, "i64")]), /i64 value is not a value of kind i32/);
 });
 
-// [spec:pgorm:req:bindings.created-ranges+2/test]
+// [spec:pgorm:req:bindings.created-ranges+3/test]
 test("a created range converts each bound through its subtype and travels as its text", async () => {
   const value = new Value(new Range(1.5, 2.5), floatrange);
   assert.equal(value.kind, "created_range");
@@ -460,9 +461,31 @@ test("a created range converts each bound through its subtype and travels as its
     "{[1,3)}",
   );
   throwsConstruction(() => new Value(new Range<unknown>(1n, 2), floatrange), /f64 takes a number/);
-  throwsConstruction(() => Value.array(floatrange, []), /created range/);
-  await undecodable("SELECT ARRAY['[1,2)'::app.floatrange] AS v", /created range/);
   throwsConstruction(() => new CreatedRange("r", "bool" as "i32"), /subtype/);
+});
+
+// [spec:pgorm:req:bindings.created-ranges+3/test]    an array of a created range is a value of its own
+// kind both ways: each element held as its text, bound as the array of the texts, and decoded element by
+// element through the subtype's codec; a query's array of a created multirange, reported with no subtype,
+// is undecodable
+test("an array of a created range holds each element as its text and decodes element by element", async () => {
+  const array = Value.array(floatrange, [new Range(1.5, 2.5), null, "[3,4]", new Value(new Range(5, 6), floatrange)]);
+  assert.equal(array.kind, "array");
+  assert.deepEqual(array.elementType, floatrange);
+  same(array.value, [new Range(1.5, 2.5), null, new Range(3, 4, "[]"), new Range(5, 6)]);
+  assert.deepEqual(array.items()?.map((item) => item.kind), Array(4).fill("created_range"));
+  same(Value.array(floatrange, []).value, []);
+  assert.equal(Value.array(floatrange, null).isNull, true);
+  same(Value.array(floatmultirange, [new Multirange([new Range(1, 2)])]).value, [new Multirange([new Range(1, 2)])]);
+  assert.equal(statementCol("x").eq(array).inspect().sql, 'SELECT "x" = CAST($1::text[] AS app.floatrange[])');
+  const [tagged] = await db().query("SELECT $1::app.floatrange[] AS v, '{}'::app.floatrange[] AS e, NULL::app.floatrange[] AS n", [array], { tagged: true });
+  assert.equal(tagged?.v?.kind, "array");
+  assert.deepEqual(tagged?.v?.elementType, floatrange);
+  same(tagged?.v?.value, [new Range(1.5, 2.5), null, new Range(3, 4, "[]"), new Range(5, 6)]);
+  same(tagged?.e?.value, []);
+  assert.equal(tagged?.n?.isNull, true);
+  throwsConstruction(() => Value.array(floatrange, [new Value(new Range(1, 2), new CreatedRange("other", "f64"))]));
+  await undecodable(`SELECT '{"{[1,2)}"}'::app.floatmultirange[] AS v`);
 });
 
 // [spec:pgorm:req:bindings.value-tags/test]

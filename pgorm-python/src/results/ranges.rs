@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use super::{
     codecs::ExactDecimal,
-    decode::{Field, read, typed},
+    decode::{Field, typed},
 };
 use crate::{
     errors::DecodeError,
@@ -146,13 +146,7 @@ pub(super) fn value(field: Field<'_>, ty: &Type, array: bool) -> PyResult<Option
         _ => return Ok(None),
     };
     if !built_in(ty) {
-        if array {
-            return Err(DecodeError::new_err(format!(
-                "column {index} is an array of the created range type `{ty}`, which Python \
-                 does not hold"
-            )));
-        }
-        return created(field, ty, subtype, multi).map(Some);
+        return created(field, ty, subtype, multi, array).map(Some);
     }
     let Some(range) = range_type(subtype) else {
         return Err(DecodeError::new_err(format!(
@@ -188,25 +182,36 @@ pub(super) fn value(field: Field<'_>, ty: &Type, array: bool) -> PyResult<Option
     Ok(Some(PyValue::from_rust(value)))
 }
 
-/// A column of a range type a schema created: read in binary as a range of
-/// its subtype's Rust type, through the subtype's own codec, and held as the
-/// text form that type's values travel as, tagged with the type's name.
-// [spec:pgorm:req:bindings.created-ranges+2]
-fn created(field: Field<'_>, ty: &Type, subtype: &Type, multi: bool) -> PyResult<PyValue> {
+/// A column of a range type a schema created, or of an array of one: read in
+/// binary as a range of its subtype's Rust type, through the subtype's own
+/// codec, each element of an array alike, and held as the text form that
+/// type's values travel as, tagged with the type's name.
+// [spec:pgorm:req:bindings.created-ranges+3]
+fn created(
+    field: Field<'_>,
+    ty: &Type,
+    subtype: &Type,
+    multi: bool,
+    array: bool,
+) -> PyResult<PyValue> {
     let index = field.index();
     macro_rules! text {
         ($rust:ty, $kind:ident, $bound:expr) => {
             (
                 ArrayType::$kind,
                 if multi {
-                    read::<MultirangeCodec<$rust>>(field)?.map(|v| v.0.map($bound).to_string())
+                    typed::<MultirangeCodec<$rust>>(field, array, ArrayType::String, |v| {
+                        Value::String(v.map(|v| Box::new(v.0.map($bound).to_string())))
+                    })?
                 } else {
-                    read::<RangeCodec<$rust>>(field)?.map(|v| v.0.map($bound).to_string())
+                    typed::<RangeCodec<$rust>>(field, array, ArrayType::String, |v| {
+                        Value::String(v.map(|v| Box::new(v.0.map($bound).to_string())))
+                    })?
                 },
             )
         };
     }
-    let (kind, text) = match *base_type(subtype) {
+    let (kind, value) = match *base_type(subtype) {
         Type::INT2 => text!(i16, SmallInt, |v| v),
         Type::INT4 => text!(i32, Int, |v| v),
         Type::INT8 => text!(i64, BigInt, |v| v),
@@ -226,15 +231,16 @@ fn created(field: Field<'_>, ty: &Type, subtype: &Type, multi: bool) -> PyResult
             )));
         }
     };
-    Ok(PyValue::from_created(
-        text,
-        CreatedKind {
-            name: PyTypeName {
-                name: ty.name().to_owned(),
-                schema: Some(ty.schema().to_owned()),
-            },
-            subtype: kind,
-            multirange: multi,
+    let kind = CreatedKind {
+        name: PyTypeName {
+            name: ty.name().to_owned(),
+            schema: Some(ty.schema().to_owned()),
         },
-    ))
+        subtype: kind,
+        multirange: multi,
+    };
+    Ok(match value {
+        Value::String(text) => PyValue::from_created(text.map(|text| *text), kind),
+        array => PyValue::from_created_array(array, kind),
+    })
 }

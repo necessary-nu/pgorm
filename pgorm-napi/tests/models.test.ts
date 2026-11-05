@@ -333,7 +333,7 @@ test("a result that breaks the declaration is a DecodeError, never a value", asy
 
 // [spec:pgorm:req:bindings.models+5/test]
 // [spec:pgorm:req:bindings.model-records+1/test]
-// [spec:pgorm:req:bindings.created-ranges+2/test]
+// [spec:pgorm:req:bindings.created-ranges+3/test]
 test("a created multirange field is projected as its text and read as the multirange of its declared subtype", async () => {
   await pool().execute("CREATE TABLE app.slot (id int4 PRIMARY KEY, open app.floatmultirange)");
   const kind = new CreatedMultirange("floatmultirange", "f64", { schema: "app" });
@@ -363,7 +363,38 @@ test("a created multirange field is projected as its text and read as the multir
   const change = await Slot.update({ open: later }).where(Slot.key({ id: 1 })).returningChange(pool());
   assert.deepStrictEqual([change.old.open, change.new.open], [hours, later]);
   assert.deepStrictEqual(await Slot.graph().where(Slot.col("id").eq(1)).all(pool()), [{ id: 1, open: later }]);
-  assert.throws(() => column(kind, { array: true }), refused(/arrays of a created range/));
+});
+
+// [spec:pgorm:req:bindings.created-ranges+3/test]    a declared column of an array of a created range or
+// multirange writes the array of its values' texts cast to the type's array, and reads it back, a
+// multirange's projected as text[]
+test("an array field of a created range or multirange writes and reads back as an array of its kind", async () => {
+  await pool().execute("CREATE TABLE app.shelf (id int4 PRIMARY KEY, spans app.floatrange[], week app.floatmultirange[])");
+  const spans = new CreatedRange("floatrange", "f64", { schema: "app" });
+  const week = new CreatedMultirange("floatmultirange", "f64", { schema: "app" });
+  const Shelf = model("shelf", {
+    schema: "app",
+    columns: {
+      id: column("i32", { primaryKey: true }),
+      spans: column(spans, { array: true, nullable: true }),
+      week: column(week, { array: true, nullable: true }),
+    },
+  });
+  assert.equal(
+    Shelf.find().inspect().sql,
+    'SELECT "shelf"."id", "shelf"."spans", CAST("shelf"."week" AS text[]) AS "week" FROM "app"."shelf"',
+  );
+  const stocked = [new Range(1.5, null), null, Range.empty<number>()];
+  const hours = [new Multirange([new Range(9, 12.5)]), null, new Multirange<number>([])];
+  assert.deepStrictEqual(await Shelf.insert({ id: 1, spans: stocked, week: hours }).returning().one(pool()), {
+    id: 1,
+    spans: stocked,
+    week: hours,
+  });
+  await Shelf.insert({ id: 2, spans: [], week: null }).execute(pool());
+  assert.deepStrictEqual(await Shelf.find().where(Shelf.col("spans").eq([])).all(pool()), [{ id: 2, spans: [], week: null }]);
+  assert.deepStrictEqual((await Shelf.find().where(Shelf.col("spans").eq(stocked)).one(pool())).id, 1);
+  assert.throws(() => Shelf.insert({ id: 3, spans: [new Range(1n, 2n)] as never }), ConstructionError);
 });
 
 // [spec:pgorm:req:bindings.model-records+1/test]

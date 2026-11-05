@@ -100,7 +100,8 @@ an SQL NULL array remain distinct. A range type a schema created decodes as
 its own kind, whatever its subtype, from its binary form through the subtype's
 codec ([VALUES.md](VALUES.md#range-types-a-schema-created)). The driver
 reports a multirange a schema created as a simple type, so a column of one,
-like an array of a created range, raises `DecodeError`; read it cast to `text`.
+or of an array of one, raises `DecodeError`; read it cast to `text`. An array
+of a created range decodes element by element as an array of its kind.
 A range's numeric bound is held to the exactness a numeric column is.
 Multi-dimensional/non-default-bound arrays,
 domains, composites, `timetz` and unlisted types raise `DecodeError`,

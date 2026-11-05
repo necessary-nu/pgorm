@@ -118,14 +118,7 @@ class Column:
                 raise p.ConstructionError("only an enum column lists its values")
             object.__setattr__(self, "values", _labels(self.values))
         kind = self.kind
-        if not self.array:
-            null = p.Value.null(kind)
-        elif isinstance(kind, (p.CreatedRange, p.CreatedMultirange)):
-            raise p.ConstructionError(
-                "arrays of a created range or multirange type are not supported"
-            )
-        else:
-            null = p.Value.array(kind, None)
+        null = p.Value.array(kind, None) if self.array else p.Value.null(kind)
         object.__setattr__(self, "_null", null)
 
     @property
@@ -158,7 +151,7 @@ class Column:
         kind = self.kind
         if isinstance(data, p.Value):
             result = data
-        elif self.array and not isinstance(kind, (p.CreatedRange, p.CreatedMultirange)):
+        elif self.array:
             result = p.Value.array(kind, data)
         else:
             result = p.Value(data, kind)
@@ -167,22 +160,23 @@ class Column:
     @property
     def _read_as_text(self) -> bool:
         """Whether the column is projected as its text: a created multirange
-        is, since the driver reports one with no subtype to read its binary
-        form by, so it is read cast to ``text`` as pgorm's
-        ``ColumnTrait::select_as`` reads an entity's."""
+        is, and an array of one as ``text[]``, since the driver reports one
+        with no subtype to read its binary form by, so it is read cast to
+        text as pgorm's ``ColumnTrait::select_as`` reads an entity's."""
         return isinstance(self.kind, p.CreatedMultirange)
 
     def _decoded(self, value: p.Value) -> p.Value:
         """``value``, the column as its projection read it, as the declared
-        kind and validated: a created multirange's text is read as the
-        multirange of its declared subtype it spells."""
-        if self._read_as_text and value.kind == "text":
+        kind and validated: a created multirange's text, or each of an
+        array's, is read as the multirange of its declared subtype it spells."""
+        if self._read_as_text and (value.kind, value.element_type) in (("text", None), ("array", "text")):
             try:
-                value = (
-                    p.Value.null(self.kind)
-                    if value.is_null
-                    else p.Value(value.value, self.kind)
-                )
+                if self.array:
+                    value = p.Value.array(self.kind, value.value)
+                elif value.is_null:
+                    value = p.Value.null(self.kind)
+                else:
+                    value = p.Value(value.value, self.kind)
             except p.ConstructionError as error:
                 raise p.DecodeError(str(error)) from error
         return self._validate(value, decoding=True)

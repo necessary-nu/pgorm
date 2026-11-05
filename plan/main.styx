@@ -17849,6 +17849,22 @@ children (
                 title "An array of a created range or multirange is a binding value kind both ways: a declared Value, a result column, COPY and a declared model's column"
                 kind @feat
                 deps (typed-binds.created-range-array-column)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T06:08:45.077884Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T06:27:28.67808Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
