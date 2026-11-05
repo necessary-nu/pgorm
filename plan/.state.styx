@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T06:41:03.587248Z
+last_sync_at 2026-11-05T07:38:32.920242Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -76,7 +76,7 @@ rule_versions (
     {id bindings.streams, version 0}
     {id bindings.surface, version 2}
     {id bindings.transactions, version 0}
-    {id bindings.value-tags, version 0}
+    {id bindings.value-tags, version 1}
     {id bindings.values, version 0}
     {id bindings.windows, version 0}
     {id bindings.with, version 1}
