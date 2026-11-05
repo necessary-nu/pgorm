@@ -14630,6 +14630,7 @@ children (
         title "Transactions are opened only through a closure: begin() is gone from the public API, savepoints and the metrics wrappers take the closure form, and the bindings run their transactions inside one"
         kind @feat
         deps (tx-closure-send)
+        sealed true
         log (
             {
                 at 2026-10-24T15:10:40.210184Z
@@ -14650,6 +14651,21 @@ children (
                 author "brendan@necessary.nu"
                 kind @decision
                 text "As built (Rust 1.99 probes): the closure's handle is `&mut Self::Transaction<'_>`, the type declared on a crate-private `sealed::Handle` supertrait — DatabaseTransaction on a connection or transaction (the decided signature exactly), InstrumentedTransaction on the metrics wrappers, so statements and savepoints inside an instrumented transaction stay instrumented (a fixed DatabaseTransaction handle lost that and left InstrumentedTransaction unconstructible). Opening is `sealed::Open: Handle` on the parent, ending `sealed::Close` on the handle, every method taking a Token only pgorm constructs; no public hook. Rejected by probe: `Open<'t, P>` implemented on the handle (an impl relating handle and borrow lifetimes fails a spawned Send check, which erases them: 'not general enough'), and the type on the opening trait itself (forces `where Self: 't`, which a savepoint closure's higher-ranked bound cannot meet). Per the lead, a failed ROLLBACK is no longer only logged: TransactionError::RollbackFailed { cause, rollback } carries it, retry stops on it, migration discards its connection, and both bindings map it to an error reply plus discard, their behaviour before the change."
+            }
+
+            {
+                at 2026-11-05T12:30:14.075005Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
+            }
+
+            {
+                at 2026-11-05T12:30:20.747238Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Closed 2026-11-05 on the operator's word: delivered by b1f3bff5 (2026-10-25). The node carries no implements, so no sync could derive Done and it stayed Doing after shipping."
+                after_done true
             }
         )
     }

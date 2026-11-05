@@ -1483,7 +1483,7 @@ assertions (
     {id test-run-isolation, kind @complete, author "brendan@necessary.nu", at 2026-10-23T22:25:20.936686Z}
     {id tokenizer-backslash-standard, kind @complete, author "brendan@necessary.nu", at 2026-09-23T23:26:31.551166Z}
     {id transaction-stale-plan-recovery, kind @complete, author "brendan@necessary.nu", at 2026-09-06T12:12:04.84501Z}
-    {id tx-closure-only, kind @doing, author "brendan@necessary.nu", at 2026-10-24T15:48:03.232328Z}
+    {id tx-closure-only, kind @complete, author "brendan@necessary.nu", at 2026-11-05T12:30:14.075005Z}
     {id tx-closure-send, kind @complete, author "brendan@necessary.nu", at 2026-10-24T15:30:08.176678Z}
     {id type-part-keyword-names, kind @complete, author "brendan@necessary.nu", at 2026-09-24T22:48:03.368721Z}
     {id typed-binds.created-range-array-column, kind @complete, author "brendan@necessary.nu", at 2026-11-05T05:15:14.70763Z}
