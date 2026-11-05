@@ -3355,7 +3355,9 @@ impl_evidence (
     {id guide.python-gaps.model-writes, covered_rules (
         bindings.model-try-inserts
         bindings.model-write-sources
+        entity.active-model.set-if-not-equals
     ), covered_claims (
+        {impl_name main, rule entity.active-model.set-if-not-equals}
         {impl_name python, rule bindings.model-try-inserts}
         {impl_name python, rule bindings.model-write-sources}
     )}

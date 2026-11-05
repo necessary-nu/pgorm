@@ -13621,6 +13621,14 @@ children (
                         title "pgorm-napi's inconsistencies the guide found are fixed: an empty model insert batch takes onConflict and sends nothing as Rust's does; new Pool and Relation.load refuse an option they do not know with a TypeError as the builders do; CopyRowStream's rows type-check as CopyRows; DisjointPaginator.numItemsAndPages returns { items, pages } as Paginator's does"
                         kind @fix
                         deps (napi-models napi-connections guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T21:46:16.479005Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "From guide.python-gaps.model-writes (commit f095733a): an empty model insert batch now takes onConflict and sends nothing in both bindings, as Rust's does, which the try-inserts needed; that part of this node is done there."
+                            }
+                        )
                     }
 
                     {
@@ -19427,6 +19435,7 @@ children (
                         id guide.python-gaps.model-writes
                         title "Python writes have Rust's write surface: TryInsert and TryInsertResult (on_conflict_do_nothing on the key, on_empty_do_nothing, Conflicted, Empty); set_if_not_equals and is_changed on a registered ActiveModel; a declared model's update FROM and delete USING; and write hooks (ActiveModelBehavior) for a declared model"
                         implements {
+                            main ([spec:pgorm:req:entity.active-model.set-if-not-equals])
                             python ([spec:pgorm:req:bindings.model-try-inserts] [spec:pgorm:req:bindings.model-write-sources])
                         }
                         deps (python.models python.entities)
@@ -19443,6 +19452,14 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "single-flight overridden: started while guide.python-gaps.pipeline-typed had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T21:46:16.18898Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Shape, built in both bindings (JS via napi.guide-gaps.model-writes) and held in bindings.model-try-inserts and bindings.model-write-sources: (1) a declared model's insert takes on_conflict_do_nothing() (ON CONFLICT on the primary key DO NOTHING, or ON CONFLICT DO NOTHING with no key) and on_empty_do_nothing() (statement unchanged), giving ModelTryInsert / ModelTryInsertMany typed by row count as TryInsert<A, OneRow|ManyRows>; execute answers TryInsertResult (Python: TryInsertResult.Inserted(value) / Conflicted() / Empty(); JavaScript: {kind: \"inserted\", value} / {kind: \"conflicted\"} / {kind: \"empty\"}), and returning(*fields) gives ModelTryRow.one / ModelTryRows.all answering the same way; no rows and a row setting no field are Empty and send nothing, as TryInsert answers an all-NotSet model; (2) an empty batch now takes on_conflict and still sends nothing, as Rust's does (it was a ConstructionError in both bindings); (3) ModelUpdate.from_ (JS from) and ModelDelete.using take another model, a Table or a FROM item, and RETURNING is then qualified by the model's table so the other table's same-named columns cannot be ambiguous. Hooks for a declared model are recorded as a stated difference, not a gap: Rust runs ActiveModelBehavior only around an ActiveModel's insert/update/delete, and a declared model's writes are statement builders (Rust's Insert::one, Update::many, Delete::many), which run no hooks in Rust either; bindings.models says no ActiveModel hook is behind a declared model, and both guides' Hooks sections already say so."
+                                after_done true
                             }
                         )
                     }

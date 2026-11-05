@@ -149,6 +149,59 @@ mod serde_renamed {
 // ActiveModelTrait: per-column state access
 // ---------------------------------------------------------------------------
 
+// [spec:pgorm:req:entity.active-model.set-if-not-equals/test]    `set_if_not_equals` by column
+// leaves a column holding the value `Unchanged`, sets one that holds another
+// value or none, and reports an unknown column's or a wrong value's error as
+// `set` does
+#[test]
+fn active_model_set_if_not_equals_by_column() {
+    let mut am = row::Model {
+        id: 1,
+        name: "Apple".to_owned(),
+        note: None,
+    }
+    .into_active();
+    am.set_if_not_equals(
+        row::Column::Name,
+        Value::String(Some(Box::new("Apple".to_owned()))),
+    )
+    .expect("Name takes a String");
+    assert_eq!(
+        am.get(row::Column::Name),
+        Ok(ActiveValue::Unchanged(Value::String(Some(Box::new(
+            "Apple".to_owned()
+        )))))
+    );
+    assert!(!am.is_changed());
+    am.set_if_not_equals(
+        row::Column::Name,
+        Value::String(Some(Box::new("Pear".to_owned()))),
+    )
+    .expect("Name takes a String");
+    assert_eq!(
+        am.get(row::Column::Name),
+        Ok(ActiveValue::Set(Value::String(Some(Box::new(
+            "Pear".to_owned()
+        )))))
+    );
+    assert!(am.is_changed());
+    let mut fresh = <row::ActiveModel as ActiveModelTrait>::default();
+    fresh
+        .set_if_not_equals(row::Column::Id, Value::Int(Some(7)))
+        .expect("Id takes an Int");
+    assert_eq!(
+        fresh.get(row::Column::Id),
+        Ok(ActiveValue::Set(Value::Int(Some(7))))
+    );
+    assert!(matches!(
+        fresh.set_if_not_equals(
+            row::Column::Id,
+            Value::String(Some(Box::new("seven".to_owned())))
+        ),
+        Err(Error::Type(_))
+    ));
+}
+
 // [spec:pgorm:req:entity.active-model+4/test]    the per-column state surface —
 // `default()` leaves every column `NotSet`, `set` stores a `Value` as `Set`,
 // `get` reads without consuming, `take` removes and leaves `NotSet` behind,
