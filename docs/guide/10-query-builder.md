@@ -131,7 +131,7 @@ let (sql, values) = Query::update()
     .value(cake::Column::Price, Expr::col(cake::Column::Price).add(Decimal::new(50, 2)))
     .and_where(Expr::col(cake::Column::BakeryId).eq(2))
     .build();
-assert_eq!(sql, r#"UPDATE "cake" SET "price" = "price" + $1 WHERE "bakery_id" = $2"#);
+assert_eq!(sql, r#"UPDATE "cake" SET "price" = "price" + $1::numeric WHERE "bakery_id" = $2"#);
 let raised = db.execute_raw(&sql, values.into_iter().map(ValueHolder)).await?;
 assert_eq!(raised, 2);
 
@@ -469,7 +469,7 @@ let (sql, values) = Query::update()
     .build();
 assert_eq!(
     sql,
-    r#"UPDATE "cake" SET "price" = "cake"."price" + $1 FROM "bakery" WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2"#
+    r#"UPDATE "cake" SET "price" = "cake"."price" + $1::numeric FROM "bakery" WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2"#
 );
 assert_eq!(db.execute_raw(&sql, values.into_iter().map(ValueHolder)).await?, 2);
 

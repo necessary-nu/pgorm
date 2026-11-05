@@ -379,7 +379,7 @@ impl Expr {
     ///     .to_owned();
     /// let (sql, values) = query.build();
     ///
-    /// assert_eq!(sql, r#"SELECT $1 + $2, data @? ($3::JSONPATH)"#);
+    /// assert_eq!(sql, r#"SELECT $1::int4 + $2::int4, data @? ($3::JSONPATH)"#);
     /// assert_eq!(
     ///     values,
     ///     Values(vec![1i32.into(), 2i32.into(), "hello".into()])
