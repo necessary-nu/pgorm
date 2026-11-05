@@ -17849,6 +17849,22 @@ children (
                 title "An array of a created range or multirange is a binding value kind both ways: a declared Value, a result column, COPY and a declared model's column"
                 kind @feat
                 deps (typed-binds.created-range-array-column)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T06:08:45.077884Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T06:27:28.67808Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
@@ -17856,6 +17872,36 @@ children (
                 title "pgorm-napi's generic declarations type a created-range array column's operand, so a caller needs no EntityColumn of unknown"
                 kind @fix
                 deps (typed-binds.created-range-array-column)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T06:03:50.262653Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T06:06:46.155153Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id typed-binds.shared-range-codec
+                title "Both bindings encode and decode created ranges through pgorm's CreatedRangeCodec, with no codec of their own"
+                kind @refactor
+                deps (typed-binds.created-range-array-value)
+            }
+
+            {
+                id typed-binds.enum-array-type-name
+                title "A Python Value's type_name names an enum array's type, as JavaScript's does"
+                kind @fix
+                deps (typed-binds.created-range-array-value)
             }
         )
     }

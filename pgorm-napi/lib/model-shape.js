@@ -99,15 +99,15 @@ export function qualified(field, qualifier) {
 /**
  * `expr`, a field's column, as a statement projects it under the result
  * column `name`: as it is when that is the column's own name, aliased
- * otherwise, and cast to `text` when the field is read from its text
- * (`readsText`).
+ * otherwise, and cast to `text`, or `text[]` for an array, when the field is
+ * read from its text (`readsText`).
  *
  * @param {Field} field
  * @param {import("./expressions.js").Expr} expr
  * @param {string} name
  */
 export function projected(field, expr, name) {
-  if (readsText(field.column)) return expr.cast("text").as(name);
+  if (readsText(field.column)) return expr.cast("text", { array: field.column.array }).as(name);
   return name === field.sql ? expr : expr.as(name);
 }
 

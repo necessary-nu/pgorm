@@ -317,7 +317,7 @@ const MULTISPANS = [
 ];
 
 // [spec:pgorm:req:bindings.copy-rows+1/test]    a multirange type a schema created reads as a Multirange and writes back from a Value of its kind or from its text
-// [spec:pgorm:req:bindings.created-ranges+2/test]
+// [spec:pgorm:req:bindings.created-ranges+3/test]
 test("a multirange type a schema created reads out of a binary COPY and writes back in", async () => {
   for (const statement of MULTISPANS) await pool().execute(statement);
   const spans = new Table("spans", { schema: "geo" });
@@ -364,12 +364,12 @@ test("a multirange type a schema created reads out of a binary COPY and writes b
   }
   assert.equal((await pool().one("SELECT count(*)::int AS n FROM geo.spans")).n, 6);
 
-  const many = await pool().copyOutRows(copyTo(new Table("many", { schema: "geo" }), "binary"));
-  await assert.rejects(many.next(), (error: unknown) => {
-    assert.ok(error instanceof DecodeError, `expected a DecodeError, got ${error}`);
-    assert.match(error.message, /created range/);
-    return true;
-  });
-  assert.equal(many.closed, true);
+  // An array of one reads and writes as an array of its kind, its elements completed as the column's are.
+  const many = new Table("many", { schema: "geo" });
+  same(await rowsOf(await pool().copyOutRows(copyTo(many, "binary"))), [[[new Multirange([new Range(1, 3)])]]]);
+  const array = Value.array(slots, [new Multirange([new Range(4, 6)]), null]);
+  assert.equal(await pool().copyInRows(copyFrom(many, "binary"), [[array], [["{[8,9)}"]]]), 2);
+  const read = await rowsOf(await pool().copyOutRows(copyTo(many, "binary")));
+  same(read.slice(1), [[[new Multirange([new Range(4, 6)]), null]], [[new Multirange([new Range(8, 9)])]]]);
   await pool().execute("DROP SCHEMA geo CASCADE");
 });

@@ -90,12 +90,6 @@ fn value_array(mut cx: FunctionContext) -> JsResult<JsBox<Tagged>> {
     let element = read::kind(&mut cx, codec, kind)?;
     let tag = Tag::Array(Box::new(element.clone()));
     if items.is_a::<JsNull, _>(&mut cx) {
-        if matches!(element, Tag::Created(_)) {
-            return refuse(
-                &mut cx,
-                "arrays of a created range or multirange type are not supported",
-            );
-        }
         return Ok(cx.boxed(Tagged::null(tag)));
     }
     let datum = read::array(&mut cx, codec, items, &element)?;

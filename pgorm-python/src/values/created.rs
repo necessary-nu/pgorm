@@ -183,7 +183,7 @@ impl CreatedKind {
     /// The text form of a Python value of this kind: a `pgorm.Range` (or a
     /// `pgorm.Multirange`), each bound converted as the subtype's kind, or the
     /// text form itself, which is read and written back canonically.
-    // [spec:pgorm:req:bindings.created-ranges+2]
+    // [spec:pgorm:req:bindings.created-ranges+3]
     pub(crate) fn text(&self, data: &Bound<'_, PyAny>) -> PyResult<String> {
         let ranges = if let Ok(text) = data.cast_exact::<PyString>() {
             match dispatch!(self.subtype, parsed, text.to_str()?, self.multirange) {
@@ -221,7 +221,7 @@ impl CreatedKind {
     }
 
     /// The Python value of this kind's text form.
-    // [spec:pgorm:req:bindings.created-ranges+2]
+    // [spec:pgorm:req:bindings.created-ranges+3]
     pub(crate) fn read(&self, py: Python<'_>, text: &str) -> PyResult<Py<PyAny>> {
         let ranges = dispatch!(self.subtype, parsed, text, self.multirange).ok_or_else(|| {
             DecodeError::new_err(format!(

@@ -81,19 +81,11 @@ impl InputKind {
 
     /// `values`, a list, as one array of the column's scalar kind,
     /// or `None` for a column of no scalar kind: the array a quantified
-    /// comparison with the column ranges over. A created range's array is
-    /// no `Value` a program declares, but its elements are each the text a
-    /// compared range is, which the column's array cast reads.
+    /// comparison with the column ranges over, a created range's the array
+    /// of their texts that the column's array cast reads.
     pub(crate) fn array_of(&self, values: &Bound<'_, PyAny>) -> PyResult<Option<Value>> {
         match self {
             Self::Array(_) | Self::Explicit => Ok(None),
-            Self::Created(_) => {
-                let texts = values
-                    .try_iter()?
-                    .map(|value| Ok(self.coerce(&value?)?.inner))
-                    .collect::<PyResult<Vec<_>>>()?;
-                Ok(Some(Value::Array(ArrayType::String, Some(Box::new(texts)))))
-            }
             _ => {
                 let py = values.py();
                 let class = py.get_type::<PyValue>();
@@ -106,21 +98,17 @@ impl InputKind {
     }
 
     pub(crate) fn coerce(&self, value: &Bound<'_, PyAny>) -> PyResult<PyValue> {
-        if let Self::Array(member) = self
-            && let Self::Created(kind) = member.as_ref()
-        {
-            return match value.extract::<PyRef<'_, PyValue>>() {
-                Ok(given) if given.created_element() == Some(kind) => Ok(given.clone()),
-                Ok(_) => Err(ConstructionError::new_err(
-                    "Value belongs to a different declared column type",
-                )),
-                Err(_) => Self::created_array(member, kind, value),
-            };
-        }
         if let Ok(value) = value.extract::<PyRef<'_, PyValue>>() {
-            if value.created_element().is_some() {
+            let element = match self {
+                Self::Array(member) => match member.as_ref() {
+                    Self::Created(kind) => Some(kind),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if value.created_element() != element {
                 return Err(ConstructionError::new_err(
-                    "Value belongs to a different declared column type",
+                    "created range array Value belongs to a different declared column type",
                 ));
             }
             if let Some(kind) = value.created()
@@ -161,24 +149,6 @@ impl InputKind {
             _ => class.call1((value, self.kind(py)?))?,
         };
         Ok(result.extract()?)
-    }
-
-    /// `values`, a list of `member`'s values or `None`, as a column of an
-    /// array of a created range takes it: the array of their texts, which
-    /// the column's cast reads, as a quantified comparison's is.
-    // [spec:pgorm:req:bindings.created-ranges+2]
-    fn created_array(
-        member: &Self,
-        kind: &CreatedKind,
-        values: &Bound<'_, PyAny>,
-    ) -> PyResult<PyValue> {
-        let array = match values.is_none() {
-            true => Value::Array(ArrayType::String, None),
-            false => member
-                .array_of(values)?
-                .unwrap_or(Value::Array(ArrayType::String, None)),
-        };
-        Ok(PyValue::from_created_array(array, kind.clone()))
     }
 
     pub(crate) fn tagged(&self, value: Value) -> PyResult<PyValue> {

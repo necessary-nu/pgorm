@@ -26,7 +26,7 @@ SUBTYPES = [
 ]
 
 
-# [spec:pgorm:req:bindings.created-ranges+2/test]
+# [spec:pgorm:req:bindings.created-ranges+3/test]
 class CreatedRangeValueTests(unittest.TestCase):
     def test_kind_names_the_type_and_its_subtype(self):
         kind = p.CreatedRange('Span "雪"', "f64", schema="measure")
@@ -82,7 +82,27 @@ class CreatedRangeValueTests(unittest.TestCase):
         with self.assertRaises(p.ConstructionError):
             p.Value(p.Range(1, 2), p.CreatedMultirange("r", "i32"))
         with self.assertRaises(p.ConstructionError):
-            p.Value.array(p.CreatedRange("r", "i32"), [])
+            p.Value.array(p.CreatedRange("r", "i32"), [p.Range(1.5, 2)])
+
+    def test_an_array_holds_each_value_as_text(self):
+        kind = p.CreatedRange("slot", "i32", schema="app")
+        array = p.Value.array(kind, [p.Range(1, 5, "[]"), None, "[7,9)", p.Value(p.Range(2, 3), kind)])
+        self.assertEqual(array.kind, "array")
+        self.assertEqual(array.element_type, kind)
+        self.assertEqual(array.value, [p.Range(1, 5, "[]"), None, p.Range(7, 9), p.Range(2, 3)])
+        self.assertEqual([item["data"] for item in array.snapshot()["data"]], ["[1,5]", None, "[7,9)", "[2,3)"])
+        self.assertEqual(array.snapshot()["data"][0]["type"]["kind"], "created_range")
+        self.assertEqual([item.created_type for item in array.items()], [kind] * 4)
+        self.assertEqual(p.Value.array(kind, []).value, [])
+        self.assertTrue(p.Value.array(kind, None).is_null)
+        spans = p.CreatedMultirange("slots", "i32", schema="app")
+        self.assertEqual(p.Value.array(spans, [p.Multirange([p.Range(1, 2)])]).value, [p.Multirange([p.Range(1, 2)])])
+        bound = p.bind(array).inspect()
+        self.assertEqual(bound.sql, "SELECT CAST($1::text[] AS app.slot[])")
+        with self.assertRaises(p.ConstructionError):
+            p.Value.array(kind, [p.Value(p.Range(1, 2), p.CreatedRange("other", "i32"))])
+        with self.assertRaises(p.ConstructionError):
+            p.JsonDefault(array)
 
     def test_writes_cast_text_to_the_type(self):
         value = p.Value(p.Range("a'b", None), p.CreatedRange('Span "雪"', "text", schema="Me'asure"))
@@ -105,7 +125,7 @@ class CreatedRangeValueTests(unittest.TestCase):
                 operation()
 
 
-# [spec:pgorm:req:bindings.created-ranges+2/test]
+# [spec:pgorm:req:bindings.created-ranges+3/test]
 class CreatedRangeResultTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=1)
@@ -203,8 +223,25 @@ class CreatedRangeResultTests(unittest.IsolatedAsyncioTestCase):
             rows = [row async for row in stream]
         self.assertEqual(rows, [(1, span.value, spans.value)])
 
-    async def test_arrays_of_a_created_range_are_refused(self):
-        await self.create("slot", "int4")
+    async def test_created_range_arrays_are_values_both_ways(self):
+        slot = await self.create("slot", "int4")
+        schema = self.quoted(self.schema)
+        row = await self.connection.one(p.RawSQL(
+            f"SELECT ARRAY['[1,2)', NULL, 'empty']::{schema}.slot[] AS spans, "
+            f"'{{}}'::{schema}.slot[] AS none, NULL::{schema}.slot[] AS absent"))
+        self.assertEqual(row["spans"], [p.Range(1, 2), None, p.Range.empty()])
+        self.assertEqual(row.tagged("spans"), p.Value.array(slot, [p.Range(1, 2), None, p.Range.empty()]))
+        self.assertEqual(row.tagged("none"), p.Value.array(slot, []))
+        self.assertEqual(row.tagged("absent"), p.Value.array(slot, None))
+        await self.connection.execute(p.RawSQL(f"CREATE TABLE {schema}.shelves (slots {schema}.slot[])"))
+        table = p.Table("shelves", schema=self.schema)
+        written = p.Value.array(slot, [p.Range(3, 4), None])
+        await self.connection.execute(p.Insert(table).columns("slots").values(written))
+        await self.connection.execute(p.Insert(table).columns("slots").values(p.literal(written)))
+        await self.connection.execute(p.RawSQL(f"INSERT INTO {schema}.shelves VALUES ($1)", [written]))
+        stored = await self.connection.query(p.Select(p.col("slots")).from_(table))
+        self.assertEqual([found.tagged("slots") for found in stored], [written] * 3)
+        # A created multirange is reported with no subtype, so a query reads an array of one cast to text[].
+        await self.create("floatrange", "float8")
         with self.assertRaises(p.DecodeError):
-            await self.connection.one(p.RawSQL(
-                f"SELECT ARRAY['[1,2)'::{self.quoted(self.schema)}.slot] AS spans"))
+            await self.connection.one(p.RawSQL(f"SELECT '{{\"{{[1,2)}}\"}}'::{schema}.floatmultirange[] AS spans"))
