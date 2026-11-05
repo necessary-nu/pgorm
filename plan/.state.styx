@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T22:03:17.394276Z
+last_sync_at 2026-11-05T22:06:42.946244Z
 
 rule_versions (
     {id bindings.api, version 0}
