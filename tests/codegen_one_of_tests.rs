@@ -25,6 +25,9 @@ use tokio_postgres::error::SqlState;
 mod codegen_one_of;
 
 use codegen_one_of::comment::{Commentable, CommentableKey, CommentableModel};
+use codegen_one_of::long_names::{
+    issue, note, release, remark_left_on_an_issue_or_a_release_in_the_project_archive as archived,
+};
 use codegen_one_of::self_reference::remark::{Subject, SubjectKey, SubjectModel};
 use codegen_one_of::self_reference::{remark, topic};
 use codegen_one_of::{comment, photo, post};
@@ -32,6 +35,8 @@ use codegen_one_of::{comment, photo, post};
 const SCHEMA: &str = include_str!("codegen_one_of/schema.sql");
 
 const SELF_REFERENCE: &str = include_str!("codegen_one_of/self_reference/schema.sql");
+
+const LONG_NAMES: &str = include_str!("codegen_one_of/long_names/schema.sql");
 
 fn statements() -> Vec<&'static str> {
     split(SCHEMA)
@@ -45,7 +50,7 @@ fn split(schema: &'static str) -> Vec<&'static str> {
         .collect()
 }
 
-// [spec:pgorm:def:disjoint.one-of+2/test]    the round trip: the schema the comment fixture writes, generated from, is the schema the generated entities and the generated enum's `create_one_of` write, statement for statement
+// [spec:pgorm:def:disjoint.one-of+3/test]    the round trip: the schema the comment fixture writes, generated from, is the schema the generated entities and the generated enum's `create_one_of` write, statement for statement
 #[test]
 fn generated_enum_writes_the_schema_read_from() -> Result<(), Error> {
     let schema = Schema::new();
@@ -67,7 +72,7 @@ fn generated_enum_writes_the_schema_read_from() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+2/test]    on the schema it was generated from, the generated enum writes each reference, reads it back, loads each row's target, and the schema refuses a row referencing two
+// [spec:pgorm:def:disjoint.one-of+3/test]    on the schema it was generated from, the generated enum writes each reference, reads it back, loads each row's target, and the schema refuses a row referencing two
 #[pgorm_macros::test]
 async fn generated_reference_reads_writes_and_loads_live() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_one_of").await;
@@ -132,7 +137,7 @@ async fn generated_reference_reads_writes_and_loads_live() -> Result<(), Error> 
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+2/test]    the round trip of a one-of whose target is its own table: the schema the remark fixture writes, generated from, is the schema the generated entities and enum write, the enum's variant naming its module's own `Entity`
+// [spec:pgorm:def:disjoint.one-of+3/test]    the round trip of a one-of whose target is its own table: the schema the remark fixture writes, generated from, is the schema the generated entities and enum write, the enum's variant naming its module's own `Entity`
 #[test]
 fn generated_self_reference_writes_the_schema_read_from() -> Result<(), Error> {
     let schema = Schema::new();
@@ -145,7 +150,7 @@ fn generated_self_reference_writes_the_schema_read_from() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+2/test]    live, a remark refers to a topic or to another remark through the generated enum, reads each back, loads each row's target, its own table's included, and the schema refuses a remark referring to none
+// [spec:pgorm:def:disjoint.one-of+3/test]    live, a remark refers to a topic or to another remark through the generated enum, reads each back, loads each row's target, its own table's included, and the schema refuses a remark referring to none
 #[pgorm_macros::test]
 async fn generated_self_reference_reads_writes_and_loads_live() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_one_of_self").await;
@@ -192,6 +197,54 @@ async fn generated_self_reference_reads_writes_and_loads_live() -> Result<(), Er
         }
         other => panic!("expected a remark referring to none refused, got {other:?}"),
     }
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:def:disjoint.one-of+3/test]    the round trip of one-of references whose `ck-{table}-{enum}` would pass 63 bytes: `create_one_of` names each `ck-{enum}`, under a table's long name and for an enum's of 59 bytes, the generated enums are named for them whole, and on a server each CHECK keeps the name it was given
+#[pgorm_macros::test]
+async fn generated_long_names_write_the_schema_read_from() -> Result<(), Error> {
+    let schema = Schema::new();
+    let written = [
+        schema.create_table_from_entity(issue::Entity)?.to_string(),
+        schema
+            .create_table_from_entity(release::Entity)?
+            .to_string(),
+        schema
+            .create_table_from_entity(archived::Entity)?
+            .to_string(),
+        schema.create_one_of::<archived::Subject>().to_string(),
+        schema.create_table_from_entity(note::Entity)?.to_string(),
+        schema
+            .create_one_of::<note::TheReferenceANoteMakesToTheIssueOrReleaseItIsOn>()
+            .to_string(),
+    ];
+    assert_eq!(split(LONG_NAMES), written);
+
+    let ctx = TestContext::new("codegen_one_of_long").await;
+    let db = ctx.db.get().await?;
+    for statement in split(LONG_NAMES) {
+        db.execute(statement, &[]).await?;
+    }
+    let names: Vec<String> = db
+        .query_all(
+            "SELECT conname::text FROM pg_constraint WHERE contype = 'c' \
+             AND connamespace = 'public'::regnamespace ORDER BY conname",
+            &[],
+        )
+        .await?
+        .iter()
+        .map(|row| row.get(0))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "ck-subject",
+            "ck-the_reference_a_note_makes_to_the_issue_or_release_it_is_on",
+        ]
+    );
 
     drop(db);
     ctx.delete().await;

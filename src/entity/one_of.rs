@@ -40,7 +40,7 @@ pub type TargetKey<T> = <<T as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::Val
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:disjoint.one-of+2]
+// [spec:pgorm:def:disjoint.one-of+3]
 #[async_trait]
 pub trait OneOf: Sized + Send + Sync + 'static {
     /// The entity whose rows hold the reference.
@@ -80,7 +80,7 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     /// A row with two or more columns set, or none where the enum has no
     /// unit variant, contradicts the declaration, and is [`Error::Query`]
     /// naming its table, its key and the columns.
-    // [spec:pgorm:def:disjoint.one-of+2]
+    // [spec:pgorm:def:disjoint.one-of+3]
     fn key(model: &<Self::Entity as EntityTrait>::Model) -> Result<Self::Key, Error> {
         let mut read = Read {
             model,
@@ -136,7 +136,7 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     ///
     /// An `ActiveModel` refusing a column is its [`ActiveModelTrait::set`](crate::ActiveModelTrait::set)'s
     /// error.
-    // [spec:pgorm:def:disjoint.one-of+2]
+    // [spec:pgorm:def:disjoint.one-of+3]
     fn set(
         active: &mut <Self::Entity as EntityTrait>::ActiveModel,
         key: Self::Key,
@@ -161,7 +161,7 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     /// its errors are this one's; a key its target table does not hold, which
     /// `load_one` gives as `None`, is [`Error::Query`] naming the table, the
     /// key and the column it was read from.
-    // [spec:pgorm:def:disjoint.one-of+2]
+    // [spec:pgorm:def:disjoint.one-of+3]
     async fn load<C>(
         models: &[<Self::Entity as EntityTrait>::Model],
         db: &C,
@@ -206,7 +206,7 @@ pub trait OneOf: Sized + Send + Sync + 'static {
 }
 
 /// What [`OneOf::visit_targets`] calls for each variant naming a target.
-// [spec:pgorm:def:disjoint.one-of+2]
+// [spec:pgorm:def:disjoint.one-of+3]
 pub trait TargetVisitor<O: OneOf> {
     /// The variant whose target is `T`, its key held in
     /// [`OneOfTarget::COLUMN`] and the relation reading it the entity's
@@ -344,7 +344,7 @@ pub trait TargetVisitor<O: OneOf> {
 /// }
 /// # fn main() {}
 /// ```
-// [spec:pgorm:def:disjoint.one-of+2]
+// [spec:pgorm:def:disjoint.one-of+3]
 #[diagnostic::on_unimplemented(
     message = "`{Self}` is not a target of `{O}`",
     label = "a `OneOf` variant names its target entity, `Post(post::Entity)`"
@@ -485,7 +485,7 @@ impl<'a, O: OneOf, C: ConnectionTrait> TargetVisitor<O> for Load<'a, O, C> {
 /// Refuse a relation to `T` that does not join exactly `T`'s column to `T`'s
 /// key: `load_one` reads the relation, so one joining anything else would
 /// read targets by other columns than the reference's.
-// [spec:pgorm:def:disjoint.one-of+2]
+// [spec:pgorm:def:disjoint.one-of+3]
 fn reads_column<O, T>() -> Result<(), Error>
 where
     O: OneOf,
@@ -526,7 +526,7 @@ where
 }
 
 /// The error for `model`'s key of `T`, which `T`'s table does not hold.
-// [spec:pgorm:def:disjoint.one-of+2]
+// [spec:pgorm:def:disjoint.one-of+3]
 fn absent<O, T>(model: &<O::Entity as EntityTrait>::Model) -> Error
 where
     O: OneOf,

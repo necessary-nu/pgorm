@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// The `#[derive(OneOf)]` enum one `CHECK` of a table generates.
-// [spec:pgorm:def:disjoint.one-of+2]
+// [spec:pgorm:def:disjoint.one-of+3]
 #[derive(Clone, Debug)]
 pub(crate) struct OneOfEnum {
     pub(crate) name: String,
@@ -27,7 +27,7 @@ pub(crate) struct OneOfEnum {
 
 /// One variant naming a target: its name, the column holding its key, and
 /// the target entity's module, `None` for the table's own.
-// [spec:pgorm:def:disjoint.one-of+2]
+// [spec:pgorm:def:disjoint.one-of+3]
 #[derive(Clone, Debug)]
 pub(crate) struct OneOfTarget {
     pub(crate) variant: String,
@@ -50,7 +50,7 @@ const NONE: &str = "None";
 /// `table`'s `CHECK`s, each unnamed one named as PostgreSQL names it:
 /// `{table}_{column}_check` over one column and `{table}_check` otherwise,
 /// numbered from 1 where an earlier `CHECK`, or one the table names, took it.
-// [spec:pgorm:def:disjoint.one-of+2]
+// [spec:pgorm:def:disjoint.one-of+3]
 pub(crate) fn table_checks(table: &TableCreateStatement) -> Vec<TableCheck> {
     let bare = table.get_table_name().table().to_string();
     let mut taken: BTreeSet<String> = table
@@ -105,7 +105,7 @@ pub(crate) fn table_checks(table: &TableCreateStatement) -> Vec<TableCheck> {
 /// Any other `CHECK` is refused, naming it: the entity holds no `CHECK` but
 /// a one-of reference's, so an entity generated without it would not create
 /// the table it was read from.
-// [spec:pgorm:def:disjoint.one-of+2]
+// [spec:pgorm:def:disjoint.one-of+3]
 pub(crate) fn recognise(
     entities: &mut [Entity],
     checks: &BTreeMap<TableIdent, Vec<TableCheck>>,
@@ -137,7 +137,7 @@ pub(crate) fn recognise(
 }
 
 /// The enum `check` generates on `entity`'s table, if it has the shape.
-// [spec:pgorm:def:disjoint.one-of+2]
+// [spec:pgorm:def:disjoint.one-of+3]
 fn shape(entities: &[Entity], entity: &Entity, check: &TableCheck) -> Option<OneOfEnum> {
     if !check.enforced {
         return None;
@@ -170,21 +170,39 @@ fn shape(entities: &[Entity], entity: &Entity, check: &TableCheck) -> Option<One
         .into_iter()
         .map(|column| target(entities, entity, column))
         .collect::<Option<_>>()?;
-    let prefix = format!("ck-{}-", entity.table_name);
-    let named = check.name.strip_prefix(&prefix).unwrap_or(&check.name);
     Some(OneOfEnum {
-        name: escape_rust_keyword(named.to_upper_camel_case()),
+        name: escape_rust_keyword(enum_part(&entity.table_name, &check.name).to_upper_camel_case()),
         constraint: check.name.clone(),
         targets,
         none,
     })
 }
 
+/// The part of the `CHECK` `name` on `table` the enum is named for: the
+/// enum's own name where `Schema::create_one_of` wrote it, `ck-{table}-{enum}`
+/// or, where that would not be under 63 bytes, `ck-{enum}`, and the whole
+/// name otherwise. A composed name of 63 bytes is one pgorm bounded to a head
+/// and a hash, which keeps no enum's name.
+// [spec:pgorm:def:disjoint.one-of+3]
+fn enum_part<'a>(table: &str, name: &'a str) -> &'a str {
+    const WHOLE_UNDER: usize = 63;
+    if name.len() >= WHOLE_UNDER {
+        return name;
+    }
+    if let Some(rest) = name.strip_prefix(&format!("ck-{table}-")) {
+        return rest;
+    }
+    match name.strip_prefix("ck-") {
+        Some(rest) if format!("ck-{table}-{rest}").len() >= WHOLE_UNDER => rest,
+        _ => name,
+    }
+}
+
 /// The variant `column` of `entity` names, if it is nullable and the one
 /// column of a foreign key onto a table's one-column primary key of its
 /// type, a table the entity's `Relation` reaches by that key's variant
 /// alone.
-// [spec:pgorm:def:disjoint.one-of+2]
+// [spec:pgorm:def:disjoint.one-of+3]
 fn target(entities: &[Entity], entity: &Entity, column: &str) -> Option<OneOfTarget> {
     let held = entity.columns.iter().find(|held| held.name == column)?;
     if held.not_null {
@@ -244,7 +262,7 @@ impl OneOfEnum {
     ///
     /// Its variants are named by the schema, for the target tables, so
     /// clippy's `enum_variant_names` is allowed on it as on a disjoint enum.
-    // [spec:pgorm:def:disjoint.one-of+2]
+    // [spec:pgorm:def:disjoint.one-of+3]
     pub(crate) fn tokens(&self) -> TokenStream {
         let ident = format_ident!("{}", self.name);
         let variants = self.targets.iter().map(|target| {
@@ -282,7 +300,7 @@ impl OneOfEnum {
 
     /// The items the enum's derive declares in the module, each with what
     /// it is: the enum, `<Enum>Key` and `<Enum>Model`.
-    // [spec:pgorm:def:disjoint.one-of+2]
+    // [spec:pgorm:def:disjoint.one-of+3]
     pub(crate) fn items(&self) -> [(String, &'static str); 3] {
         [
             (self.name.clone(), "enum"),
@@ -293,7 +311,7 @@ impl OneOfEnum {
 
     /// Refuse a variant named as another of the enum's, or an enum named as
     /// no Rust identifier.
-    // [spec:pgorm:def:disjoint.one-of+2]
+    // [spec:pgorm:def:disjoint.one-of+3]
     pub(crate) fn refuse_variant_clashes(&self, table: &TableIdent) -> Result<(), Error> {
         safe_ident(
             &format!(

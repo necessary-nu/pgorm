@@ -63,7 +63,7 @@ pub struct Entity {
     pub(crate) disjoint: Option<DisjointEnum>,
     /// The `#[derive(OneOf)]` enums the entity's module declares, one per
     /// `CHECK` holding nullable foreign-key columns to one target.
-    // [spec:pgorm:def:disjoint.one-of+2]
+    // [spec:pgorm:def:disjoint.one-of+3]
     pub(crate) one_of: Vec<OneOfEnum>,
     /// The table's unique keys over two columns or more, in the table's
     /// order, which the entity declares with `unique(..)`.

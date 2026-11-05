@@ -1484,6 +1484,7 @@ assertions (
     {id codegen-fk-covering-key-at-most-one, kind @complete, author "brendan@necessary.nu", at 2026-11-04T23:35:09.965359Z}
     {id codegen-check-not-dropped, kind @complete, author "brendan@necessary.nu", at 2026-11-04T23:48:45.903544Z}
     {id codegen-one-of-self-reference, kind @complete, author "brendan@necessary.nu", at 2026-11-04T23:55:27.562584Z}
+    {id codegen-one-of-bounded-name, kind @complete, author "brendan@necessary.nu", at 2026-11-05T00:16:45.052411Z}
 )
 
 impl_evidence (

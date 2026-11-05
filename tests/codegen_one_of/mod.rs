@@ -6,6 +6,7 @@
 //! `tests/one_of_tests.rs` holds the writer's output to them.
 
 pub mod comment;
+pub mod long_names;
 pub mod photo;
 pub mod post;
 pub mod self_reference;

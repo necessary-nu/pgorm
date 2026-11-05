@@ -872,7 +872,7 @@ fn table_constraint(
 /// holds none but the one a `OneOf` reference generates from, so it rides on
 /// the statement, where the transform recognises that one.
 // [spec:pgorm:sem:codegen.ddl.tables+13]
-// [spec:pgorm:def:disjoint.one-of+2]
+// [spec:pgorm:def:disjoint.one-of+3]
 fn check(constraint: &Constraint, table_name: &str, at: usize) -> Result<TableConstraint, Error> {
     let what = match constraint.conname.as_str() {
         "" => format!("a CHECK of table `{table_name}`"),

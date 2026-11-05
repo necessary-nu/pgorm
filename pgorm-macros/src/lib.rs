@@ -550,7 +550,7 @@ pub fn derive_disjoint(input: TokenStream) -> TokenStream {
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:disjoint.one-of+2]
+// [spec:pgorm:def:disjoint.one-of+3]
 // [spec:pgorm:req:macros.derive.names+2]
 #[cfg(feature = "derive")]
 #[proc_macro_derive(OneOf, attributes(pgorm))]

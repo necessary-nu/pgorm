@@ -360,7 +360,7 @@ impl EntityWriter {
 
     // [spec:pgorm:req:macros.derive.one-form]
     // [spec:pgorm:def:codegen.entity.compact+7]
-    // [spec:pgorm:def:disjoint.one-of+2]
+    // [spec:pgorm:def:disjoint.one-of+3]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_code_blocks(
         entity: &Entity,

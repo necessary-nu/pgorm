@@ -16618,12 +16618,34 @@ children (
                 title "Codegen names a one-of enum correctly when its CHECK's name was bounded to 63 bytes"
                 kind @fix
                 deps (codegen-check-not-dropped)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:51.492826Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.one-of: Schema::create_one_of names its CHECK ck-{table}-{enum} through derived_name, which past 63 bytes becomes a 47-byte head plus a hash. Codegen names the generated enum for the constraint, so a long one comes back named from the truncated head and hash rather than the original enum. Decide how the enum's name survives: name it from the targets when the constraint name is bounded, or have create_one_of record the enum name (e.g. COMMENT ON CONSTRAINT) for codegen to read. Test with a long table and enum name."
+                    }
+
+                    {
+                        at 2026-11-04T23:56:23.610159Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:57:18.592033Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "The enum's name survives in the constraint's name, not in a comment and not by renaming from the targets. A CHECK's name is scoped to its table (pg_constraint keys it by relation), so the table the constraint is on already says what `ck-{table}-` repeats. Schema::create_one_of names the CHECK `ck-{table}-{enum}` when that is under 63 bytes, as now, and otherwise `ck-{enum}`; codegen reads a name under 63 bytes on table T as enum `rest` when it is `ck-T-{rest}`, or when it is `ck-{rest}` and `ck-T-{rest}` would not have been under 63 bytes (so create_one_of would have written the short form), and the whole name otherwise. Both readings are exact for every name create_one_of writes, need no hash to verify, and leave every name it writes today unchanged. The one case `ck-{enum}` cannot hold, an enum whose snake_case name passes 59 bytes, the OneOf derive refuses at compile time, as the unique(name) and enum-label limits are refused; a hand-written OneOf with such a name gets the bounded `ck-{enum}` and codegen names it for the whole name. Rejected: naming from the targets when a 63-byte name is seen (the enum's name is lost, and create_one_of on the generated enum writes a different constraint, so the schema no longer round-trips); COMMENT ON CONSTRAINT (a second statement from create_one_of, a comment surface the bridge and TableCreateStatement do not have, and a user-owned comment repurposed)."
+                    }
+
+                    {
+                        at 2026-11-05T00:16:45.052411Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
