@@ -17766,6 +17766,20 @@ children (
                     }
                 )
             }
+
+            {
+                id typed-binds.created-range-quantified
+                title "A quantified comparison on a created-range column binds its array under the created type"
+                kind @fix
+                deps (typed-binds.quantified-casts pipeline-created-range-bind)
+            }
+
+            {
+                id typed-binds.empty-quantified-list
+                title "An empty any_/all_ list on a registered column is typed by the column and compares, instead of being refused as the quantifier is built"
+                kind @fix
+                deps (typed-binds.quantified-casts)
+            }
         )
     }
 )
