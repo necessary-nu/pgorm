@@ -17856,6 +17856,22 @@ children (
                 title "pgorm-napi's generic declarations type a created-range array column's operand, so a caller needs no EntityColumn of unknown"
                 kind @fix
                 deps (typed-binds.created-range-array-column)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T06:03:50.262653Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T06:06:46.155153Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
         )
     }

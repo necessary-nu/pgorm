@@ -21,7 +21,6 @@ import {
   DecodeError,
   entities,
   entity,
-  type EntityColumn,
   type EntityRecord,
   graph,
   graphs,
@@ -543,8 +542,7 @@ test("a registered created range array binds as the array of the ranges' texts",
   assert.deepStrictEqual(found.spares, [new Range(1.5, 2.5), new Range(3, 4)]);
   const ids = async (query: { all(pool: Pool): Promise<readonly EntityRecord[]> }) =>
     (await query.all(pool())).map((record) => record.id).sort();
-  // The registration declares no column types, and an array of ranges is no `Operand`.
-  const spares: EntityColumn<unknown> = Booking.col("spares");
+  const spares = Booking.col("spares");
   assert.match(
     spares.eq([new Range(1.5, 2.5)]).inspect().sql,
     /= CAST\(\$1::text\[\] AS napi_entities\.floatrange\[\]\)/,

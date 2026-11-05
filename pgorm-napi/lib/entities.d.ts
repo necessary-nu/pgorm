@@ -11,7 +11,7 @@
 import type { Compiled, ComparisonOperand, Expr, Operand, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Conflict, ConflictUpdate } from "./writes.d.ts";
 import type { Change, Upserted } from "./models.d.ts";
-import type { OperationOptions, PlainValue, Queryable, Value } from "./index.d.ts";
+import type { Multirange, OperationOptions, PlainValue, Queryable, Range, Value } from "./index.d.ts";
 
 /** A registered entity's record when no generated module types it: its values by SQL column name. */
 export type EntityRecord = { readonly [column: string]: PlainValue };
@@ -109,8 +109,16 @@ export declare class EntityColumn<I = Operand> extends Expr {
   readonly [operands]?: I;
 }
 
+/**
+ * What a column of a registration no generated module types is compared
+ * with: an {@link Operand}, or what the column's kind, known only at run
+ * time, converts and no `Operand` is — a `Range` or `Multirange`, a created
+ * range's included, or an array of either.
+ */
+export type EntityOperand = Operand | Range | Multirange | readonly (Range | Multirange | null)[];
+
 /** What a registered entity's column is compared with: a value of its input type, never `null`. */
-export type ColumnOperand<T extends EntityTypes<any, any>, C> = unknown extends EntityInputOf<T, C> ? Operand
+export type ColumnOperand<T extends EntityTypes<any, any>, C> = unknown extends EntityInputOf<T, C> ? EntityOperand
   : Exclude<EntityInputOf<T, C>, null> | Value | Expr;
 
 /** A registration's description: its table, columns, key, relations and Rust types. */
