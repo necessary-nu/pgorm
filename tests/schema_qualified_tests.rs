@@ -77,10 +77,10 @@ async fn main() -> Result<(), Error> {
     result
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    preserving the source
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    preserving the source
 // table's schema qualifier is what keeps generated CRUD off a same-named table
 // on the `search_path`
-// [spec:pgorm:def:codegen.entity.compact+6/test]
+// [spec:pgorm:def:codegen.entity.compact+7/test]
 async fn generated_entity_targets_its_own_schema(db: &DatabaseConnection) -> Result<(), Error> {
     // `public` is on the default `search_path` and `tenant_a` is not, so an
     // unqualified name resolves to the other table entirely.

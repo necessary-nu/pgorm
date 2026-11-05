@@ -32,5 +32,6 @@ pub struct Model {
     pub budgets: Option<Vec<Interval>>,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}

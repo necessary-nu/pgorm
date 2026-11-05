@@ -13,5 +13,6 @@ pub struct Model {
     pub history: Option<Vec<Stage>>,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}

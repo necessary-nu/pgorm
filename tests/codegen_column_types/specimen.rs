@@ -69,5 +69,6 @@ pub struct Model {
     pub letters: Textrange,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}

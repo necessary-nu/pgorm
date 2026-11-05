@@ -8,5 +8,6 @@ pub struct Model {
     pub seq: i32,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}

@@ -154,6 +154,12 @@ pub enum Policy {
     /// is part of an identifier written as [`Quoted`](Self::Quoted) writes
     /// one, so a NUL reaches the text.
     DerivedLabel,
+    /// [`Quoted`](Self::Quoted), at a constraint name only its table has to
+    /// hold uniquely: the one-of `CHECK`'s `ck-{table}-{enum}`. When the
+    /// whole derivation would pass 63 bytes, pgorm drops the caller's part
+    /// rather than bounding it (`ck-{enum}`, `disjoint.one-of`), so the
+    /// name keeps the part the declaration chose.
+    TableScoped,
     /// A qualified pipeline identifier (a column under its relation, a schema
     /// or the table after it): refused with `UnquotableIdentifier` when it
     /// carries `"` or NUL, begins with `$`, or is `*`; otherwise written by
@@ -201,9 +207,11 @@ impl Policy {
 
     pub fn nul(self) -> NulBehaviour {
         match self {
-            Self::Quoted | Self::TypePart | Self::FunctionName | Self::DerivedLabel => {
-                NulBehaviour::Encoder
-            }
+            Self::Quoted
+            | Self::TypePart
+            | Self::FunctionName
+            | Self::DerivedLabel
+            | Self::TableScoped => NulBehaviour::Encoder,
             Self::Literal => NulBehaviour::Escaped,
             Self::Pipeline | Self::PipelineBare | Self::PipelineAlias => NulBehaviour::Refused,
         }
@@ -247,7 +255,10 @@ impl Policy {
     /// `-`-separated part of a derived name is itself a name pgorm composed
     /// and bounded — a disjoint base's `fk-{base}-{value}_{column}`, whose
     /// last part is its generated column's name — that derivation with the
-    /// part bounded first, as pgorm bounds it.
+    /// part bounded first, as pgorm bounds it. At a
+    /// [`TableScoped`](Self::TableScoped) name whose whole derivation does
+    /// not fit, it is the derivation without the caller's part, and only
+    /// then: a name that fits must carry the caller's.
     fn reads_back(self, benign: &str, name: &str, hostile: &str) -> bool {
         if hostile == self.expected(benign, name) {
             return true;
@@ -256,6 +267,15 @@ impl Policy {
             return false;
         }
         let parts: Vec<&str> = benign.split('-').collect();
+        if self == Self::TableScoped && benign.replace(BENIGN, name).len() > IDENTIFIER_BYTES {
+            let declared: Vec<&str> = parts
+                .iter()
+                .copied()
+                .filter(|part| !part.contains(BENIGN))
+                .collect();
+            return hostile
+                == self.parsed_form(&pgorm::result_column_name("", &declared.join("-")));
+        }
         (0..parts.len())
             .filter(|&index| parts[index].contains(BENIGN) && parts[index] != BENIGN)
             .any(|bounded| {

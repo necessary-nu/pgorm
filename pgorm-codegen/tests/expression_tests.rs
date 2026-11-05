@@ -4,11 +4,10 @@
 
 mod common;
 
+use common::runtime_name as n;
 use common::*;
-use pgorm_codegen::{entities_from_sql, parse_schema};
-use pgorm_query::{
-    ColumnDef, ColumnSpec, Expr, Func, GeneratedKind, Name, Query, TableCreateStatement,
-};
+use pgorm_codegen::parse_schema;
+use pgorm_query::{ColumnDef, ColumnSpec, Expr, Func, GeneratedKind, Query, TableCreateStatement};
 
 const SCHEMA: &str = include_str!("sql/expressions/schema.sql");
 
@@ -20,21 +19,6 @@ mod formula;
 mod stock_code;
 #[path = "sql/expressions/stock_item.rs"]
 mod stock_item;
-
-fn files(sql: &str, opts: Opts) -> Generated {
-    Generated {
-        files: entities_from_sql(sql, opts)
-            .expect("schema should generate")
-            .files
-            .into_iter()
-            .map(|file| (file.name, file.content))
-            .collect(),
-    }
-}
-
-fn n(name: &str) -> Name {
-    Name::runtime(name)
-}
 
 /// Each column's `DEFAULT` or generation expression, as the column, the
 /// kind and the expression rendered.
@@ -61,16 +45,7 @@ fn expressions(table: &TableCreateStatement) -> Vec<String> {
     found
 }
 
-#[track_caller]
-fn refused(sql: &str) -> String {
-    match entities_from_sql(sql, Opts::default()) {
-        Err(pgorm_codegen::Error::TransformError(message)) => message,
-        Err(other) => panic!("expected a TransformError for {sql}, got {other:?}"),
-        Ok(_) => panic!("expected a TransformError for {sql}, got entities"),
-    }
-}
-
-// [spec:pgorm:sem:codegen.ddl.tables+12/test]    a column's DEFAULT and generation expression,
+// [spec:pgorm:sem:codegen.ddl.tables+13/test]    a column's DEFAULT and generation expression,
 // stored or virtual, ride on the bridged statement
 // [spec:pgorm:sem:codegen.entity.expressions+2/test]    and reach the entity as the Rust that
 // builds the same expressions: the schema built from the generated entities carries each
@@ -78,7 +53,7 @@ fn refused(sql: &str) -> String {
 // [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]
 #[test]
 fn schema_expressions_reach_the_entity() {
-    let generated = files(SCHEMA, Opts::default());
+    let generated = from_sql_with(SCHEMA, Opts::default());
     for (file, fixture) in [
         (
             "stock_item.rs",
@@ -144,7 +119,7 @@ fn a_generated_key_is_the_databases() {
     }
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+20/test]    a construct outside the subset codegen
+// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a construct outside the subset codegen
 // reads is named with the expression it sits in, never approximated
 #[test]
 fn expressions_outside_the_subset_are_named() {
@@ -222,7 +197,7 @@ fn expressions_outside_the_subset_are_named() {
     }
 }
 
-// [spec:pgorm:sem:codegen.ddl.tables+12/test]    a column filled two ways, or a DEFAULT reading a
+// [spec:pgorm:sem:codegen.ddl.tables+13/test]    a column filled two ways, or a DEFAULT reading a
 // column, is refused as PostgreSQL refuses it (42601, 0A000)
 #[test]
 fn a_column_filled_twice_is_refused() {
@@ -264,7 +239,7 @@ fn a_column_filled_twice_is_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    a caller-built statement's expressions are
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    a caller-built statement's expressions are
 // read through the same subset, and what the entity could not hold is refused by name
 // [spec:pgorm:sem:codegen.entity.expressions+2/test]    a caller-built searched CASE is read
 // back arm by arm, a `Condition` arm as the expression it means

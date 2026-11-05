@@ -36,5 +36,6 @@ pub struct Model {
     pub slots: SlotMultirange,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}

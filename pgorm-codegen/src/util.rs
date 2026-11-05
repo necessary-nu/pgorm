@@ -32,8 +32,8 @@ fn is_ident(raw: &str) -> bool {
 /// transform would read from it is not the key written: one `PrimaryKey`
 /// variant twice over, or a unique key whose set of columns is narrower than
 /// its list.
-// [spec:pgorm:req:codegen.ddl.unsupported+20]
-// [spec:pgorm:sem:codegen.entity.transform+17]
+// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:sem:codegen.entity.transform+18]
 pub(crate) fn repeated_column<I>(columns: I) -> Option<String>
 where
     I: IntoIterator<Item = String>,

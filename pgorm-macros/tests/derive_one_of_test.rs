@@ -44,7 +44,7 @@ impl<O: OneOf> TargetVisitor<O> for Targets {
     }
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    each variant naming a target reaches its entity and the column holding its key, in declaration order; the enum is named in snake_case, and only an enum with a unit variant has one
+// [spec:pgorm:def:disjoint.one-of+3/test]    each variant naming a target reaches its entity and the column holding its key, in declaration order; the enum is named in snake_case, and only an enum with a unit variant has one
 #[test]
 fn targets_in_declaration_order() {
     let mut targets = Targets(Vec::new());
@@ -70,7 +70,7 @@ fn targets_in_declaration_order() {
     assert!(Attached::none().is_none());
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    `<Enum>Key` holds each target's key and `<Enum>Model` its `Model`, the unit variant holding nothing
+// [spec:pgorm:def:disjoint.one-of+3/test]    `<Enum>Key` holds each target's key and `<Enum>Model` its `Model`, the unit variant holding nothing
 #[test]
 fn generated_enums_hold_keys_and_models() {
     let post = post::Model {
@@ -105,7 +105,7 @@ fn generated_enums_hold_keys_and_models() {
     );
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    a row reads as the variant whose column is set, and as the unit variant where none is
+// [spec:pgorm:def:disjoint.one-of+3/test]    a row reads as the variant whose column is set, and as the unit variant where none is
 #[test]
 fn a_row_reads_as_its_key() -> Result<(), Error> {
     assert_eq!(
@@ -127,7 +127,7 @@ fn a_row_reads_as_its_key() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    a row with two columns set, or none where the enum has no unit variant, is an error naming the table, the key and the columns, never read as one of them
+// [spec:pgorm:def:disjoint.one-of+3/test]    a row with two columns set, or none where the enum has no unit variant, is an error naming the table, the key and the columns, never read as one of them
 #[test]
 fn a_row_against_its_declaration_is_refused() {
     let both = Commentable::key(&comment(Some(3), Some(4)));
@@ -150,7 +150,7 @@ fn a_row_against_its_declaration_is_refused() {
     );
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    setting a key sets its variant's column and every other one to null, the unit variant every one
+// [spec:pgorm:def:disjoint.one-of+3/test]    setting a key sets its variant's column and every other one to null, the unit variant every one
 #[test]
 fn setting_a_key_nulls_the_other_columns() -> Result<(), Error> {
     let mut active = comment(Some(3), None).into_active();

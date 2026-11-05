@@ -21,5 +21,6 @@ pub struct Model {
     pub label: Textrange,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}

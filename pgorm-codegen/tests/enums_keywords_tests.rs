@@ -2,12 +2,14 @@
 //! snake_case field names, preserved DB column names).
 
 mod common;
+mod variant_names;
 
 use common::*;
+use pgorm::{ActiveEnum, Iterable};
 use pgorm_codegen::WithSerde;
 use pgorm_query::{ColumnDef, ColumnType, Name, Table};
 
-// [spec:pgorm:sem:codegen.entity.enums+7/test]    every discovered enum lands in
+// [spec:pgorm:sem:codegen.entity.enums+8/test]    every discovered enum lands in
 // one `pgorm_active_enums.rs`, alphabetically by enum name
 #[test]
 fn active_enums_are_generated_into_one_alphabetical_file() {
@@ -45,7 +47,7 @@ fn active_enums_are_generated_into_one_alphabetical_file() {
     assert!(position_of(enums, "pub enum AppleKind") < position_of(enums, "pub enum ZebraKind"));
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+7/test]    each enum gets the base derives,
+// [spec:pgorm:sem:codegen.entity.enums+8/test]    each enum gets the base derives,
 // the `#[pgorm(rs_type, db_type, enum_name)]` attribute, extra attributes, an
 // UpperCamelCase name and one `string_value` per variant
 #[test]
@@ -70,7 +72,8 @@ fn active_enum_derives_attributes_and_string_values() {
 
     assert_contains(
         generated.file("pgorm_active_enums.rs"),
-        r#"#[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy, Serialize, Hash)]
+        r#"#[allow(clippy::enum_variant_names)]
+           #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy, Serialize, Hash)]
            #[non_exhaustive]
            pub enum TeaKind {
                #[pgorm(string_value = "EverydayTea")]
@@ -81,7 +84,7 @@ fn active_enum_derives_attributes_and_string_values() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+7/test]    variant naming: a leading digit
+// [spec:pgorm:sem:codegen.entity.enums+8/test]    variant naming: a leading digit
 // gets an underscore prefix, an empty UpperCamelCase falls back to per-character
 // encoding (ASCII as `U<hex>`, multi-byte verbatim), everything else is plain
 // UpperCamelCase
@@ -117,7 +120,7 @@ fn active_enum_variant_naming_digits_punctuation_multibyte() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+7/test]    entity files import each enum
+// [spec:pgorm:sem:codegen.entity.enums+8/test]    entity files import each enum
 // they use, and an enum column is a field of the enum's type, which the derive
 // takes the column's type from
 #[test]
@@ -321,4 +324,38 @@ fn colliding_enum_names_and_variants_are_refused() {
         )],
         "enum `tea` values `Earl Grey` and `earl_grey` both generate the variant name `EarlGrey`",
     );
+}
+
+// [spec:pgorm:def:codegen.entity.compact+7/test]    a `Relation` enum whose three variants end `Shop` carries the allow of clippy's `enum_variant_names`, and compiles clippy-clean in a module that is not exported
+// [spec:pgorm:sem:codegen.entity.enums+8/test]    and so does an enum whose three values end `_shop`
+#[test]
+fn variants_sharing_a_word_compile_clean() {
+    use variant_names::{pgorm_active_enums::Outlet, sale};
+    let generated = from_sql(include_str!("variant_names/schema.sql"));
+    for (file, fixture) in [
+        ("sale.rs", include_str!("variant_names/sale.rs")),
+        ("web_shop.rs", include_str!("variant_names/web_shop.rs")),
+        (
+            "pop_up_shop.rs",
+            include_str!("variant_names/pop_up_shop.rs"),
+        ),
+        (
+            "closed_shop.rs",
+            include_str!("variant_names/closed_shop.rs"),
+        ),
+        (
+            "pgorm_active_enums.rs",
+            include_str!("variant_names/pgorm_active_enums.rs"),
+        ),
+    ] {
+        generated.holds(file, fixture);
+    }
+
+    assert_eq!(
+        Outlet::iter()
+            .map(|outlet| outlet.to_value())
+            .collect::<Vec<_>>(),
+        ["web_shop", "pop_up_shop", "closed_shop"]
+    );
+    assert_eq!(sale::Relation::iter().count(), 3);
 }

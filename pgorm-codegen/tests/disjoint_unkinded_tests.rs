@@ -12,7 +12,7 @@
 mod common;
 
 use common::*;
-use pgorm_codegen::{TableIdent, UnkindedDisjoint, WithSerde, entities_from_sql};
+use pgorm_codegen::{TableIdent, UnkindedDisjoint, WithSerde};
 
 const SCHEMA: &str = include_str!("../../tests/codegen_disjoint_unkinded/schema.sql");
 
@@ -58,38 +58,10 @@ fn with(unkinded_disjoint: Vec<UnkindedDisjoint>) -> Opts {
     }
 }
 
-fn from_sql(sql: &str, opts: Opts) -> Generated {
-    Generated {
-        files: entities_from_sql(sql, opts)
-            .unwrap_or_else(|error| panic!("{error}: {sql}"))
-            .files
-            .into_iter()
-            .map(|file| (file.name, file.content))
-            .collect(),
-    }
-}
-
-fn refused(sql: &str, sets: Vec<UnkindedDisjoint>) -> String {
-    match entities_from_sql(sql, with(sets)) {
-        Err(pgorm_codegen::Error::TransformError(message)) => message,
-        Err(other) => panic!("expected a TransformError, got {other:?}"),
-        Ok(_) => panic!("expected a TransformError, got entities: {sql}"),
-    }
-}
-
-/// Assert that the generated `file` is `fixture`, rustfmt's trailing commas
-/// aside.
-#[track_caller]
-fn holds(generated: &Generated, file: &str, fixture: &str) {
-    let flat = |src: &str| norm(src).replace(" , )", " )").replace(" , }", " }");
-    let written = flat(generated.file(file));
-    assert!(written.contains(&flat(fixture)), "{file}: {written}");
-}
-
 // [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1/test]    each named set generates its base's entity holding a `#[derive(Disjoint)]` enum declared `unkinded`, a variant per kind's table in the order named and the named unit variant last, and each kind's entity as the ordinary entity it is, its foreign key its `belongs_to` and the base's inverse `has_one`, a composite key in a schema of its own included
 #[test]
 fn named_sets_generate_unkinded_enums() {
-    let generated = from_sql(SCHEMA, with(sets()));
+    let generated = from_sql_with(SCHEMA, with(sets()));
     assert_eq!(
         generated.names(),
         [
@@ -129,22 +101,22 @@ fn named_sets_generate_unkinded_enums() {
             include_str!("../../tests/codegen_disjoint_unkinded/company.rs"),
         ),
     ] {
-        holds(&generated, file, fixture);
+        generated.holds(file, fixture);
     }
 }
 
 // [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1/test]    a set is named, never guessed: unnamed, the same tables generate the ordinary entities alone, and naming one set leaves the other ordinary
 #[test]
 fn unnamed_sets_generate_ordinary_entities() {
-    let ordinary = from_sql(SCHEMA, Opts::default());
+    let ordinary = from_sql_with(SCHEMA, Opts::default());
     for (_, content) in &ordinary.files {
         assert_not_contains(content, "Disjoint");
     }
-    let named = from_sql(SCHEMA, with(sets()));
+    let named = from_sql_with(SCHEMA, with(sets()));
     for file in ["website.rs", "storefront.rs", "person.rs", "company.rs"] {
         assert_eq!(named.file(file), ordinary.file(file), "{file}");
     }
-    let shop_only = from_sql(SCHEMA, with(sets()[..1].to_vec()));
+    let shop_only = from_sql_with(SCHEMA, with(sets()[..1].to_vec()));
     assert_contains(shop_only.file("shop.rs"), "unkinded");
     assert_eq!(shop_only.file("account.rs"), ordinary.file("account.rs"));
 }
@@ -152,7 +124,7 @@ fn unnamed_sets_generate_ordinary_entities() {
 // [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1/test]    under serde the enum derives what the kinded enum derives, and no `kind_attrs`, since no model holds its kind enum
 #[test]
 fn unkinded_enum_under_serde_takes_no_kind_attrs() {
-    let generated = from_sql(
+    let generated = from_sql_with(
         SCHEMA,
         Opts {
             with_serde: WithSerde::Both,
@@ -160,8 +132,7 @@ fn unkinded_enum_under_serde_takes_no_kind_attrs() {
             ..Default::default()
         },
     );
-    holds(
-        &generated,
+    generated.holds(
         "shop.rs",
         r#"#[derive(Clone, Debug, PartialEq, Eq, Disjoint, Serialize, Deserialize)]
         #[pgorm(base = Entity, unkinded)]
@@ -217,21 +188,20 @@ fn a_named_set_the_schema_lacks_is_refused() {
             "it is named twice, and a base's module holds one enum",
         ),
     ] {
-        assert_eq!(refused(SCHEMA, sets), format!("{prefix}{why}"));
+        assert_eq!(refused_with(SCHEMA, with(sets)), format!("{prefix}{why}"));
     }
     assert_eq!(
-        refused(
+        refused_with(
             SCHEMA,
-            vec![set(table("outlet"), vec![table("website")], None)]
+            with(vec![set(table("outlet"), vec![table("website")], None)])
         ),
         "unkinded disjoint entity over `outlet`: table `outlet` is not in the schema"
     );
-    let unqualified = from_sql(
+    let unqualified = from_sql_with(
         SCHEMA,
         with(vec![set(table("account"), vec![table("person")], None)]),
     );
-    holds(
-        &unqualified,
+    unqualified.holds(
         "account.rs",
         "#[pgorm(base = Entity, unkinded)] pub enum Account { Person(super::person::Model) }",
     );
@@ -241,7 +211,7 @@ fn a_named_set_the_schema_lacks_is_refused() {
         r#""name" varchar NOT NULL, UNIQUE ("id") );"#,
     );
     assert_eq!(
-        refused(&keyless, shop_set(&["website"], None)),
+        refused_with(&keyless, with(shop_set(&["website"], None))),
         format!("{prefix}its base has no primary key")
     );
     let temporal = shop_with(
@@ -249,7 +219,7 @@ fn a_named_set_the_schema_lacks_is_refused() {
         r#""name" varchar NOT NULL, "open" tstzrange NOT NULL, PRIMARY KEY ("id", "open" WITHOUT OVERLAPS) );"#,
     );
     assert_eq!(
-        refused(&temporal, shop_set(&["website"], None)),
+        refused_with(&temporal, with(shop_set(&["website"], None))),
         format!("{prefix}its base's primary key ends WITHOUT OVERLAPS")
     );
 }
@@ -293,7 +263,7 @@ fn a_named_kind_without_the_key_is_refused() {
             1,
         );
         assert_eq!(
-            refused(&sql, shop_set(&["website"], None)),
+            refused_with(&sql, with(shop_set(&["website"], None))),
             unkeyed("website"),
             "{what}"
         );
@@ -306,9 +276,9 @@ fn a_named_kind_without_the_key_is_refused() {
     );
     assert_ne!(crossed, SCHEMA);
     assert_eq!(
-        refused(
+        refused_with(
             &crossed,
-            vec![set(crm("account"), vec![crm("company")], None)]
+            with(vec![set(crm("account"), vec![crm("company")], None)])
         ),
         "unkinded disjoint entity over `crm.account`: the primary key of `crm.company` is not a \
          foreign key onto the base's primary key, column for column"
@@ -319,7 +289,7 @@ fn a_named_kind_without_the_key_is_refused() {
         r#""shop_id" bigint NOT NULL, "url" varchar NOT NULL"#,
     );
     assert_eq!(
-        refused(&wide, shop_set(&["website"], None)),
+        refused_with(&wide, with(shop_set(&["website"], None))),
         "unkinded disjoint entity over `shop`: column `website`.`shop_id` is not of the type \
          of `shop`.`id`, which it is keyed by"
     );
@@ -333,9 +303,9 @@ fn a_kinded_base_named_unkinded_is_refused() {
         .next()
         .expect("the schema opens with the vehicle's statements");
     assert_eq!(
-        refused(
+        refused_with(
             kinded,
-            vec![set(table("vehicle"), vec![table("car")], None)]
+            with(vec![set(table("vehicle"), vec![table("car")], None)])
         ),
         "unkinded disjoint entity over `vehicle`: its base is the base of a disjoint entity \
          whose kind column `kind` holds each row's kind"
@@ -346,14 +316,14 @@ fn a_kinded_base_named_unkinded_is_refused() {
 #[test]
 fn the_unit_and_kind_enum_names_are_held() {
     assert_eq!(
-        refused(SCHEMA, shop_set(&["website"], Some("9 lives"))),
+        refused_with(SCHEMA, with(shop_set(&["website"], Some("9 lives")))),
         "unkinded disjoint entity over `shop`: its unit variant: `9Lives` is not a valid Rust \
          identifier"
     );
     assert_eq!(
-        refused(
+        refused_with(
             SCHEMA,
-            shop_set(&["website", "storefront"], Some("website"))
+            with(shop_set(&["website", "storefront"], Some("website")))
         ),
         "unkinded disjoint entity over `shop`: its unit variant `Website` is named as the \
          variant of `website`"
@@ -367,7 +337,7 @@ fn the_unit_and_kind_enum_names_are_held() {
         )
     );
     assert_eq!(
-        refused(&shop_kind, shop_set(&["website"], None)),
+        refused_with(&shop_kind, with(shop_set(&["website"], None))),
         "table `shop`: its disjoint entity's kind enum `ShopKind` is named as the type enum \
          `shop_kind` generates"
     );

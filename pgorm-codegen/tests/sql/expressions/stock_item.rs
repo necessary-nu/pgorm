@@ -57,5 +57,6 @@ pub struct Model {
     pub spare: Option<i32>,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}

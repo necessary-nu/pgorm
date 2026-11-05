@@ -50,5 +50,6 @@ pub struct Model {
     pub amount: Decimal,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
