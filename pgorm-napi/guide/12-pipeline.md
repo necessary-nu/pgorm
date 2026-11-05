@@ -511,6 +511,15 @@ const names = (await everyone.all(pool)).map((row) => row.name).sort();
 assert.deepEqual(names, ["Kim", "Lee", "Moonlight", "Sunrise"]);
 ```
 
+A step after a combination reads the whole combined relation, as in Rust:
+the combination is written as a `WITH` query first and the step reads it, so
+`pl.from(Cake.table).append(Cake.table).select(pl.col("cake", "name"))`
+projects the rows of both operands, `WITH table_0 AS (SELECT * FROM cake
+UNION ALL SELECT * FROM cake) SELECT name FROM table_0`, and a column named
+against an operand's table still resolves after `intersect` or `remove`. A
+`distinct` directly after `append` still folds into `UNION DISTINCT`, as
+above.
+
 ## When a pipeline fails
 
 Building a pipeline cannot fail on what it will compile to: every method
