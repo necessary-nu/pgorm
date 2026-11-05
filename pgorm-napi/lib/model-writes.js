@@ -5,7 +5,7 @@
 // one set to NULL; RETURNING the fields as records; and the terminals that
 // read a written row's two versions, as pgorm's `exec_returning_change(s)`
 // and `exec_returning_upsert(s)` read them.
-// [spec:pgorm:req:bindings.model-writes+1]
+// [spec:pgorm:req:bindings.model-writes+2]
 
 import { runStatement } from "./connections.js";
 import { ConstructionError, DecodeError } from "./errors.js";
@@ -185,39 +185,43 @@ function written(statement) {
   return statement;
 }
 
-/** A model's INSERT. */
-export class ModelInsert {
-  /** @type {import("./model-shape.js").Shape} */
-  #shape;
-  /** @type {import("./writes.js").Insert | null} */
-  #statement;
+/**
+ * @typedef {{
+ *   shape: import("./model-shape.js").Shape,
+ *   statement: import("./writes.js").Insert | null,
+ *   columns: readonly string[] | null,
+ * }} InsertState
+ */
+
+/** @type {(insert: Inserting) => InsertState} */
+let stateOf;
+
+/**
+ * What a model's INSERT of one row and of a batch share: its rows' statement,
+ * the SQL names of the fields they set — `null` for an insert of no rows, an
+ * empty list for a row of defaults — and the methods both kinds have.
+ */
+class Inserting {
+  /** @type {InsertState} */
+  #state;
 
   /**
    * @param {import("./model-shape.js").Shape} shape
    * @param {import("./writes.js").Insert | null} statement
+   * @param {readonly string[] | null} columns
    * @param {symbol} token
    */
-  constructor(shape, statement, token) {
-    if (token !== MADE) throw new TypeError("a ModelInsert comes from a model's insert() or insertMany()");
-    this.#shape = shape;
-    this.#statement = statement;
+  constructor(shape, statement, columns, token) {
+    if (token !== MADE) throw new TypeError(`a ${new.target.name} comes from a model's insert() or insertMany()`);
+    this.#state = { shape, statement, columns };
+  }
+
+  static {
+    stateOf = (insert) => insert.#state;
   }
 
   get statement() {
-    return written(this.#statement);
-  }
-
-  /**
-   * The SQL and values it runs, or the ones the upsert terminals run.
-   *
-   * @param {"returningUpsert" | "returningUpserts"} [terminal]
-   */
-  inspect(terminal) {
-    if (terminal === undefined) return written(this.#statement).inspect();
-    if (terminal === "returningUpsert" || terminal === "returningUpserts") {
-      return written(this.#upserts().statement).inspect();
-    }
-    throw new TypeError('an insert inspects itself, or its "returningUpsert" or "returningUpserts"');
+    return written(this.#state.statement);
   }
 
   /**
@@ -225,18 +229,44 @@ export class ModelInsert {
    * columns.
    *
    * @param {unknown} action
+   * @returns {this}
    */
   onConflict(action) {
     if (!(action instanceof Conflict) && !(action instanceof ConflictUpdate)) {
       throw new TypeError("a conflict's action is Conflict.doNothing(), or a target's doNothing() or update(..)");
     }
-    return new ModelInsert(this.#shape, written(this.#statement).onConflict(action), MADE);
+    const { shape, statement, columns } = this.#state;
+    const Kind = /** @type {new (...args: unknown[]) => this} */ (this.constructor);
+    return new Kind(shape, written(statement).onConflict(action), columns, MADE);
+  }
+
+  /**
+   * The insert with one more row, which makes it a batch, as Rust's
+   * `Insert::add` does; its conflict clause is kept.
+   *
+   * @param {unknown} values
+   */
+  add(values) {
+    return this.addMany([values]);
+  }
+
+  /**
+   * The insert with `rows` after its own, a batch, as Rust's
+   * `Insert::add_many` makes one.
+   *
+   * @param {unknown} rows
+   */
+  addMany(rows) {
+    if (!Array.isArray(rows)) throw new TypeError("addMany takes an array of rows");
+    const { shape, statement, columns } = this.#state;
+    return new ModelInsertMany(shape, ...appended(shape, statement, columns, rows), MADE);
   }
 
   /** @param {...string} fields */
   returning(...fields) {
-    const picks = picked(this.#shape, fields);
-    return new ModelRows(this.#statement && this.#statement.returning(returned(picks)), picks, MADE);
+    const { shape, statement } = this.#state;
+    const picks = picked(shape, fields);
+    return new ModelRows(statement && statement.returning(returned(picks)), picks, MADE);
   }
 
   /**
@@ -246,40 +276,85 @@ export class ModelInsert {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async execute(db, options) {
-    if (this.#statement === null) return 0;
-    return await runStatement(db, "execute", this.#statement, options);
+    const { statement } = this.#state;
+    if (statement === null) return 0;
+    return await runStatement(db, "execute", statement, options);
   }
+}
 
-  #upserts() {
-    const { items, sources } = versions(this.#shape);
-    const statement = this.#statement && this.#statement.returning(items, { oldAs: OLD, newAs: NEW });
-    return { statement, sources };
+/**
+ * The insert's statement with the RETURNING list of both versions, and the
+ * sources they decode as.
+ *
+ * @param {Inserting} insert
+ */
+function upserts(insert) {
+  const { shape, statement } = stateOf(insert);
+  const { items, sources } = versions(shape);
+  return { statement: statement && statement.returning(items, { oldAs: OLD, newAs: NEW }), sources };
+}
+
+/**
+ * The SQL and values `insert` runs, or the ones its upsert terminal, `named`,
+ * runs.
+ *
+ * @param {Inserting} insert
+ * @param {unknown} terminal
+ * @param {string} named
+ */
+function inspected(insert, terminal, named) {
+  if (terminal === undefined) return written(stateOf(insert).statement).inspect();
+  if (terminal !== named) throw new TypeError(`an insert inspects itself, or its "${named}"`);
+  return written(upserts(insert).statement).inspect();
+}
+
+/** A model's INSERT of one row: Rust's `Insert<A, OneRow>`. */
+export class ModelInsert extends Inserting {
+  /**
+   * The SQL and values it runs, or the ones `returningUpsert` runs.
+   *
+   * @param {"returningUpsert"} [terminal]
+   */
+  inspect(terminal) {
+    return inspected(this, terminal, "returningUpsert");
   }
 
   /**
-   * What the insert did with its one row: inserted it, updated the row that
-   * was there, or — null — wrote nothing, its conflict clause holding it
-   * back.
+   * What the insert did with its row, as `exec_returning_upsert` says:
+   * inserted it, updated the row that was there, or — null — wrote nothing,
+   * its conflict clause holding it back.
    *
    * @param {unknown} db
    * @param {{ signal?: AbortSignal }} [options]
    */
   async returningUpsert(db, options) {
-    const { statement, sources } = this.#upserts();
-    if (statement === null) return null;
-    const pair = await decodeOptional(db, statement, sources, options);
+    const { statement, sources } = upserts(this);
+    const pair = await decodeOptional(db, written(statement), sources, options);
     return pair === null ? null : upserted(pair);
+  }
+}
+
+/** A model's INSERT of a batch: Rust's `Insert<A, ManyRows>`. */
+export class ModelInsertMany extends Inserting {
+  /**
+   * The SQL and values it runs, or the ones `returningUpserts` runs.
+   *
+   * @param {"returningUpserts"} [terminal]
+   */
+  inspect(terminal) {
+    return inspected(this, terminal, "returningUpserts");
   }
 
   /**
-   * What the insert did with each row it wrote; a row its conflict clause
-   * held back is left out.
+   * What the insert did with each row it wrote, as `exec_returning_upserts`
+   * says; a row its conflict clause held back is left out, and a batch of
+   * none sends nothing.
    *
    * @param {unknown} db
    * @param {{ signal?: AbortSignal }} [options]
    */
   async returningUpserts(db, options) {
-    const { statement, sources } = this.#upserts();
+    const { statement, sources } = upserts(this);
     if (statement === null) return [];
     return (await decodeAll(db, statement, sources, options)).map(upserted);
   }
@@ -428,49 +503,58 @@ function unaliased(shape) {
 }
 
 /**
- * An INSERT of one row.
+ * `statement`, the INSERT of rows setting `columns`, with `rows` after them,
+ * each setting the same fields; the first row of an insert of none names
+ * them.
+ *
+ * @param {import("./model-shape.js").Shape} shape
+ * @param {import("./writes.js").Insert | null} statement
+ * @param {readonly string[] | null} columns
+ * @param {readonly unknown[]} rows
+ * @returns {[import("./writes.js").Insert | null, readonly string[] | null]}
+ */
+function appended(shape, statement, columns, rows) {
+  unaliased(shape);
+  let [current, names] = [statement, columns];
+  for (const row of rows) {
+    const set = assignments(shape, row, "insert");
+    const sql = set.map(([field]) => field.sql);
+    if (current === null || names === null) {
+      if (sql.length === 0) {
+        [current, names] = [insert(shape.table).defaultValues(), []];
+        continue;
+      }
+      [current, names] = [insert(shape.table).columns(...sql), sql];
+    } else if (names.length === 0) {
+      throw new ConstructionError("rows that set no field are inserted one at a time");
+    } else if (sql.length !== names.length || sql.some((name, index) => name !== names?.[index])) {
+      throw new ConstructionError("every row of an insert sets the same fields");
+    }
+    current = current.values(...set.map(([, value]) => value));
+  }
+  return [current, names];
+}
+
+/**
+ * An INSERT of one row, Rust's `Insert::one`.
  *
  * @param {import("./model-shape.js").Shape} shape
  * @param {unknown} values
  */
 export function insertOne(shape, values) {
-  unaliased(shape);
-  const set = assignments(shape, values, "insert");
-  const statement = insert(shape.table);
-  if (set.length === 0) return new ModelInsert(shape, statement.defaultValues(), MADE);
-  return new ModelInsert(
-    shape,
-    statement.columns(...set.map(([field]) => field.sql)).values(...set.map(([, value]) => value)),
-    MADE,
-  );
+  return new ModelInsert(shape, ...appended(shape, null, null, [values]), MADE);
 }
 
 /**
- * An INSERT of every row of `rows`, which set the same fields; no rows
- * writes nothing.
+ * An INSERT of every row of `rows`, which set the same fields, Rust's
+ * `Insert::many`; no rows writes nothing.
  *
  * @param {import("./model-shape.js").Shape} shape
  * @param {unknown} rows
  */
 export function insertMany(shape, rows) {
-  unaliased(shape);
   if (!Array.isArray(rows)) throw new TypeError("insertMany takes an array of rows");
-  const sets = rows.map((row) => assignments(shape, row, "insert"));
-  const first = sets[0];
-  if (first === undefined) return new ModelInsert(shape, null, MADE);
-  const columns = first.map(([field]) => field.sql);
-  if (columns.length === 0) {
-    if (sets.length > 1) throw new ConstructionError("rows that set no field are inserted one at a time");
-    return new ModelInsert(shape, insert(shape.table).defaultValues(), MADE);
-  }
-  let statement = insert(shape.table).columns(...columns);
-  for (const set of sets) {
-    if (set.length !== columns.length || set.some(([field], index) => field.sql !== columns[index])) {
-      throw new ConstructionError("every row of an insert sets the same fields");
-    }
-    statement = statement.values(...set.map(([, value]) => value));
-  }
-  return new ModelInsert(shape, statement, MADE);
+  return new ModelInsertMany(shape, ...appended(shape, null, null, rows), MADE);
 }
 
 /**

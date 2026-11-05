@@ -42,7 +42,7 @@ def from_(value: SourceInput | Model) -> Pipeline:
     return Pipeline(value.table if isinstance(value, Model) else value)
 
 
-# [spec:pgorm:req:python.pipeline]
+# [spec:pgorm:req:python.pipeline+1]
 def null() -> PipelineExpr:
     return literal(None)
 

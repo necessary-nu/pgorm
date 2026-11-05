@@ -137,9 +137,11 @@ A `$` after the first character is an ordinary name character.
 
 ## Results and registered models
 
-`all(connection)` returns dynamic `Record` objects. `one(connection)` and
-`optional(connection)` append native `take(1)`; the former errors when no row exists,
-and the latter returns `None`. `inspect(terminal="one")` shows that exact SQL.
+`all(connection)`, `one(connection)` and `optional(connection)` are Rust's
+`Pipeline::all`, `one` and `one_opt`, on a pool, a connection or a transaction,
+and return dynamic `Record` objects. `one` and `optional` append native
+`take(1)`; the former errors when no row exists, and the latter returns `None`.
+`inspect(terminal="one")` shows that exact SQL.
 Pool and connection `query`, `one` and `optional` also accept pipelines and keep
 their strict dynamic-record cardinality rules. Use `pool.stream(query)` or
 `connection.stream(query)` for bounded asynchronous record streaming.

@@ -66,7 +66,7 @@ pub(crate) struct Core {
 
 /// A disjoint model or a registered disjoint enum, as Python's `Disjoint`
 /// and `DisjointEntity` hold it.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 #[pyclass(name = "_Disjoint", module = "pgorm._native", frozen)]
 pub struct NativeDisjoint {
     pub(crate) core: Arc<Core>,
@@ -137,8 +137,8 @@ impl NativeDisjoint {
                     PyTypeError::new_err("a registered disjoint entity writes an ActiveModel")
                 })?;
                 if active.inner.info().name != entity.info().name {
-                    return Err(ConstructionError::new_err(format!(
-                        "the ActiveModel is `{}`'s, not `{}`'s",
+                    return Err(PyTypeError::new_err(format!(
+                        "the ActiveModel is {}'s, not {}'s",
                         active.inner.info().name,
                         entity.info().name
                     )));
@@ -288,7 +288,7 @@ impl NativeDisjoint {
 #[pymethods]
 impl NativeDisjoint {
     /// The model or registration as data.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     fn describe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         py.import("json")?
             .call_method1("loads", (self.core.description.to_string(),))
@@ -325,7 +325,7 @@ impl NativeDisjoint {
     }
 
     /// Every base row with its kind's row: the shape's read.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     fn find(&self) -> PySelect {
         PySelect {
             inner: self.core.shape.find(),
@@ -462,7 +462,7 @@ impl NativeDisjoint {
     }
 
     /// The statement inserting a value of the kind `kind`.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     #[pyo3(signature = (base, kind, row=None))]
     fn insert(
         &self,
@@ -480,7 +480,7 @@ impl NativeDisjoint {
     }
 
     /// The statement updating a value of the kind `kind`.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     #[pyo3(signature = (base, kind, row=None))]
     fn update(
         &self,
@@ -498,7 +498,7 @@ impl NativeDisjoint {
     }
 
     /// The statement changing the kind of the row whose key `key` gives.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     #[pyo3(signature = (key, kind, row=None))]
     fn change_kind(
         &self,
@@ -546,7 +546,7 @@ impl NativeDisjoint {
     /// row (`"one"`), the one row a write reads back (`"write"`), or the
     /// count of a `counted` statement (`"count"`). No row for `"one"` or
     /// `"write"` is pgorm's `RecordNotFound`, a `DecodeError`.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     // [spec:pgorm:req:bindings.registered-pools]
     fn run<'py>(
         &self,
@@ -586,7 +586,7 @@ impl NativeDisjoint {
 
     /// The statements creating the kind type, the tables and their
     /// constraints, in the order they run.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     fn statements<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
         let statements = self
             .core

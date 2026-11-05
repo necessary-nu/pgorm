@@ -10,7 +10,8 @@ use super::{
     window::{PyOver, plan},
 };
 use crate::{
-    errors::ConstructionError, execution::Target, expressions::Compiled, results, statements::Join,
+    errors::ConstructionError, execution::Executor, expressions::Compiled, results,
+    statements::Join,
 };
 
 // [spec:pgorm:req:bindings.pipeline]
@@ -48,6 +49,9 @@ impl PyPipeline {
         Ok(Compiled { sql, values })
     }
 
+    /// `Pipeline::all`, `one` or `one_opt`: the latter two compile with the
+    /// `take 1` Rust appends, and every row decodes as a statement's does.
+    // [spec:pgorm:req:bindings.pipeline-terminals]
     fn read<'py>(
         &self,
         py: Python<'py>,
@@ -57,7 +61,7 @@ impl PyPipeline {
         let compiled = Py::new(py, self.compile(terminal)?)?
             .into_bound(py)
             .into_any();
-        results::fetch(py, Target::extract(py, connection)?, &compiled, terminal)
+        results::fetch(py, Executor::extract(py, connection)?, &compiled, terminal)
     }
 }
 
@@ -229,6 +233,7 @@ impl PyPipeline {
         }
     }
 
+    // [spec:pgorm:req:bindings.pipeline-terminals]
     #[pyo3(signature = (*, terminal="all"))]
     fn inspect(&self, terminal: &str) -> PyResult<Compiled> {
         self.compile(terminal)
@@ -243,7 +248,6 @@ impl PyPipeline {
         selection.select(self, qualifiers)
     }
 
-    // [spec:pgorm:req:python.pipeline]
     fn all<'py>(
         &self,
         py: Python<'py>,

@@ -213,11 +213,18 @@ class Effects:
                     "rows": [observations.row(row) for row in rows],
                 }, paths
             case "execute":
-                from pgorm.models import ModelDelete, ModelInsert, ModelUpdate
+                from pgorm.models import (
+                    ModelDelete,
+                    ModelInsert,
+                    ModelInsertMany,
+                    ModelUpdate,
+                )
 
                 value = (
                     await query.execute(connection)
-                    if isinstance(query, (ModelInsert, ModelUpdate, ModelDelete))
+                    if isinstance(
+                        query, (ModelInsert, ModelInsertMany, ModelUpdate, ModelDelete)
+                    )
                     else await connection.execute(query)
                 )
                 return {"kind": "count", "value": value}, [

@@ -57,14 +57,14 @@ BUILT_ELSEWHERE = {
     p.EntityColumn, p.EntityQuery, p.EntityUpdate, p.EntityUpdateMany, p.EntityInsert,
     p.EntityInsertMany, p.EntityGraphQuery, p.EntityGraphCursor, pl.SelectedSources, s.EntitySchema,
     views.QueryView, graph_views.GraphQueryView, graph_views.GraphCursorView,
-    version_views.UpdateView, version_views.UpdateManyView, version_views.InsertView,
-    version_views.InsertManyView, p.Notification, p.Listener, p.RowStream,
+    version_views.UpdateView, version_views.UpdateManyView, version_views._InsertView,
+    version_views.InsertView, version_views.InsertManyView, p.Notification, p.Listener, p.RowStream,
     p.CopyOutStream, p.CopyRowStream,
 }
 
 # Bases the model writes share and no program builds: every write refuses
 # through the __bool__ they give it, and each is sampled through a write.
-BASES = {writes._Write, writes._Guarded, changes._Part}
+BASES = {writes._Write, writes._Insert, writes._Guarded, changes._Part}
 
 
 def defined_classes():
@@ -135,7 +135,7 @@ def other_samples():
         s.create_table_as(table, p.select(p.col("id")).from_(table)),
         pl.from_(table), pl.col("items", "id"), pl.from_(table).group(pl.col("items", "id")),
         pl.Over(), pl.source(table),
-        model.col("id"), model.find(), model.delete(), model.insert({"id": 1}),
+        model.col("id"), model.find(), model.delete(), model.insert({"id": 1}), model.insert_many([]),
         model.update({"id": 2}), model.insert({"id": 1}).returning("id"),
         model.graph(), model.find().cursor("id"), model.find().paginate(2),
         *disjoint_samples(),
@@ -178,7 +178,9 @@ class TruthTesting(unittest.TestCase):
         self.assertEqual(sampled & EXEMPT, set())
         for kind in BUILT_ELSEWHERE:
             with self.subTest(kind=kind):
-                self.assertIn("__bool__", vars(kind))
+                self.assertTrue(
+                    any("__bool__" in vars(own) for own in kind.__mro__ if own.__module__.startswith("pgorm"))
+                )
 
     # [spec:pgorm:req:python.truth-testing+4/test]
     def test_exempt_values_keep_python_truth(self):

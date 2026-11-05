@@ -63,6 +63,14 @@ export async function typed(pool: Pool): Promise<unknown[]> {
   const selectedName: string | undefined = first?.["display name"];
   const selectedBody: string | undefined = second?.body;
   const noteRecord = await Note.find().optional(pool);
+  // [spec:pgorm:req:bindings.entity-inserts/test]    an entity's insert types its records and keys by row count, a batch made by add
+  const insertedAccount: AccountRecord = await Account.insert(Account.active().set("id", 1)).returningModel(pool);
+  const insertedAccounts: AccountRecord[] = await Account.insert(Account.active()).add(Account.active()).returningModels(pool);
+  const insertedKeys = await Account.insertMany([Account.active()]).addMany([Account.active()]).returningPks(pool);
+  // @ts-expect-error: a batch answers with every row's key
+  Account.insertMany([Account.active()]).returningPk(pool);
+  // @ts-expect-error: an insert of one row answers with its own
+  Account.insert(Account.active()).returningModels(pool);
   // [spec:pgorm:req:bindings.codegen-disjoint/test]    a disjoint enum's row is a union over its kinds that narrows by kind, its writes take its entities' ActiveModels and its kinds, and an unkinded enum's has no write
   const delivered: DeliveriesRow = await Deliveries.insert(Delivery.active().set("label", "box"), "parcel", Parcel.active().set("weight_g", 5))
     .returningModel(pool);
@@ -84,5 +92,5 @@ export async function typed(pool: Pool): Promise<unknown[]> {
   // @ts-expect-error: an unkinded enum is read-only
   Offers.insert(Delivery.active(), "draft");
   return [id, name, note, mood, big, price, token, day, at, tags, written, root, body, required, keptBody, maybeBody,
-    selectedName, selectedBody, noteRecord, label, listed];
+    selectedName, selectedBody, noteRecord, insertedAccount, insertedAccounts, insertedKeys, label, listed];
 }

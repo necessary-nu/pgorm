@@ -151,7 +151,7 @@ await Account.intoActive(changed).delete(pool);
 `set`, `notSet` and `reset` return a new ActiveModel. `insert`, `update` and
 `delete` are `ActiveModelTrait`'s, the application's hooks around them; a
 hook's refusal is a `ConstructionError`. A record or ActiveModel of another
-registration is refused.
+registration is an argument of the wrong type, a `TypeError`.
 
 ## Writes that return both versions
 
@@ -168,6 +168,32 @@ const each = await Account.insertMany([a, b]).onConflict(renamed).returningUpser
 | `entity.updateMany().set(..).where(..).returningChanges(db)` | `Update::many(entity).col_expr(..).filter(..).exec_returning_changes` |
 | `entity.insert(active).onConflict(..).returningUpsert(db)` | `Insert::one(active).on_conflict(..).exec_returning_upsert` |
 | `entity.insertMany(actives).onConflict(..).returningUpserts(db)` | `Insert::many(actives).on_conflict(..).exec_returning_upserts` |
+
+An insert is typed by its row count, as Rust's `Insert<A, OneRow>` and
+`Insert<A, ManyRows>` are: `insert` gives an `EntityInsert`, whose terminal is
+`returningUpsert`, and `insertMany` an `EntityInsertMany`, whose terminal is
+`returningUpserts`.
+
+An insert has the rest of Rust's insert terminals of its row count too, each
+a statement terminal like the upserts:
+
+| JavaScript | Rust |
+| --- | --- |
+| `entity.insert(active).execute(db)` | `Insert::one(active).exec` |
+| `entity.insert(active).returningPk(db)` | `Insert::one(active).exec_returning_pk` |
+| `entity.insert(active).returningModel(db)` | `Insert::one(active).exec_returning_model` |
+| `entity.insertMany(actives).execute(db)` | `Insert::many(actives).exec` |
+| `entity.insertMany(actives).returningPks(db)` | `Insert::many(actives).exec_returning_pks` |
+| `entity.insertMany(actives).returningModels(db)` | `Insert::many(actives).exec_returning_models` |
+| `insert.add(active)`, `insert.addMany(actives)` | `Insert::add`, `Insert::add_many` |
+
+A key is the value of a one-column key, or a frozen array of a composite
+key's in its columns' order. A row the conflict clause held back is a
+`DecodeError` from `returningPk` and `returningModel`, and left out of
+`returningPks` and `returningModels`. `add` and `addMany` give the
+`EntityInsertMany` of the insert's ActiveModels and then theirs, its conflict
+clause kept; the ActiveModels of one insert set the same columns, a batch that
+does not a `ConstructionError` as it is built.
 
 These are statement terminals in Rust, so no hook runs around them. A change
 is `{ old, new }`; an upsert `{ kind: "inserted", new }` or `{ kind:
@@ -280,9 +306,12 @@ const [base, kind, packet] = await Shipments.insert(
 ).returningModel(pool);
 ```
 
-Its statements are `DisjointShape::of` the enum's, which the enum's own
-`find`, `insert` and `Schema::create_disjoint` build theirs from, and
-`createDisjoint(Shipments)` gives its schema.
+The kind column set and a kind row's key set are refused with a
+`ConstructionError` before anything is sent; an ActiveModel of another
+entity given for the base or a kind is an argument of the wrong type, a
+`TypeError`. Its statements are `DisjointShape::of` the enum's, which the
+enum's own `find`, `insert` and `Schema::create_disjoint` build theirs from,
+and `createDisjoint(Shipments)` gives its schema.
 
 An enum declared `#[pgorm(base = .., unkinded)]` registers the same way and is
 read-only, as its Rust declaration is: typed as an `UnkindedDisjointEntity`,

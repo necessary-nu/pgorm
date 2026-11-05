@@ -28,6 +28,7 @@ mod convert;
 mod graph;
 mod graphs;
 mod info;
+mod inserts;
 mod registry;
 mod selected;
 mod sources;
@@ -84,6 +85,7 @@ pub(crate) fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<
         cx.export_function(name, *export)?;
     }
     versions::export(cx)?;
+    inserts::export(cx)?;
     graphs::export(cx)?;
     selected::export(cx)?;
     let registry = cx.boxed(RegistryHandle(Arc::new(registry)));
@@ -523,7 +525,7 @@ fn select_job(mut cx: FunctionContext) -> JsResult<JsValue> {
 
 /// `entityModelSet(model, column, value)`: `[values, model]` of a clone
 /// with `ModelTrait::set` applied. Nothing is written.
-// [spec:pgorm:req:bindings.entity-writes]
+// [spec:pgorm:req:bindings.entity-writes+1]
 fn model_set(mut cx: FunctionContext) -> JsResult<JsValue> {
     let model = held!(cx, ModelHandle, 0);
     let column = text!(cx, 1);
@@ -598,7 +600,7 @@ fn active_get(mut cx: FunctionContext) -> JsResult<JsValue> {
 
 /// `entityActiveChange(active, step, column, value?)`: a new ActiveModel
 /// with one column `set` to a value, `notSet` or `reset`.
-// [spec:pgorm:req:bindings.entity-writes]
+// [spec:pgorm:req:bindings.entity-writes+1]
 fn active_change(mut cx: FunctionContext) -> JsResult<JsValue> {
     let active = held!(cx, ActiveHandle, 0);
     let step = text!(cx, 1);
@@ -625,7 +627,7 @@ fn active_change(mut cx: FunctionContext) -> JsResult<JsValue> {
 
 /// `entityActiveJob(active, write)`: `insert`, `update` or `delete` through
 /// `ActiveModelTrait`, its `ActiveModelBehavior` hooks around it.
-// [spec:pgorm:req:bindings.entity-writes]
+// [spec:pgorm:req:bindings.entity-writes+1]
 fn active_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let active = held!(cx, ActiveHandle, 0);
     let write = match text!(cx, 1).as_str() {

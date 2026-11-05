@@ -387,7 +387,9 @@ impl NativeConnection {
     ) -> PyResult<Bound<'py, PyAny>> {
         crate::results::fetch(
             py,
-            crate::execution::Target::Connection(self.state.clone()),
+            crate::execution::Executor::Held(crate::execution::Target::Connection(
+                self.state.clone(),
+            )),
             query,
             mode,
         )

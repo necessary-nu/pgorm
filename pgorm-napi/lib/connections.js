@@ -163,7 +163,7 @@ export async function runStatement(db, terminal, statement, options) {
  * The rows of a disjoint read's `statement`, the native half of a `Select`,
  * as a stream on a pool's connection or a connection, each row read by
  * `disjoint`'s codec.
- * [spec:pgorm:req:bindings.disjoint+1]
+ * [spec:pgorm:req:bindings.disjoint+2]
  *
  * @param {unknown} db
  * @param {unknown} statement

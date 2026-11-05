@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T15:12:14.696135Z
+last_sync_at 2026-11-05T16:07:38.416147Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -19,14 +19,15 @@ rule_versions (
     {id bindings.cte-options, version 0}
     {id bindings.cursors, version 0}
     {id bindings.delegation, version 0}
-    {id bindings.disjoint, version 1}
+    {id bindings.disjoint, version 2}
     {id bindings.disjoint-evolve, version 0}
     {id bindings.disjoint-unkinded, version 0}
     {id bindings.entities, version 5}
     {id bindings.entity-graphs, version 3}
+    {id bindings.entity-inserts, version 0}
     {id bindings.entity-reads, version 3}
-    {id bindings.entity-versions, version 2}
-    {id bindings.entity-writes, version 0}
+    {id bindings.entity-versions, version 3}
+    {id bindings.entity-writes, version 1}
     {id bindings.errors, version 5}
     {id bindings.expressions, version 3}
     {id bindings.from-subqueries, version 0}
@@ -39,7 +40,7 @@ rule_versions (
     {id bindings.model-reads, version 0}
     {id bindings.model-records, version 1}
     {id bindings.model-unique-keys, version 2}
-    {id bindings.model-writes, version 1}
+    {id bindings.model-writes, version 2}
     {id bindings.models, version 5}
     {id bindings.one-of, version 1}
     {id bindings.operands, version 0}
@@ -49,6 +50,7 @@ rule_versions (
     {id bindings.pipeline-binder, version 0}
     {id bindings.pipeline-expressions, version 3}
     {id bindings.pipeline-sources, version 3}
+    {id bindings.pipeline-terminals, version 0}
     {id bindings.quantifiers, version 3}
     {id bindings.ranges, version 0}
     {id bindings.registered-pools, version 0}
@@ -303,7 +305,7 @@ rule_versions (
     {id python.lifecycle, version 3}
     {id python.naming, version 4}
     {id python.package, version 0}
-    {id python.pipeline, version 0}
+    {id python.pipeline, version 1}
     {id python.raw, version 0}
     {id python.records, version 0}
     {id python.runtime, version 1}
@@ -486,9 +488,14 @@ derived_priorities (
     {id binding-coverage-per-impl, priority 1, derived_at 2026-10-30T13:42:29.080898Z}
     {id binding-describe-shapes, priority 1, derived_at 2026-10-31T22:52:03.347907Z}
     {id binding-graph-describe-shapes, priority 0, derived_at 2026-11-01T03:02:37.492868Z}
+    {id binding-parity.disjoint-foreign-active, priority 3, derived_at 2026-11-05T16:07:38.416147Z}
+    {id binding-parity.foreign-active-error, priority 2, derived_at 2026-11-05T16:07:38.416147Z}
     {id binding-parity.grouping, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
     {id binding-parity.identifiers, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.insert-terminals, priority 1, derived_at 2026-11-05T16:07:38.416147Z}
     {id binding-parity.like-patterns, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.model-column-operands, priority 0, derived_at 2026-11-05T16:07:38.416147Z}
+    {id binding-parity.model-inserts, priority 1, derived_at 2026-11-05T16:07:38.416147Z}
     {id binding-parity.pipeline-terminals, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
     {id binding-parity.registered-inserts, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
     {id binding-parity.table-functions, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
@@ -1096,10 +1103,13 @@ assertions (
     {id binding-coverage-per-impl, kind @complete, author "brendan@necessary.nu", at 2026-10-30T14:18:38.065807Z}
     {id binding-describe-shapes, kind @complete, author "brendan@necessary.nu", at 2026-11-01T03:02:51.587914Z}
     {id binding-graph-describe-shapes, kind @complete, author "brendan@necessary.nu", at 2026-11-01T12:27:44.245853Z}
+    {id binding-parity.disjoint-foreign-active, kind @complete, author "brendan@necessary.nu", at 2026-11-05T16:04:14.696674Z}
     {id binding-parity.grouping, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:12:09.728212Z}
     {id binding-parity.identifiers, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:45:39.300725Z}
     {id binding-parity.like-patterns, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:28:42.880149Z}
+    {id binding-parity.model-column-operands, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:24:01.248474Z}
     {id binding-parity.table-functions, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:18:19.603388Z}
+    {id binding-parity.verify-annotations, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:28:00.572587Z}
     {id binding-renames, kind @complete, author "brendan@necessary.nu", at 2026-10-30T14:35:54.859252Z}
     {id binding-statement-defects, kind @complete, author "brendan@necessary.nu", at 2026-11-01T12:27:44.145896Z}
     {id binding-variant-coverage, kind @complete, author "brendan@necessary.nu", at 2026-11-01T03:02:50.884953Z}
@@ -1586,6 +1596,38 @@ assertions (
 )
 
 impl_evidence (
+    {id binding-parity.foreign-active-error, covered_rules (
+        bindings.entity-writes
+    ), covered_claims (
+        {impl_name javascript, rule bindings.entity-writes}
+        {impl_name python, rule bindings.entity-writes}
+    )}
+    {id binding-parity.insert-terminals, covered_rules (
+        bindings.entity-inserts
+    ), covered_claims (
+        {impl_name javascript, rule bindings.entity-inserts}
+        {impl_name python, rule bindings.entity-inserts}
+    )}
+    {id binding-parity.model-inserts, covered_rules (
+        bindings.model-writes
+    ), covered_claims (
+        {impl_name javascript, rule bindings.model-writes}
+        {impl_name python, rule bindings.model-writes}
+    )}
+    {id binding-parity.pipeline-terminals, covered_rules (
+        bindings.pipeline-terminals
+        python.pipeline
+    ), covered_claims (
+        {impl_name javascript, rule bindings.pipeline-terminals}
+        {impl_name python, rule bindings.pipeline-terminals}
+        {impl_name python, rule python.pipeline}
+    )}
+    {id binding-parity.registered-inserts, covered_rules (
+        bindings.entity-versions
+    ), covered_claims (
+        {impl_name javascript, rule bindings.entity-versions}
+        {impl_name python, rule bindings.entity-versions}
+    )}
     {id binding-spec-consolidation, covered_rules (
         bindings.api
         bindings.argument-errors
@@ -2648,7 +2690,6 @@ impl_evidence (
         {id bindings.graphs, version 0}
         {id bindings.model-reads, version 0}
         {id bindings.model-records, version 1}
-        {id bindings.model-writes, version 1}
         {id bindings.models, version 5}
         {id bindings.pagination, version 0}
         {id bindings.relations, version 0}
@@ -2757,6 +2798,8 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.quantifiers}
         {impl_name python, rule bindings.quantifiers}
+    ), rule_versions_seen (
+        {id bindings.quantifiers, version 3}
     )}
     {id query-reexports-curated, covered_rules (
         sql.surface

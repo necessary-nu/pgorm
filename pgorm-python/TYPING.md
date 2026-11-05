@@ -47,12 +47,13 @@ security harness. See [schema](SCHEMA.md), [statements](STATEMENTS.md),
 | `pool.transaction()`, `connection.transaction()`, `transaction.transaction()` | `AbstractAsyncContextManager[Transaction]`; the `Transaction` is open for its `async with` block only |
 | `Model.find().all(executor)` | `list[ModelRecord]` |
 | `Model.find().optional(executor)` | `ModelRecord \| None` |
-| `Model.insert(values)`, `Model.insert_many(rows)` | `ModelInsert`: `on_conflict`, `returning_upsert(s)`, `returning`, `execute`, `inspect` |
+| `Model.insert(values)` | `ModelInsert`: `on_conflict`, `add`, `add_many`, `returning_upsert`, `returning`, `execute`, `inspect` |
+| `Model.insert_many(rows)`, an insert's `add(values)` / `add_many(rows)` | `ModelInsertMany`: `on_conflict`, `add`, `add_many`, `returning_upserts`, `returning`, `execute`, `inspect` |
 | `Model.update(values)` | `ModelUpdate`: `where`, `all_rows`, `returning_change(s)`, `returning`, `execute`, `inspect` |
 | `Model.delete()` | `ModelDelete`: `where`, `all_rows`, `returning`, `execute`, `inspect` |
 | `Entity.find().all(connection_or_transaction)` | `list[EntityModel]` |
-| `Pipeline.all(connection_or_transaction)` | `list[Record]` |
-| `Pipeline.optional(connection_or_transaction)` | `Record \| None` |
+| `Pipeline.all(executor)` | `list[Record]` |
+| `Pipeline.optional(executor)` | `Record \| None` |
 
 `Pool.connection()` and every `transaction()` return async context managers;
 use `async with` directly. A `Transaction` is not one itself; its block's exit

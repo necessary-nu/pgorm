@@ -189,7 +189,32 @@ for the row its `ON CONFLICT DO UPDATE` updated; `into_model()` is the row as
 the statement left it either way. `returning_upsert` answers `None`, and
 `returning_upserts` leaves out the row, when the conflict clause did not write
 it (`DO NOTHING`, or a `DO UPDATE` whose `WHERE` held it back). The conflict
-action is the statement builders' own `Conflict` or `ConflictUpdate`.
+action is the statement builders' own `Conflict` or `ConflictUpdate`. An
+insert is typed by its row count, as Rust's `Insert<A, OneRow>` and
+`Insert<A, ManyRows>` are: `insert` gives an `EntityInsert`, whose terminal is
+`returning_upsert`, and `insert_many` an `EntityInsertMany`, whose terminal is
+`returning_upserts`.
+
+An insert has the rest of Rust's insert terminals of its row count too, each
+a statement terminal like the upserts:
+
+| Python | Rust |
+| --- | --- |
+| `entity.insert(active).execute(connection)` | `Insert::one(active).exec` |
+| `entity.insert(active).returning_pk(connection)` | `Insert::one(active).exec_returning_pk` |
+| `entity.insert(active).returning_model(connection)` | `Insert::one(active).exec_returning_model` |
+| `entity.insert_many(actives).execute(connection)` | `Insert::many(actives).exec` |
+| `entity.insert_many(actives).returning_pks(connection)` | `Insert::many(actives).exec_returning_pks` |
+| `entity.insert_many(actives).returning_models(connection)` | `Insert::many(actives).exec_returning_models` |
+| `insert.add(active)`, `insert.add_many(actives)` | `Insert::add`, `Insert::add_many` |
+
+A key is the value of a one-column key, or a tuple of a composite key's in
+its columns' order. A row the conflict clause held back is a `DecodeError`
+from `returning_pk` and `returning_model`, and left out of `returning_pks` and
+`returning_models`. `add` and `add_many` give the `EntityInsertMany` of the
+insert's ActiveModels and then theirs, its conflict clause kept; the
+ActiveModels of one insert set the same columns, a batch that does not a
+`ConstructionError` as it is built.
 
 These are statement terminals, as they are in Rust, so no `ActiveModelBehavior`
 hook runs around them: an `update` returning its change does not bump what a
@@ -204,8 +229,8 @@ column's declared type and writes it through the column's `save_as`, or takes
 an `Expr` as written. An insert of models that set different columns is
 refused, and a batch of none writes and answers nothing. Rust renames the two
 versions in `RETURNING`, so an entity whose table is called `old` or `new`
-still reports them in order. An ActiveModel of another registration raises
-`LifecycleError`. A generated module's typed views return `Change`,
+still reports them in order. A record, an ActiveModel or a column of another
+registration is an argument of the wrong type and raises `TypeError`. A generated module's typed views return `Change`,
 `Inserted` and `Updated` from `pgorm._registered.entities` holding its typed
 models. Like an entity query, each of these writes and the typed view over it
 raises `ConstructionError` on Python truth testing.
@@ -305,8 +330,10 @@ base, kind, parcel = await shipments.insert(
 ).returning_model(pool)
 ```
 
-An ActiveModel of another registration, the kind column set and a kind
-row's key set are refused before anything is sent. The registration's
+The kind column set and a kind row's key set are refused with a
+`ConstructionError` before anything is sent; an ActiveModel of another
+entity given for the base or a kind is an argument of the wrong type, a
+`TypeError`. The registration's
 statements are `DisjointShape::of` the enum's, which `Vehicle::find()`,
 `Vehicle::insert` and `Schema::create_disjoint` build theirs from.
 

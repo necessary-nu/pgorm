@@ -16,7 +16,7 @@ use pgorm::pgorm_query::{
 };
 use pgorm::{
     ActiveModelBehavior, ActiveModelTrait, ActiveValue, Change as RustChange, ColumnTrait,
-    EntityTrait, Error, Insert, IntoActiveModel, Iterable, ModelTrait, QueryFilter, QueryOrder,
+    EntityTrait, Error, IntoActiveModel, Iterable, ModelTrait, QueryFilter, QueryOrder,
     QuerySelect, QueryTrait, StaticName, Update, Upserted,
 };
 
@@ -158,13 +158,37 @@ pub(crate) enum VersionWrite {
     Change(Active),
     /// `UpdateMany::exec_returning_changes`.
     Changes(Vec<(String, Assignment)>, Condition),
-    /// `Insert::exec_returning_upsert` for one model, `exec_returning_upserts`
-    /// for a batch.
-    Upserts {
-        actives: Vec<Active>,
-        conflict: Option<Box<OnConflict>>,
-        one: bool,
-    },
+}
+
+/// An insert of a registration's ActiveModels: `Insert::one` of one when
+/// `one`, `Insert::many` of a batch otherwise, its conflict clause, and the
+/// terminal that runs it.
+#[derive(Clone, Debug)]
+pub(crate) struct Insertion {
+    pub(crate) actives: Vec<Active>,
+    pub(crate) conflict: Option<Box<OnConflict>>,
+    pub(crate) one: bool,
+    pub(crate) answer: InsertAnswer,
+}
+
+/// Which of Rust's insert terminals runs, each the row count's own: `exec`,
+/// `exec_returning_pk(s)`, `exec_returning_model(s)` or
+/// `exec_returning_upsert(s)`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum InsertAnswer {
+    Count,
+    Keys,
+    Models,
+    Upserts,
+}
+
+/// What an insert's terminal gave.
+pub(crate) enum Insertions {
+    Count(u64),
+    /// Each written row's key, its values in the primary key's column order.
+    Keys(Vec<Vec<Value>>),
+    Models(Vec<Model>),
+    Upserts(Vec<Versions>),
 }
 
 /// A written row's two versions, `old` absent for a row an upsert inserted.
@@ -228,6 +252,13 @@ pub(crate) trait EntityBackend: Debug + Send + Sync {
         db: Database<'a>,
         write: VersionWrite,
     ) -> BoxFuture<'a, Result<Vec<Versions>, Error>>;
+    /// `Insert::one` of one ActiveModel or `Insert::many` of a batch, with
+    /// the conflict clause if given, through the terminal `insertion` names.
+    fn insert<'a>(
+        &'a self,
+        db: Database<'a>,
+        insertion: Insertion,
+    ) -> BoxFuture<'a, Result<Insertions, Error>>;
     /// The model `row` holds under `prefix`, as the entity's own
     /// `FromQueryResult` reads it: one source of a read that decodes several,
     /// a disjoint one's.
@@ -406,7 +437,15 @@ where
         Box::pin(self.write_versions(db, write))
     }
 
-    // [spec:pgorm:req:bindings.disjoint+1]
+    fn insert<'a>(
+        &'a self,
+        db: Database<'a>,
+        insertion: Insertion,
+    ) -> BoxFuture<'a, Result<Insertions, Error>> {
+        Box::pin(self.write_insert(db, insertion))
+    }
+
+    // [spec:pgorm:req:bindings.disjoint+2]
     fn decode(&self, row: &pgorm::QueryResult, prefix: &str) -> Result<Model, Error> {
         <E::Model as pgorm::FromQueryResult>::from_query_result(row, prefix)
             .map(|value| model_of::<E>(value, &self.info))
@@ -415,7 +454,7 @@ where
 
 /// The compiled ActiveModel a type-erased handle holds, refused if another
 /// registration made it.
-fn concrete<E>(active: &Active) -> Result<E::ActiveModel, Error>
+pub(super) fn concrete<E>(active: &Active) -> Result<E::ActiveModel, Error>
 where
     E: EntityTrait + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
@@ -441,7 +480,7 @@ where
         }
     }
 
-    fn upserted(&self, upserted: Upserted<E::Model>) -> Versions {
+    pub(super) fn upserted(&self, upserted: Upserted<E::Model>) -> Versions {
         match upserted {
             Upserted::Inserted(model) => Versions {
                 old: None,
@@ -451,7 +490,7 @@ where
         }
     }
 
-    // [spec:pgorm:req:bindings.entity-versions+2]
+    // [spec:pgorm:req:bindings.entity-versions+3]
     async fn write_versions(
         &self,
         db: Database<'_>,
@@ -480,37 +519,6 @@ where
                     .into_iter()
                     .map(|change| self.change(change))
                     .collect())
-            }
-            VersionWrite::Upserts {
-                actives,
-                conflict,
-                one,
-            } => {
-                let models = actives
-                    .iter()
-                    .map(concrete::<E>)
-                    .collect::<Result<Vec<_>, _>>()?;
-                let upserted: Vec<Upserted<E::Model>> = if one {
-                    let model = models.into_iter().next().ok_or_else(|| {
-                        Error::Custom("an upsert of one row needs one ActiveModel".to_owned())
-                    })?;
-                    let mut insert = Insert::one(model);
-                    if let Some(conflict) = conflict {
-                        insert = insert.on_conflict(*conflict);
-                    }
-                    insert
-                        .exec_returning_upsert(&db)
-                        .await?
-                        .into_iter()
-                        .collect()
-                } else {
-                    let mut insert = Insert::many(models);
-                    if let Some(conflict) = conflict {
-                        insert = insert.on_conflict(*conflict);
-                    }
-                    insert.exec_returning_upserts(&db).await?
-                };
-                Ok(upserted.into_iter().map(|row| self.upserted(row)).collect())
             }
         }
     }
@@ -594,7 +602,7 @@ where
     })
 }
 
-// [spec:pgorm:req:bindings.entity-writes]
+// [spec:pgorm:req:bindings.entity-writes+1]
 impl<E> ModelBackend for ModelAdapter<E>
 where
     E: EntityTrait + Send + Sync + 'static,
@@ -653,7 +661,7 @@ where
     }
 }
 
-// [spec:pgorm:req:bindings.entity-writes]
+// [spec:pgorm:req:bindings.entity-writes+1]
 impl<E> ActiveBackend for ActiveAdapter<E>
 where
     E: EntityTrait + Send + Sync + 'static,

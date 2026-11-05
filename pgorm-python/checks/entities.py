@@ -62,7 +62,7 @@ def reject_execution_mismatch(project, output, environment):
 # [spec:pgorm:req:bindings.entity-graphs+3/test]
 # [spec:pgorm:req:bindings.pipeline-sources+3/test]
 # [spec:pgorm:req:bindings.surface+2/test]
-# [spec:pgorm:req:bindings.disjoint+1/test]
+# [spec:pgorm:req:bindings.disjoint+2/test]
 # [spec:pgorm:req:bindings.disjoint-unkinded/test]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

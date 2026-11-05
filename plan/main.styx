@@ -15444,8 +15444,6 @@ children (
                 [spec:pgorm:req:bindings.entities]
                 [spec:pgorm:req:bindings.entity-graphs]
                 [spec:pgorm:req:bindings.entity-reads]
-                [spec:pgorm:req:bindings.entity-versions]
-                [spec:pgorm:req:bindings.entity-writes]
                 [spec:pgorm:req:bindings.errors]
                 [spec:pgorm:req:bindings.expressions]
                 [spec:pgorm:req:bindings.identifiers]
@@ -15492,7 +15490,6 @@ children (
                 [spec:pgorm:req:bindings.model-columns]
                 [spec:pgorm:req:bindings.model-reads]
                 [spec:pgorm:req:bindings.model-records]
-                [spec:pgorm:req:bindings.model-writes]
                 [spec:pgorm:req:bindings.models]
                 [spec:pgorm:req:bindings.pagination]
                 [spec:pgorm:req:bindings.pipeline]
@@ -15532,8 +15529,6 @@ children (
                 [spec:pgorm:req:bindings.entities]
                 [spec:pgorm:req:bindings.entity-graphs]
                 [spec:pgorm:req:bindings.entity-reads]
-                [spec:pgorm:req:bindings.entity-versions]
-                [spec:pgorm:req:bindings.entity-writes]
                 [spec:pgorm:req:bindings.errors]
                 [spec:pgorm:req:bindings.expressions]
                 [spec:pgorm:req:bindings.identifiers]
@@ -15577,7 +15572,6 @@ children (
                 [spec:pgorm:req:bindings.pipeline-expressions]
                 [spec:pgorm:req:bindings.relation-conditions]
                 [spec:pgorm:req:bindings.schema-from-entity]
-                [spec:pgorm:req:python.pipeline]
             )
         }
         log (
@@ -15718,7 +15712,6 @@ children (
                 [spec:pgorm:req:bindings.graphs]
                 [spec:pgorm:req:bindings.model-reads]
                 [spec:pgorm:req:bindings.model-records]
-                [spec:pgorm:req:bindings.model-writes]
                 [spec:pgorm:req:bindings.models]
                 [spec:pgorm:req:bindings.pagination]
                 [spec:pgorm:req:bindings.relations]
@@ -18520,17 +18513,251 @@ children (
             {
                 id binding-parity.registered-inserts
                 title "A registered entity's insert is typed by row count in both bindings, as Rust's Insert::one and Insert::many are, upsert returns included"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.entity-versions])
+                    python ([spec:pgorm:req:bindings.entity-versions])
+                }
+                log (
+                    {
+                        at 2026-11-05T14:00:17.014645Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust types an insert by row count: Insert<A, OneRow> (Insert::one) has exec_returning_upsert, Insert<A, ManyRows> (Insert::many) has exec_returning_upserts, and neither has the other's. Python already had that shape (Entity.insert -> EntityInsert: on_conflict, returning_upsert; Entity.insert_many -> EntityInsertMany: on_conflict, returning_upserts). JavaScript had one EntityInsert for both, with returningUpserts on a one-row insert and returningUpsert refused at run time on a batch. Chosen: JavaScript takes Python's (Rust's) shape. insert() gives EntityInsert (onConflict, returningUpsert) and insertMany() gives EntityInsertMany (onConflict, returningUpserts), both over one module-private Inserted holding the ActiveModels and conflict clause, so no code is duplicated. EntityInsertMany is now a shared name in bindings-surface.json, and both undecided entries are gone. bindings.entity-versions is +3 and states the row-count typing. Its python and javascript claims moved here from binding-spec-consolidation, so this node is what delivers the bumped rule. Not added, because neither binding had them and parity holds without them: Rust's other row-count terminals on a registered insert (exec / exec_returning_pk(s) / exec_returning_model(s)) and add/add_many promoting one to many. ActiveModel.insert stays the hooked single-row insert."
+                        after_done true
+                    }
+                )
             }
 
             {
                 id binding-parity.pipeline-terminals
                 title "A pipeline runs through the same terminals in both bindings, as Rust's pipeline terminals run it"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.pipeline-terminals])
+                    python ([spec:pgorm:req:bindings.pipeline-terminals] [spec:pgorm:req:python.pipeline])
+                }
+                log (
+                    {
+                        at 2026-11-05T14:14:50.832252Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:19:09.653278Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust runs a pipeline two ways. Its own terminals are Pipeline::all, one and one_opt; one and one_opt append take 1 before compiling, so at most one row leaves the server and none is RecordNotFound / None. The other way is into_sql(), which gives (String, Values), the raw currency ConnectionTrait's execute / query / query_raw run as written. Before: Python had Pipeline.all/one/optional (take 1 for one and optional, inspect(terminal=...)), but only on a Connection or Transaction. JavaScript had no terminal of the pipeline's own: it ran only through db.query / one / optional / stream / execute(pipeline), and its inspect() took no terminal. Both bindings already took a pipeline at the statement terminals, which is the binding's spelling of into_sql + ConnectionTrait, as for every built statement, so that stays in both. Chosen: JavaScript gains Pipeline.all/one/optional(db, options), the options being the statement terminals' QueryOptions, tagged included, plus inspect(terminal). The terminals are written over the Queryable terminals with this.take(1), so no decode path is duplicated. Python's Pipeline terminals now also take a Pool, on a lent connection through the shared Executor, which results::fetch now takes. Every other registration and source-selection terminal already ran on a pool in both bindings (bindings.registered-pools), and JavaScript's Queryable includes Pool. Rust's DatabasePool is no ConnectionTrait, but in the bindings a Pool is a statement runner, so leaving it out of this one terminal would have been the odd one out. New shared rule bindings.pipeline-terminals. python.pipeline is +1 and keeps only null(), its terminal clause now shared. Its claim moved here from binding-spec-consolidation. bindings.pipeline is unchanged, since its statement-terminal clause still holds. Pipeline.all/one/optional are shared names in bindings-surface.json."
+                    }
+                )
             }
 
             {
                 id binding-parity.verify-annotations
                 title "Every shared binding rule is verified in both bindings: Python tests bindings.model-columns and JavaScript tests bindings.optional"
                 kind @test
+                deps (binding-parity.model-column-operands)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:22:33.1695Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:23:04.443364Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Todo (nplan unclaim)"
+                    }
+
+                    {
+                        at 2026-11-05T14:24:07.870065Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:25:08.92335Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Audit of 2026-11-05: every bindings.* rule in docs/spec/bindings.md (81 with bindings.pipeline-terminals) checked for impl and /test annotations in both bindings, using the impl and test include sets of .config/nspec/config.styx, at each rule's current version. nplan_spec_untested and nplan_spec_uncovered agree per impl. Only the two named holes were real. (bindings.with and bindings.relation-conditions are tested in Python by unit tests under pgorm-python/src, which nspec counts.) No annotation is pinned off its rule's version. Python, bindings.model-columns: no test proved it, so ModelDatabase.test_columns_compare_through_the_declared_kind in pgorm-python/tests/test_models.py covers it live. It checks the qualification by the model's table or alias, eq/ne/lt/lte/gt/gte and is_in/is_not_in through the declared kind with the enum's label cast to its type, any_/all_ and expressions as written, a Value of the field's kind only, and None refused (is_null tests it). Writing it exposed Python refusing a model column of another declared type, fixed first in binding-parity.model-column-operands. JavaScript, bindings.optional: a /test must sit in a test_include path, and pgorm-napi/checks/package.js is impl-side. So the test is in tests/package/smoke.test.ts, which checks/package.js runs in fresh Node.js and Deno projects that installed the packed packages: neither installed package carries a tests/fixtures/security/sqlmap/generative/checks/scripts/src/target/plan path or a .ts (other than .d.ts), .rs, .toml, .lock or .py file; neither manifest declares dependencies, devDependencies, peerDependencies, bundled dependencies or scripts; and the addon's DEPENDENCIES.json links none of pgorm-test-support, pgorm-python, pyo3, pgorm-generative-bridge or pgorm-sqlmap-adapter. This is the JavaScript counterpart of check_artifacts.py."
+                    }
+
+                    {
+                        at 2026-11-05T14:28:00.572587Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id binding-parity.model-column-operands
+                title "Python's model column takes another model column as written, whatever its declared type, as bindings.model-columns says and JavaScript does"
+                kind @fix
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:23:11.764914Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:23:55.570584Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Found while writing the Python test for bindings.model-columns (binding-parity.verify-annotations). Python's ModelColumn._operand refused a model column of another declared type with ConstructionError(\"compared model columns have different declared types\"). bindings.model-columns says an expression is taken as written, and bindings.column-operators says a model column goes wherever an expression goes. JavaScript's columnValue takes any Expr as written, a model column of another type included. Chosen: Python takes it as written too, the branch deleted, and whether the types compare is left to PostgreSQL as for any expression. Python's test that asserted the refusal now asserts the comparison renders as the two qualified columns do. No rule changed."
+                    }
+
+                    {
+                        at 2026-11-05T14:24:01.248474Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id binding-parity.model-inserts
+                title "A model's insert is typed by row count in both bindings, as a registered entity's and Rust's Insert are: insert(values) answers returning_upsert, insert_many(rows) returning_upserts, neither the other's"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.model-writes])
+                    python ([spec:pgorm:req:bindings.model-writes])
+                }
+                deps (binding-parity.registered-inserts)
+                log (
+                    {
+                        at 2026-11-05T14:26:12.722548Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by binding-parity.registered-inserts (2026-11-05). Both bindings give Model.insert(values) and Model.insert_many(rows) one ModelInsert class (bindings.model-writes+1). That class has returning_upsert and returning_upserts both, whatever the row count. A batch's returning_upsert fails only at run time, with a DecodeError when several rows come back, and a one-row insert offers returning_upserts. This is not a parity gap: Python (pgorm/models/writes.py) and JavaScript (lib/model-writes.js) agree, and ModelInsert is a shared name. But it is not Rust's shape: Insert<A, OneRow> has exec_returning_upsert, Insert<A, ManyRows> has exec_returning_upserts, and that is the shape registered entity inserts now take (EntityInsert / EntityInsertMany, bindings.entity-versions+3). Splitting it would add a ModelInsertMany (or similar) beside ModelInsert in both bindings, bump bindings.model-writes, and update both suites, both typings and the generative campaign's model.insert emitters, which use ModelInsert.returning_upsert(s). Left for the operator, as the operator's decision named only the undecided names."
+                    }
+
+                    {
+                        at 2026-11-05T14:26:37.142874Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Correction to the note above: the generative campaign's upsert emitters (effects.py, emit_python.py) call the registered entity's insert / insert_many, not ModelInsert. Grep security/generative for model inserts before assuming it needs a change."
+                    }
+
+                    {
+                        at 2026-11-05T14:55:36.655993Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:05:20.522108Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Coordinator 2026-11-05: fix it rather than leave it. Rust's Insert<A, OneRow> / Insert<A, ManyRows> is the reference. Before: both bindings gave one ModelInsert from insert(values) and insert_many(rows), with both upsert terminals and inspect(terminal) taking either. Chosen: insert(values) gives ModelInsert (returning_upsert, inspect(terminal=\"returning_upsert\")) and insert_many(rows) gives the new ModelInsertMany (returning_upserts, inspect(terminal=\"returning_upserts\")). Both keep on_conflict, returning(fields), execute and inspect. Rust's add / add_many are what make a batch of any insert, so both kinds also gain add(values) / add_many(rows), which give the ModelInsertMany holding the insert's rows then the new ones, its conflict clause kept, and they go in this node rather than insert-terminals because they are the row-count typing's transition. The rows are appended to the native INSERT, refused at once as a ConstructionError when they set other fields than the insert's rows do, or when either is a row of defaults, as insert_many already refused. Python: a private _Insert base (fields, on_conflict, add, add_many, _upserts) under ModelInsert / ModelInsertMany, typed so mypy refuses the other kind's terminal. JavaScript: a module-private Inserting base under ModelInsert / ModelInsertMany, with the private state reached through a static accessor, and models.d.ts declaring the two classes apart. Rejection cases: public_types_invalid.py (six) and model-types.test.ts (five @ts-expect-error). bindings.model-writes is +2; its claims moved here from binding-spec-consolidation (javascript) and python-model-gaps (python). The campaign's execute dispatch (effects.py) and the emitted reproducer's _execute (emit_python.py) take ModelInsertMany too. The campaign builds model inserts only through insert(values), so its grammar is unchanged."
+                    }
+                )
+            }
+
+            {
+                id binding-parity.insert-terminals
+                title "A registered entity's insert has Rust's insert terminals in both bindings: execute, returning_pk and returning_model on one row, returning_pks and returning_models on a batch, and add / add_many making a batch"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.entity-inserts])
+                    python ([spec:pgorm:req:bindings.entity-inserts])
+                }
+                deps (binding-parity.registered-inserts)
+                log (
+                    {
+                        at 2026-11-05T15:07:30.188143Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:24:10.418009Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Coordinator 2026-11-05: compare Rust's insert terminals with both bindings' registered and model inserts. Add what a Rust user would reach for, and record a mapping where a binding already covers it. Rust: Insert<A, OneRow> has exec, exec_returning_pk, exec_returning_model and exec_returning_upsert. Insert<A, ManyRows> has exec, exec_returning_pks, exec_returning_models and exec_returning_upserts. Both have on_conflict, add and add_many (which give ManyRows), and on_empty_do_nothing / on_conflict_do_nothing (which give a TryInsert). Registered entity inserts had only on_conflict and the upsert terminal. Added to both bindings, spelled by the naming rules: EntityInsert.execute, returning_pk and returning_model; EntityInsertMany.execute, returning_pks and returning_models; add(active) and add_many(actives) on both kinds, giving EntityInsertMany. They are statement terminals, so no hook runs, unlike ActiveModel.insert. A key is a scalar for a one-column key, and a tuple (Python) or frozen array (JavaScript) for a composite key, as PrimaryKey::ValueType is. A conflict-skipped row is a DecodeError from returning_pk / returning_model (Rust's RecordNotInserted / RecordNotFound) and is left out of the batch terminals. Native: both adapters' VersionWrite::Upserts became one Insertion { actives, conflict, one, answer: Count | Keys | Models | Upserts }, run through a new EntityBackend::insert, with the upserts on the same path. Batch uniformity: Rust records a column-set mismatch and refuses at exec with Error::Query, which Python classified as DatabaseError and JavaScript as ConstructionError. Both bindings now refuse a mismatched batch as it is built (insert_many, add, add_many) with the same ConstructionError message. Mapped rather than added: a model insert's exec is execute; exec_returning_model(s) is returning().one / all; exec_returning_pk(s) is returning(*key fields).one / all, giving records of the key fields. Its add / add_many came with binding-parity.model-inserts. Not added: TryInsert / on_conflict_do_nothing. on_conflict(Conflict.do_nothing()) writes the clause, and TryInsertResult's Conflicted / Empty are what returning_upsert's null and a batch of none's empty answers already say. New rule bindings.entity-inserts; bindings.entity-versions is unchanged."
+                    }
+                )
+            }
+
+            {
+                id binding-parity.foreign-active-error
+                title "A record, ActiveModel or column of another registration is refused in both bindings as an argument of the wrong type, a TypeError"
+                kind @fix
+                implements {
+                    javascript ([spec:pgorm:req:bindings.entity-writes])
+                    python ([spec:pgorm:req:bindings.entity-writes])
+                }
+                deps (binding-parity.insert-terminals)
+                log (
+                    {
+                        at 2026-11-05T15:24:19.640676Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by binding-parity.insert-terminals (2026-11-05). Python's entities refuse an ActiveModel of another registration with LifecycleError: versions.rs owned() says \"ActiveModel belongs to another entity registration\", and generic.rs concrete() raises Error::Type. registered_versions.py asserts LifecycleError for insert(self.old.active()...). JavaScript's ownActive (lib/entities.js) throws ConstructionError: \"the ActiveModel is app.Note's, not app.Account's\". bindings.entity-writes says only \"A record or an ActiveModel of another registration MUST be refused\", with no error class. bindings.errors / bindings.argument-errors should settle the class. A value the call cannot use is a ConstructionError under the argument-errors line, which suggests JavaScript's. Then one binding changes, along with its tests (registered_versions.py, registered_entities.py and the entity-writes tests), and bindings.entity-writes names the class."
+                    }
+
+                    {
+                        at 2026-11-05T15:35:48.512966Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:41:57.838437Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision 2026-11-05, pending operator override: an ActiveModel of another registration, passed where this entity's is expected, is an argument of the wrong type. So under the operator's decision (12) of 2026-10-30 it is a TypeError in both bindings, not the ConstructionError kept for a value that cannot become what pgorm sends. Applied to every handle of another registration given where this entity's is expected. Python: owned() in entities/versions.rs (update, insert, insert_many, add, add_many); a column of another entity in entities/column.rs name() (ActiveModel get/set/not_set/reset, EntityModel.with_value, update_many().set), which was LifecycleError; and the generated typed views in _registered/entities.py (ModelView, ActiveView, EntityView, QueryView), which were LifecycleError. JavaScript: ownActive and modelOf in lib/entities.js (update, insert, insertMany, add, addMany, intoActive, withValue, tagged), which were ConstructionError; and the addon's own checks behind them (entities/versions.rs own_active, entities/inserts.rs). Both bindings word it as \"the ActiveModel / record / column is X's, not Y's\". bindings.entity-writes is +1 and names the class; its claims moved here from binding-spec-consolidation. Left as is: a disjoint kind write given another kind entity's ActiveModel. Both bindings refuse it with a ConstructionError, which bindings.disjoint+1 names for every refusal before anything is sent, so changing it would be a disjoint-rule decision."
+                    }
+                )
+            }
+
+            {
+                id binding-parity.disjoint-foreign-active
+                title "A disjoint kind write given an ActiveModel or record of another entity refuses it in both bindings as an argument of the wrong type, a TypeError, as a registered entity's write does"
+                kind @fix
+                deps (binding-parity.foreign-active-error)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T15:51:07.766289Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:55:24.151616Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision 2026-11-05: argument-errors (12) governs a wrong-typed argument everywhere. A registered disjoint enum's insert, update or change_kind given an ActiveModel of another entity, for the base or for a kind, now refuses it with TypeError (\"the ActiveModel is X's, not Y's\") in both bindings, as bindings.entity-writes+1 does for a registered entity's write. The check is in the native values step of each binding (pgorm-python/src/disjoint/mod.rs, pgorm-napi/src/disjoint/mod.rs), where it was a ConstructionError. bindings.disjoint is +2: a refusal before anything is sent stays a ConstructionError for a value that cannot become what pgorm sends (the kind column set, a kind row's key set, a row for a kind without a table), and an ActiveModel of another entity is named a TypeError. Annotations are re-pinned everywhere, src/ and tests/ included. The rule's python and javascript claims moved here from disjoint.bindings, so the bump leaves that node with nothing stale. The disjoint docs in both bindings' ENTITIES.md are updated. A model-based disjoint write takes values, not handles, so it is unaffected."
+                    }
+
+                    {
+                        at 2026-11-05T16:04:14.696674Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T16:04:14.873973Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Correction to the decision note: the bindings.disjoint claims went back to disjoint.bindings, its only implements, because moving them left that delivered node with nothing to be Done by. It was re-covered at bindings.disjoint +2 by a commit typed feat, its kind. This node, delivered by ba56cf54, is completed by hand."
+                        after_done true
+                    }
+                )
             }
         )
         log (
