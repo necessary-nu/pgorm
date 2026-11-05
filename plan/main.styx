@@ -17635,7 +17635,18 @@ children (
                 id typed-binds.python-decode-reason
                 title "Python's decode errors carry the codec's reason, as JavaScript's do"
                 kind @fix
+                implements {
+                    main ([spec:pgorm:sem:error.model.decode-refusal])
+                }
                 deps (python-bind-refusal-text)
+                log (
+                    {
+                        at 2026-11-05T02:16:09.101281Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
             }
         )
     }

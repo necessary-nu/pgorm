@@ -248,7 +248,7 @@ test("a pool listening on statementCacheChannel clears when notified, and only t
 });
 
 // [spec:pgorm:req:bindings.connections+2/test]
-// [spec:pgorm:req:bindings.errors+4/test]
+// [spec:pgorm:req:bindings.errors+5/test]
 test("acquiring waits for a free connection within acquireTimeout, then fails with a TimeoutError", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 200 });
   await using held = await single.acquire();

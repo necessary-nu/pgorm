@@ -330,6 +330,53 @@ impl std::fmt::Display for BindRefusal {
     }
 }
 
+/// A result the driver could not read into what was asked for: a column's
+/// value its decoder refused, a column the row does not have, or a row or a
+/// row count of another shape than the statement promised.
+///
+/// Its `Display` is the driver's account of what it was reading, followed by
+/// the decoder's reason where there is one, the text each language binding
+/// reports the failure with.
+// [spec:pgorm:sem:error.model.decode-refusal]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DecodeRefusal {
+    /// The driver's account of what it was reading: `error deserializing
+    /// column 0`, ``invalid column `name` ``, or the unexpected number of
+    /// columns or rows a query returned.
+    pub reading: String,
+    /// The decoder's refusal of the value, where the driver kept one.
+    pub reason: Option<String>,
+}
+
+impl DecodeRefusal {
+    /// The refusal `error` is, or `None` for any other failure.
+    // [spec:pgorm:sem:error.model.decode-refusal]
+    pub fn of(error: &tokio_postgres::Error) -> Option<Self> {
+        // As for BindRefusal: the phase is read off the driver's own
+        // top-level text, never off a cause a value can shape.
+        let reading = error.to_string();
+        let decoding = reading.starts_with("error deserializing column ")
+            || reading.starts_with("invalid column `")
+            || reading == "query returned an unexpected number of columns"
+            || reading == "query returned an unexpected number of rows";
+        decoding.then(|| Self {
+            reason: std::error::Error::source(error).map(ToString::to_string),
+            reading,
+        })
+    }
+}
+
+impl std::fmt::Display for DecodeRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.reading)?;
+        match &self.reason {
+            Some(reason) => write!(f, ": {reason}"),
+            None => Ok(()),
+        }
+    }
+}
+
 /// An error after which re-running the whole transaction may succeed.
 ///
 /// Implemented for [`Error`]; implement it for a domain error type to use that
@@ -371,6 +418,17 @@ impl Error {
     pub fn bind_refusal(&self) -> Option<BindRefusal> {
         match self {
             Error::Postgres(e) => BindRefusal::of(e),
+            _ => None,
+        }
+    }
+
+    /// The result the driver could not read, when this is that failure:
+    /// [`DecodeRefusal::of`] the driver's error, and `None` for any other
+    /// variant.
+    // [spec:pgorm:sem:error.model.decode-refusal]
+    pub fn decode_refusal(&self) -> Option<DecodeRefusal> {
+        match self {
+            Error::Postgres(e) => DecodeRefusal::of(e),
             _ => None,
         }
     }

@@ -104,7 +104,7 @@ option.
 > the runtime: an operation that does I/O is awaited in the language's own
 > asynchronous form (`python.runtime`, `napi.promises`).
 
-> [spec:pgorm:req:bindings.errors+4]
+> [spec:pgorm:req:bindings.errors+5]
 > Each binding MUST report a failure as an instance of its own error classes,
 > all derived from one base class of the binding and from the language's own
 > base error:
@@ -128,7 +128,10 @@ option.
 >   `parameter $1 cannot be bound:` followed by pgorm's reason, the same text
 >   in each binding;
 > - `DecodeError` for a result that cannot become the native value asked for,
->   a wrong row count among them (`bindings.row-count`);
+>   a wrong row count among them (`bindings.row-count`); one the driver cannot
+>   read is reported with pgorm's `DecodeRefusal` text
+>   (`error.model.decode-refusal`), what it was reading followed by the
+>   decoder's reason, the same text in each binding;
 > - `LifecycleError` for a pool, connection, transaction, stream or listener
 >   used after it closed, or while another operation holds it;
 > - `TimeoutError` when no connection becomes free within a pool's acquire

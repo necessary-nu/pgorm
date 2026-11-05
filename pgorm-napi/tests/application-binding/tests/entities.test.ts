@@ -470,6 +470,26 @@ test("a registered column's quantified comparisons and containment compare under
   assert.deepStrictEqual(await ids(Parcel.find().where(codes.overlaps(["c", "d"]))), [2]);
 });
 
+// [spec:pgorm:req:bindings.errors+5/test]    a column the entity cannot read as its field's type is a
+// DecodeError naming what the driver was reading and the decoder's reason, as Python reports it
+test("a decode refusal names the column the driver read and the decoder's reason", async () => {
+  await pool().execute("ALTER TABLE napi_entities.notes ALTER COLUMN account_id TYPE text USING account_id::text");
+  try {
+    await pool().execute("INSERT INTO napi_entities.notes VALUES (1, 'one', 'b')");
+    await assert.rejects(Note.find().all(pool()), (error: unknown) => {
+      assert.ok(error instanceof DecodeError, `expected a DecodeError, got ${error}`);
+      assert.equal(
+        error.message,
+        "error deserializing column 1: cannot convert between the Rust type `i32` and the Postgres type `text`",
+      );
+      return true;
+    });
+  } finally {
+    await pool().execute("TRUNCATE napi_entities.notes");
+    await pool().execute("ALTER TABLE napi_entities.notes ALTER COLUMN account_id TYPE int4 USING account_id::int4");
+  }
+});
+
 // [spec:pgorm:req:bindings.entity-writes/test]
 test("a record's model converts and copies as Rust's does, and belongs to its entity", async () => {
   await seed();

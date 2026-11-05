@@ -349,7 +349,7 @@ mod tests {
     use crate::errors::ConstructionError;
     use pyo3::Python;
 
-    // [spec:pgorm:req:bindings.errors+4/test]    a transaction ending this binding has no arm
+    // [spec:pgorm:req:bindings.errors+5/test]    a transaction ending this binding has no arm
     // for is its own failure, an InternalError, while pgorm's `Error::Custom`, which only an
     // application's hook returns, is the ConstructionError a hook's refusal is
     #[test]

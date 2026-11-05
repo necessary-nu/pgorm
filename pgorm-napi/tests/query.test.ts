@@ -65,7 +65,7 @@ test("queries that sleep on the server overlap rather than queue behind one anot
   assert.ok(performance.now() - started < 3000, "eight half-second queries ran concurrently");
 });
 
-// [spec:pgorm:req:bindings.errors+4/test]
+// [spec:pgorm:req:bindings.errors+5/test]
 test("an error PostgreSQL reports rejects with a DatabaseError carrying its SQLSTATE", async () => {
   const error = await scalar("SELECT $1::int + 1 AS n", [2147483647]).then(
     () => assert.fail("the overflow resolved"),
@@ -81,7 +81,7 @@ test("an error PostgreSQL reports rejects with a DatabaseError carrying its SQLS
   assert.equal(error.detail, null);
 });
 
-// [spec:pgorm:req:bindings.errors+4/test]
+// [spec:pgorm:req:bindings.errors+5/test]
 test("a constraint violation rejects with the DatabaseError subclass named for it, carrying the names the server reported", async () => {
   const database = await scratchDatabase("pgorm_napi_violations");
   try {
@@ -163,7 +163,7 @@ test("a constraint violation rejects with the DatabaseError subclass named for i
   }
 });
 
-// [spec:pgorm:req:bindings.errors+4/test]
+// [spec:pgorm:req:bindings.errors+5/test]
 test("a statement PostgreSQL cannot parse rejects with its syntax-error SQLSTATE", async () => {
   await assert.rejects(pool.query("SELEC 1"), (error: unknown) => {
     assert.ok(error instanceof DatabaseError);
@@ -172,7 +172,7 @@ test("a statement PostgreSQL cannot parse rejects with its syntax-error SQLSTATE
   });
 });
 
-// [spec:pgorm:req:bindings.errors+4/test]
+// [spec:pgorm:req:bindings.errors+5/test]
 test("an unreachable server rejects with a ConnectionError", async () => {
   await using unreachable = new Pool("postgres://pgorm@127.0.0.1:1/postgres?sslmode=disable");
   await assert.rejects(unreachable.query("SELECT 1"), (error: unknown) => {
@@ -182,7 +182,7 @@ test("an unreachable server rejects with a ConnectionError", async () => {
   });
 });
 
-// [spec:pgorm:req:bindings.errors+4/test]
+// [spec:pgorm:req:bindings.errors+5/test]
 test("a password never appears in the error its connection failure rejects with", async () => {
   await using unreachable = new Pool("postgres://pgorm:hunter2-secret@127.0.0.1:1/postgres?sslmode=disable");
   await assert.rejects(
@@ -195,7 +195,7 @@ test("a password never appears in the error its connection failure rejects with"
   );
 });
 
-// [spec:pgorm:req:bindings.errors+4/test]
+// [spec:pgorm:req:bindings.errors+5/test]
 test("a parameter with no exact int4 rejects before anything is sent", async () => {
   for (const value of [1.5, 2 ** 31, -(2 ** 31) - 1, Number.NaN, Number.POSITIVE_INFINITY, "1"]) {
     await assert.rejects(scalar("SELECT $1::int + 1 AS n", [value]), (error: unknown) => {
@@ -206,7 +206,7 @@ test("a parameter with no exact int4 rejects before anything is sent", async () 
   }
 });
 
-// [spec:pgorm:req:bindings.errors+4/test]    a value its parameter's type refuses is a
+// [spec:pgorm:req:bindings.errors+5/test]    a value its parameter's type refuses is a
 // ConstructionError naming the parameter and carrying pgorm's refusal, as Python reports it
 test("a bind refusal names the parameter and pgorm's reason", async () => {
   for (
@@ -223,12 +223,12 @@ test("a bind refusal names the parameter and pgorm's reason", async () => {
   }
 });
 
-// [spec:pgorm:req:bindings.errors+4/test]
+// [spec:pgorm:req:bindings.errors+5/test]
 test("an unusable connection string is a ConstructionError", () => {
   assert.throws(() => new Pool("postgres://["), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.errors+4/test]
+// [spec:pgorm:req:bindings.errors+5/test]
 test("a result the binding cannot decode exactly rejects with a DecodeError", async () => {
   await assert.rejects(pool.query("SELECT 'NaN'::numeric AS n"), DecodeError);
   await assert.rejects(pool.query("SELECT point(1, 2) AS n"), DecodeError);

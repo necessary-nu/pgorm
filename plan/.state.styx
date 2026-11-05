@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T01:13:00.884937Z
+last_sync_at 2026-11-05T02:15:29.773078Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -10,7 +10,7 @@ rule_versions (
     {id bindings.codegen, version 0}
     {id bindings.codegen-disjoint, version 0}
     {id bindings.collations, version 0}
-    {id bindings.column-operators, version 2}
+    {id bindings.column-operators, version 3}
     {id bindings.conflict-arbiters, version 0}
     {id bindings.connections, version 2}
     {id bindings.copy, version 0}
@@ -23,7 +23,7 @@ rule_versions (
     {id bindings.disjoint-unkinded, version 0}
     {id bindings.entities, version 4}
     {id bindings.entity-graphs, version 3}
-    {id bindings.entity-reads, version 2}
+    {id bindings.entity-reads, version 3}
     {id bindings.entity-versions, version 2}
     {id bindings.entity-writes, version 0}
     {id bindings.errors, version 4}
@@ -146,7 +146,7 @@ rule_versions (
     {id entity.traits, version 4}
     {id entity.traits.active-enum, version 2}
     {id entity.traits.active-enum.limits, version 2}
-    {id entity.traits.column, version 8}
+    {id entity.traits.column, version 9}
     {id entity.traits.column-def, version 2}
     {id entity.traits.column.enum-cast, version 15}
     {id entity.traits.crud, version 4}
@@ -731,6 +731,7 @@ derived_priorities (
     {id napi-schema-statement-name, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id napi-statements, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
     {id napi-values, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
+    {id napi.abort-race-all, priority 1, derived_at 2026-11-05T02:15:29.773078Z}
     {id nested-source-from-entry, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id nopanic.codegen-gate, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
     {id nopanic.connect-builders, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
@@ -982,6 +983,9 @@ derived_priorities (
     {id tx-closure-only, priority 1, derived_at 2026-10-26T20:21:09.753689Z}
     {id tx-closure-send, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id type-part-keyword-names, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
+    {id typed-binds.python-decode-reason, priority 3, derived_at 2026-11-05T02:15:29.773078Z}
+    {id typed-binds.python-expression-operands, priority 3, derived_at 2026-11-05T02:15:29.773078Z}
+    {id typed-binds.quantified-casts, priority 3, derived_at 2026-11-05T02:15:29.773078Z}
     {id unique-key-virtual-refused, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id unique-keys.objects-wording, priority 2, derived_at 2026-11-05T00:28:09.491091Z}
     {id unrep.build-any, priority 3, derived_at 2026-09-02T14:40:48.714779Z}
@@ -3018,6 +3022,11 @@ impl_evidence (
         {impl_name main, rule testing.isolation}
     ), rule_versions_seen (
         {id testing.isolation, version 0}
+    )}
+    {id typed-binds.python-decode-reason, covered_rules (
+        error.model.decode-refusal
+    ), covered_claims (
+        {impl_name main, rule error.model.decode-refusal}
     )}
 )
 

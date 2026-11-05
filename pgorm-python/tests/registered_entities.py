@@ -399,6 +399,20 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             span.contains(1.7)
 
+    # [spec:pgorm:req:bindings.errors+5/test]    a column the entity cannot read as its field's type is a
+    # DecodeError naming what the driver was reading and the decoder's reason, as JavaScript reports it
+    async def test_decode_refusal_names_column_and_reason(self):
+        await self.pool.execute(p.RawSQL(
+            "ALTER TABLE python_entities.notes ALTER COLUMN account_id TYPE text USING account_id::text"))
+        await self.pool.execute(p.RawSQL("INSERT INTO python_entities.notes VALUES (1, 'one', 'b')"))
+        with self.assertRaises(p.DecodeError) as refused:
+            await self.note.find().all(self.pool)
+        self.assertEqual(
+            str(refused.exception),
+            "error deserializing column 1: "
+            "cannot convert between the Rust type `i32` and the Postgres type `text`",
+        )
+
     # [spec:pgorm:req:bindings.entity-reads+3/test]
     async def test_one_never_widens_a_zero_limit(self):
         async with self.pool.connection() as connection:
@@ -509,7 +523,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(await self.account.find().where(self.account.col("id") == 98).optional(connection))
 
     # [spec:pgorm:req:bindings.entity-reads+3/test]
-    # [spec:pgorm:req:bindings.errors+4/test]
+    # [spec:pgorm:req:bindings.errors+5/test]
     async def test_decode_failure_does_not_become_absence(self):
         async with self.pool.connection() as connection:
             await self.active(1).insert(connection)
@@ -517,7 +531,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.DecodeError):
                 await self.account.find().optional(connection)
 
-    # [spec:pgorm:req:bindings.errors+4/test]
+    # [spec:pgorm:req:bindings.errors+5/test]
     async def test_parameter_failure_preserves_connection(self):
         async with self.pool.connection() as connection:
             with self.assertRaises(p.ConstructionError):
