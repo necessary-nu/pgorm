@@ -123,7 +123,7 @@ def inputs():
 
 
 def values(kind, data):
-    """The value, its typed NULL and, where the binding has them, its arrays."""
+    """The value, its typed NULL and its arrays."""
     scalar = (
         p.Value.json(data)
         if isinstance(kind, str) and kind == "json"
@@ -131,12 +131,6 @@ def values(kind, data):
     )
     yield scalar
     yield p.Value.null(kind)
-    if isinstance(kind, p.CreatedRange | p.CreatedMultirange):
-        try:
-            p.Value.array(kind, [])
-        except p.ConstructionError:
-            return
-        raise AssertionError(f"{scalar.kind}: the binding builds arrays of it")
     yield p.Value.array(kind, [scalar, None])
     yield p.Value.array(kind, [])
     yield p.Value.array(kind, None)
