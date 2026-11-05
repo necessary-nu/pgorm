@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T18:29:37.556433Z
+last_sync_at 2026-11-05T22:03:17.394276Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -43,7 +43,7 @@ rule_versions (
     {id bindings.model-records, version 1}
     {id bindings.model-unique-keys, version 2}
     {id bindings.model-writes, version 2}
-    {id bindings.models, version 5}
+    {id bindings.models, version 6}
     {id bindings.one-of, version 1}
     {id bindings.operands, version 0}
     {id bindings.optional, version 0}
@@ -57,7 +57,7 @@ rule_versions (
     {id bindings.ranges, version 0}
     {id bindings.registered-pools, version 0}
     {id bindings.relation-conditions, version 0}
-    {id bindings.relations, version 0}
+    {id bindings.relations, version 2}
     {id bindings.results, version 2}
     {id bindings.row-count, version 0}
     {id bindings.row-locks, version 0}
@@ -65,9 +65,10 @@ rule_versions (
     {id bindings.runtime, version 0}
     {id bindings.schema, version 0}
     {id bindings.schema-alter, version 0}
-    {id bindings.schema-api, version 2}
+    {id bindings.schema-api, version 3}
     {id bindings.schema-domains, version 2}
     {id bindings.schema-from-entity, version 0}
+    {id bindings.schema-from-model, version 0}
     {id bindings.schema-indexes, version 0}
     {id bindings.schema-schemas, version 0}
     {id bindings.schema-sequences, version 0}
@@ -349,6 +350,7 @@ rule_versions (
     {id schema.from-entity, version 12}
     {id schema.from-entity.enum, version 3}
     {id schema.from-entity.index, version 2}
+    {id schema.from-shape, version 0}
     {id security.ident-oracle, version 17}
     {id security.ident-oracle.nul, version 2}
     {id security.sqlmap, version 0}
@@ -2401,6 +2403,18 @@ impl_evidence (
         guide.dialects
     ), covered_claims (
         {impl_name python, rule guide.dialects}
+    ), rule_versions_seen (
+        {id guide.dialects, version 0}
+    )}
+    {id guide.python-gaps.model-ddl, covered_rules (
+        bindings.schema-from-model
+        schema.from-shape
+    ), covered_claims (
+        {impl_name main, rule schema.from-shape}
+        {impl_name python, rule bindings.schema-from-model}
+    ), rule_versions_seen (
+        {id bindings.schema-from-model, version 0}
+        {id schema.from-shape, version 0}
     )}
     {id guide.rust, covered_rules (
         guide.chapters
@@ -2579,6 +2593,13 @@ impl_evidence (
         {impl_name main, rule napi.values}
     ), rule_versions_seen (
         {id napi.inference, version 0}
+    )}
+    {id napi.guide-gaps.model-schema, covered_rules (
+        bindings.schema-from-model
+    ), covered_claims (
+        {impl_name javascript, rule bindings.schema-from-model}
+    ), rule_versions_seen (
+        {id bindings.schema-from-model, version 0}
     )}
     {id orm.binding-types, covered_rules (
         exec.cursor.binding-coerce
@@ -2797,7 +2818,6 @@ impl_evidence (
         bindings.graphs
         bindings.model-reads
         bindings.model-records
-        bindings.model-writes
         bindings.models
         bindings.pagination
         bindings.relations
@@ -2806,18 +2826,9 @@ impl_evidence (
         {impl_name python, rule bindings.graphs}
         {impl_name python, rule bindings.model-reads}
         {impl_name python, rule bindings.model-records}
-        {impl_name python, rule bindings.model-writes}
         {impl_name python, rule bindings.models}
         {impl_name python, rule bindings.pagination}
         {impl_name python, rule bindings.relations}
-    ), rule_versions_seen (
-        {id bindings.cursors, version 0}
-        {id bindings.graphs, version 0}
-        {id bindings.model-reads, version 0}
-        {id bindings.model-records, version 1}
-        {id bindings.models, version 5}
-        {id bindings.pagination, version 0}
-        {id bindings.relations, version 0}
     )}
     {id python-registered-pools, covered_rules (
         bindings.registered-pools
@@ -2840,13 +2851,6 @@ impl_evidence (
         {impl_name python, rule bindings.schema-sequences}
         {impl_name python, rule bindings.schema-tables}
         {impl_name python, rule bindings.schema-types}
-    ), rule_versions_seen (
-        {id bindings.schema-alter, version 0}
-        {id bindings.schema-api, version 2}
-        {id bindings.schema-indexes, version 0}
-        {id bindings.schema-sequences, version 0}
-        {id bindings.schema-tables, version 0}
-        {id bindings.schema-types, version 0}
     )}
     {id python-select-gaps, covered_rules (
         bindings.from-subqueries
@@ -3329,18 +3333,6 @@ impl_evidence (
         {impl_name main, rule error.model.decode-refusal}
     ), rule_versions_seen (
         {id error.model.decode-refusal, version 0}
-    )}
-    {id guide.python-gaps.model-ddl, covered_rules (
-        bindings.schema-from-model
-        schema.from-shape
-    ), covered_claims (
-        {impl_name main, rule schema.from-shape}
-        {impl_name python, rule bindings.schema-from-model}
-    )}
-    {id napi.guide-gaps.model-schema, covered_rules (
-        bindings.schema-from-model
-    ), covered_claims (
-        {impl_name javascript, rule bindings.schema-from-model}
     )}
 )
 
