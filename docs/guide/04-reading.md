@@ -290,7 +290,7 @@ struct PriceTag {
 #[derive(Debug, PartialEq, PartialModel)]
 #[pgorm(entity = cake::Entity)]
 struct MenuLine {
-    #[pgorm(from_expr = Expr::expr(Func::upper(Expr::col((cake::Entity, cake::Column::Name)))))]
+    #[pgorm(from_expr = Func::upper(Expr::col((cake::Entity, cake::Column::Name))))]
     shout: String,
     #[pgorm(from_col = cake::Column::GlutenFree)]
     free_from_gluten: bool,
@@ -424,7 +424,7 @@ let busy: Vec<(String, i64)> = cake::Entity::find()
     .select(bakery::Column::Name)
     .column_as(cake::Column::Id.count(), alias("cakes"))
     .group_by(bakery::Column::Name)
-    .having(Expr::expr(cake::Column::Id.count()).gt(2))
+    .having(cake::Column::Id.count().gt(2))
     .into_tuple()
     .all(&db)
     .await?;

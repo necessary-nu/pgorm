@@ -683,7 +683,7 @@ async fn an_array_reads_only_its_own_range_type(db: &DatabaseConnection) -> Resu
 /// `overlaps` is `&&`: true when two ranges, a multirange and a range, two
 /// multiranges or two arrays share a value; the empty range overlaps
 /// nothing, every value included; and an element is no operand of it.
-// [spec:pgorm:req:sql.ast.expr.operators+5/test]    `overlaps` reads ranges, multiranges and
+// [spec:pgorm:req:sql.ast.expr.operators+6/test]    `overlaps` reads ranges, multiranges and
 // arrays live
 async fn overlap_reads_ranges_multiranges_and_arrays(db: &DatabaseConnection) -> Result<(), Error> {
     let ids = |condition: SimpleExpr| {

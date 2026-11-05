@@ -13,8 +13,9 @@ use crate::{
     unpack_table_name,
 };
 use pgorm_query::{
-    ColumnDef, ConditionType, Deferrability, Expr, ForeignKeyAction, FromItem, GeneratedKind, Name,
-    Table, TableAlterStatement, TableCreateStatement, TableForeignKey, TableKey, TableName, Unique,
+    ColumnDef, ConditionType, Deferrability, Expr, ExprTrait, ForeignKeyAction, FromItem,
+    GeneratedKind, Name, Table, TableAlterStatement, TableCreateStatement, TableForeignKey,
+    TableKey, TableName, Unique,
 };
 use std::iter;
 

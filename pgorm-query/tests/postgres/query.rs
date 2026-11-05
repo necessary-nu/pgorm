@@ -17,7 +17,7 @@ fn select_1() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.expr+7/test]
+// [spec:pgorm:def:sql.ast.expr+8/test]
 #[test]
 fn select_2() {
     assert_eq!(
@@ -302,7 +302,7 @@ fn select_21() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.condition+1/test]
+// [spec:pgorm:def:sql.ast.condition+2/test]
 #[test]
 fn select_22() {
     assert_eq!(
@@ -1080,7 +1080,7 @@ fn select_60() {
     assert_eq!(values, Values(vec![3i32.into(), 5u64.into()]));
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+5/test]
+// [spec:pgorm:req:sql.ast.expr.operators+6/test]
 #[test]
 fn select_61() {
     assert_eq!(
@@ -2168,7 +2168,7 @@ fn select_array_overlap_bin_oper() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+5/test]
+// [spec:pgorm:req:sql.ast.expr.operators+6/test]
 #[test]
 fn get_json_field_bin_oper() {
     assert_eq!(
@@ -2199,7 +2199,7 @@ fn cast_json_field_bin_oper() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.json+2/test]    a path of any depth is one `text[]`
+// [spec:pgorm:req:sql.ast.expr.json+3/test]    a path of any depth is one `text[]`
 // parameter, so the statement text does not vary with it
 #[test]
 fn json_path_operators_take_one_text_array() {
@@ -2227,7 +2227,7 @@ fn json_path_operators_take_one_text_array() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.json+2/test]    the existence family's three lexemes,
+// [spec:pgorm:req:sql.ast.expr.json+3/test]    the existence family's three lexemes,
 // and the single-key form's text operand
 #[test]
 fn json_key_existence_operators_render() {
@@ -2290,7 +2290,7 @@ fn json_existence_drops_parens_under_and() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.json+2/test]    an empty key list is not special-cased:
+// [spec:pgorm:req:sql.ast.expr.json+3/test]    an empty key list is not special-cased:
 // it is a typed empty array, and the statement text is the same at every cardinality
 #[test]
 fn empty_json_key_list_is_typed_array() {
@@ -2319,7 +2319,7 @@ fn empty_json_key_list_is_typed_array() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+5/test]    `@>`, `<@` and `||` are one
+// [spec:pgorm:req:sql.ast.expr.operators+6/test]    `@>`, `<@` and `||` are one
 // operator each across every type that has them, so the JSON family names no
 // duplicate: these are already the JSON containment and merge tests
 #[test]

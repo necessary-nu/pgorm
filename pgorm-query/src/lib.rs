@@ -647,8 +647,8 @@
 // `Error`/`Result`), `extension` (PostgreSQL's `CREATE EXTENSION` / `CREATE
 // TYPE` surface, deliberately not flattened into the root), and `value`
 // (`value::with_array::NotU8`, which pgorm's derives name in generated code).
-// [spec:pgorm:req:sql.surface+38]
-// [spec:pgorm:req:sql.surface+38/test]    the two `compile_fail,E0603` examples in
+// [spec:pgorm:req:sql.surface+39]
+// [spec:pgorm:req:sql.surface+39/test]    the two `compile_fail,E0603` examples in
 // the crate docs above, under "The public surface": a module path into the
 // crate does not resolve. `cargo test --doc -p pgorm-query` runs them; nextest
 // runs the rest of the rule's tests, in `tests/surface`.
@@ -666,6 +666,7 @@ mod copy;
 mod domain;
 pub mod error;
 mod expr;
+mod expr_trait;
 pub mod extension;
 mod foreign_key;
 mod func;
@@ -720,7 +721,8 @@ pub use types::{FromItem, IntoFromItem, IntoNamedTable, IntoTableName, JoinType,
 
 // Expressions: the operator vocabulary an expression tree is built from, and
 // the two trees themselves.
-pub use expr::{Expr, SimpleExpr, Subscript};
+pub use expr::{Expr, SimpleExpr};
+pub use expr_trait::{ExprTrait, Subscript};
 pub use func::{Func, FuncArgMod, Function, FunctionCall};
 pub use json::{
     JsonArray, JsonArrayAgg, JsonArrayQuery, JsonExists, JsonExistsBehavior, JsonInput, JsonKind,

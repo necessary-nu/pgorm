@@ -10,6 +10,7 @@
 //! Run the test locally:
 //! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54329 cargo test --test eq_any_tests
 
+use pgorm_query::ExprTrait;
 pub mod common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};

@@ -1,7 +1,7 @@
 //! `Expr`'s NULL tests, membership in a list or a subquery's rows, and
 //! `[NOT] BETWEEN [SYMMETRIC]`.
 
-use pgorm::pgorm_query::Expr;
+use pgorm::pgorm_query::{Expr, ExprTrait};
 use pyo3::prelude::*;
 
 use super::{PyExpr, coerce, construct::sequence};

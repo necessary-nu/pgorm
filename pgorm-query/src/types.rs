@@ -264,7 +264,7 @@ impl TypeName {
     /// nothing quoted or escaped.
     ///
     /// The only constructor of a verbatim type, and the one
-    /// [`Expr::cast_as_raw`](crate::Expr::cast_as_raw) and the derive's
+    /// [`ExprTrait::cast_as_raw`](crate::ExprTrait::cast_as_raw) and the derive's
     /// `select_as` / `save_as` attributes reach. Its argument is a literal
     /// written in the calling source: the text is program text the author
     /// already controls, never data, so rendering it as SQL adds no reach that
@@ -812,7 +812,7 @@ pub enum Keyword {
 
 /// A `LIKE`, `ILIKE` or `SIMILAR TO` pattern, with the `ESCAPE` tail the
 /// grammar admits only there.
-// [spec:pgorm:req:sql.ast.expr.similar-to+1]
+// [spec:pgorm:req:sql.ast.expr.similar-to+2]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LikeExpr {
     pub(crate) pattern: String,
@@ -833,7 +833,7 @@ pub trait IntoLikeExpr {
 }
 
 /// SubQuery operators
-// [spec:pgorm:def:sql.ast.expr+7]
+// [spec:pgorm:def:sql.ast.expr+8]
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum SubQueryOper {
@@ -1127,7 +1127,7 @@ impl LikeExpr {
     ///     r#"SELECT "image" FROM "glyph" WHERE "image" LIKE E'a\\b' ESCAPE ''"#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ast.expr.similar-to+1]
+    // [spec:pgorm:req:sql.ast.expr.similar-to+2]
     pub fn no_escape(self) -> Self {
         Self {
             pattern: self.pattern,

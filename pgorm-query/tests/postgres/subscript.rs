@@ -40,7 +40,7 @@ fn subscripts(indirection: &serde_json::Value) -> Vec<(bool, Option<i64>, Option
         .collect()
 }
 
-// [spec:pgorm:req:sql.ast.expr.subscript/test]    `index` builds an element subscript
+// [spec:pgorm:req:sql.ast.expr.subscript+2/test]    `index` builds an element subscript
 // [spec:pgorm:req:sql.render.subscript/test]    a column takes the subscript bare
 #[test]
 fn an_index_subscripts_a_column_bare() {
@@ -60,7 +60,7 @@ fn an_index_subscripts_a_column_bare() {
     assert_eq!(subscripts(&indirection(&sql)), [(false, None, Some(2))]);
 }
 
-// [spec:pgorm:req:sql.ast.expr.subscript/test]    `slice`, `slice_from`, `slice_to` and the
+// [spec:pgorm:req:sql.ast.expr.subscript+2/test]    `slice`, `slice_from`, `slice_to` and the
 // general `subscript` cover every pair of optional bounds
 // [spec:pgorm:req:sql.render.subscript/test]    `[l:u]`, `[l:]`, `[:u]`, `[:]`
 #[test]
@@ -87,7 +87,7 @@ fn slices_render_each_pair_of_bounds() {
     }
 }
 
-// [spec:pgorm:req:sql.ast.expr.subscript/test]    chained subscripts are one multi-dimensional
+// [spec:pgorm:req:sql.ast.expr.subscript+2/test]    chained subscripts are one multi-dimensional
 // access
 // [spec:pgorm:req:sql.render.subscript/test]    a subscripted base is not parenthesised, so the
 // parser reads one indirection holding both subscripts

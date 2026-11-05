@@ -25,7 +25,7 @@ builder methods take `&mut self` and return it, so a statement is written as
 one chain and finished with `to_owned()`:
 
 ```rust
-use pgorm::pgorm_query::{Expr, Order, Query};
+use pgorm::pgorm_query::{Expr, ExprTrait, Order, Query};
 use pgorm_guide_support::{bakery, cake};
 
 let query = Query::select()
@@ -158,7 +158,7 @@ the common case: `"price" + $1` reads `$1` as a `numeric`. Where nothing
 around it says, the server cannot choose: a value in a `SELECT` list or a
 `VALUES` row, the argument of a function that takes any array such as
 `unnest`, a number added to a date. There, cast the value with
-[`cast_as`](crate::pgorm_query::Expr::cast_as), which also tells the server
+[`cast_as`](crate::pgorm_query::ExprTrait::cast_as), which also tells the server
 the type the value is sent as, `CAST($1::int4[] AS integer[])`. The examples
 under [WITH](#with), [Table functions](#table-functions) and
 [Ranges](#ranges) do.
@@ -219,18 +219,24 @@ assert_eq!(query.to_string(), r#"SELECT "name" FROM "price_list_2025""#);
 
 ## Expressions
 
-[`Expr`](crate::pgorm_query::Expr) builds the expressions a statement holds:
-[`Expr::col`](crate::pgorm_query::Expr::col) for a column,
-[`Expr::val`](crate::pgorm_query::Expr::val) for a value, and methods for the
-operators: `eq`, `gt`, `between`, `is_in`, `is_null`, `add`, `mul`, `and`,
-`or`, `like`, and many more. [`Condition::all`](crate::pgorm_query::Condition::all)
+[`Expr`](crate::pgorm_query::Expr) starts the expressions a statement holds:
+[`Expr::col`](crate::pgorm_query::Expr::col) for a column and
+[`Expr::val`](crate::pgorm_query::Expr::val) for a value.
+[`Func`](crate::pgorm_query::Func) calls functions: the aggregates,
+`COALESCE`, `LOWER`, the full-text search functions, and any function by
+name through [`Func::named`](crate::pgorm_query::Func::named). The operators
+are the methods of [`ExprTrait`](crate::pgorm_query::ExprTrait): `eq`, `gt`,
+`between`, `is_in`, `is_null`, `add`, `mul`, `and`, `or`, `like`, `cast_as`,
+`count`, and many more. Every expression has them, a function call and what
+an operator returns included, so `Func::lower(..).eq(..)` and
+`Expr::col(..).count().gt(2)` read as written. The prelude brings the trait;
+a module that names its imports one by one names `ExprTrait` beside `Expr`.
+[`Condition::all`](crate::pgorm_query::Condition::all)
 and [`Condition::any`](crate::pgorm_query::Condition::any) group conditions
-under `AND` and `OR`. [`Func`](crate::pgorm_query::Func) calls functions:
-the aggregates, `COALESCE`, `LOWER`, the full-text search functions, and any
-function by name through [`Func::named`](crate::pgorm_query::Func::named).
+under `AND` and `OR`.
 
 ```rust
-use pgorm::pgorm_query::{Condition, Expr, Func, LikeExpr, Query, alias};
+use pgorm::pgorm_query::{Condition, Expr, ExprTrait, Func, LikeExpr, Query, alias};
 use pgorm_guide_support::cake;
 
 let query = Query::select()
@@ -277,17 +283,16 @@ A few expressions take a little more care:
   character. A pattern holding text from a user must have that text's
   wildcards escaped first; the entity columns' `contains`, `starts_with` and
   `ends_with` do it for you ([Reading rows](crate::guide::reading)).
-- [`cast_as`](crate::pgorm_query::Expr::cast_as) writes `CAST(.. AS type)`,
-  its type given as a name. A cast, like a function call, returns a finished
-  [`SimpleExpr`](crate::pgorm_query::SimpleExpr), which has fewer operators
-  than `Expr`; wrap it in [`Expr::expr`](crate::pgorm_query::Expr::expr) to
-  compare it or build on it, as the example below does.
-- [`collate`](crate::pgorm_query::Expr::collate) puts text under a
+- [`cast_as`](crate::pgorm_query::ExprTrait::cast_as) writes `CAST(.. AS type)`,
+  its type given as a name. A cast, like a function call or a column's
+  aggregate, is an expression in its own right, so it is compared and built
+  on as a column is, as the example below does.
+- [`collate`](crate::pgorm_query::ExprTrait::collate) puts text under a
   collation, which decides how it compares and sorts.
-- [`index`](crate::pgorm_query::Expr::index) and
-  [`slice`](crate::pgorm_query::Expr::slice) subscript an array, counting
+- [`index`](crate::pgorm_query::ExprTrait::index) and
+  [`slice`](crate::pgorm_query::ExprTrait::slice) subscript an array, counting
   from 1.
-- [`in_subquery`](crate::pgorm_query::Expr::in_subquery) and
+- [`in_subquery`](crate::pgorm_query::ExprTrait::in_subquery) and
   [`Expr::exists`](crate::pgorm_query::Expr::exists) test against a
   subquery, and [`from_subquery`](crate::pgorm_query::SelectStatement::from_subquery)
   reads one as a table.
@@ -300,7 +305,7 @@ A few expressions take a little more care:
   your program writes, never text a user sent.
 
 ```rust
-use pgorm::pgorm_query::{Expr, Name, Order, Query};
+use pgorm::pgorm_query::{Expr, ExprTrait, Name, Order, Query};
 use pgorm_guide_support::{cake, order_line};
 
 let query = Query::select()
@@ -315,9 +320,9 @@ let query = Query::select()
                 .to_owned(),
         ),
     )
-    .and_where(Expr::expr(Expr::col(cake::Column::Price).cast_as(Name::runtime("integer"))).lt(10))
+    .and_where(Expr::col(cake::Column::Price).cast_as(Name::runtime("integer")).lt(10))
     .and_where(Expr::template("char_length($1) < 40", ["Chocolate Fudge"])?)
-    .order_by_expr(Expr::col(cake::Column::Name).collate(Name::runtime("C")).into(), Order::Asc)
+    .order_by_expr(Expr::col(cake::Column::Name).collate(Name::runtime("C")), Order::Asc)
     .to_owned();
 
 assert_eq!(
@@ -572,7 +577,7 @@ query can be a `SELECT` or a write with a `RETURNING` clause, which then runs
 once and hands its rows to the rest of the statement.
 
 ```rust
-use pgorm::pgorm_query::{CommonTableExpression, Expr, Func, Query, WithClause, alias};
+use pgorm::pgorm_query::{CommonTableExpression, Expr, ExprTrait, Func, Query, WithClause, alias};
 use pgorm_guide_support::{cake, order_line};
 
 let (sold, units) = (alias("sold"), alias("units"));
@@ -642,7 +647,7 @@ let query = Query::select()
     .from(days)
     .left_join(
         order::Entity,
-        Expr::expr(Expr::col((order::Entity, order::Column::PlacedAt)).cast_as(date())).equals((days, day)),
+        Expr::col((order::Entity, order::Column::PlacedAt)).cast_as(date()).equals((days, day)),
     )
     .group_by_col((days, day))
     .order_by((days, day), Order::Asc)
@@ -868,7 +873,7 @@ reads one scalar, [`Func::json_query`](crate::pgorm_query::Func::json_query)
 reads JSON, and [`Func::json_table`](crate::pgorm_query::Func::json_table)
 turns what a path finds into rows. The constructors `json_object`,
 `json_array`, `json_objectagg` and `json_arrayagg` build JSON, and
-[`is_json`](crate::pgorm_query::Expr::is_json) tests text. A path is bound as
+[`is_json`](crate::pgorm_query::ExprTrait::is_json) tests text. A path is bound as
 a value, except in `JSON_TABLE`, whose path the server takes only as a
 literal; a value the path needs is passed with `passing`, and bound.
 
@@ -919,18 +924,18 @@ assert_eq!(lines, [(2, 3), (4, 1)]);
 
 The operators PostgreSQL has for `jsonb`, such as `->`, `->>` and `?`, are
 methods on `Expr` too:
-[`get_json_field`](crate::pgorm_query::Expr::get_json_field),
-[`cast_json_field`](crate::pgorm_query::Expr::cast_json_field) and
-[`has_json_key`](crate::pgorm_query::Expr::has_json_key) among them, and
-[`contains`](crate::pgorm_query::Expr::contains) is `@>`.
+[`get_json_field`](crate::pgorm_query::ExprTrait::get_json_field),
+[`cast_json_field`](crate::pgorm_query::ExprTrait::cast_json_field) and
+[`has_json_key`](crate::pgorm_query::ExprTrait::has_json_key) among them, and
+[`contains`](crate::pgorm_query::ExprTrait::contains) is `@>`.
 
 ## Ranges
 
 A [`Range`](crate::pgorm_query::Range) value binds as one of PostgreSQL's
-range types, and the range operators are methods on `Expr`:
-[`contains`](crate::pgorm_query::Expr::contains) (`@>`),
-[`contained`](crate::pgorm_query::Expr::contained) (`<@`) and
-[`overlaps`](crate::pgorm_query::Expr::overlaps) (`&&`). Beside a range
+range types, and the range operators are methods of every expression:
+[`contains`](crate::pgorm_query::ExprTrait::contains) (`@>`),
+[`contained`](crate::pgorm_query::ExprTrait::contained) (`<@`) and
+[`overlaps`](crate::pgorm_query::ExprTrait::overlaps) (`&&`). Beside a range
 column a bound range takes the column's type. Here the range stands on its
 own beside a timestamp, which many operators accept, so it is cast to
 `tstzrange`. The orders placed on the second of November:
@@ -950,7 +955,8 @@ let query = Query::select()
     .column(order::Column::Id)
     .from(order::Entity)
     .and_where(
-        Expr::expr(Expr::val(Range::from(start..end)).cast_as(Name::runtime("tstzrange")))
+        Expr::val(Range::from(start..end))
+            .cast_as(Name::runtime("tstzrange"))
             .contains(Expr::col(order::Column::PlacedAt)),
     )
     .to_owned();
@@ -982,7 +988,7 @@ jobs from one queue table. A lock lasts until the transaction ends, so it
 belongs inside one ([Transactions](crate::guide::transactions)).
 
 ```rust
-use pgorm::pgorm_query::{Expr, LockBehavior, LockType, Query};
+use pgorm::pgorm_query::{Expr, ExprTrait, LockBehavior, LockType, Query};
 use pgorm_guide_support::order;
 
 let query = Query::select()

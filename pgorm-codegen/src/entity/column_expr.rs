@@ -13,8 +13,8 @@
 
 use heck::ToUpperCamelCase;
 use pgorm_query::{
-    BinOper, CaseStatement, ColumnRef, Expr, Func, Function, Keyword, Name, SimpleExpr, TypeName,
-    UnOper, Value,
+    BinOper, CaseStatement, ColumnRef, Expr, ExprTrait, Func, Function, Keyword, Name, SimpleExpr,
+    TypeName, UnOper, Value,
 };
 use proc_macro2::{Literal, TokenStream};
 use quote::{format_ident, quote};
@@ -181,7 +181,7 @@ impl Operator {
     }
 
     /// The builder method on `Expr` that writes this operator, or the
-    /// `BinOper` variant `Expr::binary` takes for the two that have none.
+    /// `BinOper` variant `ExprTrait::binary` takes for the two that have none.
     fn method(self) -> Result<&'static str, &'static str> {
         match self {
             Self::Add => Ok("add"),

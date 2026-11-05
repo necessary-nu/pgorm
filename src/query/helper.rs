@@ -5,9 +5,9 @@ use crate::{
     PrimaryKeyToColumn, QueryTrait, RelationDef, RelationTrait,
 };
 use pgorm_query::{
-    AnyWithClause, ConditionType, Expr, FromItem, FunctionCall, GroupingElement, IntoCondition,
-    IntoName, LockBehavior, LockType, NullOrdering, SelectExpr, SelectStatement, SimpleExpr,
-    TypeName, UnionType, WindowDefinition,
+    AnyWithClause, ConditionType, Expr, ExprTrait, FromItem, FunctionCall, GroupingElement,
+    IntoCondition, IntoName, LockBehavior, LockType, NullOrdering, SelectExpr, SelectStatement,
+    SimpleExpr, TypeName, UnionType, WindowDefinition,
 };
 pub use pgorm_query::{Condition, ConditionalStatement, JoinType, Name, Order, OrderedStatement};
 
@@ -17,7 +17,7 @@ use pgorm_query::IntoColumnRef;
 // LINT: when there is a group by clause, but some columns don't have aggregate functions
 // LINT: when the join table or column does not exists
 /// Abstract API for performing queries
-// [spec:pgorm:sem:query.build.modifiers+10]
+// [spec:pgorm:sem:query.build.modifiers+11]
 pub trait QuerySelect: Sized {
     #[allow(missing_docs)]
     type QueryStatement;
@@ -287,7 +287,7 @@ pub trait QuerySelect: Sized {
     /// to the GROUP BY list, after anything [`group_by`](Self::group_by)
     /// already put there
     /// ```
-    /// use pgorm::{entity::*, pgorm_query::{Func, GroupingElement}, query::*, tests_cfg::cake};
+    /// use pgorm::{entity::*, pgorm_query::{ExprTrait, Func, GroupingElement}, query::*, tests_cfg::cake};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -311,7 +311,7 @@ pub trait QuerySelect: Sized {
 
     /// Add an AND HAVING expression
     /// ```
-    /// use pgorm::{alias, pgorm_query::Expr, entity::*, query::*, tests_cfg::cake};
+    /// use pgorm::{alias, pgorm_query::{Expr, ExprTrait}, entity::*, query::*, tests_cfg::cake};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -639,7 +639,7 @@ pub trait QuerySelect: Sized {
 
     /// Select column.
     /// ```
-    /// use pgorm::pgorm_query::{Expr, Func};
+    /// use pgorm::pgorm_query::{Expr, ExprTrait, Func};
     /// use pgorm::{alias, entity::*, tests_cfg::cake, QuerySelect, QueryTrait};
     ///
     /// assert_eq!(
@@ -665,7 +665,7 @@ pub trait QuerySelect: Sized {
     /// Shorthand of `expr_as(Expr::col((T, C)), A)`.
     ///
     /// ```
-    /// use pgorm::pgorm_query::{Expr, Func};
+    /// use pgorm::pgorm_query::{Expr, ExprTrait, Func};
     /// use pgorm::{alias, entity::*, tests_cfg::cake, QuerySelect, QueryTrait};
     ///
     /// assert_eq!(
@@ -700,7 +700,7 @@ pub trait QuerySelect: Sized {
     ///
     /// A recursive CTE takes its column types from the anchor arm, where an
     /// unannotated `$n` placeholder resolves to `text`. Annotate any literal in
-    /// that arm with [`cast_as`](pgorm_query::Expr::cast_as) — see
+    /// that arm with [`cast_as`](pgorm_query::ExprTrait::cast_as) — see
     /// `[spec:pgorm:sem:sql.render.placeholder-typing+1]`.
     ///
     /// ```
@@ -827,7 +827,7 @@ pub trait QuerySelect: Sized {
 
 // LINT: when the column does not appear in tables selected from
 /// Performs ORDER BY operations
-// [spec:pgorm:sem:query.build.modifiers+10]
+// [spec:pgorm:sem:query.build.modifiers+11]
 pub trait QueryOrder: Sized {
     #[allow(missing_docs)]
     type QueryStatement: OrderedStatement;
@@ -980,7 +980,7 @@ pub trait QueryFilter: Sized {
     /// a single array parameter instead of one placeholder per element.
     ///
     /// ```
-    /// use pgorm::pgorm_query::{Expr, Func};
+    /// use pgorm::pgorm_query::{Expr, ExprTrait, Func};
     /// use pgorm::{entity::*, query::*, tests_cfg::cake};
     ///
     /// assert_eq!(
@@ -1039,7 +1039,7 @@ pub trait QueryFilter: Sized {
     ///
     /// A slightly more complex example.
     /// ```
-    /// use pgorm::{entity::*, query::*, tests_cfg::cake, pgorm_query::Expr};
+    /// use pgorm::{entity::*, query::*, tests_cfg::cake, pgorm_query::{Expr, ExprTrait}};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -1064,7 +1064,7 @@ pub trait QueryFilter: Sized {
     /// ```
     /// Use a pgorm_query expression
     /// ```
-    /// use pgorm::{entity::*, query::*, pgorm_query::Expr, tests_cfg::fruit};
+    /// use pgorm::{entity::*, query::*, pgorm_query::{Expr, ExprTrait}, tests_cfg::fruit};
     ///
     /// assert_eq!(
     ///     fruit::Entity::find()

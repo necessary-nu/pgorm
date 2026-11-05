@@ -1,7 +1,7 @@
 //! `Expr`'s comparisons: the six ordering operators, as methods and as
 //! Python's rich comparisons, and the null-safe `IS [NOT] DISTINCT FROM`.
 
-use pgorm::pgorm_query::{BinOper, Expr};
+use pgorm::pgorm_query::{BinOper, Expr, ExprTrait};
 use pyo3::{basic::CompareOp, prelude::*};
 
 use super::{PyExpr, coerce};

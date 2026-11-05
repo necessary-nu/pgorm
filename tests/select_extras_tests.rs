@@ -285,7 +285,7 @@ async fn group_by_distinct_groups_each_set_once(db: &DatabaseConnection) -> Resu
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    against a live server: the bound pattern is
+// [spec:pgorm:req:sql.ast.expr.similar-to+2/test]    against a live server: the bound pattern is
 // matched whole, alternation and escape included
 async fn similar_to_matches_bound_patterns(db: &DatabaseConnection) -> Result<(), Error> {
     let named = |predicate: pgorm_query::SimpleExpr| {

@@ -1,7 +1,7 @@
 //! Column-type introspection and [`ColumnDef`] construction.
 
 use super::*;
-use pgorm_query::{ColumnRef, GeneratedKind, IdentityGeneration, SelectExpr};
+use pgorm_query::{ColumnRef, ExprTrait, GeneratedKind, IdentityGeneration, SelectExpr};
 
 /// pgorm's utility methods that act on [ColumnType]
 pub trait ColumnTypeTrait {
@@ -460,6 +460,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{ColumnTrait, EntityTrait};
+    use pgorm_query::ExprTrait;
 
     // [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    every
     // value-position operand passes through `save_as` — between, if_null and

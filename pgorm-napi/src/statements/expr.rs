@@ -4,8 +4,8 @@
 
 use neon::prelude::*;
 use pgorm::pgorm_query::{
-    BinOper, ColumnRef, Condition, Expr, Func, FunctionCall, Name, NullOrdering, Order, SimpleExpr,
-    SubQueryStatement,
+    BinOper, ColumnRef, Condition, Expr, ExprTrait, Func, FunctionCall, Name, NullOrdering, Order,
+    SimpleExpr, SubQueryStatement,
 };
 
 use super::{
@@ -480,7 +480,7 @@ fn collate(cx: &mut FunctionContext) -> NeonResult<Node> {
         Some(schema) => expr.collate((schema, collation)),
         None => expr.collate(collation),
     };
-    Ok(Node::Expr(built.into()))
+    Ok(Node::Expr(built))
 }
 
 /// `exprSubscript(expr, index)` or `exprSubscript(expr, lower, upper, true)`:
@@ -491,7 +491,7 @@ fn subscript(cx: &mut FunctionContext) -> NeonResult<Node> {
     let slice = arg(cx, 3);
     if !slice.is_a::<JsBoolean, _>(cx) {
         let index = operand_at(cx, 1)?;
-        return Ok(Node::Expr(expr.index(index).into()));
+        return Ok(Node::Expr(expr.index(index)));
     }
     let lower = arg(cx, 1);
     let lower = if args::absent(cx, lower) {
@@ -511,7 +511,7 @@ fn subscript(cx: &mut FunctionContext) -> NeonResult<Node> {
         (None, Some(upper)) => expr.slice_to(upper),
         (None, None) => expr.subscript(pgorm::pgorm_query::Subscript::Slice(None, None)),
     };
-    Ok(Node::Expr(built.into()))
+    Ok(Node::Expr(built))
 }
 
 /// `exprAlias(expr, name)`: a projection, `expr AS "name"`.

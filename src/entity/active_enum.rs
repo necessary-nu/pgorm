@@ -1,5 +1,5 @@
 use crate::{ColumnDef, Error, Iterable, QueryResult, TryFromU64, TryGetError, TryGetable};
-use pgorm_query::{Expr, Name, Nullable, SimpleExpr, Value, ValueType};
+use pgorm_query::{Expr, ExprTrait, Name, Nullable, SimpleExpr, Value, ValueType};
 use tokio_postgres::row::RowIndex;
 
 /// A Rust representation of enum defined in database.

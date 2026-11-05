@@ -258,3 +258,31 @@ fn a_uuidv7_call_is_a_column_default() {
         r#"CREATE TABLE "glyph" ( "id" uuid DEFAULT UUIDV7(), PRIMARY KEY ("id") )"#
     );
 }
+
+// [spec:pgorm:req:sql.ast.expr.operators+6/test]    every expression type
+// has the operator vocabulary: a function call, a CASE, a GROUPING(..) and an
+// SQL/JSON builder compare and cast as they stand, and what an aggregate or a
+// cast returns is compared in turn
+#[test]
+fn every_expression_type_has_the_operators() {
+    assert_eq!(
+        Query::select()
+            .expr(Func::upper(Expr::col(Char::Character)).concat("!"))
+            .expr(Expr::case(Expr::col(Char::SizeW).gt(1), 1).finally(0).add(1))
+            .expr(Func::json_value(Expr::col(Char::Character), "$.a").is_null())
+            .from(Char::Table)
+            .and_where(Func::lower(Expr::col(Char::Character)).eq("a"))
+            .and_where(Expr::col(Char::SizeW).cast_as(Name::runtime("text")).like("1%"))
+            .group_by_columns([Char::FontSize])
+            .and_having(Expr::col(Char::Id).count().gt(2))
+            .and_having(Func::grouping(Expr::col(Char::FontSize)).eq(0))
+            .to_string(),
+        [
+            r#"SELECT UPPER("character") || '!', (CASE WHEN ("size_w" > 1) THEN 1 ELSE 0 END) + 1,"#,
+            r#"JSON_VALUE("character", CAST('$.a' AS jsonpath)) IS NULL FROM "character""#,
+            r#"WHERE LOWER("character") = 'a' AND CAST("size_w" AS text) LIKE '1%'"#,
+            r#"GROUP BY "font_size" HAVING COUNT("id") > 2 AND GROUPING("font_size") = 0"#,
+        ]
+        .join(" ")
+    );
+}

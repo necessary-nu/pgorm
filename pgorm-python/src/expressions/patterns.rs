@@ -2,7 +2,7 @@
 //! `SIMILAR TO` over a pattern or a `LikeExpr`, and the POSIX regular-expression
 //! operators.
 
-use pgorm::pgorm_query::{BinOper, Expr, Func, Name, SimpleExpr};
+use pgorm::pgorm_query::{BinOper, Expr, ExprTrait, Func, Name, SimpleExpr};
 use pyo3::prelude::*;
 
 use super::{PyExpr, coerce, options};

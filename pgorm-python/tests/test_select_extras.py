@@ -130,7 +130,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             G()
 
-    # [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    a whole-string match, the default
+    # [spec:pgorm:req:sql.ast.expr.similar-to+2/test]    a whole-string match, the default
     # backslash escape and a chosen one
     async def test_similar_to_matches_whole_strings(self):
         def names(predicate):
@@ -147,7 +147,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
                          [("Ann",), ("Bob",), ("Cy",)])
         self.assertEqual(await names(name.similar_to("' OR 1=1 --")), [])
 
-    # [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    no_escape() turns escaping off for
+    # [spec:pgorm:req:sql.ast.expr.similar-to+2/test]    no_escape() turns escaping off for
     # LIKE, ILIKE and SIMILAR TO, a backslash then matching itself
     async def test_no_escape_turns_escaping_off(self):
         def text(value):

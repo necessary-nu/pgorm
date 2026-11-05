@@ -251,7 +251,7 @@ and then its columns, keys, foreign keys and checks.
 # let scratch = pgorm_guide_support::Scratch::bakery("schema_tables").await;
 # let db = scratch.pool.get().await?;
 use pgorm::ConnectionTrait;
-use pgorm::pgorm_query::{ColumnDef, Expr, ForeignKey, ForeignKeyAction, Table};
+use pgorm::pgorm_query::{ColumnDef, Expr, ExprTrait, ForeignKey, ForeignKeyAction, Table};
 use pgorm_guide_support::order;
 
 let create = Table::create(Delivery::Table)
@@ -386,7 +386,7 @@ method) and `and_where` (a partial index) say what kind of index it is:
 # let scratch = pgorm_guide_support::Scratch::bakery("schema_index_builder").await;
 # let db = scratch.pool.get().await?;
 use pgorm::ConnectionTrait;
-use pgorm::pgorm_query::{Expr, Index, Name};
+use pgorm::pgorm_query::{Expr, ExprTrait, Index, Name};
 use pgorm_guide_support::cake;
 
 // One cake of each name per bakery.
@@ -485,7 +485,7 @@ counter of its own, beyond the ones an identity column keeps. The
 # let scratch = pgorm_guide_support::Scratch::empty("schema_sequences").await;
 # let db = scratch.pool.get().await?;
 use pgorm::ConnectionTrait;
-use pgorm::pgorm_query::{self, ColumnType, Domain, Expr, Name, Sequence, SequenceOption, SequenceType};
+use pgorm::pgorm_query::{self, ColumnType, Domain, Expr, ExprTrait, Name, Sequence, SequenceOption, SequenceType};
 
 let archive = pgorm_query::Schema::create(Name::runtime("archive")).if_not_exists().to_owned();
 assert_eq!(archive.to_string(), r#"CREATE SCHEMA IF NOT EXISTS "archive""#);
@@ -530,7 +530,7 @@ place, so construction returns a `Result`:
 # let scratch = pgorm_guide_support::Scratch::bakery("schema_views").await;
 # let db = scratch.pool.get().await?;
 use pgorm::ConnectionTrait;
-use pgorm::pgorm_query::{Expr, Func, MaterializedView, Name, Query, View};
+use pgorm::pgorm_query::{Expr, ExprTrait, Func, MaterializedView, Name, Query, View};
 use pgorm_guide_support::{cake, order_line};
 
 let gluten_free = View::create(

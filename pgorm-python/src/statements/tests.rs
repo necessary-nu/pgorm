@@ -1,7 +1,7 @@
 use std::ffi::CString;
 
 use pgorm::pgorm_query::{
-    ArrayType, Asterisk, BinOper, ColumnType, CommonTableExpression, Condition, Expr,
+    ArrayType, Asterisk, BinOper, ColumnType, CommonTableExpression, Condition, Expr, ExprTrait,
     ExtendedWindow, FrameExclusion, FrameType, FromItem, Func, GroupingElement, IntoNamedTable,
     JoinType, MatchedAction, MergeInsert, MergeUpdate, Name, NotMatchedAction, NullOrdering,
     OnConflict, Order, OverStatement, Overriding, Query, ReturningRow, SampleMethod, SimpleExpr,

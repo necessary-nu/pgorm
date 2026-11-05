@@ -14,8 +14,8 @@ use core::marker::PhantomData;
 use std::fmt;
 
 use pgorm_query::{
-    BinOper, Condition, ConditionType, Expr, FromItem, IntoCondition, JoinType, Key, Name,
-    SelectExpr, SelectStatement, SimpleExpr, TableName, Value, ValueTuple,
+    BinOper, Condition, ConditionType, Expr, ExprTrait, FromItem, IntoCondition, JoinType, Key,
+    Name, SelectExpr, SelectStatement, SimpleExpr, TableName, Value, ValueTuple,
 };
 
 use super::graph::source_prefix;

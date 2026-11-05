@@ -205,7 +205,7 @@ test("GROUP BY DISTINCT groups each grouping set its elements reach once", async
 });
 
 // [spec:pgorm:req:bindings.expressions+3/test]
-// [spec:pgorm:req:sql.ast.expr.similar-to+1/test]
+// [spec:pgorm:req:sql.ast.expr.similar-to+2/test]
 test("SIMILAR TO matches a whole string against its pattern, the pattern bound and its escape honoured", async () => {
   const words = async (predicate: Expr) =>
     field(await pool().query(select(word.col("w")).from(word).where(predicate)), "w").sort();

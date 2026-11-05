@@ -26,7 +26,7 @@ pub type PinBoxSendStream<'db, Item> = Pin<Box<dyn Stream<Item = Item> + Send + 
 /// The `select_only` typestate keeps the ORM's own builders out of this state,
 /// but an empty `columns([])` / `exprs([])` iterator and a hand-rolled
 /// [`SelectStatement`] both still reach it.
-// [spec:pgorm:sem:query.build.modifiers+10]
+// [spec:pgorm:sem:query.build.modifiers+11]
 // [spec:pgorm:req:exec.tie-limit+1]
 // [spec:pgorm:def:sql.ast.window-statement+8]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2]
@@ -432,7 +432,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:query.build.modifiers+10]
+// [spec:pgorm:sem:query.build.modifiers+11]
 impl<E> SelectProjected<E>
 where
     E: EntityTrait,

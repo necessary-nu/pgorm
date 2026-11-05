@@ -243,7 +243,7 @@ test("text tests read their argument as text, and LIKE reads it as a pattern wit
 });
 
 // [spec:pgorm:req:bindings.expressions+3/test]
-// [spec:pgorm:req:sql.ast.expr.similar-to+1/test]
+// [spec:pgorm:req:sql.ast.expr.similar-to+2/test]
 test("noEscape turns escaping off, so a backslash in a pattern is itself", async () => {
   const text = (value: string) => bind(value).cast("text");
   const off = likeExpr("a\\b").noEscape();

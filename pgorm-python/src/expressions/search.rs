@@ -1,7 +1,7 @@
 //! `Expr`'s document search: `@?`, a `jsonpath` against a `jsonb`, and
 //! `@@`, which is both full-text search and a `jsonpath` predicate.
 
-use pgorm::pgorm_query::{BinOper, Expr};
+use pgorm::pgorm_query::{BinOper, Expr, ExprTrait};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use super::PyExpr;

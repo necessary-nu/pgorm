@@ -7,6 +7,7 @@
 //! backslash under the default escape, a chosen one, and none, where the
 //! three disagree.
 
+use pgorm_query::ExprTrait;
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Expr, LikeExpr, Name, Query, SimpleExpr};
@@ -31,7 +32,7 @@ async fn answers<C: ConnectionTrait>(
     Ok(rows[0])
 }
 
-// [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    against a live server: `no_escape` turns
+// [spec:pgorm:req:sql.ast.expr.similar-to+2/test]    against a live server: `no_escape` turns
 // escaping off for LIKE, ILIKE and SIMILAR TO, a backslash then matching itself
 #[pgorm_macros::test]
 async fn no_escape_reads_a_backslash_as_itself() -> Result<(), Error> {

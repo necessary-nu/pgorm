@@ -1,7 +1,8 @@
 use std::ffi::CString;
 
 use pgorm::pgorm_query::{
-    BinOper, Condition, Expr, Func, LikeExpr, Name, Query, SimpleExpr, Subscript, TypeName, Value,
+    BinOper, Condition, Expr, ExprTrait, Func, LikeExpr, Name, Query, SimpleExpr, Subscript,
+    TypeName, Value,
 };
 use pyo3::{prelude::*, types::PyDict};
 
@@ -263,7 +264,7 @@ fn operator_methods_are_their_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+3/test]    at is Rust's Expr::index and slice its
+// [spec:pgorm:req:bindings.expressions+3/test]    at is Rust's ExprTrait::index and slice its
 // Subscript::Slice, each bound unless it is an expression, None leaving a slice's end open
 #[test]
 fn subscripts_are_rust_index_and_slice() -> PyResult<()> {
@@ -272,23 +273,20 @@ fn subscripts_are_rust_index_and_slice() -> PyResult<()> {
         let globals = module(py)?;
         let tags = || Expr::col(Name::runtime("tags"));
         let cases = [
-            ("p.col('tags').at(2)", tags().index(2i64).into()),
+            ("p.col('tags').at(2)", tags().index(2i64)),
             (
                 "p.col('tags').at(p.col('i')).at(1)",
-                tags()
-                    .index(Expr::col(Name::runtime("i")))
-                    .index(1i64)
-                    .into(),
+                tags().index(Expr::col(Name::runtime("i"))).index(1i64),
             ),
             (
                 "p.col('tags').slice(1, p.literal(2))",
-                tags().slice(1i64, SimpleExpr::Constant(2i64.into())).into(),
+                tags().slice(1i64, SimpleExpr::Constant(2i64.into())),
             ),
-            ("p.col('tags').slice(2)", tags().slice_from(2i64).into()),
-            ("p.col('tags').slice(upper=3)", tags().slice_to(3i64).into()),
+            ("p.col('tags').slice(2)", tags().slice_from(2i64)),
+            ("p.col('tags').slice(upper=3)", tags().slice_to(3i64)),
             (
                 "p.col('tags').slice()",
-                tags().subscript(Subscript::Slice(None, None)).into(),
+                tags().subscript(Subscript::Slice(None, None)),
             ),
         ];
         for (source, expected) in cases {
@@ -464,7 +462,7 @@ fn case_expressions_match_rust_builders() -> PyResult<()> {
 }
 
 // [spec:pgorm:req:bindings.expressions+3/test]
-// [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    both forms over a plain string, as Rust's
+// [spec:pgorm:req:sql.ast.expr.similar-to+2/test]    both forms over a plain string, as Rust's
 // IntoLikeExpr reads one, and over a LikeExpr, its ESCAPE carried
 #[test]
 fn similar_to_takes_like_patterns() -> PyResult<()> {
@@ -557,7 +555,7 @@ fn collations_lower_into_rust_collate() -> PyResult<()> {
             py,
             &globals,
             "p.col('name').collate('C')",
-            name().collate(Name::runtime("C")).into(),
+            name().collate(Name::runtime("C")),
         )?;
         parity(
             py,
@@ -571,7 +569,7 @@ fn collations_lower_into_rust_collate() -> PyResult<()> {
         let ordered = py.eval(&CString::new(source)?, Some(&globals), None)?;
         assert_eq!(
             ordered.extract::<PyRef<'_, PyExpr>>()?.inner,
-            name().collate(Name::runtime("C")).into()
+            name().collate(Name::runtime("C"))
         );
         for source in [
             "p.col('name').collate('')",

@@ -20,8 +20,8 @@ use common::*;
 use pgorm::{ActiveEnum, Disjoint};
 use pgorm_codegen::{TableIdent, UnkindedDisjoint, WithSerde};
 use pgorm_query::{
-    ColumnDef, ColumnType, Deferrability, Expr, ForeignKey, ForeignKeyAction, GeneratedKind, Table,
-    TableCreateStatement, TableKey,
+    ColumnDef, ColumnType, Deferrability, Expr, ExprTrait, ForeignKey, ForeignKeyAction,
+    GeneratedKind, Table, TableCreateStatement, TableKey,
 };
 
 const SCHEMA: &str = include_str!("../../tests/codegen_disjoint/schema.sql");
