@@ -19769,6 +19769,14 @@ children (
                         id guide.python-gaps.guide-server-url
                         title "The Python guide's example harness reads its server as the JavaScript suite does: PGORM_TEST_DSN, else DATABASE_URL, a URL naming no database taking postgres and one saying nothing of TLS taking sslmode=disable, so a bare local server URL runs the examples where a pool verifying TLS refused it"
                         kind @test
+                        log (
+                            {
+                                at 2026-11-05T22:49:27.216858Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
                     }
                 )
             }

@@ -1669,6 +1669,7 @@ assertions (
     {id napi.guide-gaps.entity-select-reads, kind @complete, author "brendan@necessary.nu", at 2026-11-05T22:16:53.555552Z}
     {id napi.guide-gaps.relation-loaders, kind @complete, author "brendan@necessary.nu", at 2026-11-05T20:17:43.387475Z}
     {id napi.guide-gaps.graph-joins, kind @complete, author "brendan@necessary.nu", at 2026-11-05T20:17:43.732408Z}
+    {id guide.python-gaps.guide-server-url, kind @doing, author "brendan@necessary.nu", at 2026-11-05T22:49:27.216858Z}
 )
 
 impl_evidence (
