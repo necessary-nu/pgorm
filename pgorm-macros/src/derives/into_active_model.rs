@@ -6,7 +6,7 @@ use super::util::{bare_code, unknown_pgorm_key};
 /// The active model a form converts into, from the container's
 /// `active_model`, the one key the derive reads. Every field becomes its
 /// active model's field of the same name, so a field carries no key.
-// [spec:pgorm:sem:macros.derive.active-model+8]
+// [spec:pgorm:sem:macros.derive.active-model+9]
 // [spec:pgorm:req:macros.derive.code-values+4]
 fn active_model_name(input: &syn::DeriveInput) -> syn::Result<Option<syn::Path>> {
     let mut active_model = None;
@@ -119,7 +119,7 @@ impl IntoActiveModel {
 }
 
 /// Method to derive the ActiveModel from the [ActiveModelTrait](pgorm::ActiveModelTrait)
-// [spec:pgorm:sem:macros.derive.active-model+8]
+// [spec:pgorm:sem:macros.derive.active-model+9]
 pub fn expand_into_active_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
 

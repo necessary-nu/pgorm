@@ -60,7 +60,7 @@ enum Tea {
 #[derive(ValueType, Debug, PartialEq)]
 struct MyTea(Tea);
 
-// [spec:pgorm:sem:macros.derive.value-type+6/test]    the inferred ColumnType / ArrayType
+// [spec:pgorm:sem:macros.derive.value-type+7/test]    the inferred ColumnType / ArrayType
 #[test]
 fn column_and_array_types_inferred_from_inner_type() {
     assert_eq!(MyString::column_type(), ColumnType::string(None));
@@ -82,7 +82,7 @@ fn column_and_array_types_inferred_from_inner_type() {
     assert_eq!(MyTea::array_type(), <Tea as ValueType>::array_type());
 }
 
-// [spec:pgorm:sem:macros.derive.value-type+6/test]    the attribute overrides
+// [spec:pgorm:sem:macros.derive.value-type+7/test]    the attribute overrides
 #[test]
 fn column_type_and_array_type_attributes_override() {
     // `String` would infer `string(None)` / `ArrayType::String`.
@@ -94,7 +94,7 @@ fn column_type_and_array_type_attributes_override() {
     assert_eq!(MyPlain::array_type(), ArrayType::Int);
 }
 
-// [spec:pgorm:sem:macros.derive.value-type+6/test]    From<T> for Value, ValueType, TryGetable
+// [spec:pgorm:sem:macros.derive.value-type+7/test]    From<T> for Value, ValueType, TryGetable
 #[test]
 fn the_three_generated_impls() {
     // `From<T> for Value` goes through `self.0`.

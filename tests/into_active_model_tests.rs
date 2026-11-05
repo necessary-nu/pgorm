@@ -9,7 +9,7 @@ use pgorm::{JsonValueType, set};
 use serde::{Deserialize, Serialize};
 
 /// A form for an entity another crate declares.
-// [spec:pgorm:sem:macros.derive.active-model+8/test]    a form in another crate
+// [spec:pgorm:sem:macros.derive.active-model+9/test]    a form in another crate
 // converts into the entity's active model, named by path
 #[derive(IntoActiveModel)]
 #[pgorm(active_model = cake::ActiveModel)]
@@ -57,7 +57,7 @@ mod parcel {
 }
 
 /// A form whose fields are of the types the value derives make.
-// [spec:pgorm:sem:macros.derive.active-model+8/test]    a field of an
+// [spec:pgorm:sem:macros.derive.active-model+9/test]    a field of an
 // ActiveEnum, ValueType, JsonValueType or CreatedRange type sets its column
 #[derive(IntoActiveModel)]
 #[pgorm(active_model = parcel::ActiveModel)]

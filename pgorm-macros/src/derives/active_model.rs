@@ -5,7 +5,7 @@ use syn::{Data, DataStruct, Field, Fields, Type, punctuated::IntoIter};
 
 /// The `ActiveModel` the composite derive writes beside its `Model`, and its
 /// `ActiveModelBehavior` with no hooks unless the program writes its own.
-// [spec:pgorm:sem:macros.derive.active-model+8]
+// [spec:pgorm:sem:macros.derive.active-model+9]
 // [spec:pgorm:sem:macros.derive.boilerplate]
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]    the field-key vocabulary this
 // expansion shares with the `Entity` derive

@@ -30,7 +30,8 @@ showed. The full vocabulary is:
 | a `CreatedRange` | a range type the schema creates |
 | `IpNetwork`, `MacAddress` | `inet`, `macaddr` |
 | `Vector` | pgvector's `vector` |
-| `Option<T>` | `T`'s type, nullable |
+| a `ValueType` newtype | the type it wraps |
+| `Option<T>` | `T`'s type, nullable, for every `T` above |
 
 Every name in the left column is in the prelude. The date and time types are
 [jiff]'s, `Decimal` is [rust_decimal]'s, and `Json` is `serde_json::Value`.

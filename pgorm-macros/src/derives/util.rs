@@ -8,7 +8,7 @@ use syn::{
 
 /// `IntoActiveValue<Self>` for a column value type a derive makes, so a form's
 /// field of the type sets its column as a field of a built-in type does.
-// [spec:pgorm:sem:macros.derive.active-model+8]
+// [spec:pgorm:sem:macros.derive.active-model+9]
 pub(crate) fn into_active_value(ident: &Ident) -> TokenStream {
     quote! {
         #[automatically_derived]

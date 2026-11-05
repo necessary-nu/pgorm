@@ -527,7 +527,7 @@ known limitations.
 > it reads a field's `variant` and `ignore` and leaves the rest of the input to the
 > composite (`macros.derive.entity-model.attrs`).
 
-> [spec:pgorm:sem:macros.derive.active-model+8]
+> [spec:pgorm:sem:macros.derive.active-model+9]
 > The composite derive writes, beside its `Model`, a
 > `pub struct ActiveModel` — name and entity are hard-coded as `ActiveModel`/`Entity` —
 > with one `pub field: ActiveValue<T>` per non-ignored field, plus: `Default`
@@ -567,8 +567,7 @@ known limitations.
 > built-in column types, and each derive that makes a column value type — `ActiveEnum`,
 > `ValueType`, `JsonValueType` and `CreatedRange` — writes `IntoActiveValue<Self>` for
 > it, so a form's field of such a type sets its column as a built-in one does, and
-> `Option<T>` of one that is `Nullable` — an `ActiveEnum`, a `JsonValueType` or a
-> `CreatedRange` — sets it when `Some`.
+> `Option<T>` of one sets it when `Some`, each of the four writing `Nullable` too.
 
 ## Active enums
 
@@ -769,7 +768,7 @@ known limitations.
 > column, and silent data loss against a nullable one. The panic is documented on the
 > derive.
 
-> [spec:pgorm:sem:macros.derive.value-type+6]
+> [spec:pgorm:sem:macros.derive.value-type+7]
 > The `ValueType` derive targets newtype tuple structs; it reads only the first unnamed
 > field. Any other input shape is a compile error spanned at the struct identifier —
 > "`ValueType` can only be derived on a tuple struct", or "`ValueType` requires
@@ -784,8 +783,14 @@ known limitations.
 > of `i8`, `u32`, `u64` and `char` on the `ColumnType` side. Attribute errors propagate: a
 > string `column_type` or `array_type`, and any other key in the
 > `#[pgorm(...)]` list, is a spanned compile error rather than being silently ignored. The expansion implements
-> `From<T> for Value` (through `self.0`), `TryGetable`, and `ValueType` delegating to
-> the inner type with `type_name()` = the struct name; no `Nullable` impl is generated.
+> `From<T> for Value` (through `self.0`), `TryGetable`, `ValueType` delegating to
+> the inner type with `type_name()` = the struct name, `IntoActiveValue<Self>`
+> (`macros.derive.active-model`), and `Nullable`, whose `null()` is the inner type's —
+> for a field `Option<T>` the payload `T`'s, `Option` itself having no `Nullable`, the
+> same unwrapping the column-type inference does. So `Option<Newtype>` is a nullable
+> column and a form's optional field, as `Option<T>` of a built-in type is: `None`
+> binds as the inner type's typed NULL. An inner type with no `Nullable` of its own is
+> a compile error at the derive.
 
 > [spec:pgorm:sem:macros.derive.created-range+3]
 > The `CreatedRange` derive names a range type a schema created, or the

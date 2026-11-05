@@ -627,8 +627,9 @@ out when it is `None`; a nullable column is set to `NULL` by a field of type
 `Option<Option<T>>` holding `Some(None)`.
 
 A `ValueType` newtype stands for the type it wraps, wherever a column value
-goes: as a field, as a bound parameter, as a decoded value. The recipe below
-weighs its flour in grams, a type the compiler keeps apart from other
+goes: as a field, as a bound parameter, as a decoded value, and as an
+`Option` of one, a nullable column. The recipe below weighs its flour, and
+perhaps its sugar, in grams, a type the compiler keeps apart from other
 integers, stored as an ordinary `integer`:
 
 ```rust
@@ -644,6 +645,7 @@ mod recipe {
         #[pgorm(primary_key)]
         pub id: i32,
         pub flour: Grams,
+        pub sugar: Option<Grams>,
     }
 
     #[derive(Copy, Clone, Debug, Relation)]
@@ -656,12 +658,15 @@ use pgorm::entity::prelude::*;
 let heavy = recipe::Entity::find().filter(recipe::Column::Flour.gt(recipe::Grams(500)));
 assert_eq!(
     heavy.build().0,
-    r#"SELECT "recipe"."id", "recipe"."flour" FROM "recipe" WHERE "recipe"."flour" > $1"#
+    r#"SELECT "recipe"."id", "recipe"."flour", "recipe"."sugar" FROM "recipe" WHERE "recipe"."flour" > $1"#
 );
 assert_eq!(
     pgorm::Schema::new().create_table_from_entity(recipe::Entity)?.to_string(),
-    r#"CREATE TABLE "recipe" ( "id" serial NOT NULL, "flour" integer NOT NULL, PRIMARY KEY ("id") )"#
+    r#"CREATE TABLE "recipe" ( "id" serial NOT NULL, "flour" integer NOT NULL, "sugar" integer, PRIMARY KEY ("id") )"#
 );
+// A newtype's `None` is its integer's NULL.
+let unsweetened: Value = Option::<recipe::Grams>::None.into();
+assert_eq!(unsweetened, Value::Int(None));
 # Ok(())
 # }
 ```

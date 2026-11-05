@@ -16929,6 +16929,20 @@ children (
                         kind @note
                         text "Found by derives.into-active-model-forms. An entity field `Option<Grams>`, Grams a `#[derive(ValueType)]` newtype, does not compile: `Grams: Nullable` is unsatisfied (From<Option<T>> for Value, ActiveValue's Clone/PartialEq bounds and IntoActiveValue<Option<V>> all need it), so a ValueType newtype cannot be a nullable column, nor an Option field of a form. macros.derive.value-type+6 says outright \"no `Nullable` impl is generated\" — perhaps because a newtype may wrap an Option (the derive unwraps Option<T> for its column type), for which `<Option<T> as Nullable>::null()` has no impl — so the fix is a decision, not a one-liner: generate `Nullable` delegating to the inner type when it is not an Option (the derive already detects that case through unwrap_option), and state it in the rule. ActiveEnum, JsonValueType and CreatedRange derives already write Nullable."
                     }
+
+                    {
+                        at 2026-11-05T18:34:59.356334Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T18:42:24.932999Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Built the lead's decision (pending operator override). History: \"no `Nullable` impl is generated\" entered macros.derive.value-type at the nplan onboarding (dfd363cc), describing the derive SeaORM's DeriveValueType had left as it was; neither that commit nor the rule gives a reason, and the derive's later rewrites (7370e2d6, a86a9ead, 420d8d41) never touched it. The one soundness hazard is a newtype over an Option (the derive already unwraps `Option<T>` for its column type), where `<Option<T> as Nullable>` has no impl to delegate to. Solved by deriving the null from the inner type's Nullable after the same unwrap: `Nullable for Newtype { null() = <T as Nullable>::null() }`, T the field type or an Option field's payload. An inner type with no Nullable of its own becomes a compile error at the derive; pgorm's value types all have one. `Option<Newtype>` then binds `None` as the inner type's typed NULL and reads NULL back as None; a form's `Option<Option<Newtype>>` sets a column to NULL. A field `Option<Newtype-over-Option>` reads NULL as Some(Newtype(None)) — the double optional is the program's to avoid; not changed. Bindings: no registered entity in either application crate has a newtype column, and the bindings read and write registered columns through ModelTrait/ActiveModelTrait and the ColumnType, so they need no change. Rules: macros.derive.value-type+7; macros.derive.active-model+9 (its Option sentence now covers all four value derives)."
+                    }
                 )
             }
         )
