@@ -7,7 +7,7 @@
 // record or null, and `via` a LEFT JOIN through a table no record reads.
 // Every source is projected under its own prefix, `s0_` for the root and
 // `s{i}_` for the i-th slot, by the composition pgorm's graph writer uses.
-// [spec:pgorm:req:bindings.graphs+2]
+// [spec:pgorm:req:bindings.graphs+1]
 
 import { cursorOver, paginatorOver } from "./cursors.js";
 import { Condition } from "./conditions.js";
@@ -382,7 +382,7 @@ export class Graph {
     return this.#cursor(0, fields);
   }
 
-  // [spec:pgorm:req:bindings.cursors+2]
+  // [spec:pgorm:req:bindings.cursors+1]
   /**
    * A keyset cursor ordered by `fields` of slot `source`, the first slot
    * `1`, as pgorm's `cursor_by_on` orders: the slot's primary key, then the

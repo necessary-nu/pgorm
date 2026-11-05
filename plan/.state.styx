@@ -2803,7 +2803,6 @@ impl_evidence (
         bindings.graphs
         bindings.model-reads
         bindings.model-records
-        bindings.model-writes
         bindings.models
         bindings.pagination
         bindings.relations
@@ -2812,18 +2811,9 @@ impl_evidence (
         {impl_name python, rule bindings.graphs}
         {impl_name python, rule bindings.model-reads}
         {impl_name python, rule bindings.model-records}
-        {impl_name python, rule bindings.model-writes}
         {impl_name python, rule bindings.models}
         {impl_name python, rule bindings.pagination}
         {impl_name python, rule bindings.relations}
-    ), rule_versions_seen (
-        {id bindings.cursors, version 0}
-        {id bindings.graphs, version 0}
-        {id bindings.model-reads, version 0}
-        {id bindings.model-records, version 1}
-        {id bindings.models, version 5}
-        {id bindings.pagination, version 0}
-        {id bindings.relations, version 0}
     )}
     {id python-registered-pools, covered_rules (
         bindings.registered-pools

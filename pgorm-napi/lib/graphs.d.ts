@@ -5,7 +5,7 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.graphs+2]
+// [spec:pgorm:req:bindings.graphs+1]
 
 import type { Compiled, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Select } from "./select.d.ts";

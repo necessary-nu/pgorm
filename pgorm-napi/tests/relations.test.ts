@@ -106,7 +106,7 @@ function refused(pattern: RegExp): (error: unknown) => true {
 const titles = (rows: readonly { title: string }[]) => rows.map((row) => row.title);
 const labels = (rows: readonly { label: string }[]) => rows.map((row) => row.label);
 
-// [spec:pgorm:req:bindings.relations+2/test]    onCondition joins with the fields' equality, ANDed or ORed
+// [spec:pgorm:req:bindings.relations+1/test]    onCondition joins with the fields' equality, ANDed or ORed
 test("a relation's own condition is part of every join of it, given the ends as the join names them", () => {
   assert.equal(
     Account.find().join(published).inspect().sql,
@@ -174,7 +174,7 @@ test("a linked chain joins every hop under an alias of its own", () => {
   assert.throws(() => (Account.linked as (...relations: unknown[]) => unknown)(), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.relations+2/test]    fromAlias starts a join from the table answering to the alias
+// [spec:pgorm:req:bindings.relations+1/test]    fromAlias starts a join from the table answering to the alias
 test("fromAlias names the table a join starts from", () => {
   const shared = Post.find()
     .join(postTags, { alias: "mine" })
@@ -187,7 +187,7 @@ test("fromAlias names the table a join starts from", () => {
   assert.throws(() => Post.graph().via(postTags, { alias: "mine" }).joinOne(tagOf.fromAlias("mine"), { from: 0 }), refused(/takes no from/));
 });
 
-// [spec:pgorm:req:bindings.relations+2/test]    find and load read a relation whole, its onCondition included
+// [spec:pgorm:req:bindings.relations+1/test]    find and load read a relation whole, its onCondition included
 test("a relation's condition reads both ends in find and load", async () => {
   const accounts = await Account.find().orderBy(byAccount).all(pool());
   const ann = accounts[0]!;
@@ -207,7 +207,7 @@ test("a relation's condition reads both ends in find and load", async () => {
   assert.deepStrictEqual(files.map(titles), [["a1", "a2", "b1", "a3"], ["b1"], ["b1"]]);
 });
 
-// [spec:pgorm:req:bindings.relations+2/test]    a load takes a query of the far end, filtered and ordered
+// [spec:pgorm:req:bindings.relations+1/test]    a load takes a query of the far end, filtered and ordered
 test("load reads a query of the far end, null where it matched nothing", async () => {
   const accounts = await Account.find().orderBy(byAccount).all(pool());
   const all = await Post.find().orderBy(byPost).all(pool());
@@ -258,7 +258,7 @@ test("a linked chain reads along its hops, through one table twice", async () =>
   assert.deepStrictEqual(labels(await chain.findLinked().all(pool())).sort(), ["blue", "blue", "red"]);
 });
 
-// [spec:pgorm:req:bindings.graphs+2/test]    a hop under an alias, the next relation from it, and a filtered slot
+// [spec:pgorm:req:bindings.graphs+1/test]    a hop under an alias, the next relation from it, and a filtered slot
 test("a graph joins from an aliased hop, and narrows a slot in its ON", async () => {
   const graph = Post.graph()
     .via(postTags)
@@ -286,7 +286,7 @@ test("a graph joins from an aliased hop, and narrows a slot in its ON", async ()
   assert.throws(() => Account.graph().joinMaybeFiltered(posts, Post.col("published").eq(true) as never), TypeError);
 });
 
-// [spec:pgorm:req:bindings.cursors+2/test]    cursorOn orders by a slot; its key and tiebreaks
+// [spec:pgorm:req:bindings.cursors+1/test]    cursorOn orders by a slot; its key and tiebreaks
 test("cursorOn pages a graph by a slot's field, the slot's key and then the root's breaking ties", async () => {
   const cursor = Post.graph().joinOne(author).cursorOn(1, "name");
   assert.ok(cursor.first(2).inspect().sql.endsWith(`ORDER BY "account"."name" ASC, "account"."id" ASC, "post"."id" ASC LIMIT $1`));

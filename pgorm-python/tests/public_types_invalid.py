@@ -73,12 +73,12 @@ async def invalid(connection: p.Connection) -> None:
     p.col("x").similar_to(p.any_(["a%"]))  # expected-error: arg-type
     p.col("doc").path_exists(p.col("path"))  # expected-error: arg-type
     pl.from_(p.Table("t")).filter_with(42)  # expected-error: arg-type
-    shops = p.Model("shops", {"id": p.Column("i64", primary_key=True)})
-    pl.col(shops, shops.col("id"))  # expected-error: call-overload
-    pl.from_(shops).into_model(3)  # expected-error: call-overload
-    pl.from_(shops).select_sources()  # expected-error: call-overload
-    pl.from_(shops).select_sources(shops, qualifiers=["shops"])  # expected-error: call-overload
-    shop_rows: list[p.ModelRecord] = await pl.from_(shops).select_sources(shops).all(connection)  # expected-error: assignment
+    stalls = p.Model("stalls", {"id": p.Column("i64", primary_key=True)})
+    pl.col(stalls, stalls.col("id"))  # expected-error: call-overload
+    pl.from_(stalls).into_model(3)  # expected-error: call-overload
+    pl.from_(stalls).select_sources()  # expected-error: call-overload
+    pl.from_(stalls).select_sources(stalls, qualifiers=["stalls"])  # expected-error: call-overload
+    shop_rows: list[p.ModelRecord] = await pl.from_(stalls).select_sources(stalls).all(connection)  # expected-error: assignment
     optional: p.Record | None = await connection.query(  # expected-error: assignment
         p.select(p.literal(1))
     )
@@ -91,7 +91,7 @@ async def invalid(connection: p.Connection) -> None:
     accounts.find().join(accounts.col("id"))  # expected-error: arg-type
     accounts.col("id").between(1, 2, symmetric="yes")  # expected-error: arg-type
     rows: list[p.ModelRecord] = await accounts.graph().all_grouped(connection)  # expected-error: assignment
-    # [spec:pgorm:req:bindings.relations+2/test]    a relation's condition type is a closed choice, and a load's query a model query
+    # [spec:pgorm:req:bindings.relations+1/test]    a relation's condition type is a closed choice, and a load's query a model query
     selves = accounts.has_many(accounts, from_="id", to="id")
     accounts.has_many(accounts, from_="id", to="id", condition_type="either")  # expected-error: arg-type
     await selves.load(connection, [], accounts)  # expected-error: arg-type
@@ -100,7 +100,7 @@ async def invalid(connection: p.Connection) -> None:
     # [spec:pgorm:req:bindings.linked/test]    a chain is made of relations, and a hop is its index
     accounts.linked(accounts)  # expected-error: arg-type
     accounts.linked(selves).hop("r0")  # expected-error: arg-type
-    # [spec:pgorm:req:bindings.cursors+2/test]    a slot cursor's source is its index
+    # [spec:pgorm:req:bindings.cursors+1/test]    a slot cursor's source is its index
     accounts.graph().join_one(selves).cursor_on("1", "id")  # expected-error: arg-type
     # [spec:pgorm:req:bindings.cursor-secondary-order/test]    a secondary ordering is a model's column
     accounts.find().cursor("id").add_secondary_order_by("id")  # expected-error: arg-type

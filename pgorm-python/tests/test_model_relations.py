@@ -72,7 +72,7 @@ def names(rows, field="title"):
 
 
 class Construction(unittest.TestCase):
-    # [spec:pgorm:req:bindings.relations+2/test]    on_condition joins with the fields' equality, ANDed or ORed
+    # [spec:pgorm:req:bindings.relations+1/test]    on_condition joins with the fields' equality, ANDed or ORed
     def test_on_condition_is_part_of_every_join(self):
         self.assertEqual(
             Account.find().join(published).inspect().sql,
@@ -154,7 +154,7 @@ class Construction(unittest.TestCase):
         with self.assertRaises(p.ConstructionError):
             Account.linked()
 
-    # [spec:pgorm:req:bindings.relations+2/test]    from_alias starts a join from the table answering to the alias
+    # [spec:pgorm:req:bindings.relations+1/test]    from_alias starts a join from the table answering to the alias
     def test_from_alias_names_where_a_join_starts(self):
         shared = (
             Post.find()
@@ -174,7 +174,7 @@ class Construction(unittest.TestCase):
         with self.assertRaisesRegex(p.ConstructionError, "takes no from_"):
             Post.graph().via(post_tags, alias="mine").join_one(tag_of.from_alias("mine"), from_=0)
 
-    # [spec:pgorm:req:bindings.graphs+2/test]    a filtered join's condition lands in its ON, given both ends
+    # [spec:pgorm:req:bindings.graphs+1/test]    a filtered join's condition lands in its ON, given both ends
     def test_join_maybe_filtered_narrows_the_on(self):
         graph = Account.graph().join_maybe_filtered(
             posts, lambda account, post: post.col("published") == True  # noqa: E712
@@ -186,7 +186,7 @@ class Construction(unittest.TestCase):
         with self.assertRaises(TypeError):
             Account.graph().join_maybe_filtered(posts, Post.col("published") == True)  # type: ignore[arg-type]  # noqa: E712
 
-    # [spec:pgorm:req:bindings.cursors+2/test]    cursor_on orders by a slot; its key and tiebreaks
+    # [spec:pgorm:req:bindings.cursors+1/test]    cursor_on orders by a slot; its key and tiebreaks
     def test_cursor_on_orders_by_a_slot(self):
         cursor = Post.graph().join_one(author).cursor_on(1, "name")
         self.assertTrue(
@@ -245,7 +245,7 @@ class Reads(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute(p.RawSQL(f"DROP SCHEMA {SCHEMA} CASCADE"))
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.relations+2/test]    find and load read a relation whole, its on_condition included
+    # [spec:pgorm:req:bindings.relations+1/test]    find and load read a relation whole, its on_condition included
     async def test_relation_condition_reads_both_ends(self):
         ann = self.accounts[0]
         self.assertEqual(names(await published.find(ann).order_by(by_post).all(self.pool)), ["a1", "a3"])
@@ -261,7 +261,7 @@ class Reads(unittest.IsolatedAsyncioTestCase):
         files = await either.load(self.pool, self.accounts, Post.find().order_by(by_post))
         self.assertEqual([names(rows) for rows in files], [["a1", "a2", "b1", "a3"], ["b1"], ["b1"]])
 
-    # [spec:pgorm:req:bindings.relations+2/test]    a load takes a query of the far end, filtered and ordered
+    # [spec:pgorm:req:bindings.relations+1/test]    a load takes a query of the far end, filtered and ordered
     async def test_load_reads_a_far_end_query(self):
         newest = Post.find().where(Post.col("published") == True).order_by(Post.col("id").desc())  # noqa: E712
         loaded = await posts.load(self.pool, self.accounts, newest)
@@ -315,7 +315,7 @@ class Reads(unittest.IsolatedAsyncioTestCase):
         everyone = await chain.find_linked().all(self.pool)
         self.assertEqual(sorted(names(everyone, "label")), ["blue", "blue", "red"])
 
-    # [spec:pgorm:req:bindings.graphs+2/test]    a hop under an alias, the next relation from it, and a filtered slot
+    # [spec:pgorm:req:bindings.graphs+1/test]    a hop under an alias, the next relation from it, and a filtered slot
     async def test_graph_joins_from_aliases_and_filters_slots(self):
         graph = (
             Post.graph()
@@ -337,7 +337,7 @@ class Reads(unittest.IsolatedAsyncioTestCase):
             ("Ann", ["a1", "a3"]), ("Bob", ["b1"]), ("Cy", []),
         ])
 
-    # [spec:pgorm:req:bindings.cursors+2/test]    a cursor pages by a slot's field, and resumes inside a key's run
+    # [spec:pgorm:req:bindings.cursors+1/test]    a cursor pages by a slot's field, and resumes inside a key's run
     # [spec:pgorm:req:bindings.cursor-secondary-order/test]    a whole-key boundary resumes inside the key's run
     async def test_cursors_by_slot_and_secondary_ordering(self):
         cursor = Post.graph().join_one(author).cursor_on(1, "name")

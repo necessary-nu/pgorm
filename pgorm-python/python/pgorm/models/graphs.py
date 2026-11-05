@@ -106,7 +106,7 @@ class State:
         return query.limit(limit).offset(offset)
 
 
-# [spec:pgorm:req:bindings.graphs+2]
+# [spec:pgorm:req:bindings.graphs+1]
 @dataclass(frozen=True, eq=False, slots=True)
 class Graph:
     """A model's rows with the rows its relations reach. Every method returns
@@ -338,7 +338,7 @@ class Graph:
         order, so a join that repeats a root row still has a total order."""
         return self._cursor(0, fields)
 
-    # [spec:pgorm:req:bindings.cursors+2]
+    # [spec:pgorm:req:bindings.cursors+1]
     def cursor_on(self, source: int, *fields: str) -> Cursor:
         """A keyset cursor ordered by ``fields`` of slot ``source``, the
         first slot ``1``, as pgorm's ``cursor_by_on`` orders: the slot's

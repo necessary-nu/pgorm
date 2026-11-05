@@ -4,7 +4,7 @@
 // of another's, which a query joins by, a graph decodes along, and `find`
 // and `load` read the far end of; and the paths of more than one relation,
 // a junction's (`Related`) and a chain's (`Linked`).
-// [spec:pgorm:req:bindings.relations+2]
+// [spec:pgorm:req:bindings.relations+1]
 
 import { Condition } from "./conditions.js";
 import { ConstructionError, DecodeError } from "./errors.js";

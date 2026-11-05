@@ -40,7 +40,7 @@ def _fields(model: Model, names: object, side: str) -> tuple[str, ...]:
     return fields
 
 
-# [spec:pgorm:req:bindings.relations+2]
+# [spec:pgorm:req:bindings.relations+1]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
 class Relation:
     """A relation from one model to another: the fields of each that are
@@ -360,7 +360,7 @@ def same_table(left: Model, right: Model) -> bool:
     return (left.table.name, left.table.schema) == (right.table.name, right.table.schema)
 
 
-# [spec:pgorm:req:bindings.relations+2]
+# [spec:pgorm:req:bindings.relations+1]
 def joined_on(relation: Relation, left: str, right: str) -> p.Condition:
     """The condition joining ``relation`` between the tables answering to
     ``left`` and ``right``, as pgorm's ``join_condition`` writes it: each

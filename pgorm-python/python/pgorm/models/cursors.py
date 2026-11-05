@@ -50,7 +50,7 @@ class Position:
     ascending: bool = True
 
 
-# [spec:pgorm:req:bindings.cursors+2]
+# [spec:pgorm:req:bindings.cursors+1]
 @dataclass(frozen=True, eq=False, slots=True)
 class Cursor:
     """A keyset cursor. Every method returns a new cursor; ``all`` reads the

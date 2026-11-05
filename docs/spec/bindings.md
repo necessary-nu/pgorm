@@ -1217,7 +1217,7 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > conflict clause did not write is null from `returning_upsert` and left out
 > of `returning_upserts`.
 
-> [spec:pgorm:req:bindings.relations+2]
+> [spec:pgorm:req:bindings.relations+1]
 > A model's `belongs_to`, `has_one` and `has_many` MUST make a relation to
 > another model, pairing fields of each — one, or non-empty lists of equal
 > length — in order, and taking pgorm's `on_condition` and `condition_type`:
@@ -1287,7 +1287,7 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > it, and `last_hop()` the starting model at the last hop, as
 > `last_hop_alias` names it; a hop the chain lacks is a `ConstructionError`.
 
-> [spec:pgorm:req:bindings.graphs+2]
+> [spec:pgorm:req:bindings.graphs+1]
 > A model's `graph()` MUST read its rows with the rows its relations reach,
 > as pgorm's `SelectGraph` does, its SQL the SQL `SelectGraph` writes for the
 > same tables, relations and aliases. The slot kind MUST be the join type and
@@ -1318,7 +1318,7 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > primary key behind the graph's ordering and grouping by the decoded root's
 > key, as pgorm's `all_grouped` does.
 
-> [spec:pgorm:req:bindings.cursors+2]
+> [spec:pgorm:req:bindings.cursors+1]
 > `cursor(fields)` on a model query or a graph MUST page by keyset as pgorm's
 > `Cursor` does: ordered by its fields, then — on a graph — by the root's
 > primary key and each slot's, in declaration order, as tiebreaks, a root key
@@ -1878,10 +1878,11 @@ placeholders belong to the stage that minted them.
 > rows, as Rust's `into_model::<M>` and `into_tuple::<T>` do: a declared
 > model's records, each field read from the result column of its SQL name,
 > the result's columns exactly the model's and each held to its declaration
-> (`bindings.model-records`); a function's results, called with each row's
-> record; and a tuple of each row's values in column order, read by position,
-> so a result naming one column twice is read. Rust's `all::<M>()` is
-> `into_model(M).all(db)`. Each of the three reads, `select_sources` over
+> (`bindings.model-records`); a function's results, the function called with
+> each row's columns by name, as keyword arguments in Python and as one
+> object in JavaScript; and a tuple of each row's values in column order,
+> read by position, so a result naming one column twice is read. Rust's
+> `all::<M>()` is `into_model(M).all(db)`. Each of the three reads, `select_sources` over
 > models, `into_model` and `into_tuple`, MUST give a `PipelineSelector`,
 > whose `all`, `one` and `optional` run on a pool, a connection or a
 > transaction with `bindings.pipeline-terminals`'s cardinality, and whose
