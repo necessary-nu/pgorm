@@ -227,11 +227,10 @@ A binding's guide follows [the Rust guide](../../docs/guide/README.md)
 chapter for chapter, in its own language, says where its binding differs
 from Rust, in shape, spelling or reach, and adds what its language needs:
 installing, the async runtime, typing and packaging. This guide is the
-Python one. The JavaScript binding's documentation today lives in its
-directory of pgorm's repository: [its README](../../pgorm-napi/README.md),
-[ENTITIES.md](../../pgorm-napi/ENTITIES.md),
-[CODEGEN.md](../../pgorm-napi/CODEGEN.md) and
-[DISTRIBUTION.md](../../pgorm-napi/DISTRIBUTION.md).
+Python one. The JavaScript guide is [`pgorm-napi/guide`](../../pgorm-napi/guide/README.md),
+with the same chapters for Node.js and Deno, and
+[DISTRIBUTION.md](../../pgorm-napi/DISTRIBUTION.md) beside it covers its npm
+packages.
 
 The rules both bindings follow are in
 [docs/spec/bindings.md](../../docs/spec/bindings.md), with what differs by
