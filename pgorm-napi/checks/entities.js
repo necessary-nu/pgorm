@@ -12,8 +12,9 @@
 //    application ships with its own native module.
 // 4. Run the application's JavaScript suite against it under node --test and
 //    deno test, with the binding's surface test, whose registered-entity
-//    descriptions run only against a module that registers entities, and
-//    write target/napi-entities/report.json.
+//    descriptions run only against a module that registers entities, and the
+//    guide's examples of registered entities, and write
+//    target/napi-entities/report.json.
 //
 // The suite reads PGORM_TEST_DSN, or the server DATABASE_URL names, as the
 // binding's own suite does, and makes and drops a database of its own.
@@ -33,6 +34,8 @@ const manifest = join(application, "Cargo.toml");
 const target = process.env.CARGO_TARGET_DIR ?? join(checkout, "target");
 const out = join(target, "napi-entities");
 const facade = join(out, "pgorm-napi");
+/** The guide's chapters whose examples are marked to run against an application's module. */
+const GUIDE_CHAPTERS = ["registered-entities"];
 
 /**
  * Run a command to completion, its output passed through; a failure ends
@@ -101,12 +104,18 @@ mkdirSync(join(out, "docs", "spec"), { recursive: true });
 copyFileSync(join(checkout, "docs", "spec", "bindings-surface.json"), join(out, "docs", "spec", "bindings-surface.json"));
 copyFileSync(join(napi, "tests", "parity", "canonical.ts"), join(facade, "tests", "parity", "canonical.ts"));
 cpSync(join(application, "tests"), join(facade, "tests", "application-binding", "tests"), { recursive: true });
+// The guide's examples of registered entities, which only a module that
+// registers the fixture's entities can run.
+cpSync(join(napi, "guide"), join(facade, "guide"), { recursive: true });
+cpSync(join(napi, "tests", "guide-examples"), join(facade, "tests", "guide-examples"), { recursive: true });
+copyFileSync(join(napi, "tests", "guide.test.ts"), join(facade, "tests", "guide.test.ts"));
 
-const env = { ...process.env, PGORM_TEST_DSN: dsn(), NO_COLOR: "1" };
+const env = { ...process.env, PGORM_TEST_DSN: dsn(), NO_COLOR: "1", PGORM_GUIDE_CHAPTERS: GUIDE_CHAPTERS.join(",") };
 const suite = join(facade, "tests", "application-binding", "tests");
 const files = [
   ...readdirSync(suite).filter((file) => file.endsWith(".test.ts")).map((file) => join(suite, file)),
   join(facade, "tests", "surface.test.ts"),
+  join(facade, "tests", "guide.test.ts"),
 ];
 run(process.execPath, ["--test", ...files], { cwd: facade, env });
 run("deno", ["test", "--allow-ffi", "--allow-read", "--allow-env", "--allow-run", "--config", join(facade, "deno.json"), ...files], {

@@ -2282,7 +2282,11 @@ impl_evidence (
     ), covered_claims (
         {impl_name main, rule query.graph.grouped}
     )}
-    {id guide.javascript}
+    {id guide.javascript, covered_rules (
+        guide.dialects
+    ), covered_claims (
+        {impl_name javascript, rule guide.dialects}
+    )}
     {id guide.python}
     {id guide.rust, covered_rules (
         guide.chapters

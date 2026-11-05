@@ -249,7 +249,8 @@ as it does every committed lockfile.
 
 The addon trusts the host's certificate store for TLS (through
 rustls-native-certs) unless a pool is given a `ca`. No list of certificate
-authorities is bundled; the [README](README.md#connections) has the details.
+authorities is bundled; [Connection configuration and
+TLS](guide/20-configuration.md) has the details.
 
 ## Publishing
 
