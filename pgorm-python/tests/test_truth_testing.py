@@ -6,6 +6,7 @@ import unittest
 
 import pgorm as p
 from pgorm import _native, pipeline as pl, schema as s
+from pgorm.schema import changes
 from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, versions as version_views
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
@@ -62,7 +63,7 @@ BUILT_ELSEWHERE = {
 
 # Bases the model writes share and no program builds: every write refuses
 # through the __bool__ they give it, and each is sampled through a write.
-BASES = {writes._Write, writes._Guarded}
+BASES = {writes._Write, writes._Guarded, changes._Part}
 
 
 def defined_classes():
@@ -149,8 +150,10 @@ def disjoint_samples():
     )
     items = p.Disjoint("item", base, {"plain": None}, schema_name="app")
     query = items.find()
+    change = s.add_disjoint_kind(items, "plain")
     return [
         query, query.cursor("id"), query.paginate(2), items.insert({}, "plain"),
+        change, change.steps[0], s.DisjointGap("plain", p.Table("items")),
     ]
 
 

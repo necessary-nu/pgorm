@@ -10,6 +10,7 @@
 //! a registration's as its entities' own models.
 
 mod described;
+mod evolve;
 mod registered;
 mod rows;
 
@@ -17,14 +18,14 @@ use std::{num::NonZeroU64, sync::Arc};
 
 use neon::{prelude::*, types::Finalize};
 use pgorm::pgorm_query::{IntoCondition, SelectStatement, Value, ValueTuple};
-use pgorm::{ActiveValue, DdlStatement, DisjointShape, DisjointTable, DisjointValues, Error};
+use pgorm::{ActiveValue, DisjointShape, DisjointTable, DisjointValues, Error};
 
 use crate::{
     codec::Codec,
     connect::job::{JobHandle, Output},
     entities::{ActiveHandle, EntityBackend, column_value, inspected},
     errors::{Failure, failure, throw},
-    statements::{Ddl, Node, node, predicate},
+    statements::{Node, node, predicate},
     values::read,
 };
 
@@ -99,6 +100,7 @@ const EXPORTS: &[(&str, Export)] = &[
     ("disjointInspect", inspect),
     ("disjointJob", job),
     ("disjointStatements", statements),
+    ("disjointChange", evolve::change),
 ];
 
 fn select_at(cx: &mut FunctionContext, index: usize) -> NeonResult<SelectStatement> {
@@ -608,30 +610,5 @@ fn statements(mut cx: FunctionContext) -> JsResult<JsValue> {
         Ok(statements) => statements,
         Err(error) => return throw(&mut cx, Failure::Construction(error.to_string())),
     };
-    let base = core.shape.base().table().clone();
-    let array = JsArray::new(&mut cx, statements.len());
-    for (index, statement) in statements.into_iter().enumerate() {
-        let (kind, ddl) = match statement {
-            DdlStatement::CreateType(statement) => ("createType", Ddl::CreateType(statement)),
-            DdlStatement::CreateTable(statement) => ("createTable", Ddl::CreateTable(statement)),
-            DdlStatement::AlterTable(statement) => {
-                ("alterTable", Ddl::AlterTable(base.clone(), statement))
-            }
-            _ => {
-                return throw(
-                    &mut cx,
-                    Failure::Internal(
-                        "a disjoint schema statement of a kind this build does not know".to_owned(),
-                    ),
-                );
-            }
-        };
-        let pair = JsArray::new(&mut cx, 2);
-        let kind = cx.string(kind);
-        pair.set(&mut cx, 0, kind)?;
-        let ddl = cx.boxed(Node::from(ddl));
-        pair.set(&mut cx, 1, ddl)?;
-        array.set(&mut cx, u32::try_from(index).unwrap_or(u32::MAX), pair)?;
-    }
-    Ok(array.upcast())
+    Ok(evolve::ddl_pairs(&mut cx, statements)?.upcast())
 }

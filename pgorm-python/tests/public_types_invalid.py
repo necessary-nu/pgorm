@@ -106,5 +106,8 @@ async def invalid(connection: p.Connection) -> None:
     shops.update({"id": 1}, "online")  # expected-error: misc
     shops.change_kind({"id": 1}, "dormant")  # expected-error: misc
     s.create_disjoint(shops)  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.disjoint-evolve/test]    an unkinded disjoint model's kinds are not changed
+    s.add_disjoint_kind(shops, "online")  # expected-error: arg-type
+    s.remove_disjoint_kind_table(shops, "online", "online")  # expected-error: arg-type
     p.Disjoint("shops", accounts, {"dormant": None}, unkinded=True, kind="state")  # expected-error: call-overload
     kinded: p.Disjoint = shops  # expected-error: assignment

@@ -10,8 +10,8 @@
 // read: `[base record, kind, kind record or null]`.
 // [spec:pgorm:req:bindings.disjoint+1]
 
-import { TRUSTED } from "./builder.js";
 import { Disjoined, DisjointWrite, handleOf, MADE, viewOf } from "./disjoint-query.js";
+import { statementsOf } from "./disjoint-schema.js";
 import { activeHandleOf, entity, recordOf } from "./entities.js";
 import { ConstructionError } from "./errors.js";
 import { Expr } from "./expressions.js";
@@ -20,9 +20,6 @@ import { decoder } from "./model-decode.js";
 import { fieldOf, shapeOf } from "./model-shape.js";
 import { Model } from "./models.js";
 import { native } from "./operations.js";
-import { AlterTable } from "./schema-alter.js";
-import { CreateTable } from "./schema.js";
-import { CreateType } from "./schema-types.js";
 import { TypeName } from "./values.js";
 
 // [spec:pgorm:req:bindings.model-unique-keys]
@@ -413,14 +410,5 @@ export function disjointEntities() {
  */
 export function createDisjoint(model) {
   if (!(model instanceof Disjoined)) throw new TypeError("createDisjoint takes a Disjoint or a DisjointEntity");
-  return /** @type {[string, unknown][]} */ (native.disjointStatements(handleOf(model))).map(([kind, handle]) => {
-    switch (kind) {
-      case "createType":
-        return new CreateType(handle, TRUSTED);
-      case "createTable":
-        return new CreateTable(handle, TRUSTED);
-      default:
-        return new AlterTable(handle, TRUSTED);
-    }
-  });
+  return statementsOf(/** @type {[string, unknown][]} */ (native.disjointStatements(handleOf(model))));
 }

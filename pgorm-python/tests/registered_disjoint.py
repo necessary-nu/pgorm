@@ -163,6 +163,25 @@ class RegisteredDisjoint(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             shipments.insert({"label": "x"}, "letter")
 
+    # [spec:pgorm:req:bindings.disjoint-evolve/test]    a registered enum's kind changes are the shape's, Schema's for the enum: a value the database holds and the enum does not is removed live, the kind type recreated with the enum's values in order
+    async def test_kind_changes_are_the_enums(self):
+        added = s.add_disjoint_kind(self.shipments, "pallet")
+        self.assertEqual(
+            [statement.inspect().sql for statement in added.steps[0].statements],
+            ['ALTER TYPE "python_shipments"."shipment_kind" ADD VALUE \'pallet\' AFTER \'letter\''],
+        )
+        self.assertEqual(len(added.steps), 2)
+        await self.pool.execute(p.RawSQL("ALTER TYPE python_shipments.shipment_kind ADD VALUE 'ghost'"))
+        for step in s.remove_disjoint_kind(self.shipments, "ghost").steps:
+            async with self.pool.transaction() as tx:
+                for statement in step.statements:
+                    await tx.execute(statement)
+        self.pool.clear_statement_caches()
+        kinds = await self.pool.one(
+            p.RawSQL("SELECT enum_range(NULL::python_shipments.shipment_kind)::text AS kinds")
+        )
+        self.assertEqual(kinds["kinds"], "{parcel,letter,pallet}")
+        self.assertEqual(len(await self.seed()), 3)
 
 
 # Listings as an existing schema holds them: no kind column, each kind's
@@ -244,6 +263,7 @@ class RegisteredUnkinded(unittest.IsolatedAsyncioTestCase):
             lambda: listings.update(self.listing.active().set("id", 1).set("title", "x"), "draft"),
             lambda: listings.change_kind({"id": 1}, "draft"),
             lambda: s.create_disjoint(listings),
+            lambda: s.add_disjoint_kind(listings, "draft"),
         ]
         for index, write in enumerate(refused):
             with self.subTest(index=index), self.assertRaises(p.ConstructionError) as raised:

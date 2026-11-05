@@ -2,7 +2,7 @@ from collections.abc import Awaitable
 from typing import Any, Literal, Never, overload
 
 from ._entity_models import ActiveModel, EntityModel
-from ._native import Compiled, Select, TypeName
+from ._native import Compiled, Select, Table, TypeName
 from ._results import Record
 
 # A model's row: its Record, the index of its kind and the decoded source
@@ -42,6 +42,9 @@ class _Disjoint:
     def run(self, /, db: Any, select: Select, terminal: Literal["count"]) -> Awaitable[int]: ...
     def inspect(self, /, select: Select, *, terminal: Literal["all", "one", "write"] = ...) -> Compiled: ...
     def statements(self, /) -> tuple[Any, ...]: ...
+    def change(
+        self, /, change: str, value: str, table: str | Table | None = None
+    ) -> list[tuple[tuple[Any, ...], tuple[str, str | None, str] | None]]: ...
 
 def _disjoint_model(
     name: str,

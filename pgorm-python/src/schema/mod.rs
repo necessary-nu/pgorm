@@ -36,14 +36,38 @@ pub use statement::PyDDL;
 pub use table::PyCreateTable;
 pub use types::PyDataType;
 
-/// `statement`, an `ALTER TABLE` of `table` built in Rust, as Python's
-/// `AlterTable`.
-pub(crate) fn altered_table<'py>(
-    py: Python<'py>,
-    table: pgorm::pgorm_query::TableName,
-    statement: pgorm::pgorm_query::TableAlterStatement,
-) -> PyResult<Bound<'py, PyAny>> {
-    Ok(alter::PyAlterTable::object(py, statement::AlteredTable { table, statement })?.into_any())
+pub(crate) use args::relation;
+
+/// `statement`, one of a list pgorm's `Schema` built, as Python's class of
+/// its kind: `CreateType`, `CreateTable` and `AlterTable` for the builders
+/// that take more, and `DDL` for the rest.
+// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint-evolve]
+pub(crate) fn ddl_object(
+    py: Python<'_>,
+    statement: pgorm::DdlStatement,
+) -> PyResult<Bound<'_, PyAny>> {
+    use pgorm::DdlStatement;
+    let plain = |statement| Ok(Bound::new(py, PyDDL::new(statement))?.into_any());
+    match statement {
+        DdlStatement::CreateType(statement) => Ok(PyCreateType::object(py, statement)?.into_any()),
+        DdlStatement::CreateTable(statement) => {
+            Ok(PyCreateTable::object(py, statement)?.into_any())
+        }
+        DdlStatement::AlterTable(statement) => {
+            let table = statement.get_table_name().clone();
+            Ok(
+                alter::PyAlterTable::object(py, statement::AlteredTable { table, statement })?
+                    .into_any(),
+            )
+        }
+        DdlStatement::AlterType(statement) => plain(statement::Statement::AlterType(statement)),
+        DdlStatement::DropType(statement) => plain(statement::Statement::DropType(statement)),
+        DdlStatement::DropTable(statement) => plain(statement::Statement::DropTable(statement)),
+        _ => Err(crate::errors::InternalError::new_err(
+            "a schema statement of a kind this build does not know",
+        )),
+    }
 }
 
 /// Why `value`, a schema part that is no statement, cannot be inspected or

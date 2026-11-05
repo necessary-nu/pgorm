@@ -1452,6 +1452,38 @@ Rust generic at run time, only use the ones compiled in.
 > `ConstructionError` naming the base as read-only, the shape's refusal. Its `describe()` has `bindings.disjoint`'s keys, its
 > `kind_field` null and its `kind_type`'s `schema` and `name` null.
 
+> [spec:pgorm:req:bindings.disjoint-evolve]
+> Each binding MUST write a change to a kinded disjoint model's or
+> registration's kinds as pgorm's `DisjointShape` writes it
+> (`[spec:pgorm:sem:disjoint.evolve]`), from the declaration as it will be,
+> through five functions beside `create_disjoint`, each taking the disjoint
+> model or registration and a kind's value as `kinds` gives it:
+> `add_disjoint_kind` (`DisjointShape::add_kind`),
+> `add_disjoint_kind_recreating` (`add_kind_recreating`),
+> `remove_disjoint_kind` (`remove_kind`), `add_disjoint_kind_table`
+> (`add_kind_table`) and `remove_disjoint_kind_table` (`remove_kind_table`),
+> the last also taking the table dropped, named as `bindings.schema` names a
+> table. Each gives a `DisjointChange`, whose `steps` are, in the order they
+> run, each a `DisjointStep` of its `statements`, the binding's DDL
+> statements in the order they run in one transaction committed before the
+> next step, and its `gap`: null, or the `DisjointGap` naming the `kind` and
+> the `table`, a `Table` schema-qualified as the kind's table is, in which
+> the program writes a row for every base row of that kind before the next
+> step runs. They are data, Python's frozen classes of those names and
+> JavaScript's frozen plain objects, as each binding's other results are
+> (`python.records`, `napi.records`), and calling a function sends nothing.
+>
+> What the shape refuses — what `create_disjoint` refuses, a kind added or
+> given a table that the declaration does not declare or declares without
+> one, a kind removed that it still declares, and a table dropped from a
+> kind it declares with one — MUST be a `ConstructionError` raised as the
+> function is called, and a value that is not text, or a first argument
+> that is no disjoint model or registration, a `TypeError`. An unkinded
+> model or registration has no kind type to change: each binding's types
+> MUST take none, as they take none for `create_disjoint`, and a call made
+> regardless is refused with the `ConstructionError` naming the base as
+> read-only (`bindings.disjoint-unkinded`).
+
 ## Pipelines
 
 Each binding composes pgorm's PRQL-shaped pipeline, `pgorm::pipeline`:

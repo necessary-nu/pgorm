@@ -12,7 +12,8 @@
 import type { Compiled, OrderBy, Predicate } from "./expressions.d.ts";
 import type { KeyOf, Model, RowOf, UpdateOf } from "./models.d.ts";
 import type { ActiveModel, EntityRecord } from "./entities.d.ts";
-import type { AlterTable, CreateTable, CreateType } from "./schema.d.ts";
+import type { AlterTable, CreateTable, CreateType, DDL } from "./schema.d.ts";
+import type { Table } from "./select.d.ts";
 import type { OperationOptions, Queryable, RowStream } from "./index.d.ts";
 
 /** Each kind's value, in order, to the model of its table or `null` for a kind with none. */
@@ -240,3 +241,81 @@ export declare class DisjointCursor<R> {
 export declare function createDisjoint(
   model: Disjoint<any, any> | DisjointEntity<any, any, any, any>,
 ): (CreateType | CreateTable | AlterTable)[];
+
+// [spec:pgorm:req:bindings.disjoint-evolve]
+/**
+ * What the program writes between two steps of a {@link DisjointChange}: a
+ * row in `table` for every base row of the kind `kind`, which the next step
+ * refuses the change without.
+ */
+export interface DisjointGap {
+  readonly kind: string;
+  readonly table: Table;
+}
+
+/**
+ * One step of a {@link DisjointChange}: statements to run in order in one
+ * transaction, committed before the next step runs, and the rows the program
+ * writes once it commits, if any.
+ */
+export interface DisjointStep {
+  readonly statements: readonly (CreateType | CreateTable | AlterTable | DDL)[];
+  readonly gap: DisjointGap | null;
+}
+
+/**
+ * A change to a disjoint model's kinds, as the steps that make it, in the
+ * order they run. A step that recreates the kind type changes what a
+ * statement prepared before it returns, so a program running the steps
+ * itself clears its pool's statement caches after each.
+ */
+export interface DisjointChange {
+  readonly steps: readonly DisjointStep[];
+}
+
+/**
+ * Add the kind `value`, which the declaration holds and the database's kind
+ * type does not yet: in two steps for a kind with a table, since PostgreSQL
+ * uses an added value only once the transaction adding it has committed.
+ */
+export declare function addDisjointKind(
+  model: Disjoint<any, any> | DisjointEntity<any, any, any, any>,
+  value: string,
+): DisjointChange;
+
+/** Add the kind `value` in one step that recreates the kind type and rewrites the base and every kind table. */
+export declare function addDisjointKindRecreating(
+  model: Disjoint<any, any> | DisjointEntity<any, any, any, any>,
+  value: string,
+): DisjointChange;
+
+/**
+ * Remove the value `value`, which the database's kind type holds and the
+ * declaration does not, in one step that recreates the kind type and fails
+ * while any base row has the kind.
+ */
+export declare function removeDisjointKind(
+  model: Disjoint<any, any> | DisjointEntity<any, any, any, any>,
+  value: string,
+): DisjointChange;
+
+/**
+ * Give the kind `value`, a kind without a table in the database, the table the
+ * declaration gives it, in two steps with a gap between them for the rows its
+ * base rows lack.
+ */
+export declare function addDisjointKindTable(
+  model: Disjoint<any, any> | DisjointEntity<any, any, any, any>,
+  value: string,
+): DisjointChange;
+
+/**
+ * Drop `table`, the table of the kind `value`, which the declaration gives
+ * none, and the base's generated key columns and foreign key for it, in one
+ * step that loses every row of the table.
+ */
+export declare function removeDisjointKindTable(
+  model: Disjoint<any, any> | DisjointEntity<any, any, any, any>,
+  value: string,
+  table: string | Table,
+): DisjointChange;

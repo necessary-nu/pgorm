@@ -263,6 +263,28 @@ a kind row's key given a value is refused before anything is sent.
 constraints holding each base row to exactly its kind's table; a column
 declared `default=True` has no `DEFAULT` to write, so its table is refused.
 
+A change to the kinds once the tables exist is written from the declaration as
+it will be, as pgorm's `DisjointShape` writes it: `add_disjoint_kind(model,
+value)` (an `ALTER TYPE ... ADD VALUE`, then a kind's table in a second step),
+`add_disjoint_kind_recreating` (one step recreating the kind type),
+`remove_disjoint_kind` (refused by the server while a row has the kind),
+`add_disjoint_kind_table` and `remove_disjoint_kind_table(model, value,
+table)`, all in `pgorm.schema`. Each gives a `DisjointChange` whose `steps`
+each hold `statements` to run in one transaction and a `gap`, `None` or the
+`DisjointGap` naming the `kind` whose base rows need a row in its `table`
+before the next step:
+
+```python
+change = pgorm.schema.add_disjoint_kind_table(Fleet, "bike")
+for step in change.steps:
+    async with pool.transaction() as tx:
+        for statement in step.statements:
+            await tx.execute(statement)
+    pool.clear_statement_caches()
+    if step.gap is not None:
+        ...  # write a row in step.gap.table for every base row of step.gap.kind
+```
+
 Tables an existing schema holds with no kind column — a base, and tables each
 keyed by a foreign key from its primary key onto the base's — are declared
 `unkinded=True`, and read by which kind's table has a row for each base row,

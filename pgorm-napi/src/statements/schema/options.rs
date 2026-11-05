@@ -164,7 +164,7 @@ pub(super) fn columns<'cx>(
 /// The relation a statement names: a name, or a `Table` with no alias, its
 /// schema kept. A sequence is a relation too.
 // [spec:pgorm:req:bindings.schema]
-pub(in crate::statements) fn relation<'cx>(
+pub(crate) fn relation<'cx>(
     cx: &mut Cx<'cx>,
     value: Handle<'cx, JsValue>,
 ) -> NeonResult<TableName> {

@@ -643,6 +643,16 @@ terminal `returningModel` reads back the written row; a write that touches
 no row is a `DecodeError`. A registered enum is `disjointEntity(name)`, its
 records the entities' own and its writes their ActiveModels (`ENTITIES.md`).
 
+A change to the kinds once the tables exist is written from the declaration
+as it will be, as pgorm's `DisjointShape` writes it: `addDisjointKind(model,
+value)`, `addDisjointKindRecreating`, `removeDisjointKind`,
+`addDisjointKindTable` and `removeDisjointKindTable(model, value, table)`.
+Each gives `{ steps }`, each step its `statements`, to run in one transaction
+before the next step, and its `gap`, `null` or `{ kind, table }`: the rows the
+program writes in `table`, one for every base row of `kind`, before the next
+step runs. Clear the pool's statement caches after a step that recreates the
+kind type.
+
 `disjoint(name, base, kinds, { unkinded: true })` declares tables an existing
 schema holds with no kind column, read by which kind's table has a row for
 each base row, `null` naming at most one kind of a row with none. Nothing there

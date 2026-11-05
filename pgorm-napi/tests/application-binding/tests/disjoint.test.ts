@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 
 import {
+  addDisjointKind,
   ConstructionError,
   createDisjoint,
   DecodeError,
@@ -14,6 +15,7 @@ import {
   disjointEntity,
   entity,
   Pool,
+  removeDisjointKind,
   type UnkindedDisjointEntity,
 } from "../../../lib/index.js";
 import { scratchDatabase } from "../../support.ts";
@@ -196,6 +198,25 @@ test("an unkinded enum registers and reads by presence", async () => {
   });
 });
 
+// [spec:pgorm:req:bindings.disjoint-evolve/test]    a registered enum's kind changes are the shape's, Schema's for the enum: a value the database holds and the enum does not is removed live, the kind type recreated with the enum's values in order
+test("a registration's kind changes are the enum's", async () => {
+  const added = addDisjointKind(Shipments, "pallet");
+  assert.deepStrictEqual(added.steps[0]?.statements.map((statement) => statement.inspect().sql), [
+    `ALTER TYPE "napi_shipments"."shipment_kind" ADD VALUE 'pallet' AFTER 'letter'`,
+  ]);
+  assert.equal(added.steps.length, 2);
+  await pool().execute("ALTER TYPE napi_shipments.shipment_kind ADD VALUE 'ghost'");
+  for (const step of removeDisjointKind(Shipments, "ghost").steps) {
+    await pool().transaction(async (tx) => {
+      for (const statement of step.statements) await tx.execute(statement);
+    });
+  }
+  pool().clearStatementCaches();
+  const [row] = await pool().query("SELECT enum_range(NULL::napi_shipments.shipment_kind)::text AS kinds");
+  assert.deepStrictEqual(row, { kinds: "{packet,letter,pallet}" });
+  assert.equal((await seed()).length, 3);
+});
+
 // [spec:pgorm:req:bindings.disjoint-unkinded/test]    a registered unkinded enum's writes and schema are refused with a ConstructionError naming its base read-only, before anything is sent, and its type offers none of them
 test("an unkinded registration is read-only", async () => {
   for (const statement of LISTINGS) await pool().execute(statement);
@@ -207,6 +228,7 @@ test("an unkinded registration is read-only", async () => {
     () => writable.update(Listing.active().set("id", 1).set("title", "x"), "draft"),
     () => writable.changeKind({ id: 1 }, "draft"),
     () => createDisjoint(writable),
+    () => addDisjointKind(writable, "draft"),
   ]) {
     assert.throws(write, (error: unknown) => {
       assert.ok(error instanceof ConstructionError, `expected a ConstructionError, got ${error}`);

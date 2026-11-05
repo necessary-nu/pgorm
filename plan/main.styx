@@ -16549,6 +16549,10 @@ children (
                 id bindings-disjoint-evolve
                 title "Python and JavaScript write a disjoint model's kind changes as pgorm's DisjointShape does"
                 kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:bindings.disjoint-evolve])
+                    python ([spec:pgorm:req:bindings.disjoint-evolve])
+                }
                 deps (disjoint.evolve disjoint.bindings)
                 log (
                     {
@@ -16556,6 +16560,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.evolve: DisjointShape gained add_kind, add_kind_recreating, remove_kind, add_kind_table and remove_kind_table (returning DisjointChange: steps of DdlStatements, each with an optional gap), so a binding can write kind changes as the typed Schema functions do. Neither binding exposes them, and bindings-surface.json is unchanged. Needs a bindings rule, both bindings, DisjointChange's steps and gaps surfaced in each language, and live tests."
+                    }
+
+                    {
+                        at 2026-11-04T23:28:27.241426Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
                     }
                 )
             }

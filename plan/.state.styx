@@ -2988,6 +2988,12 @@ impl_evidence (
     ), rule_versions_seen (
         {id testing.isolation, version 0}
     )}
+    {id bindings-disjoint-evolve, covered_rules (
+        bindings.disjoint-evolve
+    ), covered_claims (
+        {impl_name javascript, rule bindings.disjoint-evolve}
+        {impl_name python, rule bindings.disjoint-evolve}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}
