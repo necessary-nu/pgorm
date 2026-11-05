@@ -53,7 +53,7 @@ function plan(names, kinds, sources, exhaustive = true) {
       if (index === undefined) {
         throw new DecodeError(`the result has no column ${JSON.stringify(name)} for ${field.field}`);
       }
-      const key = readsText(field.column) ? TEXT : columnKey(field.column);
+      const key = readsText(field.column) ? (field.column.array ? `${TEXT}[]` : TEXT) : columnKey(field.column);
       if (kinds[index] !== key) {
         throw new DecodeError(`column ${JSON.stringify(name)} is ${kinds[index]}, and ${field.field} declares ${key}`);
       }
@@ -81,7 +81,10 @@ function checked(field, value) {
     if (!column.nullable) throw new DecodeError(`${field.field} is not nullable, and the row holds NULL`);
     return value;
   }
-  if (readsText(column)) return native.modelReadText(column.kind, value);
+  if (readsText(column)) {
+    if (!column.array) return native.modelReadText(column.kind, value);
+    return /** @type {(string | null)[]} */ (value).map((item) => item === null ? null : native.modelReadText(column.kind, item));
+  }
   if (column.values !== null) {
     const labels = column.values;
     const items = column.array ? /** @type {unknown[]} */ (value) : [value];

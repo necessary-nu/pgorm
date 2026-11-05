@@ -599,7 +599,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
             )
 
     # [spec:pgorm:req:bindings.model-records+1/test]
-    # [spec:pgorm:req:bindings.created-ranges+2/test]
+    # [spec:pgorm:req:bindings.created-ranges+3/test]
     async def test_created_range_columns_keep_their_type(self):
         await self.pool.execute(
             p.RawSQL("CREATE TYPE python_models.floatrange AS RANGE (SUBTYPE = float8)")
@@ -615,12 +615,30 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(found["span"], p.Range(1.5, None))
         with self.assertRaises(p.ConstructionError):
             p.Column(p.CreatedRange("floatrange", "f64"))
+        await self.pool.execute(
+            p.RawSQL("CREATE TABLE python_models.shelves (id integer PRIMARY KEY, spans python_models.floatrange[])")
+        )
+        shelves = p.Model(
+            "shelves",
+            {"id": p.Column("i32", primary_key=True), "spans": p.Column(floatrange, array=True, nullable=True)},
+            schema="python_models",
+        )
+        stocked = [p.Range(1.5, None), None, p.Range.empty()]
+        row = await shelves.insert({"id": 1, "spans": stocked}).returning().one(self.pool)
+        self.assertEqual(row["spans"], stocked)
+        self.assertEqual(row.tagged("spans"), p.Value.array(floatrange, stocked))
+        await shelves.insert({"id": 2, "spans": []}).execute(self.pool)
+        await shelves.insert({"id": 3, "spans": None}).execute(self.pool)
+        found = await shelves.find().where(shelves.col("spans") == []).one(self.pool)
+        self.assertEqual(found["id"], 2)
+        found = await shelves.find().where(shelves.col("spans") == stocked).one(self.pool)
+        self.assertEqual(found["id"], 1)
         with self.assertRaises(p.ConstructionError):
-            p.Column(floatrange, array=True)
+            shelves.insert({"id": 4, "spans": [p.Range(1, 2)]})
 
     # [spec:pgorm:req:bindings.models+5/test]
     # [spec:pgorm:req:bindings.model-records+1/test]
-    # [spec:pgorm:req:bindings.created-ranges+2/test]
+    # [spec:pgorm:req:bindings.created-ranges+3/test]
     async def test_created_multirange_columns_read_and_write(self):
         await self.pool.execute(
             p.RawSQL(
@@ -631,19 +649,28 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute(
             p.RawSQL(
                 "CREATE TABLE python_models.slots "
-                "(id integer PRIMARY KEY, open python_models.floatmultirange)"
+                "(id integer PRIMARY KEY, open python_models.floatmultirange, "
+                "week python_models.floatmultirange[])"
             )
         )
         kind = p.CreatedMultirange("floatmultirange", "f64", schema="python_models")
         slots = p.Model(
             "slots",
-            {"id": p.Column("i32", primary_key=True), "open": p.Column(kind, nullable=True)},
+            {
+                "id": p.Column("i32", primary_key=True),
+                "open": p.Column(kind, nullable=True),
+                "week": p.Column(kind, array=True, nullable=True),
+            },
             schema="python_models",
         )
         hours = p.Multirange([p.Range(9.0, 12.5), p.Range(13.5, 17.0)])
-        written = await slots.insert({"id": 1, "open": hours}).returning().one(self.pool)
+        week = [hours, None, p.Multirange([])]
+        written = await slots.insert({"id": 1, "open": hours, "week": week}).returning().one(self.pool)
         self.assertEqual(written["open"], hours)
         self.assertEqual(written.tagged("open"), p.Value(hours, kind))
+        # An array of one is read cast to text[], each text read as the declared kind.
+        self.assertEqual(written["week"], week)
+        self.assertEqual(written.tagged("week"), p.Value.array(kind, week))
         await slots.insert({"id": 2, "open": None}).execute(self.pool)
         # The text is read through the declared subtype, so text that subtype
         # does not read is a DecodeError, never a value of another type.
@@ -674,7 +701,9 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
             slots.describe()["fields"]["open"]["kind"],
             'multirange "python_models"."floatmultirange" of f64',
         )
+        self.assertEqual(
+            slots.describe()["fields"]["week"]["kind"],
+            'multirange "python_models"."floatmultirange" of f64[]',
+        )
         with self.assertRaises(p.ConstructionError):
             p.Column(p.CreatedMultirange("floatmultirange", "f64"))
-        with self.assertRaises(p.ConstructionError):
-            p.Column(kind, array=True)

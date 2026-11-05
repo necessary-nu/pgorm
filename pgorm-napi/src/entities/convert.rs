@@ -35,12 +35,6 @@ pub(crate) fn column_value<'cx>(
     data: Handle<'cx, JsValue>,
 ) -> NeonResult<Value> {
     let codec = Codec::get(cx)?;
-    if let Some(Tag::Array(member)) = &column.tag
-        && let Tag::Created(_) = member.as_ref()
-        && data.is_a::<JsArray, _>(cx)
-    {
-        return created_texts(cx, member, data);
-    }
     let tagged = match &column.tag {
         Some(tag) => read::tagged(cx, codec, data, tag)?,
         None => match read::infer(cx, codec, data)? {
@@ -59,9 +53,10 @@ pub(crate) fn column_value<'cx>(
     Ok(tagged.datum)
 }
 
-/// `data`, a JavaScript array, as one array of `column`'s scalar kind, or
-/// `None` for a column whose kind is no scalar's: what a quantified
-/// comparison with the column ranges over.
+/// `data`, a JavaScript array, as one array of `column`'s kind, or `None` for
+/// a column of an array or of no kind: what a quantified comparison with the
+/// column ranges over, a created range's the array of their texts that the
+/// column's array cast reads.
 pub(crate) fn column_array<'cx>(
     cx: &mut Cx<'cx>,
     column: &ColumnInfo,
@@ -74,32 +69,9 @@ pub(crate) fn column_array<'cx>(
     else {
         return Ok(None);
     };
-    if let Tag::Created(_) = tag {
-        return created_texts(cx, tag, data).map(Some);
-    }
     let codec = Codec::get(cx)?;
     let tagged = read::tagged(cx, codec, data, &Tag::Array(Box::new(tag.clone())))?;
     Ok(Some(tagged.datum))
-}
-
-/// `data`, a JavaScript array of `member`'s values, a created range's, as the
-/// array of their texts. A created range's array is no `Value` a program
-/// declares, but its elements are each the text a range of the kind is,
-/// which the cast of a column of the type's array reads, and so does the
-/// cast a quantified comparison with a column of the type writes.
-// [spec:pgorm:req:bindings.created-ranges+2]
-fn created_texts<'cx>(
-    cx: &mut Cx<'cx>,
-    member: &Tag,
-    data: Handle<'cx, JsValue>,
-) -> NeonResult<Value> {
-    let codec = Codec::get(cx)?;
-    let items = data.downcast_or_throw::<JsArray, _>(cx)?.to_vec(cx)?;
-    let mut texts = Vec::with_capacity(items.len());
-    for item in items {
-        texts.push(read::tagged(cx, codec, item, member)?.datum);
-    }
-    Ok(Value::Array(ArrayType::String, Some(Box::new(texts))))
 }
 
 /// A column's value with the kind it reads as: the column's own where it

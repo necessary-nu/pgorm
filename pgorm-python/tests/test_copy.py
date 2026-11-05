@@ -742,7 +742,7 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.pool.one(p.RawSQL("SELECT 3 AS n")))["n"], 3)
 
     # [spec:pgorm:req:bindings.copy-rows+1/test]    a created multirange reads as a Multirange and writes back from a Value of its kind or from its text
-    # [spec:pgorm:req:bindings.created-ranges+2/test]
+    # [spec:pgorm:req:bindings.created-ranges+3/test]
     async def test_created_multiranges_round_trip(self):
         for statement in MULTISPANS:
             await self.pool.execute(p.RawSQL(statement))
@@ -787,10 +787,14 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
         count = await self.pool.one(p.RawSQL("SELECT count(*) AS n FROM python_copy_geo.spans"))
         self.assertEqual(count["n"], 6)
 
-        many = await self.pool.copy_out_rows(p.CopyTo(p.Table("many", schema="python_copy_geo"), "binary"))
-        with self.assertRaisesRegex(p.DecodeError, "created range"):
-            await anext(many)
-        self.assertTrue(many.closed)
+        # An array of one reads and writes as an array of its kind, its elements completed as the column's are.
+        many = p.Table("many", schema="python_copy_geo")
+        self.assertEqual(await rows_of(await self.pool.copy_out_rows(p.CopyTo(many, "binary"))),
+                         [([p.Multirange([p.Range(1, 3)])],)])
+        array = p.Value.array(slots, [p.Multirange([p.Range(4, 6)]), None])
+        self.assertEqual(await self.pool.copy_in_rows(p.CopyFrom(many, "binary"), [(array,), (["{[8,9)}"],)]), 2)
+        read = await rows_of(await self.pool.copy_out_rows(p.CopyTo(many, "binary")))
+        self.assertEqual(read[1:], [([p.Multirange([p.Range(4, 6)]), None],), ([p.Multirange([p.Range(8, 9)])],)])
 
 
 if __name__ == "__main__":

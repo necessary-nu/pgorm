@@ -280,7 +280,7 @@ option.
 > an integer's width, an enum's schema-qualified type, an array's element kind,
 > and SQL NULL apart from JSON's null.
 
-> [spec:pgorm:req:bindings.created-ranges+2]
+> [spec:pgorm:req:bindings.created-ranges+3]
 > A created range's kind MUST carry the type's name, quoted and
 > schema-qualifiable, and its subtype, one of the twelve pgorm's
 > `RangeSubtype` admits, which converts each bound with that kind's limits
@@ -298,17 +298,34 @@ option.
 > subtype, which pgorm completes from the catalogue (`conn.copy.rows`), so
 > `copy_out_rows` MUST decode it through the subtype's codec to a
 > `Multirange`, and `copy_in_rows` MUST write one back from a `Value` of its
-> kind or from its text form. A `Value` of an array of a created range or
-> multirange MUST be refused both ways, in a COPY as anywhere else, and so
-> MUST a query's result column of one. A registered entity's column of one is
-> the exception, its casts being the entity's: it MUST take a list of the
-> kind's values, the empty list and a `NULL` element included, written as the
-> array of their texts that its `save_as` casts to the type's array
-> (`sql.value.created-range`) — the array a quantified comparison with a
-> column of the type writes — wherever it takes a value, and MUST read each
-> element back as the kind's value. Its tagged value, which no program
-> declares, is taken back by such a column alone, a column of another
-> declared kind refusing it with a `ConstructionError`.
+> kind or from its text form.
+>
+> An array of either is a value kind of its own, both ways and in both
+> bindings. `Value.array(kind, items)` of a `CreatedRange` or
+> `CreatedMultirange` MUST convert each item as a value of the kind is
+> converted — data of the kind, its text form, or a `Value` of that kind and
+> no other — and hold the array of their texts, the empty array, a `NULL`
+> element and an SQL NULL array included, its element kind kept. Its value
+> is that array of texts: bound bare it is read by the subtype's parsing as
+> a scalar's text is, and written in an expression it is cast to the type's
+> array through `Expr::as_range`, `CAST($1::text[] AS name[])`, the array a
+> column of the type's array reads (`sql.value.created-range`). A result
+> column of an array of a created range MUST decode element by element
+> through the subtype's binary codec to that kind, each element named as the
+> column's member type is; a query's array of a created multirange, whose
+> member the driver reports with no subtype, MUST be a `DecodeError` as a
+> column of one is. A binary COPY's array column is described with its
+> member completed, so `copy_out_rows` MUST decode an array of either the
+> same way and `copy_in_rows` MUST write one back from a `Value` of its kind
+> or from an array of texts. A declared model's column of either kind with
+> `array` MUST take and give back an array of the kind's values, written
+> through the same cast and an array of multiranges projected cast to
+> `text[]`, each text read as the declared kind. A registered entity's column
+> of one takes a list of the kind's values, written as the array of their
+> texts that its `save_as` casts to the type's array — the array a quantified
+> comparison with a column of the type writes — and reads each element back
+> as the kind's value; a `Value` of another declared kind is refused with a
+> `ConstructionError` there as at any declared column.
 
 > [spec:pgorm:req:bindings.rows]
 > A result's rows MUST be decoded on the runtime and reach the language one

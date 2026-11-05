@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T06:02:16.430683Z
+last_sync_at 2026-11-05T06:31:59.176614Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -15,7 +15,7 @@ rule_versions (
     {id bindings.connections, version 2}
     {id bindings.copy, version 0}
     {id bindings.copy-rows, version 1}
-    {id bindings.created-ranges, version 2}
+    {id bindings.created-ranges, version 3}
     {id bindings.cte-options, version 0}
     {id bindings.cursors, version 0}
     {id bindings.delegation, version 0}
@@ -1526,6 +1526,8 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
+    {id typed-binds.napi-range-array-operand, kind @complete, author "brendan@necessary.nu", at 2026-11-05T06:06:46.155153Z}
+    {id typed-binds.created-range-array-value, kind @complete, author "brendan@necessary.nu", at 2026-11-05T06:27:28.67808Z}
 )
 
 impl_evidence (

@@ -157,12 +157,13 @@ export function columnKey(column) {
 /**
  * Whether a model reads `column` from its text: a created multirange's, which
  * the driver reports with no subtype to read its binary form by, so a model
- * projects it cast to `text`, as pgorm's `ColumnTrait::select_as` reads an
- * entity's, and reads the value that text spells as the declared kind.
+ * projects it cast to `text`, or an array of one to `text[]`, as pgorm's
+ * `ColumnTrait::select_as` reads an entity's, and reads the value that text,
+ * or each of the array's, spells as the declared kind.
  *
  * @param {Column} column
  */
-// [spec:pgorm:req:bindings.created-ranges+2]
+// [spec:pgorm:req:bindings.created-ranges+3]
 export function readsText(column) {
   return column.kind instanceof CreatedMultirange;
 }

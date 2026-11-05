@@ -96,11 +96,9 @@ impl PyValue {
         }
     }
 
-    /// A registered entity's value of a column of an array of a created range
-    /// or multirange: the array of the values' texts, or SQL NULL. No program
-    /// declares one, `Value.array` refusing the kind; only such a column
-    /// makes and takes it.
-    // [spec:pgorm:req:bindings.created-ranges+2]
+    /// An array of a created range or multirange: the array of the values'
+    /// texts, or SQL NULL.
+    // [spec:pgorm:req:bindings.created-ranges+3]
     pub(crate) fn from_created_array(inner: Value, kind: CreatedKind) -> Self {
         Self {
             inner,
@@ -168,12 +166,10 @@ impl PyValue {
     }
 
     /// An array of `element`'s kind holding `values`, or SQL NULL for `None`.
+    /// A created range's array holds each element's text form, the array
+    /// its type's array reads.
+    // [spec:pgorm:req:bindings.created-ranges+3]
     fn array_of(element: Tag, values: &Bound<'_, PyAny>) -> PyResult<Self> {
-        if matches!(element, Tag::Created(_)) {
-            return Err(ConstructionError::new_err(
-                "arrays of a created range or multirange type are not supported",
-            ));
-        }
         let array_type = element.array_type()?;
         let inner = if values.is_none() {
             None

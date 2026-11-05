@@ -70,9 +70,6 @@ fn kind_key_of_kind(mut cx: FunctionContext) -> JsResult<JsString> {
     let codec = Codec::get(&mut cx)?;
     let tag = read::kind(&mut cx, codec, kind)?;
     let tag = if array {
-        if matches!(tag, Tag::Created(_)) {
-            return read::refuse(&mut cx, "arrays of a created range type are not supported");
-        }
         Tag::Array(Box::new(tag))
     } else {
         tag
@@ -102,7 +99,7 @@ fn kind_key_of_value(mut cx: FunctionContext) -> JsResult<JsString> {
 /// created range's is read: text the subtype does not read is a
 /// `DecodeError`, never a value of another type.
 // [spec:pgorm:req:bindings.model-records+1]
-// [spec:pgorm:req:bindings.created-ranges+2]
+// [spec:pgorm:req:bindings.created-ranges+3]
 fn read_text(mut cx: FunctionContext) -> JsResult<JsValue> {
     let kind = cx.argument::<JsValue>(0)?;
     let text = cx.argument::<JsString>(1)?.value(&mut cx);

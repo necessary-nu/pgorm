@@ -227,8 +227,10 @@ pub(crate) fn tagged<'cx>(
 }
 
 /// An array of `element`s: a JavaScript array whose items are each `null`, a
-/// `Value` of the element kind, or data of it.
+/// `Value` of the element kind, or data of it. An enum's or a created range's
+/// array holds each element's text.
 // [spec:pgorm:req:bindings.value-tags]
+// [spec:pgorm:req:bindings.created-ranges+3]
 pub(crate) fn array<'cx>(
     cx: &mut Cx<'cx>,
     codec: Codec<'cx>,
@@ -241,13 +243,7 @@ pub(crate) fn array<'cx>(
     };
     let element_kind = match element {
         Tag::Scalar(kind) => kind.clone(),
-        Tag::Enum(_) => ArrayType::String,
-        Tag::Created(_) => {
-            return refuse(
-                cx,
-                "arrays of a created range or multirange type are not supported",
-            );
-        }
+        Tag::Enum(_) | Tag::Created(_) => ArrayType::String,
         Tag::Array(_) => return refuse(cx, "nested arrays are not supported"),
     };
     let mut values = Vec::with_capacity(items.len());
@@ -623,7 +619,7 @@ fn ranges<'cx>(
 /// A created range's text form: from a `Range` (or `Multirange`), each bound
 /// converted as the subtype's kind, or from the text form itself, read with
 /// the subtype's own parsing and written back canonically.
-// [spec:pgorm:req:bindings.created-ranges+2]
+// [spec:pgorm:req:bindings.created-ranges+3]
 fn created_text<'cx>(
     cx: &mut Cx<'cx>,
     codec: Codec<'cx>,
@@ -919,12 +915,6 @@ fn infer_array<'cx>(
     if matches!(element, Tag::Array(_)) {
         return refuse(cx, "nested arrays are not supported");
     }
-    if matches!(element, Tag::Created(_)) {
-        return refuse(
-            cx,
-            "arrays of a created range or multirange type are not supported",
-        );
-    }
     let kind = match &element {
         Tag::Scalar(kind) => kind.clone(),
         _ => ArrayType::String,
@@ -934,7 +924,7 @@ fn infer_array<'cx>(
         .map(|value| match value {
             Some(value) => value.datum,
             None => match &element {
-                Tag::Enum(_) => Value::String(None),
+                Tag::Enum(_) | Tag::Created(_) => Value::String(None),
                 _ => kind.null(),
             },
         })

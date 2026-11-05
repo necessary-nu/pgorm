@@ -575,8 +575,9 @@ const pages = Account.find().orderBy(Account.col("id").asc()).paginate(50);
   `DecodeError` — with no NULL where the field is not nullable and no label an
   enum field does not list. The driver reports a `CreatedMultirange` column
   with no subtype to read its binary form by, so a model projects one cast to
-  `text`, as pgorm's entities read it, and reads that text as a `Multirange`
-  of the declared subtype: text the subtype does not read is a `DecodeError`.
+  `text`, or an array of one to `text[]`, as pgorm's entities read it, and
+  reads that text as a `Multirange` of the declared subtype: text the subtype
+  does not read is a `DecodeError`.
 - **Reads**: `find()`, `select(..fields)`, `findByKey(key)`; `where`,
   `orderBy`, `limit`, `offset`, and `join(relation)` to filter on a related
   row; `all`, `one`, `optional`, `count` on a pool, connection or
@@ -943,7 +944,11 @@ new Value("calm", new TypeName("mood", { schema: "app" }));
 carrying its kind, which tells an `int2` from an `int8` and SQL NULL from JSON's
 `null`. A range type a schema created is a `CreatedRange` kind; its value
 travels as text for the statement to cast, `CAST($1::text AS app.floatrange)`,
-as a newtype under pgorm's own `CreatedRange` derive does.
+as a newtype under pgorm's own `CreatedRange` derive does. `Value.array` of a
+`CreatedRange` holds each element as its text and is cast to the type's array,
+`CAST($1::text[] AS app.floatrange[])`; a column of one decodes element by
+element, and a query's array of a `CreatedMultirange` is a `DecodeError`, as a
+column of one is.
 
 ## Errors
 

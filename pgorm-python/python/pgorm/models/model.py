@@ -171,10 +171,12 @@ class Model:
     ) -> p.Expr | p.Aliased:
         """``column`` projected under ``name``, the field's own by default:
         as it is when that is its column's name, aliased otherwise, and cast
-        to ``text`` when the field is read as its text."""
+        to ``text``, or ``text[]`` for an array, when the field is read as its
+        text."""
         name = field if name is None else name
-        if self.columns[field]._read_as_text:
-            return column.cast(p.TypeName("text")).as_(name)
+        declared = self.columns[field]
+        if declared._read_as_text:
+            return column.cast(p.TypeName("text"), array=declared.array).as_(name)
         return column if name == self._sql(field) else column.as_(name)
 
     def _selection(self, fields: tuple[str, ...]) -> tuple[str, ...]:
