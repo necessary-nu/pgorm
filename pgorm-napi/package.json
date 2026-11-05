@@ -4,7 +4,11 @@
   "private": true,
   "description": "Asynchronous PostgreSQL access through pgorm from Node.js and Deno, over Node-API",
   "license": "MIT OR Apache-2.0",
-  "repository": "https://github.com/necessary-nu/pgorm",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/necessary-nu/pgorm.git",
+    "directory": "pgorm-napi"
+  },
   "type": "module",
   "engines": {
     "node": ">=26"

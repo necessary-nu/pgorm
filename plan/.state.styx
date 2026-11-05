@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T17:44:13.835961Z
+last_sync_at 2026-11-05T18:16:24.073881Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -778,6 +778,39 @@ derived_priorities (
     {id napi-values, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id napi.abort-race-all, priority 1, derived_at 2026-11-05T02:15:29.773078Z}
     {id napi.entity-busy-race, priority 3, derived_at 2026-11-05T14:14:15.598156Z}
+    {id napi.guide-gaps.batch-execute, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.binding-refusals, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.connection-discard, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.copy-described-rows, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.copy-row-codec, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.copy-source-checks, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.cursor-secondary-order, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.entity-select-reads, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.expression-functions, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.graph-joins, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.graph-limit-refusal, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.json-shape, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.metrics, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.migrations, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.model-column-casts, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.model-expression-shape, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.model-query-clauses, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.model-schema, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.models-from-ddl, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.pg-19, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.pipeline-models, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.pool-builder, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.pool-tags, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.prql-text, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.raw-into-model, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.raw-pages, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.relation-conditions, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.relation-loaders, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.sql-grammar-check, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.tls-configuration, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.transaction-retry, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.transaction-streams, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.guide-gaps.verify, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id nested-source-from-entry, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id nopanic.codegen-gate, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
     {id nopanic.connect-builders, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
@@ -1932,6 +1965,8 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.codegen-layout}
         {impl_name python, rule bindings.codegen-layout}
+    ), rule_versions_seen (
+        {id bindings.codegen-layout, version 0}
     )}
     {id codegen.generate, covered_rules (
         codegen.entity
@@ -2150,6 +2185,11 @@ impl_evidence (
         {impl_name main, rule migration.frozen}
         {impl_name main, rule migration.sql-file.commits-after}
         {impl_name python, rule bindings.migration-file}
+    ), rule_versions_seen (
+        {id bindings.migration-file, version 0}
+        {id disjoint.evolve.frozen, version 0}
+        {id migration.frozen, version 0}
+        {id migration.sql-file.commits-after, version 0}
     )}
     {id disjoint.codegen, covered_rules (
         codegen.entity.disjoint
@@ -2325,7 +2365,11 @@ impl_evidence (
     ), covered_claims (
         {impl_name main, rule query.graph.grouped}
     )}
-    {id guide.javascript}
+    {id guide.javascript, covered_rules (
+        guide.dialects
+    ), covered_claims (
+        {impl_name javascript, rule guide.dialects}
+    )}
     {id guide.python, covered_rules (
         guide.dialects
     ), covered_claims (

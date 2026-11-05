@@ -130,7 +130,7 @@ binding differs from Rust, in shape, spelling or reach, and adds what its
 language needs: installing, the async runtime, typing, packaging. Each
 lives in its binding's directory of pgorm's repository: the Python guide is
 `pgorm-python/guide/`, whose index is `pgorm-python/guide/README.md`, and the
-JavaScript documentation is `pgorm-napi/README.md`, `ENTITIES.md`, `CODEGEN.md`
-and `DISTRIBUTION.md`. The rules both bindings
-follow are in `docs/spec/bindings.md`, with what differs by language in
+JavaScript guide is `pgorm-napi/guide/`, with `pgorm-napi/DISTRIBUTION.md`
+covering its npm packages. The rules both bindings follow are in
+`docs/spec/bindings.md`, with what differs by language in
 `docs/spec/python.md` and `docs/spec/napi.md`.
