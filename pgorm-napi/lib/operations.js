@@ -3,7 +3,7 @@
 // What the connection classes share: the addon they call, the abort tokens an
 // `AbortSignal` fires, how a row's values become an object, and how a
 // callback's transaction ends.
-// [spec:pgorm:req:napi.cancellation+1]
+// [spec:pgorm:req:napi.cancellation+2]
 
 import { LifecycleError } from "./errors.js";
 
@@ -33,29 +33,49 @@ export function signalOf(signal) {
 }
 
 /**
+ * What a pool, a connection and a transaction do with an operation that
+ * finished in the addon after its signal fired, which the caller is told was
+ * aborted: nothing, its result being discarded, or, in a transaction, end the
+ * transaction with nothing committed, as an abort the addon saw does.
+ */
+export const LATE = Symbol("pgorm-napi late abort");
+
+/**
  * Run `start` with a native abort token that `signal` fires, rejecting with
  * the signal's reason once it has: an aborted operation's outcome is unknown,
  * and the addon has discarded the connection it ran on.
  *
+ * The operation can finish in the addon before the abort reaches it, its
+ * result still queued for this thread. The call was aborted first all the
+ * same, so it rejects with the signal's reason, after `late` has released
+ * what the result holds.
+ *
  * @template T
  * @param {AbortSignal | undefined} signal
  * @param {(token: unknown) => Promise<T>} start
+ * @param {(result: T) => unknown} [late]
  * @returns {Promise<T>}
  */
-export async function abortable(signal, start) {
+export async function abortable(signal, start, late) {
   if (signal === undefined) return await start(undefined);
   signal.throwIfAborted();
   const token = native.abortToken();
   const onAbort = () => native.abort(token);
   signal.addEventListener("abort", onAbort, { once: true });
+  let result;
   try {
-    return await start(token);
+    result = await start(token);
   } catch (error) {
     if (signal.aborted) throw signal.reason;
     throw error;
   } finally {
     signal.removeEventListener("abort", onAbort);
   }
+  if (signal.aborted) {
+    await late?.(result);
+    throw signal.reason;
+  }
+  return result;
 }
 
 /**

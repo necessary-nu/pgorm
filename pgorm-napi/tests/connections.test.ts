@@ -608,7 +608,7 @@ test("a timestamptz reads as one instant whatever time zone the session is set t
   assert.ok(row.n instanceof Temporal.Instant);
 });
 
-// [spec:pgorm:req:napi.cancellation+1/test]
+// [spec:pgorm:req:napi.cancellation+2/test]
 // [spec:pgorm:req:bindings.cancellation/test]
 test("aborting a statement rejects with the signal's reason and discards its connection", async () => {
   await using single = new Pool(scratch(), { maxSize: 1 });
@@ -658,7 +658,7 @@ test("aborting a statement in a transaction ends the transaction and nothing com
   assert.deepEqual(await ids(), []);
 });
 
-// [spec:pgorm:req:napi.cancellation+1/test]
+// [spec:pgorm:req:napi.cancellation+2/test]
 test("a signal bounds a pool's own statement and acquisition", async () => {
   await assert.rejects(
     pool().execute("SELECT pg_sleep(10)", [], { signal: AbortSignal.timeout(100) }),

@@ -15,7 +15,7 @@
 import { statementArgs } from "./builder.js";
 import { COPY, CopyRunner } from "./copy.js";
 import { Listener, LISTENER, listenerOptions, notifyJob } from "./listen.js";
-import { abortable, native, queryOptions, row, scoped, signalOf, TRUSTED } from "./operations.js";
+import { abortable, LATE, native, queryOptions, row, scoped, signalOf, TRUSTED } from "./operations.js";
 import { RowStream } from "./streams.js";
 
 /** The statement runner each class implements, keyed privately. */
@@ -65,7 +65,11 @@ export class Queryable extends CopyRunner {
   async #rows(terminal, statement, params, options) {
     const [sql, values, rest] = statementArgs(statement, params, options);
     const { tagged, signal } = queryOptions(rest);
-    const [names, rows] = await abortable(signal, (token) => this[RUN](terminal, sql, values, tagged, token));
+    const [names, rows] = await abortable(
+      signal,
+      (token) => this[RUN](terminal, sql, values, tagged, token),
+      () => this[LATE](),
+    );
     return rows.map((/** @type {unknown[]} */ values) => row(names, values));
   }
 
@@ -81,7 +85,7 @@ export class Queryable extends CopyRunner {
   async execute(statement, params, options) {
     const [sql, values, rest] = statementArgs(statement, params, options);
     const { signal } = queryOptions(rest);
-    return await abortable(signal, (token) => this[RUN]("execute", sql, values, false, token));
+    return await abortable(signal, (token) => this[RUN]("execute", sql, values, false, token), () => this[LATE]());
   }
 
   /**
@@ -130,7 +134,7 @@ export class Queryable extends CopyRunner {
   async notify(channel, payload, options = {}) {
     const job = notifyJob(channel, payload);
     const { signal } = queryOptions(options);
-    await abortable(signal, (token) => this[JOB](job, token));
+    await abortable(signal, (token) => this[JOB](job, token), () => this[LATE]());
   }
 }
 
@@ -152,7 +156,7 @@ export async function runStatement(db, terminal, statement, options) {
   }
   const [handle, , rest] = statementArgs(statement, undefined, options);
   const { signal } = queryOptions(rest);
-  return await abortable(signal, (token) => db[RUN](terminal, handle, [], false, token));
+  return await abortable(signal, (token) => db[RUN](terminal, handle, [], false, token), () => db[LATE]());
 }
 
 /**
@@ -208,7 +212,7 @@ export async function runJob(db, job, options) {
     throw new TypeError("a registered entity runs on a Pool, a Connection or a Transaction");
   }
   const { signal } = queryOptions(options ?? {});
-  return await abortable(signal, (token) => db[JOB](job, token));
+  return await abortable(signal, (token) => db[JOB](job, token), () => db[LATE]());
 }
 
 /** @type {(connection: Connection) => unknown} */
@@ -263,7 +267,11 @@ export class Pool extends Queryable {
    */
   async acquire(options = {}) {
     const { signal } = queryOptions(options);
-    const handle = await abortable(signal, (token) => native.poolAcquire(this.#native, token));
+    const handle = await abortable(
+      signal,
+      (token) => native.poolAcquire(this.#native, token),
+      (acquired) => native.connectionClose(acquired),
+    );
     return new Connection(handle, TRUSTED);
   }
 
@@ -343,7 +351,11 @@ export class Pool extends Queryable {
    */
   async listener(options = {}) {
     const { capacity, signal } = listenerOptions(options);
-    const handle = await abortable(signal, (token) => native.poolListener(this.#native, capacity, token));
+    const handle = await abortable(
+      signal,
+      (token) => native.poolListener(this.#native, capacity, token),
+      (opened) => native.listenerClose(opened),
+    );
     return new Listener(handle, LISTENER);
   }
 
@@ -450,6 +462,7 @@ export class Connection extends Queryable {
     const handle = await abortable(
       signalOf(signal),
       (token) => native.connectionBegin(this.#native, mode, isolation, token),
+      (begun) => native.transactionAbort(begun),
     );
     return await scoped(handle, new Transaction(handle, this, TRUSTED), use);
   }
@@ -569,6 +582,18 @@ export class Transaction extends Queryable {
   }
 
   /**
+   * End the whole transaction with nothing committed, discarding its
+   * connection, as an abort the addon saw ends it: a statement aborted after
+   * it ran leaves no write behind.
+   *
+   * @override
+   * @returns {Promise<void>}
+   */
+  async [LATE]() {
+    await native.transactionAbort(this.#native);
+  }
+
+  /**
    * Run `use` in a savepoint, which holds this transaction until `use`
    * settles: released when it resolves, rolled back to when it throws.
    *
@@ -579,7 +604,11 @@ export class Transaction extends Queryable {
    */
   async transaction(use, options = {}) {
     const { signal } = queryOptions(options);
-    const handle = await abortable(signal, (token) => native.transactionBegin(this.#native, token));
+    const handle = await abortable(
+      signal,
+      (token) => native.transactionBegin(this.#native, token),
+      (begun) => native.transactionAbort(begun),
+    );
     return await scoped(handle, new Transaction(handle, this, TRUSTED), use);
   }
 

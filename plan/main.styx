@@ -12803,6 +12803,22 @@ children (
                 title "Every abortable JavaScript operation rejects when its signal fired before the native call returned, without losing a notification or leaving a transaction open"
                 kind @fix
                 deps (napi-listen-abort-race)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T02:39:17.567966Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T02:43:23.954202Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
         )
         log (
