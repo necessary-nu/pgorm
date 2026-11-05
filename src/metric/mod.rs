@@ -24,7 +24,7 @@ use tokio_postgres::{
 /// operation name, where the SQL text comes from, and how a row count is read
 /// out of the `Ok` payload — so those are the parameters and the rest is
 /// written once. `$rows` is evaluated against the payload by reference.
-// [spec:pgorm:req:metric.layer.delegate+4]    the timing and reporting body
+// [spec:pgorm:req:metric.layer.delegate+5]    the timing and reporting body
 macro_rules! report {
     ($self:ident, $operation:literal, $sql:expr, $call:expr, $ok:pat => $rows:expr) => {{
         let query = QueryContext::new($operation, $sql);
@@ -224,7 +224,7 @@ impl<M: MetricsCollector> InstrumentedConnection<M> {
     }
 }
 
-// [spec:pgorm:req:metric.layer.delegate+4]
+// [spec:pgorm:req:metric.layer.delegate+5]
 #[async_trait]
 impl<M: MetricsCollector> ConnectionTrait for InstrumentedConnection<M> {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
@@ -322,7 +322,7 @@ impl<'a, M: MetricsCollector> InstrumentedTransaction<'a, M> {
     }
 }
 
-// [spec:pgorm:req:metric.layer.delegate+4]    statements inside a transaction
+// [spec:pgorm:req:metric.layer.delegate+5]    statements inside a transaction
 #[async_trait]
 impl<M: MetricsCollector> ConnectionTrait for InstrumentedTransaction<'_, M> {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>

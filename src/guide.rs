@@ -6,6 +6,9 @@
 // [spec:pgorm:req:guide.rust]    the guide, chapter by chapter, beside the API
 // [spec:pgorm:req:guide.chapters]    one module per listed chapter, in order
 
+// The chapter's feature table lists every feature in pgorm's manifest but
+// `tests-cfg`, which tests/feature_tests.rs holds it to.
+// [spec:pgorm:req:guide.features]
 #[doc = include_str!("../docs/guide/01-getting-started.md")]
 pub mod getting_started {}
 

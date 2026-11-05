@@ -151,7 +151,10 @@ pub(crate) async fn rolled_back<E>(txn: impl sealed::Close, cause: E) -> Transac
 /// The variants keep the closure's own failure distinct from a failure of the
 /// transaction machinery itself, which is why there is deliberately no
 /// `From<Error>` impl: with `E = Error` it would silently file every
-/// closure-side error under `Connection` and erase that distinction.
+/// closure-side error under `Connection` and erase that distinction. The
+/// other direction exists: a `TransactionError<E>` whose `E` is an [`Error`],
+/// or converts into one, converts into an `Error`, so `?` passes a savepoint's
+/// failure to the closure around it.
 // [spec:pgorm:sem:conn.tx.closure+5]    error wrapper
 #[derive(Debug)]
 #[non_exhaustive]
@@ -200,6 +203,29 @@ where
         match self {
             Self::Connection(error) => Some(error),
             Self::Transaction(error) | Self::RollbackFailed { cause: error, .. } => Some(error),
+        }
+    }
+}
+
+/// So that `?` passes a savepoint's failure to the closure it is nested in,
+/// as it passes a statement's: the savepoint's `transaction` returns a
+/// `TransactionError<E>`, the enclosing closure an `Error`.
+///
+/// `Connection` and `Transaction` become the error they hold. A
+/// `RollbackFailed` becomes [`Error::RollbackFailed`], holding both errors,
+/// because the failed rollback is the one thing the enclosing transaction
+/// has to be told: keeping only the cause would report a savepoint that
+/// rolled back cleanly.
+// [spec:pgorm:sem:conn.tx.compose]
+impl<E: Into<Error>> From<TransactionError<E>> for Error {
+    fn from(error: TransactionError<E>) -> Self {
+        match error {
+            TransactionError::Connection(error) => error,
+            TransactionError::Transaction(error) => error.into(),
+            TransactionError::RollbackFailed { cause, rollback } => Error::RollbackFailed {
+                cause: Box::new(cause.into()),
+                rollback: Box::new(rollback),
+            },
         }
     }
 }

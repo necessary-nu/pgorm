@@ -55,6 +55,43 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > rule for every fallible entry point here: `connect_with` itself, and
 > `connect_multi_with_builder` (`conn.pool.multi`), fail the same way.
 
+> [spec:pgorm:req:conn.driver-types]
+> A crate depending on pgorm alone MUST be able to name every type of the
+> crates pgorm is built on — tokio-postgres, deadpool, `bytes` and `futures` —
+> that using pgorm makes it write. Each MUST be re-exported from pgorm's root
+> under its own name, but for the driver's error, which is `PostgresError`
+> because pgorm's own is `Error`. That is every such type pgorm's public
+> signatures take or return:
+>
+> - `Row` and `RowStream`, which the `ConnectionTrait` statement methods
+>   return;
+> - `PostgresError`, which `Error::Postgres` carries and `BindRefusal::of` and
+>   `DecodeRefusal::of` take;
+> - `PoolError`, which `Error::Pool` carries, and `Status`, which
+>   `DatabasePool::status` and `InstrumentedPool::status` return;
+> - `BytesMut`, which `CopyRowEncoder` writes into, beside the `Bytes` of
+>   `conn.copy`;
+> - the `Stream` and `Sink` traits that the COPY sink and stream, the row
+>   streams and `Notifications` implement;
+>
+> and every type a caller writes to use one of those, or one `conn.pool`
+> re-exports:
+>
+> - `SqlState`, the code `PostgresError::code` returns and is compared
+>   against, and `DbError`, the server's error `PostgresError::as_db_error`
+>   returns;
+> - `TimeoutType` and `HookError`, which `PoolError`'s variants carry;
+> - `Runtime`, `Timeouts`, `QueueMode`, `PoolConfig` and `Hook`, which
+>   `PoolBuilder`'s setters take: a pool timeout needs a runtime to time it;
+> - `SslMode`, `SslNegotiation`, `TargetSessionAttrs`, `ChannelBinding`,
+>   `LoadBalanceHosts` and `Host`, which `Config`'s setters take and its
+>   getters return.
+>
+> Without them a program that sets a pool timeout, matches a SQLSTATE outside
+> `SqlError`'s classes, or writes a helper taking a `Row` has to add the
+> dependency pgorm already carries, at a version it has to keep in step by
+> hand.
+
 > [spec:pgorm:sem:conn.pool.get+1]
 > `DatabasePool::get()` asynchronously acquires a pooled connection and wraps
 > it as `DatabaseConnection`; acquisition failure surfaces as
@@ -72,24 +109,26 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > breaks transactional reasoning, so the pool-as-connection pattern inherited
 > from SeaORM was removed.
 
-> [spec:pgorm:sem:conn.pool.multi+2]
+> [spec:pgorm:sem:conn.pool.multi+3]
 > `connect_multi_with_builder(config, builders)` builds one pool per entry of a
 > `BTreeMap<String, builder-fn>`: each pool clones the shared
 > `tokio_postgres::Config`, is tagged with its map key, and uses
-> `RecyclingMethod::Fast`; the result is a
-> `Result<BTreeMap<Arc<String>, DatabasePool>, Error>` keyed by tag. Every
-> builder is caller input, so construction is fallible on the same terms as
-> `connect_with_builder` (`conn.pool`): the first entry whose builder cannot
-> produce a pool aborts the whole construction with `Error::Custom` and no map
-> is returned. `DatabaseMultiPool` wraps the same map shape and offers
-> `get(key) -> Option<DatabasePool>` (a cheap clone of the refcounted pool) and
-> `status()` returning per-tag `deadpool::Status`.
+> `RecyclingMethod::Fast`; the result is a `Result<DatabaseMultiPool, Error>`,
+> the pools keyed by tag. Every builder is caller input, so construction is
+> fallible on the same terms as `connect_with_builder` (`conn.pool`): the
+> first entry whose builder cannot produce a pool aborts the whole
+> construction with `Error::Custom` and no pool is returned.
 >
-> Selection is explicit by tag key only — there is no round-robin, load
-> balancing, or fallback across pools. `DatabaseMultiPool` currently has no
-> public constructor (its field is crate-private and
-> `connect_multi_with_builder` returns the raw `BTreeMap` on success), so
-> outside the crate it is effectively read-only API surface.
+> `DatabaseMultiPool` is built by `connect_multi_with_builder` alone; its map
+> is crate-private. It offers `get(tag: &str) -> Option<&DatabasePool>`,
+> `iter()` over `(&str, &DatabasePool)` in tag order, `status()` returning
+> each pool's `Status` keyed by tag, and `close()`, which closes every pool
+> (`conn.pool.lifecycle`). Selection is explicit by tag only — there is no
+> round-robin, load balancing, or fallback across pools.
+>
+> The type once had no constructor at all: `connect_multi_with_builder`
+> returned the bare map, and `DatabaseMultiPool`, public with its accessors,
+> could not be obtained outside the crate.
 
 > [spec:pgorm:req:conn.pool.config-forwarding+1]
 > `pgorm_pool::Config` is the deserializable connection configuration — the
@@ -498,7 +537,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > particular connection already in hand, and there a prepared `Statement` is
 > the point rather than the hazard.
 
-> [spec:pgorm:def:conn.pool.conn-trait+8]
+> [spec:pgorm:def:conn.pool.conn-trait+9]
 > `ConnectionTrait` is the uniform statement-execution surface over
 > connections and transactions. It defines seven async methods. Six are
 > generic over `T: ?Sized + SqlText + Sync` — the statement is SQL text and
@@ -547,15 +586,18 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > otherwise unreachable from pgorm because the wrapper types' inner fields are
 > crate-private.
 >
-> A fourth implementor carries no execution of its own: `&mut
-> DatabaseTransaction<'_>` forwards every method through the exclusive borrow.
-> It exists because that is the handle a transaction closure is given
-> (`conn.tx.closure`), and a helper generic over `C: ConnectionTrait` taking
-> `&C` cannot be passed one without it — `&mut T` is its own type, distinct
-> from `T`, and the coercion to `&T` does not fire into an inference variable,
-> so the call site would otherwise have to reborrow as `&*txn`. Being a
-> distinct type is also why the impl cannot overlap the one for
-> `DatabaseTransaction`.
+> One further impl carries no execution of its own: `&mut C`, for every
+> implementor `C`, forwards every method through the exclusive borrow. It
+> exists because a transaction closure is given its handle as `&mut` — `&mut
+> DatabaseTransaction<'_>` on a connection or a transaction, `&mut
+> InstrumentedTransaction<'_, M>` on the metrics wrappers (`metric.layer.tx`)
+> — and a helper generic over `C: ConnectionTrait` taking `&C` cannot be
+> passed one without it: `&mut T` is its own type, distinct from `T`, and the
+> coercion to `&T` does not fire into an inference variable, so the call site
+> would otherwise have to reborrow as `&*txn`. It is one impl over every
+> implementor rather than one per handle type so that no closure's handle can
+> be left out, as the instrumented one once was. Being a distinct type is also
+> why it cannot overlap the impl for `C` itself.
 
 > [spec:pgorm:def:conn.pool.generic-client]
 > `pgorm_pool::GenericClient` is the sealed trait (`Sync` + a private
@@ -804,6 +846,37 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > A caller that would hand the connection on, a pool's or a binding's, needs
 > that to discard it (`DatabaseConnection::discard`) rather than lend it
 > again.
+
+> [spec:pgorm:sem:conn.tx.compose]
+> A savepoint's failure MUST reach the closure it is nested in through `?`,
+> as a statement's does. The savepoint's `transaction` returns a
+> `TransactionError<E>` while the enclosing closure returns its own error, so
+> pgorm implements `From<TransactionError<E>> for Error` for every
+> `E: Into<Error>`: `Connection(error)` becomes `error`, `Transaction(error)`
+> becomes `error.into()`, and `RollbackFailed { cause, rollback }` becomes
+> `Error::RollbackFailed { cause, rollback }`, both boxed (`error.model`).
+> A closure whose error is a type of the caller's own gets `?` by implementing
+> the same conversion into it.
+>
+> The conversion MUST NOT drop a failed rollback for its cause. A savepoint
+> whose `ROLLBACK TO SAVEPOINT` failed has left the enclosing transaction in
+> a state nobody knows, and the enclosing closure, its caller, and a
+> `transaction_with_retry` deciding whether to replay all have to see that
+> it did; reporting only the cause would describe a savepoint that rolled
+> back cleanly. `Error::RollbackFailed` keeps the cause as its `source()`, as
+> `TransactionError::RollbackFailed` does, and is not retryable
+> (`conn.tx.retry`) whatever its cause: a failed rollback is not a refusal
+> the server asks the client to replay, and a replay that succeeded would
+> bury it. Flattening `Connection` and `Transaction` loses nothing the
+> enclosing transaction acts on: either way the savepoint is over and its
+> error is the enclosing closure's to return or handle.
+>
+> The same conversion applies to a transaction opened on a connection, in a
+> function whose error is `Error`. Flattening there is the caller's choice,
+> made by writing `?`; the `TransactionError` it flattens is still what
+> `transaction` returns. `Error::RollbackFailed` then means what
+> `TransactionError::RollbackFailed` means: the connection's state is
+> unknown, and it is to be discarded.
 
 > [spec:pgorm:sem:conn.tx.retry+3]
 > `DatabaseConnection::transaction_with_retry(opts, max_retries, f)` is

@@ -119,12 +119,16 @@ chooses to construct, so unused metrics cost nothing.
 
 ## Delegation contract
 
-> [spec:pgorm:req:metric.layer.delegate+4]
+> [spec:pgorm:req:metric.layer.delegate+5]
 > Instrumented wrappers MUST delegate every operation to the wrapped type and
 > return its result unchanged — wrapping preserves `ConnectionTrait`
 > semantics, adding only timing and collector calls around each awaited
 > operation. Both `InstrumentedConnection` and `InstrumentedTransaction`
-> implement `ConnectionTrait`; on success they report
+> implement `ConnectionTrait`, and so does the `&mut InstrumentedTransaction`
+> a transaction closure is given, through the `&mut` forwarding of
+> `conn.pool.conn-trait`: inside an instrumented closure `find().all(&txn)`
+> and a helper taking `&C` are passed `&txn`, as inside a plain one, and run
+> on the instrumented handle. On success they report
 > `record_query_success` with a `QueryContext` (`metric.fingerprint`) naming
 > the operation (`"execute"`,
 > `"execute_raw"`, `"query_one"`, `"query_opt"`, `"query_all"`,

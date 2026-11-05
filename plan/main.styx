@@ -852,7 +852,6 @@ children (
                         [spec:pgorm:def:exec.decode.many]
                         [spec:pgorm:req:exec.decode.many-arity]
                         [spec:pgorm:def:exec.decode.json]
-                        [spec:pgorm:def:exec.decode.from-u64]
                         [spec:pgorm:def:exec.crud]
                         [spec:pgorm:sem:exec.crud.select]
                         [spec:pgorm:sem:exec.crud.insert]
@@ -1661,12 +1660,22 @@ children (
                 id signature-types-reexported
                 title "pgorm re-exports every type its public signatures take or return, so a crate depending only on pgorm can name them: Row, RowStream, SqlState, BytesMut and the pool's Runtime, Timeouts, Status and PoolError"
                 kind @feat
+                implements {
+                    main ([spec:pgorm:req:conn.driver-types])
+                }
                 log (
                     {
                         at 2026-11-05T14:39:47.926014Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (reading, errors, configuration and COPY chapters). src/database/mod.rs re-exports Config, IsolationLevel, NoTls, Socket, the TLS traits, ManagerConfig, PoolBuilder, RecyclingMethod, StatementCacheSize and Bytes, but not: tokio_postgres's Row and RowStream (which query_one/query_all and query_raw return), its SqlState (so matching a SQLSTATE outside SqlError's classes compares error.code().map(|s| s.code()) as text), bytes::BytesMut (which CopyRowEncoder's header/trailer/encode take, src/database/copy_rows.rs:266-285), and deadpool's Runtime (every pool timeout needs builder.runtime(..)), Timeouts, QueueMode, Status (which DatabasePool::status and InstrumentedPool::status return) and PoolError. A crate depending only on pgorm cannot name them; the guide names pgorm_pool::Runtime and tokio_postgres::Row directly."
+                    }
+
+                    {
+                        at 2026-11-05T15:32:15.050835Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Audit (rustdoc links from every pgorm page to another crate's, impl and implementor lists excluded) plus deadpool's own reexport set. The rule, new as conn.driver-types: every tokio-postgres/deadpool/bytes/futures type that using pgorm makes a caller write is re-exported at pgorm's root under its own name. First level (pgorm's own signatures): Row, RowStream, tokio_postgres::Error, PoolError, Status, BytesMut, and the Stream/Sink traits (CopyRowStream::models returns impl Stream; CopyInSink is a Sink). Second level (what a caller writes to use those or conn.pool's re-exports): SqlState and DbError (PostgresError::code / as_db_error), TimeoutType and HookError (PoolError's payloads), Runtime/Timeouts/QueueMode/PoolConfig/Hook (PoolBuilder's setters), SslMode/SslNegotiation/TargetSessionAttrs/ChannelBinding/LoadBalanceHosts/Host (Config's setters and getters). tokio_postgres::Error is re-exported as PostgresError, the one rename, because pgorm::Error is pgorm's. Left out, as third level a caller never has to write: deadpool's Metrics and pgorm_pool's ClientWrapper (a hook closure's inferred arguments), BuildError (PoolBuilder::build, which pgorm calls), tokio_postgres's Column (Row::columns, used through methods), TlsStream (implementing a connector, the TLS crates' job), Client/Connection (Config::connect, not pgorm's path). StreamExt/SinkExt are not re-exported: they are not in any signature, and a reader still takes futures for them. The re-exports sit in src/database/mod.rs, not the error module, so the entity prelude (which globs error::*) is unchanged. Python and JavaScript have no counterpart: they expose no driver types."
                     }
                 )
             }
@@ -1676,12 +1685,34 @@ children (
                 title "An instrumented transaction's &mut handle is a ConnectionTrait, as a plain transaction's is"
                 kind @fix
                 deps (tx-closure-only)
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:39:49.154195Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (metrics chapter). ConnectionTrait is implemented for &mut DatabaseTransaction<'_> (src/database/db_connection.rs:622) but not for &mut InstrumentedTransaction<'_, M> (src/metric/mod.rs), so inside an instrumented transaction closure find().all(&txn) fails E0277 where the plain closure's compiles; the guide passes &*txn and explains why."
+                    }
+
+                    {
+                        at 2026-11-05T15:43:02.42844Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:48:48.57736Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rather than a second hand-written forwarding impl for &mut InstrumentedTransaction<'_, M> beside the one for &mut DatabaseTransaction<'_>, the forwarding impl is now one blanket impl<C: ConnectionTrait> ConnectionTrait for &mut C (src/database/connection.rs), replacing the DatabaseTransaction-only one. That covers every closure handle at once, so none can be left out again, and removes the duplicated 60-line body; it also makes &mut DatabaseConnection and &mut InstrumentedConnection connections, which is harmless (no impl overlaps: &mut C is distinct from C, and &DatabaseConnection is a shared reference). conn.pool.conn-trait +9 (one impl over every implementor) and metric.layer.delegate +5 (the instrumented handle passes as &txn), both owned by infra.conn / infra.metrics, which get a re-cover commit. The bindings have no counterpart: their handles are internal."
+                    }
+
+                    {
+                        at 2026-11-05T15:52:07.355141Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -2601,12 +2632,29 @@ children (
                 id inert-features
                 title "pgorm's features each do something: runtime-tokio and pgorm-internal are removed or given a meaning, and debug-print says what it gates"
                 kind @chore
+                implements {
+                    main ([spec:pgorm:req:guide.features])
+                }
                 log (
                     {
                         at 2026-11-05T14:15:36.450828Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (getting started chapter). Cargo.toml declares runtime-tokio (on by default) and pgorm-internal, which no cfg reads anywhere in the workspace, and debug-print, which gates only the exported debug_print! macro (src/util.rs:16) that pgorm itself never calls. The guide's feature table leaves all three out. Remove them (and from package.metadata.docs.rs and the self dev-dependency), or give each a meaning and document it."
+                    }
+
+                    {
+                        at 2026-11-05T16:14:16.759839Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:18:20.833938Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision built (pending operator override): runtime-tokio, pgorm-internal and debug-print deleted, with the debug_print! macro (src/util.rs, now gone with its module). Removed from Cargo.toml's [features], the default list (whose duplicated \"macros\" entry went too), package.metadata.docs.rs and the self dev-dependency; no CI workflow or binding manifest named them. pgorm-python's capabilities manifest listed runtime-tokio as the feature behind every pool/connection/listener/COPY/transaction operation and in its build feature list: those operations now name no feature. COMING_FROM_SEAORM.md maps SeaORM's debug-print (gone: a metrics collector sees each statement's SQL, LoggingMetrics logs every query). New rule guide.features, held by tests/feature_tests.rs: every declared feature forwards to something or is read by a cfg in src/, and the getting-started chapter's table lists exactly the features but tests-cfg (it did already; that test would have caught debug-print, which a cfg read but the guide did not list, and the other two, which nothing read)."
                     }
                 )
             }
@@ -2615,12 +2663,34 @@ children (
                 id retire-try-from-u64
                 title "TryFromU64 and Error::ConvertFromU64, which nothing in pgorm calls, are retired"
                 kind @refactor
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:39:48.842374Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (errors chapter). TryFromU64 is a bound on PrimaryKeyTrait::ValueType (src/entity/primary_key.rs:22) and implemented throughout (src/executor/query.rs:851, active_enum.rs:221, query_range.rs:153/162), but nothing in pgorm calls try_from_u64, so Error::ConvertFromU64 is produced only if a caller invokes the trait itself: a SeaORM leftover (last_insert_id) the error taxonomy still lists. Remove the trait, its bound and the variant, or say what reaches it."
+                    }
+
+                    {
+                        at 2026-11-05T16:25:10.845835Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:28:16.665627Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision built (pending operator override): TryFromU64 deleted with every impl (the numeric, String and refusing impls in src/executor/query.rs, the blanket ActiveEnum impl, Range and Multirange), its bound on PrimaryKeyTrait::ValueType, and Error::ConvertFromU64. Nothing in the workspace or either binding called try_from_u64. Rule exec.decode.from-u64 deleted (and removed from orm.exec's implements); entity.traits.primary-key +8 (the bound), entity.traits.active-enum.limits +3 (its \"MUST declare auto_increment = false\" sentence went with the blanket impl it followed from: auto_increment on a non-integer key renders the plain type in schema generation and an insert reads the key back through RETURNING, so nothing else needs it), error.model +13 (records the removal beside RecordNotUpdated's). The guide's errors table loses the row; COMING_FROM_SEAORM.md maps DbErr::ConvertFromU64 and TryFromU64 as gone. Side effect: a primary key's value type no longer has to implement a pgorm trait no derive wrote."
+                    }
+
+                    {
+                        at 2026-11-05T16:31:41.480605Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -4242,6 +4312,9 @@ children (
                 id savepoint-error-composes
                 title "A savepoint's TransactionError converts into its enclosing closure's error, so ? works on a nested transaction"
                 kind @feat
+                implements {
+                    main ([spec:pgorm:sem:conn.tx.compose])
+                }
                 deps (tx-closure-only)
                 log (
                     {
@@ -4249,6 +4322,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (transactions chapter). TransactionTrait::transaction on a DatabaseTransaction (a savepoint) returns Result<T, TransactionError<E>>, while the enclosing closure returns Result<_, E>, and no From connects them (src/database/transaction.rs), so ? on a nested savepoint needs a hand-written map_err over the variants. The guide inspects is_err() instead."
+                    }
+
+                    {
+                        at 2026-11-05T15:52:28.302494Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:59:53.342041Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Design: impl<E: Into<Error>> From<TransactionError<E>> for Error (src/database/transaction.rs). Connection(e) -> e, Transaction(e) -> e.into(), and RollbackFailed { cause, rollback } -> a new Error::RollbackFailed { cause: Box<Error>, rollback: Box<Error> } (source() = cause, Display \"{cause}; its ROLLBACK failed: {rollback}\", not retryable whatever the cause). The new variant is what keeps a savepoint's failed ROLLBACK TO SAVEPOINT from being lost: keeping only the cause would report a savepoint that rolled back cleanly, and the enclosing transaction (and transaction_with_retry) must see it. Considered and rejected: Error::Transaction(Box<TransactionError<Error>>) (only one of its variants could ever occur); a generic impl From<TransactionError<E>> for E (orphan rule forbids it — a closure error type of the caller's own implements the conversion itself, which the guide says). The conversion also lets a fn returning Error take a whole transaction's outcome with ?; there the flattening is the caller's choice, and Error::RollbackFailed means the connection is to be discarded. New rule conn.tx.compose (owned here); error.model +12 lists the variant. Bindings: no counterpart problem — Python's nested `async with tx.transaction()` and JS's tx.transaction(cb) propagate exceptions into the enclosing scope, and a failed rollback already carries both errors (__context__ / SuppressedError, bindings.tx)."
                     }
                 )
             }
@@ -10557,12 +10644,34 @@ children (
                 id multi-pool-constructor
                 title "connect_multi_with_builder returns a DatabaseMultiPool, or the public type with no constructor goes"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:39:49.469135Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (configuration chapter). DatabaseMultiPool (src/database/db_connection.rs:116) is public, with get and status, but nothing constructs it: connect_multi_with_builder returns BTreeMap<Arc<String>, DatabasePool>. The guide documents the map and leaves the type out."
+                    }
+
+                    {
+                        at 2026-11-05T16:05:32.685001Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:09:34.475608Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision built (pending operator override): connect_multi_with_builder returns Result<DatabaseMultiPool, Error>. Since nothing could construct the type before, its accessors were reshaped for use: the map is keyed by the tag String (no Arc<String> argument to build), get(&str) -> Option<&DatabasePool> (a borrow, as BTreeMap::get; .cloned() is the caller's), status() -> BTreeMap<&str, Status>, plus iter() over (&str, &DatabasePool) in tag order and close(), which closes every pool — the two things the returned map offered (iteration, closing each value) that the type otherwise would not. #[repr(transparent)] dropped: nothing transmutes it. conn.pool.multi +3 (owned by infra.conn). No binding counterpart: neither binding has a multi-pool constructor; a dict or Map of pools is the dialect's own."
+                    }
+
+                    {
+                        at 2026-11-05T16:14:16.428067Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

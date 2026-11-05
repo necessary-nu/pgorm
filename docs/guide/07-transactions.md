@@ -195,7 +195,12 @@ fn give_back<T>(db: DatabaseConnection, outcome: &Result<T, TransactionError<Err
 
 A transaction is itself a `TransactionTrait`. Its `transaction` opens a
 savepoint: a transaction nested inside the first, which commits into it or
-rolls back alone. Here the order survives a line that fails:
+rolls back alone. A savepoint's `transaction` returns a `TransactionError`
+like any other, and a `TransactionError` converts into an
+[`Error`](crate::Error), so `?` passes a savepoint's failure on to the
+closure around it as it passes a statement's. Here the order survives a line
+naming a cake that does not exist, and any other failure ends the whole
+order:
 
 ```rust
 # use pgorm_guide_support::{order, order_line};
@@ -203,7 +208,7 @@ rolls back alone. Here the order survives a line that fails:
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("transactions_savepoint").await;
 # let pool = scratch.pool.clone();
-use pgorm::entity::prelude::*;
+use pgorm::{SqlError, TransactionError, entity::prelude::*};
 
 let placed_at: DateTimeWithTimeZone = "2026-11-04T10:00:00Z".parse()?;
 let mut db = pool.get().await?;
@@ -232,8 +237,20 @@ let (order, skipped) = db
                     .await
                 })
                 .await;
-            if line.is_err() {
-                skipped.push(cake_id);
+            match line {
+                Ok(_) => {}
+                // No such cake: the savepoint rolled the line back, and the
+                // order goes on without it.
+                Err(TransactionError::Transaction(error))
+                    if matches!(
+                        error.sql_error(),
+                        Some(SqlError::ForeignKeyConstraintViolation(_))
+                    ) =>
+                {
+                    skipped.push(cake_id)
+                }
+                // Anything else is the order's failure too.
+                Err(other) => return Err(other.into()),
             }
         }
         Ok::<_, Error>((order, skipped))
@@ -254,6 +271,56 @@ assert_eq!((lines, skipped), (2, vec![99]));
 Without the savepoint, the failed insert would have aborted the whole
 transaction: PostgreSQL refuses every later statement in a transaction one
 statement has failed in, until it rolls back.
+
+The conversion keeps what each variant says. `Transaction(e)` becomes `e`,
+and `Connection(e)`, a `SAVEPOINT` or `RELEASE` that failed, becomes its
+error. A savepoint whose `ROLLBACK TO SAVEPOINT` failed becomes
+[`Error::RollbackFailed`](crate::Error::RollbackFailed), holding the
+closure's error as `cause` and the rollback's as `rollback`: the enclosing
+transaction is then in a state nobody knows, and `?` carries that out to it
+rather than reporting a savepoint that rolled back cleanly. Returned from the
+enclosing closure, it rolls that transaction back too.
+
+The same `?` works on a transaction opened on a connection, in a function
+whose error is `Error`:
+
+```rust
+# use pgorm_guide_support::cake;
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("transactions_question_mark").await;
+# let pool = scratch.pool.clone();
+use pgorm::entity::prelude::*;
+
+/// Raise the price of every cake a bakery sells by `cents`, returning how
+/// many changed.
+async fn raise_prices(db: &mut DatabaseConnection, bakery: i32, cents: i64) -> Result<u64, Error> {
+    let raised = db
+        .transaction(async |txn| {
+            Update::many(cake::Entity)
+                .col_expr(
+                    cake::Column::Price,
+                    Expr::col(cake::Column::Price).add(Decimal::new(cents, 2)),
+                )
+                .filter(cake::Column::BakeryId.eq(bakery))
+                .exec(&txn)
+                .await
+        })
+        .await?;
+    Ok(raised)
+}
+
+let mut db = pool.get().await?;
+assert_eq!(raise_prices(&mut db, 1, 10).await?, 3);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+A closure whose error is a type of your own gets the same `?` by converting
+a `TransactionError` of it into it, as `Error` does: keep `RollbackFailed`'s
+two errors rather than only its cause.
 
 ## Choosing the isolation level and access mode
 

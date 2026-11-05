@@ -266,7 +266,7 @@ pub async fn a_failed_commit_reports_error_and_rollback() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:metric.layer.delegate+4/test]    query_opt's Some/None row counts
+// [spec:pgorm:req:metric.layer.delegate+5/test]    query_opt's Some/None row counts
 #[pgorm_macros::test]
 pub async fn query_opt_reports_one_row_or_zero() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_query_opt_metricopt").await;
@@ -319,8 +319,79 @@ pub async fn query_opt_reports_one_row_or_zero() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:metric.layer.delegate+4/test]    a cache hit is still a reported call
-// [spec:pgorm:def:conn.pool.conn-trait+8/test]    the wrapper inherits the routing it delegates to
+mod widget {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "widget")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+async fn widget_count<C: ConnectionTrait>(db: &C) -> Result<i64, Error> {
+    Ok(db
+        .query_one("SELECT count(*) FROM widget", &[])
+        .await?
+        .get(0))
+}
+
+// [spec:pgorm:req:metric.layer.delegate+5/test]    an instrumented closure's handle is passed as `&txn`
+// [spec:pgorm:def:conn.pool.conn-trait+9/test]    every closure's `&mut` handle is a connection
+#[pgorm_macros::test]
+pub async fn instrumented_handle_is_a_connection() -> Result<(), Error> {
+    use pgorm::EntityTrait;
+
+    let ctx = TestContext::new("metric_layer_handle_metrichandle").await;
+    let metrics = RecordingMetrics::default();
+    let pool = InstrumentedPool::new(ctx.db.clone(), metrics.clone());
+
+    let mut conn = pool.get().await?;
+    conn.batch_execute(
+        "CREATE TABLE widget (id int primary key); INSERT INTO widget VALUES (1), (2)",
+    )
+    .await?;
+
+    let (found, counted) = conn
+        .transaction(async |txn| {
+            let found = widget::Entity::find().all(&txn).await?;
+            let counted = txn
+                .transaction(async |savepoint| widget_count(&savepoint).await)
+                .await
+                .expect("the savepoint commits");
+            Ok::<_, Error>((found.len(), counted))
+        })
+        .await
+        .expect("the instrumented transaction commits");
+    assert_eq!((found, counted), (2, 2));
+
+    assert_eq!(
+        metrics.count("query_success:query_all:Some(2)"),
+        1,
+        "the ORM read through `&txn` is the instrumented handle's: {:?}",
+        metrics.events()
+    );
+    assert_eq!(
+        metrics.count("query_success:query_one:Some(1)"),
+        1,
+        "the helper given `&savepoint` ran on the instrumented savepoint: {:?}",
+        metrics.events()
+    );
+    assert_eq!(metrics.count("transaction_begin"), 2);
+    assert_eq!(metrics.count("transaction_commit"), 2);
+
+    drop(conn);
+    ctx.delete().await;
+
+    Ok(())
+}
+
+// [spec:pgorm:req:metric.layer.delegate+5/test]    a cache hit is still a reported call
+// [spec:pgorm:def:conn.pool.conn-trait+9/test]    the wrapper inherits the routing it delegates to
 #[pgorm_macros::test]
 pub async fn cached_statements_still_report_each_call() -> Result<(), Error> {
     const SQL: &str = "SELECT id FROM widget WHERE id = 1";
@@ -369,7 +440,7 @@ pub async fn cached_statements_still_report_each_call() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:metric.layer.delegate+4/test]    batch_execute reports a rowless success
+// [spec:pgorm:req:metric.layer.delegate+5/test]    batch_execute reports a rowless success
 #[pgorm_macros::test]
 pub async fn instrumented_batch_execute_reports_no_rows() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_batch_execute_txbatch").await;

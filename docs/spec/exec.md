@@ -303,17 +303,6 @@ These rules capture what the code does today, including known gaps.
 > each element of a JSON array and fails with
 > `Error::Json("Value is not an Array")` for any non-array value.
 
-> [spec:pgorm:def:exec.decode.from-u64+3]
-> `TryFromU64` converts a `u64` (e.g. a rows-affected-derived id) into a
-> primary-key value type. Numeric impls (`i8`, `i16`, `i32`, `i64`, `u8`,
-> `u16`, `u32`, `u64`) use checked `TryInto`, failing with
-> `Error::Conversion` on overflow. `String` converts via `to_string`.
-> Every other implementor — `bool`, `f32`, `f64`, `Vec<u8>`,
-> `serde_json::Value`, the jiff types, `Decimal`,
-> `uuid::Uuid`, `Range<T>` and `Multirange<T>` over any subtype, which a
-> temporal key holds as its period (`entity.traits.primary-key`), and tuples
-> of arity 2 through 12 — unconditionally returns `Error::ConvertFromU64`.
-
 ## Statement verification (`exec.verify`)
 
 > [spec:pgorm:def:exec.verify]

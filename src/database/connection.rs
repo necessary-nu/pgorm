@@ -68,7 +68,7 @@ impl SqlText for String {
 /// ```
 ///
 /// [`batch_execute`]: ConnectionTrait::batch_execute
-// [spec:pgorm:def:conn.pool.conn-trait+8]
+// [spec:pgorm:def:conn.pool.conn-trait+9]
 #[async_trait::async_trait]
 pub trait ConnectionTrait: Sync {
     /// Execute a SQL statement with its bound parameters, returning the number
@@ -148,4 +148,80 @@ pub trait ConnectionTrait: Sync {
     /// involved.
     #[doc(alias = "execute_unprepared")]
     async fn batch_execute(&self, sql: &str) -> Result<(), Error>;
+}
+
+/// A transaction closure is given its handle as `&mut`: `&mut
+/// DatabaseTransaction` on a connection or a transaction, `&mut
+/// InstrumentedTransaction` on the metrics wrappers. A helper taking `&C`
+/// would otherwise have to be passed a reborrowed `&*txn`, since `&mut T` is
+/// its own type and the coercion to `&T` does not fire into the inference
+/// variable `C`. Forwarding through the exclusive borrow, for every
+/// implementor at once, makes each closure's handle spell a connection the way
+/// the transaction it borrows does.
+// [spec:pgorm:def:conn.pool.conn-trait+9]    the closure's handle is itself a connection
+#[async_trait::async_trait]
+impl<C: ConnectionTrait> ConnectionTrait for &mut C {
+    async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+    where
+        T: ?Sized + SqlText + Sync,
+    {
+        (**self).execute(statement, params).await
+    }
+
+    async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
+    where
+        T: ?Sized + SqlText + Sync,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P> + Send,
+        I::IntoIter: ExactSizeIterator,
+    {
+        (**self).execute_raw(statement, params).await
+    }
+
+    async fn query_one<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Row, Error>
+    where
+        T: ?Sized + SqlText + Sync,
+    {
+        (**self).query_one(statement, params).await
+    }
+
+    async fn query_opt<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<Row>, Error>
+    where
+        T: ?Sized + SqlText + Sync,
+    {
+        (**self).query_opt(statement, params).await
+    }
+
+    async fn query_all<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + SqlText + Sync,
+    {
+        (**self).query_all(statement, params).await
+    }
+
+    async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+    where
+        T: ?Sized + SqlText + Sync,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P> + Send,
+        I::IntoIter: ExactSizeIterator,
+    {
+        (**self).query_raw(statement, params).await
+    }
+
+    async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+        (**self).batch_execute(sql).await
+    }
 }
