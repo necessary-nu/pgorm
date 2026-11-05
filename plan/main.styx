@@ -18104,4 +18104,89 @@ children (
             }
         )
     }
+
+    {
+        id binding-parity
+        title "Python and JavaScript offer every shared feature in one shape, Rust's, with no name left undecided in bindings-surface.json"
+        kind @refactor
+        deps (binding-spec-consolidation)
+        children (
+            {
+                id binding-parity.grouping
+                title "Grouping elements are built one way in both bindings, as pgorm-query's GroupingElement constructors build them"
+            }
+
+            {
+                id binding-parity.table-functions
+                title "A table function in FROM is built one way in both bindings, as pgorm-query's TableFunction is"
+            }
+
+            {
+                id binding-parity.like-patterns
+                title "A LIKE pattern and its escape are written one way in both bindings, as pgorm-query's LikeExpr is"
+            }
+
+            {
+                id binding-parity.identifiers
+                title "A runtime identifier is passed one way in both bindings, as Rust passes one"
+            }
+
+            {
+                id binding-parity.registered-inserts
+                title "A registered entity's insert is typed by row count in both bindings, as Rust's Insert::one and Insert::many are, upsert returns included"
+            }
+
+            {
+                id binding-parity.pipeline-terminals
+                title "A pipeline runs through the same terminals in both bindings, as Rust's pipeline terminals run it"
+            }
+
+            {
+                id binding-parity.verify-annotations
+                title "Every shared binding rule is verified in both bindings: Python tests bindings.model-columns and JavaScript tests bindings.optional"
+                kind @test
+            }
+        )
+        log (
+            {
+                at 2026-11-05T13:42:02.239151Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Operator 2026-11-05: \"you were meant to fix them all ... Subagent to fix all the lack of parity. Rust user guide is the MAIN one. The others are just dialects of it.\" This supersedes decision (7) of 2026-10-30, under which each shape waited for its own proposal. Lead decision: every feature the two bindings offer in different shapes takes Rust's shape (pgorm / pgorm-query), spelled by python.naming and napi.naming. Where Rust has no counterpart, it takes the shape the earlier shape decisions set: a class made only by its factories, as with Conflict.on, MergeAction and the DDL factories. bindings-surface.json is then left with no undecided name and no open question. As of 2026-11-05 the undecided names are: Python's Identifier, LikePattern, TableFunction, EntityInsertMany, Pipeline.all/one/optional and GroupingElement.set/empty/rollup/cube/sets; JavaScript's cube, groupingSet, groupingSets, rollup, tableFunction and EntityInsert.returningUpserts."
+            }
+        )
+    }
+
+    {
+        id guide
+        title "pgorm has a complete user guide, written for Rust, with the Python and JavaScript guides each a dialect of it"
+        kind @docs
+        deps (coming-from-seaorm)
+        children (
+            {
+                id guide.rust
+                title "The Rust user guide teaches all of pgorm from a first query on, every example a doctest"
+            }
+
+            {
+                id guide.python
+                title "The Python guide is the Rust guide's dialect: the same chapters in Python, every example run against a server"
+                deps (guide.rust binding-parity)
+            }
+
+            {
+                id guide.javascript
+                title "The JavaScript guide is the Rust guide's dialect: the same chapters in JavaScript, every example run in Node.js and Deno"
+                deps (guide.rust binding-parity)
+            }
+        )
+        log (
+            {
+                at 2026-11-05T13:42:04.191216Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Operator 2026-11-05: \"Rust user guide is the MAIN one. The others are just dialects of it.\" The Rust guide is the canonical user documentation for pgorm. It is a guide for a new user, not a SeaORM porting map (COMING_FROM_SEAORM.md stays as that). The Python and JavaScript guides follow its chapters one for one, in their own language and spelling. Each says where its binding differs, and it adds only what its own language needs (installation, async runtime, typing or TypeScript, packaging, codegen for registrations). Audit of 2026-11-05 (names merely mentioned, a lower bound): the root README is a list of SeaORM differences, and the crate root doc is about 30 lines. Neither mentions disjoint enums, one-of references, the pipeline, LISTEN or the bindings. Python's 17 guides miss 13 shared names (the pipeline's *_with family, one_of_entities, Pool.acquire, COPY's force_null_all and force_not_null_all). JavaScript's README, ENTITIES, CODEGEN and DISTRIBUTION miss 75 (every COPY option, the paginators' fetchPage and numItemsAndPages, window frames, unionAll, intersectAll and except, Pool.status and ping, the pipeline's *With family, sourceTuples, oneOfEntities, CreateType.asEnum and asComposite, and more). No binding guide's examples are executed."
+            }
+        )
+    }
 )
