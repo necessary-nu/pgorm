@@ -69,6 +69,17 @@ print(json.dumps({'version': pgorm.__version__, 'python': platform.python_versio
     )
 
 
+def guide_examples(root, directory):
+    """Write the guide's examples that run on the standalone wheel as modules
+    beside the bakery they import, for mypy to check as the guide's reader
+    would run them."""
+    sys.path.insert(0, str(root / "pgorm-python/guide"))
+    import examples
+
+    paths = examples.write(directory, examples.all_examples(registered=False))
+    return [directory / "bakery.py", *paths]
+
+
 # [spec:pgorm:req:python.typing+2]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -116,6 +127,8 @@ def main():
             [*launcher, "--version"], environment, capture=True
         ).stdout.split(" (")[0]
         run([*mypy, application], environment)
+        guide = guide_examples(root, Path(temporary) / "guide")
+        run([*mypy, *guide], environment)
         run([*mypy, "--package", "pgorm"], environment)
         rejected = reject_invalid(
             mypy, root / "pgorm-python/tests/public_types_invalid.py", environment
@@ -130,6 +143,7 @@ def main():
         "type_checker": checker,
         "invalid_typing_cases": rejected,
         "application": result,
+        "guide_examples": len(guide) - 1,
     }
     report.write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary, indent=2))

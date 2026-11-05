@@ -19020,6 +19020,7 @@ children (
                         title "What the Python guide's examples found broken: the stubs refuse range column types and Decimal, date, UUID, bytes, Interval and range pipeline operands the runtime takes; Range, Multirange and MergeAction, generic in the stubs, cannot be subscripted at run time; copy_in_rows writes a mapping's keys or a set's members as a row; and importing pgorm warns of an invalid escape"
                         kind @fix
                         deps (python.typing)
+                        sealed true
                         log (
                             {
                                 at 2026-11-05T18:04:57.005378Z
@@ -19033,6 +19034,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "single-flight overridden: started while guide.python had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T18:05:52.145361Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
                             }
                         )
                     }

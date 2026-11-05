@@ -25,6 +25,8 @@ bindings wrap the same crate.
   `pgorm::guide` module of the API documentation: run `cargo doc --open` and
   follow `guide`, where the examples read without their test scaffolding and
   every link resolves.
+- **[The Python guide](pgorm-python/guide/README.md)** is the guide's Python
+  dialect: the same chapters in Python, every example run against a server.
 - [Coming from SeaORM](COMING_FROM_SEAORM.md) maps each SeaORM API to what
   replaces it, for porting an application. pgorm began as a fork of SeaORM
   and keeps its shape: entities, models, active models and relations.
@@ -48,7 +50,7 @@ published on crates.io; depend on it by git.
 | `pgorm-pool` | The connection pool |
 | `pgorm-migration` | The migration runner ([guide](docs/guide/21-migrations.md)) |
 | `pgorm-codegen` | Entity generation from DDL ([guide](docs/guide/22-codegen.md)) |
-| `pgorm-python` | The Python package `pgorm` |
+| `pgorm-python` | The Python package `pgorm` ([guide](pgorm-python/guide/README.md)) |
 | `pgorm-napi` | The npm package `@necessary/pgorm`, for Node.js and Deno |
 
 ## License
