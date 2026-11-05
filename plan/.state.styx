@@ -2988,6 +2988,11 @@ impl_evidence (
     ), rule_versions_seen (
         {id testing.isolation, version 0}
     )}
+    {id python-bind-refusal-text, covered_rules (
+        error.model.bind-refusal
+    ), covered_claims (
+        {impl_name main, rule error.model.bind-refusal}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

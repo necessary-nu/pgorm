@@ -104,7 +104,7 @@ option.
 > the runtime: an operation that does I/O is awaited in the language's own
 > asynchronous form (`python.runtime`, `napi.promises`).
 
-> [spec:pgorm:req:bindings.errors+3]
+> [spec:pgorm:req:bindings.errors+4]
 > Each binding MUST report a failure as an instance of its own error classes,
 > all derived from one base class of the binding and from the language's own
 > base error:
@@ -123,7 +123,10 @@ option.
 > - `ConnectionError` when the server cannot be reached or the connection
 >   breaks;
 > - `ConstructionError` for an argument whose value cannot become what pgorm
->   sends;
+>   sends; one its parameter's type refuses as the driver encodes it is
+>   reported with pgorm's `BindRefusal` text (`error.model.bind-refusal`),
+>   `parameter $1 cannot be bound:` followed by pgorm's reason, the same text
+>   in each binding;
 > - `DecodeError` for a result that cannot become the native value asked for,
 >   a wrong row count among them (`bindings.row-count`);
 > - `LifecycleError` for a pool, connection, transaction, stream or listener

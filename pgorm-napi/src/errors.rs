@@ -93,7 +93,7 @@ impl Failure {
     /// The class name `lib/index.js` maps the failure to.
     pub(crate) fn kind(&self) -> &'static str {
         match self {
-            // [spec:pgorm:req:bindings.errors+3]    the constraint classes pgorm's SqlError names
+            // [spec:pgorm:req:bindings.errors+4]    the constraint classes pgorm's SqlError names
             Self::Database(diagnostics) => match diagnostics.sqlstate.as_str() {
                 "23505" => "UniqueViolationError",
                 "23503" => "ForeignKeyViolationError",
@@ -194,7 +194,7 @@ impl std::error::Error for Failure {}
 /// Classify a pgorm error. A PostgreSQL error anywhere in its cause chain
 /// decides the class, so a server's refusal during connection (a bad password,
 /// a missing database) carries its SQLSTATE like any other.
-// [spec:pgorm:req:bindings.errors+3]
+// [spec:pgorm:req:bindings.errors+4]
 pub(crate) fn failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
     let mut source: &(dyn std::error::Error + 'static) = error;
     loop {
@@ -239,16 +239,8 @@ fn postgres_failure(error: &tokio_postgres::Error, secrets: &Redactions) -> Fail
             || phase == "query returned an unexpected number of rows"
         {
             Failure::Decode(secrets.apply(&explained))
-        } else if let Some(index) = phase
-            .strip_prefix("error serializing parameter ")
-            .and_then(|index| index.parse::<usize>().ok())
-        {
-            let cause = std::error::Error::source(error)
-                .map(|cause| format!(": {cause}"))
-                .unwrap_or_default();
-            Failure::Construction(
-                secrets.apply(&format!("parameter ${} cannot be bound{cause}", index + 1)),
-            )
+        } else if let Some(refusal) = pgorm::BindRefusal::of(error) {
+            Failure::Construction(secrets.apply(&refusal.to_string()))
         } else {
             Failure::Connection(format!(
                 "PostgreSQL connection or protocol failure: {}",
@@ -328,7 +320,7 @@ mod tests {
         assert_eq!(Failure::Internal("x".into()).kind(), "InternalError");
     }
 
-    // [spec:pgorm:req:bindings.errors+3/test]
+    // [spec:pgorm:req:bindings.errors+4/test]
     #[test]
     fn a_constraint_violation_names_its_own_class() {
         let violation = |sqlstate: &str| {

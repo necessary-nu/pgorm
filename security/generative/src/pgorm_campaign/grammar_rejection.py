@@ -15,7 +15,14 @@ from . import baseline, wire
 from .grammar_pipeline import Pipeline
 from .grammar_sequence import account_row, accounts, tenant_guard
 from .grammar_state import DEFAULT_INPUTS
-from .refusals import CARRIED_UNSIGNED, EMPTY_INSERT, UNQUOTABLE, UNSERIALIZABLE
+from .refusals import (
+    CARRIED_UNSIGNED,
+    EMPTY_INSERT,
+    OUT_OF_RANGE,
+    UNQUOTABLE,
+    UNSERIALIZABLE,
+    unsigned_overflow,
+)
 
 
 def _database(sqlstate):
@@ -162,8 +169,9 @@ def _unsigned(state):
     )
     int8 = {"name": "int8", "schema": "pg_catalog"}
     _select(state, carried, mode, int8)
+    refusal = OUT_OF_RANGE.format(unsigned_overflow(refused), "int8")
     error = (
-        {"class": "ConstructionError", "cause": UNSERIALIZABLE.format(0)}
+        {"class": "ConstructionError", "cause": UNSERIALIZABLE.format(1, refusal)}
         if mode == "bound"
         else _database("22003")
     )

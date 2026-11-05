@@ -129,16 +129,17 @@ class ReferenceTests(unittest.TestCase):
         self.assertEqual((text, values), ("%s::bigint", ["9223372036854775807"]))
         array = {"kind": "array", "element": {"kind": "u64"}}
         null = wire.scalar("u64", None, sql_null=True)
+        refusal = "value `9223372036854775808` is out of range for Postgres type `int8`"
         for statement, position in (
-            (bound(past), 0),
-            (bound(fits) + ", " + bound(wire.scalar(array, [null, past])), 1),
-            (literal(fits) + ", " + bound(past), 0),
+            (bound(past), 1),
+            (bound(fits) + ", " + bound(wire.scalar(array, [null, past])), 2),
+            (literal(fits) + ", " + bound(past), 1),
         ):
             with self.assertRaises(Rejection) as raised:
                 statement.command()
             self.assertEqual(
                 raised.exception.observation["cause"],
-                "error serializing parameter " + str(position),
+                f"parameter ${position} cannot be bound: {refusal}",
             )
         # Inlined digits are the server's to refuse, never the binding's.
         self.assertEqual(literal(past).command()[1], ["9223372036854775808"])

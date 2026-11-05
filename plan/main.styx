@@ -17290,6 +17290,9 @@ children (
                 id python-bind-refusal-text
                 title "Python reports pgorm's bind refusal text, as JavaScript does, not \"error serializing parameter 0\""
                 kind @fix
+                implements {
+                    main ([spec:pgorm:sem:error.model.bind-refusal])
+                }
                 deps (money-beyond-entities)
                 log (
                     {
@@ -17297,6 +17300,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by money-beyond-entities: binding a value a column's type refuses (e.g. a Decimal to a money parameter where no cast applies) reports in Python as tokio-postgres's \"error serializing parameter 0\", while JavaScript reports pgorm's \"cannot bind a `Decimal` value to Postgres type `money`\". The Python error path loses the source error's text; carry it as JavaScript does, with a test in each binding asserting the message."
+                    }
+
+                    {
+                        at 2026-11-05T00:20:42.999496Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
                     }
                 )
             }

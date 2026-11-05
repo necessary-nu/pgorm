@@ -250,21 +250,24 @@ impl ObservedError {
             // phase; inspect that before redaction, never a nested cause whose
             // content the program under test chose.
             let phase = error.to_string();
-            let class = if phase.starts_with("error deserializing column ")
+            if phase.starts_with("error deserializing column ")
                 || phase.starts_with("invalid column `")
                 || phase == "query returned an unexpected number of columns"
             {
-                "DecodeError"
-            } else if phase.starts_with("error serializing parameter ") {
-                "ConstructionError"
-            } else {
+                return Self::new("DecodeError", secrets.apply(&phase), None);
+            }
+            if let Some(refusal) = pgorm::BindRefusal::of(error) {
                 return Self::new(
-                    "ConnectionError",
-                    "PostgreSQL connection or protocol failure",
+                    "ConstructionError",
+                    secrets.apply(&refusal.to_string()),
                     None,
                 );
-            };
-            return Self::new(class, secrets.apply(&phase), None);
+            }
+            return Self::new(
+                "ConnectionError",
+                "PostgreSQL connection or protocol failure",
+                None,
+            );
         };
         Self::new(
             "DatabaseError",
