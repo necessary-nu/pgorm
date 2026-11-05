@@ -19,6 +19,10 @@ export default async function example({ pool }: GuideContext): Promise<void> {
   assert.equal(ann["display name"], "Ann|before");
   assert.equal(ann.version, 1);
 
+  // The same name is no change.
+  assert.equal(Account.intoActive(ann).setIfNotEquals("display name", "Ann|before").isChanged(), false);
+  assert.equal(Account.intoActive(ann).setIfNotEquals("note", "seen").isChanged(), true);
+
   const changed = await Account.intoActive(ann).set("note", "seen").update(pool);
   assert.equal(changed.version, 2);
   assert.equal(Account.intoActive(changed).get("note").state, "unchanged");

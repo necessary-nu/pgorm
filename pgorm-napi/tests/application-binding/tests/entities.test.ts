@@ -236,6 +236,16 @@ test("an ActiveModel holds each column's state, and its writes run the applicati
   assert.deepStrictEqual(inserted, { id: 1, "display name": "Ann|before", note: null, version: 1, mood: "calm" });
   const active = Account.intoActive(inserted);
   assert.deepStrictEqual(active.get("display name"), { state: "unchanged", value: "Ann|before" });
+  // [spec:pgorm:req:bindings.entity-active-changes/test]    setIfNotEquals sets only a different value
+  assert.equal(active.isChanged(), false);
+  const same = active.setIfNotEquals("display name", "Ann|before").setIfNotEquals("mood", "calm");
+  assert.deepStrictEqual(same.get("display name"), { state: "unchanged", value: "Ann|before" });
+  assert.equal(same.isChanged(), false);
+  const other = active.setIfNotEquals("display name", "Anna");
+  assert.deepStrictEqual(other.get("display name"), { state: "set", value: "Anna" });
+  assert.equal(other.isChanged(), true);
+  assert.equal(active.isChanged(), false);
+  assert.throws(() => active.setIfNotEquals("version", "one" as never), ConstructionError);
   const updated = await active.set("note", "seen").update(pool());
   assert.equal(updated.version, 2);
   assert.equal(updated.note, "seen");

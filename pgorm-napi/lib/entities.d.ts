@@ -296,6 +296,14 @@ export declare class ActiveModel<T extends EntityTypes<any, any> = EntityTypes> 
   get<C extends EntityColumnName<T>>(column: C): ActiveState<EntityRecordOf<T>[C]>;
   /** The column `set` to a value converted to its declared kind. */
   set<C extends EntityColumnName<T>>(column: C, value: EntityInputOf<T, C> | Value): ActiveModel<T>;
+  /**
+   * The column `set` to a value unless it holds that value unchanged, as
+   * pgorm's `set_if_not_equals` sets it, so {@link isChanged} then says
+   * whether there is anything to write.
+   */
+  setIfNotEquals<C extends EntityColumnName<T>>(column: C, value: EntityInputOf<T, C> | Value): ActiveModel<T>;
+  /** Whether any column is set, `ActiveModelTrait::is_changed`. */
+  isChanged(): boolean;
   notSet(column: EntityColumnName<T>): ActiveModel<T>;
   /** The column back to `unchanged`, if it held a value. */
   reset(column: EntityColumnName<T>): ActiveModel<T>;

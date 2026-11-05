@@ -124,6 +124,7 @@ const EXPORTS: &[(&str, Export)] = &[
     ("entityActiveName", active_name),
     ("entityActiveGet", active_get),
     ("entityActiveChange", active_change),
+    ("entityActiveChanged", active_changed),
     ("entityActiveJob", active_job),
 ];
 
@@ -605,9 +606,18 @@ fn active_get(mut cx: FunctionContext) -> JsResult<JsValue> {
     Ok(pair.upcast())
 }
 
+/// `entityActiveChanged(active)`: `ActiveModelTrait::is_changed`.
+// [spec:pgorm:req:bindings.entity-active-changes]
+fn active_changed(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let active = held!(cx, ActiveHandle, 0);
+    Ok(cx.boolean(active.is_changed()).upcast())
+}
+
 /// `entityActiveChange(active, step, column, value?)`: a new ActiveModel
-/// with one column `set` to a value, `notSet` or `reset`.
+/// with one column `set` to a value, `setIfNotEquals` it, `notSet` or
+/// `reset`.
 // [spec:pgorm:req:bindings.entity-writes+1]
+// [spec:pgorm:req:bindings.entity-active-changes]
 fn active_change(mut cx: FunctionContext) -> JsResult<JsValue> {
     let active = held!(cx, ActiveHandle, 0);
     let step = text!(cx, 1);
@@ -621,6 +631,11 @@ fn active_change(mut cx: FunctionContext) -> JsResult<JsValue> {
             let data = cx.argument::<JsValue>(3)?;
             let value = column_value(&mut cx, &info, data)?;
             active.set(&column, value)
+        }
+        "setIfNotEquals" => {
+            let data = cx.argument::<JsValue>(3)?;
+            let value = column_value(&mut cx, &info, data)?;
+            active.set_if_not_equals(&column, value)
         }
         "notSet" => active.not_set(&column),
         "reset" => active.reset(&column),

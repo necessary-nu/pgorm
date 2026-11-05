@@ -246,7 +246,10 @@ assert.deepEqual(await byId.select("display name", "mood").all(pool), [
 
 `active()` is `ActiveModelBehavior::new`, the application's defaults
 included. `set`, `notSet` and `reset` return a new ActiveModel, and `get`
-reports a column as `notSet`, `set` or `unchanged` with its value. `insert`,
+reports a column as `notSet`, `set` or `unchanged` with its value.
+`setIfNotEquals(column, value)` sets a column only when the value differs
+from the one it holds, as Rust's `set_if_not_equals` does, so `isChanged()`
+then says whether there is anything to write. `insert`,
 `update` and `delete` are `ActiveModelTrait`'s, with the application's hooks
 around them; a hook's refusal is a `ConstructionError` carrying its message.
 The fixture's account appends `|before` to a new account's name, bumps its
@@ -269,6 +272,10 @@ assert.equal(draft.get("version").state, "set");
 const ann = await draft.insert(pool);
 assert.equal(ann["display name"], "Ann|before");
 assert.equal(ann.version, 1);
+
+// The same name is no change.
+assert.equal(Account.intoActive(ann).setIfNotEquals("display name", "Ann|before").isChanged(), false);
+assert.equal(Account.intoActive(ann).setIfNotEquals("note", "seen").isChanged(), true);
 
 const changed = await Account.intoActive(ann).set("note", "seen").update(pool);
 assert.equal(changed.version, 2);

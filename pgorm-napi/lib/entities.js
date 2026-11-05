@@ -329,6 +329,23 @@ export class ActiveModel {
     return new ActiveModel(native.entityActiveChange(this.#native, "set", column, value), this.#entity, MADE);
   }
 
+  /**
+   * The column `set` to `value` unless it holds that value unchanged, as
+   * pgorm's `set_if_not_equals` sets it, so `isChanged()` then says whether
+   * there is anything to write.
+   *
+   * @param {string} column
+   * @param {unknown} value
+   */
+  setIfNotEquals(column, value) {
+    return new ActiveModel(native.entityActiveChange(this.#native, "setIfNotEquals", column, value), this.#entity, MADE);
+  }
+
+  /** Whether any column is set, `ActiveModelTrait::is_changed`. */
+  isChanged() {
+    return /** @type {boolean} */ (native.entityActiveChanged(this.#native));
+  }
+
   /** @param {string} column */
   notSet(column) {
     return new ActiveModel(native.entityActiveChange(this.#native, "notSet", column), this.#entity, MADE);

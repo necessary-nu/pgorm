@@ -302,6 +302,9 @@ pub(crate) trait ActiveBackend: Debug + Send + Sync {
     fn set(&self, column: &str, value: Value) -> Result<Active, Failure>;
     fn not_set(&self, column: &str) -> Result<Active, Failure>;
     fn reset(&self, column: &str) -> Result<Active, Failure>;
+    /// `ActiveModelTrait::set_if_not_equals` on a copy.
+    fn set_if_not_equals(&self, column: &str, value: Value) -> Result<Active, Failure>;
+    fn is_changed(&self) -> bool;
     fn run<'a>(&'a self, db: Database<'a>, write: Write) -> BoxFuture<'a, Result<Written, Error>>;
     /// The concrete adapter, so an entity's batch write can take its own
     /// ActiveModels back out of type-erased handles.
@@ -757,6 +760,16 @@ where
             active.reset(column);
             Ok(())
         })
+    }
+
+    fn set_if_not_equals(&self, name: &str, value: Value) -> Result<Active, Failure> {
+        self.changed(name, |active, column| {
+            active.set_if_not_equals(column, value)
+        })
+    }
+
+    fn is_changed(&self) -> bool {
+        self.value.is_changed()
     }
 
     fn run<'a>(&'a self, db: Database<'a>, write: Write) -> BoxFuture<'a, Result<Written, Error>> {

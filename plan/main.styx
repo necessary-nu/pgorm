@@ -13669,6 +13669,13 @@ children (
                             }
                         )
                     }
+
+                    {
+                        id napi.guide-gaps.model-hooks
+                        title "A declared JavaScript model takes write hooks, the dialect of ActiveModelBehavior: beforeSave(record, insert), afterSave(record, insert), beforeDelete(record), afterDelete(record), possibly returning a promise, given as model(name, { hooks }), run around the model's own record writes with Rust's refusal semantics, statement-builder writes over many rows running none, in one shape with Python's (guide 03-entities Hooks)"
+                        kind @feat
+                        deps (napi-models guide.javascript napi.guide-gaps.model-writes)
+                    }
                 )
             }
         )
@@ -19724,6 +19731,28 @@ children (
                                 text "Doing → Done (nplan complete)"
                             }
                         )
+                    }
+
+                    {
+                        id guide.python-gaps.model-hooks
+                        title "A declared Python model takes write hooks as callables, the dialect of ActiveModelBehavior: before_save(record, insert), after_save(record, insert), before_delete(record), after_delete(record), possibly async, given as Model(..., hooks=...), run around the model's own record writes with Rust's refusal semantics, statement-builder writes over many rows (where/all_rows, update from, delete using) running none (lead decision pending operator override; guide 03-entities Hooks)"
+                        kind @feat
+                        deps (python.models guide.python-gaps.model-writes)
+                        log (
+                            {
+                                at 2026-11-05T22:40:48.853106Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Filed by fork W of the model-relations lane, which ran short of turns before building it. Open design point the builder must settle with the lead: a declared model has no record-level update or delete (its update/delete are statement builders, keyed with where(Model.key(..))), so \"the model's own record writes\" needs a definition — either hooks around a one-row insert(values) and a where(key(..)) update/delete only, or record-level writes mirroring ActiveModelTrait (insert/update/delete of one record by its primary key). Rust runs hooks only around ActiveModel::insert/update/delete; its Insert::one / Update::many / Delete::many run none. The rule would be bindings.model-hooks, built in both bindings with napi.guide-gaps.model-hooks."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.entity-try-inserts
+                        title "A registered entity's insert becomes Rust's TryInsert in both bindings: entity.insert(active).on_conflict_do_nothing() / on_empty_do_nothing() (and insert_many's) give EntityTryInsert / EntityTryInsertMany whose execute, returning_pk(s) and returning_model(s) answer TryInsertResult (Inserted, Conflicted, Empty) through pgorm's TryInsert, in the shape bindings.model-try-inserts gives declared models"
+                        kind @feat
+                        deps (python.entities guide.python-gaps.model-writes)
                     }
                 )
             }

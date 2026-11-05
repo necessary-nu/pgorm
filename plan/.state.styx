@@ -3364,9 +3364,11 @@ impl_evidence (
         {impl_name python, rule bindings.model-write-sources}
     )}
     {id napi.guide-gaps.model-writes, covered_rules (
+        bindings.entity-active-changes
         bindings.model-try-inserts
         bindings.model-write-sources
     ), covered_claims (
+        {impl_name javascript, rule bindings.entity-active-changes}
         {impl_name javascript, rule bindings.model-try-inserts}
         {impl_name javascript, rule bindings.model-write-sources}
     )}
