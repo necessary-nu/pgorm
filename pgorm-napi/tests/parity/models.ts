@@ -72,7 +72,7 @@ export const cases: Record<string, () => Compiled> = {
   "delete": () => Account.delete().where(Account.col("name").eq("x")).inspect(),
   "update-changes": () => Account.update({ name: "x" }).where(Account.col("id").gte(2)).inspect("returningChanges"),
   "insert-upserts": () =>
-    Account.insert({ id: 1, name: "Ann" }).onConflict(Conflict.on("id").update("name")).inspect("returningUpserts"),
+    Account.insert({ id: 1, name: "Ann" }).onConflict(Conflict.on("id").update("name")).inspect("returningUpsert"),
   "relation-find": () => posts.find({ id: 3n }).inspect(),
   "graph": () => Post.graph().joinOne(author).inspect(),
   "graph-maybe-alias": () => Account.graph().joinMaybe(posts, { alias: "p" }).inspect(),

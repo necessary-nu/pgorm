@@ -1151,10 +1151,12 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > model's rows stream from a pool or a connection as records, through the
 > same decode.
 
-> [spec:pgorm:req:bindings.model-writes+1]
-> `insert(values)` and `insert_many(rows)` MUST give a `ModelInsert`,
-> `update(values)` a `ModelUpdate` and `delete()` a `ModelDelete`, building
-> pgorm-query's INSERT, UPDATE and DELETE of a model's table. A field left
+> [spec:pgorm:req:bindings.model-writes+2]
+> `insert(values)` MUST give a `ModelInsert` and `insert_many(rows)` a
+> `ModelInsertMany`, an insert typed by its row count as Rust's
+> `Insert<A, OneRow>` and `Insert<A, ManyRows>` are; `update(values)` a
+> `ModelUpdate` and `delete()` a `ModelDelete`, building pgorm-query's
+> INSERT, UPDATE and DELETE of a model's table. A field left
 > out of `values` MUST stay out of the statement — an insert takes the
 > table's default, an update leaves the column as it is — and a field set to
 > null MUST be written as SQL NULL, which only a nullable field takes. Each
@@ -1162,12 +1164,16 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > the fields set are written in declaration order whatever order the values
 > name them in.
 >
-> Each write MUST have only its own statement's methods. All three have
-> `returning`, `execute` and `inspect`; an insert also has `on_conflict` and
-> the upsert terminals, an update `where`, `all_rows()` and the change
-> terminals, and a delete `where` and `all_rows()`. A method of another kind
-> is one the write lacks, so a type checker refuses the call before anything
-> runs.
+> Each write MUST have only its own statement's methods. All of them have
+> `returning`, `execute` and `inspect`. An insert also has `on_conflict`,
+> `add(values)` and `add_many(rows)`, and its own upsert terminal:
+> `returning_upsert` on a `ModelInsert` and `returning_upserts` on a
+> `ModelInsertMany`, neither the other's. `add` and `add_many` give the
+> `ModelInsertMany` holding its rows and then theirs, its conflict clause
+> kept, as Rust's `add` and `add_many` make a batch of any insert. An update
+> has `where`, `all_rows()` and the change terminals, and a delete `where`
+> and `all_rows()`. A method of another kind is one the write lacks, so a
+> type checker refuses the call before anything runs.
 >
 > An unknown field, an undefined value, a field generated always, an insert
 > leaving out a field neither nullable, defaulted nor generated, an update

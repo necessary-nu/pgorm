@@ -84,15 +84,16 @@ class _Guarded[S: (p.Update, p.Delete)](_Write[S]):
         return self.statement.inspect()
 
 
-# [spec:pgorm:req:bindings.model-writes+1]
 @dataclass(frozen=True, eq=False, slots=True)
-class ModelInsert(_Write[p.Insert | None]):
-    """A model's INSERT, made by its ``insert()`` or ``insert_many()``."""
+class _Insert(_Write[p.Insert | None]):
+    """What a model's INSERT of one row and of a batch share: its rows, the
+    fields they set, and its conflict clause. ``fields`` is ``None`` for an
+    insert of no rows and empty for a row of defaults."""
 
+    fields: tuple[str, ...] | None
     _statements = (p.Insert, type(None))
-    _made_by = "insert() or insert_many()"
 
-    def on_conflict(self, action: p.Conflict | p.ConflictUpdate) -> ModelInsert:
+    def on_conflict(self, action: p.Conflict | p.ConflictUpdate) -> Self:
         """What a conflict does, the statement builders' ``Conflict`` naming
         SQL columns."""
         if not isinstance(action, (p.Conflict, p.ConflictUpdate)):
@@ -101,39 +102,25 @@ class ModelInsert(_Write[p.Insert | None]):
             )
         return replace(self, statement=written(self.statement).on_conflict(action))
 
-    def inspect(
-        self, *, terminal: Literal["returning_upsert", "returning_upserts"] | None = None
-    ) -> p.Compiled:
-        """The SQL and values the insert runs, or the ones its upsert
-        terminals run."""
+    def add(self, values: Mapping[str, Any]) -> ModelInsertMany:
+        """The insert with one more row, which makes it a batch, as Rust's
+        ``Insert::add`` does; its conflict clause is kept."""
+        return self.add_many([values])
+
+    def add_many(self, rows: Sequence[Mapping[str, Any]]) -> ModelInsertMany:
+        """The insert with ``rows`` after its own, a batch, as Rust's
+        ``Insert::add_many`` makes one."""
+        if not isinstance(rows, (list, tuple)):
+            raise TypeError("add_many takes a list or tuple of rows")
+        statement, fields = appended(self.model, self.statement, self.fields, rows)
+        return ModelInsertMany(self.model, statement, fields)
+
+    def _inspect(self, terminal: str | None, upserts: str) -> p.Compiled:
         if terminal is None:
             return written(self.statement).inspect()
-        if terminal not in ("returning_upsert", "returning_upserts"):
-            raise TypeError(
-                'an insert inspects itself, or its "returning_upsert" or "returning_upserts"'
-            )
+        if terminal != upserts:
+            raise TypeError(f'an insert inspects itself, or its "{upserts}"')
         return written(self._upserts()[0]).inspect()
-
-    async def returning_upsert(
-        self, db: Database
-    ) -> Inserted[ModelRecord] | Updated[ModelRecord] | None:
-        """What the insert did with its one row, or None where its conflict
-        clause wrote nothing."""
-        statement, sources = self._upserts()
-        if statement is None:
-            return None
-        pair = await decode_single(db, statement, sources, optional=True)
-        return None if pair is None else upserted(pair)
-
-    async def returning_upserts(
-        self, db: Database
-    ) -> list[Inserted[ModelRecord] | Updated[ModelRecord]]:
-        """What the insert did with each row it wrote; a row its conflict
-        clause held back is left out."""
-        statement, sources = self._upserts()
-        if statement is None:
-            return []
-        return [upserted(pair) for pair in await decode_all(db, statement, sources)]
 
     def _upserts(self) -> tuple[p.Insert | None, tuple[Source, Source]]:
         items, sources = versions(self.model)
@@ -142,7 +129,56 @@ class ModelInsert(_Write[p.Insert | None]):
         return self.statement.returning(*items, old_as=OLD, new_as=NEW), sources
 
 
-# [spec:pgorm:req:bindings.model-writes+1]
+# [spec:pgorm:req:bindings.model-writes+2]
+@dataclass(frozen=True, eq=False, slots=True)
+class ModelInsert(_Insert):
+    """A model's INSERT of one row, made by its ``insert()``: Rust's
+    ``Insert<A, OneRow>``, whose upsert terminal answers for that row."""
+
+    _made_by = "insert()"
+
+    def inspect(self, *, terminal: Literal["returning_upsert"] | None = None) -> p.Compiled:
+        """The SQL and values the insert runs, or the ones its upsert
+        terminal runs."""
+        return self._inspect(terminal, "returning_upsert")
+
+    async def returning_upsert(
+        self, db: Database
+    ) -> Inserted[ModelRecord] | Updated[ModelRecord] | None:
+        """What the insert did with its row, as ``exec_returning_upsert``
+        says, or None where its conflict clause wrote nothing."""
+        statement, sources = self._upserts()
+        pair = await decode_single(db, written(statement), sources, optional=True)
+        return None if pair is None else upserted(pair)
+
+
+# [spec:pgorm:req:bindings.model-writes+2]
+@dataclass(frozen=True, eq=False, slots=True)
+class ModelInsertMany(_Insert):
+    """A model's INSERT of a batch, made by its ``insert_many()`` or an
+    insert's ``add``: Rust's ``Insert<A, ManyRows>``, whose upsert terminal
+    answers for every row it writes."""
+
+    _made_by = "insert_many(), or an insert's add() or add_many()"
+
+    def inspect(self, *, terminal: Literal["returning_upserts"] | None = None) -> p.Compiled:
+        """The SQL and values the insert runs, or the ones its upsert
+        terminal runs."""
+        return self._inspect(terminal, "returning_upserts")
+
+    async def returning_upserts(
+        self, db: Database
+    ) -> list[Inserted[ModelRecord] | Updated[ModelRecord]]:
+        """What the insert did with each row it wrote, as
+        ``exec_returning_upserts`` says; a row its conflict clause held back
+        is left out, and a batch of none sends nothing."""
+        statement, sources = self._upserts()
+        if statement is None:
+            return []
+        return [upserted(pair) for pair in await decode_all(db, statement, sources)]
+
+
+# [spec:pgorm:req:bindings.model-writes+2]
 @dataclass(frozen=True, eq=False, slots=True)
 class ModelUpdate(_Guarded[p.Update]):
     """A model's UPDATE, made by its ``update()``."""
@@ -179,7 +215,7 @@ class ModelUpdate(_Guarded[p.Update]):
         return self.statement.returning(*items, old_as=OLD, new_as=NEW), sources
 
 
-# [spec:pgorm:req:bindings.model-writes+1]
+# [spec:pgorm:req:bindings.model-writes+2]
 @dataclass(frozen=True, eq=False, slots=True)
 class ModelDelete(_Guarded[p.Delete]):
     """A model's DELETE, made by its ``delete()``."""
@@ -216,25 +252,32 @@ def _value(column: Column, value: Any) -> p.Value | p.Expr:
     return value if isinstance(value, p.Expr) else column._value(value)
 
 
-def inserted(model: Model, rows: Sequence[Mapping[str, Any]]) -> ModelInsert:
-    """An INSERT of every row of ``rows``, which set the same fields."""
+def appended(
+    model: Model,
+    statement: p.Insert | None,
+    fields: tuple[str, ...] | None,
+    rows: Sequence[Mapping[str, Any]],
+) -> tuple[p.Insert | None, tuple[str, ...] | None]:
+    """``statement``, the INSERT of rows setting ``fields``, with ``rows``
+    after them, each setting the same fields; the first row of an insert of
+    none names them."""
     if model.table.alias is not None:
         raise p.ConstructionError("model inserts require an unaliased table")
-    sets = [assignments(model, row, insert=True) for row in rows]
-    if not sets:
-        return ModelInsert(model, None)
-    columns = tuple(column for column, _ in sets[0])
-    statement = p.Insert(model.table)
-    if not columns:
-        if len(sets) > 1:
+    for row in rows:
+        set_ = assignments(model, row, insert=True)
+        names = tuple(column for column, _ in set_)
+        if statement is None or fields is None:
+            statement = p.Insert(model.table)
+            if not names:
+                statement, fields = statement.default_values(), ()
+                continue
+            statement, fields = statement.columns(*names), names
+        elif not fields:
             raise p.ConstructionError("rows that set no field are inserted one at a time")
-        return ModelInsert(model, statement.default_values())
-    statement = statement.columns(*columns)
-    for row in sets:
-        if tuple(column for column, _ in row) != columns:
+        elif names != fields:
             raise p.ConstructionError("every row of an insert sets the same fields")
-        statement = statement.values(*(value for _, value in row))
-    return ModelInsert(model, statement)
+        statement = statement.values(*(value for _, value in set_))
+    return statement, fields
 
 
 def updated(model: Model, values: Mapping[str, Any]) -> ModelUpdate:
@@ -249,7 +292,7 @@ def updated(model: Model, values: Mapping[str, Any]) -> ModelUpdate:
     return ModelUpdate(model, statement)
 
 
-# [spec:pgorm:req:bindings.model-writes+1]
+# [spec:pgorm:req:bindings.model-writes+2]
 def versions(model: Model) -> tuple[list[p.Expr | p.Aliased], tuple[Source, Source]]:
     """Every field of both versions for a ``RETURNING WITH (OLD AS
     pgorm_old, NEW AS pgorm_new)`` list, the old under ``o_`` and the new

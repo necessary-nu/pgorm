@@ -587,11 +587,16 @@ const pages = Account.find().orderBy(Account.col("id").asc()).paginate(50);
   and refuses `null`, which `isNull()` tests.
 - **Writes**: a field left out stays out — the table's default on insert,
   the column unchanged on update — and one set to `null` writes NULL. An
-  update or delete needs `where` or `allRows()`. `returning(..fields)` reads
-  the rows written; `returningChange(s)` an update's rows before and after,
-  and `returningUpsert(s)` whether an insert inserted each row or updated
-  the one its conflict found, as pgorm's `exec_returning_change(s)` and
-  `exec_returning_upsert(s)` read them.
+  update or delete needs `where` or `allRows()`. An insert is typed by its
+  row count, as Rust's `Insert<A, OneRow>` and `Insert<A, ManyRows>` are:
+  `insert(values)` gives a `ModelInsert` and `insertMany(rows)` a
+  `ModelInsertMany`, and `add(values)` or `addMany(rows)` on either gives the
+  `ModelInsertMany` of its rows and theirs, its conflict clause kept.
+  `returning(..fields)` reads the rows written; `returningChange(s)` an
+  update's rows before and after; and an insert's `returningUpsert`, on a
+  `ModelInsert`, or `returningUpserts`, on a `ModelInsertMany`, whether it
+  inserted each row or updated the one its conflict found, as pgorm's
+  `exec_returning_change(s)` and `exec_returning_upsert(s)` read them.
 - **Relations** (`belongsTo`, `hasOne`, `hasMany`) pair fields of two
   models. `relation.find(row)` reads the far end of a record and
   `relation.load(db, rows)` the far end of many in one query; a key nothing

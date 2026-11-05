@@ -123,13 +123,19 @@ fields, in declaration order. It requires every key field and rejects extras.
 Keys may be composite. Nullable primary-key declarations are rejected. A key
 declaration alone neither creates a constraint nor checks the database schema.
 
-`insert(mapping)` and `insert_many(rows)` return a `ModelInsert`,
-`update(mapping)` a `ModelUpdate` and `delete()` a `ModelDelete`, each with
-only its own statement's methods, so a type checker refuses an insert's `where`
-or a delete's `returning_change` as it refuses any attribute a class lacks.
-All three take `returning`, `execute` and `inspect`; an insert also takes
-`on_conflict` and the upsert terminals, an update `where`, `all_rows()` and the
-change terminals, and a delete `where` and `all_rows()`. `execute(connection)`
+`insert(mapping)` returns a `ModelInsert` and `insert_many(rows)` a
+`ModelInsertMany`, an insert typed by its row count as Rust's
+`Insert<A, OneRow>` and `Insert<A, ManyRows>` are; `update(mapping)` a
+`ModelUpdate` and `delete()` a `ModelDelete`. Each has only its own
+statement's methods, so a type checker refuses an insert's `where`, a batch's
+`returning_upsert` or a delete's `returning_change` as it refuses any
+attribute a class lacks. All of them take `returning`, `execute` and
+`inspect`. An insert also takes `on_conflict`, `add(mapping)` and
+`add_many(rows)`, which give the `ModelInsertMany` of its rows and theirs, its
+conflict clause kept, and its own upsert terminal: `returning_upsert` on a
+`ModelInsert`, `returning_upserts` on a `ModelInsertMany`. An update takes
+`where`, `all_rows()` and the change terminals, and a delete `where` and
+`all_rows()`. `execute(connection)`
 returns affected rows. `returning(*fields)` selects declared output fields and
 returns a row-producing `ModelRows`; no arguments means all fields. Updates and
 deletes require `where(predicate)` or explicit `all_rows()`, using the native
@@ -147,8 +153,9 @@ row's two versions as pgorm's `exec_returning_change(s)` and
 `exec_returning_upsert(s)` do: a `Change` of `old` and `new` records, and an
 upsert `Inserted(model)` or `Updated(change)`; a row an insert's conflict
 clause held back is None from `returning_upsert` and left out of
-`returning_upserts`. `inspect(terminal=...)` shows the statement each runs: an
-insert's `"returning_upsert"` or `"returning_upserts"`, an update's
+`returning_upserts`. `inspect(terminal=...)` shows the statement each runs: a
+`ModelInsert`'s `"returning_upsert"`, a `ModelInsertMany`'s
+`"returning_upserts"`, an update's
 `"returning_change"` or `"returning_changes"`, any other a `TypeError`.
 
 Missing mapping entries stay omitted, allowing database defaults on INSERT and

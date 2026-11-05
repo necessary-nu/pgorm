@@ -96,6 +96,14 @@ async def invalid(connection: p.Connection) -> None:
     delete.on_conflict(p.Conflict.do_nothing())  # expected-error: attr-defined
     await delete.all_rows().returning_changes(connection)  # expected-error: attr-defined
     delete.inspect(terminal="returning_change")  # expected-error: call-arg
+    # [spec:pgorm:req:bindings.model-writes+2/test]    a model's insert is typed by its row count, each with its own upsert terminal alone
+    await insert.returning_upserts(connection)  # expected-error: attr-defined
+    insert.inspect(terminal="returning_upserts")  # expected-error: arg-type
+    batch = accounts.insert_many([{"id": 1}])
+    await batch.returning_upsert(connection)  # expected-error: attr-defined
+    batch.inspect(terminal="returning_upsert")  # expected-error: arg-type
+    await insert.add({"id": 3}).returning_upsert(connection)  # expected-error: attr-defined
+    await batch.add_many([{"id": 4}]).returning_upsert(connection)  # expected-error: attr-defined
     accounts.columns["id"].value(1)  # expected-error: attr-defined
     accounts.columns["id"].validate(p.Value(1, "i64"))  # expected-error: attr-defined
     accounts.columns["id"].describe()  # expected-error: attr-defined

@@ -15251,7 +15251,6 @@ children (
                 [spec:pgorm:req:bindings.model-columns]
                 [spec:pgorm:req:bindings.model-reads]
                 [spec:pgorm:req:bindings.model-records]
-                [spec:pgorm:req:bindings.model-writes]
                 [spec:pgorm:req:bindings.models]
                 [spec:pgorm:req:bindings.pagination]
                 [spec:pgorm:req:bindings.pipeline]
@@ -15475,7 +15474,6 @@ children (
                 [spec:pgorm:req:bindings.graphs]
                 [spec:pgorm:req:bindings.model-reads]
                 [spec:pgorm:req:bindings.model-records]
-                [spec:pgorm:req:bindings.model-writes]
                 [spec:pgorm:req:bindings.models]
                 [spec:pgorm:req:bindings.pagination]
                 [spec:pgorm:req:bindings.relations]
@@ -18246,6 +18244,10 @@ children (
             {
                 id binding-parity.model-inserts
                 title "A model's insert is typed by row count in both bindings, as a registered entity's and Rust's Insert are: insert(values) answers returning_upsert, insert_many(rows) returning_upserts, neither the other's"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.model-writes])
+                    python ([spec:pgorm:req:bindings.model-writes])
+                }
                 deps (binding-parity.registered-inserts)
                 log (
                     {
@@ -18260,6 +18262,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Correction to the note above: the generative campaign's upsert emitters (effects.py, emit_python.py) call the registered entity's insert / insert_many, not ModelInsert. Grep security/generative for model inserts before assuming it needs a change."
+                    }
+
+                    {
+                        at 2026-11-05T14:55:36.655993Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:05:20.522108Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Coordinator 2026-11-05: fix it rather than leave it. Rust's Insert<A, OneRow> / Insert<A, ManyRows> is the reference. Before: both bindings gave one ModelInsert from insert(values) and insert_many(rows), with both upsert terminals and inspect(terminal) taking either. Chosen: insert(values) gives ModelInsert (returning_upsert, inspect(terminal=\"returning_upsert\")) and insert_many(rows) gives the new ModelInsertMany (returning_upserts, inspect(terminal=\"returning_upserts\")). Both keep on_conflict, returning(fields), execute and inspect. Rust's add / add_many are what make a batch of any insert, so both kinds also gain add(values) / add_many(rows), which give the ModelInsertMany holding the insert's rows then the new ones, its conflict clause kept, and they go in this node rather than insert-terminals because they are the row-count typing's transition. The rows are appended to the native INSERT, refused at once as a ConstructionError when they set other fields than the insert's rows do, or when either is a row of defaults, as insert_many already refused. Python: a private _Insert base (fields, on_conflict, add, add_many, _upserts) under ModelInsert / ModelInsertMany, typed so mypy refuses the other kind's terminal. JavaScript: a module-private Inserting base under ModelInsert / ModelInsertMany, with the private state reached through a static accessor, and models.d.ts declaring the two classes apart. Rejection cases: public_types_invalid.py (six) and model-types.test.ts (five @ts-expect-error). bindings.model-writes is +2; its claims moved here from binding-spec-consolidation (javascript) and python-model-gaps (python). The campaign's execute dispatch (effects.py) and the emitted reproducer's _execute (emit_python.py) take ModelInsertMany too. The campaign builds model inserts only through insert(values), so its grammar is unchanged."
                     }
                 )
             }

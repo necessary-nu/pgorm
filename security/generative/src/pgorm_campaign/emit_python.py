@@ -161,7 +161,9 @@ async def _fetch(query, mode, connection):
 async def _execute(query, connection):
     value = (
         await query.execute(connection)
-        if isinstance(query, (p.ModelInsert, p.ModelUpdate, p.ModelDelete))
+        if isinstance(
+            query, (p.ModelInsert, p.ModelInsertMany, p.ModelUpdate, p.ModelDelete)
+        )
         else await connection.execute(query)
     )
     paths = ["pgorm::ConnectionTrait::execute_raw"]

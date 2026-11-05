@@ -209,7 +209,8 @@ class ModelConstruction(unittest.TestCase):
             lambda: model.insert([("id", 1)]),
             lambda: p.ModelQuery(p.Insert(model.table)),
             lambda: p.ModelRows(model, "SELECT 1", ("id",)),
-            lambda: p.ModelInsert(model, p.Select(p.literal(1))),
+            lambda: p.ModelInsert(model, p.Select(p.literal(1)), ()),
+            lambda: p.ModelInsertMany(model, p.Select(p.literal(1)), ()),
             lambda: p.ModelUpdate(model, p.Insert(model.table)),
             lambda: p.ModelDelete(model, p.Update(model.table)),
             lambda: model.insert(["id"]),
@@ -346,7 +347,7 @@ class ModelConstruction(unittest.TestCase):
         with self.assertRaises(TypeError):
             p.ModelColumn("id", p.Column("i32"), "id")
 
-    # [spec:pgorm:req:bindings.model-writes+1/test]
+    # [spec:pgorm:req:bindings.model-writes+2/test]
     def test_crud_preserves_omission_and_write_guards(self):
         model = accounts()
         omitted = model.insert({"id": 1}).inspect()
@@ -390,7 +391,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute(p.RawSQL("DROP SCHEMA python_models CASCADE"))
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.model-writes+1/test]
+    # [spec:pgorm:req:bindings.model-writes+2/test]
     # [spec:pgorm:req:bindings.model-records+1/test]
     async def test_crud_returns_declared_field_records(self):
         with patch(
@@ -502,7 +503,59 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.ConstructionError):
                 refused()
 
-    # [spec:pgorm:req:bindings.model-writes+1/test]
+    # [spec:pgorm:req:bindings.model-writes+2/test]
+    async def test_insert_row_count_types_and_batches(self):
+        one = self.model.insert({"display_name": "A"})
+        many = self.model.insert_many([{"display_name": "B"}])
+        self.assertIs(type(one), p.ModelInsert)
+        self.assertIs(type(many), p.ModelInsertMany)
+        self.assertFalse(hasattr(one, "returning_upserts"))
+        self.assertFalse(hasattr(many, "returning_upsert"))
+        for write, terminal in ((one, "returning_upserts"), (many, "returning_upsert")):
+            with self.subTest(terminal=terminal), self.assertRaises(TypeError):
+                write.inspect(terminal=terminal)
+        added = one.add({"display_name": "C"})
+        self.assertIs(type(added), p.ModelInsertMany)
+        self.assertEqual(
+            added.inspect().sql,
+            self.model.insert_many([{"display_name": "A"}, {"display_name": "C"}]).inspect().sql,
+        )
+        self.assertEqual(many.add_many([]).inspect().sql, many.inspect().sql)
+        self.assertEqual(
+            self.model.insert_many([]).add({"display_name": "D"}).inspect().sql,
+            self.model.insert_many([{"display_name": "D"}]).inspect().sql,
+        )
+        with self.assertRaisesRegex(p.ConstructionError, "sets the same fields"):
+            one.add({"display_name": "x", "note": "y"})
+        with self.assertRaisesRegex(p.ConstructionError, "one at a time"):
+            self.model.insert({}).add({})
+        with self.assertRaises(TypeError):
+            one.add_many({"display_name": "x"})
+        renamed = p.Conflict.on("id").update("display name")
+        kept = self.model.insert({"id": 1, "display_name": "A"}).on_conflict(renamed).add(
+            {"id": 2, "display_name": "B"}
+        )
+        self.assertIn('ON CONFLICT ("id") DO UPDATE', kept.inspect().sql)
+        written = await kept.returning_upserts(self.pool)
+        self.assertEqual([type(row).__name__ for row in written], ["Inserted", "Inserted"])
+        again = self.model.insert({"id": 1, "display_name": "AA"}).on_conflict(renamed).add_many(
+            [{"id": 3, "display_name": "C"}]
+        )
+        rows = await again.returning_upserts(self.pool)
+        self.assertEqual(
+            [
+                (type(row).__name__, (row.model if hasattr(row, "model") else row.change.new)["display_name"])
+                for row in rows
+            ],
+            [("Updated", "AA"), ("Inserted", "C")],
+        )
+        self.assertEqual(
+            await self.model.insert({"id": 10, "display_name": "E"}).add({"id": 11, "display_name": "F"}).execute(self.pool),
+            2,
+        )
+        self.assertEqual(await self.model.find().count(self.pool), 5)
+
+    # [spec:pgorm:req:bindings.model-writes+2/test]
     async def test_json_null_and_defaults_stay_distinct(self):
         omitted = await self.model.insert({}).returning().one(self.pool)
         sql_null = (

@@ -3122,6 +3122,12 @@ impl_evidence (
         {impl_name python, rule bindings.pipeline-terminals}
         {impl_name python, rule python.pipeline}
     )}
+    {id binding-parity.model-inserts, covered_rules (
+        bindings.model-writes
+    ), covered_claims (
+        {impl_name javascript, rule bindings.model-writes}
+        {impl_name python, rule bindings.model-writes}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

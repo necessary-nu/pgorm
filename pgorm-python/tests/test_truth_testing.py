@@ -64,7 +64,7 @@ BUILT_ELSEWHERE = {
 
 # Bases the model writes share and no program builds: every write refuses
 # through the __bool__ they give it, and each is sampled through a write.
-BASES = {writes._Write, writes._Guarded, changes._Part}
+BASES = {writes._Write, writes._Insert, writes._Guarded, changes._Part}
 
 
 def defined_classes():
@@ -135,7 +135,7 @@ def other_samples():
         s.create_table_as(table, p.select(p.col("id")).from_(table)),
         pl.from_(table), pl.col("items", "id"), pl.from_(table).group(pl.col("items", "id")),
         pl.Over(), pl.source(table),
-        model.col("id"), model.find(), model.delete(), model.insert({"id": 1}),
+        model.col("id"), model.find(), model.delete(), model.insert({"id": 1}), model.insert_many([]),
         model.update({"id": 2}), model.insert({"id": 1}).returning("id"),
         model.graph(), model.find().cursor("id"), model.find().paginate(2),
         *disjoint_samples(),

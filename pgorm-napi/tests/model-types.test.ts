@@ -20,12 +20,14 @@ import {
   type InsertOf,
   type KeyOf,
   model,
+  type ModelInsertMany,
   Multirange,
   type Pool,
   Range,
   type RowOf,
   TypeName,
   type UpdateOf,
+  type ColumnsOf,
 } from "../lib/index.js";
 
 const Account = model("account", {
@@ -83,7 +85,19 @@ async function typed(pool: Pool): Promise<unknown[]> {
   const before: string = change.old.name;
   const upserted = await Account.insert(inserted).returningUpsert(pool);
   const was: string | undefined = upserted?.kind === "updated" ? upserted.old.name : undefined;
-  return [id, mood, tags, span, created, missing, generated, wild, key, title, name, maybe, grouped, loaded, owner, before, was];
+  const each: string[] = (await Account.insert(inserted).add(inserted).returningUpserts(pool)).map((row) => row.new.name);
+  const batch: ModelInsertMany<ColumnsOf<typeof Account>> = Account.insertMany([inserted]).addMany([inserted]);
+  // @ts-expect-error: an insert of one row answers for its row alone
+  Account.insert(inserted).returningUpserts(pool);
+  // @ts-expect-error: a batch answers for every row it wrote
+  Account.insertMany([inserted]).returningUpsert(pool);
+  // @ts-expect-error: a batch, once rows are added
+  Account.insert(inserted).add(inserted).returningUpsert(pool);
+  // @ts-expect-error: an insert of one row inspects its own upsert terminal
+  Account.insert(inserted).inspect("returningUpserts");
+  // @ts-expect-error: and a batch its own
+  Account.insertMany([inserted]).inspect("returningUpsert");
+  return [id, mood, tags, span, created, missing, generated, wild, key, title, name, maybe, grouped, loaded, owner, before, was, each, batch];
 }
 
 // [spec:pgorm:req:napi.typing+1/test]
