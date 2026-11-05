@@ -36,7 +36,7 @@ async fn seed(db: &impl ConnectionTrait) -> Vec<i32> {
 // [spec:pgorm:req:sql.ast.expr.eq-any+1/test]    against a live server:
 // a three-element list and an empty one are the same statement with different
 // parameter payloads, and both select what the predicate says they should
-// [spec:pgorm:def:entity.traits.column+8/test]
+// [spec:pgorm:def:entity.traits.column+9/test]
 #[pgorm_macros::test]
 pub async fn eq_any_round_trips_one_array_parameter() {
     let ctx = TestContext::new("eq_any_round_trips_one_array_parameter").await;

@@ -3,12 +3,12 @@
 // A registered entity's reads: its columns as expressions whose
 // comparisons are the column's own `ColumnTrait` methods, and its
 // `Select<E>` with Rust's terminals.
-// [spec:pgorm:req:bindings.entity-reads+2]
+// [spec:pgorm:req:bindings.entity-reads+3]
 
 import { arg, Handle, TRUSTED } from "./builder.js";
 import { runJob } from "./connections.js";
 import { predicateOf, recordsOf } from "./entities.js";
-import { Expr, OrderBy, Quantified } from "./expressions.js";
+import { Expr, listedValues, OrderBy, Quantified } from "./expressions.js";
 import { native } from "./operations.js";
 
 /** Marks a construction from a registered entity. */
@@ -26,12 +26,13 @@ export let registeredColumn;
  * A registered entity's column. A value it is compared with converts to the
  * column's declared kind and is written through its `save_as`, by the
  * column's own `ColumnTrait` method, and so do `between`'s bounds, the value
- * of a distinctness test and the values of a list it is tested for
- * membership in; a subquery's rows are compared by the trait's
- * `in_subquery`; an expression, and `any(..)` or `all(..)`, are compared as
- * written.
+ * of a distinctness test or a range operator, the values of `any(..)` or
+ * `all(..)` over a list, and those of a list it is tested for membership in;
+ * a subquery's rows are compared by the trait's `in_subquery`; an
+ * expression, and a quantifier over a `Select` or an expression, are
+ * compared as written.
  */
-// [spec:pgorm:req:bindings.column-operators+2]
+// [spec:pgorm:req:bindings.column-operators+3]
 export class EntityColumn extends Expr {
   /** @type {unknown} */
   #entity;
@@ -91,10 +92,21 @@ export class EntityColumn extends Expr {
   }
 
   /**
-   * @param {"eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "isDistinctFrom" | "isNotDistinctFrom"} operator
+   * The column compared through its `ColumnTrait`: a value as the trait's
+   * method of the operator's meaning compares one, and `any(..)` or `all(..)`
+   * over a list as its `compare_any` or `compare_all` does, or `null` for an
+   * operand compared as written.
+   *
+   * @param {string} operator
    * @param {unknown} other
    */
   #compare(operator, other) {
+    const listed = listedValues(other);
+    if (listed !== undefined && !operator.endsWith("DistinctFrom")) {
+      const [quantifier, values] = listed;
+      const quantified = native.entityQuantified(this.#entity, this.#column, operator, quantifier, values);
+      if (quantified !== null) return new Expr(quantified, TRUSTED);
+    }
     if (other instanceof Expr || other instanceof Quantified) return null;
     return new Expr(native.entityCompare(this.#entity, this.#column, operator, other), TRUSTED);
   }
@@ -151,6 +163,70 @@ export class EntityColumn extends Expr {
    */
   isNotDistinctFrom(other) {
     return this.#compare("isNotDistinctFrom", other) ?? super.isNotDistinctFrom(other);
+  }
+
+  /**
+   * @override
+   * @param {unknown} other
+   */
+  contains(other) {
+    return this.#compare("contains", other) ?? super.contains(other);
+  }
+
+  /**
+   * @override
+   * @param {unknown} other
+   */
+  containedBy(other) {
+    return this.#compare("containedBy", other) ?? super.containedBy(other);
+  }
+
+  /**
+   * @override
+   * @param {unknown} other
+   */
+  overlaps(other) {
+    return this.#compare("overlaps", other) ?? super.overlaps(other);
+  }
+
+  /**
+   * @override
+   * @param {unknown} other
+   */
+  strictlyLeftOf(other) {
+    return this.#compare("strictlyLeftOf", other) ?? super.strictlyLeftOf(other);
+  }
+
+  /**
+   * @override
+   * @param {unknown} other
+   */
+  strictlyRightOf(other) {
+    return this.#compare("strictlyRightOf", other) ?? super.strictlyRightOf(other);
+  }
+
+  /**
+   * @override
+   * @param {unknown} other
+   */
+  notExtendRightOf(other) {
+    return this.#compare("notExtendRightOf", other) ?? super.notExtendRightOf(other);
+  }
+
+  /**
+   * @override
+   * @param {unknown} other
+   */
+  notExtendLeftOf(other) {
+    return this.#compare("notExtendLeftOf", other) ?? super.notExtendLeftOf(other);
+  }
+
+  /**
+   * @override
+   * @param {unknown} other
+   */
+  adjacentTo(other) {
+    return this.#compare("adjacentTo", other) ?? super.adjacentTo(other);
   }
 
   /**

@@ -217,7 +217,7 @@ test("find, select and findByKey read records, filtered, ordered and windowed", 
 });
 
 // [spec:pgorm:req:bindings.model-columns+1/test]
-// [spec:pgorm:req:bindings.column-operators+2/test]
+// [spec:pgorm:req:bindings.column-operators+3/test]
 test("a column compares through its declared kind, and refuses what it cannot bind", async () => {
   await seed();
   const glad = await Account.select("name").where(Account.col("mood").eq("glad")).all(pool());

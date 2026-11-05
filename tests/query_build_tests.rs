@@ -295,7 +295,7 @@ fn filter_accumulates_and_accepts_trees() {
     );
 }
 
-// [spec:pgorm:def:entity.traits.column+8/test]    `eq_any` / `ne_all` spend one
+// [spec:pgorm:def:entity.traits.column+9/test]    `eq_any` / `ne_all` spend one
 // parameter on the whole list, so the statement text is the same at every
 // cardinality, where `is_in` / `is_not_in` spend one per element
 #[test]

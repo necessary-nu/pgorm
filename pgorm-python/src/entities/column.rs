@@ -19,10 +19,11 @@ use crate::{
 };
 
 /// A registered entity's column, itself the column's expression: every
-/// `Expr` method reads it as written, and its comparisons, `[NOT] BETWEEN
-/// [SYMMETRIC]`, `IS [NOT] DISTINCT FROM` and membership are the column's own
-/// `ColumnTrait` methods.
-// [spec:pgorm:req:bindings.column-operators+2]
+/// `Expr` method reads it as written, and its comparisons, quantified ones
+/// over a list of values among them, `[NOT] BETWEEN [SYMMETRIC]`,
+/// `IS [NOT] DISTINCT FROM`, range operators and membership are the column's
+/// own `ColumnTrait` methods.
+// [spec:pgorm:req:bindings.column-operators+3]
 #[derive(Clone, Debug)]
 #[pyclass(name = "EntityColumn", module = "pgorm", frozen, from_py_object, extends = PyExpr)]
 pub struct PyEntityColumn {
@@ -47,7 +48,7 @@ impl PyEntityColumn {
     /// bound converted to the column's declared kind as a compared value is.
     /// A bound that is an expression leaves the test to `Expr`'s, both bounds
     /// taken as written.
-    // [spec:pgorm:req:bindings.column-operators+2]
+    // [spec:pgorm:req:bindings.column-operators+3]
     fn bounded(
         &self,
         lower: &Bound<'_, PyAny>,
@@ -86,13 +87,28 @@ impl PyEntityColumn {
             .inner)
     }
 
-    /// A comparison, or `IS [NOT] DISTINCT FROM`, through the column's
-    /// `ColumnTrait`, its value converted as [`compared`](Self::compared)
-    /// converts one. An expression, or `any_(..)` / `all_(..)`, is compared
-    /// as written, as `Expr`'s operator compares it.
-    // [spec:pgorm:req:bindings.entity-reads+2]
-    // [spec:pgorm:req:bindings.column-operators+2]
+    /// A comparison, a distinctness test or a range operator through the
+    /// column's `ColumnTrait`, its value converted as
+    /// [`compared`](Self::compared) converts one, and `any_(..)` / `all_(..)`
+    /// over a list of values through its `compare_any` / `compare_all`, each
+    /// value converted to the column's declared kind. An expression, and a
+    /// quantifier over a `Select`, an expression or a list of a column of no
+    /// scalar kind, is compared as written, as `Expr`'s operator compares it.
+    // [spec:pgorm:req:bindings.entity-reads+3]
+    // [spec:pgorm:req:bindings.column-operators+3]
     fn comparison(&self, value: &Bound<'_, PyAny>, op: Comparison) -> PyResult<PyExpr> {
+        if let Ok(quantified) = value.extract::<PyRef<'_, PyQuantified>>()
+            && let Some(listed) = quantified.listed.as_ref().filter(|_| op.quantifiable())
+        {
+            let input = &self.entity.info().column(&self.name)?.input;
+            if let Some(array) = input.array_of(listed.values.bind(value.py()))? {
+                return self
+                    .entity
+                    .quantified(&self.name, op, listed.all, array.inner)
+                    .map(PyExpr::from_rust)
+                    .map_err(|error| ConstructionError::new_err(error.to_string()));
+            }
+        }
         if value.is_instance_of::<PyExpr>() || value.is_instance_of::<PyQuantified>() {
             return self.expr()?.binary(op.operator(), value);
         }
@@ -110,7 +126,7 @@ impl PyEntityColumn {
     /// over an enum is a member as the enum, and so is what the subquery
     /// projects. A list holding an expression is a member as written, as
     /// `Expr`'s `is_in` takes one.
-    // [spec:pgorm:req:bindings.entity-reads+2]
+    // [spec:pgorm:req:bindings.entity-reads+3]
     fn membership(&self, values: &Bound<'_, PyAny>, negated: bool) -> PyResult<PyExpr> {
         let listed =
             values.is_exact_instance_of::<PyList>() || values.is_exact_instance_of::<PyTuple>();
@@ -203,6 +219,30 @@ impl PyEntityColumn {
     }
     fn is_not_distinct_from(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
         self.comparison(other, Comparison::IsNotDistinctFrom)
+    }
+    fn contains(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        self.comparison(other, Comparison::Contains)
+    }
+    fn contained_by(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        self.comparison(other, Comparison::ContainedBy)
+    }
+    fn overlaps(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        self.comparison(other, Comparison::Overlaps)
+    }
+    fn strictly_left_of(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        self.comparison(other, Comparison::StrictlyLeftOf)
+    }
+    fn strictly_right_of(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        self.comparison(other, Comparison::StrictlyRightOf)
+    }
+    fn not_extend_right_of(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        self.comparison(other, Comparison::NotExtendRightOf)
+    }
+    fn not_extend_left_of(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        self.comparison(other, Comparison::NotExtendLeftOf)
+    }
+    fn adjacent_to(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        self.comparison(other, Comparison::AdjacentTo)
     }
 
     fn is_in(&self, values: &Bound<'_, PyAny>) -> PyResult<PyExpr> {

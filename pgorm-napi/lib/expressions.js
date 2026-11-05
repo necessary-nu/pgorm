@@ -188,18 +188,39 @@ export function array(select) {
 }
 
 /**
+ * The quantifier and the values `value` ranges over when it is `any(..)` or
+ * `all(..)` over a list holding no expression: what a registered column
+ * converts to its declared kind and compares through its `ColumnTrait`.
+ *
+ * @type {(value: unknown) => readonly ["any" | "all", readonly unknown[]] | undefined}
+ */
+export let listedValues;
+
+/**
  * `ANY (..)` or `ALL (..)`, the right operand of an operator PostgreSQL reads
  * one after and nothing else: `col("id").eq(any(ids))`,
  * `col("name").like(any(patterns))`. It has no SQL of its own to inspect.
  */
 export class Quantified extends Handle {
+  /** @type {readonly ["any" | "all", readonly unknown[]] | undefined} */
+  #listed;
+
   /**
    * @param {unknown} handle
    * @param {symbol} [token]
+   * @param {"any" | "all"} [quantifier]
+   * @param {unknown} [source]
    */
-  constructor(handle, token) {
+  constructor(handle, token, quantifier, source) {
     trusted(token, "quantified operand", "any() or all()");
     super(handle);
+    if (quantifier !== undefined && Array.isArray(source) && !source.some((item) => item instanceof Handle)) {
+      this.#listed = Object.freeze([quantifier, Object.freeze([...source])]);
+    }
+  }
+
+  static {
+    listedValues = (value) => value instanceof Quantified ? value.#listed : undefined;
   }
 }
 
@@ -211,7 +232,7 @@ export class Quantified extends Handle {
  * @param {import("./select.js").Select | unknown} source
  */
 export function any(source) {
-  return new Quantified(native.exprQuantified("any", arg(source)), TRUSTED);
+  return new Quantified(native.exprQuantified("any", arg(source)), TRUSTED, "any", source);
 }
 
 /**
@@ -221,5 +242,5 @@ export function any(source) {
  * @param {import("./select.js").Select | unknown} source
  */
 export function all(source) {
-  return new Quantified(native.exprQuantified("all", arg(source)), TRUSTED);
+  return new Quantified(native.exprQuantified("all", arg(source)), TRUSTED, "all", source);
 }

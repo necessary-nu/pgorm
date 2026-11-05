@@ -99,12 +99,17 @@ const first = await query.optional(pool);    // Select::one_opt, LIMIT 1
 - `col(name)` names a column as the entity's `ColumnTrait` does. Its
   comparisons are that trait's: a value converts to the column's declared
   kind and is written through its `save_as`, so an enum's label is cast to
-  its type; an expression, and `any(..)` or `all(..)`, are compared as
-  written; `null` is refused. `between` and `notBetween`, with
-  `{ symmetric }` or without, and `isDistinctFrom` and `isNotDistinctFrom`
-  are the trait's too, their values converted and cast the same way, so a
-  `money` column's bounds are cast to `money`; a bound that is an expression
-  takes the whole test as written. Its
+  its type; `any(..)` or `all(..)` over a list is the trait's `compare_any`
+  / `compare_all`, the list converted to one array of the column's kind and
+  cast as `eq_any`'s is; an expression, and a quantifier over a `Select` or
+  an expression, are compared as written; `null` is refused. `between` and
+  `notBetween`, with `{ symmetric }` or without, `isDistinctFrom` and
+  `isNotDistinctFrom`, and `contains`, `containedBy`, `overlaps` and the
+  range positions are the trait's too, their values converted and cast the
+  same way, so a `money` column's bounds are cast to `money` and a created
+  range is written as its text cast to the type; a bound that is an
+  expression takes the whole test as written, an element `contains` tests
+  among them. Its
   `isIn` and `isNotIn` are the trait's too, over a list of values converted
   the same way or over a `Select`'s rows (`in_subquery`), so a column whose
   domain is over an enum is a member as the enum, which is the only way

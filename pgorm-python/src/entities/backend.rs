@@ -23,10 +23,19 @@ pub(crate) enum Comparison {
     Le,
     IsDistinctFrom,
     IsNotDistinctFrom,
+    Contains,
+    ContainedBy,
+    Overlaps,
+    StrictlyLeftOf,
+    StrictlyRightOf,
+    NotExtendRightOf,
+    NotExtendLeftOf,
+    AdjacentTo,
 }
 
 impl Comparison {
-    /// The operator the comparison is, for an operand compared as written.
+    /// The operator the comparison is, for an operand compared as written
+    /// and for a quantified comparison.
     pub(crate) fn operator(self) -> BinOper {
         match self {
             Self::Eq => BinOper::Equal,
@@ -37,7 +46,21 @@ impl Comparison {
             Self::Le => BinOper::SmallerThanOrEqual,
             Self::IsDistinctFrom => BinOper::IsDistinctFrom,
             Self::IsNotDistinctFrom => BinOper::IsNotDistinctFrom,
+            Self::Contains => BinOper::Contains,
+            Self::ContainedBy => BinOper::Contained,
+            Self::Overlaps => BinOper::Overlap,
+            Self::StrictlyLeftOf => BinOper::LShift,
+            Self::StrictlyRightOf => BinOper::RShift,
+            Self::NotExtendRightOf => BinOper::NotExtendRightOf,
+            Self::NotExtendLeftOf => BinOper::NotExtendLeftOf,
+            Self::AdjacentTo => BinOper::AdjacentTo,
         }
+    }
+
+    /// Whether PostgreSQL reads `ANY` or `ALL` after the operator: every one
+    /// but the distinctness tests.
+    pub(crate) fn quantifiable(self) -> bool {
+        !matches!(self, Self::IsDistinctFrom | Self::IsNotDistinctFrom)
     }
 }
 
@@ -98,6 +121,15 @@ pub(crate) trait EntityBackend: Debug + Send + Sync {
         between: Between,
         lower: Value,
         upper: Value,
+    ) -> Result<SimpleExpr, Error>;
+    /// `column <comparison> ANY (array)`, or `ALL` with `all`, through the
+    /// column's `ColumnTrait::compare_any` / `compare_all`.
+    fn quantified(
+        &self,
+        column: &str,
+        comparison: Comparison,
+        all: bool,
+        array: Value,
     ) -> Result<SimpleExpr, Error>;
     fn membership(
         &self,

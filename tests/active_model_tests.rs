@@ -882,7 +882,7 @@ fn set_from_json_failure_leaves_the_model_untouched() {
 // `serde`'s key namespace, not the SQL column names: a model's own serialization
 // round-trips back through `from_json` / `set_from_json` with every column `Set`,
 // whichever side renamed what
-// [spec:pgorm:def:entity.traits.column+8/test]    which is what `json_key`
+// [spec:pgorm:def:entity.traits.column+9/test]    which is what `json_key`
 // reports, next to the SQL name `as_str` reports
 #[test]
 fn active_model_json_reads_serde_keys() {

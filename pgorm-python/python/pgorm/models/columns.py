@@ -189,7 +189,7 @@ class Column:
 
 
 # [spec:pgorm:req:bindings.model-columns+1]
-# [spec:pgorm:req:bindings.column-operators+2]
+# [spec:pgorm:req:bindings.column-operators+3]
 class ModelColumn(p._DeclaredColumn):
     """A model field's column, itself the column's expression.
 

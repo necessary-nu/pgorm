@@ -17613,6 +17613,22 @@ children (
                 title "any_/all_ and the range operators on a registered column bind their values under the column's casts"
                 kind @fix
                 deps (bindings-between-casts)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T01:41:28.826767Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T02:13:04.66451Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
