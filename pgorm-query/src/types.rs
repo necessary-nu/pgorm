@@ -515,7 +515,7 @@ pub enum FromItem {
     JsonTable(Box<crate::JsonTable>, Name),
     /// A function with an ordinal column, column names or `ROWS FROM`, with
     /// alias, built by [`TableFunction::alias`](crate::TableFunction::alias).
-    // [spec:pgorm:req:sql.ast.select.table-function+2]
+    // [spec:pgorm:req:sql.ast.select.table-function+3]
     TableFunction(Box<crate::TableFunction>, Name),
     /// A table read through `TABLESAMPLE`, its alias on the table it samples.
     // [spec:pgorm:req:sql.ast.select.table-sample]

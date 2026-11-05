@@ -933,7 +933,7 @@ fn grouping_elements_match_rust_builders() -> PyResult<()> {
 }
 
 // [spec:pgorm:req:bindings.select+4/test]
-// [spec:pgorm:req:sql.ast.select.table-function+2/test]    one call, ROWS FROM, ordinality and
+// [spec:pgorm:req:sql.ast.select.table-function+3/test]    one call, ROWS FROM, ordinality and
 // column names, the lone plain call as Rust's FunctionCall item, and anything but a call refused
 #[test]
 fn table_functions_match_rust_builders() -> PyResult<()> {

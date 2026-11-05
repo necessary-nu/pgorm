@@ -1588,7 +1588,7 @@ assertions (
     {id membership-takes-str, kind @complete, author "brendan@necessary.nu", at 2026-11-05T17:16:51.640708Z}
     {id template-static-text, kind @complete, author "brendan@necessary.nu", at 2026-11-05T17:23:29.336124Z}
     {id decoded-selector-renders, kind @complete, author "brendan@necessary.nu", at 2026-11-05T17:30:17.721767Z}
-    {id like-pattern-from-text, kind @doing, author "brendan@necessary.nu", at 2026-11-05T17:30:18.194034Z}
+    {id like-pattern-from-text, kind @complete, author "brendan@necessary.nu", at 2026-11-05T17:51:53.689033Z}
 )
 
 impl_evidence (
@@ -3153,6 +3153,11 @@ impl_evidence (
         {impl_name main, rule error.model.decode-refusal}
     ), rule_versions_seen (
         {id error.model.decode-refusal, version 0}
+    )}
+    {id typed-binds.polymorphic-operands, covered_rules (
+        sql.render.placeholder-typing
+    ), covered_claims (
+        {impl_name main, rule sql.render.placeholder-typing}
     )}
 )
 

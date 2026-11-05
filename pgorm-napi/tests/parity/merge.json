@@ -1,6 +1,6 @@
 {
   "merge-every-arm": {
-    "sql": "MERGE INTO \"app\".\"account\" AS \"t\" USING \"staged\" AS \"s\" ON \"t\".\"id\" = \"s\".\"id\" WHEN MATCHED AND \"s\".\"name\" IS NULL THEN DELETE WHEN MATCHED THEN UPDATE SET \"name\" = \"s\".\"name\", \"visits\" = \"t\".\"visits\" + $1 WHEN NOT MATCHED THEN INSERT (\"id\", \"name\") VALUES (\"s\".\"id\", \"s\".\"name\") WHEN NOT MATCHED BY SOURCE THEN DELETE RETURNING merge_action(), \"t\".\"id\", old.\"name\" AS \"was\"",
+    "sql": "MERGE INTO \"app\".\"account\" AS \"t\" USING \"staged\" AS \"s\" ON \"t\".\"id\" = \"s\".\"id\" WHEN MATCHED AND \"s\".\"name\" IS NULL THEN DELETE WHEN MATCHED THEN UPDATE SET \"name\" = \"s\".\"name\", \"visits\" = \"t\".\"visits\" + $1::int4 WHEN NOT MATCHED THEN INSERT (\"id\", \"name\") VALUES (\"s\".\"id\", \"s\".\"name\") WHEN NOT MATCHED BY SOURCE THEN DELETE RETURNING merge_action(), \"t\".\"id\", old.\"name\" AS \"was\"",
     "values": [["i64","1"]]
   },
   "merge-unconditional-last": {

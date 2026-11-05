@@ -246,7 +246,7 @@ test("a pattern built from literal text matches the text and nothing its % or _ 
 
 // [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:bindings.expressions+4/test]
-// [spec:pgorm:req:sql.ast.select.table-function+2/test]
+// [spec:pgorm:req:sql.ast.select.table-function+3/test]
 test("unnest WITH ORDINALITY numbers each element, reading a column of the item before it", async () => {
   const letters = tableFunction(call("unnest", bind(["x", "y", "z"]).cast("text", { array: true })))
     .withOrdinality()
@@ -267,7 +267,7 @@ test("unnest WITH ORDINALITY numbers each element, reading a column of the item 
 
 // [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:bindings.expressions+4/test]
-// [spec:pgorm:req:sql.ast.select.table-function+2/test]
+// [spec:pgorm:req:sql.ast.select.table-function+3/test]
 test("ROWS FROM reads its calls side by side, padding the shorter with NULL", async () => {
   const zipped = tableFunction(call("generate_series", int8(1), int8(2)))
     .and(call("unnest", bind(["a", "b", "c"]).cast("text", { array: true })))
@@ -286,6 +286,12 @@ test("ROWS FROM reads its calls side by side, padding the shorter with NULL", as
     select().from(series).inspect().sql,
     'SELECT * FROM GENERATE_SERIES(CAST($1::int8 AS int8), CAST($2::int8 AS int8)) AS "g"',
   );
+  // A bound argument carries its own type, which chooses the overload.
+  const bare = tableFunction(call("generate_series", bind(1), bind(3))).alias("b");
+  assert.equal(select().from(bare).inspect().sql, 'SELECT * FROM GENERATE_SERIES($1::int4, $2::int4) AS "b"');
+  assert.deepStrictEqual(field(await pool().query(select().from(bare)), "b"), [1, 2, 3]);
+  const letters = tableFunction(call("unnest", bind(["x", "y"]))).alias("u");
+  assert.deepStrictEqual(field(await pool().query(select().from(letters)), "u"), ["x", "y"]);
   for (
     const [build, reason] of [
       [() => tableFunction(col("x")), /reads a function call, not an expression/],

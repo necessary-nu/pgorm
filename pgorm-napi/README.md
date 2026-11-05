@@ -318,8 +318,8 @@ for await (const row of pool.stream(query, { tagged: true })) { /* .. */ }
   `cast`, `collate`, `at`/`slice`, `caseWhen(..).when(..).else(..)`,
   `caseOf(x).when(..)`, `call` for the functions pgorm-query constructs
   (`uuidv7` and its shift among them, the set-returning `generate_series`
-  and `unnest`, whose overloads need a bound argument typed:
-  `bind(1).cast("int8")`, and the record-returning `json_to_record`,
+  and `unnest`, whose overloads read a bound argument's own type, a cast
+  choosing another, and the record-returning `json_to_record`,
   `jsonb_to_record`, `json_to_recordset` and `jsonb_to_recordset`), `exists`,
   `scalar`, and `array(select)`, `ARRAY(select)`: the subquery's one column as
   one array value, empty for no rows, to cast and compare as a value.

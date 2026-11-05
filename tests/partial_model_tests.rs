@@ -6,7 +6,7 @@ pub use common::{TestContext, bakery_chain::*, setup::*};
 use entity::{Column, Entity};
 use pgorm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, Error, FromQueryResult, ModelTrait, PartialModel,
-    QueryOrder, set,
+    QueryFilter, QueryOrder, set,
 };
 use pgorm_query::{Expr, ExprTrait, Func, Name};
 
@@ -166,7 +166,11 @@ async fn integer_operand_against_float_column() -> Result<(), Error> {
     .insert(&db)
     .await?;
 
+    // The comparison's placeholder is typed by the `float8` column and the
+    // integer written as one; the product's integer carries its own `int4`,
+    // which PostgreSQL widens.
     let bakeries = bakery::Entity::find()
+        .filter(bakery::Column::ProfitMargin.gt(10))
         .order_by_asc(bakery::Column::Id)
         .into_partial_model::<IntScaledBakery>()
         .all(&db)

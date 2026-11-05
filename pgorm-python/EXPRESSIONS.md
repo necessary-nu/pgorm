@@ -278,9 +278,10 @@ and `jsonb_to_recordset` it reads through a column definition list
 embedded time is shifted by, Rust's `Func::uuidv7_shifted`), `generate_series`
 two or three (`Func::generate_series`, and `generate_series_step` with its
 step), and the others one. PostgreSQL overloads `generate_series` and `unnest`
-by argument type, and a bound argument carries none, so it is refused as
-ambiguous (`42725`): pass a column, a `literal`, or a bound value with its
-type cast, `bind(1).cast(TypeName("int4"))`. A call is an expression wherever one is taken, so
+by argument type, so a bound argument carries its own, as Rust's does:
+`call("generate_series", 1, 3)` is `GENERATE_SERIES($1::int4, $2::int4)`,
+an integer that fits 32 bits typed as its literal would be, and a cast,
+`bind(1).cast(TypeName("int8"))`, chooses another overload. A call is an expression wherever one is taken, so
 `ColumnDef("id", "uuid").default(call("uuidv7"))` gives a table a time-ordered
 key. Unsupported names or argument
 counts raise `UnsupportedCapabilityError`. The capability manifest records

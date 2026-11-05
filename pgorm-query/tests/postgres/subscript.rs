@@ -182,7 +182,7 @@ fn subscripts_bind_and_compose_as_atoms() {
     assert_eq!(
         sql,
         [
-            r#"SELECT (CAST($1::int4[] AS int4[]))[$2] + $3 FROM "glyph""#,
+            r#"SELECT (CAST($1::int4[] AS int4[]))[$2] + $3::int4 FROM "glyph""#,
             r#"WHERE "tags"["aspect":$4] IS NOT NULL AND "tags"[$5] = "image""#,
         ]
         .join(" ")

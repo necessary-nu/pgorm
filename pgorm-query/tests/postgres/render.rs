@@ -333,7 +333,7 @@ fn overriding_renders_before_whichever_source_follows_it() {
     );
 }
 
-// [spec:pgorm:def:sql.render.writer+2/test]    `String` is the inline-rendering sink: `push_param`
+// [spec:pgorm:def:sql.render.writer+3/test]    `String` is the inline-rendering sink: `push_param`
 // appends the value as a literal, and it takes the default `push_param_source_typed`
 #[test]
 fn string_sink_renders_parameters_inline() {
@@ -354,7 +354,7 @@ fn string_sink_renders_parameters_inline() {
     assert_eq!(typed, "8");
 }
 
-// [spec:pgorm:def:sql.render.writer+2/test]    `SqlWriterValues` emits a placeholder and collects
+// [spec:pgorm:def:sql.render.writer+3/test]    `SqlWriterValues` emits a placeholder and collects
 // the value; `into_parts` hands back the `(String, Values)` pair
 #[test]
 fn values_sink_emits_placeholders_and_collects_values() {
@@ -381,7 +381,7 @@ fn values_sink_emits_placeholders_and_collects_values() {
     );
 }
 
-// [spec:pgorm:def:sql.render.writer+2/test]    the sink is constructed with a placeholder string
+// [spec:pgorm:def:sql.render.writer+3/test]    the sink is constructed with a placeholder string
 // and a `numbered` flag
 #[test]
 fn values_sink_honours_its_placeholder_and_numbered_flag() {
@@ -404,7 +404,7 @@ fn values_sink_honours_its_placeholder_and_numbered_flag() {
     assert_eq!(rendered, ":1 :2");
 }
 
-// [spec:pgorm:def:sql.render.writer+2/test]    both sinks are usable through `&mut dyn SqlWriter`,
+// [spec:pgorm:def:sql.render.writer+3/test]    both sinks are usable through `&mut dyn SqlWriter`,
 // which is what lets one statement render either way
 #[test]
 fn both_sinks_are_reachable_through_the_trait_object() {

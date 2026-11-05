@@ -573,7 +573,7 @@ test("inspect gives the SQL and each bound value with its kind, expressions and 
   assert.equal(sql, 'SELECT "x" FROM "t" WHERE "x" = $1 LIMIT $2');
   assert.deepStrictEqual(values.map((value) => [value.kind, value.value]), [["i16", 7], ["u64", 3n]]);
   assert.ok(Object.isFrozen(values));
-  assert.equal(col("x").add(1).inspect().sql, 'SELECT "x" + $1');
+  assert.equal(col("x").add(1).inspect().sql, 'SELECT "x" + $1::int4');
   assert.equal(Condition.any().inspect().sql, "SELECT TRUE WHERE FALSE");
   assert.equal(Condition.all().inspect().sql, "SELECT TRUE WHERE TRUE");
 });
@@ -654,7 +654,7 @@ test("literal() writes a value into the SQL as pgorm-query renders a constant, a
   const { sql, values } = query.inspect();
   assert.equal(
     sql,
-    `SELECT E'O\\'Brien' AS "name", CAST('glad' AS app.mood) AS "mood", 7 + $1 AS "sum", NULL AS "nothing"`,
+    `SELECT E'O\\'Brien' AS "name", CAST('glad' AS app.mood) AS "mood", 7 + $1::int4 AS "sum", NULL AS "nothing"`,
   );
   assert.deepStrictEqual(values.map((value) => [value.kind, value.value]), [["i64", 3n]]);
   assert.deepStrictEqual(await pool().one(query), { name: "O'Brien", mood: "glad", sum: 10, nothing: null });

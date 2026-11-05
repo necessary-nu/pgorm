@@ -52,6 +52,7 @@ mod sequence;
 mod set_operation;
 #[path = "query_builder_subscript.rs"]
 mod subscript;
+mod typed_operands;
 #[path = "query_builder_view.rs"]
 mod view;
 #[path = "query_builder_window.rs"]
@@ -869,7 +870,11 @@ impl QueryBuilder {
             if func.mods[i].distinct {
                 write!(sql, "DISTINCT ").unwrap();
             }
-            self.prepare_simple_expr(expr, sql);
+            if typed_operands::function_reads_type(&func.func, i) {
+                self.prepare_typed_operand(expr, sql);
+            } else {
+                self.prepare_simple_expr(expr, sql);
+            }
         }
         write!(sql, ")").unwrap();
 

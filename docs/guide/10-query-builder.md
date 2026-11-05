@@ -153,15 +153,20 @@ assert_eq!(deleted, [("Chocolate Torte".to_owned(),)]);
 ## Where a bound value's type comes from
 
 Each value a statement binds is a parameter, and PostgreSQL decides its type
-from where it stands. Beside a column it takes the column's type, which is
-the common case: `"price" + $1` reads `$1` as a `numeric`. Where nothing
-around it says, the server cannot choose: a value in a `SELECT` list or a
-`VALUES` row, the argument of a function that takes any array such as
-`unnest`, a number added to a date. There, cast the value with
-[`cast_as`](crate::pgorm_query::ExprTrait::cast_as), which also tells the server
-the type the value is sent as, `CAST($1::int4[] AS integer[])`. The examples
-under [WITH](#with), [Table functions](#table-functions) and
-[Ranges](#ranges) do.
+from where it stands. Compared with a column or assigned to one, it takes the
+column's type, which is the common case: `"price" = $1` reads `$1` as a
+`numeric`. Where an operator or a function chooses its overload by the
+operand's own type, the builder writes that type beside the placeholder:
+`unnest` and `generate_series` over a bound list or bound bounds
+(`UNNEST($1::int4[])`), a number added to a date (`"day" + $1::int4`), an
+interval taken from a timestamp, a bound range that contains a timestamp
+(`$1::tstzrange @> "placed_at"`). Text and floats stay bare there too, the
+operand beside them typing them. Where nothing around a value says, the
+server still cannot choose: a value in a `SELECT` list or a `VALUES` row, or
+an argument of a function called by name. There, cast the value with
+[`cast_as`](crate::pgorm_query::ExprTrait::cast_as), which also tells the
+server the type the value is sent as, `CAST($1::date AS date)`, as the
+example under [WITH](#with) does.
 
 ## Names
 
@@ -633,13 +638,12 @@ use pgorm_guide_support::order;
 
 let (days, day) = (alias("days"), alias("day"));
 let date = || Name::runtime("date");
-let one = Expr::val(1).cast_as(Name::runtime("integer"));
 let calendar = Query::select()
     .expr_as(Expr::val(Date::constant(2026, 11, 1)).cast_as(date()), day)
     .union(
         UnionType::All,
         Query::select()
-            .expr(Expr::col(day).add(one))
+            .expr(Expr::col(day).add(1))
             .from(days)
             .and_where(Expr::col(day).lt(Expr::val(Date::constant(2026, 11, 4)).cast_as(date())))
             .to_owned(),
@@ -821,7 +825,7 @@ functions are built in, and any other through `Func::named`.
 
 Unnesting a list of ids with its ordinal reads rows back in the order the
 program asked for them. `unnest` takes an array of any type, so the bound
-array is cast to say which:
+array carries its own, `int4[]`:
 
 ```rust
 # #[tokio::main(flavor = "current_thread")]
@@ -836,7 +840,7 @@ let (wanted, id, position) = (alias("wanted"), alias("id"), alias("position"));
 let query = Query::select()
     .column((cake::Entity, cake::Column::Name))
     .from(
-        TableFunction::new(Func::unnest(Expr::val(vec![4, 1, 3]).cast_as_raw("integer[]")))
+        TableFunction::new(Func::unnest(Expr::val(vec![4, 1, 3])))
             .with_ordinality()
             .columns([id, position])
             .alias(wanted),
@@ -848,7 +852,7 @@ let query = Query::select()
 assert_eq!(
     query.build().0,
     [
-        r#"SELECT "cake"."name" FROM UNNEST(CAST($1::int4[] AS integer[])) WITH ORDINALITY AS "wanted"("id", "position")"#,
+        r#"SELECT "cake"."name" FROM UNNEST($1::int4[]) WITH ORDINALITY AS "wanted"("id", "position")"#,
         r#"INNER JOIN "cake" ON "cake"."id" = "wanted"."id" ORDER BY "wanted"."position" ASC"#,
     ]
     .join(" ")
@@ -941,9 +945,10 @@ range types, and the range operators are methods of every expression:
 [`contains`](crate::pgorm_query::ExprTrait::contains) (`@>`),
 [`contained`](crate::pgorm_query::ExprTrait::contained) (`<@`) and
 [`overlaps`](crate::pgorm_query::ExprTrait::overlaps) (`&&`). Beside a range
-column a bound range takes the column's type. Here the range stands on its
-own beside a timestamp, which many operators accept, so it is cast to
-`tstzrange`. The orders placed on the second of November:
+column a bound range takes the column's type. Here the range contains a
+timestamp, which tells the server nothing about the range, so the bound
+range carries its own type, `tstzrange`. The orders placed on the second of
+November:
 
 ```rust
 # #[tokio::main(flavor = "current_thread")]
@@ -951,7 +956,7 @@ own beside a timestamp, which many operators accept, so it is cast to
 # let scratch = pgorm_guide_support::Scratch::bakery("query_builder_ranges").await;
 # let db = scratch.pool.get().await?;
 use pgorm::entity::prelude::*;
-use pgorm::pgorm_query::{Name, Query, Range};
+use pgorm::pgorm_query::{Query, Range};
 use pgorm_guide_support::order;
 
 let start: DateTimeWithTimeZone = "2026-11-02T00:00:00Z".parse()?;
@@ -960,15 +965,13 @@ let query = Query::select()
     .column(order::Column::Id)
     .from(order::Entity)
     .and_where(
-        Expr::val(Range::from(start..end))
-            .cast_as(Name::runtime("tstzrange"))
-            .contains(Expr::col(order::Column::PlacedAt)),
+        Expr::val(Range::from(start..end)).contains(Expr::col(order::Column::PlacedAt)),
     )
     .to_owned();
 
 assert_eq!(
     query.build().0,
-    r#"SELECT "id" FROM "order" WHERE CAST($1::tstzrange AS tstzrange) @> "placed_at""#
+    r#"SELECT "id" FROM "order" WHERE $1::tstzrange @> "placed_at""#
 );
 
 let ids: Vec<(i32,)> = query.into_tuple().all(&db).await?;

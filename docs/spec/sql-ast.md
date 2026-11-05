@@ -549,7 +549,7 @@ today, including panicking edges and deliberate failsafes.
 > `ConditionHolder`, so multi-part conditions built with `Condition::all`/`any`
 > render as chained `AND`/`OR` in the ON clause.
 
-> [spec:pgorm:req:sql.ast.select.table-function+2]
+> [spec:pgorm:req:sql.ast.select.table-function+3]
 > A set-returning function in FROM is a `TableFunction`, PostgreSQL's
 > `func_table`: one call, built by `TableFunction::new(call)`, or
 > `ROWS FROM (..)`, built by `TableFunction::rows_from(call)`, to which
@@ -578,11 +578,12 @@ today, including panicking edges and deliberate failsafes.
 > are the set-returning constructors, `Function::GenerateSeries` and
 > `Function::Unnest`, and the two the Python and JavaScript call vocabularies
 > reach; `Func::named` calls any other by name. Both are overloaded on their
-> argument types, so a bound argument, a placeholder the call gives no type,
-> is ambiguous to the server (`42725`) until it is cast to its type, as
-> anywhere a placeholder has no context
-> (`[spec:pgorm:sem:sql.render.placeholder-typing]`); the constructors add
-> no cast of their own. A zero step is the server's refusal (`22023`).
+> argument types, so a bound argument carries its own type there,
+> `UNNEST($1::int4[])` and `GENERATE_SERIES($1::int4, $2::int4)`
+> (`[spec:pgorm:sem:sql.render.placeholder-typing]`): a bare placeholder is
+> ambiguous to the server (`42725`). A cast chooses another overload, and a
+> function called by name annotates nothing, its signature unknown to the
+> renderer. A zero step is the server's refusal (`22023`).
 
 > [spec:pgorm:req:sql.ast.select.column-definitions]
 > A function returning `record` — `json_to_record`, `jsonb_to_record`,
@@ -1474,7 +1475,7 @@ today, including panicking edges and deliberate failsafes.
 
 ## MERGE statements
 
-> [spec:pgorm:req:sql.ast.merge+1]
+> [spec:pgorm:req:sql.ast.merge+2]
 > `MergeStatement` is the MERGE AST node. It holds a target `NamedTable`
 > (`[spec:pgorm:def:sql.types.table-ref]`: a name, bare or
 > schema-qualified, with an optional alias), an `only` flag, a source
@@ -1564,10 +1565,11 @@ today, including panicking edges and deliberate failsafes.
 > `sql.ast.build`, whether it sits in the join condition, an arm's
 > condition, an assignment or the inserted row. The server types such a
 > parameter by the column it is assigned to or compared with. A value in the
-> source relation is assigned to no column, so a bound `VALUES` row or
-> function argument has only the type an unknown parameter gets. Annotating
-> it is the caller's obligation under `sql.render.placeholder-typing`, and
-> the live suite holds both refusals (`42883`, `42725`).
+> source relation is assigned to no column, so a bound `VALUES` row, or an
+> argument of a function called by name, has only the type an unknown
+> parameter gets. Annotating it is the caller's obligation under
+> `sql.render.placeholder-typing`, and the live suite holds the refusal
+> (`42883`).
 >
 > A MERGE nests as a common table expression's body (`sql.ast`). No ORM path
 > emits MERGE. The upsert an entity layer writes is `ON CONFLICT`

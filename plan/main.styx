@@ -4366,6 +4366,7 @@ children (
                 id like-pattern-from-text
                 title "LikeExpr builds a pattern from literal text with its wildcards escaped, as contains and starts_with do"
                 kind @feat
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:39:52.582937Z
@@ -4386,6 +4387,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "LikeExpr gains four constructors over literal text, named for the pattern's shape: literal(text) (exact), containing (%text%), starting_with (text%), ending_with (%text). The shared implementation lives once, in pgorm-query's new like.rs (LikeExpr, its escape and IntoLikeExpr moved there from types.rs, which was over the function cap): a pattern is either Written (new, as it stands) or Text { text, any_before, any_after }, and the text is escaped when the statement renders, for the escape character then in force. So escape(c) chosen after the text escapes it with c, which a text pre-escaped with a backslash would get wrong, and no_escape() escapes nothing (the text's % and _ then wildcards, what escaping off says). The escaped set is LIKE's (%, _, the escape); SIMILAR TO's regex characters keep their meaning, documented. pgorm's crate-private escape_like_text is gone: ColumnTrait::contains/starts_with/ends_with are LikeExpr::containing/starting_with/ending_with, rendering exactly as before. Python: LikeExpr.literal/containing/starting_with/ending_with static methods; JavaScript: LikeExpr.literal/containing/startingWith/endingWith static methods on the class (one native, likeExprText(text, shape)), as the class is the factory's product there; bindings-surface.json lists the four members."
+                    }
+
+                    {
+                        at 2026-11-05T17:51:53.689033Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -18394,12 +18402,36 @@ children (
                 id typed-binds.polymorphic-operands
                 title "A bound array, range or scalar carries its type where an overloaded operator or polymorphic function reads it, outside a cast too"
                 kind @fix
+                implements {
+                    main ([spec:pgorm:sem:sql.render.placeholder-typing])
+                }
                 log (
                     {
                         at 2026-11-05T14:39:51.928067Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (query-builder chapter). Func::unnest(Expr::val(vec![..])) and Expr::val(Range).contains(col) fail 42725 (function/operator is not unique): the bound value's type ($1::int4[], $1::tstzrange) is attached only inside cast_as. A bound integer added to a date (day + $1) fails the same way. The guide shows the casts and explains them."
+                    }
+
+                    {
+                        at 2026-11-05T17:51:54.040419Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T18:07:26.146844Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "sql.render.placeholder-typing (v2) replaces 'annotate only casts and SQL/JSON' with a position list, each probed on PG 18.6 with typed PREPAREs: a bound value is written $n::<its source type> (a) as an argument of the Func constructors whose overload the argument's type chooses (max, min, sum, avg, bit_and, bit_or, abs, round's operand but not its precision, lower, upper, percentile_cont/disc, generate_series, unnest); (b) as an operand of + - * / % || -> ->> when it is an integer, Decimal, date/time/timestamp(tz), interval, bool, bytea, uuid or network address; (c) as the containing range/multirange of @> and <@. Everything else stays bare, deliberately, because pinning there regresses what works today: comparisons/assignment/IN/ANY (the column types it, the typed-binds casts rely on that); floats in arithmetic (numeric * $1::float8 turns the result float8, probed); arrays and ranges beside a column of one (int8[] @> int4[] and int8range && int4range are no operators, probed, while bare they bind by the column's element/subtype); text (typed by the operand beside it, varchar/citext); JSON (json or jsonb); a Func::named call (signature unknown: left(text, $1::int8) is 42883, probed); COALESCE (its sibling types it). Projections and VALUES rows in FROM stay the caller's obligation, as the live tests recursive_cte_anchor_needs_a_cast and the MERGE VALUES refusal hold. Accepted cost: an integer in arithmetic takes its SQL literal's width (int2col + $1::int4 is integer, as int2col + 1 is). Implemented in pgorm-query/src/backend/query_builder/typed_operands.rs, read by binary_expr and prepare_function_arguments. Bindings inherit it through the renderer: Python's call('generate_series', 1, 3) and JavaScript's call('generate_series', bind(1), bind(3)) now run (GENERATE_SERIES($1::int8, $2::int8)); the Python test that held the 42725 refusal now holds the rows, and both READMEs/EXPRESSIONS.md and expressions.d.ts drop the 'cast the argument' instruction."
+                    }
+
+                    {
+                        at 2026-11-05T18:16:34.238145Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Revises the integer width in the decision above. The bindings hold every integer in 64 bits, and annotating its own int8 broke JavaScript's recursive CTE test (step \"n\" + $2::int8 is bigint against the anchor's integer, 42804) and would have turned every int4 column's arithmetic into bigint (a JS number result into a BigInt). So a 64-bit integer (BigInt, Unsigned, BigUnsigned) whose value fits 32 bits is annotated int4, PostgreSQL's own typing of that literal; one that does not stays int8. The value bound is unchanged (binding-coerce writes it as int4). The rendering is SqlWriter::push_param_typed(value, type_name), a new provided method beside push_param_source_typed (sql.render.writer+3). So call('generate_series', 1, 3) is GENERATE_SERIES($1::int4, $2::int4) in both bindings. The node now implements sql.render.placeholder-typing, which no node owned."
                     }
                 )
             }

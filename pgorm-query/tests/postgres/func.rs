@@ -286,3 +286,44 @@ fn every_expression_type_has_the_operators() {
         .join(" ")
     );
 }
+
+// [spec:pgorm:sem:sql.render.placeholder-typing+2/test]    a bound argument is
+// annotated where its function's overload reads it and nowhere else: not a
+// named function's, not `round`'s precision, not `COALESCE`'s, whose sibling
+// types it; an operand of an overloaded operator is, a comparison's is not, and
+// text, floats and arrays stay bare beside the operand that types them
+#[test]
+fn bound_values_carry_their_type_where_read() {
+    let (sql, _) = Query::select()
+        .expr(Func::percentile_cont(0.5).within_group(Char::SizeW, Order::Asc))
+        .expr(Func::round_with_precision(Expr::val(1.5), 1))
+        .expr(
+            Func::named(Name::runtime("left"))
+                .args([Expr::col(Char::Character).into(), Expr::val(2).into()]),
+        )
+        .expr(Func::if_null(Expr::col(Char::SizeW), 0))
+        .expr(Func::max(Expr::val(3)))
+        .from(Char::Table)
+        .and_where(Expr::col(Char::SizeW).add(1).gt(2))
+        .and_where(
+            Expr::col(Char::Character)
+                .concat("x")
+                .ne(Expr::col(Char::Character).concat(1)),
+        )
+        .and_where(Expr::col(Char::FontSize).mul(1.5).lt(3))
+        .and_where(Expr::col(Char::UserData).get_json_field("a").is_not_null())
+        .build();
+    assert_eq!(
+        sql,
+        [
+            r#"SELECT PERCENTILE_CONT($1::float8) WITHIN GROUP (ORDER BY "size_w" ASC),"#,
+            r#"ROUND($2::float8, $3), "left"("character", $4), COALESCE("size_w", $5),"#,
+            r#"MAX($6::int4) FROM "character""#,
+            r#"WHERE "size_w" + $7::int4 > $8"#,
+            r#"AND ("character" || $9) <> ("character" || $10::int4)"#,
+            r#"AND "font_size" * $11 < $12"#,
+            r#"AND ("user_data" -> $13) IS NOT NULL"#,
+        ]
+        .join(" ")
+    );
+}

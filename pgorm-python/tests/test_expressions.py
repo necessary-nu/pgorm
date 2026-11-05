@@ -41,7 +41,7 @@ class ExpressionTests(unittest.TestCase):
     def test_literal_and_bound_values_stay_selectable(self):
         expression = bind(Value(7, "i16")) + literal(3)
         compiled = expression.inspect()
-        self.assertEqual(compiled.sql, "SELECT $1 + 3")
+        self.assertEqual(compiled.sql, "SELECT $1::int2 + 3")
         self.assertEqual(compiled.params, [Value(7, "i16")])
         self.assertEqual(literal("O'Brien").inspect().sql, r"SELECT E'O\'Brien'")
         self.assertEqual(literal("O'Brien").inspect().params, [])

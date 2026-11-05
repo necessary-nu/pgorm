@@ -701,7 +701,7 @@ pub trait QuerySelect: Sized {
     /// A recursive CTE takes its column types from the anchor arm, where an
     /// unannotated `$n` placeholder resolves to `text`. Annotate any literal in
     /// that arm with [`cast_as`](pgorm_query::ExprTrait::cast_as) — see
-    /// `[spec:pgorm:sem:sql.render.placeholder-typing+1]`.
+    /// `[spec:pgorm:sem:sql.render.placeholder-typing+2]`.
     ///
     /// ```
     /// use pgorm::pgorm_query::{CommonTableExpression, Query, WithClause};
@@ -726,7 +726,7 @@ pub trait QuerySelect: Sized {
     /// ```
     // [spec:pgorm:def:query.build.with+2]
     // [spec:pgorm:sem:query.build.with.attach+1]
-    // [spec:pgorm:sem:sql.render.placeholder-typing+1]
+    // [spec:pgorm:sem:sql.render.placeholder-typing+2]
     fn with<C>(mut self, clause: C) -> Self
     where
         C: Into<AnyWithClause>,

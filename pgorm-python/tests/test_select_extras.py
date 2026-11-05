@@ -196,7 +196,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
                 await self.rows(p.select(collated).from_(words))
             self.assertEqual(raised.exception.sqlstate, sqlstate)
 
-    # [spec:pgorm:req:sql.ast.select.table-function+2/test]    UNNEST numbered WITH ORDINALITY,
+    # [spec:pgorm:req:sql.ast.select.table-function+3/test]    UNNEST numbered WITH ORDINALITY,
     # its columns named, beside the row it reads
     async def test_unnest_with_ordinality_numbers_positions(self):
         tags = T(p.call("unnest", self.s("tags"))).with_ordinality().columns("tag", "n").alias("u")
@@ -209,7 +209,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
         plain = T(p.call("unnest", text_array(["a", "b"]))).alias("u")
         self.assertEqual(await self.rows(p.Select(plain.star()).from_(plain)), [("a",), ("b",)])
 
-    # [spec:pgorm:req:sql.ast.select.table-function+2/test]    ROWS FROM reads its calls side by
+    # [spec:pgorm:req:sql.ast.select.table-function+3/test]    ROWS FROM reads its calls side by
     # side, padding the shorter with NULL
     async def test_rows_from_pads_shorter_functions_with_null(self):
         zipped = (T.rows_from(p.call("generate_series", int4(1), int4(2)))
@@ -257,13 +257,15 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             T(p.call("json_to_record", p.Value.json({}))).column_definition("", "integer")
 
-    # [spec:pgorm:req:sql.ast.select.table-function+2/test]    a bound argument gives the server no
-    # overload to choose, so the caller casts it; nothing is guessed for it
-    async def test_set_returning_calls_need_typed_arguments(self):
-        untyped = T(p.call("generate_series", 1, 2)).alias("g")
-        with self.assertRaises(p.DatabaseError) as caught:
-            await self.connection.query(p.Select().from_(untyped))
-        self.assertEqual(caught.exception.sqlstate, "42725")
+    # [spec:pgorm:req:sql.ast.select.table-function+3/test]    a bound argument carries its
+    # own type, which chooses the overload, and a cast chooses another
+    async def test_set_returning_calls_read_their_arguments_types(self):
+        series = T(p.call("generate_series", 1, 3)).alias("g")
+        inspected = p.Select(series.star()).from_(series).inspect()
+        self.assertEqual(inspected.sql, 'SELECT "g".* FROM GENERATE_SERIES($1::int4, $2::int4) AS "g"')
+        self.assertEqual(await self.rows(p.Select(series.star()).from_(series)), [(1,), (2,), (3,)])
+        letters = T(p.call("unnest", p.bind(["x", "y"]))).alias("u")
+        self.assertEqual(await self.rows(p.Select(letters.star()).from_(letters)), [("x",), ("y",)])
 
     # [spec:pgorm:req:sql.ast.select.table-sample/test]    the percentage decides the sample,
     # a seed repeats it, and an out-of-range percentage is the server's refusal
