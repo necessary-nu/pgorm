@@ -149,14 +149,19 @@ impl CreatedRangeCodec {
     /// holds; `None` for any other column type, or a subtype no
     /// `RangeSubtype` is. A `char(n)` subtype holds text: PostgreSQL drops a
     /// range subtype's modifier, so the range is over `bpchar`, whose values
-    /// are text of any length.
+    /// are text of any length. A domain subtype holds the values of the type
+    /// it is over, as [`subtype_kind`](Self::subtype_kind) reads a server's.
     pub fn of_column(col_type: &ColumnType) -> Option<Self> {
         let (subtype, multirange) = match col_type {
             ColumnType::CreatedRange { subtype, .. } => (subtype, false),
             ColumnType::CreatedMultirange { subtype, .. } => (subtype, true),
             _ => return None,
         };
-        let kind = match subtype.as_ref() {
+        let mut subtype = subtype.as_ref();
+        while let ColumnType::Domain { base, .. } = subtype {
+            subtype = base;
+        }
+        let kind = match subtype {
             ColumnType::SmallInteger => ArrayType::SmallInt,
             ColumnType::Integer => ArrayType::Int,
             ColumnType::BigInteger => ArrayType::BigInt,
@@ -519,6 +524,18 @@ mod tests {
         };
         assert!(CreatedRangeCodec::of_column(&spans).is_some_and(|codec| codec.is_multirange()));
         assert!(CreatedRangeCodec::of_column(&created(ColumnType::Boolean)).is_none());
+        let domain = |name: &str, base: ColumnType| ColumnType::Domain {
+            name: Name::runtime(name),
+            schema: None,
+            base: std::sync::Arc::new(base),
+        };
+        let tall = domain("tall", domain("height", ColumnType::Double));
+        assert_eq!(
+            CreatedRangeCodec::of_column(&created(tall)).map(|codec| codec.subtype().clone()),
+            Some(ArrayType::Double)
+        );
+        let flags = domain("flags", ColumnType::Boolean);
+        assert!(CreatedRangeCodec::of_column(&created(flags)).is_none());
         assert!(CreatedRangeCodec::of_column(&ColumnType::Integer).is_none());
         for kind in [ArrayType::Decimal, ArrayType::String, ArrayType::Uuid] {
             let codec =

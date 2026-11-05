@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T09:36:31.119097Z
+last_sync_at 2026-11-05T10:06:09.82785Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -15,7 +15,7 @@ rule_versions (
     {id bindings.connections, version 2}
     {id bindings.copy, version 0}
     {id bindings.copy-rows, version 1}
-    {id bindings.created-ranges, version 4}
+    {id bindings.created-ranges, version 5}
     {id bindings.cte-options, version 0}
     {id bindings.cursors, version 0}
     {id bindings.delegation, version 0}
@@ -1540,6 +1540,8 @@ assertions (
     {id value-codecs.copy-numeric-exact, kind @complete, author "brendan@necessary.nu", at 2026-11-05T08:16:34.416051Z}
     {id value-codecs.builtin-range-codec, kind @complete, author "brendan@necessary.nu", at 2026-11-05T08:36:32.196984Z}
     {id value-codecs.char-created-range-kind, kind @complete, author "brendan@necessary.nu", at 2026-11-05T08:50:39.949866Z}
+    {id infra.python-native-unit, kind @complete, author "brendan@necessary.nu", at 2026-11-05T09:43:26.942694Z}
+    {id value-codecs.domain-subtype-column, kind @complete, author "brendan@necessary.nu", at 2026-11-05T09:46:18.255158Z}
 )
 
 impl_evidence (

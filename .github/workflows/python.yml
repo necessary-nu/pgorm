@@ -85,6 +85,10 @@ jobs:
           echo "PGORM_TEST_PG_BIN=$(brew --prefix postgresql@18)/bin" >> "$GITHUB_ENV"
           echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> "$GITHUB_ENV"
           echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
+      # The Rust unit tests, as `nplan check`'s python-native unit check
+      # runs them.
+      - name: Rust unit tests
+        run: python3 pgorm-python/checks/unit.py
       - name: Build and verify wheel and source distribution
         run: |
           python pgorm-python/tests/with_local_postgres.py \

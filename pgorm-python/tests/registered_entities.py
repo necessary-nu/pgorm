@@ -127,7 +127,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(model.tagged("mood").type_name, p.TypeName("Mood", schema="python_entities"))
 
     # [spec:pgorm:req:bindings.entity-writes/test]
-    # [spec:pgorm:req:bindings.created-ranges+4/test]
+    # [spec:pgorm:req:bindings.created-ranges+5/test]
     async def test_created_ranges_round_trip_through_an_entity(self):
         booking = p.entity("app.Booking")
         span = p.CreatedRange("floatrange", "f64", schema="python_entities")
@@ -156,7 +156,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.ConstructionError):
                 booking.active().set("span", p.Range(1, 2))
 
-    # [spec:pgorm:req:bindings.created-ranges+4/test]    a registered column of an array of a created range or
+    # [spec:pgorm:req:bindings.created-ranges+5/test]    a registered column of an array of a created range or
     # multirange takes a list of the kind's values, the empty list and NULL elements included, as the array of
     # their texts cast to the type's array, compares through the column's casts, and reads back as a list, a
     # declared Value of the array's kind included

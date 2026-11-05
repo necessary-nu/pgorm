@@ -333,7 +333,7 @@ test("a result that breaks the declaration is a DecodeError, never a value", asy
 
 // [spec:pgorm:req:bindings.models+5/test]
 // [spec:pgorm:req:bindings.model-records+1/test]
-// [spec:pgorm:req:bindings.created-ranges+4/test]
+// [spec:pgorm:req:bindings.created-ranges+5/test]
 test("a created multirange field is projected as its text and read as the multirange of its declared subtype", async () => {
   await pool().execute("CREATE TABLE app.slot (id int4 PRIMARY KEY, open app.floatmultirange)");
   const kind = new CreatedMultirange("floatmultirange", "f64", { schema: "app" });
@@ -365,7 +365,7 @@ test("a created multirange field is projected as its text and read as the multir
   assert.deepStrictEqual(await Slot.graph().where(Slot.col("id").eq(1)).all(pool()), [{ id: 1, open: later }]);
 });
 
-// [spec:pgorm:req:bindings.created-ranges+4/test]    a declared column of an array of a created range or
+// [spec:pgorm:req:bindings.created-ranges+5/test]    a declared column of an array of a created range or
 // multirange writes the array of its values' texts cast to the type's array, and reads it back, a
 // multirange's projected as text[]
 test("an array field of a created range or multirange writes and reads back as an array of its kind", async () => {
