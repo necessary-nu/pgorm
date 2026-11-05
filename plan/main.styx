@@ -18470,12 +18470,29 @@ children (
                 id value-codecs.model-decimal-exact
                 title "A model's Decimal field reads numeric through ExactDecimal, refusing what it cannot hold exactly, as COPY rows and the bindings do"
                 kind @fix
+                implements {
+                    main ([spec:pgorm:req:exec.decode.decimal-exact])
+                }
                 log (
                     {
                         at 2026-11-05T14:39:49.773788Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (values chapter). TryGetable for Decimal (src/executor/query.rs:324) uses rust_decimal's own FromSql, which rounds a numeric past 28 fractional digits (as ExactDecimal's doc says, src/executor/exact_decimal.rs:10-14), while COPY rows (src/database/copy_rows.rs:663), created ranges and the bindings refuse such a value through ExactDecimal, so find() and a binary COPY of one column disagree. The guide advises a precision and scale that fit."
+                    }
+
+                    {
+                        at 2026-11-05T16:50:43.302752Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:56:15.328636Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Every Rust decode of a Decimal now reads through ExactDecimal (new rule exec.decode.decimal-exact): TryGetable for Decimal and Vec<Decimal> (so models, partial models, into_tuple/into_values, the graph and the pipeline all inherit it), and range bounds. For ranges I added one mapping rather than a Decimal special case: a doc(hidden) BoundSql trait, `type Wire: FromSql + Into<Self>`, implemented as the subtype itself for every range subtype and as ExactDecimal for Decimal; the range/multirange TryGetable macros and try_get_created_ranges (the CreatedRange derive's array path, which also read bounds through rust_decimal's lossy FromSql) decode WireRange<T> and map bounds with Into. COPY rows, created-range scalars and both bindings' Value decodes were already exact and are unchanged. A refusal surfaces as Error::Postgres (the driver's FromSql error) carrying ExactDecimal's reason, the same shape as any other type mismatch. Note rust_decimal already errors (ExceedsMaximumPossibleValue) for a plain integer past 96 bits; the rounding cases are >28 fractional digits and a coefficient that overflows only at its scale (7922816251426433759354395033.55), which the test uses."
                     }
                 )
             }

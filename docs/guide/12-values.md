@@ -174,9 +174,35 @@ assert_eq!(total.to_string(), "12.20");
 ```
 
 A `Decimal` holds up to 28 digits after the point, in a 96-bit coefficient.
-Give a `numeric` column a precision and scale within that, such as
-`decimal(10, 2)` for prices, since a value beyond it does not read back
-exactly.
+A `numeric` beyond that is not read at all rather than read rounded: the row
+fails to decode, wherever the `Decimal` is read, a model's field, a tuple, an
+array or a range's bound. Give a `numeric` column a precision and scale within
+it, such as `decimal(10, 2)` for prices, and its every value reads:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("values_decimal_exact").await;
+# let db = scratch.pool.get().await?;
+use pgorm::{Values, entity::prelude::*};
+
+let tiny = ("SELECT 0.0000000000000000000000000001::numeric", Values(vec![]))
+    .into_tuple::<Decimal>()
+    .one(&db)
+    .await?;
+assert_eq!(tiny, Decimal::new(1, 28));
+
+// One more digit after the point is more than a `Decimal` holds.
+let tinier = ("SELECT 0.00000000000000000000000000001::numeric", Values(vec![]))
+    .into_tuple::<Decimal>()
+    .one(&db)
+    .await;
+assert!(tinier.is_err());
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
 
 ## Money
 

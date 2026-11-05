@@ -3168,6 +3168,11 @@ impl_evidence (
     ), covered_claims (
         {impl_name main, rule pipeline.qualify}
     )}
+    {id value-codecs.model-decimal-exact, covered_rules (
+        exec.decode.decimal-exact
+    ), covered_claims (
+        {impl_name main, rule exec.decode.decimal-exact}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

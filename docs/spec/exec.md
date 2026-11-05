@@ -169,6 +169,23 @@ These rules capture what the code does today, including known gaps.
 > None of the three has a `Vec<T>` array impl: `exec.decode.array` does
 > not cover them.
 
+> [spec:pgorm:req:exec.decode.decimal-exact]
+> A `numeric` decoded into a `Decimal` MUST be the value the server sent or a
+> decode error, never a rounded neighbour. rust_decimal's own `FromSql` rounds a
+> value with more than 28 fractional digits and keeps no coefficient past 96
+> bits, so every path that decodes a `Decimal` reads through `ExactDecimal`,
+> which decodes, writes the result back and refuses one that does not compare
+> equal, its scale included: the `TryGetable` for `Decimal` and for
+> `Vec<Decimal>`, and so every read that decodes through `TryGetable` — an
+> entity's model, a partial model, `into_tuple`, `into_values`, the graph's
+> slots and the pipeline's terminals; a `Range<Decimal>`'s and a
+> `Multirange<Decimal>`'s bounds and their arrays (`exec.decode.range`); a range
+> type a schema created over `numeric` (`sql.value.created-range`); a binary
+> COPY's rows (`conn.copy.rows`); and the language bindings' values. A value
+> that fails is the driver's conversion error for its column, `Error::Postgres`
+> carrying `ExactDecimal`'s reason, as a value of another type is. NaN and the
+> infinities, which no `Decimal` holds, are refused the same way.
+
 > [spec:pgorm:sem:exec.decode.u32-oid]
 > `u32` implements `TryGetable` by decoding a `tokio_postgres::types::Oid`,
 > so it reads Postgres `OID` columns, not `INT4`. Likewise `Vec<u32>`
@@ -214,7 +231,7 @@ These rules capture what the code does today, including known gaps.
 > column's field qualifier, carrying the qualifier in the column's
 > definition (`[spec:pgorm:sem:codegen.entity.types]`).
 
-> [spec:pgorm:def:exec.decode.range+4]
+> [spec:pgorm:def:exec.decode.range+5]
 > `Range<T>` and `Multirange<T>` (`[spec:pgorm:def:sql.value.range]`)
 > implement `TryGetable` for each built-in subtype: `i32`, `i64` and
 > `Decimal` unconditionally, and `jiff::civil::Date`,
@@ -232,6 +249,12 @@ These rules capture what the code does today, including known gaps.
 > `InetSql`. Giving pgorm-query `postgres-protocol` instead would
 > change the dependency set every detached workspace locks, for an impl only
 > pgorm calls.
+>
+> The `TryGetable` impls, and `try_get_created_ranges` behind the
+> `CreatedRange` derive's arrays, read each subtype's bounds through the
+> subtype's `BoundSql::Wire`: the subtype itself, except `Decimal`'s, whose
+> bounds read through `ExactDecimal`, so a `numrange` bound no `Decimal`
+> holds fails as a `numeric` column does (`exec.decode.decimal-exact`).
 >
 > `RangeSql<T>` accepts a type whose kind is a range over a type `T`
 > accepts, so it reads a range type a schema created over that subtype as
