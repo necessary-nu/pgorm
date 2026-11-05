@@ -2026,6 +2026,7 @@ children (
                 title "pgorm-codegen reports an enum value it encodes through tracing, not by printing to its caller's stdout"
                 kind @fix
                 deps (codegen-formatted-output)
+                sealed true
                 log (
                     {
                         at 2026-11-05T17:32:29.843554Z
@@ -2039,6 +2040,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T17:42:33.212592Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
