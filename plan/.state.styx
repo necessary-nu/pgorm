@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-04T23:27:33.754841Z
+last_sync_at 2026-11-05T00:15:40.212931Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -20,6 +20,7 @@ rule_versions (
     {id bindings.cursors, version 0}
     {id bindings.delegation, version 0}
     {id bindings.disjoint, version 1}
+    {id bindings.disjoint-evolve, version 0}
     {id bindings.disjoint-unkinded, version 0}
     {id bindings.entities, version 4}
     {id bindings.entity-graphs, version 3}
@@ -1480,6 +1481,7 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
+    {id bindings-one-of, kind @doing, author "brendan@necessary.nu", at 2026-11-05T00:16:12.307211Z}
 )
 
 impl_evidence (
@@ -1740,6 +1742,14 @@ impl_evidence (
         {impl_name python, rule bindings.model-unique-keys}
     ), rule_versions_seen (
         {id bindings.model-unique-keys, version 0}
+    )}
+    {id bindings-disjoint-evolve, covered_rules (
+        bindings.disjoint-evolve
+    ), covered_claims (
+        {impl_name javascript, rule bindings.disjoint-evolve}
+        {impl_name python, rule bindings.disjoint-evolve}
+    ), rule_versions_seen (
+        {id bindings.disjoint-evolve, version 0}
     )}
     {id codegen.generate, covered_rules (
         codegen.entity
@@ -2987,12 +2997,6 @@ impl_evidence (
         {impl_name main, rule testing.isolation}
     ), rule_versions_seen (
         {id testing.isolation, version 0}
-    )}
-    {id bindings-disjoint-evolve, covered_rules (
-        bindings.disjoint-evolve
-    ), covered_claims (
-        {impl_name javascript, rule bindings.disjoint-evolve}
-        {impl_name python, rule bindings.disjoint-evolve}
     )}
 )
 

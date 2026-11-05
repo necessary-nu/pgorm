@@ -16575,6 +16575,10 @@ children (
                 id bindings-one-of
                 title "Python and JavaScript read, set and load a one-of reference and write its CHECK"
                 kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:bindings.one-of])
+                    python ([spec:pgorm:req:bindings.one-of])
+                }
                 deps (disjoint.one-of disjoint.bindings)
                 log (
                     {
@@ -16582,6 +16586,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.one-of: OneOf has no Python or JavaScript surface. The rule doesn't ask for one, but a binding that registers entities with nullable foreign keys under a one-of CHECK would want to read the reference as a tagged key, set it (nulling the others), load the targets one query per table, and write create_one_of's CHECK. Write a bindings rule first; the typed design (OneOfTarget, TargetVisitor) may need a runtime description like DisjointShape for the bindings to drive."
+                    }
+
+                    {
+                        at 2026-11-05T00:16:12.307211Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:17:47.771004Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Proposal, awaiting the operator; rule bindings.one-of written in docs/spec/bindings.md, nothing built. OneOf has no runtime description: TargetVisitor hands each target as a type, so a binding cannot drive it. Proposed: pgorm::OneOfShape (src/entity/one_of_shape.rs), as DisjointShape is for Disjoint: the entity's table, the enum's snake_case name, each target's value, column, column type, target table and its one key column, and whether a row may reference none. OneOfShape::of::<O>() describes a derive, OneOfShape::new(..) a binding's models. It owns check() (the CHECK), key(column values) (which target a row references, with OneOf::key's Error::Query), assignments(target, key) (the column set, the rest null), and per-target load statements and the absent-key error; Schema::create_one_of and OneOf::key/set/load delegate to it, so there is one implementation. Bindings: one_of(name, model, targets, {optional}) over models and Registry::one_of::<O>(name) for derives, with key/set/load/describe and schema create_one_of, per the rule. Decisions needed: (1) TargetVisitor/OneOfTarget carry no variant name, which the shape needs for a tagged key and describe(): add `const NAME: &'static str` to OneOfTarget (a pgorm-macros derive change, lane B's area), or take the value from the target's table name. (2) OneOf::load reads each target through load_one over the entity's Related relation, which evaluates an on_condition (reads_column refuses only a relation not joining exactly the column, a via or a period). A shape-driven load reads `target WHERE key IN (..)` and ignores an on_condition: route the typed load through the shape (and refuse an on_condition in reads_column, or accept the change), or keep the typed load relation-based and accept two load paths. (3) Scope: declared models, registered enums, or both (the rule says both). (4) The tagged key's spelling: Python (value, key), JavaScript [value, key], value = variant name in snake_case for a registration and the targets mapping's key for a model."
                     }
                 )
             }

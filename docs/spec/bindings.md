@@ -1484,6 +1484,50 @@ Rust generic at run time, only use the ones compiled in.
 > regardless is refused with the `ConstructionError` naming the base as
 > read-only (`bindings.disjoint-unkinded`).
 
+> [spec:pgorm:req:bindings.one-of]
+> Each binding MUST read, set and load a reference to exactly one of several
+> targets (`[spec:pgorm:def:disjoint.one-of]`) and write its `CHECK` through
+> pgorm's `OneOfShape`, the reference as data, as `DisjointShape` is a
+> disjoint entity's (`bindings.disjoint`): described from models, or
+> `OneOfShape::of` a downstream crate's `#[derive(OneOf)]` enum. Every
+> statement and every refusal is the shape's, so a binding's reads, loads
+> and `CHECK` are Rust's.
+>
+> `one_of(name, model, targets, options)` MUST declare one over a model,
+> `targets` mapping each target's value, in order, to the field holding its
+> key and the target's model, keyed by one field, and the option `optional`
+> declaring that a row may reference none, as a unit variant does. A
+> downstream crate's enum MUST be registrable as an entity is
+> (`bindings.entities`), its entity and its targets' entities registered
+> before it, and `one_of_entity(name)` and `one_of_entities()` give one
+> registration and list them, its values its variants' names in snake_case.
+> What the derive refuses — a field the model lacks, one that is not
+> nullable, a field named twice, one whose kind is not its target's key's, a
+> target keyed by more than one field, one target model given twice, and no
+> target — MUST be a `ConstructionError` raised as the reference is declared
+> or registered, and declaring or registering one sends nothing.
+>
+> `key(record)` MUST read a record's reference as a tagged key — Python's
+> tuple `(value, key)`, JavaScript's array `[value, key]` — or null for a row
+> referencing none where the reference is optional; a row setting two of its
+> fields, or none where it is not optional, is a `DecodeError` naming the
+> table, the row's key and the fields, `OneOf::key`'s refusal. `set(value,
+> key)` MUST give the values a write sets for the reference: the value's
+> field set to the key and every other field to null, or every field null
+> for null where the reference is optional, which a model's `insert` and
+> `update` take beside their other values and a registration's sets on its
+> entity's ActiveModel. `load(db, records)` MUST read each target's table
+> once, for the keys the records hold for it, and give each record its
+> target's record, tagged as a key is, in the records' order; a key its
+> target's table does not hold is a `DecodeError` naming the table, the
+> row's key, the target's key and the field. `create_one_of(one_of)` gives
+> the `CHECK` `Schema::create_one_of` writes, an `AlterTable`. `describe()`
+> MUST report a declaration or registration under these keys and no other,
+> each spelled by the binding's naming rule: `name`; `model`, the model's
+> table name or the entity's registration name; `targets`, each with its
+> `value`, its `field` and its `target`, the target model's table name or
+> the target entity's registration name; and `optional`.
+
 ## Pipelines
 
 Each binding composes pgorm's PRQL-shaped pipeline, `pgorm::pipeline`:
