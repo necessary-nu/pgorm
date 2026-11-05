@@ -1217,6 +1217,36 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > conflict clause did not write is null from `returning_upsert` and left out
 > of `returning_upserts`.
 
+> [spec:pgorm:req:bindings.model-try-inserts]
+> A model insert's `on_conflict_do_nothing()` MUST give the try-insert pgorm's
+> `Insert::on_conflict_do_nothing` makes, its statement taking `ON CONFLICT`
+> on the primary key's columns `DO NOTHING`, or `ON CONFLICT DO NOTHING` for a
+> model with no primary key, and `on_empty_do_nothing()` the try-insert
+> `Insert::on_empty_do_nothing` makes, its statement unchanged: a
+> `ModelTryInsert` from a `ModelInsert`, a `ModelTryInsertMany` from a
+> `ModelInsertMany`, typed by row count as `TryInsert<A, OneRow>` and
+> `TryInsert<A, ManyRows>` are. Each keeps `on_conflict`, `add`, `add_many`
+> (giving a `ModelTryInsertMany`) and `inspect`, and answers as pgorm's
+> `TryInsertResult` does, `inserted` with what it wrote, `conflicted` or
+> `empty`: `execute` with the rows written, `conflicted` where a conflict
+> clause wrote none; and `returning(fields)`, whose `one` (one row) answers
+> with the row's record and whose `all` (a batch) with every written row's,
+> `conflicted` where a conflict clause held every row back, and with no
+> conflict clause a missing row a `DecodeError`. An insert of no rows, and a
+> row that sets no field, MUST be `empty` and send nothing, as `TryInsert`
+> answers an all-`NotSet` model. An insert of no rows MUST take a conflict
+> clause, as Rust's does, and still send nothing.
+
+> [spec:pgorm:req:bindings.model-write-sources]
+> A model update's `from(source)` MUST add a FROM item to its UPDATE, as
+> pgorm's `Update::many(..).from(..)` does, and a model delete's
+> `using(source)` a USING item to its DELETE, as `Delete::many(..).using(..)`
+> does: another model's table, as that model names it, or a `Table` or FROM
+> item; anything else is an argument of the wrong type. A write that reads
+> another table MUST qualify its RETURNING list's columns by its own table's
+> name, so a column of the same name in the other table cannot make them
+> ambiguous.
+
 > [spec:pgorm:req:bindings.relations+1]
 > A model's `belongs_to`, `has_one` and `has_many` MUST make a relation to
 > another model, pairing fields of each — one, or non-empty lists of equal
@@ -1421,12 +1451,33 @@ Rust generic at run time, only use the ones compiled in.
 > as on a connection or a transaction. On a pool it runs on a connection lent
 > to it alone, as a pool's statement does.
 
-> [spec:pgorm:req:bindings.entity-reads+3]
+> [spec:pgorm:req:bindings.entity-reads+4]
 > `find()` MUST be the entity's `E::find()`, and `where`, `order_by`,
 > `limit` and `offset` the `Select<E>` methods of the same meaning. `all`,
 > `one` and `optional` MUST be `Select::all`, `one` and `one_opt`, `one` and
 > `optional` narrowing the row limit to one as Rust does, and `one` finding
 > no row an error. `inspect()` gives the SQL and values a terminal sends.
+>
+> `count` MUST be `PaginatorTrait::count`, and `paginate(page_size)`
+> `PaginatorTrait::paginate`: a paginator holding no database and no current
+> page, whose `fetch_page`, `num_items`, `num_pages` and
+> `num_items_and_pages` are `Paginator`'s, whose `pages` yields each page
+> from the first until one is empty, and whose `inspect` gives a page's
+> statement or the count's; a page size below 1 is refused. `stream` MUST
+> read the rows one at a time from a pool's connection of its own or a
+> connection, each decoded by `Select<E>`'s own selector as it arrives, as
+> `Select::stream` decodes them. `cursor(columns)` MUST be
+> `Select::cursor_by` over the columns in order: `before` and `after` take
+> one value per column, each converted to its column's declared kind and
+> cast as a comparison's value is, any other count refused; `first`, `last`,
+> `asc` and `desc` are the cursor's own; and `inspect()` gives
+> `Cursor::statement`. `join(relation, kind)` MUST be `QuerySelect::join` of
+> the `RelationDef` its relation gives: `relation(name)` on a registration
+> names a variant of its entity's `Relation` enum, a name it does not declare
+> refused, and the joined rows stay the entity's records. `select(columns)`
+> MUST be `select_only` and `columns` over the columns named, each read
+> through its `select_as`: its rows are records of those columns as a
+> statement's are, and its `one` and `optional` narrow the row limit to one.
 >
 > `col(name)` is the column as the entity's `ColumnTrait` names it, and its
 > comparisons MUST be that trait's methods: a value converted to the column's
@@ -1501,7 +1552,7 @@ Rust generic at run time, only use the ones compiled in.
 > whose ActiveModels set different ones is a `ConstructionError` as it is
 > given, where Rust's `Insert` refuses it before anything is sent.
 
-> [spec:pgorm:req:bindings.entity-graphs+3]
+> [spec:pgorm:req:bindings.entity-graphs+4]
 > `graph(name).find(aliases)` MUST build the registered `SelectGraph` with the
 > application's factory, its declared entity tuple, join slot kinds and
 > decoding terminals, each joined slot under the alias given for it, `g1`,
@@ -1517,11 +1568,20 @@ Rust generic at run time, only use the ones compiled in.
 > arity the module does not register is refused, never lowered to a different
 > API.
 >
-> `cursor(column)` MUST be `SelectGraph::cursor_by` on a root column: `before`
-> and `after` bound that column, and `before_with` and `after_with` the whole
-> key — the column, the root's other key columns, then each slot's — each
-> value converted to its column's declared kind and any other count refused.
-> `first`, `last`, `asc` and `desc` are the cursor's own.
+> `cursor(columns)` MUST be `SelectGraph::cursor_by` on one to six root
+> columns, and `cursor_on(source, columns)` `SelectGraph::cursor_by_on` on
+> one to six columns of slot `source`, the first slot being 1: `before` and
+> `after` bound the order columns, and `before_with` and `after_with` the
+> order columns or the whole key — the order columns, the ordered source's
+> other key columns, then each other source's in source order, the root's
+> first — each value converted to its column's declared kind and any other
+> count refused. `first`, `last`, `asc` and `desc` are the cursor's own, and
+> `inspect()` gives `Cursor::statement`. `stream` MUST read the rows one at a
+> time as `bindings.entity-reads` streams an entity's, each decoded by
+> `GraphRow` as `SelectGraph::stream` decodes it; `all_grouped` MUST be
+> `SelectGraph::all_grouped`, which only a graph of one `Opt` slot has, any
+> other shape refused; and `count` and `paginate` are `PaginatorTrait`'s, a
+> page boundary falling between rows of the join.
 >
 > `describe()` MUST report a registered graph as data, under these keys and
 > no other, each spelled by the binding's naming rule: its `name`;

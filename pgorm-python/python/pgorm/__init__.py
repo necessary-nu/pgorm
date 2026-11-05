@@ -148,7 +148,8 @@ from .runtime import STATEMENT_CACHE_CHANNEL, Connection, Pool, PoolStatus, conn
 from .results import Record, Field, RowStream, Query
 from .models import (
     Column, ModelColumn, Model, ModelRecord, ModelQuery, ModelRows, ModelInsert, ModelInsertMany, ModelUpdate,
-    ModelDelete, Relation, Related, Linked, Graph,
+    ModelDelete, ModelTryInsert, ModelTryInsertMany, ModelTryRow, ModelTryRows, TryInsertResult,
+    Relation, Related, Linked, Graph,
     Cursor, Paginator,
     Disjoint, DisjointEntity, DisjointQuery, DisjointWrite, DisjointCursor, DisjointPaginator,
     disjoint_entity, disjoint_entities,
@@ -202,6 +203,11 @@ __all__ = [
     "ModelInsertMany",
     "ModelUpdate",
     "ModelDelete",
+    "ModelTryInsert",
+    "ModelTryInsertMany",
+    "ModelTryRow",
+    "ModelTryRows",
+    "TryInsertResult",
     "Relation",
     "Related",
     "Linked",

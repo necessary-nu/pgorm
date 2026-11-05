@@ -80,7 +80,9 @@ export {
 export { Column, column, ModelColumn } from "./model-columns.js";
 export { Model, model } from "./models.js";
 export { ModelQuery } from "./model-queries.js";
-export { ModelDelete, ModelInsert, ModelInsertMany, ModelRows, ModelUpdate } from "./model-writes.js";
+export { ModelRows } from "./model-rows.js";
+export { ModelDelete, ModelInsert, ModelInsertMany, ModelUpdate } from "./model-writes.js";
+export { ModelTryInsert, ModelTryInsertMany, ModelTryRow, ModelTryRows } from "./model-try-inserts.js";
 export { Linked, Related, Relation } from "./relations.js";
 export { Graph } from "./graphs.js";
 export { Cursor, Paginator } from "./cursors.js";
@@ -98,6 +100,7 @@ export { DisjointCursor, DisjointPaginator, DisjointQuery, DisjointWrite } from 
 export { ActiveModel, entities, Entity, entity } from "./entities.js";
 export { EntitySchema, fromEntity } from "./entity-schema.js";
 export { EntityColumn, EntityQuery } from "./entity-queries.js";
+export { EntityCursor, EntityPaginator, EntityRelation, EntitySelection } from "./entity-reads.js";
 export { EntityInsert, EntityInsertMany, EntityUpdate, EntityUpdateMany } from "./entity-versions.js";
 export { EntityGraph, EntityGraphCursor, EntityGraphQuery, graph, graphs } from "./entity-graphs.js";
 export {

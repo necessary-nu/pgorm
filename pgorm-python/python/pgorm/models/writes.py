@@ -22,6 +22,7 @@ from .record import Database, ModelRecord, Source, decode_all, decode_single
 if TYPE_CHECKING:
     from .columns import Column
     from .model import Model
+    from .try_inserts import ModelTryInsert, ModelTryInsertMany
 
 # The names a RETURNING list reads a written row's versions by: always
 # renamed, as pgorm renames them, so a table called old or new cannot take
@@ -55,8 +56,15 @@ class _Write[S: p.Insert | p.Update | p.Delete | None]:
         selected = model._selection(fields)
         if self.statement is None:
             return ModelRows(model, None, selected)
-        columns = (model._projected(name, p.col(model._sql(name))) for name in selected)
+        table = self._qualifier()
+        columns = (model._projected(name, p.col(model._sql(name), table=table)) for name in selected)
         return ModelRows(model, self.statement.returning(*columns), selected)
+
+    def _qualifier(self) -> str | None:
+        """What the RETURNING list qualifies the model's columns by: nothing,
+        unless the write reads another table whose columns may share their
+        names."""
+        return None
 
     async def execute(self, db: Database) -> int:
         """How many rows the write wrote."""
@@ -71,7 +79,13 @@ class _Write[S: p.Insert | p.Update | p.Delete | None]:
 @dataclass(frozen=True, eq=False, slots=True)
 class _Guarded[S: (p.Update, p.Delete)](_Write[S]):
     """A write of the rows a condition picks, which needs ``where`` or
-    ``all_rows()`` before it runs, as the statement builders' writes do."""
+    ``all_rows()`` before it runs, as the statement builders' writes do;
+    ``sourced`` once it reads another table through FROM or USING."""
+
+    sourced: bool = False
+
+    def _qualifier(self) -> str | None:
+        return self.model.qualifier if self.sourced else None
 
     def where(self, predicate: p.Expr | p.Condition) -> Self:
         return replace(self, statement=self.statement.where(predicate_of(predicate)))
@@ -91,16 +105,27 @@ class _Insert(_Write[p.Insert | None]):
     insert of no rows and empty for a row of defaults."""
 
     fields: tuple[str, ...] | None
+    conflict: bool = False
     _statements = (p.Insert, type(None))
 
     def on_conflict(self, action: p.Conflict | p.ConflictUpdate) -> Self:
         """What a conflict does, the statement builders' ``Conflict`` naming
-        SQL columns."""
+        SQL columns. An insert of no rows takes it and still sends nothing,
+        as Rust's does."""
         if not isinstance(action, (p.Conflict, p.ConflictUpdate)):
             raise TypeError(
                 "a conflict's action is Conflict.do_nothing(), or a target's do_nothing() or update(..)"
             )
-        return replace(self, statement=written(self.statement).on_conflict(action))
+        statement = None if self.statement is None else self.statement.on_conflict(action)
+        return replace(self, statement=statement, conflict=True)
+
+    def _do_nothing(self) -> Self:
+        """``ON CONFLICT`` on the primary key ``DO NOTHING``, or ``ON
+        CONFLICT DO NOTHING`` for a model with no primary key, as pgorm's
+        ``on_conflict_do_nothing`` writes it."""
+        model = self.model
+        key = [model._sql(field) for field in model.primary_key]
+        return self.on_conflict(p.Conflict.on(*key).do_nothing() if key else p.Conflict.do_nothing())
 
     def add(self, values: Mapping[str, Any]) -> ModelInsertMany:
         """The insert with one more row, which makes it a batch, as Rust's
@@ -113,7 +138,7 @@ class _Insert(_Write[p.Insert | None]):
         if not isinstance(rows, (list, tuple)):
             raise TypeError("add_many takes a list or tuple of rows")
         statement, fields = appended(self.model, self.statement, self.fields, rows)
-        return ModelInsertMany(self.model, statement, fields)
+        return ModelInsertMany(self.model, statement, fields, self.conflict)
 
     def _inspect(self, terminal: str | None, upserts: str) -> p.Compiled:
         if terminal is None:
@@ -151,6 +176,22 @@ class ModelInsert(_Insert):
         pair = await decode_single(db, written(statement), sources, optional=True)
         return None if pair is None else upserted(pair)
 
+    def on_conflict_do_nothing(self) -> ModelTryInsert:
+        """The insert skipping a row that conflicts on the primary key, as
+        pgorm's ``on_conflict_do_nothing``: a ``ModelTryInsert``, whose
+        terminals say whether the row was written."""
+        from .try_inserts import ModelTryInsert
+
+        return ModelTryInsert(self._do_nothing())
+
+    def on_empty_do_nothing(self) -> ModelTryInsert:
+        """The insert as a ``ModelTryInsert``, its statement unchanged, as
+        pgorm's ``on_empty_do_nothing`` makes one: a row that sets no field
+        is ``Empty`` and sends nothing."""
+        from .try_inserts import ModelTryInsert
+
+        return ModelTryInsert(self)
+
 
 # [spec:pgorm:req:bindings.model-writes+2]
 @dataclass(frozen=True, eq=False, slots=True)
@@ -176,6 +217,21 @@ class ModelInsertMany(_Insert):
         if statement is None:
             return []
         return [upserted(pair) for pair in await decode_all(db, statement, sources)]
+
+    def on_conflict_do_nothing(self) -> ModelTryInsertMany:
+        """The batch skipping each row that conflicts on the primary key, as
+        pgorm's ``on_conflict_do_nothing``: a ``ModelTryInsertMany``."""
+        from .try_inserts import ModelTryInsertMany
+
+        return ModelTryInsertMany(self._do_nothing())
+
+    def on_empty_do_nothing(self) -> ModelTryInsertMany:
+        """The batch as a ``ModelTryInsertMany``, its statement unchanged, as
+        pgorm's ``on_empty_do_nothing`` makes one: a batch of no rows is
+        ``Empty``."""
+        from .try_inserts import ModelTryInsertMany
+
+        return ModelTryInsertMany(self)
 
 
 # [spec:pgorm:req:bindings.model-writes+2]
@@ -210,6 +266,14 @@ class ModelUpdate(_Guarded[p.Update]):
         statement, sources = self._changes()
         return [change(pair) for pair in await decode_all(db, statement, sources)]
 
+    # [spec:pgorm:req:bindings.model-write-sources]
+    def from_(self, source: Model | p.Table | p.FromItem) -> ModelUpdate:
+        """The update reading ``source`` too, PostgreSQL's ``UPDATE ..
+        FROM``, as Rust's ``Update::many(..).from(..)`` adds it: another
+        model's table, or a table or FROM item of the statement builders,
+        whose columns its values and conditions may name."""
+        return replace(self, statement=self.statement.from_(_source(source)), sourced=True)
+
     def _changes(self) -> tuple[p.Update, tuple[Source, Source]]:
         items, sources = versions(self.model)
         return self.statement.returning(*items, old_as=OLD, new_as=NEW), sources
@@ -222,6 +286,24 @@ class ModelDelete(_Guarded[p.Delete]):
 
     _statements = (p.Delete,)
     _made_by = "delete()"
+
+    # [spec:pgorm:req:bindings.model-write-sources]
+    def using(self, source: Model | p.Table | p.FromItem) -> ModelDelete:
+        """The delete reading ``source`` too, PostgreSQL's ``DELETE ..
+        USING``, as Rust's ``Delete::many(..).using(..)`` adds it: another
+        model's table, or a table or FROM item of the statement builders,
+        whose columns its conditions may name."""
+        return replace(self, statement=self.statement.using(_source(source)), sourced=True)
+
+
+def _source(source: object) -> p.Table | p.FromItem:
+    from .model import Model
+
+    if isinstance(source, Model):
+        return source.table
+    if not isinstance(source, (p.Table, p.FromItem)):
+        raise TypeError("a write reads another model, a Table or a FROM item")
+    return source
 
 
 def assignments(

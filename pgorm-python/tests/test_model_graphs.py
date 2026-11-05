@@ -337,8 +337,8 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         )
         with self.assertRaises(p.ConstructionError):
             empty.inspect()
-        with self.assertRaises(p.ConstructionError):
-            empty.on_conflict(p.Conflict.do_nothing())
+        # An insert of no rows takes a conflict clause, as Rust's does, and still sends nothing.
+        self.assertEqual(await empty.on_conflict(p.Conflict.do_nothing()).execute(self.pool), 0)
         with self.assertRaises(p.ConstructionError):
             Account.update({"seq": 1})
         with self.assertRaises(TypeError):

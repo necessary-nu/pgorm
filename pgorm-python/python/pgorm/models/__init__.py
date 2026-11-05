@@ -10,6 +10,7 @@ from .one_of import OneOf, OneOfEntity, one_of_entities, one_of_entity
 from .queries import ModelQuery, ModelRows
 from .record import ModelRecord
 from .relations import Linked, Related, Relation
+from .try_inserts import ModelTryInsert, ModelTryInsertMany, ModelTryRow, ModelTryRows, TryInsertResult
 from .writes import ModelDelete, ModelInsert, ModelInsertMany, ModelUpdate
 
 __all__ = [
@@ -22,6 +23,11 @@ __all__ = [
     "ModelInsertMany",
     "ModelUpdate",
     "ModelDelete",
+    "ModelTryInsert",
+    "ModelTryInsertMany",
+    "ModelTryRow",
+    "ModelTryRows",
+    "TryInsertResult",
     "ModelRecord",
     "Relation",
     "Related",

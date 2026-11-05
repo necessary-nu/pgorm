@@ -9,7 +9,7 @@
 // [spec:pgorm:req:bindings.model-unique-keys+2]
 
 import type { ComparisonOperand, Compiled, Condition, Expr, Operand, OrderBy, Predicate } from "./expressions.d.ts";
-import type { Select, Table } from "./select.d.ts";
+import type { Select, Source, Table } from "./select.d.ts";
 import type { Conflict, ConflictUpdate, Delete, Insert, Update } from "./writes.d.ts";
 import type {
   Connection,
@@ -492,6 +492,14 @@ export declare class ModelInsert<C extends Columns = Columns> {
   execute(db: Queryable, options?: OperationOptions): Promise<number>;
   /** What the insert did with its row, as `exec_returning_upsert` says, or `null` where its conflict clause wrote nothing. */
   returningUpsert(db: Queryable, options?: OperationOptions): Promise<Upserted<Row<C>> | null>;
+  /**
+   * The insert skipping a row that conflicts on the primary key — `ON
+   * CONFLICT DO NOTHING` for a model with none — as pgorm's
+   * `on_conflict_do_nothing`, whose terminals say whether it was written.
+   */
+  onConflictDoNothing(): ModelTryInsert<C>;
+  /** The insert as a try-insert, its statement unchanged, as pgorm's `on_empty_do_nothing`: a row that sets no field is `empty`. */
+  onEmptyDoNothing(): ModelTryInsert<C>;
 }
 
 /** A model's INSERT of a batch: Rust's `Insert<A, ManyRows>`. */
@@ -514,6 +522,70 @@ export declare class ModelInsertMany<C extends Columns = Columns> {
   execute(db: Queryable, options?: OperationOptions): Promise<number>;
   /** What the insert did with each row it wrote, as `exec_returning_upserts` says; a row its conflict clause held back is left out. */
   returningUpserts(db: Queryable, options?: OperationOptions): Promise<Upserted<Row<C>>[]>;
+  /** The batch skipping each row that conflicts on the primary key, as pgorm's `on_conflict_do_nothing`. */
+  onConflictDoNothing(): ModelTryInsertMany<C>;
+  /** The batch as a try-insert, its statement unchanged, as pgorm's `on_empty_do_nothing`: a batch of no rows is `empty`. */
+  onEmptyDoNothing(): ModelTryInsertMany<C>;
+}
+
+/**
+ * What a try-insert did, as pgorm's `TryInsertResult` says: `inserted` with
+ * what it wrote, `conflicted` when its conflict clause skipped every row, or
+ * `empty` when it had nothing to write and sent nothing.
+ */
+export type TryInsertResult<T> =
+  | { readonly kind: "inserted"; readonly value: T }
+  | { readonly kind: "conflicted" }
+  | { readonly kind: "empty" };
+
+/** A model's INSERT of one row that may write nothing: Rust's `TryInsert<A, OneRow>`. */
+export declare class ModelTryInsert<C extends Columns = Columns> {
+  private constructor();
+  /** The insert it runs. */
+  readonly insert: ModelInsert<C>;
+  readonly statement: Insert;
+  inspect(): Compiled;
+  onConflict(action: Conflict | ConflictUpdate): ModelTryInsert<C>;
+  add(values: InsertOf<Model<C>>): ModelTryInsertMany<C>;
+  addMany(rows: readonly InsertOf<Model<C>>[]): ModelTryInsertMany<C>;
+  /** The rows written, `conflicted` when its conflict clause wrote none, `empty` for nothing to write. */
+  execute(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<number>>;
+  /** A RETURNING list whose `one` answers with the row written, as `exec_returning_model` does. */
+  returning(): ModelTryRow<Row<C>>;
+  returning<const F extends FieldOf<C>>(...fields: [F, ...F[]]): ModelTryRow<Pick<Row<C>, F>>;
+}
+
+/** A model's INSERT of a batch that may write nothing: Rust's `TryInsert<A, ManyRows>`. */
+export declare class ModelTryInsertMany<C extends Columns = Columns> {
+  private constructor();
+  /** The insert it runs. */
+  readonly insert: ModelInsertMany<C>;
+  readonly statement: Insert;
+  inspect(): Compiled;
+  onConflict(action: Conflict | ConflictUpdate): ModelTryInsertMany<C>;
+  add(values: InsertOf<Model<C>>): ModelTryInsertMany<C>;
+  addMany(rows: readonly InsertOf<Model<C>>[]): ModelTryInsertMany<C>;
+  /** The rows written, `conflicted` when its conflict clause wrote none, `empty` for a batch of none. */
+  execute(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<number>>;
+  /** A RETURNING list whose `all` answers with the rows written, as `exec_returning_models` does. */
+  returning(): ModelTryRows<Row<C>>;
+  returning<const F extends FieldOf<C>>(...fields: [F, ...F[]]): ModelTryRows<Pick<Row<C>, F>>;
+}
+
+/** A try-insert of one row with a RETURNING list. */
+export declare class ModelTryRow<R> {
+  private constructor();
+  inspect(): Compiled;
+  /** The row written, `conflicted` when the conflict clause held it back, `empty` when it sets no field. */
+  one(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<R>>;
+}
+
+/** A try-insert of a batch with a RETURNING list. */
+export declare class ModelTryRows<R> {
+  private constructor();
+  inspect(): Compiled;
+  /** The rows written, `conflicted` when the conflict clause held every one back, `empty` for a batch of none. */
+  all(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<R[]>>;
 }
 
 /** A model's UPDATE, which needs `where` or `allRows()` before it runs. */
@@ -526,6 +598,12 @@ export declare class ModelUpdate<C extends Columns = Columns> {
   where(predicate: Predicate): ModelUpdate<C>;
   /** Every row, said outright. */
   allRows(): ModelUpdate<C>;
+  /**
+   * The update reading `source` too, PostgreSQL's `UPDATE .. FROM`, as Rust's
+   * `Update::many(..).from(..)` adds it: another model's table, or a table or
+   * FROM item, whose columns its values and conditions may name.
+   */
+  from(source: Model<any> | Source): ModelUpdate<C>;
   returning(): ModelRows<Row<C>>;
   returning<const F extends FieldOf<C>>(...fields: [F, ...F[]]): ModelRows<Pick<Row<C>, F>>;
   execute(db: Queryable, options?: OperationOptions): Promise<number>;
@@ -542,6 +620,12 @@ export declare class ModelDelete<C extends Columns = Columns> {
   inspect(): Compiled;
   where(predicate: Predicate): ModelDelete<C>;
   allRows(): ModelDelete<C>;
+  /**
+   * The delete reading `source` too, PostgreSQL's `DELETE .. USING`, as Rust's
+   * `Delete::many(..).using(..)` adds it: another model's table, or a table or
+   * FROM item, whose columns its conditions may name.
+   */
+  using(source: Model<any> | Source): ModelDelete<C>;
   returning(): ModelRows<Row<C>>;
   returning<const F extends FieldOf<C>>(...fields: [F, ...F[]]): ModelRows<Pick<Row<C>, F>>;
   execute(db: Queryable, options?: OperationOptions): Promise<number>;

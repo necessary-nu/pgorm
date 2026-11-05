@@ -2,22 +2,23 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { select } from "@necessary/pgorm";
-import { Cake, CakeBaker } from "../../../guide/bakery.ts";
+import { DecodeError } from "@necessary/pgorm";
+import { Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  // Cy no longer bakes the Vanilla Sponge.
-  const row = await CakeBaker.findByKey({ cakeId: 4, bakerId: 3 }).one(pool);
-  assert.equal(await CakeBaker.delete().where(CakeBaker.key(row)).execute(pool), 1);
+  const changes = await Cake.update({ price: Cake.col("price").mul(2) })
+    .where(Cake.col("name").eq("Vanilla Sponge"))
+    .returningChanges(pool);
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0]!.old.price.toString(), "2.90");
+  assert.equal(changes[0]!.new.price.toString(), "5.80");
 
-  // Bo leaves the Lemon Drizzle to Ada.
-  assert.equal(await CakeBaker.delete().where(CakeBaker.key({ cakeId: 2, bakerId: 2 })).execute(pool), 1);
-
-  // Moonlight stops selling the cakes nobody bakes.
-  const unbaked = Cake.delete()
-    .where(Cake.col("bakeryId").eq(2))
-    .where(Cake.col("id").isNotIn(select(CakeBaker.col("cakeId")).from(CakeBaker.table)));
-  assert.equal(await unbaked.execute(pool), 1);
-  assert.equal(await Cake.find().count(pool), 4);
+  // The one row a key names, before and after; a key that matches nothing is no change.
+  const { old, new: now } = await Cake.update({ glutenFree: true }).where(Cake.key({ id: 1 })).returningChange(pool);
+  assert.deepEqual([old.glutenFree, now.glutenFree], [false, true]);
+  await assert.rejects(
+    Cake.update({ glutenFree: true }).where(Cake.key({ id: 99 })).returningChange(pool),
+    DecodeError,
+  );
 }

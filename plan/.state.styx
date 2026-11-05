@@ -1669,8 +1669,6 @@ assertions (
     {id napi.guide-gaps.entity-select-reads, kind @doing, author "brendan@necessary.nu", at 2026-11-05T18:56:40.752132Z}
     {id napi.guide-gaps.relation-loaders, kind @complete, author "brendan@necessary.nu", at 2026-11-05T20:17:43.387475Z}
     {id napi.guide-gaps.graph-joins, kind @complete, author "brendan@necessary.nu", at 2026-11-05T20:17:43.732408Z}
-    {id guide.python-gaps.model-writes, kind @doing, author "brendan@necessary.nu", at 2026-11-05T20:52:32.538422Z}
-    {id napi.guide-gaps.model-writes, kind @doing, author "brendan@necessary.nu", at 2026-11-05T21:33:41.038525Z}
 )
 
 impl_evidence (
@@ -3353,6 +3351,20 @@ impl_evidence (
         bindings.pipeline-models
     ), covered_claims (
         {impl_name javascript, rule bindings.pipeline-models}
+    )}
+    {id guide.python-gaps.model-writes, covered_rules (
+        bindings.model-try-inserts
+        bindings.model-write-sources
+    ), covered_claims (
+        {impl_name python, rule bindings.model-try-inserts}
+        {impl_name python, rule bindings.model-write-sources}
+    )}
+    {id napi.guide-gaps.model-writes, covered_rules (
+        bindings.model-try-inserts
+        bindings.model-write-sources
+    ), covered_claims (
+        {impl_name javascript, rule bindings.model-try-inserts}
+        {impl_name javascript, rule bindings.model-write-sources}
     )}
 )
 

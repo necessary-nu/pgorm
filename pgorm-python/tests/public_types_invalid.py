@@ -105,6 +105,14 @@ async def invalid(connection: p.Connection) -> None:
     # [spec:pgorm:req:bindings.cursor-secondary-order/test]    a secondary ordering is a model's column
     accounts.find().cursor("id").add_secondary_order_by("id")  # expected-error: arg-type
     insert, update, delete = accounts.insert({"id": 1}), accounts.update({"id": 2}), accounts.delete()
+    # [spec:pgorm:req:bindings.model-try-inserts/test]    a try-insert's RETURNING reads one row or a batch by its row count
+    await insert.on_conflict_do_nothing().returning().all(connection)  # expected-error: attr-defined
+    await accounts.insert_many([]).on_empty_do_nothing().returning().one(connection)  # expected-error: attr-defined
+    insert.on_conflict_do_nothing().returning_upsert(connection)  # expected-error: attr-defined
+    # [spec:pgorm:req:bindings.model-write-sources/test]    FROM and USING read a model, a table or a FROM item, and an insert reads neither
+    update.from_("accounts")  # expected-error: arg-type
+    delete.using(accounts.col("id"))  # expected-error: arg-type
+    insert.using(accounts)  # expected-error: attr-defined
     insert.where(accounts.col("id") == 1)  # expected-error: attr-defined
     insert.all_rows()  # expected-error: attr-defined
     await insert.returning_change(connection)  # expected-error: attr-defined
