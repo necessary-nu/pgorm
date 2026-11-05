@@ -28,7 +28,7 @@ impl Finalize for ModelHandle {}
 /// declared kind, converted exactly or refused; a column of a type the
 /// binding has no kind for takes a `Value`, or a value whose kind is
 /// inferred.
-// [spec:pgorm:req:bindings.entity-writes]
+// [spec:pgorm:req:bindings.entity-writes+1]
 pub(crate) fn column_value<'cx>(
     cx: &mut Cx<'cx>,
     column: &ColumnInfo,
@@ -151,7 +151,7 @@ fn list<'cx, T>(
 /// is the error `napi.errors` classifies it as; otherwise a terminal finding
 /// no row where it needs one is a `DecodeError`, and a write its ActiveModel
 /// or its hooks refuse is a `ConstructionError`.
-// [spec:pgorm:req:bindings.entity-writes]
+// [spec:pgorm:req:bindings.entity-writes+1]
 pub(crate) fn entity_failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
     let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
     while let Some(cause) = source {
@@ -191,6 +191,19 @@ impl Settled for Records {
     }
 }
 
+/// A count of rows as a number, refused past the integers one holds exactly.
+pub(crate) fn count<'cx>(cx: &mut Cx<'cx>, count: u64) -> JsResult<'cx, JsValue> {
+    if count > (1 << 53) - 1 {
+        let error = Failure::Decode(format!(
+            "{count} rows is past the integers a number holds exactly"
+        ))
+        .into_js(cx)?;
+        return cx.throw(error);
+    }
+    #[allow(clippy::cast_precision_loss)]
+    Ok(cx.number(count as f64).upcast())
+}
+
 /// What an ActiveModel's write gave: its record, or a deletion's count.
 pub(crate) struct Wrote(pub(crate) Written);
 
@@ -201,17 +214,7 @@ impl Settled for Wrote {
                 let info = model.info().clone();
                 Box::new(Records(info, vec![model])).into_js(cx)
             }
-            Written::Count(count) => {
-                if count > (1 << 53) - 1 {
-                    let error = Failure::Decode(format!(
-                        "{count} rows is past the integers a number holds exactly"
-                    ))
-                    .into_js(cx)?;
-                    return cx.throw(error);
-                }
-                #[allow(clippy::cast_precision_loss)]
-                Ok(cx.number(count as f64).upcast())
-            }
+            Written::Count(written) => count(cx, written),
         }
     }
 }

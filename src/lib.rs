@@ -104,7 +104,6 @@ pub mod schema;
 #[doc(hidden)]
 #[cfg(all(feature = "macros", feature = "tests-cfg"))]
 pub mod tests_cfg;
-mod util;
 
 pub use database::*;
 pub use entity::*;

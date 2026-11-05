@@ -1,0 +1,148 @@
+{
+  "chapters": [
+    {
+      "id": "getting-started",
+      "title": "Getting started",
+      "file": "01-getting-started.md"
+    },
+    {
+      "id": "asyncio",
+      "title": "Python and asyncio",
+      "file": "02-asyncio.md",
+      "python_only": true
+    },
+    {
+      "id": "entities",
+      "title": "Models and entities",
+      "file": "03-entities.md"
+    },
+    {
+      "id": "writing",
+      "title": "Writing rows",
+      "file": "04-writing.md"
+    },
+    {
+      "id": "reading",
+      "title": "Reading rows",
+      "file": "05-reading.md"
+    },
+    {
+      "id": "pagination",
+      "title": "Pages, cursors and streams",
+      "file": "06-pagination.md"
+    },
+    {
+      "id": "relations",
+      "title": "Relations",
+      "file": "07-relations.md"
+    },
+    {
+      "id": "transactions",
+      "title": "Transactions",
+      "file": "08-transactions.md"
+    },
+    {
+      "id": "errors",
+      "title": "Errors",
+      "file": "09-errors.md"
+    },
+    {
+      "id": "raw-sql",
+      "title": "Raw SQL",
+      "file": "10-raw-sql.md"
+    },
+    {
+      "id": "query-builder",
+      "title": "The query builder",
+      "file": "11-query-builder.md"
+    },
+    {
+      "id": "pipeline",
+      "title": "The pipeline",
+      "file": "12-pipeline.md"
+    },
+    {
+      "id": "values",
+      "title": "Values and types",
+      "file": "13-values.md"
+    },
+    {
+      "id": "schema",
+      "title": "Schema generation",
+      "file": "14-schema.md"
+    },
+    {
+      "id": "disjoint",
+      "title": "Disjoint enums",
+      "file": "15-disjoint.md"
+    },
+    {
+      "id": "one-of",
+      "title": "One-of references",
+      "file": "16-one-of.md"
+    },
+    {
+      "id": "copy",
+      "title": "COPY",
+      "file": "17-copy.md"
+    },
+    {
+      "id": "listen-notify",
+      "title": "LISTEN and NOTIFY",
+      "file": "18-listen-notify.md"
+    },
+    {
+      "id": "statement-caches",
+      "title": "Statement caches and DDL",
+      "file": "19-statement-caches.md"
+    },
+    {
+      "id": "configuration",
+      "title": "Connection configuration and TLS",
+      "file": "20-configuration.md"
+    },
+    {
+      "id": "metrics",
+      "title": "Metrics",
+      "file": "21-metrics.md"
+    },
+    {
+      "id": "migrations",
+      "title": "Migrations",
+      "file": "22-migrations.md"
+    },
+    {
+      "id": "codegen",
+      "title": "Generating entities",
+      "file": "23-codegen.md"
+    },
+    {
+      "id": "registrations",
+      "title": "Registering Rust entities",
+      "file": "24-registrations.md",
+      "python_only": true
+    },
+    {
+      "id": "typing",
+      "title": "Types and mypy",
+      "file": "25-typing.md",
+      "python_only": true
+    },
+    {
+      "id": "postgres-releases",
+      "title": "PostgreSQL 18 and 19",
+      "file": "26-postgres-releases.md"
+    },
+    {
+      "id": "bindings",
+      "title": "Python and JavaScript",
+      "file": "27-bindings.md"
+    },
+    {
+      "id": "distribution",
+      "title": "Packaging and distribution",
+      "file": "28-distribution.md",
+      "python_only": true
+    }
+  ]
+}

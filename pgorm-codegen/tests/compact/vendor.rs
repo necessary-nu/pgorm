@@ -1,14 +1,14 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "vendor")]
 pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
-    #[pgorm(column_name = "_name_", column_type = ColumnType::String(StringLen::N(255u32)))]
+    #[pgorm(column_name = "_name_", column_type = ColumnType::String(StringLen::N(255)))]
     pub name: String,
     #[pgorm(column_name = "fruitId")]
-    pub fruit_id: Option<i32> ,
+    pub fruit_id: Option<i32>,
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -17,7 +17,7 @@ pub enum Relation {
     #[pgorm(
         belongs_to = super::fruit::Entity,
         from = Column::FruitId,
-        to = super::fruit::Column::Id,
+        to = super::fruit::Column::Id
     )]
     Fruit,
 }

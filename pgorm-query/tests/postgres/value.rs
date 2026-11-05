@@ -214,7 +214,7 @@ fn empty_array_literal_names_element_type() {
     assert_eq!(Value::array([1, 2]).to_string(), "ARRAY [1,2]");
 }
 
-// [spec:pgorm:def:sql.value.array+6/test]    `Value::array` tags the element
+// [spec:pgorm:def:sql.value.array+7/test]    `Value::array` tags the element
 // type from `V`, not from the elements, so an empty list is still typed
 #[test]
 fn value_array_tags_element_type_from_rust() {
@@ -254,7 +254,7 @@ fn unsigned_variants_carry_oid_and_limit_counts() {
     );
 }
 
-// [spec:pgorm:def:sql.value.value-type+4/test]    a `char` holds one character, so
+// [spec:pgorm:def:sql.value.value-type+5/test]    a `char` holds one character, so
 // its column is `char(1)`, not the unbounded `bpchar` of `Char(None)`
 #[test]
 fn a_char_column_holds_one_character() {
@@ -264,16 +264,16 @@ fn a_char_column_holds_one_character() {
     );
 }
 
-// [spec:pgorm:def:sql.value.value-type+4/test]    try_from errors on a variant mismatch
+// [spec:pgorm:def:sql.value.value-type+5/test]    from_value errors on a variant mismatch
 #[test]
-fn try_from_errors_on_variant_mismatch() {
-    assert!(<i32 as ValueType>::try_from(Value::BigInt(Some(1))).is_err());
+fn from_value_errors_on_variant_mismatch() {
+    assert!(<i32 as ValueType>::from_value(Value::BigInt(Some(1))).is_err());
 }
 
-// [spec:pgorm:def:sql.value.value-type+4/test]    try_from errors on a nullability mismatch
+// [spec:pgorm:def:sql.value.value-type+5/test]    from_value errors on a nullability mismatch
 #[test]
-fn try_from_errors_on_a_null_payload() {
-    assert!(<i32 as ValueType>::try_from(Value::Int(None)).is_err());
+fn from_value_errors_on_a_null_payload() {
+    assert!(<i32 as ValueType>::from_value(Value::Int(None)).is_err());
 }
 
 // [spec:pgorm:sem:sql.value.accessor-panics+2/test]    `as_ref_*` yields None for SQL NULL of the

@@ -57,7 +57,7 @@ impl Registry {
     /// refuses are each a `ConstructionError` raised as it is registered. An
     /// unkinded enum registers the same way and is read-only: its shape
     /// refuses every write and its schema.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     // [spec:pgorm:req:bindings.disjoint-unkinded]
     // [spec:pgorm:req:bindings.entities+6]
     // [spec:pgorm:sem:disjoint.unkinded+1]
@@ -133,7 +133,7 @@ fn registry<'py>(module: &Bound<'py, PyModule>) -> PyResult<Bound<'py, PyAny>> {
 
 /// `disjoint_entity(name)`: the disjoint enum the module registers as
 /// `name`.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 #[pyfunction(pass_module, name = "_disjoint_entity")]
 pub(crate) fn disjoint_entity(
     module: &Bound<'_, PyModule>,
@@ -157,7 +157,7 @@ pub(crate) fn disjoint_entity(
 
 /// `disjoint_entities()`: the names of the disjoint enums the module
 /// registers, in order.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 #[pyfunction(pass_module, name = "_disjoint_entities")]
 pub(crate) fn disjoint_entities(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
     let object = registry(module)?;

@@ -7,7 +7,8 @@ import tempfile
 import unittest
 
 from pgorm.codegen.config import CodegenError, rust_path, rust_string, validate
-from pgorm.codegen.emit import attributes, disjoint_code, entity_code
+from pgorm.codegen.emit import attributes, disjoint_code, entity_code, import_block
+from pgorm.codegen.source import literal, statement, string
 from pgorm.codegen.types import field_type
 
 
@@ -84,15 +85,15 @@ class CodegenTests(unittest.TestCase):
         }
         code, stubs = disjoint_code({"name": "app.Boxes", "python": "Boxes"}, described, entities)
         self.assertIn(
-            "BoxesRow: TypeAlias = tuple[BoxModel, Literal['crate'], CrateModel] "
-            "| tuple[BoxModel, Literal['loose'], None]",
+            'BoxesRow: TypeAlias = (\n    tuple[BoxModel, Literal["crate"], CrateModel]\n'
+            '    | tuple[BoxModel, Literal["loose"], None]\n)',
             stubs,
         )
         self.assertIn(
-            "Boxes: WritableDisjointView[BoxesRow, Literal['crate', 'loose'], BoxActive, CrateActive]",
+            'Boxes: WritableDisjointView[BoxesRow, Literal["crate", "loose"], BoxActive, CrateActive]',
             stubs,
         )
-        ast.parse("\n".join(code))
+        ast.parse("\n\n\n".join(code))
         _, unkinded = disjoint_code(
             {"name": "app.Boxes", "python": "Boxes"}, {**described, "kind_field": None}, entities
         )
@@ -101,6 +102,110 @@ class CodegenTests(unittest.TestCase):
                         {**described, "kinds": [{"value": "x", "model": "app.Missing"}]}):
             with self.subTest(missing=missing), self.assertRaises(CodegenError):
                 disjoint_code({"name": "app.Boxes", "python": "Boxes"}, missing, entities)
+
+    # [spec:pgorm:req:bindings.codegen-layout/test]    the module is laid out as black lays it out: double quotes, a call's arguments on a line of their own or one to a line within 88 columns, a long conditional split before its if and its else, a long union a member to a line, a long stub annotation an argument to a line, and only the imports the code uses, grouped and sorted
+    def test_generated_python_takes_blacks_layout(self):
+        entity = {
+            "columns": [
+                {"name": "id", "json_key": "id", "rust_type": "i32", "kind": "i32"},
+                {
+                    "name": "display name",
+                    "json_key": "displayName",
+                    "rust_type": "String",
+                    "kind": "text",
+                },
+                {
+                    "name": "mood",
+                    "json_key": "mood",
+                    "rust_type": "Mood",
+                    "kind": 'enum "python_entities"."Mood"',
+                },
+            ]
+        }
+        entry = {"name": "app.Account", "python": "Account", "fields": {"display name": "display_name"}}
+        code, stubs = entity_code(entry, entity)
+        self.assertEqual(
+            code[1],
+            """class AccountActive(ActiveView[AccountModel]):
+    _entity_name = "app.Account"
+    _model_class = AccountModel
+
+    def set_id(self, value: int | p.Value) -> AccountActive:
+        return self.set(
+            "id", value if isinstance(value, p.Value) else p.Value(value, "i32")
+        )
+
+    def set_display_name(self, value: str | p.Value) -> AccountActive:
+        return self.set(
+            "display name",
+            value if isinstance(value, p.Value) else p.Value(value, "text"),
+        )
+
+    def set_mood(self, value: str | p.Value) -> AccountActive:
+        return self.set(
+            "mood",
+            value
+            if isinstance(value, p.Value)
+            else p.Value(value, p.TypeName("Mood", schema="python_entities")),
+        )""",
+        )
+        self.assertEqual(code[2], 'AccountModel._active_class = AccountActive\nAccount = EntityView(p.entity("app.Account"), AccountModel, AccountActive)')
+        entities = {name: {"python": name.split(".")[1]} for name in ("app.Delivery", "app.Parcel", "app.Pallet")}
+        described = {
+            "kind_field": "kind",
+            "base": "app.Delivery",
+            "kinds": [
+                {"value": "parcel", "model": "app.Parcel"},
+                {"value": "letter", "model": None},
+                {"value": "pallet", "model": "app.Pallet"},
+            ],
+        }
+        code, stubs = disjoint_code({"name": "app.Deliveries", "python": "Deliveries"}, described, entities)
+        self.assertEqual(
+            stubs,
+            [
+                """DeliveriesRow: TypeAlias = (
+    tuple[DeliveryModel, Literal["parcel"], ParcelModel]
+    | tuple[DeliveryModel, Literal["letter"], None]
+    | tuple[DeliveryModel, Literal["pallet"], PalletModel]
+)""",
+                """Deliveries: WritableDisjointView[
+    DeliveriesRow,
+    Literal["parcel", "letter", "pallet"],
+    DeliveryActive,
+    ParcelActive | PalletActive,
+]""",
+            ],
+        )
+        body = "\n\n\n".join(code)
+        self.assertTrue(all(len(line) <= 88 for line in body.splitlines()), body)
+        self.assertEqual(
+            import_block(body),
+            "from __future__ import annotations\n\n"
+            "from typing import Any, Literal, TypeAlias, cast\n\n"
+            "import pgorm as p\n"
+            "from pgorm._registered.disjoints import WritableDisjointView, wrap_disjoint_row",
+        )
+        self.assertEqual(
+            literal({"entities": ["app.Account"], "features": ["macros"] * 12}, 0, 17),
+            """{
+    "entities": ["app.Account"],
+    "features": [
+        "macros",
+        "macros",
+        "macros",
+        "macros",
+        "macros",
+        "macros",
+        "macros",
+        "macros",
+        "macros",
+        "macros",
+        "macros",
+        "macros",
+    ],
+}""",
+        )
 
     # [spec:pgorm:req:bindings.codegen/test]
     def test_build_input_does_not_accept_code(self):
@@ -143,25 +248,25 @@ class CodegenTests(unittest.TestCase):
             mapped = field_type({"rust_type": rust, "kind": "i64"})
             with self.subTest(rust=rust):
                 self.assertEqual(
-                    (mapped.annotation, mapped.kind), (annotation, repr(kind))
+                    (mapped.annotation, mapped.kind), (annotation, string(kind))
                 )
         for rust in (None, "ApplicationAlias", "Vec<ApplicationAlias>"):
             mapped = field_type({"rust_type": rust, "kind": "i32"})
             self.assertEqual(mapped.annotation, "Any")
         array = field_type({"rust_type": "Option<Vec<Option<i32>>>", "kind": "i32[]"})
         self.assertEqual(array.annotation, "list[int | None] | None")
-        self.assertIn("Value.array('i32'", array.binding())
+        self.assertIn('Value.array("i32"', statement(array.binding()))
         intervals = field_type(
             {"rust_type": "Option < Vec < Interval > >", "kind": "interval[]"}
         )
         self.assertEqual(intervals.annotation, "list[p.Interval] | None")
-        self.assertIn("Value.array('interval'", intervals.binding())
+        self.assertIn('Value.array("interval"', statement(intervals.binding()))
         enum = field_type({"rust_type": "Mood", "kind": 'enum "a""b"."Mo.od"'})
         self.assertEqual(enum.annotation, "str")
-        self.assertIn("p.TypeName('Mo.od', schema='a\"b')", enum.binding())
+        self.assertIn("""p.TypeName("Mo.od", schema='a"b')""", statement(enum.binding()))
         bare = field_type({"rust_type": "Vec<Mood>", "kind": 'enum "Mood"[]'})
         self.assertEqual(bare.annotation, "list[str]")
-        self.assertIn("p.TypeName('Mood', schema=None)", bare.binding())
+        self.assertIn('p.TypeName("Mood", schema=None)', statement(bare.binding()))
         for kind in ('enum Mood', 'enum "a"."b"."c"', 'enum "a"b'):
             with self.subTest(kind=kind), self.assertRaises(CodegenError):
                 field_type({"rust_type": "Mood", "kind": kind})
@@ -182,8 +287,8 @@ class CodegenTests(unittest.TestCase):
         code, stubs = entity_code(
             {**entry, "fields": {"display name": "display_name"}}, entity
         )
-        self.assertIn("self['display name']", "\n".join(code))
-        ast.parse("\n".join(code))
+        self.assertIn('self["display name"]', "\n".join(code))
+        ast.parse("\n\n\n".join(code))
         ast.parse("\n".join(stubs))
         for fields in (
             {"missing": "x"},

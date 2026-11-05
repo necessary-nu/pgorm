@@ -34,7 +34,7 @@ pub fn expand_derive_json_value_type(ident: Ident) -> syn::Result<TokenStream> {
 
         #[automatically_derived]
         impl pgorm::pgorm_query::ValueType for #ident {
-            fn try_from(v: pgorm::Value) -> Result<Self, pgorm::pgorm_query::ValueTypeError> {
+            fn from_value(v: pgorm::Value) -> Result<Self, pgorm::pgorm_query::ValueTypeError> {
                 match v {
                     pgorm::Value::Json(Some(json)) => Ok(
                         serde_json::from_value(*json).map_err(|_| pgorm::pgorm_query::ValueTypeError)?,

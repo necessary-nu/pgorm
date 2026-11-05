@@ -1,11 +1,11 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "bills")]
 pub struct Model {
     #[pgorm(primary_key)]
     pub id: i32,
-    pub user_id: Option<i32> ,
+    pub user_id: Option<i32>,
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -17,7 +17,7 @@ pub enum Relation {
         to = super::users::Column::Id,
         on_update = ForeignKeyAction::NoAction,
         on_delete = ForeignKeyAction::NoAction,
-        related = false,
+        related = false
     )]
     Users,
     #[pgorm(has_many = super::users_votes::Entity)]

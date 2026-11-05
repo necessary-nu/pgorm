@@ -43,7 +43,7 @@ pub(crate) enum Grammar {
 }
 
 /// Split `input` into literal text and placeholder references.
-// [spec:pgorm:req:sql.render.custom-expr+3] (the `Template` grammar: `$$` escape, `$N` index)
+// [spec:pgorm:req:sql.render.custom-expr+4] (the `Template` grammar: `$$` escape, `$N` index)
 // [spec:pgorm:sem:sql.render.inject+3] (the `Sql` grammar: only `$N`, everything else verbatim)
 pub(crate) fn scan(input: &str, grammar: Grammar) -> Result<Vec<Chunk>> {
     let mark = "$";
@@ -118,7 +118,7 @@ pub(crate) fn scan(input: &str, grammar: Grammar) -> Result<Vec<Chunk>> {
 
 /// Check the census of `chunks` against `supplied`: the distinct placeholder
 /// indices referenced must be exactly `1..=supplied`.
-// [spec:pgorm:req:sql.render.custom-expr+3]
+// [spec:pgorm:req:sql.render.custom-expr+4]
 // [spec:pgorm:sem:sql.render.inject+3]
 fn census(input: &str, chunks: &[Chunk], supplied: usize) -> Result<()> {
     let mut referenced: Vec<usize> = chunks
@@ -154,7 +154,7 @@ fn census(input: &str, chunks: &[Chunk], supplied: usize) -> Result<()> {
 
 /// Scan `input` and pair every placeholder with the value it names, or refuse
 /// the pairing. The result holds values, not indices.
-// [spec:pgorm:req:sql.render.custom-expr+3]
+// [spec:pgorm:req:sql.render.custom-expr+4]
 // [spec:pgorm:sem:sql.render.inject+3]
 pub(crate) fn resolve<T>(input: &str, grammar: Grammar, values: &[T]) -> Result<Vec<Segment<T>>>
 where
@@ -182,7 +182,7 @@ where
         .collect()
 }
 
-// [spec:pgorm:req:sql.render.custom-expr+3/test]
+// [spec:pgorm:req:sql.render.custom-expr+4/test]
 // [spec:pgorm:sem:sql.render.inject+3/test]
 #[cfg(test)]
 mod tests {
@@ -360,7 +360,7 @@ mod tests {
 /// [`Expr::template_with_exprs`](crate::Expr::template_with_exprs); in relation
 /// position it is the payload of
 /// [`FromItem::Template`](crate::FromItem::Template).
-// [spec:pgorm:req:sql.render.custom-expr+3]
+// [spec:pgorm:req:sql.render.custom-expr+4]
 #[derive(Debug, Clone, PartialEq)]
 pub struct SqlTemplate {
     segments: Vec<Segment<SimpleExpr>>,
@@ -368,6 +368,11 @@ pub struct SqlTemplate {
 
 impl SqlTemplate {
     /// Pair `template` with `values`, or refuse the pair.
+    ///
+    /// The template is a `&'static str`: a template authored for this
+    /// machinery is program text, as [`Expr::raw`](crate::Expr::raw)'s is, and
+    /// text built at run time cannot become one. Real SQL that arrives at run
+    /// time, a caller's own statement, is [`SqlTemplate::from_sql`]'s.
     ///
     /// The template is tokenized, so placeholder-like text inside quoted
     /// tokens is left alone. `$$` writes a literal `$`; `$N` names the `N`th
@@ -392,16 +397,14 @@ impl SqlTemplate {
     /// let short = SqlTemplate::new("$1 * $2", [Expr::val(2).into()]);
     /// assert!(short.is_err());
     /// ```
-    // [spec:pgorm:req:sql.render.custom-expr+3]
-    pub fn new<T, I>(template: T, values: I) -> Result<Self>
+    // [spec:pgorm:req:sql.render.custom-expr+4]
+    pub fn new<I>(template: &'static str, values: I) -> Result<Self>
     where
-        T: Into<String>,
         I: IntoIterator<Item = SimpleExpr>,
     {
-        let template = template.into();
         let values: Vec<SimpleExpr> = values.into_iter().collect();
         Ok(Self {
-            segments: resolve(&template, Grammar::Template, &values)?,
+            segments: resolve(template, Grammar::Template, &values)?,
         })
     }
 
@@ -439,7 +442,7 @@ impl SqlTemplate {
     /// let unbound = SqlTemplate::from_sql("SELECT $1, $2", [1i32.into()]);
     /// assert!(unbound.is_err());
     /// ```
-    // [spec:pgorm:req:sql.render.custom-expr+3]
+    // [spec:pgorm:req:sql.render.custom-expr+4]
     pub fn from_sql<T, I>(sql: T, values: I) -> Result<Self>
     where
         T: Into<String>,

@@ -49,7 +49,7 @@ fn transform_builds_entity_per_statement_ordered_by_name() {
         .collect();
     assert_eq!(
         index,
-        ["pub mod apple ;", "pub mod mango ;", "pub mod zebra ;"]
+        ["pub mod apple;", "pub mod mango;", "pub mod zebra;"]
     );
 }
 
@@ -380,7 +380,7 @@ fn transform_marks_columns_from_single_column_unique_key() {
 // columns or more is the entity's `unique(..)`, in the table's order, keeping its
 // name and `NULLS NOT DISTINCT`; one with an INCLUDE list or a deferrability is
 // refused by name
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]
 #[test]
 fn transform_keeps_composite_unique_keys() {
     let n = Name::runtime;
@@ -675,7 +675,7 @@ fn transform_turns_foreign_keys_into_belongs_to_relations() {
             from = (Column::CakeId, Column::CakeKind),
             to = (super::cake::Column::Id, super::cake::Column::Kind),
             on_update = ForeignKeyAction::Cascade,
-            on_delete = ForeignKeyAction::SetNull,
+            on_delete = ForeignKeyAction::SetNull
         )]"#,
     );
 }
@@ -691,7 +691,7 @@ fn transform_flags_self_referencing_relations() {
 
     assert_contains(
         generated.file("users.rs"),
-        r#"#[pgorm(belongs_to = Entity, from = Column::ManagerId, to = Column::Id,)] SelfRef,"#,
+        r#"#[pgorm(belongs_to = Entity, from = Column::ManagerId, to = Column::Id)] SelfRef,"#,
     );
 }
 
@@ -752,7 +752,7 @@ fn transform_numbers_repeated_fks_to_same_table() {
         r#"#[pgorm(
             belongs_to = super::fruit::Entity,
             from = Column::FruitId1,
-            to = super::fruit::Column::Id,
+            to = super::fruit::Column::Id
         )]
         Fruit2,"#,
     );
@@ -761,7 +761,7 @@ fn transform_numbers_repeated_fks_to_same_table() {
         r#"#[pgorm(
             belongs_to = super::fruit::Entity,
             from = Column::FruitId2,
-            to = super::fruit::Column::Id,
+            to = super::fruit::Column::Id
         )]
         Fruit1,"#,
     );
@@ -771,7 +771,7 @@ fn transform_numbers_repeated_fks_to_same_table() {
         r#"#[pgorm(
             belongs_to = super::cake::Entity,
             from = Column::CakeId,
-            to = super::cake::Column::Id,
+            to = super::cake::Column::Id
         )]
         Cake,"#,
     );

@@ -20,6 +20,7 @@ use pgorm::{
     },
     tests_cfg::{cake, fruit},
 };
+use pgorm_query::ExprTrait;
 
 use super::{
     fixtures::{cast_named, dyn_named, range_named},

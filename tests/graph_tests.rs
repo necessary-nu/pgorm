@@ -24,7 +24,7 @@ use pgorm::{
     LoaderTrait, Opt, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
     SelectGraph, alias,
 };
-use pgorm_query::{Expr, IntoCondition};
+use pgorm_query::{Expr, ExprTrait, IntoCondition};
 use pretty_assertions::assert_eq;
 use std::num::NonZeroU64;
 use tokio_postgres::error::SqlState;

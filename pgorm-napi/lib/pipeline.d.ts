@@ -13,11 +13,12 @@
 
 // [spec:pgorm:req:napi.typing+1]
 // [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline-terminals]
 
 import type { Builder, BindValue, Compiled } from "./expressions.d.ts";
 import type { Table } from "./select.d.ts";
 import type { Entity, EntityColumn, EntityRecord, SourceRegistrations } from "./entities.d.ts";
-import type { OperationOptions, Queryable, TypeName } from "./index.d.ts";
+import type { OperationOptions, Queryable, QueryOptions, RowFor, TypeName } from "./index.d.ts";
 
 /** An operand: a pipeline expression, or a value the stage that takes it binds. */
 export type PipelineOperand = PipelineExpr | BindValue;
@@ -183,12 +184,21 @@ export type JoinKind = "inner" | "left" | "right" | "full";
 
 /**
  * A pipeline: a relation built stage by stage; every stage returns a new one.
- * It runs through `execute`, `query`, `one`, `optional` and `stream` as any
- * statement does, and what prqlc cannot compile is a `ConstructionError`
- * there or from `inspect()`.
+ * Its own terminals are Rust's `Pipeline::all`, `one` and `one_opt`; it also
+ * runs through `execute`, `query`, `one`, `optional` and `stream` as any
+ * statement does, with their cardinality. What prqlc cannot compile is a
+ * `ConstructionError` there or from `inspect()`.
  */
 export declare class Pipeline extends Builder {
   private constructor();
+  /** The SQL and values a terminal sends, `one` and `optional` with the `take 1` Rust appends. */
+  inspect(terminal?: "all" | "one" | "optional"): Compiled;
+  /** Every row, by `Pipeline::all`. */
+  all<O extends QueryOptions = QueryOptions>(db: Queryable, options?: O): Promise<RowFor<O>[]>;
+  /** The first row, by `Pipeline::one`, which appends `take 1`; none is a `DecodeError`. */
+  one<O extends QueryOptions = QueryOptions>(db: Queryable, options?: O): Promise<RowFor<O>>;
+  /** The first row, or `null`, by `Pipeline::one_opt`, which appends `take 1`. */
+  optional<O extends QueryOptions = QueryOptions>(db: Queryable, options?: O): Promise<RowFor<O> | null>;
   /** Rows the predicate holds for: a `WHERE`, or a `HAVING` after an aggregate. */
   filter(predicate: PipelineOperand): Pipeline;
   filterWith(fn: BinderScalar): Pipeline;

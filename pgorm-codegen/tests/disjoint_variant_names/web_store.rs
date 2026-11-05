@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "web_store")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -11,6 +11,10 @@ pub struct Model {
 #[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
-    #[pgorm(belongs_to = super::store::Entity, from = Column::StoreId, to = super::store::Column::Id)]
+    #[pgorm(
+        belongs_to = super::store::Entity,
+        from = Column::StoreId,
+        to = super::store::Column::Id
+    )]
     Store,
 }

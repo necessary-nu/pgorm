@@ -126,7 +126,7 @@ fn sweep_expression_shapes() {
             .when(1, Expr::val("one"))
             .finally(Expr::val("other"))
             .into(),
-        Expr::col(Glyph::Tokens).index(1).index(2).into(),
+        Expr::col(Glyph::Tokens).index(1).index(2),
         Expr::col(Glyph::Tokens)
             .slice(1, 2)
             .slice_from(3)

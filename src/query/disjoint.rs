@@ -14,8 +14,8 @@ use core::marker::PhantomData;
 use std::fmt;
 
 use pgorm_query::{
-    BinOper, Condition, ConditionType, Expr, FromItem, IntoCondition, JoinType, Key, Name,
-    SelectExpr, SelectStatement, SimpleExpr, TableName, Value, ValueTuple,
+    BinOper, Condition, ConditionType, Expr, ExprTrait, FromItem, IntoCondition, JoinType, Key,
+    Name, SelectExpr, SelectStatement, SimpleExpr, TableName, Value, ValueTuple,
 };
 
 use super::graph::source_prefix;
@@ -326,7 +326,7 @@ impl DisjointShape {
     /// in key order, as [`Disjoint::find_by_id`] narrows it; a key of another
     /// arity than the base's is refused as [`Error::Type`].
     // [spec:pgorm:sem:disjoint.read+2]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn key_is(&self, key: Vec<Value>) -> Result<Condition, Error> {
         self.key_arity(key.len())?;
         Ok(key_filter(&self.base, key))
@@ -354,7 +354,7 @@ impl DisjointShape {
     /// [`filter_kind`](Self::filter_kind) give the conditions that narrow it
     /// by kind.
     // [spec:pgorm:sem:disjoint.read+2]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn find(&self) -> SelectStatement {
         let mut query = SelectStatement::new();
         query.from(self.base.table.clone());
@@ -437,7 +437,7 @@ impl DisjointShape {
     /// [`source_prefix`](crate::source_prefix)`(0)`, and each kind with a
     /// table the index [`sources`](Self::sources) pairs it with.
     // [spec:pgorm:sem:disjoint.read+2]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn result_names(&self, source: usize) -> Option<Vec<String>> {
         let table = match source {
             BASE_SOURCE => &self.base,
@@ -527,7 +527,7 @@ impl DisjointShape {
     /// [`SelectDisjoint::kind`] adds; a value no kind has is refused as
     /// [`Error::Type`].
     // [spec:pgorm:sem:disjoint.read+2]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn kind_is(&self, kind: &str) -> Result<SimpleExpr, Error> {
         let (index, _) = self.kind(kind)?;
         Ok(self.of_kind(index))
@@ -537,7 +537,7 @@ impl DisjointShape {
     /// [`SelectDisjoint::kinds`] adds; a value no kind has is refused as
     /// [`Error::Type`].
     // [spec:pgorm:sem:disjoint.read+2]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn kind_in<S: AsRef<str>>(&self, kinds: &[S]) -> Result<SimpleExpr, Error> {
         let indices = kinds
             .iter()
@@ -578,7 +578,7 @@ impl DisjointShape {
     ///
     /// Its [`statement`](Cursor::statement) is what a page of it sends.
     // [spec:pgorm:sem:disjoint.read+2]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn cursor_by<S: AsRef<str>>(
         &self,
         query: SelectStatement,

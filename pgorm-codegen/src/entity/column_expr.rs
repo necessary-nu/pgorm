@@ -13,17 +13,17 @@
 
 use heck::ToUpperCamelCase;
 use pgorm_query::{
-    BinOper, CaseStatement, ColumnRef, Expr, Func, Function, Keyword, Name, SimpleExpr, TypeName,
-    UnOper, Value,
+    BinOper, CaseStatement, ColumnRef, Expr, ExprTrait, Func, Function, Keyword, Name, SimpleExpr,
+    TypeName, UnOper, Value,
 };
 use proc_macro2::{Literal, TokenStream};
-use quote::{format_ident, quote};
+use quote::{ToTokens, format_ident, quote};
 use rust_decimal::Decimal;
 
 use crate::util::escape_rust_keyword;
 
 /// One expression of the subset.
-// [spec:pgorm:sem:codegen.entity.expressions+2]
+// [spec:pgorm:sem:codegen.entity.expressions+3]
 #[derive(Clone, Debug, PartialEq)]
 pub enum ColumnExpr {
     /// A column of the same table, by name.
@@ -181,7 +181,7 @@ impl Operator {
     }
 
     /// The builder method on `Expr` that writes this operator, or the
-    /// `BinOper` variant `Expr::binary` takes for the two that have none.
+    /// `BinOper` variant `ExprTrait::binary` takes for the two that have none.
     fn method(self) -> Result<&'static str, &'static str> {
         match self {
             Self::Add => Ok("add"),
@@ -229,7 +229,7 @@ impl ColumnExpr {
 
     /// The `SimpleExpr` this builds: the value the bridged statement carries,
     /// and the one the Rust [`to_rust`](Self::to_rust) prints builds.
-    // [spec:pgorm:sem:codegen.entity.expressions+2]
+    // [spec:pgorm:sem:codegen.entity.expressions+3]
     pub(crate) fn lower(&self) -> SimpleExpr {
         match self {
             Self::Column(name) => Expr::col(Name::runtime(name.as_str())).into(),
@@ -271,7 +271,7 @@ impl ColumnExpr {
 
     /// Read a statement's expression back, or name the part of it outside
     /// the subset.
-    // [spec:pgorm:sem:codegen.entity.expressions+2]
+    // [spec:pgorm:sem:codegen.entity.expressions+3]
     pub(crate) fn read(expr: &SimpleExpr) -> Result<Self, String> {
         Ok(match expr {
             SimpleExpr::Column(ColumnRef::Column(name)) => Self::Column(name.to_string()),
@@ -393,31 +393,17 @@ impl ColumnExpr {
 
     /// The Rust that builds [`lower`](Self::lower)'s `SimpleExpr`, inside an
     /// entity whose `Column` enum names the table's columns.
-    // [spec:pgorm:sem:codegen.entity.expressions+2]
+    // [spec:pgorm:sem:codegen.entity.expressions+3]
     pub(crate) fn to_rust(&self) -> TokenStream {
         match self {
             Self::Column(name) => {
                 let column = format_ident!("{}", escape_rust_keyword(name.to_upper_camel_case()));
                 quote! { Expr::col(Column::#column) }
             }
-            Self::Int(int) => {
-                let int = Literal::i32_unsuffixed(*int);
-                quote! { Expr::val(#int) }
+            Self::Int(_) | Self::BigInt(_) | Self::Decimal(..) | Self::Text(_) | Self::Bool(_) => {
+                let value = self.to_value().expect("a literal is a value");
+                quote! { Expr::val(#value) }
             }
-            Self::BigInt(big) => {
-                let big = Literal::i64_suffixed(*big);
-                quote! { Expr::val(#big) }
-            }
-            Self::Decimal(mantissa, scale) => {
-                let mantissa = Literal::i64_suffixed(*mantissa);
-                let scale = Literal::u32_unsuffixed(*scale);
-                quote! { Expr::val(Decimal::new(#mantissa, #scale)) }
-            }
-            Self::Text(text) => {
-                let text = Literal::string(text);
-                quote! { Expr::val(#text) }
-            }
-            Self::Bool(value) => quote! { Expr::val(#value) },
             Self::Null => quote! { pgorm::pgorm_query::Keyword::Null },
             Self::Keyword(keyword) => match keyword {
                 CurrentKeyword::Date => quote! { Expr::current_date() },
@@ -488,6 +474,27 @@ impl ColumnExpr {
                 quote! { Expr::case(#condition, #result) #( #rest )* #otherwise }
             }
         }
+    }
+
+    /// The Rust of the value a literal is, which `Expr::val` takes and the
+    /// derive's `default_value` is written as: an `integer` bare, a `bigint`
+    /// `i64`-suffixed, since a bare literal of its size is no `i32`, a
+    /// `numeric` as `Decimal::new(m, s)`, a string and a boolean as Rust's
+    /// own. `None` for an expression that is not a literal.
+    // [spec:pgorm:sem:codegen.entity.expressions+3]
+    pub(crate) fn to_value(&self) -> Option<TokenStream> {
+        Some(match self {
+            Self::Int(int) => Literal::i32_unsuffixed(*int).into_token_stream(),
+            Self::BigInt(big) => Literal::i64_suffixed(*big).into_token_stream(),
+            Self::Decimal(mantissa, scale) => {
+                let mantissa = Literal::i64_unsuffixed(*mantissa);
+                let scale = Literal::u32_unsuffixed(*scale);
+                quote! { Decimal::new(#mantissa, #scale) }
+            }
+            Self::Text(text) => Literal::string(text).into_token_stream(),
+            Self::Bool(value) => quote! { #value },
+            _ => return None,
+        })
     }
 
     /// [`to_rust`](Self::to_rust)'s Rust as a CASE arm's condition, which

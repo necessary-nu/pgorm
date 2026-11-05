@@ -129,6 +129,19 @@ platforms (
         }
     }
     {
+        platform "python-guide"
+        files (pgorm-python/guide/*.md pgorm-python/guide/*.py pgorm-python/guide/chapters.json pgorm-python/README.md pgorm-python/python/pgorm/**/*.py pgorm-python/python/pgorm/**/*.pyi)
+        checks {
+            // The guide's examples that run on the standalone wheel, each a
+            // module of its own beside the bakery, against the package's
+            // source stubs; checks/typing.py checks them against an
+            // installed wheel.
+            typing {
+                cmd "python3 pgorm-python/guide/examples.py typecheck target/python-guide-mypy"
+            }
+        }
+    }
+    {
         platform "python-models"
         files (pgorm-python/python/pgorm/**/*.py pgorm-python/python/pgorm/**/*.pyi)
         checks {
@@ -243,11 +256,11 @@ platforms (
     }
     {
         platform "napi-types"
-        files (pgorm-napi/lib/**/*.js pgorm-napi/lib/**/*.d.ts pgorm-napi/tests/**/*.ts pgorm-napi/scripts/**/*.mjs pgorm-napi/deno.json pgorm-napi/package.json)
+        files (pgorm-napi/lib/**/*.js pgorm-napi/lib/**/*.d.ts pgorm-napi/tests/**/*.ts pgorm-napi/guide/*.ts pgorm-napi/scripts/**/*.mjs pgorm-napi/deno.json pgorm-napi/package.json)
         checks {
             // Deno type-checks every module under the package, the
-            // declarations and the suite included, from the package's own
-            // configuration.
+            // declarations, the suite and the guide's examples included,
+            // from the package's own configuration.
             typing {
                 cmd "cd pgorm-napi && deno check"
             }

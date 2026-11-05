@@ -1,7 +1,10 @@
 //! Owned commands cross the task boundary; database borrows never do.
 
 use crate::{
-    entities::backend::{Active, Model, Select, Terminal, VersionWrite, Versions, Write, Written},
+    entities::backend::{
+        Active, Insertion, Insertions, Model, Select, Terminal, VersionWrite, Versions, Write,
+        Written,
+    },
     execution::Database,
     expressions::Compiled,
     graphs::backend::{CursorPlan, Query as Graph, Row as GraphRow},
@@ -19,6 +22,10 @@ pub(crate) enum Work {
         std::sync::Arc<dyn crate::entities::backend::EntityBackend>,
         Box<VersionWrite>,
     ),
+    Insert(
+        std::sync::Arc<dyn crate::entities::backend::EntityBackend>,
+        Box<Insertion>,
+    ),
     Graph(Graph, bool),
     Cursor(Graph, CursorPlan),
     Sources(Sources, SourceTerminal),
@@ -32,6 +39,7 @@ pub(crate) enum Output {
     Models(Vec<Model>),
     Written(Written),
     Versions(Vec<Versions>),
+    Inserted(Insertions),
     Graph(Vec<GraphRow>),
     Finished,
 }
@@ -53,6 +61,9 @@ impl Work {
             Self::Write(active, write) => active.run(db, write).await.map(Output::Written),
             Self::Versions(entity, write) => {
                 entity.versions(db, *write).await.map(Output::Versions)
+            }
+            Self::Insert(entity, insertion) => {
+                entity.insert(db, *insertion).await.map(Output::Inserted)
             }
             Self::Graph(query, optional) => query.run(db, optional).await.map(Output::Graph),
             Self::Cursor(query, cursor) => query.cursor(db, cursor).await.map(Output::Graph),

@@ -311,7 +311,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(TypeError):
                 await Account.find().stream(transaction)
 
-    # [spec:pgorm:req:bindings.model-writes+1/test]
+    # [spec:pgorm:req:bindings.model-writes+2/test]
     async def test_writes_read_each_rows_two_versions(self):
         changes = await Account.update({"visits": 4}).where(Account.col("id").gte(2)).returning_changes(self.pool)
         self.assertEqual([(c.old["visits"], c.new["visits"], c.new["seq"]) for c in changes], [(0, 4, 5), (0, 4, 5)])
@@ -334,7 +334,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         empty = Account.insert_many([])
         self.assertEqual(
             (await empty.execute(self.pool), await empty.returning_upserts(self.pool),
-             await empty.returning("id").all(self.pool), await empty.returning_upsert(self.pool)),
+             await empty.returning("id").all(self.pool), await empty.returning("id").optional(self.pool)),
             (0, [], [], None),
         )
         with self.assertRaises(p.ConstructionError):
@@ -353,35 +353,48 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
             with self.subTest(terminal=terminal), self.assertRaises(TypeError):
                 write.inspect(terminal=terminal)
 
-    # [spec:pgorm:req:bindings.model-writes+1/test]
+    # [spec:pgorm:req:bindings.model-writes+2/test]
     def test_each_write_has_only_its_own_methods(self):
         insert = Account.insert({"name": "x"})
+        batch = Account.insert_many([])
         update = Account.update({"name": "x"})
         delete = Account.delete()
         writes = (
-            insert, Account.insert_many([]), update, update.where(Account.col("id") == 1),
-            delete, delete.all_rows(),
+            insert, batch, insert.add({"name": "y"}), batch.add_many([]), update,
+            update.where(Account.col("id") == 1), delete, delete.all_rows(),
         )
         self.assertEqual(
             [type(write) for write in writes],
-            [p.ModelInsert, p.ModelInsert, p.ModelUpdate, p.ModelUpdate, p.ModelDelete, p.ModelDelete],
+            [
+                p.ModelInsert, p.ModelInsertMany, p.ModelInsertMany, p.ModelInsertMany,
+                p.ModelUpdate, p.ModelUpdate, p.ModelDelete, p.ModelDelete,
+            ],
         )
-        upserts = ("on_conflict", "returning_upsert", "returning_upserts")
+        upserts = ("on_conflict", "returning_upsert", "returning_upserts", "add", "add_many")
         guards = ("where", "all_rows")
         changes = ("returning_change", "returning_changes")
-        for write, absent in ((insert, guards + changes), (update, upserts), (delete, upserts + changes)):
+        for write, absent in (
+            (insert, guards + changes + ("returning_upserts",)),
+            (batch, guards + changes + ("returning_upsert",)),
+            (update, upserts),
+            (delete, upserts + changes),
+        ):
             for name in absent:
                 with self.subTest(write=type(write).__name__, method=name):
                     self.assertFalse(hasattr(write, name))
         with self.assertRaises(TypeError):
             delete.all_rows().inspect(terminal="returning_change")
-        for kind, statement in (
-            (p.ModelInsert, p.Update(Account.table)),
-            (p.ModelUpdate, p.Delete(Account.table)),
-            (p.ModelDelete, None),
+        for write, terminal in ((insert, "returning_upserts"), (batch, "returning_upsert")):
+            with self.subTest(terminal=terminal), self.assertRaises(TypeError):
+                write.inspect(terminal=terminal)
+        for kind, arguments in (
+            (p.ModelInsert, (p.Update(Account.table), ())),
+            (p.ModelInsertMany, (p.Update(Account.table), ())),
+            (p.ModelUpdate, (p.Delete(Account.table),)),
+            (p.ModelDelete, (None,)),
         ):
             with self.subTest(kind=kind.__name__), self.assertRaises(TypeError):
-                kind(Account, statement)
+                kind(Account, *arguments)
 
 
 if __name__ == "__main__":

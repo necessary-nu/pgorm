@@ -91,7 +91,7 @@ fn word() -> Expr {
 /// Under `"C"` text sorts by byte, so every upper-case letter comes before
 /// every lower-case one; a linguistic collation puts both spellings of `a`
 /// before both spellings of `b`. Same rows, same statement shape, two orders.
-// [spec:pgorm:req:sql.ast.expr.collate/test]    against a live server: ORDER BY sorts by the
+// [spec:pgorm:req:sql.ast.expr.collate+2/test]    against a live server: ORDER BY sorts by the
 // collation its key names
 // [spec:pgorm:req:sql.render.collate/test]
 // [spec:pgorm:req:sql.scope+23/test]
@@ -99,10 +99,10 @@ async fn the_same_values_sort_by_the_collation_named(
     db: &DatabaseConnection,
     linguistic: &str,
 ) -> Result<(), Error> {
-    let by_byte = sorted(db, word().collate(Name::runtime("C")).into()).await?;
+    let by_byte = sorted(db, word().collate(Name::runtime("C"))).await?;
     assert_eq!(by_byte, ["A", "B", "a", "b"]);
 
-    let by_language = sorted(db, word().collate(Name::runtime(linguistic)).into()).await?;
+    let by_language = sorted(db, word().collate(Name::runtime(linguistic))).await?;
     let first_b = by_language
         .iter()
         .position(|w| w.eq_ignore_ascii_case("b"))
@@ -133,7 +133,7 @@ async fn the_same_values_sort_by_the_collation_named(
 /// equal: under ICU's secondary strength `a` and `A` are one string, so an
 /// equality finds both rows where the control finds one. Without ICU the
 /// server cannot create one, and says so.
-// [spec:pgorm:req:sql.ast.expr.collate/test]    against a live server: equality answers by a
+// [spec:pgorm:req:sql.ast.expr.collate+2/test]    against a live server: equality answers by a
 // nondeterministic collation
 // [spec:pgorm:req:sql.scope+23/test]
 async fn a_nondeterministic_collation_equates_distinct_bytes(
@@ -242,7 +242,7 @@ async fn a_collated_column_compares_by_its_collation(
 /// A collation the server does not have is refused as an undefined object
 /// (`42704`). The name is quoted, so its case is the caller's: `c` is not
 /// `"C"`, as an unquoted `C` would not be either.
-// [spec:pgorm:req:sql.ast.expr.collate/test]    against a live server: an unknown collation is
+// [spec:pgorm:req:sql.ast.expr.collate+2/test]    against a live server: an unknown collation is
 // refused, and the name is matched case-sensitively
 // [spec:pgorm:req:sql.scope+23/test]
 async fn an_unknown_collation_is_refused(db: &DatabaseConnection) -> Result<(), Error> {

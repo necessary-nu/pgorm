@@ -76,29 +76,26 @@ fn named_sets_generate_unkinded_enums() {
         ]
     );
     for (file, fixture) in [
-        (
-            "shop.rs",
-            include_str!("../../tests/codegen_disjoint_unkinded/shop.rs"),
-        ),
+        ("shop.rs", "../../tests/codegen_disjoint_unkinded/shop.rs"),
         (
             "website.rs",
-            include_str!("../../tests/codegen_disjoint_unkinded/website.rs"),
+            "../../tests/codegen_disjoint_unkinded/website.rs",
         ),
         (
             "storefront.rs",
-            include_str!("../../tests/codegen_disjoint_unkinded/storefront.rs"),
+            "../../tests/codegen_disjoint_unkinded/storefront.rs",
         ),
         (
             "account.rs",
-            include_str!("../../tests/codegen_disjoint_unkinded/account.rs"),
+            "../../tests/codegen_disjoint_unkinded/account.rs",
         ),
         (
             "person.rs",
-            include_str!("../../tests/codegen_disjoint_unkinded/person.rs"),
+            "../../tests/codegen_disjoint_unkinded/person.rs",
         ),
         (
             "company.rs",
-            include_str!("../../tests/codegen_disjoint_unkinded/company.rs"),
+            "../../tests/codegen_disjoint_unkinded/company.rs",
         ),
     ] {
         generated.holds(file, fixture);
@@ -132,8 +129,8 @@ fn unkinded_enum_under_serde_takes_no_kind_attrs() {
             ..Default::default()
         },
     );
-    generated.holds(
-        "shop.rs",
+    assert_contains(
+        generated.file("shop.rs"),
         r#"#[derive(Clone, Debug, PartialEq, Eq, Disjoint, Serialize, Deserialize)]
         #[pgorm(base = Entity, unkinded)]
         pub enum Shop {
@@ -201,8 +198,8 @@ fn a_named_set_the_schema_lacks_is_refused() {
         SCHEMA,
         with(vec![set(table("account"), vec![table("person")], None)]),
     );
-    unqualified.holds(
-        "account.rs",
+    assert_contains(
+        unqualified.file("account.rs"),
         "#[pgorm(base = Entity, unkinded)] pub enum Account { Person(super::person::Model) }",
     );
 

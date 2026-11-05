@@ -5,6 +5,7 @@ mod column_expr;
 mod conjunct_relation;
 mod created_range;
 mod disjoint;
+mod format;
 mod one_of;
 mod primary_key;
 mod relation;

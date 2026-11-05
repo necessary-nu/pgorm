@@ -1,8 +1,9 @@
 """Codegen inputs: DDL and writer options, judged by whether the output builds.
 
-`pgorm-codegen` is checked elsewhere against golden token text, which answers
-whether the generator still emits what it used to emit and nothing about
-whether a compiler accepts it. These cases feed its real output to rustc.
+`pgorm-codegen` is checked elsewhere against golden files, byte for byte,
+which answers whether the generator still emits what it used to emit and
+nothing about whether a compiler accepts it. These cases feed its real output
+to rustc.
 
 Two refusals live on this surface and must not be confused. Options the writer
 cannot read and DDL the bridge does not carry are refused by the *generator*,

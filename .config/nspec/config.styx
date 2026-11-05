@@ -55,6 +55,7 @@ specs ({
                 pgorm-python/src/**/*.rs
                 pgorm-python/python/**/*.py
                 pgorm-python/checks/**/*.py
+                pgorm-python/guide/**/*.py
             ),
             test_include (
                 pgorm-python/tests/**/*.rs
@@ -73,6 +74,7 @@ specs ({
                 pgorm-napi/lib/**/*.ts
                 pgorm-napi/checks/**/*.js
                 pgorm-napi/codegen/**/*.js
+                pgorm-napi/guide/*.ts
                 .github/workflows/napi.yml
             ),
             test_include (

@@ -326,17 +326,6 @@ These rules capture what the code does today, including known gaps.
 > each element of a JSON array and fails with
 > `Error::Json("Value is not an Array")` for any non-array value.
 
-> [spec:pgorm:def:exec.decode.from-u64+3]
-> `TryFromU64` converts a `u64` (e.g. a rows-affected-derived id) into a
-> primary-key value type. Numeric impls (`i8`, `i16`, `i32`, `i64`, `u8`,
-> `u16`, `u32`, `u64`) use checked `TryInto`, failing with
-> `Error::Conversion` on overflow. `String` converts via `to_string`.
-> Every other implementor — `bool`, `f32`, `f64`, `Vec<u8>`,
-> `serde_json::Value`, the jiff types, `Decimal`,
-> `uuid::Uuid`, `Range<T>` and `Multirange<T>` over any subtype, which a
-> temporal key holds as its period (`entity.traits.primary-key`), and tuples
-> of arity 2 through 12 — unconditionally returns `Error::ConvertFromU64`.
-
 ## Statement verification (`exec.verify`)
 
 > [spec:pgorm:def:exec.verify+1]
@@ -442,7 +431,7 @@ These rules capture what the code does today, including known gaps.
 
 ## CRUD execution (`exec.crud`)
 
-> [spec:pgorm:def:exec.crud+1]
+> [spec:pgorm:def:exec.crud+2]
 > Statement execution is mediated by selector types: `Selector<S>` holds
 > a `SelectStatement` plus a `SelectorTrait` implementor, and
 > `SelectorRaw<S>` holds a raw SQL string plus `Values`. `SelectorTrait`
@@ -459,6 +448,13 @@ These rules capture what the code does today, including known gaps.
 > `exec.crud.selector-entry`. Executing a `Selector` first builds SQL
 > with the Postgres `QueryBuilder`, then binds each `Value` through the
 > `ValueHolder` `ToSql` adapter (see `exec.cursor.binding`).
+>
+> A `Selector` renders its statement as the builder it came from does: it
+> implements `QueryTrait` (`query.build.query-trait`), so `build`,
+> `as_query` and `into_query` answer the statement a decoded selector will
+> run, and a test or a log reads it without rebuilding the projection by
+> hand. What `build` answers is what `all` and `stream` send; `one` narrows
+> the limit first (`exec.crud.select`).
 
 > [spec:pgorm:sem:exec.crud.selector-entry+3]
 > A caller who has built a `SelectStatement` outside the entity builders —

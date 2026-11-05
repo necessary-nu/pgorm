@@ -40,7 +40,7 @@ is what `EntityTrait::find()` produces.
 > No default WHERE, ORDER BY, GROUP BY, LIMIT or OFFSET is applied; a freshly
 > constructed `Select<E>` renders as `SELECT <all columns> FROM <table>`.
 
-> [spec:pgorm:def:query.build.query-trait]
+> [spec:pgorm:def:query.build.query-trait+2]
 > `QueryTrait` is the common build surface: `query()` (mutable access),
 > `as_query()` (shared access), `into_query()` (ownership) and
 > `build()`, which renders the statement to a `(String, Values)` pair via
@@ -51,7 +51,10 @@ is what `EntityTrait::find()` produces.
 >
 > `IntoSimpleExpr` (in `select.rs`) is the conversion bound used by column
 > positions: it is implemented for every `ColumnTrait` type (producing a
-> column reference), for `Expr` and for `SimpleExpr` (identity).
+> column reference) and for every expression type, the implementors of
+> `ExprTrait` (`sql.ast.expr.operators`), so a function call, an aggregate
+> or a cast stands in `column_as`, `group_by` and `order_by` as an `Expr`
+> does, and a partial model's `from_expr = Func::upper(..)` needs no wrapper.
 
 > [spec:pgorm:sem:query.build.filter+2]
 > `QueryFilter::filter` converts its argument through `IntoCondition` and adds
@@ -73,7 +76,7 @@ is what `EntityTrait::find()` produces.
 > no `IntoName for &str` (`[spec:pgorm:def:sql.types]`), so the conversion
 > is written rather than inferred.
 
-> [spec:pgorm:sem:query.build.modifiers+10]
+> [spec:pgorm:sem:query.build.modifiers+11]
 > `QuerySelect` mutates the select statement in place: `column` appends a
 > column through `col.select_as(col.into_expr())` (same enum-cast rule as the
 > default list); `columns` iterates it; `column_as` / `expr_as` /
@@ -129,7 +132,8 @@ is what `EntityTrait::find()` produces.
 > mixed list is a tuple of up to twelve items, because two entities' column
 > enums have no common array element type. An item is a `SelectItem` — a
 > `ColumnTrait` column, projected through `col.select_as(col.into_expr())` so
-> the enum cast is the one `column` applies; an `Expr` or `SimpleExpr`; a
+> the enum cast is the one `column` applies; any expression, an `ExprTrait`
+> type, a function call included; a
 > `SelectExpr`, which carries its own alias; or an `AliasName`, a bare
 > reference to a name an earlier clause bound. A list computed at run time is
 > an iterator, which no tuple arity covers, so that case stays `select_only`

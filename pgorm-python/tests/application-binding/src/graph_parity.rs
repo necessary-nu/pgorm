@@ -1,5 +1,5 @@
 use crate::{account, graphs, note};
-use pgorm::pgorm_query::{Expr, Name, Order};
+use pgorm::pgorm_query::{Expr, ExprTrait, Name, Order};
 use pgorm::{QueryFilter, QueryOrder, QueryTrait};
 use pgorm_python::expressions::Compiled;
 use pyo3::{prelude::*, types::PyDict};

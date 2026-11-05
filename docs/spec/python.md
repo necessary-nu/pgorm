@@ -164,10 +164,9 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > Neither API may be an implicit fallback for unsupported builder operations.
 > Campaign-generated protected queries MUST obey their stricter raw-slot rules.
 
-> [spec:pgorm:req:python.pipeline]
-> A pipeline's `all`, `one` and `optional` MUST run it on a connection or a
-> transaction, as the terminals do, and `pgorm.pipeline.null()` is
-> `literal(None)` under a name of its own.
+> [spec:pgorm:req:python.pipeline+1]
+> `pgorm.pipeline.null()` MUST be `literal(None)` under a name of its own; a
+> pipeline's own terminals are both bindings' (`bindings.pipeline-terminals`).
 
 ## Execution and lifecycle
 

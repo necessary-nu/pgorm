@@ -3,8 +3,8 @@
 //! pgorm-query's builders directly. Each body's values render inlined.
 
 use pgorm::pgorm_query::{
-    BinOper, Expr, FromItem, MaterializedView, NamedTable, Query, SelectStatement, SimpleExpr,
-    Table, TableName, UnionType, Values, View, ViewCheckOption,
+    BinOper, Expr, ExprTrait, FromItem, MaterializedView, NamedTable, Query, SelectStatement,
+    SimpleExpr, Table, TableName, UnionType, Values, View, ViewCheckOption,
 };
 
 use super::n;

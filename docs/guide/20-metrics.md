@@ -251,10 +251,11 @@ assert!(db.query_one("SELECT * FROM no_such_table", &[]).await.is_err());
 
 // One transaction commits, with a savepoint inside it; one rolls back.
 db.transaction(async |txn| {
-    cake::Entity::find().count(&*txn).await?;
-    txn.transaction(async |savepoint| cake::Entity::find().count(&*savepoint).await)
-        .await
-        .map_err(|error| Error::Custom(error.to_string()))
+    cake::Entity::find().count(&txn).await?;
+    let counted = txn
+        .transaction(async |savepoint| cake::Entity::find().count(&savepoint).await)
+        .await?;
+    Ok::<_, Error>(counted)
 })
 .await?;
 let refused = db
@@ -277,9 +278,10 @@ assert_eq!(counts.get("rollback"), 1);
 
 A savepoint is a transaction to the collector, reporting its own begin and its
 own commit or rollback. The closure is handed a `&mut InstrumentedTransaction`,
-and a query takes it reborrowed, `&*txn`, where a plain transaction's closure
-can pass `&txn`. A failed `BEGIN` is reported through
-`record_query_error`, not through `record_transaction_begin`.
+which a query takes as `&txn`, as it takes a plain transaction's handle, and
+whose statements are reported like the connection's. A failed `BEGIN` is
+reported through `record_query_error`, not through
+`record_transaction_begin`.
 
 To feed a metrics backend such as Prometheus, the hooks increment its
 counters and observe its histograms; they are ordinary async functions. The

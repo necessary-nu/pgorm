@@ -328,7 +328,7 @@ assert_eq!(names, ["Carrot Cake", "Vanilla Sponge"]);
 
 Underneath, [`ConnectionTrait::query_raw`](crate::ConnectionTrait::query_raw)
 streams the rows of any SQL statement as tokio-postgres
-[`Row`](tokio_postgres::Row)s, undecoded:
+[`Row`](crate::Row)s, undecoded:
 
 ```rust
 # #[tokio::main(flavor = "current_thread")]

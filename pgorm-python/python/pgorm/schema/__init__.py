@@ -43,6 +43,7 @@ from .._native import (
 
 
 from .._native import Table, _Disjoint as _NativeDisjoint
+from .._native import MigrationFile as MigrationFile, migration_file as migration_file
 from .changes import DisjointChange, DisjointGap, DisjointStep
 
 if TYPE_CHECKING:
@@ -70,7 +71,7 @@ def _shape_of(disjoint: object, function: str) -> _NativeDisjoint:
     return disjoint._native
 
 
-# [spec:pgorm:req:bindings.disjoint+1]
+# [spec:pgorm:req:bindings.disjoint+2]
 # [spec:pgorm:req:bindings.disjoint-unkinded]
 # [spec:pgorm:req:bindings.codegen-disjoint]
 def create_disjoint(disjoint: KindedDisjoint) -> list[DDL]:
@@ -91,15 +92,32 @@ def _change(
     native = _shape_of(disjoint, function)
     if type(value) is not str:
         raise TypeError("a kind's value is a str")
+    steps, written = native.change(change, value, table)
     return DisjointChange(
         tuple(
             DisjointStep(
                 tuple(statements),
                 None if gap is None else DisjointGap(gap[0], Table(gap[2], schema=gap[1])),
             )
-            for statements, gap in native.change(change, value, table)
-        )
+            for statements, gap in steps
+        ),
+        written,
     )
+
+
+# [spec:pgorm:req:bindings.migration-file]
+def migration_files(change: DisjointChange, name: str) -> list[MigrationFile]:
+    """A kind change frozen as migration files, one per step in order:
+    ``DisjointChange::migration_files``. Each is named ``name`` for a change
+    of one step and ``name_<n>`` from 1 otherwise; every step but the last
+    opens with ``-- pgorm: commits-after``, and a step leaving rows to the
+    program ends with a comment saying which. ``freeze`` each into the
+    migrations directory when the change is made."""
+    if not isinstance(change, DisjointChange) or change._native is None:
+        raise TypeError("migration_files takes a change a disjoint kind-change function returned")
+    if type(name) is not str:
+        raise TypeError("a migration's name is a str")
+    return change._native.migration_files(name)
 
 
 def add_disjoint_kind(disjoint: KindedDisjoint, value: str) -> DisjointChange:
@@ -157,7 +175,7 @@ __all__ = [
     "DataType", "ColumnDef", "DDL", "EntitySchema", "from_entity", "create_disjoint", "create_one_of",
     "add_disjoint_kind", "add_disjoint_kind_recreating", "remove_disjoint_kind",
     "add_disjoint_kind_table", "remove_disjoint_kind_table", "DisjointChange", "DisjointStep",
-    "DisjointGap",
+    "DisjointGap", "MigrationFile", "migration_file", "migration_files",
     "CreateTable", "create_table", "PendingAlterTable", "AlterTable", "alter_table",
     "drop_table", "rename_table", "rename_column", "rename_constraint", "truncate_table",
     "comment_on_table", "comment_on_column",

@@ -56,7 +56,7 @@ impl Registry {
     /// refuses are each refused, and nothing is added. An unkinded enum
     /// registers the same way and is read-only: its shape refuses every
     /// write and its schema.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     // [spec:pgorm:req:bindings.disjoint-unkinded]
     // [spec:pgorm:req:bindings.entities+6]
     // [spec:pgorm:sem:disjoint.unkinded+1]
@@ -115,7 +115,7 @@ impl Registry {
 
 /// `disjointEntity(registry, name)`: the disjoint enum the module registers
 /// as `name`.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 pub(crate) fn disjoint_entity(mut cx: FunctionContext) -> JsResult<JsValue> {
     let registry = cx.argument::<JsBox<RegistryHandle>>(0)?.0.clone();
     let name = cx.argument::<JsString>(1)?.value(&mut cx);
@@ -130,7 +130,7 @@ pub(crate) fn disjoint_entity(mut cx: FunctionContext) -> JsResult<JsValue> {
 
 /// `disjointEntities(registry)`: the names of the disjoint enums the module
 /// registers, in order.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 pub(crate) fn disjoint_entities(mut cx: FunctionContext) -> JsResult<JsValue> {
     let registry = cx.argument::<JsBox<RegistryHandle>>(0)?.0.clone();
     let names = JsArray::new(&mut cx, registry.disjoints.by_name.len());

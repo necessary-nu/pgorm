@@ -1,6 +1,6 @@
 use std::ffi::CString;
 
-use pgorm::pgorm_query::{Expr, Name, NullOrdering, Order, Query};
+use pgorm::pgorm_query::{Expr, ExprTrait, Name, NullOrdering, Order, Query};
 use pgorm::{
     ActiveModelBehavior, ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Iterable,
     QueryFilter, QueryOrder, QuerySelect, QueryTrait, StaticName,
@@ -187,7 +187,7 @@ fn assert_active(native: &Bound<'_, PyAny>, rust: &account::ActiveModel) -> PyRe
     Ok(())
 }
 
-// [spec:pgorm:req:bindings.entity-writes/test]
+// [spec:pgorm:req:bindings.entity-writes+1/test]
 #[test]
 fn active_state_and_values_match_rust() -> PyResult<()> {
     Python::initialize();

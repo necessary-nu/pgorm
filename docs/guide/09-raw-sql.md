@@ -26,8 +26,7 @@ beside it:
 | [`execute_raw`](crate::ConnectionTrait::execute_raw) | as `execute`, with the values as an iterator |
 | [`batch_execute`](crate::ConnectionTrait::batch_execute) | nothing: it runs a whole script of `;`-separated statements, with no parameters |
 
-The rows are tokio-postgres's
-[`Row`](https://docs.rs/tokio-postgres/latest/tokio_postgres/row/struct.Row.html),
+The rows are tokio-postgres's [`Row`](crate::Row), which pgorm re-exports,
 whose `get` and `try_get` read a column by position or by name:
 
 ```rust

@@ -106,10 +106,10 @@ fn the_three_generated_impls() {
 
     // `ValueType` delegates to the inner type...
     assert_eq!(
-        <MyInt as ValueType>::try_from(Value::Int(Some(5))).unwrap(),
+        <MyInt as ValueType>::from_value(Value::Int(Some(5))).unwrap(),
         MyInt(5)
     );
-    assert!(<MyInt as ValueType>::try_from(Value::Bool(Some(true))).is_err());
+    assert!(<MyInt as ValueType>::from_value(Value::Bool(Some(true))).is_err());
     // ...and reports the *newtype's* name.
     assert_eq!(MyInt::type_name(), "MyInt");
     assert_eq!(MyString::type_name(), "MyString");

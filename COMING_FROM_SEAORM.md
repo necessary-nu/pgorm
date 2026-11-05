@@ -143,6 +143,7 @@ with a deadpool pool, always on tokio, so there is no `sqlx-postgres`, no
 | `with-rust_decimal` | gone: always on |
 | `with-json`, `with-uuid`, `postgres-array`, `macros` | the same names, on by default |
 | `mock`, `proxy` | gone |
+| `debug-print` | gone: a [metrics](crate::guide::metrics) collector is handed each statement's SQL, and `LoggingMetrics` logs every query through `tracing` |
 | `seaography` | gone |
 
 ## Connecting
@@ -266,8 +267,8 @@ async fn rename(db: &DatabaseConnection) -> Result<u64, Error> {
 
 The methods of `ConnectionTrait` follow tokio-postgres: `execute` returns
 the row count; `query_one` expects exactly one row, `query_opt` at most one,
-`query_all` any number, each as a `tokio_postgres::Row`; `query_raw` streams
-the rows, where SeaORM had `stream`. `execute_unprepared` is `batch_execute`,
+`query_all` any number, each as a `pgorm::Row`, tokio-postgres's row
+re-exported; `query_raw` streams the rows, where SeaORM had `stream`. `execute_unprepared` is `batch_execute`,
 which runs a whole script of `;`-separated statements and takes no
 parameters. There is no `get_database_backend` and no `support_returning`:
 the answer is always PostgreSQL, and it always supports `RETURNING`.
@@ -318,7 +319,7 @@ compile time, if you want a typo in hand-written SQL to fail the build.
 | `db.transaction::<_, _, E>(\|txn\| Box::pin(async move { .. }))` | `conn.transaction(async \|txn\| { .. })` |
 | `begin_with_config(isolation, access_mode)` | `transaction_with(TransactionMode::.., async \|txn\| { .. })` |
 | `transaction_with_config` | `transaction_with` |
-| `TransactionError<E>` | the same name and variants, and `RollbackFailed { cause, rollback }` for a `ROLLBACK` that failed after the closure's error |
+| `TransactionError<E>` | the same name and variants, and `RollbackFailed { cause, rollback }` for a `ROLLBACK` that failed after the closure's error; it converts into `Error` for `?` (where `E` does), a failed rollback becoming `Error::RollbackFailed`, so a savepoint's failure passes to the closure around it |
 
 A transaction exists only inside a closure. There is no `begin` returning a
 handle, and no `commit` or `rollback` to call: what the closure returns ends
@@ -1223,7 +1224,15 @@ silently turned into `None`.
 
 pgorm-query is a fork of sea-query with everything that is not PostgreSQL
 removed. It is re-exported as `pgorm::pgorm_query`, and the prelude brings
-in `Expr`, `Func`, `Name` and `alias`.
+in `Expr`, `ExprTrait`, `Func`, `Name` and `alias`.
+
+The operators (`eq`, `gt`, `like`, `is_in`, `cast_as`, `count`, ...) are the
+methods of one trait, `ExprTrait`, which every expression implements: `Expr`,
+`SimpleExpr`, a function call, a `CASE`. So `Func::lower(..).eq(..)` and
+`Column::Id.count().gt(2)` compile as written, where SeaORM needed
+`Expr::expr(..)` around the call. A module that imports names one by one
+names `ExprTrait` beside `Expr`; without it the compiler's help names the
+trait.
 
 | sea-query | pgorm-query |
 | --- | --- |
@@ -1235,8 +1244,10 @@ in `Expr`, `Func`, `Name` and `alias`.
 | a `&str` or `String` used as a name | `alias(..)` or `Name::runtime(..)`: no implicit conversion |
 | `TableRef` | `TableName` in DDL, `FromItem` in queries |
 | `Expr::cust("..")` | `Expr::raw("..")`, which takes a `&'static str` |
-| `Expr::cust_with_values(..)`, `cust_with_expr(s)` | `Expr::template(..)`, `template_with_expr(s)`, which check the placeholders |
+| `Expr::cust_with_values(..)`, `cust_with_expr(s)` | `Expr::template(..)`, `template_with_expr(s)`, which check the placeholders and take their SQL as a `&'static str` |
 | `Expr::asterisk()` | `Asterisk` |
+| `ValueType::try_from(value)` | `ValueType::from_value(value)`, which no other trait in scope shares |
+| `Expr::expr(Func::upper(..)).eq(..)`, `Expr::expr(col.count()).gt(..)` | `Func::upper(..).eq(..)`, `col.count().gt(..)` |
 | `build(PostgresQueryBuilder)` | `build()` |
 | `to_string(PostgresQueryBuilder)` | `to_string()` |
 | `or_where`, `Cond`, `any!`, `all!` | `Condition::any()` and `Condition::all()` |
@@ -1256,7 +1267,8 @@ which is useful in tests and logs.
 | `DbErr::RecordNotUpdated` | gone: an update that matches nothing returns `Ok(0)` |
 | `DbErr::Conn`, `DbErr::Exec`, `DbErr::Query` from the database | `Error::Postgres`, the server's or the driver's error |
 | `DbErr::ConnectionAcquire` | `Error::Pool` |
-| `DbErr::Custom`, `Type`, `Json`, `AttrNotSet`, `RecordNotInserted`, `UnpackInsertId`, `ConvertFromU64` | the same names |
+| `DbErr::Custom`, `Type`, `Json`, `AttrNotSet`, `RecordNotInserted`, `UnpackInsertId` | the same names |
+| `DbErr::ConvertFromU64` | gone, with `TryFromU64`: an inserted key is read back through `RETURNING` in its own type, never converted from a `last_insert_id` |
 | `DbErr::UpdateGetPrimaryKey` | `Error::PrimaryKeyNotSet`, raised when the statement is built |
 | `err.sql_err()` → `SqlErr` | `err.sql_error()` → `SqlError` |
 | `SqlErr::UniqueConstraintViolation(String)` | `SqlError::UniqueConstraintViolation(ConstraintViolation)`, with the constraint and table names |
@@ -1338,6 +1350,16 @@ whose `commits_after()` answers `true`, for a change PostgreSQL will not let
 one transaction finish, such as using an enum value `ALTER TYPE ... ADD VALUE`
 added: the batch commits after it and runs the rest in a new transaction, so
 a later failure leaves it applied and the next `up` resumes after it.
+
+A migration that generated its DDL from an entity as it ran, as SeaORM's
+`Schema::create_table_from_entity` in a migration does, follows the entity as
+it changes, so a database built from the history gets today's table from the
+first migration. pgorm freezes generated DDL instead: `MigrationFile` holds
+the statements as a `.sql` file's text and `freeze` writes the file once,
+when the change is made, never again, and `sql_migration!` runs it. A
+disjoint enum's kind change freezes the same way, a file per step through
+`DisjointChange::migration_files`, every step but the last opening with
+`-- pgorm: commits-after`.
 
 Your existing history carries over. A migration's name is its file name, as
 in SeaORM, and the ledger keeps the same `version` and `applied_at` columns.

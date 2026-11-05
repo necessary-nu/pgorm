@@ -109,7 +109,7 @@ fn with(query: SelectStatement, condition: pgorm::pgorm_query::SimpleExpr) -> Se
     query
 }
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    a shape described at run time builds the statements the typed declaration of the same tables builds: the read, its narrowing by kind, kinds and a kind's condition, and each write
+// [spec:pgorm:req:bindings.disjoint+2/test]    a shape described at run time builds the statements the typed declaration of the same tables builds: the read, its narrowing by kind, kinds and a kind's condition, and each write
 #[test]
 fn a_described_shape_builds_the_typed_statements() {
     let shape = vehicles();
@@ -208,7 +208,7 @@ fn refusal(outcome: Result<DisjointShape, Error>) -> String {
     }
 }
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    what the types of a `#[derive(Disjoint)]` enum hold is refused as a shape is described: no kinds, a kind twice, one table for two kinds, a base without the kind column, a kind table keyed by other types, and what `check` refuses of the kind column and of a kind's key
+// [spec:pgorm:req:bindings.disjoint+2/test]    what the types of a `#[derive(Disjoint)]` enum hold is refused as a shape is described: no kinds, a kind twice, one table for two kinds, a base without the kind column, a kind table keyed by other types, and what `check` refuses of the kind column and of a kind's key
 #[test]
 fn a_described_shape_refuses_what_types_hold() {
     let kinds = |kinds: Vec<(&str, Option<DisjointTable>)>| {
@@ -401,7 +401,7 @@ fn read(
     Ok((id, kind, row.try_get("s0_", "name")?, extra))
 }
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    a described shape's schema runs on a live server, its writes return the row a read gives and miss as `RecordNotFound` would, and its read, narrowed, paged, counted and read through a keyset cursor, judges each row by its kind
+// [spec:pgorm:req:bindings.disjoint+2/test]    a described shape's schema runs on a live server, its writes return the row a read gives and miss as `RecordNotFound` would, and its read, narrowed, paged, counted and read through a keyset cursor, judges each row by its kind
 #[pgorm_macros::test]
 async fn a_described_shape_runs_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_shape").await;
@@ -556,7 +556,7 @@ async fn a_described_shape_runs_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    the judge reads each row's kind from its kind column and finds its own kind's row by the absence witness, a row missing its kind's row or holding another kind's being the error a typed read reports
+// [spec:pgorm:req:bindings.disjoint+2/test]    the judge reads each row's kind from its kind column and finds its own kind's row by the absence witness, a row missing its kind's row or holding another kind's being the error a typed read reports
 #[pgorm_macros::test]
 async fn a_described_shape_judges_inconsistent_rows_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_shape_judge").await;

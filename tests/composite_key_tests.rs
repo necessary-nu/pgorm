@@ -426,7 +426,7 @@ struct Library {
     books: Vec<book::Model>,
 }
 
-// [spec:pgorm:def:entity.traits.primary-key+7/test]    a composite key takes
+// [spec:pgorm:def:entity.traits.primary-key+8/test]    a composite key takes
 // its parts borrowed, each converted into the key's part in its position
 // [spec:pgorm:req:entity.traits.crud+5/test]    find_by_id and delete_by_id
 // filter on every key column, so a key differing only in its tenant names
@@ -471,7 +471,7 @@ async fn key_lookups_take_borrowed_parts() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:entity.traits.primary-key+7/test]    a key of three columns
+// [spec:pgorm:def:entity.traits.primary-key+8/test]    a key of three columns
 // takes its text parts borrowed, as &str, &String or Cow, in any position, each
 // converted into the key's part in its position
 // [spec:pgorm:req:entity.traits.crud+5/test]    find_by_id and delete_by_id

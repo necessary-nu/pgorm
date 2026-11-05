@@ -95,15 +95,39 @@ pub fn conversion_test() {
 
     let value_random_int = Value::Int(Some(523));
     let try_from_int =
-        <Integer as ValueType>::try_from(value_random_int).expect("should be ok to convert");
+        <Integer as ValueType>::from_value(value_random_int).expect("should be ok to convert");
 
     let direct_int: Integer = 523.into();
     assert_eq!(direct_int, try_from_int);
 
     // test for error
-    let try_from_string_vec = <StringVec as ValueType>::try_from(Value::Char(Some('a')))
+    let try_from_string_vec = <StringVec as ValueType>::from_value(Value::Char(Some('a')))
         .expect_err("should not be ok to convert char to stringvec");
     assert_eq!(try_from_string_vec.to_string(), ValueTypeError.to_string());
+}
+
+// [spec:pgorm:def:sql.value.value-type+5/test]    the extraction is named
+// `from_value`, so with the trait and the prelude in scope it is called as
+// written: neither the language prelude's `TryFrom::try_from` nor an
+// `ActiveEnum`'s `try_from_value` shares the name
+#[test]
+fn from_value_reads_as_written_beside_the_prelude() {
+    use pgorm::tests_cfg::active_enums::Tea;
+
+    let price: Value = Decimal::new(450, 2).into();
+    assert_eq!(
+        Decimal::from_value(price.clone()).ok(),
+        Some(Decimal::new(450, 2))
+    );
+    assert!(i32::from_value(price).is_err());
+    assert_eq!(
+        Tea::from_value(Tea::EverydayTea.into()).ok(),
+        Some(Tea::EverydayTea)
+    );
+    assert_eq!(
+        Tea::try_from_value(&"EverydayTea".to_owned()).ok(),
+        Some(Tea::EverydayTea)
+    );
 }
 
 mod parcel {

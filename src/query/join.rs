@@ -48,7 +48,7 @@ mod tests {
     use crate::{
         ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QuerySelect, QueryTrait, RelationTrait,
     };
-    use pgorm_query::{ConditionType, Expr, IntoCondition, JoinType, Name, alias};
+    use pgorm_query::{ConditionType, Expr, ExprTrait, IntoCondition, JoinType, Name, alias};
     use pretty_assertions::assert_eq;
 
     #[test]

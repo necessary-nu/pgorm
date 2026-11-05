@@ -4,8 +4,8 @@ use std::{str::FromStr, sync::Arc};
 
 use pgorm::pgorm_query::{
     ArrayType, Asterisk, BinOper, ColumnRef, ColumnType, CommonTableExpression, Condition, Cycle,
-    Expr, FromItem, Func, GroupingElement, JoinType, LikeExpr, LockBehavior, LockType, NamedTable,
-    NullOrdering, Order, Query, RecursiveWithClause, SampleMethod, Search, SearchOrder,
+    Expr, ExprTrait, FromItem, Func, GroupingElement, JoinType, LikeExpr, LockBehavior, LockType,
+    NamedTable, NullOrdering, Order, Query, RecursiveWithClause, SampleMethod, Search, SearchOrder,
     SelectStatement, SimpleExpr, SubQueryStatement, Subscript, TableFunction, TableName,
     TableSample, TypeName, UnionType, Value, Values, WithClause,
 };
@@ -246,7 +246,7 @@ fn quantifiers_beyond_comparisons() -> SelectStatement {
 
 fn casts() -> SelectStatement {
     let mood = TypeName::new(n("Mood")).schema(n("app")).array();
-    let twice: SimpleExpr = Expr::expr(col!("f")).index(1i64).into();
+    let twice: SimpleExpr = Expr::expr(col!("f")).index(1i64);
     Query::select()
         .expr(col!("a").cast_as_type(TypeName::new(n("integer"))))
         .expr(col!("b").cast_as_type(mood))

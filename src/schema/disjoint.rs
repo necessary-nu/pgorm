@@ -13,8 +13,9 @@ use crate::{
     unpack_table_name,
 };
 use pgorm_query::{
-    ColumnDef, ConditionType, Deferrability, Expr, ForeignKeyAction, FromItem, GeneratedKind, Name,
-    Table, TableAlterStatement, TableCreateStatement, TableForeignKey, TableKey, TableName, Unique,
+    ColumnDef, ConditionType, Deferrability, Expr, ExprTrait, ForeignKeyAction, FromItem,
+    GeneratedKind, Name, Table, TableAlterStatement, TableCreateStatement, TableForeignKey,
+    TableKey, TableName, Unique,
 };
 use std::iter;
 
@@ -74,7 +75,7 @@ impl DisjointShape {
     /// a table holding one is refused with [`Error::Type`] naming it, and so
     /// is an unkinded shape, whose schema pgorm does not write.
     // [spec:pgorm:sem:disjoint.schema+3]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn create(&self) -> Result<Vec<DdlStatement>, Error> {
         let kinded = self.kinded()?;

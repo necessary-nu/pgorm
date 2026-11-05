@@ -20,7 +20,13 @@ enum Keyword {
 // [spec:pgorm:req:bindings.merge+2]
 /// What an arm does with its row: `DELETE`, `DO NOTHING` or `INSERT DEFAULT
 /// VALUES` itself, and through its factories an update or an insert.
-#[pyclass(name = "MergeAction", module = "pgorm", frozen, from_py_object)]
+#[pyclass(
+    name = "MergeAction",
+    module = "pgorm",
+    frozen,
+    generic,
+    from_py_object
+)]
 #[derive(Clone, Debug)]
 pub struct PyMergeAction {
     keyword: Keyword,

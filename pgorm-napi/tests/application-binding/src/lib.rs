@@ -98,7 +98,7 @@ mod tests {
                 .entity::<tenant_note::Entity>("app.DefaultAgain")
                 .is_err()
         );
-        // [spec:pgorm:req:bindings.disjoint+1/test]    a disjoint enum registers once its base and kind entities have, and a name or an enum registered twice is refused
+        // [spec:pgorm:req:bindings.disjoint+2/test]    a disjoint enum registers once its base and kind entities have, and a name or an enum registered twice is refused
         assert!(
             registry
                 .disjoint::<shipping::shipment::Shipment>("app.Shipments")

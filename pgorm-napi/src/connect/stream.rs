@@ -133,7 +133,7 @@ async fn open(
 /// stream, which holds the connection until the last row or `close`, each
 /// row read by `disjoint`'s codec when one is given.
 // [spec:pgorm:req:bindings.streams]
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 fn connection_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let connection = cx.argument::<JsBox<ConnectionHandle>>(0)?.0.clone();
     let (sql, params) = super::sql_and_params(&mut cx, 1)?;

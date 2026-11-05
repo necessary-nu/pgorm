@@ -209,7 +209,8 @@ class ModelConstruction(unittest.TestCase):
             lambda: model.insert([("id", 1)]),
             lambda: p.ModelQuery(p.Insert(model.table)),
             lambda: p.ModelRows(model, "SELECT 1", ("id",)),
-            lambda: p.ModelInsert(model, p.Select(p.literal(1))),
+            lambda: p.ModelInsert(model, p.Select(p.literal(1)), ()),
+            lambda: p.ModelInsertMany(model, p.Select(p.literal(1)), ()),
             lambda: p.ModelUpdate(model, p.Insert(model.table)),
             lambda: p.ModelDelete(model, p.Update(model.table)),
             lambda: model.insert(["id"]),
@@ -281,8 +282,10 @@ class ModelConstruction(unittest.TestCase):
         for value in (model.col("id"), query, accounts().delete()):
             with self.assertRaises(p.ConstructionError):
                 bool(value)
-        with self.assertRaises(p.ConstructionError):
-            model.col("id") == model.col("display_name")
+        self.assertEqual(
+            (model.col("id") == model.col("display_name")).inspect().sql,
+            (p.col("id", table="a") == p.col("display name", table="a")).inspect().sql,
+        )
 
     # [spec:pgorm:req:bindings.column-operators+3/test]
     def test_columns_are_expressions_converting_every_value_operator(self):
@@ -344,7 +347,7 @@ class ModelConstruction(unittest.TestCase):
         with self.assertRaises(TypeError):
             p.ModelColumn("id", p.Column("i32"), "id")
 
-    # [spec:pgorm:req:bindings.model-writes+1/test]
+    # [spec:pgorm:req:bindings.model-writes+2/test]
     def test_crud_preserves_omission_and_write_guards(self):
         model = accounts()
         omitted = model.insert({"id": 1}).inspect()
@@ -388,7 +391,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute(p.RawSQL("DROP SCHEMA python_models CASCADE"))
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.model-writes+1/test]
+    # [spec:pgorm:req:bindings.model-writes+2/test]
     # [spec:pgorm:req:bindings.model-records+1/test]
     async def test_crud_returns_declared_field_records(self):
         with patch(
@@ -450,7 +453,109 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await names(column("display_name").like("_")), ["A", "B", "C"])
         self.assertEqual(await names(column("id") % 2 == 0), ["B"])
 
-    # [spec:pgorm:req:bindings.model-writes+1/test]
+    # [spec:pgorm:req:bindings.model-columns+1/test]
+    async def test_columns_compare_through_the_declared_kind(self):
+        for name, mood in (("A", "calm"), ("B", "busy"), ("C", "busy")):
+            await self.model.insert({"display_name": name, "mood": mood}).execute(self.pool)
+
+        async def names(predicate):
+            query = self.model.select("display_name").where(predicate)
+            rows = await query.order_by(self.model.col("id").asc()).all(self.pool)
+            return [row["display_name"] for row in rows]
+
+        column = self.model.col
+        aliased = self.model.as_("a")
+        for model, qualifier in ((self.model, 'accounts "log'), (aliased, "a")):
+            with self.subTest(qualifier=qualifier):
+                qualified = p.col("display name", table=qualifier)
+                self.assertEqual(
+                    model.col("display_name").is_null().inspect().sql,
+                    qualified.is_null().inspect().sql,
+                )
+                self.assertIn(qualified.inspect().sql.removeprefix("SELECT "), model.find().inspect().sql)
+        self.assertEqual(await names(column("mood") == "busy"), ["B", "C"])
+        self.assertEqual(await names(column("mood").ne("busy")), ["A"])
+        self.assertIn('CAST($1::text AS python_models."Mood")', column("mood").eq("busy").inspect().sql)
+        self.assertEqual(await names(column("id") < 2), ["A"])
+        self.assertEqual(await names(column("id") <= 2), ["A", "B"])
+        self.assertEqual(await names(column("id") > 2), ["C"])
+        self.assertEqual(await names(column("id").gte(2)), ["B", "C"])
+        self.assertEqual(column("id").lt(2).inspect().params, [p.Value(2, "i32")])
+        self.assertEqual(await names(column("mood").is_in(["calm"])), ["A"])
+        self.assertEqual(await names(column("mood").is_not_in(("calm",))), ["B", "C"])
+        self.assertIn('CAST($1::text AS python_models."Mood")', column("mood").is_in(["calm"]).inspect().sql)
+        self.assertEqual(await names(column("display_name") == p.any_(p.Value.array("text", ["A", "C"]))), ["A", "C"])
+        self.assertEqual(await names(column("display_name") != p.all_(p.Value.array("text", ["A", "C"]))), ["B"])
+        self.assertEqual(await names(column("id") == column("id")), ["A", "B", "C"])
+        self.assertEqual(
+            (column("id") == column("display_name")).inspect().sql,
+            (p.col("id", table='accounts "log') == p.col("display name", table='accounts "log')).inspect().sql,
+        )
+        self.assertEqual(await names(column("id") == p.literal(2)), ["B"])
+        self.assertEqual(await names(column("id") == p.Value(3, "i32")), ["C"])
+        self.assertEqual(await names(column("note").is_null()), [])
+        for refused in (
+            lambda: column("id") == p.Value(3, "i64"),
+            lambda: column("mood") == "wild",
+            lambda: column("id") == None,  # noqa: E711
+            lambda: column("id").is_in([1, None]),
+        ):
+            with self.assertRaises(p.ConstructionError):
+                refused()
+
+    # [spec:pgorm:req:bindings.model-writes+2/test]
+    async def test_insert_row_count_types_and_batches(self):
+        one = self.model.insert({"display_name": "A"})
+        many = self.model.insert_many([{"display_name": "B"}])
+        self.assertIs(type(one), p.ModelInsert)
+        self.assertIs(type(many), p.ModelInsertMany)
+        self.assertFalse(hasattr(one, "returning_upserts"))
+        self.assertFalse(hasattr(many, "returning_upsert"))
+        for write, terminal in ((one, "returning_upserts"), (many, "returning_upsert")):
+            with self.subTest(terminal=terminal), self.assertRaises(TypeError):
+                write.inspect(terminal=terminal)
+        added = one.add({"display_name": "C"})
+        self.assertIs(type(added), p.ModelInsertMany)
+        self.assertEqual(
+            added.inspect().sql,
+            self.model.insert_many([{"display_name": "A"}, {"display_name": "C"}]).inspect().sql,
+        )
+        self.assertEqual(many.add_many([]).inspect().sql, many.inspect().sql)
+        self.assertEqual(
+            self.model.insert_many([]).add({"display_name": "D"}).inspect().sql,
+            self.model.insert_many([{"display_name": "D"}]).inspect().sql,
+        )
+        with self.assertRaisesRegex(p.ConstructionError, "sets the same fields"):
+            one.add({"display_name": "x", "note": "y"})
+        with self.assertRaisesRegex(p.ConstructionError, "one at a time"):
+            self.model.insert({}).add({})
+        with self.assertRaises(TypeError):
+            one.add_many({"display_name": "x"})
+        renamed = p.Conflict.on("id").update("display name")
+        kept = self.model.insert({"id": 1, "display_name": "A"}).on_conflict(renamed).add(
+            {"id": 2, "display_name": "B"}
+        )
+        self.assertIn('ON CONFLICT ("id") DO UPDATE', kept.inspect().sql)
+        written = await kept.returning_upserts(self.pool)
+        self.assertEqual([type(row).__name__ for row in written], ["Inserted", "Inserted"])
+        again = self.model.insert({"id": 1, "display_name": "AA"}).on_conflict(renamed).add_many(
+            [{"id": 3, "display_name": "C"}]
+        )
+        rows = await again.returning_upserts(self.pool)
+        self.assertEqual(
+            [
+                (type(row).__name__, (row.model if hasattr(row, "model") else row.change.new)["display_name"])
+                for row in rows
+            ],
+            [("Updated", "AA"), ("Inserted", "C")],
+        )
+        self.assertEqual(
+            await self.model.insert({"id": 10, "display_name": "E"}).add({"id": 11, "display_name": "F"}).execute(self.pool),
+            2,
+        )
+        self.assertEqual(await self.model.find().count(self.pool), 5)
+
+    # [spec:pgorm:req:bindings.model-writes+2/test]
     async def test_json_null_and_defaults_stay_distinct(self):
         omitted = await self.model.insert({}).returning().one(self.pool)
         sql_null = (

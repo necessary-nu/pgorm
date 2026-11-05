@@ -18,7 +18,7 @@ use crate::errors::ConstructionError;
 /// nothing, so its bracket is always `(` or `)`.
 // [spec:pgorm:req:bindings.values]
 // [spec:pgorm:req:python.values+7]
-#[pyclass(name = "Range", module = "pgorm", frozen)]
+#[pyclass(name = "Range", module = "pgorm", frozen, generic)]
 #[derive(Debug)]
 pub struct PyRange {
     pub(crate) lower: Option<Py<PyAny>>,
@@ -189,7 +189,7 @@ impl PyRange {
 /// server stores one sorted and merged.
 // [spec:pgorm:req:bindings.values]
 // [spec:pgorm:req:python.values+7]
-#[pyclass(name = "Multirange", module = "pgorm", frozen, sequence)]
+#[pyclass(name = "Multirange", module = "pgorm", frozen, sequence, generic)]
 #[derive(Debug)]
 pub struct PyMultirange {
     pub(crate) ranges: Vec<Py<PyRange>>,

@@ -166,7 +166,7 @@ fn foreign_keys_keep_their_columns_and_actions() {
 
     assert_contains(
         generated.file("task.rs"),
-        r#"#[pgorm(belongs_to = super::owner::Entity, from = Column::OwnerId, to = super::owner::Column::Id, on_update = ForeignKeyAction::Restrict, on_delete = ForeignKeyAction::Cascade,)]"#,
+        r#"#[pgorm(belongs_to = super::owner::Entity, from = Column::OwnerId, to = super::owner::Column::Id, on_update = ForeignKeyAction::Restrict, on_delete = ForeignKeyAction::Cascade)]"#,
     );
 }
 
@@ -1037,15 +1037,12 @@ fn array_of_ranges_generates_a_vec() {
 // [spec:pgorm:sem:codegen.ddl.tables+13/test]    an identity inside a composite
 // key is carried, not refused, and the generated entity declares it on its
 // column and compiles: the key is not generated whole, the column is
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    `identity` follows
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]    `identity` follows
 // `primary_key`, and the identity column carries no `auto_increment = false`
 #[test]
 fn composite_key_identity_generates_a_compiling_entity() {
     let generated = from_sql(TENANT_TICKET);
-    assert_contains(
-        generated.file("tenant_ticket.rs"),
-        include_str!("sql/tenant_ticket.rs"),
-    );
+    generated.holds("tenant_ticket.rs", "sql/tenant_ticket.rs");
 
     assert!(!tenant_ticket::PrimaryKey::auto_increment());
     assert_eq!(
@@ -1096,18 +1093,12 @@ fn a_composite_foreign_key_joins_on_both_pairs() {
     assert_eq!(key.get_columns(), ["tenant_id", "task_id"]);
     assert_eq!(key.get_ref_columns(), ["tenant_id", "id"]);
 
-    // The writer closes an attribute list with a trailing comma, which rustfmt
-    // drops from the compiled copy, so the comparison sets it aside.
     let generated = from_sql(TENANT_TASKS);
-    for (file, fixture) in [
-        ("tenant_task.rs", include_str!("sql/tenant_task.rs")),
-        (
-            "tenant_task_note.rs",
-            include_str!("sql/tenant_task_note.rs"),
-        ),
+    for (file, golden) in [
+        ("tenant_task.rs", "sql/tenant_task.rs"),
+        ("tenant_task_note.rs", "sql/tenant_task_note.rs"),
     ] {
-        let written = norm(generated.file(file)).replace(", )", ")");
-        assert!(written.contains(&norm(fixture)), "{file}: {written}");
+        generated.holds(file, golden);
     }
 
     let (joined, _) = tenant_task_note::Entity::find()
@@ -1144,14 +1135,11 @@ fn a_composite_foreign_key_joins_on_both_pairs() {
 #[test]
 fn a_foreign_keys_check_reaches_the_relation() {
     let generated = from_sql(KEY_STAY);
-    // The fixtures are compiled as well as compared, so rustfmt has dropped
-    // the trailing comma the writer leaves inside an attribute.
-    for (file, fixture) in [
-        ("key_room.rs", include_str!("sql/key_room.rs")),
-        ("key_stay.rs", include_str!("sql/key_stay.rs")),
+    for (file, golden) in [
+        ("key_room.rs", "sql/key_room.rs"),
+        ("key_stay.rs", "sql/key_stay.rs"),
     ] {
-        let written = norm(generated.file(file)).replace(", )", ")");
-        assert!(written.contains(&norm(fixture)), "{file}: {written}");
+        generated.holds(file, golden);
     }
 
     let def = key_stay::Relation::KeyRoom.def();
@@ -1251,12 +1239,11 @@ fn temporal_key_and_period_relation_round_trip() {
     );
 
     let generated = from_sql(TEMPORAL);
-    for (file, fixture) in [
-        ("temporal_room.rs", include_str!("sql/temporal_room.rs")),
-        ("temporal_stay.rs", include_str!("sql/temporal_stay.rs")),
+    for (file, golden) in [
+        ("temporal_room.rs", "sql/temporal_room.rs"),
+        ("temporal_stay.rs", "sql/temporal_stay.rs"),
     ] {
-        let written = norm(generated.file(file)).replace(", )", ")");
-        assert!(written.contains(&norm(fixture)), "{file}: {written}");
+        generated.holds(file, golden);
     }
     assert!(temporal_room::PrimaryKey::without_overlaps());
     let room = pgorm::Schema::new()
@@ -1407,15 +1394,12 @@ fn an_alter_table_changing_a_table_is_named() {
 fn keys_are_generated_by_their_own_columns() {
     use serial_keys::{badge, coded_row, tenant_order};
     let generated = from_sql(SERIAL_KEYS);
-    for (file, fixture) in [
-        (
-            "tenant_order.rs",
-            include_str!("serial_keys/tenant_order.rs"),
-        ),
-        ("coded_row.rs", include_str!("serial_keys/coded_row.rs")),
-        ("badge.rs", include_str!("serial_keys/badge.rs")),
+    for (file, golden) in [
+        ("tenant_order.rs", "serial_keys/tenant_order.rs"),
+        ("coded_row.rs", "serial_keys/coded_row.rs"),
+        ("badge.rs", "serial_keys/badge.rs"),
     ] {
-        assert_contains(generated.file(file), fixture);
+        generated.holds(file, golden);
     }
 
     assert!(!tenant_order::PrimaryKey::auto_increment());

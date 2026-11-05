@@ -237,7 +237,7 @@ impl Model {
                 fn set(&mut self, c: <Self::Entity as pgorm::entity::EntityTrait>::Column, v: pgorm::Value) -> std::result::Result<(), pgorm::Error> {
                     match c {
                         #(<Self::Entity as pgorm::entity::EntityTrait>::Column::#column_idents => {
-                            self.#field_idents = pgorm::pgorm_query::ValueType::try_from(v)
+                            self.#field_idents = pgorm::pgorm_query::ValueType::from_value(v)
                                 .map_err(|_| pgorm::Error::Type(#mismatch_msgs.to_owned()))?;
                             Ok(())
                         },)*

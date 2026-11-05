@@ -1,4 +1,6 @@
 #![deny(rust_2018_idioms)]
+// The runner reports through `tracing`, never on its caller's stdout or stderr.
+#![deny(clippy::print_stderr, clippy::print_stdout, clippy::dbg_macro)]
 
 pub mod ledger;
 pub mod migrator;

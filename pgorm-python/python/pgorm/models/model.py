@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from .graphs import Graph
     from .queries import ModelQuery
     from .relations import Relation
-    from .writes import ModelDelete, ModelInsert, ModelUpdate
+    from .writes import ModelDelete, ModelInsert, ModelInsertMany, ModelUpdate
 
 
 # [spec:pgorm:req:bindings.model-unique-keys+2]
@@ -212,18 +212,21 @@ class Model:
         )
 
     def insert(self, values: Mapping[str, Any]) -> ModelInsert:
-        from .writes import inserted
+        """An INSERT of one row, Rust's ``Insert::one``."""
+        from .writes import ModelInsert, appended
 
-        return inserted(self, [values])
+        statement, fields = appended(self, None, None, [values])
+        return ModelInsert(self, statement, fields)
 
-    def insert_many(self, rows: Sequence[Mapping[str, Any]]) -> ModelInsert:
-        """An INSERT of rows that each set the same fields; no rows writes
-        nothing and sends nothing."""
-        from .writes import inserted
+    def insert_many(self, rows: Sequence[Mapping[str, Any]]) -> ModelInsertMany:
+        """An INSERT of rows that each set the same fields, Rust's
+        ``Insert::many``; no rows writes nothing and sends nothing."""
+        from .writes import ModelInsertMany, appended
 
         if not isinstance(rows, (list, tuple)):
             raise TypeError("insert_many takes a list or tuple of rows")
-        return inserted(self, rows)
+        statement, fields = appended(self, None, None, rows)
+        return ModelInsertMany(self, statement, fields)
 
     def update(self, values: Mapping[str, Any]) -> ModelUpdate:
         from .writes import updated

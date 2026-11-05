@@ -116,7 +116,7 @@ impl Update {
     /// Update many ActiveModel
     ///
     /// ```
-    /// use pgorm::{entity::*, query::*, pgorm_query::Expr, tests_cfg::fruit};
+    /// use pgorm::{entity::*, query::*, pgorm_query::{Expr, ExprTrait}, tests_cfg::fruit};
     ///
     /// assert_eq!(
     ///     Update::many(fruit::Entity)

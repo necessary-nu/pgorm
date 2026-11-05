@@ -258,3 +258,72 @@ fn a_uuidv7_call_is_a_column_default() {
         r#"CREATE TABLE "glyph" ( "id" uuid DEFAULT UUIDV7(), PRIMARY KEY ("id") )"#
     );
 }
+
+// [spec:pgorm:req:sql.ast.expr.operators+6/test]    every expression type
+// has the operator vocabulary: a function call, a CASE, a GROUPING(..) and an
+// SQL/JSON builder compare and cast as they stand, and what an aggregate or a
+// cast returns is compared in turn
+#[test]
+fn every_expression_type_has_the_operators() {
+    assert_eq!(
+        Query::select()
+            .expr(Func::upper(Expr::col(Char::Character)).concat("!"))
+            .expr(Expr::case(Expr::col(Char::SizeW).gt(1), 1).finally(0).add(1))
+            .expr(Func::json_value(Expr::col(Char::Character), "$.a").is_null())
+            .from(Char::Table)
+            .and_where(Func::lower(Expr::col(Char::Character)).eq("a"))
+            .and_where(Expr::col(Char::SizeW).cast_as(Name::runtime("text")).like("1%"))
+            .group_by_columns([Char::FontSize])
+            .and_having(Expr::col(Char::Id).count().gt(2))
+            .and_having(Func::grouping(Expr::col(Char::FontSize)).eq(0))
+            .to_string(),
+        [
+            r#"SELECT UPPER("character") || '!', (CASE WHEN ("size_w" > 1) THEN 1 ELSE 0 END) + 1,"#,
+            r#"JSON_VALUE("character", CAST('$.a' AS jsonpath)) IS NULL FROM "character""#,
+            r#"WHERE LOWER("character") = 'a' AND CAST("size_w" AS text) LIKE '1%'"#,
+            r#"GROUP BY "font_size" HAVING COUNT("id") > 2 AND GROUPING("font_size") = 0"#,
+        ]
+        .join(" ")
+    );
+}
+
+// [spec:pgorm:sem:sql.render.placeholder-typing+2/test]    a bound argument is
+// annotated where its function's overload reads it and nowhere else: not a
+// named function's, not `round`'s precision, not `COALESCE`'s, whose sibling
+// types it; an operand of an overloaded operator is, a comparison's is not, and
+// text, floats and arrays stay bare beside the operand that types them
+#[test]
+fn bound_values_carry_their_type_where_read() {
+    let (sql, _) = Query::select()
+        .expr(Func::percentile_cont(0.5).within_group(Char::SizeW, Order::Asc))
+        .expr(Func::round_with_precision(Expr::val(1.5), 1))
+        .expr(
+            Func::named(Name::runtime("left"))
+                .args([Expr::col(Char::Character).into(), Expr::val(2).into()]),
+        )
+        .expr(Func::if_null(Expr::col(Char::SizeW), 0))
+        .expr(Func::max(Expr::val(3)))
+        .from(Char::Table)
+        .and_where(Expr::col(Char::SizeW).add(1).gt(2))
+        .and_where(
+            Expr::col(Char::Character)
+                .concat("x")
+                .ne(Expr::col(Char::Character).concat(1)),
+        )
+        .and_where(Expr::col(Char::FontSize).mul(1.5).lt(3))
+        .and_where(Expr::col(Char::UserData).get_json_field("a").is_not_null())
+        .build();
+    assert_eq!(
+        sql,
+        [
+            r#"SELECT PERCENTILE_CONT($1::float8) WITHIN GROUP (ORDER BY "size_w" ASC),"#,
+            r#"ROUND($2::float8, $3), "left"("character", $4), COALESCE("size_w", $5),"#,
+            r#"MAX($6::int4) FROM "character""#,
+            r#"WHERE "size_w" + $7::int4 > $8"#,
+            r#"AND ("character" || $9) <> ("character" || $10::int4)"#,
+            r#"AND "font_size" * $11 < $12"#,
+            r#"AND ("user_data" -> $13) IS NOT NULL"#,
+        ]
+        .join(" ")
+    );
+}

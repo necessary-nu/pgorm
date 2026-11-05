@@ -539,8 +539,8 @@ impl ActiveEnum {
 
             #[automatically_derived]
             impl pgorm::pgorm_query::ValueType for #ident {
-                fn try_from(v: pgorm::pgorm_query::Value) -> std::result::Result<Self, pgorm::pgorm_query::ValueTypeError> {
-                    let value = <<Self as pgorm::ActiveEnum>::Value as pgorm::pgorm_query::ValueType>::try_from(v)?;
+                fn from_value(v: pgorm::pgorm_query::Value) -> std::result::Result<Self, pgorm::pgorm_query::ValueTypeError> {
+                    let value = <<Self as pgorm::ActiveEnum>::Value as pgorm::pgorm_query::ValueType>::from_value(v)?;
                     <Self as pgorm::ActiveEnum>::try_from_value(&value).map_err(|_| pgorm::pgorm_query::ValueTypeError)
                 }
 

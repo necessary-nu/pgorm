@@ -124,7 +124,7 @@ impl ArrayType {
     /// a schema writes for it — `"char"` for `i8`, `oid` for `u32`, `text` for
     /// `text`, `jsonb` for `json` and `inet` for `ipnetwork`. `u64` and
     /// `char` are `None`, since no column decodes as either.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn column_type(&self) -> Option<ColumnType> {
         Some(match self {
             Self::Bool => ColumnType::Boolean,

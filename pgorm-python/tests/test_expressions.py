@@ -15,7 +15,7 @@ def inspection(expression):
     return compiled.sql, [value.snapshot() for value in compiled.params]
 
 
-# [spec:pgorm:req:bindings.expressions+3/test]
+# [spec:pgorm:req:bindings.expressions+4/test]
 # [spec:pgorm:req:bindings.identifiers+3/test]
 # [spec:pgorm:req:bindings.operands/test]
 # [spec:pgorm:req:bindings.statements/test]
@@ -41,7 +41,7 @@ class ExpressionTests(unittest.TestCase):
     def test_literal_and_bound_values_stay_selectable(self):
         expression = bind(Value(7, "i16")) + literal(3)
         compiled = expression.inspect()
-        self.assertEqual(compiled.sql, "SELECT $1 + 3")
+        self.assertEqual(compiled.sql, "SELECT $1::int2 + 3")
         self.assertEqual(compiled.params, [Value(7, "i16")])
         self.assertEqual(literal("O'Brien").inspect().sql, r"SELECT E'O\'Brien'")
         self.assertEqual(literal("O'Brien").inspect().params, [])

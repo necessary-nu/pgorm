@@ -1,7 +1,7 @@
 use super::{State, work::Output};
 use crate::{
     errors::{ConstructionError, InternalError},
-    execution::Target,
+    execution::{Executor, Target},
     results,
 };
 use pgorm::{IsolationLevel, TransactionMode};
@@ -128,7 +128,12 @@ impl NativeTransaction {
         query: &Bound<'_, PyAny>,
         mode: &str,
     ) -> PyResult<Bound<'py, PyAny>> {
-        results::fetch(py, Target::Transaction(self.state.clone()), query, mode)
+        results::fetch(
+            py,
+            Executor::Held(Target::Transaction(self.state.clone())),
+            query,
+            mode,
+        )
     }
 
     fn notify<'py>(

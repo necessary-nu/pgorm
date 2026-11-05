@@ -9,8 +9,8 @@ use crate::{
     SelectProjected, SelectorTrait, Slot, SlotAt, Slots, error::query_err,
 };
 use pgorm_query::{
-    Condition, Expr, IntoName, IntoValueTuple, Name, Order, SelectStatement, SimpleExpr, TypeName,
-    Value, ValueTuple,
+    Condition, Expr, ExprTrait, IntoName, IntoValueTuple, Name, Order, SelectStatement, SimpleExpr,
+    TypeName, Value, ValueTuple,
 };
 use tokio_postgres::types::{IsNull, Kind, ToSql, Type, to_sql_checked};
 // use uuid::Uuid;
@@ -44,7 +44,7 @@ impl Window {
 /// It is not a [`SelectorTrait`], so [`Cursor::all`] does not exist until
 /// [`Cursor::into_model`] or [`Cursor::into_partial_model`] says what the rows
 /// are.
-// [spec:pgorm:sem:query.build.modifiers+10]
+// [spec:pgorm:sem:query.build.modifiers+11]
 #[derive(Clone, Copy, Debug)]
 pub struct SelectUndecoded;
 
@@ -412,7 +412,7 @@ impl<S, K> Cursor<S, K> {
     /// this [`reversed`](Self::reversed) says the rows are to be reversed into
     /// the cursor's own.
     // [spec:pgorm:sem:exec.cursor.order+4]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn statement(&mut self) -> Result<SelectStatement, Error> {
         self.compose()
     }
@@ -420,7 +420,7 @@ impl<S, K> Cursor<S, K> {
     /// Whether the rows of the last [`statement`](Self::statement) come in
     /// the reverse of the cursor's order, as a `last` window's do.
     // [spec:pgorm:sem:exec.cursor.window+1]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn reversed(&self) -> bool {
         self.is_result_reversed
     }
@@ -790,7 +790,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:query.build.modifiers+10]
+// [spec:pgorm:sem:query.build.modifiers+11]
 impl<E> SelectProjected<E>
 where
     E: EntityTrait,

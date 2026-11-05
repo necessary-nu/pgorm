@@ -254,7 +254,7 @@ pub(crate) fn capabilities() -> Map<String, Value> {
     .map(|(name, api)| {
         (
             name.to_owned(),
-            json!({"rust_api": api, "features": ["runtime-tokio"]}),
+            json!({"rust_api": api, "features": []}),
         )
     });
     builders.chain(execution).collect()

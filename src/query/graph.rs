@@ -1024,7 +1024,7 @@ mod tests {
     use super::*;
     use crate::tests_cfg::{cake, cake_filling, filling, fruit, lunch_set, vendor};
     use crate::{ColumnTrait, QueryFilter, RelationTrait};
-    use pgorm_query::{Expr, IntoCondition, alias};
+    use pgorm_query::{Expr, ExprTrait, IntoCondition, alias};
     use pretty_assertions::assert_eq;
 
     #[track_caller]

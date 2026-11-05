@@ -27,8 +27,8 @@ R = TypeVar("R")
 @dataclass(frozen=True, slots=True)
 class _Reader(Generic[R]):
     """How a reference reads its records and its targets: a record's key as
-    ``Value``\ s, the query a target's rows are read by, and a target's key
-    field."""
+    a list of ``Value`` objects, the query a target's rows are read by, and a
+    target's key field."""
 
     row_key: Callable[[R], list[p.Value]]
     query: Callable[[int], Any]

@@ -10,6 +10,7 @@
 //! lock is observed from a second connection, whose `NOWAIT` read of the
 //! locked rows fails while the first holds them.
 
+use pgorm_query::ExprTrait;
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{

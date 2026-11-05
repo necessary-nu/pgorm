@@ -8,6 +8,7 @@ import pgorm as p
 from pgorm import _native, pipeline as pl, schema as s
 from pgorm.schema import changes
 from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, versions as version_views
+from pgorm.codegen import source
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
     Column, Model, ModelRecord, Relation, cursors, disjoint_query, graphs, model, one_of, queries,
@@ -34,11 +35,15 @@ EXEMPT = {
     p.Pool, p.Connection, p.Transaction,
     _native._Pool, _native._Connection, _native._Transaction, _native._Stream,
     _native._CopyIn, _native._CopyOut, _native._Listener, _native._Disjoint,
+    _native._DisjointChange,
     # Registrations and declarations: they name what a query reads and are
     # true as any declared object is; the queries they start refuse.
     p.Entity, p.EntityGraph, Model, Column, Relation, pl.SourceSelection, pl.Binder,
     model.UniqueKey, model._DeclaredKey,
     views.EntityView, graph_views.GraphView, FieldType,
+    # The layout the codegen writes source with: build-time values no query
+    # reads.
+    source.Code, source.Call, source.Ternary, source.Layout,
     p.Disjoint, p.DisjointEntity, disjoint_query._Disjoint,
     p.OneOf, p.OneOfEntity, one_of._OneOf, one_of._Reader, _native._OneOf,
     disjoint_views.DisjointView, disjoint_views.WritableDisjointView, disjoint_views._Decoded,
@@ -57,14 +62,14 @@ BUILT_ELSEWHERE = {
     p.EntityColumn, p.EntityQuery, p.EntityUpdate, p.EntityUpdateMany, p.EntityInsert,
     p.EntityInsertMany, p.EntityGraphQuery, p.EntityGraphCursor, pl.SelectedSources, s.EntitySchema,
     views.QueryView, graph_views.GraphQueryView, graph_views.GraphCursorView,
-    version_views.UpdateView, version_views.UpdateManyView, version_views.InsertView,
-    version_views.InsertManyView, p.Notification, p.Listener, p.RowStream,
+    version_views.UpdateView, version_views.UpdateManyView, version_views._InsertView,
+    version_views.InsertView, version_views.InsertManyView, p.Notification, p.Listener, p.RowStream,
     p.CopyOutStream, p.CopyRowStream,
 }
 
 # Bases the model writes share and no program builds: every write refuses
 # through the __bool__ they give it, and each is sampled through a write.
-BASES = {writes._Write, writes._Guarded, changes._Part}
+BASES = {writes._Write, writes._Insert, writes._Guarded, changes._Part}
 
 
 def defined_classes():
@@ -124,6 +129,7 @@ def other_samples():
     model = Model("items", {"id": Column("i32", primary_key=True)})
     return [
         s.DataType("integer"), s.ColumnDef("id", "integer"), s.create_table(table),
+        s.migration_file("m20260101_000001_create_items", [s.create_table(table)]),
         s.create_index(table, "id"), s.drop_table(table), s.create_domain("d", "integer"),
         s.alter_table(table), s.alter_table(table).drop_column("id"), s.create_type("t"),
         s.alter_type("t"), s.alter_type("t").drop_attribute("a"),
@@ -135,7 +141,7 @@ def other_samples():
         s.create_table_as(table, p.select(p.col("id")).from_(table)),
         pl.from_(table), pl.col("items", "id"), pl.from_(table).group(pl.col("items", "id")),
         pl.Over(), pl.source(table),
-        model.col("id"), model.find(), model.delete(), model.insert({"id": 1}),
+        model.col("id"), model.find(), model.delete(), model.insert({"id": 1}), model.insert_many([]),
         model.update({"id": 2}), model.insert({"id": 1}).returning("id"),
         model.graph(), model.find().cursor("id"), model.find().paginate(2),
         *disjoint_samples(),
@@ -178,7 +184,9 @@ class TruthTesting(unittest.TestCase):
         self.assertEqual(sampled & EXEMPT, set())
         for kind in BUILT_ELSEWHERE:
             with self.subTest(kind=kind):
-                self.assertIn("__bool__", vars(kind))
+                self.assertTrue(
+                    any("__bool__" in vars(own) for own in kind.__mro__ if own.__module__.startswith("pgorm"))
+                )
 
     # [spec:pgorm:req:python.truth-testing+4/test]
     def test_exempt_values_keep_python_truth(self):

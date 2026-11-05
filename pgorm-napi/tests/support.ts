@@ -281,10 +281,15 @@ async function sweep(server: string): Promise<void> {
  * A database of its own for a test file, named by {@link scopedName} so no
  * other run on the server, of either runtime or of the Rust suites, can hold
  * it, made fresh on the server {@link dsn} names and dropped by `drop`. The
- * first one a process makes sweeps away what crashed runs left.
+ * first one a process makes sweeps away what crashed runs left. With
+ * `template`, the database is a copy of that one, on which no session may be
+ * open while it is copied.
  */
 // [spec:pgorm:req:testing.isolation]    a run creates and drops only its own database
-export async function scratchDatabase(prefix: string): Promise<{ dsn: string; drop(): Promise<void> }> {
+export async function scratchDatabase(
+  prefix: string,
+  { template }: { template?: string } = {},
+): Promise<{ dsn: string; drop(): Promise<void> }> {
   const { Pool } = await import("../lib/index.js");
   const name = scopedName(prefix);
   const server = dsn();
@@ -293,7 +298,8 @@ export async function scratchDatabase(prefix: string): Promise<{ dsn: string; dr
     await pool.execute(sql);
   };
   await sweep(server);
-  await maintenance(`CREATE DATABASE ${quoted(name)}`);
+  const copied = template === undefined ? "" : ` TEMPLATE ${quoted(template)}`;
+  await maintenance(`CREATE DATABASE ${quoted(name)}${copied}`);
   const url = new URL(server);
   url.pathname = `/${name}`;
   return {

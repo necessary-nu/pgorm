@@ -80,7 +80,7 @@ export {
 export { Column, column, ModelColumn } from "./model-columns.js";
 export { Model, model } from "./models.js";
 export { ModelQuery } from "./model-queries.js";
-export { ModelDelete, ModelInsert, ModelRows, ModelUpdate } from "./model-writes.js";
+export { ModelDelete, ModelInsert, ModelInsertMany, ModelRows, ModelUpdate } from "./model-writes.js";
 export { Relation } from "./relations.js";
 export { Graph } from "./graphs.js";
 export { Cursor, Paginator } from "./cursors.js";
@@ -92,12 +92,13 @@ export {
   removeDisjointKind,
   removeDisjointKindTable,
 } from "./disjoint-schema.js";
+export { MigrationFile, migrationFile, migrationFiles } from "./migration-file.js";
 export { createOneOf, OneOf, oneOf, OneOfEntity, oneOfEntities, oneOfEntity } from "./one-of.js";
 export { DisjointCursor, DisjointPaginator, DisjointQuery, DisjointWrite } from "./disjoint-query.js";
 export { ActiveModel, entities, Entity, entity } from "./entities.js";
 export { EntitySchema, fromEntity } from "./entity-schema.js";
 export { EntityColumn, EntityQuery } from "./entity-queries.js";
-export { EntityInsert, EntityUpdate, EntityUpdateMany } from "./entity-versions.js";
+export { EntityInsert, EntityInsertMany, EntityUpdate, EntityUpdateMany } from "./entity-versions.js";
 export { EntityGraph, EntityGraphCursor, EntityGraphQuery, graph, graphs } from "./entity-graphs.js";
 export {
   ColumnDef,

@@ -6,8 +6,8 @@ use crate::{
 };
 use async_trait::async_trait;
 use pgorm_query::{
-    AliasName, ColumnRef, Expr, FromItem, IntoColumnRef, Name, NamedTable, SimpleExpr, TableName,
-    TypeName, ValueTuple, alias,
+    AliasName, ColumnRef, Expr, ExprTrait, FromItem, IntoColumnRef, Name, NamedTable, SimpleExpr,
+    TableName, TypeName, ValueTuple, alias,
 };
 use std::{
     collections::{HashMap, HashSet},

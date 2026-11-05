@@ -3,9 +3,7 @@
 pub mod common;
 
 pub use common::{TestContext, features::*, setup::*};
-use pgorm::{
-    ActiveEnum, ActiveEnumValue, Error, QueryResult, TryFromU64, Value, Values, entity::prelude::*,
-};
+use pgorm::{ActiveEnum, ActiveEnumValue, Error, QueryResult, Value, Values, entity::prelude::*};
 use pgorm_query::{ArrayType, Expr, Query, QueryBuilder, SimpleExpr, StringLen};
 use pretty_assertions::assert_eq;
 
@@ -119,33 +117,16 @@ fn active_enum_trait_surface() {
 
 fn assert_is_active_enum_value<T: ActiveEnumValue>() {}
 
-// [spec:pgorm:req:entity.traits.active-enum.limits+2/test]    `ActiveEnumValue` is
-// implemented for exactly `String`, `i8`, `i16`, `i32`, `i64` and `u32`, and the
-// blanket `TryFromU64` impl for every `ActiveEnum` returns `Error::ConvertFromU64`
-// — which is why an active-enum primary key has to declare `auto_increment = false`
+// [spec:pgorm:req:entity.traits.active-enum.limits+3/test]    `ActiveEnumValue` is
+// implemented for exactly `String`, `i8`, `i16`, `i32`, `i64` and `u32`
 #[test]
 fn active_enum_value_limits() {
-    // The six backing types the trait is implemented for.
     assert_is_active_enum_value::<String>();
     assert_is_active_enum_value::<i8>();
     assert_is_active_enum_value::<i16>();
     assert_is_active_enum_value::<i32>();
     assert_is_active_enum_value::<i64>();
     assert_is_active_enum_value::<u32>();
-
-    // Every `ActiveEnum` is `TryFromU64`, and every such conversion refuses.
-    let err = <Tea as TryFromU64>::try_from_u64(1).unwrap_err();
-    assert!(
-        matches!(err, Error::ConvertFromU64(_)),
-        "expected ConvertFromU64, got {err:?}"
-    );
-    assert!(<Category as TryFromU64>::try_from_u64(0).is_err());
-    assert!(<Color as TryFromU64>::try_from_u64(u64::MAX).is_err());
-
-    // Which is exactly why `teas`, whose primary key is a `Tea`, must declare
-    // `auto_increment = false`: an auto-increment key would need to build itself
-    // from the returned u64.
-    assert!(!<teas::PrimaryKey as PrimaryKeyTrait>::auto_increment());
 }
 
 /// Probes the `u32` branch of `try_get_vec_by`, which cannot be constructed
@@ -160,7 +141,7 @@ impl FromQueryResult for U32VecProbe {
     }
 }
 
-// [spec:pgorm:req:entity.traits.active-enum.limits+2/test]    reading an array of
+// [spec:pgorm:req:entity.traits.active-enum.limits+3/test]    reading an array of
 // enum values is a Postgres-only capability, and `u32` is not covered by
 // `postgres-array`, so `try_get_vec_by` errors rather than decoding
 #[pgorm_macros::test]

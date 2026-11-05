@@ -12,7 +12,7 @@
 
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import process from "node:process";
@@ -115,6 +115,34 @@ test("the platform package carries the dependency notices and the licences", () 
   assert.match(readFileSync(join(platformDirectory, "THIRD_PARTY_NOTICES.txt"), "utf8"), /^@necessary\/pgorm npm packages/);
   for (const directory of [mainDirectory, platformDirectory]) {
     for (const licence of ["LICENSE-MIT", "LICENSE-APACHE"]) assert.ok(existsSync(join(directory, licence)), `${directory} lacks ${licence}`);
+  }
+});
+
+/** Every file under `directory`, each as its path relative to it. */
+function filesUnder(directory: string, within = ""): string[] {
+  return readdirSync(join(directory, within), { withFileTypes: true }).flatMap((entry) => {
+    const path = within === "" ? entry.name : `${within}/${entry.name}`;
+    return entry.isDirectory() ? filesUnder(directory, path) : [path];
+  });
+}
+
+// [spec:pgorm:req:bindings.optional/test]
+test("the installed packages carry the module and its addon alone, no test fixture, control or campaign code among them", () => {
+  const excluded = new Set(["tests", "fixtures", "security", "sqlmap", "generative", "checks", "scripts", "src", "target", "plan"]);
+  for (const directory of [mainDirectory, platformDirectory]) {
+    for (const file of filesUnder(directory)) {
+      assert.ok(!file.split("/").some((part) => excluded.has(part)), `${directory} carries ${file}`);
+      assert.ok(file.endsWith(".d.ts") || !/\.(ts|rs|toml|lock|py)$/.test(file), `${directory} carries ${file}`);
+    }
+    const manifest = readJson(join(directory, "package.json"));
+    for (const key of ["dependencies", "devDependencies", "peerDependencies", "bundleDependencies", "bundledDependencies", "scripts"]) {
+      assert.equal(manifest[key], undefined, `${manifest.name} declares ${key}`);
+    }
+  }
+  const inventory = readJson(join(platformDirectory, "DEPENDENCIES.json")) as { packages: { name: string }[] };
+  const linked = inventory.packages.map((entry) => entry.name);
+  for (const name of ["pgorm-test-support", "pgorm-python", "pyo3", "pgorm-generative-bridge", "pgorm-sqlmap-adapter"]) {
+    assert.ok(!linked.includes(name), `the addon links ${name}`);
   }
 });
 

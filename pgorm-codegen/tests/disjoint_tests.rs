@@ -20,8 +20,8 @@ use common::*;
 use pgorm::{ActiveEnum, Disjoint};
 use pgorm_codegen::{TableIdent, UnkindedDisjoint, WithSerde};
 use pgorm_query::{
-    ColumnDef, ColumnType, Deferrability, Expr, ForeignKey, ForeignKeyAction, GeneratedKind, Table,
-    TableCreateStatement, TableKey,
+    ColumnDef, ColumnType, Deferrability, Expr, ExprTrait, ForeignKey, ForeignKeyAction,
+    GeneratedKind, Table, TableCreateStatement, TableKey,
 };
 
 const SCHEMA: &str = include_str!("../../tests/codegen_disjoint/schema.sql");
@@ -52,26 +52,11 @@ fn disjoint_tables_generate_one_disjoint_entity() {
         ]
     );
     for (file, fixture) in [
-        (
-            "vehicle.rs",
-            include_str!("../../tests/codegen_disjoint/vehicle.rs"),
-        ),
-        (
-            "car.rs",
-            include_str!("../../tests/codegen_disjoint/car.rs"),
-        ),
-        (
-            "truck.rs",
-            include_str!("../../tests/codegen_disjoint/truck.rs"),
-        ),
-        (
-            "listing.rs",
-            include_str!("../../tests/codegen_disjoint/listing.rs"),
-        ),
-        (
-            "flat.rs",
-            include_str!("../../tests/codegen_disjoint/flat.rs"),
-        ),
+        ("vehicle.rs", "../../tests/codegen_disjoint/vehicle.rs"),
+        ("car.rs", "../../tests/codegen_disjoint/car.rs"),
+        ("truck.rs", "../../tests/codegen_disjoint/truck.rs"),
+        ("listing.rs", "../../tests/codegen_disjoint/listing.rs"),
+        ("flat.rs", "../../tests/codegen_disjoint/flat.rs"),
     ] {
         generated.holds(file, fixture);
     }
@@ -176,10 +161,7 @@ fn described_tables_generate_as_ddl_text_does() {
         described.files,
         from_sql_with(vehicle_schema(), Opts::default()).files
     );
-    described.holds(
-        "vehicle.rs",
-        include_str!("../../tests/codegen_disjoint/vehicle.rs"),
-    );
+    described.holds("vehicle.rs", "../../tests/codegen_disjoint/vehicle.rs");
 }
 
 /// The fields of one generated `Model`, in order.
@@ -389,7 +371,7 @@ fn near_misses_generate_ordinary_entities() {
 }
 
 // [spec:pgorm:sem:codegen.entity.disjoint+3/test]    a column of a kind type elsewhere is typed as the derive's kind type, imported from the base's module, and an enum the kind type is not is generated as ever
-// [spec:pgorm:sem:codegen.entity.imports+4/test]
+// [spec:pgorm:sem:codegen.entity.imports+5/test]
 #[test]
 fn a_kind_type_elsewhere_is_the_derives() {
     let sql = format!(
@@ -543,9 +525,9 @@ fn disjoint_entities_serialize_under_serde() {
         },
     );
     for (file, fixture) in [
-        ("vehicle.rs", include_str!("disjoint_serde/vehicle.rs")),
-        ("car.rs", include_str!("disjoint_serde/car.rs")),
-        ("truck.rs", include_str!("disjoint_serde/truck.rs")),
+        ("vehicle.rs", "disjoint_serde/vehicle.rs"),
+        ("car.rs", "disjoint_serde/car.rs"),
+        ("truck.rs", "disjoint_serde/truck.rs"),
     ] {
         generated.holds(file, fixture);
     }
@@ -586,22 +568,16 @@ fn a_junction_to_the_base_is_no_clash() {
 const NEAR_MISS: &str = include_str!("../../tests/codegen_near_miss/schema.sql");
 
 // [spec:pgorm:sem:codegen.entity.disjoint+3/test]    a near miss keeps its tables' composite unique keys: the base's UNIQUE pair the kind's foreign key references is generated as the base entity's `unique(..)` beside its other, so the entities create the tables they were read from (live in `tests/codegen_near_miss_tests.rs`)
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]
 #[test]
 fn near_miss_keeps_its_unique_keys() {
     let generated = from_sql_with(NEAR_MISS, Opts::default());
     for (file, fixture) in [
-        (
-            "shelf.rs",
-            include_str!("../../tests/codegen_near_miss/shelf.rs"),
-        ),
-        (
-            "book.rs",
-            include_str!("../../tests/codegen_near_miss/book.rs"),
-        ),
+        ("shelf.rs", "../../tests/codegen_near_miss/shelf.rs"),
+        ("book.rs", "../../tests/codegen_near_miss/book.rs"),
         (
             "pgorm_active_enums.rs",
-            include_str!("../../tests/codegen_near_miss/pgorm_active_enums.rs"),
+            "../../tests/codegen_near_miss/pgorm_active_enums.rs",
         ),
     ] {
         generated.holds(file, fixture);
@@ -634,24 +610,12 @@ fn variants_named_as_their_enum_compile_clean() {
         },
     );
     for (file, fixture) in [
-        ("shop.rs", include_str!("disjoint_variant_names/shop.rs")),
-        (
-            "web_shop.rs",
-            include_str!("disjoint_variant_names/web_shop.rs"),
-        ),
-        (
-            "pop_up_shop.rs",
-            include_str!("disjoint_variant_names/pop_up_shop.rs"),
-        ),
-        ("store.rs", include_str!("disjoint_variant_names/store.rs")),
-        (
-            "web_store.rs",
-            include_str!("disjoint_variant_names/web_store.rs"),
-        ),
-        (
-            "pop_up_store.rs",
-            include_str!("disjoint_variant_names/pop_up_store.rs"),
-        ),
+        ("shop.rs", "disjoint_variant_names/shop.rs"),
+        ("web_shop.rs", "disjoint_variant_names/web_shop.rs"),
+        ("pop_up_shop.rs", "disjoint_variant_names/pop_up_shop.rs"),
+        ("store.rs", "disjoint_variant_names/store.rs"),
+        ("web_store.rs", "disjoint_variant_names/web_store.rs"),
+        ("pop_up_store.rs", "disjoint_variant_names/pop_up_store.rs"),
     ] {
         generated.holds(file, fixture);
     }

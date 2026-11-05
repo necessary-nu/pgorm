@@ -226,7 +226,7 @@ class DescriptionTests(unittest.TestCase):
         self.assert_declared("pgorm.Model", [model.describe(), model.as_("a").describe()])
 
     # [spec:pgorm:req:bindings.surface+2/test]
-    # [spec:pgorm:req:bindings.disjoint+1/test]
+    # [spec:pgorm:req:bindings.disjoint+2/test]
     def test_disjoint_description_has_the_declared_keys(self):
         kind = p.TypeName("item_kind", schema="app")
         base = p.Model(
@@ -239,7 +239,7 @@ class DescriptionTests(unittest.TestCase):
         self.assert_declared("pgorm.Disjoint", [items.describe()])
 
     # [spec:pgorm:req:bindings.surface+2/test]
-    # [spec:pgorm:req:bindings.disjoint+1/test]
+    # [spec:pgorm:req:bindings.disjoint+2/test]
     def test_disjoint_entity_description_has_the_declared_keys(self):
         names = p.disjoint_entities()
         if not names:

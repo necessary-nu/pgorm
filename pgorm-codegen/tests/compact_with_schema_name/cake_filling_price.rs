@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(schema_name = "schema_name", table_name = "cake_filling_price")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -16,7 +16,10 @@ pub enum Relation {
     #[pgorm(
         belongs_to = super::cake_filling::Entity,
         from = (Column::CakeId, Column::FillingId),
-        to = (super::cake_filling::Column::CakeId, super::cake_filling::Column::FillingId),
+        to = (
+            super::cake_filling::Column::CakeId,
+            super::cake_filling::Column::FillingId,
+        )
     )]
     CakeFilling,
 }

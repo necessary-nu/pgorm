@@ -220,18 +220,7 @@ class ModelColumn(p._DeclaredColumn):
         return self._expression
 
     def _operand(self, value: Any) -> p.Expr | p.Value | p.Quantified:
-        if isinstance(value, p.Quantified):
-            return value
-        if isinstance(value, ModelColumn):
-            if (
-                self.declaration._null.snapshot()["type"]
-                != value.declaration._null.snapshot()["type"]
-            ):
-                raise p.ConstructionError(
-                    "compared model columns have different declared types"
-                )
-            return value
-        if isinstance(value, p.Expr):
+        if isinstance(value, (p.Quantified, p.Expr)):
             return value
         if value is None:
             raise p.ConstructionError(

@@ -380,7 +380,7 @@ pub async fn select_only_exclude_option_fields() {
 
 // [spec:pgorm:sem:exec.crud.select+4/test]    `SelectorRaw::one` / `one_opt`
 // execute the statement exactly as written, with no `LIMIT` injected
-// [spec:pgorm:def:exec.crud+1/test]    `Select::from_raw_sql` and
+// [spec:pgorm:def:exec.crud+2/test]    `Select::from_raw_sql` and
 // `SelectorRaw::into_model` re-targeting the decoded type
 #[pgorm_macros::test]
 pub async fn raw_selector_one_semantics() -> Result<(), Error> {

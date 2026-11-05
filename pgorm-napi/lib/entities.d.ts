@@ -193,10 +193,10 @@ export declare class Entity<T extends EntityTypes<any, any> = EntityTypes> {
   update(active: ActiveModel<T>): EntityUpdate<EntityRecordOf<T>>;
   /** An update of every row its condition admits. */
   updateMany(): EntityUpdateMany<T>;
-  /** An insert of one ActiveModel. */
-  insert(active: ActiveModel<T>): EntityInsert<EntityRecordOf<T>>;
-  /** An insert of ActiveModels; a batch of none writes nothing. */
-  insertMany(actives: readonly ActiveModel<T>[]): EntityInsert<EntityRecordOf<T>>;
+  /** An insert of one ActiveModel, by `Insert::one`. */
+  insert(active: ActiveModel<T>): EntityInsert<T>;
+  /** An insert of ActiveModels, by `Insert::many`; a batch of none writes nothing. */
+  insertMany(actives: readonly ActiveModel<T>[]): EntityInsertMany<T>;
 }
 
 /** A registered entity's `Select<E>`. Every method returns a new query. */
@@ -264,14 +264,46 @@ export declare class EntityUpdateMany<T extends EntityTypes<any, any> = EntityTy
   returningChanges(db: Queryable, options?: OperationOptions): Promise<Change<EntityRecordOf<T>>[]>;
 }
 
-/** An insert of ActiveModels, with the conflict clause it takes. */
-export declare class EntityInsert<R = EntityRecord> {
+/**
+ * A written row's key, as Rust's `PrimaryKey::ValueType` holds it: the value
+ * of a key of one column, an array of a composite key's in key-column order.
+ */
+export type EntityKey = PlainValue | readonly PlainValue[];
+
+/** An insert of one ActiveModel, `Insert<A, OneRow>`, with the conflict clause it takes. */
+export declare class EntityInsert<T extends EntityTypes<any, any> = EntityTypes> {
   private constructor();
-  onConflict(action: Conflict | ConflictUpdate): EntityInsert<R>;
-  /** What the insert of one row did, or `null` where its conflict clause wrote nothing. */
-  returningUpsert(db: Queryable, options?: OperationOptions): Promise<Upserted<R> | null>;
-  /** What the insert did with each row it wrote. */
-  returningUpserts(db: Queryable, options?: OperationOptions): Promise<Upserted<R>[]>;
+  onConflict(action: Conflict | ConflictUpdate): EntityInsert<T>;
+  /** A batch of its ActiveModel and `active`, as `Insert::add` makes one. */
+  add(active: ActiveModel<T>): EntityInsertMany<T>;
+  /** A batch of its ActiveModel and `actives`, as `Insert::add_many` makes one. */
+  addMany(actives: readonly ActiveModel<T>[]): EntityInsertMany<T>;
+  /** How many rows it wrote, by `Insert::exec`. */
+  execute(db: Queryable, options?: OperationOptions): Promise<number>;
+  /** The written row's key, by `exec_returning_pk`; a row its conflict clause held back is a `DecodeError`. */
+  returningPk(db: Queryable, options?: OperationOptions): Promise<EntityKey>;
+  /** The written row's record, by `exec_returning_model`; a row its conflict clause held back is a `DecodeError`. */
+  returningModel(db: Queryable, options?: OperationOptions): Promise<EntityRecordOf<T>>;
+  /** What the insert did with its row, by `exec_returning_upsert`, or `null` where its conflict clause wrote nothing. */
+  returningUpsert(db: Queryable, options?: OperationOptions): Promise<Upserted<EntityRecordOf<T>> | null>;
+}
+
+/** An insert of ActiveModels, `Insert<A, ManyRows>`, with the conflict clause it takes. */
+export declare class EntityInsertMany<T extends EntityTypes<any, any> = EntityTypes> {
+  private constructor();
+  onConflict(action: Conflict | ConflictUpdate): EntityInsertMany<T>;
+  /** The batch with `active` after its own, as `Insert::add` adds one. */
+  add(active: ActiveModel<T>): EntityInsertMany<T>;
+  /** The batch with `actives` after its own, as `Insert::add_many` adds them. */
+  addMany(actives: readonly ActiveModel<T>[]): EntityInsertMany<T>;
+  /** How many rows it wrote, by `Insert::exec`; a batch of none sends nothing. */
+  execute(db: Queryable, options?: OperationOptions): Promise<number>;
+  /** Each written row's key in the order written, by `exec_returning_pks`; a row its conflict clause held back is left out. */
+  returningPks(db: Queryable, options?: OperationOptions): Promise<EntityKey[]>;
+  /** Each written row's record in the order written, by `exec_returning_models`; a row its conflict clause held back is left out. */
+  returningModels(db: Queryable, options?: OperationOptions): Promise<EntityRecordOf<T>[]>;
+  /** What the insert did with each row it wrote, by `exec_returning_upserts`; a row its conflict clause held back is left out. */
+  returningUpserts(db: Queryable, options?: OperationOptions): Promise<Upserted<EntityRecordOf<T>>[]>;
 }
 
 /** The names of the graph shapes this module registers. */

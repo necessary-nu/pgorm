@@ -17,7 +17,7 @@ use pyo3::{
     buffer::PyBuffer,
     exceptions::PyTypeError,
     prelude::*,
-    types::{PyByteArray, PyBytes, PyList, PyString, PyTuple},
+    types::{PyByteArray, PyBytes, PyList, PySequence, PyString, PyTuple},
 };
 use pyo3_async_runtimes::tokio::future_into_py;
 use tokio::sync::{Mutex, mpsc, oneshot};
@@ -417,9 +417,12 @@ fn row_values(row: &Bound<'_, PyAny>) -> PyResult<Vec<Option<ValueHolder>>> {
             "a COPY row is a sequence of its columns' values, not text or bytes",
         ));
     }
+    // A mapping or a set iterates, but over its keys or in no fixed order,
+    // so only a sequence is a row.
     let items = row
-        .try_iter()
-        .map_err(|_| PyTypeError::new_err("a COPY row is a sequence of its columns' values"))?;
+        .cast::<PySequence>()
+        .map_err(|_| PyTypeError::new_err("a COPY row is a sequence of its columns' values"))?
+        .try_iter()?;
     items
         .map(|item| {
             let item = item?;

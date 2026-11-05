@@ -1,13 +1,17 @@
+use super::format;
 use crate::{
     ActiveEnum, CreatedRangeType, Entity, Error, UnkindedDisjoint, util::escape_rust_keyword,
 };
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
-use std::{collections::BTreeMap, str::FromStr};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    str::FromStr,
+};
 use syn::{punctuated::Punctuated, token::Comma};
 use tracing::info;
 
-// [spec:pgorm:def:codegen.entity+7]
+// [spec:pgorm:def:codegen.entity+9]
 #[derive(Clone, Debug)]
 pub struct EntityWriter {
     pub(crate) entities: Vec<Entity>,
@@ -72,7 +76,7 @@ pub struct EntityWriterContext {
 }
 
 impl WithSerde {
-    // [spec:pgorm:sem:codegen.entity.serde.derives+3]
+    // [spec:pgorm:sem:codegen.entity.serde.derives+4]
     pub fn extra_derive(&self) -> TokenStream {
         let mut extra_derive = match self {
             Self::None => {
@@ -191,7 +195,7 @@ impl EntityWriterContext {
 }
 
 impl EntityWriter {
-    // [spec:pgorm:req:codegen.entity.files+2]
+    // [spec:pgorm:req:codegen.entity.files+3]
     pub fn generate(self, context: &EntityWriterContext) -> WriterOutput {
         let mut files = Vec::new();
         files.extend(self.write_entities(context));
@@ -212,6 +216,7 @@ impl EntityWriter {
     }
 
     // [spec:pgorm:sem:codegen.entity.serde.skip]
+    // [spec:pgorm:req:codegen.entity.files+3]
     pub fn write_entities(&self, context: &EntityWriterContext) -> Vec<OutputFile> {
         self.entities
             .iter()
@@ -237,8 +242,6 @@ impl EntityWriter {
                     info!("    > {}", info);
                 }
 
-                let mut lines = Vec::new();
-                Self::write_doc_comment(&mut lines);
                 let code_blocks = Self::gen_compact_code_blocks(
                     entity,
                     &context.with_serde,
@@ -248,68 +251,43 @@ impl EntityWriter {
                     &context.model_extra_derives,
                     &context.model_extra_attributes,
                 );
-                Self::write(&mut lines, code_blocks);
                 OutputFile {
                     name: entity_file,
-                    content: lines.join("\n\n"),
+                    content: format::file(code_blocks),
                 }
             })
             .collect()
     }
 
-    // [spec:pgorm:req:codegen.entity.files+2]
+    // [spec:pgorm:req:codegen.entity.files+3]
     pub fn write_index_file(&self, lib: bool) -> OutputFile {
-        let mut lines = Vec::new();
-        Self::write_doc_comment(&mut lines);
-        let code_blocks: Vec<TokenStream> = self.entities.iter().map(Self::gen_mod).collect();
-        Self::write(
-            &mut lines,
-            vec![quote! {
-                pub mod prelude;
-            }],
-        );
-        lines.push("".to_owned());
-        Self::write(&mut lines, code_blocks);
+        let mut modules: TokenStream = self.entities.iter().map(Self::gen_mod).collect();
         if !self.enums.is_empty() {
-            Self::write(
-                &mut lines,
-                vec![quote! {
-                    pub mod pgorm_active_enums;
-                }],
-            );
+            modules.extend(quote! { pub mod pgorm_active_enums; });
         }
         if !self.ranges.is_empty() {
-            Self::write(
-                &mut lines,
-                vec![quote! {
-                    pub mod pgorm_range_types;
-                }],
-            );
+            modules.extend(quote! { pub mod pgorm_range_types; });
         }
-
         let file_name = match lib {
             true => "lib.rs".to_owned(),
             false => "mod.rs".to_owned(),
         };
-
         OutputFile {
             name: file_name,
-            content: lines.join("\n"),
+            content: format::file([quote! { pub mod prelude; }, modules]),
         }
     }
 
+    // [spec:pgorm:req:codegen.entity.files+3]
     pub fn write_prelude(&self) -> OutputFile {
-        let mut lines = Vec::new();
-        Self::write_doc_comment(&mut lines);
-        let code_blocks = self.entities.iter().map(Self::gen_prelude_use).collect();
-        Self::write(&mut lines, code_blocks);
         OutputFile {
             name: "prelude.rs".to_owned(),
-            content: lines.join("\n"),
+            content: format::file([self.entities.iter().map(Self::gen_prelude_use).collect()]),
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+8]
+    // [spec:pgorm:sem:codegen.entity.enums+10]
+    // [spec:pgorm:req:codegen.entity.files+3]
     pub fn write_pgorm_active_enums(
         &self,
         with_serde: &WithSerde,
@@ -317,49 +295,22 @@ impl EntityWriter {
         extra_derives: &TokenStream,
         extra_attributes: &TokenStream,
     ) -> OutputFile {
-        let mut lines = Vec::new();
-        Self::write_doc_comment(&mut lines);
-        Self::write(&mut lines, vec![Self::gen_import(with_serde)]);
-        lines.push("".to_owned());
-        let code_blocks = self
-            .enums
-            .values()
-            .map(|active_enum| {
-                active_enum.impl_active_enum(
-                    with_serde,
-                    with_copy_enums,
-                    extra_derives,
-                    extra_attributes,
-                )
-            })
-            .collect();
-        Self::write(&mut lines, code_blocks);
+        let enums = self.enums.values().map(|active_enum| {
+            active_enum.impl_active_enum(
+                with_serde,
+                with_copy_enums,
+                extra_derives,
+                extra_attributes,
+            )
+        });
         OutputFile {
             name: "pgorm_active_enums.rs".to_owned(),
-            content: lines.join("\n"),
+            content: format::file(std::iter::once(Self::gen_import(with_serde)).chain(enums)),
         }
     }
 
-    pub fn write(lines: &mut Vec<String>, code_blocks: Vec<TokenStream>) {
-        lines.extend(
-            code_blocks
-                .into_iter()
-                .map(|code_block| code_block.to_string())
-                .collect::<Vec<_>>(),
-        );
-    }
-
-    pub fn write_doc_comment(lines: &mut Vec<String>) {
-        let ver = env!("CARGO_PKG_VERSION");
-        let comments = vec![format!(
-            "//! `pgorm` Entity, @generated by pgorm-codegen {ver}"
-        )];
-        lines.extend(comments);
-        lines.push("".to_owned());
-    }
-
     // [spec:pgorm:req:macros.derive.one-form]
-    // [spec:pgorm:def:codegen.entity.compact+7]
+    // [spec:pgorm:def:codegen.entity.compact+8]
     // [spec:pgorm:def:disjoint.one-of+4]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_code_blocks(
@@ -371,11 +322,9 @@ impl EntityWriter {
         model_extra_derives: &TokenStream,
         model_extra_attributes: &TokenStream,
     ) -> Vec<TokenStream> {
-        let mut imports = Self::gen_import(with_serde);
-        imports.extend(Self::gen_import_active_enum(entity));
-        imports.extend(Self::gen_import_range_types(entity));
         let mut code_blocks = vec![
-            imports,
+            Self::gen_import(with_serde),
+            Self::gen_import_super(entity),
             Self::gen_compact_model_struct(
                 entity,
                 with_serde,
@@ -409,7 +358,7 @@ impl EntityWriter {
         Some(disjoint.tokens(entity, &with_serde.extra_derive(), serde))
     }
 
-    // [spec:pgorm:sem:codegen.entity.imports+4]
+    // [spec:pgorm:sem:codegen.entity.imports+5]
     pub fn gen_import(with_serde: &WithSerde) -> TokenStream {
         let prelude_import = quote!(
             use pgorm::entity::prelude::*;
@@ -432,31 +381,45 @@ impl EntityWriter {
             WithSerde::Both => {
                 quote! {
                     #prelude_import
-                    use serde::{Deserialize,Serialize};
+                    use serde::{Deserialize, Serialize};
                 }
             }
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.imports+4]    active-enum imports
+    /// The `use` of each type the entity's columns name from a sibling
+    /// module: an enum from `pgorm_active_enums`, a disjoint entity's kind
+    /// type from its base's module, a created range's newtype from
+    /// `pgorm_range_types`. Each module is imported once, its types in
+    /// braces where it gives several, the modules and the types sorted as
+    /// rustfmt sorts them.
+    // [spec:pgorm:sem:codegen.entity.imports+5]
     // [spec:pgorm:sem:codegen.entity.disjoint+3]    a kind type from its base's module
-    pub fn gen_import_active_enum(entity: &Entity) -> TokenStream {
-        let mut imported: Vec<String> = Vec::new();
-        let mut imports = TokenStream::new();
-        for (name, module) in entity.columns.iter().filter_map(|col| col.enum_import()) {
-            if imported.contains(&name) {
-                continue;
+    pub fn gen_import_super(entity: &Entity) -> TokenStream {
+        let mut modules: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for column in &entity.columns {
+            if let Some((name, Some(module))) = column.enum_import() {
+                modules.entry(module).or_default().insert(name);
             }
-            let enum_name = format_ident!("{}", name);
-            imported.push(name);
-            if let Some(module) = module {
-                let module = format_ident!("{}", module);
-                imports.extend(quote! {
-                    use super::#module::#enum_name;
-                });
+            if let Some(name) = column.range_import() {
+                modules
+                    .entry("pgorm_range_types".to_owned())
+                    .or_default()
+                    .insert(name);
             }
         }
-        imports
+        modules
+            .into_iter()
+            .map(|(module, names)| {
+                let module = format_ident!("{}", module);
+                let names: Vec<Ident> =
+                    names.iter().map(|name| format_ident!("{}", name)).collect();
+                match names.as_slice() {
+                    [name] => quote! { use super::#module::#name; },
+                    _ => quote! { use super::#module::{#(#names),*}; },
+                }
+            })
+            .collect()
     }
 
     // [spec:pgorm:sem:codegen.entity.relations.via+2]
@@ -503,8 +466,8 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.compact.attrs+13]
-    // [spec:pgorm:sem:codegen.entity.compact.model+2]
+    // [spec:pgorm:sem:codegen.entity.compact.attrs+14]
+    // [spec:pgorm:sem:codegen.entity.compact.model+3]
     // [spec:pgorm:sem:codegen.entity.pk+5]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_model_struct(
@@ -597,7 +560,7 @@ impl EntityWriter {
         let extra_derive = with_serde.extra_derive();
 
         quote! {
-            #[derive(Clone, Debug, PartialEq, Entity #if_eq_needed #extra_derive #model_extra_derives)]
+            #[derive(Clone, Debug, PartialEq #if_eq_needed, Entity #extra_derive #model_extra_derives)]
             #[pgorm(
                 #schema_name
                 table_name = #table_name
@@ -617,7 +580,7 @@ impl EntityWriter {
     /// or more, in the table's order: the constraint's name when it has one,
     /// `nulls_not_distinct` when it says so, and `columns`, a tuple of the
     /// `Column` variants their fields derive.
-    // [spec:pgorm:sem:codegen.entity.compact.attrs+13]
+    // [spec:pgorm:sem:codegen.entity.compact.attrs+14]
     fn gen_unique_keys(entity: &Entity) -> Vec<TokenStream> {
         entity
             .unique_keys
@@ -645,7 +608,7 @@ impl EntityWriter {
     /// for the tables it relates to, so clippy's `enum_variant_names`, which
     /// variants sharing an affix (`WebShop`, `PopUpShop`, `ClosedShop`) or one
     /// ending with the enum's name trip, is allowed on it.
-    // [spec:pgorm:def:codegen.entity.compact+7]
+    // [spec:pgorm:def:codegen.entity.compact+8]
     pub fn gen_compact_relation_enum(entity: &Entity) -> TokenStream {
         let relation_enum_name = entity.get_relation_enum_name();
         let attrs = entity.get_relation_attrs();
@@ -683,8 +646,16 @@ mod tests {
     use pretty_assertions::assert_eq;
     use proc_macro2::TokenStream;
     use quote::quote;
-    use std::io::{self, BufRead, BufReader, Read};
+    use std::io;
     use std::sync::Arc;
+
+    /// Hold the file the writer formats from an entity's `blocks`, its
+    /// header aside, to the golden at `path` under the crate's root, byte for
+    /// byte; `PGORM_CODEGEN_BLESS` writes it there instead.
+    #[track_caller]
+    fn hold_golden(path: &str, blocks: Vec<TokenStream>) {
+        crate::entity::format::hold_golden(path, &crate::entity::format::file(blocks));
+    }
 
     fn setup() -> Vec<Entity> {
         vec![
@@ -1644,102 +1615,46 @@ mod tests {
         ]
     }
 
-    fn parse_from_file<R>(inner: R) -> io::Result<TokenStream>
-    where
-        R: Read,
-    {
-        let mut reader = BufReader::new(inner);
-        let mut lines: Vec<String> = Vec::new();
-
-        reader.read_until(b';', &mut Vec::new())?;
-
-        let mut line = String::new();
-        while reader.read_line(&mut line)? > 0 {
-            lines.push(line.to_owned());
-            line.clear();
-        }
-        let content = lines.join("");
-        Ok(content.parse().unwrap())
-    }
-
     #[test]
-    fn test_gen_compact_code_blocks() -> io::Result<()> {
+    fn test_gen_compact_code_blocks() {
         let entities = setup();
         const ENTITY_FILES: [&str; 13] = [
-            include_str!("../../tests/compact/cake.rs"),
-            include_str!("../../tests/compact/cake_filling.rs"),
-            include_str!("../../tests/compact/cake_filling_price.rs"),
-            include_str!("../../tests/compact/filling.rs"),
-            include_str!("../../tests/compact/fruit.rs"),
-            include_str!("../../tests/compact/vendor.rs"),
-            include_str!("../../tests/compact/rust_keyword.rs"),
-            include_str!("../../tests/compact/cake_with_float.rs"),
-            include_str!("../../tests/compact/cake_with_double.rs"),
-            include_str!("../../tests/compact/collection.rs"),
-            include_str!("../../tests/compact/collection_float.rs"),
-            include_str!("../../tests/compact/parent.rs"),
-            include_str!("../../tests/compact/child.rs"),
-        ];
-        const ENTITY_FILES_WITH_SCHEMA_NAME: [&str; 13] = [
-            include_str!("../../tests/compact_with_schema_name/cake.rs"),
-            include_str!("../../tests/compact_with_schema_name/cake_filling.rs"),
-            include_str!("../../tests/compact_with_schema_name/cake_filling_price.rs"),
-            include_str!("../../tests/compact_with_schema_name/filling.rs"),
-            include_str!("../../tests/compact_with_schema_name/fruit.rs"),
-            include_str!("../../tests/compact_with_schema_name/vendor.rs"),
-            include_str!("../../tests/compact_with_schema_name/rust_keyword.rs"),
-            include_str!("../../tests/compact_with_schema_name/cake_with_float.rs"),
-            include_str!("../../tests/compact_with_schema_name/cake_with_double.rs"),
-            include_str!("../../tests/compact_with_schema_name/collection.rs"),
-            include_str!("../../tests/compact_with_schema_name/collection_float.rs"),
-            include_str!("../../tests/compact_with_schema_name/parent.rs"),
-            include_str!("../../tests/compact_with_schema_name/child.rs"),
+            "cake",
+            "cake_filling",
+            "cake_filling_price",
+            "filling",
+            "fruit",
+            "vendor",
+            "rust_keyword",
+            "cake_with_float",
+            "cake_with_double",
+            "collection",
+            "collection_float",
+            "parent",
+            "child",
         ];
 
         assert_eq!(entities.len(), ENTITY_FILES.len());
 
-        for (i, entity) in entities.iter().enumerate() {
-            assert_eq!(
-                parse_from_file(ENTITY_FILES[i].as_bytes())?.to_string(),
-                EntityWriter::gen_compact_code_blocks(
-                    entity,
-                    &crate::WithSerde::None,
-                    &None,
-                    false,
-                    false,
-                    &TokenStream::new(),
-                    &TokenStream::new()
-                )
-                .into_iter()
-                .skip(1)
-                .fold(TokenStream::new(), |mut acc, tok| {
-                    acc.extend(tok);
-                    acc
-                })
-                .to_string()
-            );
-            assert_eq!(
-                parse_from_file(ENTITY_FILES_WITH_SCHEMA_NAME[i].as_bytes())?.to_string(),
-                EntityWriter::gen_compact_code_blocks(
-                    entity,
-                    &crate::WithSerde::None,
-                    &Some("schema_name".to_owned()),
-                    false,
-                    false,
-                    &TokenStream::new(),
-                    &TokenStream::new()
-                )
-                .into_iter()
-                .skip(1)
-                .fold(TokenStream::new(), |mut acc, tok| {
-                    acc.extend(tok);
-                    acc
-                })
-                .to_string()
-            );
+        for (entity, file) in entities.iter().zip(ENTITY_FILES) {
+            for (directory, schema_name) in [
+                ("compact", None),
+                ("compact_with_schema_name", Some("schema_name".to_owned())),
+            ] {
+                hold_golden(
+                    &format!("tests/{directory}/{file}.rs"),
+                    EntityWriter::gen_compact_code_blocks(
+                        entity,
+                        &crate::WithSerde::None,
+                        &schema_name,
+                        false,
+                        false,
+                        &TokenStream::new(),
+                        &TokenStream::new(),
+                    ),
+                );
+            }
         }
-
-        Ok(())
     }
 
     #[test]
@@ -1748,57 +1663,53 @@ mod tests {
 
         assert_eq!(cake_entity.get_table_name_snake_case(), "cake");
 
-        assert_eq!(
-            comparable_file_string(include_str!("../../tests/compact_with_serde/cake_none.rs"))?,
-            generated_to_string(EntityWriter::gen_compact_code_blocks(
+        hold_golden(
+            "tests/compact_with_serde/cake_none.rs",
+            EntityWriter::gen_compact_code_blocks(
                 &cake_entity,
                 &WithSerde::None,
                 &None,
                 false,
                 false,
                 &TokenStream::new(),
-                &TokenStream::new()
-            ))
+                &TokenStream::new(),
+            ),
         );
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/compact_with_serde/cake_serialize.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_compact_code_blocks(
+        hold_golden(
+            "tests/compact_with_serde/cake_serialize.rs",
+            EntityWriter::gen_compact_code_blocks(
                 &cake_entity,
                 &WithSerde::Serialize,
                 &None,
                 false,
                 false,
                 &TokenStream::new(),
-                &TokenStream::new()
-            ))
+                &TokenStream::new(),
+            ),
         );
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/compact_with_serde/cake_deserialize.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_compact_code_blocks(
+        hold_golden(
+            "tests/compact_with_serde/cake_deserialize.rs",
+            EntityWriter::gen_compact_code_blocks(
                 &cake_entity,
                 &WithSerde::Deserialize,
                 &None,
                 true,
                 false,
                 &TokenStream::new(),
-                &TokenStream::new()
-            ))
+                &TokenStream::new(),
+            ),
         );
-        assert_eq!(
-            comparable_file_string(include_str!("../../tests/compact_with_serde/cake_both.rs"))?,
-            generated_to_string(EntityWriter::gen_compact_code_blocks(
+        hold_golden(
+            "tests/compact_with_serde/cake_both.rs",
+            EntityWriter::gen_compact_code_blocks(
                 &cake_entity,
                 &WithSerde::Both,
                 &None,
                 true,
                 false,
                 &TokenStream::new(),
-                &TokenStream::new()
-            ))
+                &TokenStream::new(),
+            ),
         );
 
         Ok(())
@@ -1810,37 +1721,33 @@ mod tests {
 
         assert_eq!(cake_entity.get_table_name_snake_case(), "cake");
 
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/compact_with_derives/cake_none.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_compact_code_blocks(
+        hold_golden(
+            "tests/compact_with_derives/cake_none.rs",
+            EntityWriter::gen_compact_code_blocks(
                 &cake_entity,
                 &WithSerde::None,
                 &None,
                 false,
                 false,
                 &TokenStream::new(),
-                &TokenStream::new()
-            ))
+                &TokenStream::new(),
+            ),
         );
-        assert_eq!(
-            comparable_file_string(include_str!("../../tests/compact_with_derives/cake_one.rs"))?,
-            generated_to_string(EntityWriter::gen_compact_code_blocks(
+        hold_golden(
+            "tests/compact_with_derives/cake_one.rs",
+            EntityWriter::gen_compact_code_blocks(
                 &cake_entity,
                 &WithSerde::None,
                 &None,
                 false,
                 false,
                 &bonus_derive("model_extra_derives", ["ts_rs::TS"]).expect("valid derives"),
-                &TokenStream::new()
-            ))
+                &TokenStream::new(),
+            ),
         );
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/compact_with_derives/cake_multiple.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_compact_code_blocks(
+        hold_golden(
+            "tests/compact_with_derives/cake_multiple.rs",
+            EntityWriter::gen_compact_code_blocks(
                 &cake_entity,
                 &WithSerde::None,
                 &None,
@@ -1848,74 +1755,26 @@ mod tests {
                 false,
                 &bonus_derive("model_extra_derives", ["ts_rs::TS", "utoipa::ToSchema"])
                     .expect("valid derives"),
-                &TokenStream::new()
-            ))
+                &TokenStream::new(),
+            ),
         );
 
         // Make the `name` column of `cake` entity as hidden column
         cake_entity.columns[1].name = "_name".into();
 
-        assert_serde_variant_results(
-            &cake_entity,
-            &(
-                include_str!("../../tests/compact_with_serde/cake_serialize_with_hidden_column.rs"),
-                WithSerde::Serialize,
-                None,
+        hold_golden(
+            "tests/compact_with_serde/cake_serialize_with_hidden_column.rs",
+            EntityWriter::gen_compact_code_blocks(
+                &cake_entity,
+                &WithSerde::Serialize,
+                &None,
+                false,
+                true,
+                &TokenStream::new(),
+                &TokenStream::new(),
             ),
-            Box::new(EntityWriter::gen_compact_code_blocks),
-        )?;
-
-        Ok(())
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn assert_serde_variant_results(
-        cake_entity: &Entity,
-        entity_serde_variant: &(&str, WithSerde, Option<String>),
-        generator: Box<
-            dyn Fn(
-                &Entity,
-                &WithSerde,
-                &Option<String>,
-                bool,
-                bool,
-                &TokenStream,
-                &TokenStream,
-            ) -> Vec<TokenStream>,
-        >,
-    ) -> io::Result<()> {
-        let mut reader = BufReader::new(entity_serde_variant.0.as_bytes());
-        let mut lines: Vec<String> = Vec::new();
-        let serde_skip_deserializing_primary_key = matches!(
-            entity_serde_variant.1,
-            WithSerde::Both | WithSerde::Deserialize
         );
-        let serde_skip_hidden_column = matches!(entity_serde_variant.1, WithSerde::Serialize);
 
-        let mut line = String::new();
-        while reader.read_line(&mut line)? > 0 {
-            lines.push(line.to_owned());
-            line.clear();
-        }
-        let content = lines.join("");
-        let expected: TokenStream = content.parse().unwrap();
-        println!("{:?}", entity_serde_variant.1);
-        let generated = generator(
-            cake_entity,
-            &entity_serde_variant.1,
-            &entity_serde_variant.2,
-            serde_skip_deserializing_primary_key,
-            serde_skip_hidden_column,
-            &TokenStream::new(),
-            &TokenStream::new(),
-        )
-        .into_iter()
-        .fold(TokenStream::new(), |mut acc, tok| {
-            acc.extend(tok);
-            acc
-        });
-
-        assert_eq!(expected.to_string(), generated.to_string());
         Ok(())
     }
 
@@ -1925,25 +1784,21 @@ mod tests {
 
         assert_eq!(cake_entity.get_table_name_snake_case(), "cake");
 
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/compact_with_attributes/cake_none.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_compact_code_blocks(
+        hold_golden(
+            "tests/compact_with_attributes/cake_none.rs",
+            EntityWriter::gen_compact_code_blocks(
                 &cake_entity,
                 &WithSerde::None,
                 &None,
                 false,
                 false,
                 &TokenStream::new(),
-                &TokenStream::new()
-            ))
+                &TokenStream::new(),
+            ),
         );
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/compact_with_attributes/cake_one.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_compact_code_blocks(
+        hold_golden(
+            "tests/compact_with_attributes/cake_one.rs",
+            EntityWriter::gen_compact_code_blocks(
                 &cake_entity,
                 &WithSerde::None,
                 &None,
@@ -1952,16 +1807,14 @@ mod tests {
                 &TokenStream::new(),
                 &bonus_attributes(
                     "model_extra_attributes",
-                    [r#"serde(rename_all = "camelCase")"#]
+                    [r#"serde(rename_all = "camelCase")"#],
                 )
-                .expect("valid attributes")
-            ))
+                .expect("valid attributes"),
+            ),
         );
-        assert_eq!(
-            comparable_file_string(include_str!(
-                "../../tests/compact_with_attributes/cake_multiple.rs"
-            ))?,
-            generated_to_string(EntityWriter::gen_compact_code_blocks(
+        hold_golden(
+            "tests/compact_with_attributes/cake_multiple.rs",
+            EntityWriter::gen_compact_code_blocks(
                 &cake_entity,
                 &WithSerde::None,
                 &None,
@@ -1970,42 +1823,17 @@ mod tests {
                 &TokenStream::new(),
                 &bonus_attributes(
                     "model_extra_attributes",
-                    [r#"serde(rename_all = "camelCase")"#, "ts(export)"]
+                    [r#"serde(rename_all = "camelCase")"#, "ts(export)"],
                 )
-                .expect("valid attributes")
-            ))
+                .expect("valid attributes"),
+            ),
         );
 
         Ok(())
     }
 
-    fn generated_to_string(generated: Vec<TokenStream>) -> String {
-        generated
-            .into_iter()
-            .fold(TokenStream::new(), |mut acc, tok| {
-                acc.extend(tok);
-                acc
-            })
-            .to_string()
-    }
-
-    fn comparable_file_string(file: &str) -> io::Result<String> {
-        let mut reader = BufReader::new(file.as_bytes());
-        let mut lines: Vec<String> = Vec::new();
-
-        let mut line = String::new();
-        while reader.read_line(&mut line)? > 0 {
-            lines.push(line.to_owned());
-            line.clear();
-        }
-        let content = lines.join("");
-        let expected: TokenStream = content.parse().unwrap();
-
-        Ok(expected.to_string())
-    }
-
     #[test]
-    fn test_gen_postgres() -> io::Result<()> {
+    fn test_gen_postgres() {
         let entities = [
             // This tests that the JsonBinary column type is annotated
             // correctly in compact entity form. More information can be found
@@ -2061,37 +1889,22 @@ mod tests {
                 }],
             },
         ];
-        const ENTITY_FILES: [&str; 1] = [include_str!("../../tests/postgres/binary_json.rs")];
-
-        assert_eq!(entities.len(), ENTITY_FILES.len());
-
-        for (i, entity) in entities.iter().enumerate() {
-            assert_eq!(
-                parse_from_file(ENTITY_FILES[i].as_bytes())?.to_string(),
-                EntityWriter::gen_compact_code_blocks(
-                    entity,
-                    &crate::WithSerde::None,
-                    &None,
-                    false,
-                    false,
-                    &TokenStream::new(),
-                    &TokenStream::new()
-                )
-                .into_iter()
-                .skip(1)
-                .fold(TokenStream::new(), |mut acc, tok| {
-                    acc.extend(tok);
-                    acc
-                })
-                .to_string()
-            );
-        }
-
-        Ok(())
+        hold_golden(
+            "tests/postgres/binary_json.rs",
+            EntityWriter::gen_compact_code_blocks(
+                &entities[0],
+                &crate::WithSerde::None,
+                &None,
+                false,
+                false,
+                &TokenStream::new(),
+                &TokenStream::new(),
+            ),
+        );
     }
 
     #[test]
-    fn test_gen_import_active_enum() -> io::Result<()> {
+    fn test_gen_import_super() {
         let entities = [
             Entity {
                 table_name: "tea_pairing".to_owned(),
@@ -2243,18 +2056,15 @@ mod tests {
                 use super::pgorm_active_enums::TeaEnum;
             )
             .to_string(),
-            EntityWriter::gen_import_active_enum(&entities[0]).to_string()
+            EntityWriter::gen_import_super(&entities[0]).to_string()
         );
 
         assert_eq!(
             quote!(
-                use super::pgorm_active_enums::TeaEnum;
-                use super::pgorm_active_enums::TeaSize;
+                use super::pgorm_active_enums::{TeaEnum, TeaSize};
             )
             .to_string(),
-            EntityWriter::gen_import_active_enum(&entities[1]).to_string()
+            EntityWriter::gen_import_super(&entities[1]).to_string()
         );
-
-        Ok(())
     }
 }

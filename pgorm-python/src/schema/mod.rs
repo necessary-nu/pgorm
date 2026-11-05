@@ -19,6 +19,7 @@ mod drops;
 mod entity;
 mod index;
 mod keys;
+mod migration_file;
 mod namespace;
 mod sequence;
 mod statement;
@@ -31,6 +32,7 @@ pub use column::PyColumnDef;
 pub use custom_types::PyCreateType;
 pub use entity::PyEntitySchema;
 pub use index::PyCreateIndex;
+pub use migration_file::PyMigrationFile;
 use pyo3::prelude::*;
 pub use statement::PyDDL;
 pub use table::PyCreateTable;
@@ -41,7 +43,7 @@ pub(crate) use args::relation;
 /// `statement`, one of a list pgorm's `Schema` built, as Python's class of
 /// its kind: `CreateType`, `CreateTable` and `AlterTable` for the builders
 /// that take more, and `DDL` for the rest.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 // [spec:pgorm:req:bindings.disjoint-evolve]
 pub(crate) fn ddl_object(
     py: Python<'_>,
@@ -127,6 +129,8 @@ pub(crate) fn install(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<view::PyCreateMaterializedView>()?;
     module.add_class::<view::PyCreateTableAs>()?;
     module.add_class::<PyEntitySchema>()?;
+    module.add_class::<PyMigrationFile>()?;
+    module.add_function(wrap_pyfunction!(migration_file::migration_file, module)?)?;
     module.add_function(wrap_pyfunction!(entity::schema_from_entity, module)?)?;
     module.add_function(wrap_pyfunction!(table::create_table, module)?)?;
     module.add_function(wrap_pyfunction!(index::create_index, module)?)?;

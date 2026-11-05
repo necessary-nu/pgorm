@@ -8,33 +8,35 @@ use super::pgorm_range_types::Textrange;
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
     pub id: i32,
-    #[pgorm(column_type = ColumnType::String(StringLen::N(3u32)))]
+    #[pgorm(column_type = ColumnType::String(StringLen::N(3)))]
     pub code: String,
-    #[pgorm(column_type = ColumnType::String(StringLen::N(255u32)), nullable)]
+    #[pgorm(column_type = ColumnType::String(StringLen::N(255)), nullable)]
     pub title: Option<String>,
     pub note: String,
-    #[pgorm(column_type = ColumnType::Char(Some(2u32)))]
+    #[pgorm(column_type = ColumnType::Char(Some(2)))]
     pub initials: String,
-    #[pgorm(column_type = ColumnType::Char(Some(1u32)))]
+    #[pgorm(column_type = ColumnType::Char(Some(1)))]
     pub flag: String,
     #[pgorm(column_type = ColumnType::Char(None))]
     pub pad: String,
     #[pgorm(column_type = ColumnType::Text)]
     pub body: String,
-    #[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::String(StringLen::N(3u32)))))]
+    #[pgorm(
+        column_type = ColumnType::Array(Arc::new(ColumnType::String(StringLen::N(3))))
+    )]
     pub codes: Vec<String>,
     #[pgorm(
-        column_type = ColumnType::Array(Arc::new(ColumnType::Char(Some(4u32)))),
+        column_type = ColumnType::Array(Arc::new(ColumnType::Char(Some(4)))),
         nullable
     )]
     pub marks: Option<Vec<String>>,
     pub notes: Vec<String>,
-    #[pgorm(column_type = ColumnType::Decimal(Some((10u32, 2u32))))]
+    #[pgorm(column_type = ColumnType::Decimal(Some((10, 2))))]
     pub price: Decimal,
-    #[pgorm(column_type = ColumnType::Decimal(Some((6u32, 0u32))))]
+    #[pgorm(column_type = ColumnType::Decimal(Some((6, 0))))]
     pub whole: Decimal,
     pub amount: Decimal,
-    #[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Decimal(Some((8u32, 3u32))))))]
+    #[pgorm(column_type = ColumnType::Array(Arc::new(ColumnType::Decimal(Some((8, 3))))))]
     pub prices: Vec<Decimal>,
     #[pgorm(column_type = ColumnType::Money, nullable)]
     pub cost: Option<Decimal>,
@@ -58,13 +60,19 @@ pub struct Model {
     pub seen: DateTime,
     pub stamped: DateTimeWithTimeZone,
     pub wait: Interval,
-    #[pgorm(column_type = ColumnType::Interval(IntervalSpec::Fields(PgInterval::YearToMonth)))]
+    #[pgorm(
+        column_type = ColumnType::Interval(IntervalSpec::Fields(PgInterval::YearToMonth))
+    )]
     pub months: Interval,
     pub span: Range<i32>,
     pub days: Multirange<Date>,
     pub level: Grade,
     #[pgorm(
-        column_type = ColumnType::CreatedRange { name: Name::runtime("textrange"), schema: None, subtype: Arc::new(ColumnType::Text) }
+        column_type = ColumnType::CreatedRange {
+            name: Name::runtime("textrange"),
+            schema: None,
+            subtype: Arc::new(ColumnType::Text),
+        }
     )]
     pub letters: Textrange,
 }

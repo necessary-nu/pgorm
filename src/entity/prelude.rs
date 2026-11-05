@@ -24,12 +24,17 @@
 //! entity's own module, and a key filled by `Func::uuidv7()` is the default a
 //! new table most often wants.
 //!
+//! `ExprTrait` is here because it is where an expression's operators are:
+//! without it a function call, a cast or a column's aggregate could be
+//! built but not compared, `Column::Id.count().gt(2)` naming a method of a
+//! trait out of scope.
+//!
 //! `ArrayType`, `ConditionType`, `Deferrability`, `Enforcement` and
 //! `ForeignKeyAction` are here because a derive's attributes name them as
 //! written, with no prefix of their own: `on_delete = ForeignKeyAction::Cascade`,
 //! `deferrability = Deferrability::DeferrableInitiallyDeferred`.
 
-// [spec:pgorm:def:entity.prelude+11]
+// [spec:pgorm:def:entity.prelude+12]
 // [spec:pgorm:sem:query.build.alias+2]
 pub use crate::{
     ActiveEnum, ActiveModelBehavior, ActiveModelTrait, ActiveValue,
@@ -43,8 +48,8 @@ pub use crate::{
     SqlName, StaticName, TransactionTrait, TryInsert, TryIntoModel, Update, Value, alias,
     error::*,
     pgorm_query::{
-        ArrayType, ConditionType, Deferrability, Enforcement, Expr, ForeignKeyAction, Func, Name,
-        StringLen,
+        ArrayType, ConditionType, Deferrability, Enforcement, Expr, ExprTrait, ForeignKeyAction,
+        Func, Name, StringLen,
     },
     set,
 };
@@ -89,7 +94,7 @@ pub use crate::pgorm_query::Interval;
 /// The qualifier vocabulary of an interval column, so that
 /// `column_type = ColumnType::Interval(IntervalSpec::Fields(PgInterval::YearToMonth))`
 /// resolves in the module the entity is written in.
-// [spec:pgorm:def:entity.prelude+11]
+// [spec:pgorm:def:entity.prelude+12]
 pub use crate::pgorm_query::{IntervalPrecision, IntervalSpec, PgInterval};
 
 // [spec:pgorm:def:exec.decode.range+5]

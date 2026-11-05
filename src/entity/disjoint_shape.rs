@@ -49,7 +49,7 @@ impl DisjointColumn {
     /// under the casts a column of its type takes by default: an enum read as
     /// its text and written cast to its type, a created range written
     /// through its text.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn new(name: impl Into<String>, def: ColumnDef) -> Self {
         Self {
             casts: ColumnCasts::of_type(def.get_column_type()),
@@ -63,7 +63,7 @@ impl DisjointColumn {
     /// does not state: an insert may leave it out, a kind's key may not be
     /// it, and no table of it can be written.
     #[must_use]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn with_unstated_default(mut self) -> Self {
         self.unstated_default = true;
         self
@@ -176,7 +176,7 @@ impl DisjointTable {
     ///
     /// Two columns of one name, a key naming a column the table lacks or
     /// one column twice, and an empty key are refused as [`Error::Type`].
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn new(
         table: TableName,
         columns: Vec<DisjointColumn>,
@@ -380,7 +380,7 @@ impl DisjointTable {
     /// `Set`, `Unchanged` or `NotSet`, and a column left out `NotSet`. A name
     /// the table has no column of, and one named twice, are refused as
     /// [`Error::Type`].
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn values<N, I>(&self, values: I) -> Result<DisjointValues, Error>
     where
         N: AsRef<str>,
@@ -569,7 +569,7 @@ impl DisjointShape {
     /// kinds or for a kind and the base, a base without `kind_column`, and a
     /// kind table whose key is not of the base key's types in its order.
     /// Then [`check`](Self::check) runs, and its refusal is this one's.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn new(
         base: DisjointTable,
         kind_column: &str,
@@ -735,7 +735,7 @@ impl DisjointShape {
     /// unkinded shape has no kind column and is never written, so nothing of
     /// it is refused.
     // [spec:pgorm:def:disjoint.declare+5]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn check(&self) -> Result<(), Error> {
         let Some(kinded) = &self.kinded else {
@@ -907,7 +907,7 @@ impl DisjointShape {
 /// types would not compile: none, a value given twice, one table for two
 /// kinds or for a kind and the base, and a kind table keyed by other types
 /// than the base, in its order.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 // [spec:pgorm:sem:disjoint.unkinded+1]
 fn held_apart(
     base: &DisjointTable,

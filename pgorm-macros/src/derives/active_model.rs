@@ -125,7 +125,7 @@ fn derive_active_model(all_fields: IntoIter<Field>) -> syn::Result<TokenStream> 
                 match c {
                     #(<Self::Entity as pgorm::EntityTrait>::Column::#name => {
                         self.#field = pgorm::ActiveValue::set(
-                            pgorm::pgorm_query::ValueType::try_from(v)
+                            pgorm::pgorm_query::ValueType::from_value(v)
                                 .map_err(|_| pgorm::Error::Type(#mismatch_msg.to_owned()))?,
                         );
                         Ok(())

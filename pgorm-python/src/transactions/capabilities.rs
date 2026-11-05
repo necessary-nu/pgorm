@@ -40,7 +40,7 @@ pub(crate) fn operations() -> serde_json::Map<String, serde_json::Value> {
         (
             name.to_owned(),
             serde_json::json!({
-                "rust_api": format!("pgorm::{api}"), "features": ["runtime-tokio"]
+                "rust_api": format!("pgorm::{api}"), "features": []
             }),
         )
     })

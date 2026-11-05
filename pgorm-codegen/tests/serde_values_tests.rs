@@ -91,33 +91,12 @@ macro_rules! ledger {
 
 // [spec:pgorm:def:codegen.entity.serde+1/test]    each mode's import heads
 // the entity and the range newtypes' file alike
-// [spec:pgorm:sem:codegen.entity.serde.derives+3/test]    and its derives
+// [spec:pgorm:sem:codegen.entity.serde.derives+4/test]    and its derives
 // reach the Model and every range newtype
-// [spec:pgorm:sem:codegen.entity.imports+4/test]
+// [spec:pgorm:sem:codegen.entity.imports+5/test]
 #[test]
 fn each_serde_mode_generates_the_compiled_fixtures() {
-    for (mode, ledger, range_types) in [
-        (
-            "none",
-            include_str!("sql/serde_values/none/ledger.rs"),
-            include_str!("sql/serde_values/none/pgorm_range_types.rs"),
-        ),
-        (
-            "serialize",
-            include_str!("sql/serde_values/serialize/ledger.rs"),
-            include_str!("sql/serde_values/serialize/pgorm_range_types.rs"),
-        ),
-        (
-            "deserialize",
-            include_str!("sql/serde_values/deserialize/ledger.rs"),
-            include_str!("sql/serde_values/deserialize/pgorm_range_types.rs"),
-        ),
-        (
-            "both",
-            include_str!("sql/serde_values/both/ledger.rs"),
-            include_str!("sql/serde_values/both/pgorm_range_types.rs"),
-        ),
-    ] {
+    for mode in ["none", "serialize", "deserialize", "both"] {
         let with_serde: WithSerde = mode.parse().expect("a mode name");
         let generated = from_sql_with(
             SCHEMA,
@@ -126,13 +105,8 @@ fn each_serde_mode_generates_the_compiled_fixtures() {
                 ..Default::default()
             },
         );
-        for (file, fixture) in [("ledger.rs", ledger), ("pgorm_range_types.rs", range_types)] {
-            let (header, written) = generated
-                .file(file)
-                .split_once('\n')
-                .expect("a header line");
-            assert!(header.starts_with("//! `pgorm` Entity"), "{mode} {file}");
-            assert_eq!(norm(written), norm(fixture), "{mode} {file}");
+        for file in ["ledger.rs", "pgorm_range_types.rs"] {
+            generated.holds(file, &format!("sql/serde_values/{mode}/{file}"));
         }
     }
 }

@@ -50,7 +50,7 @@ fn arms(sql: &str) -> Vec<(MergeMatchKind, CmdType, bool)> {
         .collect()
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    the target, the source and the condition, then arms
+// [spec:pgorm:req:sql.ast.merge+2/test]    the target, the source and the condition, then arms
 // [spec:pgorm:req:sql.render.merge+1/test]    `MERGE INTO <target> USING <source> ON <condition>`
 #[test]
 fn merge_renders_target_source_condition_and_arms() {
@@ -79,7 +79,7 @@ fn merge_renders_target_source_condition_and_arms() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    conditional arms are tried in the order they were added
+// [spec:pgorm:req:sql.ast.merge+2/test]    conditional arms are tried in the order they were added
 // [spec:pgorm:req:sql.render.merge+1/test]
 #[test]
 fn conditional_arms_keep_the_order_they_were_added() {
@@ -115,7 +115,7 @@ fn conditional_arms_keep_the_order_they_were_added() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    the unreachable-arm statement has no representation: an
+// [spec:pgorm:req:sql.ast.merge+2/test]    the unreachable-arm statement has no representation: an
 // unconditional arm renders after its kind's conditional arms whenever it was added
 // [spec:pgorm:req:sql.render.merge+1/test]
 #[test]
@@ -181,7 +181,7 @@ fn an_arms_condition_is_read_whole() {
     assert_eq!(condition["args"].as_array().map(Vec::len), Some(2), "{sql}");
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    a kind holds one unconditional arm: the last call wins
+// [spec:pgorm:req:sql.ast.merge+2/test]    a kind holds one unconditional arm: the last call wins
 #[test]
 fn the_last_unconditional_arm_of_a_kind_wins() {
     let sql = merge()
@@ -277,7 +277,7 @@ fn every_action_renders_where_the_grammar_puts_it() {
     assert_eq!(set, ["image", "aspect", "tokens"]);
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    the insert's columns and its row come from the same
+// [spec:pgorm:req:sql.ast.merge+2/test]    the insert's columns and its row come from the same
 // pairs, so they always have the same length
 // [spec:pgorm:req:sql.render.merge+1/test]
 #[test]
@@ -307,7 +307,7 @@ fn an_inserts_columns_and_row_line_up() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    the target is a named table: schema, alias and ONLY
+// [spec:pgorm:req:sql.ast.merge+2/test]    the target is a named table: schema, alias and ONLY
 // [spec:pgorm:req:sql.render.merge+1/test]
 #[test]
 fn target_takes_schema_alias_and_only() {
@@ -340,7 +340,7 @@ fn target_takes_schema_alias_and_only() {
     assert_eq!(statement(&only)["relation"]["inh"], false);
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    the source is any relation a FROM clause takes
+// [spec:pgorm:req:sql.ast.merge+2/test]    the source is any relation a FROM clause takes
 // [spec:pgorm:req:sql.render.merge+1/test]
 #[test]
 fn the_source_is_any_from_item() {
@@ -471,7 +471,7 @@ fn build_binds_every_value_in_text_order() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    a not-matched-by-source arm takes a target row's
+// [spec:pgorm:req:sql.ast.merge+2/test]    a not-matched-by-source arm takes a target row's
 // actions, its conditional arms in call order and its unconditional arm after them
 // [spec:pgorm:req:sql.render.merge+1/test]    ` WHEN NOT MATCHED BY SOURCE`, after the other kinds
 #[test]
@@ -510,7 +510,7 @@ fn by_source_arms_render_last_in_call_order() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    `PendingMerge` begins a statement with either
+// [spec:pgorm:req:sql.ast.merge+2/test]    `PendingMerge` begins a statement with either
 // not-matched-by-source arm
 #[test]
 fn a_by_source_arm_can_begin_the_statement() {
@@ -570,7 +570,7 @@ fn fields(names: &[&str]) -> Vec<String> {
     names.iter().map(|name| (*name).to_owned()).collect()
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    `returning` sets the list, read after the arms
+// [spec:pgorm:req:sql.ast.merge+2/test]    `returning` sets the list, read after the arms
 // [spec:pgorm:req:sql.render.merge+1/test]    RETURNING last
 // [spec:pgorm:req:sql.render.returning+4/test]    on a MERGE as on the other writes
 #[test]
@@ -599,7 +599,7 @@ fn returning_follows_the_arms() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    `returning_action` leads the list with
+// [spec:pgorm:req:sql.ast.merge+2/test]    `returning_action` leads the list with
 // `merge_action()`, and alone is the list
 // [spec:pgorm:req:sql.render.returning+4/test]    after the renames, before the caller's list
 #[test]
@@ -636,7 +636,7 @@ fn the_action_leads_the_list() {
     assert_eq!(returned(&alone), [fields(&["merge_action()"])]);
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    the name a function call would take is quoted, so
+// [spec:pgorm:req:sql.ast.merge+2/test]    the name a function call would take is quoted, so
 // `Func::named` cannot reach `merge_action()`
 #[test]
 fn a_named_function_is_not_the_action() {
@@ -696,7 +696,7 @@ fn by_source_and_returning_values_are_bound() {
             head(),
             r#"WHEN MATCHED AND "font"."language" = $1 THEN DELETE"#,
             r#"WHEN NOT MATCHED BY SOURCE AND "glyph"."aspect" > $2 THEN UPDATE SET "image" = $3"#,
-            r#"RETURNING merge_action(), new."aspect" + $4"#,
+            r#"RETURNING merge_action(), new."aspect" + $4::int4"#,
         ]
         .join(" ")
     );

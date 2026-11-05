@@ -116,7 +116,9 @@ explicit limitations.
 > comparisons `is_distinct_from` / `is_not_distinct_from`; pattern matching
 > `like`, `not_like`, and the sugar `starts_with`, `ends_with` and
 > `contains`, whose search text is LITERAL: `%`, `_` and `\` in it are
-> escaped before the pattern is built (`s%`, `%s`, `%s%`), so
+> escaped before the pattern is built (`s%`, `%s`, `%s%`) — they are
+> `LikeExpr::starting_with`, `ending_with` and `containing`
+> (`sql.ast.expr.similar-to`), the one escaping pgorm has — so
 > `contains("%")` matches a percent sign rather than every row — a pattern
 > is `like`'s job and `like`/`not_like` take theirs verbatim; aggregates `max`, `min`, `sum`, `count`; null checks `is_null`,
 > `is_not_null`, `if_null`; set membership `is_in` / `is_not_in`, its
@@ -370,12 +372,12 @@ explicit limitations.
 > spelling of the same type: `#[pgorm(save_as = "…")]` generates both, so the
 > scalar and array comparisons of one column cannot disagree about its cast.
 
-> [spec:pgorm:def:entity.traits.primary-key+7]
+> [spec:pgorm:def:entity.traits.primary-key+8]
 > `PrimaryKeyTrait: StaticName + Iterable` (`src/entity/primary_key.rs`) defines an
 > entity's primary key as an iterable enum of key columns. Its `ValueType` associated
 > type is the Rust value form of the whole key and is bound by
 > `Sized + Send + Debug + PartialEq + IntoValueTuple + TryFromValueTuple
-> + TryGetableMany + TryFromU64 + PrimaryKeyArity + IntoPrimaryKey<Self::ValueType>`;
+> + TryGetableMany + PrimaryKeyArity + IntoPrimaryKey<Self::ValueType>`;
 > `auto_increment()` reports whether the
 > database generates the *whole* key, so an insert naming no key column still writes a row
 > with one: a one-column key the serial family (or the column's own default, identity or
@@ -460,15 +462,13 @@ explicit limitations.
 > and `values()` enumerates every variant's database value in iterator order. The
 > `ValueVec` associated type has no purpose and is documented for removal.
 
-> [spec:pgorm:req:entity.traits.active-enum.limits+2]
+> [spec:pgorm:req:entity.traits.active-enum.limits+3]
 > `ActiveEnumValue` is implemented for `String`, `i8`, `i16`, `i32`, `i64` and `u32`
 > only (`src/entity/active_enum.rs`). `try_get_vec_by` — reading an array of enum
 > values, a Postgres-only capability — MUST NOT panic when it cannot decode: it
 > MUST return `TryGetError::Db(Error::Type(_))` for `u32` (not supported by
 > `postgres-array`), and likewise for the other types when the `postgres-array`
-> feature is disabled. The blanket `TryFromU64` impl for every `ActiveEnum` MUST
-> return `Error::ConvertFromU64`, so a primary key containing an active-enum field
-> MUST declare `auto_increment = false` to be usable.
+> feature is disabled.
 
 ## Active model
 
@@ -885,7 +885,7 @@ explicit limitations.
 
 ## Prelude
 
-> [spec:pgorm:def:entity.prelude+11]
+> [spec:pgorm:def:entity.prelude+12]
 > `pgorm::entity::prelude` (`src/entity/prelude.rs`) is the glob a file that
 > talks to the database imports instead of naming what it needs one item at a
 > time. Membership is chosen from what code actually writes, and is public API:
@@ -903,8 +903,11 @@ explicit limitations.
 > `QueryResult`, `DecodeSelect`, `DecodeRaw` (`exec.crud.selector-entry`); the
 > connection types `DatabasePool`, `DatabaseConnection`, `DatabaseTransaction`,
 > `ConnectionTrait`, `TransactionTrait`; `Iterable`, `Condition`, `JoinType`,
-> `Value`, the `error` module's contents, and the handful of `pgorm_query`
-> names an entity definition needs (`Expr`, `Name`, `StringLen`,
+> `Value`, the `error` module's contents, `ExprTrait`, without which a
+> function call, a cast or a column's aggregate could be built but not
+> compared (`Column::Id.count().gt(2)`, `sql.ast.expr.operators`), and the
+> handful of `pgorm_query` names an entity definition needs (`Expr`, `Name`,
+> `StringLen`,
 > `ForeignKeyAction`, `Func`, `Arc`, and `ConditionType`, `Deferrability`,
 > `Enforcement` and `ArrayType`, which with `ForeignKeyAction` and `ColumnType`
 > a derive's attributes name as written, with no prefix of the derive's

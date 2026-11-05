@@ -8,6 +8,7 @@ use pgorm::pgorm_query::{
     TableForeignKey, TableKey, TypeName, View,
     extension::{Extension, RangeDefinition, Type},
 };
+use pgorm_query::ExprTrait;
 
 use super::{
     oracle::{

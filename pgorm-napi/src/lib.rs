@@ -12,6 +12,7 @@ mod decode;
 mod disjoint;
 pub mod entities;
 mod errors;
+mod migration_file;
 mod models;
 mod one_of;
 mod params;
@@ -55,6 +56,7 @@ pub fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<()> {
     models::export(cx)?;
     entities::install(cx, registry)?;
     disjoint::export(cx)?;
+    migration_file::export(cx)?;
     one_of::export(cx)?;
     #[cfg(debug_assertions)]
     probes::export(cx)?;

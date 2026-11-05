@@ -874,7 +874,7 @@ the same terminals that run raw SQL.
 > (`bindings.pipeline-expressions`). The literal path and the bound path stay
 > apart: neither replaces the other.
 
-> [spec:pgorm:req:bindings.expressions+3]
+> [spec:pgorm:req:bindings.expressions+4]
 > An expression MUST lower into pgorm-query's own builders. `col` is a column,
 > qualified by a table and its schema. An operand that is not an expression is
 > a value bound as a parameter, never interpolated: inferred as a parameter
@@ -897,8 +897,14 @@ the same terminals that run raw SQL.
 > `LikeExpr`, the class constructed over the pattern's text. Its
 > `escape(character)` escapes with that one character instead, any other
 > text, the empty string and NUL among it, a `ConstructionError`; and its
-> `no_escape()` turns escaping off. A `LikeExpr` is no expression, and
-> nothing but these six methods reads one. `regex` (`~`), `not_regex`
+> `no_escape()` turns escaping off. `LikeExpr.literal(text)`,
+> `LikeExpr.containing(text)`, `LikeExpr.starting_with(text)` and
+> `LikeExpr.ending_with(text)` (`startingWith` and `endingWith` in
+> JavaScript, static methods of the class there as in Python) build one over
+> literal text through pgorm-query's constructors of those names, its `%`,
+> `_` and escape character escaped, so a user's search text matches itself.
+> A `LikeExpr` is no expression, and nothing but these six methods reads
+> one. `regex` (`~`), `not_regex`
 > (`!~`), `iregex` (`~*`) and `not_iregex` (`!~*`) match a POSIX regular
 > expression. `matches` (`@@`) is `BinOper::Matches`, full-text search or a
 > `jsonpath` predicate. `path_exists` (`@?`) takes a `jsonpath` as text,
@@ -1172,10 +1178,12 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > model's rows stream from a pool or a connection as records, through the
 > same decode.
 
-> [spec:pgorm:req:bindings.model-writes+1]
-> `insert(values)` and `insert_many(rows)` MUST give a `ModelInsert`,
-> `update(values)` a `ModelUpdate` and `delete()` a `ModelDelete`, building
-> pgorm-query's INSERT, UPDATE and DELETE of a model's table. A field left
+> [spec:pgorm:req:bindings.model-writes+2]
+> `insert(values)` MUST give a `ModelInsert` and `insert_many(rows)` a
+> `ModelInsertMany`, an insert typed by its row count as Rust's
+> `Insert<A, OneRow>` and `Insert<A, ManyRows>` are; `update(values)` a
+> `ModelUpdate` and `delete()` a `ModelDelete`, building pgorm-query's
+> INSERT, UPDATE and DELETE of a model's table. A field left
 > out of `values` MUST stay out of the statement — an insert takes the
 > table's default, an update leaves the column as it is — and a field set to
 > null MUST be written as SQL NULL, which only a nullable field takes. Each
@@ -1183,12 +1191,16 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > the fields set are written in declaration order whatever order the values
 > name them in.
 >
-> Each write MUST have only its own statement's methods. All three have
-> `returning`, `execute` and `inspect`; an insert also has `on_conflict` and
-> the upsert terminals, an update `where`, `all_rows()` and the change
-> terminals, and a delete `where` and `all_rows()`. A method of another kind
-> is one the write lacks, so a type checker refuses the call before anything
-> runs.
+> Each write MUST have only its own statement's methods. All of them have
+> `returning`, `execute` and `inspect`. An insert also has `on_conflict`,
+> `add(values)` and `add_many(rows)`, and its own upsert terminal:
+> `returning_upsert` on a `ModelInsert` and `returning_upserts` on a
+> `ModelInsertMany`, neither the other's. `add` and `add_many` give the
+> `ModelInsertMany` holding its rows and then theirs, its conflict clause
+> kept, as Rust's `add` and `add_many` make a batch of any insert. An update
+> has `where`, `all_rows()` and the change terminals, and a delete `where`
+> and `all_rows()`. A method of another kind is one the write lacks, so a
+> type checker refuses the call before anything runs.
 >
 > An unknown field, an undefined value, a field generated always, an insert
 > leaving out a field neither nullable, defaulted nor generated, an update
@@ -1373,7 +1385,7 @@ Rust generic at run time, only use the ones compiled in.
 > is over an enum is a member as the enum and the subquery's projection is
 > cast beside it. A list holding an expression is a member as written.
 
-> [spec:pgorm:req:bindings.entity-writes]
+> [spec:pgorm:req:bindings.entity-writes+1]
 > `active()` MUST be the entity's `ActiveModelBehavior::new`, its defaults
 > included, and turning a record into an ActiveModel the real
 > `IntoActiveModel` of the model behind the record. An ActiveModel MUST
@@ -1384,16 +1396,23 @@ Rust generic at run time, only use the ones compiled in.
 > application's `ActiveModelBehavior` hooks running around them, and a hook's
 > refusal a `ConstructionError`. Setting a value on a record is
 > `ModelTrait::set` on a copy, writing nothing, and a record's tagged value
-> is the column's value with the kind the entity declares. A record or an
-> ActiveModel of another registration MUST be refused.
+> is the column's value with the kind the entity declares. A record, an
+> ActiveModel or a column of another registration, given where this entity's
+> is expected, is an argument of the wrong type and MUST be refused with a
+> `TypeError` (`bindings.argument-errors`).
 
-> [spec:pgorm:req:bindings.entity-versions+2]
+> [spec:pgorm:req:bindings.entity-versions+3]
 > The write terminals that read a row's two versions MUST be the statement
 > terminals they are in Rust, so no `ActiveModelBehavior` hook runs around
-> them: an update's `returning_change` is `UpdateOne::exec_returning_change`;
-> `update_many()`'s `returning_changes` is `UpdateMany::exec_returning_changes`;
-> and an insert's `returning_upsert` and `insert_many`'s `returning_upserts`
-> are `Insert::exec_returning_upsert` and `Insert::exec_returning_upserts`. A
+> them: an update's `returning_change` is `UpdateOne::exec_returning_change`,
+> and `update_many()`'s `returning_changes` is
+> `UpdateMany::exec_returning_changes`. An insert MUST be typed by its row
+> count, as Rust's `Insert<A, OneRow>` and `Insert<A, ManyRows>` are:
+> `insert(active)` gives an `EntityInsert`, `Insert::one`'s, whose terminal is
+> `returning_upsert`, `Insert::exec_returning_upsert`; and
+> `insert_many(actives)` gives an `EntityInsertMany`, `Insert::many`'s, whose
+> terminal is `returning_upserts`, `Insert::exec_returning_upserts`. Each
+> takes `on_conflict` and has no terminal of the other's. A
 > change holds two records, old and new. An upsert is inserted, holding the
 > new record, or updated, holding both. A row a conflict clause held back is
 > null from `returning_upsert` and left out of `returning_upserts`.
@@ -1401,6 +1420,27 @@ Rust generic at run time, only use the ones compiled in.
 > an expression as written. An `update_many()` MUST have `where` or
 > `all_rows()` before it runs, a `ConstructionError` otherwise, as a
 > statement's UPDATE does (`bindings.writes`).
+
+> [spec:pgorm:req:bindings.entity-inserts]
+> An entity's insert (`bindings.entity-versions`) MUST have the rest of
+> Rust's insert terminals of its row count, statement terminals as the
+> upserts are, so no `ActiveModelBehavior` hook runs around them. Both kinds
+> have `execute`, `Insert::exec`, giving the rows written. An `EntityInsert`
+> has `returning_pk` and `returning_model`, `exec_returning_pk` and
+> `exec_returning_model`, and an `EntityInsertMany` has `returning_pks` and
+> `returning_models`, `exec_returning_pks` and `exec_returning_models`, each
+> row's in the order the database wrote them. A key is as Rust's
+> `PrimaryKey::ValueType` holds it: the value of a key of one column, and the
+> values of a composite key's in its columns' order. A row a conflict clause
+> held back is a `DecodeError` from `returning_pk` and `returning_model`, and
+> left out of `returning_pks` and `returning_models`; a batch of none sends
+> nothing. Both kinds have `add(active)` and `add_many(actives)`, which give
+> the `EntityInsertMany` of its ActiveModels and then theirs, its conflict
+> clause kept, as Rust's `add` and `add_many` make a batch of any insert,
+> and refuse an ActiveModel of another registration as `bindings.entity-writes`
+> does. The ActiveModels of one insert MUST set the same columns: a batch
+> whose ActiveModels set different ones is a `ConstructionError` as it is
+> given, where Rust's `Insert` refuses it before anything is sent.
 
 > [spec:pgorm:req:bindings.entity-graphs+3]
 > `graph(name).find(aliases)` MUST build the registered `SelectGraph` with the
@@ -1471,6 +1511,27 @@ Rust generic at run time, only use the ones compiled in.
 > native module and every registration it names describe as they did when it
 > was written, and refuse to load otherwise.
 
+> [spec:pgorm:req:bindings.codegen-layout]
+> The module each binding's codegen writes (`bindings.codegen`), and its
+> declarations, MUST read as a person writes the language, laid out as the
+> language's usual formatter lays it out, so nothing needs to run over it
+> once it is written, as pgorm-codegen's Rust needs no `rustfmt`
+> (`[spec:pgorm:req:codegen.entity.files]`). Python is black's layout:
+> strings double-quoted; a bracket's contents on its line where they fit in
+> 88 columns, on a line of their own where those fit, and otherwise one to a
+> line, each followed by a comma; a conditional expression too long for its
+> line split before its `if` and its `else`; a long union a member to a
+> line inside parentheses; two blank lines around each top-level class and
+> function and one between a class's methods, the stub in black's `--pyi`
+> style; and the imports the module uses and no others, grouped and sorted
+> as isort sorts them. The compatibility data the module checks as it loads
+> is a literal laid out the same way, not one line. TypeScript and
+> JavaScript are deno fmt's and prettier's layout: a bracket's items on its
+> line where they fit in 80 columns and otherwise one to a line, each
+> followed by a comma; an object type a member to a line where it does not
+> fit; a long union a member to a line, each led by its `|`; and each doc
+> comment wrapped to the width.
+
 > [spec:pgorm:req:bindings.codegen-disjoint]
 > The codegen workflow (`bindings.codegen`) MUST carry an application's
 > `#[derive(Disjoint)]` enums beside its entities: the description names
@@ -1493,7 +1554,7 @@ Rust generic at run time, only use the ones compiled in.
 
 ## Disjoint models
 
-> [spec:pgorm:req:bindings.disjoint+1]
+> [spec:pgorm:req:bindings.disjoint+2]
 > `disjoint(name, base, kinds, options)` MUST declare a disjoint model over a
 > base model (`bindings.models`), where `kinds` maps each kind's value, in
 > order, to the model of its table or to null for a kind with none. The
@@ -1522,9 +1583,12 @@ Rust generic at run time, only use the ones compiled in.
 > schema MUST be Rust's (`[spec:pgorm:sem:disjoint.read]`,
 > `[spec:pgorm:sem:disjoint.write]`, `[spec:pgorm:sem:disjoint.schema]`):
 > the same statements, the same refusals, the same errors as
-> `bindings.errors` classifies them, a refusal before anything is sent being
-> a `ConstructionError`, and a row the constraints do not admit and a write
-> that reads back no row (`RecordNotFound`) a `DecodeError`. A read gives
+> `bindings.errors` classifies them, a refusal before anything is sent of a
+> value that cannot become what pgorm sends being a `ConstructionError`, and
+> a row the constraints do not admit and a write that reads back no row
+> (`RecordNotFound`) a `DecodeError`. An ActiveModel of another entity given
+> for the base or a kind is an argument of the wrong type, a `TypeError`, as
+> `bindings.entity-writes` refuses one. A read gives
 > each row as a triple — a tuple in Python, an array in JavaScript — of the
 > base's record, the kind's value, and the kind's record or null: a model's
 > records, an enum column the read projects as its text read back as its
@@ -1607,6 +1671,26 @@ Rust generic at run time, only use the ones compiled in.
 > regardless is refused with the `ConstructionError` naming the base as
 > read-only (`bindings.disjoint-unkinded`).
 
+> [spec:pgorm:req:bindings.migration-file]
+> Each binding MUST freeze generated DDL as pgorm freezes it
+> (`[spec:pgorm:def:migration.frozen]`), the text and the file written by
+> pgorm's `MigrationFile` alone: `migration_file(name, statements,
+> commits_after)` freezes the binding's DDL statements, `commits_after`
+> false unless given; `migration_files(change, name)` freezes a
+> `DisjointChange` a kind-change function of `bindings.disjoint-evolve`
+> returned as `DisjointChange::migration_files` does
+> (`[spec:pgorm:sem:disjoint.evolve.frozen]`), a `TypeError` for anything
+> else, a change built by hand included, since only one of those carries the
+> change pgorm wrote. Each gives `MigrationFile`s, instances made by those
+> functions alone, each reading its `name`, its `text` and whether it
+> `commits_after`, and `freeze(directory)` writing `<name>.sql` where no file
+> of that name is and answering whether it did, never rewriting one. A name
+> that is no plain file stem MUST be a `ConstructionError`, and any other
+> failure to write the file the language's own I/O error. A binding has no
+> migration runner: each file is one migration for a tool that runs a
+> directory of SQL files, each in its own transaction, or for
+> pgorm-migration's `sql_migration!`.
+
 > [spec:pgorm:req:bindings.one-of+1]
 > Each binding MUST read, set and load a reference to exactly one of several
 > targets (`[spec:pgorm:def:disjoint.one-of]`) and write its `CHECK` through
@@ -1684,6 +1768,20 @@ placeholders belong to the stage that minted them.
 > one, a reserved alias, a relation or column prqlc cannot resolve — MUST be a
 > `ConstructionError` from `inspect()` or the terminal, before anything is
 > sent.
+
+> [spec:pgorm:req:bindings.pipeline-terminals]
+> A `Pipeline`'s own terminals MUST be pgorm's: `all`, `one` and `optional`
+> are `Pipeline::all`, `one` and `one_opt`, each row a record as the
+> statement terminals decode one (`bindings.results`). `one` and `optional`
+> append a `take 1` stage before compiling, as Rust's do, so at most one row
+> leaves the server, `one` finding none a `DecodeError` (`bindings.row-count`)
+> and `optional` null. Each runs on a pool, a connection or a transaction, on
+> a pool on a connection lent to it alone, as a pool's statement does.
+> `inspect(terminal)` gives the SQL and values `all`, `one` or `optional`
+> sends, `all`'s by default. Given to the statement terminals instead, a
+> pipeline runs as Rust runs the `(String, Values)` its `into_sql` gives,
+> through `ConnectionTrait`: as compiled, `one` and `optional` keeping their
+> cardinality (`bindings.pipeline`).
 
 > [spec:pgorm:req:bindings.pipeline-expressions+3]
 > Pipeline expressions MUST be objects of their own, lowered into

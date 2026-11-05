@@ -14,7 +14,7 @@ use common::*;
 
 const SCHEMA: &str = include_str!("../../tests/codegen_column_types/schema.sql");
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    the compact writer states
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]    the compact writer states
 // each column's whole type wherever its field's Rust type infers another: a
 // `varchar(n)` or `char(n)` that `String` would infer as an unbounded `varchar`, a
 // `numeric(p, s)`, and arrays of each, and a range over `text` whose newtype's
@@ -27,15 +27,15 @@ fn compact_entities_state_every_uninferred_type() {
     for (file, fixture) in [
         (
             "specimen.rs",
-            include_str!("../../tests/codegen_column_types/specimen.rs"),
+            "../../tests/codegen_column_types/specimen.rs",
         ),
         (
             "pgorm_active_enums.rs",
-            include_str!("../../tests/codegen_column_types/pgorm_active_enums.rs"),
+            "../../tests/codegen_column_types/pgorm_active_enums.rs",
         ),
         (
             "pgorm_range_types.rs",
-            include_str!("../../tests/codegen_column_types/pgorm_range_types.rs"),
+            "../../tests/codegen_column_types/pgorm_range_types.rs",
         ),
     ] {
         generated.holds(file, fixture);
