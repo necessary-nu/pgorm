@@ -9,6 +9,7 @@ pub struct Model {
     pub email: String,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(has_many = super::bills::Entity, related = false)]

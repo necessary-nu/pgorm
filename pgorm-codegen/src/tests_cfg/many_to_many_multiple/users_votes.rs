@@ -12,6 +12,7 @@ pub struct Model {
     pub vote: bool,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(

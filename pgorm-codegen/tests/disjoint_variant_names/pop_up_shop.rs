@@ -8,6 +8,7 @@ pub struct Model {
     pub site: String,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(belongs_to = super::shop::Entity, from = Column::Id, to = super::shop::Column::Id)]

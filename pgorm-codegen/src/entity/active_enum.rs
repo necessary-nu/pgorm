@@ -20,7 +20,7 @@ struct Variant {
     encoded: bool,
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+7]
+// [spec:pgorm:sem:codegen.entity.enums+8]
 fn variant(value: &str) -> Variant {
     if value.chars().next().map(char::is_numeric).unwrap_or(false) {
         return Variant {
@@ -50,7 +50,7 @@ fn variant(value: &str) -> Variant {
 }
 
 /// The Rust variant name a DB enum value maps to.
-// [spec:pgorm:sem:codegen.entity.enums+7]
+// [spec:pgorm:sem:codegen.entity.enums+8]
 pub(crate) fn variant_name(value: &str) -> String {
     variant(value).name
 }
@@ -70,7 +70,7 @@ impl ActiveEnum {
             .collect()
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+7]
+    // [spec:pgorm:sem:codegen.entity.enums+8]
     // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let enum_name = self.enum_name.to_string();
@@ -93,7 +93,11 @@ impl ActiveEnum {
     /// from the derive's defaults: `enum_name` where the type is not named
     /// the enum's name in snake_case, and `string_value` where a value is not
     /// its variant's name in snake_case.
-    // [spec:pgorm:sem:codegen.entity.enums+7]
+    ///
+    /// Its variants are named by the schema, for the type's values, so
+    /// clippy's `enum_variant_names`, which values sharing a word (`web_shop`,
+    /// `pop_up_shop`, `closed_shop`) trip, is allowed on it.
+    // [spec:pgorm:sem:codegen.entity.enums+8]
     // [spec:pgorm:sem:macros.derive.boilerplate]
     pub fn impl_active_enum(
         &self,
@@ -136,6 +140,7 @@ impl ActiveEnum {
         let keys = (!keys.is_empty()).then(|| quote! { #[pgorm(#(#keys),*)] });
 
         quote! {
+            #[allow(clippy::enum_variant_names)]
             #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum #copy_derive #serde_derive #extra_derives)]
             #keys
             #extra_attributes
@@ -184,6 +189,7 @@ mod tests {
             )
             .to_string(),
             quote!(
+                #[allow(clippy::enum_variant_names)]
                 #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy)]
                 pub enum MediaType {
                     #[pgorm(string_value = "UNKNOWN")]
@@ -239,6 +245,7 @@ mod tests {
         #[rustfmt::skip]
         fn build_generated_enum() -> String {
             quote!(
+                #[allow(clippy::enum_variant_names)]
                 #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy, specta :: Type, ts_rs :: TS)]
                 pub enum MediaType {
                     #[pgorm(string_value = "UNKNOWN")]
@@ -274,6 +281,7 @@ mod tests {
             )
             .to_string(),
             quote!(
+                #[allow(clippy::enum_variant_names)]
                 #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy)]
                 #[serde(rename_all = "camelCase")]
                 pub enum CoinflipResultType {
@@ -306,6 +314,7 @@ mod tests {
             )
             .to_string(),
             quote!(
+                #[allow(clippy::enum_variant_names)]
                 #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy)]
                 #[serde(rename_all = "camelCase")]
                 #[ts(export)]
@@ -348,6 +357,7 @@ mod tests {
             )
             .to_string(),
             quote!(
+                #[allow(clippy::enum_variant_names)]
                 #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum, Copy)]
                 pub enum Ty {
                     #[pgorm(string_value = "Question")]
@@ -371,7 +381,7 @@ mod tests {
         )
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+7/test]    `enum_name` and `string_value` only where they differ from the derive's snake_case defaults
+    // [spec:pgorm:sem:codegen.entity.enums+8/test]    `enum_name` and `string_value` only where they differ from the derive's snake_case defaults
     #[test]
     fn test_enum_defaults_are_left_unsaid() {
         assert_eq!(
@@ -391,6 +401,7 @@ mod tests {
             )
             .to_string(),
             quote!(
+                #[allow(clippy::enum_variant_names)]
                 #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]
                 #[pgorm(enum_name = "Mood", schema_name = "crm")]
                 pub enum Mood {
@@ -416,6 +427,7 @@ mod tests {
             )
             .to_string(),
             quote!(
+                #[allow(clippy::enum_variant_names)]
                 #[derive(Debug, Clone, PartialEq, Eq, ActiveEnum)]
                 pub enum Tea {
                     Everyday,

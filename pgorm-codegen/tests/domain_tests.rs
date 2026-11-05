@@ -158,7 +158,7 @@ fn domain_constraints_are_set_aside() {
     assert_eq!(generate(nullable), generate(bare));
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+20/test]    a constraint PostgreSQL refuses on a
+// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a constraint PostgreSQL refuses on a
 // domain is named, as are a serial base, a base the file does not declare and a domain
 // column under a qualification the domain was not declared with
 #[test]
@@ -364,7 +364,7 @@ fn referencing(declared: &str, key: &str, reference: &str) -> String {
 const UNKEYABLE: &str = "and PostgreSQL implements no foreign key with a column typed as a \
                          domain over an enum on either side (42804)";
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    a foreign key matching a column typed
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    a foreign key matching a column typed
 // as a domain over an enum, through further domains too, is refused on either side whatever
 // the other side is, in a composite key and a self-reference as alone
 #[test]
@@ -403,7 +403,7 @@ fn keys_over_an_enum_domain_are_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    a statement built in code is held to
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    a statement built in code is held to
 // the same refusal, and every pairing PostgreSQL keys still generates its relation: an enum
 // with itself, a domain over an integer with the integer or itself, a domain over an array of
 // an enum with itself

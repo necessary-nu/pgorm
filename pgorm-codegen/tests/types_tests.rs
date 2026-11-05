@@ -428,7 +428,7 @@ fn column_conversion_rejects_unsupported_type() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    an identity is read off
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    an identity is read off
 // the column definition as its form, and makes the column NOT NULL; one
 // carrying sequence options is refused, since an entity declares no options
 #[test]

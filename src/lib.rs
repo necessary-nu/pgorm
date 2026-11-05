@@ -81,7 +81,7 @@ pub use schema::*;
 /// the traits with pgorm-macros' derives.
 // [spec:pgorm:req:macros.derive.names+2]
 // [spec:pgorm:def:disjoint.declare+5]
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+3]
 #[cfg(feature = "macros")]
 pub use pgorm_macros::{
     ActiveEnum, Column, CreatedRange, Disjoint, Entity, EntityTrait, FromQueryResult,

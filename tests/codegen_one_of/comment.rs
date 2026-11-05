@@ -10,6 +10,7 @@ pub struct Model {
     pub photo_id: Option<i64>,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(

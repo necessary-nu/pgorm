@@ -14,15 +14,15 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// The most columns an entity's primary key can have: its `ValueType` is a
 /// tuple for a composite key, and pgorm's key traits stop at 12 parts.
-// [spec:pgorm:sem:codegen.entity.transform+17]
+// [spec:pgorm:sem:codegen.entity.transform+18]
 const MAX_KEY_COLUMNS: usize = 12;
 
 #[derive(Clone, Debug)]
 pub struct EntityTransformer;
 
 impl EntityTransformer {
-    // [spec:pgorm:sem:codegen.entity.transform+17]
-    // [spec:pgorm:sem:codegen.entity.transform.inverse+1]
+    // [spec:pgorm:sem:codegen.entity.transform+18]
+    // [spec:pgorm:sem:codegen.entity.transform.inverse+2]
     // [spec:pgorm:sem:codegen.entity.transform.conjunct+2]
     // [spec:pgorm:req:codegen.entity.collisions+3]
     // [spec:pgorm:def:codegen.entity+7]
@@ -46,7 +46,7 @@ impl EntityTransformer {
             let table_name = ident.to_string();
             refuse_temporal_constraints(&table_create, &table_name)?;
             refuse_repeated_key_columns(&table_create, &table_name)?;
-            refuse_unheld_composite_uniques(&table_create, &table_name)?;
+            refuse_unheld_unique_parts(&table_create, &table_name)?;
             let keys: Vec<UniqueKey> = table_create
                 .get_unique_keys()
                 .iter()
@@ -301,7 +301,7 @@ impl EntityTransformer {
                 v
             })
             .collect();
-        one_of::recognise(&mut entities, &checks);
+        one_of::recognise(&mut entities, &checks)?;
         for entity in entities.iter() {
             entity.validate()?;
         }
@@ -326,7 +326,7 @@ impl EntityTransformer {
 /// keeps suffix 0, and several are numbered from their count down in the
 /// order they are declared, so the first declared is the count and the last
 /// is 1.
-// [spec:pgorm:sem:codegen.entity.transform+17]
+// [spec:pgorm:sem:codegen.entity.transform+18]
 fn number_relations(relations: &mut [Relation]) {
     let mut ref_table_counts: BTreeMap<TableIdent, usize> = BTreeMap::new();
     for relation in relations.iter() {
@@ -350,10 +350,16 @@ fn number_relations(relations: &mut [Relation]) {
 }
 
 /// The relation `rel`, a foreign key of `ident`'s table, gives the table it
-/// references, and that table: `HasOne` when the key is unique and `HasMany`
-/// otherwise. A self-referencing key would duplicate itself, and a suffixed
-/// one has no `Related` impl to build the inverse from, so neither gives one.
-// [spec:pgorm:sem:codegen.entity.transform.inverse+1]
+/// references, and that table: `HasOne` when the key admits at most one row
+/// of `ident`'s table per row it references, and `HasMany` otherwise. A
+/// self-referencing key would duplicate itself, and a suffixed one has no
+/// `Related` impl to build the inverse from, so neither gives one.
+///
+/// The key admits at most one when its columns contain the primary key or
+/// one of `unique_column_sets`, the table's unique keys: two rows referencing
+/// one row agree on every column of the key, so on that unique key's too. A
+/// unique key with a column the foreign key lacks constrains it not at all.
+// [spec:pgorm:sem:codegen.entity.transform.inverse+2]
 fn inverse_relation(
     ident: &TableIdent,
     entity: &Entity,
@@ -363,25 +369,21 @@ fn inverse_relation(
     if rel.self_referencing || rel.num_suffix > 0 {
         return None;
     }
-    let key_columns: BTreeSet<String> = rel.columns.iter().cloned().collect();
-    let every_column_unique = rel.columns.iter().all(|column| {
-        entity
-            .columns
-            .iter()
-            .filter(|col| col.unique)
-            .any(|col| col.name.as_str() == column)
-    });
-    // a unique constraint over exactly the key's columns constrains
-    // the key as a whole, which one-column-at-a-time cannot see
-    let key_is_unique = unique_column_sets.contains(&key_columns);
-    let key_is_primary = key_columns.len() == entity.primary_keys.len()
-        && entity
-            .primary_keys
-            .iter()
-            .all(|primary_key| key_columns.contains(&primary_key.name));
-    let unique = every_column_unique || key_is_unique || key_is_primary;
+    let key_columns: BTreeSet<&str> = rel.columns.iter().map(String::as_str).collect();
+    let primary_key: BTreeSet<&str> = entity
+        .primary_keys
+        .iter()
+        .map(|primary_key| primary_key.name.as_str())
+        .collect();
+    let at_most_one = std::iter::once(primary_key)
+        .chain(
+            unique_column_sets
+                .iter()
+                .map(|set| set.iter().map(String::as_str).collect()),
+        )
+        .any(|unique| !unique.is_empty() && unique.is_subset(&key_columns));
     let mut inverse = rel.clone();
-    inverse.rel_type = if unique {
+    inverse.rel_type = if at_most_one {
         RelationType::HasOne
     } else {
         RelationType::HasMany
@@ -401,7 +403,7 @@ fn inverse_relation(
 /// that bare name — the reading `search_path` would give it in any schema that
 /// generates at all, since two tables sharing a bare name are refused before
 /// this is reached (`validate_distinct_names`).
-// [spec:pgorm:sem:codegen.entity.transform+17]
+// [spec:pgorm:sem:codegen.entity.transform+18]
 pub(crate) fn resolve_reference<'a>(
     declared: &'a [TableIdent],
     reference: &TableIdent,
@@ -423,7 +425,7 @@ pub(crate) fn resolve_reference<'a>(
 /// single columns, and a key ending `WITHOUT OVERLAPS` has two at least, so
 /// read as its columns it would claim a uniqueness the table does not have.
 /// A temporal primary key and a `PERIOD` foreign key the entity holds.
-// [spec:pgorm:sem:codegen.entity.transform+17]
+// [spec:pgorm:sem:codegen.entity.transform+18]
 fn refuse_temporal_constraints(table: &TableCreateStatement, name: &str) -> Result<(), Error> {
     let temporal_unique = table
         .get_unique_keys()
@@ -438,24 +440,36 @@ fn refuse_temporal_constraints(table: &TableCreateStatement, name: &str) -> Resu
 }
 
 /// A unique key over two columns or more is the entity's `unique(..)`, which
-/// holds its name, its columns and `NULLS NOT DISTINCT`; one with an
+/// holds its name, its columns and `NULLS NOT DISTINCT`; one over one column
+/// is that column's `unique`, which holds neither, and of the two only
+/// `NULLS NOT DISTINCT` changes which rows the key admits (a second null). An
 /// `INCLUDE` list or a deferrability, which only a statement built in code
-/// carries (the DDL bridge refuses both), would be generated as a key it is
-/// not, so it is refused by name.
-// [spec:pgorm:sem:codegen.entity.transform+17]
-fn refuse_unheld_composite_uniques(table: &TableCreateStatement, name: &str) -> Result<(), Error> {
+/// carries (the DDL bridge refuses both), neither holds. A key with a part
+/// its form cannot hold would be generated as a key it is not, so it is
+/// refused by name.
+// [spec:pgorm:sem:codegen.entity.transform+18]
+fn refuse_unheld_unique_parts(table: &TableCreateStatement, name: &str) -> Result<(), Error> {
     for key in table.get_unique_keys() {
-        if key.get_columns().len() < 2 {
-            continue;
-        }
+        let one = match key.get_columns() {
+            [column] => Some(column),
+            _ => None,
+        };
         let what = match (key.get_include().is_empty(), key.get_deferrability()) {
             (false, _) => "an INCLUDE list",
             (true, Some(_)) => "a deferrability",
+            (true, None) if one.is_some() && key.is_nulls_not_distinct() => "NULLS NOT DISTINCT",
             (true, None) => continue,
         };
-        return Err(Error::TransformError(format!(
-            "table `{name}`: an entity cannot hold a unique key of several columns with {what}"
-        )));
+        return Err(Error::TransformError(match one {
+            Some(column) => format!(
+                "table `{name}` column `{}`: an entity cannot hold a unique key of one column \
+                 with {what}",
+                column.to_string()
+            ),
+            None => format!(
+                "table `{name}`: an entity cannot hold a unique key of several columns with {what}"
+            ),
+        }));
     }
     Ok(())
 }
@@ -465,7 +479,7 @@ fn refuse_unheld_composite_uniques(table: &TableCreateStatement, name: &str) -> 
 /// would generate a `PrimaryKey` enum with one variant twice, which does not
 /// compile, and a unique key over `(a, a)` would mark `a` unique on its own;
 /// so it is refused by name, never read as the key without its repeat.
-// [spec:pgorm:sem:codegen.entity.transform+17]
+// [spec:pgorm:sem:codegen.entity.transform+18]
 fn refuse_repeated_key_columns(table: &TableCreateStatement, name: &str) -> Result<(), Error> {
     let primary = table
         .get_primary_key()
@@ -536,7 +550,7 @@ fn refuse_unwritable_expressions(
 /// column: an entity's key is its key fields in the order they are written,
 /// and the derive takes `WITHOUT OVERLAPS` on the last of them alone, so the
 /// generated entity would not compile.
-// [spec:pgorm:sem:codegen.entity.transform+17]
+// [spec:pgorm:sem:codegen.entity.transform+18]
 fn refuse_period_before_key(
     columns: &[Column],
     primary_keys: &[PrimaryKey],
@@ -585,7 +599,7 @@ fn validate_distinct_names(declared: &[TableIdent]) -> Result<(), Error> {
 /// Every relation joins tables and columns this schema has: a generated file
 /// names its target's module and columns, so a foreign key onto a table the
 /// caller did not pass would generate Rust that does not compile.
-// [spec:pgorm:sem:codegen.entity.transform+17]
+// [spec:pgorm:sem:codegen.entity.transform+18]
 fn validate_references(entities: &BTreeMap<TableIdent, Entity>) -> Result<(), Error> {
     for (table_name, entity) in entities.iter() {
         for relation in entity.relations.iter() {
@@ -627,7 +641,7 @@ fn validate_references(entities: &BTreeMap<TableIdent, Entity>) -> Result<(), Er
 /// whatever the other side is. DDL text is never run, so the server's refusal
 /// cannot have kept one out; generated, it would be a relation
 /// `Schema::create_table_from_entity` refuses in turn.
-// [spec:pgorm:sem:codegen.entity.transform+17]
+// [spec:pgorm:sem:codegen.entity.transform+18]
 fn refuse_unkeyable_references(entities: &BTreeMap<TableIdent, Entity>) -> Result<(), Error> {
     for (table_name, entity) in entities.iter() {
         for relation in entity.relations.iter() {
@@ -652,7 +666,7 @@ fn refuse_unkeyable_references(entities: &BTreeMap<TableIdent, Entity>) -> Resul
 
 /// Whether `entity`'s column `name` is typed as a domain over an enum,
 /// through any further domains; a domain over an array of one is keyed.
-// [spec:pgorm:sem:codegen.entity.transform+17]
+// [spec:pgorm:sem:codegen.entity.transform+18]
 fn over_enum_domain(entity: &Entity, name: &str) -> bool {
     entity
         .columns
@@ -747,7 +761,7 @@ const MODULE_ITEMS: [&str; 6] = [
 /// The Rust name of every type a schema's enums and range types generate,
 /// each with what generates it.
 // [spec:pgorm:sem:codegen.entity.disjoint+3]
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+3]
 fn generated_type_names(
     enums: &BTreeMap<String, ActiveEnum>,
     ranges: &BTreeMap<String, CreatedRangeType>,
@@ -775,7 +789,7 @@ fn generated_type_names(
 /// module's own, its disjoint entity's, an earlier one-of reference's, a type
 /// another generated item names, or a name the module's code means
 /// otherwise; and no two of its variants share a name.
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+3]
 fn refuse_one_of_name_clashes(
     entities: &[Entity],
     type_names: &BTreeMap<String, String>,

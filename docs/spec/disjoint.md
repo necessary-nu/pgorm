@@ -393,7 +393,7 @@ has a row for it, and is never written through.
 
 ## References to one of several entities
 
-> [spec:pgorm:def:disjoint.one-of+1]
+> [spec:pgorm:def:disjoint.one-of+3]
 > `#[derive(OneOf)]` on an enum MUST declare a reference from one entity to
 > exactly one of several others, stored as one nullable column per target,
 > each a foreign key the entity's own `belongs_to` relation declares:
@@ -403,8 +403,9 @@ has a row for it, and is never written through.
 > variant MAY say that a row references none of them. A column that is not
 > the entity's, is not nullable, appears twice, or whose type is not the
 > target's key type, a target the entity has no `Related` relation to, two
-> variants naming one target, and an enum with no variant naming a target
-> MUST NOT compile. A column's type is the type of the field the entity's
+> variants naming one target, an enum with no variant naming a target, and
+> an enum whose name in snake_case passes 59 bytes, which the `CHECK` below
+> could not keep whole, MUST NOT compile. A column's type is the type of the field the entity's
 > `Model` declares for it, reachable from the column through the
 > `ColumnField` the `Model` derive implements
 > (`[spec:pgorm:sem:macros.derive.model]`).
@@ -436,14 +437,23 @@ has a row for it, and is never written through.
 > where the enum has a unit variant, so PostgreSQL refuses a row referencing
 > two targets, and refuses one referencing none unless the enum says a row
 > may. It is named `ck-{table}-{enum}`, the table bare and the enum's name in
-> snake_case, bounded as prefixed result names are
-> (`[spec:pgorm:sem:query.graph.writer]`). The foreign keys are the
-> relations' own, written by `create_table_from_entity`.
+> snake_case, where that is under PostgreSQL's 63 bytes, and `ck-{enum}`
+> otherwise: a `CHECK`'s name is its table's alone, so the table the
+> constraint is on says what the name leaves out, and the enum's name, which
+> codegen names the enum for, is kept whole. A `OneOf` implemented by hand
+> whose name `ck-{enum}` could not hold is named that bounded as prefixed
+> result names are (`[spec:pgorm:sem:query.graph.writer]`). The foreign keys
+> are the relations' own, written by `create_table_from_entity`.
 >
 > Codegen MUST generate the enum for nullable foreign-key columns covered by
 > exactly such a `CHECK`, named for the constraint, from DDL text and from
-> statements described in code alike, and generate the columns as the
-> ordinary nullable fields they are when no such `CHECK` covers them. Exactly
+> statements described in code alike, and MUST refuse every other table
+> `CHECK`, near misses included, as ``TransformError("table `<table>`: an
+> entity cannot hold the CHECK `<name>`, which is not a one-of
+> reference's")``, an unnamed one named as below: the entity holds no other
+> `CHECK`, so an entity generated without it would not create the table it
+> was read from (`[spec:pgorm:sem:codegen.ddl.tables]`). Columns no `CHECK`
+> covers are the ordinary nullable fields they are. Exactly
 > such a `CHECK` is an enforced table `CHECK` whose expression is
 > `num_nonnulls` of one or more distinct columns of the table compared `= 1`
 > or `<= 1`, each column nullable and the one column of a foreign key of the
@@ -453,9 +463,13 @@ has a row for it, and is never written through.
 > in the table's module after its `Relation` enum, `#[pgorm(entity =
 > Entity)]`, deriving `Clone`, `Copy`, `Debug` and `OneOf` and allowing
 > `clippy::enum_variant_names`, as a disjoint enum does. It is named in
-> UpperCamelCase for the constraint's name after `ck-{table}-` where the name
-> begins so, as `create_one_of` writes it, so a schema it wrote generates the
-> enum it was written from, and for the whole name otherwise; an unnamed
+> UpperCamelCase for the enum's part of the constraint's name where
+> `create_one_of` writes it, so a schema it wrote generates the enum it was
+> written from whatever the names' lengths: in a name under 63 bytes, what
+> follows `ck-{table}-`, or what follows `ck-` where `ck-{table}-` before it
+> would not be under 63. Otherwise it is named for the whole name, a name of
+> 63 bytes included, which is a longer one bounded to a head and a hash and
+> keeps no enum's name whole; an unnamed
 > `CHECK` is named as PostgreSQL names it, `{table}_check`, or
 > `{table}_{column}_check` over one column, numbered from 1 where an earlier
 > `CHECK` of the table took that name. It has a variant per

@@ -42,7 +42,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Schema discovery → Entity model
 
-> [spec:pgorm:sem:codegen.entity.transform+17]
+> [spec:pgorm:sem:codegen.entity.transform+18]
 > `EntityTransformer::transform` builds one `Entity` per input
 > `TableCreateStatement`. A table's identity is the `TableIdent` its
 > `TableName` spells: the bare name, and the schema qualifying it when the
@@ -131,7 +131,15 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > statement built in code carries (the DDL bridge refuses both), has no
 > entity form and is refused: ``TransformError("table `<table>`: an entity
 > cannot hold a unique key of several columns with an INCLUDE list")``, and
-> `with a deferrability` likewise. The primary key's columns are the
+> `with a deferrability` likewise. A column's `unique` holds neither those
+> nor `NULLS NOT DISTINCT`, under which the key refuses a second null, so a
+> one-column key carrying any of the three is refused the same way rather
+> than read as the plain key it is not: ``TransformError("table `<table>`
+> column `<column>`: an entity cannot hold a unique key of one column with
+> NULLS NOT DISTINCT")``, and `with an INCLUDE list` and `with a
+> deferrability` likewise. Its name the column's `unique` does not hold
+> either, and is left for the server to give, as a key's name changes no row
+> it admits. The primary key's columns are the
 > table's primary key's (`get_primary_key()`), one column or a tuple, in key
 > order; a table has one, so there is no second source to merge and no
 > duplicate `PrimaryKey` variant to generate. Every column whose (possibly
@@ -251,20 +259,24 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > the schemas sort like. Before writing, each entity's `relations` are sorted
 > by referenced table name and its `conjunct_relations` by target name.
 
-> [spec:pgorm:sem:codegen.entity.transform.inverse+1]
+> [spec:pgorm:sem:codegen.entity.transform.inverse+2]
 > For every non-self-referencing relation with `num_suffix == 0`, the
 > transformer adds an inverse relation to the referenced entity, pointing
 > back at the FK-owning table with empty column lists. The inverse type is
-> `HasOne` when the FK is unique and `HasMany` otherwise, and a key is unique
-> in any of three ways: every one of its columns is a unique column of the
-> owning table; some unique index of the owning table covers exactly the
-> key's columns, compared as sets; or the key's column set is exactly the
-> owning table's full primary-key set. The middle case is the one a
-> column-at-a-time reading cannot see — a composite `UNIQUE` over the key's
-> columns constrains the key as a whole while leaving every column of it free
-> on its own — and it is exact in both directions: a unique index over a
-> superset of the key constrains the key not at all, and is not read as
-> uniqueness. Self-referencing relations and
+> `HasOne` when the FK admits at most one row of the owning table per row it
+> references and `HasMany` otherwise, and it admits at most one exactly when
+> its column set contains a unique key of the owning table, compared as
+> sets: the full primary-key set, or the columns of any unique key, a unique
+> column's being that one column. Two rows referencing one row agree on
+> every column of the FK, so on every column of a key it contains, which
+> admits one row per value; a row whose FK holds a null references nothing.
+> So a table keyed by `id` whose FK `(id, kind)` references another table's
+> `UNIQUE (id, kind)` is at most one per referenced row, as is a FK over
+> `(a, b)` of a table with `UNIQUE (a)`, and a composite `UNIQUE` over
+> exactly the FK's columns constrains the FK as a whole while leaving every
+> column of it free on its own. A unique key with a column the FK lacks — a
+> unique index over a superset of the FK's columns — constrains the FK not at
+> all, and is not read as uniqueness. Self-referencing relations and
 > suffixed relations produce no inverse (the suffixed case would emit a
 > `Relation` variant with no usable `Related` impl). An inverse relation is
 > dropped when the target entity already has any relation to that table.
@@ -348,7 +360,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## The entity file
 
-> [spec:pgorm:def:codegen.entity.compact+6]
+> [spec:pgorm:def:codegen.entity.compact+7]
 > The writer emits one form of entity, the composite derive's
 > (`[spec:pgorm:req:macros.derive.one-form]`), and no option selects another.
 > Per entity it emits, in order: the imports (`use pgorm::entity::prelude::*;`,
@@ -361,7 +373,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > default, per `codegen.entity.context`); a `Relation` enum deriving
 > `Copy, Clone, Debug, Relation` whose variants carry
 > `#[pgorm(...)]` relation attributes (an entity with no relations emits the
-> empty `pub enum Relation {}`); for a disjoint entity's base, its
+> empty `pub enum Relation {}`), carrying `#[allow(clippy::enum_variant_names)]`
+> before its derives, since its variants are named by the schema's tables and
+> the lint refuses three sharing a word (`WebShop`, `PopUpShop`, `ClosedShop`)
+> or one ending with the enum's name (a table `customer_relation`) in a module
+> the crate does not export; for a disjoint entity's base, its
 > `#[derive(Disjoint)]` enum (`codegen.entity.disjoint`); each
 > `#[derive(OneOf)]` enum a `CHECK` of its table generates
 > (`[spec:pgorm:def:disjoint.one-of]`), in the table's order; and the `via`
@@ -915,7 +931,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Active enums
 
-> [spec:pgorm:sem:codegen.entity.enums+7]
+> [spec:pgorm:sem:codegen.entity.enums+8]
 > All discovered database enums but a disjoint entity's kind type, which its
 > derive declares (`codegen.entity.disjoint`), are generated into a single
 > `pgorm_active_enums.rs`, in alphabetical order by enum name. Each becomes
@@ -928,7 +944,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > DB name is not the Rust enum name in snake_case, plus `schema_name = "<schema>"`
 > when the described type is schema-qualified, so the generated entity round-trips the
 > full type identity; the attribute is omitted when it would be empty, and
-> `enum_extra_attributes` follow it as further attribute lines. Enums are keyed
+> `enum_extra_attributes` follow it as further attribute lines. Before its
+> derives the enum carries `#[allow(clippy::enum_variant_names)]`: its
+> variants are named by the type's values, not by the program, and the lint
+> refuses three sharing a word (`web_shop`, `pop_up_shop`, `closed_shop`) in a
+> module the crate does not export. Enums are keyed
 > by that identity; two same-named enums under
 > different qualifications MUST be refused ("enum `<n>` is used under two
 > qualifications; the generated Rust enum can carry only one") rather than
@@ -1213,11 +1233,14 @@ compiling the C parser falls on people generating entities and on nobody else.
 > (`sql.ddl.create-table`), so a key the statement declares and the key the
 > bridge reads back from its rendering are one fact.
 
-> [spec:pgorm:req:codegen.ddl.unsupported+20]
+> [spec:pgorm:req:codegen.ddl.unsupported+21]
 > The supported subset is what the entity model can hold: `CREATE TABLE` with
 > its columns, `NULL`/`NOT NULL`, primary-key, unique and foreign-key
-> constraints, and its `DEFAULT`s, generation expressions and table-level
-> `CHECK`s within the subset `codegen.entity.expressions` reads; `ALTER TABLE ... ADD COLUMN` and `ADD
+> constraints, its `DEFAULT`s and generation expressions within the subset
+> `codegen.entity.expressions` reads, and the table-level `CHECK` of a one-of
+> reference (`[spec:pgorm:def:disjoint.one-of]`), which the bridge reads
+> within that subset as it reads every table-level `CHECK`, the transform
+> refusing by name each that is not one (`codegen.ddl.tables`); `ALTER TABLE ... ADD COLUMN` and `ADD
 > CONSTRAINT`, adding the same to a table the file creates
 > (`codegen.ddl.objects`); `CREATE TYPE ... AS ENUM`; `CREATE TYPE ... AS RANGE`
 > and `CREATE DOMAIN` (`codegen.ddl.objects`); `CREATE INDEX`; `CREATE SCHEMA`,
@@ -1484,7 +1507,7 @@ compiling the C parser falls on people generating entities and on nobody else.
 > multi-dimensional array, and a non-integer type modifier are all named
 > rejections per `codegen.ddl.unsupported`.
 
-> [spec:pgorm:sem:codegen.ddl.tables+12]
+> [spec:pgorm:sem:codegen.ddl.tables+13]
 > A `CREATE TABLE` becomes a `TableCreateStatement` carrying the `TableName`
 > its name spells — `Table`, or `SchemaTable` when it is schema-qualified;
 > a catalog-qualified `db.schema.table` names a cross-database reference
@@ -1601,11 +1624,12 @@ compiling the C parser falls on people generating entities and on nobody else.
 > ``... in the CHECK `<name>` of table `<t>` ``, or ``... in a CHECK of
 > table `<t>` `` when it is unnamed; a column it reads that the table lacks is
 > unresolved, ``statement <n>: table `<t>` has no column `<c>` ``. It rides
-> on the statement and reaches the generated entity only as the
-> `#[derive(OneOf)]` enum `[spec:pgorm:def:disjoint.one-of]` recognises in
-> it: the entity model holds no other `CHECK`, and a generated entity is the
-> image of a schema that already exists. A column's own `CHECK` stays named
-> (`codegen.ddl.unsupported`).
+> on the statement, and the transform generates it as the `#[derive(OneOf)]`
+> enum `[spec:pgorm:def:disjoint.one-of]` recognises in it or refuses it,
+> naming it: the entity model holds no other `CHECK`, and a generated entity
+> is the image of a schema that already exists, so one that dropped a `CHECK`
+> it read would create a table other than the one it was read from. A
+> column's own `CHECK` stays named (`codegen.ddl.unsupported`).
 >
 > A primary key ending `WITHOUT OVERLAPS` becomes the table's temporal key,
 > its period held apart from its other columns (`TableKey::without_overlaps`),
