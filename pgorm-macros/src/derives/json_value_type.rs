@@ -1,8 +1,10 @@
+use super::util::into_active_value;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 
 // [spec:pgorm:sem:macros.derive.from-query-result+4]
 pub fn expand_derive_json_value_type(ident: Ident) -> syn::Result<TokenStream> {
+    let into_active_value = into_active_value(&ident);
     let impl_not_u8 = quote!(
         #[automatically_derived]
         impl pgorm::pgorm_query::value::with_array::NotU8 for #ident {}
@@ -62,5 +64,7 @@ pub fn expand_derive_json_value_type(ident: Ident) -> syn::Result<TokenStream> {
         }
 
         #impl_not_u8
+
+        #into_active_value
     ))
 }

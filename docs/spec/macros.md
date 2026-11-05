@@ -97,7 +97,7 @@ known limitations.
 > beside derive_more's and strum's, and pgorm-macros' own name derive is
 > folded into pgorm-query's `SqlName`, which already does more.
 
-> [spec:pgorm:req:macros.derive.code-values+3]
+> [spec:pgorm:req:macros.derive.code-values+4]
 > An attribute value that is Rust code MUST be written as Rust code — a path
 > as a path, a type as a type, an expression as an expression — and is
 > taken as written, with no implicit prefix: `belongs_to =
@@ -109,8 +109,8 @@ known limitations.
 > `column_type`, `db_type`, `array_type`, `rs_type`, `default_expr`,
 > `default_value`, the generated expressions, `from_expr`, `from_col`, the
 > foreign-key actions, `enforcement`, `deferrability`, `condition_type`,
-> the `columns` of an entity's `unique(..)` (`columns = (Column::A, Column::B)`)
-> and `PartialModel`'s `entity`. A value that is SQL or a name stays a string —
+> the `columns` of an entity's `unique(..)` (`columns = (Column::A, Column::B)`),
+> `PartialModel`'s `entity` and `IntoActiveModel`'s `active_model`. A value that is SQL or a name stays a string —
 > `table_name`, `schema_name`, `column_name`, `fk_name`, a `unique` key's
 > `name`, an `ActiveEnum`'s
 > `enum_name`, `string_value`, `display_value`, `range_name`,
@@ -527,7 +527,7 @@ known limitations.
 > it reads a field's `variant` and `ignore` and leaves the rest of the input to the
 > composite (`macros.derive.entity-model.attrs`).
 
-> [spec:pgorm:sem:macros.derive.active-model+7]
+> [spec:pgorm:sem:macros.derive.active-model+8]
 > The composite derive writes, beside its `Model`, a
 > `pub struct ActiveModel` — name and entity are hard-coded as `ActiveModel`/`Entity` —
 > with one `pub field: ActiveValue<T>` per non-ignored field, plus: `Default`
@@ -549,13 +549,26 @@ known limitations.
 > no hooks, unless the `Model` says `#[pgorm(hooks)]`, when the entity's module
 > implements it (`macros.derive.boilerplate`); it writes it whether or not the rest of
 > the composite's expansion is refused, so a refusal elsewhere is not echoed as a missing
-> implementation. The `IntoActiveModel` derive (named-field structs only) generates an
+> implementation. The `IntoActiveModel` impl names the struct as `Model`, not as the
+> projection `<Entity as EntityTrait>::Model`: across crates coherence does not
+> normalize a projection in another crate's impl header, so a form deriving
+> `IntoActiveModel` for this `ActiveModel` in a crate of its own would otherwise be
+> refused as conflicting with it (E0119).
+>
+> The `IntoActiveModel` derive (named-field structs only) generates an
 > `IntoActiveModel<A>` impl — `A` defaults to `ActiveModel`, overridable with
-> `#[pgorm(active_model = Ident)]`, the one key it reads on every `#[pgorm(...)]` of the
-> struct, any other key there or on a field being a compile error at the key — that
-> converts each field via
+> `#[pgorm(active_model = Path)]`, written as the path it is (`active_model =
+> customer::ActiveModel`, `macros.derive.code-values`), the one key it reads on every
+> `#[pgorm(...)]` of the struct, any other key there or on a field being a compile error
+> at the key — that converts each field via
 > `IntoActiveValue::into_active_value(..).into()` and fills the remainder with
-> `..Default::default()`, enabling partial "form" structs.
+> `..Default::default()`, enabling partial "form" structs, in the entity's crate or any
+> other. A field's type converts through `IntoActiveValue`: pgorm implements it for the
+> built-in column types, and each derive that makes a column value type — `ActiveEnum`,
+> `ValueType`, `JsonValueType` and `CreatedRange` — writes `IntoActiveValue<Self>` for
+> it, so a form's field of such a type sets its column as a built-in one does, and
+> `Option<T>` of one that is `Nullable` — an `ActiveEnum`, a `JsonValueType` or a
+> `CreatedRange` — sets it when `Some`.
 
 ## Active enums
 

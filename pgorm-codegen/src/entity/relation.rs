@@ -120,7 +120,7 @@ impl Relation {
     /// written bare: the entity reached, the column pairs, the period, the
     /// actions and the key check.
     // [spec:pgorm:sem:codegen.entity.relations+5]
-    // [spec:pgorm:req:macros.derive.code-values+3]
+    // [spec:pgorm:req:macros.derive.code-values+4]
     pub fn get_attrs(&self) -> TokenStream {
         let rel_type = self.get_rel_type();
         let module = self

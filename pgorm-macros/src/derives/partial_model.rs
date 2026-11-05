@@ -202,7 +202,7 @@ impl PartialModel {
 }
 
 // [spec:pgorm:sem:macros.derive.partial-model+6]
-// [spec:pgorm:req:macros.derive.code-values+3]
+// [spec:pgorm:req:macros.derive.code-values+4]
 pub fn expand_derive_partial_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
 

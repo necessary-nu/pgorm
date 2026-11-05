@@ -11,7 +11,7 @@ use syn::Ident;
 /// the one key `Model` reads there. Under the composite the entity is
 /// always `Entity`, and the composite reads the container itself.
 // [spec:pgorm:sem:macros.derive.model+7]
-// [spec:pgorm:req:macros.derive.code-values+3]
+// [spec:pgorm:req:macros.derive.code-values+4]
 fn model_entity(attrs: &[syn::Attribute], reader: Reader) -> syn::Result<Option<Ident>> {
     let mut entity = None;
     if reader == Reader::Composite {

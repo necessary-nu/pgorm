@@ -583,11 +583,48 @@ assert!(mo.weekly);
 # }
 ```
 
-A form derives `IntoActiveModel` in the module its entity is declared in,
-where `ActiveModel` names the entity's active model, or names another with
-`#[pgorm(active_model = ..)]`. A field of type `Option<T>` sets its column
-when it is `Some` and leaves it out when it is `None`; a nullable column is
-set to `NULL` by a field of type `Option<Option<T>>` holding `Some(None)`.
+A form beside its entity converts into the `ActiveModel` there. Anywhere
+else, in another module or another crate, such as beside the handler that
+reads it, `#[pgorm(active_model = ..)]` names the active model by its path. A
+field may be of any column type, an `ActiveEnum` among them:
+
+```rust
+use pgorm::entity::prelude::*;
+use pgorm_guide_support::cake::{self, Flavor};
+
+/// What the shop's "new cake" form sends.
+#[derive(IntoActiveModel)]
+#[pgorm(active_model = cake::ActiveModel)]
+struct NewCake {
+    name: String,
+    flavor: Flavor,
+    price: Decimal,
+    gluten_free: bool,
+    bakery_id: i32,
+}
+
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("entities_form_elsewhere").await;
+# let db = scratch.pool.get().await?;
+let form = NewCake {
+    name: "Lemon Tart".to_owned(),
+    flavor: Flavor::Lemon,
+    price: Decimal::new(410, 2),
+    gluten_free: false,
+    bakery_id: 1,
+};
+let tart = form.into_active_model().insert(&db).await?;
+assert_eq!(tart.flavor, Flavor::Lemon);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+A field of type `Option<T>` sets its column when it is `Some` and leaves it
+out when it is `None`; a nullable column is set to `NULL` by a field of type
+`Option<Option<T>>` holding `Some(None)`.
 
 A `ValueType` newtype stands for the type it wraps, wherever a column value
 goes: as a field, as a bound parameter, as a decoded value. The recipe below

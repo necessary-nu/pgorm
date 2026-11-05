@@ -1584,6 +1584,7 @@ assertions (
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id derives.partial-model-from-col-read-cast, kind @complete, author "brendan@necessary.nu", at 2026-11-05T15:55:41.570966Z}
+    {id derives.into-active-model-forms, kind @doing, author "brendan@necessary.nu", at 2026-11-05T17:11:19.153173Z}
 )
 
 impl_evidence (

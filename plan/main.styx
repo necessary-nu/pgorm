@@ -16816,6 +16816,27 @@ children (
                         kind @note
                         text "Found by guide.rust (entities chapter). Three gaps in #[derive(IntoActiveModel)]: (1) derived in a crate other than its entity's, it fails E0119 against the Entity derive's `impl IntoActiveModel<ActiveModel> for <Entity as EntityTrait>::Model` (pgorm-macros/src/derives/active_model.rs:92; the impl header names the projection rather than `Model`, and coherence across crates does not see past it), so a form cannot live beside the handler that uses it; (2) `#[pgorm(active_model = ..)]` parses a bare syn::Ident (derives/into_active_model.rs:11), not a path, unlike every other code-valued key (macros.derive.code-values), so `active_model = customer::ActiveModel` is a parse error; (3) IntoActiveValue is implemented only for the primitive types in src/entity/active_model.rs:593-640, not for ActiveEnum, ValueType, JsonValueType or CreatedRange types, so a form field of any of those does not compile. The guide (docs/guide/02-entities.md) shows a form beside its entity with String fields."
                     }
+
+                    {
+                        at 2026-11-05T17:11:19.153173Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T17:18:53.730902Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "(a) E0119 reproduced in tests/into_active_model_tests.rs (a separate crate from pgorm's tests_cfg entities): the composite derive's impls named `<Entity as EntityTrait>::Model` in their headers; they now name `Model` (the composite derive only runs on a struct named Model, so the two are the same type) — From<Model>, IntoActiveModel<ActiveModel> for Model, TryFrom<ActiveModel> for Model, TryIntoModel<Model>. (b) active_model parses a syn::Path (defaulting to the bare `ActiveModel`), added to macros.derive.code-values+4's list. (c) rather than a blanket IntoActiveValue (which would overlap the Option<V> impls through `Option<T>: ValueType`), one shared pgorm-macros helper (util::into_active_value) writes `impl IntoActiveValue<Self> for Self` from each of the four value derives. Option<T> of an ActiveEnum, JsonValueType or CreatedRange works through the existing Option impl; Option<ValueTypeNewtype> does not, because the ValueType derive deliberately writes no Nullable (macros.derive.value-type+6 says so) — filed as derives.value-type-optional-column rather than changed here. Rules bumped: macros.derive.active-model+8, macros.derive.code-values+4."
+                    }
+
+                    {
+                        at 2026-11-05T17:32:56.549917Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Correction to the decision note: only the `IntoActiveModel<ActiveModel>` impl header now names `Model`. Naming `Model` in From<Model> for ActiveModel and TryFrom<ActiveModel> for Model as well turned on rustc's more precise dead-code analysis for concrete self types — an entity whose Model the program never builds (one used only for SQL or DDL, as many test fixtures are) then warned \"struct `Model` is never constructed\", because the projection-headed TryFrom impl had been what counted as constructing it. Those impls keep the projection; they take no part in the cross-crate conflict."
+                    }
                 )
             }
 
@@ -16837,6 +16858,21 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Todo → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id derives.value-type-optional-column
+                title "A ValueType newtype can be a nullable column, an Option of it binding as NULL, in an entity and in a form"
+                kind @fix
+                deps (derives.into-active-model-forms)
+                log (
+                    {
+                        at 2026-11-05T17:17:17.908979Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by derives.into-active-model-forms. An entity field `Option<Grams>`, Grams a `#[derive(ValueType)]` newtype, does not compile: `Grams: Nullable` is unsatisfied (From<Option<T>> for Value, ActiveValue's Clone/PartialEq bounds and IntoActiveValue<Option<V>> all need it), so a ValueType newtype cannot be a nullable column, nor an Option field of a form. macros.derive.value-type+6 says outright \"no `Nullable` impl is generated\" — perhaps because a newtype may wrap an Option (the derive unwraps Option<T> for its column type), for which `<Option<T> as Nullable>::null()` has no impl — so the fix is a decision, not a one-liner: generate `Nullable` delegating to the inner type when it is not an Option (the derive already detects that case through unwrap_option), and state it in the rule. ActiveEnum, JsonValueType and CreatedRange derives already write Nullable."
                     }
                 )
             }

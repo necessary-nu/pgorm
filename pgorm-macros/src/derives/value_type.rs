@@ -1,11 +1,11 @@
 use super::sql_type_match::{arr_type_match, col_type_match, unwrap_option};
-use super::util::bare_code;
+use super::util::{bare_code, into_active_value};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, Type, spanned::Spanned};
 
 // [spec:pgorm:sem:macros.derive.value-type+6]
-// [spec:pgorm:req:macros.derive.code-values+3]
+// [spec:pgorm:req:macros.derive.code-values+4]
 pub fn expand_derive_value_type(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let syn::DeriveInput {
         ident: name,
@@ -71,7 +71,10 @@ fn impl_value_type(
     column_type: &TokenStream,
     array_type: &TokenStream,
 ) -> TokenStream {
+    let into_active_value = into_active_value(name);
     quote!(
+        #into_active_value
+
         #[automatically_derived]
         impl std::convert::From<#name> for pgorm::Value {
             fn from(source: #name) -> Self {
