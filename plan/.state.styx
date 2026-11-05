@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T00:15:40.212931Z
+last_sync_at 2026-11-05T00:19:38.841417Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -41,6 +41,7 @@ rule_versions (
     {id bindings.model-unique-keys, version 0}
     {id bindings.model-writes, version 1}
     {id bindings.models, version 5}
+    {id bindings.one-of, version 0}
     {id bindings.operands, version 0}
     {id bindings.optional, version 0}
     {id bindings.pagination, version 0}
@@ -1751,6 +1752,7 @@ impl_evidence (
     ), rule_versions_seen (
         {id bindings.disjoint-evolve, version 0}
     )}
+    {id bindings-one-of}
     {id codegen.generate, covered_rules (
         codegen.entity
         codegen.entity.compact
