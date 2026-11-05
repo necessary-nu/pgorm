@@ -208,6 +208,18 @@ export class Select extends Builder {
     return new Select(native.selectDistinct(arg(this)), TRUSTED);
   }
 
+  /**
+   * `DISTINCT ON (..)`: the first row of each run of rows equal on the
+   * columns, replacing `distinct()` or an earlier list. Each is a column, as
+   * pgorm-query's `distinct_on` takes one.
+   *
+   * @param {...Expr} columns
+   */
+  // [spec:pgorm:req:bindings.distinct-on]
+  distinctOn(...columns) {
+    return new Select(native.selectDistinctOn(arg(this), args(columns)), TRUSTED);
+  }
+
   /** @param {Select} other */
   union(other) {
     return setOperation(this, "union", other);

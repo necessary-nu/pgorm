@@ -97,6 +97,8 @@ export declare class Select extends Builder {
   limitWithTies(count: number | bigint): Select;
   offset(count: number | bigint | null): Select;
   distinct(): Select;
+  /** `DISTINCT ON (..)` the columns, replacing `distinct()`; an expression that is no column is a `ConstructionError`. */
+  distinctOn(...columns: [Expr, ...Expr[]]): Select;
   /**
    * `UNION`, with `other` as a parenthesised arm. A chain of set operations
    * combines in call order: each takes everything before it as its left

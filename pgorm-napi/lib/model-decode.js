@@ -177,18 +177,22 @@ export async function decodeOptional(db, statement, sources, options) {
 
 /**
  * The rows of `statement` as a stream of decoded items, over a pool's or a
- * connection's connection.
+ * connection's connection, each made what `read` makes it where one is given.
  *
  * @param {unknown} db
  * @param {import("./builder.js").Handle} statement
  * @param {readonly Source[]} sources
  * @param {{ signal?: AbortSignal }} [options]
+ * @param {((record: any) => unknown) | null} [read]
  */
-export function decodeStream(db, statement, sources, options = {}) {
+export function decodeStream(db, statement, sources, options = {}, read = null) {
   const stream = /** @type {{ stream?: unknown }} */ (db)?.stream;
   if (typeof stream !== "function") throw new TypeError("a model's rows stream from a Pool or a Connection");
   if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
-  return decodedWith(stream.call(db, statement, { signal: options.signal }), decoder(sources));
+  const decode = decoder(sources);
+  const made = read === null ? decode : (/** @type {string[]} */ names, /** @type {unknown[]} */ values, /** @type {string[]} */ kinds) =>
+    read(decode(names, values, kinds));
+  return decodedWith(stream.call(db, statement, { signal: options.signal }), made);
 }
 
 /**

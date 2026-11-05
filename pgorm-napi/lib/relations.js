@@ -11,7 +11,10 @@ import { tuple } from "./expressions.js";
 import { columnValue } from "./model-columns.js";
 import { query } from "./model-queries.js";
 import { fieldOf, qualified, shapeOf } from "./model-shape.js";
+import { partsOf, registerRelation } from "./relation-parts.js";
 import { Decimal, Interval, isIdentifier, Uuid } from "./values.js";
+
+export { relationOn, shapesOf } from "./relation-parts.js";
 
 /** Marks a construction from a model's relation methods. */
 const MADE = Symbol("pgorm-napi relation");
@@ -34,8 +37,6 @@ function actionOf(action, what) {
   return action;
 }
 
-/** @type {(relation: Relation) => { from: import("./model-shape.js").Shape, to: import("./model-shape.js").Shape, fromFields: import("./model-shape.js").Field[], toFields: import("./model-shape.js").Field[] }} */
-let partsOf;
 
 /**
  * @param {import("./model-shape.js").Shape} shape
@@ -102,16 +103,8 @@ export class Relation {
     if (kind !== "belongsTo" && (onDelete !== undefined || onUpdate !== undefined || fkName !== null)) {
       throw new TypeError("a foreign key is the belongsTo side's: only it takes onDelete, onUpdate and fkName");
     }
+    registerRelation(this, { from: this.#from, to: this.#to, fromFields: this.#fromFields, toFields: this.#toFields });
     Object.freeze(this);
-  }
-
-  static {
-    partsOf = (relation) => ({
-      from: relation.#from,
-      to: relation.#to,
-      fromFields: relation.#fromFields,
-      toFields: relation.#toFields,
-    });
   }
 
   get kind() {
@@ -256,22 +249,6 @@ export function keyText(key) {
   }));
 }
 
-/**
- * The join condition of `relation` between the tables answering to
- * `left` and `right`: each pair of its fields equal, as pgorm's
- * `join_condition` writes a relation's columns.
- *
- * @param {Relation} relation
- * @param {string} left
- * @param {string} right
- */
-export function relationOn(relation, left, right) {
-  const { fromFields, toFields } = partsOf(relation);
-  return Condition.all(Condition.all(...fromFields.map((field, index) =>
-    qualified(field, left).eq(qualified(/** @type {import("./model-shape.js").Field} */ (toFields[index]), right))
-  )));
-}
-
 // [spec:pgorm:req:bindings.schema-from-model]
 /**
  * The foreign key a `belongsTo` relation holds, as the native table shape
@@ -291,18 +268,6 @@ export function foreignKeyOf(relation) {
     onUpdate: relation.onUpdate,
     fkName: relation.fkName,
   };
-}
-
-/**
- * The shapes at a relation's two ends.
- *
- * @param {unknown} relation
- * @returns {[import("./model-shape.js").Shape, import("./model-shape.js").Shape]}
- */
-export function shapesOf(relation) {
-  if (!(relation instanceof Relation)) throw new TypeError("expected a Relation");
-  const { from, to } = partsOf(relation);
-  return [from, to];
 }
 
 /**

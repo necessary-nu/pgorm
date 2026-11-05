@@ -14,7 +14,7 @@ import { columnValue, omissible } from "./model-columns.js";
 import { decodeAll, decodeOne, decodeOptional } from "./model-decode.js";
 import { fieldOf, projected } from "./model-shape.js";
 import { native } from "./operations.js";
-import { predicateOf } from "./model-queries.js";
+import { predicateOf } from "./model-clauses.js";
 import { Conflict, ConflictUpdate } from "./conflicts.js";
 import { deleteFrom, insert, update } from "./writes.js";
 

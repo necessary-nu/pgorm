@@ -64,7 +64,7 @@ pub(crate) const COMPOSITE_KEYS: [&str; 7] = [
 /// The field keys `PartialModel` reads that the `FromQueryResult` it writes
 /// does not.
 // [spec:pgorm:sem:macros.derive.from-query-result+4]
-// [spec:pgorm:sem:macros.derive.partial-model+5]
+// [spec:pgorm:sem:macros.derive.partial-model+6]
 pub(crate) const PROJECTION_FIELD_KEYS: [&str; 2] = ["from_col", "from_expr"];
 
 /// Every field-level `#[pgorm(...)]` key the `Entity` derive defines. The

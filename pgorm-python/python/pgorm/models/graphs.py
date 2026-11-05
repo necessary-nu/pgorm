@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Literal
 
 from .. import _native as p
-from .queries import orderings_of, predicate_of
+from .clauses import orderings_of, predicate_of
 from .record import (
     Database,
     ModelRecord,
@@ -303,6 +303,7 @@ class Graph:
                 state.sources(),
                 order,
                 tiebreaks,
+                tuple((table.model, table.qualifier) for table in state.tables),
             )
         )
 

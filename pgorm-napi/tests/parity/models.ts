@@ -5,7 +5,18 @@
 // a terminal, with pgorm-query as that terminal does.
 // [spec:pgorm:req:bindings.graphs/test]
 
-import { column, type Compiled, Conflict, model, TypeName } from "../../lib/index.js";
+import {
+  call,
+  column,
+  type Compiled,
+  Conflict,
+  fromExpr,
+  model,
+  partialModel,
+  skip,
+  TypeName,
+  Value,
+} from "../../lib/index.js";
 
 /** A column name long enough that a graph's prefixed alias is bounded. */
 export const LONG = "column_with_a_name_long_enough_to_need_bounding_in_a_graph_xx";
@@ -55,6 +66,14 @@ const posts = Account.hasMany(Post, { from: "id", to: "authorId" });
 const postTags = Post.hasMany(PostTag, { from: "id", to: "postId" });
 const tagOf = PostTag.belongsTo(Tag, { from: "tagId", to: "id" });
 
+const postCount = () => call("count", Post.col("id"));
+const AccountLine = partialModel(Account, {
+  id: Account.col("id"),
+  shout: fromExpr(call("upper", Account.col("name")), column("text")),
+  display: Account.col("displayName"),
+  note: skip(""),
+});
+
 export const cases: Record<string, () => Compiled> = {
   "find": () => Account.find().inspect(),
   "find-filtered": () =>
@@ -87,4 +106,36 @@ export const cases: Record<string, () => Compiled> = {
   "page": () => Account.find().orderBy(Account.col("id").asc()).paginate(10).inspect(2),
   "count": () =>
     Account.find().where(Account.col("name").ne("x")).orderBy(Account.col("id").asc()).limit(5).inspect("count"),
+  "find-distinct": () => Account.find().distinct().inspect(),
+  "find-distinct-on": () =>
+    Account.find().distinctOn(Account.col("name")).orderBy(Account.col("name").asc(), Account.col("id").asc()).inspect(),
+  "find-grouped": () => Account.find().groupBy(Account.col("id")).having(Account.col("name").ne("x")).inspect(),
+  "find-locked": () => Account.find().lock("update", { wait: "skipLocked" }).inspect(),
+  "find-lock-shared": () => Account.find().lock("share").inspect(),
+  "find-right-joined": () => Post.find().join(author, { kind: "right" }).inspect(),
+  "find-joined-rev": () => Account.find().joinRev(author).where(Post.col("title").eq("x")).inspect(),
+  "projection-columns": () =>
+    Account.find().selectOnly().column(Account.col("id")).columnAs(Account.col("name"), "label").intoTuple().inspect(),
+  "projection-grouped": () =>
+    Post.find()
+      .selectOnly()
+      .column(Post.col("authorId"))
+      .exprAs(postCount(), "posts", column("i64"))
+      .groupBy(Post.col("authorId"))
+      .having(postCount().gt(new Value(1n, "i64")))
+      .intoTuple()
+      .inspect(),
+  "projection-joined": () =>
+    Post.find()
+      .join(author)
+      .selectOnly()
+      .column(Post.col("title"))
+      .columnAs(Account.col("name"), "author")
+      .intoTuple()
+      .inspect(),
+  "partial-model": () => Account.find().where(Account.col("id").eq(1)).intoPartialModel(AccountLine).inspect(),
+  "cursor-secondary-after": () =>
+    Account.find().cursor("name").addSecondaryOrderBy(Account, "id").after("m").first(3).inspect(),
+  "cursor-secondary-after-with": () =>
+    Account.find().cursor("name").addSecondaryOrderBy(Account, "id").afterWith("m", 4).first(3).inspect(),
 };

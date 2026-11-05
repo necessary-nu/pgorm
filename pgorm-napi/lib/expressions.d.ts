@@ -230,6 +230,8 @@ export declare class Condition extends Builder {
   /** Their OR; false when there are none. */
   static any(...items: Predicate[]): Condition;
   add(item: Predicate): Condition;
+  /** Rust's `add_option`: a search whose fields are optional adds each without a branch around the builder. */
+  addOption(item: Predicate | null | undefined): Condition;
   not(): Condition;
 }
 

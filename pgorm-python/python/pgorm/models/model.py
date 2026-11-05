@@ -236,7 +236,8 @@ class Model:
         return names
 
     def select(self, *fields: str) -> ModelQuery:
-        from .queries import ModelQuery, Recipe
+        from .clauses import Recipe
+        from .queries import ModelQuery
 
         return ModelQuery(Recipe(self, self._selection(fields)))
 

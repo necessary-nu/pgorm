@@ -7,6 +7,7 @@ from .disjoint_query import DisjointCursor, DisjointPaginator, DisjointQuery, Di
 from .graphs import Graph
 from .model import Model
 from .one_of import OneOf, OneOfEntity, one_of_entities, one_of_entity
+from .projections import FromExpr, ModelProjection, ModelSelector, PartialModel, Skip
 from .queries import ModelQuery, ModelRows
 from .record import ModelRecord
 from .relations import Relation
@@ -18,6 +19,11 @@ __all__ = [
     "Model",
     "ModelQuery",
     "ModelRows",
+    "ModelProjection",
+    "ModelSelector",
+    "PartialModel",
+    "FromExpr",
+    "Skip",
     "ModelInsert",
     "ModelInsertMany",
     "ModelUpdate",

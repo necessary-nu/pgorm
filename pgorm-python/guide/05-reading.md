@@ -246,10 +246,10 @@ conditions, `|` is `OR`, `&` is `AND` and `~` is `NOT`; Python's precedence
 binds them tighter than a comparison, so each comparison needs its
 parentheses.
 
-Here Python differs from Rust: there is no `add_option`. A condition that may
-be absent, such as an optional field of a search form, is left out of the list
-with ordinary Python before the list goes to `Condition.all`. An empty
-`Condition.all()` always holds and an empty `Condition.any()` never does.
+`add_option` adds a condition that may be absent, as Rust's does: given
+`None` it leaves the condition as it is, which suits a search form whose
+fields are optional. An empty `Condition.all()` always holds and an empty
+`Condition.any()` never does.
 
 ```python
 from decimal import Decimal
@@ -274,10 +274,11 @@ assert with_operators.inspect().sql == lemon_or_gluten_free.inspect().sql
 
 # A search with an optional upper price: no condition at all when it is absent.
 max_price: Decimal | None = None
-conditions = [Cake.col("bakery_id") == 1]
-if max_price is not None:
-    conditions.append(Cake.col("price") <= max_price)
-search = Cake.select("name").where(Condition.all(*conditions))
+search = Cake.select("name").where(
+    Condition.all(Cake.col("bakery_id") == 1).add_option(
+        None if max_price is None else Cake.col("price") <= max_price
+    )
+)
 assert search.inspect().sql == 'SELECT "cake"."name" FROM "cake" WHERE "cake"."bakery_id" = $1'
 ```
 
@@ -286,7 +287,8 @@ assert search.inspect().sql == 'SELECT "cake"."name" FROM "cake" WHERE "cake"."b
 `order_by` orders by one or more orderings, in the order they are given and
 then in the order later calls add them. A column's or an expression's `asc()`
 and `desc()` make an ordering, and their `nulls=Nulls.First` or
-`nulls=Nulls.Last` says where `NULL`s go. `limit` and `offset` cut the result.
+`nulls=Nulls.Last` says where `NULL`s go. `limit` and `offset` cut the result,
+and `distinct()` and `distinct_on(*columns)` drop repeated rows.
 
 ```python
 import asyncio
@@ -321,11 +323,37 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Here Python differs from Rust: a model query has no `distinct` or
-`distinct_on`. The statement builder's `Select` has `distinct()`
-([Beyond the model builders](#beyond-the-model-builders)); `DISTINCT ON` is
-not available in Python yet. [Joins](#joins) below shows a subquery that does
-the work a `distinct` does after a join.
+`distinct_on` keeps the first row of each run of rows equal on its columns,
+so the ordering decides which: here the dearest cake of each flavor. Its
+columns are the queried model's or a joined table's, as Rust's are, and the
+statement builder's `Select` has the same `distinct()` and `distinct_on`:
+
+```python
+import asyncio
+import os
+
+from pgorm import Pool
+
+from bakery import Cake
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        dearest = (
+            Cake.select("flavor", "name")
+            .distinct_on(Cake.col("flavor"))
+            .order_by(Cake.col("flavor").asc(), Cake.col("price").desc())
+        )
+        assert dearest.inspect().sql == (
+            'SELECT DISTINCT ON ("cake"."flavor") "cake"."flavor", "cake"."name" FROM "cake" '
+            'ORDER BY "cake"."flavor" ASC, "cake"."price" DESC'
+        )
+        names = [cake["name"] for cake in await dearest.all(pool)]
+        assert names == ["Chocolate Torte", "Vanilla Sponge", "Lemon Drizzle", "Carrot Cake"]
+
+
+asyncio.run(main())
+```
 
 A query read in pages is better served by [Pages, cursors and
 streams](06-pagination.md) than by `offset`.
@@ -335,43 +363,65 @@ streams](06-pagination.md) than by `offset`.
 `select(*fields)` starts a query that reads only the fields it names, where
 `find()` reads them all. A list computed at run time goes in with `*`, as any
 Python argument list does. The rows are still the model's records, holding
-just the fields chosen, in the order they were named, and
-`tuple(row.values())` reads them as a tuple.
+just the fields chosen, in the order they were named.
 
-Here Python differs from Rust. In Rust, choosing columns leaves the rows
-without the `Model`'s shape, so the query needs `into_tuple`, `into_model` or
-`into_values` to say what to decode into. A Python model query never loses its
-shape: it can choose only among the model's fields, and decodes them as the
-model declares. A computed item, an aggregate, or a column of another table
-beside the model's (Rust's `column_as` and `expr_as`) is the statement
-builder's, as the second example shows.
+A query also becomes a *projection* of items the program chooses, as Rust's
+`select` and `select_only` make one. `select_only()` clears the fields, and
+`column`, `columns`, `column_as` and `expr_as` add items: a column of the
+queried model or of a table the query joins, read under its field's name or
+the name `column_as` gives it and decoded as its field declares; or an
+expression under a name, decoded as the `Column` given beside it declares. A
+model query takes the item methods directly too, its fields staying the first
+items. A projection reads rows once one of three methods says what each row
+becomes, as in Rust:
+
+- `into_tuple()` reads the items' values in order into a tuple.
+- `into_values(*names)` reads the named items' values, in the order named.
+- `into_model(target)` calls `target` with each item's value as the keyword
+  argument of its name: a dataclass whose fields are named for the items, as
+  a `FromQueryResult` struct is, or `dict`.
+
+Each gives a `ModelSelector`, Rust's `Selector`, whose `all`, `one`,
+`optional`, `stream`, `count`, `cursor` and `paginate` read as a model
+query's do. A model query also takes `into_tuple`, `into_values` and
+`into_model` directly, reading its fields.
+
+Here Python differs from Rust in where an expression's type is stated. Rust
+states it in the type the rows decode into, `Vec<(Flavor, i64)>`; Python
+states it beside the expression, `Column("i64")` for a `COUNT`, which
+PostgreSQL types `bigint`. A row is held to its items as a record is to its
+model: a column of another type, a `NULL` an item does not declare
+`nullable`, or a label it does not list, is a `DecodeError`. A Rust column's
+`count()` is `call("count", column)` here, and `"sum"`, `"min"`, `"max"`,
+`"avg"` and `"count_distinct"` are called the same way.
 
 ```python
 import asyncio
 import os
 from decimal import Decimal
 
-from pgorm import Pool, Select, call
+from pgorm import Column, Pool, call
 
 from bakery import Cake
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        names = await Cake.select("name").order_by(Cake.col("id").asc()).all(pool)
-        assert dict(names[0]) == {"name": "Chocolate Fudge"}
+        names = await Cake.select("name").order_by(Cake.col("id").asc()).into_tuple().all(pool)
+        assert names[0] == ("Chocolate Fudge",)
 
         priced = await (
             Cake.select("name", "price")
             .where(Cake.col("gluten_free") == True)
             .order_by(Cake.col("price").asc())
+            .into_tuple()
             .all(pool)
         )
-        assert tuple(priced[0].values()) == ("Vanilla Sponge", Decimal("2.90"))
+        assert priced[0] == ("Vanilla Sponge", Decimal("2.90"))
 
         flavors = (
-            Select(Cake.col("flavor"), call("count", Cake.col("id")).as_("cakes"))
-            .from_(Cake.table)
+            Cake.select("flavor")
+            .expr_as(call("count", Cake.col("id")), "cakes", Column("i64"))
             .group_by(Cake.col("flavor"))
             .order_by(Cake.col("flavor").asc())
         )
@@ -379,19 +429,21 @@ async def main() -> None:
             'SELECT "cake"."flavor", COUNT("cake"."id") AS "cakes" FROM "cake" '
             'GROUP BY "cake"."flavor" ORDER BY "cake"."flavor" ASC'
         )
-        counted = [tuple(row.values()) for row in await pool.query(flavors)]
+        counted = await flavors.into_tuple().all(pool)
         assert counted[0] == ("chocolate", 2)
+        by_name = await flavors.into_values("cakes", "flavor").all(pool)
+        assert by_name[0] == (2, "chocolate")
 
 
 asyncio.run(main())
 ```
 
-A model's `table` and its columns go into the statement builder's `Select`
-as they are, and `as_(name)` names an item there. A `Select` runs through the
-pool's (or a connection's, or a transaction's) own `query`, `one` and
-`optional`, the same strict terminals a model query has, and its rows are
-plain records keyed by result column, which the next section describes. [The
-query builder](11-query-builder.md) covers it in full.
+`select_only()` with `column` and `columns` builds a list computed at run
+time, as Rust's does. The statement builder's `Select`
+([Beyond the model builders](#beyond-the-model-builders)) takes a model's
+`table` and its columns too, for what a projection does not cover, and its
+rows are plain records keyed by result column, which the next section
+describes. [The query builder](11-query-builder.md) covers it in full.
 
 ## Decoding into your own types
 
@@ -418,23 +470,31 @@ type. Two result columns of one name raise
 `DecodeError` too, rather than one key for both: give each projection a name
 of its own with `as_`.
 
-Here Python differs from Rust, which decodes a row straight into a struct of
-your own: one deriving `FromQueryResult`, which reads columns by name, or one
-deriving `PartialModel`, which also says which columns to select. Python has
-neither derive. Its answers are these two:
+Rust decodes a row straight into a struct of your own: one deriving
+`FromQueryResult`, which reads columns by name, or one deriving
+`PartialModel`, which also says which columns and expressions to select.
+Python's counterparts are a projection's `into_model` and a `PartialModel`:
 
-- A model is what Rust's `PartialModel` is: a declaration of the columns to
-  select and how to read them. A second model of the same table, declaring
-  only the fields a view of it needs, is the partial model. A field named
-  differently from its column says so with `Column(kind, name="column")`, and
-  the model's queries select the column under the field's name, so the query
-  and the record cannot disagree. A model field is always a column of its
-  table: an expression such as `upper(name)`, Rust's `from_expr`, is not
-  available as a model field in Python yet.
-- Any record goes into a type of your own as keyword arguments, `Tag(**row)`,
-  which suits a dataclass whose fields are named for the columns, as a
-  `FromQueryResult` struct's are. For a computed column, select it with the
-  statement builder under the name the type expects.
+- `into_model(target)` reads each row by name into `target`, called with each
+  item's value as a keyword argument: a dataclass whose fields are named for
+  the items, as a `FromQueryResult` struct's are.
+- `PartialModel(model, fields)` declares what to select and how to read it.
+  Each field is one of the model's columns, `Cake.col("gluten_free")`, which
+  is Rust's `from_col`, a field named for its column being Rust's plain
+  field; an expression, `FromExpr(expr, Column(kind))`, Rust's `from_expr`,
+  decoded as the `Column` declares; or nothing, `Skip(value)`, Rust's `skip`.
+  A model query's `into_partial_model(shape)` selects what the shape declares,
+  the query's conditions and ordering kept, and decodes each row into a
+  read-only mapping of the shape's fields, in declaration order.
+
+Here Python differs from Rust in what a skipped field holds. Rust takes the
+type's `Default`; Python has no default of a type to take, so `Skip` holds
+the value it is given in every row.
+
+A second model of the same table, declaring only the fields a view of it
+needs, reads a shape of plain columns too, and writes as well: a field named
+differently from its column says so with `Column(kind, name="column")`, and
+the model's queries select the column under the field's name.
 
 ```python
 import asyncio
@@ -442,7 +502,7 @@ import os
 from dataclasses import dataclass
 from decimal import Decimal
 
-from pgorm import Column, Model, Pool, Select, call
+from pgorm import Column, FromExpr, Model, PartialModel, Pool, Skip, call
 
 from bakery import Cake
 
@@ -461,14 +521,28 @@ class PriceTag:
     euros: Decimal
 
 
-@dataclass(frozen=True)
-class MenuLine:
-    shout: str
-    free_from_gluten: bool
+# A cake on the menu board, its name shouted.
+MenuLine = PartialModel(Cake, {
+    "shout": FromExpr(call("upper", Cake.col("name")), Column("text")),
+    "free_from_gluten": Cake.col("gluten_free"),
+    "featured": Skip(False),
+})
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
+        tags = await (
+            Cake.select("name")
+            .column_as(Cake.col("price"), "euros")
+            .where(Cake.col("bakery_id") == 2)
+            .order_by(Cake.col("name").asc())
+            .into_model(PriceTag)
+            .all(pool)
+        )
+        assert tags[0] == PriceTag(name="Carrot Cake", euros=Decimal("3.80"))
+
+        # The same price list from the second model: its records go into the
+        # dataclass as keyword arguments.
         moonlight = (
             PriceList.select("name", "euros")
             .where(PriceList.col("bakery_id") == 2)
@@ -478,28 +552,15 @@ async def main() -> None:
             'SELECT "cake"."name", "cake"."price" AS "euros" FROM "cake" '
             'WHERE "cake"."bakery_id" = $1 ORDER BY "cake"."name" ASC'
         )
-        tags = [PriceTag(**row) for row in await moonlight.all(pool)]
-        assert tags[0] == PriceTag(name="Carrot Cake", euros=Decimal("3.80"))
+        assert [PriceTag(**row) for row in await moonlight.all(pool)] == tags
 
-        # A computed column comes from the statement builder, named for the field it fills.
-        lemon = (
-            Select(
-                call("upper", Cake.col("name")).as_("shout"),
-                Cake.col("gluten_free").as_("free_from_gluten"),
-            )
-            .from_(Cake.table)
-            .where(Cake.col("id") == 2)
-        )
+        lemon = Cake.find().where(Cake.col("id") == 2).into_partial_model(MenuLine)
         assert lemon.inspect().sql == (
             'SELECT UPPER("cake"."name") AS "shout", "cake"."gluten_free" AS "free_from_gluten" '
             'FROM "cake" WHERE "cake"."id" = $1'
         )
-        row = await pool.one(lemon)
-        assert MenuLine(**row) == MenuLine(shout="LEMON DRIZZLE", free_from_gluten=True)
-
-        assert row.tagged("shout").kind == "text"
-        assert [field.name for field in row.fields] == ["shout", "free_from_gluten"]
-        assert row.fields[1].type_name.name == "bool"
+        line = await lemon.one(pool)
+        assert dict(line) == {"shout": "LEMON DRIZZLE", "free_from_gluten": True, "featured": False}
 
 
 asyncio.run(main())
@@ -515,64 +576,47 @@ touching only the fields it declares ([Writing rows](04-writing.md)).
 A join follows a relation the models declare ([Models and
 entities](03-entities.md)). `join(relation)` joins the table at the far end of
 a relation that starts at the queried model, or at a table the query already
-joined, `INNER JOIN` by default and `LEFT JOIN` with `kind=Join.Left`.
+joined: `INNER JOIN` by default, and `kind=Join.Left`, `Join.Right` or
+`Join.Full` for the others, as Rust's `inner_join_rel`, `left_join_rel` and
+`right_join_rel` do. `join_rev(relation)` follows a relation declared on the
+other model from its far end, as Rust's `_rev` forms do: from the bakery,
+`join_rev(cake_bakery)` joins the cakes along the cake's `belongs_to`.
 `alias=` joins the table under another name, for a table joined twice. A
 condition or an ordering may then name the joined model's columns.
 
-Here Python differs from Rust. Rust's `inner_join_rel`, `left_join_rel` and
-`right_join_rel` follow a relation of the queried entity, and their `_rev`
-forms follow one declared on the other entity. A Python relation is a value
-that goes one way, from the model it was declared on, so a join from the other
-side uses a relation declared from that side: [`bakery.py`](bakery.py)
-declares both `cake_bakery` and `bakery_cakes` for that reason. A model join is
-inner or left; `Join.Right` and `Join.Full` are the statement builder's.
-
 A join adds rows to the query, not columns: the records stay the queried
-model's. Here Python differs from Rust too, where `select` can add the joined
-table's columns beside the model's. In Python, a joined table's columns beside
-the model's are the statement builder's, as the example below reads them, and
-reading each row together with its related row, each as a record of its own
-model, is the graph's work, which [Relations](07-relations.md) covers.
+model's until a projection chooses columns of the joined table too. A row a
+right or full join reads with no match holds `NULL` in the queried model's
+columns, which its records refuse where a field is not nullable, so such a
+join usually goes with a projection. Reading each row together with its
+related row, each as a record of its own model, is the graph's work, which
+[Relations](07-relations.md) covers.
 
 ```python
 import asyncio
 import os
 
-from pgorm import Pool, Select
+from pgorm import Pool
 
-from bakery import Bakery, Cake, bakery_cakes, cake_bakery
+from bakery import Bakery, Cake, cake_bakery
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
         menu = (
-            Cake.select("name")
+            Cake.find()
             .join(cake_bakery)
+            .select_only()
+            .columns(Bakery.col("city"), Cake.col("name"))
             .where(Cake.col("gluten_free") == True)
             .order_by(Bakery.col("city").asc(), Cake.col("name").asc())
         )
         assert menu.inspect().sql == (
-            'SELECT "cake"."name" FROM "cake" '
-            'INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" '
-            'WHERE "cake"."gluten_free" = $1 ORDER BY "bakery"."city" ASC, "cake"."name" ASC'
-        )
-        names = [cake["name"] for cake in await menu.all(pool)]
-        assert names == ["Vanilla Sponge", "Chocolate Torte", "Lemon Drizzle"]
-
-        # The bakery's city beside each cake's name: the statement builder's.
-        with_city = (
-            Select(Bakery.col("city"), Cake.col("name"))
-            .from_(Cake.table)
-            .join(Bakery.table, Cake.col("bakery_id") == Bakery.col("id"))
-            .where(Cake.col("gluten_free") == True)
-            .order_by(Bakery.col("city").asc(), Cake.col("name").asc())
-        )
-        assert with_city.inspect().sql == (
             'SELECT "bakery"."city", "cake"."name" FROM "cake" '
             'INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" '
             'WHERE "cake"."gluten_free" = $1 ORDER BY "bakery"."city" ASC, "cake"."name" ASC'
         )
-        rows = [tuple(row.values()) for row in await pool.query(with_city)]
+        rows = await menu.into_tuple().all(pool)
         assert rows == [
             ("Bergen", "Vanilla Sponge"),
             ("Oslo", "Chocolate Torte"),
@@ -580,23 +624,22 @@ async def main() -> None:
         ]
 
         # The bakeries that sell a chocolate cake, read from the bakery's side.
-        joined = Bakery.find().join(bakery_cakes).where(Cake.col("name").starts_with("Chocolate"))
-        assert [bakery["name"] for bakery in await joined.all(pool)] == ["Sunrise", "Sunrise"]
-
-        # Sunrise sells two, so the join reads it twice. A subquery reads each bakery once.
-        chocolate = Select(Cake.col("bakery_id")).from_(Cake.table).where(
-            Cake.col("name").starts_with("Chocolate")
+        chocolate_shops = (
+            Bakery.find()
+            .join_rev(cake_bakery)
+            .where(Cake.col("name").starts_with("Chocolate"))
+            .distinct()
         )
-        shops = await Bakery.find().where(Bakery.col("id").is_in(chocolate)).all(pool)
-        assert [bakery["name"] for bakery in shops] == ["Sunrise"]
+        assert chocolate_shops.inspect().sql == (
+            'SELECT DISTINCT "bakery"."id", "bakery"."name", "bakery"."city" FROM "bakery" '
+            'INNER JOIN "cake" ON "cake"."bakery_id" = "bakery"."id" '
+            'WHERE STARTS_WITH("cake"."name", $1)'
+        )
+        assert [bakery["name"] for bakery in await chocolate_shops.all(pool)] == ["Sunrise"]
 
 
 asyncio.run(main())
 ```
-
-In Rust, the join followed by `distinct()` reads each bakery once. A Python
-model query has no `distinct`, and the `IN (SELECT ..)` above finds the same
-bakeries.
 
 A model joined to itself needs a second name for the table. `as_(alias)` gives
 the model under an alias, whose columns are qualified by it, and a relation to
@@ -641,29 +684,30 @@ asyncio.run(main())
 and ordering dropped, as Rust's paginator counts, and
 `inspect(terminal="count")` shows that statement.
 
-Here Python differs from Rust: a model query has no `group_by` or `having`,
-and a column has no aggregate methods. Grouping is the statement builder's:
-`Select` takes `group_by` and `having`, and `call` makes the aggregates,
-`call("count", ..)`, `"sum"`, `"min"`, `"max"`, `"avg"` and
-`"count_distinct"` among them. The join is written with its `ON` condition,
-since a relation joins a model query only.
+`group_by` groups the rows and `having` filters the groups, as Rust's do,
+and an aggregate, `call("count", ..)`, `"sum"`, `"min"`, `"max"`, `"avg"` or
+`"count_distinct"`, summarizes each group as an item `expr_as` names and
+declares ([Choosing columns](#choosing-columns)). A grouped model query's
+records stay the model's, which suits a query grouped by its primary key.
 
 ```python
 import asyncio
 import os
 
-from pgorm import Pool, Select, call
+from pgorm import Column, Pool, call
 
-from bakery import Bakery, Cake
+from bakery import Bakery, Cake, cake_bakery
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
         cakes = call("count", Cake.col("id"))
         busy = (
-            Select(Bakery.col("name"), cakes.as_("cakes"))
-            .from_(Cake.table)
-            .join(Bakery.table, Cake.col("bakery_id") == Bakery.col("id"))
+            Cake.find()
+            .join(cake_bakery)
+            .select_only()
+            .column(Bakery.col("name"))
+            .expr_as(cakes, "cakes", Column("i64"))
             .group_by(Bakery.col("name"))
             .having(cakes > 2)
         )
@@ -672,8 +716,7 @@ async def main() -> None:
             'INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" '
             'GROUP BY "bakery"."name" HAVING COUNT("cake"."id") > $1'
         )
-        rows = [tuple(row.values()) for row in await pool.query(busy)]
-        assert rows == [("Sunrise", 3)]
+        assert await busy.into_tuple().all(pool) == [("Sunrise", 3)]
 
         gluten_free = Cake.find().where(Cake.col("gluten_free") == True)
         assert gluten_free.inspect(terminal="count").sql == (
@@ -695,25 +738,25 @@ rows so that no other transaction can change them until this one ends, and
 refuses to wait for a row another transaction holds, and `SKIP LOCKED` passes
 over such rows, which suits a queue of work that several workers take from.
 
-Here Python differs from Rust: a model query has no lock methods, where
-Rust's `Select` has `lock_exclusive`, `lock_shared` and `lock_with_behavior`.
-The statement builder's `Select.lock(strength, wait=.., of=..)` writes every
-form: `LockStrength.Update`, `NoKeyUpdate`, `Share` and `KeyShare`, and
-`LockWait.Nowait` or `LockWait.SkipLocked`.
+A model query's `lock(strength, wait=.., of=..)` is the statement
+builder's: `LockStrength.Update`, `NoKeyUpdate`, `Share` or `KeyShare`, and
+`LockWait.Nowait` or `LockWait.SkipLocked`. Here Python differs from Rust only
+in spelling: Rust's `lock_exclusive()` is `lock(LockStrength.Update)`, its
+`lock_shared()` is `lock(LockStrength.Share)`, and its `lock_with_behavior`
+is `lock` with `wait`. The locked rows still decode as the model's records.
 
 ```python
 import asyncio
 import os
 
-from pgorm import LockStrength, LockWait, Pool, Select
+from pgorm import LockStrength, LockWait, Pool
 
 from bakery import Order
 
 
 async def main() -> None:
     next_order = (
-        Select(Order.col("id"))
-        .from_(Order.table)
+        Order.select("id")
         .order_by(Order.col("placed_at").asc())
         .limit(1)
         .lock(LockStrength.Update, wait=LockWait.SkipLocked)
@@ -725,7 +768,7 @@ async def main() -> None:
 
     async with Pool(os.environ["DATABASE_URL"]) as pool:
         async with pool.transaction() as tx:
-            taken = await tx.optional(next_order)
+            taken = await next_order.optional(tx)
             assert taken is not None and taken["id"] == 1
 
 
