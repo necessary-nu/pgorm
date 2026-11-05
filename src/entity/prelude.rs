@@ -92,5 +92,5 @@ pub use crate::pgorm_query::Interval;
 // [spec:pgorm:def:entity.prelude+11]
 pub use crate::pgorm_query::{IntervalPrecision, IntervalSpec, PgInterval};
 
-// [spec:pgorm:def:exec.decode.range+3]
+// [spec:pgorm:def:exec.decode.range+4]
 pub use crate::pgorm_query::{Multirange, Range, RangeType};

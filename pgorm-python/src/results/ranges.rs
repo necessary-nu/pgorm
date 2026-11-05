@@ -1,102 +1,23 @@
-//! Range and multirange columns: the wire format read through
-//! `postgres_protocol`, each bound by the same codec a scalar of the subtype
-//! is read with, so a numeric bound is held to the same exactness.
-
-use std::ops::Bound;
+//! Range and multirange columns, read through pgorm's range readers, each
+//! bound by the same codec a scalar of the subtype is read with, so a numeric
+//! bound is held to the same exactness.
 
 use jiff::{
     Timestamp,
     civil::{Date, DateTime},
 };
 use pgorm::{
-    CreatedRangeCodec, CreatedRangeText, ExactDecimal,
-    pgorm_query::{ArrayType, Multirange, Range, RangeType, Value, base_type},
+    CreatedRangeCodec, CreatedRangeText, ExactDecimal, MultirangeSql, RangeSql,
+    pgorm_query::{ArrayType, RangeType, Value},
 };
-use postgres_protocol::types::{self as wire, RangeBound};
 use pyo3::PyResult;
-use tokio_postgres::types::{FromSql, Kind, Type};
+use tokio_postgres::types::{Kind, Type};
 
 use super::decode::{Field, typed};
 use crate::{
     errors::DecodeError,
     values::{CreatedKind, PyTypeName, PyValue},
 };
-
-type CodecError = Box<dyn std::error::Error + Send + Sync>;
-
-/// A range over a subtype `T` reads: a built-in range, or a range type a
-/// schema created over the same subtype.
-#[derive(Debug)]
-struct RangeCodec<T>(Range<T>);
-
-impl<'a, T: FromSql<'a>> FromSql<'a> for RangeCodec<T> {
-    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, CodecError> {
-        match ty.kind() {
-            Kind::Range(subtype) => read_range(base_type(subtype), raw).map(Self),
-            _ => Err("expected a PostgreSQL range".into()),
-        }
-    }
-
-    fn accepts(ty: &Type) -> bool {
-        matches!(ty.kind(), Kind::Range(subtype) if T::accepts(base_type(subtype)))
-    }
-}
-
-/// A multirange: a count, then each range length-prefixed.
-#[derive(Debug)]
-struct MultirangeCodec<T>(Multirange<T>);
-
-impl<'a, T: FromSql<'a>> FromSql<'a> for MultirangeCodec<T> {
-    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, CodecError> {
-        let Kind::Multirange(subtype) = ty.kind() else {
-            return Err("expected a PostgreSQL multirange".into());
-        };
-        let subtype = base_type(subtype);
-        let mut raw = raw;
-        let count = usize::try_from(read_i32(&mut raw)?)?;
-        let ranges = (0..count)
-            .map(|_| {
-                let len = usize::try_from(read_i32(&mut raw)?)?;
-                let (range, rest) = raw.split_at_checked(len).ok_or("invalid message size")?;
-                raw = rest;
-                read_range(subtype, range)
-            })
-            .collect::<Result<Multirange<T>, CodecError>>()?;
-        if !raw.is_empty() {
-            return Err("invalid message size".into());
-        }
-        Ok(Self(ranges))
-    }
-
-    fn accepts(ty: &Type) -> bool {
-        matches!(ty.kind(), Kind::Multirange(subtype) if T::accepts(base_type(subtype)))
-    }
-}
-
-fn read_i32(raw: &mut &[u8]) -> Result<i32, CodecError> {
-    let (head, rest) = raw.split_first_chunk::<4>().ok_or("invalid message size")?;
-    *raw = rest;
-    Ok(i32::from_be_bytes(*head))
-}
-
-/// The empty flag is the empty range and nothing else; a NULL bound is a
-/// malformed message, never no bound.
-fn read_range<'a, T: FromSql<'a>>(subtype: &Type, raw: &'a [u8]) -> Result<Range<T>, CodecError> {
-    let bound = |bound: RangeBound<Option<&'a [u8]>>| -> Result<Bound<T>, CodecError> {
-        Ok(match bound {
-            RangeBound::Inclusive(Some(raw)) => Bound::Included(T::from_sql(subtype, raw)?),
-            RangeBound::Exclusive(Some(raw)) => Bound::Excluded(T::from_sql(subtype, raw)?),
-            RangeBound::Unbounded => Bound::Unbounded,
-            RangeBound::Inclusive(None) | RangeBound::Exclusive(None) => {
-                return Err("a range bound is NULL".into());
-            }
-        })
-    };
-    Ok(match wire::range_from_sql(raw)? {
-        wire::Range::Empty => Range::Empty,
-        wire::Range::Nonempty(lower, upper) => Range::new(bound(lower)?, bound(upper)?),
-    })
-}
 
 /// The built-in range type over `subtype`, which a range type a schema
 /// created over the same subtype reads as.
@@ -136,6 +57,7 @@ fn built_in(ty: &Type) -> bool {
 /// `None` for a column of any other type. A range type a schema created reads
 /// as its own kind, named as the column's type is, whatever its subtype.
 // [spec:pgorm:req:bindings.values]
+// [spec:pgorm:def:exec.decode.range+4]
 pub(super) fn value(field: Field<'_>, ty: &Type, array: bool) -> PyResult<Option<PyValue>> {
     let index = field.index();
     let (subtype, multi) = match ty.kind() {
@@ -154,11 +76,11 @@ pub(super) fn value(field: Field<'_>, ty: &Type, array: bool) -> PyResult<Option
     macro_rules! decode {
         ($rust:ty, $bound:expr) => {
             if multi {
-                typed::<MultirangeCodec<$rust>>(field, array, ArrayType::Multirange(range), |v| {
+                typed::<MultirangeSql<$rust>>(field, array, ArrayType::Multirange(range), |v| {
                     Value::Multirange(range, v.map(|v| Box::new(v.0.map($bound))))
                 })
             } else {
-                typed::<RangeCodec<$rust>>(field, array, ArrayType::Range(range), |v| {
+                typed::<RangeSql<$rust>>(field, array, ArrayType::Range(range), |v| {
                     Value::Range(range, v.map(|v| Box::new(v.0.map($bound))))
                 })
             }

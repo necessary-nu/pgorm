@@ -14,7 +14,6 @@
 
 use std::{
     error::Error as StdError,
-    ops::Bound,
     pin::Pin,
     task::{Context, Poll, ready},
 };
@@ -30,7 +29,7 @@ use pgorm_query::{
     ArrayType, Asterisk, CopyFormat, CopyFromStatement, CopyToStatement, Interval, IpNetwork,
     MacAddress, Multirange, Query, Range, RangeType, StaticName, Value, Vector, base_type,
 };
-use postgres_protocol::types::{self as wire, RangeBound};
+use postgres_protocol::types as wire;
 use tokio_postgres::types::{FromSql, IsNull, Kind, ToSql, Type};
 
 use crate::{
@@ -689,49 +688,19 @@ fn scalar(ty: &Type, kind: &ArrayType, raw: &[u8]) -> Result<Value, WireError> {
     })
 }
 
-/// A range, each bound read by the decoder of its subtype. The empty flag is
-/// the empty range and nothing else; a NULL bound is a malformed message,
-/// never no bound.
+/// A range, each bound read by the decoder of its subtype through pgorm's
+/// one range reader.
 fn read_range(subtype: &Type, raw: &[u8]) -> Result<Range<Value>, WireError> {
     let subtype = base_type(subtype);
     let kind = kind(subtype)?;
-    let bound = |bound: RangeBound<Option<&[u8]>>| -> Result<Bound<Value>, WireError> {
-        Ok(match bound {
-            RangeBound::Inclusive(Some(raw)) => Bound::Included(scalar(subtype, &kind, raw)?),
-            RangeBound::Exclusive(Some(raw)) => Bound::Excluded(scalar(subtype, &kind, raw)?),
-            RangeBound::Unbounded => Bound::Unbounded,
-            RangeBound::Inclusive(None) | RangeBound::Exclusive(None) => {
-                return Err("a range bound is NULL".into());
-            }
-        })
-    };
-    Ok(match wire::range_from_sql(raw)? {
-        wire::Range::Empty => Range::Empty,
-        wire::Range::Nonempty(lower, upper) => Range::new(bound(lower)?, bound(upper)?),
-    })
+    crate::range_from_sql_with(raw, |raw| scalar(subtype, &kind, raw))
 }
 
-/// A multirange: a count, then each range length-prefixed.
+/// A multirange, each range's bounds read as [`read_range`] reads them.
 fn read_multirange(subtype: &Type, raw: &[u8]) -> Result<Multirange<Value>, WireError> {
-    let mut raw = raw;
-    if raw.len() < 4 {
-        return Err("invalid message size".into());
-    }
-    let count = usize::try_from(raw.get_i32())?;
-    let mut ranges = Vec::with_capacity(count.min(1024));
-    for _ in 0..count {
-        if raw.len() < 4 {
-            return Err("invalid message size".into());
-        }
-        let length = usize::try_from(raw.get_i32())?;
-        let (range, rest) = raw.split_at_checked(length).ok_or("invalid message size")?;
-        raw = rest;
-        ranges.push(read_range(subtype, range)?);
-    }
-    if !raw.is_empty() {
-        return Err("invalid message size".into());
-    }
-    Ok(Multirange::from(ranges))
+    let subtype = base_type(subtype);
+    let kind = kind(subtype)?;
+    crate::multirange_from_sql_with(raw, |raw| scalar(subtype, &kind, raw))
 }
 
 /// How much encoded data [`CopyRowSink`] gathers before it sends a chunk.

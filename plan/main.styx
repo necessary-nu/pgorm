@@ -17948,6 +17948,22 @@ children (
                 title "Both bindings decode built-in ranges and multiranges through pgorm's range_from_sql/multirange_from_sql, with no decoder of their own"
                 kind @refactor
                 deps (typed-binds.shared-range-codec)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T08:25:19.048554Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T08:36:32.196984Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
