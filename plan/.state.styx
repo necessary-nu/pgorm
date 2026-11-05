@@ -1554,7 +1554,8 @@ assertions (
     {id infra.python-native-unit, kind @complete, author "brendan@necessary.nu", at 2026-11-05T09:43:26.942694Z}
     {id value-codecs.domain-subtype-column, kind @complete, author "brendan@necessary.nu", at 2026-11-05T09:46:18.255158Z}
     {id napi.entity-busy-race, kind @complete, author "brendan@necessary.nu", at 2026-11-05T12:46:30.992558Z}
-    {id binding-parity.model-column-operands, kind @doing, author "brendan@necessary.nu", at 2026-11-05T14:23:11.764914Z}
+    {id binding-parity.model-column-operands, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:24:01.248474Z}
+    {id binding-parity.verify-annotations, kind @doing, author "brendan@necessary.nu", at 2026-11-05T14:24:07.870065Z}
 )
 
 impl_evidence (

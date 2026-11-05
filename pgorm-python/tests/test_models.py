@@ -452,6 +452,56 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await names(column("display_name").like(p.LikePattern("_"))), ["A", "B", "C"])
         self.assertEqual(await names(column("id") % 2 == 0), ["B"])
 
+    # [spec:pgorm:req:bindings.model-columns+1/test]
+    async def test_columns_compare_through_the_declared_kind(self):
+        for name, mood in (("A", "calm"), ("B", "busy"), ("C", "busy")):
+            await self.model.insert({"display_name": name, "mood": mood}).execute(self.pool)
+
+        async def names(predicate):
+            query = self.model.select("display_name").where(predicate)
+            rows = await query.order_by(self.model.col("id").asc()).all(self.pool)
+            return [row["display_name"] for row in rows]
+
+        column = self.model.col
+        aliased = self.model.as_("a")
+        for model, qualifier in ((self.model, 'accounts "log'), (aliased, "a")):
+            with self.subTest(qualifier=qualifier):
+                qualified = p.col("display name", table=qualifier)
+                self.assertEqual(
+                    model.col("display_name").is_null().inspect().sql,
+                    qualified.is_null().inspect().sql,
+                )
+                self.assertIn(qualified.inspect().sql.removeprefix("SELECT "), model.find().inspect().sql)
+        self.assertEqual(await names(column("mood") == "busy"), ["B", "C"])
+        self.assertEqual(await names(column("mood").ne("busy")), ["A"])
+        self.assertIn('CAST($1::text AS python_models."Mood")', column("mood").eq("busy").inspect().sql)
+        self.assertEqual(await names(column("id") < 2), ["A"])
+        self.assertEqual(await names(column("id") <= 2), ["A", "B"])
+        self.assertEqual(await names(column("id") > 2), ["C"])
+        self.assertEqual(await names(column("id").gte(2)), ["B", "C"])
+        self.assertEqual(column("id").lt(2).inspect().params, [p.Value(2, "i32")])
+        self.assertEqual(await names(column("mood").is_in(["calm"])), ["A"])
+        self.assertEqual(await names(column("mood").is_not_in(("calm",))), ["B", "C"])
+        self.assertIn('CAST($1::text AS python_models."Mood")', column("mood").is_in(["calm"]).inspect().sql)
+        self.assertEqual(await names(column("display_name") == p.any_(p.Value.array("text", ["A", "C"]))), ["A", "C"])
+        self.assertEqual(await names(column("display_name") != p.all_(p.Value.array("text", ["A", "C"]))), ["B"])
+        self.assertEqual(await names(column("id") == column("id")), ["A", "B", "C"])
+        self.assertEqual(
+            (column("id") == column("display_name")).inspect().sql,
+            (p.col("id", table='accounts "log') == p.col("display name", table='accounts "log')).inspect().sql,
+        )
+        self.assertEqual(await names(column("id") == p.literal(2)), ["B"])
+        self.assertEqual(await names(column("id") == p.Value(3, "i32")), ["C"])
+        self.assertEqual(await names(column("note").is_null()), [])
+        for refused in (
+            lambda: column("id") == p.Value(3, "i64"),
+            lambda: column("mood") == "wild",
+            lambda: column("id") == None,  # noqa: E711
+            lambda: column("id").is_in([1, None]),
+        ):
+            with self.assertRaises(p.ConstructionError):
+                refused()
+
     # [spec:pgorm:req:bindings.model-writes+1/test]
     async def test_json_null_and_defaults_stay_distinct(self):
         omitted = await self.model.insert({}).returning().one(self.pool)

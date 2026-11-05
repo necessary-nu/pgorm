@@ -18189,6 +18189,20 @@ children (
                         kind @status
                         text "Doing → Todo (nplan unclaim)"
                     }
+
+                    {
+                        at 2026-11-05T14:24:07.870065Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:25:08.92335Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Audit of 2026-11-05: every bindings.* rule in docs/spec/bindings.md (81 with bindings.pipeline-terminals) checked for impl and /test annotations in both bindings, using the impl and test include sets of .config/nspec/config.styx, at each rule's current version. nplan_spec_untested and nplan_spec_uncovered agree per impl. Only the two named holes were real. (bindings.with and bindings.relation-conditions are tested in Python by unit tests under pgorm-python/src, which nspec counts.) No annotation is pinned off its rule's version. Python, bindings.model-columns: no test proved it, so ModelDatabase.test_columns_compare_through_the_declared_kind in pgorm-python/tests/test_models.py covers it live. It checks the qualification by the model's table or alias, eq/ne/lt/lte/gt/gte and is_in/is_not_in through the declared kind with the enum's label cast to its type, any_/all_ and expressions as written, a Value of the field's kind only, and None refused (is_null tests it). Writing it exposed Python refusing a model column of another declared type, fixed first in binding-parity.model-column-operands. JavaScript, bindings.optional: a /test must sit in a test_include path, and pgorm-napi/checks/package.js is impl-side. So the test is in tests/package/smoke.test.ts, which checks/package.js runs in fresh Node.js and Deno projects that installed the packed packages: neither installed package carries a tests/fixtures/security/sqlmap/generative/checks/scripts/src/target/plan path or a .ts (other than .d.ts), .rs, .toml, .lock or .py file; neither manifest declares dependencies, devDependencies, peerDependencies, bundled dependencies or scripts; and the addon's DEPENDENCIES.json links none of pgorm-test-support, pgorm-python, pyo3, pgorm-generative-bridge or pgorm-sqlmap-adapter. This is the JavaScript counterpart of check_artifacts.py."
+                    }
                 )
             }
 
@@ -18196,6 +18210,7 @@ children (
                 id binding-parity.model-column-operands
                 title "Python's model column takes another model column as written, whatever its declared type, as bindings.model-columns says and JavaScript does"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:23:11.764914Z
@@ -18209,6 +18224,34 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Found while writing the Python test for bindings.model-columns (binding-parity.verify-annotations). Python's ModelColumn._operand refused a model column of another declared type with ConstructionError(\"compared model columns have different declared types\"). bindings.model-columns says an expression is taken as written, and bindings.column-operators says a model column goes wherever an expression goes. JavaScript's columnValue takes any Expr as written, a model column of another type included. Chosen: Python takes it as written too, the branch deleted, and whether the types compare is left to PostgreSQL as for any expression. Python's test that asserted the refusal now asserts the comparison renders as the two qualified columns do. No rule changed."
+                    }
+
+                    {
+                        at 2026-11-05T14:24:01.248474Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id binding-parity.model-inserts
+                title "A model's insert is typed by row count in both bindings, as a registered entity's and Rust's Insert are: insert(values) answers returning_upsert, insert_many(rows) returning_upserts, neither the other's"
+                deps (binding-parity.registered-inserts)
+                log (
+                    {
+                        at 2026-11-05T14:26:12.722548Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by binding-parity.registered-inserts (2026-11-05). Both bindings give Model.insert(values) and Model.insert_many(rows) one ModelInsert class (bindings.model-writes+1). That class has returning_upsert and returning_upserts both, whatever the row count. A batch's returning_upsert fails only at run time, with a DecodeError when several rows come back, and a one-row insert offers returning_upserts. This is not a parity gap: Python (pgorm/models/writes.py) and JavaScript (lib/model-writes.js) agree, and ModelInsert is a shared name. But it is not Rust's shape: Insert<A, OneRow> has exec_returning_upsert, Insert<A, ManyRows> has exec_returning_upserts, and that is the shape registered entity inserts now take (EntityInsert / EntityInsertMany, bindings.entity-versions+3). Splitting it would add a ModelInsertMany (or similar) beside ModelInsert in both bindings, bump bindings.model-writes, and update both suites, both typings and the generative campaign's model.insert emitters, which use ModelInsert.returning_upsert(s). Left for the operator, as the operator's decision named only the undecided names."
+                    }
+
+                    {
+                        at 2026-11-05T14:26:37.142874Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Correction to the note above: the generative campaign's upsert emitters (effects.py, emit_python.py) call the registered entity's insert / insert_many, not ModelInsert. Grep security/generative for model inserts before assuming it needs a change."
                     }
                 )
             }
