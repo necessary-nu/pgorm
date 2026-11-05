@@ -599,7 +599,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
             )
 
     # [spec:pgorm:req:bindings.model-records+1/test]
-    # [spec:pgorm:req:bindings.created-ranges+3/test]
+    # [spec:pgorm:req:bindings.created-ranges+4/test]
     async def test_created_range_columns_keep_their_type(self):
         await self.pool.execute(
             p.RawSQL("CREATE TYPE python_models.floatrange AS RANGE (SUBTYPE = float8)")
@@ -638,7 +638,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
 
     # [spec:pgorm:req:bindings.models+5/test]
     # [spec:pgorm:req:bindings.model-records+1/test]
-    # [spec:pgorm:req:bindings.created-ranges+3/test]
+    # [spec:pgorm:req:bindings.created-ranges+4/test]
     async def test_created_multirange_columns_read_and_write(self):
         await self.pool.execute(
             p.RawSQL(

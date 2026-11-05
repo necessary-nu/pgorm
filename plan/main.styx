@@ -17948,6 +17948,22 @@ children (
                 title "Both bindings decode built-in ranges and multiranges through pgorm's range_from_sql/multirange_from_sql, with no decoder of their own"
                 kind @refactor
                 deps (typed-binds.shared-range-codec)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T08:25:19.048554Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T08:36:32.196984Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
@@ -17955,6 +17971,22 @@ children (
                 title "Both bindings give a created range over char(n) the same kind, through one shared column-type mapping"
                 kind @fix
                 deps (typed-binds.shared-range-codec)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T08:45:51.126078Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T08:50:39.949866Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
@@ -17962,6 +17994,22 @@ children (
                 title "pgorm's binary COPY rows reads a numeric exactly, refusing a value rust_decimal would round, as a created range's numeric bound is read"
                 kind @fix
                 deps (typed-binds.shared-range-codec)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T08:11:05.035353Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T08:16:34.416051Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
         )
     }

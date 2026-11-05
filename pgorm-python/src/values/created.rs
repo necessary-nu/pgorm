@@ -9,7 +9,7 @@
 
 use pgorm::{
     CreatedRangeCodec,
-    pgorm_query::{ArrayType, ColumnType, Multirange, Range, StringLen, Value},
+    pgorm_query::{ArrayType, ColumnType, Multirange, Range, Value},
 };
 use pyo3::{prelude::*, types::PyString};
 
@@ -48,65 +48,32 @@ impl CreatedKind {
     }
 
     /// The kind a `ColumnType::CreatedRange` or `CreatedMultirange` column
-    /// holds, when its subtype is one a created range can range over.
+    /// holds, when its subtype is one a created range can range over, as
+    /// pgorm's codec reads the column type.
+    // [spec:pgorm:req:bindings.created-ranges+4]
     pub(crate) fn from_column(ty: &ColumnType) -> Option<Self> {
-        let (name, schema, subtype, multirange) = match ty {
-            ColumnType::CreatedRange {
-                name,
-                schema,
-                subtype,
-            } => (name, schema, subtype, false),
-            ColumnType::CreatedMultirange {
-                name,
-                schema,
-                subtype,
-            } => (name, schema, subtype, true),
-            _ => return None,
+        let (ColumnType::CreatedRange { name, schema, .. }
+        | ColumnType::CreatedMultirange { name, schema, .. }) = ty
+        else {
+            return None;
         };
-        let subtype = match subtype.as_ref() {
-            ColumnType::SmallInteger => ArrayType::SmallInt,
-            ColumnType::Integer => ArrayType::Int,
-            ColumnType::BigInteger => ArrayType::BigInt,
-            ColumnType::Float => ArrayType::Float,
-            ColumnType::Double => ArrayType::Double,
-            ColumnType::Decimal(_) => ArrayType::Decimal,
-            ColumnType::Text | ColumnType::String(_) | ColumnType::Char(_) => ArrayType::String,
-            ColumnType::Date => ArrayType::Date,
-            ColumnType::Time => ArrayType::Time,
-            ColumnType::Timestamp => ArrayType::DateTime,
-            ColumnType::TimestampWithTimeZone => ArrayType::DateTimeWithTimeZone,
-            ColumnType::Uuid => ArrayType::Uuid,
-            _ => return None,
-        };
+        let codec = CreatedRangeCodec::of_column(ty)?;
         Some(Self {
             name: PyTypeName {
                 name: name.to_string(),
                 schema: schema.as_ref().map(|schema| schema.to_string()),
             },
-            subtype,
-            multirange,
+            subtype: codec.subtype().clone(),
+            multirange: codec.is_multirange(),
         })
     }
 
     /// The column type a schema declares for this kind.
-    pub(crate) fn column_type(&self) -> ColumnType {
-        let subtype = std::sync::Arc::new(match self.subtype {
-            ArrayType::SmallInt => ColumnType::SmallInteger,
-            ArrayType::Int => ColumnType::Integer,
-            ArrayType::BigInt => ColumnType::BigInteger,
-            ArrayType::Float => ColumnType::Float,
-            ArrayType::Double => ColumnType::Double,
-            ArrayType::Decimal => ColumnType::Decimal(None),
-            ArrayType::Date => ColumnType::Date,
-            ArrayType::Time => ColumnType::Time,
-            ArrayType::DateTime => ColumnType::Timestamp,
-            ArrayType::DateTimeWithTimeZone => ColumnType::TimestampWithTimeZone,
-            ArrayType::Uuid => ColumnType::Uuid,
-            _ => ColumnType::String(StringLen::None),
-        });
+    pub(crate) fn column_type(&self) -> PyResult<ColumnType> {
+        let subtype = std::sync::Arc::new(self.codec()?.subtype_column_type());
         let rust = self.name.rust_type();
         let (name, schema) = (rust.name, rust.schema);
-        if self.multirange {
+        Ok(if self.multirange {
             ColumnType::CreatedMultirange {
                 name,
                 schema,
@@ -118,7 +85,7 @@ impl CreatedKind {
                 schema,
                 subtype,
             }
-        }
+        })
     }
 
     /// pgorm's codec of this kind's values; a kind is made only over a
@@ -147,7 +114,7 @@ impl CreatedKind {
     /// The text form of a Python value of this kind: a `pgorm.Range` (or a
     /// `pgorm.Multirange`), each bound converted as the subtype's kind, or the
     /// text form itself, which is read and written back canonically.
-    // [spec:pgorm:req:bindings.created-ranges+3]
+    // [spec:pgorm:req:bindings.created-ranges+4]
     pub(crate) fn text(&self, data: &Bound<'_, PyAny>) -> PyResult<String> {
         let codec = self.codec()?;
         let ranges = if let Ok(text) = data.cast_exact::<PyString>() {
@@ -187,7 +154,7 @@ impl CreatedKind {
     }
 
     /// The Python value of this kind's text form.
-    // [spec:pgorm:req:bindings.created-ranges+3]
+    // [spec:pgorm:req:bindings.created-ranges+4]
     pub(crate) fn read(&self, py: Python<'_>, text: &str) -> PyResult<Py<PyAny>> {
         let ranges = self.codec()?.ranges(text).ok_or_else(|| {
             DecodeError::new_err(format!(

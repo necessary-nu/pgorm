@@ -59,7 +59,7 @@ impl PyDataType {
                 ));
             }
             return Ok(Self {
-                inner: created.column_type(),
+                inner: created.column_type()?,
             });
         }
         if let Ok(name) = kind.extract::<PyRef<'_, PyTypeName>>() {

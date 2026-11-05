@@ -6,7 +6,7 @@
 //! JavaScript type for its kind cannot hold exactly is a decode failure, never
 //! a rounded value, a NULL or a missing column.
 
-use std::{collections::HashSet, error::Error, ops::Bound};
+use std::{collections::HashSet, error::Error};
 
 use fallible_iterator::FallibleIterator;
 use jiff::{
@@ -20,7 +20,7 @@ use pgorm::{
         base_type,
     },
 };
-use postgres_protocol::types::{self as wire, RangeBound};
+use postgres_protocol::types as wire;
 use tokio_postgres::{
     Row,
     types::{FromSql, Kind, Type},
@@ -298,9 +298,7 @@ fn value(ty: &Type, kind: &ArrayType, raw: &[u8]) -> Result<Value, CodecError> {
             let element = range.element_type();
             Value::Multirange(
                 *range,
-                Some(Box::new(Multirange::from(read_multirange(
-                    subtype, raw, &element,
-                )?))),
+                Some(Box::new(read_multirange(subtype, raw, &element)?)),
             )
         }
         ArrayType::Interval => Value::from(Interval::from_sql(ty, raw)?),
@@ -312,62 +310,34 @@ fn value(ty: &Type, kind: &ArrayType, raw: &[u8]) -> Result<Value, CodecError> {
     })
 }
 
-fn read_i32(raw: &mut &[u8]) -> Result<i32, CodecError> {
-    let (head, rest) = raw.split_first_chunk::<4>().ok_or("invalid message size")?;
-    *raw = rest;
-    Ok(i32::from_be_bytes(*head))
-}
-
-/// A range in its binary form, each bound decoded as a value of `element` by
-/// the codec of `subtype`. The empty flag is the empty range and nothing
-/// else; a NULL bound is a malformed message, never no bound.
+/// A range, each bound decoded as a value of `element` by the codec of
+/// `subtype`, through pgorm's one range reader.
+// [spec:pgorm:def:exec.decode.range+4]
 fn read_range(subtype: &Type, raw: &[u8], element: &ArrayType) -> Result<Range<Value>, CodecError> {
     let subtype = base_type(subtype);
-    let bound = |bound: RangeBound<Option<&[u8]>>| -> Result<Bound<Value>, CodecError> {
-        Ok(match bound {
-            RangeBound::Inclusive(Some(raw)) => Bound::Included(value(subtype, element, raw)?),
-            RangeBound::Exclusive(Some(raw)) => Bound::Excluded(value(subtype, element, raw)?),
-            RangeBound::Unbounded => Bound::Unbounded,
-            RangeBound::Inclusive(None) | RangeBound::Exclusive(None) => {
-                return Err("a range bound is NULL".into());
-            }
-        })
-    };
-    Ok(match wire::range_from_sql(raw)? {
-        wire::Range::Empty => Range::Empty,
-        wire::Range::Nonempty(lower, upper) => Range::new(bound(lower)?, bound(upper)?),
-    })
+    pgorm::range_from_sql_with(raw, |raw| value(subtype, element, raw))
 }
 
-/// A multirange: a count, then each range length-prefixed.
+/// A multirange, each range's bounds read as [`read_range`] reads them.
+// [spec:pgorm:def:exec.decode.range+4]
 fn read_multirange(
     subtype: &Type,
     raw: &[u8],
     element: &ArrayType,
-) -> Result<Vec<Range<Value>>, CodecError> {
-    let mut raw = raw;
-    let count = usize::try_from(read_i32(&mut raw)?)?;
-    let mut ranges = Vec::with_capacity(count.min(1024));
-    for _ in 0..count {
-        let len = usize::try_from(read_i32(&mut raw)?)?;
-        let (range, rest) = raw.split_at_checked(len).ok_or("invalid message size")?;
-        raw = rest;
-        ranges.push(read_range(subtype, range, element)?);
-    }
-    if !raw.is_empty() {
-        return Err("invalid message size".into());
-    }
-    Ok(ranges)
+) -> Result<Multirange<Value>, CodecError> {
+    let subtype = base_type(subtype);
+    pgorm::multirange_from_sql_with(raw, |raw| value(subtype, element, raw))
 }
 
 #[cfg(test)]
 mod tests {
     use bytes::BytesMut;
     use pgorm::pgorm_query::tests_cfg::Variants;
+    use postgres_protocol::types::RangeBound;
 
     use super::*;
 
-    // [spec:pgorm:req:bindings.created-ranges+3/test]
+    // [spec:pgorm:req:bindings.created-ranges+4/test]
     #[test]
     fn created_range_columns_read_as_text_form() -> Result<(), CodecError> {
         let kind = CreatedKind {

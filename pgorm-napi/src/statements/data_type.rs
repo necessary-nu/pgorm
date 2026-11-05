@@ -105,24 +105,6 @@ fn builtin(
     })
 }
 
-/// The column type a range type a schema created ranges over.
-fn subtype(kind: &ArrayType) -> ColumnType {
-    match kind {
-        ArrayType::SmallInt => ColumnType::SmallInteger,
-        ArrayType::Int => ColumnType::Integer,
-        ArrayType::BigInt => ColumnType::BigInteger,
-        ArrayType::Float => ColumnType::Float,
-        ArrayType::Double => ColumnType::Double,
-        ArrayType::Decimal => ColumnType::Decimal(None),
-        ArrayType::Date => ColumnType::Date,
-        ArrayType::Time => ColumnType::Time,
-        ArrayType::DateTime => ColumnType::Timestamp,
-        ArrayType::DateTimeWithTimeZone => ColumnType::TimestampWithTimeZone,
-        ArrayType::Uuid => ColumnType::Uuid,
-        _ => ColumnType::String(StringLen::None),
-    }
-}
-
 /// A type named by `TypeName` (an enum) or a `CreatedRange` or
 /// `CreatedMultirange`, which take no size.
 fn named<'cx>(cx: &mut Cx<'cx>, value: Handle<'cx, JsValue>) -> NeonResult<ColumnType> {
@@ -134,9 +116,12 @@ fn named<'cx>(cx: &mut Cx<'cx>, value: Handle<'cx, JsValue>) -> NeonResult<Colum
             variants: Vec::new(),
         },
         Tag::Created(kind) => {
+            let Some(codec) = kind.codec() else {
+                return cx.throw_type_error("a created range's subtype has no codec");
+            };
+            let subtype = Arc::new(codec.subtype_column_type());
             let name = Name::runtime(kind.name.name);
             let schema = kind.name.schema.map(Name::runtime);
-            let subtype = Arc::new(subtype(&kind.subtype));
             if kind.multirange {
                 ColumnType::CreatedMultirange {
                     name,
