@@ -2,29 +2,59 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { column, ConstructionError, createDisjoint, disjoint, model } from "@necessary/pgorm";
-import type { GuideContext } from "../../../guide/context.ts";
+import { readFileSync } from "node:fs";
+import {
+  addDisjointKind, column, createDisjoint, disjoint, migrationFile, migrationFiles, model, TypeName,
+} from "@necessary/pgorm";
 
-export default async function example({ pool }: GuideContext): Promise<void> {
-  await pool.execute("CREATE TABLE staff (id serial PRIMARY KEY, name text NOT NULL)");
-  await pool.execute("CREATE TABLE driver (staff_id integer PRIMARY KEY REFERENCES staff, licence text NOT NULL)");
-  await pool.execute("INSERT INTO staff (name) VALUES ('Eli'), ('Fay')");
-  await pool.execute("INSERT INTO driver VALUES (1, 'B-1234')");
-
-  const Staff = model("staff", {
-    columns: { id: column("i32", { primaryKey: true, default: true }), name: column("text") },
+export default async function example(): Promise<void> {
+  const paymentKind = new TypeName("payment_kind", { schema: "public" });
+  const payment = (kinds: string[]) =>
+    model("payment", {
+      columns: {
+        id: column("i32", { primaryKey: true, generated: "byDefault" }),
+        kind: column(paymentKind, { values: kinds }),
+        orderId: column("i32", { name: "order_id" }),
+        amount: column("decimal"),
+      },
+    });
+  const CardPayment = model("card_payment", {
+    columns: {
+      paymentId: column("i32", { name: "payment_id", primaryKey: true }),
+      lastFour: column("text", { name: "last_four" }),
+    },
   });
-  const Driver = model("driver", {
-    columns: { staffId: column("i32", { name: "staff_id", primaryKey: true }), licence: column("text") },
+  const VoucherPayment = model("voucher_payment", {
+    columns: {
+      paymentId: column("i32", { name: "payment_id", primaryKey: true }),
+      code: column("text"),
+    },
   });
-  const Roles = disjoint("staff", Staff, { driver: Driver, counter: null }, { unkinded: true });
+  const opening = disjoint("payment", payment(["card", "cash"]), { card: CardPayment, cash: null }, {
+    schemaName: "public",
+  });
+  const withVouchers = disjoint(
+    "payment",
+    payment(["card", "cash", "voucher"]),
+    { card: CardPayment, cash: null, voucher: VoucherPayment },
+    { schemaName: "public" },
+  );
 
-  const staff = await Roles.find().orderBy(Staff.col("id").asc()).all(pool);
-  assert.deepEqual(staff, [
-    [{ id: 1, name: "Eli" }, "driver", { staffId: 1, licence: "B-1234" }],
-    [{ id: 2, name: "Fay" }, "counter", null],
-  ]);
-  assert.equal(await Roles.find().kind("counter").count(pool), 1);
+  // The directory this program keeps its migrations in.
+  const migrations = "guide/migrations";
 
-  assert.throws(() => createDisjoint(Roles as never), ConstructionError);
+  const opened = migrationFile("m20260201_000001_create_payment", createDisjoint(opening));
+  const added = migrationFiles(addDisjointKind(withVouchers, "voucher"), "m20260301_000001_add_voucher");
+  assert.deepEqual(added.map((file) => file.name), ["m20260301_000001_add_voucher_1", "m20260301_000001_add_voucher_2"]);
+  assert.equal(
+    added[0]!.text,
+    `-- pgorm: commits-after\nALTER TYPE "public"."payment_kind" ADD VALUE 'voucher' AFTER 'cash';\n`,
+  );
+  assert.deepEqual(added.map((file) => file.commitsAfter), [true, false]);
+
+  for (const file of [opened, ...added]) {
+    // Frozen when each change was made, so there is nothing to write.
+    assert.equal(file.freeze(migrations), false);
+  }
+  assert.equal(readFileSync(`${migrations}/m20260301_000001_add_voucher_1.sql`, "utf8"), added[0]!.text);
 }

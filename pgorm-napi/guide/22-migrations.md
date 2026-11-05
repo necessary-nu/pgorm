@@ -24,7 +24,8 @@ clear of the statement caches of its own pool and a notification clearing
 every other pool's. JavaScript has none of these.
 
 What JavaScript has is the rest of what a migration is made of: DDL builders,
-transactions that make a change all or nothing, and pools that clear their
+transactions that make a change all or nothing, migration files frozen from
+generated DDL, which a runner of SQL files runs, and pools that clear their
 statement caches when a migration elsewhere tells them to. The sections below
 show each, and how a JavaScript program sits beside a Rust runner.
 
@@ -145,6 +146,67 @@ assert.equal(applied?.checksum, null);
 
 A migrator that renames its ledger or places it in a schema of its own names
 that table instead, and the model says so with its name and `schema`.
+
+## Generated DDL in a migration
+
+A statement built from a declaration describes the table as the declaration
+has it now, while a migration describes a change made once. A migration that
+built its DDL as it ran would follow the declaration as it changed: once the
+declaration gained a column, a database built from nothing would get the
+column from the first migration and then again from the migration that added
+it, and fail.
+
+So build the DDL once, when the change is made, and freeze it into a
+migration written as SQL. [`migrationFile(name, statements, { commitsAfter
+})`](../lib/disjoint.d.ts) holds DDL statements as a `.sql` file's text, each
+ending `;` on a line of its own, and `freeze(directory)` writes `<name>.sql`
+into the migrations directory if no such file is there, answering whether it
+wrote one. A file already there is never rewritten: it is the migration
+databases have run, its checksum in their ledgers. So the code that freezes
+each change can live in a test or a small script and run again whenever a
+change is added, writing the new file and keeping the old ones, however far
+the declarations have moved on. The files are what Rust's pgorm-migration
+lists with `sql_migration!`, or what any runner of SQL files runs:
+
+```ts
+import assert from "node:assert/strict";
+import { ColumnDef, createTable, migrationFile, Table } from "@necessary/pgorm";
+
+const create = createTable(new Table("bakery"))
+  .column(new ColumnDef("id", "integer").autoIncrement().notNull())
+  .column(new ColumnDef("name", "varchar").notNull())
+  .column(new ColumnDef("city", "varchar").notNull())
+  .primaryKey("id");
+
+// Frozen when the bakery table was added; freezing again writes nothing.
+const file = migrationFile("m20260101_000001_create_bakery", [create]);
+assert.equal(
+  file.text,
+  `CREATE TABLE "bakery" ( "id" serial NOT NULL, "name" varchar NOT NULL, "city" varchar NOT NULL, PRIMARY KEY ("id") );\n`,
+);
+assert.equal(file.freeze("guide/migrations"), false);
+```
+
+The file is the same text Rust's `MigrationFile` freezes from the bakery's
+entity, so either language's frozen history runs under either runner.
+
+A change PostgreSQL will not let one transaction finish is frozen into
+several files, a [disjoint model](15-disjoint.md)'s new kind into one per
+step. `migrationFile(.., { commitsAfter: true })` opens the file with the line
+`-- pgorm: commits-after`, which Rust's runner reads as `commits_after()`, so
+its batch commits once the file has run, and the file's `commitsAfter` says
+so:
+
+```ts
+import assert from "node:assert/strict";
+import { alterType, migrationFile } from "@necessary/pgorm";
+
+const almond = migrationFile("m20260401_000001_add_almond", [alterType(flavor).addValue("almond")], {
+  commitsAfter: true,
+});
+assert.equal(almond.commitsAfter, true);
+assert.equal(almond.text, `-- pgorm: commits-after\nALTER TYPE "public"."flavor" ADD VALUE 'almond';\n`);
+```
 
 ## Statement caches
 

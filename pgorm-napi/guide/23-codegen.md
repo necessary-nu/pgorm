@@ -11,10 +11,11 @@ chapter](../../docs/guide/22-codegen.md) of the same name.
 Rust's `entities_from_sql` reads DDL with libpg_query, PostgreSQL 18's own
 parser, and returns a file per table holding its `Model` and `Relation`, with
 `mod.rs`, `prelude.rs`, and a file each for the enums and the range types the
-tables use; `EntityWriterOptions` adds serde derives, extra derives and
+tables use, each laid out as a person writes Rust so nothing needs to run over
+it afterwards; `EntityWriterOptions` adds serde derives, extra derives and
 attributes, a default schema and unkinded disjoint table sets; it refuses
 whatever DDL the entity model cannot hold, such as a `pg_dump` preamble or a
-`point` column, naming it; it reads the tables `Schema::create_disjoint`
+`point` column, with an error whose message names it; it reads the tables `Schema::create_disjoint`
 writes back as a disjoint enum, and a one-of `CHECK` as a one-of enum; and its
 three stages, `parse_schema`, `EntityTransformer::transform` and
 `EntityWriter::generate`, can be called one at a time. JavaScript has no

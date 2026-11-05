@@ -73,8 +73,9 @@ node pgorm-napi/codegen/cli.js emit app-module
   `lib/pgorm_napi.node`, the addon the copied `index.js` loads. Keep the
   project's `Cargo.lock` for reproducible rebuilds.
 - **emit** loads the built module and writes `lib/<module>.js` and
-  `lib/<module>.d.ts`. Emitting again from the same library writes the same
-  bytes.
+  `lib/<module>.d.ts`, laid out as deno fmt and prettier lay them out, within
+  80 columns, so they read as written by hand. Emitting again from the same
+  library writes the same bytes.
 
 ## Using the generated module
 

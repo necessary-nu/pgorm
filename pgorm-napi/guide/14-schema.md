@@ -4,8 +4,11 @@ A program's tables have to exist before it can use them. pgorm writes the DDL
 that creates them through the DDL builders: tables, indexes, foreign keys,
 types, domains, sequences, views, schemas, extensions and comments, and
 changes to all of them. They only build statements. You run each one
-yourself, with `execute`, usually at deployment or in a migration. This
-chapter is the JavaScript dialect of the [Rust guide's
+yourself, with `execute`, usually frozen into a migration when the change is
+made, since a statement built from a declaration follows the declaration as
+it changes ([Generated DDL in a
+migration](22-migrations.md#generated-ddl-in-a-migration)). This chapter is
+the JavaScript dialect of the [Rust guide's
 chapter](../../docs/guide/13-schema.md).
 
 Schema generation writes; it does not read. pgorm never inspects a database

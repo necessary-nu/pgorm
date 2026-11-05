@@ -383,9 +383,9 @@ use an enum value in the transaction that added it.
 
 A step after which the program has rows to write carries a `gap`, `{ kind,
 table }`, saying which; any other step's is `null`. A change is written from
-the declaration, and the declaration keeps changing after the change ships.
-Keep the statements a change returns, as text, with the migration that
-applies them, rather than computing them again each time it runs.
+the declaration, and the declaration keeps changing after the change ships,
+so a migration must not compute it again each time it runs: freeze it when it
+is made, as [below](#freezing-a-change-into-migrations).
 
 Here the bakery began taking payments by card and in cash, and adds vouchers.
 The tables are first created as the earlier declaration had them:
@@ -458,6 +458,99 @@ caches after each, as above ([Statement caches and
 DDL](19-statement-caches.md)). Rust's pgorm-migration runs each step as one
 migration and clears the caches itself; JavaScript has no migration runner
 ([Migrations](22-migrations.md)), so the program runs the steps.
+
+### Freezing a change into migrations
+
+A migration that called `addDisjointKind` as it ran would compute the change
+from the declaration as it stands on the day it runs. So would the migration
+before it that called `createDisjoint`, which on a database built from
+nothing would already create the voucher kind the next migration adds, and
+the history would fail to replay. A change is therefore frozen into
+migration files when it is made, and the migrations are the files, which
+nothing computes again.
+
+[`migrationFiles(change, name)`](../lib/disjoint.d.ts) freezes a change as
+pgorm does, one `MigrationFile` per step, named `name_1`, `name_2` and on, or
+`name` for a change of one step. [`migrationFile(name, statements, {
+commitsAfter })`](../lib/disjoint.d.ts) freezes any other statements, such
+as the tables `createDisjoint` writes. A file holds its `name`, its `text`,
+each statement ending `;` on a line of its own, and `commitsAfter`: every
+step but the last opens with the line `-- pgorm: commits-after`, which Rust's
+pgorm-migration reads as `commits_after()`, and a step leaving rows to the
+program ends with a comment naming them. `freeze(directory)` writes
+`<name>.sql` into the directory only when no such file is there, and answers
+whether it wrote one. So the code that froze each change can stay and run
+again after the declaration has moved on: it writes what is new and keeps
+what has shipped. Run it when the change is made, from a test or a small
+script, and the new files join the migrations.
+
+The bakery froze its payment tables when it opened and the voucher kind when
+it added it, into [`guide/migrations/`](migrations), so freezing them again
+writes nothing:
+
+```ts
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import {
+  addDisjointKind, column, createDisjoint, disjoint, migrationFile, migrationFiles, model, TypeName,
+} from "@necessary/pgorm";
+
+const paymentKind = new TypeName("payment_kind", { schema: "public" });
+const payment = (kinds: string[]) =>
+  model("payment", {
+    columns: {
+      id: column("i32", { primaryKey: true, generated: "byDefault" }),
+      kind: column(paymentKind, { values: kinds }),
+      orderId: column("i32", { name: "order_id" }),
+      amount: column("decimal"),
+    },
+  });
+const CardPayment = model("card_payment", {
+  columns: {
+    paymentId: column("i32", { name: "payment_id", primaryKey: true }),
+    lastFour: column("text", { name: "last_four" }),
+  },
+});
+const VoucherPayment = model("voucher_payment", {
+  columns: {
+    paymentId: column("i32", { name: "payment_id", primaryKey: true }),
+    code: column("text"),
+  },
+});
+const opening = disjoint("payment", payment(["card", "cash"]), { card: CardPayment, cash: null }, {
+  schemaName: "public",
+});
+const withVouchers = disjoint(
+  "payment",
+  payment(["card", "cash", "voucher"]),
+  { card: CardPayment, cash: null, voucher: VoucherPayment },
+  { schemaName: "public" },
+);
+
+// The directory this program keeps its migrations in.
+const migrations = "guide/migrations";
+
+const opened = migrationFile("m20260201_000001_create_payment", createDisjoint(opening));
+const added = migrationFiles(addDisjointKind(withVouchers, "voucher"), "m20260301_000001_add_voucher");
+assert.deepEqual(added.map((file) => file.name), ["m20260301_000001_add_voucher_1", "m20260301_000001_add_voucher_2"]);
+assert.equal(
+  added[0]!.text,
+  `-- pgorm: commits-after\nALTER TYPE "public"."payment_kind" ADD VALUE 'voucher' AFTER 'cash';\n`,
+);
+assert.deepEqual(added.map((file) => file.commitsAfter), [true, false]);
+
+for (const file of [opened, ...added]) {
+  // Frozen when each change was made, so there is nothing to write.
+  assert.equal(file.freeze(migrations), false);
+}
+assert.equal(readFileSync(`${migrations}/m20260301_000001_add_voucher_1.sql`, "utf8"), added[0]!.text);
+```
+
+A file is one migration for a tool that runs a directory of SQL files, each in
+its transaction, such as Rust's pgorm-migration, which lists each with
+`sql_migration!` ([Migrations](22-migrations.md#generated-ddl-in-a-migration)).
+JavaScript cannot run such a file itself: a file of several statements is a
+script, which no JavaScript terminal runs in one call ([Raw SQL](10-raw-sql.md)).
 
 ## Tables pgorm did not write
 

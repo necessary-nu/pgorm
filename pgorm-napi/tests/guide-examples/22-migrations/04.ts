@@ -2,22 +2,20 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { STATEMENT_CACHE_CHANNEL } from "@necessary/pgorm";
-import type { GuideContext } from "../../../guide/context.ts";
+import { ColumnDef, createTable, migrationFile, Table } from "@necessary/pgorm";
 
-export default async function example({ pool }: GuideContext): Promise<void> {
-  await using listener = await pool.listener();
-  await listener.listen(STATEMENT_CACHE_CHANNEL);
+export default async function example(): Promise<void> {
+  const create = createTable(new Table("bakery"))
+    .column(new ColumnDef("id", "integer").autoIncrement().notNull())
+    .column(new ColumnDef("name", "varchar").notNull())
+    .column(new ColumnDef("city", "varchar").notNull())
+    .primaryKey("id");
 
-  await pool.transaction(async (tx) => {
-    await tx.execute("CREATE DOMAIN ribbon AS text DEFAULT 'red'");
-    await tx.execute("ALTER DOMAIN ribbon SET DEFAULT 'gold'");
-    await tx.notify(STATEMENT_CACHE_CHANNEL, "");
-  });
-  pool.clearStatementCaches();
-
-  // Every pool listening on the channel, in any process, hears it at the commit.
-  const heard = await listener.next({ signal: AbortSignal.timeout(5000) });
-  assert.ok(!heard.done);
-  assert.equal(heard.value.channel, "pgorm_statement_caches");
+  // Frozen when the bakery table was added; freezing again writes nothing.
+  const file = migrationFile("m20260101_000001_create_bakery", [create]);
+  assert.equal(
+    file.text,
+    `CREATE TABLE "bakery" ( "id" serial NOT NULL, "name" varchar NOT NULL, "city" varchar NOT NULL, PRIMARY KEY ("id") );\n`,
+  );
+  assert.equal(file.freeze("guide/migrations"), false);
 }
