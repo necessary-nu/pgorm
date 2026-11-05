@@ -75,7 +75,7 @@ class DomainConstruction(unittest.TestCase):
                 self.assertEqual(ddl.inspect().sql, f"{prefix} {tail}")
                 self.assertEqual(ddl.inspect().params, [])
         self.assertEqual(
-            s.drop_domain(["a", name, p.Identifier("B")], if_exists=True, behavior="cascade").inspect().sql,
+            s.drop_domain(["a", name, "B"], if_exists=True, behavior="cascade").inspect().sql,
             'DROP DOMAIN IF EXISTS "a", "billing"."qty ""雪""", "B" CASCADE',
         )
         self.assertEqual(s.drop_domain("a").inspect().sql, 'DROP DOMAIN "a"')

@@ -157,7 +157,7 @@ class ModelQuery:
             )
         end = relation.to
         table = end.table if alias is None else end.table.as_(alias)
-        qualifier = end.qualifier if alias is None else p.Identifier(alias).name
+        qualifier = end.qualifier if alias is None else p._identifier(alias)
         on = joined_on(relation, start, qualifier)
         join = Joined(end, table, qualifier, on, kind)
         return ModelQuery(replace(recipe, joins=(*recipe.joins, join)))

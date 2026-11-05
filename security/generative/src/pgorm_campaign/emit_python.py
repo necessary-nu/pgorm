@@ -161,7 +161,9 @@ async def _fetch(query, mode, connection):
 async def _execute(query, connection):
     value = (
         await query.execute(connection)
-        if isinstance(query, (p.ModelInsert, p.ModelUpdate, p.ModelDelete))
+        if isinstance(
+            query, (p.ModelInsert, p.ModelInsertMany, p.ModelUpdate, p.ModelDelete)
+        )
         else await connection.execute(query)
     )
     paths = ["pgorm::ConnectionTrait::execute_raw"]
@@ -615,7 +617,7 @@ class Emitter:
             case "value":
                 return value_source(d["value"])
             case "name":
-                return f"p.Identifier({var(i['value'])}.value)"
+                return f"{var(i['value'])}.value"
             case "result.value":
                 return (
                     f"_result_value(r_{d['step']}, {literal(d['row'])}, "
@@ -661,9 +663,9 @@ class Emitter:
             case "expr.pattern":
                 pattern = var(i["pattern"]) + ".value"
                 if d["method"] in LIKE:
-                    pattern = (
-                        f"p.LikePattern({pattern}, escape={literal(d.get('escape'))})"
-                    )
+                    pattern = f"p.LikeExpr({pattern})"
+                    if d.get("escape") is not None:
+                        pattern += f".escape({literal(d['escape'])})"
                 return call(var(i["value"]), d["method"], [pattern])
             case "expr.call":
                 arguments = [literal(d["name"])] + self.variables(i["arguments"])

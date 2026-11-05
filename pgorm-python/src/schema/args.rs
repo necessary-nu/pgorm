@@ -10,7 +10,7 @@
 //! store, an integer outside `bigint` — is a `ConstructionError`.
 
 use crate::{
-    errors::ConstructionError, identifiers::PyIdentifier, statements::PyTable, values::PyTypeName,
+    errors::ConstructionError, identifiers::Identifier, statements::PyTable, values::PyTypeName,
 };
 use pgorm::pgorm_query::{
     Collation, Deferrability, DropBehavior, Enforcement, ForeignKeyAction, IntoCollation, Name,
@@ -22,16 +22,12 @@ use pyo3::{
     types::{PyBool, PyDict, PyInt, PyString},
 };
 
-/// One identifier: a `str` or an `Identifier`, anything else the wrong type.
+/// One identifier: a `str`, anything else the wrong type.
 pub(super) fn name(value: &Bound<'_, PyAny>) -> PyResult<Name> {
-    if !is_name(value) {
-        return Err(PyTypeError::new_err("a name is a str or an Identifier"));
+    if !value.is_instance_of::<PyString>() {
+        return Err(PyTypeError::new_err("a name is a str"));
     }
-    Ok(PyIdentifier::new(value)?.name())
-}
-
-fn is_name(value: &Bound<'_, PyAny>) -> bool {
-    value.is_instance_of::<PyString>() || value.is_instance_of::<PyIdentifier>()
+    Ok(Identifier::new(value)?.name())
 }
 
 /// The items of a list, refusing a value that is no sequence or is text.
@@ -73,7 +69,12 @@ fn one_or_more<T>(
 /// A key's or a list's columns: one name, or a non-empty list of them.
 // [spec:pgorm:req:bindings.schema-tables]
 pub(super) fn columns(value: &Bound<'_, PyAny>, what: &str) -> PyResult<(Name, Vec<Name>)> {
-    one_or_more(value, what, is_name, name)
+    one_or_more(
+        value,
+        what,
+        |value: &Bound<'_, PyAny>| value.is_instance_of::<PyString>(),
+        name,
+    )
 }
 
 /// The relation a statement names: a name, or a `Table` with no alias, its
@@ -88,7 +89,7 @@ pub(crate) fn relation(value: &Bound<'_, PyAny>) -> PyResult<TableName> {
         }
         return Ok(table.inner.name.clone());
     }
-    if is_name(value) {
+    if value.is_instance_of::<PyString>() {
         return Ok(TableName::Table(name(value)?));
     }
     Err(PyTypeError::new_err(
@@ -97,7 +98,7 @@ pub(crate) fn relation(value: &Bound<'_, PyAny>) -> PyResult<TableName> {
 }
 
 fn is_relation(value: &Bound<'_, PyAny>) -> bool {
-    is_name(value) || value.is_instance_of::<PyTable>()
+    value.is_instance_of::<PyString>() || value.is_instance_of::<PyTable>()
 }
 
 /// One relation or a non-empty list of them, for a drop.
@@ -115,7 +116,7 @@ pub(super) fn type_ref(value: &Bound<'_, PyAny>) -> PyResult<TypeRef> {
             None => TypeRef::Type(local),
         });
     }
-    if is_name(value) {
+    if value.is_instance_of::<PyString>() {
         return Ok(TypeRef::Type(name(value)?));
     }
     Err(PyTypeError::new_err(
@@ -124,7 +125,7 @@ pub(super) fn type_ref(value: &Bound<'_, PyAny>) -> PyResult<TypeRef> {
 }
 
 fn is_type(value: &Bound<'_, PyAny>) -> bool {
-    is_name(value) || value.is_instance_of::<PyTypeName>()
+    value.is_instance_of::<PyString>() || value.is_instance_of::<PyTypeName>()
 }
 
 /// One type or a non-empty list of them, for a drop.
@@ -199,7 +200,7 @@ pub(super) fn collation(value: Option<&Bound<'_, PyAny>>) -> PyResult<Option<Col
     let Some(value) = value else {
         return Ok(None);
     };
-    if is_name(value) {
+    if value.is_instance_of::<PyString>() {
         return Ok(Some(name(value)?.into_collation()));
     }
     let Ok(parts) = value.cast::<PyDict>() else {

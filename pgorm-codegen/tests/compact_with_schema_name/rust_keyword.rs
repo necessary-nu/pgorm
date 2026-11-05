@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(schema_name = "schema_name", table_name = "rust_keyword")]
 pub struct Model {
     #[pgorm(primary_key)]
@@ -22,34 +22,26 @@ pub struct Model {
 #[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
-    #[pgorm(
-        belongs_to = Entity,
-        from = Column::SelfId1,
-        to = Column::Id,
-    )]
+    #[pgorm(belongs_to = Entity, from = Column::SelfId1, to = Column::Id)]
     SelfRef1,
-    #[pgorm(
-        belongs_to = Entity,
-        from = Column::SelfId2,
-        to = Column::Id,
-    )]
+    #[pgorm(belongs_to = Entity, from = Column::SelfId2, to = Column::Id)]
     SelfRef2,
     #[pgorm(
         belongs_to = super::fruit::Entity,
         from = Column::FruitId1,
-        to = super::fruit::Column::Id,
+        to = super::fruit::Column::Id
     )]
     Fruit1,
     #[pgorm(
         belongs_to = super::fruit::Entity,
         from = Column::FruitId2,
-        to = super::fruit::Column::Id,
+        to = super::fruit::Column::Id
     )]
     Fruit2,
     #[pgorm(
         belongs_to = super::cake::Entity,
         from = Column::CakeId,
-        to = super::cake::Column::Id,
+        to = super::cake::Column::Id
     )]
     Cake,
 }

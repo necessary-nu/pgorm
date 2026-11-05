@@ -99,7 +99,7 @@ def _pairs(model: Model, values: Mapping[str, Any] | None) -> list[tuple[str, p.
     ]
 
 
-# [spec:pgorm:req:bindings.disjoint+1]
+# [spec:pgorm:req:bindings.disjoint+2]
 # [spec:pgorm:req:bindings.disjoint-unkinded]
 class Disjoint(_Disjoint[ModelRow], Generic[W]):
     """A disjoint model over ``base``: each row of its table has a kind,
@@ -286,7 +286,7 @@ class Disjoint(_Disjoint[ModelRow], Generic[W]):
         return f"Disjoint({self.name!r})"
 
 
-# [spec:pgorm:req:bindings.disjoint+1]
+# [spec:pgorm:req:bindings.disjoint+2]
 # [spec:pgorm:req:bindings.disjoint-unkinded]
 class DisjointEntity(_Disjoint[ER], Generic[W, ER]):
     """A downstream crate's ``#[derive(Disjoint)]`` enum, which the native

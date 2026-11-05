@@ -4,6 +4,7 @@ from typing import Any, Literal, Never, overload
 from ._entity_models import ActiveModel, EntityModel
 from ._native import Compiled, Select, Table, TypeName
 from ._results import Record
+from ._schema import MigrationFile
 
 # A model's row: its Record, the index of its kind and the decoded source
 # its kind's row is under; a registration's: its models and its kind.
@@ -44,7 +45,11 @@ class _Disjoint:
     def statements(self, /) -> tuple[Any, ...]: ...
     def change(
         self, /, change: str, value: str, table: str | Table | None = None
-    ) -> list[tuple[tuple[Any, ...], tuple[str, str | None, str] | None]]: ...
+    ) -> tuple[list[tuple[tuple[Any, ...], tuple[str, str | None, str] | None]], _DisjointChange]: ...
+
+class _DisjointChange:
+    def __init__(self, _native_only: Never, /) -> None: ...
+    def migration_files(self, /, name: str) -> list[MigrationFile]: ...
 
 def _disjoint_model(
     name: str,

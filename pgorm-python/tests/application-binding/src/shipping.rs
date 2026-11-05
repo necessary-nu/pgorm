@@ -19,7 +19,7 @@ pub mod shipment {
     #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
 
-    // [spec:pgorm:req:bindings.disjoint+1/test]
+    // [spec:pgorm:req:bindings.disjoint+2/test]
     #[derive(Clone, Debug, PartialEq, Eq, Disjoint)]
     #[pgorm(
         base = Entity,

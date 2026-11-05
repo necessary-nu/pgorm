@@ -4,7 +4,7 @@ import concurrent.futures
 import unittest
 
 from pgorm import (
-    Condition, ConstructionError, Direction, Expr, Identifier, LikePattern,
+    Condition, ConstructionError, Direction, Expr, LikeExpr,
     Nulls, OrderBy, TypeName, UnsupportedCapabilityError, Value, Window,
     bind, call, col, format_json, literal, require_capability, tuple_expr, window_function,
 )
@@ -15,8 +15,8 @@ def inspection(expression):
     return compiled.sql, [value.snapshot() for value in compiled.params]
 
 
-# [spec:pgorm:req:bindings.expressions+2/test]
-# [spec:pgorm:req:bindings.identifiers+2/test]
+# [spec:pgorm:req:bindings.expressions+3/test]
+# [spec:pgorm:req:bindings.identifiers+3/test]
 # [spec:pgorm:req:bindings.operands/test]
 # [spec:pgorm:req:bindings.statements/test]
 # [spec:pgorm:req:bindings.delegation/test]
@@ -24,7 +24,7 @@ class ExpressionTests(unittest.TestCase):
     def test_identifiers_and_values_have_separate_paths(self):
         name = 'A"雪.%\\'
         value = "' OR TRUE; -- %\\雪"
-        expression = col(Identifier(name), table="T", schema="S").eq(value)
+        expression = col(name, table="T", schema="S").eq(value)
         compiled = expression.inspect()
         self.assertEqual(compiled.sql, 'SELECT "S"."T"."A""雪.%\\" = $1')
         self.assertEqual(compiled.params, [Value(value)])
@@ -37,8 +37,6 @@ class ExpressionTests(unittest.TestCase):
                 col(name)
         with self.assertRaises(ConstructionError):
             col("x", schema="s")
-        with self.assertRaises(ConstructionError):
-            bind(Identifier("x"))
 
     def test_literal_and_bound_values_stay_selectable(self):
         expression = bind(Value(7, "i16")) + literal(3)
@@ -113,23 +111,29 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(compiled.params)
             self.assertTrue(all(value.value == needle for value in compiled.params))
             self.assertNotIn(needle, compiled.sql)
-        pattern = LikePattern(needle, escape="!")
+        pattern = LikeExpr(needle).escape("!")
         for method in ["like", "not_like", "ilike", "not_ilike"]:
             compiled = getattr(expression, method)(pattern).inspect()
             self.assertEqual(compiled.params, [Value(needle)])
             self.assertIn("LIKE", compiled.sql)
-            self.assertIn("ESCAPE", compiled.sql)
-        with self.assertRaises(TypeError):
-            expression.like(needle)
-        for escape in ["xy", "\0"]:
+            self.assertIn("ESCAPE '!'", compiled.sql)
+            plain = getattr(expression, method)(needle).inspect()
+            self.assertEqual(plain.params, [Value(needle)])
+            self.assertNotIn("ESCAPE", plain.sql)
+            self.assertEqual(inspection(getattr(expression, method)(LikeExpr(needle))),
+                             inspection(getattr(expression, method)(needle)))
+        for escape in ["", "xy", "\0"]:
             with self.assertRaises(ConstructionError):
-                LikePattern("pattern", escape=escape)
-        for pattern, escape in [(1, None), ("pattern", 1)]:
+                LikeExpr("pattern").escape(escape)
+        for build in [lambda: LikeExpr(1), lambda: LikeExpr("pattern").escape(1),
+                      lambda: expression.like(1), lambda: expression.similar_to(Value("x"))]:
             with self.assertRaises(TypeError):
-                LikePattern(pattern, escape=escape)
-        compiled = expression.like(LikePattern(needle, escape="")).inspect()
+                build()
+        compiled = expression.like(LikeExpr(needle).no_escape()).inspect()
         self.assertTrue(compiled.sql.endswith("ESCAPE ''"))
         self.assertEqual(compiled.params, [Value(needle)])
+        replaced = expression.like(LikeExpr(needle).no_escape().escape("#")).inspect()
+        self.assertTrue(replaced.sql.endswith("ESCAPE '#'"))
 
     def test_casts_retain_qualified_enum_identity(self):
         kind = TypeName('Mood"', schema="Tenant")
@@ -177,7 +181,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertEqual(ordering.nulls, Nulls.Last)
         self.assertEqual(OrderBy(expression, Direction.Asc).direction, Direction.Asc)
         alias = expression.as_('result"')
-        self.assertEqual(alias.alias.name, 'result"')
+        self.assertEqual(alias.alias, 'result"')
         self.assertEqual(inspection(alias.expr), inspection(expression))
         with self.assertRaises(TypeError):
             OrderBy(expression, "DESC; SELECT")

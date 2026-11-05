@@ -343,8 +343,8 @@ export declare class Model<C extends Columns = Columns> {
    * be set, and one generated always cannot be.
    */
   insert(values: InsertOf<Model<C>>): ModelInsert<C>;
-  /** An INSERT of rows that each set the same fields; no rows writes nothing and sends nothing. */
-  insertMany(rows: readonly InsertOf<Model<C>>[]): ModelInsert<C>;
+  /** An INSERT of rows that each set the same fields, Rust's `Insert::many`; no rows writes nothing and sends nothing. */
+  insertMany(rows: readonly InsertOf<Model<C>>[]): ModelInsertMany<C>;
   /** An UPDATE of at least one field, which needs `where` or `allRows()` before it runs. */
   update(values: UpdateOf<Model<C>>): ModelUpdate<C>;
   /** A DELETE, which needs `where` or `allRows()` before it runs. */
@@ -444,23 +444,47 @@ export declare class ModelRows<R> {
   optional(db: Queryable, options?: OperationOptions): Promise<R | null>;
 }
 
-/** A model's INSERT. */
+/** A model's INSERT of one row: Rust's `Insert<A, OneRow>`. */
 export declare class ModelInsert<C extends Columns = Columns> {
   private constructor();
-  /** The INSERT it runs; an insert of no rows has none, and is a {@link ConstructionError} here. */
+  /** The INSERT it runs. */
   readonly statement: Insert;
-  /** The SQL and values it runs, or the ones an upsert terminal runs. */
-  inspect(terminal?: "returningUpsert" | "returningUpserts"): Compiled;
+  /** The SQL and values it runs, or the ones `returningUpsert` runs. */
+  inspect(terminal?: "returningUpsert"): Compiled;
   /** What a conflict does, the statement builders' `Conflict` naming SQL columns. */
   onConflict(action: Conflict | ConflictUpdate): ModelInsert<C>;
+  /** A batch of its row and one more, its conflict clause kept, as Rust's `Insert::add` makes one. */
+  add(values: InsertOf<Model<C>>): ModelInsertMany<C>;
+  /** A batch of its row and `rows`, its conflict clause kept, as Rust's `Insert::add_many` makes one. */
+  addMany(rows: readonly InsertOf<Model<C>>[]): ModelInsertMany<C>;
   /** The rows written, every field or the fields named. */
   returning(): ModelRows<Row<C>>;
   returning<const F extends FieldOf<C>>(...fields: [F, ...F[]]): ModelRows<Pick<Row<C>, F>>;
   /** The number of rows written. */
   execute(db: Queryable, options?: OperationOptions): Promise<number>;
-  /** What the insert did with its one row, or `null` where its conflict clause wrote nothing. */
+  /** What the insert did with its row, as `exec_returning_upsert` says, or `null` where its conflict clause wrote nothing. */
   returningUpsert(db: Queryable, options?: OperationOptions): Promise<Upserted<Row<C>> | null>;
-  /** What the insert did with each row it wrote; a row its conflict clause held back is left out. */
+}
+
+/** A model's INSERT of a batch: Rust's `Insert<A, ManyRows>`. */
+export declare class ModelInsertMany<C extends Columns = Columns> {
+  private constructor();
+  /** The INSERT it runs; an insert of no rows has none, and is a {@link ConstructionError} here. */
+  readonly statement: Insert;
+  /** The SQL and values it runs, or the ones `returningUpserts` runs. */
+  inspect(terminal?: "returningUpserts"): Compiled;
+  /** What a conflict does, the statement builders' `Conflict` naming SQL columns. */
+  onConflict(action: Conflict | ConflictUpdate): ModelInsertMany<C>;
+  /** The batch with one more row, its conflict clause kept, as Rust's `Insert::add` adds one. */
+  add(values: InsertOf<Model<C>>): ModelInsertMany<C>;
+  /** The batch with `rows` after its own, its conflict clause kept, as Rust's `Insert::add_many` adds them. */
+  addMany(rows: readonly InsertOf<Model<C>>[]): ModelInsertMany<C>;
+  /** The rows written, every field or the fields named. */
+  returning(): ModelRows<Row<C>>;
+  returning<const F extends FieldOf<C>>(...fields: [F, ...F[]]): ModelRows<Pick<Row<C>, F>>;
+  /** The number of rows written; a batch of none sends nothing and writes none. */
+  execute(db: Queryable, options?: OperationOptions): Promise<number>;
+  /** What the insert did with each row it wrote, as `exec_returning_upserts` says; a row its conflict clause held back is left out. */
   returningUpserts(db: Queryable, options?: OperationOptions): Promise<Upserted<Row<C>>[]>;
 }
 

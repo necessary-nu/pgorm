@@ -3,6 +3,7 @@ from asyncio import CancelledError as CancelledError
 from ._schema import (
     DataType as DataType, ColumnDef as ColumnDef, DDL as DDL, EntitySchema as EntitySchema,
     schema_from_entity as schema_from_entity,
+    MigrationFile as MigrationFile, migration_file as migration_file,
 )
 from ._schema_tables import (
     CreateTable as CreateTable, CreateIndex as CreateIndex,
@@ -121,8 +122,8 @@ from ._ranges import (
     CreatedRange as CreatedRange, CreatedMultirange as CreatedMultirange,
 )
 from ._query_types import (
-    Identifier as Identifier, Direction as Direction, Nulls as Nulls,
-    Compiled as Compiled, LikePattern as LikePattern,
+    _identifier as _identifier, Direction as Direction, Nulls as Nulls,
+    Compiled as Compiled, LikeExpr as LikeExpr,
     Aliased as Aliased, OrderBy as OrderBy,
 )
 from ._models import _model_result_names as _model_result_names, _model_count as _model_count
@@ -170,7 +171,7 @@ from ._versions import (
 from ._graphs import EntityGraph as EntityGraph, EntityGraphQuery as EntityGraphQuery, EntityGraphCursor as EntityGraphCursor, graph as graph, graphs as graphs
 from ._entity_models import EntityModel as EntityModel, ActiveModel as ActiveModel, ActiveValue as ActiveValue, ActiveState as ActiveState
 from ._disjoint import (
-    _Disjoint as _Disjoint, _disjoint_model as _disjoint_model,
+    _Disjoint as _Disjoint, _DisjointChange as _DisjointChange, _disjoint_model as _disjoint_model,
     _disjoint_entity as _disjoint_entity, _disjoint_entities as _disjoint_entities,
 )
 from ._one_of import (

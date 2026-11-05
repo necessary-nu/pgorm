@@ -1,12 +1,12 @@
-//! The registered-entity writes that read a written row's two versions:
-//! `UpdateOne::exec_returning_change`, `UpdateMany::exec_returning_changes`
-//! and `Insert::exec_returning_upsert(s)`. They are statement terminals, as in
-//! Rust, so no ActiveModel hook runs around them.
+//! The registered-entity updates that read a written row's two versions:
+//! `UpdateOne::exec_returning_change` and `UpdateMany::exec_returning_changes`.
+//! They are statement terminals, as in Rust, so no ActiveModel hook runs
+//! around them; an insert's, its upserts' among them, are in `inserts`.
 
 use std::sync::Arc;
 
-use pgorm::pgorm_query::{Condition, OnConflict};
-use pyo3::{IntoPyObjectExt, prelude::*, types::PyList};
+use pgorm::pgorm_query::Condition;
+use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*, types::PyList};
 use pyo3_async_runtimes::tokio::future_into_py;
 
 use super::{
@@ -14,15 +14,15 @@ use super::{
     backend::{Active, Assignment, EntityBackend, VersionWrite, Versions},
 };
 use crate::{
-    errors::{ConstructionError, InternalError, LifecycleError},
+    errors::{ConstructionError, InternalError},
     execution::Executor,
     expressions::PyExpr,
-    statements::{condition, conflict_clause},
+    statements::condition,
     transactions::work::{Output, Work},
 };
 
 /// Each terminal's capability name and the Rust API it calls.
-pub(crate) const TERMINALS: [(&str, &str); 4] = [
+pub(crate) const TERMINALS: [(&str, &str); 2] = [
     (
         "entity.update.returning_change",
         "pgorm::Update::one, UpdateOne::exec_returning_change, pgorm::Change",
@@ -31,17 +31,9 @@ pub(crate) const TERMINALS: [(&str, &str); 4] = [
         "entity.update_many.returning_changes",
         "pgorm::Update::many, UpdateMany::{col_expr, filter, exec_returning_changes}, ColumnTrait::save_as",
     ),
-    (
-        "entity.insert.returning_upsert",
-        "pgorm::Insert::one, Insert::on_conflict, Insert<A, OneRow>::exec_returning_upsert, pgorm::Upserted",
-    ),
-    (
-        "entity.insert_many.returning_upserts",
-        "pgorm::Insert::many, Insert::on_conflict, Insert<A, ManyRows>::exec_returning_upserts, pgorm::Upserted",
-    ),
 ];
 
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 // [spec:pgorm:req:python.records]
 /// A row as it was before a write and as the write left it.
 #[pyclass(name = "Change", module = "pgorm", frozen, get_all, from_py_object)]
@@ -58,7 +50,7 @@ impl PyChange {
     }
 }
 
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 // [spec:pgorm:req:python.records]
 /// What an upsert did with a row it wrote: `Inserted(model)`, or
 /// `Updated(change)` for the row its `ON CONFLICT DO UPDATE` updated.
@@ -81,7 +73,7 @@ impl PyUpserted {
     }
 }
 
-fn model(py: Python<'_>, inner: super::backend::Model) -> PyResult<PyEntityModel> {
+pub(super) fn model(py: Python<'_>, inner: super::backend::Model) -> PyResult<PyEntityModel> {
     let model = PyEntityModel { inner };
     model.validate(py)?;
     Ok(model)
@@ -97,7 +89,7 @@ fn change(py: Python<'_>, versions: Versions) -> PyResult<PyChange> {
     })
 }
 
-fn upserted(py: Python<'_>, versions: Versions) -> PyResult<PyUpserted> {
+pub(super) fn upserted(py: Python<'_>, versions: Versions) -> PyResult<PyUpserted> {
     Ok(match versions.old {
         None => PyUpserted::Inserted {
             model: model(py, versions.new)?,
@@ -111,14 +103,11 @@ fn upserted(py: Python<'_>, versions: Versions) -> PyResult<PyUpserted> {
     })
 }
 
-/// How the terminal answers: one change, every change, the one upsert or none,
-/// or every upsert.
+/// How the terminal answers: one change, or every change.
 #[derive(Clone, Copy)]
 enum Answer {
     Change,
     Changes,
-    Upsert,
-    Upserts,
 }
 
 fn run<'py>(
@@ -146,32 +135,25 @@ fn run<'py>(
                     .collect::<PyResult<Vec<_>>>()?;
                 Ok(PyList::new(py, changes)?.into_any().unbind())
             }
-            Answer::Upsert => match rows.into_iter().next() {
-                Some(row) => upserted(py, row)?.into_py_any(py),
-                None => Ok(py.None()),
-            },
-            Answer::Upserts => {
-                let rows = rows
-                    .into_iter()
-                    .map(|row| upserted(py, row))
-                    .collect::<PyResult<Vec<_>>>()?;
-                Ok(PyList::new(py, rows)?.into_any().unbind())
-            }
         })
     })
 }
 
-/// An ActiveModel of this registration, refused if another minted it.
-fn owned(entity: &Arc<dyn EntityBackend>, active: &PyActiveModel) -> PyResult<Active> {
+/// An ActiveModel of this registration; another's is an argument of the
+/// wrong type.
+// [spec:pgorm:req:bindings.entity-writes+1]
+pub(super) fn owned(entity: &Arc<dyn EntityBackend>, active: &PyActiveModel) -> PyResult<Active> {
     if active.inner.info().name != entity.info().name {
-        return Err(LifecycleError::new_err(
-            "ActiveModel belongs to another entity registration",
-        ));
+        return Err(PyTypeError::new_err(format!(
+            "the ActiveModel is {}'s, not {}'s",
+            active.inner.info().name,
+            entity.info().name
+        )));
     }
     Ok(active.inner.clone())
 }
 
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 /// `Entity::update(active)`: an update by the model's key.
 #[pyclass(name = "EntityUpdate", module = "pgorm", frozen, from_py_object)]
 #[derive(Clone, Debug)]
@@ -201,7 +183,7 @@ impl PyEntityUpdate {
         run(py, connection, self.entity.clone(), write, Answer::Change)
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "entity writes cannot be tested as Python booleans",
@@ -209,7 +191,7 @@ impl PyEntityUpdate {
     }
 }
 
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 /// `Entity::update_many()`: an update of every row its filters admit, which
 /// runs only once `where` or `all_rows()` has said which rows those are.
 #[pyclass(name = "EntityUpdateMany", module = "pgorm", frozen, from_py_object)]
@@ -267,7 +249,7 @@ impl PyEntityUpdateMany {
     /// server returned them. An update with neither `where` nor `all_rows()`,
     /// and one setting nothing (Rust's `NothingToSet`), are refused before
     /// anything is sent.
-    // [spec:pgorm:req:bindings.entity-versions+2]
+    // [spec:pgorm:req:bindings.entity-versions+3]
     fn returning_changes<'py>(
         &self,
         py: Python<'py>,
@@ -280,143 +262,6 @@ impl PyEntityUpdateMany {
         }
         let write = VersionWrite::Changes(self.assignments.clone(), self.filter.clone());
         run(py, connection, self.entity.clone(), write, Answer::Changes)
-    }
-
-    fn __bool__(&self) -> PyResult<bool> {
-        Err(ConstructionError::new_err(
-            "entity writes cannot be tested as Python booleans",
-        ))
-    }
-}
-
-/// An insert's models and its optional `ON CONFLICT` action.
-#[derive(Clone, Debug)]
-struct Inserted {
-    entity: Arc<dyn EntityBackend>,
-    actives: Vec<Active>,
-    conflict: Option<Box<OnConflict>>,
-}
-
-impl Inserted {
-    fn new(entity: Arc<dyn EntityBackend>, actives: &[PyRef<'_, PyActiveModel>]) -> PyResult<Self> {
-        let actives = actives
-            .iter()
-            .map(|active| owned(&entity, active))
-            .collect::<PyResult<_>>()?;
-        Ok(Self {
-            entity,
-            actives,
-            conflict: None,
-        })
-    }
-
-    fn on_conflict(&self, action: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let mut next = self.clone();
-        next.conflict = Some(Box::new(conflict_clause(action)?));
-        Ok(next)
-    }
-
-    fn run<'py>(
-        &self,
-        py: Python<'py>,
-        connection: &Bound<'_, PyAny>,
-        one: bool,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        let write = VersionWrite::Upserts {
-            actives: self.actives.clone(),
-            conflict: self.conflict.clone(),
-            one,
-        };
-        let answer = if one { Answer::Upsert } else { Answer::Upserts };
-        run(py, connection, self.entity.clone(), write, answer)
-    }
-}
-
-// [spec:pgorm:req:bindings.entity-versions+2]
-/// `Insert::one` of a registration's ActiveModel, with an optional `ON
-/// CONFLICT` action.
-#[pyclass(name = "EntityInsert", module = "pgorm", frozen, from_py_object)]
-#[derive(Clone, Debug)]
-pub struct PyEntityInsert {
-    inner: Inserted,
-}
-
-impl PyEntityInsert {
-    pub(super) fn new(
-        entity: Arc<dyn EntityBackend>,
-        active: PyRef<'_, PyActiveModel>,
-    ) -> PyResult<Self> {
-        Ok(Self {
-            inner: Inserted::new(entity, &[active])?,
-        })
-    }
-}
-
-#[pymethods]
-impl PyEntityInsert {
-    /// The `ON CONFLICT` action: a `Conflict` or a `ConflictUpdate`.
-    fn on_conflict(&self, action: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self {
-            inner: self.inner.on_conflict(action)?,
-        })
-    }
-
-    /// What the insert did with its row: `Upserted.Inserted`, or
-    /// `Upserted.Updated` with the row before and after; `None` for a row the
-    /// conflict clause did not write.
-    fn returning_upsert<'py>(
-        &self,
-        py: Python<'py>,
-        connection: &Bound<'_, PyAny>,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        self.inner.run(py, connection, true)
-    }
-
-    fn __bool__(&self) -> PyResult<bool> {
-        Err(ConstructionError::new_err(
-            "entity writes cannot be tested as Python booleans",
-        ))
-    }
-}
-
-// [spec:pgorm:req:bindings.entity-versions+2]
-/// `Insert::many` of a registration's ActiveModels, with an optional `ON
-/// CONFLICT` action.
-#[pyclass(name = "EntityInsertMany", module = "pgorm", frozen, from_py_object)]
-#[derive(Clone, Debug)]
-pub struct PyEntityInsertMany {
-    inner: Inserted,
-}
-
-impl PyEntityInsertMany {
-    pub(super) fn new(
-        entity: Arc<dyn EntityBackend>,
-        actives: &[PyRef<'_, PyActiveModel>],
-    ) -> PyResult<Self> {
-        Ok(Self {
-            inner: Inserted::new(entity, actives)?,
-        })
-    }
-}
-
-#[pymethods]
-impl PyEntityInsertMany {
-    /// The `ON CONFLICT` action: a `Conflict` or a `ConflictUpdate`.
-    fn on_conflict(&self, action: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self {
-            inner: self.inner.on_conflict(action)?,
-        })
-    }
-
-    /// What the insert did with each row it wrote, in the order the database
-    /// wrote them; a row the conflict clause skipped is not among them, and a
-    /// batch of no models writes and answers nothing.
-    fn returning_upserts<'py>(
-        &self,
-        py: Python<'py>,
-        connection: &Bound<'_, PyAny>,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        self.inner.run(py, connection, false)
     }
 
     fn __bool__(&self) -> PyResult<bool> {

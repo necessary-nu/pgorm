@@ -283,7 +283,7 @@ class ValueEmitter:
         return f"{inner}.cast_as_type({cast})" if cast else inner
 
     def alias_of(self, node, key):
-        """An identifier that is either declared data or a runtime Identifier."""
+        """An identifier that is either declared data or a runtime name."""
         if key in node["inputs"]:
             return self.use(node["inputs"][key])
         return f"{Q}::Name::runtime({literal(node['data'][key])})"

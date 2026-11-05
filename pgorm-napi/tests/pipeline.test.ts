@@ -94,6 +94,38 @@ test("a pipeline's stages run as any statement does, through each terminal", asy
   assert.equal(await pool().transaction((tx) => tx.execute(base.select(id))), 6);
 });
 
+// [spec:pgorm:req:bindings.pipeline-terminals/test]
+test("a pipeline's own terminals are Rust's Pipeline::all, one and one_opt, the latter two taking one row", async () => {
+  const sorted = base.select(id).sort(id);
+  assert.deepStrictEqual((await sorted.all(pool())).map((row) => row.id), [1n, 2n, 3n, 4n, 5n, 6n]);
+  assert.deepStrictEqual(await sorted.one(pool()), { id: 1n });
+  assert.deepStrictEqual(await sorted.optional(pool()), { id: 1n });
+  await assert.rejects(pool().one(sorted), (error) => error instanceof DecodeError);
+  const none = sorted.filter(id.lt(0));
+  await assert.rejects(none.one(pool()), (error) => error instanceof DecodeError);
+  assert.equal(await none.optional(pool()), null);
+  assert.deepStrictEqual(await none.all(pool()), []);
+  assert.doesNotMatch(sorted.inspect().sql, /LIMIT/);
+  assert.match(sorted.inspect("one").sql, /LIMIT 1$/);
+  assert.deepStrictEqual(sorted.inspect("optional"), sorted.inspect("one"));
+  assert.deepStrictEqual(sorted.inspect("all"), sorted.inspect());
+  assert.throws(() => sorted.inspect("stream" as never), TypeError);
+  const tagged = await sorted.one(pool(), { tagged: true });
+  assert.ok(tagged.id instanceof Value && tagged.id.kind === "i64");
+  const bound = base.filterWith((binder) => amount.gt(binder.bind(6))).select(id).sort(id);
+  assert.deepStrictEqual((await bound.all(pool())).map((row) => row.id), [2n, 4n]);
+  await pool().connection(async (connection) => {
+    assert.deepStrictEqual(await bound.one(connection), { id: 2n });
+  });
+  await pool().transaction(async (tx) => {
+    assert.deepStrictEqual(await bound.optional(tx), { id: 2n });
+  });
+  await assert.rejects(sorted.all({} as never), TypeError);
+  assert.equal("all" in base.group(category), false);
+  await assert.rejects(base.select(pl.literal(1).as("sum")).all(pool()), construction(/PRQL built-in/));
+  assert.throws(() => base.select(pl.literal(1).as("sum")).inspect("one"), construction(/PRQL built-in/));
+});
+
 // [spec:pgorm:req:bindings.pipeline-expressions+3/test]
 // [spec:pgorm:req:bindings.operands/test]
 test("a value an operand is given is bound; only literal() writes one into the SQL", async () => {

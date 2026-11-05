@@ -16,6 +16,7 @@ specs ({
                 pgorm-query/pgorm-query-derive/src/**/*.rs
                 pgorm-sql-macro/src/**/*.rs
                 pgorm-test-support/src/**/*.rs
+                pgorm-guide-support/src/**/*.rs
                 security/sqlmap/adapter/src/**/*.rs
                 .github/workflows/sqlmap*.yml
                 security/sqlmap/acceptance/*.md
@@ -38,6 +39,7 @@ specs ({
                 pgorm-query/pgorm-query-derive/tests/**/*.rs
                 pgorm-sql-macro/tests/**/*.rs
                 pgorm-test-support/tests/**/*.rs
+                pgorm-guide-support/tests/**/*.rs
                 security/sqlmap/adapter/tests/**/*.rs
                 security/generative/tests/**/*.py
                 security/generative/bridge/tests/**/*.rs
@@ -53,6 +55,7 @@ specs ({
                 pgorm-python/src/**/*.rs
                 pgorm-python/python/**/*.py
                 pgorm-python/checks/**/*.py
+                pgorm-python/guide/**/*.py
             ),
             test_include (
                 pgorm-python/tests/**/*.rs
@@ -71,6 +74,7 @@ specs ({
                 pgorm-napi/lib/**/*.ts
                 pgorm-napi/checks/**/*.js
                 pgorm-napi/codegen/**/*.js
+                pgorm-napi/guide/*.ts
                 .github/workflows/napi.yml
             ),
             test_include (

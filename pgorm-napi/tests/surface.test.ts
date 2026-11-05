@@ -128,7 +128,7 @@ const { expected, gaps, classes } = declared();
 const own = ownNames();
 
 // [spec:pgorm:req:bindings.surface+2/test]
-// [spec:pgorm:req:napi.naming+4/test]
+// [spec:pgorm:req:napi.naming+5/test]
 test("the module offers every shared name, or the surface lists it as a gap with its plan node", () => {
   const missing = [...expected].filter(([key]) => !all.has(key)).map(([, path]) => path).sort();
   assert.deepStrictEqual(missing, []);
@@ -242,7 +242,7 @@ test("a model's describe() reports exactly the keys the surface declares", () =>
 });
 
 // [spec:pgorm:req:bindings.surface+2/test]
-// [spec:pgorm:req:bindings.disjoint+1/test]
+// [spec:pgorm:req:bindings.disjoint+2/test]
 test("a disjoint model's describe() reports exactly the keys the surface declares", () => {
   const kind = new pgorm.TypeName("item_kind", { schema: "app" });
   const base = pgorm.model("items", {
@@ -258,7 +258,7 @@ test("a disjoint model's describe() reports exactly the keys the surface declare
 });
 
 // [spec:pgorm:req:bindings.surface+2/test]
-// [spec:pgorm:req:bindings.disjoint+1/test]
+// [spec:pgorm:req:bindings.disjoint+2/test]
 test("a registered disjoint enum's describe() reports exactly the keys the surface declares", {
   skip: pgorm.disjointEntities().length === 0 &&
     "the module registers no disjoint entity; checks/entities.js runs this against an application's",

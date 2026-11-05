@@ -10,7 +10,7 @@ from .one_of import OneOf, OneOfEntity, one_of_entities, one_of_entity
 from .queries import ModelQuery, ModelRows
 from .record import ModelRecord
 from .relations import Relation
-from .writes import ModelDelete, ModelInsert, ModelUpdate
+from .writes import ModelDelete, ModelInsert, ModelInsertMany, ModelUpdate
 
 __all__ = [
     "Column",
@@ -19,6 +19,7 @@ __all__ = [
     "ModelQuery",
     "ModelRows",
     "ModelInsert",
+    "ModelInsertMany",
     "ModelUpdate",
     "ModelDelete",
     "ModelRecord",

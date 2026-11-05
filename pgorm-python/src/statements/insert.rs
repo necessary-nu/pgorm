@@ -9,7 +9,7 @@ use super::{
 use crate::{
     errors::ConstructionError,
     expressions::{Compiled, coerce},
-    identifiers::PyIdentifier,
+    identifiers::Identifier,
 };
 
 /// Where an INSERT's rows come from: none yet, `values` rows, one `Select`,
@@ -70,7 +70,7 @@ impl PyInsert {
         let columns = columns
             .iter()
             .map(|column| {
-                let column = PyIdentifier::new(&column)?;
+                let column = Identifier::new(&column)?;
                 if !names.insert(column.name.clone()) {
                     return Err(ConstructionError::new_err("duplicate insert column"));
                 }
@@ -83,7 +83,7 @@ impl PyInsert {
             ));
         }
         let mut next = self.clone();
-        next.inner.columns(columns.iter().map(PyIdentifier::name));
+        next.inner.columns(columns.iter().map(Identifier::name));
         next.columns = columns.into_iter().map(|column| column.name).collect();
         Ok(next)
     }

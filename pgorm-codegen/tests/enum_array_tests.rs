@@ -90,14 +90,10 @@ fn the_bridge_reads_an_enum_array_column() {
 #[test]
 fn enum_arrays_generate_a_compiling_entity() {
     let generated = from_sql(SCHEMA);
-    let written = flat(generated.file("survey.rs"));
-    assert!(
-        written.contains(&flat(include_str!("sql/enum_array/survey.rs"))),
-        "{written}"
-    );
-    assert!(
-        norm(generated.file("pgorm_active_enums.rs"))
-            .contains(&norm(include_str!("sql/enum_array/pgorm_active_enums.rs")))
+    generated.holds("survey.rs", "sql/enum_array/survey.rs");
+    generated.holds(
+        "pgorm_active_enums.rs",
+        "sql/enum_array/pgorm_active_enums.rs",
     );
 
     for (column, (name, col_type)) in survey::Column::iter().zip(described()) {

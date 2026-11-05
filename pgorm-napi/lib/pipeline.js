@@ -8,6 +8,7 @@
 // [spec:pgorm:req:bindings.pipeline-binder]
 
 import { arg, args, Builder, Handle, trusted, TRUSTED } from "./builder.js";
+import { Queryable } from "./connections.js";
 import { native } from "./operations.js";
 import { PipelineExpr } from "./pipeline-expressions.js";
 import { selectSourcesOf } from "./entity-sources.js";
@@ -189,7 +190,20 @@ function listed(pipeline, stage, list, scope) {
   return pipelineOf(native.pipelineList(arg(pipeline), stage, list, scope));
 }
 
-/** A pipeline: a relation built stage by stage, run as any statement is. */
+/**
+ * What a pipeline's own terminal runs on.
+ *
+ * @param {unknown} db
+ */
+function runner(db) {
+  if (!(db instanceof Queryable)) throw new TypeError("a pipeline runs on a Pool, a Connection or a Transaction");
+  return db;
+}
+
+/**
+ * A pipeline: a relation built stage by stage, run by its own terminals, as
+ * Rust's `Pipeline` is, or as any statement is.
+ */
 export class Pipeline extends Builder {
   /**
    * @param {unknown} handle
@@ -332,6 +346,54 @@ export class Pipeline extends Builder {
 
   distinct() {
     return pipelineOf(native.pipelineDistinct(arg(this)));
+  }
+
+  // [spec:pgorm:req:bindings.pipeline-terminals]
+  /**
+   * The SQL and values a terminal sends: `all`'s, or `one`'s and
+   * `optional`'s, which compile with the `take 1` Rust appends.
+   *
+   * @override
+   * @param {"all" | "one" | "optional"} [terminal]
+   * @returns {import("./index.d.ts").Compiled}
+   */
+  inspect(terminal = "all") {
+    if (terminal === "all") return super.inspect();
+    if (terminal !== "one" && terminal !== "optional") {
+      throw new TypeError('a pipeline inspects its terminal "all", "one" or "optional"');
+    }
+    return this.take(1).inspect();
+  }
+
+  /**
+   * Every row, by `Pipeline::all`.
+   *
+   * @param {unknown} db
+   * @param {unknown} [options]
+   */
+  async all(db, options) {
+    return await runner(db).query(this, options);
+  }
+
+  /**
+   * The first row, by `Pipeline::one`, which appends `take 1`; none is a
+   * `DecodeError`.
+   *
+   * @param {unknown} db
+   * @param {unknown} [options]
+   */
+  async one(db, options) {
+    return await runner(db).one(this.take(1), options);
+  }
+
+  /**
+   * The first row, or null, by `Pipeline::one_opt`, which appends `take 1`.
+   *
+   * @param {unknown} db
+   * @param {unknown} [options]
+   */
+  async optional(db, options) {
+    return await runner(db).optional(this.take(1), options);
   }
 }
 

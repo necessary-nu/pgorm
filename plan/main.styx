@@ -852,7 +852,6 @@ children (
                         [spec:pgorm:def:exec.decode.many]
                         [spec:pgorm:req:exec.decode.many-arity]
                         [spec:pgorm:def:exec.decode.json]
-                        [spec:pgorm:def:exec.decode.from-u64]
                         [spec:pgorm:def:exec.crud]
                         [spec:pgorm:sem:exec.crud.select]
                         [spec:pgorm:sem:exec.crud.insert]
@@ -1656,6 +1655,67 @@ children (
                     }
                 )
             }
+
+            {
+                id signature-types-reexported
+                title "pgorm re-exports every type its public signatures take or return, so a crate depending only on pgorm can name them: Row, RowStream, SqlState, BytesMut and the pool's Runtime, Timeouts, Status and PoolError"
+                kind @feat
+                implements {
+                    main ([spec:pgorm:req:conn.driver-types])
+                }
+                log (
+                    {
+                        at 2026-11-05T14:39:47.926014Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (reading, errors, configuration and COPY chapters). src/database/mod.rs re-exports Config, IsolationLevel, NoTls, Socket, the TLS traits, ManagerConfig, PoolBuilder, RecyclingMethod, StatementCacheSize and Bytes, but not: tokio_postgres's Row and RowStream (which query_one/query_all and query_raw return), its SqlState (so matching a SQLSTATE outside SqlError's classes compares error.code().map(|s| s.code()) as text), bytes::BytesMut (which CopyRowEncoder's header/trailer/encode take, src/database/copy_rows.rs:266-285), and deadpool's Runtime (every pool timeout needs builder.runtime(..)), Timeouts, QueueMode, Status (which DatabasePool::status and InstrumentedPool::status return) and PoolError. A crate depending only on pgorm cannot name them; the guide names pgorm_pool::Runtime and tokio_postgres::Row directly."
+                    }
+
+                    {
+                        at 2026-11-05T15:32:15.050835Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Audit (rustdoc links from every pgorm page to another crate's, impl and implementor lists excluded) plus deadpool's own reexport set. The rule, new as conn.driver-types: every tokio-postgres/deadpool/bytes/futures type that using pgorm makes a caller write is re-exported at pgorm's root under its own name. First level (pgorm's own signatures): Row, RowStream, tokio_postgres::Error, PoolError, Status, BytesMut, and the Stream/Sink traits (CopyRowStream::models returns impl Stream; CopyInSink is a Sink). Second level (what a caller writes to use those or conn.pool's re-exports): SqlState and DbError (PostgresError::code / as_db_error), TimeoutType and HookError (PoolError's payloads), Runtime/Timeouts/QueueMode/PoolConfig/Hook (PoolBuilder's setters), SslMode/SslNegotiation/TargetSessionAttrs/ChannelBinding/LoadBalanceHosts/Host (Config's setters and getters). tokio_postgres::Error is re-exported as PostgresError, the one rename, because pgorm::Error is pgorm's. Left out, as third level a caller never has to write: deadpool's Metrics and pgorm_pool's ClientWrapper (a hook closure's inferred arguments), BuildError (PoolBuilder::build, which pgorm calls), tokio_postgres's Column (Row::columns, used through methods), TlsStream (implementing a connector, the TLS crates' job), Client/Connection (Config::connect, not pgorm's path). StreamExt/SinkExt are not re-exported: they are not in any signature, and a reader still takes futures for them. The re-exports sit in src/database/mod.rs, not the error module, so the entity prelude (which globs error::*) is unchanged. Python and JavaScript have no counterpart: they expose no driver types."
+                    }
+                )
+            }
+
+            {
+                id instrumented-tx-conn-trait
+                title "An instrumented transaction's &mut handle is a ConnectionTrait, as a plain transaction's is"
+                kind @fix
+                deps (tx-closure-only)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:39:49.154195Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (metrics chapter). ConnectionTrait is implemented for &mut DatabaseTransaction<'_> (src/database/db_connection.rs:622) but not for &mut InstrumentedTransaction<'_, M> (src/metric/mod.rs), so inside an instrumented transaction closure find().all(&txn) fails E0277 where the plain closure's compiles; the guide passes &*txn and explains why."
+                    }
+
+                    {
+                        at 2026-11-05T15:43:02.42844Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:48:48.57736Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rather than a second hand-written forwarding impl for &mut InstrumentedTransaction<'_, M> beside the one for &mut DatabaseTransaction<'_>, the forwarding impl is now one blanket impl<C: ConnectionTrait> ConnectionTrait for &mut C (src/database/connection.rs), replacing the DatabaseTransaction-only one. That covers every closure handle at once, so none can be left out again, and removes the duplicated 60-line body; it also makes &mut DatabaseConnection and &mut InstrumentedConnection connections, which is harmless (no impl overlaps: &mut C is distinct from C, and &DatabaseConnection is a shared reference). conn.pool.conn-trait +9 (one impl over every implementor) and metric.layer.delegate +5 (the instrumented handle passes as &txn), both owned by infra.conn / infra.metrics, which get a re-cover commit. The bindings have no counterpart: their handles are internal."
+                    }
+
+                    {
+                        at 2026-11-05T15:52:07.355141Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
         )
     }
 
@@ -1938,6 +1998,83 @@ children (
 
                     {
                         at 2026-11-05T00:40:28.8974Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id codegen-error-display
+                title "pgorm-codegen's Error displays its message, not the message's Debug form"
+                kind @fix
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:39:51.011501Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (codegen chapter). pgorm-codegen/src/error.rs:25-27 formats with {e:?}, so Display shows \"unsupported DDL: SET at statement 1\" with the quotes and inner quotes escaped. The guide matches on Error::TransformError(message) instead of printing."
+                    }
+
+                    {
+                        at 2026-11-05T15:29:23.905758Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id codegen-formatted-output
+                title "pgorm-codegen writes formatted, idiomatic Rust, so a generated entity reads as the guide's Entities chapter shows one with no rustfmt step"
+                kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:bindings.codegen-layout])
+                    python ([spec:pgorm:req:bindings.codegen-layout])
+                }
+                log (
+                    {
+                        at 2026-11-05T14:39:51.325555Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (codegen chapter). Generated files are token text (`# [derive (Clone , Debug ...`), so a user runs rustfmt over them (e.g. prettyplease would format them in-process). Cosmetic, alongside: a column's DEFAULT false is written default_expr = Expr::val(false) where default_value = false is the idiom the Entities chapter teaches."
+                    }
+
+                    {
+                        at 2026-11-05T15:29:24.05945Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
+            }
+
+            {
+                id codegen-enum-warning-stdout
+                title "pgorm-codegen reports an enum value it encodes through tracing, not by printing to its caller's stdout"
+                kind @fix
+                deps (codegen-formatted-output)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T17:32:29.843554Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by codegen-formatted-output. ActiveEnum::validate (pgorm-codegen/src/entity/active_enum.rs) println!s \"Warning: item '..' in the enumeration '..' cannot be converted into a valid Rust enum member name...\" when a value's variant name falls back to the per-character encoding, and sem:codegen.entity.enums+9 requires that warning \"printed to stdout\". A library writing to its caller's stdout corrupts a build script's output (cargo reads build-script stdout as directives) and a tool's piped output; pgorm-codegen already depends on tracing and logs with info!, so the warning belongs there (tracing::warn!), with the rule revised to say so."
+                    }
+
+                    {
+                        at 2026-11-05T17:34:30.923469Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T17:42:33.212592Z
                         author "brendan@necessary.nu"
                         kind @status
                         text "Doing → Done (nplan complete)"
@@ -2533,6 +2670,73 @@ children (
 
                     {
                         at 2026-11-05T00:25:19.803423Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id inert-features
+                title "pgorm's features each do something: runtime-tokio and pgorm-internal are removed or given a meaning, and debug-print says what it gates"
+                kind @chore
+                implements {
+                    main ([spec:pgorm:req:guide.features])
+                }
+                log (
+                    {
+                        at 2026-11-05T14:15:36.450828Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (getting started chapter). Cargo.toml declares runtime-tokio (on by default) and pgorm-internal, which no cfg reads anywhere in the workspace, and debug-print, which gates only the exported debug_print! macro (src/util.rs:16) that pgorm itself never calls. The guide's feature table leaves all three out. Remove them (and from package.metadata.docs.rs and the self dev-dependency), or give each a meaning and document it."
+                    }
+
+                    {
+                        at 2026-11-05T16:14:16.759839Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:18:20.833938Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision built (pending operator override): runtime-tokio, pgorm-internal and debug-print deleted, with the debug_print! macro (src/util.rs, now gone with its module). Removed from Cargo.toml's [features], the default list (whose duplicated \"macros\" entry went too), package.metadata.docs.rs and the self dev-dependency; no CI workflow or binding manifest named them. pgorm-python's capabilities manifest listed runtime-tokio as the feature behind every pool/connection/listener/COPY/transaction operation and in its build feature list: those operations now name no feature. COMING_FROM_SEAORM.md maps SeaORM's debug-print (gone: a metrics collector sees each statement's SQL, LoggingMetrics logs every query). New rule guide.features, held by tests/feature_tests.rs: every declared feature forwards to something or is read by a cfg in src/, and the getting-started chapter's table lists exactly the features but tests-cfg (it did already; that test would have caught debug-print, which a cfg read but the guide did not list, and the other two, which nothing read)."
+                    }
+                )
+            }
+
+            {
+                id retire-try-from-u64
+                title "TryFromU64 and Error::ConvertFromU64, which nothing in pgorm calls, are retired"
+                kind @refactor
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:39:48.842374Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (errors chapter). TryFromU64 is a bound on PrimaryKeyTrait::ValueType (src/entity/primary_key.rs:22) and implemented throughout (src/executor/query.rs:851, active_enum.rs:221, query_range.rs:153/162), but nothing in pgorm calls try_from_u64, so Error::ConvertFromU64 is produced only if a caller invokes the trait itself: a SeaORM leftover (last_insert_id) the error taxonomy still lists. Remove the trait, its bound and the variant, or say what reaches it."
+                    }
+
+                    {
+                        at 2026-11-05T16:25:10.845835Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:28:16.665627Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision built (pending operator override): TryFromU64 deleted with every impl (the numeric, String and refusing impls in src/executor/query.rs, the blanket ActiveEnum impl, Range and Multirange), its bound on PrimaryKeyTrait::ValueType, and Error::ConvertFromU64. Nothing in the workspace or either binding called try_from_u64. Rule exec.decode.from-u64 deleted (and removed from orm.exec's implements); entity.traits.primary-key +8 (the bound), entity.traits.active-enum.limits +3 (its \"MUST declare auto_increment = false\" sentence went with the blanket impl it followed from: auto_increment on a non-integer key renders the plain type in schema generation and an insert reads the key back through RETURNING, so nothing else needs it), error.model +13 (records the removal beside RecordNotUpdated's). The guide's errors table loses the row; COMING_FROM_SEAORM.md maps DbErr::ConvertFromU64 and TryFromU64 as gone. Side effect: a primary key's value type no longer has to implement a pgorm trait no derive wrote."
+                    }
+
+                    {
+                        at 2026-11-05T16:31:41.480605Z
                         author "brendan@necessary.nu"
                         kind @status
                         text "Doing → Done (nplan complete)"
@@ -4121,6 +4325,108 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id func-aggregate-expr-methods
+                title "A Func call and a column aggregate are expressions in their own right: projected, read into a partial model and compared in having() without an Expr::expr wrapper"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:47.044764Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (reading and query-builder chapters). IntoSimpleExpr has no impl for FunctionCall (src/query/select.rs:130-150), so PartialModel's from_expr = Func::upper(..) and column_as(Func::..(..), alias) do not compile without Expr::expr(..). The ColumnTrait aggregates (count, max, ...) and what cast_as or a function call returns are SimpleExpr, which lacks Expr's comparison and operator methods: having(Column::Id.count().gt(2)) does not compile, and the error is misleading (\"SimpleExpr is not an iterator\", Iterator::lt being what matches). The guide (04-reading.md, 10-query-builder.md) writes Expr::expr(..).gt(2) and says why."
+                    }
+                )
+            }
+
+            {
+                id decoded-selector-renders
+                title "A decoded Selector renders its statement, as the Select it came from does"
+                kind @feat
+                log (
+                    {
+                        at 2026-11-05T14:39:47.584484Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (reading chapter). After into_tuple, into_model, into_values or into_partial_model a Selector has no build() or as_query(), so the SQL it will run cannot be asserted or logged; the guide imports PartialModelTrait (not in the prelude) and calls select_cols on the Select instead."
+                    }
+                )
+            }
+
+            {
+                id savepoint-error-composes
+                title "A savepoint's TransactionError converts into its enclosing closure's error, so ? works on a nested transaction"
+                kind @feat
+                implements {
+                    main ([spec:pgorm:sem:conn.tx.compose])
+                }
+                deps (tx-closure-only)
+                log (
+                    {
+                        at 2026-11-05T14:39:48.247913Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (transactions chapter). TransactionTrait::transaction on a DatabaseTransaction (a savepoint) returns Result<T, TransactionError<E>>, while the enclosing closure returns Result<_, E>, and no From connects them (src/database/transaction.rs), so ? on a nested savepoint needs a hand-written map_err over the variants. The guide inspects is_err() instead."
+                    }
+
+                    {
+                        at 2026-11-05T15:52:28.302494Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:59:53.342041Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Design: impl<E: Into<Error>> From<TransactionError<E>> for Error (src/database/transaction.rs). Connection(e) -> e, Transaction(e) -> e.into(), and RollbackFailed { cause, rollback } -> a new Error::RollbackFailed { cause: Box<Error>, rollback: Box<Error> } (source() = cause, Display \"{cause}; its ROLLBACK failed: {rollback}\", not retryable whatever the cause). The new variant is what keeps a savepoint's failed ROLLBACK TO SAVEPOINT from being lost: keeping only the cause would report a savepoint that rolled back cleanly, and the enclosing transaction (and transaction_with_retry) must see it. Considered and rejected: Error::Transaction(Box<TransactionError<Error>>) (only one of its variants could ever occur); a generic impl From<TransactionError<E>> for E (orphan rule forbids it — a closure error type of the caller's own implements the conversion itself, which the guide says). The conversion also lets a fn returning Error take a whole transaction's outcome with ?; there the flattening is the caller's choice, and Error::RollbackFailed means the connection is to be discarded. New rule conn.tx.compose (owned here); error.model +12 lists the variant. Bindings: no counterpart problem — Python's nested `async with tx.transaction()` and JS's tx.transaction(cb) propagate exceptions into the enclosing scope, and a failed rollback already carries both errors (__context__ / SuppressedError, bindings.tx)."
+                    }
+                )
+            }
+
+            {
+                id membership-takes-str
+                title "eq_any and ne_all take string slices, as eq does"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:50.083734Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (values chapter). eq_any and ne_all bound their items on V: ValueType (src/entity/column.rs:524), so eq_any([\"a\", \"b\"]) is E0277 while eq(\"a\") compiles; the guide's examples use Strings. Related, as a note only: eq takes any Into<Value> rather than the column's own type, so Days.eq(0b111_1111) on an i64 field binds int4."
+                    }
+                )
+            }
+
+            {
+                id value-type-try-from-collision
+                title "ValueType's conversion from a Value does not collide with TryFrom::try_from when the prelude is in scope"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:50.394533Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (values chapter). With pgorm::entity::prelude::* in scope, Decimal::try_from(value) is E0034 (ambiguous between pgorm_query::ValueType::try_from and std's TryFrom::try_from, which the 2021+ prelude brings), so the guide writes <Decimal as ValueType>::try_from(..). Rename the ValueType method (e.g. try_from_value) or keep the trait out of the prelude."
+                    }
+                )
+            }
+
+            {
+                id like-pattern-from-text
+                title "LikeExpr builds a pattern from literal text with its wildcards escaped, as contains and starts_with do"
+                kind @feat
+                log (
+                    {
+                        at 2026-11-05T14:39:52.582937Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (query-builder chapter). escape_like_text (src/entity/column_def.rs:55) is crate-private, used only by the ORM's contains, starts_with and ends_with, so a pgorm-query LIKE over user text has no way to escape its % and _ short of writing the escaping by hand."
                     }
                 )
             }
@@ -10072,6 +10378,20 @@ children (
                     }
                 )
             }
+
+            {
+                id template-static-text
+                title "Expr::template takes its SQL as program text, a &'static str, as cast_as_raw and TypeName::raw do"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:52.24982Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (query-builder chapter). Expr::template takes its SQL as impl Into<String> (pgorm-query/src/expr.rs:403), so text built at run time can become SQL, where cast_as_raw and TypeName::raw require &'static str to rule exactly that out. The guide tells readers the template text must be written in the program."
+                    }
+                )
+            }
         )
     }
 
@@ -10337,6 +10657,84 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id runtime-entity-name-per-query
+                title "A statement on an entity whose names are computed at run time can take the names from an instance, not only from Entity::default()"
+                kind @feat
+                log (
+                    {
+                        at 2026-11-05T14:15:36.274983Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (entities chapter). An entity whose table or schema is computed at run time (hand-written Entity struct + EntityTrait derive + EntityName) names its table through `E::default().table_ref()` in every statement (src/query/select.rs:329, src/query/insert.rs:263, and the other builders), so the instance's fields are never consulted per query: a per-tenant or per-request schema cannot be chosen at the call site, only through Default (a OnceLock or thread-local, as tests/identifier_oracle/fixtures.rs does). COMING_FROM_SEAORM.md's example derives Default on `Entity { tenant: &'static str }`, whose default schema is the empty string. Decide whether find()/Insert/Update/Delete/graph take an entity instance (e.g. `Select::for_entity(e)`), or say in EntityName's docs that names come from Default. The guide shows the Default form."
+                    }
+                )
+            }
+
+            {
+                id raw-entry-points-one-shape
+                title "The raw-statement entry points take one argument shape and ask for no type they ignore"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:48.550311Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (raw SQL chapter). SelectorRaw's from_statement, into_tuple and with_columns sit on impl<S: SelectorTrait> SelectorRaw<S> (src/executor/select.rs ~647/682/695), so a call names a selector type the constructor then ignores: SelectorRaw::<SelectGetableTuple<(i32, String)>>::into_tuple::<(i32, String)>(..). And the raw entry points take different argument shapes: FromQueryResult::find_by_statement takes impl Into<String>, Vec<Value> (src/entity/model.rs:202) where Select::from_raw_sql and SelectorRaw::from_statement take String, Values. The guide steers readers to DecodeRaw on a (sql, values) pair."
+                    }
+                )
+            }
+
+            {
+                id multi-pool-constructor
+                title "connect_multi_with_builder returns a DatabaseMultiPool, or the public type with no constructor goes"
+                kind @fix
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:39:49.469135Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (configuration chapter). DatabaseMultiPool (src/database/db_connection.rs:116) is public, with get and status, but nothing constructs it: connect_multi_with_builder returns BTreeMap<Arc<String>, DatabasePool>. The guide documents the map and leaves the type out."
+                    }
+
+                    {
+                        at 2026-11-05T16:05:32.685001Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:09:34.475608Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision built (pending operator override): connect_multi_with_builder returns Result<DatabaseMultiPool, Error>. Since nothing could construct the type before, its accessors were reshaped for use: the map is keyed by the tag String (no Arc<String> argument to build), get(&str) -> Option<&DatabasePool> (a borrow, as BTreeMap::get; .cloned() is the caller's), status() -> BTreeMap<&str, Status>, plus iter() over (&str, &DatabasePool) in tag order and close(), which closes every pool — the two things the returned map offered (iteration, closing each value) that the type otherwise would not. #[repr(transparent)] dropped: nothing transmutes it. conn.pool.multi +3 (owned by infra.conn). No binding counterpart: neither binding has a multi-pool constructor; a dict or Map of pools is the dialect's own."
+                    }
+
+                    {
+                        at 2026-11-05T16:14:16.428067Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id pipeline-model-read-casts
+                title "Pipeline terminals decode an entity's Model with its read casts, so a model with an enum column decodes"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:51.620981Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (pipeline chapter). Pipeline::from(cake::Entity).all::<cake::Model>(&db) fails WrongType on the flavor enum column: all, one, one_opt and into_model decode from SELECT * without the read casts select_sources applies (src/pipeline/terminal.rs), so the server sends the enum where the model reads text. The guide steers model reads to select_sources and says why."
                     }
                 )
             }
@@ -12872,6 +13270,231 @@ children (
                     }
                 )
             }
+
+            {
+                id napi.guide-gaps
+                title "JavaScript gains what its guide names as not available yet, each chapter's paragraph then replaced by the feature"
+                kind @feat
+                deps (guide.javascript)
+                children (
+                    {
+                        id napi.guide-gaps.model-query-clauses
+                        title "A model query takes DISTINCT and DISTINCT ON, GROUP BY with HAVING and aggregate projections (count, sum, min, max, column_as/expr_as), and FOR UPDATE / FOR SHARE locks with NOWAIT or SKIP LOCKED, still decoding typed rows, as Rust's Select::distinct, distinct_on, group_by, having and lock_with_behavior do (guide 05-reading)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.model-expression-shape
+                        title "A declared read shape holds expressions and skipped fields beside a model's columns, selected and decoded together, as Rust's PartialModel from_expr, from_col and skip do (guide 05-reading)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.cursor-secondary-order
+                        title "A model query's cursor takes a secondary ordering after its key, so after() skips a whole run of one key while afterWith() resumes inside it, as Rust's Cursor::add_secondary_order_by and after_with do (guide 06-pagination)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.transaction-streams
+                        title "A transaction streams the rows of SQL text, a statement and a model query, as Rust's stream and query_raw on a DatabaseTransaction do; today Transaction has no stream and ModelQuery.stream refuses one with a TypeError (guide 06-pagination)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.relation-loaders
+                        title "Relation.load takes a filtered, ordered query of the far end and follows a junction, as Rust's load_one(Select), load_many(Select) and load_many_via do (guide 07-relations)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.relation-conditions
+                        title "A model relation carries a condition of its own, and a declared path through a junction that one find call follows, as Rust's on_condition and a Related implementation with via do for find_related (guide 03-entities)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.graph-joins
+                        title "A model graph joins a relation starting from an aliased via hop, narrows an optional slot's ON with a predicate, and orders a cursor by a slot's columns, as Rust's via_as with RelationDef::from_alias, join_maybe_filtered and cursor_by_on do (guide 07-relations)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.graph-limit-refusal
+                        title "A limited model graph refuses allGrouped, count, paginate and cursor, as Rust refuses them at compile time, instead of allGrouped truncating a root's rows, count ignoring the limit and paginate and cursor replacing it (guide 07-relations, whose example asserts today's truncation)"
+                        kind @fix
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.model-schema
+                        title "A declared model generates its CREATE TABLE with its keys and foreign keys, its enum types, indexes and comments, as Rust's Schema::create_table_from_entity, create_enum_from_entity, create_index_from_entity and create_comments_from_entity do and fromEntity does for a registered entity (guide 03-entities, 14-schema)"
+                        deps (napi-models napi-schema guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.json-shape
+                        title "A model's json column decodes its documents as a type of the program's choosing, checked as they are read, as a Rust JsonValueType field does (guide 03-entities, 13-values)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.transaction-retry
+                        title "A transaction runs again from BEGIN while it fails with a serialization failure (40001) or a deadlock (40P01), up to a given number of retries, and an error says whether it is retryable, as Rust's transaction_with_retry, RetryableError and Error::is_retryable do (guide 08-transactions)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.batch-execute
+                        title "A script of ;-separated statements with no parameters runs in one call over the simple-query protocol, as Rust's ConnectionTrait::batch_execute does; today every JavaScript terminal prepares one statement and a script fails with 42601 (guide 10-raw-sql)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.raw-into-model
+                        title "The rows of SQL text decode into a declared model's records, checked against its declaration, as Rust's DecodeRaw::into_model, Select::from_raw_sql and FromQueryResult::find_by_statement do (guide 10-raw-sql)"
+                        deps (napi-models napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.verify
+                        title "A statement's result is described by the server without running it and checked against a decode target, every column present and of a type its field decodes, as Rust's VerifyStatement::verify does (guide 10-raw-sql)"
+                        deps (napi-models napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.sql-grammar-check
+                        title "SQL text is held to PostgreSQL 18's grammar before it is sent, for example once as a module loads, refusing what libpg_query rejects with the token it stopped at: the run-time counterpart of Rust's compile-time sql! macro (guide 10-raw-sql)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.prql-text
+                        title "PRQL text compiles to PostgreSQL SQL with its result held to the grammar and its $N placeholders checked against the values given, the run-time counterpart of Rust's prql! macro (guide 10-raw-sql, 12-pipeline)"
+                        deps (napi-pipeline guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.raw-pages
+                        title "SQL text pages and counts, wrapped as a subquery and refused unless it is a single SELECT, as Rust's SelectorRaw::paginate and SelectorRaw::count do (guide 06-pagination)"
+                        deps (napi-models napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.expression-functions
+                        title "The JavaScript expression builders call any function by name, write a piece of SQL with bound $N values, write GROUPING(..), and write the jsonb operators ->, ->>, #>, #>> and ?, as Rust's Func::named, Expr::template, Func::grouping, get_json_field, cast_json_field and has_json_key do (guide 11-query-builder)"
+                        deps (napi-statements guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.copy-described-rows
+                        title "A binary COPY describes its columns' names and types before it starts, takes rows one at a time, writes a model's records and reads its rows as a model's records, as Rust's copy_in_columns, copy_out_columns, CopyRowSink::send, send_model and CopyRowStream::models do (guide 17-copy)"
+                        deps (copy-binary-rows napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.copy-row-codec
+                        title "A program frames the binary COPY format itself, encoding rows of values into bytes and decoding bytes split anywhere into rows, as Rust's CopyRowEncoder and CopyRowDecoder do (guide 17-copy)"
+                        deps (copy-binary-rows guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.copy-source-checks
+                        title "Rust and JavaScript agree on a COPY TO over a SELECT with a tie limit or a WINDOW clause: Rust's guide says copy_out refuses one with Error::QueryBuilder, while JavaScript's copyOut builds and runs both and PostgreSQL 18 accepts them (repro in the node note)"
+                        kind @fix
+                        deps (copy-source-tie-check guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T17:19:46.995914Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found writing guide 17-copy. Repro (JavaScript, PostgreSQL 18.6): const t = new Table(\"pg_class\"); await pool.copyOut(copyTo(select(t.col(\"relname\")).from(t).orderBy(t.col(\"relpages\").asc()).limitWithTies(1), \"csv\")) streams rows, and the same with select(..).window(..) does too. docs/guide/16-copy.md says Rust's copy_out refuses a tie-limit or WINDOW source with Error::QueryBuilder before anything is sent; copy-source-tie-check says JavaScript runs the same checks. Diagnose which side is right against the 18 grammar (COPY (query) accepts both?) and make the two bindings and Rust agree, guide chapters included."
+                            }
+                        )
+                    }
+
+                    {
+                        id napi.guide-gaps.pool-builder
+                        title "A JavaScript pool takes a recycle timeout, a queue mode, post_create, pre_recycle and post_recycle hooks, and the Clean and Custom(sql) recycling methods, as Rust's PoolBuilder and RecyclingMethod do (guide 20-configuration)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.pool-tags
+                        title "A JavaScript pool carries a tag, and several pools are built by name and addressed by tag, as Rust's ManagerConfig tag, DatabasePool::tag and connect_multi_with_builder's DatabaseMultiPool do (guide 20-configuration)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.tls-configuration
+                        title "A JavaScript pool connects through a TLS configuration of the program's own, a client certificate among it, as Rust's connect_with takes any MakeTlsConnect connector; today it has only verify-full against ca or the platform store (guide 20-configuration)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.connection-discard
+                        title "A checked-out JavaScript connection is discarded rather than returned to its pool, as Rust's DatabaseConnection::discard does; today close() always returns it (guide 20-configuration)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.metrics
+                        title "JavaScript instruments a pool, its connections and transactions with a collector of its own, told each query's operation, SQL and fingerprint, each acquisition and each transaction's begin, commit and rollback, as Rust's pgorm::metric InstrumentedPool, MetricsCollector, QueryContext, NoOpMetrics and LoggingMetrics do (guide 21-metrics)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.migrations
+                        title "JavaScript runs migrations, its frozen migrationFile .sql files and migrations of its own, with pgorm-migration's ledger, advisory lock, commits_after (the -- pgorm: commits-after line), checksums, status and pending/applied queries, and the statement-cache clear and notify after a batch, as MigratorTrait::up does; freezing generated DDL is already there (guide 22-migrations)"
+                        deps (napi-connections napi-schema guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T18:10:02.163978Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Narrowed 2026-11-05 after main 233566c4 gave JavaScript migrationFile, migrationFiles and MigrationFile (name, text, commitsAfter, freeze): what remains is a runner. Running a frozen file needs napi.guide-gaps.batch-execute too, since a file of several statements is a script no JavaScript terminal runs in one call."
+                            }
+                        )
+                    }
+
+                    {
+                        id napi.guide-gaps.models-from-ddl
+                        title "JavaScript generates model declarations from DDL, its enums, disjoint and one-of shapes recognised, as pgorm-codegen's entities_from_sql does for Rust entities (guide 23-codegen)"
+                        deps (napi-models napi-codegen guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.pg-19
+                        title "pgorm-napi forwards pgorm's pg-19 feature and the module reports the PostgreSQL release its build targets, as pgorm's POSTGRES_TARGET and pgorm-python's forwarded feature and capabilities() do (guide 27-postgres-releases)"
+                        deps (napi-packaging guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.entity-select-reads
+                        title "A registered entity's Select<E> counts, streams, pages, takes a cursor and joins a relation from JavaScript, as Rust's Select count, stream, paginate, cursor_by and join methods do (guide 24-registered-entities)"
+                        deps (napi-entities guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.pipeline-models
+                        title "A pipeline reads a declared model as a source, its columns named by field and compared by kind, and selectSources decodes declared models' records, as Rust's Pipeline::from(entity), its Column steps and select_sources do (guide 12-pipeline)"
+                        deps (napi-pipeline napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.model-column-casts
+                        title "A declared model column reads and writes money (cast to and from numeric), compares a domain over an enum cast to the enum, and takes custom read and write casts, as Rust's ColumnType::Money, its domain-over-enum comparisons and select_as, save_as, select_with and save_with do (guide 13-values)"
+                        deps (napi-models napi-values guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.binding-refusals
+                        title "pgorm-napi's inconsistencies the guide found are fixed: an empty model insert batch takes onConflict and sends nothing as Rust's does; new Pool and Relation.load refuse an option they do not know with a TypeError as the builders do; CopyRowStream's rows type-check as CopyRows; DisjointPaginator.numItemsAndPages returns { items, pages } as Paginator's does"
+                        kind @fix
+                        deps (napi-models napi-connections guide.javascript)
+                    }
+                )
+            }
         )
         log (
             {
@@ -15204,8 +15827,6 @@ children (
                 [spec:pgorm:req:bindings.entities]
                 [spec:pgorm:req:bindings.entity-graphs]
                 [spec:pgorm:req:bindings.entity-reads]
-                [spec:pgorm:req:bindings.entity-versions]
-                [spec:pgorm:req:bindings.entity-writes]
                 [spec:pgorm:req:bindings.errors]
                 [spec:pgorm:req:bindings.expressions]
                 [spec:pgorm:req:bindings.identifiers]
@@ -15252,7 +15873,6 @@ children (
                 [spec:pgorm:req:bindings.model-columns]
                 [spec:pgorm:req:bindings.model-reads]
                 [spec:pgorm:req:bindings.model-records]
-                [spec:pgorm:req:bindings.model-writes]
                 [spec:pgorm:req:bindings.models]
                 [spec:pgorm:req:bindings.pagination]
                 [spec:pgorm:req:bindings.pipeline]
@@ -15292,8 +15912,6 @@ children (
                 [spec:pgorm:req:bindings.entities]
                 [spec:pgorm:req:bindings.entity-graphs]
                 [spec:pgorm:req:bindings.entity-reads]
-                [spec:pgorm:req:bindings.entity-versions]
-                [spec:pgorm:req:bindings.entity-writes]
                 [spec:pgorm:req:bindings.errors]
                 [spec:pgorm:req:bindings.expressions]
                 [spec:pgorm:req:bindings.identifiers]
@@ -15337,7 +15955,6 @@ children (
                 [spec:pgorm:req:bindings.pipeline-expressions]
                 [spec:pgorm:req:bindings.relation-conditions]
                 [spec:pgorm:req:bindings.schema-from-entity]
-                [spec:pgorm:req:python.pipeline]
             )
         }
         log (
@@ -15478,7 +16095,6 @@ children (
                 [spec:pgorm:req:bindings.graphs]
                 [spec:pgorm:req:bindings.model-reads]
                 [spec:pgorm:req:bindings.model-records]
-                [spec:pgorm:req:bindings.model-writes]
                 [spec:pgorm:req:bindings.models]
                 [spec:pgorm:req:bindings.pagination]
                 [spec:pgorm:req:bindings.relations]
@@ -16505,6 +17121,21 @@ children (
                     }
                 )
             }
+
+            {
+                id derives.into-active-model-forms
+                title "A form derives IntoActiveModel from any crate, names its active model by path, and carries any column type"
+                kind @fix
+                deps (derives.paths)
+                log (
+                    {
+                        at 2026-11-05T14:15:36.020114Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (entities chapter). Three gaps in #[derive(IntoActiveModel)]: (1) derived in a crate other than its entity's, it fails E0119 against the Entity derive's `impl IntoActiveModel<ActiveModel> for <Entity as EntityTrait>::Model` (pgorm-macros/src/derives/active_model.rs:92; the impl header names the projection rather than `Model`, and coherence across crates does not see past it), so a form cannot live beside the handler that uses it; (2) `#[pgorm(active_model = ..)]` parses a bare syn::Ident (derives/into_active_model.rs:11), not a path, unlike every other code-valued key (macros.derive.code-values), so `active_model = customer::ActiveModel` is a parse error; (3) IntoActiveValue is implemented only for the primitive types in src/entity/active_model.rs:593-640, not for ActiveEnum, ValueType, JsonValueType or CreatedRange types, so a form field of any of those does not compile. The guide (docs/guide/02-entities.md) shows a form beside its entity with String fields."
+                    }
+                )
+            }
         )
         log (
             {
@@ -16949,6 +17580,39 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id disjoint.change-replays
+                title "A disjoint kind change is frozen into its migration when it is made, so a fresh database replays the history"
+                kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:bindings.migration-file])
+                    main ([spec:pgorm:def:migration.frozen] [spec:pgorm:req:migration.sql-file.commits-after] [spec:pgorm:sem:disjoint.evolve.frozen])
+                    python ([spec:pgorm:req:bindings.migration-file])
+                }
+                log (
+                    {
+                        at 2026-11-05T14:39:50.709396Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (disjoint chapter). Schema::add_disjoint_kind and the other kind changes compute their steps from the current declaration, and so does create_disjoint; a migration history written by calling them at migration time cannot replay on a fresh database, since the first migration's create_disjoint (built from today's code) already holds the kind a later migration adds, and the add fails. The guide tells users to keep each change's statements as SQL text in its migration. Possible shape: pgorm-migration writes a DisjointChange's steps out as SQL-file migrations, freezing them when the change is made."
+                    }
+
+                    {
+                        at 2026-11-05T16:24:20.503191Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:26:33.741898Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lane decision (pending operator override), building the brief's suggested shape and making it general. A history replays only if every migration is a frozen artifact, so generated DDL is frozen into SQL-file migrations when a change is made, never recomputed when it runs. (1) pgorm core gains `MigrationFile` (src/schema/migration_file.rs, beside the DDL it freezes): `MigrationFile::new(name, statements)` over any Display statements (create_disjoint, create_table_from_entity, a DisjointChange step), `committing_after()`, `name()`, `text()`, and `freeze(dir) -> io::Result<bool>`, which writes `<dir>/<name>.sql` with create_new only when absent and never rewrites an existing file, so the code that froze a change can stay while the declaration moves on; a name that is not a plain file stem is refused (InvalidInput). (2) `DisjointChange::migration_files(name)` gives one file per step, `<name>` for a one-step change and `<name>_<n>` from 1 otherwise, every step but the last opening with the directive line `-- pgorm: commits-after`, and a step with a gap ending in a comment naming the rows the program writes before the next file (a Rust migration the program lists between them). (3) pgorm-migration's SqlMigration answers commits_after() from that directive, detected by SqlMigration::new (const), so a frozen multi-step change runs as the evolve rule asks; the directive is text, so it is checksummed like the rest. Rejected: recomputing at run time (the bug), comparing an existing file and failing (forces deleting the freeze code), a directory-embedding macro (scope), and putting the writer in pgorm-migration (the bindings would need pgorm-migration and its tracing-subscriber dependency for rendering that belongs beside the DDL). Bindings: a native `MigrationFile` class (name, text, freeze) and `migration_files(change, name)` over a change the binding's kind-change functions returned, which keeps a handle to pgorm's change, so the rendering is pgorm's alone."
                     }
                 )
             }
@@ -18003,6 +18667,27 @@ children (
                     }
                 )
             }
+
+            {
+                id typed-binds.polymorphic-operands
+                title "A bound array, range or scalar carries its type where an overloaded operator or polymorphic function reads it, outside a cast too"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:51.928067Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (query-builder chapter). Func::unnest(Expr::val(vec![..])) and Expr::val(Range).contains(col) fail 42725 (function/operator is not unique): the bound value's type ($1::int4[], $1::tstzrange) is attached only inside cast_as. A bound integer added to a date (day + $1) fails the same way. The guide shows the casts and explains them."
+                    }
+                )
+            }
+
+            {
+                id typed-binds.model-any
+                title "A declared Python model column's any_ and all_ bind their array cast to the column's type, as a registered column's and Rust's eq_any do, where today \"cake\".\"flavor\" = ANY($1) binds a bare text[] (unchecked for a domain over an enum or money)"
+                kind @fix
+                deps (guide.python python.models)
+            }
         )
     }
 
@@ -18101,6 +18786,706 @@ children (
                         text "Doing → Done (nplan complete)"
                     }
                 )
+            }
+
+            {
+                id value-codecs.model-decimal-exact
+                title "A model's Decimal field reads numeric through ExactDecimal, refusing what it cannot hold exactly, as COPY rows and the bindings do"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:49.773788Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (values chapter). TryGetable for Decimal (src/executor/query.rs:324) uses rust_decimal's own FromSql, which rounds a numeric past 28 fractional digits (as ExactDecimal's doc says, src/executor/exact_decimal.rs:10-14), while COPY rows (src/database/copy_rows.rs:663), created ranges and the bindings refuse such a value through ExactDecimal, so find() and a binary COPY of one column disagree. The guide advises a precision and scale that fit."
+                    }
+                )
+            }
+        )
+    }
+
+    {
+        id binding-parity
+        title "Python and JavaScript offer every shared feature in one shape, Rust's, with no name left undecided in bindings-surface.json"
+        kind @refactor
+        deps (binding-spec-consolidation)
+        children (
+            {
+                id binding-parity.grouping
+                title "Grouping elements are built one way in both bindings, as pgorm-query's GroupingElement constructors build them"
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:12:09.728212Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T14:12:09.955749Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust's shape is GroupingElement::{set(iter), empty(), rollup(iter), cube(iter), sets(first) -> GroupingSets.add(e)}. Python already had it as GroupingElement.set/empty/rollup/cube (statics, variadic) and sets(first, *rest); JavaScript had the top-level functions groupingSet (empty with no argument), rollup, cube and groupingSets. Chosen: both bindings make grouping elements only through GroupingElement's static factories set, empty, rollup, cube and sets(first, ...rest); the top-level JavaScript functions are deleted and GroupingElement cannot be called in either binding (TypeError). GROUPING SETS keeps the variadic sets(first, *rest) rather than a GroupingSets class with add(): the variadic is how both bindings already spell a Rust accumulator that takes its first item (Condition.all/any, Conflict.on), and it keeps the never-empty guarantee as Rust's sets(first) does. Delivered in 5e2fd4d0: bindings.select+3, napi.naming+5 and python.naming+4 (the grouping exceptions gone; bindings.select joins python.naming's factory-alone list), bindings-surface.json shares GroupingElement's five members. The node owns no rules (binding-spec-consolidation owns bindings.select and the naming rules), so it was completed by hand."
+                        after_done true
+                    }
+                )
+            }
+
+            {
+                id binding-parity.table-functions
+                title "A table function in FROM is built one way in both bindings, as pgorm-query's TableFunction is"
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:12:16.602396Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:18:19.603388Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T14:18:19.760676Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust's shape is TableFunction::new(call), TableFunction::rows_from(call), and .and(call), .column_definition(name, type) (for the call added last), .with_ordinality(), .columns(iter) and .alias(name) -> FromItem. Python already had exactly that (TableFunction(call), TableFunction.rows_from, and_, column_definition, with_ordinality, columns(*names), alias). JavaScript had a one-shot tableFunction(calls, { alias, ordinality, columns, rowsFrom }) whose record calls were { call, columnDefinitions: [[name, type], ..] }. Chosen: JavaScript takes the builder — tableFunction(call) (the factory napi.naming already named for this class, recorded in javascript.only as a language difference), TableFunction.rowsFrom(call), and, columnDefinition(name, type), withOrdinality(), columns(...names) and alias(name) — and the options shape is deleted. A record call with no definition is the server's refusal (42601), as in Rust and Python, so JavaScript's 'at least one column' refusal went with the list it guarded. Delivered in 1c6acd5b: bindings.select+4; bindings-surface.json shares TableFunction's six members. Owns no rules (binding-spec-consolidation owns bindings.select), so completed by hand."
+                        after_done true
+                    }
+                )
+            }
+
+            {
+                id binding-parity.like-patterns
+                title "A LIKE pattern and its escape are written one way in both bindings, as pgorm-query's LikeExpr is"
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:18:19.91199Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:28:42.880149Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T14:28:43.050869Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust's shape: Expr::like / not_like / ilike / not_ilike / similar_to / not_similar_to take impl IntoLikeExpr — a string (default backslash escape) or LikeExpr::new(pattern) with .escape(c) or .no_escape(). Python had LikePattern(pattern, escape=..), required (a plain string a TypeError), escape=\"\" meaning no_escape; JavaScript had like(pattern, { escape }), escape \"\" meaning off. Chosen: both take text or a LikeExpr, named for Rust's type — Python LikeExpr(pattern) (constructed by calling it), JavaScript likeExpr(pattern) (the factory napi.naming gives such a class, recorded in javascript.only) — with escape(c) and no_escape()/noEscape(). The empty-string-means-off spelling is gone in both: escape('') is a ConstructionError, as no_escape() is Rust's spelling; NUL is refused as before. A quantified pattern can no longer be given an escape at all, so bindings.quantifiers drops that refusal. Python's capability key like_pattern became like_expr. Delivered in 8dc60d44: bindings.expressions+3, bindings.quantifiers+3; campaign emitter and dispatcher write p.LikeExpr(..).escape(..). Owns no rules, so completed by hand."
+                        after_done true
+                    }
+                )
+            }
+
+            {
+                id binding-parity.identifiers
+                title "A runtime identifier is passed one way in both bindings, as Rust passes one"
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:28:43.185865Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:45:39.300725Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T14:45:39.469979Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust's shape: an identifier is a Name; text becomes one only through Name::runtime(text) (there is deliberately no IntoName for &str, so the minting is greppable), and a name fixed by the program is an AliasName token, alias(\"rn\"), or a derived SqlName. Python had an Identifier class (validated text, .name) accepted beside a str at every identifier position and returned by Aliased.alias; JavaScript passes strings, validated and minted by args::name. Chosen: delete Python's Identifier, so both bindings take the language's string at each identifier position and mint it with Name::runtime there. Reason: every name a binding is given is computed at run time, so the binding's identifier position is exactly where Rust's runtime route runs; Rust demands the explicit call only to tell runtime text from names fixed in the program's types, a distinction a binding has no second kind for. Python's wrapper was optional and changed nothing a str did not; making a Name wrapper mandatory in both would contradict bindings.identifiers (identifiers are text) and change every call site for no safety gained. Aliased.alias now answers a str; model declarations validate names through a private _native._identifier (the one Rust validator). Delivered in 3f0ebf28: bindings.identifiers+3, python.truth-testing+4 (Identifier no longer an exempt value); the campaign's name op yields the text. Unsure point flagged to the lead: a strict reading of 'Rust's shape' could instead want a Name/Name.runtime value in both bindings. Owns no rules, so completed by hand."
+                        after_done true
+                    }
+                )
+            }
+
+            {
+                id binding-parity.registered-inserts
+                title "A registered entity's insert is typed by row count in both bindings, as Rust's Insert::one and Insert::many are, upsert returns included"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.entity-versions])
+                    python ([spec:pgorm:req:bindings.entity-versions])
+                }
+                log (
+                    {
+                        at 2026-11-05T14:00:17.014645Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust types an insert by row count: Insert<A, OneRow> (Insert::one) has exec_returning_upsert, Insert<A, ManyRows> (Insert::many) has exec_returning_upserts, and neither has the other's. Python already had that shape (Entity.insert -> EntityInsert: on_conflict, returning_upsert; Entity.insert_many -> EntityInsertMany: on_conflict, returning_upserts). JavaScript had one EntityInsert for both, with returningUpserts on a one-row insert and returningUpsert refused at run time on a batch. Chosen: JavaScript takes Python's (Rust's) shape. insert() gives EntityInsert (onConflict, returningUpsert) and insertMany() gives EntityInsertMany (onConflict, returningUpserts), both over one module-private Inserted holding the ActiveModels and conflict clause, so no code is duplicated. EntityInsertMany is now a shared name in bindings-surface.json, and both undecided entries are gone. bindings.entity-versions is +3 and states the row-count typing. Its python and javascript claims moved here from binding-spec-consolidation, so this node is what delivers the bumped rule. Not added, because neither binding had them and parity holds without them: Rust's other row-count terminals on a registered insert (exec / exec_returning_pk(s) / exec_returning_model(s)) and add/add_many promoting one to many. ActiveModel.insert stays the hooked single-row insert."
+                        after_done true
+                    }
+                )
+            }
+
+            {
+                id binding-parity.pipeline-terminals
+                title "A pipeline runs through the same terminals in both bindings, as Rust's pipeline terminals run it"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.pipeline-terminals])
+                    python ([spec:pgorm:req:bindings.pipeline-terminals] [spec:pgorm:req:python.pipeline])
+                }
+                log (
+                    {
+                        at 2026-11-05T14:14:50.832252Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:19:09.653278Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust runs a pipeline two ways. Its own terminals are Pipeline::all, one and one_opt; one and one_opt append take 1 before compiling, so at most one row leaves the server and none is RecordNotFound / None. The other way is into_sql(), which gives (String, Values), the raw currency ConnectionTrait's execute / query / query_raw run as written. Before: Python had Pipeline.all/one/optional (take 1 for one and optional, inspect(terminal=...)), but only on a Connection or Transaction. JavaScript had no terminal of the pipeline's own: it ran only through db.query / one / optional / stream / execute(pipeline), and its inspect() took no terminal. Both bindings already took a pipeline at the statement terminals, which is the binding's spelling of into_sql + ConnectionTrait, as for every built statement, so that stays in both. Chosen: JavaScript gains Pipeline.all/one/optional(db, options), the options being the statement terminals' QueryOptions, tagged included, plus inspect(terminal). The terminals are written over the Queryable terminals with this.take(1), so no decode path is duplicated. Python's Pipeline terminals now also take a Pool, on a lent connection through the shared Executor, which results::fetch now takes. Every other registration and source-selection terminal already ran on a pool in both bindings (bindings.registered-pools), and JavaScript's Queryable includes Pool. Rust's DatabasePool is no ConnectionTrait, but in the bindings a Pool is a statement runner, so leaving it out of this one terminal would have been the odd one out. New shared rule bindings.pipeline-terminals. python.pipeline is +1 and keeps only null(), its terminal clause now shared. Its claim moved here from binding-spec-consolidation. bindings.pipeline is unchanged, since its statement-terminal clause still holds. Pipeline.all/one/optional are shared names in bindings-surface.json."
+                    }
+                )
+            }
+
+            {
+                id binding-parity.verify-annotations
+                title "Every shared binding rule is verified in both bindings: Python tests bindings.model-columns and JavaScript tests bindings.optional"
+                kind @test
+                deps (binding-parity.model-column-operands)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:22:33.1695Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:23:04.443364Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Todo (nplan unclaim)"
+                    }
+
+                    {
+                        at 2026-11-05T14:24:07.870065Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:25:08.92335Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Audit of 2026-11-05: every bindings.* rule in docs/spec/bindings.md (81 with bindings.pipeline-terminals) checked for impl and /test annotations in both bindings, using the impl and test include sets of .config/nspec/config.styx, at each rule's current version. nplan_spec_untested and nplan_spec_uncovered agree per impl. Only the two named holes were real. (bindings.with and bindings.relation-conditions are tested in Python by unit tests under pgorm-python/src, which nspec counts.) No annotation is pinned off its rule's version. Python, bindings.model-columns: no test proved it, so ModelDatabase.test_columns_compare_through_the_declared_kind in pgorm-python/tests/test_models.py covers it live. It checks the qualification by the model's table or alias, eq/ne/lt/lte/gt/gte and is_in/is_not_in through the declared kind with the enum's label cast to its type, any_/all_ and expressions as written, a Value of the field's kind only, and None refused (is_null tests it). Writing it exposed Python refusing a model column of another declared type, fixed first in binding-parity.model-column-operands. JavaScript, bindings.optional: a /test must sit in a test_include path, and pgorm-napi/checks/package.js is impl-side. So the test is in tests/package/smoke.test.ts, which checks/package.js runs in fresh Node.js and Deno projects that installed the packed packages: neither installed package carries a tests/fixtures/security/sqlmap/generative/checks/scripts/src/target/plan path or a .ts (other than .d.ts), .rs, .toml, .lock or .py file; neither manifest declares dependencies, devDependencies, peerDependencies, bundled dependencies or scripts; and the addon's DEPENDENCIES.json links none of pgorm-test-support, pgorm-python, pyo3, pgorm-generative-bridge or pgorm-sqlmap-adapter. This is the JavaScript counterpart of check_artifacts.py."
+                    }
+
+                    {
+                        at 2026-11-05T14:28:00.572587Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id binding-parity.model-column-operands
+                title "Python's model column takes another model column as written, whatever its declared type, as bindings.model-columns says and JavaScript does"
+                kind @fix
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:23:11.764914Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:23:55.570584Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Found while writing the Python test for bindings.model-columns (binding-parity.verify-annotations). Python's ModelColumn._operand refused a model column of another declared type with ConstructionError(\"compared model columns have different declared types\"). bindings.model-columns says an expression is taken as written, and bindings.column-operators says a model column goes wherever an expression goes. JavaScript's columnValue takes any Expr as written, a model column of another type included. Chosen: Python takes it as written too, the branch deleted, and whether the types compare is left to PostgreSQL as for any expression. Python's test that asserted the refusal now asserts the comparison renders as the two qualified columns do. No rule changed."
+                    }
+
+                    {
+                        at 2026-11-05T14:24:01.248474Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id binding-parity.model-inserts
+                title "A model's insert is typed by row count in both bindings, as a registered entity's and Rust's Insert are: insert(values) answers returning_upsert, insert_many(rows) returning_upserts, neither the other's"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.model-writes])
+                    python ([spec:pgorm:req:bindings.model-writes])
+                }
+                deps (binding-parity.registered-inserts)
+                log (
+                    {
+                        at 2026-11-05T14:26:12.722548Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by binding-parity.registered-inserts (2026-11-05). Both bindings give Model.insert(values) and Model.insert_many(rows) one ModelInsert class (bindings.model-writes+1). That class has returning_upsert and returning_upserts both, whatever the row count. A batch's returning_upsert fails only at run time, with a DecodeError when several rows come back, and a one-row insert offers returning_upserts. This is not a parity gap: Python (pgorm/models/writes.py) and JavaScript (lib/model-writes.js) agree, and ModelInsert is a shared name. But it is not Rust's shape: Insert<A, OneRow> has exec_returning_upsert, Insert<A, ManyRows> has exec_returning_upserts, and that is the shape registered entity inserts now take (EntityInsert / EntityInsertMany, bindings.entity-versions+3). Splitting it would add a ModelInsertMany (or similar) beside ModelInsert in both bindings, bump bindings.model-writes, and update both suites, both typings and the generative campaign's model.insert emitters, which use ModelInsert.returning_upsert(s). Left for the operator, as the operator's decision named only the undecided names."
+                    }
+
+                    {
+                        at 2026-11-05T14:26:37.142874Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Correction to the note above: the generative campaign's upsert emitters (effects.py, emit_python.py) call the registered entity's insert / insert_many, not ModelInsert. Grep security/generative for model inserts before assuming it needs a change."
+                    }
+
+                    {
+                        at 2026-11-05T14:55:36.655993Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:05:20.522108Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Coordinator 2026-11-05: fix it rather than leave it. Rust's Insert<A, OneRow> / Insert<A, ManyRows> is the reference. Before: both bindings gave one ModelInsert from insert(values) and insert_many(rows), with both upsert terminals and inspect(terminal) taking either. Chosen: insert(values) gives ModelInsert (returning_upsert, inspect(terminal=\"returning_upsert\")) and insert_many(rows) gives the new ModelInsertMany (returning_upserts, inspect(terminal=\"returning_upserts\")). Both keep on_conflict, returning(fields), execute and inspect. Rust's add / add_many are what make a batch of any insert, so both kinds also gain add(values) / add_many(rows), which give the ModelInsertMany holding the insert's rows then the new ones, its conflict clause kept, and they go in this node rather than insert-terminals because they are the row-count typing's transition. The rows are appended to the native INSERT, refused at once as a ConstructionError when they set other fields than the insert's rows do, or when either is a row of defaults, as insert_many already refused. Python: a private _Insert base (fields, on_conflict, add, add_many, _upserts) under ModelInsert / ModelInsertMany, typed so mypy refuses the other kind's terminal. JavaScript: a module-private Inserting base under ModelInsert / ModelInsertMany, with the private state reached through a static accessor, and models.d.ts declaring the two classes apart. Rejection cases: public_types_invalid.py (six) and model-types.test.ts (five @ts-expect-error). bindings.model-writes is +2; its claims moved here from binding-spec-consolidation (javascript) and python-model-gaps (python). The campaign's execute dispatch (effects.py) and the emitted reproducer's _execute (emit_python.py) take ModelInsertMany too. The campaign builds model inserts only through insert(values), so its grammar is unchanged."
+                    }
+                )
+            }
+
+            {
+                id binding-parity.insert-terminals
+                title "A registered entity's insert has Rust's insert terminals in both bindings: execute, returning_pk and returning_model on one row, returning_pks and returning_models on a batch, and add / add_many making a batch"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.entity-inserts])
+                    python ([spec:pgorm:req:bindings.entity-inserts])
+                }
+                deps (binding-parity.registered-inserts)
+                log (
+                    {
+                        at 2026-11-05T15:07:30.188143Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:24:10.418009Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Coordinator 2026-11-05: compare Rust's insert terminals with both bindings' registered and model inserts. Add what a Rust user would reach for, and record a mapping where a binding already covers it. Rust: Insert<A, OneRow> has exec, exec_returning_pk, exec_returning_model and exec_returning_upsert. Insert<A, ManyRows> has exec, exec_returning_pks, exec_returning_models and exec_returning_upserts. Both have on_conflict, add and add_many (which give ManyRows), and on_empty_do_nothing / on_conflict_do_nothing (which give a TryInsert). Registered entity inserts had only on_conflict and the upsert terminal. Added to both bindings, spelled by the naming rules: EntityInsert.execute, returning_pk and returning_model; EntityInsertMany.execute, returning_pks and returning_models; add(active) and add_many(actives) on both kinds, giving EntityInsertMany. They are statement terminals, so no hook runs, unlike ActiveModel.insert. A key is a scalar for a one-column key, and a tuple (Python) or frozen array (JavaScript) for a composite key, as PrimaryKey::ValueType is. A conflict-skipped row is a DecodeError from returning_pk / returning_model (Rust's RecordNotInserted / RecordNotFound) and is left out of the batch terminals. Native: both adapters' VersionWrite::Upserts became one Insertion { actives, conflict, one, answer: Count | Keys | Models | Upserts }, run through a new EntityBackend::insert, with the upserts on the same path. Batch uniformity: Rust records a column-set mismatch and refuses at exec with Error::Query, which Python classified as DatabaseError and JavaScript as ConstructionError. Both bindings now refuse a mismatched batch as it is built (insert_many, add, add_many) with the same ConstructionError message. Mapped rather than added: a model insert's exec is execute; exec_returning_model(s) is returning().one / all; exec_returning_pk(s) is returning(*key fields).one / all, giving records of the key fields. Its add / add_many came with binding-parity.model-inserts. Not added: TryInsert / on_conflict_do_nothing. on_conflict(Conflict.do_nothing()) writes the clause, and TryInsertResult's Conflicted / Empty are what returning_upsert's null and a batch of none's empty answers already say. New rule bindings.entity-inserts; bindings.entity-versions is unchanged."
+                    }
+                )
+            }
+
+            {
+                id binding-parity.foreign-active-error
+                title "A record, ActiveModel or column of another registration is refused in both bindings as an argument of the wrong type, a TypeError"
+                kind @fix
+                implements {
+                    javascript ([spec:pgorm:req:bindings.entity-writes])
+                    python ([spec:pgorm:req:bindings.entity-writes])
+                }
+                deps (binding-parity.insert-terminals)
+                log (
+                    {
+                        at 2026-11-05T15:24:19.640676Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by binding-parity.insert-terminals (2026-11-05). Python's entities refuse an ActiveModel of another registration with LifecycleError: versions.rs owned() says \"ActiveModel belongs to another entity registration\", and generic.rs concrete() raises Error::Type. registered_versions.py asserts LifecycleError for insert(self.old.active()...). JavaScript's ownActive (lib/entities.js) throws ConstructionError: \"the ActiveModel is app.Note's, not app.Account's\". bindings.entity-writes says only \"A record or an ActiveModel of another registration MUST be refused\", with no error class. bindings.errors / bindings.argument-errors should settle the class. A value the call cannot use is a ConstructionError under the argument-errors line, which suggests JavaScript's. Then one binding changes, along with its tests (registered_versions.py, registered_entities.py and the entity-writes tests), and bindings.entity-writes names the class."
+                    }
+
+                    {
+                        at 2026-11-05T15:35:48.512966Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:41:57.838437Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision 2026-11-05, pending operator override: an ActiveModel of another registration, passed where this entity's is expected, is an argument of the wrong type. So under the operator's decision (12) of 2026-10-30 it is a TypeError in both bindings, not the ConstructionError kept for a value that cannot become what pgorm sends. Applied to every handle of another registration given where this entity's is expected. Python: owned() in entities/versions.rs (update, insert, insert_many, add, add_many); a column of another entity in entities/column.rs name() (ActiveModel get/set/not_set/reset, EntityModel.with_value, update_many().set), which was LifecycleError; and the generated typed views in _registered/entities.py (ModelView, ActiveView, EntityView, QueryView), which were LifecycleError. JavaScript: ownActive and modelOf in lib/entities.js (update, insert, insertMany, add, addMany, intoActive, withValue, tagged), which were ConstructionError; and the addon's own checks behind them (entities/versions.rs own_active, entities/inserts.rs). Both bindings word it as \"the ActiveModel / record / column is X's, not Y's\". bindings.entity-writes is +1 and names the class; its claims moved here from binding-spec-consolidation. Left as is: a disjoint kind write given another kind entity's ActiveModel. Both bindings refuse it with a ConstructionError, which bindings.disjoint+1 names for every refusal before anything is sent, so changing it would be a disjoint-rule decision."
+                    }
+                )
+            }
+
+            {
+                id binding-parity.disjoint-foreign-active
+                title "A disjoint kind write given an ActiveModel or record of another entity refuses it in both bindings as an argument of the wrong type, a TypeError, as a registered entity's write does"
+                kind @fix
+                deps (binding-parity.foreign-active-error)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T15:51:07.766289Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:55:24.151616Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision 2026-11-05: argument-errors (12) governs a wrong-typed argument everywhere. A registered disjoint enum's insert, update or change_kind given an ActiveModel of another entity, for the base or for a kind, now refuses it with TypeError (\"the ActiveModel is X's, not Y's\") in both bindings, as bindings.entity-writes+1 does for a registered entity's write. The check is in the native values step of each binding (pgorm-python/src/disjoint/mod.rs, pgorm-napi/src/disjoint/mod.rs), where it was a ConstructionError. bindings.disjoint is +2: a refusal before anything is sent stays a ConstructionError for a value that cannot become what pgorm sends (the kind column set, a kind row's key set, a row for a kind without a table), and an ActiveModel of another entity is named a TypeError. Annotations are re-pinned everywhere, src/ and tests/ included. The rule's python and javascript claims moved here from disjoint.bindings, so the bump leaves that node with nothing stale. The disjoint docs in both bindings' ENTITIES.md are updated. A model-based disjoint write takes values, not handles, so it is unaffected."
+                    }
+
+                    {
+                        at 2026-11-05T16:04:14.696674Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T16:04:14.873973Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Correction to the decision note: the bindings.disjoint claims went back to disjoint.bindings, its only implements, because moving them left that delivered node with nothing to be Done by. It was re-covered at bindings.disjoint +2 by a commit typed feat, its kind. This node, delivered by ba56cf54, is completed by hand."
+                        after_done true
+                    }
+                )
+            }
+        )
+        log (
+            {
+                at 2026-11-05T13:42:02.239151Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Operator 2026-11-05: \"you were meant to fix them all ... Subagent to fix all the lack of parity. Rust user guide is the MAIN one. The others are just dialects of it.\" This supersedes decision (7) of 2026-10-30, under which each shape waited for its own proposal. Lead decision: every feature the two bindings offer in different shapes takes Rust's shape (pgorm / pgorm-query), spelled by python.naming and napi.naming. Where Rust has no counterpart, it takes the shape the earlier shape decisions set: a class made only by its factories, as with Conflict.on, MergeAction and the DDL factories. bindings-surface.json is then left with no undecided name and no open question. As of 2026-11-05 the undecided names are: Python's Identifier, LikePattern, TableFunction, EntityInsertMany, Pipeline.all/one/optional and GroupingElement.set/empty/rollup/cube/sets; JavaScript's cube, groupingSet, groupingSets, rollup, tableFunction and EntityInsert.returningUpserts."
+            }
+        )
+    }
+
+    {
+        id guide
+        title "pgorm has a complete user guide, written for Rust, with the Python and JavaScript guides each a dialect of it"
+        kind @docs
+        deps (coming-from-seaorm)
+        children (
+            {
+                id guide.rust
+                title "The Rust user guide teaches all of pgorm from a first query on, every example a doctest"
+                implements {
+                    main ([spec:pgorm:req:guide.rust] [spec:pgorm:req:guide.examples] [spec:pgorm:req:guide.chapters])
+                }
+            }
+
+            {
+                id guide.python
+                title "The Python guide is the Rust guide's dialect: the same chapters in Python, every example run against a server"
+                implements {
+                    python ([spec:pgorm:req:guide.dialects])
+                }
+                deps (guide.rust binding-parity)
+                log (
+                    {
+                        at 2026-11-05T17:44:21.266285Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Design of the Python guide (lead decisions, pending operator override): pgorm-python/guide/ holds chapters.json (the Rust ids in order plus python_only chapters: asyncio after getting-started, registrations and typing after codegen, distribution after bindings), NN-id.md chapters, README.md index, bakery.py (the bakery as declared pgorm.Model values plus create/seed through pgorm.schema, the same tables pgorm-guide-support creates) and examples.py (extraction, scratch databases named as testing.isolation mints, runner, CLI). Every ```python block is a whole program reading DATABASE_URL, no hidden lines; tests/test_guide.py holds structure and runs all standalone blocks plus pgorm-python/README.md's; checks/typing.py runs strict mypy over them; blocks fenced ```python registered run only in checks/guide.py, which builds the bakery's registration from pgorm-guide-support through pgorm.codegen (module rust_bakery) configured by 24-registrations.md's ```json application.json block, and runs in CI's application job and as an acceptance phase. Maintainer material from the old docs (ACCEPTANCE.md, DIRECT_BUILDERS.md, DISTRIBUTION's CI/evidence, the checks' run commands) moved to pgorm-python/checks/README.md. Gaps were filed under guide.python-gaps (the python container is sealed)."
+                    }
+                )
+            }
+
+            {
+                id guide.javascript
+                title "The JavaScript guide is the Rust guide's dialect: the same chapters in JavaScript, every example run in Node.js and Deno"
+                implements {
+                    javascript ([spec:pgorm:req:guide.dialects])
+                }
+                deps (guide.rust binding-parity)
+                log (
+                    {
+                        at 2026-11-05T17:19:47.576171Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lane decisions (lead brief, pending operator override):\n- The JavaScript guide is pgorm-napi/guide/NN-id.md, listed by pgorm-napi/guide/chapters.json: the Rust guide's 24 chapters under their ids and titles, in order, with four JavaScript-only chapters interleaved and declared \"javascript_only\": true (02-promises, 24-registered-entities, 25-generating-registrations, 26-typescript), the key matching the Python lane's python_only.\n- Every ```ts block runs: tests/guide.test.ts writes each into tests/guide-examples/<chapter>/<NN>.ts (committed, so plain `deno check` type-checks every example) and runs it in a scratch copy of the bakery (one template database per run, copied per example); PGORM_GUIDE_WRITE=1 rewrites, PGORM_GUIDE_CHAPTERS filters. A block names the bakery's models (guide/bakery.ts), pool and url undeclared, as the Rust guide's hidden lines supply them. <!-- example: empty --> gives an empty database; <!-- example: application --> marks registered-entity examples, skipped by the binding's own module and run by checks/entities.js against the application fixture. A sketch that needs a generated module is fenced `typescript`.\n- Gaps are paragraphs beginning \"Not available in JavaScript yet:\", filed under napi.guide-gaps.\n- The guide does not ship in the npm package: its examples rely on repository files and its links reach the Rust guide and specs. README.md (shipped) links it, and package.json's repository gains directory: pgorm-napi so npm resolves the README's relative links. checks/package.js's file lists are unchanged.\n- ENTITIES.md and CODEGEN.md are folded into chapters 24 and 25 and deleted; README.md is a short entry point keeping the Tests section DISTRIBUTION.md links.\n- The impl annotation lives in guide/examples.ts (nspec reads no markdown), and .config/nspec/config.styx's javascript impl includes pgorm-napi/guide/*.ts.\n- sql!/prql!: JavaScript's SQL text plus a parameter array is the stated difference; a run-time grammar check and PRQL text compile are filed as gaps (napi.guide-gaps.sql-grammar-check, prql-text)."
+                    }
+                )
+            }
+
+            {
+                id guide.python-gaps
+                title "Python gains what the Rust guide teaches and the Python guide names as not available in Python yet, each chapter updated as its feature arrives"
+                kind @feat
+                deps (guide.python)
+                children (
+                    {
+                        id guide.python-gaps.model-ddl
+                        title "A declared Python model writes its own DDL as an entity does: CREATE TABLE (Schema::create_table_from_entity), column types with length and precision (column_type), default_value and default_expr, generated_stored and generated_virtual expressions, indexed (create_index_from_entity), comment (create_comments_from_entity), rename_all, and a key's without_overlaps"
+                        deps (python.models python.schema)
+                    }
+
+                    {
+                        id guide.python-gaps.model-select
+                        title "A declared model's query has the entity Select's projections and clauses: select_only with columns, column_as and expr_as decoded through into_tuple, into_model and into_values; PartialModel's from_expr; distinct and distinct_on (DISTINCT ON in the statement builder too); group_by, having and aggregates; lock_exclusive, lock_shared and lock_with_behavior; right and reverse joins and a joined table's columns; Condition::add_option"
+                        deps (python.models)
+                    }
+
+                    {
+                        id guide.python-gaps.model-relations
+                        title "Declared models follow relations as entities do: a relation's on_condition; Related through a junction (find_related); Linked chains (find_linked, LinkedAlias::hop, last_hop_alias), a chain continuing from a second visit to one table included; load_many with a Select and load_many_via; a graph's related_one and related_maybe; from_alias on a via hop; join_maybe_filtered; cursor_by_on over a slot's columns and add_secondary_order_by"
+                        deps (python.models python.graph)
+                    }
+
+                    {
+                        id guide.python-gaps.model-writes
+                        title "Python writes have Rust's write surface: TryInsert and TryInsertResult (on_conflict_do_nothing on the key, on_empty_do_nothing, Conflicted, Empty); set_if_not_equals and is_changed on a registered ActiveModel; a declared model's update FROM and delete USING; and write hooks (ActiveModelBehavior) for a declared model"
+                        deps (python.models python.entities)
+                    }
+
+                    {
+                        id guide.python-gaps.model-types
+                        title "Declared models type their columns as entities do: money (ColumnType::Money read as Decimal), domains (ColumnType::Domain, a domain over an enum compared as the enum), interval fields (IntervalSpec::Fields), the select_as, save_as, select_with, save_with and save_array_with casts (a cast to a type with a modifier such as bit(7) included), ValueType and JsonValueType newtypes, and ActiveEnum's rs_type, db_type and display"
+                        deps (python.models python.values)
+                    }
+
+                    {
+                        id guide.python-gaps.raw-sql
+                        title "Python runs and decodes raw SQL as Rust does: batch_execute (an unprepared multi-statement script), a transaction's stream (query_raw on DatabaseTransaction), from_raw_sql and find_by_statement into a declared model or a registered entity, VerifyStatement::verify, SelectorRaw's paginate and count, and SQL parsed and PRQL compiled before they run (sql!, prql!)"
+                        deps (python.statements python.results python.pipeline)
+                    }
+
+                    {
+                        id guide.python-gaps.builder-functions
+                        title "Python's expressions call any function as Rust's do: Func::named beyond capabilities()[\"expression_functions\"], Expr::template, grouping(), the full-text search functions, any set-returning function as a table function, and the JSON operators get_json_field, cast_json_field and has_json_key (->, ->>, ?)"
+                        deps (python.expressions)
+                    }
+
+                    {
+                        id guide.python-gaps.pipeline-typed
+                        title "A Python pipeline decodes into declared models as Rust's does into entities: select_sources over declared models, and the typed terminals all::<M>, into_model and into_tuple, where today every pipeline over models returns records"
+                        deps (python.pipeline)
+                    }
+
+                    {
+                        id guide.python-gaps.migrations
+                        title "Python runs migrations as pgorm-migration does: MigrationTrait, MigratorTrait, MigrationName, sql_migration!, up, status, get_migration_with_status, get_pending_migrations and get_applied_migrations, commits_after, checksums, the ledger's table name and schema, the statement-cache notification, and adopting a SeaORM ledger"
+                        deps (python.transactions python.schema)
+                    }
+
+                    {
+                        id guide.python-gaps.model-codegen
+                        title "Python generates pgorm.Model declarations from DDL as pgorm-codegen generates entities: entities_from_sql, EntityWriterOptions, parse_schema, EntityTransformer and EntityWriter"
+                        deps (python.models)
+                    }
+
+                    {
+                        id guide.python-gaps.codegen-coverage
+                        title "pgorm.codegen's application.json describes one-of references and pipeline source tuples beside entities, graphs and disjoint enums, as bindings.codegen says it covers source tuples, so neither needs a registration crate written by hand"
+                        deps (python.codegen)
+                    }
+
+                    {
+                        id guide.python-gaps.registered-reads
+                        title "Registered entities and graphs read as Rust's do: an entity's stream and partial projections; a graph's stream and grouping, cursors over slot columns and composite orders, cursor SQL inspection and graphs of more than seven sources; and a paginator's fetch, advance and fetch_and_next"
+                        deps (python.entities python.graph)
+                    }
+
+                    {
+                        id guide.python-gaps.transaction-surface
+                        title "Python transactions and errors carry Rust's: transaction_with_retry and Error::is_retryable, TransactionError's Transaction, Connection and RollbackFailed, DatabaseConnection::discard, and BindRefusal's parameter and DecodeRefusal's fields as attributes rather than text"
+                        deps (python.transactions python.runtime)
+                    }
+
+                    {
+                        id guide.python-gaps.copy-rows-surface
+                        title "Python's row COPY has Rust's surface: CopyRowEncoder and CopyRowDecoder, copy_in_columns and copy_out_columns (column types, not only names), CopyRowSink::send_model and CopyRowStream::models"
+                        deps (python.statements)
+                    }
+
+                    {
+                        id guide.python-gaps.pool-config
+                        title "Python pools take Rust's configuration: connect_with, connect_with_builder, connect_multi_with_builder and ManagerConfig; PoolBuilder's wait, create and recycle timeouts, queue_mode and post_create, pre_recycle and post_recycle hooks; RecyclingMethod Clean and Custom; a pool's tag; custom TLS connectors and client certificates; sslmode verify-ca and allow with sslrootcert and sslcert; and connect_listener(config, tls, capacity)"
+                        deps (python.runtime)
+                    }
+
+                    {
+                        id guide.python-gaps.metrics
+                        title "Python has pgorm's metrics layer: InstrumentedPool, InstrumentedConnection and InstrumentedTransaction, a MetricsCollector a program implements, NoOpMetrics and LoggingMetrics, QueryContext, and query fingerprints (metrics-fingerprint)"
+                        deps (python.runtime)
+                    }
+
+                    {
+                        id guide.python-gaps.postgres-target
+                        title "Python reports the PostgreSQL release a build targets as pgorm_query::POSTGRES_TARGET does, beside capabilities()[\"features\"] listing pg-19"
+                        deps (python.package)
+                    }
+
+                    {
+                        id guide.python-gaps.raw-param-count-error
+                        title "A raw statement given the wrong number of parameters raises ConstructionError naming the counts, not ConnectionError(\"PostgreSQL connection or protocol failure\") with no sqlstate"
+                        kind @fix
+                        deps (python.runtime)
+                        log (
+                            {
+                                at 2026-11-05T17:44:18.2605Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found by guide.python (lane C). Repro: await pool.one(RawSQL(\"SELECT $1 AS x, $2 AS y\", [1])) raises pgorm.ConnectionError(\"PostgreSQL connection or protocol failure\"), sqlstate None. Cause: pgorm-python/src/errors.rs client_error() matches DecodeRefusal and BindRefusal only, so tokio-postgres's parameter-count error falls to the ConnectionError fallback. It is caller input, so bindings.errors/argument-errors make it a ConstructionError. Check pgorm-napi's classification too. The guide does not document the current behaviour."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.limited-graph
+                        title "A declared model's graph with a limit or offset refuses all_grouped, paginate, cursor and count with ConstructionError, as Rust refuses them at compile time, instead of answering partial groups, replacing the limit or dropping it"
+                        kind @fix
+                        deps (python.models python.graph)
+                        log (
+                            {
+                                at 2026-11-05T17:44:18.93901Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found by guide.python (lane B). Repro: await Bakery.graph().join_maybe(bakery_cakes).order_by(Bakery.col(\"id\").asc()).limit(2).all_grouped(pool) returns [(Sunrise, 2 cakes)] though Sunrise has 3 (the limit cuts joined rows, not roots). On the same limited graph paginate and cursor silently replace the limit and count drops it. Rust refuses these on a limited SelectGraph at compile time (E0599). pgorm-python/guide/07-relations.md \"Limits, pages and cursors\" documents the current behaviour with a warning; change that example when this is fixed."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.version-classes
+                        title "The Change, Inserted and Updated a declared model's or a generated view's returning_change(s) and returning_upsert(s) return have public names, and are the classes pgorm.Change and pgorm.Upserted name, rather than private pgorm._registered.versions classes a program must import to match or annotate them"
+                        kind @fix
+                        deps (python.models python.entities)
+                        log (
+                            {
+                                at 2026-11-05T17:44:19.414614Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found by guide.python (lanes A and F2). A declared model's returning_upsert(s)/returning_change(s) and a generated view's return pgorm._registered.versions.Inserted/Updated/Change (generic Python classes); registered entity writes return the native pgorm.Change and pgorm.Upserted.Inserted/Updated. isinstance(result, pgorm.Upserted) is False for a model's upsert, and `c: pgorm.Change = await Cake.update(..).returning_change(pool)` fails mypy (pgorm._registered.versions.Change[ModelRecord] vs pgorm._versions.Change). The guide's 04-writing.md and 24-registrations.md import Inserted/Updated from pgorm._registered.entities and say so; 25-typing.md avoids annotating them. Design choice for the lead: one family of public classes."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.copy-through-query
+                        title "A COPY run as an ordinary statement (pool.query(RawSQL(\"COPY cake TO STDOUT\"))) is refused with a ConstructionError naming copy_in and copy_out, not a ConnectionError protocol failure"
+                        kind @fix
+                        deps (python.statements)
+                        log (
+                            {
+                                at 2026-11-05T17:44:19.878685Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found by guide.python (lane E). pool.query(RawSQL(\"COPY cake TO STDOUT\")) raises ConnectionError \"PostgreSQL connection or protocol failure\"; the pool recovers. Should be a clear refusal pointing at copy_in/copy_out (or CopyTo). Check pgorm-napi."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.failed-commit
+                        title "A transaction whose block caught a failed statement's error and ended normally reports that its COMMIT rolled back, in Rust and both bindings, rather than succeeding while PostgreSQL answers the COMMIT with ROLLBACK"
+                        kind @fix
+                        deps (python.transactions)
+                        log (
+                            {
+                                at 2026-11-05T17:44:20.331736Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found by guide.python (lane E), pgorm-wide, so it may belong under a Rust transactions container (tx-closure-only is sealed). A block that catches a failed statement's error without a savepoint and exits normally issues COMMIT; PostgreSQL answers it with the ROLLBACK command tag and no error, and tokio-postgres's commit ignores the tag, so the transaction \"commits\" with nothing written and no error. pgorm-python/guide/08-transactions.md \"Savepoints\" documents this; docs/guide/07-transactions.md says only that later statements are refused. Fix in pgorm (check the COMMIT's command tag), then both bindings, then both guides."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.panic-class
+                        title "A Rust panic inside pgorm-python surfaces as the exception bindings.errors names (InternalError), or the rule and the guide's errors chapter agree on PyO3's PanicException; today the code catches none and the two disagree"
+                        kind @fix
+                        deps (python.runtime)
+                        log (
+                            {
+                                at 2026-11-05T17:44:20.799571Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found by guide.python (lane E), unconfirmed: the old README/TYPING.md said an internal Rust panic keeps PyO3's identifiable panic exception, docs/spec/bindings.md bindings.errors says a caught panic is InternalError, and no panic handling was found in pgorm-python/src. pgorm-python/guide/09-errors.md follows the old docs (PyO3's panic exception). Confirm which is true and make the rule, code and chapter agree."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.binding-fixes
+                        title "What the Python guide's examples found broken: the stubs refuse range column types and Decimal, date, UUID, bytes, Interval and range pipeline operands the runtime takes; Range, Multirange and MergeAction, generic in the stubs, cannot be subscripted at run time; copy_in_rows writes a mapping's keys or a set's members as a row; and importing pgorm warns of an invalid escape"
+                        kind @fix
+                        deps (python.typing)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-05T18:04:57.005378Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T18:04:57.005378Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "single-flight overridden: started while guide.python had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T18:05:52.145361Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
+                            }
+                        )
+                    }
+                )
+            }
+
+            {
+                id guide.example-name-escaping
+                title "The JavaScript guide's example harness escapes every regular-expression metacharacter of a name it searches for, not only $"
+                kind @fix
+                deps (guide.javascript)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T19:55:21.834409Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by CodeQL on PR #33 (js/incomplete-sanitization, high): pgorm-napi/guide/examples.ts's names() built a RegExp from a name with only $ escaped. The names are JavaScript identifiers, so no backslash or other metacharacter reaches it today, but the escaping now covers every metacharacter (name.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\"))."
+                    }
+
+                    {
+                        at 2026-11-05T20:01:50.036752Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Done (nplan complete)"
+                    }
+                )
+            }
+        )
+        log (
+            {
+                at 2026-11-05T13:42:04.191216Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Operator 2026-11-05: \"Rust user guide is the MAIN one. The others are just dialects of it.\" The Rust guide is the canonical user documentation for pgorm. It is a guide for a new user, not a SeaORM porting map (COMING_FROM_SEAORM.md stays as that). The Python and JavaScript guides follow its chapters one for one, in their own language and spelling. Each says where its binding differs, and it adds only what its own language needs (installation, async runtime, typing or TypeScript, packaging, codegen for registrations). Audit of 2026-11-05 (names merely mentioned, a lower bound): the root README is a list of SeaORM differences, and the crate root doc is about 30 lines. Neither mentions disjoint enums, one-of references, the pipeline, LISTEN or the bindings. Python's 17 guides miss 13 shared names (the pipeline's *_with family, one_of_entities, Pool.acquire, COPY's force_null_all and force_not_null_all). JavaScript's README, ENTITIES, CODEGEN and DISTRIBUTION miss 75 (every COPY option, the paginators' fetchPage and numItemsAndPages, window frames, unionAll, intersectAll and except, Pool.status and ping, the pipeline's *With family, sourceTuples, oneOfEntities, CreateType.asEnum and asComposite, and more). No binding guide's examples are executed."
             }
         )
     }

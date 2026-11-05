@@ -70,23 +70,23 @@ fn manifest() -> Value {
         "pgorm_version": env!("PGORM_VERSION"),
         "binding": {"name": "pyo3", "version": env!("PGORM_PYO3_VERSION"), "registry_abi": 1},
         "target": env!("PGORM_BINDING_TARGET"),
-        "features": ["macros", "with-json", "with-jiff", "with-uuid", "postgres-array", "runtime-tokio"],
+        "features": ["macros", "with-json", "with-jiff", "with-uuid", "postgres-array"],
         "transport": "in-process",
         "operations": {
-            "pool": {"rust_api": "pgorm::connect_with", "features": ["runtime-tokio"]},
-            "pool.acquire": {"rust_api": "pgorm::DatabasePool::get", "features": ["runtime-tokio"]},
-            "pool.close": {"rust_api": "pgorm::DatabasePool::close", "features": ["runtime-tokio"]},
-            "pool.clear_statement_caches": {"rust_api": "pgorm::DatabasePool::clear_statement_caches", "features": ["runtime-tokio"]},
-            "connection.ping": {"rust_api": "pgorm::ConnectionTrait::query_one", "features": ["runtime-tokio"]},
-            "connection.close": {"rust_api": "pgorm::DatabaseConnection::drop", "features": ["runtime-tokio"]},
-            "pool.listener": {"rust_api": "pgorm::DatabasePool::listener", "features": ["runtime-tokio"]},
-            "listener.listen": {"rust_api": "pgorm::Listener::listen", "features": ["runtime-tokio"]},
-            "listener.unlisten": {"rust_api": "pgorm::Listener::unlisten", "features": ["runtime-tokio"]},
-            "listener.unlisten_all": {"rust_api": "pgorm::Listener::unlisten_all", "features": ["runtime-tokio"]},
-            "listener.next": {"rust_api": "pgorm::Notifications as Stream", "features": ["runtime-tokio"]},
-            "listener.close": {"rust_api": "pgorm::Notifications::drop", "features": ["runtime-tokio"]},
-            "connection.notify": {"rust_api": "pgorm::notify for DatabaseConnection", "features": ["runtime-tokio"]},
-            "transaction.notify": {"rust_api": "pgorm::notify for DatabaseTransaction", "features": ["runtime-tokio"]},
+            "pool": {"rust_api": "pgorm::connect_with", "features": []},
+            "pool.acquire": {"rust_api": "pgorm::DatabasePool::get", "features": []},
+            "pool.close": {"rust_api": "pgorm::DatabasePool::close", "features": []},
+            "pool.clear_statement_caches": {"rust_api": "pgorm::DatabasePool::clear_statement_caches", "features": []},
+            "connection.ping": {"rust_api": "pgorm::ConnectionTrait::query_one", "features": []},
+            "connection.close": {"rust_api": "pgorm::DatabaseConnection::drop", "features": []},
+            "pool.listener": {"rust_api": "pgorm::DatabasePool::listener", "features": []},
+            "listener.listen": {"rust_api": "pgorm::Listener::listen", "features": []},
+            "listener.unlisten": {"rust_api": "pgorm::Listener::unlisten", "features": []},
+            "listener.unlisten_all": {"rust_api": "pgorm::Listener::unlisten_all", "features": []},
+            "listener.next": {"rust_api": "pgorm::Notifications as Stream", "features": []},
+            "listener.close": {"rust_api": "pgorm::Notifications::drop", "features": []},
+            "connection.notify": {"rust_api": "pgorm::notify for DatabaseConnection", "features": []},
+            "transaction.notify": {"rust_api": "pgorm::notify for DatabaseTransaction", "features": []},
             "value": {"rust_api": "pgorm::pgorm_query::Value", "features": []},
             "value.array": {"rust_api": "pgorm::pgorm_query::Value::Array", "features": ["postgres-array"]},
             "value.json": {"rust_api": "pgorm::pgorm_query::Value::Json", "features": ["with-json"]},
@@ -101,7 +101,7 @@ fn manifest() -> Value {
             "model.insert": {"rust_api": "pgorm::pgorm_query::InsertStatement", "features": [], "python_convenience": true},
             "model.update": {"rust_api": "pgorm::pgorm_query::UpdateStatement", "features": [], "python_convenience": true},
             "model.delete": {"rust_api": "pgorm::pgorm_query::DeleteStatement", "features": [], "python_convenience": true},
-            "model.records": {"rust_api": "pgorm::ConnectionTrait::{query_all, query_one} / pgorm_python::results", "features": ["runtime-tokio"], "python_convenience": true},
+            "model.records": {"rust_api": "pgorm::ConnectionTrait::{query_all, query_one} / pgorm_python::results", "features": [], "python_convenience": true},
             "model.relation": {"rust_api": "pgorm::RelationDef, join_condition", "features": [], "python_convenience": true},
             "model.graph": {"rust_api": "pgorm::SelectGraph, result_column_name", "features": [], "python_convenience": true},
             "model.cursor": {"rust_api": "pgorm::Cursor", "features": [], "python_convenience": true},
@@ -235,7 +235,10 @@ fn manifest() -> Value {
         operations.extend(crate::statements::capabilities());
         operations.extend(crate::results::capabilities());
         operations.extend(crate::entities::capabilities());
-        for (name, api) in crate::entities::version_terminals {
+        for (name, api) in crate::entities::version_terminals
+            .into_iter()
+            .chain(crate::entities::insert_terminals)
+        {
             operations.insert(
                 name.to_owned(),
                 json!({"rust_api": api, "features": [], "registration_required": true}),
@@ -261,7 +264,7 @@ fn manifest() -> Value {
         // [spec:pgorm:req:bindings.connections+2]
         operations.insert(
             "pool.statement_cache_channel".to_owned(),
-            json!({"rust_api": "pgorm::ManagerConfig::statement_cache_channel", "features": ["runtime-tokio"]}),
+            json!({"rust_api": "pgorm::ManagerConfig::statement_cache_channel", "features": []}),
         );
     }
     if let Some(forms) = manifest["result_forms"].as_array_mut() {

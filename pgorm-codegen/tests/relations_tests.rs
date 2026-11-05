@@ -112,7 +112,7 @@ fn relation_variants_are_named_after_the_referenced_table() {
         r#"#[pgorm(
             belongs_to = super::fruit::Entity,
             from = Column::FruitId1,
-            to = super::fruit::Column::Id,
+            to = super::fruit::Column::Id
         )]
         Fruit2,"#,
     );
@@ -121,7 +121,7 @@ fn relation_variants_are_named_after_the_referenced_table() {
         r#"#[pgorm(
             belongs_to = super::fruit::Entity,
             from = Column::FruitId2,
-            to = super::fruit::Column::Id,
+            to = super::fruit::Column::Id
         )]
         Fruit1,"#,
     );
@@ -140,7 +140,7 @@ fn compact_belongs_to_attributes_carry_from_and_to() {
             from = Column::CakeId,
             to = super::cake::Column::Id,
             on_update = ForeignKeyAction::Cascade,
-            on_delete = ForeignKeyAction::Cascade,
+            on_delete = ForeignKeyAction::Cascade
         )]
         Cake,"#,
     );
@@ -148,7 +148,7 @@ fn compact_belongs_to_attributes_carry_from_and_to() {
     let self_ref = generate(vec![self_referencing_cake()], Opts::default());
     assert_contains(
         self_ref.file("cake.rs"),
-        r#"#[pgorm(belongs_to = Entity, from = Column::BaseId, to = Column::Id,)] SelfRef,"#,
+        r#"#[pgorm(belongs_to = Entity, from = Column::BaseId, to = Column::Id)] SelfRef,"#,
     );
 
     let composite = generate(
@@ -254,15 +254,15 @@ fn foreign_key_actions_render_only_when_declared() {
     let audit = generated.file("audit.rs");
 
     for (_, _, rendered) in cases {
-        assert_contains(audit, &format!("on_update = ForeignKeyAction::{rendered},"));
-        assert_contains(audit, &format!("on_delete = ForeignKeyAction::{rendered},"));
+        assert_contains(audit, &format!("on_update = ForeignKeyAction::{rendered}"));
+        assert_contains(audit, &format!("on_delete = ForeignKeyAction::{rendered}"));
     }
     assert_contains(
         audit,
         r#"#[pgorm(
             belongs_to = super::plain::Entity,
             from = Column::PlainId,
-            to = super::plain::Column::Id,
+            to = super::plain::Column::Id
         )]
         Plain,"#,
     );
@@ -380,7 +380,7 @@ fn conjunct_shadowed_relations_say_related_false() {
             belongs_to = super::users::Entity,
             from = Column::UserId,
             to = super::users::Column::Id,
-            related = false,
+            related = false
         )] Users,",
     );
 }

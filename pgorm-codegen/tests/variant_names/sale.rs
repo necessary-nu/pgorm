@@ -2,7 +2,7 @@ use pgorm::entity::prelude::*;
 
 use super::pgorm_active_enums::Outlet;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "sale")]
 pub struct Model {
     #[pgorm(primary_key)]

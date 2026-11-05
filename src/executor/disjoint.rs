@@ -208,7 +208,7 @@ impl DisjointShape {
     /// unless every column of it is `NULL`, as the absence witness judges a
     /// typed one.
     // [spec:pgorm:sem:disjoint.read+2]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn judge(
         &self,

@@ -1,6 +1,6 @@
 from typing import Any, ClassVar, Literal, Never, TypeAlias
 from ._expressions import Expr, Condition
-from ._query_types import Identifier, OrderBy
+from ._query_types import OrderBy
 from ._schema import BuiltinType, DataType
 from ._statements import Select
 from ._from_items import FromItem
@@ -50,22 +50,22 @@ class JsonTableBehavior:
 class JsonTableColumn:
     def __init__(self, _native_only: Never, /) -> None: ...
     @staticmethod
-    def ordinality(name: str | Identifier) -> JsonTableColumn: ...
+    def ordinality(name: str) -> JsonTableColumn: ...
     @staticmethod
-    def value(name: str | Identifier, kind: JsonType, *, path: str | None = ...,
+    def value(name: str, kind: JsonType, *, path: str | None = ...,
               on_empty: JsonValueBehavior | JsonDefault | None = ...,
               on_error: JsonValueBehavior | JsonDefault | None = ...) -> JsonTableColumn: ...
     @staticmethod
-    def query(name: str | Identifier, kind: JsonType, *, path: str | None = ...,
+    def query(name: str, kind: JsonType, *, path: str | None = ...,
               shaping: JsonShaping | None = ...,
               on_empty: JsonQueryBehavior | JsonDefault | None = ...,
               on_error: JsonQueryBehavior | JsonDefault | None = ...) -> JsonTableColumn: ...
     @staticmethod
-    def exists(name: str | Identifier, kind: JsonType, *, path: str | None = ...,
+    def exists(name: str, kind: JsonType, *, path: str | None = ...,
                on_error: JsonExistsBehavior | None = ...) -> JsonTableColumn: ...
     @staticmethod
     def nested(path: str, column: JsonTableColumn, *columns: JsonTableColumn,
-               path_name: str | Identifier | None = ...) -> JsonTableColumn: ...
+               path_name: str | None = ...) -> JsonTableColumn: ...
 
 def json_exists(context: Any, path: str, *, passing: dict[str, Any] | None = ...,
                 on_error: JsonExistsBehavior | None = ...) -> Expr: ...
@@ -78,8 +78,8 @@ def json_query(context: Any, path: str, *, passing: dict[str, Any] | None = ...,
                on_empty: JsonQueryBehavior | JsonDefault | None = ...,
                on_error: JsonQueryBehavior | JsonDefault | None = ...) -> Expr: ...
 def json_table(context: Any, path: str, column: JsonTableColumn, *columns: JsonTableColumn,
-               alias: str | Identifier, passing: dict[str, Any] | None = ...,
-               path_name: str | Identifier | None = ...,
+               alias: str, passing: dict[str, Any] | None = ...,
+               path_name: str | None = ...,
                on_error: JsonTableBehavior | None = ...) -> FromItem: ...
 def json_object(entries: dict[str, Any] | list[tuple[Any, Any]] | tuple[tuple[Any, Any], ...] | None = ..., /, *,
                 absent_on_null: bool = ..., unique_keys: bool = ...,

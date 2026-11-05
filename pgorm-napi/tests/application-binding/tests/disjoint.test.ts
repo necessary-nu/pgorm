@@ -71,7 +71,7 @@ async function seed() {
   return [boxed, note, crate];
 }
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    a registered disjoint enum is listed and described under the declared keys beside its base and kind entities; a name the module does not register is refused; its schema is Schema::create_disjoint's
+// [spec:pgorm:req:bindings.disjoint+2/test]    a registered disjoint enum is listed and described under the declared keys beside its base and kind entities; a name the module does not register is refused; its schema is Schema::create_disjoint's
 test("the registration describes the enum", () => {
   assert.deepStrictEqual(disjointEntities(), ["app.Listings", "app.Shipments"]);
   assert.deepStrictEqual(Shipments.describe(), {
@@ -100,7 +100,7 @@ test("the registration describes the enum", () => {
   );
 });
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    a registered disjoint enum's writes take its entities' ActiveModels and return each row as the base's record, the kind and the kind's record, which keep the Rust models they were read as; reads narrow, page, count, stream and read through a cursor on a pool and a connection
+// [spec:pgorm:req:bindings.disjoint+2/test]    a registered disjoint enum's writes take its entities' ActiveModels and return each row as the base's record, the kind and the kind's record, which keep the Rust models they were read as; reads narrow, page, count, stream and read through a cursor on a pool and a connection
 test("writes and reads through the registered entities", async () => {
   const [boxed, note, crate] = await seed();
   assert.deepStrictEqual(boxed, [{ id: 1, kind: "packet", label: "box" }, "packet", { shipment_id: 1, weight_g: 500 }]);
@@ -127,7 +127,7 @@ test("writes and reads through the registered entities", async () => {
   assert.deepStrictEqual(await Shipments.find().cursor("id").after(1).first(1).all(pool()), [note]);
 });
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    a registered enum's update and change of kind write through its entities' ActiveModels, a miss being a DecodeError that changes nothing, and an ActiveModel of another registration, the kind column set, a kind row's key set and a row for a kind without a table are refused before anything is sent
+// [spec:pgorm:req:bindings.disjoint+2/test]    a registered enum's update and change of kind write through its entities' ActiveModels, a miss being a DecodeError that changes nothing; the kind column set, a kind row's key set and a row for a kind without a table are refused before anything is sent, and an ActiveModel of another entity is a TypeError
 test("updates, changes of kind and refusals", async () => {
   await seed();
   assert.deepStrictEqual(
@@ -142,14 +142,22 @@ test("updates, changes of kind and refusals", async () => {
   );
   assert.equal(await Shipments.find().kind("packet").count(pool()), 0);
   for (const write of [
-    () => Shipments.insert(Packet.active(), "letter"),
     () => Shipments.insert(base("x", { kind: "letter" }), "letter"),
     () => Shipments.insert(base("x"), "packet", Packet.active().set("shipment_id", 9)),
     () => Shipments.insert(base("x"), "letter", Packet.active()),
-    () => Shipments.insert(base("x"), "packet", Pallet.active()),
     () => Shipments.update(base("x"), "letter"),
   ]) {
     assert.throws(write, ConstructionError);
+  }
+  for (
+    const [write, cause] of [
+      [() => Shipments.insert(Packet.active(), "letter"), /Packet's, not app\.Shipment's/],
+      [() => Shipments.insert(base("x"), "packet", Pallet.active()), /Pallet's, not app\.Packet's/],
+      [() => Shipments.update(base("x", { id: 1 }), "packet", Pallet.active()), /Pallet's, not app\.Packet's/],
+      [() => Shipments.changeKind({ id: 1 }, "packet", Pallet.active()), /Pallet's, not app\.Packet's/],
+    ] as const
+  ) {
+    assert.throws(write, (error: unknown) => error instanceof TypeError && cause.test(error.message));
   }
   assert.throws(() => Shipments.findByKey({ label: "x" }), TypeError);
   assert.throws(() => Shipments.insert({ label: "x" } as never, "letter"), TypeError);

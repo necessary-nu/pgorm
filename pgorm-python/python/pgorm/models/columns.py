@@ -98,7 +98,7 @@ class Column:
                     "a generated column has no default of its own: declare one or the other"
                 )
         if self.name is not None:
-            object.__setattr__(self, "name", p.Identifier(self.name).name)
+            object.__setattr__(self, "name", p._identifier(self.name))
         if isinstance(self.kind, (p.TypeName, p.CreatedRange, p.CreatedMultirange)):
             # A decoded row names an enum or a created range with its schema.
             if self.kind.schema is None:
@@ -204,7 +204,7 @@ class ModelColumn(p._DeclaredColumn):
         # The native base takes its expression in __new__; its stub spells the
         # runtime signature as __init__, which mypy does not read here.
         column = super().__new__(cls, expression)  # type: ignore[call-arg]
-        object.__setattr__(column, "field_name", p.Identifier(field_name).name)
+        object.__setattr__(column, "field_name", p._identifier(field_name))
         object.__setattr__(column, "declaration", declaration)
         object.__setattr__(column, "_expression", expression)
         return column
@@ -220,18 +220,7 @@ class ModelColumn(p._DeclaredColumn):
         return self._expression
 
     def _operand(self, value: Any) -> p.Expr | p.Value | p.Quantified:
-        if isinstance(value, p.Quantified):
-            return value
-        if isinstance(value, ModelColumn):
-            if (
-                self.declaration._null.snapshot()["type"]
-                != value.declaration._null.snapshot()["type"]
-            ):
-                raise p.ConstructionError(
-                    "compared model columns have different declared types"
-                )
-            return value
-        if isinstance(value, p.Expr):
+        if isinstance(value, (p.Quantified, p.Expr)):
             return value
         if value is None:
             raise p.ConstructionError(

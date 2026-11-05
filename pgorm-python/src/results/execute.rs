@@ -4,7 +4,7 @@ use pyo3_async_runtimes::tokio::future_into_py;
 use super::PyRecord;
 use crate::{
     errors::{DecodeError, InternalError},
-    execution::Target,
+    execution::{Executor, Target},
     statements,
     transactions::work::{Output, Work},
 };
@@ -29,11 +29,11 @@ pub(crate) fn execute<'py>(
 /// Cardinality checks never turn database/decode failures into a missing row.
 pub(crate) fn fetch<'py>(
     py: Python<'py>,
-    target: Target,
+    executor: Executor,
     query: &Bound<'_, PyAny>,
     mode: &str,
 ) -> PyResult<Bound<'py, PyAny>> {
-    target.check(py)?;
+    executor.check(py)?;
     let compiled = statements::compile(query)?;
     let mode = match mode {
         "all" => 0,
@@ -44,7 +44,7 @@ pub(crate) fn fetch<'py>(
         }
     };
     future_into_py(py, async move {
-        let Output::Rows(rows) = target.run(Work::Fetch(compiled)).await? else {
+        let Output::Rows(rows) = executor.run(Work::Fetch(compiled)).await? else {
             return Err(InternalError::new_err("unexpected query result"));
         };
         // [spec:pgorm:req:bindings.row-count]

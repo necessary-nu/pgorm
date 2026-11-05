@@ -12,9 +12,7 @@ use super::{
     metadata::EntityInfo,
 };
 use crate::{
-    errors::{ConstructionError, LifecycleError},
-    expressions::PyExpr,
-    identifiers::PyIdentifier,
+    errors::ConstructionError, expressions::PyExpr, identifiers::Identifier,
     statements::PyQuantified,
 };
 
@@ -279,13 +277,15 @@ impl PyEntityColumn {
 pub(crate) fn name(input: &Bound<'_, PyAny>, owner: &Arc<EntityInfo>) -> PyResult<String> {
     let name = if let Ok(column) = input.extract::<PyRef<'_, PyEntityColumn>>() {
         if !Arc::ptr_eq(column.entity.info(), owner) {
-            return Err(LifecycleError::new_err(
-                "column belongs to a different entity registration",
-            ));
+            return Err(PyTypeError::new_err(format!(
+                "the column is {}'s, not {}'s",
+                column.entity.info().name,
+                owner.name
+            )));
         }
         column.name.clone()
     } else {
-        PyIdentifier::new(input)?.name
+        Identifier::new(input)?.name
     };
     owner.column(&name)?;
     Ok(name)

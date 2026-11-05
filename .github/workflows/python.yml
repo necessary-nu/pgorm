@@ -105,7 +105,7 @@ jobs:
   application:
     name: application binding / linux-x86_64 / CPython 3.14
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       CARGO_TERM_COLOR: never
       CARGO_BUILD_JOBS: '2'
@@ -141,12 +141,18 @@ jobs:
         run: |
           python pgorm-python/tests/with_local_postgres.py \
             python pgorm-python/checks/entities.py
+      - name: Run the guide's examples against its registration of the bakery
+        run: |
+          python pgorm-python/tests/with_local_postgres.py \
+            python pgorm-python/checks/guide.py
       - name: Retain the application wheel and its report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pgorm-python-application-${{ github.run_id }}
-          path: target/python-entities/
+          path: |
+            target/python-entities/
+            target/python-guide/
           if-no-files-found: error
           retention-days: 14
 

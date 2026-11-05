@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from .config import CodegenError
+from .source import Item, Ternary, string
 
 
 @dataclass(frozen=True)
@@ -16,7 +17,9 @@ class FieldType:
     nullable: bool = False
     json: bool = False
 
-    def binding(self, variable: str = "value") -> str:
+    def binding(self, variable: str = "value") -> Item:
+        """The expression binding ``variable`` under its field's tag, an
+        explicit ``Value`` passed through as it is."""
         if self.kind is None:
             return variable
         if self.array:
@@ -25,11 +28,11 @@ class FieldType:
             expression = f"p.Value.json({variable})"
             if self.nullable:
                 expression = (
-                    f"p.Value.null('json') if {variable} is None else {expression}"
+                    f'(p.Value.null("json") if {variable} is None else {expression})'
                 )
         else:
             expression = f"p.Value({variable}, {self.kind})"
-        return f"{variable} if isinstance({variable}, p.Value) else ({expression})"
+        return Ternary(variable, f"isinstance({variable}, p.Value)", expression)
 
 
 SCALARS = {
@@ -127,7 +130,7 @@ def resolve(spelling: str, kind: str | None) -> FieldType:
             resolved.json,
         )
     if spelling in ("Vec<u8>", "std::vec::Vec<u8>", "alloc::vec::Vec<u8>"):
-        return FieldType("bytes", repr("bytes"))
+        return FieldType("bytes", string("bytes"))
     inner = wrapped(spelling, ("Vec", "std::vec::Vec", "alloc::vec::Vec"))
     if inner is not None:
         if kind is None or not kind.endswith("[]"):
@@ -138,10 +141,11 @@ def resolve(spelling: str, kind: str | None) -> FieldType:
         return FieldType(f"list[{element.annotation}]", element.kind, array=True)
     if kind is not None and kind.startswith("enum "):
         name, schema = type_name(kind[len("enum ") :])
-        return FieldType("str", f"p.TypeName({name!r}, schema={schema!r})")
+        schema_text = "None" if schema is None else string(schema)
+        return FieldType("str", f"p.TypeName({string(name)}, schema={schema_text})")
     if spelling in ("Json", "JsonValue", "serde_json::Value"):
-        return FieldType("Any", repr("json"), json=True)
+        return FieldType("Any", string("json"), json=True)
     if spelling in SCALARS:
         annotation, kind = SCALARS[spelling]
-        return FieldType(annotation, repr(kind))
+        return FieldType(annotation, string(kind))
     return FieldType("Any")

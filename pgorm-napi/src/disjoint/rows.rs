@@ -60,7 +60,7 @@ impl Settled for Count {
 
 impl Rows {
     /// Judge each of `rows` by its kind and read it back.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub(crate) fn of(core: &Core, rows: Vec<Row>) -> Result<Self, Failure> {
         let names = match rows.first() {
             Some(row) => decode::names(row)?,
@@ -206,7 +206,7 @@ fn index(index: usize) -> u32 {
 /// column order and each judgment `[kind index, source or null]`; a
 /// registration's are `[[values, model], kind, [values, model] or null]`
 /// each.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 impl Settled for Rows {
     fn into_js<'cx>(self: Box<Self>, cx: &mut Cx<'cx>) -> JsResult<'cx, JsValue> {
         let Self {

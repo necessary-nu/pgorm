@@ -6,7 +6,7 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 // [spec:pgorm:req:bindings.disjoint-unkinded]
 
 import type { Compiled, OrderBy, Predicate } from "./expressions.d.ts";
@@ -272,6 +272,47 @@ export interface DisjointStep {
 export interface DisjointChange {
   readonly steps: readonly DisjointStep[];
 }
+
+/**
+ * Statements frozen as the text of a migration written as a `.sql` file,
+ * made by {@link migrationFile} and {@link migrationFiles} alone.
+ */
+// [spec:pgorm:req:bindings.migration-file]
+export declare class MigrationFile {
+  private constructor();
+  /** The file's stem, and the migration's name. */
+  readonly name: string;
+  /** The file's text, which the migration runs whole. */
+  readonly text: string;
+  /** Whether the text opens with `-- pgorm: commits-after`. */
+  readonly commitsAfter: boolean;
+  /**
+   * Write `<name>.sql` into `directory` if no file of that name is there,
+   * answering whether it wrote one: a file already there is never rewritten.
+   * A name that is no plain file stem is a `ConstructionError`, and any other
+   * failure to write an `Error`.
+   */
+  freeze(directory: string | URL): boolean;
+}
+
+/**
+ * `statements` frozen as the migration `name`, each ending `;` on a line of
+ * its own, opening with `-- pgorm: commits-after` where `commitsAfter`.
+ */
+export declare function migrationFile(
+  name: string,
+  statements: readonly DDL[],
+  options?: { readonly commitsAfter?: boolean },
+): MigrationFile;
+
+/**
+ * A kind change a kind-change function returned, frozen as migration files
+ * as pgorm freezes it: a file per step, named `name` for one step and
+ * `<name>_<n>` from 1 otherwise, every step but the last opening with
+ * `-- pgorm: commits-after`, and a step leaving rows to the program ending
+ * with a comment saying which.
+ */
+export declare function migrationFiles(change: DisjointChange, name: string): MigrationFile[];
 
 /**
  * Add the kind `value`, which the declaration holds and the database's kind

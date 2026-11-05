@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from .graphs import Graph
     from .queries import ModelQuery
     from .relations import Relation
-    from .writes import ModelDelete, ModelInsert, ModelUpdate
+    from .writes import ModelDelete, ModelInsert, ModelInsertMany, ModelUpdate
 
 
 # [spec:pgorm:req:bindings.model-unique-keys+2]
@@ -75,7 +75,7 @@ def _unique_key(key: object, declarations: Mapping[str, Column]) -> _DeclaredKey
         raise p.ConstructionError("a unique key names at least one field")
     name = key.get("name")
     if name is not None:
-        name = p.Identifier(name).name
+        name = p._identifier(name)
     nulls_not_distinct = key.get("nulls_not_distinct", False)
     if type(nulls_not_distinct) is not bool:
         raise TypeError("a unique key's nulls_not_distinct is a bool")
@@ -114,7 +114,7 @@ class Model:
         declarations = {}
         physical = set()
         for identity, column in columns.items():
-            identity = p.Identifier(identity).name
+            identity = p._identifier(identity)
             if identity in declarations:
                 raise p.ConstructionError("duplicate model field identity")
             if not isinstance(column, Column):
@@ -158,7 +158,7 @@ class Model:
         return self._column(field, self.qualifier)
 
     def _column(self, field: str, qualifier: str) -> ModelColumn:
-        name = p.Identifier(field).name
+        name = p._identifier(field)
         if name not in self.columns:
             raise p.ConstructionError(f"{self.table.name} has no field {name!r}")
         return ModelColumn(name, self.columns[name], p.col(self._sql(name), table=qualifier))
@@ -212,18 +212,21 @@ class Model:
         )
 
     def insert(self, values: Mapping[str, Any]) -> ModelInsert:
-        from .writes import inserted
+        """An INSERT of one row, Rust's ``Insert::one``."""
+        from .writes import ModelInsert, appended
 
-        return inserted(self, [values])
+        statement, fields = appended(self, None, None, [values])
+        return ModelInsert(self, statement, fields)
 
-    def insert_many(self, rows: Sequence[Mapping[str, Any]]) -> ModelInsert:
-        """An INSERT of rows that each set the same fields; no rows writes
-        nothing and sends nothing."""
-        from .writes import inserted
+    def insert_many(self, rows: Sequence[Mapping[str, Any]]) -> ModelInsertMany:
+        """An INSERT of rows that each set the same fields, Rust's
+        ``Insert::many``; no rows writes nothing and sends nothing."""
+        from .writes import ModelInsertMany, appended
 
         if not isinstance(rows, (list, tuple)):
             raise TypeError("insert_many takes a list or tuple of rows")
-        return inserted(self, rows)
+        statement, fields = appended(self, None, None, rows)
+        return ModelInsertMany(self, statement, fields)
 
     def update(self, values: Mapping[str, Any]) -> ModelUpdate:
         from .writes import updated

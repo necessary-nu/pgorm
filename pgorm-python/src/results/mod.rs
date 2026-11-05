@@ -37,7 +37,7 @@ pub(crate) fn capabilities() -> serde_json::Map<String, serde_json::Value> {
     .map(|(name, api)| {
         (
             name.to_owned(),
-            serde_json::json!({"rust_api": api, "features": ["runtime-tokio"]}),
+            serde_json::json!({"rust_api": api, "features": []}),
         )
     })
     .collect()

@@ -1077,7 +1077,7 @@ fn column_def_defaults_and_builders() {
 // entity.traits.primary-key
 // ---------------------------------------------------------------------------
 
-// [spec:pgorm:def:entity.traits.primary-key+7/test]    `PrimaryKeyArity::ARITY` is
+// [spec:pgorm:def:entity.traits.primary-key+8/test]    `PrimaryKeyArity::ARITY` is
 // 1 for any single scalar and matches the component count for tuples up to 12;
 // `auto_increment` reports whether the key is database-generated; and
 // `PrimaryKeyToColumn` maps variants to columns and back, with `from_column`

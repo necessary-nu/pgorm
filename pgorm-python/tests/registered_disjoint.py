@@ -45,7 +45,7 @@ class RegisteredDisjoint(unittest.IsolatedAsyncioTestCase):
         ).returning_model(self.pool)
         return boxed, note, crate
 
-    # [spec:pgorm:req:bindings.disjoint+1/test]    a registered disjoint enum is listed, described under the declared keys and reported in the capability manifest beside its base and kind entities; a name the module does not register is refused
+    # [spec:pgorm:req:bindings.disjoint+2/test]    a registered disjoint enum is listed, described under the declared keys and reported in the capability manifest beside its base and kind entities; a name the module does not register is refused
     async def test_registration_describes_the_enum(self):
         self.assertEqual(p.disjoint_entities(), ["app.Listings", "app.Shipments"])
         description = self.shipments.describe()
@@ -77,7 +77,7 @@ class RegisteredDisjoint(unittest.IsolatedAsyncioTestCase):
             statements[0].inspect().sql,
         )
 
-    # [spec:pgorm:req:bindings.disjoint+1/test]    a registered disjoint enum's writes take its entities' ActiveModels and return each row as the base's model, the kind and the kind's model, which keep the Rust models they were read as; reads narrow, page, count, stream and read through a cursor on a pool and a connection
+    # [spec:pgorm:req:bindings.disjoint+2/test]    a registered disjoint enum's writes take its entities' ActiveModels and return each row as the base's model, the kind and the kind's model, which keep the Rust models they were read as; reads narrow, page, count, stream and read through a cursor on a pool and a connection
     async def test_writes_and_reads_through_registered_entities(self):
         boxed, note, crate = await self.seed()
         self.assertIsInstance(boxed[0], p.EntityModel)
@@ -125,7 +125,7 @@ class RegisteredDisjoint(unittest.IsolatedAsyncioTestCase):
         active = boxed[0].into_active()
         self.assertEqual(active.get("label").value.value, "box")
 
-    # [spec:pgorm:req:bindings.disjoint+1/test]    a registered enum's update and change of kind write through its entities' ActiveModels, a miss being a DecodeError that changes nothing, and an ActiveModel of another registration, the kind column set, a kind row's key set and a row for a kind without a table are refused before anything is sent
+    # [spec:pgorm:req:bindings.disjoint+2/test]    a registered enum's update and change of kind write through its entities' ActiveModels, a miss being a DecodeError that changes nothing; the kind column set, a kind row's key set and a row for a kind without a table are refused before anything is sent, and an ActiveModel of another entity is a TypeError
     async def test_updates_changes_and_refusals(self):
         await self.seed()
         shipments = self.shipments
@@ -149,16 +149,23 @@ class RegisteredDisjoint(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(await shipments.find().kind("parcel").count(self.pool), 0)
         refused = [
-            lambda: shipments.insert(self.parcel.active(), "letter"),
             lambda: shipments.insert(self.base("x", kind="letter"), "letter"),
             lambda: shipments.insert(self.base("x"), "parcel", self.parcel.active().set("shipment_id", 9)),
             lambda: shipments.insert(self.base("x"), "letter", self.parcel.active()),
-            lambda: shipments.insert(self.base("x"), "parcel", self.pallet.active()),
             lambda: shipments.update(self.base("x"), "letter"),
             lambda: shipments.find_by_key({"label": "x"}),
         ]
         for index, write in enumerate(refused):
             with self.subTest(index=index), self.assertRaises(p.ConstructionError):
+                write()
+        mistyped = [
+            (lambda: shipments.insert(self.parcel.active(), "letter"), "Parcel's, not app.Shipment's"),
+            (lambda: shipments.insert(self.base("x"), "parcel", self.pallet.active()), "Pallet's, not app.Parcel's"),
+            (lambda: shipments.update(self.base("x", id=1), "parcel", self.pallet.active()), "Pallet's, not app.Parcel's"),
+            (lambda: shipments.change_kind({"id": 1}, "parcel", self.pallet.active()), "Pallet's, not app.Parcel's"),
+        ]
+        for index, (write, cause) in enumerate(mistyped):
+            with self.subTest(mistyped=index), self.assertRaisesRegex(TypeError, cause):
                 write()
         with self.assertRaises(TypeError):
             shipments.insert({"label": "x"}, "letter")

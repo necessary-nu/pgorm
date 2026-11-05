@@ -2,9 +2,9 @@
 // with the JavaScript API, and `select.json` holds the SQL and values it must
 // build, which the Rust test `statements::parity` builds the same statement to
 // with pgorm-query's own builders.
-// [spec:pgorm:req:bindings.select+2/test]
-// [spec:pgorm:req:bindings.expressions+2/test]
-// [spec:pgorm:req:bindings.quantifiers+2/test]
+// [spec:pgorm:req:bindings.select+4/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
+// [spec:pgorm:req:bindings.quantifiers+3/test]
 // [spec:pgorm:req:bindings.cte-options/test]
 
 import {
@@ -18,17 +18,16 @@ import {
   caseWhen,
   col,
   Condition,
-  cube,
   DataType,
   Decimal,
   exists,
-  groupingSet,
-  groupingSets,
+  GroupingElement,
+  likeExpr,
   literal,
-  rollup,
   scalar,
   select,
   Table,
+  TableFunction,
   tableFunction,
   tuple,
   TypeName,
@@ -102,9 +101,9 @@ export const cases: Record<string, () => Builder> = {
     select().from(t).where(
       Condition.any(
         col("a").like("A%"),
-        col("b").notLike("50\\%%", { escape: "\\" }),
+        col("b").notLike(likeExpr("50\\%%").escape("\\")),
         col("c").ilike("x_y"),
-        col("d").notIlike("%z", { escape: "!" }),
+        col("d").notIlike(likeExpr("%z").escape("!")),
         col("e").startsWith("50%_"),
         col("f").endsWith("O'Brien"),
         col("g").containsText("\\"),
@@ -277,49 +276,52 @@ export const cases: Record<string, () => Builder> = {
       .from(t)
       .groupBy(
         col("a"),
-        rollup(col("a"), col("b")),
-        cube(col("b"), tuple(col("a"), col("b"))),
-        groupingSets(groupingSet(col("a"), col("b")), col("b"), groupingSet(), rollup(col("a"))),
+        GroupingElement.rollup(col("a"), col("b")),
+        GroupingElement.cube(col("b"), tuple(col("a"), col("b"))),
+        GroupingElement.sets(
+          GroupingElement.set(col("a"), col("b")),
+          col("b"),
+          GroupingElement.empty(),
+          GroupingElement.rollup(col("a")),
+        ),
       )
-      .groupBy(groupingSet(), rollup())
+      .groupBy(GroupingElement.set(), GroupingElement.rollup())
       .groupByDistinct(),
   "group-by-distinct-ungrouped": () => select(col("a")).from(t).groupByDistinct(),
   "similar-to": () =>
     select().from(t).where(
       Condition.all(
         col("a").similarTo("(x|y)%"),
-        col("b").notSimilarTo("!%%", { escape: "!" }),
-        col("c").similarTo("a\\_b", { escape: "\\" }),
+        col("b").notSimilarTo(likeExpr("!%%").escape("!")),
+        col("c").similarTo(likeExpr("a\\_b").escape("\\")),
         col("d").similarTo("%z").not(),
       ),
     ),
-  "table-function": () => select().from(tableFunction(call("generate_series", 1, 3), { alias: "n" })),
+  "table-function": () => select().from(tableFunction(call("generate_series", 1, 3)).alias("n")),
   "table-function-ordinality": () => {
-    const tags = tableFunction([call("unnest", account.col("tags"))], {
-      alias: "t",
-      ordinality: true,
-      columns: ["tag", "position"],
-    });
+    const tags = tableFunction(call("unnest", account.col("tags"))).withOrdinality().columns("tag", "position")
+      .alias("t");
     return select(account.col("id"), tags.col("tag"), tags.col("position")).from(account).crossJoin(tags);
   },
   "rows-from": () => {
-    const zipped = tableFunction([call("generate_series", 10, 1, -3), call("unnest", bind(["a", "b", "c"]))], {
-      alias: "r",
-      ordinality: true,
-      columns: ["x", "y", "n"],
-    });
-    const single = tableFunction(call("generate_series", 1, 2), { alias: "s", rowsFrom: true });
+    const zipped = tableFunction(call("generate_series", 10, 1, -3))
+      .and(call("unnest", bind(["a", "b", "c"])))
+      .withOrdinality()
+      .columns("x", "y", "n")
+      .alias("r");
+    const single = TableFunction.rowsFrom(call("generate_series", 1, 2)).alias("s");
     return select(zipped.star(), single.col("s")).from(zipped).crossJoin(single);
   },
   "record-functions": () => {
-    const one = tableFunction({
-      call: call("json_to_record", col("doc")),
-      columnDefinitions: [["a", "integer"], ["tags", new DataType("text").array()]],
-    }, { alias: "o" });
-    const zipped = tableFunction(
-      [{ call: call("jsonb_to_recordset", col("docs")), columnDefinitions: [["b", "text"]] }, call("generate_series", 1, 2)],
-      { alias: "z", ordinality: true },
-    );
+    const one = tableFunction(call("json_to_record", col("doc")))
+      .columnDefinition("a", "integer")
+      .columnDefinition("tags", new DataType("text").array())
+      .alias("o");
+    const zipped = tableFunction(call("jsonb_to_recordset", col("docs")))
+      .columnDefinition("b", "text")
+      .and(call("generate_series", 1, 2))
+      .withOrdinality()
+      .alias("z");
     return select(one.star(), zipped.star()).from(new Table("t")).crossJoin(one).crossJoin(zipped);
   },
   "tablesample": () => {

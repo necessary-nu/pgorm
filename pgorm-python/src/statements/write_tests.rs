@@ -371,7 +371,7 @@ fn conflict_arbiters_match_rust_builders() -> PyResult<()> {
         parity(
             py,
             &globals,
-            "row.on_conflict(p.Conflict.on(p.call('lower', p.col('name')), p.Identifier('tenant')).update('name'))",
+            "row.on_conflict(p.Conflict.on(p.call('lower', p.col('name')), 'tenant').update('name'))",
             insert()
                 .on_conflict(
                     OnConflict::expr(Func::lower(Expr::col(n("name"))))

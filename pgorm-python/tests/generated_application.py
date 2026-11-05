@@ -65,7 +65,7 @@ class GeneratedApplication(unittest.IsolatedAsyncioTestCase):
                 self.assertIsNone(await query.optional(connection))
 
     # [spec:pgorm:req:bindings.codegen/test]
-    # [spec:pgorm:req:bindings.entity-versions+2/test]
+    # [spec:pgorm:req:bindings.entity-versions+3/test]
     async def test_generated_views_return_typed_versions(self):
         def active(identity, name):
             return app.Account.active().set_id(identity).set_display_name(name).set_note(None)
@@ -100,6 +100,25 @@ class GeneratedApplication(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(model.display_name, "Two")
                 case other:
                     self.fail(f"expected an update then an insert, got {other!r}")
+
+    # [spec:pgorm:req:bindings.entity-inserts/test]
+    async def test_generated_views_have_the_insert_terminals(self):
+        def active(identity, name):
+            return app.Account.active().set_id(identity).set_display_name(name).set_note(None)
+
+        async with self.pool.connection() as connection:
+            self.assertEqual(await app.Account.insert(active(1, "One")).execute(connection), 1)
+            self.assertEqual(await app.Account.insert(active(2, "Two")).returning_pk(connection), 2)
+            three = await app.Account.insert(active(3, "Three")).returning_model(connection)
+            self.assertIsInstance(three, app.AccountModel)
+            batch = app.Account.insert(active(4, "Four")).add(active(5, "Five")).add_many([active(6, "Six")])
+            self.assertEqual(await batch.returning_pks(connection), [4, 5, 6])
+            models = await app.Account.insert_many([active(7, "Seven")]).add(active(8, "Eight")).returning_models(connection)
+            self.assertEqual([type(model) for model in models], [app.AccountModel, app.AccountModel])
+            self.assertEqual(await app.Account.insert_many([]).execute(connection), 0)
+            for view in (app.Account.insert(active(9, "Nine")), app.Account.insert_many([])):
+                with self.subTest(view=type(view).__name__), self.assertRaises(p.ConstructionError):
+                    bool(view)
 
     # [spec:pgorm:req:bindings.codegen/test]
     async def test_graph_views_keep_optional_models(self):
@@ -136,7 +155,7 @@ class GeneratedApplication(unittest.IsolatedAsyncioTestCase):
 
     # [spec:pgorm:req:bindings.codegen/test]
     async def test_views_reject_foreign_entities(self):
-        with self.assertRaises(p.LifecycleError):
+        with self.assertRaisesRegex(TypeError, "the ActiveModel is app.Note's, not app.Account's"):
             app.AccountActive(p.entity("app.Note").active())
         with self.assertRaises(p.ConstructionError):
             app.Account.active().set_id(p.Value(1, "i64"))
@@ -150,7 +169,7 @@ class GeneratedApplication(unittest.IsolatedAsyncioTestCase):
                 .set_body("B")
                 .insert(connection)
             )
-            with self.assertRaises(p.LifecycleError):
+            with self.assertRaisesRegex(TypeError, "the model is app.Note's, not app.Account's"):
                 app.AccountModel(model.native)
 
 
@@ -454,14 +473,20 @@ class GeneratedContract(unittest.TestCase):
         self.assertIn("def labels(self) -> list[str] | None:", stub)
         self.assertIn("def amount(self) -> Decimal:", stub)
         self.assertIn(
-            "DeliveriesRow: TypeAlias = tuple[DeliveryModel, Literal['parcel'], ParcelModel] "
-            "| tuple[DeliveryModel, Literal['letter'], None] "
-            "| tuple[DeliveryModel, Literal['pallet'], PalletModel]",
+            "DeliveriesRow: TypeAlias = (\n"
+            '    tuple[DeliveryModel, Literal["parcel"], ParcelModel]\n'
+            '    | tuple[DeliveryModel, Literal["letter"], None]\n'
+            '    | tuple[DeliveryModel, Literal["pallet"], PalletModel]\n'
+            ")",
             stub,
         )
         self.assertIn(
-            "Deliveries: WritableDisjointView[DeliveriesRow, Literal['parcel', 'letter', 'pallet'], "
-            "DeliveryActive, ParcelActive | PalletActive]",
+            "Deliveries: WritableDisjointView[\n"
+            "    DeliveriesRow,\n"
+            '    Literal["parcel", "letter", "pallet"],\n'
+            "    DeliveryActive,\n"
+            "    ParcelActive | PalletActive,\n"
+            "]",
             stub,
         )
         self.assertIn("Offers: DisjointView[OffersRow]", stub)

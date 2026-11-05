@@ -267,7 +267,7 @@ slots!(S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4, S5 @ 5, S6 @ 6);
 /// that source, bounded to PostgreSQL's 63-byte identifier limit — the same
 /// composition every prefixed read looks names up by.
 ///
-/// Both projection writers — [`project_source`] into a [`SelectStatement`]
+/// Both projection writers — `project_source` into a [`SelectStatement`]
 /// and the pipeline's `select_sources` terminal into prqlc's PL AST — mint
 /// their aliases under it, and the per-prefix decodes read exactly these
 /// names, so the scheme is one code path rather than a convention every site

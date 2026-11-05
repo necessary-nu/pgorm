@@ -27,7 +27,7 @@ class ModelView(Mapping[str, Any], Generic[A]):
         if not isinstance(model, native_types.EntityModel):
             raise TypeError("model view requires a native EntityModel")
         if model.entity_name != self._entity_name:
-            raise native_types.LifecycleError("model belongs to another entity registration")
+            raise TypeError(f"the model is {model.entity_name}'s, not {self._entity_name}'s")
         self._model = model
 
     @property
@@ -66,9 +66,7 @@ class ActiveView(Generic[M]):
         if not isinstance(active, native_types.ActiveModel):
             raise TypeError("active view requires a native ActiveModel")
         if active.entity_name != self._entity_name:
-            raise native_types.LifecycleError(
-                "ActiveModel belongs to another entity registration"
-            )
+            raise TypeError(f"the ActiveModel is {active.entity_name}'s, not {self._entity_name}'s")
         self._active = active
 
     @property
@@ -106,9 +104,7 @@ class EntityView(Generic[M, A]):
 
     def __init__(self, entity: native_types.Entity, model: type[M], active: type[A]):
         if entity.name != model._entity_name or entity.name != active._entity_name:
-            raise native_types.LifecycleError(
-                "generated wrapper types belong to another registration"
-            )
+            raise TypeError("generated wrapper types belong to another registration")
         self._entity, self._model_class, self._active_class = entity, model, active
 
     @property
@@ -150,7 +146,7 @@ class QueryView(Generic[M]):
 
     def __init__(self, query: native_types.EntityQuery, model: type[M]):
         if query.entity_name != model._entity_name:
-            raise native_types.LifecycleError("query belongs to another entity registration")
+            raise TypeError(f"the query is {query.entity_name}'s, not {model._entity_name}'s")
         self._query, self._model_class = query, model
 
     def where(self, predicate) -> "QueryView[M]":

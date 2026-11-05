@@ -19,7 +19,7 @@ class SchemaConstruction(unittest.TestCase):
         self.assertEqual(create.sql, 'CREATE SCHEMA IF NOT EXISTS "bill ""雪"""')
         self.assertEqual(create.params, [])
         self.assertEqual(
-            s.drop_schema(["a", p.Identifier("B"), "c"], if_exists=True, behavior="cascade").inspect().sql,
+            s.drop_schema(["a", "B", "c"], if_exists=True, behavior="cascade").inspect().sql,
             'DROP SCHEMA IF EXISTS "a", "B", "c" CASCADE',
         )
         self.assertEqual(s.drop_schema("a").inspect().sql, 'DROP SCHEMA "a"')

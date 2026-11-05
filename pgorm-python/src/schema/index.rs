@@ -8,7 +8,7 @@ use super::{
     args::{self, choice, relation},
     statement::{PyDDL, Statement, ddl_class},
 };
-use crate::{expressions::PyExpr, identifiers::PyIdentifier, statements::condition};
+use crate::{expressions::PyExpr, statements::condition};
 use pgorm::pgorm_query::{Index, IndexColumn, IndexCreateStatement, IndexOrder, IndexType};
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyString};
 
@@ -22,7 +22,7 @@ fn entry(
 ) -> PyResult<IndexColumn> {
     let mut column = if let Ok(expr) = on.extract::<PyRef<'_, PyExpr>>() {
         IndexColumn::expr(expr.inner.clone())
-    } else if on.is_instance_of::<PyString>() || on.is_instance_of::<PyIdentifier>() {
+    } else if on.is_instance_of::<PyString>() {
         IndexColumn::name(args::name(on)?)
     } else {
         return Err(PyTypeError::new_err(

@@ -36,7 +36,8 @@
       "EntityGraph": ["describe", "find"],
       "EntityGraphCursor": ["after", "after_with", "all", "asc", "before", "before_with", "desc", "first", "last"],
       "EntityGraphQuery": ["all", "col", "cursor", "inspect", "optional", "order_by", "where"],
-      "EntityInsert": ["on_conflict", "returning_upsert"],
+      "EntityInsert": ["add", "add_many", "execute", "on_conflict", "returning_model", "returning_pk", "returning_upsert"],
+      "EntityInsertMany": ["add", "add_many", "execute", "on_conflict", "returning_models", "returning_pks", "returning_upserts"],
       "EntityQuery": ["all", "inspect", "limit", "offset", "one", "optional", "order_by", "where"],
       "EntityUpdate": ["returning_change"],
       "EntityUpdateMany": ["all_rows", "returning_changes", "set", "where"],
@@ -51,7 +52,7 @@
       "FrameType": ["Groups", "Range", "Rows", "current_row", "following", "preceding", "unbounded_preceding"],
       "FromItem": ["col", "star"],
       "Graph": ["all", "all_grouped", "col", "count", "cursor", "inspect", "join_maybe", "join_one", "limit", "offset", "one", "optional", "order_by", "paginate", "stream", "via", "where"],
-      "GroupingElement": [],
+      "GroupingElement": ["cube", "empty", "rollup", "set", "sets"],
       "Insert": ["columns", "default_values", "inspect", "on_conflict", "overriding", "returning", "select", "values", "with"],
       "InternalError": [],
       "Interval": [],
@@ -59,6 +60,7 @@
       "JsonInput": [],
       "JsonTableColumn": ["exists", "nested", "ordinality", "query", "value"],
       "LifecycleError": [],
+      "LikeExpr": ["escape", "no_escape"],
       "Listener": ["close", "listen", "unlisten", "unlisten_all"],
       "Merge": ["inspect", "only", "returning", "returning_action", "when_matched", "when_not_matched", "when_not_matched_by_source", "with"],
       "MergeAction": ["delete", "do_nothing", "insert", "insert_defaults", "update"],
@@ -67,7 +69,8 @@
       "Model": ["as", "belongs_to", "col", "delete", "describe", "find", "find_by_key", "graph", "has_many", "has_one", "insert", "insert_many", "key", "select", "update"],
       "ModelColumn": ["add", "adjacent_to", "and", "as", "asc", "at", "between", "cast", "collate", "concat", "contained_by", "contains", "contains_text", "desc", "div", "ends_with", "eq", "gt", "gte", "ilike", "inspect", "iregex", "is_distinct_from", "is_in", "is_not_distinct_from", "is_not_in", "is_not_null", "is_null", "like", "lt", "lte", "matches", "mod", "mul", "ne", "not", "not_between", "not_extend_left_of", "not_extend_right_of", "not_ilike", "not_iregex", "not_like", "not_regex", "not_similar_to", "or", "over", "overlaps", "path_exists", "regex", "similar_to", "slice", "starts_with", "strictly_left_of", "strictly_right_of", "sub"],
       "ModelDelete": ["all_rows", "execute", "inspect", "returning", "where"],
-      "ModelInsert": ["execute", "inspect", "on_conflict", "returning", "returning_upsert", "returning_upserts"],
+      "ModelInsert": ["add", "add_many", "execute", "inspect", "on_conflict", "returning", "returning_upsert"],
+      "ModelInsertMany": ["add", "add_many", "execute", "inspect", "on_conflict", "returning", "returning_upserts"],
       "ModelQuery": ["all", "count", "cursor", "inspect", "join", "limit", "offset", "one", "optional", "order_by", "paginate", "stream", "where"],
       "ModelRows": ["all", "inspect", "one", "optional"],
       "ModelUpdate": ["all_rows", "execute", "inspect", "returning", "returning_change", "returning_changes", "where"],
@@ -90,6 +93,7 @@
       "Select": ["as", "cross_join", "distinct", "except", "except_all", "from", "group_by", "group_by_distinct", "having", "inspect", "intersect", "intersect_all", "join", "limit", "limit_with_ties", "lock", "offset", "order_by", "select", "union", "union_all", "where", "window", "with"],
       "SimpleCase": ["add", "adjacent_to", "and", "as", "asc", "at", "between", "cast", "collate", "concat", "contained_by", "contains", "contains_text", "desc", "div", "else", "ends_with", "eq", "gt", "gte", "ilike", "inspect", "iregex", "is_distinct_from", "is_in", "is_not_distinct_from", "is_not_in", "is_not_null", "is_null", "like", "lt", "lte", "matches", "mod", "mul", "ne", "not", "not_between", "not_extend_left_of", "not_extend_right_of", "not_ilike", "not_iregex", "not_like", "not_regex", "not_similar_to", "or", "over", "overlaps", "path_exists", "regex", "similar_to", "slice", "starts_with", "strictly_left_of", "strictly_right_of", "sub", "when"],
       "Table": ["as", "col", "star", "tablesample"],
+      "TableFunction": ["alias", "and", "column_definition", "columns", "rows_from", "with_ordinality"],
       "TimeoutError": [],
       "Transaction": ["copy_in", "copy_in_rows", "copy_out", "copy_out_rows", "execute", "notify", "one", "optional", "query", "transaction"],
       "TypeName": [],
@@ -162,6 +166,7 @@
       "DDL": ["inspect"],
       "DataType": ["array"],
       "EntitySchema": [],
+      "MigrationFile": ["freeze"],
       "PendingAlterDomain": ["add_check", "drop_constraint", "drop_default", "drop_not_null", "rename_constraint", "rename_to", "set_default", "set_not_null", "validate_constraint"],
       "PendingAlterSequence": ["as_type", "options", "owned_by", "restart"],
       "PendingAlterTable": ["add_check", "add_column", "add_foreign_key", "add_not_null", "add_primary_key", "add_unique", "alter_constraint", "drop_column", "drop_constraint", "drop_expression", "modify_column", "set_expression", "validate_constraint"],
@@ -199,6 +204,8 @@
       "drop_type": null,
       "drop_view": null,
       "from_entity": null,
+      "migration_file": null,
+      "migration_files": null,
       "remove_disjoint_kind": null,
       "remove_disjoint_kind_table": null,
       "refresh_materialized_view": null,
@@ -213,7 +220,7 @@
       "Binder": ["bind"],
       "Grouped": ["aggregate", "aggregate_with"],
       "Over": ["by", "range", "rows", "sort_by"],
-      "Pipeline": ["append", "derive", "derive_with", "distinct", "filter", "filter_with", "group", "group_with", "inspect", "intersect", "join", "join_with", "remove", "select", "select_sources", "select_with", "sort", "sort_with", "take", "take_range", "window", "window_with"],
+      "Pipeline": ["all", "append", "derive", "derive_with", "distinct", "filter", "filter_with", "group", "group_with", "inspect", "intersect", "join", "join_with", "one", "optional", "remove", "select", "select_sources", "select_with", "sort", "sort_with", "take", "take_range", "window", "window_with"],
       "PipelineExpr": ["add", "and", "as", "asc", "cast", "coalesce", "compares_as", "desc", "div", "eq", "gt", "gte", "in_array", "is_not_null", "is_null", "lt", "lte", "mul", "ne", "neg", "not", "or", "rem", "sub"],
       "SelectedSources": ["all", "inspect", "one", "optional"],
       "Source": ["named"],
@@ -337,9 +344,7 @@
       "entities": null
     }
   },
-  "questions": {
-    "shapes": "One feature offered through differently shaped API: grouping elements, table functions, LIKE patterns, the identifier wrapper, registered inserts and a pipeline's own terminals."
-  },
+  "questions": {},
   "python": {
     "modules": {
       "pgorm": "pgorm",
@@ -416,20 +421,7 @@
     },
     "gaps": {
     },
-    "undecided": {
-      "pgorm.Identifier": {"question": "shapes"},
-      "pgorm.LikePattern": {"question": "shapes"},
-      "pgorm.TableFunction": {"question": "shapes"},
-      "pgorm.EntityInsertMany": {"question": "shapes"},
-      "pipeline.Pipeline.all": {"question": "shapes"},
-      "pipeline.Pipeline.one": {"question": "shapes"},
-      "pipeline.Pipeline.optional": {"question": "shapes"},
-      "pgorm.GroupingElement.set": {"question": "shapes"},
-      "pgorm.GroupingElement.empty": {"question": "shapes"},
-      "pgorm.GroupingElement.rollup": {"question": "shapes"},
-      "pgorm.GroupingElement.cube": {"question": "shapes"},
-      "pgorm.GroupingElement.sets": {"question": "shapes"}
-    }
+    "undecided": {}
   },
   "javascript": {
     "modules": {
@@ -467,6 +459,8 @@
       "pgorm.copyFrom": "the factory for a class Python constructs by calling it (napi.naming)",
       "pgorm.copyTo": "the factory for a class Python constructs by calling it (napi.naming)",
       "pgorm.jsonDefault": "the factory for a class Python constructs by calling it (napi.naming)",
+      "pgorm.tableFunction": "the factory for a class Python constructs by calling it (napi.naming)",
+      "pgorm.likeExpr": "the factory for a class Python constructs by calling it (napi.naming)",
       "pgorm.Aliased.inspect": "inherited from Builder, and refuses a part that is no statement",
       "pgorm.CaseOperand.inspect": "inherited from Builder, and refuses a part that is no statement",
       "pgorm.Conflict.inspect": "inherited from Builder, and refuses a part that is no statement",
@@ -478,13 +472,6 @@
       "pgorm.With.inspect": "inherited from Builder, and refuses a part that is no statement"
     },
     "gaps": {},
-    "undecided": {
-      "pgorm.cube": {"question": "shapes"},
-      "pgorm.groupingSet": {"question": "shapes"},
-      "pgorm.groupingSets": {"question": "shapes"},
-      "pgorm.rollup": {"question": "shapes"},
-      "pgorm.tableFunction": {"question": "shapes"},
-      "pgorm.EntityInsert.returningUpserts": {"question": "shapes"}
-    }
+    "undecided": {}
   }
 }

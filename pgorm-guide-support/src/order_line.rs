@@ -1,0 +1,30 @@
+use pgorm::entity::prelude::*;
+
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
+#[pgorm(table_name = "order_line")]
+pub struct Model {
+    #[pgorm(primary_key)]
+    pub id: i32,
+    pub order_id: i32,
+    pub cake_id: i32,
+    pub quantity: i32,
+    #[pgorm(column_type = ColumnType::Decimal(Some((10, 2))))]
+    pub price: Decimal,
+}
+
+#[derive(Copy, Clone, Debug, Relation)]
+pub enum Relation {
+    #[pgorm(
+        belongs_to = super::order::Entity,
+        from = Column::OrderId,
+        to = super::order::Column::Id,
+        on_delete = ForeignKeyAction::Cascade
+    )]
+    Order,
+    #[pgorm(
+        belongs_to = super::cake::Entity,
+        from = Column::CakeId,
+        to = super::cake::Column::Id
+    )]
+    Cake,
+}

@@ -72,7 +72,7 @@ use pgorm::pgorm_query::TableName;
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyTuple};
 use serde_json::{Map, Value, json};
 
-use crate::{errors::ConstructionError, identifiers::PyIdentifier, statements::PyTable};
+use crate::{errors::ConstructionError, identifiers::Identifier, statements::PyTable};
 
 /// COPY's data format, as Python names it.
 #[derive(Clone, Copy, Debug)]
@@ -130,10 +130,10 @@ fn character(value: &Bound<'_, PyAny>, option: &str) -> PyResult<char> {
     }
 }
 
-fn names(columns: &Bound<'_, PyTuple>) -> PyResult<Vec<PyIdentifier>> {
+fn names(columns: &Bound<'_, PyTuple>) -> PyResult<Vec<Identifier>> {
     columns
         .iter()
-        .map(|column| PyIdentifier::new(&column))
+        .map(|column| Identifier::new(&column))
         .collect()
 }
 
@@ -254,7 +254,7 @@ pub(crate) fn capabilities() -> Map<String, Value> {
     .map(|(name, api)| {
         (
             name.to_owned(),
-            json!({"rust_api": api, "features": ["runtime-tokio"]}),
+            json!({"rust_api": api, "features": []}),
         )
     });
     builders.chain(execution).collect()

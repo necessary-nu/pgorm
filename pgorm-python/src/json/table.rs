@@ -16,8 +16,7 @@ use super::{
     variables,
 };
 use crate::{
-    errors::ConstructionError, identifiers::PyIdentifier, schema::PyDataType,
-    statements::PyFromItem,
+    errors::ConstructionError, identifiers::Identifier, schema::PyDataType, statements::PyFromItem,
 };
 
 /// What `JSON_TABLE` produces when its root path fails: `ON ERROR`. Without
@@ -40,7 +39,7 @@ impl PyJsonTableBehavior {
 
 #[pymethods]
 impl PyJsonTableBehavior {
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "SQL/JSON clauses cannot be tested as Python booleans",
@@ -80,7 +79,7 @@ impl PyJsonTableColumn {
     #[staticmethod]
     fn ordinality(name: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self {
-            inner: JsonTableColumn::ordinality(PyIdentifier::new(name)?.name()),
+            inner: JsonTableColumn::ordinality(Identifier::new(name)?.name()),
         })
     }
 
@@ -95,7 +94,7 @@ impl PyJsonTableColumn {
         on_error: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let mut column = JsonTableColumn::value(
-            PyIdentifier::new(name)?.name(),
+            Identifier::new(name)?.name(),
             PyDataType::coerce(kind)?.inner,
         );
         if let Some(path) = path {
@@ -125,7 +124,7 @@ impl PyJsonTableColumn {
         on_error: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let mut column = JsonTableColumn::query(
-            PyIdentifier::new(name)?.name(),
+            Identifier::new(name)?.name(),
             PyDataType::coerce(kind)?.inner,
         );
         if let Some(path) = path {
@@ -164,7 +163,7 @@ impl PyJsonTableColumn {
         on_error: Option<PyJsonExistsBehavior>,
     ) -> PyResult<Self> {
         let mut column = JsonTableColumn::exists(
-            PyIdentifier::new(name)?.name(),
+            Identifier::new(name)?.name(),
             PyDataType::coerce(kind)?.inner,
         );
         if let Some(path) = path {
@@ -196,7 +195,7 @@ impl PyJsonTableColumn {
                 nested.column(column)
             });
         if let Some(name) = path_name {
-            nested = nested.path_name(PyIdentifier::new(name)?.name());
+            nested = nested.path_name(Identifier::new(name)?.name());
         }
         Ok(Self {
             inner: nested.into(),
@@ -240,12 +239,12 @@ pub(crate) fn json_table(
         table = table.passing(value, name);
     }
     if let Some(name) = path_name {
-        table = table.path_name(PyIdentifier::new(name)?.name());
+        table = table.path_name(Identifier::new(name)?.name());
     }
     if let Some(behavior) = on_error {
         table = table.on_error(behavior.rust());
     }
     Ok(PyFromItem {
-        inner: table.alias(PyIdentifier::new(alias)?.name()),
+        inner: table.alias(Identifier::new(alias)?.name()),
     })
 }

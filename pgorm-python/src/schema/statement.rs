@@ -48,7 +48,7 @@ macro_rules! statements {
 
         impl Statement {
             // [spec:pgorm:req:bindings.schema]
-            fn sql(&self) -> String {
+            pub(crate) fn sql(&self) -> String {
                 match self {
                     $(Self::$variant(statement) => statement.to_string()),*
                 }
@@ -114,7 +114,7 @@ impl PyDDL {
         }
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "SQL statements cannot be tested as Python booleans",

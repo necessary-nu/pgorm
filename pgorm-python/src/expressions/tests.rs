@@ -35,7 +35,7 @@ fn parity(
 }
 
 // [spec:pgorm:req:bindings.delegation/test]
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 #[test]
 fn expression_structure_matches_rust_builders() -> PyResult<()> {
     Python::initialize();
@@ -99,7 +99,7 @@ fn expression_structure_matches_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.identifiers+2/test]
+// [spec:pgorm:req:bindings.identifiers+3/test]
 #[test]
 fn qualified_casts_preserve_source_typed_parameters() -> PyResult<()> {
     Python::initialize();
@@ -129,7 +129,7 @@ fn qualified_casts_preserve_source_typed_parameters() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 #[test]
 fn substring_and_pattern_paths_use_rust_functions() -> PyResult<()> {
     Python::initialize();
@@ -160,25 +160,31 @@ fn substring_and_pattern_paths_use_rust_functions() -> PyResult<()> {
         parity(
             py,
             &globals,
-            "p.col('text').like(p.LikePattern('!%_', escape='!'))",
+            "p.col('text').like(p.LikeExpr('!%_').escape('!'))",
             Expr::col(Name::runtime("text")).like(LikeExpr::new("!%_").escape('!')),
         )?;
         parity(
             py,
             &globals,
-            "p.col('text').ilike(p.LikePattern('!%_', escape='!'))",
+            "p.col('text').ilike(p.LikeExpr('!%_').escape('!'))",
             Expr::col(Name::runtime("text")).ilike(LikeExpr::new("!%_").escape('!')),
         )?;
         parity(
             py,
             &globals,
-            "p.col('text').not_like(p.LikePattern('a\\\\%', escape=''))",
+            "p.col('text').like('a%')",
+            Expr::col(Name::runtime("text")).like("a%"),
+        )?;
+        parity(
+            py,
+            &globals,
+            "p.col('text').not_like(p.LikeExpr('a\\\\%').no_escape())",
             Expr::col(Name::runtime("text")).not_like(LikeExpr::new("a\\%").no_escape()),
         )
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+2/test]    each comparison, concatenation,
+// [spec:pgorm:req:bindings.expressions+3/test]    each comparison, concatenation,
 // [spec:pgorm:req:bindings.ranges/test]
 // regular-expression, containment, range position and document search method is the BinOper or
 // Rust method of its meaning, its operand bound unless it is an expression, the path bound as text
@@ -257,7 +263,7 @@ fn operator_methods_are_their_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+2/test]    at is Rust's Expr::index and slice its
+// [spec:pgorm:req:bindings.expressions+3/test]    at is Rust's Expr::index and slice its
 // Subscript::Slice, each bound unless it is an expression, None leaving a slice's end open
 #[test]
 fn subscripts_are_rust_index_and_slice() -> PyResult<()> {
@@ -292,7 +298,7 @@ fn subscripts_are_rust_index_and_slice() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 #[test]
 fn function_calls_use_named_rust_constructors() -> PyResult<()> {
     Python::initialize();
@@ -351,7 +357,7 @@ fn function_calls_use_named_rust_constructors() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 // [spec:pgorm:req:bindings.statements/test]
 #[test]
 fn conditions_keep_rust_empty_and_grouping_semantics() -> PyResult<()> {
@@ -457,9 +463,9 @@ fn case_expressions_match_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+2/test]
-// [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    both forms through LikePattern, its
-// ESCAPE carried, and a plain string refused as LIKE's is
+// [spec:pgorm:req:bindings.expressions+3/test]
+// [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    both forms over a plain string, as Rust's
+// IntoLikeExpr reads one, and over a LikeExpr, its ESCAPE carried
 #[test]
 fn similar_to_takes_like_patterns() -> PyResult<()> {
     Python::initialize();
@@ -469,24 +475,28 @@ fn similar_to_takes_like_patterns() -> PyResult<()> {
         parity(
             py,
             &globals,
-            "p.col('text').similar_to(p.LikePattern('(a|b)%'))",
+            "p.col('text').similar_to('(a|b)%')",
             text().similar_to("(a|b)%"),
         )?;
         parity(
             py,
             &globals,
-            "p.col('text').not_similar_to(p.LikePattern('!%%', escape='!'))",
+            "p.col('text').not_similar_to(p.LikeExpr('!%%').escape('!'))",
             text().not_similar_to(LikeExpr::new("!%%").escape('!')),
         )?;
         let error = py
-            .eval(c"p.col('text').similar_to('a%')", Some(&globals), None)
-            .expect_err("a plain string is not a pattern");
+            .eval(
+                c"p.col('text').similar_to(p.Value('a%'))",
+                Some(&globals),
+                None,
+            )
+            .expect_err("a pattern is a string or a LikeExpr");
         assert!(error.is_instance_of::<pyo3::exceptions::PyTypeError>(py));
         Ok(())
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 // [spec:pgorm:req:sql.ast.select.table-function+2/test]    `call` reaches the set-returning
 // constructors at their arities, and no other
 #[test]
@@ -552,7 +562,7 @@ fn collations_lower_into_rust_collate() -> PyResult<()> {
         parity(
             py,
             &globals,
-            "p.col('name').collate(p.Identifier('C \"x\"'), schema='pg_catalog') < 'b'",
+            "p.col('name').collate('C \"x\"', schema='pg_catalog') < 'b'",
             name()
                 .collate((Name::runtime("pg_catalog"), Name::runtime("C \"x\"")))
                 .lt("b"),

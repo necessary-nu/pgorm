@@ -72,7 +72,9 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         terminals = [
             "all", "one", "optional", "active.insert", "active.update", "active.delete",
             "update.returning_change", "update_many.returning_changes",
-            "insert.returning_upsert", "insert_many.returning_upserts",
+            "insert.execute", "insert.returning_pk", "insert.returning_model", "insert.returning_upsert",
+            "insert_many.execute", "insert_many.returning_pks", "insert_many.returning_models",
+            "insert_many.returning_upserts",
         ]
         operations = p.capabilities()["operations"]
         self.assertEqual([t for t in terminals if "entity." + t not in operations], [])
@@ -87,7 +89,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             with self.subTest(terminal=terminal):
                 self.assertTrue(callable(getattr(owners[owner], method)))
 
-    # [spec:pgorm:req:python.truth-testing+3/test]
+    # [spec:pgorm:req:python.truth-testing+4/test]
     async def test_write_terminals_refuse_truth_testing(self):
         active = self.active(1)
         writes = [self.account.update(active), self.account.update_many(),
@@ -98,7 +100,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             with self.subTest(write=type(write).__name__), self.assertRaises(p.ConstructionError):
                 bool(write)
 
-    # [spec:pgorm:req:bindings.entity-writes/test]
+    # [spec:pgorm:req:bindings.entity-writes+1/test]
     async def test_active_values_and_hooks_use_rust_states(self):
         initial = self.account.active()
         self.assertEqual(initial.get("id").state, p.ActiveState.NotSet)
@@ -126,7 +128,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(await self.account.find().optional(connection))
         self.assertEqual(model.tagged("mood").type_name, p.TypeName("Mood", schema="python_entities"))
 
-    # [spec:pgorm:req:bindings.entity-writes/test]
+    # [spec:pgorm:req:bindings.entity-writes+1/test]
     # [spec:pgorm:req:bindings.created-ranges+5/test]
     async def test_created_ranges_round_trip_through_an_entity(self):
         booking = p.entity("app.Booking")
@@ -392,7 +394,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
     # [spec:pgorm:req:bindings.entity-reads+3/test]    any_(..) / all_(..) over a list compares through the
     # column's ColumnTrait, the list one array of its declared kind cast as eq_any's is: money as money[],
     # a column whose domain is over an enum as the enum, where the plain expression is refused
-    # [spec:pgorm:req:bindings.quantifiers+2/test]    an empty list is typed by the registered column, = ANY
+    # [spec:pgorm:req:bindings.quantifiers+3/test]    an empty list is typed by the registered column, = ANY
     # of it false and <> ALL true, and refused as it is used where no registered column types it
     async def test_quantified_lists_take_the_column_casts(self):
         await self.pool.execute(p.RawSQL(
@@ -493,7 +495,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((await self.account.find().limit(5).one(connection))["id"], 1)
             self.assertEqual(self.account.find().limit(5).inspect(terminal="one").params[-1].value, 1)
 
-    # [spec:pgorm:req:bindings.entity-writes/test]
+    # [spec:pgorm:req:bindings.entity-writes+1/test]
     async def test_composite_key_entity_writes_by_whole_key(self):
         membership = p.entity("app.Membership")
         described = membership.describe()
@@ -535,7 +537,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
                 {"tenant_id": 1, "id": shared, "role": "admin"},
             ])
 
-    # [spec:pgorm:req:bindings.entity-writes/test]
+    # [spec:pgorm:req:bindings.entity-writes+1/test]
     async def test_invalid_types_and_foreign_handles_are_rejected(self):
         for column, value in (("id", True), ("id", 2**31), ("id", "1"), ("mood", "unknown"), ("display name", None)):
             with self.subTest(column=column, value=value), self.assertRaises(p.ConstructionError):
@@ -543,10 +545,12 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             self.active(1).set("mood", p.Value("calm", p.TypeName("Mood", schema="foreign")))
         for method in (self.active(1).get, self.active(1).not_set, self.active(1).reset):
-            with self.assertRaises(p.LifecycleError):
+            with self.assertRaisesRegex(TypeError, "the column is app.Note's, not app.Account's"):
                 method(self.note.col("id"))
-        with self.assertRaises(p.LifecycleError):
+        with self.assertRaises(TypeError):
             self.active(1).set(self.note.col("id"), 1)
+        with self.assertRaisesRegex(TypeError, "the ActiveModel is app.Note's, not app.Account's"):
+            self.account.update(self.note.active())
         with self.assertRaises(p.ConstructionError):
             bool(self.account.find())
         with self.assertRaises(p.ConstructionError):
@@ -554,7 +558,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             self.account.find().limit(True)
 
-    # [spec:pgorm:req:bindings.entity-writes/test]
+    # [spec:pgorm:req:bindings.entity-writes+1/test]
     async def test_model_setter_preserves_rust_conversion_checks(self):
         async with self.pool.connection() as connection:
             model = await self.active(1).insert(connection)
@@ -563,11 +567,11 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(model["display name"], "Nora|before")
         with self.assertRaises(p.ConstructionError):
             model.with_value("id", p.Value(1, "i64"))
-        with self.assertRaises(p.LifecycleError):
+        with self.assertRaises(TypeError):
             model.with_value(self.note.col("id"), 2)
         self.assertEqual(changed.into_active().get("display name").state, p.ActiveState.Unchanged)
 
-    # [spec:pgorm:req:bindings.entity-writes/test]    a hook's refusal is a ConstructionError,
+    # [spec:pgorm:req:bindings.entity-writes+1/test]    a hook's refusal is a ConstructionError,
     # never a DatabaseError, and the write it refused after the fact stands
     async def test_before_and_after_hooks_keep_write_outcomes(self):
         async with self.pool.connection() as connection:

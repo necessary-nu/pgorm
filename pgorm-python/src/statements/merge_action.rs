@@ -7,7 +7,7 @@
 use pgorm::pgorm_query::{MatchedAction, MergeInsert, MergeUpdate, NotMatchedAction, Overriding};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{errors::ConstructionError, expressions::coerce, identifiers::PyIdentifier};
+use crate::{errors::ConstructionError, expressions::coerce, identifiers::Identifier};
 
 /// The actions that carry nothing but their keyword.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -20,7 +20,13 @@ enum Keyword {
 // [spec:pgorm:req:bindings.merge+2]
 /// What an arm does with its row: `DELETE`, `DO NOTHING` or `INSERT DEFAULT
 /// VALUES` itself, and through its factories an update or an insert.
-#[pyclass(name = "MergeAction", module = "pgorm", frozen, from_py_object)]
+#[pyclass(
+    name = "MergeAction",
+    module = "pgorm",
+    frozen,
+    generic,
+    from_py_object
+)]
 #[derive(Clone, Debug)]
 pub struct PyMergeAction {
     keyword: Keyword,
@@ -31,7 +37,7 @@ impl PyMergeAction {
     /// `UPDATE SET column = value`, for a target row; `set` adds assignments.
     #[staticmethod]
     fn update(column: &Bound<'_, PyAny>, value: &Bound<'_, PyAny>) -> PyResult<PyMergeUpdate> {
-        let column = PyIdentifier::new(column)?.name();
+        let column = Identifier::new(column)?.name();
         Ok(PyMergeUpdate {
             inner: MergeUpdate::value(column, coerce(value)?.inner),
         })
@@ -40,7 +46,7 @@ impl PyMergeAction {
     /// `INSERT (column) VALUES (value)`, for a source row; `set` adds columns.
     #[staticmethod]
     fn insert(column: &Bound<'_, PyAny>, value: &Bound<'_, PyAny>) -> PyResult<PyMergeInsert> {
-        let column = PyIdentifier::new(column)?.name();
+        let column = Identifier::new(column)?.name();
         Ok(PyMergeInsert {
             inner: MergeInsert::value(column, coerce(value)?.inner),
         })
@@ -78,7 +84,7 @@ impl PyMergeAction {
         }
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "MERGE actions cannot be tested as Python booleans",
@@ -123,7 +129,7 @@ pub struct PyMergeUpdate {
 #[pymethods]
 impl PyMergeUpdate {
     fn set(&self, column: &Bound<'_, PyAny>, value: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let column = PyIdentifier::new(column)?.name();
+        let column = Identifier::new(column)?.name();
         let value = coerce(value)?.inner;
         Ok(Self {
             inner: self.inner.clone().and_value(column, value),
@@ -152,7 +158,7 @@ pub struct PyMergeInsert {
 #[pymethods]
 impl PyMergeInsert {
     fn set(&self, column: &Bound<'_, PyAny>, value: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let column = PyIdentifier::new(column)?.name();
+        let column = Identifier::new(column)?.name();
         let value = coerce(value)?.inner;
         Ok(Self {
             inner: self.inner.clone().and_value(column, value),

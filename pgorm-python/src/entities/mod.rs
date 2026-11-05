@@ -4,6 +4,7 @@ mod active;
 pub(crate) mod backend;
 mod column;
 pub(crate) mod generic;
+mod inserts;
 pub(crate) mod io;
 pub(crate) mod metadata;
 mod model;
@@ -16,16 +17,16 @@ mod versions;
 
 pub use active::{ActiveState, PyActiveModel, PyActiveValue};
 pub use column::PyEntityColumn;
+pub(crate) use inserts::TERMINALS as insert_terminals;
+pub use inserts::{PyEntityInsert, PyEntityInsertMany};
 pub use model::PyEntityModel;
 pub use query::PyEntityQuery;
 pub(crate) use registry::NativeRegistry;
 pub use registry::Registry;
 pub(crate) use versions::TERMINALS as version_terminals;
-pub use versions::{
-    PyChange, PyEntityInsert, PyEntityInsertMany, PyEntityUpdate, PyEntityUpdateMany, PyUpserted,
-};
+pub use versions::{PyChange, PyEntityUpdate, PyEntityUpdateMany, PyUpserted};
 
-use crate::identifiers::PyIdentifier;
+use crate::identifiers::Identifier;
 use pyo3::prelude::*;
 use std::sync::Arc;
 
@@ -52,7 +53,7 @@ impl PyEntity {
         py: Python<'py>,
         name: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyEntityColumn>> {
-        let name = PyIdentifier::new(name)?.name;
+        let name = Identifier::new(name)?.name;
         self.backend.info().column(&name)?;
         Bound::new(py, PyEntityColumn::new(self.backend.clone(), name)?)
     }

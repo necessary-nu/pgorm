@@ -23,11 +23,56 @@ pub use tokio_postgres::Notification;
 /// [`CopyInSink`] needs no direct dependency on `bytes`.
 // [spec:pgorm:req:conn.copy+2]
 pub use bytes::Bytes;
+
+/// The buffer [`CopyRowEncoder`] writes a binary COPY's header, rows and
+/// trailer into.
+// [spec:pgorm:req:conn.driver-types]
+pub use bytes::BytesMut;
+
+/// The traits [`CopyInSink`] and the streams pgorm returns implement, for
+/// code that names them in a signature of its own. Reading a stream or
+/// writing a sink still takes the extension traits of the `futures` crate.
+// [spec:pgorm:req:conn.driver-types]
+pub use futures::{Sink, Stream};
+
 pub use tokio_postgres::{Config, IsolationLevel};
+
+/// The row [`query_one`], [`query_opt`] and [`query_all`] return, and the
+/// stream of them [`query_raw`] returns.
+///
+/// [`query_one`]: ConnectionTrait::query_one
+/// [`query_opt`]: ConnectionTrait::query_opt
+/// [`query_all`]: ConnectionTrait::query_all
+/// [`query_raw`]: ConnectionTrait::query_raw
+// [spec:pgorm:req:conn.driver-types]
+pub use tokio_postgres::{Row, RowStream};
+
+/// The driver's error, which [`Error::Postgres`] carries, renamed so that it
+/// does not collide with pgorm's own [`Error`].
+// [spec:pgorm:req:conn.driver-types]
+pub use tokio_postgres::Error as PostgresError;
+
+/// What the driver's error reports of a refusal the server sent: the
+/// server's error, and the SQLSTATE that [`PostgresError::code`] returns.
+// [spec:pgorm:req:conn.driver-types]
+pub use tokio_postgres::error::{DbError, SqlState};
+
+/// What [`Config`]'s setters take and its getters return.
+// [spec:pgorm:req:conn.driver-types]
+pub use tokio_postgres::config::{
+    ChannelBinding, Host, LoadBalanceHosts, SslMode, SslNegotiation, TargetSessionAttrs,
+};
 
 /// The pool and manager knobs [`connect_with`] takes, re-exported so shaping a
 /// pool never requires naming `pgorm_pool` itself.
 pub use pgorm_pool::{ManagerConfig, PoolBuilder, RecyclingMethod, StatementCacheSize};
+
+/// What [`PoolBuilder`]'s setters take, what [`DatabasePool::status`] returns,
+/// and the error [`Error::Pool`] carries, with what its variants hold.
+// [spec:pgorm:req:conn.driver-types]
+pub use pgorm_pool::{
+    Hook, HookError, PoolConfig, PoolError, QueueMode, Runtime, Status, TimeoutType, Timeouts,
+};
 
 /// The channel pgorm-migration's runner notifies once a batch that applied a
 /// migration commits: the one to give
@@ -45,7 +90,7 @@ pub use tokio_postgres::{
 
 use crate::error::Error;
 use pgorm_pool::{BuildError, Manager, Pool};
-use std::{collections::BTreeMap, convert::identity, sync::Arc};
+use std::{collections::BTreeMap, convert::identity};
 
 /// The builder rejected the pool it was asked to build. deadpool's only such
 /// failure is a timeout configured without a runtime, so the message is carried
@@ -197,29 +242,30 @@ pub fn connect_with_builder(
 }
 
 /// Method to create one [DatabasePool] per entry in `build`, each tagged with
-/// that entry's key and customised by its builder closure. The returned map is
-/// keyed by the resulting pool tags.
+/// that entry's key and customised by its builder closure, gathered into a
+/// [`DatabaseMultiPool`] keyed by those tags.
 ///
 /// # Errors
 ///
 /// Returns [`Error::Custom`] for the first entry whose builder cannot produce a
-/// pool; no map is returned in that case.
-// [spec:pgorm:sem:conn.pool.multi+2]    per-tag pool construction
+/// pool; none of the pools is returned in that case.
+// [spec:pgorm:sem:conn.pool.multi+3]    per-tag pool construction
 pub fn connect_multi_with_builder(
     config: Config,
     build: BTreeMap<String, Box<dyn Fn(PoolBuilder) -> PoolBuilder>>,
-) -> Result<BTreeMap<Arc<String>, DatabasePool>, Error> {
+) -> Result<DatabaseMultiPool, Error> {
     build
         .into_iter()
-        .map(|(key, build)| {
+        .map(|(tag, build)| {
             let pool = connect_with(
                 config.clone(),
                 NoTls,
-                simple_manager_config(Some(key)),
+                simple_manager_config(Some(tag.clone())),
                 build,
             )?;
 
-            Ok((pool.tag(), pool))
+            Ok((tag, pool))
         })
-        .collect()
+        .collect::<Result<_, Error>>()
+        .map(DatabaseMultiPool)
 }

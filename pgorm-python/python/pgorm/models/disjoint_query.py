@@ -70,7 +70,7 @@ class _Disjoint(ABC, Generic[T]):
     def name(self) -> str:
         return cast(str, self._native.describe()["name"])
 
-    # [spec:pgorm:req:bindings.disjoint+1]
+    # [spec:pgorm:req:bindings.disjoint+2]
     def describe(self) -> dict[str, Any]:
         """The declaration as data: its ``name``, its ``base`` model's name,
         its ``kind_field``, its ``kind_type``'s ``schema`` and ``name``, and its

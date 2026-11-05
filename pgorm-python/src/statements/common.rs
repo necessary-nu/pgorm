@@ -11,7 +11,7 @@ use pyo3::{
 use crate::{
     errors::ConstructionError,
     expressions::{Aliased, Compiled, OrderBy, PyCondition, require_expr},
-    identifiers::PyIdentifier,
+    identifiers::Identifier,
 };
 
 pub(crate) fn condition(value: &Bound<'_, PyAny>) -> PyResult<Condition> {
@@ -90,10 +90,10 @@ pub(super) fn returning(
 ) -> PyResult<ReturningClause> {
     let mut clause = list(items)?;
     if let Some(name) = old_as {
-        clause = clause.old_as(PyIdentifier::new(name)?.name());
+        clause = clause.old_as(Identifier::new(name)?.name());
     }
     if let Some(name) = new_as {
-        clause = clause.new_as(PyIdentifier::new(name)?.name());
+        clause = clause.new_as(Identifier::new(name)?.name());
     }
     Ok(clause)
 }

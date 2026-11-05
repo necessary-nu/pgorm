@@ -94,7 +94,7 @@ function undecodable(pattern?: RegExp): (error: unknown) => true {
   };
 }
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    a disjoint model declared over models describes itself under the declared keys, and builds the statements pgorm's shape builds: the read, its narrowing by key, kind, kinds and a kind's condition, and an insert
+// [spec:pgorm:req:bindings.disjoint+2/test]    a disjoint model declared over models describes itself under the declared keys, and builds the statements pgorm's shape builds: the read, its narrowing by key, kind, kinds and a kind's condition, and an insert
 test("a declaration builds the shape's statements", () => {
   const vehicleModel = vehicles();
   assert.deepStrictEqual(vehicleModel.describe(), {
@@ -141,7 +141,7 @@ test("a declaration builds the shape's statements", () => {
   );
 });
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    what the Rust declaration refuses is a ConstructionError thrown as the model is declared: no kinds, one model for two kinds, a kind model keyed by other types, a kind field missing, nullable, generated or of another type, and a kind model whose key the database fills; an argument of the wrong type is a TypeError
+// [spec:pgorm:req:bindings.disjoint+2/test]    what the Rust declaration refuses is a ConstructionError thrown as the model is declared: no kinds, one model for two kinds, a kind model keyed by other types, a kind field missing, nullable, generated or of another type, and a kind model whose key the database fills; an argument of the wrong type is a TypeError
 test("a declaration refuses what Rust refuses", () => {
   const cases: Array<[string, () => unknown, RegExp?]> = [
     ["no kinds", () => disjoint("vehicle", vehicle(), {}, { schemaName: SCHEMA })],
@@ -179,7 +179,7 @@ test("a declaration refuses what Rust refuses", () => {
   }
 });
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    a write refuses, as a ConstructionError before anything is sent, the kind field given, a kind row's key given, values for a kind without a table, a kind the model lacks and a field it lacks
+// [spec:pgorm:req:bindings.disjoint+2/test]    a write refuses, as a ConstructionError before anything is sent, the kind field given, a kind row's key given, values for a kind without a table, a kind the model lacks and a field it lacks
 test("writes refuse before sending", () => {
   const vehicleModel = vehicles();
   for (const write of [
@@ -239,7 +239,7 @@ async function seed(vehicleModel = vehicles()) {
   return [mini, lorry, bmx];
 }
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    the schema createDisjoint gives runs, and holds every row to its kind: a row inserted by hand for a kind with a table but no row is refused by the server's foreign key
+// [spec:pgorm:req:bindings.disjoint+2/test]    the schema createDisjoint gives runs, and holds every row to its kind: a row inserted by hand for a kind with a table but no row is refused by the server's foreign key
 test("the schema runs and holds rows to kinds", async () => {
   const statements = createDisjoint(vehicles());
   assert.deepStrictEqual(statements.map((statement) => statement.constructor.name), [
@@ -342,7 +342,7 @@ test("the schema writes the models' unique keys", async () => {
   await assert.rejects(fleets.insert({ code: "a" }, "cart").returningModel(pool()), violates("fleet_depot_code"));
 });
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    an insert of each kind returns what a read of its row gives, each row the base's record, the kind and the kind's record or null, an enum column of a kind's table read as its enum; reads narrow by key, kind, kinds and a kind's condition, order, slice, count, page, stream and read through a keyset cursor
+// [spec:pgorm:req:bindings.disjoint+2/test]    an insert of each kind returns what a read of its row gives, each row the base's record, the kind and the kind's record or null, an enum column of a kind's table read as its enum; reads narrow by key, kind, kinds and a kind's condition, order, slice, count, page, stream and read through a keyset cursor
 test("inserts and reads", async () => {
   const carModel = car();
   const vehicleModel = vehicles(vehicle(), carModel);
@@ -381,7 +381,7 @@ test("inserts and reads", async () => {
   assert.throws(() => cursor.after(1, 2), refused());
 });
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    an update writes the base, the kind's row, both or neither, a row of another kind or a key no row has being a DecodeError that changes nothing; a change of kind moves the row between tables and to the kind without one, to its own kind being a DecodeError; a server's refusal keeps its class
+// [spec:pgorm:req:bindings.disjoint+2/test]    an update writes the base, the kind's row, both or neither, a row of another kind or a key no row has being a DecodeError that changes nothing; a change of kind moves the row between tables and to the kind without one, to its own kind being a DecodeError; a server's refusal keeps its class
 test("updates and changes of kind", async () => {
   const vehicleModel = vehicles();
   const [, , bmx] = await seed(vehicleModel);
@@ -417,7 +417,7 @@ test("updates and changes of kind", async () => {
   assert.equal(await vehicleModel.find().count(pool()), 3);
 });
 
-// [spec:pgorm:req:bindings.disjoint+1/test]    rows of tables written without the constraints, a car with no car row and a bike with a truck row, are each a DecodeError naming the base table, the key and the kinds, never a row read without its row
+// [spec:pgorm:req:bindings.disjoint+2/test]    rows of tables written without the constraints, a car with no car row and a bike with a truck row, are each a DecodeError naming the base table, the key and the kinds, never a row read without its row
 test("inconsistent rows are decode errors", async () => {
   await pool().execute(`DROP SCHEMA ${SCHEMA} CASCADE`);
   await pool().execute(`CREATE SCHEMA ${SCHEMA}`);

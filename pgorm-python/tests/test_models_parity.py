@@ -91,7 +91,7 @@ CASES = {
     .inspect(terminal="returning_changes"),
     "insert-upserts": lambda: Account.insert({"id": 1, "name": "Ann"})
     .on_conflict(p.Conflict.on("id").update("name"))
-    .inspect(terminal="returning_upserts"),
+    .inspect(terminal="returning_upsert"),
     "relation-find": lambda: posts.find({"id": 3}).inspect(),
     "graph": lambda: Post.graph().join_one(author).inspect(),
     "graph-maybe-alias": lambda: Account.graph().join_maybe(posts, alias="p").inspect(),
@@ -146,7 +146,7 @@ class ModelParity(unittest.TestCase):
         self.assertEqual(sorted(CASES), sorted(GOLDEN))
 
     # [spec:pgorm:req:bindings.model-reads/test]
-    # [spec:pgorm:req:bindings.model-writes+1/test]
+    # [spec:pgorm:req:bindings.model-writes+2/test]
     # [spec:pgorm:req:bindings.relations/test]
     # [spec:pgorm:req:bindings.graphs/test]
     # [spec:pgorm:req:bindings.cursors/test]

@@ -41,7 +41,7 @@ pub enum Relation {
     Note,
 }
 
-// [spec:pgorm:req:bindings.entity-writes/test]
+// [spec:pgorm:req:bindings.entity-writes+1/test]
 #[async_trait::async_trait]
 impl ActiveModelBehavior for ActiveModel {
     fn new() -> Self {

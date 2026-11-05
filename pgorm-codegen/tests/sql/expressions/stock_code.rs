@@ -1,13 +1,10 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "stock_code")]
 pub struct Model {
     pub base: i32,
-    #[pgorm(
-        primary_key,
-        generated_stored = Expr::col(Column::Base).mul(Expr::val(2))
-    )]
+    #[pgorm(primary_key, generated_stored = Expr::col(Column::Base).mul(Expr::val(2)))]
     pub code: i32,
 }
 

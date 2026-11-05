@@ -6,7 +6,7 @@
 // what an application imports.
 // [spec:pgorm:def:bindings.api]
 // [spec:pgorm:req:bindings.surface+2]
-// [spec:pgorm:req:napi.naming+4]
+// [spec:pgorm:req:napi.naming+5]
 // [spec:pgorm:def:napi.api+1]
 // [spec:pgorm:req:napi.typing+1]
 
@@ -37,9 +37,10 @@ export { CopyRowStream } from "./copy-rows.js";
 export { CaseOperand, caseOf, caseWhen, Condition, SearchedCase, SimpleCase } from "./conditions.js";
 export { Aliased, all, any, array, bind, call, col, exists, Expr, literal, OrderBy, Quantified, scalar, tuple } from "./expressions.js";
 export { Builder } from "./builder.js";
+export { LikeExpr, likeExpr } from "./predicates.js";
 export { FromItem, Select, select, Table, With } from "./select.js";
-export { cube, GroupingElement, groupingSet, groupingSets, rollup } from "./grouping.js";
-export { tableFunction } from "./table-function.js";
+export { GroupingElement } from "./grouping.js";
+export { TableFunction, tableFunction } from "./table-function.js";
 export { Delete, deleteFrom, Insert, insert, ReturningRow, Update, update } from "./writes.js";
 export { Conflict, ConflictTarget, ConflictUpdate } from "./conflicts.js";
 export { Merge, merge, MergeAction, MergeInsert, MergeUpdate, PendingMerge } from "./merge.js";
@@ -79,7 +80,7 @@ export {
 export { Column, column, ModelColumn } from "./model-columns.js";
 export { Model, model } from "./models.js";
 export { ModelQuery } from "./model-queries.js";
-export { ModelDelete, ModelInsert, ModelRows, ModelUpdate } from "./model-writes.js";
+export { ModelDelete, ModelInsert, ModelInsertMany, ModelRows, ModelUpdate } from "./model-writes.js";
 export { Relation } from "./relations.js";
 export { Graph } from "./graphs.js";
 export { Cursor, Paginator } from "./cursors.js";
@@ -91,12 +92,13 @@ export {
   removeDisjointKind,
   removeDisjointKindTable,
 } from "./disjoint-schema.js";
+export { MigrationFile, migrationFile, migrationFiles } from "./migration-file.js";
 export { createOneOf, OneOf, oneOf, OneOfEntity, oneOfEntities, oneOfEntity } from "./one-of.js";
 export { DisjointCursor, DisjointPaginator, DisjointQuery, DisjointWrite } from "./disjoint-query.js";
 export { ActiveModel, entities, Entity, entity } from "./entities.js";
 export { EntitySchema, fromEntity } from "./entity-schema.js";
 export { EntityColumn, EntityQuery } from "./entity-queries.js";
-export { EntityInsert, EntityUpdate, EntityUpdateMany } from "./entity-versions.js";
+export { EntityInsert, EntityInsertMany, EntityUpdate, EntityUpdateMany } from "./entity-versions.js";
 export { EntityGraph, EntityGraphCursor, EntityGraphQuery, graph, graphs } from "./entity-graphs.js";
 export {
   ColumnDef,

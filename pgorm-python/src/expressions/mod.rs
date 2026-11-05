@@ -33,9 +33,9 @@ pub(crate) use capabilities::operations as capabilities;
 pub use compiled::Compiled;
 pub use construct::PyCondition;
 pub(crate) use construct::{coerce, require_expr};
-pub use options::{Aliased, LikePattern, OrderBy};
+pub use options::{Aliased, OrderBy, PyLikeExpr};
 
-// [spec:pgorm:req:bindings.expressions+2]
+// [spec:pgorm:req:bindings.expressions+3]
 // [spec:pgorm:req:python.expressions+7]
 // [spec:pgorm:req:bindings.statements]
 /// An immutable owned Rust SimpleExpr. Every composition clones its inputs.
@@ -65,7 +65,7 @@ impl PyExpr {
 /// result is a boolean, as the server requires of one (`42809`). `SIMILAR
 /// TO`, `IS DISTINCT FROM`, `BETWEEN` and `IN` are read by the grammar with
 /// no quantifier at all.
-// [spec:pgorm:req:bindings.quantifiers+2]
+// [spec:pgorm:req:bindings.quantifiers+3]
 fn takes_quantifier(operator: BinOper) -> bool {
     matches!(
         operator,
@@ -100,7 +100,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyExpr>()?;
     module.add_class::<declared::DeclaredColumn>()?;
     module.add_class::<PyCondition>()?;
-    module.add_class::<LikePattern>()?;
+    module.add_class::<PyLikeExpr>()?;
     module.add_class::<Aliased>()?;
     module.add_class::<OrderBy>()?;
     module.add_class::<Compiled>()?;

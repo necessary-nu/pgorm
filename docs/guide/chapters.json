@@ -1,0 +1,124 @@
+{
+  "chapters": [
+    {
+      "id": "getting-started",
+      "title": "Getting started",
+      "file": "01-getting-started.md"
+    },
+    {
+      "id": "entities",
+      "title": "Entities",
+      "file": "02-entities.md"
+    },
+    {
+      "id": "writing",
+      "title": "Writing rows",
+      "file": "03-writing.md"
+    },
+    {
+      "id": "reading",
+      "title": "Reading rows",
+      "file": "04-reading.md"
+    },
+    {
+      "id": "pagination",
+      "title": "Pages, cursors and streams",
+      "file": "05-pagination.md"
+    },
+    {
+      "id": "relations",
+      "title": "Relations",
+      "file": "06-relations.md"
+    },
+    {
+      "id": "transactions",
+      "title": "Transactions",
+      "file": "07-transactions.md"
+    },
+    {
+      "id": "errors",
+      "title": "Errors",
+      "file": "08-errors.md"
+    },
+    {
+      "id": "raw-sql",
+      "title": "Raw SQL",
+      "file": "09-raw-sql.md"
+    },
+    {
+      "id": "query-builder",
+      "title": "The query builder",
+      "file": "10-query-builder.md"
+    },
+    {
+      "id": "pipeline",
+      "title": "The pipeline",
+      "file": "11-pipeline.md"
+    },
+    {
+      "id": "values",
+      "title": "Values and types",
+      "file": "12-values.md"
+    },
+    {
+      "id": "schema",
+      "title": "Schema generation",
+      "file": "13-schema.md"
+    },
+    {
+      "id": "disjoint",
+      "title": "Disjoint enums",
+      "file": "14-disjoint.md"
+    },
+    {
+      "id": "one-of",
+      "title": "One-of references",
+      "file": "15-one-of.md"
+    },
+    {
+      "id": "copy",
+      "title": "COPY",
+      "file": "16-copy.md"
+    },
+    {
+      "id": "listen-notify",
+      "title": "LISTEN and NOTIFY",
+      "file": "17-listen-notify.md"
+    },
+    {
+      "id": "statement-caches",
+      "title": "Statement caches and DDL",
+      "file": "18-statement-caches.md"
+    },
+    {
+      "id": "configuration",
+      "title": "Connection configuration and TLS",
+      "file": "19-configuration.md"
+    },
+    {
+      "id": "metrics",
+      "title": "Metrics",
+      "file": "20-metrics.md"
+    },
+    {
+      "id": "migrations",
+      "title": "Migrations",
+      "file": "21-migrations.md"
+    },
+    {
+      "id": "codegen",
+      "title": "Generating entities",
+      "file": "22-codegen.md"
+    },
+    {
+      "id": "postgres-releases",
+      "title": "PostgreSQL 18 and 19",
+      "file": "23-postgres-releases.md"
+    },
+    {
+      "id": "bindings",
+      "title": "Python and JavaScript",
+      "file": "24-bindings.md"
+    }
+  ]
+}

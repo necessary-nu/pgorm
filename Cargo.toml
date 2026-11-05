@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "pgorm-macros", "pgorm-codegen", "pgorm-migration", "pgorm-pool", "pgorm-query", "pgorm-query/pgorm-query-attr", "pgorm-query/pgorm-query-derive", "pgorm-query/pgorm-query-derive-internals", "pgorm-sql-macro", "pgorm-test-support"]
+members = [".", "pgorm-macros", "pgorm-codegen", "pgorm-migration", "pgorm-pool", "pgorm-query", "pgorm-query/pgorm-query-attr", "pgorm-query/pgorm-query-derive", "pgorm-query/pgorm-query-derive-internals", "pgorm-sql-macro", "pgorm-test-support", "pgorm-guide-support"]
 
 [package]
 name = "pgorm"
@@ -15,7 +15,7 @@ keywords = ["async", "orm", "postgres"]
 rust-version = "1.89"
 
 [package.metadata.docs.rs]
-features = ["default", "debug-print", "postgres-array", "pgorm-internal", "tests-cfg", "metrics-fingerprint", "pg-19"]
+features = ["default", "postgres-array", "tests-cfg", "metrics-fingerprint", "pg-19"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
@@ -130,7 +130,7 @@ postgres-protocol = { version = "0.6.12", default-features = false }
 futures = { version = "0.3.34" }
 tokio = { version = "1.53", features = ["full"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-pgorm = { path = ".", features = ["debug-print", "tests-cfg", "postgres-array", "pgorm-internal", "metrics-fingerprint"] }
+pgorm = { path = ".", features = ["tests-cfg", "postgres-array", "metrics-fingerprint"] }
 pretty_assertions = { version = "1.4" }
 uuid = { version = "1.27", features = ["v4"] }
 arraystring = "0.3"
@@ -145,17 +145,18 @@ pgorm-migration = { path = "pgorm-migration" }
 # Run-scoped names for the databases and roles the live tests create, and the
 # sweep of crashed runs' leftovers (tests/common/setup).
 pgorm-test-support = { path = "pgorm-test-support" }
+# The bakery schema and scratch databases the user guide's examples run in
+# (docs/guide), and the crates whose chapters run their own examples.
+pgorm-guide-support = { path = "pgorm-guide-support" }
+pgorm-codegen = { path = "pgorm-codegen" }
 
 [features]
-debug-print = []
 default = [
     "macros",
     "with-json",
     "with-jiff",
     "postgres-array",
     "with-uuid",
-    "runtime-tokio",
-    "macros"
 ]
 macros = ["pgorm-macros/derive"]
 # Off by default: fingerprinting costs a parse per statement, so only builds
@@ -175,6 +176,4 @@ with-json = ["serde_json", "jiff/serde", "uuid?/serde", "rust_decimal/serde", "p
 with-jiff = []
 with-uuid = ["uuid"]
 postgres-array = []
-pgorm-internal = []
-runtime-tokio = []
 tests-cfg = []

@@ -132,7 +132,7 @@ impl Func {
     /// member.
     ///
     /// A value is bound with its type written beside its placeholder, so a
-    /// number becomes a JSON number and a [`Value::Json`] nested JSON, not a
+    /// number becomes a JSON number and a [`Value::Json`](crate::Value::Json) nested JSON, not a
     /// string — the server would otherwise read every parameter here as text.
     ///
     /// ```

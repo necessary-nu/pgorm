@@ -6,7 +6,7 @@ use pyo3::{exceptions::PyTypeError, prelude::*, types::PyTuple};
 
 use crate::{errors::ConstructionError, expressions::PyExpr};
 
-// [spec:pgorm:req:bindings.select+2]
+// [spec:pgorm:req:bindings.select+4]
 /// One GROUP BY item that is not a bare expression: `()`, a parenthesised
 /// set, `ROLLUP`, `CUBE` or `GROUPING SETS`, each built by the Rust
 /// constructor of the same name. `sets` takes its first element, so the
@@ -110,7 +110,7 @@ impl PyGroupingElement {
         "GroupingElement(...)"
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "grouping elements cannot be tested as Python booleans",

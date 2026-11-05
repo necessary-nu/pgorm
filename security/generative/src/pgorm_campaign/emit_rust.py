@@ -73,7 +73,7 @@ fn params(values: &[pgorm::ValueHolder]) -> Vec<&(dyn pgorm::types::ToSql + Sync
         {{
             Ok({q}::Name::runtime(name.as_str()))
         }}
-        // The binding builds an Identifier from the Python scalar, which is a
+        // The binding reads an identifier from the Python scalar, which is a
         // string or nothing at all.
         _ => Err(Error::Format({replay}::FormatError::new(
             "identifier parts require 1-63 UTF-8 bytes without NUL",

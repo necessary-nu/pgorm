@@ -25,12 +25,11 @@ from ._native import (
     CreatedRange,
     CreatedMultirange,
     Interval,
-    Identifier,
     Direction,
     Nulls,
     Expr,
     Condition,
-    LikePattern,
+    LikeExpr,
     Aliased,
     OrderBy,
     Compiled,
@@ -144,7 +143,7 @@ from ._native import (
 from .runtime import STATEMENT_CACHE_CHANNEL, Connection, Pool, PoolStatus, connect
 from .results import Record, Field, RowStream, Query
 from .models import (
-    Column, ModelColumn, Model, ModelRecord, ModelQuery, ModelRows, ModelInsert, ModelUpdate,
+    Column, ModelColumn, Model, ModelRecord, ModelQuery, ModelRows, ModelInsert, ModelInsertMany, ModelUpdate,
     ModelDelete, Relation, Graph,
     Cursor, Paginator,
     Disjoint, DisjointEntity, DisjointQuery, DisjointWrite, DisjointCursor, DisjointPaginator,
@@ -156,7 +155,7 @@ from .copy import CopyOutStream, CopyRows, CopyRowStream, CopySource
 from .listen import Listener
 
 # [spec:pgorm:req:bindings.surface+2]
-# [spec:pgorm:req:python.naming+3]
+# [spec:pgorm:req:python.naming+4]
 select = Select
 insert = Insert
 update = Update
@@ -196,6 +195,7 @@ __all__ = [
     "ModelQuery",
     "ModelRows",
     "ModelInsert",
+    "ModelInsertMany",
     "ModelUpdate",
     "ModelDelete",
     "Relation",
@@ -223,12 +223,11 @@ __all__ = [
     "CreatedRange",
     "CreatedMultirange",
     "Interval",
-    "Identifier",
     "Direction",
     "Nulls",
     "Expr",
     "Condition",
-    "LikePattern",
+    "LikeExpr",
     "Aliased",
     "OrderBy",
     "Compiled",
