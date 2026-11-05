@@ -1639,6 +1639,22 @@ children (
                 id infra.python-native-unit
                 title "pgorm-python's Rust unit tests run in nplan check and CI, as pgorm-napi's do"
                 kind @ci
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T09:37:44.808412Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T09:43:26.942694Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
         )
     }

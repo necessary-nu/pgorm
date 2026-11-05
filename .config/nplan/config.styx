@@ -165,7 +165,7 @@ platforms (
     }
     {
         platform "python-native"
-        files (pgorm-python/**/*.rs pgorm-python/Cargo.toml pgorm-python/Cargo.lock)
+        files (pgorm-python/**/*.rs pgorm-python/Cargo.toml pgorm-python/Cargo.lock pgorm-python/checks/unit.py)
         checks {
             format {
                 cmd "cargo fmt --manifest-path pgorm-python/Cargo.toml --all -- --check"
@@ -180,6 +180,14 @@ platforms (
             }
             clippy {
                 cmd "cargo clippy --manifest-path pgorm-python/Cargo.toml --locked --target-dir target --all-targets -- -D warnings"
+            }
+            // The unit tests embed CPython, so their binary links libpython:
+            // the script picks an interpreter it can link, which a
+            // python-build-standalone one is not, and builds in a target
+            // directory of its own. A cold build passes the commit budget, so
+            // run `nplan check` first, as for napi-native's.
+            unit {
+                cmd "python3 pgorm-python/checks/unit.py"
             }
         }
     }
