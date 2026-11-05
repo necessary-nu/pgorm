@@ -243,11 +243,11 @@ platforms (
     }
     {
         platform "napi-types"
-        files (pgorm-napi/lib/**/*.js pgorm-napi/lib/**/*.d.ts pgorm-napi/tests/**/*.ts pgorm-napi/scripts/**/*.mjs pgorm-napi/deno.json pgorm-napi/package.json)
+        files (pgorm-napi/lib/**/*.js pgorm-napi/lib/**/*.d.ts pgorm-napi/tests/**/*.ts pgorm-napi/guide/*.ts pgorm-napi/scripts/**/*.mjs pgorm-napi/deno.json pgorm-napi/package.json)
         checks {
             // Deno type-checks every module under the package, the
-            // declarations and the suite included, from the package's own
-            // configuration.
+            // declarations, the suite and the guide's examples included,
+            // from the package's own configuration.
             typing {
                 cmd "cd pgorm-napi && deno check"
             }

@@ -13270,6 +13270,231 @@ children (
                     }
                 )
             }
+
+            {
+                id napi.guide-gaps
+                title "JavaScript gains what its guide names as not available yet, each chapter's paragraph then replaced by the feature"
+                kind @feat
+                deps (guide.javascript)
+                children (
+                    {
+                        id napi.guide-gaps.model-query-clauses
+                        title "A model query takes DISTINCT and DISTINCT ON, GROUP BY with HAVING and aggregate projections (count, sum, min, max, column_as/expr_as), and FOR UPDATE / FOR SHARE locks with NOWAIT or SKIP LOCKED, still decoding typed rows, as Rust's Select::distinct, distinct_on, group_by, having and lock_with_behavior do (guide 05-reading)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.model-expression-shape
+                        title "A declared read shape holds expressions and skipped fields beside a model's columns, selected and decoded together, as Rust's PartialModel from_expr, from_col and skip do (guide 05-reading)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.cursor-secondary-order
+                        title "A model query's cursor takes a secondary ordering after its key, so after() skips a whole run of one key while afterWith() resumes inside it, as Rust's Cursor::add_secondary_order_by and after_with do (guide 06-pagination)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.transaction-streams
+                        title "A transaction streams the rows of SQL text, a statement and a model query, as Rust's stream and query_raw on a DatabaseTransaction do; today Transaction has no stream and ModelQuery.stream refuses one with a TypeError (guide 06-pagination)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.relation-loaders
+                        title "Relation.load takes a filtered, ordered query of the far end and follows a junction, as Rust's load_one(Select), load_many(Select) and load_many_via do (guide 07-relations)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.relation-conditions
+                        title "A model relation carries a condition of its own, and a declared path through a junction that one find call follows, as Rust's on_condition and a Related implementation with via do for find_related (guide 03-entities)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.graph-joins
+                        title "A model graph joins a relation starting from an aliased via hop, narrows an optional slot's ON with a predicate, and orders a cursor by a slot's columns, as Rust's via_as with RelationDef::from_alias, join_maybe_filtered and cursor_by_on do (guide 07-relations)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.graph-limit-refusal
+                        title "A limited model graph refuses allGrouped, count, paginate and cursor, as Rust refuses them at compile time, instead of allGrouped truncating a root's rows, count ignoring the limit and paginate and cursor replacing it (guide 07-relations, whose example asserts today's truncation)"
+                        kind @fix
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.model-schema
+                        title "A declared model generates its CREATE TABLE with its keys and foreign keys, its enum types, indexes and comments, as Rust's Schema::create_table_from_entity, create_enum_from_entity, create_index_from_entity and create_comments_from_entity do and fromEntity does for a registered entity (guide 03-entities, 14-schema)"
+                        deps (napi-models napi-schema guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.json-shape
+                        title "A model's json column decodes its documents as a type of the program's choosing, checked as they are read, as a Rust JsonValueType field does (guide 03-entities, 13-values)"
+                        deps (napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.transaction-retry
+                        title "A transaction runs again from BEGIN while it fails with a serialization failure (40001) or a deadlock (40P01), up to a given number of retries, and an error says whether it is retryable, as Rust's transaction_with_retry, RetryableError and Error::is_retryable do (guide 08-transactions)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.batch-execute
+                        title "A script of ;-separated statements with no parameters runs in one call over the simple-query protocol, as Rust's ConnectionTrait::batch_execute does; today every JavaScript terminal prepares one statement and a script fails with 42601 (guide 10-raw-sql)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.raw-into-model
+                        title "The rows of SQL text decode into a declared model's records, checked against its declaration, as Rust's DecodeRaw::into_model, Select::from_raw_sql and FromQueryResult::find_by_statement do (guide 10-raw-sql)"
+                        deps (napi-models napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.verify
+                        title "A statement's result is described by the server without running it and checked against a decode target, every column present and of a type its field decodes, as Rust's VerifyStatement::verify does (guide 10-raw-sql)"
+                        deps (napi-models napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.sql-grammar-check
+                        title "SQL text is held to PostgreSQL 18's grammar before it is sent, for example once as a module loads, refusing what libpg_query rejects with the token it stopped at: the run-time counterpart of Rust's compile-time sql! macro (guide 10-raw-sql)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.prql-text
+                        title "PRQL text compiles to PostgreSQL SQL with its result held to the grammar and its $N placeholders checked against the values given, the run-time counterpart of Rust's prql! macro (guide 10-raw-sql, 12-pipeline)"
+                        deps (napi-pipeline guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.raw-pages
+                        title "SQL text pages and counts, wrapped as a subquery and refused unless it is a single SELECT, as Rust's SelectorRaw::paginate and SelectorRaw::count do (guide 06-pagination)"
+                        deps (napi-models napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.expression-functions
+                        title "The JavaScript expression builders call any function by name, write a piece of SQL with bound $N values, write GROUPING(..), and write the jsonb operators ->, ->>, #>, #>> and ?, as Rust's Func::named, Expr::template, Func::grouping, get_json_field, cast_json_field and has_json_key do (guide 11-query-builder)"
+                        deps (napi-statements guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.copy-described-rows
+                        title "A binary COPY describes its columns' names and types before it starts, takes rows one at a time, writes a model's records and reads its rows as a model's records, as Rust's copy_in_columns, copy_out_columns, CopyRowSink::send, send_model and CopyRowStream::models do (guide 17-copy)"
+                        deps (copy-binary-rows napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.copy-row-codec
+                        title "A program frames the binary COPY format itself, encoding rows of values into bytes and decoding bytes split anywhere into rows, as Rust's CopyRowEncoder and CopyRowDecoder do (guide 17-copy)"
+                        deps (copy-binary-rows guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.copy-source-checks
+                        title "Rust and JavaScript agree on a COPY TO over a SELECT with a tie limit or a WINDOW clause: Rust's guide says copy_out refuses one with Error::QueryBuilder, while JavaScript's copyOut builds and runs both and PostgreSQL 18 accepts them (repro in the node note)"
+                        kind @fix
+                        deps (copy-source-tie-check guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T17:19:46.995914Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found writing guide 17-copy. Repro (JavaScript, PostgreSQL 18.6): const t = new Table(\"pg_class\"); await pool.copyOut(copyTo(select(t.col(\"relname\")).from(t).orderBy(t.col(\"relpages\").asc()).limitWithTies(1), \"csv\")) streams rows, and the same with select(..).window(..) does too. docs/guide/16-copy.md says Rust's copy_out refuses a tie-limit or WINDOW source with Error::QueryBuilder before anything is sent; copy-source-tie-check says JavaScript runs the same checks. Diagnose which side is right against the 18 grammar (COPY (query) accepts both?) and make the two bindings and Rust agree, guide chapters included."
+                            }
+                        )
+                    }
+
+                    {
+                        id napi.guide-gaps.pool-builder
+                        title "A JavaScript pool takes a recycle timeout, a queue mode, post_create, pre_recycle and post_recycle hooks, and the Clean and Custom(sql) recycling methods, as Rust's PoolBuilder and RecyclingMethod do (guide 20-configuration)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.pool-tags
+                        title "A JavaScript pool carries a tag, and several pools are built by name and addressed by tag, as Rust's ManagerConfig tag, DatabasePool::tag and connect_multi_with_builder's DatabaseMultiPool do (guide 20-configuration)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.tls-configuration
+                        title "A JavaScript pool connects through a TLS configuration of the program's own, a client certificate among it, as Rust's connect_with takes any MakeTlsConnect connector; today it has only verify-full against ca or the platform store (guide 20-configuration)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.connection-discard
+                        title "A checked-out JavaScript connection is discarded rather than returned to its pool, as Rust's DatabaseConnection::discard does; today close() always returns it (guide 20-configuration)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.metrics
+                        title "JavaScript instruments a pool, its connections and transactions with a collector of its own, told each query's operation, SQL and fingerprint, each acquisition and each transaction's begin, commit and rollback, as Rust's pgorm::metric InstrumentedPool, MetricsCollector, QueryContext, NoOpMetrics and LoggingMetrics do (guide 21-metrics)"
+                        deps (napi-connections guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.migrations
+                        title "JavaScript runs migrations, its frozen migrationFile .sql files and migrations of its own, with pgorm-migration's ledger, advisory lock, commits_after (the -- pgorm: commits-after line), checksums, status and pending/applied queries, and the statement-cache clear and notify after a batch, as MigratorTrait::up does; freezing generated DDL is already there (guide 22-migrations)"
+                        deps (napi-connections napi-schema guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T18:10:02.163978Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Narrowed 2026-11-05 after main 233566c4 gave JavaScript migrationFile, migrationFiles and MigrationFile (name, text, commitsAfter, freeze): what remains is a runner. Running a frozen file needs napi.guide-gaps.batch-execute too, since a file of several statements is a script no JavaScript terminal runs in one call."
+                            }
+                        )
+                    }
+
+                    {
+                        id napi.guide-gaps.models-from-ddl
+                        title "JavaScript generates model declarations from DDL, its enums, disjoint and one-of shapes recognised, as pgorm-codegen's entities_from_sql does for Rust entities (guide 23-codegen)"
+                        deps (napi-models napi-codegen guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.pg-19
+                        title "pgorm-napi forwards pgorm's pg-19 feature and the module reports the PostgreSQL release its build targets, as pgorm's POSTGRES_TARGET and pgorm-python's forwarded feature and capabilities() do (guide 27-postgres-releases)"
+                        deps (napi-packaging guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.entity-select-reads
+                        title "A registered entity's Select<E> counts, streams, pages, takes a cursor and joins a relation from JavaScript, as Rust's Select count, stream, paginate, cursor_by and join methods do (guide 24-registered-entities)"
+                        deps (napi-entities guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.pipeline-models
+                        title "A pipeline reads a declared model as a source, its columns named by field and compared by kind, and selectSources decodes declared models' records, as Rust's Pipeline::from(entity), its Column steps and select_sources do (guide 12-pipeline)"
+                        deps (napi-pipeline napi-models guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.model-column-casts
+                        title "A declared model column reads and writes money (cast to and from numeric), compares a domain over an enum cast to the enum, and takes custom read and write casts, as Rust's ColumnType::Money, its domain-over-enum comparisons and select_as, save_as, select_with and save_with do (guide 13-values)"
+                        deps (napi-models napi-values guide.javascript)
+                    }
+
+                    {
+                        id napi.guide-gaps.binding-refusals
+                        title "pgorm-napi's inconsistencies the guide found are fixed: an empty model insert batch takes onConflict and sends nothing as Rust's does; new Pool and Relation.load refuse an option they do not know with a TypeError as the builders do; CopyRowStream's rows type-check as CopyRows; DisjointPaginator.numItemsAndPages returns { items, pages } as Paginator's does"
+                        kind @fix
+                        deps (napi-models napi-connections guide.javascript)
+                    }
+                )
+            }
         )
         log (
             {
@@ -18977,6 +19202,14 @@ children (
                     javascript ([spec:pgorm:req:guide.dialects])
                 }
                 deps (guide.rust binding-parity)
+                log (
+                    {
+                        at 2026-11-05T17:19:47.576171Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lane decisions (lead brief, pending operator override):\n- The JavaScript guide is pgorm-napi/guide/NN-id.md, listed by pgorm-napi/guide/chapters.json: the Rust guide's 24 chapters under their ids and titles, in order, with four JavaScript-only chapters interleaved and declared \"javascript_only\": true (02-promises, 24-registered-entities, 25-generating-registrations, 26-typescript), the key matching the Python lane's python_only.\n- Every ```ts block runs: tests/guide.test.ts writes each into tests/guide-examples/<chapter>/<NN>.ts (committed, so plain `deno check` type-checks every example) and runs it in a scratch copy of the bakery (one template database per run, copied per example); PGORM_GUIDE_WRITE=1 rewrites, PGORM_GUIDE_CHAPTERS filters. A block names the bakery's models (guide/bakery.ts), pool and url undeclared, as the Rust guide's hidden lines supply them. <!-- example: empty --> gives an empty database; <!-- example: application --> marks registered-entity examples, skipped by the binding's own module and run by checks/entities.js against the application fixture. A sketch that needs a generated module is fenced `typescript`.\n- Gaps are paragraphs beginning \"Not available in JavaScript yet:\", filed under napi.guide-gaps.\n- The guide does not ship in the npm package: its examples rely on repository files and its links reach the Rust guide and specs. README.md (shipped) links it, and package.json's repository gains directory: pgorm-napi so npm resolves the README's relative links. checks/package.js's file lists are unchanged.\n- ENTITIES.md and CODEGEN.md are folded into chapters 24 and 25 and deleted; README.md is a short entry point keeping the Tests section DISTRIBUTION.md links.\n- The impl annotation lives in guide/examples.ts (nspec reads no markdown), and .config/nspec/config.styx's javascript impl includes pgorm-napi/guide/*.ts.\n- sql!/prql!: JavaScript's SQL text plus a parameter array is the stated difference; a run-time grammar check and PRQL text compile are filed as gaps (napi.guide-gaps.sql-grammar-check, prql-text)."
+                    }
+                )
             }
         )
         log (

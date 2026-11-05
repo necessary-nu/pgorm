@@ -127,8 +127,9 @@ The bindings' guides follow this one chapter for chapter, in the order the
 guide's chapter list gives, each in its own language. Each says where its
 binding differs from Rust, in shape, spelling or reach, and adds what its
 language needs: installing, the async runtime, typing, packaging. Each
-binding's documentation today lives in its directory of pgorm's repository:
-`pgorm-python/README.md` and the guides beside it, and `pgorm-napi/README.md`,
-`ENTITIES.md`, `CODEGEN.md` and `DISTRIBUTION.md`. The rules both bindings
+binding's documentation lives in its directory of pgorm's repository:
+`pgorm-python/README.md` and the guides beside it, and for JavaScript the
+guide in `pgorm-napi/guide/`, with `pgorm-napi/DISTRIBUTION.md` covering its
+npm packages. The rules both bindings
 follow are in `docs/spec/bindings.md`, with what differs by language in
 `docs/spec/python.md` and `docs/spec/napi.md`.
