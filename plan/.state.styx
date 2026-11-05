@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T01:18:18.072814Z
+last_sync_at 2026-11-05T01:45:18.369046Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -41,7 +41,7 @@ rule_versions (
     {id bindings.model-unique-keys, version 0}
     {id bindings.model-writes, version 1}
     {id bindings.models, version 5}
-    {id bindings.one-of, version 0}
+    {id bindings.one-of, version 1}
     {id bindings.operands, version 0}
     {id bindings.optional, version 0}
     {id bindings.pagination, version 0}
@@ -1775,6 +1775,8 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.one-of}
         {impl_name python, rule bindings.one-of}
+    ), rule_versions_seen (
+        {id bindings.one-of, version 1}
     )}
     {id codegen.generate, covered_rules (
         codegen.entity
@@ -2010,8 +2012,6 @@ impl_evidence (
         disjoint.one-of
     ), covered_claims (
         {impl_name main, rule disjoint.one-of}
-    ), rule_versions_seen (
-        {id disjoint.one-of, version 1}
     )}
     {id disjoint.read, covered_rules (
         disjoint.read
