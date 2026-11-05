@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T02:33:13.591797Z
+last_sync_at 2026-11-05T03:11:55.059932Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -38,7 +38,7 @@ rule_versions (
     {id bindings.model-columns, version 1}
     {id bindings.model-reads, version 0}
     {id bindings.model-records, version 1}
-    {id bindings.model-unique-keys, version 1}
+    {id bindings.model-unique-keys, version 2}
     {id bindings.model-writes, version 1}
     {id bindings.models, version 5}
     {id bindings.one-of, version 1}
@@ -129,7 +129,7 @@ rule_versions (
     {id disjoint.evolve, version 2}
     {id disjoint.one-of, version 4}
     {id disjoint.read, version 2}
-    {id disjoint.schema, version 2}
+    {id disjoint.schema, version 3}
     {id disjoint.unkinded, version 1}
     {id disjoint.write, version 2}
     {id entity.active-model, version 4}
@@ -987,6 +987,7 @@ derived_priorities (
     {id type-part-keyword-names, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id unique-key-virtual-refused, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id unique-keys.entity-describe-keys, priority 2, derived_at 2026-11-05T01:18:18.072814Z}
+    {id unique-keys.implicit-name-clash, priority 3, derived_at 2026-11-05T03:11:55.059932Z}
     {id unique-keys.model-key-name-clash, priority 2, derived_at 2026-11-05T01:18:18.072814Z}
     {id unique-keys.objects-wording, priority 2, derived_at 2026-11-05T00:28:09.491091Z}
     {id unrep.build-any, priority 3, derived_at 2026-09-02T14:40:48.714779Z}
@@ -1773,12 +1774,16 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.disjoint-evolve}
         {impl_name python, rule bindings.disjoint-evolve}
+    ), rule_versions_seen (
+        {id bindings.disjoint-evolve, version 0}
     )}
     {id bindings-one-of, covered_rules (
         bindings.one-of
     ), covered_claims (
         {impl_name javascript, rule bindings.one-of}
         {impl_name python, rule bindings.one-of}
+    ), rule_versions_seen (
+        {id bindings.one-of, version 1}
     )}
     {id codegen.generate, covered_rules (
         codegen.entity
@@ -2548,6 +2553,15 @@ impl_evidence (
         {impl_name python, rule bindings.models}
         {impl_name python, rule bindings.pagination}
         {impl_name python, rule bindings.relations}
+    ), rule_versions_seen (
+        {id bindings.cursors, version 0}
+        {id bindings.graphs, version 0}
+        {id bindings.model-reads, version 0}
+        {id bindings.model-records, version 1}
+        {id bindings.model-writes, version 1}
+        {id bindings.models, version 5}
+        {id bindings.pagination, version 0}
+        {id bindings.relations, version 0}
     )}
     {id python-registered-pools, covered_rules (
         bindings.registered-pools
