@@ -1546,7 +1546,7 @@ assertions (
     {id binding-parity.grouping, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:12:09.728212Z}
     {id binding-parity.table-functions, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:18:19.603388Z}
     {id binding-parity.like-patterns, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:28:42.880149Z}
-    {id binding-parity.identifiers, kind @doing, author "brendan@necessary.nu", at 2026-11-05T14:28:43.185865Z}
+    {id binding-parity.identifiers, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:45:39.300725Z}
 )
 
 impl_evidence (

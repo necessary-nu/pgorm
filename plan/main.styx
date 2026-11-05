@@ -18194,12 +18194,28 @@ children (
             {
                 id binding-parity.identifiers
                 title "A runtime identifier is passed one way in both bindings, as Rust passes one"
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:28:43.185865Z
                         author "brendan@necessary.nu"
                         kind @status
                         text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:45:39.300725Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T14:45:39.469979Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust's shape: an identifier is a Name; text becomes one only through Name::runtime(text) (there is deliberately no IntoName for &str, so the minting is greppable), and a name fixed by the program is an AliasName token, alias(\"rn\"), or a derived SqlName. Python had an Identifier class (validated text, .name) accepted beside a str at every identifier position and returned by Aliased.alias; JavaScript passes strings, validated and minted by args::name. Chosen: delete Python's Identifier, so both bindings take the language's string at each identifier position and mint it with Name::runtime there. Reason: every name a binding is given is computed at run time, so the binding's identifier position is exactly where Rust's runtime route runs; Rust demands the explicit call only to tell runtime text from names fixed in the program's types, a distinction a binding has no second kind for. Python's wrapper was optional and changed nothing a str did not; making a Name wrapper mandatory in both would contradict bindings.identifiers (identifiers are text) and change every call site for no safety gained. Aliased.alias now answers a str; model declarations validate names through a private _native._identifier (the one Rust validator). Delivered in 3f0ebf28: bindings.identifiers+3, python.truth-testing+4 (Identifier no longer an exempt value); the campaign's name op yields the text. Unsure point flagged to the lead: a strict reading of 'Rust's shape' could instead want a Name/Name.runtime value in both bindings. Owns no rules, so completed by hand."
+                        after_done true
                     }
                 )
             }
