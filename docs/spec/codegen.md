@@ -538,7 +538,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Type mapping
 
-> [spec:pgorm:sem:codegen.entity.types+12]
+> [spec:pgorm:sem:codegen.entity.types+13]
 > Model field types come from `Column::get_rs_type`: a non-null column maps
 > to `T`, a nullable column to `Option<T>`, where `T` is:
 >
@@ -604,8 +604,10 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > subtype, and where it is not — a range over `text`, which `String` infers
 > as `varchar` (`codegen.entity.compact.attrs`) — spells
 > `ColumnType::CreatedRange` or `CreatedMultirange { name, schema, subtype }`
-> out, the subtype as the schema describes it. The live round trip of a
-> generated entity is held at the workspace root (`tests/created_range_tests.rs`),
+> out, the subtype as the schema describes it. A column of an array of either
+> is a `Vec` of the newtype, its `column_type` stated or not as its
+> element's would be. The live round trip of a generated entity, a range, a
+> multirange and an array of each, is held at the workspace root (`tests/created_range_tests.rs`),
 > over the same files `pgorm-codegen/tests/sql/created_range/` compares the
 > writer's output with.
 >
@@ -674,7 +676,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > glob rather than from any named crate, repointing the aliases is how the
 > temporal backing changes, and generated text does not move when it does.
 
-> [spec:pgorm:req:codegen.entity.types.unsupported+11]
+> [spec:pgorm:req:codegen.entity.types.unsupported+12]
 > Column types outside the mapping table are not supported, and support is
 > decided when a `Column` is built rather than when it is rendered. Both
 > `TryFrom<&ColumnDef> for Column` and — through it —
@@ -698,10 +700,8 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `String(StringLen::N(_))` — with ``TransformError("... range type `<name>`
 > over <subtype> is not supported by codegen; PostgreSQL keeps no type
 > modifier on a range's subtype")``, since no range PostgreSQL creates has
-> one (`codegen.ddl.unsupported`); an array of one is
-> refused as ``TransformError("... an array of range type `<name>` is not
-> supported by codegen; the newtype a created range generates has no array
-> conversion")``. An array of an array is refused as ``TransformError("... an
+> one (`codegen.ddl.unsupported`); an array of one is supported as its
+> element is, a `Vec` of the newtype. An array of an array is refused as ``TransformError("... an
 > array of an array is not supported by codegen; an entity field holds one
 > dimension")``, whatever its innermost element: a field is one `Vec` of its
 > element's Rust type, and `Vec<Vec<T>>` has no `ValueType`, so the entity
@@ -710,7 +710,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `TableCreateStatement`s can hold one, so the gate holds it to the same
 > refusal. A domain is supported as its base is, a domain over a
 > domain recursively, and an array of one as an array of its base would be —
-> an array of a domain over a created range refused as that array is — but
+> an array of a domain over a created range a `Vec` of the range's newtype — but
 > for an array of a domain over an array, refused as ``TransformError("... an
 > array of a domain over an array is not supported by codegen; an entity
 > field holds one dimension")``; a domain over an array of an array is refused

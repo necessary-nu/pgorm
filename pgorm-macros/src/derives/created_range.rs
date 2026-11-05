@@ -32,7 +32,7 @@ struct CreatedRange {
     schema_name: Option<LitStr>,
 }
 
-// [spec:pgorm:sem:macros.derive.created-range+2]
+// [spec:pgorm:sem:macros.derive.created-range+3]
 pub fn expand_derive_created_range(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let parsed = parse(input)?;
     Ok(expand(&parsed))
@@ -146,39 +146,52 @@ fn expand(parsed: &CreatedRange) -> TokenStream {
         Kind::Range => quote! { CreatedRange },
         Kind::Multirange => quote! { CreatedMultirange },
     };
-    let try_getable = match kind {
-        Kind::Range => quote! {
-            fn try_get_by<I: pgorm::RowIndex + std::fmt::Display>(
-                res: &pgorm::QueryResult,
-                idx: I,
-            ) -> std::result::Result<Self, pgorm::TryGetError> {
-                <#field_type as pgorm::TryGetable>::try_get_by(res, idx).map(Self)
-            }
+    let parsed = quote! {
+        |text: std::string::String| text.parse().map(Self).map_err(|_| {
+            pgorm::TryGetError::Db(pgorm::Error::Type(format!(
+                "`{text}` is not a value of {}",
+                stringify!(#ident)
+            )))
+        })
+    };
+    let (try_getable, try_getable_array) = match kind {
+        Kind::Range => (
+            quote! {
+                fn try_get_by<I: pgorm::RowIndex + std::fmt::Display>(
+                    res: &pgorm::QueryResult,
+                    idx: I,
+                ) -> std::result::Result<Self, pgorm::TryGetError> {
+                    <#field_type as pgorm::TryGetable>::try_get_by(res, idx).map(Self)
+                }
 
-            fn accepts(ty: &pgorm::types::Type) -> bool {
-                <#field_type as pgorm::TryGetable>::accepts(ty)
-            }
-        },
+                fn accepts(ty: &pgorm::types::Type) -> bool {
+                    <#field_type as pgorm::TryGetable>::accepts(ty)
+                }
+            },
+            quote! {
+                pgorm::try_get_created_ranges::<#subtype, I>(res, idx)
+                    .map(|ranges| ranges.into_iter().map(Self).collect())
+            },
+        ),
         // The driver reports a multirange a schema created as a simple type,
-        // so the column's `select_as` reads it as its text.
-        Kind::Multirange => quote! {
-            fn try_get_by<I: pgorm::RowIndex + std::fmt::Display>(
-                res: &pgorm::QueryResult,
-                idx: I,
-            ) -> std::result::Result<Self, pgorm::TryGetError> {
-                let text = <std::string::String as pgorm::TryGetable>::try_get_by(res, idx)?;
-                text.parse().map(Self).map_err(|_| {
-                    pgorm::TryGetError::Db(pgorm::Error::Type(format!(
-                        "`{text}` is not a value of {}",
-                        stringify!(#ident)
-                    )))
-                })
-            }
+        // so the column's `select_as` reads it, or an array of it, as text.
+        Kind::Multirange => (
+            quote! {
+                fn try_get_by<I: pgorm::RowIndex + std::fmt::Display>(
+                    res: &pgorm::QueryResult,
+                    idx: I,
+                ) -> std::result::Result<Self, pgorm::TryGetError> {
+                    (#parsed)(<std::string::String as pgorm::TryGetable>::try_get_by(res, idx)?)
+                }
 
-            fn accepts(ty: &pgorm::types::Type) -> bool {
-                <std::string::String as pgorm::TryGetable>::accepts(ty)
-            }
-        },
+                fn accepts(ty: &pgorm::types::Type) -> bool {
+                    <std::string::String as pgorm::TryGetable>::accepts(ty)
+                }
+            },
+            quote! {
+                pgorm::try_get_texts(res, idx)?.into_iter().map(#parsed).collect()
+            },
+        ),
     };
 
     quote! {
@@ -215,6 +228,19 @@ fn expand(parsed: &CreatedRange) -> TokenStream {
         impl pgorm::TryGetable for #ident {
             #try_getable
         }
+
+        #[automatically_derived]
+        impl pgorm::TryGetableArray for #ident {
+            fn try_get_by<I: pgorm::RowIndex + std::fmt::Display>(
+                res: &pgorm::QueryResult,
+                idx: I,
+            ) -> std::result::Result<std::vec::Vec<Self>, pgorm::TryGetError> {
+                #try_getable_array
+            }
+        }
+
+        #[automatically_derived]
+        impl pgorm::pgorm_query::value::with_array::NotU8 for #ident {}
 
         #[automatically_derived]
         impl pgorm::pgorm_query::ValueType for #ident {
@@ -260,7 +286,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:sem:macros.derive.created-range+2/test]    a shape other than a
+    // [spec:pgorm:sem:macros.derive.created-range+3/test]    a shape other than a
     // newtype over `Range<T>`, a missing name and an unknown key are compile errors
     #[test]
     fn what_the_derive_cannot_read_is_refused() {
@@ -290,7 +316,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:sem:macros.derive.created-range+2/test]    a qualified spelling of
+    // [spec:pgorm:sem:macros.derive.created-range+3/test]    a qualified spelling of
     // `Range` is read, and the name and schema are names, never tokens
     #[test]
     fn the_name_and_schema_are_names() {

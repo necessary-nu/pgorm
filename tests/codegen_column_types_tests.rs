@@ -160,7 +160,7 @@ fn the_entity_table_renders_each_type_modifier() {
 // [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    against a live server: the
 // entity generated from a table of every kind of column type creates that table, typmod
 // for typmod
-// [spec:pgorm:sem:codegen.entity.types+12/test]
+// [spec:pgorm:sem:codegen.entity.types+13/test]
 #[pgorm_macros::test]
 async fn generated_columns_keep_their_type_modifiers() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_column_types_tests_columns").await;
@@ -359,7 +359,7 @@ async fn generated_columns_hold_values_to_their_modifiers() -> Result<(), Error>
 
 /// The generated entity's `money` columns are read as `numeric` and written
 /// cast to `money` from the `numeric` a `Decimal` placeholder is pinned to.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+16/test]    a `money` column, and an
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    a `money` column, and an
 // array of it, is read cast to `numeric` and written cast to `money`
 #[test]
 fn money_columns_cast_through_numeric() {
@@ -385,10 +385,10 @@ fn money_columns_cast_through_numeric() {
 /// generated entity's `Decimal` fields: the row inserted, read back whole and
 /// by its columns, found by a comparison with each, and updated through
 /// `RETURNING`, each value at the currency's two places, a third rounded off.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+16/test]    against a live server: a
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    against a live server: a
 // `money` column, and an array of it, is read as `numeric` and written through
 // `numeric` to `money`, which compares with the column as well as assigns to it
-// [spec:pgorm:sem:codegen.entity.types+12/test]
+// [spec:pgorm:sem:codegen.entity.types+13/test]
 #[pgorm_macros::test]
 async fn a_money_column_reads_and_writes_as_decimal() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_column_types_tests_money").await;
@@ -465,7 +465,7 @@ async fn a_money_column_reads_and_writes_as_decimal() -> Result<(), Error> {
 /// `numeric`, a literal and each listed value are cast to `money`, rounded to
 /// the currency's places as the column rounds what it stores, and the row
 /// reads back whole through `select_sources`.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+16/test]    against a live server: a
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    against a live server: a
 // pipeline's bound, literal and listed values compared with a `money` column, or with
 // an array of it, are cast to `money`, either side of the comparison
 // [spec:pgorm:req:pipeline.surface+4/test]    the column read by name, with no entity,

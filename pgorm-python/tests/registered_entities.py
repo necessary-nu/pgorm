@@ -21,7 +21,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute(p.RawSQL('CREATE TABLE python_entities.accounts (id integer PRIMARY KEY, "display name" text NOT NULL, note text, version integer NOT NULL, mood python_entities."Mood" NOT NULL)'))
         await self.pool.execute(p.RawSQL('CREATE TABLE python_entities.notes (id integer PRIMARY KEY, account_id integer NOT NULL, body text NOT NULL)'))
         await self.pool.execute(p.RawSQL('CREATE TYPE python_entities.floatrange AS RANGE (SUBTYPE = float8)'))
-        await self.pool.execute(p.RawSQL('CREATE TABLE python_entities.bookings (id integer PRIMARY KEY, span python_entities.floatrange NOT NULL, spans python_entities.floatmultirange)'))
+        await self.pool.execute(p.RawSQL('CREATE TABLE python_entities.bookings (id integer PRIMARY KEY, span python_entities.floatrange NOT NULL, spans python_entities.floatmultirange, spares python_entities.floatrange[], ledgers python_entities.floatmultirange[])'))
         self.account = p.entity("app.Account")
         self.note = p.entity("app.Note")
 
@@ -127,7 +127,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(model.tagged("mood").type_name, p.TypeName("Mood", schema="python_entities"))
 
     # [spec:pgorm:req:bindings.entity-writes/test]
-    # [spec:pgorm:req:bindings.created-ranges+1/test]
+    # [spec:pgorm:req:bindings.created-ranges+2/test]
     async def test_created_ranges_round_trip_through_an_entity(self):
         booking = p.entity("app.Booking")
         span = p.CreatedRange("floatrange", "f64", schema="python_entities")
@@ -155,6 +155,48 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
                 booking.active().set("span", p.Value(p.Range(1.0, 2.0), p.CreatedRange("floatrange", "f64")))
             with self.assertRaises(p.ConstructionError):
                 booking.active().set("span", p.Range(1, 2))
+
+    # [spec:pgorm:req:bindings.created-ranges+2/test]    a registered column of an array of a created range or
+    # multirange takes a list of the kind's values, the empty list and NULL elements included, as the array of
+    # their texts cast to the type's array, compares through the column's casts, and reads back as a list; no
+    # program declares such an array as a Value
+    async def test_created_range_arrays_bind_as_text_arrays(self):
+        booking = p.entity("app.Booking")
+        kinds = {column["name"]: column["kind"] for column in booking.describe()["columns"]}
+        self.assertEqual(kinds["spares"], 'range "python_entities"."floatrange" of f64[]')
+        self.assertEqual(kinds["ledgers"], 'multirange "python_entities"."floatmultirange" of f64[]')
+        spares = booking.col("spares")
+        async with self.pool.connection() as connection:
+            await (booking.active().set("id", 1).set("span", p.Range(1.0, 2.0))
+                   .set("spares", [p.Range(1.5, 2.5), p.Range(3.0, 4.0)])
+                   .set("ledgers", [p.Multirange([p.Range(5.0, 8.0), p.Range(1.0, 3.0)]), p.Multirange([])])
+                   .insert(connection))
+            await booking.active().set("id", 2).set("span", p.Range(1.0, 2.0)).set("spares", []).insert(connection)
+            found = await booking.find().where(booking.col("id") == 1).one(connection)
+            self.assertEqual(found["spares"], [p.Range(1.5, 2.5), p.Range(3.0, 4.0)])
+            # The server stores a multirange sorted and merged.
+            self.assertEqual(found["ledgers"], [p.Multirange([p.Range(1.0, 3.0), p.Range(5.0, 8.0)]), p.Multirange([])])
+
+            async def ids(predicate):
+                return sorted(row["id"] for row in await booking.find().where(predicate).all(connection))
+
+            self.assertIn("= CAST($1::text[] AS python_entities.floatrange[])",
+                          (spares == [p.Range(1.5, 2.5)]).inspect().sql)
+            self.assertEqual(await ids(spares == [p.Range(1.5, 2.5), p.Range(3.0, 4.0)]), [1])
+            self.assertEqual(await ids(spares == []), [2])
+            self.assertEqual(await ids(spares != [p.Range(1.5, 2.5), None]), [1, 2])
+            self.assertEqual(await ids(spares.contains([p.Range(3.0, 4.0)])), [1])
+            moved = await (found.into_active().set("spares", found.tagged("spares")).set("ledgers", None)
+                           .update(connection))
+            self.assertEqual((moved["spares"], moved["ledgers"]), (found["spares"], None))
+        with self.assertRaises(p.ConstructionError):
+            booking.active().set("spares", [p.Range(1, 2)])
+        with self.assertRaises(p.ConstructionError):
+            booking.active().set("spares", found.tagged("ledgers"))
+        with self.assertRaises(p.ConstructionError):
+            booking.active().set("span", found.tagged("spares"))
+        with self.assertRaises(p.ConstructionError):
+            p.Value.array(p.CreatedRange("floatrange", "f64", schema="python_entities"), [p.Range(1.0, 2.0)])
 
     # [spec:pgorm:req:bindings.entity-reads+3/test]
     # [spec:pgorm:req:bindings.column-operators+3/test]    a registered column is its own expression,

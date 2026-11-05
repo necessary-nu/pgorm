@@ -41,7 +41,7 @@ impl Column {
     /// Reject anything the writer could not render: a type outside the mapping
     /// table, and a DB name whose case-converted forms are not Rust
     /// identifiers.
-    // [spec:pgorm:req:codegen.entity.types.unsupported+11]
+    // [spec:pgorm:req:codegen.entity.types.unsupported+12]
     // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let context = format!("column `{}`", self.name);
@@ -67,9 +67,9 @@ impl Column {
         self.name.to_snake_case() == self.name
     }
 
-    // [spec:pgorm:sem:codegen.entity.types+12]
+    // [spec:pgorm:sem:codegen.entity.types+13]
     // [spec:pgorm:sem:codegen.entity.types.datetime+2]
-    // [spec:pgorm:req:codegen.entity.types.unsupported+11]
+    // [spec:pgorm:req:codegen.entity.types.unsupported+12]
     pub fn get_rs_type(&self) -> TokenStream {
         fn write_rs_type(col_type: &ColumnType, home: Option<&EnumHome>) -> String {
             #[allow(unreachable_patterns)]
@@ -241,7 +241,7 @@ impl Column {
 
 /// The Rust name of the enum `name`: the UpperCamelCase of the DB name, or
 /// the name a disjoint entity's derive gives its kind type.
-// [spec:pgorm:sem:codegen.entity.types+12]
+// [spec:pgorm:sem:codegen.entity.types+13]
 fn enum_rust_name(name: &Name, home: Option<&EnumHome>) -> String {
     match home {
         Some(home) => home.name.clone(),
@@ -254,8 +254,8 @@ fn enum_rust_name(name: &Name, home: Option<&EnumHome>) -> String {
 /// `ActiveEnum`'s column type itself, `db_type().get_column_type().clone()`,
 /// since the `Arc` holding it holds a `ColumnType` where `db_type()` returns
 /// a `ColumnDef`.
-// [spec:pgorm:req:codegen.entity.types.unsupported+11]
-// [spec:pgorm:sem:codegen.entity.types+12]
+// [spec:pgorm:req:codegen.entity.types.unsupported+12]
+// [spec:pgorm:sem:codegen.entity.types+13]
 fn write_col_type(col_type: &ColumnType, home: Option<&EnumHome>) -> TokenStream {
     let write_col_type = |col_type: &ColumnType| write_col_type(col_type, home);
     match col_type {
@@ -356,7 +356,7 @@ fn write_col_type(col_type: &ColumnType, home: Option<&EnumHome>) -> TokenStream
 
 /// A domain column's `ColumnType::Domain`, its name and schema as runtime
 /// names and its base built as a `ColumnType`.
-// [spec:pgorm:sem:codegen.entity.types+12]
+// [spec:pgorm:sem:codegen.entity.types+13]
 fn domain_tokens(
     name: &Name,
     schema: &Option<Name>,
@@ -394,7 +394,7 @@ pub(crate) fn under_domains(col_type: &ColumnType) -> &ColumnType {
 /// naming it, and the Rust type it ranges over as the prelude names it.
 /// `None` for one codegen has no spelling of, which `validate_col_type`
 /// refuses, so the writers meet only ranges this answers for.
-// [spec:pgorm:sem:codegen.entity.types+12]
+// [spec:pgorm:sem:codegen.entity.types+13]
 fn range_spelling(range: RangeType) -> Option<(&'static str, &'static str)> {
     Some(match range {
         RangeType::Int4 => ("Int4", "i32"),
@@ -484,7 +484,7 @@ fn infers_itself(col_type: &ColumnType) -> bool {
 /// The `IntervalSpec` an interval column carries, as generated source spells
 /// it: the qualifier vocabulary resolves through the prelude, as `RangeType`
 /// does.
-// [spec:pgorm:sem:codegen.entity.types+12]
+// [spec:pgorm:sem:codegen.entity.types+13]
 fn interval_spec_tokens(spec: &IntervalSpec) -> TokenStream {
     let precision = |precision: &Option<IntervalPrecision>| match precision {
         Some(precision) => {
@@ -539,7 +539,7 @@ fn range_type_tokens(range: RangeType) -> TokenStream {
 /// The set of `ColumnType`s `get_rs_type` and `write_col_type` can render, checked
 /// through `Array` element types, over the enum names they will emit, and over
 /// the named types they will respell.
-// [spec:pgorm:req:codegen.entity.types.unsupported+11]
+// [spec:pgorm:req:codegen.entity.types.unsupported+12]
 fn validate_col_type(context: &str, col_type: &ColumnType) -> Result<(), Error> {
     match col_type {
         ColumnType::Char(_)
@@ -592,8 +592,7 @@ fn validate_col_type(context: &str, col_type: &ColumnType) -> Result<(), Error> 
             ))),
         },
         // A range type a schema created is generated as a newtype over
-        // `Range<T>`, which only `RangeSubtype`'s subtypes can be; an array of
-        // one has no conversion, as the newtype has no `NotU8`.
+        // `Range<T>`, which only `RangeSubtype`'s subtypes can be.
         ColumnType::CreatedRange { name, subtype, .. }
         | ColumnType::CreatedMultirange { name, subtype, .. } => {
             safe_ident(context, &name.to_string().to_upper_camel_case())?;
@@ -621,13 +620,6 @@ fn validate_col_type(context: &str, col_type: &ColumnType) -> Result<(), Error> 
             Ok(())
         }
         ColumnType::Array(inner_col_type) => match under_domains(inner_col_type) {
-            ColumnType::CreatedRange { name, .. } | ColumnType::CreatedMultirange { name, .. } => {
-                Err(Error::TransformError(format!(
-                    "{context}: an array of range type `{name}` is not supported by codegen; \
-                     the newtype a created range generates has no array conversion",
-                    name = name.to_string(),
-                )))
-            }
             // A field is one `Vec` of its element's Rust type, and no `Vec`
             // but `Vec<u8>` is an element (`NotU8`), so `Vec<Vec<T>>` has no
             // `ValueType` and an entity holding it would not compile.

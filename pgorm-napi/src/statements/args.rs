@@ -154,12 +154,14 @@ pub(crate) fn literal<'cx>(cx: &mut Cx<'cx>, data: Handle<'cx, JsValue>) -> Neon
 }
 
 /// `expr` cast as a value of `tag` must be: an enum's label to the enum, a
-/// created range's text to its range type through `Expr::as_range`.
+/// created range's text to its range type through `Expr::as_range`, and an
+/// array of either to the type's array.
 fn typed(expr: SimpleExpr, tag: Tag) -> SimpleExpr {
     match tag {
         Tag::Enum(named) => expr.cast_as_type(rust_type(&named)),
         Tag::Array(element) => match *element {
             Tag::Enum(named) => expr.cast_as_type(rust_type(&named).array()),
+            Tag::Created(kind) => Expr::expr(expr).as_range(rust_type(&kind.name).array()),
             _ => expr,
         },
         Tag::Created(kind) => Expr::expr(expr).as_range(rust_type(&kind.name)),

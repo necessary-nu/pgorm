@@ -2,7 +2,7 @@
 
 use std::marker::PhantomData;
 
-use pgorm_query::Value;
+use pgorm_query::{ArrayType, Value};
 
 use super::adapter;
 use super::compare::{Operand, operand};
@@ -66,10 +66,20 @@ impl<'brand> Binder<'brand> {
     /// SQL still carries and compacts the [`Values`](pgorm_query::Values) to
     /// match: position `N` in the SQL is position `N` in the values, whether
     /// or not every binding survived.
+    ///
+    /// A built-in range or multirange, or an array of either, compared under
+    /// the cast of a range type a schema created, or of its array, is written
+    /// through its text by the server, the one form both read.
+    // [spec:pgorm:def:sql.value.created-range+8]
     pub fn bind(&mut self, value: impl Into<Value>) -> Expr<'brand> {
         let value = value.into();
         let bound = match (&value, value.source_type_name()) {
-            (Value::Range(..) | Value::Multirange(..), Some(pin)) => Operand::BoundRange(pin),
+            (
+                Value::Range(..)
+                | Value::Multirange(..)
+                | Value::Array(ArrayType::Range(_) | ArrayType::Multirange(_), _),
+                Some(pin),
+            ) => Operand::BoundRange(pin),
             (_, pin) => Operand::Bound(pin),
         };
         self.values.push(value);

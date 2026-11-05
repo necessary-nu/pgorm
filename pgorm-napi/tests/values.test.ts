@@ -437,7 +437,7 @@ test("an empty array and an SQL NULL array still name their element kind", async
   throwsConstruction(() => Value.array("i32", [new Value(1, "i64")]), /i64 value is not a value of kind i32/);
 });
 
-// [spec:pgorm:req:bindings.created-ranges+1/test]
+// [spec:pgorm:req:bindings.created-ranges+2/test]
 test("a created range converts each bound through its subtype and travels as its text", async () => {
   const value = new Value(new Range(1.5, 2.5), floatrange);
   assert.equal(value.kind, "created_range");

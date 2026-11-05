@@ -21,7 +21,7 @@ pub struct CreatedRangeType {
 /// The Rust type a range type created over `subtype` ranges over, as the
 /// prelude names it — `None` for a subtype pgorm's `RangeSubtype` does not
 /// cover, which no newtype can hold.
-// [spec:pgorm:sem:codegen.entity.types+12]
+// [spec:pgorm:sem:codegen.entity.types+13]
 pub(crate) fn created_range_subtype(subtype: &ColumnType) -> Option<&'static str> {
     Some(match subtype {
         ColumnType::SmallInteger => "i16",
@@ -51,7 +51,7 @@ impl CreatedRangeType {
     /// schema. `Eq` is derived unless the subtype is a float, as for a Model,
     /// and the serde derives follow the Model's: a Model serializing a field
     /// of this type needs the type to serialize.
-    // [spec:pgorm:sem:codegen.entity.types+12]
+    // [spec:pgorm:sem:codegen.entity.types+13]
     // [spec:pgorm:sem:codegen.entity.serde.derives+3]
     pub fn impl_created_range(&self, with_serde: &WithSerde) -> TokenStream {
         let ident = Self::rs_type(&self.name);

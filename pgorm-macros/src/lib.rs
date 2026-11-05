@@ -880,7 +880,7 @@ pub fn derive_value_type(input: TokenStream) -> TokenStream {
 /// ```
 ///
 /// [`Range<T>`]: https://docs.rs/pgorm-query/latest/pgorm_query/enum.Range.html
-// [spec:pgorm:sem:macros.derive.created-range+2]
+// [spec:pgorm:sem:macros.derive.created-range+3]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveCreatedRange")]
 #[proc_macro_derive(CreatedRange, attributes(pgorm))]

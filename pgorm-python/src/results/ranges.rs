@@ -191,7 +191,7 @@ pub(super) fn value(field: Field<'_>, ty: &Type, array: bool) -> PyResult<Option
 /// A column of a range type a schema created: read in binary as a range of
 /// its subtype's Rust type, through the subtype's own codec, and held as the
 /// text form that type's values travel as, tagged with the type's name.
-// [spec:pgorm:req:bindings.created-ranges+1]
+// [spec:pgorm:req:bindings.created-ranges+2]
 fn created(field: Field<'_>, ty: &Type, subtype: &Type, multi: bool) -> PyResult<PyValue> {
     let index = field.index();
     macro_rules! text {

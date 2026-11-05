@@ -110,14 +110,19 @@ fn json_default(cx: &mut FunctionContext) -> NeonResult<Node> {
     let Some(tagged) = read::infer(cx, codec, data)? else {
         return refuse(cx, "a JSON DEFAULT is a value: null has no kind to write");
     };
-    match (tagged.datum, tagged.tag) {
-        (_, Tag::Enum(_) | Tag::Created(_)) => refuse(
+    let cast = match &tagged.tag {
+        Tag::Enum(_) | Tag::Created(_) => true,
+        Tag::Array(element) => matches!(**element, Tag::Created(_)),
+        Tag::Scalar(_) => false,
+    };
+    if cast {
+        return refuse(
             cx,
             "a JSON DEFAULT is written as a plain literal, which cannot carry an enum's or a \
              created range's cast",
-        ),
-        (value, _) => Ok(Node::JsonDefault(value)),
+        );
     }
+    Ok(Node::JsonDefault(tagged.datum))
 }
 
 /// `jsonIs(operand, negated, kind, uniqueKeys)`: `IS [NOT] JSON [VALUE |

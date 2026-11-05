@@ -7,6 +7,8 @@ mod domain;
 #[path = "query_range.rs"]
 mod range;
 pub(crate) use range::{multirange_from_sql, range_from_sql};
+#[doc(hidden)]
+pub use range::{try_get_created_ranges, try_get_texts};
 
 /// Defines the result of a query operation on a Model
 // [spec:pgorm:def:exec.decode+3]

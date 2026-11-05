@@ -20,7 +20,7 @@ pub use pgorm_query::{IntoBoundary, IntoKey, Key};
 /// names them, also records the enum each side compares as when its column's
 /// domain is over one, which a pair named by bare names cannot know.
 // [spec:pgorm:def:entity.relation.def+12]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+16]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
 #[derive(Debug, Clone)]
 pub struct ColumnPairs {
     first: (Name, Name),
@@ -31,7 +31,7 @@ pub struct ColumnPairs {
 
 /// The enums one pair's `from` and `to` sides compare as, each `None` unless
 /// that side's column is typed with a domain over an enum.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+16]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ComparedPair {
     pub(crate) from: Option<TypeName>,
@@ -64,7 +64,7 @@ impl ColumnPairs {
 
     /// [`ColumnPairs::new`] over entity columns, recording the enum each side
     /// compares as.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+16]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
     pub(crate) fn of_columns<F, T>(from: F, to: T) -> Self
     where
         F: ColumnTrait,
@@ -78,7 +78,7 @@ impl ColumnPairs {
 
     /// [`ColumnPairs::push`] over entity columns, recording the enum each
     /// side compares as.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+16]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
     pub(crate) fn push_columns<F, T>(&mut self, from: F, to: T)
     where
         F: ColumnTrait,
@@ -91,7 +91,7 @@ impl ColumnPairs {
 
     /// [`ColumnPairs::new`] with the enums each side compares as stated, for
     /// columns a disjoint shape describes at run time.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+16]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
     pub(crate) fn of_compared(from: Name, to: Name, compared: ComparedPair) -> Self {
         let mut pairs = Self::new(from, to);
         pairs.compared = vec![compared];
@@ -99,7 +99,7 @@ impl ColumnPairs {
     }
 
     /// [`ColumnPairs::push`] with the enums each side compares as stated.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+16]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
     pub(crate) fn push_compared(&mut self, from: Name, to: Name, compared: ComparedPair) {
         self.rest.push((from, to));
         self.compared.push(compared);
@@ -151,7 +151,7 @@ impl ColumnPairs {
 
     /// The pairs matched for equality in declaration order, each beside the
     /// enums its sides compare as.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+16]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
     pub(crate) fn compared_pairs(&self) -> impl Iterator<Item = (&(Name, Name), &ComparedPair)> {
         self.iter().zip(&self.compared)
     }
