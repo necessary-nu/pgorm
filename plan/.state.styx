@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T07:38:32.920242Z
+last_sync_at 2026-11-05T08:09:51.053281Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -1023,6 +1023,9 @@ derived_priorities (
     {id update-noop-filters, priority 1, derived_at 2026-09-07T15:33:15.757479Z}
     {id update-nothing-distinct, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id upstream-necessary-nu, priority 0, derived_at 2026-11-03T00:50:05.528597Z}
+    {id value-codecs.builtin-range-codec, priority 3, derived_at 2026-11-05T08:09:51.053281Z}
+    {id value-codecs.char-created-range-kind, priority 3, derived_at 2026-11-05T08:09:51.053281Z}
+    {id value-codecs.copy-numeric-exact, priority 3, derived_at 2026-11-05T08:09:51.053281Z}
     {id value-decode-created-multiranges, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id value-decode-created-ranges, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id value-float-eq-hash, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
