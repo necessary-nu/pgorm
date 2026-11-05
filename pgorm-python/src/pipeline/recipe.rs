@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use pgorm::pgorm_query::{Name, TypeName, Value};
+use pgorm::pgorm_query::{ColumnType, Name, TypeName, Value};
 use pgorm::pipeline::{self as pl, ExprOps};
 
 use crate::entities::backend::PipelineColumn;
@@ -93,6 +93,9 @@ pub(super) enum Recipe {
     /// A value bound by whichever stage lowers the expression.
     Value(Value),
     Column(String, String),
+    /// A declared model's column, under the qualifier its relation is read by,
+    /// typed by its declaration.
+    Typed(String, String, ColumnType),
     /// A registered entity's column, under the qualifier its relation is read by.
     Registered(String, Arc<dyn PipelineColumn>),
     Alias(String),
@@ -139,6 +142,7 @@ impl Recipe {
             }
             Self::Literal(_)
             | Self::Column(..)
+            | Self::Typed(..)
             | Self::Registered(..)
             | Self::Alias(_)
             | Self::This(_)
@@ -167,6 +171,9 @@ impl Recipe {
             Self::Value(value) => with.binder.as_mut()?.bind(value.clone()),
             Self::Bound(index) => with.bound.get(*index)?.clone(),
             Self::Column(table, column) => pl::col(Name::runtime(table), Name::runtime(column)),
+            Self::Typed(table, column, kind) => {
+                pl::col_typed(Name::runtime(table), Name::runtime(column), kind)
+            }
             Self::Registered(table, column) => column.lower(table),
             Self::Alias(name) => Name::runtime(name).into(),
             Self::This(name) => pl::this(Name::runtime(name)),

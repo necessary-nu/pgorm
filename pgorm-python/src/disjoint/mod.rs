@@ -16,6 +16,7 @@
 //! `DecodeError`.
 
 mod described;
+pub(crate) use described::column_type;
 mod evolve;
 mod registered;
 mod rows;

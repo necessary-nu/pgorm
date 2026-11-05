@@ -1666,11 +1666,11 @@ assertions (
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id guide.python-gaps.registered-reads, kind @doing, author "brendan@necessary.nu", at 2026-11-05T18:56:35.902673Z}
-    {id guide.python-gaps.pipeline-typed, kind @doing, author "brendan@necessary.nu", at 2026-11-05T18:56:36.798525Z}
     {id napi.guide-gaps.entity-select-reads, kind @doing, author "brendan@necessary.nu", at 2026-11-05T18:56:40.752132Z}
     {id napi.guide-gaps.pipeline-models, kind @doing, author "brendan@necessary.nu", at 2026-11-05T18:56:42.074984Z}
-    {id napi.guide-gaps.relation-loaders, kind @doing, author "brendan@necessary.nu", at 2026-11-05T19:36:35.683665Z}
-    {id napi.guide-gaps.graph-joins, kind @doing, author "brendan@necessary.nu", at 2026-11-05T19:36:36.516308Z}
+    {id napi.guide-gaps.relation-loaders, kind @complete, author "brendan@necessary.nu", at 2026-11-05T20:17:43.387475Z}
+    {id napi.guide-gaps.graph-joins, kind @complete, author "brendan@necessary.nu", at 2026-11-05T20:17:43.732408Z}
+    {id guide.python-gaps.model-writes, kind @doing, author "brendan@necessary.nu", at 2026-11-05T20:52:32.538422Z}
 )
 
 impl_evidence (
@@ -3341,6 +3341,13 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.linked}
         {impl_name javascript, rule bindings.related}
+    )}
+    {id guide.python-gaps.pipeline-typed, covered_rules (
+        bindings.pipeline-models
+        pipeline.described
+    ), covered_claims (
+        {impl_name main, rule pipeline.described}
+        {impl_name python, rule bindings.pipeline-models}
     )}
 )
 

@@ -33,10 +33,12 @@ pub(crate) fn install(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PySourceSelection>()?;
     module.add_class::<PySelectedSources>()?;
     module.add_function(wrap_pyfunction!(selected::pipeline_sources, module)?)?;
+    module.add_function(wrap_pyfunction!(builder::pipeline_tuples, module)?)?;
     module.add_function(wrap_pyfunction!(source::pipeline_source, module)?)?;
     module.add_function(wrap_pyfunction!(construct::pipeline_literal, module)?)?;
     module.add_function(wrap_pyfunction!(construct::pipeline_alias, module)?)?;
     module.add_function(wrap_pyfunction!(construct::pipeline_col, module)?)?;
+    module.add_function(wrap_pyfunction!(construct::pipeline_model_col, module)?)?;
     module.add_function(wrap_pyfunction!(construct::pipeline_role, module)?)?;
     module.add_function(wrap_pyfunction!(construct::pipeline_function, module)?)?;
     module.add_function(wrap_pyfunction!(construct::pipeline_case, module)?)?;

@@ -16,7 +16,7 @@ use crate::{
 /// The column type a model column of `tag` is written with: a scalar kind's
 /// own (`ArrayType::column_type`), an enum of the labels `values` lists, a
 /// created range over its subtype's, and an array of its element's.
-fn column_type(tag: &Tag, values: Option<&[String]>) -> PyResult<ColumnType> {
+pub(crate) fn column_type(tag: &Tag, values: Option<&[String]>) -> PyResult<ColumnType> {
     Ok(match tag {
         Tag::Scalar(kind) => kind.column_type().ok_or_else(|| {
             ConstructionError::new_err(format!(

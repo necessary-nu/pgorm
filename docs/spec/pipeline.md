@@ -622,3 +622,30 @@ of the crate, compiled in every build. Rules are grouped under
 > every projected column is NULL is indistinguishable from an unmatched
 > one only when the projection omits the primary key, which this
 > projection never does.
+
+> [spec:pgorm:sem:pipeline.described]
+> A relation a program describes at run time, with no entity behind it — a
+> language binding's declared model (`[spec:pgorm:def:bindings.api]`) — is
+> read through the same writers an entity is, keyed by what the program has
+> in place of a Rust type. `col_typed(table, column, column_type)` is the
+> column `col(table, column)` names, typed by the `ColumnType` given: it
+> compares as an entity column of that type does
+> (`[spec:pgorm:sem:entity.traits.column.enum-cast]`) — cast to the enum
+> where its domain is over one, and every literal or bound value compared
+> with it, in a comparison, `coalesce` or `in_array`, cast as the type's own
+> write cast casts a value: an enum's label to the enum, a `money` value to
+> `money`, a created range's text to its type — the type's cast and no
+> other, since the program names no `save_as`.
+>
+> `select_described(sources)` is `select_sources` for such relations
+> (`[spec:pgorm:sem:pipeline.select-sources]`): each `DescribedSource` names
+> the qualifier its relation was read by and lists its columns, each with the
+> type it is read as where its reader needs a cast. It appends one final
+> projection stage through the same writer — for the i-th source, each listed
+> column in order, qualified by its source's name, cast to its read type by
+> pgorm's `TypeName` policy, and aliased `s{i}_{column}` under the 63-byte
+> bound — and MUST refuse a pipeline whose sources a stage already replaced
+> with the same `ReshapedSources` error, the owed `distinct` hoist included.
+> It returns the pipeline with that stage, which is itself a reshaping stage,
+> so a second selection is refused; decoding each source from its prefixed
+> columns is the caller's.

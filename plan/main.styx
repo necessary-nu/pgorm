@@ -13316,6 +13316,7 @@ children (
                         id napi.guide-gaps.relation-loaders
                         title "Relation.load takes a filtered, ordered query of the far end and follows a junction, as Rust's load_one(Select), load_many(Select) and load_many_via do (guide 07-relations)"
                         deps (napi-models guide.javascript)
+                        sealed true
                         log (
                             {
                                 at 2026-11-05T19:36:35.683665Z
@@ -13336,6 +13337,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @decision
                                 text "Built with Python's in one shape (see guide.python-gaps.model-relations' decision): relation.load(db, rows, { query }) and Related.load(db, rows, { query }) read the far end's query with the starting model joined back under pgorm_loader_src, as pgorm's loader does; a key nothing matches is null, as Rust's load_one gives, where it was a DecodeError. The rules are bindings.relations+2 and bindings.related; this node claims none of its own, so it completes after its delivery commit."
+                            }
+
+                            {
+                                at 2026-11-05T20:17:43.387475Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
                             }
                         )
                     }
@@ -13375,6 +13383,7 @@ children (
                         id napi.guide-gaps.graph-joins
                         title "A model graph joins a relation starting from an aliased via hop, narrows an optional slot's ON with a predicate, and orders a cursor by a slot's columns, as Rust's via_as with RelationDef::from_alias, join_maybe_filtered and cursor_by_on do (guide 07-relations)"
                         deps (napi-models guide.javascript)
+                        sealed true
                         log (
                             {
                                 at 2026-11-05T19:36:36.516308Z
@@ -13395,6 +13404,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @decision
                                 text "Built with Python's in one shape (see guide.python-gaps.model-relations' decision): relation.fromAlias(name) starts a graph edge from any table the graph reads under that name, a via hop included (Rust's via_as with RelationDef::from_alias; the graph's via already took { alias }); joinMaybeFiltered(relation, (from, to) => predicate) ANDs the predicate into the ON; cursorOn(source, ...fields), 1 the first slot, ties broken by that slot's key, then the root's and the other slots'. The rules are bindings.graphs+2 and bindings.cursors+2, owned by binding-spec-consolidation; this node claims none of its own, so it completes after its delivery commit."
+                            }
+
+                            {
+                                at 2026-11-05T20:17:43.732408Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
                             }
                         )
                     }
@@ -13559,6 +13575,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @status
                                 text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T21:09:32.119219Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built in the same shape as Python's (see guide.python-gaps.registered-reads's decision): EntityQuery count/stream/paginate/cursor(...columns)/join(Entity.relation(name), { kind })/select(...columns), EntityPaginator, EntityCursor, EntitySelection, EntityRelation; EntityGraphQuery cursor(...columns), cursorOn(source, ...columns), count, paginate, allGrouped, stream; EntityGraphCursor extends EntityCursor with beforeWith/afterWith and gains inspect. connectionStream's decoder argument now takes a registered read's decoder beside a disjoint read's (one RowDecode in connect/stream.rs), and lib/connections.js's disjointStream became decodedStream for both."
                             }
                         )
                     }
@@ -19365,6 +19388,14 @@ children (
                                 kind @decision
                                 text "Shape, held in bindings.relations+2, bindings.related, bindings.linked, bindings.graphs+2, bindings.cursors+2 and bindings.cursor-secondary-order and built the same way in both bindings (host code over the statement builders, as the model layer already is): (1) on_condition is a relation option, a function of the two ends given as the models answering to the join's names (Rust's closure gets the names; a model's col(field) then converts by kind), with condition_type \"all\"/\"any\" strings as describe() already spells it; (2) a junction path is Model.related(relation, via=junction_relation) -> Related (find, load), Rust's Related with a via; (3) a chain is Model.linked(*relations) -> Linked (find, find_linked, hop(i), last_hop()), hops aliased r0.. walked back from the far end as find_linked does; hop/last_hop return the aliased model rather than the alias name; (4) Relation.from_alias(name), as RelationDef::from_alias, starts a model query's join or a graph edge (a via hop included) from the table under that name; (5) loads follow pgorm's loader: an optional query of the far end, the starting model joined back under pgorm_loader_src, rows filed by the key read back; a key nothing matches now gives None/null as Rust's load_one does (was a DecodeError), two distinct rows for a one-relation key stays a DecodeError; (6) finds that join the start back (on_condition, Related, Linked) key it by its primary key as find_related does; (7) graph.join_maybe_filtered, related_one/related_maybe (a Relation or a Related; related_one joins the junction INNER), cursor_on(source, *fields) with 1 the first slot. Python Cursor.add_secondary_order_by(column) is built here; JavaScript's is napi.guide-gaps.cursor-secondary-order's (the declared-models lane), listed as a javascript gap in bindings-surface.json and given the rule's javascript claim."
                             }
+
+                            {
+                                at 2026-11-05T20:18:05.135494Z
+                                author "brendan@necessary.nu"
+                                kind @errata
+                                text "The decision above names bindings.relations+2, bindings.graphs+2 and bindings.cursors+2; an unversioned rule is version 0, so the bumps are +1, which 05bb459b pins everywhere."
+                                after_done true
+                            }
                         )
                     }
 
@@ -19372,6 +19403,21 @@ children (
                         id guide.python-gaps.model-writes
                         title "Python writes have Rust's write surface: TryInsert and TryInsertResult (on_conflict_do_nothing on the key, on_empty_do_nothing, Conflicted, Empty); set_if_not_equals and is_changed on a registered ActiveModel; a declared model's update FROM and delete USING; and write hooks (ActiveModelBehavior) for a declared model"
                         deps (python.models python.entities)
+                        log (
+                            {
+                                at 2026-11-05T20:52:32.538422Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T20:52:32.538422Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "single-flight overridden: started while guide.python-gaps.pipeline-typed had uncommitted WIP"
+                            }
+                        )
                     }
 
                     {
@@ -19445,6 +19491,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @status
                                 text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T21:09:31.258046Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Registered reads built through pgorm's own APIs in both bindings: count = PaginatorTrait::count; paginate = PaginatorTrait::paginate with Paginator::{fetch_page, num_items_and_pages} (an EntityPaginator holding no database and no current page, pages() the loop); cursor(*columns) = Select::cursor_by over a runtime Key; graph cursor(*columns) = SelectGraph::cursor_by and cursor_on(source, *columns) = cursor_by_on::<I, _>, both over one to six columns, dispatched per slot position and key arity inside the GraphSlots impls; boundaries go through Cursor::before_with/after_with so the key type is erased and pgorm checks the arity (so after_with now also takes the order columns' arity, as Rust's does, where the old registered graph cursor refused it); stream = the read's statement through the connection's stream with a native decoder running the selector's from_raw_query_result per row (SelectModel<E::Model> / GraphRow<E, S>); all_grouped only on (Opt<F>,) graphs via RegisteredSlot::grouped; join(entity.relation(name)) = QuerySelect::join of the Relation variant's def; select(*columns) = select_only + columns, rows read as plain records (a binding cannot name a PartialModel or tuple at run time, stated as a dialect difference). Two items judged no gap: a paginator's current page (fetch/advance/fetch_and_next/cur_page) stays the stated immutable-builder difference the pagination chapter already gives, and a graph of more than seven sources does not exist in Rust (SelectGraph holds at most six slots), which the chapter now says. Rules bumped: bindings.entity-reads+4, bindings.entity-graphs+4."
                             }
                         )
                     }

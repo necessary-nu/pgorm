@@ -374,21 +374,7 @@ impl<T: SourceList> SelectedSources<T> {
     /// against.
     // [spec:pgorm:sem:pipeline.select-sources+4]
     fn into_pipeline(self) -> Result<Pipeline, PipelineError> {
-        let SelectedSources {
-            mut pipeline,
-            projection,
-            ..
-        } = self;
-        let reshaped = pipeline
-            .reshaped
-            .or_else(|| pipeline.bare_star_key.then_some("distinct"));
-        if let Some(stage) = reshaped {
-            return Err(PipelineError::ReshapedSources(stage));
-        }
-        pipeline
-            .stages
-            .push(adapter::call("select", vec![adapter::tuple(projection)]));
-        Ok(pipeline)
+        appended_projection(self.pipeline, self.projection)
     }
 
     /// Compile to PostgreSQL SQL and the values bound along the way, the
@@ -459,6 +445,27 @@ impl<T: SourceList> SelectedSources<T> {
     }
 }
 
+/// `pipeline` with `projection`, one block per restated source, appended as
+/// its final `select`: refused by the stage that reshaped the sources away,
+/// a deduplication still owing its hoist named as one that has performed it.
+// [spec:pgorm:sem:pipeline.select-sources+4]
+// [spec:pgorm:sem:pipeline.described]
+pub(super) fn appended_projection(
+    mut pipeline: Pipeline,
+    projection: Vec<PlExpr>,
+) -> Result<Pipeline, PipelineError> {
+    let reshaped = pipeline
+        .reshaped
+        .or_else(|| pipeline.bare_star_key.then_some("distinct"));
+    if let Some(stage) = reshaped {
+        return Err(PipelineError::ReshapedSources(stage));
+    }
+    pipeline
+        .stages
+        .push(adapter::call("select", vec![adapter::tuple(projection)]));
+    Ok(pipeline)
+}
+
 /// A relation read under a caller-chosen name: what
 /// [`named`](IntoSource::named) returns.
 ///
@@ -511,7 +518,7 @@ impl<S: SelectableSource> Named<S> {
 /// Read a relation under an owned identifier computed at runtime.
 /// Like [`IntoSource::named`], this preserves the relation's source type
 /// for [`Pipeline::select_sources`].
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 pub fn named_runtime<R: IntoSource>(relation: R, name: Name) -> Named<R> {
     Named {
         relation,
