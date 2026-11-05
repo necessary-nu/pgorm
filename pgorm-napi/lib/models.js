@@ -6,7 +6,7 @@
 // and claims no Rust entity: no derive, `EntityTrait` or ActiveModel hook is
 // behind it.
 // [spec:pgorm:req:bindings.models+5]
-// [spec:pgorm:req:bindings.model-unique-keys]
+// [spec:pgorm:req:bindings.model-unique-keys+1]
 
 import { Condition } from "./conditions.js";
 import { ConstructionError } from "./errors.js";

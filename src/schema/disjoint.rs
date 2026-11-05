@@ -80,6 +80,7 @@ impl DisjointShape {
         let kinded = self.kinded()?;
         self.check()?;
         self.keyable()?;
+        self.keys_named_apart()?;
         let base = BaseTable::of(self, kinded);
         let kinds = base.kind_tables(self)?;
         let alter = base.alter(&base.kind_keys(&kinds)?, false);
@@ -111,7 +112,7 @@ impl DisjointShape {
 /// relations `keep` keeps, or from its columns, with the unique keys
 /// [`DisjointTable::with_unique_key`] gave it.
 // [spec:pgorm:sem:disjoint.schema+2]
-// [spec:pgorm:req:bindings.model-unique-keys]
+// [spec:pgorm:req:bindings.model-unique-keys+1]
 fn body(
     table: &DisjointTable,
     keep: &dyn Fn(&RelationDef) -> bool,
@@ -375,11 +376,7 @@ fn kind_table(
         ColumnDef::new_with_type(Name::runtime(base.kind.clone()), base.kind_type.clone());
     kind_column.generated(Expr::val(value.clone()), GeneratedKind::Stored);
     create.col(kind_column.clone());
-    let name = derived_name(
-        "fk",
-        &table.name().to_string(),
-        key.iter().chain([base.kind.as_str()]),
-    );
+    let name = kind_key_name(base, table);
     let foreign_key = || {
         deferrable_key(
             table.table.clone(),
@@ -404,6 +401,18 @@ fn kind_table(
         key_name: name,
         foreign_key,
     })
+}
+
+/// The name of the foreign key from `table`, a kind's, to its base row:
+/// `fk-{table}-{key columns}-{kind column}`.
+// [spec:pgorm:sem:disjoint.schema+2]
+pub(super) fn kind_key_name(base: &BaseTable, table: &DisjointTable) -> String {
+    let key = KeyColumns::of(table);
+    derived_name(
+        "fk",
+        &table.name().to_string(),
+        key.iter().chain([base.kind.as_str()]),
+    )
 }
 
 /// A key's column names in order, the first held apart because every key

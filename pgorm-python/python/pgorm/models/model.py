@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from .writes import ModelDelete, ModelInsert, ModelUpdate
 
 
-# [spec:pgorm:req:bindings.model-unique-keys]
+# [spec:pgorm:req:bindings.model-unique-keys+1]
 class UniqueKey(TypedDict, total=False):
     """A unique key of a model's table as it is declared: its fields in key
     order, the constraint's name, which PostgreSQL chooses when none is
@@ -28,7 +28,7 @@ class UniqueKey(TypedDict, total=False):
     nulls_not_distinct: bool
 
 
-# [spec:pgorm:req:bindings.model-unique-keys]
+# [spec:pgorm:req:bindings.model-unique-keys+1]
 @dataclass(frozen=True, slots=True)
 class _DeclaredKey:
     """A unique key a model declares, its fields checked against the
@@ -42,7 +42,7 @@ class _DeclaredKey:
 _UNIQUE_OPTIONS = frozenset({"fields", "name", "nulls_not_distinct"})
 
 
-# [spec:pgorm:req:bindings.model-unique-keys]
+# [spec:pgorm:req:bindings.model-unique-keys+1]
 def _unique_key(key: object, declarations: Mapping[str, Column]) -> _DeclaredKey:
     """``key`` as the model whose fields are ``declarations`` declares it:
     refused as PostgreSQL or the Rust derive would refuse it, as the model is
@@ -83,7 +83,7 @@ def _unique_key(key: object, declarations: Mapping[str, Column]) -> _DeclaredKey
 
 
 # [spec:pgorm:req:bindings.models+5]
-# [spec:pgorm:req:bindings.model-unique-keys]
+# [spec:pgorm:req:bindings.model-unique-keys+1]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
 class Model:
     table: p.Table

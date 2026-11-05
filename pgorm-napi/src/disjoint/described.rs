@@ -153,7 +153,7 @@ fn names<'cx>(
 
 /// `table` with the unique key `key` describes: `{ name, columns,
 /// nullsNotDistinct }`, its name null for PostgreSQL to choose one.
-// [spec:pgorm:req:bindings.model-unique-keys]
+// [spec:pgorm:req:bindings.model-unique-keys+1]
 fn with_unique_key<'cx>(
     cx: &mut FunctionContext<'cx>,
     table: DisjointTable,
@@ -176,7 +176,7 @@ fn with_unique_key<'cx>(
 
 /// One model's table, as JavaScript describes it: its schema, its name, its
 /// columns in field order, its key's columns and its unique keys.
-// [spec:pgorm:req:bindings.model-unique-keys]
+// [spec:pgorm:req:bindings.model-unique-keys+1]
 pub(crate) fn table_of<'cx>(
     cx: &mut FunctionContext<'cx>,
     table: Handle<'cx, JsValue>,

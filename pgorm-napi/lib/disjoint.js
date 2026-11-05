@@ -22,7 +22,7 @@ import { Model } from "./models.js";
 import { native } from "./operations.js";
 import { TypeName } from "./values.js";
 
-// [spec:pgorm:req:bindings.model-unique-keys]
+// [spec:pgorm:req:bindings.model-unique-keys+1]
 /**
  * A model's table as the native shape is described from.
  *

@@ -227,8 +227,12 @@ impl DisjointTable {
     ///
     /// No column, a name the table has no column of, a column named twice,
     /// which PostgreSQL refuses (`42701`), and a `VIRTUAL` generated column,
-    /// which it cannot key (`0A000`), are refused as [`Error::Type`].
-    // [spec:pgorm:req:bindings.model-unique-keys]
+    /// which it cannot key (`0A000`), are refused as [`Error::Type`], and so
+    /// is a name another of the table's unique keys or its composite primary
+    /// key, `pk-{table}`, has (`42P07`). A name the disjoint schema gives a
+    /// constraint of the shape the table is in is refused by
+    /// [`DisjointShape::new`] and the schema's statements.
+    // [spec:pgorm:req:bindings.model-unique-keys+1]
     pub fn with_unique_key(
         mut self,
         name: Option<&str>,
@@ -240,6 +244,19 @@ impl DisjointTable {
             return Err(Error::Type(format!(
                 "`{label}` declares a unique key with no columns"
             )));
+        }
+        if let Some(name) = name {
+            let primary = crate::schema::primary_key_name(&self);
+            if self
+                .unique_keys
+                .iter()
+                .any(|key| key.name.as_deref() == Some(name))
+                || primary.as_deref() == Some(name)
+            {
+                return Err(Error::Type(format!(
+                    "`{label}` names two of its keys `{name}`, which PostgreSQL refuses (42P07)"
+                )));
+            }
         }
         for (index, name) in columns.iter().enumerate() {
             let Some((_, column)) = self.column(name) else {
@@ -581,6 +598,7 @@ impl DisjointShape {
         }
         .apart();
         shape.check()?;
+        shape.keys_named_apart()?;
         Ok(shape)
     }
 

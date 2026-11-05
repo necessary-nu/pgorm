@@ -204,6 +204,26 @@ class DisjointDeclaration(unittest.TestCase):
             with self.subTest(wrong=wrong), self.assertRaises(TypeError):
                 wrong()
 
+    # [spec:pgorm:req:bindings.model-unique-keys+1/test]    a model's unique key named as a name the disjoint schema adds, or as another model's unique key, is a ConstructionError raised as the disjoint model is declared, naming both
+    def test_declaration_refuses_schema_named_keys(self):
+        def keyed(model, name, fields):
+            return p.Model(
+                model.table.name, dict(model.columns), schema=SCHEMA,
+                unique_keys=[{"fields": fields, "name": name}],
+            )
+
+        cases = {
+            "the base's UNIQUE": (keyed(vehicle(), "uq-vehicle-id-kind", ["name", "kind"]), car()),
+            "a kind's foreign key": (vehicle(), keyed(car(), "fk-car-id-kind", ["seats", "id"])),
+            "another model's key": (
+                keyed(vehicle(), "shared", ["name", "kind"]), keyed(car(), "shared", ["seats", "id"])
+            ),
+        }
+        for case, (base, kind) in cases.items():
+            with self.subTest(case=case), self.assertRaises(p.ConstructionError) as raised:
+                vehicles(base, car=kind)
+            self.assertIn("is named as", str(raised.exception))
+
     # [spec:pgorm:req:bindings.disjoint+1/test]    a write refuses, as a ConstructionError before anything is sent, the kind field given, a kind row's key given, values for a kind without a table, a kind the model lacks and a field it lacks
     def test_writes_refuse_before_sending(self):
         model = vehicles()
@@ -286,7 +306,7 @@ class DisjointDatabase(unittest.IsolatedAsyncioTestCase):
             ps.create_disjoint(undeclared)
         self.assertIn("has a default its description does not state", str(raised.exception))
 
-    # [spec:pgorm:req:bindings.model-unique-keys/test]    create_disjoint writes the base's and each kind model's unique keys after its primary key, which the server then holds, nulls equal under a key declared nulls_not_distinct
+    # [spec:pgorm:req:bindings.model-unique-keys+1/test]    create_disjoint writes the base's and each kind model's unique keys after its primary key, which the server then holds, nulls equal under a key declared nulls_not_distinct
     async def test_schema_writes_the_models_unique_keys(self):
         fleet = p.Model(
             "fleet",

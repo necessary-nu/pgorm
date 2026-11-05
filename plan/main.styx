@@ -17502,6 +17502,22 @@ children (
                 title "A binding model's named unique key that collides with a constraint name the disjoint schema generates is refused before the server"
                 kind @fix
                 deps (bindings-composite-unique)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T02:00:25.875604Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T02:29:19.94554Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {

@@ -992,7 +992,7 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > written as its schema and name, each double-quoted with its own quotes
 > doubled, joined by a dot, or as its quoted name alone.
 
-> [spec:pgorm:req:bindings.model-unique-keys]
+> [spec:pgorm:req:bindings.model-unique-keys+1]
 > A model's `unique_keys` MUST declare its table's unique keys, in order, as
 > an entity's `unique(..)` declares them
 > (`[spec:pgorm:req:entity.traits.entity-name]`): each key an object of
@@ -1014,7 +1014,15 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > constraint over its fields' SQL columns, as pgorm's `DisjointTable` writes
 > the keys `with_unique_key` gives it, which refuses also what a model cannot
 > declare: a `VIRTUAL` generated column, which PostgreSQL cannot key
-> (`0A000`).
+> (`0A000`). A key named as one PostgreSQL would refuse beside the shape's
+> other names MUST be a `ConstructionError` raised as the disjoint model is
+> declared, the shape's refusal naming both, before anything is sent: as
+> another key of its table or its composite primary key, `pk-{table}`
+> (`42P07`); as a name the disjoint schema adds (`[spec:pgorm:sem:disjoint.schema]`),
+> the base's `UNIQUE` key or another table's composite primary key in its
+> schema (`42P07`), or the base's foreign key to a kind's table or a kind
+> table's to its base row on its own table (`42710`); or as another table's
+> unique key in its schema (`42P07`).
 
 > [spec:pgorm:req:bindings.model-columns+1]
 > `col(field)` MUST be a model field's column, qualified as the model's

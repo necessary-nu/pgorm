@@ -315,7 +315,7 @@ where
 /// column, which an `EntityName` written by hand or a table described at run
 /// time can describe and PostgreSQL cannot write (`UNIQUE ()`).
 // [spec:pgorm:sem:schema.from-entity+12]
-// [spec:pgorm:req:bindings.model-unique-keys]
+// [spec:pgorm:req:bindings.model-unique-keys+1]
 pub(crate) fn unique_key(
     label: &str,
     name: Option<&str>,
