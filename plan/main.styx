@@ -19456,6 +19456,29 @@ children (
                     }
                 )
             }
+
+            {
+                id guide.example-name-escaping
+                title "The JavaScript guide's example harness escapes every regular-expression metacharacter of a name it searches for, not only $"
+                kind @fix
+                deps (guide.javascript)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T19:55:21.834409Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by CodeQL on PR #33 (js/incomplete-sanitization, high): pgorm-napi/guide/examples.ts's names() built a RegExp from a name with only $ escaped. The names are JavaScript identifiers, so no backslash or other metacharacter reaches it today, but the escaping now covers every metacharacter (name.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\"))."
+                    }
+
+                    {
+                        at 2026-11-05T20:01:50.036752Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Done (nplan complete)"
+                    }
+                )
+            }
         )
         log (
             {
