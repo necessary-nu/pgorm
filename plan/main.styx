@@ -2000,6 +2000,10 @@ children (
                 id codegen-formatted-output
                 title "pgorm-codegen writes formatted, idiomatic Rust, so a generated entity reads as the guide's Entities chapter shows one with no rustfmt step"
                 kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:bindings.codegen-layout])
+                    python ([spec:pgorm:req:bindings.codegen-layout])
+                }
                 log (
                     {
                         at 2026-11-05T14:39:51.325555Z

@@ -1458,6 +1458,27 @@ Rust generic at run time, only use the ones compiled in.
 > native module and every registration it names describe as they did when it
 > was written, and refuse to load otherwise.
 
+> [spec:pgorm:req:bindings.codegen-layout]
+> The module each binding's codegen writes (`bindings.codegen`), and its
+> declarations, MUST read as a person writes the language, laid out as the
+> language's usual formatter lays it out, so nothing needs to run over it
+> once it is written, as pgorm-codegen's Rust needs no `rustfmt`
+> (`[spec:pgorm:req:codegen.entity.files]`). Python is black's layout:
+> strings double-quoted; a bracket's contents on its line where they fit in
+> 88 columns, on a line of their own where those fit, and otherwise one to a
+> line, each followed by a comma; a conditional expression too long for its
+> line split before its `if` and its `else`; a long union a member to a
+> line inside parentheses; two blank lines around each top-level class and
+> function and one between a class's methods, the stub in black's `--pyi`
+> style; and the imports the module uses and no others, grouped and sorted
+> as isort sorts them. The compatibility data the module checks as it loads
+> is a literal laid out the same way, not one line. TypeScript and
+> JavaScript are deno fmt's and prettier's layout: a bracket's items on its
+> line where they fit in 80 columns and otherwise one to a line, each
+> followed by a comma; an object type a member to a line where it does not
+> fit; a long union a member to a line, each led by its `|`; and each doc
+> comment wrapped to the width.
+
 > [spec:pgorm:req:bindings.codegen-disjoint]
 > The codegen workflow (`bindings.codegen`) MUST carry an application's
 > `#[derive(Disjoint)]` enums beside its entities: the description names

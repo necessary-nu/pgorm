@@ -72,8 +72,10 @@ uv pip install --no-index --python application-env/bin/python application-dist/*
 Scaffolding writes Cargo and Maturin manifests, the native registration module,
 a copy of the shared Python facade and build metadata. It refuses an existing
 destination. Emission writes `python/pgorm/app.py`, `app.pyi` and an application
-module marker. Emission can be repeated deterministically after the probe wheel
-is installed. The source paths in scaffold metadata are build inputs; the
+module marker. The module and its stub are laid out as black lays out Python,
+importing only what they use, so they read as written by hand and need no
+formatter run over them. Emission can be repeated deterministically after the
+probe wheel is installed. The source paths in scaffold metadata are build inputs; the
 installed generated module does not read those paths.
 
 Cargo manifests pin pgorm and binding package versions. Preserve the resulting
