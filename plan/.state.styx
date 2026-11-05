@@ -10,7 +10,7 @@ rule_versions (
     {id bindings.codegen, version 0}
     {id bindings.codegen-disjoint, version 0}
     {id bindings.collations, version 0}
-    {id bindings.column-operators, version 1}
+    {id bindings.column-operators, version 2}
     {id bindings.conflict-arbiters, version 0}
     {id bindings.connections, version 2}
     {id bindings.copy, version 0}
@@ -27,7 +27,7 @@ rule_versions (
     {id bindings.entity-reads, version 2}
     {id bindings.entity-versions, version 2}
     {id bindings.entity-writes, version 0}
-    {id bindings.errors, version 3}
+    {id bindings.errors, version 4}
     {id bindings.expressions, version 2}
     {id bindings.from-subqueries, version 0}
     {id bindings.graphs, version 0}
@@ -47,7 +47,7 @@ rule_versions (
     {id bindings.pagination, version 0}
     {id bindings.pipeline, version 0}
     {id bindings.pipeline-binder, version 0}
-    {id bindings.pipeline-expressions, version 2}
+    {id bindings.pipeline-expressions, version 3}
     {id bindings.pipeline-sources, version 3}
     {id bindings.quantifiers, version 1}
     {id bindings.ranges, version 0}
@@ -149,7 +149,7 @@ rule_versions (
     {id entity.traits, version 4}
     {id entity.traits.active-enum, version 2}
     {id entity.traits.active-enum.limits, version 2}
-    {id entity.traits.column, version 7}
+    {id entity.traits.column, version 8}
     {id entity.traits.column-def, version 2}
     {id entity.traits.column.enum-cast, version 15}
     {id entity.traits.crud, version 4}
@@ -158,6 +158,7 @@ rule_versions (
     {id entity.traits.model, version 3}
     {id entity.traits.primary-key, version 7}
     {id error.model, version 11}
+    {id error.model.bind-refusal, version 0}
     {id error.model.runtime, version 3}
     {id error.model.sql-class, version 4}
     {id exec.crud, version 1}
@@ -472,7 +473,7 @@ derived_priorities (
     {id active-model-json-column-names, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id active-model-json-error-atomicity, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id active-model-unknown-column, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
-    {id alter-column-type-collate, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
+    {id alter-column-type-collate, priority 3, derived_at 2026-11-04T23:38:41.404888Z}
     {id annotation-verbs-match, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id api-doc-honesty, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id between-render-parens, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
@@ -488,9 +489,9 @@ derived_priorities (
     {id bindings-between-casts, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id bindings-composite-unique, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id bindings-copy-created-multiranges, priority 3, derived_at 2026-10-26T20:21:09.753689Z}
-    {id bindings-disjoint-evolve, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
+    {id bindings-disjoint-evolve, priority 3, derived_at 2026-11-04T23:38:41.404888Z}
     {id bindings-expression-gaps, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
-    {id bindings-one-of, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
+    {id bindings-one-of, priority 3, derived_at 2026-11-04T23:38:41.404888Z}
     {id bindings-tx-closure-only, priority 2, derived_at 2026-10-26T20:21:09.753689Z}
     {id binoper-missing-variants, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id bit-unbounded-renders-bit-one, priority 0, derived_at 2026-11-02T23:02:57.694884Z}
@@ -513,7 +514,7 @@ derived_priorities (
     {id campaign-refuses-stale-build, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id check-clauses-shared, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id codegen-accepts-create-schema, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
-    {id codegen-check-not-dropped, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
+    {id codegen-check-not-dropped, priority 3, derived_at 2026-11-04T23:38:41.404888Z}
     {id codegen-column-expressions, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
     {id codegen-compact-string-length, priority 0, derived_at 2026-11-02T14:23:29.374268Z}
     {id codegen-datetime-crate-option, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
@@ -525,8 +526,8 @@ derived_priorities (
     {id codegen-interval-columns, priority 1, derived_at 2026-10-24T06:20:32.099314Z}
     {id codegen-junction-detection, priority 3, derived_at 2026-09-06T16:36:02.710141Z}
     {id codegen-money-decodes, priority 0, derived_at 2026-11-02T15:57:08.842122Z}
-    {id codegen-one-of-bounded-name, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
-    {id codegen-one-of-self-reference, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
+    {id codegen-one-of-bounded-name, priority 3, derived_at 2026-11-04T23:38:41.404888Z}
+    {id codegen-one-of-self-reference, priority 3, derived_at 2026-11-04T23:38:41.404888Z}
     {id codegen-quotes-custom-type, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id codegen-refused-fk, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id codegen-refuses-nested-arrays, priority 0, derived_at 2026-11-02T15:57:08.842122Z}
@@ -580,9 +581,9 @@ derived_priorities (
     {id derives.expanded, priority 0, derived_at 2026-11-02T14:23:29.374268Z}
     {id derives.names, priority 2, derived_at 2026-11-02T14:23:29.374268Z}
     {id derives.paths, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
-    {id disjoint-derive-macro-hygiene, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
+    {id disjoint-derive-macro-hygiene, priority 3, derived_at 2026-11-04T23:38:41.404888Z}
     {id disjoint-key-shapes-refused, priority 3, derived_at 2026-11-03T03:28:07.911135Z}
-    {id disjoint-recreate-one-rewrite, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
+    {id disjoint-recreate-one-rewrite, priority 3, derived_at 2026-11-04T23:38:41.404888Z}
     {id disjoint.bindings, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
     {id disjoint.bindings-codegen, priority 3, derived_at 2026-11-03T07:11:51.915781Z}
     {id disjoint.bindings-unkinded, priority 3, derived_at 2026-11-03T08:39:14.136613Z}
@@ -658,7 +659,7 @@ derived_priorities (
     {id graph-unicode-alias-collisions, priority 3, derived_at 2026-09-07T22:03:19.945209Z}
     {id graph-via-as, priority 0, derived_at 2026-10-24T06:20:32.099314Z}
     {id grouped, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
-    {id ident-oracle-disjoint-sites, priority 3, derived_at 2026-11-04T23:26:07.500509Z}
+    {id ident-oracle-disjoint-sites, priority 3, derived_at 2026-11-04T23:38:41.404888Z}
     {id ident-oracle-load-flake, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id identifier-bypass-surfaces, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id identifier-render-oracle, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
@@ -718,7 +719,7 @@ derived_priorities (
     {id napi-connections, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
     {id napi-domain-entity-test, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id napi-entities, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
-    {id napi-listen-abort-race, priority 0, derived_at 2026-11-04T23:26:07.500509Z}
+    {id napi-listen-abort-race, priority 0, derived_at 2026-11-04T23:38:41.404888Z}
     {id napi-model-created-multirange, priority 0, derived_at 2026-11-01T03:02:37.492868Z}
     {id napi-model-range-operands, priority 0, derived_at 2026-11-01T13:23:50.339566Z}
     {id napi-models, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
@@ -1045,6 +1046,7 @@ assertions (
     {id binding-statement-defects, kind @complete, author "brendan@necessary.nu", at 2026-11-01T12:27:44.145896Z}
     {id binding-variant-coverage, kind @complete, author "brendan@necessary.nu", at 2026-11-01T03:02:50.884953Z}
     {id bindings-array-subquery, kind @complete, author "brendan@necessary.nu", at 2026-10-25T23:53:58.290968Z}
+    {id bindings-between-casts, kind @complete, author "brendan@necessary.nu", at 2026-11-04T23:37:56.777488Z}
     {id bindings-copy-created-multiranges, kind @complete, author "brendan@necessary.nu", at 2026-10-26T10:21:29.151829Z}
     {id bindings-expression-gaps, kind @complete, author "brendan@necessary.nu", at 2026-10-26T17:15:31.190363Z}
     {id bindings-tx-closure-only, kind @complete, author "brendan@necessary.nu", at 2026-10-25T23:17:55.346864Z}
@@ -1236,6 +1238,7 @@ assertions (
     {id napi-connections, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:52:18.239639Z}
     {id napi-domain-entity-test, kind @complete, author "brendan@necessary.nu", at 2026-10-18T22:48:59.551771Z}
     {id napi-entities, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:52:18.606333Z}
+    {id napi-listen-abort-race, kind @complete, author "brendan@necessary.nu", at 2026-11-05T01:02:52.49869Z}
     {id napi-model-created-multirange, kind @complete, author "brendan@necessary.nu", at 2026-11-01T12:27:44.342793Z}
     {id napi-model-range-operands, kind @complete, author "brendan@necessary.nu", at 2026-11-01T13:23:56.003973Z}
     {id napi-models, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:52:18.515554Z}
@@ -1287,6 +1290,7 @@ assertions (
     {id pgparse.sql-macro, kind @complete, author "brendan@necessary.nu", at 2026-09-02T16:54:19.194709Z}
     {id pipeline-append-distinct, kind @complete, author "brendan@necessary.nu", at 2026-09-23T21:59:17.384305Z}
     {id pipeline-bare-dollar-names, kind @complete, author "brendan@necessary.nu", at 2026-09-24T21:45:40.062525Z}
+    {id pipeline-created-range-bind, kind @complete, author "brendan@necessary.nu", at 2026-11-05T00:16:27.994273Z}
     {id pipeline-hidden-order, kind @complete, author "brendan@necessary.nu", at 2026-09-15T12:40:05.303529Z}
     {id pipeline-hostile-identifiers, kind @complete, author "brendan@necessary.nu", at 2026-09-09T14:03:56.770605Z}
     {id pipeline-identifier-quoting-own, kind @complete, author "brendan@necessary.nu", at 2026-09-21T18:22:06.162426Z}
@@ -1296,6 +1300,7 @@ assertions (
     {id pipeline-rejects-backtick-name, kind @complete, author "brendan@necessary.nu", at 2026-09-16T23:33:44.99552Z}
     {id pipeline-renamed-column-order, kind @complete, author "brendan@necessary.nu", at 2026-09-15T00:59:38.820334Z}
     {id pipeline-untyped-enum-casts, kind @complete, author "brendan@necessary.nu", at 2026-10-25T23:33:44.800678Z}
+    {id pipeline-untyped-money-compare, kind @complete, author "brendan@necessary.nu", at 2026-11-04T23:53:59.610858Z}
     {id pipeline-unused-parameters, kind @complete, author "brendan@necessary.nu", at 2026-09-06T12:16:03.581143Z}
     {id polish.bare-gates, kind @complete, author "brendan@necessary.nu", at 2026-09-03T22:43:45.696061Z}
     {id polish.conn-acquire, kind @complete, author "brendan@necessary.nu", at 2026-09-02T01:17:54.023277Z}
@@ -2491,6 +2496,11 @@ impl_evidence (
     ), covered_claims (
         {impl_name main, rule pipeline.select-sources}
     )}
+    {id python-bind-refusal-text, covered_rules (
+        error.model.bind-refusal
+    ), covered_claims (
+        {impl_name main, rule error.model.bind-refusal}
+    )}
     {id python-binding-decisions, covered_rules (
         bindings.argument-errors
         bindings.operands
@@ -2517,9 +2527,6 @@ impl_evidence (
     ), covered_claims (
         {impl_name python, rule bindings.column-operators}
         {impl_name python, rule bindings.model-columns}
-    ), rule_versions_seen (
-        {id bindings.column-operators, version 1}
-        {id bindings.model-columns, version 1}
     )}
     {id python-model-gaps, covered_rules (
         bindings.cursors

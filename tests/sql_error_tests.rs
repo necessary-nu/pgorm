@@ -125,6 +125,51 @@ async fn sql_error_classification() {
     ctx.delete().await;
 }
 
+// [spec:pgorm:sem:error.model.bind-refusal/test]    a value its parameter's type refuses is a
+// BindRefusal naming the parameter by its placeholder and carrying pgorm's reason, its Display the
+// text the bindings report, and a refusal the server makes is none
+#[pgorm_macros::test]
+async fn bind_refusal_names_the_parameter_and_reason() {
+    use pgorm::{BindRefusal, DecodeRaw, pgorm_query::Values};
+
+    let ctx = TestContext::new("bind_refusal").await;
+    let db = ctx.db.get().await.unwrap();
+
+    let statement = "SELECT $1::int8 AS a, $2::int4 AS n";
+    let values = Values(vec![Value::from(1i64), Value::from("one")]);
+    let error = (statement, values)
+        .into_tuple::<(i64, i32)>()
+        .one(&db)
+        .await
+        .expect_err("a String has no int4 to bind as");
+    let refusal: BindRefusal = error.bind_refusal().expect("a bind refusal");
+    assert_eq!(
+        (refusal.parameter, refusal.reason.as_deref()),
+        (
+            2,
+            Some("cannot bind a `String` value to Postgres type `int4`")
+        )
+    );
+    assert_eq!(
+        refusal.to_string(),
+        "parameter $2 cannot be bound: cannot bind a `String` value to Postgres type `int4`"
+    );
+
+    let overflow = (
+        "SELECT $1::int4 + 2147483647 AS n",
+        Values(vec![Value::from(1i32)]),
+    )
+        .into_tuple::<i32>()
+        .one(&db)
+        .await
+        .expect_err("the server refuses the overflow");
+    assert_eq!(overflow.bind_refusal(), None);
+    assert_eq!(Error::RecordNotFound.bind_refusal(), None);
+
+    drop(db);
+    ctx.delete().await;
+}
+
 // [spec:pgorm:sem:error.model.sql-class+4/test]    the payload is the server DbError's message and names
 #[pgorm_macros::test]
 async fn sql_error_payload_carries_server_message() {

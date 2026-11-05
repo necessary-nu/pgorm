@@ -1,3 +1,4 @@
+use pgorm::pgorm_query::Value;
 use pyo3::{
     basic::CompareOp,
     exceptions::PyTypeError,
@@ -7,7 +8,7 @@ use pyo3::{
 use std::sync::Arc;
 
 use super::{
-    backend::{Comparison, EntityBackend, Members},
+    backend::{Between, Comparison, EntityBackend, Members},
     metadata::EntityInfo,
 };
 use crate::{
@@ -17,9 +18,10 @@ use crate::{
 };
 
 /// A registered entity's column, itself the column's expression: every
-/// `Expr` method reads it as written, and its comparisons and membership are
-/// the column's own `ColumnTrait` methods.
-// [spec:pgorm:req:bindings.column-operators+1]
+/// `Expr` method reads it as written, and its comparisons, `[NOT] BETWEEN
+/// [SYMMETRIC]`, `IS [NOT] DISTINCT FROM` and membership are the column's own
+/// `ColumnTrait` methods.
+// [spec:pgorm:req:bindings.column-operators+2]
 #[derive(Clone, Debug)]
 #[pyclass(name = "EntityColumn", module = "pgorm", frozen, from_py_object, extends = PyExpr)]
 pub struct PyEntityColumn {
@@ -40,10 +42,71 @@ impl PyEntityColumn {
             .add_subclass(Self { entity, name }))
     }
 
-    fn comparison(&self, value: &Bound<'_, PyAny>, op: Comparison) -> PyResult<PyExpr> {
-        let value = self.entity.info().column(&self.name)?.input.coerce(value)?;
+    /// `[NOT] BETWEEN [SYMMETRIC]` through the column's `ColumnTrait`, each
+    /// bound converted to the column's declared kind as a compared value is.
+    /// A bound that is an expression leaves the test to `Expr`'s, both bounds
+    /// taken as written.
+    // [spec:pgorm:req:bindings.column-operators+2]
+    fn bounded(
+        &self,
+        lower: &Bound<'_, PyAny>,
+        upper: &Bound<'_, PyAny>,
+        between: Between,
+    ) -> PyResult<PyExpr> {
+        if lower.is_instance_of::<PyExpr>() || upper.is_instance_of::<PyExpr>() {
+            let expr = self.expr()?;
+            return match between.negated {
+                false => expr.between(lower, upper, between.symmetric),
+                true => expr.not_between(lower, upper, between.symmetric),
+            };
+        }
+        let (lower, upper) = (self.compared(lower)?, self.compared(upper)?);
         self.entity
-            .compare(&self.name, op, value.inner)
+            .between(&self.name, between, lower, upper)
+            .map(PyExpr::from_rust)
+            .map_err(|error| ConstructionError::new_err(error.to_string()))
+    }
+
+    /// `IS [NOT] DISTINCT FROM` through the column's `ColumnTrait`, a value
+    /// converted as a compared value is and an expression taken as written.
+    // [spec:pgorm:req:bindings.column-operators+2]
+    fn distinct(&self, other: &Bound<'_, PyAny>, negated: bool) -> PyResult<PyExpr> {
+        if !other.is_instance_of::<PyExpr>() {
+            let op = match negated {
+                false => Comparison::IsDistinctFrom,
+                true => Comparison::IsNotDistinctFrom,
+            };
+            return self.comparison(other, op);
+        }
+        let expr = self.expr()?;
+        match negated {
+            false => expr.is_distinct_from(other),
+            true => expr.is_not_distinct_from(other),
+        }
+    }
+
+    /// `value` converted to the column's declared kind as a comparison takes
+    /// it. `None` is refused: no comparison with NULL holds.
+    fn compared(&self, value: &Bound<'_, PyAny>) -> PyResult<Value> {
+        if value.is_none() {
+            return Err(ConstructionError::new_err(format!(
+                "{} compared with None is never true: test it with is_null()",
+                self.name
+            )));
+        }
+        Ok(self
+            .entity
+            .info()
+            .column(&self.name)?
+            .input
+            .coerce(value)?
+            .inner)
+    }
+
+    fn comparison(&self, value: &Bound<'_, PyAny>, op: Comparison) -> PyResult<PyExpr> {
+        let value = self.compared(value)?;
+        self.entity
+            .compare(&self.name, op, value)
             .map(PyExpr::from_rust)
             .map_err(|error| crate::errors::ConstructionError::new_err(error.to_string()))
     }
@@ -109,6 +172,33 @@ impl PyEntityColumn {
     }
     fn lte(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
         self.comparison(other, Comparison::Le)
+    }
+
+    #[pyo3(signature = (lower, upper, *, symmetric=false))]
+    fn between(
+        &self,
+        lower: &Bound<'_, PyAny>,
+        upper: &Bound<'_, PyAny>,
+        symmetric: bool,
+    ) -> PyResult<PyExpr> {
+        let negated = false;
+        self.bounded(lower, upper, Between { negated, symmetric })
+    }
+    #[pyo3(signature = (lower, upper, *, symmetric=false))]
+    fn not_between(
+        &self,
+        lower: &Bound<'_, PyAny>,
+        upper: &Bound<'_, PyAny>,
+        symmetric: bool,
+    ) -> PyResult<PyExpr> {
+        let negated = true;
+        self.bounded(lower, upper, Between { negated, symmetric })
+    }
+    fn is_distinct_from(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        self.distinct(other, false)
+    }
+    fn is_not_distinct_from(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        self.distinct(other, true)
     }
 
     fn is_in(&self, values: &Bound<'_, PyAny>) -> PyResult<PyExpr> {

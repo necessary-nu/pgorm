@@ -34,7 +34,7 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Surface
 
-> [spec:pgorm:req:pipeline.surface+3]
+> [spec:pgorm:req:pipeline.surface+4]
 > A `Pipeline` is constructed by `from(impl IntoSource)` or
 > `from_schema(schema, table)` — the only entry points, so a sourceless
 > pipeline is unrepresentable — and grown one whole transform at a time:
@@ -94,9 +94,14 @@ of the crate, compiled in every build. Rules are grouped under
 > (rendered `IS [NOT] NULL`), `in_array` over any `IntoIterator` (rendered
 > `IN (...)`, members may be literals or bound placeholders), `cast` over the
 > closed `CastType` enum (rendered `CAST(x AS t)`; closed because the type
-> name reaches the SQL text verbatim), `compares_as(enum_type)`, naming the
-> enum a column with no entity behind it compares as
-> (`[spec:pgorm:sem:entity.traits.column.enum-cast]`), `as_(name)`, and
+> name reaches the SQL text verbatim), `compares_as(type)`, naming the type
+> a column with no entity behind it compares as — the enum a domain is over,
+> `money` — so that each comparison, `in_array` and `coalesce` casts the
+> column and every literal or bound value beside it to that type, as an
+> entity column of the type is cast
+> (`[spec:pgorm:sem:entity.traits.column.enum-cast]`): a `money` column read
+> by name compares with a `Decimal` under `compares_as(money)`, which the
+> server would otherwise refuse (`42883`, *money > numeric*), `as_(name)`, and
 > `desc()` / `asc()` for sort keys. Free functions supply
 > `case(arms, otherwise)` with a
 > mandatory fallback, `null()`, the aggregates (`sum` — which PRQL wraps as

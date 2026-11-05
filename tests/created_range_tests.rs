@@ -260,7 +260,7 @@ async fn create_the_range_types(db: &DatabaseConnection) -> Result<(), Error> {
 
 /// A table built from the entity names each created type in full, quoted
 /// where the name needs it, and the server takes it.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 // [spec:pgorm:sem:macros.derive.created-range+2/test]
 async fn the_table_names_each_created_type(db: &DatabaseConnection) -> Result<(), Error> {
     let schema = Schema::new();
@@ -296,7 +296,7 @@ fn measure(id: i32) -> measures::Model {
 /// Every subtype is written by an entity insert, its text bound and cast by
 /// name, and read back from the range's binary form by its select; a NULL of
 /// a created range type round-trips too.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 // [spec:pgorm:def:exec.decode.range+3/test]
 async fn every_subtype_round_trips_through_an_entity(db: &DatabaseConnection) -> Result<(), Error> {
     let written = measure(1);
@@ -353,7 +353,7 @@ async fn every_subtype_round_trips_through_an_entity(db: &DatabaseConnection) ->
 
 /// A value cast to its type renders as an escaped literal inline and as a
 /// `text` parameter bound, and the two are one value — the value written.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Result<(), Error> {
     let floats = [
         Range::from(1.5..2.5),
@@ -391,7 +391,7 @@ async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Resul
 
 /// The server's own text for a value reads back as the value written, and
 /// for a continuous range whose bounds print alike it is the text written.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 async fn the_canonical_text_reads_back_as_written(db: &DatabaseConnection) -> Result<(), Error> {
     async fn canonical(db: &DatabaseConnection, expr: SimpleExpr) -> Result<String, Error> {
         let query = select(expr.cast_as_type(TypeName::new(n("text"))));
@@ -443,7 +443,7 @@ async fn the_canonical_text_reads_back_as_written(db: &DatabaseConnection) -> Re
 /// A bound holding the range literal's own syntax, the SQL string's, or a
 /// placeholder's is written and read back as the text it is, by entity insert
 /// and by both renderings of a cast.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 async fn a_bound_holding_range_syntax_stays_data(db: &DatabaseConnection) -> Result<(), Error> {
     let hostile = [
         "'); DROP TABLE measures; --",
@@ -491,10 +491,11 @@ async fn a_bound_holding_range_syntax_stays_data(db: &DatabaseConnection) -> Res
 }
 
 /// A built-in `int4range` value written to a column of a range type created
-/// over `int4` is turned into its text and cast, on both renderings. Written
+/// over `int4` is turned into its text and cast, on both renderings, and a
+/// pipeline binds one compared with the column through its text too. Written
 /// as the built-in it is, it is refused: there is no cast between two range
 /// types.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 async fn a_builtin_range_value_reaches_a_created_type(
     db: &DatabaseConnection,
 ) -> Result<(), Error> {
@@ -545,6 +546,45 @@ async fn a_builtin_range_value_reaches_a_created_type(
         vec![3]
     );
 
+    let piped = {
+        use pgorm::pipeline::{ExprOps, Pipeline};
+        Pipeline::from(measures::Entity)
+            .filter_with(|binder| {
+                measures::Column::Slot
+                    .eq(binder.bind(Range::from(2..7)))
+                    .or(binder.bind(Range::from(1..2)).eq(measures::Column::Slot))
+            })
+            .select(measures::Column::Id)
+    };
+    let (sql, _) = piped.clone().into_sql().expect("the pipeline compiles");
+    assert_eq!(
+        sql,
+        "SELECT id FROM measures WHERE slot = CAST($1::int4range::text AS slot) \
+         OR CAST($2::int4range::text AS slot) = slot"
+    );
+    let ids = piped
+        .into_tuple::<i32>()
+        .expect("the pipeline compiles")
+        .all(db)
+        .await?;
+    assert_eq!(ids, vec![3]);
+    let untyped = {
+        use pgorm::pipeline::{ExprOps, Pipeline, col};
+        Pipeline::from(Name::runtime("measures"))
+            .filter_with(|binder| {
+                col(Name::runtime("measures"), Name::runtime("slot"))
+                    .compares_as(Slot::name())
+                    .eq(binder.bind(Range::from(2..7)))
+            })
+            .select(col(Name::runtime("measures"), Name::runtime("id")))
+    };
+    let ids = untyped
+        .into_tuple::<i32>()
+        .expect("the pipeline compiles")
+        .all(db)
+        .await?;
+    assert_eq!(ids, vec![3]);
+
     let builtin = select(Expr::val(Range::from(2..7)).cast_as_type(Slot::name()));
     let inline = (builtin.to_string(), Values(Vec::new()))
         .into_tuple::<Slot>()
@@ -566,7 +606,7 @@ async fn a_builtin_range_value_reaches_a_created_type(
 /// author the C function one needs — so it is continuous whatever its
 /// subtype: a range over `int4` keeps the bounds written, where `int4range`
 /// moves them.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 async fn a_created_range_over_int4_is_continuous(db: &DatabaseConnection) -> Result<(), Error> {
     for range in [Range::from(1..=5), Range::new(Excluded(1), Included(5))] {
         let (inline, bound) = both::<Slot>(db, &select(Slot(range.clone()).into_expr())).await?;
@@ -604,7 +644,7 @@ async fn a_column_reads_only_its_own_subtype(db: &DatabaseConnection) -> Result<
 /// What the server refuses, it refuses with its own code on both renderings:
 /// bounds out of order, a bound the subtype does not read, and one outside
 /// its range.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 async fn the_server_refuses_what_it_cannot_store(db: &DatabaseConnection) -> Result<(), Error> {
     let cases = [
         (

@@ -81,7 +81,7 @@ class ComparisonTests(unittest.TestCase):
             ).equal
         )
 
-    # [spec:pgorm:req:bindings.errors+3/test]
+    # [spec:pgorm:req:bindings.errors+4/test]
     def test_constraint_subclasses_satisfy_their_database_rejection(self):
         for sqlstate, subclass in c.DATABASE_SUBCLASS_BY_SQLSTATE.items():
             actual = {

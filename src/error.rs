@@ -284,6 +284,52 @@ impl SqlError {
     }
 }
 
+/// A value the driver refused to encode for one of a statement's parameters,
+/// while building the bind message and so before anything reached the
+/// server: which parameter, and why.
+///
+/// Its `Display` is `parameter $N cannot be bound: <reason>`, the text each
+/// language binding reports the refusal with.
+// [spec:pgorm:sem:error.model.bind-refusal]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct BindRefusal {
+    /// The one-based number of the parameter's `$N` placeholder.
+    pub parameter: usize,
+    /// The codec's refusal of the value — pgorm's own for a `Value` the
+    /// parameter's type cannot take — where the driver kept one.
+    pub reason: Option<String>,
+}
+
+impl BindRefusal {
+    /// The refusal `error` is, or `None` for any other failure.
+    // [spec:pgorm:sem:error.model.bind-refusal]
+    pub fn of(error: &tokio_postgres::Error) -> Option<Self> {
+        // tokio-postgres 0.7.18 has no public kind for an encode failure. Its
+        // top-level text names the phase and the zero-based position, and is
+        // read rather than a cause, whose text a caller's value can shape.
+        let index = error
+            .to_string()
+            .strip_prefix("error serializing parameter ")?
+            .parse::<usize>()
+            .ok()?;
+        Some(Self {
+            parameter: index + 1,
+            reason: std::error::Error::source(error).map(ToString::to_string),
+        })
+    }
+}
+
+impl std::fmt::Display for BindRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "parameter ${} cannot be bound", self.parameter)?;
+        match &self.reason {
+            Some(reason) => write!(f, ": {reason}"),
+            None => Ok(()),
+        }
+    }
+}
+
 /// An error after which re-running the whole transaction may succeed.
 ///
 /// Implemented for [`Error`]; implement it for a domain error type to use that
@@ -316,6 +362,17 @@ impl Error {
         };
         let code = db_error.code();
         *code == SqlState::T_R_SERIALIZATION_FAILURE || *code == SqlState::T_R_DEADLOCK_DETECTED
+    }
+
+    /// The value a statement's parameter refused, when this is that failure:
+    /// [`BindRefusal::of`] the driver's error, and `None` for any other
+    /// variant.
+    // [spec:pgorm:sem:error.model.bind-refusal]
+    pub fn bind_refusal(&self) -> Option<BindRefusal> {
+        match self {
+            Error::Postgres(e) => BindRefusal::of(e),
+            _ => None,
+        }
     }
 
     /// Classify an [`Error`] as a [`SqlError`], returning `None` when the error is

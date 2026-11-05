@@ -379,6 +379,58 @@ test("a registered entity's money columns bind and read as decimals", async () =
   );
 });
 
+// [spec:pgorm:req:bindings.column-operators+2/test]    a registered column's between, symmetric or
+// not, and its distinctness tests run through its ColumnTrait: a money column's bounds cast to money,
+// an enum's labels to the enum, and a column whose domain is over an enum tested as the enum, where
+// the column's plain expression is refused; an expression bound is taken as written, null never
+test("a registered column's between and distinctness tests compare under its casts", async () => {
+  await seed();
+  for (const [id, takings] of [[1, "12.35"], [2, "3"], [3, "7.5"]] as const) {
+    await Till.active().set("id", id).set("takings", new Decimal(takings)).insert(pool());
+  }
+  for (const [id, mood] of [[1, "calm"], [2, "busy"]] as const) {
+    await Parcel.active().set("id", id).set("mood", mood).set("codes", []).insert(pool());
+  }
+  const ids = async (query: { all(pool: Pool): Promise<readonly EntityRecord[]> }) =>
+    (await query.all(pool())).map((record) => record.id).sort();
+  const takings = Till.col("takings");
+  const [low, high] = [new Decimal("3"), new Decimal("8")];
+  assert.match(
+    takings.between(low, high).inspect().sql,
+    /BETWEEN CAST\(\$1::numeric AS money\) AND CAST\(\$2::numeric AS money\)/,
+  );
+  assert.deepStrictEqual(await ids(Till.find().where(takings.between(low, high))), [2, 3]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.notBetween(low, high))), [1]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.between(high, low))), []);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.between(high, low, { symmetric: true }))), [2, 3]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.notBetween(high, low, { symmetric: true }))), [1]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.isDistinctFrom(low))), [1, 3]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.isNotDistinctFrom(low))), [2]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.between(takings, takings))), [1, 2, 3]);
+
+  const mood = Account.col("mood");
+  assert.deepStrictEqual(await ids(Account.find().where(mood.between("busy", "busy"))), [2]);
+  assert.deepStrictEqual(await ids(Account.find().where(mood.notBetween("busy", "calm", { symmetric: true }))), []);
+  assert.deepStrictEqual(await ids(Account.find().where(mood.isDistinctFrom("busy"))), [1, 3]);
+  assert.deepStrictEqual(await ids(Account.find().where(mood.isNotDistinctFrom("busy"))), [2]);
+
+  const temper = Parcel.col("mood");
+  assert.deepStrictEqual(await ids(Parcel.find().where(temper.between("calm", "calm"))), [1]);
+  assert.deepStrictEqual(await ids(Parcel.find().where(temper.between("busy", "calm", { symmetric: true }))), [1, 2]);
+  assert.deepStrictEqual(await ids(Parcel.find().where(temper.isDistinctFrom("calm"))), [2]);
+  assert.deepStrictEqual(await ids(Parcel.find().where(temper.isNotDistinctFrom("busy"))), [2]);
+  const plain = statementCol("mood", { table: "parcels", schema: "napi_entities" });
+  for (const bare of [plain.between("calm", "busy"), plain.isDistinctFrom("calm")]) {
+    await assert.rejects(Parcel.find().where(bare).all(pool()), (error: unknown) => {
+      assert.ok(error instanceof DatabaseError, `expected a DatabaseError, got ${error}`);
+      assert.equal(error.sqlstate, "42883");
+      return true;
+    });
+  }
+  assert.throws(() => takings.between(null as never, high), refused(/compared with null is never true/));
+  assert.throws(() => takings.isDistinctFrom(null as never), refused(/compared with null is never true/));
+});
+
 // [spec:pgorm:req:bindings.entity-writes/test]
 test("a record's model converts and copies as Rust's does, and belongs to its entity", async () => {
   await seed();

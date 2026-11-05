@@ -61,7 +61,7 @@ impl PyPipelineExpr {
 
     /// An operand: a pipeline expression, or a value the stage that takes it
     /// binds. Only `literal()` writes a value into the SQL.
-    // [spec:pgorm:req:bindings.pipeline-expressions+2]
+    // [spec:pgorm:req:bindings.pipeline-expressions+3]
     // [spec:pgorm:req:bindings.operands]
     pub(super) fn coerce(value: &Bound<'_, PyAny>) -> PyResult<Self> {
         if let Ok(expression) = value.extract::<PyRef<'_, Self>>() {
@@ -208,10 +208,12 @@ impl PyPipelineExpr {
         )
     }
 
-    /// Compare this expression as the enum `type_name`, through Rust's
-    /// `ExprOps::compares_as`: what a column whose domain is over an enum
-    /// needs where no registration says so.
-    // [spec:pgorm:req:bindings.pipeline-expressions+2]
+    /// Compare this expression as the type `type_name`, through Rust's
+    /// `ExprOps::compares_as`: the column and each value compared with it
+    /// cast to the type, which a column whose domain is over an enum, or a
+    /// `money` column compared with a `Decimal`, needs where no registration
+    /// types it.
+    // [spec:pgorm:req:bindings.pipeline-expressions+3]
     fn compares_as(&self, type_name: PyRef<'_, PyTypeName>) -> PyResult<Self> {
         Self::compose(
             Recipe::ComparesAs(self.recipe.clone(), type_name.rust_type()),

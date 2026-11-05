@@ -82,7 +82,7 @@ class RegisteredTransactions(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(await self.pool.ping())
 
     # [spec:pgorm:req:bindings.cancellation/test]
-    # [spec:pgorm:req:bindings.errors+3/test]    a transaction whose connection was given up
+    # [spec:pgorm:req:bindings.errors+4/test]    a transaction whose connection was given up
     # refuses its next operation and its commit as closed, a LifecycleError, never the
     # ConstructionError an application's refusal is
     async def test_a_discarded_transaction_refuses_with_lifecycle_error(self):

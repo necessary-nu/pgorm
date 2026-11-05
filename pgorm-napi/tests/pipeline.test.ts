@@ -10,11 +10,13 @@ import {
   col as statementCol,
   ConstructionError,
   DatabaseError,
+  Decimal,
   DecodeError,
   Interval,
   LifecycleError,
   pipeline as pl,
   Pool,
+  Range,
   Table,
   TypeName,
   Value,
@@ -49,6 +51,11 @@ before(async () => {
       "CREATE DOMAIN app.cheerful AS app.mood",
       "CREATE TABLE app.lines (id int8 PRIMARY KEY, mood app.cheerful NOT NULL)",
       "INSERT INTO app.lines VALUES (1, 'calm'), (2, 'glad'), (3, 'calm'), (4, 'glad')",
+      "CREATE TABLE app.tills (id int8 PRIMARY KEY, takings money NOT NULL)",
+      "INSERT INTO app.tills VALUES (1, 12.35), (2, 3)",
+      "CREATE TYPE app.slot AS RANGE (subtype = int4)",
+      "CREATE TABLE app.bookings (id int8 PRIMARY KEY, seats app.slot NOT NULL)",
+      "INSERT INTO app.bookings VALUES (1, '[1,5)'), (2, '[7,9)')",
     ]
   ) {
     await pool().execute(sql);
@@ -87,7 +94,7 @@ test("a pipeline's stages run as any statement does, through each terminal", asy
   assert.equal(await pool().transaction((tx) => tx.execute(base.select(id))), 6);
 });
 
-// [spec:pgorm:req:bindings.pipeline-expressions+2/test]
+// [spec:pgorm:req:bindings.pipeline-expressions+3/test]
 // [spec:pgorm:req:bindings.operands/test]
 test("a value an operand is given is bound; only literal() writes one into the SQL", async () => {
   const awkward = "O'Brien; -- \\";
@@ -109,7 +116,7 @@ test("a value an operand is given is bound; only literal() writes one into the S
   assert.deepStrictEqual(await pool().query(cast), [{ spelled: "5", negated: -5 }]);
 });
 
-// [spec:pgorm:req:bindings.pipeline-expressions+2/test]    a column whose domain is over an enum,
+// [spec:pgorm:req:bindings.pipeline-expressions+3/test]    a column whose domain is over an enum,
 // read with no registration, compares as the schema-qualified enum comparesAs names, bound, listed,
 // coalesced, through an alias and in max, where each left bare is refused with 42883
 test("a column whose domain is over an enum compares as the enum it is named as", async () => {
@@ -120,7 +127,7 @@ test("a column whose domain is over an enum compares as the enum it is named as"
   const ids = async (pipeline: pl.Pipeline) => (await pool().query(pipeline.select(lineId).sort(lineId))).map((row) => row.id);
   assert.equal(
     lines.filter(typed.eq("glad")).inspect().sql,
-    "SELECT * FROM app.lines WHERE CAST(mood AS app.mood) = $1",
+    "SELECT * FROM app.lines WHERE CAST(mood AS app.mood) = CAST($1::text AS app.mood)",
   );
   assert.deepStrictEqual(await ids(lines.filter(typed.eq("glad"))), [2n, 4n]);
   assert.deepStrictEqual(await ids(lines.filter(typed.inArray(["calm", pl.literal("sad")]))), [1n, 3n]);
@@ -129,7 +136,7 @@ test("a column whose domain is over an enum compares as the enum it is named as"
   const named = m.comparesAs("mood");
   assert.equal(
     lines.derive(mood.as(m)).filter(named.eq(pl.literal("glad"))).inspect().sql,
-    "WITH table_0 AS (SELECT *, mood AS m FROM app.lines) SELECT * FROM table_0 WHERE CAST(m AS mood) = 'glad'",
+    "WITH table_0 AS (SELECT *, mood AS m FROM app.lines) SELECT * FROM table_0 WHERE CAST(m AS mood) = CAST('glad' AS mood)",
   );
   const highest = await pool().one(lines.group().aggregate(pl.max(typed).cast("text").as("highest")));
   assert.deepStrictEqual(highest, { highest: "glad" });
@@ -143,7 +150,39 @@ test("a column whose domain is over an enum compares as the enum it is named as"
   assert.throws(() => mood.comparesAs(5 as unknown as string), mistyped(/a TypeName/));
 });
 
-// [spec:pgorm:req:bindings.pipeline-expressions+2/test]
+// [spec:pgorm:req:bindings.pipeline-expressions+3/test]    a money column read with no registration
+// compares with a Decimal, bound or listed, as the money comparesAs names, where left bare the
+// Decimal cannot be bound to it
+test("a money column compares with a Decimal as the money it is named as", async () => {
+  const tills = pl.from(new Table("tills", { schema: "app" }));
+  const tillId = pl.col("tills", "id");
+  const takings = pl.col("tills", "takings").comparesAs("money");
+  const ids = async (pipeline: pl.Pipeline) => (await pool().query(pipeline.select(tillId).sort(tillId))).map((row) => row.id);
+  assert.equal(
+    tills.filter(takings.gt(new Decimal("5"))).inspect().sql,
+    "SELECT * FROM app.tills WHERE CAST(takings AS money) > CAST($1::numeric AS money)",
+  );
+  assert.deepStrictEqual(await ids(tills.filter(takings.gt(new Decimal("5")))), [1n]);
+  assert.deepStrictEqual(await ids(tills.filterWith((binder) => takings.lte(binder.bind(new Decimal("3"))))), [2n]);
+  assert.deepStrictEqual(await ids(tills.filter(takings.inArray([new Decimal("3"), new Decimal("12.35")]))), [1n, 2n]);
+  await assert.rejects(ids(tills.filter(pl.col("tills", "takings").gt(new Decimal("5")))), ConstructionError);
+});
+
+// [spec:pgorm:req:bindings.pipeline-expressions+3/test]    a built-in range bound in a pipeline and
+// compared with a created range's column, which comparesAs names, is written through its text
+test("a built-in range compared with a created range's column binds through its text", async () => {
+  const bookings = pl.from(new Table("bookings", { schema: "app" }));
+  const bookingId = pl.col("bookings", "id");
+  const seats = pl.col("bookings", "seats").comparesAs(new TypeName("slot", { schema: "app" }));
+  const range = new Value(new Range(1, 5), "int4range");
+  assert.equal(
+    bookings.filter(seats.eq(range)).inspect().sql,
+    "SELECT * FROM app.bookings WHERE CAST(seats AS app.slot) = CAST($1::int4range::text AS app.slot)",
+  );
+  assert.deepStrictEqual((await pool().query(bookings.filter(seats.eq(range)).select(bookingId))).map((row) => row.id), [1n]);
+});
+
+// [spec:pgorm:req:bindings.pipeline-expressions+3/test]
 test("an interval binds in a pipeline as any value does", async () => {
   const span = new Interval({ months: 1, days: -2, microseconds: 3_000_004n });
   const selected = base.filter(id.eq(1)).selectWith((binder) => [

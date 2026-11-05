@@ -2,7 +2,7 @@
 // are to theirs: the Rust test builds each with pgorm::pipeline directly,
 // every value a binder binds there bound by the same stage here.
 // [spec:pgorm:req:bindings.pipeline/test]
-// [spec:pgorm:req:bindings.pipeline-expressions+2/test]
+// [spec:pgorm:req:bindings.pipeline-expressions+3/test]
 // [spec:pgorm:req:bindings.pipeline-binder/test]
 
 import { type Builder, pipeline as pl, Table, TypeName, Value } from "../../lib/index.js";

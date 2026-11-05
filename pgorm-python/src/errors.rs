@@ -39,7 +39,7 @@ impl Redactions {
     }
 }
 
-// [spec:pgorm:req:bindings.errors+3]
+// [spec:pgorm:req:bindings.errors+4]
 pub(crate) fn database_error(error: pgorm::Error, secrets: &Redactions) -> PyErr {
     let mut source: &(dyn std::error::Error + 'static) = &error;
     loop {
@@ -86,7 +86,7 @@ fn postgres_error(error: &tokio_postgres::Error, secrets: &Redactions) -> PyErr 
         return client_error(error, secrets);
     };
     let message = secrets.apply(db.message());
-    // [spec:pgorm:req:bindings.errors+3]    the constraint classes pgorm's SqlError names
+    // [spec:pgorm:req:bindings.errors+4]    the constraint classes pgorm's SqlError names
     let exception = match db.code().code() {
         "23505" => UniqueViolationError::new_err(message.clone()),
         "23503" => ForeignKeyViolationError::new_err(message.clone()),
@@ -119,6 +119,7 @@ fn postgres_error(error: &tokio_postgres::Error, secrets: &Redactions) -> PyErr 
     }
 }
 
+// [spec:pgorm:req:bindings.errors+4]
 fn client_error(error: &tokio_postgres::Error, secrets: &Redactions) -> PyErr {
     // Pinned tokio-postgres 0.7.18 exposes no public error-kind accessor for
     // FromSql/ToSql failures. Its top-level Display identifies the phase;
@@ -131,8 +132,8 @@ fn client_error(error: &tokio_postgres::Error, secrets: &Redactions) -> PyErr {
         || phase == "query returned an unexpected number of columns"
     {
         DecodeError::new_err(secrets.apply(&phase))
-    } else if phase.starts_with("error serializing parameter ") {
-        ConstructionError::new_err(secrets.apply(&phase))
+    } else if let Some(refusal) = pgorm::BindRefusal::of(error) {
+        ConstructionError::new_err(secrets.apply(&refusal.to_string()))
     } else {
         ConnectionError::new_err("PostgreSQL connection or protocol failure")
     }

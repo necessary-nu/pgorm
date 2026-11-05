@@ -5,7 +5,7 @@
 // They are not the statement builders' expressions, and the two do not mix.
 // A value an operand is given is bound by the stage that takes it; only
 // `literal()` writes one into the SQL.
-// [spec:pgorm:req:bindings.pipeline-expressions+2]
+// [spec:pgorm:req:bindings.pipeline-expressions+3]
 
 import { arg, args, Handle, trusted, TRUSTED } from "./builder.js";
 import { registeredColumn } from "./entity-queries.js";
@@ -142,9 +142,10 @@ export class PipelineExpr extends Handle {
   }
 
   /**
-   * Compare this expression as the enum `type` names, as a registered column
-   * whose domain is over that enum compares: what such a column needs where
-   * no registration types it.
+   * Compare this expression as the type `type` names, as a registered column
+   * of that type compares: the column and each value compared with it cast
+   * to the type, which a column whose domain is over an enum, or a `money`
+   * column compared with a `Decimal`, needs where no registration types it.
    *
    * @param {string | import("./values.js").TypeName} type
    */

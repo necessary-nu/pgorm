@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, replace
 
 from .comparison import InvalidOracle
 from .reference_values import argument, qualified, quote, sql_type
-from .refusals import EMPTY_INSERT, UNSERIALIZABLE, unsigned_overflow
+from .refusals import EMPTY_INSERT, OUT_OF_RANGE, UNSERIALIZABLE, unsigned_overflow
 
 
 class Rejection(Exception):
@@ -50,8 +50,12 @@ def refuse(value, position):
     the bind message, before anything reaches the server. An array carrying
     such an element is one parameter and is refused whole.
     """
-    if unsigned_overflow(value):
-        raise Rejection("ConstructionError", UNSERIALIZABLE.format(position))
+    digits = unsigned_overflow(value)
+    if digits is not None:
+        refusal = OUT_OF_RANGE.format(digits, "int8")
+        raise Rejection(
+            "ConstructionError", UNSERIALIZABLE.format(position + 1, refusal)
+        )
 
 
 @dataclass(frozen=True)

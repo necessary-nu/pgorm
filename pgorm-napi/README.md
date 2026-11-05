@@ -814,8 +814,9 @@ await pool.query(top);
   entity types it), `pl.alias(name)` for a name a stage introduces,
   `pl.thisColumn` and `pl.thatColumn` for a join's sides, the comparison,
   logical and arithmetic methods, `coalesce`, `isNull`, `inArray`, `cast`,
-  `comparesAs(type)` — the enum a column whose domain is over one compares
-  as, which PostgreSQL needs and no catalog tells prqlc —, `as`, `asc`/`desc`,
+  `comparesAs(type)` — the type a column compares as, the column and each
+  value beside it cast to it: the enum a domain is over, or `money`, which
+  PostgreSQL needs and no catalog tells prqlc —, `as`, `asc`/`desc`,
   `pl.caseWhen`, the aggregates (`sum`, `min`, `max`, `average`, `stddev`,
   `count`, `countDistinct`, `countRows`) and the window functions
   (`rowNumber`, `rank`, `rankDense`, `lag`, `lead`, `first`, `last`) over

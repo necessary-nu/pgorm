@@ -137,7 +137,8 @@ pub(super) fn typed_cast(column: PlExpr, cast: &pgorm_query::TypeName) -> PlExpr
 /// type from the cast's target where nothing pins it, and the driver would
 /// then send the value in a form that type does not read, as
 /// `sql.render.cast-param-type` explains of a statement's placeholder. A pin
-/// is one of the fixed names `Value::source_type_name` gives.
+/// is one of the fixed names `Value::source_type_name` gives, or such a name
+/// followed by `::text` for a range read through its text.
 // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
 pub(super) fn pinned_cast(
     operand: PlExpr,

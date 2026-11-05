@@ -150,7 +150,7 @@ impl Recipe {
 
     /// The pgorm expression, or `None` where a value or placeholder needs a
     /// binder the lowering does not have.
-    // [spec:pgorm:req:bindings.pipeline-expressions+2]
+    // [spec:pgorm:req:bindings.pipeline-expressions+3]
     // [spec:pgorm:req:bindings.operands]
     pub(super) fn lower<'brand>(
         &self,

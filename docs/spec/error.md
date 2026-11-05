@@ -107,3 +107,24 @@ it.
 > and `constraint()`. An `Error::Postgres` with no server-side `DbError` (a
 > transport or protocol failure), any other SQLSTATE, and every
 > non-`Postgres` variant all yield `None`.
+
+## Bind refusals
+
+> [spec:pgorm:sem:error.model.bind-refusal]
+> `BindRefusal` is a value the driver refused to encode while building a
+> statement's bind message, before anything reached the server: `parameter`,
+> the one-based number of its `$N` placeholder, and `reason`, the codec's
+> refusal of the value where the driver kept one — pgorm's own for a `Value`
+> the parameter's type cannot take (`exec.cursor.binding-accepts`), such as
+> ``cannot bind a `Decimal` value to Postgres type `money` `` or
+> ``value `9223372036854775808` is out of range for Postgres type `int8` ``.
+> `BindRefusal::of(&tokio_postgres::Error)` is the classifier, `None` for any
+> other failure: tokio-postgres 0.7.18 exposes no public kind for an encode
+> failure, so it reads the phase and the zero-based position off the error's
+> top-level text (`error serializing parameter N`), never off a cause, whose
+> text the value can shape, and takes the reason from the error's source.
+> `Error::bind_refusal()` applies it to `Error::Postgres` and yields `None`
+> for every other variant. Its `Display` is `parameter $N cannot be bound:`
+> followed by the reason, or the first part alone; each language binding
+> reports a refusal with exactly that text (`bindings.errors`). The struct is
+> `#[non_exhaustive]`.

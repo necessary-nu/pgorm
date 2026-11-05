@@ -104,7 +104,7 @@ option.
 > the runtime: an operation that does I/O is awaited in the language's own
 > asynchronous form (`python.runtime`, `napi.promises`).
 
-> [spec:pgorm:req:bindings.errors+3]
+> [spec:pgorm:req:bindings.errors+4]
 > Each binding MUST report a failure as an instance of its own error classes,
 > all derived from one base class of the binding and from the language's own
 > base error:
@@ -123,7 +123,10 @@ option.
 > - `ConnectionError` when the server cannot be reached or the connection
 >   breaks;
 > - `ConstructionError` for an argument whose value cannot become what pgorm
->   sends;
+>   sends; one its parameter's type refuses as the driver encodes it is
+>   reported with pgorm's `BindRefusal` text (`error.model.bind-refusal`),
+>   `parameter $1 cannot be bound:` followed by pgorm's reason, the same text
+>   in each binding;
 > - `DecodeError` for a result that cannot become the native value asked for,
 >   a wrong row count among them (`bindings.row-count`);
 > - `LifecycleError` for a pool, connection, transaction, stream or listener
@@ -1022,7 +1025,7 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > `all(..)` beside a comparison, is taken as written; a `Value` only of the
 > field's own kind; and null never, which `is_null()` tests.
 
-> [spec:pgorm:req:bindings.column-operators+1]
+> [spec:pgorm:req:bindings.column-operators+2]
 > A model's column and a registered entity's column MUST each be an
 > expression: every expression method applies to it, reading the column as
 > written, and it goes wherever an expression goes. A model column's other
@@ -1031,9 +1034,18 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > and `overlaps`, and `strictly_left_of`, `strictly_right_of`,
 > `not_extend_right_of`, `not_extend_left_of` and `adjacent_to` — MUST
 > convert their values as the column's comparisons do
-> (`bindings.model-columns`). Every other method takes its operands as
-> `bindings.expressions` does, and a registered column's comparisons are
-> those `bindings.entity-reads` names. Neither column describes itself: a
+> (`bindings.model-columns`). A registered column's `between` and
+> `not_between`, `SYMMETRIC` or not, and its `is_distinct_from` and
+> `is_not_distinct_from` MUST be its `ColumnTrait`'s methods of the same
+> meaning: each value converted as its comparisons convert one
+> (`bindings.entity-reads`) and compared under the same casts, so a bound
+> compared with a `money` column is cast to `money` and a column whose
+> domain is over an enum is tested as the enum, where a bound left bare
+> would reach no operator (`42883`) or bind as a type it is not. A bound or
+> value that is an expression takes the whole test as written, and null is
+> refused. Every other method takes its operands as `bindings.expressions`
+> does, and a registered column's comparisons are those
+> `bindings.entity-reads` names. Neither column describes itself: a
 > model column's declaration is read through its model's `describe()`
 > (`bindings.models`), and a registered column's through its registration's
 > (`bindings.entities`).
@@ -1562,7 +1574,7 @@ placeholders belong to the stage that minted them.
 > `ConstructionError` from `inspect()` or the terminal, before anything is
 > sent.
 
-> [spec:pgorm:req:bindings.pipeline-expressions+2]
+> [spec:pgorm:req:bindings.pipeline-expressions+3]
 > Pipeline expressions MUST be objects of their own, lowered into
 > `pgorm::pipeline::Expr` only as a stage takes them, never mixed with the
 > statement builders' expressions: `col(table, column)`, qualified as prqlc
@@ -1571,8 +1583,10 @@ placeholders belong to the stage that minted them.
 > `lte`, and, or, not, negation, `add` .. `rem`, `coalesce`, `is_null`,
 > `is_not_null`, `in_array`, `cast` over pgorm's closed `CastType` set, `as`,
 > `asc` and `desc`; `compares_as(type)`, a name or a `TypeName`, lowered
-> through `ExprOps::compares_as`, the enum a column no registration types
-> compares as (`entity.traits.column.enum-cast`); `case(arms, otherwise)`;
+> through `ExprOps::compares_as`, the type a column no registration types
+> compares as — the enum a domain is over, `money` — the column and each
+> value compared with it cast to it (`pipeline.surface`); `case(arms,
+> otherwise)`;
 > and the aggregates and window functions pgorm's pipeline has, each at the
 > argument count it takes. `over()` builds a window's partition, ordering
 > and ROWS or RANGE frame, and takes no value, bound or not, as pgorm's `Over`

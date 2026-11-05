@@ -12773,12 +12773,27 @@ children (
                 id napi-listen-abort-race
                 title "Aborting a JavaScript listener's in-flight listen always rejects it and closes the listener"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-03T18:09:52.13362Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Failed once in CI on PR #25 (linux-x86_64 / Node.js 26, run 41687791212), on code no lane touched; passed on the same code locally and in PR #24. pgorm-napi/tests/listen.test.ts \"an aborted pull leaves the listener open; an aborted listen closes it\": `const listening = listener.listen(\"napi_uncertain\", { signal: cut.signal }); cut.abort(new Error(\"cut off\")); await assert.rejects(listening, /cut off/)` got \"Missing expected rejection\", so the listen resolved. The abort fires synchronously, before any native completion can be delivered to JavaScript, so if the binding registered its abort handler before returning, the abort should always win. Look for the binding checking a native in-flight flag that the worker thread clears on completion, or registering the handler after an await, and make an abort that fires before the promise settles always reject it and close the listener (the LISTEN's effect is uncertain). Then repeat the test (e.g. 1000 iterations) to show the race is gone."
+                    }
+
+                    {
+                        at 2026-11-05T00:52:38.750696Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T01:02:52.49869Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -17508,12 +17523,20 @@ children (
                 title "between on a binding's registered column binds its values under the column's casts"
                 kind @fix
                 deps (money-beyond-entities)
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:26.919675Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by money-beyond-entities: `between` on a binding's registered column goes through the plain expression method rather than ColumnTrait's, so its values bind bare instead of under the column's save_as cast, and a money column refuses them. Every value predicate on a registered column should take ColumnTrait's casts (the Rust rule: every value predicate carries save_as casts, between included); check the other predicates the bindings route the same way."
+                    }
+
+                    {
+                        at 2026-11-04T23:37:56.777488Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -17523,12 +17546,34 @@ children (
                 title "A pipeline column read without an entity that holds money compares with a Decimal"
                 kind @fix
                 deps (money-beyond-entities)
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:29.553638Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by money-beyond-entities: a pipeline column read by name, with no entity behind it, that holds money refuses a Decimal compared with it (the bind is pinned to numeric, and money = numeric has no operator, 42883). The only route is `compares_as(\"numeric\")`, which is undocumented. Decide in the rule whether an untyped column learns its type (as pipeline-untyped-enum-casts did for enums) or compares_as is the documented answer, then document and test it."
+                    }
+
+                    {
+                        at 2026-11-04T23:39:25.695045Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:45:12.686823Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "The mechanism pipeline-untyped-enum-casts gave untyped columns generalises, so it is used rather than documenting compares_as(\"numeric\"). That mechanism is the caller naming the type an untyped column compares as (ExprOps::compares_as). An entity column carries two casts: compares_as (the column, cast to the enum when its domain is over one) and values_as (each literal or bound value compared with it, as ColumnTrait::compared_value casts it: an enum, money, a created range, a domain, a save_as type). compares_as(T) set only the first, so it reached the domain-over-enum case and nothing else: a money column named by text left a Decimal bare (money > numeric, 42883; probed on PG 18.6). compares_as(T) now sets both to T, so an untyped column compares exactly as an entity column whose ColumnTrait casts its values to T: compares_as(money) gives CAST(takings AS money) > CAST($1::numeric AS money). The cast of a column already of type T is free: EXPLAIN VERBOSE on PG 18.6 shows CAST(m AS money) and CAST(e AS mood) dropped from the filter. This also makes the domain-over-enum case match entity-cast's text ('the operators then cast it as they cast an entity column so typed'), which the old code did not for values. It covers every save_as that is a cast of the value; a save_with function writing anything else has no type to name, as for entity columns. compares_as(\"numeric\") keeps working (column and values cast to numeric). Rules revised: pipeline.surface v4, bindings.pipeline-expressions v3; enum-cast v15 left as is (still true). Created ranges need pipeline-created-range-bind's bind fix before compares_as(created) helps a bound Range."
+                    }
+
+                    {
+                        at 2026-11-04T23:53:59.610858Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -17537,12 +17582,27 @@ children (
                 id pipeline-created-range-bind
                 title "A bound Range compared with a created-range column in a pipeline binds under the created type"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:32.280341Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by money-beyond-entities (pre-existing, fails before that change too): in a pipeline, a bound Range compared with a column of a range type the schema created is pinned to its built-in range type, which doesn't cast to the created type, so the comparison fails. ColumnTrait avoids this by writing the value as text under the created type's cast; the pipeline should bind the same way."
+                    }
+
+                    {
+                        at 2026-11-04T23:56:07.113885Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:16:27.994273Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -17551,6 +17611,9 @@ children (
                 id python-bind-refusal-text
                 title "Python reports pgorm's bind refusal text, as JavaScript does, not \"error serializing parameter 0\""
                 kind @fix
+                implements {
+                    main ([spec:pgorm:sem:error.model.bind-refusal])
+                }
                 deps (money-beyond-entities)
                 log (
                     {
@@ -17558,6 +17621,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by money-beyond-entities: binding a value a column's type refuses (e.g. a Decimal to a money parameter where no cast applies) reports in Python as tokio-postgres's \"error serializing parameter 0\", while JavaScript reports pgorm's \"cannot bind a `Decimal` value to Postgres type `money`\". The Python error path loses the source error's text; carry it as JavaScript does, with a test in each binding asserting the message."
+                    }
+
+                    {
+                        at 2026-11-05T00:20:42.999496Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
                     }
                 )
             }
