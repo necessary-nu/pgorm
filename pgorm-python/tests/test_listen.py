@@ -30,7 +30,7 @@ async def listening_pid(executor, channel):
 
 
 class ListenerSurface(unittest.TestCase):
-    # [spec:pgorm:req:bindings.listen+2/test]    listeners come from a pool
+    # [spec:pgorm:req:bindings.listen+3/test]    listeners come from a pool
     # [spec:pgorm:req:python.truth-testing+4/test]    neither Listener nor Notification is a boolean
     def test_listener_objects_refuse_truth_testing(self):
         with self.assertRaises(TypeError):
@@ -48,7 +48,7 @@ class ListenerExecution(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         await asyncio.wait_for(self.pool.close(), 2)
 
-    # [spec:pgorm:req:bindings.listen+2/test]    a committed transaction's notification arrives with its sender
+    # [spec:pgorm:req:bindings.listen+3/test]    a committed transaction's notification arrives with its sender
     async def test_committed_notification_arrives_with_sender(self):
         async with await self.pool.listener() as listener:
             await listener.listen("py_jobs")
@@ -69,7 +69,7 @@ class ListenerExecution(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.pool.status().size, 1, "the listener took no pooled connection")
         self.assertTrue(listener.closed)
 
-    # [spec:pgorm:req:bindings.listen+2/test]    a rollback discards its notification, which a later one fences
+    # [spec:pgorm:req:bindings.listen+3/test]    a rollback discards its notification, which a later one fences
     async def test_rolled_back_notification_never_arrives(self):
         async with await self.pool.listener() as listener:
             await listener.listen("py_rollback")
@@ -83,7 +83,7 @@ class ListenerExecution(unittest.IsolatedAsyncioTestCase):
                 await connection.notify("py_rollback", "fence")
             self.assertEqual(await received(listener), ("py_rollback", "fence"))
 
-    # [spec:pgorm:req:bindings.listen+2/test]    commit order, sending order, duplicates folded
+    # [spec:pgorm:req:bindings.listen+3/test]    commit order, sending order, duplicates folded
     async def test_notifications_arrive_in_commit_order(self):
         async with await self.pool.listener() as listener:
             await listener.listen("py_order")
@@ -98,7 +98,7 @@ class ListenerExecution(unittest.IsolatedAsyncioTestCase):
                 ["first committed", "1", "2", "3"],
             )
 
-    # [spec:pgorm:req:bindings.listen+2/test]    unlisten and unlisten_all stop delivery
+    # [spec:pgorm:req:bindings.listen+3/test]    unlisten and unlisten_all stop delivery
     async def test_unlisten_stops_delivery(self):
         async with await self.pool.listener() as listener:
             await listener.listen("py_unlisten")
@@ -115,7 +115,7 @@ class ListenerExecution(unittest.IsolatedAsyncioTestCase):
             await self.pool.notify("py_after", "2")
             self.assertEqual(await received(listener), ("py_after", "2"))
 
-    # [spec:pgorm:req:bindings.listen+2/test]    a channel is exact; a long or non-text name is refused before sending
+    # [spec:pgorm:req:bindings.listen+3/test]    a channel is exact; a long or non-text name is refused before sending
     async def test_quoted_channel_names_are_exact(self):
         odd = 'Py Mixed "quoted"; DROP'
         async with await self.pool.listener() as listener:
@@ -140,7 +140,7 @@ class ListenerExecution(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(TypeError):
                     await self.pool.notify(channel, payload)
 
-    # [spec:pgorm:req:bindings.listen+2/test]    the payload bound is the server's 22023
+    # [spec:pgorm:req:bindings.listen+3/test]    the payload bound is the server's 22023
     async def test_payload_limit_is_the_servers_error(self):
         async with await self.pool.listener() as listener:
             await listener.listen("py_payload")
@@ -150,7 +150,7 @@ class ListenerExecution(unittest.IsolatedAsyncioTestCase):
                 await self.pool.notify("py_payload", "p" * 8000)
             self.assertEqual(caught.exception.sqlstate, "22023")
 
-    # [spec:pgorm:req:bindings.listen+2/test]    a terminated connection raises its error after what had arrived
+    # [spec:pgorm:req:bindings.listen+3/test]    a terminated connection raises its error after what had arrived
     async def test_terminated_connection_ends_iteration(self):
         listener = await self.pool.listener()
         await listener.listen("py_doomed")
@@ -171,7 +171,7 @@ class ListenerExecution(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.LifecycleError):
             await listener.listen("py_doomed")
 
-    # [spec:pgorm:req:bindings.listen+2/test]    past its capacity the listener closes with ConnectionError
+    # [spec:pgorm:req:bindings.listen+3/test]    past its capacity the listener closes with ConnectionError
     async def test_overflow_closes_the_listener(self):
         listener = await self.pool.listener(capacity=2)
         await listener.listen("py_burst")
@@ -197,7 +197,7 @@ class ListenerExecution(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(StopAsyncIteration):
             await anext(listener)
 
-    # [spec:pgorm:req:bindings.listen+2/test]    a capacity is a positive whole number
+    # [spec:pgorm:req:bindings.listen+3/test]    a capacity is a positive whole number
     # [spec:pgorm:req:bindings.argument-errors+1/test]
     async def test_capacity_is_a_positive_int(self):
         for capacity in (0, -1, 2**64):
@@ -209,7 +209,7 @@ class ListenerExecution(unittest.IsolatedAsyncioTestCase):
         async with await self.pool.listener(capacity=1) as listener:
             self.assertFalse(listener.closed)
 
-    # [spec:pgorm:req:bindings.listen+2/test]    one pull at a time; listen runs beside it; a cancelled pull loses nothing
+    # [spec:pgorm:req:bindings.listen+3/test]    one pull at a time; listen runs beside it; a cancelled pull loses nothing
     # [spec:pgorm:req:bindings.cancellation/test]
     async def test_cancelled_pull_loses_nothing(self):
         async with await self.pool.listener() as listener:
@@ -228,8 +228,8 @@ class ListenerExecution(unittest.IsolatedAsyncioTestCase):
             await self.pool.notify("py_cancel", "kept")
             self.assertEqual(await received(listener), ("py_cancel", "kept"))
 
-    # [spec:pgorm:req:bindings.listen+2/test]    closing ends iteration; closing the pool closes its listeners
-    # [spec:pgorm:req:python.lifecycle+3/test]
+    # [spec:pgorm:req:bindings.listen+3/test]    closing ends iteration; closing the pool closes its listeners
+    # [spec:pgorm:req:python.lifecycle+4/test]
     async def test_close_and_pool_close_end_listeners(self):
         listener = await self.pool.listener()
         await listener.listen("py_close")

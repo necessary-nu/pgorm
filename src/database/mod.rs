@@ -249,21 +249,76 @@ pub fn connect_with_builder(
 ///
 /// Returns [`Error::Custom`] for the first entry whose builder cannot produce a
 /// pool; none of the pools is returned in that case.
-// [spec:pgorm:sem:conn.pool.multi+3]    per-tag pool construction
+// [spec:pgorm:sem:conn.pool.multi+4]    per-tag pool construction
 pub fn connect_multi_with_builder(
     config: Config,
     build: BTreeMap<String, Box<dyn Fn(PoolBuilder) -> PoolBuilder>>,
 ) -> Result<DatabaseMultiPool, Error> {
+    connect_multi_with(config, NoTls, simple_manager_config(None), build)
+}
+
+/// Method to create one [DatabasePool] per entry in `build` over every knob
+/// [`connect_with`] takes: each pool connects through `tls` with `manager`'s
+/// recycling method, statement cache and statement-cache channel, is tagged
+/// with its entry's key in place of `manager`'s own tag, and is shaped by its
+/// entry's closure. The pools are gathered into a [`DatabaseMultiPool`]
+/// keyed by those tags.
+///
+/// This is the general entry point [`connect_multi_with_builder`] is the
+/// plaintext shorthand for, and the only route to several pools that speak
+/// TLS.
+///
+/// ```no_run
+/// use std::collections::BTreeMap;
+///
+/// use pgorm::{ManagerConfig, NoTls, PoolBuilder, RecyclingMethod, connect_multi_with};
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let mut shapes: BTreeMap<String, fn(PoolBuilder) -> PoolBuilder> = BTreeMap::new();
+/// shapes.insert("web".to_owned(), |builder| builder.max_size(8));
+/// shapes.insert("jobs".to_owned(), |builder| builder.max_size(2));
+/// let manager = ManagerConfig {
+///     recycling_method: RecyclingMethod::Clean,
+///     ..ManagerConfig::default()
+/// };
+/// let pools = connect_multi_with(
+///     "postgres://postgres@localhost/example".parse()?,
+///     NoTls,
+///     manager,
+///     shapes,
+/// )?;
+/// assert_eq!(pools.get("jobs").map(|pool| pool.status().max_size), Some(2));
+/// # Ok(())
+/// # }
+/// ```
+///
+/// # Errors
+///
+/// Returns [`Error::Custom`] for the first entry whose builder cannot produce a
+/// pool, or if `manager`'s `statement_cache_channel` is no channel name; none
+/// of the pools is returned in that case.
+// [spec:pgorm:sem:conn.pool.multi+4]    the general multi constructor
+pub fn connect_multi_with<T, F>(
+    config: Config,
+    tls: T,
+    manager: ManagerConfig,
+    build: BTreeMap<String, F>,
+) -> Result<DatabaseMultiPool, Error>
+where
+    T: MakeTlsConnect<Socket> + Clone + Sync + Send + 'static,
+    T::Stream: Sync + Send,
+    T::TlsConnect: Sync + Send,
+    <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
+    F: FnOnce(PoolBuilder) -> PoolBuilder,
+{
     build
         .into_iter()
         .map(|(tag, build)| {
-            let pool = connect_with(
-                config.clone(),
-                NoTls,
-                simple_manager_config(Some(tag.clone())),
-                build,
-            )?;
-
+            let tagged = ManagerConfig {
+                tag: Some(tag.clone()),
+                ..manager.clone()
+            };
+            let pool = connect_with(config.clone(), tls.clone(), tagged, build)?;
             Ok((tag, pool))
         })
         .collect::<Result<_, Error>>()

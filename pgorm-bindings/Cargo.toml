@@ -1,0 +1,33 @@
+[package]
+name = "pgorm-bindings"
+version = "0.2.0"
+authors = []
+edition = "2024"
+rust-version = "1.89"
+description = "What pgorm's Python and JavaScript bindings share beyond pgorm itself: a pool and its TLS built from a binding's options, its hooks' statements served, and its refusals worded in the binding's own spelling"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# pgorm-python and pgorm-napi each depend on this crate by path, from
+# workspaces of their own ([spec:pgorm:req:bindings.optional]), so what both
+# need is written once here and both call it. Nothing here names Python or
+# JavaScript: each binding reads its language's values into these types and
+# raises what comes back as its own errors.
+[dependencies]
+pgorm = { version = "0.2.0", path = ".." }
+tokio = { version = "1.53", features = ["sync"] }
+tokio-postgres.workspace = true
+# TLS through rustls, verifying against the platform's trust store or a CA the
+# caller supplies; PEM is read through rustls' own pki-types.
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-native-certs = "0.8.4"
+tokio-postgres-rustls = "0.14.0"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"

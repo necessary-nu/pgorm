@@ -13,6 +13,9 @@ use std::sync::Arc;
 pub(crate) enum Target {
     Connection(Arc<ConnectionState>),
     Transaction(Arc<State>),
+    /// A pool hook's connection, which only `HookConnection`'s own
+    /// statements reach: `held` never finds one.
+    Hook(Arc<crate::hooks::HookState>),
 }
 
 /// The native handle behind a Python `Pool`, `Connection` or `Transaction`.
@@ -47,12 +50,14 @@ impl Target {
                 state.ensure_open()
             }
             Self::Transaction(state) => state.check(py),
+            Self::Hook(state) => state.check(py),
         }
     }
 
     pub(crate) async fn run(self, work: Work) -> PyResult<Output> {
         match self {
             Self::Transaction(state) => state.run(work).await,
+            Self::Hook(state) => state.run(work).await,
             Self::Connection(state) => {
                 let operation = Operation::begin(state.clone())?;
                 let result = tokio::select! {

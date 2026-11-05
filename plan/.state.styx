@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T18:55:26.993466Z
+last_sync_at 2026-11-05T19:37:52.598707Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -53,6 +53,7 @@ rule_versions (
     {id bindings.pipeline-expressions, version 3}
     {id bindings.pipeline-sources, version 3}
     {id bindings.pipeline-terminals, version 0}
+    {id bindings.postgres-target, version 0}
     {id bindings.quantifiers, version 3}
     {id bindings.ranges, version 0}
     {id bindings.registered-pools, version 0}
@@ -1665,7 +1666,6 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
-    {id guide.python-gaps.pool-config, kind @doing, author "brendan@necessary.nu", at 2026-11-05T18:37:05.475587Z}
 )
 
 impl_evidence (
@@ -2405,6 +2405,13 @@ impl_evidence (
     ), rule_versions_seen (
         {id guide.dialects, version 0}
     )}
+    {id guide.python-gaps.postgres-target, covered_rules (
+        bindings.postgres-target
+    ), covered_claims (
+        {impl_name python, rule bindings.postgres-target}
+    ), rule_versions_seen (
+        {id bindings.postgres-target, version 0}
+    )}
     {id guide.rust, covered_rules (
         guide.chapters
         guide.examples
@@ -2582,6 +2589,13 @@ impl_evidence (
         {impl_name main, rule napi.values}
     ), rule_versions_seen (
         {id napi.inference, version 0}
+    )}
+    {id napi.guide-gaps.pg-19, covered_rules (
+        bindings.postgres-target
+    ), covered_claims (
+        {impl_name javascript, rule bindings.postgres-target}
+    ), rule_versions_seen (
+        {id bindings.postgres-target, version 0}
     )}
     {id orm.binding-types, covered_rules (
         exec.cursor.binding-coerce
@@ -3333,15 +3347,31 @@ impl_evidence (
     ), rule_versions_seen (
         {id error.model.decode-refusal, version 0}
     )}
-    {id guide.python-gaps.postgres-target, covered_rules (
-        bindings.postgres-target
+    {id guide.python-gaps.pool-config, covered_rules (
+        bindings.multi-pool
+        bindings.pool-hooks
+        bindings.tls
+        conn.pool.hook-connection
     ), covered_claims (
-        {impl_name python, rule bindings.postgres-target}
+        {impl_name main, rule conn.pool.hook-connection}
+        {impl_name python, rule bindings.multi-pool}
+        {impl_name python, rule bindings.pool-hooks}
+        {impl_name python, rule bindings.tls}
     )}
-    {id napi.guide-gaps.pg-19, covered_rules (
-        bindings.postgres-target
+    {id napi.guide-gaps.pool-builder, covered_rules (
+        bindings.pool-hooks
     ), covered_claims (
-        {impl_name javascript, rule bindings.postgres-target}
+        {impl_name javascript, rule bindings.pool-hooks}
+    )}
+    {id napi.guide-gaps.pool-tags, covered_rules (
+        bindings.multi-pool
+    ), covered_claims (
+        {impl_name javascript, rule bindings.multi-pool}
+    )}
+    {id napi.guide-gaps.tls-configuration, covered_rules (
+        bindings.tls
+    ), covered_claims (
+        {impl_name javascript, rule bindings.tls}
     )}
 )
 

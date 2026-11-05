@@ -30,8 +30,10 @@ install(native);
 installConnections(native);
 
 export { connect, Connection, Pool, Queryable, Transaction } from "./connections.js";
+export { HookConnection } from "./hooks.js";
+export { MultiPool } from "./multi-pool.js";
 export { RowStream } from "./streams.js";
-export { Listener } from "./listen.js";
+export { connectListener, Listener } from "./listen.js";
 export { CopyFrom, copyFrom, CopyOutStream, CopyTo, copyTo } from "./copy.js";
 export { CopyRowStream } from "./copy-rows.js";
 export { CaseOperand, caseOf, caseWhen, Condition, SearchedCase, SimpleCase } from "./conditions.js";

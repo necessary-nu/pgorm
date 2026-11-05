@@ -36,6 +36,10 @@ use crate::{
     values::PyValue,
 };
 
+/// A hook's connection runs statements only, and `Target::extract` never
+/// gives one: a COPY's target is a connection or a transaction.
+const HOOKS_COPY_NOTHING: &str = "a COPY runs on a Connection or a Transaction";
+
 /// The largest `bytes` a COPY TO pull joins from chunks already received.
 const GATHERED: usize = 64 * 1024;
 
@@ -259,6 +263,7 @@ pub(crate) fn copy_in<'py>(
     future_into_py(py, async move {
         let (messages, receiver) = mpsc::channel(QUEUED);
         let (connection, settle) = match target {
+            Target::Hook(_) => return Err(PyTypeError::new_err(HOOKS_COPY_NOTHING)),
             Target::Connection(state) => {
                 let operation = Operation::begin(state.clone())?;
                 let (opened, open) = oneshot::channel();
@@ -315,6 +320,7 @@ pub(crate) fn copy_out<'py>(
     future_into_py(py, async move {
         let (pieces, receiver) = mpsc::channel(QUEUED);
         let (connection, transaction, holder) = match target {
+            Target::Hook(_) => return Err(PyTypeError::new_err(HOOKS_COPY_NOTHING)),
             Target::Connection(state) => {
                 let operation = Operation::begin(state.clone())?;
                 let (opened, open) = oneshot::channel();

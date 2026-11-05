@@ -52,8 +52,17 @@ pub(crate) fn database_error(error: pgorm::Error, secrets: &Redactions) -> PyErr
         }
     }
     match error {
-        pgorm::Error::Pool(_) => ConnectionError::new_err("PostgreSQL pool acquisition failed"),
-        // [spec:pgorm:req:bindings.listen+2]
+        // [spec:pgorm:req:bindings.pool-hooks]    a timeout names what ran out, and a
+        // hook's refusal says why
+        pgorm::Error::Pool(error) => {
+            match pgorm_bindings::pool_failure(&error, crate::config::DIALECT) {
+                pgorm_bindings::PoolFailure::Timeout(message) => TimeoutError::new_err(message),
+                pgorm_bindings::PoolFailure::Connection(message) => {
+                    ConnectionError::new_err(secrets.apply(&message))
+                }
+            }
+        }
+        // [spec:pgorm:req:bindings.listen+3]
         pgorm::Error::Listen(pgorm::ListenError::ChannelTooLong { .. }) => {
             ConstructionError::new_err(secrets.apply(&error.to_string()))
         }

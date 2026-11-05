@@ -363,20 +363,38 @@ A pool holds the connections; a `Connection` is one of them checked out; a
 statement's rows over one. Each is a native handle that is released by being
 closed, and a transaction by the block or callback it was opened for ending.
 
-> [spec:pgorm:req:bindings.connections+2]
-> A `Pool` MUST be built from a connection string and options: a TLS mode, CA
-> certificates as PEM data, a maximum size, connect and acquire timeouts, a
-> statement-cache size, a recycling method and a statement-cache channel.
-> Building one sends nothing, and a string or an option value the pool
-> cannot use is a `ConstructionError`; `connect` returns a pool whose server
-> answered. TLS MUST default to verifying the server's certificate and host
-> name against the CA given or the platform's trust store, with no silent
-> fallback to plaintext. Only `sslmode=disable` in the string or the
-> `disable` TLS mode connects in plaintext.
+> [spec:pgorm:req:bindings.connections+3]
+> A `Pool` MUST be built from a connection string and options, which are the
+> arguments of Rust's `connect_with` (`conn.pool`) a program in the binding's
+> language can give: TLS (`bindings.tls`); the `Config`'s connect timeout; the
+> `PoolBuilder`'s maximum size, its `wait_timeout`, `create_timeout` and
+> `recycle_timeout`, each off unless given, its `queue_mode`, `fifo` unless
+> `lifo` is given, and its hooks (`bindings.pool-hooks`); and the
+> `ManagerConfig`'s recycling method, its statement-cache size, its
+> statement-cache channel and its `tag`. Beside them is the binding's own
+> acquire timeout, which bounds the whole of an acquisition. The recycling
+> method is `recycle`'s `verified`, the default, `fast` or `clean`, or
+> `recycle_sql`, SQL of the program's own, which is `RecyclingMethod::Custom`
+> and is a `TypeError` beside `recycle`. A pool's `tag` names it, and the
+> pool reports it, the `default-N` pgorm gives an untagged pool among them;
+> an empty one is refused. Both bindings read these options into one Rust
+> crate, pgorm-bindings, which decides every one of them, refusals included,
+> and builds the pool through `connect_with`, so a pool means the same from
+> either language. Building one sends nothing, and a string or an option
+> value the pool cannot use is a `ConstructionError`; `connect` returns a
+> pool whose server answered.
 >
 > A pool lends a `Connection` with `acquire`, and runs a statement of its own
 > on a connection lent to it alone. Acquiring past the acquire timeout MUST
-> fail with a `TimeoutError`. A connection runs one operation at a time: a
+> fail with a `TimeoutError`, and so MUST one the wait or create timeout
+> ends, its message naming which. A check of a returned connection that
+> outlasts the recycle timeout discards that connection, as deadpool does,
+> and the pool lends another or opens one. A connection's `discard()` MUST
+> close it as pgorm's `DatabaseConnection::discard` does, never returning it
+> to its pool, so the pool opens a fresh one in its place: one whose session
+> state the program changed and cannot put back. A connection an operation,
+> transaction or stream holds is discarded once that ends, as a close
+> discards one. A connection runs one operation at a time: a
 > second one, or any while a transaction or stream holds it, MUST be refused
 > with a `LifecycleError` rather than queued or raced, as is any use after
 > close. `status()` reports the pool's maximum size, its size, the
@@ -399,6 +417,79 @@ closed, and a transaction by the block or callback it was opened for ending.
 > refuses new work, interrupts what runs and finishes once every connection
 > is released. Connections live on the runtime and hold nothing the
 > language's event loop waits on.
+
+> [spec:pgorm:req:bindings.tls]
+> A pool's TLS MUST be configured by the options `tls`, a mode named as
+> libpq's `sslmode` names it; `ca`, PEM certificates a verifying mode trusts
+> in place of the platform's store; and `cert` and `key`, a PEM client
+> certificate chain and its private key, shown to a server that asks for
+> one. The modes are:
+>
+> - `verify-full`: the server's certificate MUST chain to a trusted
+>   certificate and name the host connected to;
+> - `verify-ca`: it MUST chain to a certificate `ca` gives, whatever host it
+>   names. Without `ca` the mode is refused, since the platform's store
+>   trusts certificates issued to anyone;
+> - `require`: TLS always, with no certificate verified — only the
+>   handshake's signatures, which prove the server holds the key of the
+>   certificate it sent;
+> - `prefer`: TLS when the server offers it, plaintext when it does not,
+>   nothing verified;
+> - `disable`: plaintext.
+>
+> With no `tls` option the connection string's `sslmode` decides: `disable`
+> is plaintext, and `prefer`, `require` or none is `verify-full`. So a mode
+> that verifies less than `verify-full` is the program's explicit option and
+> never a default a string carried in. libpq's `allow`, plaintext first and
+> TLS only if the server refuses it, is not offered: tokio-postgres
+> negotiates TLS before anything else, so there is nothing for it to fall
+> back from, and a server's impostor would always be given the plaintext.
+> What the pool would not do as asked MUST be a `ConstructionError` raised
+> before anything is sent: `disable` beside `ca`, `cert`, `key` or the
+> string's `sslmode=require`; `prefer` beside `sslmode=require`; `ca` with a
+> mode that verifies nothing; `cert` without `key`, or `key` without `cert`;
+> PEM that holds no certificate, or no private key rustls can use; a
+> platform store with no usable root. A verifying mode MUST NOT fall back to
+> plaintext. With TLS, `channel_binding=require` in the string binds SCRAM
+> authentication to the server's certificate. A listener opened with
+> `connect_listener` (`bindings.listen`) takes the same options.
+
+> [spec:pgorm:req:bindings.pool-hooks]
+> A pool's `post_create`, `pre_recycle` and `post_recycle` options MUST each
+> take a function of the language's, which pgorm runs as the `PoolBuilder`
+> hook of its name: on each connection as it opens, before the pool lends
+> it; on a returned connection before the pool checks it for reuse; and
+> after. The function runs on the language's thread, on the event loop the
+> pool belongs to, never on pgorm's runtime, and is given a
+> `HookConnection`: the connection the hook is about, whose `execute`,
+> `query`, `one` and `optional` run as a connection's do, through pgorm's
+> `HookConnection` (`conn.pool.hook-connection`), and which reports the
+> connection's `age` and `recycle_count`. What it returns MAY be awaited, as
+> a coroutine or a promise is, and the hook waits for it. A `HookConnection`
+> used once its hook has returned MUST be refused with a `LifecycleError`.
+>
+> A function that raises, throws or rejects refuses the connection, as a
+> Rust hook's `HookError` does. A `post_create` refusal MUST fail the
+> acquisition with a `ConnectionError` naming the hook and carrying the
+> error's class and message; a `pre_recycle` or `post_recycle` refusal
+> discards the connection, the pool lending another or opening one. A
+> function that never finishes holds its acquisition until a timeout ends
+> it, and a hook function that is no function is a `TypeError`.
+
+> [spec:pgorm:req:bindings.multi-pool]
+> `MultiPool(dsn, pools, options)` MUST build one pool per entry of `pools`
+> through pgorm's `connect_multi_with` (`conn.pool.multi`): each tagged with
+> its entry's key and shaped by its entry's options — the maximum size, the
+> acquire, wait, create and recycle timeouts, the queue mode and the hooks,
+> which Rust's per-pool `PoolBuilder` closure sets — every pool sharing the
+> connection string, TLS and the `ManagerConfig`'s options, which `options`
+> gives. A shared `tag`, an empty key and a `pools` of no entry MUST be a
+> `ConstructionError` before anything is built. Each pool is a `Pool`, as one
+> built alone is. `get(tag)` gives the pool with a tag, or null; `items()`
+> every pool with its tag, in the tags' order; `status()` each pool's status
+> by tag; and `close()` closes every pool. Building one sends nothing, and
+> its scoped form checks a connection of each. Which pool a statement runs
+> on is the program's choice: nothing balances or falls back across them.
 
 > [spec:pgorm:req:bindings.results+2]
 > A pool, a connection and a transaction MUST run a statement through pgorm's
@@ -550,13 +641,17 @@ closed, and a transaction by the block or callback it was opened for ending.
 > the column and closes the stream, discarding its connection. Its end and its closing behave as `copy_out`'s
 > stream does.
 
-> [spec:pgorm:req:bindings.listen+2]
+> [spec:pgorm:req:bindings.listen+3]
 > `listener(capacity)` on a pool MUST open a `Listener` through pgorm's
 > `DatabasePool::listener` (`conn.listen`): a connection of its own, opened
 > with the pool's configuration and TLS, never one the pool lends, holding at
 > most `capacity` notifications unread — a positive whole number, 1024 by
 > default, anything else refused before anything is sent. The listener
-> belongs to its pool: closing the pool closes it.
+> belongs to its pool: closing the pool closes it. `connect_listener(dsn,
+> options)` MUST open one through pgorm's `connect_listener`, belonging to no
+> pool: its connection string, connect timeout and TLS (`bindings.tls`) read
+> as a pool's are and its `capacity` as `listener`'s, and nothing but its own
+> close, or its iteration abandoned, closes it.
 > Closing the listener, or abandoning its iteration early, closes its
 > connection. It holds nothing the event loop waits on unless a pull is in
 > flight.

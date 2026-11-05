@@ -3,19 +3,23 @@
 // Pools, connections and transactions. Each holds a native handle and
 // releases what it holds when closed — `close()`, `await using`, the end of a
 // callback — never by waiting for garbage collection.
-// [spec:pgorm:req:bindings.connections+2]
-// [spec:pgorm:req:napi.lifecycle+2]
+// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:napi.lifecycle+3]
 // [spec:pgorm:req:bindings.results+2]
 // [spec:pgorm:req:napi.raw]
 // [spec:pgorm:req:bindings.transactions]
 // [spec:pgorm:req:napi.transactions+3]
 // [spec:pgorm:req:bindings.copy]
-// [spec:pgorm:req:bindings.listen+2]
+// [spec:pgorm:req:bindings.listen+3]
+// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.pool-hooks]
+// [spec:pgorm:req:bindings.multi-pool]
 
 import { statementArgs } from "./builder.js";
 import { COPY, CopyRunner } from "./copy.js";
 import { Listener, LISTENER, listenerOptions, notifyJob } from "./listen.js";
 import { abortable, LATE, native, queryOptions, row, scoped, signalOf, TRUSTED } from "./operations.js";
+import { hooked } from "./hooks.js";
 import { RowStream } from "./streams.js";
 
 /** The statement runner each class implements, keyed privately. */
@@ -221,6 +225,10 @@ let connectionHandle;
 /** @type {(pool: Pool) => unknown} */
 let poolHandle;
 
+/** Marks a `Pool` built around a handle `MultiPool` made. */
+export const ADOPT = Symbol("pgorm-napi pool handle");
+
+
 /**
  * A pool of connections to one server, opened as they are first needed. TLS
  * verifies the server's certificate and host name unless the connection
@@ -240,14 +248,36 @@ export class Pool extends Queryable {
    */
   constructor(dsn, options = {}) {
     super();
+    if (/** @type {unknown} */ (dsn) === ADOPT) {
+      this.#native = options;
+      return;
+    }
     if (typeof dsn !== "string") throw new TypeError("dsn is a connection string");
-    if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
-    this.#native = native.poolNew(dsn, options);
+    this.#native = native.poolNew(dsn, hooked(options));
+  }
+
+  /**
+   * A pool around `handle`, which `poolsNew` built.
+   *
+   * @param {unknown} handle
+   * @returns {Pool}
+   */
+  static [ADOPT](handle) {
+    return new Pool(/** @type {string} */ (/** @type {unknown} */ (ADOPT)), /** @type {any} */ (handle));
   }
 
   /** @returns {boolean} */
   get closed() {
     return native.poolClosed(this.#native);
+  }
+
+  /**
+   * The pool's tag, or the `default-N` pgorm named it.
+   *
+   * @returns {string}
+   */
+  get tag() {
+    return native.poolTag(this.#native);
   }
 
   /** @returns {import("./index.d.ts").PoolStatus} */
@@ -424,6 +454,7 @@ export async function connect(dsn, options = {}) {
   return pool;
 }
 
+
 /** One connection checked out of a pool; one operation at a time. */
 export class Connection extends Queryable {
   /** @type {unknown} */
@@ -504,6 +535,18 @@ export class Connection extends Queryable {
    */
   async close() {
     await native.connectionClose(this.#native);
+  }
+
+  /**
+   * Close the connection and discard it rather than return it to its pool, as
+   * Rust's `DatabaseConnection::discard` does: for a connection whose session
+   * state is not what the next borrower should find. The pool opens a fresh
+   * one in its place. Resolves once it is released.
+   *
+   * @returns {Promise<void>}
+   */
+  async discard() {
+    await native.connectionDiscard(this.#native);
   }
 
   [Symbol.asyncDispose]() {

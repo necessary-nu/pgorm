@@ -4,7 +4,7 @@ fn configuration() -> Result<pgorm::Config, Box<dyn std::error::Error>> {
     Ok(std::env::var("PGORM_TEST_DSN")?.parse()?)
 }
 
-// [spec:pgorm:req:bindings.connections+2/test]
+// [spec:pgorm:req:bindings.connections+3/test]
 #[tokio::test]
 async fn closed_pool_preserves_existing_connections() -> Result<(), Box<dyn std::error::Error>> {
     let pool = pgorm::connect_with_builder(configuration()?, |b| b.max_size(1))?;
@@ -23,7 +23,7 @@ async fn closed_pool_preserves_existing_connections() -> Result<(), Box<dyn std:
     Ok(())
 }
 
-// [spec:pgorm:req:bindings.connections+2/test]
+// [spec:pgorm:req:bindings.connections+3/test]
 #[tokio::test]
 async fn discarded_connections_are_removed_instead_of_recycled()
 -> Result<(), Box<dyn std::error::Error>> {

@@ -5,7 +5,7 @@ import pkgutil
 import unittest
 
 import pgorm as p
-from pgorm import _native, pipeline as pl, schema as s
+from pgorm import _native, pipeline as pl, pool_options, schema as s
 from pgorm.schema import changes
 from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, versions as version_views
 from pgorm.codegen import source
@@ -32,8 +32,9 @@ EXEMPT = {
     # them and under the streams: live resources, not SQL, and true as any
     # open resource is. The streams themselves refuse, since a stream's truth
     # would say nothing of whether rows remain.
-    p.Pool, p.Connection, p.Transaction,
+    p.Pool, p.Connection, p.Transaction, p.MultiPool, p.HookConnection,
     _native._Pool, _native._Connection, _native._Transaction, _native._Stream,
+    _native._HookConnection, _native._PoolShape, pool_options.PoolShape,
     _native._CopyIn, _native._CopyOut, _native._Listener, _native._Disjoint,
     _native._DisjointChange,
     # Registrations and declarations: they name what a query reads and are

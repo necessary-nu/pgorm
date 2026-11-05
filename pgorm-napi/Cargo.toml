@@ -31,6 +31,9 @@ pg-19 = ["pgorm/pg-19"]
 
 [dependencies]
 pgorm = { version = "0.2.0", path = ".." }
+# What pgorm-python needs too: a pool and its TLS built from the binding's
+# options, and its hooks' statements served.
+pgorm-bindings = { version = "0.2.0", path = "../pgorm-bindings" }
 neon = { version = "1.1.2", default-features = false, features = ["napi-6"] }
 tokio = { version = "1.53.2", features = ["rt-multi-thread"] }
 tokio-postgres = "0.7.18"
@@ -46,13 +49,9 @@ postgres-protocol = "0.6.12"
 rust_decimal = "1.43.0"
 serde_json = { version = "1.0.151", features = ["raw_value", "float_roundtrip"] }
 uuid = "1.27.0"
-# Connections: the cancellation pgorm-python's runtime uses, row streams and
-# COPY's sink, and TLS through rustls verifying against the platform's trust
-# store, or a CA the caller supplies.
+# Connections: the cancellation pgorm-python's runtime uses, and row streams
+# and COPY's sink.
 futures-util = { version = "0.3.34", features = ["sink"] }
-rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
-rustls-native-certs = "0.8.4"
-tokio-postgres-rustls = "0.14.0"
 tokio-util = "0.7.20"
 
 # The release addon's profile, which scripts/build.mjs --release and the

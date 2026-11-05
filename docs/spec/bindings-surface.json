@@ -11,7 +11,7 @@
       "Conflict": ["do_nothing", "on", "on_constraint"],
       "ConflictTarget": ["do_nothing", "set", "update", "where"],
       "ConflictUpdate": ["set", "update", "where"],
-      "Connection": ["close", "copy_in", "copy_in_rows", "copy_out", "copy_out_rows", "execute", "notify", "one", "optional", "ping", "query", "stream", "transaction"],
+      "Connection": ["close", "copy_in", "copy_in_rows", "copy_out", "copy_out_rows", "discard", "execute", "notify", "one", "optional", "ping", "query", "stream", "transaction"],
       "ConnectionError": [],
       "ConstructionError": [],
       "CopyFrom": ["columns", "default_string", "delimiter", "encoding", "escape", "force_not_null", "force_not_null_all", "force_null", "force_null_all", "force_quote", "force_quote_all", "freeze", "header", "header_match", "inspect", "null_string", "on_error_ignore", "quote", "where"],
@@ -52,6 +52,7 @@
       "FrameType": ["Groups", "Range", "Rows", "current_row", "following", "preceding", "unbounded_preceding"],
       "FromItem": ["col", "star"],
       "Graph": ["all", "all_grouped", "col", "count", "cursor", "inspect", "join_maybe", "join_one", "limit", "offset", "one", "optional", "order_by", "paginate", "stream", "via", "where"],
+      "HookConnection": ["execute", "one", "optional", "query"],
       "GroupingElement": ["cube", "empty", "rollup", "set", "sets"],
       "Insert": ["columns", "default_values", "inspect", "on_conflict", "overriding", "returning", "select", "values", "with"],
       "InternalError": [],
@@ -75,6 +76,7 @@
       "ModelRows": ["all", "inspect", "one", "optional"],
       "ModelUpdate": ["all_rows", "execute", "inspect", "returning", "returning_change", "returning_changes", "where"],
       "Multirange": [],
+      "MultiPool": ["close", "get", "items", "status"],
       "NotNullViolationError": [],
       "OneOf": ["describe", "key", "load", "set"],
       "OneOfEntity": ["describe", "key", "load", "set"],
@@ -114,6 +116,7 @@
       "case_when": null,
       "col": null,
       "connect": null,
+      "connect_listener": null,
       "delete": null,
       "disjoint_entities": null,
       "disjoint_entity": null,
@@ -434,7 +437,7 @@
       "pgorm.delete": "deleteFrom",
       "pipeline.this": "thisColumn",
       "pipeline.that": "thatColumn",
-      "pipeline.case": "caseWhen"
+      "pipeline.case": "caseWhen", "pgorm.MultiPool.items": "entries"
     },
     "protocols": {
       "next": "the async iterator protocol",

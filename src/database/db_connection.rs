@@ -114,7 +114,7 @@ pub struct DatabasePool(pub(crate) Pool);
 /// Which pool a statement runs on is the caller's choice, made by tag:
 /// nothing here balances load across the pools or falls back from one to
 /// another.
-// [spec:pgorm:sem:conn.pool.multi+3]    tag-keyed accessor surface
+// [spec:pgorm:sem:conn.pool.multi+4]    tag-keyed accessor surface
 #[derive(Debug, Clone)]
 pub struct DatabaseMultiPool(pub(crate) BTreeMap<String, DatabasePool>);
 
@@ -447,7 +447,134 @@ impl ConnectionTrait for &DatabaseConnection {
     }
 }
 
-// [spec:pgorm:def:conn.pool.conn-trait+9]    cache-routing impls
+/// The connection a pool [`Hook`](crate::Hook) is given, as a
+/// [`ConnectionTrait`].
+///
+/// A hook's closure receives the pooled client itself, which speaks
+/// tokio-postgres's API. `HookConnection::new(client)` borrows it for the
+/// hook's length and runs pgorm's statements on it, an entity's `find` or a
+/// pipeline's terminal included, through the connection's statement cache as
+/// a [`DatabaseConnection`]'s do, so a statement a hook prepares is the one
+/// the connection's later borrowers find cached.
+///
+/// ```no_run
+/// use pgorm::{ConnectionTrait, Hook, HookConnection, HookError};
+///
+/// // Refuse a connection whose session is a read-only standby's.
+/// let writable = Hook::async_fn(|client, _| {
+///     Box::pin(async move {
+///         let db = HookConnection::new(client);
+///         let row = db
+///             .query_one("SELECT pg_is_in_recovery()", &[])
+///             .await
+///             .map_err(|error| HookError::message(error.to_string()))?;
+///         if row.get::<_, bool>(0) {
+///             return Err(HookError::message("the server is a standby"));
+///         }
+///         Ok(())
+///     })
+/// });
+/// # let _ = writable;
+/// ```
+// [spec:pgorm:def:conn.pool.hook-connection]
+#[derive(Debug, Clone, Copy)]
+pub struct HookConnection<'a>(&'a pgorm_pool::ClientWrapper);
+
+impl<'a> HookConnection<'a> {
+    /// The connection `client`, a hook's, as a [`ConnectionTrait`].
+    pub fn new(client: &'a pgorm_pool::ClientWrapper) -> Self {
+        Self(client)
+    }
+}
+
+// [spec:pgorm:def:conn.pool.hook-connection]    the cache-routing impl
+// [spec:pgorm:def:conn.pool.conn-trait+10]
+#[async_trait::async_trait]
+impl ConnectionTrait for HookConnection<'_> {
+    async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+    where
+        T: ?Sized + SqlText + Sync,
+    {
+        cached_retry!(self.0, statement, |prepared| self
+            .0
+            .execute(prepared, params)
+            .await)
+    }
+
+    async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
+    where
+        T: ?Sized + SqlText + Sync,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P> + Send,
+        I::IntoIter: ExactSizeIterator,
+    {
+        cached_evict!(self.0, statement, |prepared| self
+            .0
+            .execute_raw(prepared, params)
+            .await)
+    }
+
+    async fn query_one<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<tokio_postgres::Row, Error>
+    where
+        T: ?Sized + SqlText + Sync,
+    {
+        cached_retry!(self.0, statement, |prepared| self
+            .0
+            .query_one(prepared, params)
+            .await)
+    }
+
+    async fn query_opt<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<tokio_postgres::Row>, Error>
+    where
+        T: ?Sized + SqlText + Sync,
+    {
+        cached_retry!(self.0, statement, |prepared| self
+            .0
+            .query_opt(prepared, params)
+            .await)
+    }
+
+    async fn query_all<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<tokio_postgres::Row>, Error>
+    where
+        T: ?Sized + SqlText + Sync,
+    {
+        cached_retry!(self.0, statement, |prepared| self
+            .0
+            .query(prepared, params)
+            .await)
+    }
+
+    async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+    where
+        T: ?Sized + SqlText + Sync,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P> + Send,
+        I::IntoIter: ExactSizeIterator,
+    {
+        cached_evict!(self.0, statement, |prepared| self
+            .0
+            .query_raw(prepared, params)
+            .await)
+    }
+
+    async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+        Ok(self.0.batch_execute(sql).await?)
+    }
+}
+
+// [spec:pgorm:def:conn.pool.conn-trait+10]    cache-routing impls
 #[async_trait::async_trait]
 impl ConnectionTrait for DatabaseConnection {
     // #[instrument(level = "trace")]

@@ -13416,18 +13416,27 @@ children (
                     {
                         id napi.guide-gaps.pool-builder
                         title "A JavaScript pool takes a recycle timeout, a queue mode, post_create, pre_recycle and post_recycle hooks, and the Clean and Custom(sql) recycling methods, as Rust's PoolBuilder and RecyclingMethod do (guide 20-configuration)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.pool-hooks])
+                        }
                         deps (napi-connections guide.javascript)
                     }
 
                     {
                         id napi.guide-gaps.pool-tags
                         title "A JavaScript pool carries a tag, and several pools are built by name and addressed by tag, as Rust's ManagerConfig tag, DatabasePool::tag and connect_multi_with_builder's DatabaseMultiPool do (guide 20-configuration)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.multi-pool])
+                        }
                         deps (napi-connections guide.javascript)
                     }
 
                     {
                         id napi.guide-gaps.tls-configuration
                         title "A JavaScript pool connects through a TLS configuration of the program's own, a client certificate among it, as Rust's connect_with takes any MakeTlsConnect connector; today it has only verify-full against ca or the platform store (guide 20-configuration)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.tls])
+                        }
                         deps (napi-connections guide.javascript)
                     }
 
@@ -19333,12 +19342,32 @@ children (
                         id guide.python-gaps.copy-rows-surface
                         title "Python's row COPY has Rust's surface: CopyRowEncoder and CopyRowDecoder, copy_in_columns and copy_out_columns (column types, not only names), CopyRowSink::send_model and CopyRowStream::models"
                         deps (python.statements)
+                        log (
+                            {
+                                at 2026-11-05T20:23:53.630034Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "nplan_start refused this node: \"dep python.statements is Todo\", though python.statements is done; the napi COPY nodes' deps (copy-binary-rows, napi-models) likewise read as Todo in this worktree. Worked unclaimed in the pool-config lane's worktree, per the lane brief."
+                            }
+                        )
                     }
 
                     {
                         id guide.python-gaps.pool-config
                         title "Python pools take Rust's configuration: connect_with, connect_with_builder, connect_multi_with_builder and ManagerConfig; PoolBuilder's wait, create and recycle timeouts, queue_mode and post_create, pre_recycle and post_recycle hooks; RecyclingMethod Clean and Custom; a pool's tag; custom TLS connectors and client certificates; sslmode verify-ca and allow with sslrootcert and sslcert; and connect_listener(config, tls, capacity)"
+                        implements {
+                            main ([spec:pgorm:def:conn.pool.hook-connection])
+                            python ([spec:pgorm:req:bindings.tls] [spec:pgorm:req:bindings.pool-hooks] [spec:pgorm:req:bindings.multi-pool])
+                        }
                         deps (python.runtime)
+                        log (
+                            {
+                                at 2026-11-05T20:07:11.831793Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Pool configuration shared by both bindings (lane decision, pending operator override). (1) New main-workspace crate pgorm-bindings (publish=false) holds what both bindings need beyond pgorm: TLS settings -> rustls connector, pool settings -> connect_with / connect_multi_with, refusal texts spelled per binding (Dialect), pool-error classification, the hook job-serving loop; the bindings only read their language's arguments and raise its errors. (2) pgorm gains HookConnection (ConnectionTrait over a hook's client: a wrapper, since implementing the trait on ClientWrapper would turn a Rust hook's client.query_one into pgorm's) and connect_multi_with(config, tls, manager, builds) (multi pools over TLS; connect_multi_with_builder delegates). (3) TLS modes are libpq's names: verify-full (default), verify-ca (requires ca: the platform store trusts anyone's certificate), require and prefer (unverified, handshake signatures only), disable. The connection string's own prefer/require keep verify-full, so a weaker mode is only ever an explicit tls option. libpq's allow is not offered (tokio-postgres negotiates TLS first; an impostor would get the plaintext) and sslrootcert/sslcert/sslkey stay options, since tokio-postgres's parser refuses them in the string. Refused before anything is sent: disable beside ca/cert/key/sslmode=require, prefer beside sslmode=require, ca with an unverified mode, cert without key. (4) Hooks: post_create/pre_recycle/post_recycle take a language function run on the pool's own loop/JS thread, given a HookConnection (execute/query/one/optional, age, recycle_count) whose statements the Rust hook serves until the function returns; raising refuses the connection (post_create -> ConnectionError \"the post_create hook refused the connection: Class: message\"). (5) recycle gains \"clean\"; recycle_sql is RecyclingMethod::Custom (TypeError beside recycle). wait/create/recycle timeouts off by default; a recycle that outlasts its timeout is discarded by deadpool rather than raised. (6) Pool.tag, Connection.discard(), MultiPool(dsn, {tag: shape options}, shared options) with get/items(JS entries)/status/close, and connect_listener(dsn, capacity, TLS options) for a listener of no pool."
+                            }
+                        )
                     }
 
                     {

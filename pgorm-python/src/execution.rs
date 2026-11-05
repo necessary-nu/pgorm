@@ -3,7 +3,9 @@
 mod target;
 pub(crate) use target::{Executor, Target};
 
-use pgorm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, SqlText};
+use pgorm::{
+    ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, HookConnection, SqlText,
+};
 use tokio_postgres::{
     Row, RowStream,
     types::{BorrowToSql, ToSql},
@@ -13,6 +15,8 @@ use tokio_postgres::{
 pub(crate) enum Database<'a> {
     Connection(&'a DatabaseConnection),
     Transaction(&'a DatabaseTransaction<'a>),
+    /// The connection a pool hook is about, while the hook runs.
+    Hook(&'a HookConnection<'a>),
 }
 
 macro_rules! native {
@@ -20,6 +24,7 @@ macro_rules! native {
         match $db {
             Database::Connection(connection) => connection.$method($($arg),*).await,
             Database::Transaction(transaction) => transaction.$method($($arg),*).await,
+            Database::Hook(connection) => connection.$method($($arg),*).await,
         }
     };
 }

@@ -142,6 +142,8 @@ from ._native import (
     require_capability,
 )
 from .runtime import STATEMENT_CACHE_CHANNEL, Connection, Pool, PoolStatus, connect
+from .pool_options import HookConnection
+from .multi_pool import MultiPool, connect_listener
 from .results import Record, Field, RowStream, Query
 from .models import (
     Column, ModelColumn, Model, ModelRecord, ModelQuery, ModelRows, ModelInsert, ModelInsertMany, ModelUpdate,
@@ -183,8 +185,11 @@ __all__ = [
     "IsolationLevel",
     "Pool",
     "PoolStatus",
+    "MultiPool",
+    "HookConnection",
     "STATEMENT_CACHE_CHANNEL",
     "connect",
+    "connect_listener",
     "Record",
     "Field",
     "RowStream",

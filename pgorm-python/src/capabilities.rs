@@ -182,7 +182,7 @@ fn manifest() -> Value {
             "unsupported_kinds": ["u64", "char"],
             "stream": true, "automatic_ddl": false
         },
-        "tls": {"modes": ["verify-full", "disable"], "default": "verify-full unless DSN explicitly disables TLS", "ca": "PEM, or the platform's trust store"},
+        "tls": {"modes": ["verify-full", "verify-ca", "require", "prefer", "disable"], "default": "verify-full unless DSN explicitly disables TLS; a weaker mode only as the explicit tls option", "ca": "PEM, or the platform's trust store", "client_certificate": "cert and key, PEM"},
         "pipeline_policy": {
             "construction": "owned native Pipeline; runtime table/entity/named pipeline sources",
             "parameters": "synchronous *_with callback; each binding minted once inside its real Rust brand",
@@ -261,7 +261,7 @@ fn manifest() -> Value {
         operations.extend(crate::schema::capabilities());
         operations.extend(crate::transactions::capabilities());
         operations.extend(crate::copy::capabilities());
-        // [spec:pgorm:req:bindings.connections+2]
+        // [spec:pgorm:req:bindings.connections+3]
         operations.insert(
             "pool.statement_cache_channel".to_owned(),
             json!({"rust_api": "pgorm::ManagerConfig::statement_cache_channel", "features": []}),

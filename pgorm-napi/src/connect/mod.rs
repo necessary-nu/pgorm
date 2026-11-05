@@ -13,6 +13,7 @@
 
 mod config;
 mod copy;
+mod hooks;
 pub(crate) mod job;
 mod listen;
 mod stream;
@@ -39,12 +40,14 @@ use crate::{
     values::read,
 };
 
-pub(crate) use config::PoolConfig;
+use config::{Built, Shape, Shared};
 
 pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("abortToken", abort_token)?;
     cx.export_function("abort", abort)?;
     cx.export_function("poolNew", pool_new)?;
+    cx.export_function("poolsNew", pools_new)?;
+    cx.export_function("poolTag", pool_tag)?;
     cx.export_function("poolClose", pool_close)?;
     cx.export_function("poolClosed", pool_closed)?;
     cx.export_function("poolStatus", pool_status)?;
@@ -54,7 +57,9 @@ pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("connectionRun", connection_run)?;
     cx.export_function("connectionPing", connection_ping)?;
     cx.export_function("connectionClose", connection_close)?;
+    cx.export_function("connectionDiscard", connection_discard)?;
     cx.export_function("connectionClosed", connection_closed)?;
+    hooks::export(cx)?;
     transaction::export(cx)?;
     stream::export(cx)?;
     copy::export(cx)?;
@@ -270,6 +275,17 @@ impl fmt::Debug for PoolState {
 }
 
 impl PoolState {
+    fn new(built: Built) -> Arc<Self> {
+        Arc::new(Self {
+            pool: built.pool,
+            secrets: built.secrets,
+            closed: CancellationToken::new(),
+            acquire_timeout: built.acquire_timeout,
+            connections: SyncMutex::new(Vec::new()),
+            listeners: SyncMutex::new(Vec::new()),
+        })
+    }
+
     pub(crate) fn ensure_open(&self) -> Result<(), Failure> {
         if self.closed.is_cancelled() {
             Err(Failure::Lifecycle("the pool is closed".to_owned()))
@@ -359,6 +375,18 @@ impl ConnectionState {
         }
     }
 
+    /// Close, discarding the connection rather than returning it: one an
+    /// operation holds is discarded by that operation once it sees the close.
+    // [spec:pgorm:req:bindings.connections+3]
+    fn discard_now(&self) {
+        self.closed.cancel();
+        if let Ok(mut slot) = self.slot.try_lock()
+            && let Some(connection) = slot.take()
+        {
+            connection.discard();
+        }
+    }
+
     pub(crate) fn ensure_open(&self) -> Result<(), Failure> {
         self.pool.ensure_open()?;
         if self.closed.is_cancelled() {
@@ -401,7 +429,7 @@ impl Drop for ConnectionHandle {
 /// back; dropped unrestored — the operation aborted or cut off — it is
 /// discarded and its JavaScript connection closed, because its state is
 /// unknown.
-// [spec:pgorm:req:bindings.connections+2]
+// [spec:pgorm:req:bindings.connections+3]
 // [spec:pgorm:req:bindings.cancellation]
 pub(crate) struct Operation {
     slot: OwnedMutexGuard<Option<pgorm::DatabaseConnection>>,
@@ -474,31 +502,81 @@ fn connection<'cx>(cx: &mut FunctionContext<'cx>) -> NeonResult<Arc<ConnectionSt
 
 /// `poolNew(dsn, options)`: a pool, which opens connections as they are
 /// first needed. Nothing is sent before then.
-// [spec:pgorm:req:bindings.connections+2]
+// [spec:pgorm:req:bindings.connections+3]
 fn pool_new(mut cx: FunctionContext) -> JsResult<JsBox<PoolHandle>> {
     let dsn = cx.argument::<JsValue>(0)?;
     let options = cx.argument::<JsObject>(1)?;
-    let config = PoolConfig::read(&mut cx, dsn, options)?;
-    let built = match config.build() {
+    let shared = Shared::read(&mut cx, dsn, options)?;
+    let shape = Shape::read(&mut cx, options)?;
+    let tag = match config::option(&mut cx, options, "tag")? {
+        Some(tag) => Some(read::text(&mut cx, tag, "tag")?),
+        None => None,
+    };
+    let built = match shared.build(tag, shape) {
         Ok(built) => built,
         Err(failure) => {
             let error = failure.into_js(&mut cx)?;
             return cx.throw(error);
         }
     };
-    Ok(cx.boxed(PoolHandle(Arc::new(PoolState {
-        pool: built.pool,
-        secrets: built.secrets,
-        closed: CancellationToken::new(),
-        acquire_timeout: built.acquire_timeout,
-        connections: SyncMutex::new(Vec::new()),
-        listeners: SyncMutex::new(Vec::new()),
-    }))))
+    Ok(cx.boxed(PoolHandle(PoolState::new(built))))
+}
+
+/// `poolsNew(dsn, shapes, options)`: one pool per own property of `shapes`,
+/// each tagged with its key and shaped by its value, sharing `options`, as
+/// `[[tag, pool], ...]` in the tags' order. Nothing is sent.
+// [spec:pgorm:req:bindings.multi-pool]
+fn pools_new(mut cx: FunctionContext) -> JsResult<JsArray> {
+    let dsn = cx.argument::<JsValue>(0)?;
+    let shapes = cx.argument::<JsObject>(1)?;
+    let options = cx.argument::<JsObject>(2)?;
+    let shared = Shared::read(&mut cx, dsn, options)?;
+    if config::option(&mut cx, options, "tag")?.is_some() {
+        return read::refuse(
+            &mut cx,
+            "each pool's tag is its key, so the shared options name none",
+        );
+    }
+    let keys = shapes.get_own_property_names(&mut cx)?.to_vec(&mut cx)?;
+    let mut read_shapes = std::collections::BTreeMap::new();
+    for key in keys {
+        let tag = read::string(&mut cx, key)?;
+        let value: Handle<JsValue> = shapes.get(&mut cx, tag.as_str())?;
+        let Ok(object) = value.downcast::<JsObject, _>(&mut cx) else {
+            return cx.throw_type_error(format!("pool {tag:?}'s options are an object"));
+        };
+        let shape = Shape::read(&mut cx, object)?;
+        read_shapes.insert(tag, shape);
+    }
+    let built = match shared.build_multi(read_shapes) {
+        Ok(built) => built,
+        Err(failure) => {
+            let error = failure.into_js(&mut cx)?;
+            return cx.throw(error);
+        }
+    };
+    let pools = cx.empty_array();
+    for (index, (tag, built)) in (0u32..).zip(built) {
+        let entry = cx.empty_array();
+        let tag = cx.string(tag);
+        entry.set(&mut cx, 0, tag)?;
+        let handle = cx.boxed(PoolHandle(PoolState::new(built)));
+        entry.set(&mut cx, 1, handle)?;
+        pools.set(&mut cx, index, entry)?;
+    }
+    Ok(pools)
+}
+
+/// `poolTag(pool)`: the pool's tag, or the `default-N` pgorm named it.
+// [spec:pgorm:req:bindings.connections+3]
+fn pool_tag(mut cx: FunctionContext) -> JsResult<JsString> {
+    let tag = pool(&mut cx)?.pool.tag();
+    Ok(cx.string(tag.as_str()))
 }
 
 /// `poolClose(pool)`: refuse new work, cancel what runs, and resolve once
 /// every lent connection is released.
-// [spec:pgorm:req:bindings.connections+2]
+// [spec:pgorm:req:bindings.connections+3]
 fn pool_close(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = pool(&mut cx)?;
     let connections = state.close_now();
@@ -543,7 +621,7 @@ fn pool_status(mut cx: FunctionContext) -> JsResult<JsObject> {
 /// `poolClearStatementCaches(pool)`: mark every connection's cached prepared
 /// statements stale, as `DatabasePool::clear_statement_caches` does. Nothing
 /// is sent, so a closed pool is no reason to refuse it.
-// [spec:pgorm:req:bindings.connections+2]
+// [spec:pgorm:req:bindings.connections+3]
 // [spec:pgorm:req:conn.pool.statement-cache.clear+1]
 fn pool_clear_statement_caches(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     pool(&mut cx)?.pool.clear_statement_caches();
@@ -552,7 +630,7 @@ fn pool_clear_statement_caches(mut cx: FunctionContext) -> JsResult<JsUndefined>
 
 /// `poolAcquire(pool, abort)`: a connection of the caller's own, until it
 /// closes it.
-// [spec:pgorm:req:bindings.connections+2]
+// [spec:pgorm:req:bindings.connections+3]
 fn pool_acquire(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = pool(&mut cx)?;
     let abort = abort_argument(&mut cx, 1)?;
@@ -584,7 +662,7 @@ fn pool_acquire(mut cx: FunctionContext) -> JsResult<JsPromise> {
 /// `poolRun(pool, terminal, sql, params, tagged, abort)`: a statement on a
 /// connection the pool lends for it alone. Aborted, or cut off by the pool
 /// closing, the connection is discarded rather than returned.
-// [spec:pgorm:req:bindings.connections+2]
+// [spec:pgorm:req:bindings.connections+3]
 fn pool_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = pool(&mut cx)?;
     let statement = Statement::read(&mut cx, 1)?;
@@ -641,7 +719,7 @@ where
 }
 
 /// `connectionRun(connection, terminal, sql, params, tagged, abort)`.
-// [spec:pgorm:req:bindings.connections+2]
+// [spec:pgorm:req:bindings.connections+3]
 fn connection_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = connection(&mut cx)?;
     let statement = Statement::read(&mut cx, 1)?;
@@ -689,8 +767,8 @@ fn connection_ping(mut cx: FunctionContext) -> JsResult<JsPromise> {
 /// `connectionClose(connection)`: return the connection to the pool, or, if
 /// a transaction or stream holds it, end that and discard it; resolves once
 /// it is released.
-// [spec:pgorm:req:bindings.connections+2]
-// [spec:pgorm:req:napi.lifecycle+2]
+// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:napi.lifecycle+3]
 fn connection_close(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = connection(&mut cx)?;
     state.close_now();
@@ -698,6 +776,25 @@ fn connection_close(mut cx: FunctionContext) -> JsResult<JsPromise> {
         &mut cx,
         async move {
             drop(state.slot.lock().await.take());
+            Ok(())
+        },
+        |cx, ()| Ok(cx.undefined().upcast()),
+    )
+}
+
+/// `connectionDiscard(connection)`: close the connection and discard it, as
+/// `DatabaseConnection::discard` does, so the pool opens a fresh one in its
+/// place; resolves once it is released.
+// [spec:pgorm:req:bindings.connections+3]
+fn connection_discard(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let state = connection(&mut cx)?;
+    state.discard_now();
+    settle::promise(
+        &mut cx,
+        async move {
+            if let Some(connection) = state.slot.lock().await.take() {
+                connection.discard();
+            }
             Ok(())
         },
         |cx, ()| Ok(cx.undefined().upcast()),

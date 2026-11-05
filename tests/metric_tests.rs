@@ -341,7 +341,7 @@ async fn widget_count<C: ConnectionTrait>(db: &C) -> Result<i64, Error> {
 }
 
 // [spec:pgorm:req:metric.layer.delegate+5/test]    an instrumented closure's handle is passed as `&txn`
-// [spec:pgorm:def:conn.pool.conn-trait+9/test]    every closure's `&mut` handle is a connection
+// [spec:pgorm:def:conn.pool.conn-trait+10/test]    every closure's `&mut` handle is a connection
 #[pgorm_macros::test]
 pub async fn instrumented_handle_is_a_connection() -> Result<(), Error> {
     use pgorm::EntityTrait;
@@ -391,7 +391,7 @@ pub async fn instrumented_handle_is_a_connection() -> Result<(), Error> {
 }
 
 // [spec:pgorm:req:metric.layer.delegate+5/test]    a cache hit is still a reported call
-// [spec:pgorm:def:conn.pool.conn-trait+9/test]    the wrapper inherits the routing it delegates to
+// [spec:pgorm:def:conn.pool.conn-trait+10/test]    the wrapper inherits the routing it delegates to
 #[pgorm_macros::test]
 pub async fn cached_statements_still_report_each_call() -> Result<(), Error> {
     const SQL: &str = "SELECT id FROM widget WHERE id = 1";

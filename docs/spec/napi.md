@@ -188,14 +188,24 @@ first rule: a value reaches JavaScript exactly or not at all.
 
 ## Connections
 
-> [spec:pgorm:req:napi.lifecycle+2]
+> [spec:pgorm:req:napi.lifecycle+3]
 > `new Pool(connectionString, options)` builds a pool, and `connect` resolves
-> with one whose server answered. The options are `tls` (`"verify-full"` or
-> `"disable"`), `ca`, PEM certificates as a string or `Uint8Array`,
-> `maxSize`, `connectTimeout` and `acquireTimeout` in milliseconds,
-> `statementCacheSize`, `recycle` (`"verified"` or `"fast"`) and
-> `statementCacheChannel`. Each pool, connection, stream and listener MUST be
-> closable by `close()` and by `await using`. A stream is an async iterator
+> with one whose server answered. The options are `tls` (`"disable"`,
+> `"prefer"`, `"require"`, `"verify-ca"` or `"verify-full"`), and `ca`, `cert`
+> and `key`, PEM as a string or `Uint8Array` (`bindings.tls`); `maxSize`;
+> `connectTimeout`, `acquireTimeout`, `waitTimeout`, `createTimeout` and
+> `recycleTimeout` in milliseconds; `queueMode` (`"fifo"` or `"lifo"`);
+> `statementCacheSize`; `recycle` (`"verified"`, `"fast"` or `"clean"`) or
+> `recycleSql`; `statementCacheChannel`; `tag`; and the hooks `postCreate`,
+> `preRecycle` and `postRecycle`, functions given a `HookConnection`
+> (`bindings.pool-hooks`). `new MultiPool(connectionString, pools, options)`
+> takes per pool the options Rust's `PoolBuilder` closure sets, from
+> `maxSize` to the hooks, and shared the rest but `tag`
+> (`bindings.multi-pool`); `connectListener(connectionString, options)`
+> takes the connection and TLS options and a listener's `capacity`. An option
+> is read by name, and one a pool does not know is left unread. Each pool,
+> multi-pool, connection, stream and listener MUST be closable by `close()`
+> and by `await using`. A stream is an async iterator
 > whose `next()` pulls one row and whose `return()`, which a `for await` loop
 > leaving early calls, closes it as `close()` does. What each holds MUST be
 > released by that close, never left to garbage collection or Neon's drop

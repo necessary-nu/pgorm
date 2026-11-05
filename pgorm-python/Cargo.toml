@@ -26,6 +26,9 @@ pg-19 = ["pgorm/pg-19"]
 
 [dependencies]
 pgorm = { version = "0.2.0", path = ".." }
+# What pgorm-napi needs too: a pool and its TLS built from the binding's
+# options, and its hooks' statements served.
+pgorm-bindings = { version = "0.2.0", path = "../pgorm-bindings" }
 pyo3 = { version = "0.29.3", features = ["jiff-02", "multiple-pymethods", "rust_decimal", "uuid"] }
 serde_json = { version = "1.0.151", features = ["raw_value", "float_roundtrip"] }
 jiff = { version = "0.2.38", default-features = false, features = ["std"] }
@@ -42,11 +45,6 @@ fallible-iterator = "0.2.0"
 futures-util = { version = "0.3.34", features = ["sink"] }
 postgres-protocol = "0.6.12"
 tokio-util = { version = "0.7.20", features = ["rt"] }
-# TLS through rustls, verifying against the platform's trust store or a CA the
-# caller supplies; PEM is read through rustls' own pki-types.
-tokio-postgres-rustls = "0.14.0"
-rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
-rustls-native-certs = "0.8.4"
 
 [dev-dependencies]
 # The variants of pgorm-query's open enums, behind its hidden tests-cfg

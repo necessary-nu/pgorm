@@ -7,7 +7,7 @@ from types import TracebackType
 from . import _native
 
 
-# [spec:pgorm:req:bindings.listen+2]
+# [spec:pgorm:req:bindings.listen+3]
 # [spec:pgorm:req:bindings.cancellation]
 class Listener:
     """A connection of its own that receives LISTEN notifications.

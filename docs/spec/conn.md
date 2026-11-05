@@ -109,18 +109,25 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > breaks transactional reasoning, so the pool-as-connection pattern inherited
 > from SeaORM was removed.
 
-> [spec:pgorm:sem:conn.pool.multi+3]
-> `connect_multi_with_builder(config, builders)` builds one pool per entry of a
-> `BTreeMap<String, builder-fn>`: each pool clones the shared
-> `tokio_postgres::Config`, is tagged with its map key, and uses
-> `RecyclingMethod::Fast`; the result is a `Result<DatabaseMultiPool, Error>`,
-> the pools keyed by tag. Every builder is caller input, so construction is
-> fallible on the same terms as `connect_with_builder` (`conn.pool`): the
-> first entry whose builder cannot produce a pool aborts the whole
-> construction with `Error::Custom` and no pool is returned.
+> [spec:pgorm:sem:conn.pool.multi+4]
+> `connect_multi_with(config, tls, manager, builders)` builds one pool per
+> entry of a `BTreeMap<String, F>`, `F: FnOnce(PoolBuilder) -> PoolBuilder`,
+> each through `connect_with` (`conn.pool`): each pool clones the shared
+> `tokio_postgres::Config` and the TLS connector, which is bounded as
+> `connect_with`'s is, takes `manager`'s recycling method, statement cache
+> and statement-cache channel with its `tag` replaced by the entry's key, and
+> is shaped by the entry's builder. It is the only route to several pools
+> over TLS, or recycling with anything but `Fast`. `connect_multi_with_builder(config,
+> builders)` delegates to it with `NoTls` and the manager defaults `connect`
+> uses, so each of its pools recycles with `RecyclingMethod::Fast`; it keeps
+> its `BTreeMap<String, Box<dyn Fn(PoolBuilder) -> PoolBuilder>>`. Either
+> returns a `Result<DatabaseMultiPool, Error>`, the pools keyed by tag. Every
+> builder is caller input, so construction is fallible on the same terms as
+> `connect_with_builder` (`conn.pool`): the first entry whose builder cannot
+> produce a pool aborts the whole construction with `Error::Custom` and no
+> pool is returned.
 >
-> `DatabaseMultiPool` is built by `connect_multi_with_builder` alone; its map
-> is crate-private. It offers `get(tag: &str) -> Option<&DatabasePool>`,
+> `DatabaseMultiPool` is built by these two alone; its map is crate-private. It offers `get(tag: &str) -> Option<&DatabasePool>`,
 > `iter()` over `(&str, &DatabasePool)` in tag order, `status()` returning
 > each pool's `Status` keyed by tag, and `close()`, which closes every pool
 > (`conn.pool.lifecycle`). Selection is explicit by tag only — there is no
@@ -537,7 +544,23 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > particular connection already in hand, and there a prepared `Statement` is
 > the point rather than the hazard.
 
-> [spec:pgorm:def:conn.pool.conn-trait+9]
+> [spec:pgorm:def:conn.pool.hook-connection]
+> `HookConnection<'a>` is the connection a pool `Hook` is given, as a
+> `ConnectionTrait` (`conn.pool.conn-trait`): `HookConnection::new(client)`
+> borrows the pooled client deadpool passes the hook for the hook's length.
+> Its statements resolve through that connection's statement cache, evicted
+> and retried once as a `DatabaseConnection`'s are
+> (`conn.pool.statement-cache.invalidate`), so pgorm's statements — an
+> entity's `find`, a pipeline's terminal — run in a hook, and a statement a
+> hook prepares is the one the connection's later borrowers find cached. It
+> opens no transaction and offers nothing beyond the trait. The client's
+> own tokio-postgres methods stay what a hook calls when it names none of
+> pgorm's: the type is a wrapper, and implementing the trait on the client
+> itself would turn the hook's `client.query_one` into pgorm's, changing the
+> error it returns. It is how the bindings run a hook's statements
+> (`bindings.pool-hooks`).
+
+> [spec:pgorm:def:conn.pool.conn-trait+10]
 > `ConnectionTrait` is the uniform statement-execution surface over
 > connections and transactions. It defines seven async methods. Six are
 > generic over `T: ?Sized + SqlText + Sync` — the statement is SQL text and
@@ -577,14 +600,15 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > is the unit of work; since values can reach it only by interpolation, `sql`
 > must be built from trusted input.
 >
-> It is implemented for `DatabaseConnection`, `&DatabaseConnection`, and
-> `DatabaseTransaction`, each resolving through the cache its underlying
-> `pgorm-pool` client or transaction owns and then delegating to it — the three
-> share one cache per physical connection, since a transaction's is its
-> client's (`conn.tx`) — with `batch_execute` going through
+> It is implemented for `DatabaseConnection`, `&DatabaseConnection`,
+> `DatabaseTransaction` and `HookConnection` (`conn.pool.hook-connection`),
+> each resolving through the cache its underlying `pgorm-pool` client or
+> transaction owns and then delegating to it — they share one cache per
+> physical connection, since a transaction's is its client's (`conn.tx`) and
+> a hook's connection is the client itself — with `batch_execute` going through
 > `GenericClient::batch_execute` (`conn.pool.generic-client`), which is
 > otherwise unreachable from pgorm because the wrapper types' inner fields are
-> crate-private.
+> crate-private, and a hook's connection's through its client's own.
 >
 > One further impl carries no execution of its own: `&mut C`, for every
 > implementor `C`, forwards every method through the exclusive borrow. It

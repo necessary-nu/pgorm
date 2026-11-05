@@ -17,6 +17,7 @@ specs ({
                 pgorm-sql-macro/src/**/*.rs
                 pgorm-test-support/src/**/*.rs
                 pgorm-guide-support/src/**/*.rs
+                pgorm-bindings/src/**/*.rs
                 security/sqlmap/adapter/src/**/*.rs
                 .github/workflows/sqlmap*.yml
                 security/sqlmap/acceptance/*.md

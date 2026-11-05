@@ -207,10 +207,19 @@ pub(crate) fn failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
         }
     }
     match error {
-        pgorm::Error::Pool(_) => Failure::Connection("PostgreSQL pool acquisition failed".into()),
+        // [spec:pgorm:req:bindings.pool-hooks]    a timeout names what ran out, and a
+        // hook's refusal says why
+        pgorm::Error::Pool(error) => {
+            match pgorm_bindings::pool_failure(error, pgorm_bindings::Dialect::JavaScript) {
+                pgorm_bindings::PoolFailure::Timeout(message) => Failure::Timeout(message),
+                pgorm_bindings::PoolFailure::Connection(message) => {
+                    Failure::Connection(secrets.apply(&message))
+                }
+            }
+        }
         // A channel name the listener refuses before sending anything is the
         // caller's input, as a parameter that cannot be bound is.
-        // [spec:pgorm:req:bindings.listen+2]
+        // [spec:pgorm:req:bindings.listen+3]
         pgorm::Error::Listen(pgorm::ListenError::ChannelTooLong { .. }) => {
             Failure::Construction(secrets.apply(&error.to_string()))
         }

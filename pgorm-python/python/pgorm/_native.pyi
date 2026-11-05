@@ -193,9 +193,12 @@ from ._copy import (
     CopyFrom as CopyFrom, CopyTo as CopyTo, _CopyIn as _CopyIn, _CopyOut as _CopyOut,
     _copy_in as _copy_in, _copy_out as _copy_out,
 )
-from ._listen import Notification as Notification, _Listener as _Listener
+from ._listen import (
+    Notification as Notification, _Listener as _Listener, _connect_listener as _connect_listener,
+)
 from ._runtime import (
-    _Pool as _Pool, _Connection as _Connection, _Stream as _Stream,
+    _Pool as _Pool, _PoolShape as _PoolShape, _HookConnection as _HookConnection,
+    _Connection as _Connection, _Stream as _Stream,
     _Transaction as _Transaction, STATEMENT_CACHE_CHANNEL as STATEMENT_CACHE_CHANNEL,
 )
 from ._from_items import (
