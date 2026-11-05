@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T22:45:16.946347Z
+last_sync_at 2026-11-05T22:46:10.449559Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -2676,32 +2676,6 @@ impl_evidence (
         {impl_name main, rule entity.traits.from-query-result}
         {impl_name main, rule entity.traits.model}
         {impl_name main, rule entity.traits.primary-key}
-    ), rule_versions_seen (
-        {id entity.active-model, version 4}
-        {id entity.active-model.active-value, version 1}
-        {id entity.active-model.active-value.ops, version 0}
-        {id entity.active-model.from-sugar, version 1}
-        {id entity.active-model.hooks, version 1}
-        {id entity.active-model.into, version 3}
-        {id entity.active-model.json, version 4}
-        {id entity.active-model.persistence, version 3}
-        {id entity.active-model.save, version 1}
-        {id entity.relation, version 1}
-        {id entity.relation.builder, version 1}
-        {id entity.relation.def, version 12}
-        {id entity.relation.fk, version 6}
-        {id entity.relation.linked, version 4}
-        {id entity.traits, version 4}
-        {id entity.traits.active-enum, version 2}
-        {id entity.traits.active-enum.limits, version 2}
-        {id entity.traits.column, version 9}
-        {id entity.traits.column-def, version 2}
-        {id entity.traits.column.enum-cast, version 17}
-        {id entity.traits.crud, version 5}
-        {id entity.traits.entity-name, version 6}
-        {id entity.traits.from-query-result, version 5}
-        {id entity.traits.model, version 3}
-        {id entity.traits.primary-key, version 7}
     )}
     {id orm.exec, covered_rules (
         exec.crud
