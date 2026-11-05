@@ -1,4 +1,7 @@
 #![doc = include_str!("../README.md")]
+// A library reports through `tracing`: its caller's stdout may be a build
+// script's, which cargo reads as directives.
+#![deny(clippy::print_stderr, clippy::print_stdout, clippy::dbg_macro)]
 
 mod entity;
 mod error;

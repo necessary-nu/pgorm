@@ -101,7 +101,7 @@ fn line(id: i32) -> stock_line::Model {
 /// the domain's name that its field's Rust type does not.
 // [spec:pgorm:sem:codegen.entity.types+13/test]    against a live server: the entity generated
 // from a table of domain columns creates that table, domain for domain
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]
 #[pgorm_macros::test]
 async fn generated_domain_columns_keep_their_domains() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_domain_tests_columns").await;

@@ -1,9 +1,9 @@
 """A disjoint model's kind changes as data: the steps a change runs, in
 order, and the rows the program writes between two of them."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from .._native import DDL, ConstructionError, Table
+from .._native import DDL, ConstructionError, Table, _DisjointChange
 
 
 class _Part:
@@ -47,3 +47,4 @@ class DisjointChange(_Part):
     itself clears its pool's statement caches after each."""
 
     steps: tuple[DisjointStep, ...]
+    _native: _DisjointChange | None = field(default=None, repr=False, compare=False)

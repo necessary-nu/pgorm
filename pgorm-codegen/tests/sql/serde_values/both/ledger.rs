@@ -1,10 +1,7 @@
 use pgorm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::pgorm_range_types::Floatmultirange;
-use super::pgorm_range_types::Floatrange;
-use super::pgorm_range_types::Slot;
-use super::pgorm_range_types::SlotMultirange;
+use super::pgorm_range_types::{Floatmultirange, Floatrange, Slot, SlotMultirange};
 
 #[derive(Clone, Debug, PartialEq, Entity, Serialize, Deserialize)]
 #[pgorm(table_name = "ledger")]
@@ -13,7 +10,9 @@ pub struct Model {
     pub id: i32,
     pub span: Interval,
     pub maybe_span: Option<Interval>,
-    #[pgorm(column_type = ColumnType::Interval(IntervalSpec::Fields(PgInterval::YearToMonth)))]
+    #[pgorm(
+        column_type = ColumnType::Interval(IntervalSpec::Fields(PgInterval::YearToMonth))
+    )]
     pub months: Interval,
     pub spans: Vec<Interval>,
     pub ints: Range<i32>,

@@ -137,35 +137,31 @@ impl Relation {
             RelationType::BelongsTo => {
                 let from = Self::column_list(&self.get_column_camel_case(), None);
                 let to = Self::column_list(&self.get_ref_column_camel_case(), module.as_ref());
-                let on_update = self.on_update.as_ref().map(|action| {
-                    let action = Self::checked_foreign_key_action(action);
-                    quote! { on_update = ForeignKeyAction::#action, }
-                });
-                let on_delete = self.on_delete.as_ref().map(|action| {
-                    let action = Self::checked_foreign_key_action(action);
-                    quote! { on_delete = ForeignKeyAction::#action, }
-                });
-                let key_check = self.get_key_attrs();
-                let unrelated = self.unrelated().then(|| quote! { related = false, });
-                let period = self.period.as_ref().map(|(src_column, ref_column)| {
+                let mut parts = vec![
+                    quote! { #rel_type = #ref_entity },
+                    quote! { from = #from },
+                    quote! { to = #to },
+                ];
+                if let Some((src_column, ref_column)) = &self.period {
                     let from_period = format_ident!("{}", src_column.to_upper_camel_case());
                     let to_period = format_ident!("{}", ref_column.to_upper_camel_case());
-                    quote! {
-                        from_period = Column::#from_period,
-                        to_period = #module Column::#to_period,
-                    }
-                });
+                    parts.push(quote! { from_period = Column::#from_period });
+                    parts.push(quote! { to_period = #module Column::#to_period });
+                }
+                if let Some(action) = &self.on_update {
+                    let action = Self::checked_foreign_key_action(action);
+                    parts.push(quote! { on_update = ForeignKeyAction::#action });
+                }
+                if let Some(action) = &self.on_delete {
+                    let action = Self::checked_foreign_key_action(action);
+                    parts.push(quote! { on_delete = ForeignKeyAction::#action });
+                }
+                parts.extend(self.get_key_attrs());
+                if self.unrelated() {
+                    parts.push(quote! { related = false });
+                }
                 quote! {
-                    #[pgorm(
-                        #rel_type = #ref_entity,
-                        from = #from,
-                        to = #to,
-                        #period
-                        #on_update
-                        #on_delete
-                        #key_check
-                        #unrelated
-                    )]
+                    #[pgorm(#(#parts),*)]
                 }
             }
         }
@@ -197,15 +193,15 @@ impl Relation {
     /// The `deferrability` and `enforcement` attribute keys, where the key
     /// declared them.
     // [spec:pgorm:sem:codegen.entity.relations+5]
-    fn get_key_attrs(&self) -> TokenStream {
-        let mut attrs = TokenStream::new();
+    fn get_key_attrs(&self) -> Vec<TokenStream> {
+        let mut attrs = Vec::new();
         if let Some(deferrability) = self.deferrability {
             let variant = format_ident!("{}", Self::get_deferrability(deferrability));
-            attrs.extend(quote! { deferrability = Deferrability::#variant, });
+            attrs.push(quote! { deferrability = Deferrability::#variant });
         }
         if let Some(enforcement) = self.enforcement {
             let variant = format_ident!("{}", Self::get_enforcement(enforcement));
-            attrs.extend(quote! { enforcement = Enforcement::#variant, });
+            attrs.push(quote! { enforcement = Enforcement::#variant });
         }
         attrs
     }

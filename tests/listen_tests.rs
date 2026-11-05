@@ -228,7 +228,7 @@ async fn quoted_channel_names_are_exact() -> Result<(), Error> {
 }
 
 // [spec:pgorm:req:conn.listen/test]    a name past 63 bytes is refused before it is sent; 63 bytes works end to end; an empty one is the server's error
-// [spec:pgorm:def:error.model+11/test]    a listener's refusal converts into Error::Listen
+// [spec:pgorm:def:error.model+13/test]    a listener's refusal converts into Error::Listen
 #[pgorm_macros::test]
 async fn channel_name_past_63_bytes_is_refused() -> Result<(), Error> {
     let ctx = TestContext::new("channel_name_past_63_bytes").await;
@@ -364,7 +364,7 @@ async fn terminated_connection_ends_the_stream() -> Result<(), Error> {
 }
 
 // [spec:pgorm:req:conn.listen/test]    past its capacity the listener closes and the stream ends with Overflow
-// [spec:pgorm:def:error.model+11/test]    the overflow that ends a listener's stream is Error::Listen
+// [spec:pgorm:def:error.model+13/test]    the overflow that ends a listener's stream is Error::Listen
 #[pgorm_macros::test]
 async fn overflow_closes_the_listener() -> Result<(), Error> {
     let ctx = TestContext::new("overflow_closes_the_listener").await;

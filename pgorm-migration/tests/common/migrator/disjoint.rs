@@ -157,3 +157,54 @@ impl MigratorTrait for Vanned {
         ]
     }
 }
+
+/// The fleet's history as it was frozen when each change was made: the
+/// tables `Fleet` declared, then the van kind `VannedFleet` adds, a file for
+/// each step of the change, the first committing after it runs.
+pub struct Frozen;
+
+#[async_trait::async_trait]
+impl MigratorTrait for Frozen {
+    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+        vec![
+            Box::new(sql_migration!(
+                "tests/sql/frozen/m20240401_000001_create_fleet.sql"
+            )),
+            Box::new(sql_migration!(
+                "tests/sql/frozen/m20240401_000002_add_van_1.sql"
+            )),
+            Box::new(sql_migration!(
+                "tests/sql/frozen/m20240401_000002_add_van_2.sql"
+            )),
+        ]
+    }
+}
+
+/// The same history generated as each migration runs, from the declaration
+/// as it stands once vans have joined: the first migration already creates
+/// the kind the second adds, so a database built from nothing cannot replay
+/// it.
+pub struct Recomputed;
+
+#[async_trait::async_trait]
+impl MigratorTrait for Recomputed {
+    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+        vec![
+            Box::new(Statements {
+                name: "m20240401_000001_create_fleet",
+                statements: || Schema::new().create_disjoint::<VannedFleet>(),
+                commits_after: false,
+            }),
+            Box::new(Statements {
+                name: "m20240401_000002_add_van_kind",
+                statements: || van_step(0),
+                commits_after: true,
+            }),
+            Box::new(Statements {
+                name: "m20240401_000003_add_van_table",
+                statements: || van_step(1),
+                commits_after: false,
+            }),
+        ]
+    }
+}

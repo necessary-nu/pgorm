@@ -400,7 +400,7 @@ async fn try_insert_result_variants() -> Result<(), Error> {
 // back from the database and handed straight to `set` — against the `Ok(0)` of
 // a `WHERE` that matched nothing, and the no-op read of
 // `UpdateOne::exec_returning_model`
-// [spec:pgorm:def:error.model+11/test]    `Error::NothingToSet` has a
+// [spec:pgorm:def:error.model+13/test]    `Error::NothingToSet` has a
 // construction site, and it is this one
 #[pgorm_macros::test]
 async fn update_noop_and_record_check() -> Result<(), Error> {

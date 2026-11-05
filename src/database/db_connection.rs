@@ -110,23 +110,35 @@ pub struct DatabasePool(pub(crate) Pool);
 
 /// A set of [`DatabasePool`]s keyed by their tags, as built by
 /// [`connect_multi_with_builder`](crate::connect_multi_with_builder).
-// [spec:pgorm:sem:conn.pool.multi+2]    tag-keyed accessor surface
+///
+/// Which pool a statement runs on is the caller's choice, made by tag:
+/// nothing here balances load across the pools or falls back from one to
+/// another.
+// [spec:pgorm:sem:conn.pool.multi+3]    tag-keyed accessor surface
 #[derive(Debug, Clone)]
-#[repr(transparent)]
-pub struct DatabaseMultiPool(pub(crate) BTreeMap<Arc<String>, DatabasePool>);
+pub struct DatabaseMultiPool(pub(crate) BTreeMap<String, DatabasePool>);
 
 impl DatabaseMultiPool {
-    /// The pool tagged `key`, or `None` if no pool carries that tag.
-    pub fn get(&self, key: Arc<String>) -> Option<DatabasePool> {
-        self.0.get(&key).cloned()
+    /// The pool tagged `tag`, or `None` if no pool carries that tag.
+    pub fn get(&self, tag: &str) -> Option<&DatabasePool> {
+        self.0.get(tag)
+    }
+
+    /// Every pool with its tag, in the tags' order.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &DatabasePool)> {
+        self.0.iter().map(|(tag, pool)| (tag.as_str(), pool))
     }
 
     /// The current [`Status`] of every pool, keyed by tag.
-    pub fn status(&self) -> BTreeMap<Arc<String>, Status> {
-        self.0
-            .iter()
-            .map(|(k, v)| (k.clone(), v.status()))
+    pub fn status(&self) -> BTreeMap<&str, Status> {
+        self.iter()
+            .map(|(tag, pool)| (tag, pool.status()))
             .collect()
+    }
+
+    /// [`DatabasePool::close`] every pool.
+    pub fn close(&self) {
+        self.0.values().for_each(DatabasePool::close);
     }
 }
 
@@ -435,7 +447,7 @@ impl ConnectionTrait for &DatabaseConnection {
     }
 }
 
-// [spec:pgorm:def:conn.pool.conn-trait+8]    cache-routing impls
+// [spec:pgorm:def:conn.pool.conn-trait+9]    cache-routing impls
 #[async_trait::async_trait]
 impl ConnectionTrait for DatabaseConnection {
     // #[instrument(level = "trace")]
@@ -609,79 +621,6 @@ impl ConnectionTrait for DatabaseTransaction<'_> {
 
     async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
         Ok(pgorm_pool::GenericClient::batch_execute(self.tx(), sql).await?)
-    }
-}
-/// The handle a transaction closure is given is `&mut DatabaseTransaction`, and
-/// a helper that takes `&C` would otherwise have to be passed a reborrowed
-/// `&*txn`: `&mut T` is its own type, and the coercion to `&T` does not fire
-/// into the inference variable `C`. Forwarding through the exclusive borrow
-/// makes the closure's handle spell a connection the same way the transaction
-/// itself does.
-// [spec:pgorm:def:conn.pool.conn-trait+8]    the closure's handle is itself a connection
-#[async_trait::async_trait]
-impl ConnectionTrait for &mut DatabaseTransaction<'_> {
-    async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        (**self).execute(statement, params).await
-    }
-
-    async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-        P: BorrowToSql,
-        I: IntoIterator<Item = P> + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        (**self).execute_raw(statement, params).await
-    }
-
-    async fn query_one<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<tokio_postgres::Row, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        (**self).query_one(statement, params).await
-    }
-
-    async fn query_opt<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<tokio_postgres::Row>, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        (**self).query_opt(statement, params).await
-    }
-
-    async fn query_all<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<tokio_postgres::Row>, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        (**self).query_all(statement, params).await
-    }
-
-    async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-        P: BorrowToSql,
-        I: IntoIterator<Item = P> + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        (**self).query_raw(statement, params).await
-    }
-
-    async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
-        (**self).batch_execute(sql).await
     }
 }
 

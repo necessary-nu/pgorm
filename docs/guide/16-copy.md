@@ -400,7 +400,8 @@ for.
 over a list of columns, for code that moves the bytes itself: writing a COPY
 file to disk, or reading one produced elsewhere. The encoder writes the
 header, each row of any `ToSql` values (checked as `send` checks one), and the
-trailer, into a `BytesMut` from the [`bytes`](https://docs.rs/bytes) crate.
+trailer, into a [`BytesMut`](crate::BytesMut), the `bytes` crate's buffer,
+which pgorm re-exports.
 The decoder takes the data in chunks split anywhere and yields each row once
 all of it has arrived:
 
@@ -409,11 +410,10 @@ all of it has arrived:
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("copy_encoder").await;
 # let pool = scratch.pool.clone();
-use bytes::BytesMut;
 use futures::{SinkExt, TryStreamExt};
 use pgorm::pgorm_query::{CopyBinary, CopyFromStatement, CopyToStatement, Query};
 use pgorm::types::Type;
-use pgorm::{Bytes, CopyColumn, CopyRowDecoder, CopyRowEncoder, CopyTrait, Value};
+use pgorm::{Bytes, BytesMut, CopyColumn, CopyRowDecoder, CopyRowEncoder, CopyTrait, Value};
 use pgorm_guide_support::bakery;
 
 let columns = vec![

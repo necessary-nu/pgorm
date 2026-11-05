@@ -25,7 +25,7 @@ impl EntityTransformer {
     // [spec:pgorm:sem:codegen.entity.transform.inverse+2]
     // [spec:pgorm:sem:codegen.entity.transform.conjunct+2]
     // [spec:pgorm:req:codegen.entity.collisions+3]
-    // [spec:pgorm:def:codegen.entity+7]
+    // [spec:pgorm:def:codegen.entity+9]
     // [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
     pub fn transform(
         table_create_stmts: Vec<TableCreateStatement>,
@@ -510,7 +510,7 @@ fn refuse_repeated_key_columns(table: &TableCreateStatement, name: &str) -> Resu
 /// the generated `Column::<name>` would not compile against, and a `VIRTUAL`
 /// generated column in a key, which PostgreSQL does not support (`0A000`)
 /// and the derive refuses.
-// [spec:pgorm:sem:codegen.entity.expressions+2]
+// [spec:pgorm:sem:codegen.entity.expressions+3]
 fn refuse_unwritable_expressions(
     columns: &[Column],
     primary_keys: &[PrimaryKey],
@@ -932,8 +932,6 @@ fn names_used(entity: &Entity) -> BTreeSet<String> {
         .collect();
     let mut blocks = vec![
         EntityWriter::gen_import(&WithSerde::None),
-        EntityWriter::gen_import_active_enum(entity),
-        EntityWriter::gen_import_range_types(entity),
         EntityWriter::gen_compact_model_struct(
             entity,
             &WithSerde::None,
@@ -982,12 +980,7 @@ impl Claims {
 mod tests {
     use super::*;
     use pgorm::Schema;
-    use pretty_assertions::assert_eq;
-    use proc_macro2::TokenStream;
-    use std::{
-        error::Error,
-        io::{self, BufRead, BufReader},
-    };
+    use std::error::Error;
 
     #[test]
     fn duplicated_many_to_many_paths() -> Result<(), Box<dyn Error>> {
@@ -1004,19 +997,19 @@ mod tests {
             vec![
                 (
                     "bills",
-                    include_str!("../tests_cfg/duplicated_many_to_many_paths/bills.rs"),
+                    "src/tests_cfg/duplicated_many_to_many_paths/bills.rs",
                 ),
                 (
                     "users",
-                    include_str!("../tests_cfg/duplicated_many_to_many_paths/users.rs"),
+                    "src/tests_cfg/duplicated_many_to_many_paths/users.rs",
                 ),
                 (
                     "users_saved_bills",
-                    include_str!("../tests_cfg/duplicated_many_to_many_paths/users_saved_bills.rs"),
+                    "src/tests_cfg/duplicated_many_to_many_paths/users_saved_bills.rs",
                 ),
                 (
                     "users_votes",
-                    include_str!("../tests_cfg/duplicated_many_to_many_paths/users_votes.rs"),
+                    "src/tests_cfg/duplicated_many_to_many_paths/users_votes.rs",
                 ),
             ],
         )
@@ -1034,12 +1027,9 @@ mod tests {
                 schema.create_table_from_entity(users_votes::Entity)?,
             ],
             vec![
-                ("bills", include_str!("../tests_cfg/many_to_many/bills.rs")),
-                ("users", include_str!("../tests_cfg/many_to_many/users.rs")),
-                (
-                    "users_votes",
-                    include_str!("../tests_cfg/many_to_many/users_votes.rs"),
-                ),
+                ("bills", "src/tests_cfg/many_to_many/bills.rs"),
+                ("users", "src/tests_cfg/many_to_many/users.rs"),
+                ("users_votes", "src/tests_cfg/many_to_many/users_votes.rs"),
             ],
         )
     }
@@ -1056,17 +1046,11 @@ mod tests {
                 schema.create_table_from_entity(users_votes::Entity)?,
             ],
             vec![
-                (
-                    "bills",
-                    include_str!("../tests_cfg/many_to_many_multiple/bills.rs"),
-                ),
-                (
-                    "users",
-                    include_str!("../tests_cfg/many_to_many_multiple/users.rs"),
-                ),
+                ("bills", "src/tests_cfg/many_to_many_multiple/bills.rs"),
+                ("users", "src/tests_cfg/many_to_many_multiple/users.rs"),
                 (
                     "users_votes",
-                    include_str!("../tests_cfg/many_to_many_multiple/users_votes.rs"),
+                    "src/tests_cfg/many_to_many_multiple/users_votes.rs",
                 ),
             ],
         )
@@ -1083,14 +1067,8 @@ mod tests {
                 schema.create_table_from_entity(users::Entity)?,
             ],
             vec![
-                (
-                    "bills",
-                    include_str!("../tests_cfg/self_referencing/bills.rs"),
-                ),
-                (
-                    "users",
-                    include_str!("../tests_cfg/self_referencing/users.rs"),
-                ),
+                ("bills", "src/tests_cfg/self_referencing/bills.rs"),
+                ("users", "src/tests_cfg/self_referencing/users.rs"),
             ],
         )
     }
@@ -1106,50 +1084,24 @@ mod tests {
             .map(|entity| (entity.table_name.clone(), entity))
             .collect();
 
-        for (entity_name, file_content) in files {
+        for (entity_name, golden) in files {
             let entity = entities
                 .get(entity_name)
                 .expect("Forget to add entity to the list");
-
-            assert_eq!(
-                parse_from_file(file_content.as_bytes())?.to_string(),
-                EntityWriter::gen_compact_code_blocks(
+            crate::entity::format::hold_golden(
+                golden,
+                &crate::entity::format::file(EntityWriter::gen_compact_code_blocks(
                     entity,
                     &crate::WithSerde::None,
                     &None,
                     false,
                     false,
                     &Default::default(),
-                    &Default::default()
-                )
-                .into_iter()
-                .skip(1)
-                .fold(TokenStream::new(), |mut acc, tok| {
-                    acc.extend(tok);
-                    acc
-                })
-                .to_string()
+                    &Default::default(),
+                )),
             );
         }
 
         Ok(())
-    }
-
-    fn parse_from_file<R>(inner: R) -> io::Result<TokenStream>
-    where
-        R: io::Read,
-    {
-        let mut reader = BufReader::new(inner);
-        let mut lines: Vec<String> = Vec::new();
-
-        reader.read_until(b';', &mut Vec::new())?;
-
-        let mut line = String::new();
-        while reader.read_line(&mut line)? > 0 {
-            lines.push(line.to_owned());
-            line.clear();
-        }
-        let content = lines.join("");
-        Ok(content.parse().unwrap())
     }
 }

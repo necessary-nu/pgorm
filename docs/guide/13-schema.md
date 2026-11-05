@@ -4,9 +4,12 @@ A program's tables have to exist before it can use them. pgorm writes the
 DDL that creates them in two ways: from the entities you already declared, and
 from DDL builders for everything an entity does not describe, such as views,
 sequences or a change to an existing table. Both only build statements. You
-run each one yourself, usually in a [migration](crate::guide::migrations), with
+run each one yourself, with
 [`batch_execute`](crate::ConnectionTrait::batch_execute) and the statement's
-text.
+text, usually frozen into a [migration](crate::guide::migrations) when the
+change is made, since a statement generated from an entity follows the entity
+as it changes ([Generated DDL in a
+migration](crate::guide::migrations#generated-ddl-in-a-migration)).
 
 Schema generation writes; it does not read. pgorm never inspects a database
 to compare it with the entities.

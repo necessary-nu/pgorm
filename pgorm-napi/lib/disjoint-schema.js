@@ -9,6 +9,7 @@
 
 import { arg, TRUSTED } from "./builder.js";
 import { Disjoined, handleOf } from "./disjoint-query.js";
+import { CHANGE } from "./migration-file.js";
 import { native } from "./operations.js";
 import { AlterTable } from "./schema-alter.js";
 import { CreateTable, statement } from "./schema.js";
@@ -48,10 +49,10 @@ export function statementsOf(pairs) {
 function changed(model, name, change, value, table = null) {
   if (!(model instanceof Disjoined)) throw new TypeError(`${name} takes a Disjoint or a DisjointEntity`);
   if (typeof value !== "string") throw new TypeError("a kind's value is a string");
-  const steps = /** @type {[[string, unknown][], [string, string | null, string] | null][]} */ (
+  const [steps, written] = /** @type {[[[string, unknown][], [string, string | null, string] | null][], unknown]} */ (
     native.disjointChange(handleOf(model), change, value, table === null ? null : arg(table))
   );
-  return Object.freeze({
+  const result = {
     steps: Object.freeze(steps.map(([statements, gap]) =>
       Object.freeze({
         statements: Object.freeze(statementsOf(statements)),
@@ -60,7 +61,9 @@ function changed(model, name, change, value, table = null) {
           : Object.freeze({ kind: gap[0], table: new Table(gap[2], { schema: gap[1] ?? undefined }) }),
       })
     )),
-  });
+  };
+  Object.defineProperty(result, CHANGE, { value: written });
+  return Object.freeze(result);
 }
 
 /**

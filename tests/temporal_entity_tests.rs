@@ -114,7 +114,7 @@ async fn rooms(db: &DatabaseConnection) -> Result<Vec<room::Model>, Error> {
 /// one that only touches it. A lookup by key is by equality, period included:
 /// it names one version, and a period that only overlaps a version names none.
 /// An update and a delete by key reach that version alone.
-// [spec:pgorm:def:entity.traits.primary-key+7/test]    against a live server: a temporal key is
+// [spec:pgorm:def:entity.traits.primary-key+8/test]    against a live server: a temporal key is
 // generated WITHOUT OVERLAPS, and looked up, updated and deleted by equality, period included
 // [spec:pgorm:sem:schema.from-entity+12/test]
 #[pgorm_macros::test]

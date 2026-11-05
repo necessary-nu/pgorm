@@ -890,6 +890,106 @@ pub async fn transaction_failed_rollback_is_reported() -> Result<(), Error> {
     Ok(())
 }
 
+// [spec:pgorm:sem:conn.tx.compose/test]    `?` passes a savepoint's failure and its value to the closure around it
+#[pgorm_macros::test]
+pub async fn savepoint_composes_with_question_mark() -> Result<(), Error> {
+    let ctx = TestContext::new("savepoint_composes_with_question_mark").await;
+    create_tables(&ctx.db).await?;
+    let mut db = ctx.db.get().await?;
+
+    let refused = db
+        .transaction(async |txn| {
+            insert_bakery(&txn, "Outer Bakery", 1.0).await?;
+            txn.transaction(async |savepoint| {
+                insert_bakery(&savepoint, "Inner Bakery", 2.0).await?;
+                Err::<(), Error>(Error::Custom("savepoint said no".to_owned()))
+            })
+            .await?;
+            insert_bakery(&txn, "Unreached Bakery", 3.0).await
+        })
+        .await;
+    match refused {
+        Err(TransactionError::Transaction(Error::Custom(message))) => {
+            assert_eq!(message, "savepoint said no")
+        }
+        other => panic!("expected the savepoint's error as the closure's, got {other:?}"),
+    }
+    assert_eq!(
+        count_bakeries(&db, "Bakery").await?,
+        0,
+        "the enclosing transaction rolled back with the savepoint's error"
+    );
+
+    // A function returning `Error` takes a whole transaction's outcome with `?`.
+    let counted = db
+        .transaction(async |txn| {
+            let counted = txn
+                .transaction(async |savepoint| {
+                    insert_bakery(&savepoint, "Kept Bakery", 4.0).await?;
+                    count_bakeries(&savepoint, "Bakery").await
+                })
+                .await?;
+            Ok::<_, Error>(counted)
+        })
+        .await?;
+    assert_eq!(counted, 1);
+    assert_eq!(count_bakeries(&db, "Kept Bakery").await?, 1);
+
+    drop(db);
+    ctx.delete().await;
+
+    Ok(())
+}
+
+// [spec:pgorm:sem:conn.tx.compose/test]    a savepoint's failed ROLLBACK reaches the caller beside its cause
+#[pgorm_macros::test]
+pub async fn savepoint_failed_rollback_is_not_lost() -> Result<(), Error> {
+    let ctx = TestContext::new("savepoint_failed_rollback_is_not_lost").await;
+    let mut db = ctx.db.get().await?;
+    let killer = ctx.db.get().await?;
+    let pid: i32 = db.query_one("SELECT pg_backend_pid()", &[]).await?.get(0);
+
+    // The backend ends inside the savepoint, so neither its ROLLBACK TO
+    // SAVEPOINT nor the enclosing transaction's ROLLBACK is answered.
+    let outcome = db
+        .transaction(async |txn| {
+            txn.transaction(async |savepoint| {
+                savepoint.execute("SELECT 1", &[]).await?;
+                killer
+                    .execute(
+                        "SELECT pg_terminate_backend(pid, 5000) FROM pg_stat_activity \
+                         WHERE pid = $1 AND datname = current_database()",
+                        &[&pid],
+                    )
+                    .await?;
+                Err::<(), Error>(Error::Custom("savepoint said no".to_owned()))
+            })
+            .await?;
+            Ok::<_, Error>(())
+        })
+        .await;
+
+    match outcome {
+        Err(TransactionError::RollbackFailed {
+            cause: Error::RollbackFailed { cause, rollback },
+            rollback: Error::Postgres(_),
+        }) => {
+            assert!(
+                matches!(*cause, Error::Custom(ref message) if message == "savepoint said no"),
+                "{cause:?}"
+            );
+            assert!(matches!(*rollback, Error::Postgres(_)), "{rollback:?}");
+        }
+        other => panic!("expected both failed rollbacks beside the cause, got {other:?}"),
+    }
+
+    db.discard();
+    drop(killer);
+    ctx.delete().await;
+
+    Ok(())
+}
+
 // [spec:pgorm:sem:conn.tx.retry+3/test]    SQLSTATE 40001 raised by a statement is retried
 #[pgorm_macros::test]
 pub async fn transaction_retry_concurrent_update_txclosure() -> Result<(), Error> {

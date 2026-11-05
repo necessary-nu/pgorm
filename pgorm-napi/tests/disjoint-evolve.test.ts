@@ -3,7 +3,11 @@
 // change gives, its refusals, and each change run on a live server.
 
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
+import { pathToFileURL } from "node:url";
 
 import {
   addDisjointKind,
@@ -20,6 +24,9 @@ import {
   type DisjointChange,
   type DisjointStep,
   ForeignKeyViolationError,
+  MigrationFile,
+  migrationFile,
+  migrationFiles,
   model,
   type Model,
   Pool,
@@ -28,7 +35,7 @@ import {
   Table,
   TypeName,
 } from "../lib/index.js";
-import { scratchDatabase } from "./support.ts";
+import { deno, scratchDatabase } from "./support.ts";
 
 const SCHEMA = "disjoint_evolve";
 const kindType = new TypeName("vehicle_kind", { schema: SCHEMA });
@@ -120,6 +127,53 @@ test("each change refuses what the shape refuses", () => {
 });
 
 let database: { pool: Pool; drop(): Promise<void> } | undefined;
+
+// [spec:pgorm:req:bindings.migration-file/test]    a change frozen as pgorm freezes it, a file per step, the first committing after, and statements frozen as one file; a change built by hand has nothing to freeze
+test("a change freezes into migration files", () => {
+  const before = vehicles({ car: CAR, bike: null });
+  const afterVan = vehicles({ car: CAR, van: VAN, bike: null });
+  const created = migrationFile("m20260101_000001_create_vehicle", createDisjoint(before));
+  assert.ok(created instanceof MigrationFile);
+  assert.equal(created.name, "m20260101_000001_create_vehicle");
+  assert.equal(created.commitsAfter, false);
+  assert.ok(created.text.startsWith(`CREATE TYPE "${SCHEMA}"."vehicle_kind" AS ENUM`));
+  assert.ok(created.text.endsWith(";\n"));
+  const files = migrationFiles(addDisjointKind(afterVan, "van"), "m20260102_000001_add_van");
+  assert.deepEqual(
+    files.map((file) => [file.name, file.commitsAfter]),
+    [["m20260102_000001_add_van_1", true], ["m20260102_000001_add_van_2", false]],
+  );
+  assert.equal(
+    files[0]!.text,
+    `-- pgorm: commits-after\nALTER TYPE "${SCHEMA}"."vehicle_kind" ADD VALUE 'van' AFTER 'car';\n`,
+  );
+  const tabled = migrationFiles(addDisjointKindTable(vehicles({ car: CAR, bike: BIKE }), "bike"), "m3");
+  assert.match(tabled[0]!.text, /-- Before the next migration runs, write a row in/);
+  assert.ok(migrationFile("m4", [], { commitsAfter: true }).text.startsWith("-- pgorm: commits-after"));
+  assert.throws(() => migrationFiles({ steps: [] }, "m5"), TypeError);
+  assert.throws(() => migrationFile("m6", ["SELECT 1" as unknown as DDL]), TypeError);
+});
+
+// [spec:pgorm:req:bindings.migration-file/test]    freeze writes a file once and never again, a file frozen later from the declaration as it is then leaving the first as it was, and refuses a name that is no file stem
+test("a frozen file is written once and never again", {
+  skip: deno && "the suite runs under Deno without --allow-write, so Node holds the writing",
+}, () => {
+  const created = migrationFile("m20260101_000001_create_vehicle", createDisjoint(vehicles({ car: CAR, bike: null })));
+  const directory = mkdtempSync(join(tmpdir(), "pgorm-napi-frozen-"));
+  try {
+    assert.equal(created.freeze(directory), true);
+    assert.equal(created.freeze(pathToFileURL(directory)), false);
+    const later = migrationFile(created.name, createDisjoint(vehicles({ car: CAR, van: VAN, bike: null })));
+    assert.equal(later.freeze(directory), false);
+    assert.equal(readFileSync(join(directory, `${created.name}.sql`), "utf8"), created.text);
+    for (const name of ["", "..", "nested/file"]) {
+      assert.throws(() => migrationFile(name, []).freeze(directory), refused());
+    }
+    assert.throws(() => created.freeze(join(directory, "missing")), /cannot write/);
+  } finally {
+    rmSync(directory, { recursive: true });
+  }
+});
 
 function pool(): Pool {
   if (!database) throw new Error("the scratch database was not created");
