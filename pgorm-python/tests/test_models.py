@@ -281,8 +281,10 @@ class ModelConstruction(unittest.TestCase):
         for value in (model.col("id"), query, accounts().delete()):
             with self.assertRaises(p.ConstructionError):
                 bool(value)
-        with self.assertRaises(p.ConstructionError):
-            model.col("id") == model.col("display_name")
+        self.assertEqual(
+            (model.col("id") == model.col("display_name")).inspect().sql,
+            (p.col("id", table="a") == p.col("display name", table="a")).inspect().sql,
+        )
 
     # [spec:pgorm:req:bindings.column-operators+3/test]
     def test_columns_are_expressions_converting_every_value_operator(self):

@@ -18174,6 +18174,43 @@ children (
                 id binding-parity.verify-annotations
                 title "Every shared binding rule is verified in both bindings: Python tests bindings.model-columns and JavaScript tests bindings.optional"
                 kind @test
+                deps (binding-parity.model-column-operands)
+                log (
+                    {
+                        at 2026-11-05T14:22:33.1695Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:23:04.443364Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Todo (nplan unclaim)"
+                    }
+                )
+            }
+
+            {
+                id binding-parity.model-column-operands
+                title "Python's model column takes another model column as written, whatever its declared type, as bindings.model-columns says and JavaScript does"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:23:11.764914Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:23:55.570584Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Found while writing the Python test for bindings.model-columns (binding-parity.verify-annotations). Python's ModelColumn._operand refused a model column of another declared type with ConstructionError(\"compared model columns have different declared types\"). bindings.model-columns says an expression is taken as written, and bindings.column-operators says a model column goes wherever an expression goes. JavaScript's columnValue takes any Expr as written, a model column of another type included. Chosen: Python takes it as written too, the branch deleted, and whether the types compare is left to PostgreSQL as for any expression. Python's test that asserted the refusal now asserts the comparison renders as the two qualified columns do. No rule changed."
+                    }
+                )
             }
         )
         log (
