@@ -52,7 +52,7 @@ impl PyExpr {
 
     /// `operator` with `other`, bound unless it is an expression, or with
     /// `ANY (..)` / `ALL (..)` when PostgreSQL reads one after `operator`.
-    fn binary(&self, operator: BinOper, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+    pub(crate) fn binary(&self, operator: BinOper, other: &Bound<'_, PyAny>) -> PyResult<Self> {
         let right = match other.extract::<PyRef<'_, PyQuantified>>() {
             Ok(quantified) if takes_quantifier(operator) => quantified.inner.clone(),
             _ => coerce(other)?.inner,

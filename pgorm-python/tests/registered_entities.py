@@ -211,10 +211,35 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
                 await self.active(identity, f"account{identity}").insert(connection)
             chosen = self.account.find().where(self.account.col("id").is_in((1, 3)))
             self.assertEqual(sorted(row["id"] for row in await chosen.all(connection)), [1, 3])
-        with self.assertRaises(p.ConstructionError):
-            mood.is_in([p.col("x")])
         with self.assertRaises(TypeError):
             mood.is_in("busy")
+
+    # [spec:pgorm:req:bindings.entity-reads+2/test]    a registered column compares with an expression,
+    # any_(..) or all_(..) as written, and a list holding an expression is a member as written
+    async def test_expression_operands_compare_as_written(self):
+        identifier, version = self.account.col("id"), self.account.col("version")
+        self.assertEqual(
+            (identifier == version).inspect().sql,
+            'SELECT "accounts"."id" = "accounts"."version"',
+        )
+        self.assertEqual(
+            identifier.is_in([p.literal(1), 3]).inspect().sql,
+            'SELECT "accounts"."id" IN (1, $1)',
+        )
+        async with self.pool.connection() as connection:
+            for identity in (1, 2, 3):
+                await self.active(identity, f"account{identity}").insert(connection)
+
+            async def ids(predicate):
+                return sorted(row["id"] for row in await self.account.find().where(predicate).all(connection))
+
+            self.assertEqual(await ids(identifier == version), [1])
+            self.assertEqual(await ids(identifier.is_distinct_from(version)), [2, 3])
+            self.assertEqual(await ids(identifier > p.literal(1)), [2, 3])
+            self.assertEqual(await ids(identifier == p.any_([1, 3])), [1, 3])
+            self.assertEqual(await ids(identifier != p.all_([1, 3])), [2])
+            self.assertEqual(await ids(identifier.is_in([p.literal(1), 3])), [1, 3])
+            self.assertEqual(await ids(identifier.is_not_in((version, 3))), [2])
 
     # [spec:pgorm:req:bindings.entities+4/test]    a money column, and an array of it, is a decimal
     # column: described as one, set, compared and read back as a Decimal through the entity's own

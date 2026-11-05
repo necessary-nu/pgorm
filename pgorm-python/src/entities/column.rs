@@ -15,6 +15,7 @@ use crate::{
     errors::{ConstructionError, LifecycleError},
     expressions::PyExpr,
     identifiers::PyIdentifier,
+    statements::PyQuantified,
 };
 
 /// A registered entity's column, itself the column's expression: every
@@ -67,24 +68,6 @@ impl PyEntityColumn {
             .map_err(|error| ConstructionError::new_err(error.to_string()))
     }
 
-    /// `IS [NOT] DISTINCT FROM` through the column's `ColumnTrait`, a value
-    /// converted as a compared value is and an expression taken as written.
-    // [spec:pgorm:req:bindings.column-operators+2]
-    fn distinct(&self, other: &Bound<'_, PyAny>, negated: bool) -> PyResult<PyExpr> {
-        if !other.is_instance_of::<PyExpr>() {
-            let op = match negated {
-                false => Comparison::IsDistinctFrom,
-                true => Comparison::IsNotDistinctFrom,
-            };
-            return self.comparison(other, op);
-        }
-        let expr = self.expr()?;
-        match negated {
-            false => expr.is_distinct_from(other),
-            true => expr.is_not_distinct_from(other),
-        }
-    }
-
     /// `value` converted to the column's declared kind as a comparison takes
     /// it. `None` is refused: no comparison with NULL holds.
     fn compared(&self, value: &Bound<'_, PyAny>) -> PyResult<Value> {
@@ -103,7 +86,16 @@ impl PyEntityColumn {
             .inner)
     }
 
+    /// A comparison, or `IS [NOT] DISTINCT FROM`, through the column's
+    /// `ColumnTrait`, its value converted as [`compared`](Self::compared)
+    /// converts one. An expression, or `any_(..)` / `all_(..)`, is compared
+    /// as written, as `Expr`'s operator compares it.
+    // [spec:pgorm:req:bindings.entity-reads+2]
+    // [spec:pgorm:req:bindings.column-operators+2]
     fn comparison(&self, value: &Bound<'_, PyAny>, op: Comparison) -> PyResult<PyExpr> {
+        if value.is_instance_of::<PyExpr>() || value.is_instance_of::<PyQuantified>() {
+            return self.expr()?.binary(op.operator(), value);
+        }
         let value = self.compared(value)?;
         self.entity
             .compare(&self.name, op, value)
@@ -116,14 +108,26 @@ impl PyEntityColumn {
     /// declared kind as a compared value is, or `in_subquery` /
     /// `not_in_subquery` over a `Select`'s rows, so a column whose domain is
     /// over an enum is a member as the enum, and so is what the subquery
-    /// projects.
+    /// projects. A list holding an expression is a member as written, as
+    /// `Expr`'s `is_in` takes one.
     // [spec:pgorm:req:bindings.entity-reads+2]
     fn membership(&self, values: &Bound<'_, PyAny>, negated: bool) -> PyResult<PyExpr> {
+        let listed =
+            values.is_exact_instance_of::<PyList>() || values.is_exact_instance_of::<PyTuple>();
+        if listed
+            && values
+                .try_iter()?
+                .any(|item| item.is_ok_and(|item| item.is_instance_of::<PyExpr>()))
+        {
+            let expr = self.expr()?;
+            return match negated {
+                false => expr.is_in(values),
+                true => expr.is_not_in(values),
+            };
+        }
         let members = if let Some(select) = crate::statements::subquery(values)? {
             Members::Subquery(Box::new(select))
-        } else if values.is_exact_instance_of::<PyList>()
-            || values.is_exact_instance_of::<PyTuple>()
-        {
+        } else if listed {
             let input = &self.entity.info().column(&self.name)?.input;
             let values = values
                 .try_iter()?
@@ -195,10 +199,10 @@ impl PyEntityColumn {
         self.bounded(lower, upper, Between { negated, symmetric })
     }
     fn is_distinct_from(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
-        self.distinct(other, false)
+        self.comparison(other, Comparison::IsDistinctFrom)
     }
     fn is_not_distinct_from(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
-        self.distinct(other, true)
+        self.comparison(other, Comparison::IsNotDistinctFrom)
     }
 
     fn is_in(&self, values: &Bound<'_, PyAny>) -> PyResult<PyExpr> {

@@ -3,7 +3,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use futures_util::future::BoxFuture;
 use pgorm::pgorm_query::{
-    Condition, NullOrdering, OnConflict, Order, SelectStatement, SimpleExpr, Value, Values,
+    BinOper, Condition, NullOrdering, OnConflict, Order, SelectStatement, SimpleExpr, Value, Values,
 };
 use pgorm::{ActiveValue, Error};
 
@@ -23,6 +23,22 @@ pub(crate) enum Comparison {
     Le,
     IsDistinctFrom,
     IsNotDistinctFrom,
+}
+
+impl Comparison {
+    /// The operator the comparison is, for an operand compared as written.
+    pub(crate) fn operator(self) -> BinOper {
+        match self {
+            Self::Eq => BinOper::Equal,
+            Self::Ne => BinOper::NotEqual,
+            Self::Gt => BinOper::GreaterThan,
+            Self::Ge => BinOper::GreaterThanOrEqual,
+            Self::Lt => BinOper::SmallerThan,
+            Self::Le => BinOper::SmallerThanOrEqual,
+            Self::IsDistinctFrom => BinOper::IsDistinctFrom,
+            Self::IsNotDistinctFrom => BinOper::IsNotDistinctFrom,
+        }
+    }
 }
 
 /// Which of `[NOT] BETWEEN [SYMMETRIC]` a column is tested by.

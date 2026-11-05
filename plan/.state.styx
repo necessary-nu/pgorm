@@ -1484,6 +1484,7 @@ assertions (
     {id pipeline-untyped-money-compare, kind @complete, author "brendan@necessary.nu", at 2026-11-04T23:53:59.610858Z}
     {id pipeline-created-range-bind, kind @complete, author "brendan@necessary.nu", at 2026-11-05T00:16:27.994273Z}
     {id napi-listen-abort-race, kind @complete, author "brendan@necessary.nu", at 2026-11-05T01:02:52.49869Z}
+    {id typed-binds.python-expression-operands, kind @complete, author "brendan@necessary.nu", at 2026-11-05T01:25:03.006459Z}
 )
 
 impl_evidence (

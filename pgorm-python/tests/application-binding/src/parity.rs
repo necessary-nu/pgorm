@@ -90,7 +90,8 @@ fn query_sql_and_values_match_rust() -> PyResult<()> {
 // [spec:pgorm:req:bindings.entity-reads+2/test]    a column's is_in and is_not_in are its
 // ColumnTrait membership: is_in / is_not_in over values of its declared kind, and in_subquery /
 // not_in_subquery over a Select's rows, so a column whose domain is over an enum is a member as
-// the enum, the subquery's projection cast beside it
+// the enum, the subquery's projection cast beside it, and a list holding an expression is a member
+// as written
 #[test]
 fn column_membership_matches_column_trait() -> PyResult<()> {
     Python::initialize();
@@ -128,6 +129,10 @@ fn column_membership_matches_column_trait() -> PyResult<()> {
                 "p.entity('app.Temper').col('mood').is_in(p.Select(p.col('mood')).from_(p.Table('t')))",
                 temper::Column::Mood.in_subquery(column("mood")),
             ),
+            (
+                "p.entity('app.Account').col('id').is_in([p.col('x')])",
+                Expr::col(Column::Id.as_column_ref()).is_in([Expr::col(Name::runtime("x"))]),
+            ),
         ];
         for (source, expected) in cases {
             let built = py.eval(&CString::new(source)?, Some(&globals), None)?;
@@ -139,7 +144,6 @@ fn column_membership_matches_column_trait() -> PyResult<()> {
         }
         for refused in [
             "p.entity('app.Account').col('id').is_in('12')",
-            "p.entity('app.Account').col('id').is_in([p.col('x')])",
             "p.entity('app.Account').col('id').is_in(['one'])",
         ] {
             assert!(

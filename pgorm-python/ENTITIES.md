@@ -104,7 +104,8 @@ async with pool.connection() as connection:
 A column's `eq`, `ne`, `gt`, `gte`, `lt` and `lte` (and the operators) are
 its `ColumnTrait` comparisons: the value converts to the column's declared
 kind and is written through its `save_as`, so an enum's label is cast to its
-type, and `None` is refused. `between` and `not_between`, `symmetric` or not,
+type; an expression, and `any_(..)` or `all_(..)`, are compared as written; and
+`None` is refused. `between` and `not_between`, `symmetric` or not,
 and `is_distinct_from` and `is_not_distinct_from` are the trait's too, their
 values converted and cast the same way, so a `money` column's bounds are cast
 to `money`; a bound that is an expression takes the whole test as written.
@@ -112,7 +113,8 @@ to `money`; a bound that is an expression takes the whole test as written.
 `is_not_in` over a list or tuple of values, each converted the same way, and
 `in_subquery` / `not_in_subquery` over a `Select`'s rows, so a column whose
 domain is over an enum is a member as the enum — the only way PostgreSQL
-compares one — and the subquery's projection is cast beside it:
+compares one — and the subquery's projection is cast beside it. A list holding
+an expression is a member as written:
 
 ```python
 Temper = p.entity("app.Temper")
