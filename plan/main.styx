@@ -19528,6 +19528,7 @@ children (
                         id guide.python-gaps.partial-model-skip
                         title "A PartialModel field marked skip selects nothing, as the guide says: the derive accepted `skip` but still projected the same-named column, a compile error where the entity has none and a wasted column otherwise (found building the bindings' partial models)"
                         kind @fix
+                        sealed true
                         log (
                             {
                                 at 2026-11-05T19:47:03.809046Z
@@ -19541,6 +19542,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "single-flight overridden: started while guide.python-gaps.model-select had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T21:33:51.667821Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
                             }
                         )
                     }
