@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T02:33:13.591797Z
+last_sync_at 2026-11-05T02:44:01.892437Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -262,7 +262,7 @@ rule_versions (
     {id migration.up-only, version 0}
     {id napi.api, version 1}
     {id napi.application, version 2}
-    {id napi.cancellation, version 1}
+    {id napi.cancellation, version 2}
     {id napi.codegen, version 1}
     {id napi.codegen-types, version 0}
     {id napi.distribution, version 0}
@@ -1774,18 +1774,24 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.model-unique-keys}
         {impl_name python, rule bindings.model-unique-keys}
+    ), rule_versions_seen (
+        {id bindings.model-unique-keys, version 1}
     )}
     {id bindings-disjoint-evolve, covered_rules (
         bindings.disjoint-evolve
     ), covered_claims (
         {impl_name javascript, rule bindings.disjoint-evolve}
         {impl_name python, rule bindings.disjoint-evolve}
+    ), rule_versions_seen (
+        {id bindings.disjoint-evolve, version 0}
     )}
     {id bindings-one-of, covered_rules (
         bindings.one-of
     ), covered_claims (
         {impl_name javascript, rule bindings.one-of}
         {impl_name python, rule bindings.one-of}
+    ), rule_versions_seen (
+        {id bindings.one-of, version 1}
     )}
     {id codegen.generate, covered_rules (
         codegen.entity
@@ -2533,9 +2539,6 @@ impl_evidence (
     ), covered_claims (
         {impl_name python, rule bindings.column-operators}
         {impl_name python, rule bindings.model-columns}
-    ), rule_versions_seen (
-        {id bindings.column-operators, version 2}
-        {id bindings.model-columns, version 1}
     )}
     {id python-model-gaps, covered_rules (
         bindings.cursors
@@ -2555,6 +2558,15 @@ impl_evidence (
         {impl_name python, rule bindings.models}
         {impl_name python, rule bindings.pagination}
         {impl_name python, rule bindings.relations}
+    ), rule_versions_seen (
+        {id bindings.cursors, version 0}
+        {id bindings.graphs, version 0}
+        {id bindings.model-reads, version 0}
+        {id bindings.model-records, version 1}
+        {id bindings.model-writes, version 1}
+        {id bindings.models, version 5}
+        {id bindings.pagination, version 0}
+        {id bindings.relations, version 0}
     )}
     {id python-registered-pools, covered_rules (
         bindings.registered-pools
