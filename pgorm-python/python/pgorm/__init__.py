@@ -137,6 +137,7 @@ from ._native import (
     graphs,
     __pgorm_version__,
     __version__,
+    POSTGRES_TARGET,
     capabilities,
     require_capability,
 )
@@ -345,5 +346,6 @@ __all__ = [
     "__pgorm_version__",
     "__version__",
     "capabilities",
+    "POSTGRES_TARGET",
     "require_capability",
 ]

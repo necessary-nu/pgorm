@@ -64,6 +64,16 @@ option.
 > time MUST NOT invoke rustc, Cargo, a packaging tool or a code-generation
 > build.
 
+> [spec:pgorm:req:bindings.postgres-target]
+> Each binding MUST carry pgorm's `pg-19` cargo feature, forwarding it to
+> pgorm (`pg-19 = ["pgorm/pg-19"]`) and to nothing else, so that a build of
+> the binding targets the PostgreSQL release a build of pgorm does
+> (`sql.target`): 18 by default, 19 with the feature. Each binding's module
+> MUST export `POSTGRES_TARGET`, that release as an integer, read from
+> `pgorm_query::POSTGRES_TARGET` and never computed again. Where the two
+> releases answer one statement differently, a binding's live tests hold the
+> answer of the release its build targets.
+
 > [spec:pgorm:req:bindings.surface+2]
 > The two bindings MUST offer the same public operations, each spelled by its
 > binding's naming rule. `docs/spec/bindings-surface.json` declares the shared

@@ -41,6 +41,14 @@ export declare const version: string;
  */
 export declare const STATEMENT_CACHE_CHANNEL: string;
 
+// [spec:pgorm:req:bindings.postgres-target]
+/**
+ * The PostgreSQL release this build targets: 18, unless the addon was built
+ * with its `pg-19` feature, which forwards pgorm's and makes it 19. It is
+ * Rust's `pgorm_query::POSTGRES_TARGET`.
+ */
+export declare const POSTGRES_TARGET: 18 | 19;
+
 /** The base class of every error pgorm-napi rejects with. */
 export declare class PgormError extends Error {}
 

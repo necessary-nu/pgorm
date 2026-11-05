@@ -241,6 +241,10 @@ platforms (
             check {
                 cmd "cargo check --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target"
             }
+            // The build that targets PostgreSQL 19, whose module reports it.
+            check-pg-19 {
+                cmd "cargo check --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --features pg-19"
+            }
             clippy {
                 cmd "cargo clippy --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --all-targets -- -D warnings"
             }

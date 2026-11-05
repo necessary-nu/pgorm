@@ -223,7 +223,7 @@ fn manifest() -> Value {
     });
     // The release pgorm targets: 18 by default, 19 when it was built with
     // pg-19, through this crate's feature or any other's.
-    // [spec:pgorm:req:sql.target+1]
+    // [spec:pgorm:req:sql.target+2]
     if pgorm::pgorm_query::POSTGRES_TARGET == 19
         && let Some(features) = manifest["features"].as_array_mut()
     {

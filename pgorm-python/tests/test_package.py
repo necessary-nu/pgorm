@@ -26,6 +26,12 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(manifest["transport"], "in-process")
         self.assertEqual(json.loads(json.dumps(manifest)), manifest)
 
+    # [spec:pgorm:req:bindings.postgres-target/test]
+    def test_postgres_target_follows_the_pg_19_feature(self):
+        expected = 19 if "pg-19" in pgorm.capabilities()["features"] else 18
+        self.assertEqual(pgorm.POSTGRES_TARGET, expected)
+        self.assertIs(type(pgorm.POSTGRES_TARGET), int)
+
     # [spec:pgorm:req:python.capabilities+2/test]
     def test_capability_queries_are_isolated_and_fail_closed(self):
         manifest = pgorm.capabilities()

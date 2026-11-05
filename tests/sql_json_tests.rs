@@ -419,7 +419,7 @@ async fn constructor_clauses_hold_live() -> Result<(), Error> {
     };
     let from_query: Json = both_paths(&db, series_array(3)).await?;
     assert_eq!(from_query, json!([3, 2, 1]));
-    // [spec:pgorm:req:sql.target+1/test]    a query of no rows: NULL on 18, the
+    // [spec:pgorm:req:sql.target+2/test]    a query of no rows: NULL on 18, the
     // empty array on 19
     let from_no_rows: Option<Json> = both_paths(&db, series_array(0)).await?;
     #[cfg(not(feature = "pg-19"))]

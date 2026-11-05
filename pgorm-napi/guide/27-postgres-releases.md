@@ -62,26 +62,37 @@ await assert.rejects(pool.one(book, [1, at("07:00"), at("09:00"), 2]), Exclusion
 
 ## Asking for PostgreSQL 19
 
-Rust's `pg-19` cargo feature targets PostgreSQL 19. It only adds: what 19
-alone accepts arrives behind it as new items, and nothing an 18 build has
-changes shape or meaning, so a statement built the same way renders the same
-SQL under either target. pgorm forwards the feature to pgorm-query, and the
-Python binding forwards it to pgorm. A Rust program reads which release a
-build targets from the constant `pgorm_query::POSTGRES_TARGET`, and a Python
-program from `pgorm.capabilities()`.
+The `pg-19` feature targets PostgreSQL 19. The `pgorm-napi` crate carries it
+and forwards it to pgorm, as pgorm forwards it to pgorm-query, so an addon
+built with it targets 19. Build one from the repository root as [Getting
+started](01-getting-started.md) builds the addon, naming the feature:
 
-**Not available in JavaScript yet:** a build targeting PostgreSQL 19. The
-`pgorm-napi` crate has no `pg-19` feature to forward to pgorm, so its addon,
-and every package built from it, targets 18 alone, with none of what only 19
-accepts; and the module reports no target release, having no counterpart of
-`POSTGRES_TARGET` or of Python's `capabilities()`. What it does report is the
-pgorm release it is built from, `version`:
+```sh
+node pgorm-napi/scripts/build.mjs --features pg-19
+```
+
+The feature only adds: what 19 alone accepts arrives behind it as new
+functions, methods and options, and nothing an 18 build has changes shape or
+meaning, so a statement built the same way renders the same SQL under either
+target. An application's own addon ([Registering Rust
+entities](24-registered-entities.md)) depends on pgorm-napi, and asks for 19
+with `features = ["pg-19"]` on that dependency.
+
+`POSTGRES_TARGET` is the release the loaded build targets, 18 or 19, as Rust's
+`pgorm_query::POSTGRES_TARGET` is. Here JavaScript differs from Rust, where a
+program can refuse to compile without 19: a JavaScript program reads the
+constant when it starts. The module also reports the pgorm release it is
+built from, `version`:
 
 ```ts
 import assert from "node:assert/strict";
-import { version } from "@necessary/pgorm";
+import { POSTGRES_TARGET, version } from "@necessary/pgorm";
 
+assert.ok(POSTGRES_TARGET === 18 || POSTGRES_TARGET === 19);
 assert.match(version, /^\d+\.\d+\.\d+/);
+
+// In a program that relies on 19:
+// if (POSTGRES_TARGET < 19) throw new Error("load a pgorm addon built with its pg-19 feature");
 ```
 
 ## Where the two releases answer differently
@@ -97,20 +108,21 @@ renders the statement the same way for both. Three differences exist today:
 - `JSON_ARRAY` over a query of no rows is `NULL` on 18 and the empty array on
   19.
 
-Code that runs against both reads the last as `null` or an array. Against the
-PostgreSQL 18 server the guide's tests run on, it is `null`:
+Code that runs against both reads the last as `null` or an array. pgorm's
+tests hold the answer of the release a build targets, so a default addon's
+run against PostgreSQL 18, where it is `null`, and a `pg-19` addon's against
+19:
 
 ```ts
 import assert from "node:assert/strict";
-import { jsonArrayQuery, select, Table } from "@necessary/pgorm";
+import { jsonArrayQuery, POSTGRES_TARGET, select, Table } from "@necessary/pgorm";
 
 // The names of the cakes over 10.00: there are none.
 const cake = new Table("cake");
 const dear = select(cake.col("name")).from(cake).where(cake.col("price").gt(10));
 const { names } = await pool.one(select(jsonArrayQuery(dear).as("names")));
 
-const { release } = await pool.one("SELECT current_setting('server_version_num')::int / 10000 AS release");
-assert.deepEqual(names, release === 18 ? null : []);
+assert.deepEqual(names, POSTGRES_TARGET === 18 ? null : []);
 ```
 
 ## The grammar stays at 18 for now

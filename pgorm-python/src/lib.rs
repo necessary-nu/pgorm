@@ -59,6 +59,8 @@ pub fn install(module: &Bound<'_, PyModule>, registry: entities::Registry) -> Py
     let py = module.py();
     module.add("__version__", env!("CARGO_PKG_VERSION"))?;
     module.add("__pgorm_version__", env!("PGORM_VERSION"))?;
+    // [spec:pgorm:req:bindings.postgres-target]    the release this build targets
+    module.add("POSTGRES_TARGET", pgorm::pgorm_query::POSTGRES_TARGET)?;
     module.add("PgormError", py.get_type::<PgormError>())?;
     module.add(
         "UnsupportedCapabilityError",

@@ -96,7 +96,8 @@ assert_eq!(POSTGRES_TARGET, 19);
 ```
 
 The feature passes through: pgorm forwards it to pgorm-query, and the Python
-binding forwards it to pgorm.
+and JavaScript bindings each forward it to pgorm and export the constant as
+`POSTGRES_TARGET`.
 
 ## Where the two releases answer differently
 

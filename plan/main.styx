@@ -13466,7 +13466,25 @@ children (
                     {
                         id napi.guide-gaps.pg-19
                         title "pgorm-napi forwards pgorm's pg-19 feature and the module reports the PostgreSQL release its build targets, as pgorm's POSTGRES_TARGET and pgorm-python's forwarded feature and capabilities() do (guide 27-postgres-releases)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.postgres-target])
+                        }
                         deps (napi-packaging guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T18:55:45.372306Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "nplan_start refused this node: \"dep napi-packaging is Todo\", though nplan_node shows napi-packaging done, and an nplan_sync did not change the answer. Worked in the pool-config lane's worktree (nplan/guide.python-gaps.pool-config) without a claim, per the lane brief."
+                            }
+
+                            {
+                                at 2026-11-05T19:36:15.438176Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Both bindings export the build's target as the shared constant POSTGRES_TARGET (bindings-surface.json modules.pgorm, rule bindings.postgres-target), read from pgorm_query::POSTGRES_TARGET, rather than JavaScript gaining a capabilities() manifest: Python keeps capabilities()[\"features\"] beside it. pgorm-napi carries pg-19 = [\"pgorm/pg-19\"], scripts/build.mjs passes --features through to cargo, and napi-native gains check-pg-19. sql.target bumped to +2 (both bindings forward; tests branch on POSTGRES_TARGET); tests/target_release_tests.rs CARRIERS includes pgorm-napi."
+                            }
+                        )
                     }
 
                     {
@@ -19332,7 +19350,18 @@ children (
                     {
                         id guide.python-gaps.postgres-target
                         title "Python reports the PostgreSQL release a build targets as pgorm_query::POSTGRES_TARGET does, beside capabilities()[\"features\"] listing pg-19"
+                        implements {
+                            python ([spec:pgorm:req:bindings.postgres-target])
+                        }
                         deps (python.package)
+                        log (
+                            {
+                                at 2026-11-05T18:55:44.811369Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "nplan_start refused this node: \"dep python.package is Todo\", though nplan_node shows python.package done (shipped 75171d85), and an nplan_sync did not change the answer. Worked in the pool-config lane's worktree (nplan/guide.python-gaps.pool-config) without a claim, per the lane brief."
+                            }
+                        )
                     }
 
                     {

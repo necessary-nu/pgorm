@@ -83,6 +83,7 @@
       "PendingMerge": ["when_matched", "when_not_matched", "when_not_matched_by_source"],
       "PgormError": [],
       "Pool": ["acquire", "clear_statement_caches", "close", "connection", "copy_in", "copy_in_rows", "copy_out", "copy_out_rows", "execute", "listener", "notify", "one", "optional", "ping", "query", "status", "stream", "transaction"],
+      "POSTGRES_TARGET": null,
       "Quantified": [],
       "Range": ["empty"],
       "Relation": ["find", "load"],

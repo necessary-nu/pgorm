@@ -384,14 +384,16 @@ today, including panicking edges and deliberate failsafes.
 
 ## Target release
 
-> [spec:pgorm:req:sql.target+1]
+> [spec:pgorm:req:sql.target+2]
 > A build of pgorm targets one PostgreSQL major release. 18 is the floor and
 > the default: a build that names no release targets 18, there is no `pg-18`
 > feature to say so, and nothing older is kept working. The `pg-19` cargo
 > feature targets 19. pgorm-query declares it, since the typed surface lives
-> there; pgorm forwards it (`pg-19 = ["pgorm-query/pg-19"]`), and so does
-> pgorm-python (`pg-19 = ["pgorm/pg-19"]`), whose capability manifest then
-> lists `pg-19` among its `features` (`python.capabilities`). No other crate
+> there; pgorm forwards it (`pg-19 = ["pgorm-query/pg-19"]`), and so do both
+> bindings, pgorm-python and pgorm-napi (`pg-19 = ["pgorm/pg-19"]`), each
+> module exporting the release as `POSTGRES_TARGET`
+> (`bindings.postgres-target`) and pgorm-python's capability manifest
+> listing `pg-19` among its `features` (`python.capabilities`). No other crate
 > carries it, because no other crate's surface or behaviour differs between
 > the two releases yet. `pgorm_query::POSTGRES_TARGET` is the release a build
 > targets, 18 or 19: a dependent cannot read another crate's features through
@@ -418,8 +420,9 @@ today, including panicking edges and deliberate failsafes.
 > many rows a subquery returns — is beyond what any builder value records, so
 > it is documented per release instead: the rule and the rustdoc give 18's
 > answer and 19's, naming each, and the live test holds 18's answer by
-> default and 19's under `cfg(feature = "pg-19")` (pgorm-python's tests branch
-> on the manifest's `features`). Each build's suite runs against the server it
+> default and 19's under `cfg(feature = "pg-19")` (the bindings' tests branch
+> on their module's `POSTGRES_TARGET`, or pgorm-python's on the manifest's
+> `features`). Each build's suite runs against the server it
 > targets: `DATABASE_URL` names an 18 server for the default build and a 19
 > one for `pg-19`. Three such differences exist today, and no 19-only syntax
 > is built yet: `ALTER CONSTRAINT .. ENFORCED` / `NOT ENFORCED` on a `CHECK`

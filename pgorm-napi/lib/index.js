@@ -194,3 +194,6 @@ export const version = native.version;
 
 /** @type {string} */
 export const STATEMENT_CACHE_CHANNEL = native.statementCacheChannel;
+
+/** @type {18 | 19} */
+export const POSTGRES_TARGET = native.postgresTarget;
