@@ -89,6 +89,12 @@ class ActiveView(Generic[M]):
     def reset(self: A, column) -> A:
         return type(self)(self._active.reset(column))
 
+    def set_if_not_equals(self: A, column, value) -> A:
+        return type(self)(self._active.set_if_not_equals(column, value))
+
+    def is_changed(self) -> bool:
+        return self._active.is_changed()
+
     async def insert(self, connection) -> M:
         return self._model_class(await self._active.insert(connection))
 

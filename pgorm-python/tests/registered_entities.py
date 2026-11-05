@@ -117,6 +117,17 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             loaded = model.into_active()
             self.assertEqual(loaded.get("id").state, p.ActiveState.Unchanged)
             self.assertEqual(loaded.get("note").state, p.ActiveState.Unchanged)
+            # [spec:pgorm:req:bindings.entity-active-changes/test]    set_if_not_equals sets only a different value
+            self.assertFalse(loaded.is_changed())
+            same = loaded.set_if_not_equals("display name", "Nora|before").set_if_not_equals("mood", "busy")
+            self.assertEqual(same.get("display name").state, p.ActiveState.Unchanged)
+            self.assertFalse(same.is_changed())
+            other = loaded.set_if_not_equals("display name", "Nell")
+            self.assertEqual(other.get("display name").state, p.ActiveState.Set)
+            self.assertTrue(other.is_changed())
+            self.assertFalse(loaded.is_changed())
+            with self.assertRaises(p.ConstructionError):
+                loaded.set_if_not_equals("version", "one")
             changed = loaded.set("display name", "Updated").not_set("note")
             updated = await changed.update(connection)
             self.assertEqual(updated["version"], 2)

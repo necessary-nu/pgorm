@@ -530,6 +530,19 @@ where
         }))
     }
 
+    fn set_if_not_equals(&self, name: &str, value: Value) -> Result<Active, Error> {
+        let mut active = self.value.clone();
+        active.set_if_not_equals(column::<E>(name)?, value)?;
+        Ok(Arc::new(Self {
+            value: active,
+            info: self.info.clone(),
+        }))
+    }
+
+    fn is_changed(&self) -> bool {
+        self.value.is_changed()
+    }
+
     fn run<'a>(&'a self, db: Database<'a>, write: Write) -> BoxFuture<'a, Result<Written, Error>> {
         Box::pin(self.write(db, write))
     }

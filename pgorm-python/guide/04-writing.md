@@ -112,10 +112,11 @@ assert muffin.get("name").state == ActiveState.Set
 
 A model read through a registered entity becomes an active model with
 `into_active()`, each of its columns `Unchanged`, so writing it back changes
-only the columns then set. `reset(column)` turns an `Unchanged` column into a
-`Set` one, to write it although its value is the same. Rust's
-`set_if_not_equals` and `is_changed` are not available in Python yet:
-`set` always sets, even to the value already there.
+only the columns then set. `set_if_not_equals(column, value)` sets a
+column only when the value differs from the one read, as Rust's does, so
+`is_changed()` then says whether there is anything to write; `set` always
+sets, even to the value already there. `reset(column)` turns an `Unchanged`
+column into a `Set` one, to write it although its value is the same.
 `model.with_value(column, value)` gives a copy of a model with one value
 changed, and writes nothing.
 
@@ -321,7 +322,12 @@ async def main() -> None:
         cheaper = fudge.into_active()
         assert cheaper.get("price").state == ActiveState.Unchanged
 
+        # The same name is no change.
+        cheaper = cheaper.set_if_not_equals("name", "Chocolate Fudge")
+        assert not cheaper.is_changed()
+
         cheaper = cheaper.set_price(Decimal("3.99"))
+        assert cheaper.is_changed()
         assert cheaper.get("price").state == ActiveState.Set
         assert cheaper.get("name").state == ActiveState.Unchanged
 

@@ -11,8 +11,8 @@ from pgorm._registered import disjoints as disjoint_views, entities as views, gr
 from pgorm.codegen import source
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
-    Column, Model, ModelRecord, Relation, cursors, disjoint_query, graphs, model, one_of, queries,
-    record, writes,
+    Column, Linked, Model, ModelRecord, Related, Relation, cursors, disjoint_query, graphs, model, one_of, queries,
+    record, try_inserts, writes,
 )
 from pgorm.runtime import PoolStatus
 
@@ -26,7 +26,7 @@ EXEMPT = {
     # Rows, models and their write state, and what a write answers: data read
     # after SQL ran. A record or a model is a mapping, false with no fields.
     p.Record, p.Field, p.EntityModel, p.ActiveModel, p.ActiveValue, p.ActiveState,
-    p.Change, p.Upserted, ModelRecord, PoolStatus, views.ModelView, views.ActiveView,
+    p.Change, p.Upserted, p.TryInsertResult, ModelRecord, PoolStatus, views.ModelView, views.ActiveView,
     version_views.Change, version_views.Inserted, version_views.Updated,
     # Pools, connections, transactions and the private native handles under
     # them and under the streams: live resources, not SQL, and true as any
@@ -38,7 +38,8 @@ EXEMPT = {
     _native._DisjointChange, _native._RowDecoder, _native._EntityPages,
     # Registrations and declarations: they name what a query reads and are
     # true as any declared object is; the queries they start refuse.
-    p.Entity, p.EntityGraph, p.EntityRelation, Model, Column, Relation, pl.SourceSelection, pl.Binder,
+    p.Entity, p.EntityGraph, p.EntityRelation, Model, Column, Relation, Related, Linked, pl.SourceSelection,
+    pl.Binder,
     model.UniqueKey, model._DeclaredKey,
     views.EntityView, graph_views.GraphView, FieldType,
     # The layout the codegen writes source with: build-time values no query
@@ -70,7 +71,7 @@ BUILT_ELSEWHERE = {
 
 # Bases the model writes share and no program builds: every write refuses
 # through the __bool__ they give it, and each is sampled through a write.
-BASES = {writes._Write, writes._Insert, writes._Guarded, changes._Part}
+BASES = {writes._Write, writes._Insert, writes._Guarded, try_inserts._Tried, try_inserts._TriedRows, changes._Part}
 
 
 def defined_classes():
@@ -144,7 +145,10 @@ def other_samples():
         pl.Over(), pl.source(table),
         model.col("id"), model.find(), model.delete(), model.insert({"id": 1}), model.insert_many([]),
         model.update({"id": 2}), model.insert({"id": 1}).returning("id"),
-        model.graph(), model.find().cursor("id"), model.find().paginate(2),
+        model.graph(), model.find().cursor("id"), model.find().paginate(2), pl.from_(model).into_tuple(),
+        model.insert({"id": 1}).on_conflict_do_nothing(), model.insert_many([]).on_empty_do_nothing(),
+        model.insert({"id": 1}).on_empty_do_nothing().returning(),
+        model.insert_many([{"id": 1}]).on_conflict_do_nothing().returning("id"),
         *disjoint_samples(),
     ]
 

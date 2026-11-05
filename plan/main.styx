@@ -13569,6 +13569,7 @@ children (
                         id napi.guide-gaps.entity-select-reads
                         title "A registered entity's Select<E> counts, streams, pages, takes a cursor and joins a relation from JavaScript, as Rust's Select count, stream, paginate, cursor_by and join methods do (guide 24-registered-entities)"
                         deps (napi-entities guide.javascript)
+                        sealed true
                         log (
                             {
                                 at 2026-11-05T18:56:40.752132Z
@@ -13582,6 +13583,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @decision
                                 text "Built in the same shape as Python's (see guide.python-gaps.registered-reads's decision): EntityQuery count/stream/paginate/cursor(...columns)/join(Entity.relation(name), { kind })/select(...columns), EntityPaginator, EntityCursor, EntitySelection, EntityRelation; EntityGraphQuery cursor(...columns), cursorOn(source, ...columns), count, paginate, allGrouped, stream; EntityGraphCursor extends EntityCursor with beforeWith/afterWith and gains inspect. connectionStream's decoder argument now takes a registered read's decoder beside a disjoint read's (one RowDecode in connect/stream.rs), and lib/connections.js's disjointStream became decodedStream for both."
+                            }
+
+                            {
+                                at 2026-11-05T22:16:53.555552Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
                             }
                         )
                     }
@@ -13635,7 +13643,7 @@ children (
                         id napi.guide-gaps.model-writes
                         title "JavaScript writes have Rust's write surface, as Python's: a model insert's onConflictDoNothing and onEmptyDoNothing give a try-insert answering inserted, conflicted or empty (TryInsert, TryInsertResult); a model update's from and a delete's using read another table (Update::many(..).from, Delete::many(..).using); a registered ActiveModel's setIfNotEquals and isChanged (guide 04-writing)"
                         implements {
-                            javascript ([spec:pgorm:req:bindings.model-try-inserts] [spec:pgorm:req:bindings.model-write-sources])
+                            javascript ([spec:pgorm:req:bindings.model-try-inserts] [spec:pgorm:req:bindings.model-write-sources] [spec:pgorm:req:bindings.entity-active-changes])
                         }
                         deps (napi-models napi-entities guide.javascript)
                         log (
@@ -13651,6 +13659,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "single-flight overridden: started while guide.python-gaps.model-writes had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T22:35:13.46998Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead decision pending operator override: a declared model takes write hooks as callables in both bindings, the dialect of ActiveModelBehavior — beforeSave(record, insert), afterSave(record, insert), beforeDelete(record), afterDelete(record), given as model(name, { hooks }) and possibly returning a promise — run around the model's own record writes with Rust's refusal semantics, statement-builder writes over many rows (where/allRows, update from, delete using) running none. See guide.python-gaps.model-writes' decision for the whole shape."
                             }
                         )
                     }
@@ -19436,7 +19451,7 @@ children (
                         title "Python writes have Rust's write surface: TryInsert and TryInsertResult (on_conflict_do_nothing on the key, on_empty_do_nothing, Conflicted, Empty); set_if_not_equals and is_changed on a registered ActiveModel; a declared model's update FROM and delete USING; and write hooks (ActiveModelBehavior) for a declared model"
                         implements {
                             main ([spec:pgorm:req:entity.active-model.set-if-not-equals])
-                            python ([spec:pgorm:req:bindings.model-try-inserts] [spec:pgorm:req:bindings.model-write-sources])
+                            python ([spec:pgorm:req:bindings.model-try-inserts] [spec:pgorm:req:bindings.model-write-sources] [spec:pgorm:req:bindings.entity-active-changes])
                         }
                         deps (python.models python.entities)
                         log (
@@ -19460,6 +19475,13 @@ children (
                                 kind @decision
                                 text "Shape, built in both bindings (JS via napi.guide-gaps.model-writes) and held in bindings.model-try-inserts and bindings.model-write-sources: (1) a declared model's insert takes on_conflict_do_nothing() (ON CONFLICT on the primary key DO NOTHING, or ON CONFLICT DO NOTHING with no key) and on_empty_do_nothing() (statement unchanged), giving ModelTryInsert / ModelTryInsertMany typed by row count as TryInsert<A, OneRow|ManyRows>; execute answers TryInsertResult (Python: TryInsertResult.Inserted(value) / Conflicted() / Empty(); JavaScript: {kind: \"inserted\", value} / {kind: \"conflicted\"} / {kind: \"empty\"}), and returning(*fields) gives ModelTryRow.one / ModelTryRows.all answering the same way; no rows and a row setting no field are Empty and send nothing, as TryInsert answers an all-NotSet model; (2) an empty batch now takes on_conflict and still sends nothing, as Rust's does (it was a ConstructionError in both bindings); (3) ModelUpdate.from_ (JS from) and ModelDelete.using take another model, a Table or a FROM item, and RETURNING is then qualified by the model's table so the other table's same-named columns cannot be ambiguous. Hooks for a declared model are recorded as a stated difference, not a gap: Rust runs ActiveModelBehavior only around an ActiveModel's insert/update/delete, and a declared model's writes are statement builders (Rust's Insert::one, Update::many, Delete::many), which run no hooks in Rust either; bindings.models says no ActiveModel hook is behind a declared model, and both guides' Hooks sections already say so."
                                 after_done true
+                            }
+
+                            {
+                                at 2026-11-05T22:35:12.932797Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead decision pending operator override, replacing this node's earlier \"hooks are a stated difference\" note: a declared model takes its hooks as callables, the dialect of ActiveModelBehavior, in both bindings — before_save(record, insert), after_save(record, insert), before_delete(record), after_delete(record) (JS beforeSave/afterSave/beforeDelete/afterDelete), declared on the model (Model(..., hooks=...) / model(name, { hooks })), run around the model's own record writes (its insert/update/delete of a record and their returning terminals) with Rust's refusal semantics (a before_* error refuses the write, an after_* error is the write's error); Python hooks may be async and JavaScript hooks may return a promise; statement-builder writes (an update or delete over many rows by where/all_rows, an update FROM / delete USING) run no hooks, as Rust's statement builders run none. To be held in a new rule (bindings.model-hooks) and bindings-surface.json, with typings, rejection cases, live tests in both suites and both Hooks sections teaching them."
                             }
                         )
                     }
@@ -19529,6 +19551,7 @@ children (
                         id guide.python-gaps.registered-reads
                         title "Registered entities and graphs read as Rust's do: an entity's stream and partial projections; a graph's stream and grouping, cursors over slot columns and composite orders, cursor SQL inspection and graphs of more than seven sources; and a paginator's fetch, advance and fetch_and_next"
                         deps (python.entities python.graph)
+                        sealed true
                         log (
                             {
                                 at 2026-11-05T18:56:35.902673Z
@@ -19542,6 +19565,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @decision
                                 text "Registered reads built through pgorm's own APIs in both bindings: count = PaginatorTrait::count; paginate = PaginatorTrait::paginate with Paginator::{fetch_page, num_items_and_pages} (an EntityPaginator holding no database and no current page, pages() the loop); cursor(*columns) = Select::cursor_by over a runtime Key; graph cursor(*columns) = SelectGraph::cursor_by and cursor_on(source, *columns) = cursor_by_on::<I, _>, both over one to six columns, dispatched per slot position and key arity inside the GraphSlots impls; boundaries go through Cursor::before_with/after_with so the key type is erased and pgorm checks the arity (so after_with now also takes the order columns' arity, as Rust's does, where the old registered graph cursor refused it); stream = the read's statement through the connection's stream with a native decoder running the selector's from_raw_query_result per row (SelectModel<E::Model> / GraphRow<E, S>); all_grouped only on (Opt<F>,) graphs via RegisteredSlot::grouped; join(entity.relation(name)) = QuerySelect::join of the Relation variant's def; select(*columns) = select_only + columns, rows read as plain records (a binding cannot name a PartialModel or tuple at run time, stated as a dialect difference). Two items judged no gap: a paginator's current page (fetch/advance/fetch_and_next/cur_page) stays the stated immutable-builder difference the pagination chapter already gives, and a graph of more than seven sources does not exist in Rust (SelectGraph holds at most six slots), which the chapter now says. Rules bumped: bindings.entity-reads+4, bindings.entity-graphs+4."
+                            }
+
+                            {
+                                at 2026-11-05T22:16:52.934743Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
                             }
                         )
                     }

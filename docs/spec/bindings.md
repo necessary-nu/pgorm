@@ -1511,6 +1511,14 @@ Rust generic at run time, only use the ones compiled in.
 > is expected, is an argument of the wrong type and MUST be refused with a
 > `TypeError` (`bindings.argument-errors`).
 
+> [spec:pgorm:req:bindings.entity-active-changes]
+> A registered entity's ActiveModel MUST have `set_if_not_equals(column,
+> value)`, a new ActiveModel with the column set unless it holds that value
+> unchanged, `ActiveModelTrait::set_if_not_equals` reached by column name, its
+> value converted as `set` converts one; and `is_changed()`,
+> `ActiveModelTrait::is_changed`, which says whether any column is set, so a
+> model read and given back its own values writes nothing.
+
 > [spec:pgorm:req:bindings.entity-versions+3]
 > The write terminals that read a row's two versions MUST be the statement
 > terminals they are in Rust, so no `ActiveModelBehavior` hook runs around

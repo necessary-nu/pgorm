@@ -137,6 +137,9 @@ async def invalid(connection: p.Connection) -> None:
     p.entity("app.Account").col("id").describe()  # expected-error: attr-defined
     # [spec:pgorm:req:bindings.entity-versions+3/test]    an entity's insert is typed by its row count, each with its own upsert terminal alone
     registered = p.entity("app.Account")
+    # [spec:pgorm:req:bindings.entity-active-changes/test]    set_if_not_equals names a column and its value; is_changed takes nothing
+    registered.active().set_if_not_equals("id")  # expected-error: call-arg
+    registered.active().is_changed("id")  # expected-error: call-arg
     await registered.insert(registered.active()).returning_upserts(connection)  # expected-error: attr-defined
     await registered.insert_many([registered.active()]).returning_upsert(connection)  # expected-error: attr-defined
     # [spec:pgorm:req:bindings.disjoint-unkinded/test]    an unkinded disjoint model has no writes and no schema, and takes no kind options

@@ -76,6 +76,27 @@ impl PyActiveModel {
         })
     }
 
+    // [spec:pgorm:req:bindings.entity-active-changes]
+    fn set_if_not_equals(
+        &self,
+        column: &Bound<'_, PyAny>,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let name = super::column::name(column, self.inner.info())?;
+        let value = self.inner.info().column(&name)?.input.coerce(value)?;
+        Ok(Self {
+            inner: self
+                .inner
+                .set_if_not_equals(&name, value.inner)
+                .map_err(|error| crate::errors::ConstructionError::new_err(error.to_string()))?,
+        })
+    }
+
+    // [spec:pgorm:req:bindings.entity-active-changes]
+    fn is_changed(&self) -> bool {
+        self.inner.is_changed()
+    }
+
     fn reset(&self, column: &Bound<'_, PyAny>) -> PyResult<Self> {
         let name = super::column::name(column, self.inner.info())?;
         Ok(Self {
