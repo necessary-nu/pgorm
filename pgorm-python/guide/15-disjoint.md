@@ -440,9 +440,9 @@ pgorm's Rust migration runner marks every step but the last with
 `commits_after()` ([Migrations](22-migrations.md)).
 
 A change is written from the declaration, and the declaration keeps changing
-after the migration ships. Keep the statements a change returns, as their
-text (`inspect().sql`), in the migration that applies them, rather than
-computing them again each time the migration runs.
+after the change ships, so a migration must not compute it again each time it
+runs: freeze it when it is made, as [Freezing a change into
+migrations](#freezing-a-change-into-migrations) shows.
 
 Here the bakery began taking payments by card and in cash, and adds
 vouchers. The program declares the payments as they were, to create the
@@ -580,6 +580,97 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
+
+### Freezing a change into migrations
+
+A migration that called `add_disjoint_kind` as it ran would compute the
+change from the declaration as it stands on the day it runs. So would the
+migration before it that called `create_disjoint`, which on a database built
+from nothing would already create the voucher kind the next migration adds,
+and the history would fail to replay. A change is therefore frozen into
+migration files when it is made, and the migrations run the files, which
+nothing computes again.
+
+`pgorm.schema.migration_files(change, name)` freezes a change as one
+`MigrationFile` per step, named after the migration with the step's number:
+`name_1`, `name_2`, or `name` alone for a change of one step.
+`pgorm.schema.migration_file(name, statements)` freezes any other statements,
+such as the tables `create_disjoint` writes. Every step but the last opens
+with the line `-- pgorm: commits-after`, which pgorm's Rust migration runner
+reads as `commits_after()`, and a step leaving rows to the program ends with
+a comment naming them, for a migration of the program's own listed before
+the next file. A file's `freeze(directory)` writes `<name>.sql` into the
+migrations directory only when no such file is there, and answers whether it
+wrote one. So the code that froze each change can stay and run again after
+the declaration has moved on: it writes what is new and keeps what has
+shipped. Run it when the change is made.
+
+The bakery froze its payment tables when it opened and the voucher kind when
+it added it:
+
+```python
+import tempfile
+from pathlib import Path
+
+from pgorm import Column, Disjoint, Model, TypeName
+from pgorm import schema as s
+
+KIND = TypeName("payment_kind", schema="public")
+
+
+def payment(kinds: list[str]) -> Model:
+    return Model("payment", {
+        "id": Column("i32", primary_key=True, generated="by_default"),
+        "kind": Column(KIND, values=kinds),
+        "order_id": Column("i32"),
+        "amount": Column("decimal"),
+    })
+
+
+CardPayment = Model("card_payment", {
+    "payment_id": Column("i32", primary_key=True), "last_four": Column("text"),
+})
+VoucherPayment = Model("voucher_payment", {
+    "payment_id": Column("i32", primary_key=True), "code": Column("text"),
+})
+
+Before = Disjoint("payment", payment(["card", "cash"]), {"card": CardPayment, "cash": None},
+                  schema_name="public")
+Payments = Disjoint(
+    "payment", payment(["card", "cash", "voucher"]),
+    {"card": CardPayment, "cash": None, "voucher": VoucherPayment},
+    schema_name="public",
+)
+
+with tempfile.TemporaryDirectory() as migrations:
+    opened = s.migration_file("m20260201_000001_create_payment", s.create_disjoint(Before))
+    assert opened.freeze(migrations)
+
+    files = s.migration_files(s.add_disjoint_kind(Payments, "voucher"), "m20260301_000001_add_voucher")
+    assert [file.name for file in files] == [
+        "m20260301_000001_add_voucher_1",
+        "m20260301_000001_add_voucher_2",
+    ]
+    assert [file.commits_after for file in files] == [True, False]
+    assert files[0].text == (
+        "-- pgorm: commits-after\n"
+        """ALTER TYPE "public"."payment_kind" ADD VALUE 'voucher' AFTER 'cash';\n"""
+    )
+    assert [file.freeze(migrations) for file in files] == [True, True]
+
+    # Run again, as it is after every later change: what has shipped stays.
+    assert [file.freeze(migrations) for file in [opened, *files]] == [False, False, False]
+    assert sorted(path.name for path in Path(migrations).iterdir()) == [
+        "m20260201_000001_create_payment.sql",
+        "m20260301_000001_add_voucher_1.sql",
+        "m20260301_000001_add_voucher_2.sql",
+    ]
+```
+
+Each file is one migration, to run whole in a transaction of its own:
+pgorm's Rust runner lists them with `sql_migration!`, and any tool that runs
+a directory of SQL files in order runs them as well. Python has no migration
+runner of its own yet ([Migrations](22-migrations.md)).
 
 ## Tables pgorm did not write
 

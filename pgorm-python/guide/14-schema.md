@@ -136,6 +136,13 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+Generated statements describe a table as it is when they are generated, so a
+migration history freezes them into migration files when a change is made,
+rather than generating them again as each migration runs:
+`pgorm.schema.migration_file(name, statements)` does that, and
+[Generated DDL in a migration](22-migrations.md#generated-ddl-in-a-migration)
+shows it.
+
 ## Enum types
 
 A registered entity's `enums` come from its columns: one `CREATE TYPE .. AS

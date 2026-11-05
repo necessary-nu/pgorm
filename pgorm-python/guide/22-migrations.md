@@ -346,20 +346,66 @@ migration reports now is known only to the Rust crate.
 
 ## Generated DDL in a migration
 
-A Rust migration can create a table from its entity with schema generation,
-so the entity is the one place the table is described. Python has the same
-generation for a Rust entity it registers: `pgorm.schema.from_entity`, which
+Schema generation writes a table's DDL from its description, so the
+description is the one place the table is described. Python has it for a
+Rust entity it registers, through `pgorm.schema.from_entity`, which
 [Registering Rust entities](24-registrations.md#schema-from-a-registered-entity)
-shows, gives the entity's `CREATE TYPE`, `CREATE TABLE`, index and comment
-statements, to run in a transaction as the examples above run theirs. A
-Python model is not described as DDL: a program writes its tables' DDL with
-the builders, as [`bakery.py`](bakery.py) does for the bakery.
+shows, and for a disjoint enum, through `create_disjoint`. A Python model is
+not described as DDL: a program writes its tables' DDL with the builders, as
+[`bakery.py`](bakery.py) does for the bakery.
 
-An entity describes the table as it is now, while a migration describes a
-change at one moment. DDL generated from an entity applies the entity as it
-stands when the DDL runs, so once a change has shipped and the entity
-changes again, write the next change as a new step rather than letting the
-old one follow the entity.
+But a description describes the table as it is now, while a migration
+describes a change made once. A migration that generated its DDL as it ran
+would follow the description as it changed: once the table gained a column,
+a database built from nothing would get the column from the first migration
+and then again from the migration that added it, and fail.
+
+So generate the DDL once, when the change is made, and freeze it into a
+migration written as SQL. `pgorm.schema.migration_file(name, statements)`
+holds statements as a file's text, as pgorm's `MigrationFile` does: its
+`name`, its `text`, each statement followed by `;` on a line of its own, and
+`freeze(directory)`, which writes `<name>.sql` into the migrations directory
+if no file of that name is there, answering whether it wrote it. A file
+already there is never rewritten: it is the migration databases have run,
+its checksum in their ledgers. So the code that freezes each change can live
+beside the migrations and run again whenever a change is added, writing the
+new file and keeping the old ones, however far the tables have moved on. A
+name that is not a plain file name is a `ConstructionError`.
+
+```python
+import tempfile
+from pathlib import Path
+
+from pgorm import schema as s
+
+import bakery
+
+# The bakery table, as bakery.py writes it.
+create = bakery.statements()[1]
+file = s.migration_file("m20260101_000001_create_bakery", [create])
+
+assert file.name == "m20260101_000001_create_bakery"
+assert file.text == (
+    'CREATE TABLE "bakery" ( "id" serial NOT NULL, "name" varchar NOT NULL, '
+    '"city" varchar NOT NULL, PRIMARY KEY ("id") );\n'
+)
+assert not file.commits_after
+
+with tempfile.TemporaryDirectory() as migrations:
+    assert file.freeze(migrations)
+    # Freezing again writes nothing: the file has shipped.
+    assert not file.freeze(migrations)
+    assert (Path(migrations) / "m20260101_000001_create_bakery.sql").read_text() == file.text
+```
+
+The text is exactly what pgorm writes for the same statements, so a Python
+program can freeze the migrations a Rust runner applies. A change PostgreSQL
+will not let one transaction finish is frozen into several files, a
+[disjoint enum](15-disjoint.md#freezing-a-change-into-migrations)'s new kind
+into one per step. `migration_file(.., commits_after=True)` opens a file with
+the line `-- pgorm: commits-after`, and `commits_after` answers whether it
+does: pgorm's Rust runner commits the batch once such a file has run, as
+[Committing partway](#committing-partway) describes.
 
 ## Statement caches
 

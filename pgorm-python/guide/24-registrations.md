@@ -603,7 +603,9 @@ application wheel, it leaves that wheel's generated module out of the copy.
 runs it, so it runs in the probe build's environment, and refuses a wheel
 that is not the scaffold's build. It writes `python/pgorm/rust_bakery.py`, its
 stub `rust_bakery.pyi` and a marker naming the module, and the same build
-gives the same bytes each time.
+gives the same bytes each time. The module and its stub are laid out as
+black lays out Python, importing only what they use, so they read as
+written by hand and need no formatter run over them.
 
 The probe build completes `Cargo.lock` with what the application adds, the
 entity crate and its own dependencies. Keep it, and build with `--locked`

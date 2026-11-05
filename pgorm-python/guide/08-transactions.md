@@ -220,6 +220,10 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+Only a missing cake is caught there. Any other failure leaves the
+savepoint's block and then the transaction's, rolling the whole order back,
+as Rust's `?` passes a savepoint's error on to the closure around it.
+
 Without the savepoint, the failed insert would have aborted the whole
 transaction: PostgreSQL refuses every later statement in a transaction one
 statement has failed in, with SQLSTATE `25P02`, until it rolls back. Catching

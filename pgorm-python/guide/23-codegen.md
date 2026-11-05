@@ -84,7 +84,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 The entity crate's `Cargo.toml` depends on pgorm, as any crate of entities
 does. Each run writes every file afresh, `lib.rs` and `prelude.rs`
 included, so keep hand-written code out of the generated directory. The
-content is token text; run rustfmt over the files once they are written.
+files are Rust laid out as [the Rust guide's entities](../../docs/guide/02-entities.md)
+are written, so nothing needs to run over them once they are written.
 
 ## Writing the DDL from Python
 
