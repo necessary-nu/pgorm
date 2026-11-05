@@ -15159,7 +15159,7 @@ children (
                 [spec:pgorm:req:bindings.streams]
                 [spec:pgorm:req:bindings.surface]
                 [spec:pgorm:req:bindings.transactions]
-                [spec:pgorm:req:bindings.value-tags]
+                [spec:pgorm:req:bindings.value-tags+1]
                 [spec:pgorm:req:bindings.values]
                 [spec:pgorm:req:bindings.windows]
                 [spec:pgorm:req:napi.application]
@@ -15247,7 +15247,7 @@ children (
                 [spec:pgorm:req:bindings.streams]
                 [spec:pgorm:req:bindings.surface]
                 [spec:pgorm:req:bindings.transactions]
-                [spec:pgorm:req:bindings.value-tags]
+                [spec:pgorm:req:bindings.value-tags+1]
                 [spec:pgorm:req:bindings.values]
                 [spec:pgorm:req:bindings.windows]
                 [spec:pgorm:def:python.api]
@@ -17918,6 +17918,22 @@ children (
                 title "A Python Value's type_name names an enum array's type, as JavaScript's does"
                 kind @fix
                 deps (typed-binds.created-range-array-value)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T07:24:31.379589Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T07:38:04.65324Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
         )
     }

@@ -162,7 +162,7 @@ fn built_in(ty: &Type) -> Option<RangeType> {
 }
 
 /// The kind a column of `ty` decodes as.
-// [spec:pgorm:req:bindings.value-tags]
+// [spec:pgorm:req:bindings.value-tags+1]
 // [spec:pgorm:req:napi.temporal+1]
 fn tag(ty: &Type) -> Result<Tag, CodecError> {
     let ty = base_type(ty);

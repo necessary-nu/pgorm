@@ -85,7 +85,7 @@ pub(super) fn typed<T: for<'a> FromSql<'a>>(
 }
 
 // [spec:pgorm:req:bindings.values]
-// [spec:pgorm:req:bindings.value-tags]
+// [spec:pgorm:req:bindings.value-tags+1]
 pub(crate) fn value(field: Field<'_>) -> PyResult<PyValue> {
     let index = field.index();
     // A COPY's `money` field is the count of its currency's minor units,

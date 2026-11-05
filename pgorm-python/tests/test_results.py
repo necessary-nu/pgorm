@@ -84,7 +84,7 @@ class ResultTests(unittest.IsolatedAsyncioTestCase):
                 await self.pool.optional(p.RawSQL(query))
         self.assertTrue(await self.pool.ping())
 
-    # [spec:pgorm:req:bindings.value-tags/test]
+    # [spec:pgorm:req:bindings.value-tags+1/test]
     async def test_wire_scalar_tags_and_nulls(self):
         cases = [
             ("true::boolean", "bool", True), ("65::\"char\"", "i8", 65),
@@ -216,7 +216,7 @@ class ResultTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(sql=sql), self.assertRaises(p.DecodeError):
                 await self.pool.one(p.RawSQL(f"SELECT {sql} AS value"))
 
-    # [spec:pgorm:req:bindings.value-tags/test]
+    # [spec:pgorm:req:bindings.value-tags+1/test]
     async def test_enum_identity_survives_scalars_and_arrays(self):
         schema = "python_enum_" + uuid4().hex
         async with self.pool.connection() as connection:
@@ -247,7 +247,7 @@ class ResultTests(unittest.IsolatedAsyncioTestCase):
         row = await self.pool.one(p.Select(p.literal("O'Brien").as_("value")).inspect())
         self.assertEqual(row["value"], "O'Brien")
 
-    # [spec:pgorm:req:bindings.value-tags/test]
+    # [spec:pgorm:req:bindings.value-tags+1/test]
     async def test_absent_join_keeps_typed_null_fields(self):
         row = await self.pool.optional(p.RawSQL(
             "SELECT parent.id AS parent_id, child.id AS child_id, child.name AS child_name "

@@ -381,7 +381,7 @@ export declare class Multirange<T = PlainValue> implements Iterable<Range<T>> {
   toString(): string;
 }
 
-// [spec:pgorm:req:bindings.value-tags]
+// [spec:pgorm:req:bindings.value-tags+1]
 /**
  * A value with its kind declared: what plain JavaScript cannot tell apart —
  * an integer's width, a typed SQL NULL, JSON's null, an empty array, an enum's
@@ -406,7 +406,7 @@ export declare class Value {
   /** The kind's name: a {@link ScalarKind}, `enum`, `created_range`, `created_multirange` or `array`. */
   readonly kind: string;
   readonly isNull: boolean;
-  /** An enum's (or an enum array's) type, or a created range's. */
+  /** The type an enum or a created range is named by, an array's being its element kind's. */
   readonly typeName: TypeName | null;
   /** A created range's or multirange's type. */
   readonly createdType: CreatedRange | CreatedMultirange | null;

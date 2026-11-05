@@ -105,7 +105,7 @@ fn boxed<'cx>(cx: &mut Cx<'cx>, data: Handle<'cx, JsValue>) -> NeonResult<Tagged
 
 /// A kind: a name such as `"i32"` or `"tstzrange"`, a `TypeName` for an enum,
 /// or a `CreatedRange` / `CreatedMultirange`.
-// [spec:pgorm:req:bindings.value-tags]
+// [spec:pgorm:req:bindings.value-tags+1]
 pub(crate) fn kind<'cx>(
     cx: &mut Cx<'cx>,
     codec: Codec<'cx>,
@@ -188,7 +188,7 @@ fn type_name<'cx>(
 }
 
 /// A value of the declared `tag`. `null` is SQL NULL of the kind.
-// [spec:pgorm:req:bindings.value-tags]
+// [spec:pgorm:req:bindings.value-tags+1]
 pub(crate) fn tagged<'cx>(
     cx: &mut Cx<'cx>,
     codec: Codec<'cx>,
@@ -230,7 +230,7 @@ pub(crate) fn tagged<'cx>(
 /// An array of `element`s: a JavaScript array whose items are each `null`, a
 /// `Value` of the element kind, or data of it. An enum's or a created range's
 /// array holds each element's text.
-// [spec:pgorm:req:bindings.value-tags]
+// [spec:pgorm:req:bindings.value-tags+1]
 // [spec:pgorm:req:bindings.created-ranges+3]
 pub(crate) fn array<'cx>(
     cx: &mut Cx<'cx>,

@@ -23,7 +23,7 @@ RANGES = {
 
 # [spec:pgorm:req:bindings.values/test]
 # [spec:pgorm:req:python.values+7/test]
-# [spec:pgorm:req:bindings.value-tags/test]
+# [spec:pgorm:req:bindings.value-tags+1/test]
 class RangeTests(unittest.TestCase):
     def test_range_shapes_and_equality(self):
         self.assertEqual(Range(None, 5, "[]"), Range(None, 5, "(]"))

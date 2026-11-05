@@ -18,7 +18,7 @@ def bits(value):
 
 # [spec:pgorm:req:bindings.values/test]
 # [spec:pgorm:req:python.values+7/test]
-# [spec:pgorm:req:bindings.value-tags/test]
+# [spec:pgorm:req:bindings.value-tags+1/test]
 class ValueTests(unittest.TestCase):
     def test_scalar_variants_and_typed_nulls(self):
         instant = dt.datetime(2024, 2, 29, 13, 14, 15, 123456)
@@ -157,6 +157,9 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(Value.null(kind).is_null)
         array = Value.array(kind, [value, None])
         self.assertEqual(array.element_type, kind)
+        self.assertEqual(array.type_name, kind)
+        self.assertEqual(Value.array(kind, None).type_name, kind)
+        self.assertIsNone(Value.array("i32", [1]).type_name)
         self.assertEqual(array.items()[0].type_name, kind)
         self.assertEqual(array.snapshot()["type"]["element"]["schema"], kind.schema)
         with self.assertRaises(ConstructionError):
