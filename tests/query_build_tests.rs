@@ -335,7 +335,7 @@ fn eq_any_filters_through_one_parameter() {
     );
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+16/test]    an enum column casts
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    an enum column casts
 // the whole array parameter to `{enum_name}[]`, where the per-element operators
 // cast each element to `{enum_name}`
 #[test]

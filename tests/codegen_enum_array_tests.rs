@@ -68,7 +68,7 @@ fn answer(id: i32) -> survey::Model {
 
 /// The schema, run as written, and the table the generated entity creates
 /// have the same columns, each an array of the enum it names.
-// [spec:pgorm:sem:codegen.entity.types+12/test]    against a live server: the entity the
+// [spec:pgorm:sem:codegen.entity.types+13/test]    against a live server: the entity the
 // writer generates from a table of enum arrays creates that table, the schema-qualified
 // enum's array in its schema
 #[pgorm_macros::test]
@@ -107,7 +107,7 @@ async fn generated_enum_arrays_keep_their_types() -> Result<(), Error> {
 /// Values written through the generated entity come back as written, empty
 /// arrays and absent ones included, and an enum array is a filter's operand as
 /// it is a field.
-// [spec:pgorm:sem:codegen.entity.types+12/test]    against a live server: each enum-array
+// [spec:pgorm:sem:codegen.entity.types+13/test]    against a live server: each enum-array
 // field of the generated entity writes and reads back
 // [spec:pgorm:def:exec.decode.array+2/test]
 #[pgorm_macros::test]

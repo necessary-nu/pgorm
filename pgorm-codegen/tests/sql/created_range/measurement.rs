@@ -19,6 +19,8 @@ pub struct Model {
         column_type = ColumnType::CreatedRange { name: Name::runtime("textrange"), schema: None, subtype: Arc::new(ColumnType::Text) }
     )]
     pub label: Textrange,
+    pub spares: Option<Vec<Floatrange>>,
+    pub ledgers: Option<Vec<Floatmultirange>>,
 }
 
 #[allow(clippy::enum_variant_names)]

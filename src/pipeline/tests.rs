@@ -3125,7 +3125,7 @@ mod cheerful {
     entity!(temper, "temper", rank, label);
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+16/test]    a pipeline
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    a pipeline
 // comparison casts each side that is an entity column whose domain is over an
 // enum to the enum — against a literal, a bound value, a list or another such
 // column — and so do coalesce, min and max, while sorting, grouping, count and
@@ -3192,7 +3192,7 @@ fn domain_enum_columns_compare_as_the_enum() {
     );
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+16/test]    a named relation's
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    a named relation's
 // column compares as its entity's column through Named::col, and a col
 // reference or an alias token as the enum compares_as names, schema-qualified
 // and quoted by the type-name policy, while projecting and grouping keep each
@@ -3280,7 +3280,7 @@ fn untyped_columns_compare_as_the_named_type() {
     );
 }
 
-// [spec:pgorm:def:sql.value.created-range+7/test]    a bound built-in range
+// [spec:pgorm:def:sql.value.created-range+8/test]    a bound built-in range
 // or multirange compared under a column's cast goes through its text: pinned
 // to its own type, then cast to text and to the column's, by a comparison on
 // either side and by in_array, while one compared bare stays a placeholder
@@ -3339,7 +3339,7 @@ mod till {
     pub enum Relation {}
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+16/test]    a literal or a
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    a literal or a
 // bound value compared with an entity column, by a comparison, coalesce or
 // in_array, either side, is cast as the column's ColumnTrait casts a compared
 // value — money, an array of money, an enum, a save_as type — its placeholder

@@ -7,5 +7,7 @@ CREATE TABLE measurement (
     span floatrange NOT NULL,
     slot booking.slot,
     slots booking.slot_multirange,
-    label textrange NOT NULL
+    label textrange NOT NULL,
+    spares floatrange[],
+    ledgers floatmultirange[]
 );

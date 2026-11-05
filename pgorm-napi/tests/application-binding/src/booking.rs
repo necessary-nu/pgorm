@@ -1,5 +1,5 @@
 //! A booking over a range type the schema creates, so that JavaScript
-//! compares a column of a type only the schema names.
+//! compares a column of a type only the schema names, and an array of it.
 
 use pgorm::entity::prelude::*;
 
@@ -14,6 +14,7 @@ pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
     pub id: i32,
     pub span: FloatRange,
+    pub spares: Option<Vec<FloatRange>>,
 }
 
 #[derive(Copy, Clone, Debug, Relation)]

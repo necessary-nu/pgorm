@@ -326,7 +326,7 @@ including panic semantics and quirks inherited from sea-query.
 
 ## Range types a schema creates
 
-> [spec:pgorm:def:sql.value.created-range+7]
+> [spec:pgorm:def:sql.value.created-range+8]
 > A range type a schema creates with `CREATE TYPE ... AS RANGE`
 > (`[spec:pgorm:req:sql.ddl.type-range]`) is named by that schema, so no
 > `RangeType` variant can carry it, and `Value` does not: it stays one pointer
@@ -410,10 +410,29 @@ including panic semantics and quirks inherited from sea-query.
 > cast to `text` before the column's type, `CAST($1::int4range::text AS
 > slot)`. The server's text of a built-in range reads back as the same
 > range.
+> A column of an array of the type — `Vec` of its newtype, a field the
+> newtype's `NotU8` admits, or an array of a domain over the type — is
+> `ColumnType::Array` of it, and its `save_as` is `as_range` to the type's
+> array, `slot[]` (a domain's array for a domain's): an insert, an update and
+> every value predicate write the array of the values' texts cast to it,
+> `CAST($1::text[] AS slot[])`, the empty array and a `NULL` element read by
+> the server as written, and a built-in range array compared with it is
+> written as the array of its ranges' texts. A pipeline binds a built-in range
+> or multirange array compared with it in binary, pinned and cast through
+> `text`, `CAST($1::int4range[]::text AS slot[])`, which the server reads as
+> an array of the texts. No quantified comparison exists with an array
+> column: `ANY` and `ALL` read their array's elements, and PostgreSQL's
+> arrays carry no dimension in their type, so the elements of `slot[]` are
+> each a `slot` (`operator does not exist: slot[] = slot`).
 > A row decodes from the range's binary form: tokio-postgres reports a created
 > range as a range over its subtype, so `Range<T>` decodes for every
 > `RangeSubtype` and refuses one over another subtype
 > (`[spec:pgorm:def:exec.decode.range]`), and the newtype decodes through it.
+> An array of one decodes element by element the same way, for every
+> `RangeSubtype`, a `NULL` element refused as every array's is; an array of a
+> created multirange, which the driver reports with no subtype, is read as
+> `text[]`, its column's `select_as` casting it so, and each element parsed as
+> a scalar one is.
 > Where a column is read into `Value`s, as a binary COPY reads one, a range
 > type a schema created over a `RangeSubtype` reads as the `String` of its
 > text form, the value its newtype converts into, and so does the multirange

@@ -35,6 +35,12 @@ pub(crate) fn column_value<'cx>(
     data: Handle<'cx, JsValue>,
 ) -> NeonResult<Value> {
     let codec = Codec::get(cx)?;
+    if let Some(Tag::Array(member)) = &column.tag
+        && let Tag::Created(_) = member.as_ref()
+        && data.is_a::<JsArray, _>(cx)
+    {
+        return created_texts(cx, member, data);
+    }
     let tagged = match &column.tag {
         Some(tag) => read::tagged(cx, codec, data, tag)?,
         None => match read::infer(cx, codec, data)? {
@@ -69,19 +75,31 @@ pub(crate) fn column_array<'cx>(
         return Ok(None);
     };
     if let Tag::Created(_) = tag {
-        // A created range's array is no `Value` a program declares, but its
-        // elements are each the text a compared range is, which the column's
-        // array cast reads.
-        let items = data.downcast_or_throw::<JsArray, _>(cx)?.to_vec(cx)?;
-        let mut texts = Vec::with_capacity(items.len());
-        for item in items {
-            texts.push(column_value(cx, column, item)?);
-        }
-        return Ok(Some(Value::Array(ArrayType::String, Some(Box::new(texts)))));
+        return created_texts(cx, tag, data).map(Some);
     }
     let codec = Codec::get(cx)?;
     let tagged = read::tagged(cx, codec, data, &Tag::Array(Box::new(tag.clone())))?;
     Ok(Some(tagged.datum))
+}
+
+/// `data`, a JavaScript array of `member`'s values, a created range's, as the
+/// array of their texts. A created range's array is no `Value` a program
+/// declares, but its elements are each the text a range of the kind is,
+/// which the cast of a column of the type's array reads, and so does the
+/// cast a quantified comparison with a column of the type writes.
+// [spec:pgorm:req:bindings.created-ranges+2]
+fn created_texts<'cx>(
+    cx: &mut Cx<'cx>,
+    member: &Tag,
+    data: Handle<'cx, JsValue>,
+) -> NeonResult<Value> {
+    let codec = Codec::get(cx)?;
+    let items = data.downcast_or_throw::<JsArray, _>(cx)?.to_vec(cx)?;
+    let mut texts = Vec::with_capacity(items.len());
+    for item in items {
+        texts.push(read::tagged(cx, codec, item, member)?.datum);
+    }
+    Ok(Value::Array(ArrayType::String, Some(Box::new(texts))))
 }
 
 /// A column's value with the kind it reads as: the column's own where it
@@ -91,7 +109,7 @@ pub(crate) fn tagged(column: &ColumnInfo, value: Value) -> Result<Tagged, Failur
     let named = match (&column.tag, &value) {
         (Some(tag @ (Tag::Enum(_) | Tag::Created(_))), Value::String(_)) => Some(tag.clone()),
         (Some(tag @ Tag::Array(element)), Value::Array(ArrayType::String, _))
-            if matches!(**element, Tag::Enum(_)) =>
+            if matches!(**element, Tag::Enum(_) | Tag::Created(_)) =>
         {
             Some(tag.clone())
         }

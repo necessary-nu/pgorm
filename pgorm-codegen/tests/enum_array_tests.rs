@@ -83,7 +83,7 @@ fn the_bridge_reads_an_enum_array_column() {
     assert_eq!(columns, expected);
 }
 
-// [spec:pgorm:sem:codegen.entity.types+12/test]    an enum array column is a `Vec` of the
+// [spec:pgorm:sem:codegen.entity.types+13/test]    an enum array column is a `Vec` of the
 // enum's `ActiveEnum`, and the compact writer names no `column_type` for one, the derive
 // inferring the array of the enum's type, its schema included; a domain over one is
 // spelled with the enum's column type as its array's element

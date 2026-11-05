@@ -114,7 +114,7 @@ pub enum ColumnType {
     /// in full as an enum type is, and the subtype it ranges over. The name
     /// is what DDL writes and what a value is cast to; the subtype is what a
     /// value's bounds are, which no name says.
-    // [spec:pgorm:def:sql.value.created-range+7]
+    // [spec:pgorm:def:sql.value.created-range+8]
     CreatedRange {
         name: Name,
         schema: Option<Name>,
@@ -123,7 +123,7 @@ pub enum ColumnType {
     /// The multirange PostgreSQL creates beside a range type a schema
     /// created, named in full — its own name, which is not the range's — and
     /// the subtype its ranges range over.
-    // [spec:pgorm:def:sql.value.created-range+7]
+    // [spec:pgorm:def:sql.value.created-range+8]
     CreatedMultirange {
         name: Name,
         schema: Option<Name>,

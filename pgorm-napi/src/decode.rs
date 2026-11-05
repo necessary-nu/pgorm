@@ -386,7 +386,7 @@ fn read_multirange(
 
 /// A column of a range type a schema created: read in binary through the
 /// subtype's codec, and held as the text form that type's values travel as.
-// [spec:pgorm:req:bindings.created-ranges+1]
+// [spec:pgorm:req:bindings.created-ranges+2]
 fn created_text(ty: &Type, kind: &CreatedKind, raw: &[u8]) -> Result<String, CodecError> {
     let (Kind::Range(subtype) | Kind::Multirange(subtype)) = ty.kind() else {
         return Err("expected a range".into());
@@ -508,7 +508,7 @@ mod tests {
         Ok(())
     }
 
-    // [spec:pgorm:req:bindings.created-ranges+1/test]
+    // [spec:pgorm:req:bindings.created-ranges+2/test]
     #[test]
     fn created_range_columns_read_as_text_form() -> Result<(), CodecError> {
         let kind = CreatedKind {

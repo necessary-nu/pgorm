@@ -17812,6 +17812,29 @@ children (
                     }
                 )
             }
+
+            {
+                id typed-binds.created-range-array-column
+                title "A column whose type is an array of a created range binds its values under the column's casts"
+                kind @fix
+                deps (typed-binds.created-range-quantified)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T04:32:52.727066Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T05:15:14.70763Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
         )
     }
 )

@@ -139,7 +139,7 @@ pub(super) fn typed_cast(column: PlExpr, cast: &pgorm_query::TypeName) -> PlExpr
 /// `sql.render.cast-param-type` explains of a statement's placeholder. A pin
 /// is one of the fixed names `Value::source_type_name` gives, or such a name
 /// followed by `::text` for a range read through its text.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+16]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
 pub(super) fn pinned_cast(
     operand: PlExpr,
     pin: Option<&str>,
@@ -502,7 +502,7 @@ impl<S: SelectableSource> Named<S> {
     /// # Ok::<_, pgorm::pipeline::PipelineError>(())
     /// ```
     // [spec:pgorm:sem:pipeline.self-join+1]
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+16]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
     pub fn col<'brand>(&self, column: <S::Entity as EntityTrait>::Column) -> Expr<'brand> {
         entity_column(self.name.clone(), &column)
     }
