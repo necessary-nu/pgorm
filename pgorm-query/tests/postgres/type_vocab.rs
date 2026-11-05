@@ -440,7 +440,7 @@ fn template_from_item_renumbers_into_the_enclosing_statement() {
     assert_eq!(values.0, vec![1i32.into(), 2i32.into(), 9i32.into()]);
 }
 
-// [spec:pgorm:req:sql.render.custom-expr+3/test]    `from_sql` reads the `$` grammar of real SQL
+// [spec:pgorm:req:sql.render.custom-expr+4/test]    `from_sql` reads the `$` grammar of real SQL
 // — quoted regions and comments opaque, `$$` a dollar-quote opener — and refuses a census the
 // supplied values cannot satisfy
 #[test]

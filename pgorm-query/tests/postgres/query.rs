@@ -1059,17 +1059,14 @@ fn select_59() {
 // [spec:pgorm:req:sql.ast.build+3/test]
 // [spec:pgorm:req:sql.render.placeholders+1/test]
 // [spec:pgorm:req:sql.render.param-vs-inline+1/test]
-// [spec:pgorm:req:sql.render.custom-expr+3/test]
+// [spec:pgorm:req:sql.render.custom-expr+4/test]
 #[test]
 fn select_60() {
-    let (cust_query, cust_values) = Query::select()
-        .column(Character::Id)
-        .from(Character::Table)
-        .and_where(Expr::col(Character::FontSize).eq(3))
-        .build();
-
     let (statement, values) = Query::select()
-        .expr(Expr::template(&cust_query[7..], cust_values.0).expect("template arity"))
+        .expr(
+            Expr::template(r#""id" FROM "character" WHERE "font_size" = $1"#, [3i32])
+                .expect("template arity"),
+        )
         .limit(5)
         .build();
 

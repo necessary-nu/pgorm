@@ -301,8 +301,9 @@ A few expressions take a little more care:
   are bound, and `$$` for a literal `$`. The placeholders must name exactly
   the values given; a template naming more or fewer is refused when it is
   made.
-  The text itself is written into the statement as it stands, so it is SQL
-  your program writes, never text a user sent.
+  The text is written into the statement as it stands, so it is a
+  `&'static str`, SQL your program writes: text built while the program
+  runs, a user's included, does not compile there.
 
 ```rust
 use pgorm::pgorm_query::{Expr, ExprTrait, Name, Order, Query};

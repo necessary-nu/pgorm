@@ -1228,7 +1228,7 @@ trait.
 | a `&str` or `String` used as a name | `alias(..)` or `Name::runtime(..)`: no implicit conversion |
 | `TableRef` | `TableName` in DDL, `FromItem` in queries |
 | `Expr::cust("..")` | `Expr::raw("..")`, which takes a `&'static str` |
-| `Expr::cust_with_values(..)`, `cust_with_expr(s)` | `Expr::template(..)`, `template_with_expr(s)`, which check the placeholders |
+| `Expr::cust_with_values(..)`, `cust_with_expr(s)` | `Expr::template(..)`, `template_with_expr(s)`, which check the placeholders and take their SQL as a `&'static str` |
 | `Expr::asterisk()` | `Asterisk` |
 | `ValueType::try_from(value)` | `ValueType::from_value(value)`, which no other trait in scope shares |
 | `Expr::expr(Func::upper(..)).eq(..)`, `Expr::expr(col.count()).gt(..)` | `Func::upper(..).eq(..)`, `col.count().gt(..)` |

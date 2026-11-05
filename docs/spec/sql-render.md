@@ -1038,14 +1038,18 @@ an ideal Postgres renderer would emit.
 
 ## Custom expressions
 
-> [spec:pgorm:req:sql.render.custom-expr+3]
+> [spec:pgorm:req:sql.render.custom-expr+4]
 > `SimpleExpr::Raw(s)` MUST be written verbatim, unescaped; its payload is
 > `&'static str`, so only program text can reach it.
 > `SimpleExpr::Template` carries a `SqlTemplate`, whose template and
 > substitutions are resolved against each other at CONSTRUCTION —
 > `SqlTemplate::new`, reached through `Expr::template`,
 > `Expr::template_with_expr` and `Expr::template_with_exprs`, all of which
-> return `Result` — and never at render.
+> return `Result` — and never at render. Those four take the template as
+> `&'static str`, as `SimpleExpr::Raw`, `cast_as_raw` and `TypeName::raw` take
+> their text: a template is written into the statement as it stands, so it
+> MUST be program text, and text built at run time cannot become SQL through
+> them. The values are what varies, and they are bound.
 >
 > Construction tokenizes the template with the SQL tokenizer (`sql.token`) and
 > reads each `$` punctuation token: `$` followed by another `$` contributes one

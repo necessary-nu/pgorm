@@ -4272,6 +4272,7 @@ children (
                 id membership-takes-str
                 title "eq_any and ne_all take string slices, as eq does"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:39:50.083734Z
@@ -4292,6 +4293,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "The element bound is a new pgorm_query::ArrayElement (Into<Value> + element_type()), what Value::array reads the array's element type from: a blanket impl for every ValueType, plus &str and &String (text[]) and &[u8] (bytea[]), the borrowed spellings that convert into a Value but cannot be read out of one, so they could never be ValueType. Cow<str> was left out: rustc refuses it beside the blanket (E0119). The method is element_type, not array_type, so ValueType and ArrayElement imported together leave neither call ambiguous. ExprTrait::eq_any/ne_all, ColumnTrait::eq_any/ne_all and Value::array take it. On the note's related point, that eq takes any Into<Value> rather than the column's own type: assessed and not changed here. A Column enum's variants share one type, and ColumnTrait has no per-column Rust type to bound on, so typing eq by the field would need a marker type per column from the derive, a redesign of the column API. What reaches the server is sound as it stands: a bare value's placeholder is typed by the column it is compared with and binding-coerce converts an integer into that type checked (Days.eq(0b111_1111) on an int8 column binds int8 bytes), and a save_as column pins the value's own type inside the cast, CAST($1::int4 AS bit(7)), whose result is the same bits. Neither binding has the bug: both take their lists dynamically."
+                    }
+
+                    {
+                        at 2026-11-05T17:16:51.640708Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -10304,6 +10312,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (query-builder chapter). Expr::template takes its SQL as impl Into<String> (pgorm-query/src/expr.rs:403), so text built at run time can become SQL, where cast_as_raw and TypeName::raw require &'static str to rule exactly that out. The guide tells readers the template text must be written in the program."
+                    }
+
+                    {
+                        at 2026-11-05T17:16:51.806755Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T17:19:07.305273Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Expr::template, template_with_expr, template_with_exprs and SqlTemplate::new, the constructors of a template authored for the machinery, take &'static str, as Expr::raw, cast_as_raw and TypeName::raw do. SqlTemplate::from_sql keeps Into<String>: it reads real SQL a caller sends at run time, and pgorm's raw-statement paginator (SelectorRaw::paginate, src/executor/paginator.rs wrap_raw_select) wraps the caller's runtime statement through it, so it stands with the raw-SQL entry points (query_raw, SelectorRaw, Python's RawSQL, JavaScript's raw terminals) that the operator has settled take caller text; its docs and sql.render.custom-expr say which door is which. The one test that built a template from another statement's rendered text (pgorm-query/tests/postgres/query.rs select_60) now writes the template as a literal. Bindings: neither exposes a template constructor; Python's RawSQL and JavaScript's raw terminals are the settled raw surface and are unchanged."
                     }
                 )
             }

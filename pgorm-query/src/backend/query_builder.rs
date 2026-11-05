@@ -405,7 +405,7 @@ impl QueryBuilder {
 
     // [spec:pgorm:sem:sql.render.empty-in+1]
     // [spec:pgorm:req:sql.render.subquery+5] (SubQuery/Tuple/Values expression arms)
-    // [spec:pgorm:req:sql.render.custom-expr+3]
+    // [spec:pgorm:req:sql.render.custom-expr+4]
     fn prepare_simple_expr(&self, simple_expr: &SimpleExpr, sql: &mut dyn SqlWriter) {
         match simple_expr {
             SimpleExpr::Column(column_ref) => {
@@ -465,7 +465,7 @@ impl QueryBuilder {
             SimpleExpr::Raw(s) => {
                 write!(sql, "{s}").unwrap();
             }
-            // [spec:pgorm:req:sql.render.custom-expr+3]
+            // [spec:pgorm:req:sql.render.custom-expr+4]
             SimpleExpr::Template(template) => {
                 for segment in template.segments() {
                     match segment {

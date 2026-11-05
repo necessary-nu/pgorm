@@ -268,6 +268,11 @@ impl Expr {
     /// A validated SQL template and the [`Value`]s it substitutes. Use this
     /// if your fragment needs variables.
     ///
+    /// The template is a `&'static str`, as [`Expr::raw`]'s text is: it is
+    /// written into the statement as it stands, so it is program text the
+    /// author controls, and text built at run time cannot become SQL here.
+    /// The values are bound.
+    ///
     /// The template and its values are paired by [`SqlTemplate::new`], which
     /// refuses a template whose `$N` census is not exactly `1..=v.len()`, so
     /// an arity mistake is a value you handle here rather than a panic later
@@ -336,11 +341,19 @@ impl Expr {
     ///
     /// assert!(Expr::template("6 = $1 * $2", [2]).is_err());
     /// ```
-    // [spec:pgorm:req:sql.render.custom-expr+3]
+    /// and text built at run time does not compile:
+    /// ```compile_fail,E0308
+    /// use pgorm_query::*;
+    ///
+    /// let column = String::from("size_w");
+    /// let _ = Expr::template(format!("{column} > $1"), [1]);
+    /// ```
+    // [spec:pgorm:req:sql.render.custom-expr+4]
+    // [spec:pgorm:req:sql.render.custom-expr+4/test]    the `compile_fail` example: a
+    // template built at run time is refused by the type checker
     #[doc(alias = "cust_with_values")]
-    pub fn template<T, V, I>(s: T, v: I) -> Result<SimpleExpr>
+    pub fn template<V, I>(s: &'static str, v: I) -> Result<SimpleExpr>
     where
-        T: Into<String>,
         V: Into<Value>,
         I: IntoIterator<Item = V>,
     {
@@ -390,11 +403,10 @@ impl Expr {
     /// # Ok(())
     /// # }
     /// ```
-    // [spec:pgorm:req:sql.render.custom-expr+3]
+    // [spec:pgorm:req:sql.render.custom-expr+4]
     #[doc(alias = "cust_with_expr")]
-    pub fn template_with_expr<T, E>(s: T, expr: E) -> Result<SimpleExpr>
+    pub fn template_with_expr<E>(s: &'static str, expr: E) -> Result<SimpleExpr>
     where
-        T: Into<String>,
         E: Into<SimpleExpr>,
     {
         SqlTemplate::new(s, [expr.into()]).map(SimpleExpr::Template)
@@ -404,11 +416,10 @@ impl Expr {
     /// if your fragment needs other expressions.
     ///
     /// See [`Expr::template`] for how the template's census is checked.
-    // [spec:pgorm:req:sql.render.custom-expr+3]
+    // [spec:pgorm:req:sql.render.custom-expr+4]
     #[doc(alias = "cust_with_exprs")]
-    pub fn template_with_exprs<T, I>(s: T, v: I) -> Result<SimpleExpr>
+    pub fn template_with_exprs<I>(s: &'static str, v: I) -> Result<SimpleExpr>
     where
-        T: Into<String>,
         I: IntoIterator<Item = SimpleExpr>,
     {
         SqlTemplate::new(s, v).map(SimpleExpr::Template)
