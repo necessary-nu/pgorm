@@ -71,16 +71,24 @@ pub trait EntityName: StaticName + Default {
 /// Every column reference a statement over `E` writes is qualified by the
 /// default's name ([`ColumnTrait::entity_name`]), so a table read under any
 /// other name is read under that one, as `FROM "acme"."cake_2026" AS "cake"`.
-/// A schema alone needs no alias: `FROM "acme"."cake"` answers to `cake`.
+/// A schema alone needs no alias: `FROM "acme"."cake"` answers to `cake`. A
+/// default naming no table, an empty name, has no name to read one under.
 // [spec:pgorm:req:entity.traits.entity-name+6]
 pub(crate) fn entity_table<E: EntityName>(entity: &E) -> NamedTable {
     let table = entity.table_ref().into_named_table();
-    let default = E::default();
-    if entity.table_name() == default.table_name() {
-        table
-    } else {
-        table.alias(Name::new(default))
+    match default_alias(entity) {
+        Some(alias) => table.alias(alias),
+        None => table,
     }
+}
+
+/// The name a statement over `entity` reads its table under: the default's
+/// table name, where it is one and the instance's differs from it.
+// [spec:pgorm:req:entity.traits.entity-name+6]
+pub(crate) fn default_alias<E: EntityName>(entity: &E) -> Option<Name> {
+    let default = E::default();
+    let named = !default.table_name().is_empty();
+    (named && entity.table_name() != default.table_name()).then(|| Name::new(default))
 }
 
 /// A unique key over two columns or more of an entity's table, as

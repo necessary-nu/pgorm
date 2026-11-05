@@ -67,8 +67,9 @@ explicit limitations.
 > name differs from the default's, the table is read under the default's as an alias —
 > `FROM "acme"."cake_2026" AS "cake"`, `UPDATE … AS "cake"` — and a schema alone needs
 > none, since `FROM "acme"."cake"` already answers to `cake`. The default is therefore
-> part of the entity's contract: its table name qualifies every column, so it MUST
-> name one.
+> part of the entity's contract: its table name qualifies every column, so it SHOULD
+> name one; a default whose table name is empty names none to read the instance's
+> table under, and its statements name the instance's table bare.
 
 > [spec:pgorm:req:entity.traits.crud+5]
 > `EntityTrait` provides the static *read* surface (`src/entity/base_entity.rs`):

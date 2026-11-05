@@ -16809,6 +16809,7 @@ children (
                 title "A form derives IntoActiveModel from any crate, names its active model by path, and carries any column type"
                 kind @fix
                 deps (derives.paths)
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:15:36.020114Z
@@ -16836,6 +16837,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Correction to the decision note: only the `IntoActiveModel<ActiveModel>` impl header now names `Model`. Naming `Model` in From<Model> for ActiveModel and TryFrom<ActiveModel> for Model as well turned on rustc's more precise dead-code analysis for concrete self types — an entity whose Model the program never builds (one used only for SQL or DDL, as many test fixtures are) then warned \"struct `Model` is never constructed\", because the projection-headed TryFrom impl had been what counted as constructing it. Those impls keep the projection; they take no part in the cross-crate conflict."
+                    }
+
+                    {
+                        at 2026-11-05T17:33:16.978693Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

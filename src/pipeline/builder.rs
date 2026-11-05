@@ -6,6 +6,7 @@ use std::ops::RangeInclusive;
 use pgorm_query::{AliasName, IntoName, Name, SqlName, Value};
 
 use crate::EntityTrait;
+use crate::entity::default_alias;
 
 use super::adapter::{self, PlExpr, Projected};
 use super::binder::Binder;
@@ -346,10 +347,7 @@ impl<E: EntityTrait> IntoSource for E {
             }
             None => adapter::ident(self.table_name()),
         });
-        let default = E::default();
-        if self.table_name() != default.table_name() {
-            source.alias = Some(default.table_name().to_owned());
-        }
+        source.alias = default_alias(&self).map(|alias| SqlName::to_string(&*alias));
         source
     }
 }
