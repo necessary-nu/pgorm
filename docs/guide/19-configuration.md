@@ -340,8 +340,12 @@ background jobs beside the web requests', say, so a burst of jobs cannot take
 every connection.
 [`connect_multi_with_builder`](crate::connect_multi_with_builder) builds one
 pool per name, each tagged with its name and shaped by its own closure, and
-returns them in a map keyed by tag. Choosing between them is the program's:
-nothing balances or falls back across them.
+returns them as a [`DatabaseMultiPool`](crate::DatabaseMultiPool).
+[`get`](crate::DatabaseMultiPool::get) gives the pool with a tag,
+[`iter`](crate::DatabaseMultiPool::iter) every pool with its tag,
+[`status`](crate::DatabaseMultiPool::status) each pool's status by tag, and
+[`close`](crate::DatabaseMultiPool::close) closes them all. Choosing between
+them is the program's: nothing balances or falls back across them.
 
 ```rust
 # #[tokio::main(flavor = "current_thread")]
@@ -349,19 +353,30 @@ nothing balances or falls back across them.
 # let scratch = pgorm_guide_support::Scratch::bakery("configuration_multi").await;
 # let config = scratch.config();
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
-use pgorm::{PoolBuilder, connect_multi_with_builder};
+use pgorm::{ConnectionTrait, PoolBuilder, connect_multi_with_builder};
 
 let mut shapes: BTreeMap<String, Box<dyn Fn(PoolBuilder) -> PoolBuilder>> = BTreeMap::new();
 shapes.insert("web".to_owned(), Box::new(|builder| builder.max_size(8)));
 shapes.insert("jobs".to_owned(), Box::new(|builder| builder.max_size(2)));
 
 let pools = connect_multi_with_builder(config, shapes)?;
-let jobs = &pools[&Arc::new("jobs".to_owned())];
+let jobs = pools.get("jobs").expect("a pool is tagged jobs");
 assert_eq!(jobs.tag().as_str(), "jobs");
-assert_eq!(jobs.status().max_size, 2);
-# for pool in pools.values() { pool.close(); }
+let db = jobs.get().await?;
+assert_eq!(db.query_one("SELECT 1", &[]).await?.get::<_, i32>(0), 1);
+
+let sizes: Vec<(&str, usize)> = pools
+    .status()
+    .into_iter()
+    .map(|(tag, status)| (tag, status.max_size))
+    .collect();
+assert_eq!(sizes, [("jobs", 2), ("web", 8)]);
+assert!(pools.get("reports").is_none());
+
+drop(db);
+pools.close();
+assert!(pools.iter().all(|(_, pool)| pool.is_closed()));
 # scratch.finish().await;
 # Ok(())
 # }

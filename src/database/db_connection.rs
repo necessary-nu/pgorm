@@ -110,23 +110,35 @@ pub struct DatabasePool(pub(crate) Pool);
 
 /// A set of [`DatabasePool`]s keyed by their tags, as built by
 /// [`connect_multi_with_builder`](crate::connect_multi_with_builder).
-// [spec:pgorm:sem:conn.pool.multi+2]    tag-keyed accessor surface
+///
+/// Which pool a statement runs on is the caller's choice, made by tag:
+/// nothing here balances load across the pools or falls back from one to
+/// another.
+// [spec:pgorm:sem:conn.pool.multi+3]    tag-keyed accessor surface
 #[derive(Debug, Clone)]
-#[repr(transparent)]
-pub struct DatabaseMultiPool(pub(crate) BTreeMap<Arc<String>, DatabasePool>);
+pub struct DatabaseMultiPool(pub(crate) BTreeMap<String, DatabasePool>);
 
 impl DatabaseMultiPool {
-    /// The pool tagged `key`, or `None` if no pool carries that tag.
-    pub fn get(&self, key: Arc<String>) -> Option<DatabasePool> {
-        self.0.get(&key).cloned()
+    /// The pool tagged `tag`, or `None` if no pool carries that tag.
+    pub fn get(&self, tag: &str) -> Option<&DatabasePool> {
+        self.0.get(tag)
+    }
+
+    /// Every pool with its tag, in the tags' order.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &DatabasePool)> {
+        self.0.iter().map(|(tag, pool)| (tag.as_str(), pool))
     }
 
     /// The current [`Status`] of every pool, keyed by tag.
-    pub fn status(&self) -> BTreeMap<Arc<String>, Status> {
-        self.0
-            .iter()
-            .map(|(k, v)| (k.clone(), v.status()))
+    pub fn status(&self) -> BTreeMap<&str, Status> {
+        self.iter()
+            .map(|(tag, pool)| (tag, pool.status()))
             .collect()
+    }
+
+    /// [`DatabasePool::close`] every pool.
+    pub fn close(&self) {
+        self.0.values().for_each(DatabasePool::close);
     }
 }
 

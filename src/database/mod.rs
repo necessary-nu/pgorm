@@ -90,7 +90,7 @@ pub use tokio_postgres::{
 
 use crate::error::Error;
 use pgorm_pool::{BuildError, Manager, Pool};
-use std::{collections::BTreeMap, convert::identity, sync::Arc};
+use std::{collections::BTreeMap, convert::identity};
 
 /// The builder rejected the pool it was asked to build. deadpool's only such
 /// failure is a timeout configured without a runtime, so the message is carried
@@ -242,29 +242,30 @@ pub fn connect_with_builder(
 }
 
 /// Method to create one [DatabasePool] per entry in `build`, each tagged with
-/// that entry's key and customised by its builder closure. The returned map is
-/// keyed by the resulting pool tags.
+/// that entry's key and customised by its builder closure, gathered into a
+/// [`DatabaseMultiPool`] keyed by those tags.
 ///
 /// # Errors
 ///
 /// Returns [`Error::Custom`] for the first entry whose builder cannot produce a
-/// pool; no map is returned in that case.
-// [spec:pgorm:sem:conn.pool.multi+2]    per-tag pool construction
+/// pool; none of the pools is returned in that case.
+// [spec:pgorm:sem:conn.pool.multi+3]    per-tag pool construction
 pub fn connect_multi_with_builder(
     config: Config,
     build: BTreeMap<String, Box<dyn Fn(PoolBuilder) -> PoolBuilder>>,
-) -> Result<BTreeMap<Arc<String>, DatabasePool>, Error> {
+) -> Result<DatabaseMultiPool, Error> {
     build
         .into_iter()
-        .map(|(key, build)| {
+        .map(|(tag, build)| {
             let pool = connect_with(
                 config.clone(),
                 NoTls,
-                simple_manager_config(Some(key)),
+                simple_manager_config(Some(tag.clone())),
                 build,
             )?;
 
-            Ok((pool.tag(), pool))
+            Ok((tag, pool))
         })
-        .collect()
+        .collect::<Result<_, Error>>()
+        .map(DatabaseMultiPool)
 }

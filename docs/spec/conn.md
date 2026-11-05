@@ -109,24 +109,26 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > breaks transactional reasoning, so the pool-as-connection pattern inherited
 > from SeaORM was removed.
 
-> [spec:pgorm:sem:conn.pool.multi+2]
+> [spec:pgorm:sem:conn.pool.multi+3]
 > `connect_multi_with_builder(config, builders)` builds one pool per entry of a
 > `BTreeMap<String, builder-fn>`: each pool clones the shared
 > `tokio_postgres::Config`, is tagged with its map key, and uses
-> `RecyclingMethod::Fast`; the result is a
-> `Result<BTreeMap<Arc<String>, DatabasePool>, Error>` keyed by tag. Every
-> builder is caller input, so construction is fallible on the same terms as
-> `connect_with_builder` (`conn.pool`): the first entry whose builder cannot
-> produce a pool aborts the whole construction with `Error::Custom` and no map
-> is returned. `DatabaseMultiPool` wraps the same map shape and offers
-> `get(key) -> Option<DatabasePool>` (a cheap clone of the refcounted pool) and
-> `status()` returning per-tag `deadpool::Status`.
+> `RecyclingMethod::Fast`; the result is a `Result<DatabaseMultiPool, Error>`,
+> the pools keyed by tag. Every builder is caller input, so construction is
+> fallible on the same terms as `connect_with_builder` (`conn.pool`): the
+> first entry whose builder cannot produce a pool aborts the whole
+> construction with `Error::Custom` and no pool is returned.
 >
-> Selection is explicit by tag key only — there is no round-robin, load
-> balancing, or fallback across pools. `DatabaseMultiPool` currently has no
-> public constructor (its field is crate-private and
-> `connect_multi_with_builder` returns the raw `BTreeMap` on success), so
-> outside the crate it is effectively read-only API surface.
+> `DatabaseMultiPool` is built by `connect_multi_with_builder` alone; its map
+> is crate-private. It offers `get(tag: &str) -> Option<&DatabasePool>`,
+> `iter()` over `(&str, &DatabasePool)` in tag order, `status()` returning
+> each pool's `Status` keyed by tag, and `close()`, which closes every pool
+> (`conn.pool.lifecycle`). Selection is explicit by tag only — there is no
+> round-robin, load balancing, or fallback across pools.
+>
+> The type once had no constructor at all: `connect_multi_with_builder`
+> returned the bare map, and `DatabaseMultiPool`, public with its accessors,
+> could not be obtained outside the crate.
 
 > [spec:pgorm:req:conn.pool.config-forwarding+1]
 > `pgorm_pool::Config` is the deserializable connection configuration — the

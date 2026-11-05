@@ -10613,6 +10613,20 @@ children (
                         kind @note
                         text "Found by guide.rust (configuration chapter). DatabaseMultiPool (src/database/db_connection.rs:116) is public, with get and status, but nothing constructs it: connect_multi_with_builder returns BTreeMap<Arc<String>, DatabasePool>. The guide documents the map and leaves the type out."
                     }
+
+                    {
+                        at 2026-11-05T16:05:32.685001Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:09:34.475608Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision built (pending operator override): connect_multi_with_builder returns Result<DatabaseMultiPool, Error>. Since nothing could construct the type before, its accessors were reshaped for use: the map is keyed by the tag String (no Arc<String> argument to build), get(&str) -> Option<&DatabasePool> (a borrow, as BTreeMap::get; .cloned() is the caller's), status() -> BTreeMap<&str, Status>, plus iter() over (&str, &DatabasePool) in tag order and close(), which closes every pool — the two things the returned map offered (iteration, closing each value) that the type otherwise would not. #[repr(transparent)] dropped: nothing transmutes it. conn.pool.multi +3 (owned by infra.conn). No binding counterpart: neither binding has a multi-pool constructor; a dict or Map of pools is the dialect's own."
+                    }
                 )
             }
 
