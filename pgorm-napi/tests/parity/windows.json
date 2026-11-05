@@ -24,7 +24,7 @@
     "values": []
   },
   "ranges": {
-    "sql": "SELECT * FROM \"booking\" WHERE \"during\" @> CAST($1::timestamptz AS timestamptz) AND \"during\" && $2 AND \"seats\" <@ $3 AND \"spans\" && $4 AND \"tags\" @> $5 AND \"weights\" && CAST($6::text AS app.floatrange)",
+    "sql": "SELECT * FROM \"booking\" WHERE \"during\" @> CAST($1::timestamptz AS timestamptz) AND \"during\" && $2 AND \"seats\" <@ $3::int4range AND \"spans\" && $4 AND \"tags\" @> $5 AND \"weights\" && CAST($6::text AS app.floatrange)",
     "values": [["datetime_utc","2026-10-09T12:00:00Z"], ["tstzrange","[2026-10-09T00:00:00Z,)"], ["int4range","[1,10]"], ["int4multirange","{[1,3),[5,8)}"], ["array","[a,b]"], ["text","[0.5,1.5)"]]
   },
   "range-positions": {

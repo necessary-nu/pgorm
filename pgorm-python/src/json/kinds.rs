@@ -2,8 +2,8 @@
 //! straight from an operand: `FORMAT JSON` and `IS [NOT] JSON`.
 
 use pgorm::pgorm_query::{
-    Expr, JsonExistsBehavior, JsonInput, JsonKind, JsonQueryBehavior, JsonTest, JsonValueBehavior,
-    SimpleExpr, Value,
+    Expr, ExprTrait, JsonExistsBehavior, JsonInput, JsonKind, JsonQueryBehavior, JsonTest,
+    JsonValueBehavior, SimpleExpr, Value,
 };
 use pyo3::{exceptions::PyTypeError, prelude::*};
 

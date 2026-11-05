@@ -1,5 +1,5 @@
 use pgorm::pgorm_query::{
-    BinOper, Condition, Expr, IntoCondition, OrderedStatement, Query, ReturningClause,
+    BinOper, Condition, Expr, ExprTrait, IntoCondition, OrderedStatement, Query, ReturningClause,
     SelectStatement, Values,
 };
 use pyo3::{

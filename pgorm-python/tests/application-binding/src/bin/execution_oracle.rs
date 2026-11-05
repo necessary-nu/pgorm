@@ -1,7 +1,9 @@
 //! Compare installed Python execution with independent Rust operations.
 use _native::{account, graphs, note};
 use futures_util::TryStreamExt;
-use pgorm::pgorm_query::{ColumnDef, ColumnType, Expr, Name, OnConflict, Order, Query, Table};
+use pgorm::pgorm_query::{
+    ColumnDef, ColumnType, Expr, ExprTrait, Name, OnConflict, Order, Query, Table,
+};
 use pgorm::pipeline::{self as pl, ExprOps, IntoSource, JoinSide};
 use pgorm::{
     ActiveModelBehavior, ActiveModelTrait, Change, ColumnTrait, ConnectionTrait,

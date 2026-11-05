@@ -160,7 +160,7 @@ impl Nullable for Interval {
 
 // [spec:pgorm:def:sql.value.interval+2]
 impl ValueType for Interval {
-    fn try_from(v: Value) -> Result<Self, ValueTypeError> {
+    fn from_value(v: Value) -> Result<Self, ValueTypeError> {
         match v {
             Value::Interval(Some(x)) => Ok(*x),
             _ => Err(ValueTypeError),
@@ -285,12 +285,12 @@ mod tests {
         assert_eq!(value.as_ref_interval(), Some(&interval));
         assert!(value.is_interval());
         assert_eq!(
-            <Interval as ValueType>::try_from(value).ok(),
+            <Interval as ValueType>::from_value(value).ok(),
             Some(interval)
         );
         assert_eq!(Value::from(None::<Interval>), Value::Interval(None));
-        assert!(<Interval as ValueType>::try_from(Value::Interval(None)).is_err());
-        assert!(<Interval as ValueType>::try_from(Value::BigInt(Some(1))).is_err());
+        assert!(<Interval as ValueType>::from_value(Value::Interval(None)).is_err());
+        assert!(<Interval as ValueType>::from_value(Value::BigInt(Some(1))).is_err());
         assert_eq!(
             <Interval as ValueType>::column_type(),
             ColumnType::Interval(IntervalSpec::Any(None))
@@ -303,7 +303,7 @@ mod tests {
             )
         );
         assert_eq!(
-            <Vec<Interval> as ValueType>::try_from(Value::from(vec![interval])).ok(),
+            <Vec<Interval> as ValueType>::from_value(Value::from(vec![interval])).ok(),
             Some(vec![interval])
         );
     }

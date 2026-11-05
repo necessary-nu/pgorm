@@ -107,7 +107,7 @@ async fn written(db: &DatabaseConnection, predicate: &str) -> Result<Vec<i32>, E
 // the rows PostgreSQL's own operator written as SQL text selects, holding on some rows and
 // failing on others
 // [spec:pgorm:def:sql.render.operators+8/test]
-// [spec:pgorm:req:sql.ast.expr.json+2/test]
+// [spec:pgorm:req:sql.ast.expr.json+3/test]
 async fn each_operator_answers_as_postgres_does(db: &DatabaseConnection) -> Result<(), Error> {
     let cases: [(SimpleExpr, &str, Vec<i32>); 9] = [
         (

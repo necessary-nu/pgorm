@@ -452,7 +452,7 @@ enum ResultCol {
 // ordinal, plus `find_by_statement`
 // [spec:pgorm:req:exec.decode.many-arity/test]    a short column slice is a
 // type error, surplus names are ignored, and the index path is unchecked
-// [spec:pgorm:def:exec.crud+1/test]    `find_by_statement` builds a `SelectorRaw`
+// [spec:pgorm:def:exec.crud+2/test]    `find_by_statement` builds a `SelectorRaw`
 // over `SelectGetableValue` through `with_columns`
 #[pgorm_macros::test]
 async fn decode_many() -> Result<(), Error> {

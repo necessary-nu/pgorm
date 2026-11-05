@@ -290,7 +290,7 @@ struct PriceTag {
 #[derive(Debug, PartialEq, PartialModel)]
 #[pgorm(entity = cake::Entity)]
 struct MenuLine {
-    #[pgorm(from_expr = Expr::expr(Func::upper(Expr::col((cake::Entity, cake::Column::Name)))))]
+    #[pgorm(from_expr = Func::upper(Expr::col((cake::Entity, cake::Column::Name))))]
     shout: String,
     #[pgorm(from_col = cake::Column::GlutenFree)]
     free_from_gluten: bool,
@@ -316,12 +316,10 @@ assert_eq!(
     }
 );
 
-// `select_cols` is the projection `into_partial_model` selects.
-use pgorm::PartialModelTrait;
-
+// A decoded query renders the statement it will run.
 let lemon = cake::Entity::find().filter(cake::Column::Id.eq(2));
 assert_eq!(
-    MenuLine::select_cols(lemon.clone().select_only()).build().0,
+    lemon.clone().into_partial_model::<MenuLine>().build().0,
     r#"SELECT UPPER("cake"."name") AS "shout", "cake"."gluten_free" AS "free_from_gluten" FROM "cake" WHERE "cake"."id" = $1"#
 );
 assert_eq!(
@@ -424,7 +422,7 @@ let busy: Vec<(String, i64)> = cake::Entity::find()
     .select(bakery::Column::Name)
     .column_as(cake::Column::Id.count(), alias("cakes"))
     .group_by(bakery::Column::Name)
-    .having(Expr::expr(cake::Column::Id.count()).gt(2))
+    .having(cake::Column::Id.count().gt(2))
     .into_tuple()
     .all(&db)
     .await?;
