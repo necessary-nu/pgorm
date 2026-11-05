@@ -13679,7 +13679,7 @@ children (
                         id napi.guide-gaps.metrics
                         title "JavaScript instruments a pool, its connections and transactions with a collector of its own, told each query's operation, SQL and fingerprint, each acquisition and each transaction's begin, commit and rollback, as Rust's pgorm::metric InstrumentedPool, MetricsCollector, QueryContext, NoOpMetrics and LoggingMetrics do (guide 21-metrics)"
                         implements {
-                            javascript (bindings.metrics)
+                            javascript ([spec:pgorm:req:bindings.metrics])
                         }
                         deps (napi-connections guide.javascript)
                         log (
@@ -19712,7 +19712,7 @@ children (
                         id guide.python-gaps.metrics
                         title "Python has pgorm's metrics layer: InstrumentedPool, InstrumentedConnection and InstrumentedTransaction, a MetricsCollector a program implements, NoOpMetrics and LoggingMetrics, QueryContext, and query fingerprints (metrics-fingerprint)"
                         implements {
-                            python (bindings.metrics)
+                            python ([spec:pgorm:req:bindings.metrics])
                         }
                         deps (python.runtime)
                         log (
