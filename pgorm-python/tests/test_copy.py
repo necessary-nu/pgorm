@@ -742,7 +742,7 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.pool.one(p.RawSQL("SELECT 3 AS n")))["n"], 3)
 
     # [spec:pgorm:req:bindings.copy-rows+1/test]    a created multirange reads as a Multirange and writes back from a Value of its kind or from its text
-    # [spec:pgorm:req:bindings.created-ranges+3/test]
+    # [spec:pgorm:req:bindings.created-ranges+4/test]
     async def test_created_multiranges_round_trip(self):
         for statement in MULTISPANS:
             await self.pool.execute(p.RawSQL(statement))

@@ -283,7 +283,7 @@ option.
 > an integer's width, an enum's schema-qualified type, an array's element kind,
 > and SQL NULL apart from JSON's null.
 
-> [spec:pgorm:req:bindings.created-ranges+3]
+> [spec:pgorm:req:bindings.created-ranges+4]
 > A created range's kind MUST carry the type's name, quoted and
 > schema-qualifiable, and its subtype, one of the twelve pgorm's
 > `RangeSubtype` admits, which converts each bound with that kind's limits
@@ -292,7 +292,13 @@ option.
 > to cast, `CAST($1::text AS name)`, as `Expr::as_range` writes it. A result
 > column of one MUST decode, through its subtype's binary codec, to a `Range`
 > whose kind is named as the column's type is, whatever its subtype, so the
-> value writes back to its column.
+> value writes back to its column. A column a registration or a schema
+> describes by its `ColumnType` MUST take the kind pgorm's codec reads that
+> column type as (`CreatedRangeCodec::of_column`), the same in both bindings,
+> and a kind MUST declare the subtype's column type that codec gives
+> (`subtype_column_type`). A `char(n)` subtype is text: PostgreSQL drops a
+> range subtype's modifier, so a range type created over `char`, `char(n)`
+> or `bpchar` ranges over `bpchar`, whose values are text of any length.
 >
 > A created multirange's kind is a `CreatedMultirange`, and its value is
 > bound the same way. The driver reports a query's result column of one with

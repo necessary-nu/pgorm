@@ -17,7 +17,9 @@ use jiff::{
     civil::{Date, DateTime, Time},
 };
 use pgorm_pool::GenericClient;
-use pgorm_query::{ArrayType, Multirange, Range, RangeSubtype, Value, base_type};
+use pgorm_query::{
+    ArrayType, ColumnType, Multirange, Range, RangeSubtype, StringLen, Value, base_type,
+};
 use rust_decimal::Decimal;
 use tokio_postgres::types::{FromSql, Kind, Oid, Type};
 
@@ -140,6 +142,55 @@ impl CreatedRangeCodec {
             Type::UUID => ArrayType::Uuid,
             _ => return None,
         })
+    }
+
+    /// The codec of a column of `col_type`, a `ColumnType::CreatedRange` or
+    /// `CreatedMultirange`, by the value kind its subtype's column type
+    /// holds; `None` for any other column type, or a subtype no
+    /// `RangeSubtype` is. A `char(n)` subtype holds text: PostgreSQL drops a
+    /// range subtype's modifier, so the range is over `bpchar`, whose values
+    /// are text of any length.
+    pub fn of_column(col_type: &ColumnType) -> Option<Self> {
+        let (subtype, multirange) = match col_type {
+            ColumnType::CreatedRange { subtype, .. } => (subtype, false),
+            ColumnType::CreatedMultirange { subtype, .. } => (subtype, true),
+            _ => return None,
+        };
+        let kind = match subtype.as_ref() {
+            ColumnType::SmallInteger => ArrayType::SmallInt,
+            ColumnType::Integer => ArrayType::Int,
+            ColumnType::BigInteger => ArrayType::BigInt,
+            ColumnType::Float => ArrayType::Float,
+            ColumnType::Double => ArrayType::Double,
+            ColumnType::Decimal(_) => ArrayType::Decimal,
+            ColumnType::Text | ColumnType::String(_) | ColumnType::Char(_) => ArrayType::String,
+            ColumnType::Date => ArrayType::Date,
+            ColumnType::Time => ArrayType::Time,
+            ColumnType::Timestamp => ArrayType::DateTime,
+            ColumnType::TimestampWithTimeZone => ArrayType::DateTimeWithTimeZone,
+            ColumnType::Uuid => ArrayType::Uuid,
+            _ => return None,
+        };
+        Self::new(&kind, multirange)
+    }
+
+    /// The column type of this codec's subtype, as a column of the created
+    /// type declares it.
+    pub fn subtype_column_type(&self) -> ColumnType {
+        match self.subtype {
+            ArrayType::SmallInt => ColumnType::SmallInteger,
+            ArrayType::Int => ColumnType::Integer,
+            ArrayType::BigInt => ColumnType::BigInteger,
+            ArrayType::Float => ColumnType::Float,
+            ArrayType::Double => ColumnType::Double,
+            ArrayType::Decimal => ColumnType::Decimal(None),
+            ArrayType::Date => ColumnType::Date,
+            ArrayType::Time => ColumnType::Time,
+            ArrayType::DateTime => ColumnType::Timestamp,
+            ArrayType::DateTimeWithTimeZone => ColumnType::TimestampWithTimeZone,
+            ArrayType::Uuid => ColumnType::Uuid,
+            _ => ColumnType::String(StringLen::None),
+        }
     }
 
     /// The codec of `ty`, a range or multirange type a schema created; an
@@ -382,6 +433,7 @@ async fn multirange_subtype<C: GenericClient>(client: &C, oid: Oid) -> Result<Op
 #[cfg(test)]
 mod tests {
     use bytes::BytesMut;
+    use pgorm_query::Name;
     use postgres_protocol::{IsNull, types as wire};
 
     use super::*;
@@ -430,5 +482,55 @@ mod tests {
         let raw = numeric_range(&one, &rounded)?;
         assert!(numbers.text_from_sql(&Type::NUMERIC, &raw).is_err());
         Ok(())
+    }
+
+    // [spec:pgorm:def:sql.value.created-range+9/test]    one mapping between a created range
+    // column's subtype column type and its value kind: a `char(n)` subtype holds text, as the
+    // `bpchar` PostgreSQL keeps it as
+    #[test]
+    fn a_column_types_subtype_names_its_codec() {
+        let created = |subtype: ColumnType| ColumnType::CreatedRange {
+            name: Name::runtime("r"),
+            schema: None,
+            subtype: std::sync::Arc::new(subtype),
+        };
+        for (subtype, kind) in [
+            (ColumnType::Char(Some(1)), ArrayType::String),
+            (ColumnType::Char(Some(4)), ArrayType::String),
+            (ColumnType::Char(None), ArrayType::String),
+            (ColumnType::Text, ArrayType::String),
+            (ColumnType::Decimal(Some((10, 2))), ArrayType::Decimal),
+            (
+                ColumnType::TimestampWithTimeZone,
+                ArrayType::DateTimeWithTimeZone,
+            ),
+        ] {
+            let codec = CreatedRangeCodec::of_column(&created(subtype.clone()));
+            assert_eq!(
+                codec.map(|codec| codec.subtype().clone()),
+                Some(kind),
+                "{subtype:?}"
+            );
+        }
+        let spans = ColumnType::CreatedMultirange {
+            name: Name::runtime("rs"),
+            schema: None,
+            subtype: std::sync::Arc::new(ColumnType::Integer),
+        };
+        assert!(CreatedRangeCodec::of_column(&spans).is_some_and(|codec| codec.is_multirange()));
+        assert!(CreatedRangeCodec::of_column(&created(ColumnType::Boolean)).is_none());
+        assert!(CreatedRangeCodec::of_column(&ColumnType::Integer).is_none());
+        for kind in [ArrayType::Decimal, ArrayType::String, ArrayType::Uuid] {
+            let codec =
+                CreatedRangeCodec::new(&kind, false).map(|codec| codec.subtype_column_type());
+            let column = codec.map(created);
+            assert_eq!(
+                column
+                    .as_ref()
+                    .and_then(CreatedRangeCodec::of_column)
+                    .map(|codec| codec.subtype().clone()),
+                Some(kind)
+            );
+        }
     }
 }

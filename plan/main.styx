@@ -17971,6 +17971,22 @@ children (
                 title "Both bindings give a created range over char(n) the same kind, through one shared column-type mapping"
                 kind @fix
                 deps (typed-binds.shared-range-codec)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T08:45:51.126078Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T08:50:39.949866Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
