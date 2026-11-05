@@ -1634,6 +1634,12 @@ children (
                     }
                 )
             }
+
+            {
+                id infra.python-native-unit
+                title "pgorm-python's Rust unit tests run in nplan check and CI, as pgorm-napi's do"
+                kind @ci
+            }
         )
     }
 
@@ -18010,6 +18016,13 @@ children (
                         text "Doing → Done (nplan complete)"
                     }
                 )
+            }
+
+            {
+                id value-codecs.domain-subtype-column
+                title "The shared created-range column-type mapping looks through a domain subtype, as subtype_kind does for server types"
+                kind @fix
+                deps (value-codecs.char-created-range-kind)
             }
         )
     }

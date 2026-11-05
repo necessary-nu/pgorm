@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T09:10:24.439154Z
+last_sync_at 2026-11-05T09:36:31.119097Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -667,6 +667,7 @@ derived_priorities (
     {id identity-arity-collapse, priority 0, derived_at 2026-09-07T11:29:18.890823Z}
     {id in-subquery-enum-shapes, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id infra.prepared-api, priority 0, derived_at 2026-09-04T14:19:01.307427Z}
+    {id infra.python-native-unit, priority 0, derived_at 2026-11-05T09:36:31.119097Z}
     {id infra.schema-index-qualify, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
     {id infra.sql-err, priority 0, derived_at 2026-09-01T22:48:19.179922Z}
     {id infra.statement-cache, priority 0, derived_at 2026-09-04T14:19:01.307427Z}
@@ -1026,6 +1027,7 @@ derived_priorities (
     {id value-codecs.builtin-range-codec, priority 3, derived_at 2026-11-05T08:09:51.053281Z}
     {id value-codecs.char-created-range-kind, priority 3, derived_at 2026-11-05T08:09:51.053281Z}
     {id value-codecs.copy-numeric-exact, priority 3, derived_at 2026-11-05T08:09:51.053281Z}
+    {id value-codecs.domain-subtype-column, priority 3, derived_at 2026-11-05T09:36:31.119097Z}
     {id value-decode-created-multiranges, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id value-decode-created-ranges, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id value-float-eq-hash, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
