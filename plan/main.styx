@@ -17889,6 +17889,20 @@ children (
                     }
                 )
             }
+
+            {
+                id typed-binds.shared-range-codec
+                title "Both bindings encode and decode created ranges through pgorm's CreatedRangeCodec, with no codec of their own"
+                kind @refactor
+                deps (typed-binds.created-range-array-value)
+            }
+
+            {
+                id typed-binds.enum-array-type-name
+                title "A Python Value's type_name names an enum array's type, as JavaScript's does"
+                kind @fix
+                deps (typed-binds.created-range-array-value)
+            }
         )
     }
 )
