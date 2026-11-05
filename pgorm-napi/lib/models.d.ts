@@ -6,7 +6,7 @@
 
 // [spec:pgorm:req:napi.typing+1]
 // [spec:pgorm:req:bindings.models+5]
-// [spec:pgorm:req:bindings.model-unique-keys+1]
+// [spec:pgorm:req:bindings.model-unique-keys+2]
 
 import type { Compiled, Condition, Expr, ModelOperand, Operand, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Select, Table } from "./select.d.ts";

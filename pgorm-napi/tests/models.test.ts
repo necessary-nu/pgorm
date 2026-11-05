@@ -126,7 +126,7 @@ test("a declaration that cannot be used is refused as it is made", () => {
   assert.throws(() => model("t", { columns: { a: column("text", { name: "x".repeat(64) }) } }), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.model-unique-keys+1/test]    a model declares its unique keys in order, one field or several, named or not and NULLS NOT DISTINCT or not, describes each and keeps them under an alias, sending nothing
+// [spec:pgorm:req:bindings.model-unique-keys+2/test]    a model declares its unique keys in order, one field or several, named or not and NULLS NOT DISTINCT or not, describes each and keeps them under an alias, sending nothing
 test("a model declares and describes its unique keys", () => {
   const columns = {
     id: column("i32", { primaryKey: true }),
@@ -149,7 +149,7 @@ test("a model declares and describes its unique keys", () => {
   assert.deepStrictEqual(model("members", { columns }).describe().uniqueKeys, []);
 });
 
-// [spec:pgorm:req:bindings.model-unique-keys+1/test]    a unique key naming no field, a field the model lacks or a field twice, or a name that is no identifier, is a ConstructionError as the model is declared; a key of another type, an unknown option and a mistyped field, name or flag a TypeError
+// [spec:pgorm:req:bindings.model-unique-keys+2/test]    a unique key naming no field, a field the model lacks or a field twice, or a name that is no identifier, is a ConstructionError as the model is declared; a key of another type, an unknown option and a mistyped field, name or flag a TypeError
 test("a unique key PostgreSQL or the derive would refuse is refused as the model is declared", () => {
   const columns = { id: column("i32", { primaryKey: true }), handle: column("text") };
   const declare = (...keys: unknown[]) => model("members", { columns, uniqueKeys: keys as never });

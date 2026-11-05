@@ -275,7 +275,7 @@ test("the schema runs and holds rows to kinds", async () => {
   assert.throws(() => createDisjoint(undeclared), refused(/has a default its description does not state/));
 });
 
-// [spec:pgorm:req:bindings.model-unique-keys+1/test]    a model's unique key named as a name the disjoint schema adds, or as another model's unique key, is a ConstructionError thrown as the disjoint model is declared, naming both
+// [spec:pgorm:req:bindings.model-unique-keys+2/test]    a model's unique key named as a name the disjoint schema adds, as one PostgreSQL gives the tables itself, or as another model's unique key, is a ConstructionError thrown as the disjoint model is declared, naming both
 test("a key named as the schema's names is refused as the model is declared", () => {
   const keyed = (name: string, fields: string[]) => [{ fields, name }] as never;
   const base = (uniqueKeys: never) =>
@@ -296,9 +296,14 @@ test("a key named as the schema's names is refused as the model is declared", ()
     () => vehicles(base(keyed("shared", ["name", "kind"])), kind(keyed("shared", ["seats", "id"]))),
     refused(/is named as a unique key of/),
   );
+  assert.throws(() => vehicles(base(keyed("vehicle_pkey", ["name", "kind"])), car()), refused(/the primary key PostgreSQL names/));
+  assert.throws(
+    () => vehicles(vehicle(), kind(keyed("car_seats_not_null", ["seats", "id"]))),
+    refused(/the not-null constraint PostgreSQL names/),
+  );
 });
 
-// [spec:pgorm:req:bindings.model-unique-keys+1/test]    createDisjoint writes the base's and each kind model's unique keys after its primary key, which the server then holds, nulls equal under a key declared nullsNotDistinct
+// [spec:pgorm:req:bindings.model-unique-keys+2/test]    createDisjoint writes the base's and each kind model's unique keys after its primary key, which the server then holds, nulls equal under a key declared nullsNotDistinct
 test("the schema writes the models' unique keys", async () => {
   const fleet = model("fleet", {
     schema: SCHEMA,

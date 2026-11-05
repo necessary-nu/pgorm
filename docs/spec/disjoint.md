@@ -79,7 +79,7 @@ has a row for it, and is never written through.
 
 ## Schema
 
-> [spec:pgorm:sem:disjoint.schema+2]
+> [spec:pgorm:sem:disjoint.schema+3]
 > `Schema::create_disjoint::<E>()` MUST run `check_disjoint::<E>()` first,
 > returning its refusal as its own, then refuse the keys below, and otherwise
 > return the statements that create a disjoint entity's type and tables, a
@@ -154,7 +154,18 @@ has a row for it, and is never written through.
 > and otherwise spelled as a head and a hash of the whole in exactly 63. A
 > generated name equal to a column an entity declares, or to another name
 > generated on the same table, MUST be refused with `Error::Type` naming
-> both, before any statement is returned.
+> both, before any statement is returned. So MUST a unique key a table of the
+> entity declares by name (`unique(..)`, `[spec:pgorm:req:entity.traits.entity-name]`)
+> that PostgreSQL would refuse beside the statements' other names: named as
+> the base's `UNIQUE` key or a composite primary key's `pk-{table}`, or as an
+> index PostgreSQL names itself, an unnamed one-column primary key's
+> `{table}_pkey` or an unnamed unique key's `{table}_{columns}_key` (its
+> `makeObjectName`, the longer part shortened first to fit 63 bytes), all in
+> the key's schema (`42P07`); as a foreign key the schema adds to the key's
+> own table, or a not-null constraint PostgreSQL 18 names
+> `{table}_{column}_not_null` there (`42710`); or as another such key in its
+> schema. A relation of the schema outside the entity's tables is the
+> server's to refuse.
 
 ## Reads
 

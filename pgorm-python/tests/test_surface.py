@@ -212,7 +212,7 @@ class DescriptionTests(unittest.TestCase):
 
     # [spec:pgorm:req:bindings.surface+2/test]
     # [spec:pgorm:req:bindings.models+5/test]
-    # [spec:pgorm:req:bindings.model-unique-keys+1/test]
+    # [spec:pgorm:req:bindings.model-unique-keys+2/test]
     def test_model_description_has_the_declared_keys(self):
         model = p.Model(
             "accounts",
