@@ -19663,12 +19663,20 @@ children (
                 title "The Python and JavaScript guides' SQL goldens show the typed placeholders sql.render.placeholder-typing writes ($1::numeric, $1::int4 in arithmetic), as the Rust guide's do since func-aggregate-expr-methods"
                 kind @docs
                 deps (func-aggregate-expr-methods guide.python guide.javascript)
+                sealed true
                 log (
                     {
                         at 2026-11-05T22:07:24.651624Z
                         author "brendan@necessary.nu"
                         kind @status
                         text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T22:16:10.360755Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
