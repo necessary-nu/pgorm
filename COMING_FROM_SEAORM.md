@@ -143,6 +143,7 @@ with a deadpool pool, always on tokio, so there is no `sqlx-postgres`, no
 | `with-rust_decimal` | gone: always on |
 | `with-json`, `with-uuid`, `postgres-array`, `macros` | the same names, on by default |
 | `mock`, `proxy` | gone |
+| `debug-print` | gone: a [metrics](crate::guide::metrics) collector is handed each statement's SQL, and `LoggingMetrics` logs every query through `tracing` |
 | `seaography` | gone |
 
 ## Connecting

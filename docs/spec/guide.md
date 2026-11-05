@@ -52,6 +52,22 @@ what the items are for and how they fit together.
 > second process, and the guide's tests hold the list of such examples, each
 > with its reason.
 
+## Features
+
+> [spec:pgorm:req:guide.features]
+> Every Cargo feature pgorm declares MUST change the build: it turns on a
+> dependency's feature or an optional dependency, or a `cfg` in pgorm's
+> sources reads it. A feature that does neither is a name a program can turn
+> on and see nothing happen, and is deleted rather than kept for a meaning it
+> might be given. The getting-started chapter's feature table MUST list every
+> feature a program turns on, with its default, which is all of them but
+> `tests-cfg`: that one is pgorm's own test scaffolding, hidden from its
+> documentation.
+>
+> Three were deleted under this rule: `runtime-tokio`, on by default, and
+> `pgorm-internal`, which nothing read, and `debug-print`, which gated only a
+> `debug_print!` macro pgorm exported and never called.
+
 ## Chapters
 
 > [spec:pgorm:req:guide.chapters]

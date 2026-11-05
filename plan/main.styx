@@ -2633,12 +2633,29 @@ children (
                 id inert-features
                 title "pgorm's features each do something: runtime-tokio and pgorm-internal are removed or given a meaning, and debug-print says what it gates"
                 kind @chore
+                implements {
+                    main ([spec:pgorm:req:guide.features])
+                }
                 log (
                     {
                         at 2026-11-05T14:15:36.450828Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (getting started chapter). Cargo.toml declares runtime-tokio (on by default) and pgorm-internal, which no cfg reads anywhere in the workspace, and debug-print, which gates only the exported debug_print! macro (src/util.rs:16) that pgorm itself never calls. The guide's feature table leaves all three out. Remove them (and from package.metadata.docs.rs and the self dev-dependency), or give each a meaning and document it."
+                    }
+
+                    {
+                        at 2026-11-05T16:14:16.759839Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:18:20.833938Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision built (pending operator override): runtime-tokio, pgorm-internal and debug-print deleted, with the debug_print! macro (src/util.rs, now gone with its module). Removed from Cargo.toml's [features], the default list (whose duplicated \"macros\" entry went too), package.metadata.docs.rs and the self dev-dependency; no CI workflow or binding manifest named them. pgorm-python's capabilities manifest listed runtime-tokio as the feature behind every pool/connection/listener/COPY/transaction operation and in its build feature list: those operations now name no feature. COMING_FROM_SEAORM.md maps SeaORM's debug-print (gone: a metrics collector sees each statement's SQL, LoggingMetrics logs every query). New rule guide.features, held by tests/feature_tests.rs: every declared feature forwards to something or is read by a cfg in src/, and the getting-started chapter's table lists exactly the features but tests-cfg (it did already; that test would have caught debug-print, which a cfg read but the guide did not list, and the other two, which nothing read)."
                     }
                 )
             }
@@ -10606,6 +10623,7 @@ children (
                 id multi-pool-constructor
                 title "connect_multi_with_builder returns a DatabaseMultiPool, or the public type with no constructor goes"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:39:49.469135Z
@@ -10626,6 +10644,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Lead decision built (pending operator override): connect_multi_with_builder returns Result<DatabaseMultiPool, Error>. Since nothing could construct the type before, its accessors were reshaped for use: the map is keyed by the tag String (no Arc<String> argument to build), get(&str) -> Option<&DatabasePool> (a borrow, as BTreeMap::get; .cloned() is the caller's), status() -> BTreeMap<&str, Status>, plus iter() over (&str, &DatabasePool) in tag order and close(), which closes every pool — the two things the returned map offered (iteration, closing each value) that the type otherwise would not. #[repr(transparent)] dropped: nothing transmutes it. conn.pool.multi +3 (owned by infra.conn). No binding counterpart: neither binding has a multi-pool constructor; a dict or Map of pools is the dialect's own."
+                    }
+
+                    {
+                        at 2026-11-05T16:14:16.428067Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
