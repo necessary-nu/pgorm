@@ -337,7 +337,7 @@ mod tests {
 
     use super::*;
 
-    // [spec:pgorm:req:bindings.created-ranges+4/test]
+    // [spec:pgorm:req:bindings.created-ranges+5/test]
     #[test]
     fn created_range_columns_read_as_text_form() -> Result<(), CodecError> {
         let kind = CreatedKind {

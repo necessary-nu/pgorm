@@ -63,7 +63,7 @@ pub(crate) fn column_tag(ty: &ColumnType) -> Option<Tag> {
         ColumnType::Enum {
             name: n, schema, ..
         } => Some(Tag::Enum(name(n, schema))),
-        // [spec:pgorm:req:bindings.created-ranges+4]
+        // [spec:pgorm:req:bindings.created-ranges+5]
         ColumnType::CreatedRange {
             name: n, schema, ..
         }
@@ -395,8 +395,22 @@ mod tests {
             key(&created).as_deref(),
             Some("range \"floatrange\" of f64")
         );
-        // [spec:pgorm:req:bindings.created-ranges+4/test]    a created range over `char(n)` is
-        // a range of text, as pgorm's column-type mapping reads it
+        // [spec:pgorm:req:bindings.created-ranges+5/test]    a created range over `char(n)` is
+        // a range of text, and one over a domain a range of the domain's base kind, as
+        // pgorm's column-type mapping reads them
+        let over_domain = ColumnType::CreatedRange {
+            name: Name::runtime("heightrange"),
+            schema: None,
+            subtype: Arc::new(ColumnType::Domain {
+                name: Name::runtime("height"),
+                schema: None,
+                base: Arc::new(ColumnType::Double),
+            }),
+        };
+        assert_eq!(
+            key(&over_domain).as_deref(),
+            Some("range \"heightrange\" of f64")
+        );
         for length in [None, Some(1), Some(4)] {
             let over_char = ColumnType::CreatedRange {
                 name: Name::runtime("letters"),
