@@ -402,27 +402,49 @@ model it reaches and the fields that are equal in a related pair of rows:
   fields for a composite key, paired in order.
 - `has_one` and `has_many` are the other side: a row reaches at most one row,
   or any number, of the target.
+- `on_condition` narrows a relation with an extra predicate, as Rust's does:
+  a function given the relation's two ends, each the model as a join names
+  its table, returning a condition. It is ANDed with the fields' equality,
+  or ORed with it where `condition_type="any"`, Rust's `ConditionType::Any`.
 
 Here Python differs from Rust. A Rust `has_many` reads its columns from the
 other entity's `belongs_to`; a Python relation names its own fields on both
 sides, so the bakery declares `bakery_cakes` and `cake_bakery` as two
 relations, one for each direction. Rust's `rev` turns a relation around; in
-Python, declare the other direction. A relation pairs fields for equality and
-nothing else: narrowing a relation with an extra predicate, Rust's
-`on_condition`, is not available in Python yet. `on_delete`, `on_update` and
-`fk_name` belong to the table's foreign key, which the schema builders'
-`foreign_key(..., on_delete=..., name=...)` writes, as `bakery.py` does.
+Python, declare the other direction. And Rust's `on_condition` closure is
+given the two tables' names; a Python one is given the two models answering
+to them, so `bakery.col("city")` is qualified as the join names the bakery.
+`on_delete`, `on_update` and `fk_name` belong to the table's foreign key,
+which the schema builders' `foreign_key(..., on_delete=..., name=...)`
+writes, as `bakery.py` does.
+
+```python
+from bakery import Bakery, Cake
+
+cake_in_oslo = Cake.belongs_to(
+    Bakery, from_="bakery_id", to="id", on_condition=lambda cake, bakery: bakery.col("city") == "Oslo"
+)
+assert Cake.find().join(cake_in_oslo).inspect().sql == (
+    'SELECT "cake"."id", "cake"."name", "cake"."flavor", "cake"."price", '
+    '"cake"."gluten_free", "cake"."bakery_id" FROM "cake" '
+    'INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $1'
+)
+```
 
 The Rust derive implements `Related<E>` for each entity one variant reaches,
-so a query can name the related entity alone. Python has no `Related`: every
-join and every load names the relation it follows, such as `cake_bakery`, so
-two relations reaching one model need nothing extra.
+so a query can name the related entity alone. A Python model holds no list of
+the models it reaches: every join and every load names the relation it
+follows, such as `cake_bakery`, so two relations reaching one model need
+nothing extra.
 
 A many-to-many relation goes through a junction table. Where Rust writes the
 cake's `Related<baker::Entity>` by hand, with `via` the junction's relation to
-the cake, a Python query follows two relations: `cake_bakers`, from the cake
-to its `cake_baker` rows, and `cake_baker_baker`, from those to the baker.
-These are the cakes Ada bakes:
+the cake, Python declares the same path with the model's `related`:
+`Cake.related(cake_baker_baker, via=cake_bakers)`, `via` the relation from
+the cake to its `cake_baker` rows and then the relation from those to the
+baker, which `bakery.py` names `cake_related_bakers` and
+[Relations](07-relations.md) reads along. A query can also follow the two
+relations itself. These are the cakes Ada bakes:
 
 ```python
 import asyncio

@@ -13,7 +13,7 @@ from .columns import Column, ModelColumn
 if TYPE_CHECKING:
     from .graphs import Graph
     from .queries import ModelQuery
-    from .relations import Relation
+    from .relations import ConditionType, Linked, OnCondition, Related, Relation
     from .writes import ModelDelete, ModelInsert, ModelInsertMany, ModelUpdate
 
 
@@ -241,28 +241,64 @@ class Model:
         return ModelDelete(self, p.Delete(self.table))
 
     def belongs_to(
-        self, target: Model, *, from_: str | Sequence[str], to: str | Sequence[str]
+        self,
+        target: Model,
+        *,
+        from_: str | Sequence[str],
+        to: str | Sequence[str],
+        on_condition: OnCondition | None = None,
+        condition_type: ConditionType = "all",
     ) -> Relation:
-        """A relation from this model's foreign key to the key of ``target``."""
+        """A relation from this model's foreign key to the key of ``target``.
+        ``on_condition``, given the two ends as a join names them, adds a
+        condition of its own, ANDed with the fields' equality, or ORed when
+        ``condition_type`` is ``"any"``."""
         from .relations import Relation
 
-        return Relation("belongs_to", self, target, from_, to)
+        return Relation("belongs_to", self, target, from_, to, on_condition, condition_type)
 
     def has_one(
-        self, target: Model, *, from_: str | Sequence[str], to: str | Sequence[str]
+        self,
+        target: Model,
+        *,
+        from_: str | Sequence[str],
+        to: str | Sequence[str],
+        on_condition: OnCondition | None = None,
+        condition_type: ConditionType = "all",
     ) -> Relation:
         """A relation from this model's key to at most one row of ``target``."""
         from .relations import Relation
 
-        return Relation("has_one", self, target, from_, to)
+        return Relation("has_one", self, target, from_, to, on_condition, condition_type)
 
     def has_many(
-        self, target: Model, *, from_: str | Sequence[str], to: str | Sequence[str]
+        self,
+        target: Model,
+        *,
+        from_: str | Sequence[str],
+        to: str | Sequence[str],
+        on_condition: OnCondition | None = None,
+        condition_type: ConditionType = "all",
     ) -> Relation:
         """A relation from this model's key to any number of rows of ``target``."""
         from .relations import Relation
 
-        return Relation("has_many", self, target, from_, to)
+        return Relation("has_many", self, target, from_, to, on_condition, condition_type)
+
+    def related(self, relation: Relation, *, via: Relation) -> Related:
+        """The path from this model through a junction, as a Rust ``Related``
+        implementation with a ``via`` declares it: ``via`` from this model to
+        the junction, then ``relation`` from the junction to the far end."""
+        from .relations import Related
+
+        return Related(self, relation, via)
+
+    def linked(self, *relations: Relation) -> Linked:
+        """A chain of relations from this model, each starting where the one
+        before it ends, as a Rust ``Linked`` type lists them."""
+        from .relations import Linked
+
+        return Linked(self, relations)
 
     def graph(self) -> Graph:
         """A graph rooted at this model, decoding its records alone until a

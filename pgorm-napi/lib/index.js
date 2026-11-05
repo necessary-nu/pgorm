@@ -81,7 +81,7 @@ export { Column, column, ModelColumn } from "./model-columns.js";
 export { Model, model } from "./models.js";
 export { ModelQuery } from "./model-queries.js";
 export { ModelDelete, ModelInsert, ModelInsertMany, ModelRows, ModelUpdate } from "./model-writes.js";
-export { Relation } from "./relations.js";
+export { Linked, Related, Relation } from "./relations.js";
 export { Graph } from "./graphs.js";
 export { Cursor, Paginator } from "./cursors.js";
 export { createDisjoint, disjoint, Disjoint, DisjointEntity, disjointEntities, disjointEntity } from "./disjoint.js";

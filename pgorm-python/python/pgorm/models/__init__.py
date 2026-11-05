@@ -9,7 +9,7 @@ from .model import Model
 from .one_of import OneOf, OneOfEntity, one_of_entities, one_of_entity
 from .queries import ModelQuery, ModelRows
 from .record import ModelRecord
-from .relations import Relation
+from .relations import Linked, Related, Relation
 from .writes import ModelDelete, ModelInsert, ModelInsertMany, ModelUpdate
 
 __all__ = [
@@ -24,6 +24,8 @@ __all__ = [
     "ModelDelete",
     "ModelRecord",
     "Relation",
+    "Related",
+    "Linked",
     "Graph",
     "Cursor",
     "Paginator",

@@ -2,28 +2,17 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { ConstructionError, Decimal } from "@necessary/pgorm";
-import { Cake } from "../../../guide/bakery.ts";
-import type { GuideContext } from "../../../guide/context.ts";
+import { Bakery, Cake } from "../../../guide/bakery.ts";
 
-export default async function example({ pool }: GuideContext): Promise<void> {
-  assert.equal(Cake.columns.flavor.kind.toString(), `"public"."flavor"`);
-  assert.deepEqual(Cake.columns.flavor.values, ["chocolate", "vanilla", "lemon", "carrot"]);
-
-  const carrot = await Cake.find().where(Cake.col("flavor").eq("carrot")).one(pool);
-  assert.equal(carrot.name, "Carrot Cake");
-
-  // A label the declaration does not list is refused before anything is sent.
-  assert.throws(
-    () =>
-      Cake.insert({
-        name: "Banana Bread",
-        // @ts-expect-error: "banana" is not one of the flavor's labels
-        flavor: "banana",
-        price: new Decimal("3.00"),
-        glutenFree: false,
-        bakeryId: 1,
-      }),
-    ConstructionError,
+export default async function example(): Promise<void> {
+  const cakeInOslo = Cake.belongsTo(Bakery, {
+    from: "bakeryId",
+    to: "id",
+    onCondition: (_cake, bakery) => bakery.col("city").eq("Oslo"),
+  });
+  assert.equal(
+    Cake.find().join(cakeInOslo).inspect().sql,
+    `SELECT "cake"."id", "cake"."name", "cake"."flavor", "cake"."price", "cake"."gluten_free", "cake"."bakery_id" FROM "cake" INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $1`,
   );
+  assert.equal(cakeInOslo.conditionType, "all");
 }

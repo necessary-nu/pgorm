@@ -5,12 +5,12 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.graphs]
+// [spec:pgorm:req:bindings.graphs+2]
 
 import type { Compiled, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Select } from "./select.d.ts";
 import type { Connection, OperationOptions, Pool, Queryable, RowStream } from "./index.d.ts";
-import type { ColumnOf, Columns, ColumnsOf, FieldOf, FieldOperand, Model, Relation, RowOf } from "./models.d.ts";
+import type { ColumnOf, Columns, ColumnsOf, FieldOf, FieldOperand, Model, Related, Relation, RowOf } from "./models.d.ts";
 
 /** What a cursor's boundary gives for each of its order fields `F` of columns `C`. */
 export type KeyInputs<C extends Columns, F extends readonly FieldOf<C>[]> = {
@@ -28,7 +28,9 @@ export interface GraphJoinOptions {
   readonly alias?: string;
   /**
    * The decoded source the relation starts at — 0 the root, i the i-th slot
-   * — when it is not the first table of its model the graph reads.
+   * — when it is not the first table of its model the graph reads. A
+   * relation's `fromAlias` names any table the graph reads, a `via` hop's
+   * included, instead.
    */
   readonly from?: number;
 }
@@ -51,8 +53,31 @@ export declare class Graph<S extends readonly Model<any>[], I extends readonly u
     relation: Relation<any, T, any>,
     options?: GraphJoinOptions,
   ): Graph<[...S, T], [...I, RowOf<T> | null]>;
+  /**
+   * A slot that may be absent, `condition` — given the two ends as the join
+   * names them — ANDed into the join's ON, as pgorm's `join_maybe_filtered`
+   * adds it: it narrows which rows match, and a root with none keeps its row
+   * with the slot `null`.
+   */
+  joinMaybeFiltered<F extends Model<any>, T extends Model<any>>(
+    relation: Relation<F, T, any>,
+    condition: (from: F, to: T) => Predicate,
+    options?: GraphJoinOptions,
+  ): Graph<[...S, T], [...I, RowOf<T> | null]>;
   /** A hop no record reads: a junction table, a step of a chain. */
   via(relation: Relation<any, any, any>, options?: GraphJoinOptions): Graph<S, I>;
+  /**
+   * A slot that must match along `path`: a relation, as `joinOne` joins it,
+   * or a related path, its junction INNER JOINed and its far end the slot,
+   * as pgorm's `related_one` folds a `Related` path in.
+   */
+  relatedOne<T extends Model<any>>(path: Relation<any, T, any> | Related<any, T>): Graph<[...S, T], [...I, RowOf<T>]>;
+  /**
+   * A slot that may be absent along `path`: a relation, as `joinMaybe` joins
+   * it, or a related path, its junction a `via` hop and its far end the
+   * slot, as pgorm's `related_maybe` folds a `Related` path in.
+   */
+  relatedMaybe<T extends Model<any>>(path: Relation<any, T, any> | Related<any, T>): Graph<[...S, T], [...I, RowOf<T> | null]>;
   /** A column of decoded source `source` — 0 the root, i the i-th slot — qualified as it is named. */
   col<N extends Indexes<S>, F extends FieldOf<ColumnsOf<S[N]>>>(source: N, field: F): ColumnOf<ColumnsOf<S[N]>, F>;
   where(predicate: Predicate): Graph<S, I>;
@@ -85,6 +110,15 @@ export declare class Graph<S extends readonly Model<any>[], I extends readonly u
   cursor<const F extends readonly [FieldOf<ColumnsOf<S[0]>>, ...FieldOf<ColumnsOf<S[0]>>[]]>(
     ...fields: F
   ): Cursor<GraphItem<I>, KeyInputs<ColumnsOf<S[0]>, F>>;
+  /**
+   * A keyset cursor ordered by `fields` of slot `source`, the first slot
+   * `1`, as pgorm's `cursor_by_on` orders: the slot's primary key, then the
+   * root's, then every other slot's are its tiebreaks.
+   */
+  cursorOn<
+    N extends Exclude<Indexes<S>, 0>,
+    const F extends readonly [FieldOf<ColumnsOf<S[N]>>, ...FieldOf<ColumnsOf<S[N]>>[]],
+  >(source: N, ...fields: F): Cursor<GraphItem<I>, KeyInputs<ColumnsOf<S[N]>, F>>;
   /** Pages of `pageSize` rows, a boundary falling between rows rather than roots. */
   paginate(pageSize: number): Paginator<GraphItem<I>>;
 }

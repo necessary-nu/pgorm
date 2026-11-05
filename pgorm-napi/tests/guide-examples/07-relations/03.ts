@@ -2,20 +2,13 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { CakeBaker, Customer, cakeCakeBakers, customerOrders, lineCake, orderLines } from "../../../guide/bakery.ts";
+import { Baker, bakerCakeBakers, cakeBakerCake, cakeLines, lineOrder, orderCustomer } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  // From a customer, through what they ordered, to who bakes it.
-  const bakedForCy = Customer.find()
-    .join(customerOrders)
-    .join(orderLines)
-    .join(lineCake)
-    .join(cakeCakeBakers)
-    .where(CakeBaker.col("bakerId").eq(3));
-  assert.equal(
-    bakedForCy.inspect().sql,
-    `SELECT "customer"."id", "customer"."name", "customer"."email", "customer"."notes" FROM "customer" INNER JOIN "order" ON "customer"."id" = "order"."customer_id" INNER JOIN "order_line" ON "order"."id" = "order_line"."order_id" INNER JOIN "cake" ON "order_line"."cake_id" = "cake"."id" INNER JOIN "cake_baker" ON "cake"."id" = "cake_baker"."cake_id" WHERE "cake_baker"."baker_id" = $1`,
-  );
-  assert.deepEqual((await bakedForCy.all(pool)).map((customer) => customer.name), ["Lee"]);
+  // From a baker to the customers who ordered what they bake.
+  const bakedFor = Baker.linked(bakerCakeBakers, cakeBakerCake, cakeLines, lineOrder, orderCustomer);
+
+  const cy = await Baker.findByKey({ id: 3 }).one(pool);
+  assert.deepEqual((await bakedFor.find(cy).all(pool)).map((customer) => customer.name), ["Lee"]);
 }

@@ -15,7 +15,7 @@ import { Column, columnKey } from "./model-columns.js";
 import { query } from "./model-queries.js";
 import { fieldOf, qualified, register, shapeOf } from "./model-shape.js";
 import { deleteRows, insertMany, insertOne, picked, updateSet } from "./model-writes.js";
-import { relation } from "./relations.js";
+import { linked, related, relation } from "./relations.js";
 import { Table } from "./select.js";
 import { isIdentifier } from "./values.js";
 
@@ -262,6 +262,9 @@ export class Model {
 
   /**
    * A relation from this model's foreign key to the key of `target`.
+   * `keys.onCondition`, given the two ends as a join names them, adds a
+   * condition of its own, ANDed with the fields' equality, or ORed when
+   * `keys.conditionType` is `"any"`.
    *
    * @param {unknown} target
    * @param {unknown} keys
@@ -288,6 +291,28 @@ export class Model {
    */
   hasMany(target, keys) {
     return relation("hasMany", this, target, keys);
+  }
+
+  /**
+   * The path from this model through a junction, as a Rust `Related`
+   * implementation with a `via` declares it: `options.via` from this model
+   * to the junction, then `target` from the junction to the far end.
+   *
+   * @param {unknown} target
+   * @param {unknown} options
+   */
+  related(target, options) {
+    return related(this, target, options);
+  }
+
+  /**
+   * A chain of relations from this model, each starting where the one
+   * before it ends, as a Rust `Linked` type lists them.
+   *
+   * @param {...unknown} relations
+   */
+  linked(...relations) {
+    return linked(this, relations);
   }
 
   /** A graph rooted at this model. */

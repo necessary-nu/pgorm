@@ -265,10 +265,18 @@ export type ColumnOf<C extends Columns, F extends keyof C> = ModelColumn<FieldVa
 /** The fields of a relation's end: one, or a non-empty list paired in order. */
 export type KeyFields<C> = FieldOf<C> | readonly [FieldOf<C>, ...FieldOf<C>[]];
 
-/** The fields a relation pairs: `from` on the model it starts at, `to` on the other. */
+/**
+ * The fields a relation pairs, `from` on the model it starts at and `to` on
+ * the other, and a condition of its own: `onCondition`, given the two ends
+ * as a join names them, which `conditionType` composes with the fields'
+ * equality, `"all"` (the default) ANDing them and `"any"` ORing them, as
+ * pgorm's `on_condition` and `condition_type` do.
+ */
 export interface RelationKeys<From extends Model<any>, To extends Model<any>> {
   readonly from: KeyFields<ColumnsOf<From>>;
   readonly to: KeyFields<ColumnsOf<To>>;
+  readonly onCondition?: (from: From, to: To) => Predicate;
+  readonly conditionType?: "all" | "any";
 }
 
 /**
@@ -355,6 +363,23 @@ export declare class Model<C extends Columns = Columns> {
   hasOne<T extends Model<any>>(target: T, keys: RelationKeys<Model<C>, T>): Relation<Model<C>, T, "one">;
   /** A relation from this model's key to any number of rows of `target`. */
   hasMany<T extends Model<any>>(target: T, keys: RelationKeys<Model<C>, T>): Relation<Model<C>, T, "many">;
+  /**
+   * The path from this model through a junction, as a Rust `Related`
+   * implementation with a `via` declares it: `via` from this model to the
+   * junction, then `target`, a relation to one row, from the junction to the
+   * far end.
+   */
+  related<J extends Model<any>, T extends Model<any>>(
+    target: Relation<J, T, "one">,
+    options: { readonly via: Relation<Model<C>, J, any> },
+  ): Related<Model<C>, T>;
+  /**
+   * A chain of relations from this model, each starting where the one
+   * before it ends, as a Rust `Linked` type lists them.
+   */
+  linked<const R extends readonly [Relation<Model<C>, any, any>, ...Relation<any, any, any>[]]>(
+    ...relations: R
+  ): Linked<Model<C>, LastTo<R>>;
   /** A graph rooted at this model, which decodes its records alone until a slot is joined. */
   graph(): Graph<[Model<C>], [Row<C>]>;
   describe(): ModelDescription;
@@ -371,7 +396,10 @@ export declare function model<const C extends Columns>(
   declaration: { readonly schema?: string; readonly columns: C; readonly uniqueKeys?: readonly UniqueKey<C>[] },
 ): Model<C>;
 
-/** The options of a model query's join. */
+/**
+ * The options of a model query's join, which starts from the first table of
+ * the relation's model the query reads, or the one its `fromAlias` names.
+ */
 export interface ModelJoinOptions {
   /** `"inner"`, the default, or `"left"`. */
   readonly kind?: "inner" | "left";
@@ -538,18 +566,95 @@ export declare class Relation<
   readonly to: To;
   readonly fromFields: readonly string[];
   readonly toFields: readonly string[];
+  /** The condition of its own the relation adds, or `null`. */
+  readonly onCondition: ((from: From, to: To) => Predicate) | null;
+  readonly conditionType: "all" | "any";
   readonly cardinality: Card;
-  /** The rows at the far end related to `row`: none when one of its key fields is null. */
+  /**
+   * The relation starting from the table a query or a graph reads under
+   * `alias`, as pgorm's `RelationDef::from_alias` points it: how a path goes
+   * on from a second visit to one table.
+   */
+  fromAlias(alias: string): Relation<From, To, Card>;
+  /**
+   * The rows at the far end related to `row`: none when one of its key
+   * fields is null. A relation with an `onCondition` joins the model it
+   * starts at back, keyed by its primary key, so the condition reads both
+   * ends, as pgorm's `find_related` does.
+   */
   find(row: Partial<RowOf<From>>): ModelQuery<ColumnsOf<To>, RowOf<To>>;
   /**
-   * The rows at the far end of each of `rows`, read in one query: a list per
-   * row for a `"many"` relation, otherwise a record per row, or `null` where
-   * the row's key holds a NULL. A key nothing at the far end matches, or a
-   * `hasOne` key two rows match, is a {@link DecodeError}.
+   * The far end of each of `rows`, read in one query, as pgorm's `load_one`
+   * and `load_many` read it: `options.query`, a query of the far end's
+   * model, filtered and ordered as it says, with the model the relation
+   * starts at joined back, so the relation is read whole. An array per row
+   * for a `"many"` relation, in the query's order; otherwise a record per
+   * row, or `null` where nothing matched or the row's key holds a NULL. Two
+   * different rows for one key of a `"one"` relation are a
+   * {@link DecodeError}.
    */
-  load(
+  load<R = RowOf<To>>(
     db: Queryable,
     rows: readonly Partial<RowOf<From>>[],
-    options?: OperationOptions,
-  ): Promise<Card extends "many" ? RowOf<To>[][] : (RowOf<To> | null)[]>;
+    options?: LoadOptions<To, R>,
+  ): Promise<Card extends "many" ? R[][] : (R | null)[]>;
+}
+
+/** What a relation's or a path's `load` reads: a query of the far end's model, and the operation's options. */
+export interface LoadOptions<To extends Model<any>, R> extends OperationOptions {
+  readonly query?: ModelQuery<ColumnsOf<To>, R>;
+}
+
+/** The far end of a chain of relations `R`. */
+export type LastTo<R extends readonly Relation<any, any, any>[]> = R extends readonly [...any[], Relation<any, infer T, any>]
+  ? T
+  : Model<any>;
+
+/**
+ * The path from one model to another through a junction table, made by a
+ * model's `related`, as a Rust `Related` implementation with a `via`
+ * declares it: `via` from the model to the junction, then `relation` from
+ * the junction to the far end.
+ */
+export declare class Related<From extends Model<any> = Model<any>, To extends Model<any> = Model<any>> {
+  private constructor();
+  readonly via: Relation<From, any, any>;
+  readonly relation: Relation<any, To, "one">;
+  /** The model the path starts at. */
+  readonly from: From;
+  /** The model at its far end. */
+  readonly to: To;
+  readonly cardinality: "many";
+  /**
+   * The rows at the far end related to `row` through the junction, keyed by
+   * the starting model's primary key, as pgorm's `find_related` writes it.
+   */
+  find(row: Partial<RowOf<From>>): ModelQuery<ColumnsOf<To>, RowOf<To>>;
+  /**
+   * The far end of each of `rows` through the junction, read in one query,
+   * as pgorm's `load_many_via` reads it: an array per row, in the query's
+   * order.
+   */
+  load<R = RowOf<To>>(db: Queryable, rows: readonly Partial<RowOf<From>>[], options?: LoadOptions<To, R>): Promise<R[][]>;
+}
+
+/**
+ * A chain of relations from one model to another, made by a model's
+ * `linked`, as a Rust `Linked` type lists them. A query along it joins every
+ * hop under an alias of its own, `r0` the last relation's start, `r1` the
+ * one before, as pgorm's `find_linked` does.
+ */
+export declare class Linked<From extends Model<any> = Model<any>, To extends Model<any> = Model<any>> {
+  private constructor();
+  readonly relations: readonly Relation<any, any, any>[];
+  readonly from: From;
+  readonly to: To;
+  /** The model read at hop `index`, under the alias pgorm's `LinkedAlias::hop` names it by. */
+  hop(index: number): Model<any>;
+  /** The model the chain starts at, under the alias pgorm's `last_hop_alias` names. */
+  lastHop(): From;
+  /** Every row at the far end a chain of rows reaches, as pgorm's `Linked::find_linked` reads them. */
+  findLinked(): ModelQuery<ColumnsOf<To>, RowOf<To>>;
+  /** The rows at the far end the chain reaches from `row`, keyed by the starting model's primary key. */
+  find(row: Partial<RowOf<From>>): ModelQuery<ColumnsOf<To>, RowOf<To>>;
 }

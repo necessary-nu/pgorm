@@ -295,14 +295,36 @@ it reaches (`cakeBakery`, `bakeryCakes`). Two relations between the same two
 models are simply two values. A relation's `on_delete` and `on_update` are
 the foreign key's, so they belong to the table's DDL.
 
+A relation narrowed by a condition of its own takes `onCondition`, as Rust's
+`on_condition` does: a function given the relation's two ends, each the
+model as a join names its table, returning a condition. It is ANDed with the
+fields' equality, or ORed with it under `conditionType: "any"`, Rust's
+`ConditionType::Any`. Rust's closure is given the two tables' names, and a
+JavaScript one the two models answering to them, so `bakery.col("city")` is
+qualified as the join names the bakery:
+
+```ts
+import assert from "node:assert/strict";
+
+const cakeInOslo = Cake.belongsTo(Bakery, {
+  from: "bakeryId",
+  to: "id",
+  onCondition: (_cake, bakery) => bakery.col("city").eq("Oslo"),
+});
+assert.equal(
+  Cake.find().join(cakeInOslo).inspect().sql,
+  `SELECT "cake"."id", "cake"."name", "cake"."flavor", "cake"."price", "cake"."gluten_free", "cake"."bakery_id" FROM "cake" INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $1`,
+);
+assert.equal(cakeInOslo.conditionType, "all");
+```
+
 A many-to-many relation goes through a junction table: the cake's bakers are
 reached through `cake_baker`, along `cakeCakeBakers` and then
-`cakeBakerBaker`. [Relations](07-relations.md) reads along such a path.
-
-**Not available in JavaScript yet:** a relation narrowed by a condition of
-its own, which Rust's `on_condition` adds to a relation's join, and a
-declared path through a junction that one call follows, as a Rust `Related`
-implementation with a `via` does for `find_related`.
+`cakeBakerBaker`. Where Rust writes the cake's `Related<baker::Entity>` by
+hand, with `via` the junction's relation to the cake, JavaScript declares the
+same path with the model's `related`: `Cake.related(cakeBakerBaker, { via:
+cakeCakeBakers })`, which the bakery exports as `cakeBakers`.
+[Relations](07-relations.md) reads along such a path.
 
 ## Enums
 
