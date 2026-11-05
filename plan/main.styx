@@ -2033,6 +2033,13 @@ children (
                         kind @note
                         text "Found by codegen-formatted-output. ActiveEnum::validate (pgorm-codegen/src/entity/active_enum.rs) println!s \"Warning: item '..' in the enumeration '..' cannot be converted into a valid Rust enum member name...\" when a value's variant name falls back to the per-character encoding, and sem:codegen.entity.enums+9 requires that warning \"printed to stdout\". A library writing to its caller's stdout corrupts a build script's output (cargo reads build-script stdout as directives) and a tool's piped output; pgorm-codegen already depends on tracing and logs with info!, so the warning belongs there (tracing::warn!), with the rule revised to say so."
                     }
+
+                    {
+                        at 2026-11-05T17:34:30.923469Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
                 )
             }
         )

@@ -3,6 +3,7 @@ use pgorm_query::Name;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::fmt::Write;
+use tracing::warn;
 
 use crate::{Error, WithSerde, util::safe_ident};
 
@@ -20,7 +21,7 @@ struct Variant {
     encoded: bool,
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+9]
+// [spec:pgorm:sem:codegen.entity.enums+10]
 fn variant(value: &str) -> Variant {
     if value.chars().next().map(char::is_numeric).unwrap_or(false) {
         return Variant {
@@ -50,7 +51,7 @@ fn variant(value: &str) -> Variant {
 }
 
 /// The Rust variant name a DB enum value maps to.
-// [spec:pgorm:sem:codegen.entity.enums+9]
+// [spec:pgorm:sem:codegen.entity.enums+10]
 pub(crate) fn variant_name(value: &str) -> String {
     variant(value).name
 }
@@ -70,7 +71,7 @@ impl ActiveEnum {
             .collect()
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+9]
+    // [spec:pgorm:sem:codegen.entity.enums+10]
     // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let enum_name = self.enum_name.to_string();
@@ -80,8 +81,11 @@ impl ActiveEnum {
             let value = value.trim();
             let variant = variant(value);
             if variant.encoded {
-                println!(
-                    "Warning: item '{value}' in the enumeration '{enum_name}' cannot be converted into a valid Rust enum member name. It will be converted to its corresponding UTF-8 encoding. You can modify it later as needed."
+                warn!(
+                    enum_name,
+                    value,
+                    variant = variant.name,
+                    "enum value has no Rust name of its own, so its variant is named for its characters"
                 );
             }
             safe_ident(&format!("{context} value `{value}`"), &variant.name)?;
@@ -97,7 +101,7 @@ impl ActiveEnum {
     /// Its variants are named by the schema, for the type's values, so
     /// clippy's `enum_variant_names`, which values sharing a word (`web_shop`,
     /// `pop_up_shop`, `closed_shop`) trip, is allowed on it.
-    // [spec:pgorm:sem:codegen.entity.enums+9]
+    // [spec:pgorm:sem:codegen.entity.enums+10]
     // [spec:pgorm:sem:macros.derive.boilerplate]
     pub fn impl_active_enum(
         &self,
@@ -325,6 +329,79 @@ mod tests {
         )
     }
 
+    /// An event a test's code reported: its level and its fields as
+    /// `name=value`.
+    type Event = (tracing::Level, Vec<String>);
+
+    /// The events a test's code reports through `tracing`.
+    #[derive(Clone, Default)]
+    struct Recorded(std::sync::Arc<std::sync::Mutex<Vec<Event>>>);
+
+    struct Fields(Vec<String>);
+
+    impl tracing::field::Visit for Fields {
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            self.0.push(format!("{}={value:?}", field.name()));
+        }
+
+        fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+            self.0.push(format!("{}={value}", field.name()));
+        }
+    }
+
+    impl tracing::Subscriber for Recorded {
+        fn enabled(&self, _: &tracing::Metadata<'_>) -> bool {
+            true
+        }
+
+        fn new_span(&self, _: &tracing::span::Attributes<'_>) -> tracing::span::Id {
+            tracing::span::Id::from_u64(1)
+        }
+
+        fn record(&self, _: &tracing::span::Id, _: &tracing::span::Record<'_>) {}
+
+        fn record_follows_from(&self, _: &tracing::span::Id, _: &tracing::span::Id) {}
+
+        fn event(&self, event: &tracing::Event<'_>) {
+            let mut fields = Fields(Vec::new());
+            event.record(&mut fields);
+            if let Ok(mut events) = self.0.lock() {
+                events.push((*event.metadata().level(), fields.0));
+            }
+        }
+
+        fn enter(&self, _: &tracing::span::Id) {}
+
+        fn exit(&self, _: &tracing::span::Id) {}
+    }
+
+    // [spec:pgorm:sem:codegen.entity.enums+10/test]    a value encoded per character is reported as a `tracing` warning naming the enum, the value and the variant, the crate printing nothing
+    #[test]
+    fn an_encoded_value_is_a_tracing_warning() {
+        let recorded = Recorded::default();
+        let active_enum = ActiveEnum {
+            schema: None,
+            enum_name: Name::runtime("ty"),
+            values: vec![Name::runtime("Answer"), Name::runtime("/")],
+        };
+        tracing::subscriber::with_default(recorded.clone(), || active_enum.validate())
+            .expect("the enum is valid");
+        let events = recorded
+            .0
+            .lock()
+            .expect("no test panicked holding it")
+            .clone();
+        assert_eq!(events.len(), 1, "{events:?}");
+        let (level, fields) = &events[0];
+        assert_eq!(*level, tracing::Level::WARN);
+        for field in ["enum_name=ty", "value=/", "variant=U002F"] {
+            assert!(
+                fields.iter().any(|recorded| recorded == field),
+                "{fields:?}"
+            );
+        }
+    }
+
     #[test]
     fn test_enum_variant_utf8_encode() {
         assert_eq!(
@@ -377,7 +454,7 @@ mod tests {
         )
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+9/test]    `enum_name` and `string_value` only where they differ from the derive's snake_case defaults
+    // [spec:pgorm:sem:codegen.entity.enums+10/test]    `enum_name` and `string_value` only where they differ from the derive's snake_case defaults
     #[test]
     fn test_enum_defaults_are_left_unsaid() {
         assert_eq!(

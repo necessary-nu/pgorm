@@ -247,7 +247,7 @@ fn bridge_and_generated_entity_agree_on_schema() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+9/test]    a schema-qualified enum's
+// [spec:pgorm:sem:codegen.entity.enums+10/test]    a schema-qualified enum's
 // schema survives into the generated ActiveEnum attribute, so the
 // entity round-trips the type it was described with
 #[test]
@@ -289,7 +289,7 @@ fn unqualified_reference_needs_an_unqualified_declaration() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+9/test]    one bare Rust enum cannot
+// [spec:pgorm:sem:codegen.entity.enums+10/test]    one bare Rust enum cannot
 // stand for two differently-qualified database types: the collision is
 // refused rather than generated
 #[test]

@@ -9,7 +9,7 @@ use pgorm::{ActiveEnum, Iterable};
 use pgorm_codegen::WithSerde;
 use pgorm_query::{ColumnDef, ColumnType, Name, Table};
 
-// [spec:pgorm:sem:codegen.entity.enums+9/test]    every discovered enum lands in
+// [spec:pgorm:sem:codegen.entity.enums+10/test]    every discovered enum lands in
 // one `pgorm_active_enums.rs`, alphabetically by enum name
 #[test]
 fn active_enums_are_generated_into_one_alphabetical_file() {
@@ -47,7 +47,7 @@ fn active_enums_are_generated_into_one_alphabetical_file() {
     assert!(position_of(enums, "pub enum AppleKind") < position_of(enums, "pub enum ZebraKind"));
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+9/test]    each enum gets the base derives,
+// [spec:pgorm:sem:codegen.entity.enums+10/test]    each enum gets the base derives,
 // the `#[pgorm(rs_type, db_type, enum_name)]` attribute, extra attributes, an
 // UpperCamelCase name and one `string_value` per variant
 #[test]
@@ -84,7 +84,7 @@ fn active_enum_derives_attributes_and_string_values() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+9/test]    variant naming: a leading digit
+// [spec:pgorm:sem:codegen.entity.enums+10/test]    variant naming: a leading digit
 // gets an underscore prefix, an empty UpperCamelCase falls back to per-character
 // encoding (ASCII as `U<hex>`, multi-byte verbatim), everything else is plain
 // UpperCamelCase
@@ -120,7 +120,7 @@ fn active_enum_variant_naming_digits_punctuation_multibyte() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+9/test]    entity files import each enum
+// [spec:pgorm:sem:codegen.entity.enums+10/test]    entity files import each enum
 // they use, and an enum column is a field of the enum's type, which the derive
 // takes the column's type from
 #[test]
@@ -327,7 +327,7 @@ fn colliding_enum_names_and_variants_are_refused() {
 }
 
 // [spec:pgorm:def:codegen.entity.compact+8/test]    a `Relation` enum whose three variants end `Shop` carries the allow of clippy's `enum_variant_names`, and compiles clippy-clean in a module that is not exported
-// [spec:pgorm:sem:codegen.entity.enums+9/test]    and so does an enum whose three values end `_shop`
+// [spec:pgorm:sem:codegen.entity.enums+10/test]    and so does an enum whose three values end `_shop`
 #[test]
 fn variants_sharing_a_word_compile_clean() {
     use variant_names::{pgorm_active_enums::Outlet, sale};

@@ -286,7 +286,7 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:sem:codegen.entity.enums+9]
+    // [spec:pgorm:sem:codegen.entity.enums+10]
     // [spec:pgorm:req:codegen.entity.files+3]
     pub fn write_pgorm_active_enums(
         &self,

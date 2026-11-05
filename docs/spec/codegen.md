@@ -961,7 +961,7 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 
 ## Active enums
 
-> [spec:pgorm:sem:codegen.entity.enums+9]
+> [spec:pgorm:sem:codegen.entity.enums+10]
 > All discovered database enums but a disjoint entity's kind type, which its
 > derive declares (`codegen.entity.disjoint`), are generated into a single
 > `pgorm_active_enums.rs`, in alphabetical order by enum name. Each becomes
@@ -989,9 +989,12 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > with a digit get an underscore prefix (`3D` → `_3D`); values whose
 > UpperCamelCase form is empty (punctuation-only, etc.) fall back to
 > per-character encoding — ASCII chars as `U<hex, 4 digits>` and multi-byte
-> chars kept verbatim (`/` → `U002F`, `你好` → `你好`) — with a warning
-> printed to stdout as `transform` validates the enum; everything else is
-> plain UpperCamelCase. A value whose derived variant name is still not a
+> chars kept verbatim (`/` → `U002F`, `你好` → `你好`) — with a `tracing`
+> warning naming the enum, the value and the variant written, as `transform`
+> validates the enum, and nothing written to the caller's stdout or stderr,
+> which a build script's caller reads as cargo's directives (pgorm-codegen
+> denies the print macros at its root, as pgorm and pgorm-migration do);
+> everything else is plain UpperCamelCase. A value whose derived variant name is still not a
 > legal Rust identifier (a multi-byte character that cannot start one, a
 > digit-led value carrying a space) is a `TransformError` per
 > `codegen.entity.keywords`, not a panic. Entity files

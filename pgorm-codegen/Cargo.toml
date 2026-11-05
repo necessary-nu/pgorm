@@ -40,6 +40,9 @@ rust_decimal = { version = "1.43", default-features = false }
 
 [dev-dependencies]
 pretty_assertions = { version = "1.4" }
+# `std` gives the tests `subscriber::with_default`, which records the
+# warnings the crate reports.
+tracing = { version = "0.1.44", default-features = false, features = ["std"] }
 # `postgres-array` lets a generated entity's `Vec<T>` field compile here, as
 # a fixture holding an array column has to; `with-jiff` gives a temporal
 # field its prelude name, and `with-json` the serde impls a fixture generated
