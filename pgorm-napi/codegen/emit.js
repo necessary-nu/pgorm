@@ -213,12 +213,12 @@ export async function emit(project) {
   const imports = [importOf(types, "./index.js", "type ")];
   if (sources.length > 0) imports.push(importOf(["SourceSelection"], "./pipeline.d.ts", "type "));
   const module = description.module;
-  const factories = [
+  const factories = /** @type {[string, number][]} */ ([
     ["entity", entities.length],
     ["graph", graphs.length],
     ["disjointEntity", disjoints.length],
     ["pipeline", sources.length],
-  ].filter(([, count]) => count > 0).map(([factory]) => /** @type {string} */ (factory)).sort();
+  ]).filter(([, count]) => count > 0).map(([factory]) => factory).sort();
   const exported = (/** @type {{ name: string, typescript: string }} */ entry, /** @type {string} */ factory) =>
     bracket(`export const ${entry.typescript} = ${factory}(`, [JSON.stringify(entry.name)], ");");
   const code = [

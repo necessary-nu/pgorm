@@ -658,6 +658,25 @@ program writes in `table`, one for every base row of `kind`, before the next
 step runs. Clear the pool's statement caches after a step that recreates the
 kind type.
 
+A change ships once, and the declaration keeps changing after it, so a
+migration history freezes each change when it is made rather than computing
+it again as it runs. `migrationFiles(change, name)` freezes a change as pgorm
+does, a `MigrationFile` per step named `name_1`, `name_2` (or `name` for one
+step), every step but the last opening with `-- pgorm: commits-after` and a
+step with a gap ending with a comment naming the rows to write;
+`migrationFile(name, statements, { commitsAfter })` freezes any statements,
+such as `createDisjoint`'s. A file's `freeze(directory)` writes `<name>.sql`
+only where no such file is, and answers whether it did, so the code that froze
+each change can run again without rewriting what has shipped. Each file is one
+migration for a tool that runs a directory of SQL files, each in its
+transaction:
+
+```js
+for (const file of migrationFiles(addDisjointKind(Fleet, "van"), "m20260301_000001_add_van")) {
+  file.freeze("migrations"); // m20260301_000001_add_van_1.sql, m20260301_000001_add_van_2.sql
+}
+```
+
 `oneOf(name, model, { post: ["postId", Post], photo: ["photoId", Photo] }, {
 optional })` declares a reference from a model's nullable fields to exactly one
 of several targets, or at most one where `optional` says so: `createOneOf`

@@ -3159,13 +3159,16 @@ impl_evidence (
         {id error.model.decode-refusal, version 0}
     )}
     {id disjoint.change-replays, covered_rules (
+        bindings.migration-file
         disjoint.evolve.frozen
         migration.frozen
         migration.sql-file.commits-after
     ), covered_claims (
+        {impl_name javascript, rule bindings.migration-file}
         {impl_name main, rule disjoint.evolve.frozen}
         {impl_name main, rule migration.frozen}
         {impl_name main, rule migration.sql-file.commits-after}
+        {impl_name python, rule bindings.migration-file}
     )}
 )
 

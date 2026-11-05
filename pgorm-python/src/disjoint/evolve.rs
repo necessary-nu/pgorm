@@ -10,7 +10,10 @@ use pyo3::{
     types::{PyList, PyTuple},
 };
 
-use crate::{errors::ConstructionError, schema};
+use crate::{
+    errors::ConstructionError,
+    schema::{self, PyMigrationFile},
+};
 
 /// `statements` as Python's DDL classes, in order.
 pub(super) fn ddl_tuple(
@@ -45,8 +48,30 @@ fn written(
     changed.map_err(|error| ConstructionError::new_err(error.to_string()))
 }
 
+/// A change as pgorm wrote it, which the Python `DisjointChange` keeps so
+/// that `migration_files` freezes it as pgorm does.
+// [spec:pgorm:req:bindings.migration-file]
+#[derive(Debug)]
+#[pyclass(name = "_DisjointChange", module = "pgorm._native", frozen)]
+pub struct PyDisjointChange {
+    change: DisjointChange,
+}
+
+#[pymethods]
+impl PyDisjointChange {
+    /// pgorm's `DisjointChange::migration_files`: a file per step.
+    // [spec:pgorm:req:bindings.migration-file]
+    fn migration_files(&self, name: &str) -> Vec<PyMigrationFile> {
+        self.change
+            .migration_files(name)
+            .into_iter()
+            .map(PyMigrationFile::from)
+            .collect()
+    }
+}
+
 /// The steps of the change `change` names, each `(statements, gap)`, the
-/// gap `None` or `(kind, schema, table)`.
+/// gap `None` or `(kind, schema, table)`, and the change itself.
 // [spec:pgorm:req:bindings.disjoint-evolve]
 pub(super) fn change<'py>(
     py: Python<'py>,
@@ -54,11 +79,12 @@ pub(super) fn change<'py>(
     change: &str,
     value: &str,
     table: Option<&Bound<'py, PyAny>>,
-) -> PyResult<Bound<'py, PyList>> {
+) -> PyResult<(Bound<'py, PyList>, PyDisjointChange)> {
     let table = table.map(schema::relation).transpose()?;
-    let steps = written(shape, change, value, table)?
-        .into_steps()
-        .into_iter()
+    let change = written(shape, change, value, table)?;
+    let steps = change
+        .steps()
+        .iter()
         .map(|step| -> PyResult<Bound<'py, PyTuple>> {
             let gap = step.gap().map(|gap| {
                 (
@@ -71,5 +97,5 @@ pub(super) fn change<'py>(
             (statements, gap).into_pyobject(py)
         })
         .collect::<PyResult<Vec<_>>>()?;
-    PyList::new(py, steps)
+    Ok((PyList::new(py, steps)?, PyDisjointChange { change }))
 }

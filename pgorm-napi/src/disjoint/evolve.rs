@@ -9,6 +9,7 @@ use pgorm::{DdlStatement, DisjointChange, DisjointShape};
 use super::DisjointHandle;
 use crate::{
     errors::{Failure, throw},
+    migration_file::ChangeHandle,
     statements::{Ddl, Node, relation},
 };
 
@@ -72,9 +73,11 @@ fn written(
     changed.map_err(|error| Failure::Construction(error.to_string()))
 }
 
-/// `disjointChange(disjoint, change, value, table)`: the steps of the kind
-/// change `change` names, each `[statements, gap]`, the gap null or `[kind,
-/// schema, table]`, `table` given only where the kind loses its table.
+/// `disjointChange(disjoint, change, value, table)`: `[steps, change]`, the
+/// steps of the kind change `change` names, each `[statements, gap]`, the gap
+/// null or `[kind, schema, table]`, and the change itself for
+/// `disjointMigrationFiles`, `table` given only where the kind loses its
+/// table.
 // [spec:pgorm:req:bindings.disjoint-evolve]
 pub(super) fn change(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = cx.argument::<JsBox<DisjointHandle>>(0)?.0.clone();
@@ -85,10 +88,11 @@ pub(super) fn change(mut cx: FunctionContext) -> JsResult<JsValue> {
         true => None,
         false => Some(relation(&mut cx, table)?),
     };
-    let steps = match written(&core.shape, &change, &value, table) {
-        Ok(changed) => changed.into_steps(),
+    let changed = match written(&core.shape, &change, &value, table) {
+        Ok(changed) => changed,
         Err(failure) => return throw(&mut cx, failure),
     };
+    let steps = changed.steps().to_vec();
     let array = JsArray::new(&mut cx, steps.len());
     for (index, step) in steps.into_iter().enumerate() {
         let statements = ddl_pairs(&mut cx, step.statements().to_vec())?;
@@ -113,5 +117,9 @@ pub(super) fn change(mut cx: FunctionContext) -> JsResult<JsValue> {
         pair.set(&mut cx, 1, gap)?;
         array.set(&mut cx, u32::try_from(index).unwrap_or(u32::MAX), pair)?;
     }
-    Ok(array.upcast())
+    let result = JsArray::new(&mut cx, 2);
+    result.set(&mut cx, 0, array)?;
+    let handle = cx.boxed(ChangeHandle(changed));
+    result.set(&mut cx, 1, handle)?;
+    Ok(result.upcast())
 }

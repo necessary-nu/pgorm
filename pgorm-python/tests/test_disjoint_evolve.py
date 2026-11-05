@@ -3,6 +3,8 @@ declaration as it will be: the steps and gaps each change gives, its
 refusals, and each change run on a live server."""
 
 import os
+import pathlib
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -107,6 +109,49 @@ class KindChangeDeclaration(unittest.TestCase):
         ):
             with self.assertRaises(TypeError):
                 wrong()
+
+
+class KindChangeFrozen(unittest.TestCase):
+    # [spec:pgorm:req:bindings.migration-file/test]    a change frozen as pgorm freezes it, a file per step, the first committing after, and statements frozen as one file; freeze writes a file once and never again, refuses a name that is no file stem, and a change built by hand has nothing to freeze
+    def test_changes_freeze_into_migration_files(self):
+        before = vehicles(car=CAR, bike=None)
+        after = vehicles(car=CAR, van=VAN, bike=None)
+        created = ps.migration_file("m20260101_000001_create_vehicle", ps.create_disjoint(before))
+        self.assertIsInstance(created, ps.MigrationFile)
+        self.assertEqual(created.name, "m20260101_000001_create_vehicle")
+        self.assertFalse(created.commits_after)
+        self.assertTrue(created.text.startswith(f'CREATE TYPE "{SCHEMA}"."vehicle_kind" AS ENUM'))
+        self.assertTrue(created.text.endswith(";\n"))
+        files = ps.migration_files(ps.add_disjoint_kind(after, "van"), "m20260102_000001_add_van")
+        self.assertEqual(
+            [(file.name, file.commits_after) for file in files],
+            [("m20260102_000001_add_van_1", True), ("m20260102_000001_add_van_2", False)],
+        )
+        self.assertEqual(
+            files[0].text,
+            f'-- pgorm: commits-after\nALTER TYPE "{SCHEMA}"."vehicle_kind" ADD VALUE \'van\' AFTER \'car\';\n',
+        )
+        tabled = ps.migration_files(ps.add_disjoint_kind_table(vehicles(car=CAR, bike=BIKE), "bike"), "m3")
+        self.assertIn("-- Before the next migration runs, write a row in", tabled[0].text)
+        self.assertTrue(
+            ps.migration_file("m4", [], commits_after=True).text.startswith("-- pgorm: commits-after")
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertTrue(created.freeze(directory))
+            self.assertFalse(created.freeze(directory))
+            later = ps.migration_file(created.name, ps.create_disjoint(after))
+            self.assertFalse(later.freeze(pathlib.Path(directory)))
+            written = pathlib.Path(directory, f"{created.name}.sql").read_text()
+            self.assertEqual(written, created.text)
+            for name in ("", "..", "nested/file"):
+                with self.subTest(name=name), self.assertRaises(p.ConstructionError):
+                    ps.migration_file(name, []).freeze(directory)
+            with self.assertRaises(FileNotFoundError):
+                created.freeze(pathlib.Path(directory, "missing"))
+        with self.assertRaises(TypeError):
+            ps.migration_files(ps.DisjointChange(()), "m5")
+        with self.assertRaises(p.ConstructionError):
+            bool(created)
 
 
 class KindChangeDatabase(unittest.IsolatedAsyncioTestCase):

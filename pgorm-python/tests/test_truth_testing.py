@@ -8,6 +8,7 @@ import pgorm as p
 from pgorm import _native, pipeline as pl, schema as s
 from pgorm.schema import changes
 from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, versions as version_views
+from pgorm.codegen import source
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
     Column, Model, ModelRecord, Relation, cursors, disjoint_query, graphs, model, one_of, queries,
@@ -34,11 +35,15 @@ EXEMPT = {
     p.Pool, p.Connection, p.Transaction,
     _native._Pool, _native._Connection, _native._Transaction, _native._Stream,
     _native._CopyIn, _native._CopyOut, _native._Listener, _native._Disjoint,
+    _native._DisjointChange,
     # Registrations and declarations: they name what a query reads and are
     # true as any declared object is; the queries they start refuse.
     p.Entity, p.EntityGraph, Model, Column, Relation, pl.SourceSelection, pl.Binder,
     model.UniqueKey, model._DeclaredKey,
     views.EntityView, graph_views.GraphView, FieldType,
+    # The layout the codegen writes source with: build-time values no query
+    # reads.
+    source.Code, source.Call, source.Ternary, source.Layout,
     p.Disjoint, p.DisjointEntity, disjoint_query._Disjoint,
     p.OneOf, p.OneOfEntity, one_of._OneOf, one_of._Reader, _native._OneOf,
     disjoint_views.DisjointView, disjoint_views.WritableDisjointView, disjoint_views._Decoded,
@@ -124,6 +129,7 @@ def other_samples():
     model = Model("items", {"id": Column("i32", primary_key=True)})
     return [
         s.DataType("integer"), s.ColumnDef("id", "integer"), s.create_table(table),
+        s.migration_file("m20260101_000001_create_items", [s.create_table(table)]),
         s.create_index(table, "id"), s.drop_table(table), s.create_domain("d", "integer"),
         s.alter_table(table), s.alter_table(table).drop_column("id"), s.create_type("t"),
         s.alter_type("t"), s.alter_type("t").drop_attribute("a"),

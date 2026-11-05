@@ -17232,7 +17232,9 @@ children (
                 title "A disjoint kind change is frozen into its migration when it is made, so a fresh database replays the history"
                 kind @feat
                 implements {
+                    javascript ([spec:pgorm:req:bindings.migration-file])
                     main ([spec:pgorm:def:migration.frozen] [spec:pgorm:req:migration.sql-file.commits-after] [spec:pgorm:sem:disjoint.evolve.frozen])
+                    python ([spec:pgorm:req:bindings.migration-file])
                 }
                 log (
                     {

@@ -607,13 +607,14 @@ impl NativeDisjoint {
         change: &str,
         value: &str,
         table: Option<&Bound<'py, PyAny>>,
-    ) -> PyResult<Bound<'py, PyList>> {
+    ) -> PyResult<(Bound<'py, PyList>, evolve::PyDisjointChange)> {
         evolve::change(py, &self.core.shape, change, value, table)
     }
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<NativeDisjoint>()?;
+    module.add_class::<evolve::PyDisjointChange>()?;
     module.add_function(wrap_pyfunction!(described::disjoint_model, module)?)?;
     module.add_function(wrap_pyfunction!(disjoint_entity, module)?)?;
     module.add_function(wrap_pyfunction!(disjoint_entities, module)?)?;
