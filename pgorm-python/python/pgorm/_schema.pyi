@@ -9,7 +9,7 @@ from ._schema_tables import CreateTable, CreateIndex
 from ._schema_types import CreateType
 
 Name: TypeAlias = str
-BuiltinType: TypeAlias = Literal["char", "varchar", "text", "smallint", "integer", "bigint", "real", "double", "numeric", "boolean", "date", "time", "timestamp", "timestamptz", "interval", "bytea", "bit", "varbit", "money", "json", "jsonb", "uuid", "vector", "cidr", "inet", "macaddr", "ltree"]
+BuiltinType: TypeAlias = Literal["char", "varchar", "text", "smallint", "integer", "bigint", "real", "double", "numeric", "boolean", "date", "time", "timestamp", "timestamptz", "interval", "bytea", "bit", "varbit", "money", "json", "jsonb", "uuid", "vector", "cidr", "inet", "macaddr", "ltree", "int4range", "int8range", "numrange", "daterange", "tsrange", "tstzrange", "int4multirange", "int8multirange", "nummultirange", "datemultirange", "tsmultirange", "tstzmultirange"]
 ColumnType: TypeAlias = DataType | BuiltinType | TypeName | CreatedRange | CreatedMultirange
 TableRef: TypeAlias = Name | Table
 TypeRef: TypeAlias = Name | TypeName

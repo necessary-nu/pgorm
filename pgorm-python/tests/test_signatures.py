@@ -158,6 +158,27 @@ class Signatures(unittest.TestCase):
                         if isinstance(method, ast.FunctionDef):
                             self.assertIn(method.name, vars(cls))
 
+    # [spec:pgorm:req:python.typing+2/test]    a native class the stubs declare generic is subscriptable
+    # at run time, so a cast or an evaluated annotation naming its parameter works as it type-checks
+    def test_generic_native_classes_subscript_at_runtime(self):
+        root = Path(pgorm.__file__).resolve().parent
+        generic = {
+            name
+            for name, (_, item) in stub_classes(root).items()
+            if hasattr(_native, name)
+            and any(
+                isinstance(base, ast.Subscript)
+                and isinstance(base.value, ast.Name)
+                and base.value.id == "Generic"
+                for base in item.bases
+            )
+        }
+        self.assertLessEqual({"CopyFrom", "CopyTo", "MergeAction", "Multirange", "Range"}, generic)
+        for name in sorted(generic):
+            with self.subTest(name=name):
+                cls = getattr(_native, name)
+                self.assertIs(cls[object].__origin__, cls)
+
     def test_python_wrapper_signatures_match_shipped_stubs(self):
         root = Path(pgorm.__file__).resolve().parent / "_registered"
         for path in sorted(root.glob("*.pyi")):

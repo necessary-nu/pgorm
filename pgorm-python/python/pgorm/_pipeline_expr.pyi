@@ -1,7 +1,15 @@
+from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Any, TypeAlias, Never
+from uuid import UUID
 from ._native import Value, TypeName
+from ._intervals import Interval
+from ._ranges import Multirange, Range
 
-Operand: TypeAlias = PipelineExpr | Value | bool | int | float | str | list[Any] | dict[str, Any]
+Operand: TypeAlias = (
+    PipelineExpr | Value | bool | int | float | str | Decimal | date | time | datetime | UUID
+    | bytes | Interval | Range[Any] | Multirange[Any] | list[Any] | dict[str, Any]
+)
 LiteralValue: TypeAlias = Value | None | bool | int | float | str
 Name: TypeAlias = str | PipelineExpr
 
