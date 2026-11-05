@@ -17,6 +17,7 @@ use pgorm::{
         extension::{RangeDefinition, Type},
     },
 };
+use pgorm_query::ExprTrait;
 
 use super::corpus::NUL_NAME;
 use crate::common::TestContext;
@@ -710,7 +711,7 @@ async fn live_composite_type_names() {
 /// in that schema ordered and measured by them, with a multirange named after
 /// it, and a second range over `text` collated by it — each checked in the
 /// catalogue and dropped through the builders. A value cast to the range type,
-/// and one cast to its multirange, by `Expr::as_range` reaches that type,
+/// and one cast to its multirange, by `ExprTrait::as_range` reaches that type,
 /// inline and bound.
 // [spec:pgorm:req:security.ident-oracle+17/test]
 #[tokio::test]

@@ -5,7 +5,7 @@ pub mod common;
 pub use common::{TestContext, bakery_chain::*, setup::*};
 pub use jiff::{Timestamp, tz::Offset};
 use pgorm::{Error, FromQueryResult, PartialModel, alias, entity::*, query::*, set};
-use pgorm_query::{Expr, Func, SimpleExpr};
+use pgorm_query::{Expr, ExprTrait, Func, SimpleExpr};
 use pretty_assertions::assert_eq;
 pub use rust_decimal::prelude::*;
 pub use uuid::Uuid;

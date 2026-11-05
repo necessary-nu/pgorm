@@ -286,7 +286,7 @@ impl RelationDef {
     ///
     /// ```
     /// use pgorm::{entity::*, query::*, tests_cfg::{cake, cake_filling}};
-    /// use pgorm_query::{Expr, IntoCondition};
+    /// use pgorm_query::{Expr, ExprTrait, IntoCondition};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -324,7 +324,7 @@ impl RelationDef {
     ///
     /// ```
     /// use pgorm::{entity::*, query::*, tests_cfg::{cake, cake_filling}};
-    /// use pgorm_query::{Expr, IntoCondition, ConditionType};
+    /// use pgorm_query::{Expr, ExprTrait, IntoCondition, ConditionType};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()

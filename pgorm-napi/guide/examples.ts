@@ -141,7 +141,7 @@ function code(body: string): string {
 }
 
 function names(body: string, name: string): boolean {
-  return new RegExp(`(?<![\\w$.])${name.replace(/\$/g, "\\$")}(?![\\w$:])`).test(code(body));
+  return new RegExp(`(?<![\\w$.])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w$:])`).test(code(body));
 }
 
 function declares(body: string, name: string): boolean {

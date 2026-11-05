@@ -240,7 +240,7 @@ fn a_value_beside_the_versions_is_bound() {
     assert_eq!(
         sql,
         [
-            r#"UPDATE "glyph" SET "aspect" = "aspect" + $1 WHERE "id" = $2"#,
+            r#"UPDATE "glyph" SET "aspect" = "aspect" + $1::int4 WHERE "id" = $2"#,
             r#"RETURNING new."aspect" - old."aspect" = $3"#,
         ]
         .join(" ")

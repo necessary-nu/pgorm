@@ -6,7 +6,8 @@ use std::num::NonZeroU32;
 
 use pgorm::pgorm_query::{
     BinOper, CopyBinary, CopyCsv, CopyFromStatement, CopyIgnore, CopyLogVerbosity, CopySource,
-    CopyText, CopyToStatement, Expr, FromItem, NamedTable, Query, SimpleExpr, TableName, Values,
+    CopyText, CopyToStatement, Expr, ExprTrait, FromItem, NamedTable, Query, SimpleExpr, TableName,
+    Values,
 };
 
 use super::n;

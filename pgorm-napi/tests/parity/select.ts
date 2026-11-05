@@ -3,7 +3,7 @@
 // build, which the Rust test `statements::parity` builds the same statement to
 // with pgorm-query's own builders.
 // [spec:pgorm:req:bindings.select+4/test]
-// [spec:pgorm:req:bindings.expressions+3/test]
+// [spec:pgorm:req:bindings.expressions+4/test]
 // [spec:pgorm:req:bindings.quantifiers+3/test]
 // [spec:pgorm:req:bindings.cte-options/test]
 

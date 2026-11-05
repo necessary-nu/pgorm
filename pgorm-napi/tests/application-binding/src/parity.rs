@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use pgorm::pgorm_query::{Expr, Name, Query, Values};
+use pgorm::pgorm_query::{Expr, ExprTrait, Name, Query, Values};
 use pgorm::{
     ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait, pgorm_query::Value,
 };

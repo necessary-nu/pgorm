@@ -21,6 +21,7 @@
 //! its way to a server — captured from tokio-postgres's statement log — to the
 //! same property as the rest.
 
+use pgorm_query::ExprTrait;
 pub mod common;
 mod identifier_oracle;
 

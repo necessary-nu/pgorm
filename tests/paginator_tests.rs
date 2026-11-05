@@ -264,7 +264,7 @@ async fn paginator_iterate() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:exec.crud+1/test]    `Select::from_raw_sql` builds a
+// [spec:pgorm:def:exec.crud+2/test]    `Select::from_raw_sql` builds a
 // `SelectorRaw` from a raw statement plus `Values`
 // [spec:pgorm:sem:exec.paginator.raw+6/test]    a parsed single `SELECT` is
 // wrapped whole as a subquery, so its own clauses survive paging

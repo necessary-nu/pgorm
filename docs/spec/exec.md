@@ -402,7 +402,7 @@ These rules capture what the code does today, including known gaps.
 
 ## CRUD execution (`exec.crud`)
 
-> [spec:pgorm:def:exec.crud+1]
+> [spec:pgorm:def:exec.crud+2]
 > Statement execution is mediated by selector types: `Selector<S>` holds
 > a `SelectStatement` plus a `SelectorTrait` implementor, and
 > `SelectorRaw<S>` holds a raw SQL string plus `Values`. `SelectorTrait`
@@ -419,6 +419,13 @@ These rules capture what the code does today, including known gaps.
 > `exec.crud.selector-entry`. Executing a `Selector` first builds SQL
 > with the Postgres `QueryBuilder`, then binds each `Value` through the
 > `ValueHolder` `ToSql` adapter (see `exec.cursor.binding`).
+>
+> A `Selector` renders its statement as the builder it came from does: it
+> implements `QueryTrait` (`query.build.query-trait`), so `build`,
+> `as_query` and `into_query` answer the statement a decoded selector will
+> run, and a test or a log reads it without rebuilding the projection by
+> hand. What `build` answers is what `all` and `stream` send; `one` narrows
+> the limit first (`exec.crud.select`).
 
 > [spec:pgorm:sem:exec.crud.selector-entry+2]
 > A caller who has built a `SelectStatement` outside the entity builders —

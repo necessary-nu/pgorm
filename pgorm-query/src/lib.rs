@@ -647,8 +647,8 @@
 // `Error`/`Result`), `extension` (PostgreSQL's `CREATE EXTENSION` / `CREATE
 // TYPE` surface, deliberately not flattened into the root), and `value`
 // (`value::with_array::NotU8`, which pgorm's derives name in generated code).
-// [spec:pgorm:req:sql.surface+38]
-// [spec:pgorm:req:sql.surface+38/test]    the two `compile_fail,E0603` examples in
+// [spec:pgorm:req:sql.surface+40]
+// [spec:pgorm:req:sql.surface+40/test]    the two `compile_fail,E0603` examples in
 // the crate docs above, under "The public surface": a module path into the
 // crate does not resolve. `cargo test --doc -p pgorm-query` runs them; nextest
 // runs the rest of the rule's tests, in `tests/surface`.
@@ -666,6 +666,7 @@ mod copy;
 mod domain;
 pub mod error;
 mod expr;
+mod expr_trait;
 pub mod extension;
 mod foreign_key;
 mod func;
@@ -673,6 +674,7 @@ mod index;
 mod json;
 mod key;
 mod keywords;
+mod like;
 mod prepare;
 mod query;
 mod schema;
@@ -684,6 +686,7 @@ mod token;
 mod types;
 pub mod value;
 mod value_domain;
+mod value_element;
 mod value_identity;
 mod value_interval;
 mod value_kind;
@@ -720,7 +723,8 @@ pub use types::{FromItem, IntoFromItem, IntoNamedTable, IntoTableName, JoinType,
 
 // Expressions: the operator vocabulary an expression tree is built from, and
 // the two trees themselves.
-pub use expr::{Expr, SimpleExpr, Subscript};
+pub use expr::{Expr, SimpleExpr};
+pub use expr_trait::{ExprTrait, Subscript};
 pub use func::{Func, FuncArgMod, Function, FunctionCall};
 pub use json::{
     JsonArray, JsonArrayAgg, JsonArrayQuery, JsonExists, JsonExistsBehavior, JsonInput, JsonKind,
@@ -731,7 +735,8 @@ pub use json::{
     JsonExistsColumn, JsonNestedColumns, JsonQueryColumn, JsonTable, JsonTableBehavior,
     JsonTableColumn, JsonValueColumn,
 };
-pub use types::{BinOper, IntoLikeExpr, Keyword, LikeExpr, SubQueryOper, UnOper};
+pub use like::{IntoLikeExpr, LikeExpr};
+pub use types::{BinOper, Keyword, SubQueryOper, UnOper};
 
 // Values: what a bound parameter carries, the conversions in and out, and
 // the type a value of a domain travels as.
@@ -741,6 +746,7 @@ pub use value::{
     ValueTuple, ValueTupleError, ValueType, ValueTypeError, Values, Vector,
 };
 pub use value_domain::base_type;
+pub use value_element::ArrayElement;
 pub use value_interval::Interval;
 pub use value_range::{Multirange, Range, RangeElement, RangeType};
 pub use value_range_text::RangeSubtype;

@@ -1,6 +1,6 @@
 use pgorm::pgorm_query::{
-    Asterisk, Expr, FromItem, IntoNamedTable, JoinType, LockBehavior, LockType, MergeUpdate, Name,
-    Order, Query, SampleMethod, SelectStatement, TableSample,
+    Asterisk, Expr, ExprTrait, FromItem, IntoNamedTable, JoinType, LockBehavior, LockType,
+    MergeUpdate, Name, Order, Query, SampleMethod, SelectStatement, TableSample,
 };
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
