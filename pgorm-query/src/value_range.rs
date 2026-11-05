@@ -309,8 +309,8 @@ where
         Bound::Included(value) | Bound::Excluded(value) if value == T::null() => {
             Ok(Bound::Unbounded)
         }
-        Bound::Included(value) => T::try_from(value).map(Bound::Included),
-        Bound::Excluded(value) => T::try_from(value).map(Bound::Excluded),
+        Bound::Included(value) => T::from_value(value).map(Bound::Included),
+        Bound::Excluded(value) => T::from_value(value).map(Bound::Excluded),
         Bound::Unbounded => Ok(Bound::Unbounded),
     }
 }
@@ -352,7 +352,7 @@ impl<T> ValueType for Range<T>
 where
     T: RangeElement,
 {
-    fn try_from(v: Value) -> Result<Self, ValueTypeError> {
+    fn from_value(v: Value) -> Result<Self, ValueTypeError> {
         match v {
             Value::Range(ty, Some(range)) if ty == T::range_type() => range_value(*range),
             _ => Err(ValueTypeError),
@@ -372,10 +372,10 @@ where
     }
 }
 
-// [spec:pgorm:def:sql.value.array+6]
+// [spec:pgorm:def:sql.value.array+7]
 impl<T> NotU8 for Range<T> where T: RangeElement {}
 
-// [spec:pgorm:def:sql.value.array+6]
+// [spec:pgorm:def:sql.value.array+7]
 impl<T> NotU8 for Multirange<T> where T: RangeElement {}
 
 // [spec:pgorm:def:sql.value.range+5]
@@ -402,7 +402,7 @@ impl<T> ValueType for Multirange<T>
 where
     T: RangeElement,
 {
-    fn try_from(v: Value) -> Result<Self, ValueTypeError> {
+    fn from_value(v: Value) -> Result<Self, ValueTypeError> {
         match v {
             Value::Multirange(ty, Some(multirange)) if ty == T::range_type() => {
                 multirange.0.into_iter().map(range_value).collect()
@@ -471,11 +471,11 @@ mod tests {
             )
         );
         assert_eq!(
-            <Range<Decimal> as ValueType>::try_from(value).unwrap(),
+            <Range<Decimal> as ValueType>::from_value(value).unwrap(),
             range
         );
         assert_eq!(
-            <Range<i32> as ValueType>::try_from(Value::from(Range::<i32>::Empty)).unwrap(),
+            <Range<i32> as ValueType>::from_value(Value::from(Range::<i32>::Empty)).unwrap(),
             Range::Empty
         );
     }
@@ -484,12 +484,12 @@ mod tests {
     #[test]
     fn a_range_of_another_subtype_is_a_mismatch() {
         let value = Value::from(Range::from(1i64..2));
-        assert!(<Range<i32> as ValueType>::try_from(value.clone()).is_err());
-        assert!(<Multirange<i64> as ValueType>::try_from(value).is_err());
+        assert!(<Range<i32> as ValueType>::from_value(value.clone()).is_err());
+        assert!(<Multirange<i64> as ValueType>::from_value(value).is_err());
         // An empty range has no bound to tell the subtype by, so the tag is
         // what refuses it.
         let empty = Value::from(Range::<i64>::Empty);
-        assert!(<Range<i32> as ValueType>::try_from(empty).is_err());
+        assert!(<Range<i32> as ValueType>::from_value(empty).is_err());
     }
 
     // [spec:pgorm:def:sql.value.range+5/test]
@@ -503,7 +503,7 @@ mod tests {
             ))),
         );
         assert_eq!(
-            <Range<i32> as ValueType>::try_from(value).unwrap(),
+            <Range<i32> as ValueType>::from_value(value).unwrap(),
             Range::from(..5)
         );
     }
@@ -516,12 +516,12 @@ mod tests {
             Value::Range(RangeType::Int4, None)
         );
         assert_eq!(
-            <Option<Range<i32>> as ValueType>::try_from(Value::Range(RangeType::Int4, None))
+            <Option<Range<i32>> as ValueType>::from_value(Value::Range(RangeType::Int4, None))
                 .unwrap(),
             None
         );
         assert!(
-            <Option<Range<i32>> as ValueType>::try_from(Value::Range(RangeType::Int8, None))
+            <Option<Range<i32>> as ValueType>::from_value(Value::Range(RangeType::Int8, None))
                 .is_err()
         );
         assert_eq!(
@@ -539,17 +539,17 @@ mod tests {
         let value = Value::from(multirange.clone());
         assert!(matches!(value, Value::Multirange(RangeType::Int4, Some(_))));
         assert_eq!(
-            <Multirange<i32> as ValueType>::try_from(value).unwrap(),
+            <Multirange<i32> as ValueType>::from_value(value).unwrap(),
             multirange
         );
         assert_eq!(
-            <Multirange<i32> as ValueType>::try_from(Value::from(Multirange::<i32>::default()))
+            <Multirange<i32> as ValueType>::from_value(Value::from(Multirange::<i32>::default()))
                 .unwrap(),
             Multirange::default()
         );
     }
 
-    // [spec:pgorm:def:sql.value.array+6/test]    a `Vec` of ranges or multiranges is an array of
+    // [spec:pgorm:def:sql.value.array+7/test]    a `Vec` of ranges or multiranges is an array of
     // them, tagged with the range type and refusing another's
     #[test]
     fn a_vec_of_ranges_is_an_array() {
@@ -566,18 +566,18 @@ mod tests {
             )
         );
         assert_eq!(
-            <Vec<Range<i32>> as ValueType>::try_from(value.clone()).unwrap(),
+            <Vec<Range<i32>> as ValueType>::from_value(value.clone()).unwrap(),
             ranges
         );
-        assert!(<Vec<Range<i64>> as ValueType>::try_from(value.clone()).is_err());
-        assert!(<Vec<Multirange<i32>> as ValueType>::try_from(value).is_err());
+        assert!(<Vec<Range<i64>> as ValueType>::from_value(value.clone()).is_err());
+        assert!(<Vec<Multirange<i32>> as ValueType>::from_value(value).is_err());
         assert_eq!(
             Value::from(None::<Vec<Range<i32>>>),
             Value::Array(ArrayType::Range(RangeType::Int4), None)
         );
         let multiranges = vec![Multirange::<Date>::default()];
         assert_eq!(
-            <Vec<Multirange<Date>> as ValueType>::try_from(Value::from(multiranges.clone()))
+            <Vec<Multirange<Date>> as ValueType>::from_value(Value::from(multiranges.clone()))
                 .unwrap(),
             multiranges
         );

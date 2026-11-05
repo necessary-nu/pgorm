@@ -2,7 +2,9 @@
 //! as it was before the write and as the statement left it.
 
 use neon::prelude::*;
-use pgorm::pgorm_query::{Asterisk, BinOper, Expr, Query, ReturningClause, ReturningRow};
+use pgorm::pgorm_query::{
+    Asterisk, BinOper, Expr, ExprTrait, Query, ReturningClause, ReturningRow,
+};
 
 use super::{
     Node,

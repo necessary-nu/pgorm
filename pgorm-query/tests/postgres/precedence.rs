@@ -195,7 +195,7 @@ fn between_family_renders_bare_under_logic() {
                         .add(Expr::col(Char::SizeH).between_symmetric(6, 5)),
                 )
                 .add(Expr::col(Char::FontId).not_between_symmetric(8, 7).not())
-                .add(Expr::col(Char::Ascii).between(Expr::val(9).into(), upper)),
+                .add(Expr::col(Char::Ascii).between(Expr::val(9), upper)),
         )
         .to_string();
     assert_eq!(

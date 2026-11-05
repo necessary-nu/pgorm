@@ -510,7 +510,7 @@ known limitations.
 > column names, each paired with its field type's spelling and that type's
 > `TryGetable::accepts`, so an entity model can be checked against a raw statement
 > (`exec.verify`); ignored fields read no column and are left out. `ModelTrait`: `get` clones the field and
-> converts it `.into()` a `Value`; `set` converts through `ValueType::try_from` and
+> converts it `.into()` a `Value`; `set` converts through `ValueType::from_value` and
 > assigns, answering `Error::Type("value does not match the type of {Model} field
 > {field}")` when the value is of another type. Ignored fields have no match arm, so
 > `get` on them panics with "field does not exist on {Model}" and `set` returns that
@@ -787,7 +787,7 @@ known limitations.
 > for a range, and for a multirange reading the column's text (which its
 > `select_as` casts it to) and parsing it with `Multirange<T>`'s `FromStr`, a
 > failure being `TryGetError::Db` naming the newtype — with `accepts`
-> answering as what it reads does, and `ValueType`: `try_from` parses a
+> answering as what it reads does, and `ValueType`: `from_value` parses a
 > `Value::String` with the held type's `FromStr` and refuses anything else,
 > `type_name()` is the struct name, `array_type()` is `String`, and
 > `column_type()` is `ColumnType::CreatedRange` or `CreatedMultirange`

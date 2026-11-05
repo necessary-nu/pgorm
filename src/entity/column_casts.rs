@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use pgorm_query::{ColumnType, Expr, SimpleExpr, TypeName, Value};
+use pgorm_query::{ColumnType, Expr, ExprTrait, SimpleExpr, TypeName, Value};
 
 use super::{compared_enum, compared_value_as, save_cast, select_cast};
 use crate::{ColumnTrait, executor::BoundaryCast};

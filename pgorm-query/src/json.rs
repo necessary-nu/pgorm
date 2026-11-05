@@ -39,7 +39,7 @@ pub use value_type::JsonValueType;
 /// One SQL/JSON expression: the payload of [`SimpleExpr::SqlJson`].
 ///
 /// Every form is built through [`Func`](crate::Func) — or, for `IS JSON`,
-/// [`Expr::is_json`](crate::Expr::is_json) — and converts into a
+/// [`ExprTrait::is_json`](crate::ExprTrait::is_json) — and converts into a
 /// [`SimpleExpr`]. The builders' fields are the crate's, so each variant holds
 /// only what its builder could set.
 // [spec:pgorm:def:sql.ast.expr.sql-json+2]
@@ -80,7 +80,7 @@ impl From<SqlJson> for SimpleExpr {
 /// `FORMAT JSON`.
 ///
 /// Every expression converts into one unformatted.
-/// [`Expr::format_json`](crate::Expr::format_json) marks one as JSON text: a
+/// [`ExprTrait::format_json`](crate::ExprTrait::format_json) marks one as JSON text: a
 /// `text` value then embeds as the JSON it spells rather than as a JSON
 /// string, and a `bytea` value is read as UTF-8 JSON — the only encoding
 /// PostgreSQL reads, so `ENCODING UTF8` is never written.

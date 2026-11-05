@@ -13,6 +13,7 @@ use crate::values::read;
 
 pub(super) const EXPORTS: &[(&str, super::Build)] = &[
     ("likeExprNew", like_expr_new),
+    ("likeExprText", like_expr_text),
     ("likeExprEscape", like_expr_escape),
     ("likeExprNoEscape", like_expr_no_escape),
 ];
@@ -20,7 +21,7 @@ pub(super) const EXPORTS: &[(&str, super::Build)] = &[
 /// The pattern a match takes: a `LikeExpr`, or a string, which is the
 /// pattern with the default escape, as pgorm-query's `IntoLikeExpr` reads
 /// one.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 pub(super) fn pattern<'cx>(cx: &mut Cx<'cx>, value: Handle<'cx, JsValue>) -> NeonResult<LikeExpr> {
     match args::node(cx, value) {
         Some(Node::LikeExpr(pattern)) => Ok(pattern),
@@ -49,16 +50,40 @@ fn like_expr_at(cx: &mut FunctionContext) -> NeonResult<LikeExpr> {
 }
 
 /// `likeExprNew(pattern)`: `LikeExpr::new`, the default backslash escape.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 fn like_expr_new(cx: &mut FunctionContext) -> NeonResult<Node> {
     let pattern = arg(cx, 0);
     let pattern = read::text(cx, pattern, "a LIKE or SIMILAR TO pattern")?;
     Ok(Node::LikeExpr(LikeExpr::new(pattern)))
 }
 
+/// `likeExprText(text, shape)`: a pattern over literal text, its `%`, `_`
+/// and escape character escaped, the shape naming the `LikeExpr`
+/// constructor — `literal`, `containing`, `startingWith` or `endingWith`.
+// [spec:pgorm:req:bindings.expressions+4]
+fn like_expr_text(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let text = arg(cx, 0);
+    let text = read::text(cx, text, "a LIKE pattern's text")?;
+    let shape = arg(cx, 1);
+    let shape = read::text(cx, shape, "a LIKE pattern's shape")?;
+    let pattern = match shape.as_str() {
+        "literal" => LikeExpr::literal(text),
+        "containing" => LikeExpr::containing(text),
+        "startingWith" => LikeExpr::starting_with(text),
+        "endingWith" => LikeExpr::ending_with(text),
+        _ => {
+            return refuse(
+                cx,
+                "a LIKE pattern's shape is literal, containing, startingWith or endingWith",
+            );
+        }
+    };
+    Ok(Node::LikeExpr(pattern))
+}
+
 /// `likeExprEscape(pattern, character)`: `LikeExpr::escape`, one character
 /// and not NUL, which a literal cannot hold.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 fn like_expr_escape(cx: &mut FunctionContext) -> NeonResult<Node> {
     let pattern = like_expr_at(cx)?;
     let escape = arg(cx, 1);
@@ -76,7 +101,7 @@ fn like_expr_escape(cx: &mut FunctionContext) -> NeonResult<Node> {
 }
 
 /// `likeExprNoEscape(pattern)`: `LikeExpr::no_escape`, `ESCAPE ''`.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 fn like_expr_no_escape(cx: &mut FunctionContext) -> NeonResult<Node> {
     let pattern = like_expr_at(cx)?;
     Ok(Node::LikeExpr(pattern.no_escape()))

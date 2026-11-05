@@ -130,7 +130,7 @@ fn stock_new() -> MergeInsert {
 /// holds takes each: 3, over 10, is halved by the conditional arm, and 2 is
 /// deleted by the unconditional one, which renders after it whatever order
 /// the calls came in. The matched and not-matched rows take their own arms.
-// [spec:pgorm:req:sql.ast.merge+1/test]    against a live server: by-source arms take the target
+// [spec:pgorm:req:sql.ast.merge+2/test]    against a live server: by-source arms take the target
 // rows no source row matched, the conditional arm first
 // [spec:pgorm:req:sql.render.merge+1/test]
 async fn by_source_arms_take_unmatched_target_rows(db: &DatabaseConnection) -> Result<(), Error> {
@@ -158,7 +158,7 @@ async fn by_source_arms_take_unmatched_target_rows(db: &DatabaseConnection) -> R
 
 /// A target row no source row matched has no source row to read, in its
 /// arm's condition or in its update.
-// [spec:pgorm:req:sql.ast.merge+1/test]    against a live server: a by-source arm reading the
+// [spec:pgorm:req:sql.ast.merge+2/test]    against a live server: a by-source arm reading the
 // source is refused (42P01)
 async fn a_by_source_arm_cannot_read_the_source(db: &DatabaseConnection) -> Result<(), Error> {
     reset(db).await?;
@@ -180,7 +180,7 @@ async fn a_by_source_arm_cannot_read_the_source(db: &DatabaseConnection) -> Resu
 /// versions: an update's old and new rows, an insert's new row with no old,
 /// a delete's old row with no new. A target column named bare reads the
 /// deleted row as it was.
-// [spec:pgorm:req:sql.ast.merge+1/test]    against a live server: `merge_action()` names each
+// [spec:pgorm:req:sql.ast.merge+2/test]    against a live server: `merge_action()` names each
 // row's action, `old` / `new` hold what the action produced, and a bare name both relations
 // have is ambiguous (42702)
 // [spec:pgorm:def:sql.ast.returning+3/test]    on a MERGE
@@ -226,7 +226,7 @@ async fn returning_reports_each_row_and_its_action(db: &DatabaseConnection) -> R
 }
 
 /// `DO NOTHING` leaves a row alone, and a row left alone is not returned.
-// [spec:pgorm:req:sql.ast.merge+1/test]    against a live server: a DO NOTHING row is not returned
+// [spec:pgorm:req:sql.ast.merge+2/test]    against a live server: a DO NOTHING row is not returned
 async fn a_row_left_alone_is_not_returned(db: &DatabaseConnection) -> Result<(), Error> {
     reset(db).await?;
     let merge = by_sku()
@@ -250,7 +250,7 @@ async fn a_row_left_alone_is_not_returned(db: &DatabaseConnection) -> Result<(),
 /// function call cannot reach it, because the name is quoted and the quoted
 /// name is no function, and the bare keyword outside a MERGE's list is
 /// refused, which is why the builder has no expression for it.
-// [spec:pgorm:req:sql.ast.merge+1/test]    against a live server: `merge_action()` outside a
+// [spec:pgorm:req:sql.ast.merge+2/test]    against a live server: `merge_action()` outside a
 // MERGE's RETURNING is refused (42601), and `Func::named` writes no such function (42883)
 async fn merge_action_resolves_only_in_a_merge_list(db: &DatabaseConnection) -> Result<(), Error> {
     reset(db).await?;

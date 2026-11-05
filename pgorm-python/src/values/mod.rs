@@ -13,7 +13,7 @@ mod types;
 #[cfg(test)]
 mod variants;
 
-use pgorm::pgorm_query::{ArrayType, Expr, SimpleExpr, Value};
+use pgorm::pgorm_query::{ArrayType, Expr, ExprTrait, SimpleExpr, Value};
 use pyo3::{
     prelude::*,
     types::{PyList, PyTuple},
@@ -135,7 +135,7 @@ impl PyValue {
 
     /// `expression`, which holds this value, written as its type needs: an
     /// enum label cast to its enum, a created range's text cast to its range
-    /// through `Expr::as_range` and an array of them to the range's array,
+    /// through `ExprTrait::as_range` and an array of them to the range's array,
     /// anything else as it is.
     pub(crate) fn typed(&self, expression: SimpleExpr) -> SimpleExpr {
         if let Some(cast) = self.enum_cast() {

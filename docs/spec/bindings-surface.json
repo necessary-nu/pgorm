@@ -60,7 +60,7 @@
       "JsonInput": [],
       "JsonTableColumn": ["exists", "nested", "ordinality", "query", "value"],
       "LifecycleError": [],
-      "LikeExpr": ["escape", "no_escape"],
+      "LikeExpr": ["containing", "ending_with", "escape", "literal", "no_escape", "starting_with"],
       "Listener": ["close", "listen", "unlisten", "unlisten_all"],
       "Merge": ["inspect", "only", "returning", "returning_action", "when_matched", "when_not_matched", "when_not_matched_by_source", "with"],
       "MergeAction": ["delete", "do_nothing", "insert", "insert_defaults", "update"],

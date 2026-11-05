@@ -20,7 +20,7 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:exec.crud+1/test]    `into_values` decoding through
+// [spec:pgorm:def:exec.crud+2/test]    `into_values` decoding through
 // `SelectGetableValue` and `into_tuple` through `SelectGetableTuple`
 // [spec:pgorm:sem:exec.crud.update+7/test]    `UpdateOne::exec` returns the
 // updated model, and surfaces RecordNotFound when the filter matches nothing

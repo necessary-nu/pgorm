@@ -264,7 +264,7 @@ impl TypeName {
     /// nothing quoted or escaped.
     ///
     /// The only constructor of a verbatim type, and the one
-    /// [`Expr::cast_as_raw`](crate::Expr::cast_as_raw) and the derive's
+    /// [`ExprTrait::cast_as_raw`](crate::ExprTrait::cast_as_raw) and the derive's
     /// `select_as` / `save_as` attributes reach. Its argument is a literal
     /// written in the calling source: the text is program text the author
     /// already controls, never data, so rendering it as SQL adds no reach that
@@ -515,7 +515,7 @@ pub enum FromItem {
     JsonTable(Box<crate::JsonTable>, Name),
     /// A function with an ordinal column, column names or `ROWS FROM`, with
     /// alias, built by [`TableFunction::alias`](crate::TableFunction::alias).
-    // [spec:pgorm:req:sql.ast.select.table-function+2]
+    // [spec:pgorm:req:sql.ast.select.table-function+3]
     TableFunction(Box<crate::TableFunction>, Name),
     /// A table read through `TABLESAMPLE`, its alias on the table it samples.
     // [spec:pgorm:req:sql.ast.select.table-sample]
@@ -810,30 +810,8 @@ pub enum Keyword {
     Value,
 }
 
-/// A `LIKE`, `ILIKE` or `SIMILAR TO` pattern, with the `ESCAPE` tail the
-/// grammar admits only there.
-// [spec:pgorm:req:sql.ast.expr.similar-to+1]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LikeExpr {
-    pub(crate) pattern: String,
-    pub(crate) escape: Option<LikeEscape>,
-}
-
-/// What a pattern's `ESCAPE` holds: one character, or nothing, which turns
-/// escaping off. PostgreSQL refuses anything longer (`22025`), so nothing
-/// longer has a spelling.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum LikeEscape {
-    Char(char),
-    Off,
-}
-
-pub trait IntoLikeExpr {
-    fn into_like_expr(self) -> LikeExpr;
-}
-
 /// SubQuery operators
-// [spec:pgorm:def:sql.ast.expr+7]
+// [spec:pgorm:def:sql.ast.expr+8]
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum SubQueryOper {
@@ -1088,66 +1066,6 @@ impl FromItem {
 impl SqlName for RuntimeName {
     fn unquoted(&self, s: &mut dyn fmt::Write) {
         write!(s, "{}", self.0).unwrap();
-    }
-}
-
-impl LikeExpr {
-    pub fn new<T>(pattern: T) -> Self
-    where
-        T: Into<String>,
-    {
-        Self {
-            pattern: pattern.into(),
-            escape: None,
-        }
-    }
-
-    /// Escape with `c`, `ESCAPE 'c'`, in place of the default backslash.
-    pub fn escape(self, c: char) -> Self {
-        Self {
-            pattern: self.pattern,
-            escape: Some(LikeEscape::Char(c)),
-        }
-    }
-
-    /// Turn escaping off, `ESCAPE ''`: every character of the pattern, a
-    /// backslash included, is then literal or a wildcard.
-    ///
-    /// ```
-    /// use pgorm_query::{*, tests_cfg::*};
-    ///
-    /// let query = Query::select()
-    ///     .column(Glyph::Image)
-    ///     .from(Glyph::Table)
-    ///     .and_where(Expr::col(Glyph::Image).like(LikeExpr::new(r"a\b").no_escape()))
-    ///     .to_owned();
-    ///
-    /// assert_eq!(
-    ///     query.to_string(),
-    ///     r#"SELECT "image" FROM "glyph" WHERE "image" LIKE E'a\\b' ESCAPE ''"#
-    /// );
-    /// ```
-    // [spec:pgorm:req:sql.ast.expr.similar-to+1]
-    pub fn no_escape(self) -> Self {
-        Self {
-            pattern: self.pattern,
-            escape: Some(LikeEscape::Off),
-        }
-    }
-}
-
-impl IntoLikeExpr for LikeExpr {
-    fn into_like_expr(self) -> LikeExpr {
-        self
-    }
-}
-
-impl<T> IntoLikeExpr for T
-where
-    T: Into<String>,
-{
-    fn into_like_expr(self) -> LikeExpr {
-        LikeExpr::new(self)
     }
 }
 

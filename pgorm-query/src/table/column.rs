@@ -248,7 +248,7 @@ impl ColumnType {
     /// [`TypeName`]'s part policy, so a runtime `String` is safe here.
     /// A type *expression* — `numeric(12, 2)` — is grammar rather than a
     /// name and belongs in
-    /// [`Expr::cast_as_raw`](crate::Expr::cast_as_raw).
+    /// [`ExprTrait::cast_as_raw`](crate::ExprTrait::cast_as_raw).
     // [spec:pgorm:req:sql.render.ident-quoting+7]
     pub fn named<T>(ty: T) -> ColumnType
     where

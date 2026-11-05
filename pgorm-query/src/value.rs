@@ -22,10 +22,12 @@ pub use mac_address::MacAddress;
 
 pub use pgvector::Vector;
 
-use crate::{ColumnType, Interval, Multirange, QueryBuilder, Range, RangeType, StringLen};
+use crate::{
+    ArrayElement, ColumnType, Interval, Multirange, QueryBuilder, Range, RangeType, StringLen,
+};
 
 /// [`Value`] types variant for Postgres array
-// [spec:pgorm:def:sql.value.array+6]
+// [spec:pgorm:def:sql.value.array+7]
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum ArrayType {
@@ -150,9 +152,9 @@ impl std::fmt::Display for Value {
     }
 }
 
-// [spec:pgorm:def:sql.value.value-type+4]
+// [spec:pgorm:def:sql.value.value-type+5]
 pub trait ValueType: Sized {
-    fn try_from(v: Value) -> Result<Self, ValueTypeError>;
+    fn from_value(v: Value) -> Result<Self, ValueTypeError>;
 
     fn type_name() -> String;
 
@@ -360,7 +362,7 @@ macro_rules! type_to_value {
         }
 
         impl ValueType for $type {
-            fn try_from(v: Value) -> Result<Self, ValueTypeError> {
+            fn from_value(v: Value) -> Result<Self, ValueTypeError> {
                 match v {
                     Value::$name(Some(x)) => Ok(x),
                     _ => Err(ValueTypeError),
@@ -398,7 +400,7 @@ macro_rules! type_to_box_value {
         }
 
         impl ValueType for $type {
-            fn try_from(v: Value) -> Result<Self, ValueTypeError> {
+            fn from_value(v: Value) -> Result<Self, ValueTypeError> {
                 match v {
                     Value::$name(Some(x)) => Ok(*x),
                     _ => Err(ValueTypeError),
@@ -471,16 +473,16 @@ where
     }
 }
 
-// [spec:pgorm:def:sql.value.value-type+4]
+// [spec:pgorm:def:sql.value.value-type+5]
 impl<T> ValueType for Option<T>
 where
     T: ValueType + Nullable,
 {
-    fn try_from(v: Value) -> Result<Self, ValueTypeError> {
+    fn from_value(v: Value) -> Result<Self, ValueTypeError> {
         if v == T::null() {
             Ok(None)
         } else {
-            Ok(Some(T::try_from(v)?))
+            Ok(Some(T::from_value(v)?))
         }
     }
 
@@ -504,7 +506,7 @@ impl From<Cow<'_, str>> for Value {
 }
 
 impl ValueType for Cow<'_, str> {
-    fn try_from(v: Value) -> Result<Self, ValueTypeError> {
+    fn from_value(v: Value) -> Result<Self, ValueTypeError> {
         match v {
             Value::String(Some(x)) => Ok((*x).into()),
             _ => Err(ValueTypeError),
@@ -553,7 +555,7 @@ mod with_jiff {
     }
 
     impl ValueType for Timestamp {
-        fn try_from(v: Value) -> Result<Self, ValueTypeError> {
+        fn from_value(v: Value) -> Result<Self, ValueTypeError> {
             match v {
                 Value::DateTimeWithTimeZone(Some(x)) => Ok(*x),
                 _ => Err(ValueTypeError),
@@ -602,7 +604,7 @@ mod with_uuid {
             }
 
             impl ValueType for $type {
-                fn try_from(v: Value) -> Result<Self, ValueTypeError> {
+                fn from_value(v: Value) -> Result<Self, ValueTypeError> {
                     match v {
                         Value::Uuid(Some(x)) => Ok(x.$conversion_fn()),
                         _ => Err(ValueTypeError),
@@ -642,7 +644,7 @@ mod with_mac_address {
     type_to_box_value!(MacAddress, MacAddress, MacAddr);
 }
 
-// [spec:pgorm:def:sql.value.array+6]
+// [spec:pgorm:def:sql.value.array+7]
 pub mod with_array {
     use super::*;
     use std::sync::Arc;
@@ -718,10 +720,10 @@ pub mod with_array {
     where
         T: NotU8 + ValueType,
     {
-        fn try_from(v: Value) -> Result<Self, ValueTypeError> {
+        fn from_value(v: Value) -> Result<Self, ValueTypeError> {
             match v {
                 Value::Array(ty, Some(v)) if T::array_type() == ty => {
-                    v.into_iter().map(T::try_from).collect()
+                    v.into_iter().map(T::from_value).collect()
                 }
                 _ => Err(ValueTypeError),
             }
@@ -758,7 +760,7 @@ mod with_vector {
     }
 
     impl ValueType for pgvector::Vector {
-        fn try_from(v: Value) -> Result<Self, ValueTypeError> {
+        fn from_value(v: Value) -> Result<Self, ValueTypeError> {
             match v {
                 Value::Vector(Some(x)) => Ok(*x),
                 _ => Err(ValueTypeError),
@@ -918,14 +920,14 @@ impl Value {
     /// an empty iterator still names its element type: an untagged empty array
     /// has no inline spelling PostgreSQL can type, and no element to infer one
     /// from.
-    // [spec:pgorm:def:sql.value.array+6]
+    // [spec:pgorm:def:sql.value.array+7]
     pub fn array<V, I>(values: I) -> Self
     where
-        V: Into<Value> + ValueType,
+        V: ArrayElement,
         I: IntoIterator<Item = V>,
     {
         Self::Array(
-            V::array_type(),
+            V::element_type(),
             Some(Box::new(values.into_iter().map(Into::into).collect())),
         )
     }
@@ -1041,7 +1043,7 @@ fn tuple_element<T>(value: Value, position: usize) -> Result<T, ValueTupleError>
 where
     T: ValueType,
 {
-    <T as ValueType>::try_from(value).map_err(|_| ValueTupleError::Element {
+    <T as ValueType>::from_value(value).map_err(|_| ValueTupleError::Element {
         position,
         expected: T::type_name(),
     })
@@ -1158,7 +1160,7 @@ mod tests {
             ( $type: ty, $val: literal ) => {
                 let val: $type = $val;
                 let v: Value = val.into();
-                let out: $type = <$type as ValueType>::try_from(v).unwrap();
+                let out: $type = <$type as ValueType>::from_value(v).unwrap();
                 assert_eq!(out, val);
             };
         }
@@ -1170,14 +1172,14 @@ mod tests {
         test_value!(i64, 8589934592);
     }
 
-    // [spec:pgorm:def:sql.value.value-type+4/test]
+    // [spec:pgorm:def:sql.value.value-type+5/test]
     #[test]
     fn test_option_value() {
         macro_rules! test_some_value {
             ( $type: ty, $val: literal ) => {
                 let val: Option<$type> = Some($val);
                 let v: Value = val.into();
-                let out: $type = <$type as ValueType>::try_from(v).unwrap();
+                let out: $type = <$type as ValueType>::from_value(v).unwrap();
                 assert_eq!(out, val.unwrap());
             };
         }
@@ -1208,7 +1210,7 @@ mod tests {
         let val: Cow<str> = "hello".into();
         let val2 = val.clone();
         let v: Value = val.into();
-        let out: Cow<str> = <Cow<str> as ValueType>::try_from(v).unwrap();
+        let out: Cow<str> = <Cow<str> as ValueType>::from_value(v).unwrap();
         assert_eq!(out, val2);
     }
 
@@ -1216,7 +1218,7 @@ mod tests {
     fn test_box_value() {
         let val: String = "hello".to_owned();
         let v: Value = val.clone().into();
-        let out: String = <String as ValueType>::try_from(v).unwrap();
+        let out: String = <String as ValueType>::from_value(v).unwrap();
         assert_eq!(out, val);
     }
 
@@ -1518,7 +1520,7 @@ mod tests {
             "b": "hello",
         }};
         let value: Value = json.clone().into();
-        let out: Json = <Json as ValueType>::try_from(value).unwrap();
+        let out: Json = <Json as ValueType>::from_value(value).unwrap();
         assert_eq!(out, json);
     }
 
@@ -1527,7 +1529,7 @@ mod tests {
     fn civil_date_time_round_trips_through_value() {
         let timestamp = jiff::civil::datetime(2020, 1, 1, 2, 2, 2, 0);
         let value: Value = timestamp.into();
-        let out: DateTime = <DateTime as ValueType>::try_from(value).unwrap();
+        let out: DateTime = <DateTime as ValueType>::from_value(value).unwrap();
         assert_eq!(out, timestamp);
     }
 
@@ -1536,7 +1538,7 @@ mod tests {
     fn instant_round_trips_through_value() {
         let instant: Timestamp = "2022-01-02T03:04:05Z".parse().unwrap();
         let value: Value = instant.into();
-        let out: Timestamp = <Timestamp as ValueType>::try_from(value).unwrap();
+        let out: Timestamp = <Timestamp as ValueType>::from_value(value).unwrap();
         assert_eq!(out, instant);
     }
 
@@ -1623,27 +1625,27 @@ mod tests {
     fn test_uuid_value() {
         let uuid = Uuid::parse_str("936DA01F9ABD4d9d80C702AF85C822A8").unwrap();
         let value: Value = uuid.into();
-        let out: Uuid = <Uuid as ValueType>::try_from(value).unwrap();
+        let out: Uuid = <Uuid as ValueType>::from_value(value).unwrap();
         assert_eq!(out, uuid);
 
         let uuid_braced = uuid.braced();
         let value: Value = uuid_braced.into();
-        let out: Uuid = <Uuid as ValueType>::try_from(value).unwrap();
+        let out: Uuid = <Uuid as ValueType>::from_value(value).unwrap();
         assert_eq!(out, uuid);
 
         let uuid_hyphenated = uuid.hyphenated();
         let value: Value = uuid_hyphenated.into();
-        let out: Uuid = <Uuid as ValueType>::try_from(value).unwrap();
+        let out: Uuid = <Uuid as ValueType>::from_value(value).unwrap();
         assert_eq!(out, uuid);
 
         let uuid_simple = uuid.simple();
         let value: Value = uuid_simple.into();
-        let out: Uuid = <Uuid as ValueType>::try_from(value).unwrap();
+        let out: Uuid = <Uuid as ValueType>::from_value(value).unwrap();
         assert_eq!(out, uuid);
 
         let uuid_urn = uuid.urn();
         let value: Value = uuid_urn.into();
-        let out: Uuid = <Uuid as ValueType>::try_from(value).unwrap();
+        let out: Uuid = <Uuid as ValueType>::from_value(value).unwrap();
         assert_eq!(out, uuid);
     }
 
@@ -1655,28 +1657,28 @@ mod tests {
         let num = "2.02";
         let val = Decimal::from_str(num).unwrap();
         let v: Value = val.into();
-        let out: Decimal = <Decimal as ValueType>::try_from(v).unwrap();
+        let out: Decimal = <Decimal as ValueType>::from_value(v).unwrap();
         assert_eq!(out.to_string(), num);
     }
 
-    // [spec:pgorm:def:sql.value.array+6/test]
+    // [spec:pgorm:def:sql.value.array+7/test]
     #[test]
     fn test_array_value() {
         let array = vec![1, 2, 3, 4, 5];
         let v: Value = array.into();
-        let out: Vec<i32> = <Vec<i32> as ValueType>::try_from(v).unwrap();
+        let out: Vec<i32> = <Vec<i32> as ValueType>::from_value(v).unwrap();
         assert_eq!(out, vec![1, 2, 3, 4, 5]);
     }
 
-    // [spec:pgorm:def:sql.value.array+6/test]
+    // [spec:pgorm:def:sql.value.array+7/test]
     #[test]
     fn test_option_array_value() {
         let v: Value = Value::Array(ArrayType::Int, None);
-        let out: Option<Vec<i32>> = <Option<Vec<i32>> as ValueType>::try_from(v).unwrap();
+        let out: Option<Vec<i32>> = <Option<Vec<i32>> as ValueType>::from_value(v).unwrap();
         assert_eq!(out, None);
     }
 
-    // [spec:pgorm:def:sql.value.array+6/test]
+    // [spec:pgorm:def:sql.value.array+7/test]
     #[test]
     fn vector_has_an_array_type_tag() {
         assert_eq!(<Vector as ValueType>::array_type(), ArrayType::Vector);

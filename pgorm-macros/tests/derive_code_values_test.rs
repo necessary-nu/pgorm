@@ -169,6 +169,6 @@ fn projection_keys_are_taken_as_written() {
         .0;
     assert_eq!(
         sql,
-        r#"SELECT "child"."id", "child"."note" AS "text", "score" + $1 AS "next" FROM "child""#
+        r#"SELECT "child"."id", "child"."note" AS "text", "score" + $1::int4 AS "next" FROM "child""#
     );
 }

@@ -1,6 +1,7 @@
 //! Operator precedence: which operands of an operator render bare and which
 //! keep parentheses.
 
+use super::typed_operands::{Side, operator_reads_type};
 use super::*;
 
 impl QueryBuilder {
@@ -16,7 +17,11 @@ impl QueryBuilder {
         let outer = Oper::BinOper(*op);
         let left_bare = self.inner_expr_well_known_greater_precedence(left, &outer)
             || (left.get_bin_oper() == Some(op) && self.well_known_left_associative(op));
-        self.prepare_operand(left, left_bare, sql);
+        if operator_reads_type(op, Side::Left, left) {
+            self.prepare_typed_operand(left, sql);
+        } else {
+            self.prepare_operand(left, left_bare, sql);
+        }
 
         write!(sql, " ").unwrap();
         self.prepare_bin_oper(op, sql);
@@ -34,6 +39,9 @@ impl QueryBuilder {
                 write!(sql, " AND ").unwrap();
                 let upper_bare = self.inner_expr_well_known_greater_precedence(upper, &outer);
                 self.prepare_operand(upper, upper_bare, sql);
+            }
+            _ if operator_reads_type(op, Side::Right, right) => {
+                self.prepare_typed_operand(right, sql);
             }
             _ => {
                 let right_bare = self.inner_expr_well_known_greater_precedence(right, &outer);
