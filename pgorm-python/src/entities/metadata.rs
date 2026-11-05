@@ -37,7 +37,7 @@ impl InputKind {
             ColumnType::Double => ArrayType::Double,
             // A `money` column is read as `numeric` and written cast to
             // `money` by the entity's own casts, so its values are decimals.
-            // [spec:pgorm:req:bindings.entities+4]
+            // [spec:pgorm:req:bindings.entities+5]
             ColumnType::Decimal(_) | ColumnType::Money => ArrayType::Decimal,
             ColumnType::Boolean => ArrayType::Bool,
             ColumnType::Date => ArrayType::Date,
@@ -163,7 +163,7 @@ impl InputKind {
     }
 
     /// The kind as `describe()` spells it.
-    // [spec:pgorm:req:bindings.entities+4]
+    // [spec:pgorm:req:bindings.entities+5]
     fn key(&self) -> Option<String> {
         self.tag().map(|tag| tag.key())
     }
@@ -226,6 +226,9 @@ pub(crate) struct EntityInfo {
     /// Whether the key's last part is a period matched `WITHOUT OVERLAPS`.
     /// A lookup, update or delete by the key still compares it for equality.
     pub(crate) without_overlaps: bool,
+    /// The table's unique keys over two columns or more, as the entity's
+    /// `EntityName::unique_keys` declares them.
+    pub(crate) unique_keys: &'static [pgorm::UniqueKey],
     pub(crate) relations: Vec<Json>,
 }
 
@@ -286,6 +289,7 @@ impl EntityInfo {
             columns,
             primary_key: keys,
             without_overlaps: <E::PrimaryKey as PrimaryKeyTrait>::without_overlaps(),
+            unique_keys: entity.unique_keys(),
             relations: super::relations::describe::<E>(),
             entity_type: std::any::type_name::<E>(),
             column_type: std::any::type_name::<E::Column>(),
@@ -302,7 +306,7 @@ impl EntityInfo {
     }
 
     /// The registration as `describe()` gives it.
-    // [spec:pgorm:req:bindings.entities+4]
+    // [spec:pgorm:req:bindings.entities+5]
     pub(crate) fn describe(&self) -> Json {
         json!({
             "name": self.name,
@@ -311,6 +315,15 @@ impl EntityInfo {
             "columns": self.columns.iter().map(ColumnInfo::describe).collect::<Vec<_>>(),
             "primary_key": self.primary_key,
             "primary_key_without_overlaps": self.without_overlaps,
+            "unique_keys": self
+                .unique_keys
+                .iter()
+                .map(|key| json!({
+                    "name": key.name,
+                    "columns": key.columns,
+                    "nulls_not_distinct": key.nulls_not_distinct,
+                }))
+                .collect::<Vec<_>>(),
             "relations": self.relations,
             "rust": {
                 "entity": self.entity_type,
@@ -333,7 +346,7 @@ mod tests {
         InputKind::from_column(ty).key()
     }
 
-    // [spec:pgorm:req:bindings.entities+4/test]    a range column is described by its range kind,
+    // [spec:pgorm:req:bindings.entities+5/test]    a range column is described by its range kind,
     // and a registered entity's range field takes a `pgorm.Range` as its value
     #[test]
     fn range_columns_take_their_range_kind() -> PyResult<()> {
@@ -385,7 +398,7 @@ mod tests {
         })
     }
 
-    // [spec:pgorm:req:bindings.entities+4/test]    a created range column is described by its
+    // [spec:pgorm:req:bindings.entities+5/test]    a created range column is described by its
     // created kind, and a registered entity's field takes a `pgorm.Range` and reads back tagged
     // with the type
     #[test]

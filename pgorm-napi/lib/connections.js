@@ -195,7 +195,7 @@ export function disjointStream(db, statement, disjoint, options) {
  * addon — on a pool's connection, a connection or a transaction, with the
  * operation a statement gets around it: the busy refusal, the abort, the
  * discard of a connection an abort left in an unknown state.
- * [spec:pgorm:req:bindings.entities+4]
+ * [spec:pgorm:req:bindings.entities+5]
  * [spec:pgorm:req:bindings.registered-pools]
  *
  * @param {unknown} db

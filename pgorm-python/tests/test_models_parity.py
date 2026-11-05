@@ -141,7 +141,7 @@ def canonical(value):
 
 
 class ModelParity(unittest.TestCase):
-    # [spec:pgorm:req:bindings.models+4/test]
+    # [spec:pgorm:req:bindings.models+5/test]
     def test_the_cases_are_the_golden_files(self):
         self.assertEqual(sorted(CASES), sorted(GOLDEN))
 

@@ -17,7 +17,7 @@ fn quoted(name: &PyTypeName) -> String {
 }
 
 impl Tag {
-    // [spec:pgorm:req:bindings.models+4]
+    // [spec:pgorm:req:bindings.models+5]
     pub(crate) fn key(&self) -> String {
         match self {
             Self::Scalar(kind) => kind.kind_name().to_owned(),
@@ -58,7 +58,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:req:bindings.models+4/test]    a kind is spelled as a decoded column's is
+    // [spec:pgorm:req:bindings.models+5/test]    a kind is spelled as a decoded column's is
     // compared: a scalar's name, an enum's quoted type, a created range's type and subtype,
     // and an array's element followed by `[]`
     #[test]

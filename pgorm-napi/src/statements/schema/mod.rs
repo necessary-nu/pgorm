@@ -25,7 +25,8 @@ mod table;
 mod types;
 mod view;
 
-pub(super) use options::{get, integer, names, object, pick, relation, text};
+pub(crate) use options::relation;
+pub(super) use options::{get, integer, names, object, pick, text};
 
 use pgorm::pgorm_query::{
     ColumnDef, ColumnRenameStatement, CommentStatement, ConstraintRenameStatement,

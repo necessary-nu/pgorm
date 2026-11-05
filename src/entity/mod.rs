@@ -47,6 +47,7 @@ mod key;
 mod link;
 mod model;
 mod one_of;
+mod one_of_shape;
 mod partial_model;
 /// Re-export common types from the entity
 pub mod prelude;
@@ -64,6 +65,7 @@ pub use key::*;
 pub use link::*;
 pub use model::*;
 pub use one_of::*;
+pub use one_of_shape::*;
 pub use partial_model::*;
 // pub use prelude::*;
 pub use primary_key::*;

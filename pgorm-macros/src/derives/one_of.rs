@@ -60,7 +60,7 @@ fn attrs(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<Vec<Meta>> {
         .collect())
 }
 
-// [spec:pgorm:def:disjoint.one-of+3]
+// [spec:pgorm:def:disjoint.one-of+4]
 // [spec:pgorm:req:macros.derive.code-values+3]
 fn container(input: &DeriveInput) -> syn::Result<Container> {
     let mut entity = None;
@@ -97,7 +97,7 @@ fn container(input: &DeriveInput) -> syn::Result<Container> {
     })
 }
 
-// [spec:pgorm:def:disjoint.one-of+3]
+// [spec:pgorm:def:disjoint.one-of+4]
 // [spec:pgorm:req:macros.derive.code-values+3]
 fn reference(variant: &Variant) -> syn::Result<Reference> {
     let mut column = None;
@@ -178,7 +178,7 @@ fn reference(variant: &Variant) -> syn::Result<Reference> {
 /// names its `CHECK` `ck-{enum}` where its table's name leaves no room, and
 /// pgorm-codegen names the enum it generates for that, so the name has to fit
 /// whole within PostgreSQL's 63.
-// [spec:pgorm:def:disjoint.one-of+3]
+// [spec:pgorm:def:disjoint.one-of+4]
 pub fn expand_derive_one_of(input: DeriveInput) -> syn::Result<TokenStream> {
     let Data::Enum(data) = &input.data else {
         return Err(syn::Error::new(
@@ -246,7 +246,7 @@ pub fn expand_derive_one_of(input: DeriveInput) -> syn::Result<TokenStream> {
 ///
 /// Both repeat the enum's variants, which clippy's `enum_variant_names`
 /// judges where the enum is declared, so it is allowed on them.
-// [spec:pgorm:def:disjoint.one-of+3]
+// [spec:pgorm:def:disjoint.one-of+4]
 fn generated_enums(
     input: &DeriveInput,
     container: &Container,
@@ -307,7 +307,7 @@ fn generated_enums(
 /// `OneOf` for the enum: its entity, its generated enums, its name in
 /// snake_case, its unit variant, and a visit of its targets, each requiring
 /// the entity's relation to the target.
-// [spec:pgorm:def:disjoint.one-of+3]
+// [spec:pgorm:def:disjoint.one-of+4]
 fn impl_one_of(
     input: &DeriveInput,
     name: &str,
@@ -354,11 +354,12 @@ fn impl_one_of(
     }
 }
 
-/// `OneOfTarget` for one target's entity. The column is typed as the
-/// entity's `Column`, so another entity's does not compile, and is read
+/// `OneOfTarget` for one target's entity, named as its variant is in
+/// snake_case. The column is typed as the entity's `Column`, so another
+/// entity's does not compile, and is read
 /// through the field its entity's `Model` declares for it, bound as `Option`
 /// of the target's key type, so a field of any other type does not compile.
-// [spec:pgorm:def:disjoint.one-of+3]
+// [spec:pgorm:def:disjoint.one-of+4]
 fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenStream {
     let base = &container.entity;
     let key_ident = format_ident!("{}Key", ident);
@@ -372,6 +373,7 @@ fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenSt
     let column_const = quote_spanned! {column.span()=>
         const COLUMN: <#base as pgorm::EntityTrait>::Column = #column;
     };
+    let value = trim_starting_raw_identifier(variant).to_snake_case();
     // Bound under the target's span and used under the column's, which a
     // `macro_rules!` may have written in two hygiene contexts, so it takes
     // the call site's at both.
@@ -385,6 +387,8 @@ fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenSt
     quote_spanned! {entity.span()=>
         #[automatically_derived]
         impl pgorm::OneOfTarget<#ident> for #entity {
+            const NAME: &'static str = #value;
+
             #column_const
 
             #[allow(clippy::clone_on_copy)]
@@ -427,7 +431,7 @@ fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenSt
 /// A constant for each pair of targets refusing, as it is evaluated, two
 /// variants naming one column. Both columns are the entity's `Column`, so
 /// equal discriminants are one column, however each path is written.
-// [spec:pgorm:def:disjoint.one-of+3]
+// [spec:pgorm:def:disjoint.one-of+4]
 fn distinct_columns(targets: &[&Target]) -> TokenStream {
     let mut checks = TokenStream::new();
     for (index, second) in targets.iter().enumerate() {

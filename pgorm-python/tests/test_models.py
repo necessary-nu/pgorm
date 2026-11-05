@@ -31,7 +31,7 @@ def accounts():
 
 
 class ModelConstruction(unittest.TestCase):
-    # [spec:pgorm:req:bindings.models+4/test]
+    # [spec:pgorm:req:bindings.models+5/test]
     def test_descriptor_names_and_values_are_owned(self):
         from pgorm.models.columns import MODEL_KINDS
 
@@ -70,7 +70,7 @@ class ModelConstruction(unittest.TestCase):
         self.assertEqual(write.inspect().params[-1].value, ["a"])
         self.assertEqual(write.inspect().params[0].kind, "i32")
 
-    # [spec:pgorm:req:bindings.models+4/test]
+    # [spec:pgorm:req:bindings.models+5/test]
     def test_describe_reports_each_fields_declaration(self):
         model = p.Model(
             "accounts",
@@ -103,13 +103,69 @@ class ModelConstruction(unittest.TestCase):
                      "nullable": False, "primary_key": False, "default": False, "generated": None,
                      "values": None},
         })
-        self.assertEqual(set(described), {"schema", "table", "alias", "primary_key", "fields"})
+        self.assertEqual(
+            set(described), {"schema", "table", "alias", "primary_key", "unique_keys", "fields"}
+        )
+        self.assertEqual(described["unique_keys"], [])
         for name in ("describe", "validate", "value"):
             with self.subTest(method=name):
                 self.assertFalse(hasattr(model.columns["id"], name))
         self.assertFalse(hasattr(model.col("id"), "describe"))
 
-    # [spec:pgorm:req:bindings.models+4/test]
+    # [spec:pgorm:req:bindings.model-unique-keys+1/test]    a model declares its unique keys in order, one field or several, named or not and NULLS NOT DISTINCT or not, describes each and keeps them under an alias, sending nothing
+    def test_unique_keys_are_declared_and_described(self):
+        columns = {
+            "id": p.Column("i32", primary_key=True),
+            "handle": p.Column("text", name="user handle"),
+            "realm": p.Column("text", nullable=True),
+        }
+        model = p.Model(
+            "members",
+            columns,
+            unique_keys=[
+                {"fields": ("realm", "handle"), "name": "members_realm_handle", "nulls_not_distinct": True},
+                {"fields": "handle"},
+            ],
+        )
+        expected = [
+            {"name": "members_realm_handle", "fields": ["realm", "handle"], "nulls_not_distinct": True},
+            {"name": None, "fields": ["handle"], "nulls_not_distinct": False},
+        ]
+        self.assertEqual(model.describe()["unique_keys"], expected)
+        self.assertEqual(model.as_("m").describe()["unique_keys"], expected)
+        self.assertEqual(p.Model("members", columns).describe()["unique_keys"], [])
+
+    # [spec:pgorm:req:bindings.model-unique-keys+1/test]    a unique key naming no field, a field the model lacks or a field twice, or a name that is no identifier, is a ConstructionError as the model is declared; a key of another type, an unknown option and a mistyped field, name or flag a TypeError
+    def test_unique_keys_refuse_what_postgres_refuses(self):
+        columns = {"id": p.Column("i32", primary_key=True), "handle": p.Column("text")}
+
+        def declare(*keys):
+            return p.Model("members", columns, unique_keys=list(keys))
+
+        for keys, message in (
+            (({"fields": []},), "at least one field"),
+            (({},), "at least one field"),
+            (({"fields": ["handle", "missing"]},), "'missing', which is no field"),
+            (({"fields": ["handle", "id", "handle"]},), "'handle' twice"),
+            (({"fields": ["handle"], "name": ""},), "identifier"),
+            (({"fields": ["handle"], "name": "k" * 64},), "identifier"),
+        ):
+            with self.subTest(keys=keys), self.assertRaises(p.ConstructionError) as raised:
+                declare(*keys)
+            self.assertIn(message, str(raised.exception))
+        for operation in (
+            lambda: p.Model("members", columns, unique_keys={"fields": "handle"}),
+            lambda: declare(("handle", "id")),
+            lambda: declare({"fields": ["handle"], "nulls_distinct": False}),
+            lambda: declare({"fields": 7}),
+            lambda: declare({"fields": [7]}),
+            lambda: declare({"fields": ["handle"], "name": 7}),
+            lambda: declare({"fields": ["handle"], "nulls_not_distinct": 1}),
+        ):
+            with self.assertRaises(TypeError):
+                operation()
+
+    # [spec:pgorm:req:bindings.models+5/test]
     def test_unknown_fields_and_collisions_fail_early(self):
         model = accounts()
         for operation in (
@@ -562,7 +618,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             p.Column(floatrange, array=True)
 
-    # [spec:pgorm:req:bindings.models+4/test]
+    # [spec:pgorm:req:bindings.models+5/test]
     # [spec:pgorm:req:bindings.model-records+1/test]
     # [spec:pgorm:req:bindings.created-ranges+1/test]
     async def test_created_multirange_columns_read_and_write(self):

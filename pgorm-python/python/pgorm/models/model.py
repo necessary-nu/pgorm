@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Required, TypedDict, cast
 
 from .. import _native as p
 from .columns import Column, ModelColumn
@@ -17,12 +17,79 @@ if TYPE_CHECKING:
     from .writes import ModelDelete, ModelInsert, ModelUpdate
 
 
-# [spec:pgorm:req:bindings.models+4]
+# [spec:pgorm:req:bindings.model-unique-keys+1]
+class UniqueKey(TypedDict, total=False):
+    """A unique key of a model's table as it is declared: its fields in key
+    order, the constraint's name, which PostgreSQL chooses when none is
+    given, and whether nulls are equal under it."""
+
+    fields: Required[str | Sequence[str]]
+    name: str | None
+    nulls_not_distinct: bool
+
+
+# [spec:pgorm:req:bindings.model-unique-keys+1]
+@dataclass(frozen=True, slots=True)
+class _DeclaredKey:
+    """A unique key a model declares, its fields checked against the
+    model's."""
+
+    name: str | None
+    fields: tuple[str, ...]
+    nulls_not_distinct: bool
+
+
+_UNIQUE_OPTIONS = frozenset({"fields", "name", "nulls_not_distinct"})
+
+
+# [spec:pgorm:req:bindings.model-unique-keys+1]
+def _unique_key(key: object, declarations: Mapping[str, Column]) -> _DeclaredKey:
+    """``key`` as the model whose fields are ``declarations`` declares it:
+    refused as PostgreSQL or the Rust derive would refuse it, as the model is
+    declared."""
+    if not isinstance(key, Mapping):
+        raise TypeError("a unique key is a mapping of its fields and options")
+    unknown = sorted(str(option) for option in key if option not in _UNIQUE_OPTIONS)
+    if unknown:
+        raise TypeError(
+            f"{unknown[0]!r} is no unique key option: a key takes fields, name and "
+            "nulls_not_distinct"
+        )
+    given = key.get("fields", ())
+    if isinstance(given, str):
+        given = (given,)
+    elif not isinstance(given, (list, tuple)):
+        raise TypeError("a unique key's fields are a field or a list or tuple of them")
+    fields: list[str] = []
+    for field in given:
+        if type(field) is not str:
+            raise TypeError("a unique key's field is named by a string")
+        if field not in declarations:
+            raise p.ConstructionError(f"a unique key names {field!r}, which is no field of the model")
+        if field in fields:
+            raise p.ConstructionError(
+                f"a unique key names {field!r} twice, which PostgreSQL refuses"
+            )
+        fields.append(field)
+    if not fields:
+        raise p.ConstructionError("a unique key names at least one field")
+    name = key.get("name")
+    if name is not None:
+        name = p.Identifier(name).name
+    nulls_not_distinct = key.get("nulls_not_distinct", False)
+    if type(nulls_not_distinct) is not bool:
+        raise TypeError("a unique key's nulls_not_distinct is a bool")
+    return _DeclaredKey(name, tuple(fields), nulls_not_distinct)
+
+
+# [spec:pgorm:req:bindings.models+5]
+# [spec:pgorm:req:bindings.model-unique-keys+1]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
 class Model:
     table: p.Table
     columns: Mapping[str, Column]
     primary_key: tuple[str, ...]
+    _unique_keys: tuple[_DeclaredKey, ...]
 
     def __init__(
         self,
@@ -30,6 +97,7 @@ class Model:
         columns: Mapping[str, Column],
         *,
         schema: str | None = None,
+        unique_keys: Sequence[UniqueKey] = (),
     ) -> None:
         if isinstance(table, p.Table):
             if schema is not None:
@@ -67,6 +135,13 @@ class Model:
             "primary_key",
             tuple(name for name, column in declarations.items() if column.primary_key),
         )
+        if not isinstance(unique_keys, (list, tuple)):
+            raise TypeError("a model's unique_keys are a list or tuple of keys")
+        object.__setattr__(
+            self,
+            "_unique_keys",
+            tuple(_unique_key(key, declarations) for key in unique_keys),
+        )
 
     @property
     def qualifier(self) -> str:
@@ -75,7 +150,9 @@ class Model:
         return self.table.alias or self.table.name
 
     def as_(self, alias: str) -> Model:
-        return Model(self.table.as_(alias), self.columns)
+        aliased = Model(self.table.as_(alias), self.columns)
+        object.__setattr__(aliased, "_unique_keys", self._unique_keys)
+        return aliased
 
     def col(self, field: str) -> ModelColumn:
         return self._column(field, self.qualifier)
@@ -190,15 +267,23 @@ class Model:
         return Graph(State((Table(self, self.qualifier, "root", False),)))
 
     def describe(self) -> dict[str, Any]:
-        """The declaration as data: the table, its primary key, and each
-        field's column with every option it was declared with, its kind
-        spelled as a decoded column's is compared: ``i64``, ``text[]``,
-        ``enum "app"."mood"``."""
+        """The declaration as data: the table, its primary key and unique
+        keys, and each field's column with every option it was declared
+        with, its kind spelled as a decoded column's is compared: ``i64``,
+        ``text[]``, ``enum "app"."mood"``."""
         return {
             "schema": self.table.schema,
             "table": self.table.name,
             "alias": self.table.alias,
             "primary_key": list(self.primary_key),
+            "unique_keys": [
+                {
+                    "name": key.name,
+                    "fields": list(key.fields),
+                    "nulls_not_distinct": key.nulls_not_distinct,
+                }
+                for key in self._unique_keys
+            ],
             "fields": {
                 name: {
                     "column": column.name,

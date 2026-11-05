@@ -10,8 +10,8 @@
 // read: `[base record, kind, kind record or null]`.
 // [spec:pgorm:req:bindings.disjoint+1]
 
-import { TRUSTED } from "./builder.js";
 import { Disjoined, DisjointWrite, handleOf, MADE, viewOf } from "./disjoint-query.js";
+import { statementsOf } from "./disjoint-schema.js";
 import { activeHandleOf, entity, recordOf } from "./entities.js";
 import { ConstructionError } from "./errors.js";
 import { Expr } from "./expressions.js";
@@ -20,17 +20,15 @@ import { decoder } from "./model-decode.js";
 import { fieldOf, shapeOf } from "./model-shape.js";
 import { Model } from "./models.js";
 import { native } from "./operations.js";
-import { AlterTable } from "./schema-alter.js";
-import { CreateTable } from "./schema.js";
-import { CreateType } from "./schema-types.js";
 import { TypeName } from "./values.js";
 
+// [spec:pgorm:req:bindings.model-unique-keys+1]
 /**
  * A model's table as the native shape is described from.
  *
  * @param {import("./model-shape.js").Shape} shape
  */
-function described(shape) {
+export function described(shape) {
   return {
     schema: shape.schema,
     table: shape.name,
@@ -44,6 +42,11 @@ function described(shape) {
       values: column.values,
     })),
     key: shape.primaryKey.map((field) => field.sql),
+    uniqueKeys: shape.uniqueKeys.map((key) => ({
+      name: key.name,
+      columns: key.fields.map((field) => field.sql),
+      nullsNotDistinct: key.nullsNotDistinct,
+    })),
   };
 }
 
@@ -51,7 +54,7 @@ function described(shape) {
  * @param {unknown} model
  * @param {string} what
  */
-function modelOf(model, what) {
+export function modelOf(model, what) {
   if (!(model instanceof Model)) throw new TypeError(`${what} is a Model`);
   const shape = shapeOf(model);
   if (shape.alias !== null) {
@@ -407,14 +410,5 @@ export function disjointEntities() {
  */
 export function createDisjoint(model) {
   if (!(model instanceof Disjoined)) throw new TypeError("createDisjoint takes a Disjoint or a DisjointEntity");
-  return /** @type {[string, unknown][]} */ (native.disjointStatements(handleOf(model))).map(([kind, handle]) => {
-    switch (kind) {
-      case "createType":
-        return new CreateType(handle, TRUSTED);
-      case "createTable":
-        return new CreateTable(handle, TRUSTED);
-      default:
-        return new AlterTable(handle, TRUSTED);
-    }
-  });
+  return statementsOf(/** @type {[string, unknown][]} */ (native.disjointStatements(handleOf(model))));
 }

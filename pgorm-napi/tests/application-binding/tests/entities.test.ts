@@ -102,12 +102,13 @@ function refused(pattern: RegExp): (error: unknown) => true {
   };
 }
 
-// [spec:pgorm:req:bindings.entities+4/test]
+// [spec:pgorm:req:bindings.entities+5/test]
 // [spec:pgorm:req:bindings.relation-conditions/test]
 test("the module names its registrations and describes each, and refuses a name it does not register", () => {
   assert.deepStrictEqual(entities(), [
     "app.Account",
     "app.Auction",
+    "app.Label",
     "app.Listing",
     "app.Membership",
     "app.Note",
@@ -128,6 +129,11 @@ test("the module names its registrations and describes each, and refuses a name 
   assert.equal(described.schema, "napi_entities");
   assert.equal(described.table, "accounts");
   assert.deepStrictEqual(described.primaryKey, ["id"]);
+  assert.deepStrictEqual(described.uniqueKeys, []);
+  // [spec:pgorm:req:bindings.entities+5/test]    a registration's describe() reports the unique keys its entity's unique(..) declares, each its name, its columns by their SQL names in key order and nullsNotDistinct
+  assert.deepStrictEqual(entity("app.Label").describe().uniqueKeys, [
+    { name: "labels_text_packet", columns: ["text", "packet_id"], nullsNotDistinct: true },
+  ]);
   assert.deepStrictEqual(
     described.columns.map((column) => [column.name, column.kind, column.nullable]),
     [["id", "i32", false], ["display name", "text", false], ["note", "text", true], ["version", "i32", false], [
@@ -234,7 +240,7 @@ test("an ActiveModel holds each column's state, and its writes run the applicati
   assert.throws(() => Account.active().set("mood", "wild"), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.entities+4/test]    a registered entity whose columns are domains, over an
+// [spec:pgorm:req:bindings.entities+5/test]    a registered entity whose columns are domains, over an
 // integer, over an enum and an array of one over text, describes, reads, writes and compares
 // through them as through their base types
 // [spec:pgorm:req:bindings.schema-domains+2/test]    a domain column reports, binds and reads as the
@@ -338,7 +344,7 @@ test("a registered column whose domain is over an enum is a member, and a pipeli
   await assert.rejects(rows(pl.from(Parcel).filter(pl.col("parcels", "mood").eq("busy"))), undefinedOperator);
 });
 
-// [spec:pgorm:req:bindings.entities+4/test]    a money column, and an array of it, is a decimal column:
+// [spec:pgorm:req:bindings.entities+5/test]    a money column, and an array of it, is a decimal column:
 // described as one, set, compared and read back as a Decimal through the entity's own casts, and
 // compared as money by a pipeline that reads the registered column, where the column named by text
 // takes no Decimal
@@ -537,7 +543,7 @@ test("a registered graph's cursor pages by keyset, resuming inside a root's slot
   assert.throws(() => cursor.after("x"), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.entities+4/test]
+// [spec:pgorm:req:bindings.entities+5/test]
 // [spec:pgorm:req:bindings.registered-pools/test]
 test("an entity's operations run on a connection or a transaction, with a statement's refusals and aborts", async () => {
   await seed();

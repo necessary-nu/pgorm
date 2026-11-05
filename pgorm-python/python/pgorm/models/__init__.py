@@ -6,6 +6,7 @@ from .disjoint import Disjoint, DisjointEntity, disjoint_entities, disjoint_enti
 from .disjoint_query import DisjointCursor, DisjointPaginator, DisjointQuery, DisjointWrite
 from .graphs import Graph
 from .model import Model
+from .one_of import OneOf, OneOfEntity, one_of_entities, one_of_entity
 from .queries import ModelQuery, ModelRows
 from .record import ModelRecord
 from .relations import Relation
@@ -33,4 +34,8 @@ __all__ = [
     "DisjointPaginator",
     "disjoint_entity",
     "disjoint_entities",
+    "OneOf",
+    "OneOfEntity",
+    "one_of_entity",
+    "one_of_entities",
 ]

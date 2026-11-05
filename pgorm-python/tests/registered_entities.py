@@ -33,11 +33,11 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
     def active(self, identity, name="Nora"):
         return self.account.active().set("id", identity).set("display name", name)
 
-    # [spec:pgorm:req:bindings.entities+4/test]
+    # [spec:pgorm:req:bindings.entities+5/test]
     async def test_registration_declares_real_types_and_mapping(self):
         registrations = p.capabilities()["registrations"]["entities"]
         self.assertEqual([r["name"] for r in registrations],
-                         ["app.Account", "app.Auction", "app.Booking", "app.Listing", "app.Membership",
+                         ["app.Account", "app.Auction", "app.Booking", "app.Label", "app.Listing", "app.Membership",
                           "app.Note", "app.Old", "app.Pallet", "app.Parcel", "app.Room", "app.Sale",
                           "app.Shipment", "app.Stay", "app.Temper", "app.Till"])
         self.assertEqual(p.entities(), [r["name"] for r in registrations])
@@ -56,6 +56,12 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             ("id", "i32", None), ("display name", "text", None), ("note", "text", None), ("version", "i32", None),
             ("mood", 'enum "python_entities"."Mood"', ["calm", "busy"]),
         ])
+        self.assertEqual(info["unique_keys"], [])
+        # [spec:pgorm:req:bindings.entities+5/test]    a registration's describe() reports the unique keys its entity's unique(..) declares, each its name, its columns by their SQL names in key order and nulls_not_distinct
+        self.assertEqual(
+            p.entity("app.Label").describe()["unique_keys"],
+            [{"name": "labels_text_parcel", "columns": ["text", "parcel_id"], "nulls_not_distinct": True}],
+        )
         with self.assertRaises(p.UnsupportedCapabilityError):
             p.entity("invented.Entity")
         with self.assertRaises(p.ConstructionError):
@@ -216,7 +222,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             mood.is_in("busy")
 
-    # [spec:pgorm:req:bindings.entities+4/test]    a money column, and an array of it, is a decimal
+    # [spec:pgorm:req:bindings.entities+5/test]    a money column, and an array of it, is a decimal
     # column: described as one, set, compared and read back as a Decimal through the entity's own
     # casts, and compared as money by a pipeline that reads the registered column, where the column
     # named by text takes no Decimal
@@ -437,7 +443,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
                 await connection.one(p.RawSQL("SELECT $1::integer AS n", [p.Value("text", "text")]))
             self.assertTrue(await connection.ping())
 
-    # [spec:pgorm:req:bindings.entities+4/test]
+    # [spec:pgorm:req:bindings.entities+5/test]
     # [spec:pgorm:req:bindings.cancellation/test]
     async def test_cancellation_interrupts_an_active_rust_hook(self):
         async with self.pool.connection() as connection:

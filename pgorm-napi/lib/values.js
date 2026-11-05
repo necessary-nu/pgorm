@@ -34,6 +34,17 @@ export function install(addon) {
 const encoder = new TextEncoder();
 
 /**
+ * Whether `part` is a name PostgreSQL holds as an identifier: 1–63 UTF-8
+ * bytes without NUL.
+ *
+ * @param {string} part
+ */
+export function isIdentifier(part) {
+  const length = encoder.encode(part).length;
+  return length > 0 && length <= 63 && !part.includes("\0");
+}
+
+/**
  * @param {unknown} part
  * @param {string} what
  * @returns {string}
@@ -42,8 +53,7 @@ function namePart(part, what) {
   if (typeof part !== "string") {
     throw new TypeError(`a type's ${what} is a string`);
   }
-  const length = encoder.encode(part).length;
-  if (length === 0 || length > 63 || part.includes("\0")) {
+  if (!isIdentifier(part)) {
     throw new ConstructionError("type name parts are 1–63 UTF-8 bytes without NUL");
   }
   return part;

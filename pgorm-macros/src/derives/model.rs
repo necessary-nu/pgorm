@@ -113,7 +113,7 @@ impl Model {
     /// discriminant: the field's type reachable from a column named as a
     /// value, which `OneOf` holds to its target's key.
     // [spec:pgorm:sem:macros.derive.model+6]
-    // [spec:pgorm:def:disjoint.one-of+3]
+    // [spec:pgorm:def:disjoint.one-of+4]
     fn impl_column_fields(&self) -> TokenStream {
         let ident = &self.ident;
         let entity_ident = &self.entity_ident;

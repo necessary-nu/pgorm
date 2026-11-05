@@ -78,6 +78,7 @@ async def invalid(connection: p.Connection) -> None:
     )
     sqlstate: str = p.DatabaseError("client failure").sqlstate  # expected-error: assignment
     accounts = p.Model("accounts", {"id": p.Column("i64", primary_key=True)})
+    p.Model("accounts", {"id": p.Column("i64")}, unique_keys=[{"fields": "id", "nulls_distinct": True}])  # expected-error: typeddict-unknown-key
     p.Column("i32", generated="sometimes")  # expected-error: arg-type
     accounts.graph().join_one(accounts.col("id"))  # expected-error: arg-type
     accounts.find().cursor("id").first("2")  # expected-error: arg-type
@@ -105,5 +106,11 @@ async def invalid(connection: p.Connection) -> None:
     shops.update({"id": 1}, "online")  # expected-error: misc
     shops.change_kind({"id": 1}, "dormant")  # expected-error: misc
     s.create_disjoint(shops)  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.disjoint-evolve/test]    an unkinded disjoint model's kinds are not changed
+    s.add_disjoint_kind(shops, "online")  # expected-error: arg-type
+    s.remove_disjoint_kind_table(shops, "online", "online")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.one-of+1/test]    a one-of reference's CHECK is written from a reference, and its targets are (field, Model) pairs
+    s.create_one_of(accounts)  # expected-error: arg-type
+    p.OneOf("ref", accounts, {"self": accounts})  # expected-error: dict-item
     p.Disjoint("shops", accounts, {"dormant": None}, unkinded=True, kind="state")  # expected-error: call-overload
     kinded: p.Disjoint = shops  # expected-error: assignment

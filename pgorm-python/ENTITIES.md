@@ -225,7 +225,9 @@ the same type, and the field reads back as the range, tagged with the kind. The
 Rust newtype writes it as its text cast to the type and reads a multirange
 through its text, so both read through `find`.
 
-`describe()` also reports `primary_key_without_overlaps`, true when the key's
+`describe()` reports the `unique_keys` the entity's `unique(..)` declares, each
+its `name` (`None` where PostgreSQL names it), its `columns` and
+`nulls_not_distinct`, and also `primary_key_without_overlaps`, true when the key's
 last column is a period declared `without_overlaps` (`PRIMARY KEY (id, valid_at
 WITHOUT OVERLAPS)`): the server holds a row per period, none overlapping, yet a
 lookup, an update and a delete by the key still compare the period for

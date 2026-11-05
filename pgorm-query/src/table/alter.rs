@@ -1006,6 +1006,12 @@ impl TableAlterStatement {
         })
     }
 
+    /// The table the statement alters, which a caller adding a foreign key
+    /// to a statement it did not build names as the key's table.
+    pub fn get_table_name(&self) -> &TableName {
+        &self.table
+    }
+
     fn add_alter_option(&mut self, alter_option: TableAlterOption) -> &mut Self {
         self.options.push(alter_option);
         self

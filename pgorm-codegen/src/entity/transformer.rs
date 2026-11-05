@@ -761,7 +761,7 @@ const MODULE_ITEMS: [&str; 6] = [
 /// The Rust name of every type a schema's enums and range types generate,
 /// each with what generates it.
 // [spec:pgorm:sem:codegen.entity.disjoint+3]
-// [spec:pgorm:def:disjoint.one-of+3]
+// [spec:pgorm:def:disjoint.one-of+4]
 fn generated_type_names(
     enums: &BTreeMap<String, ActiveEnum>,
     ranges: &BTreeMap<String, CreatedRangeType>,
@@ -789,7 +789,7 @@ fn generated_type_names(
 /// module's own, its disjoint entity's, an earlier one-of reference's, a type
 /// another generated item names, or a name the module's code means
 /// otherwise; and no two of its variants share a name.
-// [spec:pgorm:def:disjoint.one-of+3]
+// [spec:pgorm:def:disjoint.one-of+4]
 fn refuse_one_of_name_clashes(
     entities: &[Entity],
     type_names: &BTreeMap<String, String>,

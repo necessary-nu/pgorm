@@ -19,6 +19,7 @@ pub mod identifiers;
 pub mod json;
 mod listen;
 mod models;
+mod one_of;
 pub mod pipeline;
 pub mod results;
 mod runtime;
@@ -48,7 +49,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
 /// Install the shared Python API and a concrete application registry into one
 /// native module. Downstream crates disable `standalone-module` and export
 /// their own PyO3 initializer calling this function.
-// [spec:pgorm:req:bindings.entities+4]
+// [spec:pgorm:req:bindings.entities+5]
 pub fn install(module: &Bound<'_, PyModule>, registry: entities::Registry) -> PyResult<()> {
     if module.hasattr("_registry")? {
         return Err(errors::ConstructionError::new_err(
@@ -78,6 +79,7 @@ pub fn install(module: &Bound<'_, PyModule>, registry: entities::Registry) -> Py
     models::register(module)?;
     entities::install(module, registry)?;
     disjoint::register(module)?;
+    one_of::register(module)?;
     graphs::install(module)?;
     pipeline::install(module)?;
     schema::install(module)?;
