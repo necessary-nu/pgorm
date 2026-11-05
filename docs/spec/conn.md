@@ -535,7 +535,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > particular connection already in hand, and there a prepared `Statement` is
 > the point rather than the hazard.
 
-> [spec:pgorm:def:conn.pool.conn-trait+8]
+> [spec:pgorm:def:conn.pool.conn-trait+9]
 > `ConnectionTrait` is the uniform statement-execution surface over
 > connections and transactions. It defines seven async methods. Six are
 > generic over `T: ?Sized + SqlText + Sync` — the statement is SQL text and
@@ -584,15 +584,18 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > otherwise unreachable from pgorm because the wrapper types' inner fields are
 > crate-private.
 >
-> A fourth implementor carries no execution of its own: `&mut
-> DatabaseTransaction<'_>` forwards every method through the exclusive borrow.
-> It exists because that is the handle a transaction closure is given
-> (`conn.tx.closure`), and a helper generic over `C: ConnectionTrait` taking
-> `&C` cannot be passed one without it — `&mut T` is its own type, distinct
-> from `T`, and the coercion to `&T` does not fire into an inference variable,
-> so the call site would otherwise have to reborrow as `&*txn`. Being a
-> distinct type is also why the impl cannot overlap the one for
-> `DatabaseTransaction`.
+> One further impl carries no execution of its own: `&mut C`, for every
+> implementor `C`, forwards every method through the exclusive borrow. It
+> exists because a transaction closure is given its handle as `&mut` — `&mut
+> DatabaseTransaction<'_>` on a connection or a transaction, `&mut
+> InstrumentedTransaction<'_, M>` on the metrics wrappers (`metric.layer.tx`)
+> — and a helper generic over `C: ConnectionTrait` taking `&C` cannot be
+> passed one without it: `&mut T` is its own type, distinct from `T`, and the
+> coercion to `&T` does not fire into an inference variable, so the call site
+> would otherwise have to reborrow as `&*txn`. It is one impl over every
+> implementor rather than one per handle type so that no closure's handle can
+> be left out, as the instrumented one once was. Being a distinct type is also
+> why it cannot overlap the impl for `C` itself.
 
 > [spec:pgorm:def:conn.pool.generic-client]
 > `pgorm_pool::GenericClient` is the sealed trait (`Sync` + a private

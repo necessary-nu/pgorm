@@ -121,7 +121,7 @@ let conn = pool.get().await?; // records connection acquisition
 
 The two query hooks take a `QueryContext<'_>` — `operation()`, `sql()`, and `fingerprint()` — instead of a bare operation name. `fingerprint()` is libpg_query's constants-normalized query identity, grouped by PostgreSQL 18's query-ID rules (an alias stands for its relation, schema qualifiers are ignored), and requires the off-by-default `metrics-fingerprint` feature; without it no statement is parsed for metrics and the answer is always `None` (pg_query is linked either way, for the paginator and the macros).
 
-`transaction` on an `InstrumentedConnection` gives its closure an `InstrumentedTransaction`, so the statements and savepoints inside stay instrumented; a transaction whose closure's future is dropped records no ending.
+`transaction` on an `InstrumentedConnection` gives its closure an `InstrumentedTransaction`, so the statements and savepoints inside stay instrumented, and a query takes the handle as `&txn` as it does a plain one's (`&mut C` is a `ConnectionTrait` for every implementor `C`); a transaction whose closure's future is dropped records no ending.
 
 #### PostgreSQL Native Observability
 Still the best source of truth for query statistics:

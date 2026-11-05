@@ -1693,6 +1693,20 @@ children (
                         kind @note
                         text "Found by guide.rust (metrics chapter). ConnectionTrait is implemented for &mut DatabaseTransaction<'_> (src/database/db_connection.rs:622) but not for &mut InstrumentedTransaction<'_, M> (src/metric/mod.rs), so inside an instrumented transaction closure find().all(&txn) fails E0277 where the plain closure's compiles; the guide passes &*txn and explains why."
                     }
+
+                    {
+                        at 2026-11-05T15:43:02.42844Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:48:48.57736Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rather than a second hand-written forwarding impl for &mut InstrumentedTransaction<'_, M> beside the one for &mut DatabaseTransaction<'_>, the forwarding impl is now one blanket impl<C: ConnectionTrait> ConnectionTrait for &mut C (src/database/connection.rs), replacing the DatabaseTransaction-only one. That covers every closure handle at once, so none can be left out again, and removes the duplicated 60-line body; it also makes &mut DatabaseConnection and &mut InstrumentedConnection connections, which is harmless (no impl overlaps: &mut C is distinct from C, and &DatabaseConnection is a shared reference). conn.pool.conn-trait +9 (one impl over every implementor) and metric.layer.delegate +5 (the instrumented handle passes as &txn), both owned by infra.conn / infra.metrics, which get a re-cover commit. The bindings have no counterpart: their handles are internal."
+                    }
                 )
             }
         )
