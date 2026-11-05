@@ -14,7 +14,7 @@ its concrete types and builds one native module carrying both the package's
 API and its registrations. The package's own module registers nothing; the
 models JavaScript declares ([Entities](03-entities.md)) need no registration
 at all. Python registers entities the same way, through its own
-[application module](../../pgorm-python/ENTITIES.md).
+[application module](../../pgorm-python/guide/24-registrations.md).
 
 ## Building the application's module
 

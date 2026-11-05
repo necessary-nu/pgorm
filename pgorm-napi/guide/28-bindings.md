@@ -121,7 +121,7 @@ assert.match(version, /^\d+\.\d+\.\d+/);
 
 This guide is the JavaScript dialect of [the Rust guide](../../docs/guide/README.md),
 chapter for chapter. Python's guide is its Python dialect, in
-`pgorm-python/`. The rules both bindings follow are in
+[`pgorm-python/guide`](../../pgorm-python/guide/README.md). The rules both bindings follow are in
 [`docs/spec/bindings.md`](../../docs/spec/bindings.md), and what differs for
 JavaScript in [`docs/spec/napi.md`](../../docs/spec/napi.md).
 [DISTRIBUTION.md](../DISTRIBUTION.md) covers this package's npm packages: the
