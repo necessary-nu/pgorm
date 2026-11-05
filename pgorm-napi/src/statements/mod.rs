@@ -20,6 +20,7 @@ mod expr;
 mod grouping;
 mod json;
 mod json_table;
+mod like;
 mod merge;
 #[cfg(test)]
 pub(crate) mod parity;
@@ -37,8 +38,8 @@ mod write;
 use neon::{prelude::*, types::Finalize};
 use pgorm::pgorm_query::{
     AnyWithClause, ColumnType, Condition, ConflictUpdate, ExtendedWindow, FrameClause, FromItem,
-    FunctionCall, GroupingElement, JsonInput, JsonTableColumn, MergeStatement, NamedTable,
-    NullOrdering, OnConflict, Order, PendingMerge, Query, SelectStatement, SimpleExpr,
+    FunctionCall, GroupingElement, JsonInput, JsonTableColumn, LikeExpr, MergeStatement,
+    NamedTable, NullOrdering, OnConflict, Order, PendingMerge, Query, SelectStatement, SimpleExpr,
     TableFunction, Value, Values, WindowStatement,
 };
 
@@ -77,6 +78,9 @@ pub(crate) enum Node {
     /// `ANY (..)` or `ALL (..)`, which PostgreSQL's grammar reads only as the
     /// right operand of an operator, so no other position takes it.
     Quantified(SimpleExpr),
+    /// A pattern LIKE, ILIKE and SIMILAR TO take, which no other operator
+    /// reads.
+    LikeExpr(LikeExpr),
     Table(NamedTable),
     FromItem(FromItem),
     /// A function in FROM before its alias makes it a FROM item.
@@ -136,6 +140,7 @@ impl Node {
             Self::Ordering(_) => "an ordering",
             Self::CaseOperand(_) => "a CASE with no WHEN arm",
             Self::Quantified(_) => "an ANY or ALL operand",
+            Self::LikeExpr(_) => "a LikeExpr",
             Self::Table(_) => "a Table",
             Self::FromItem(_) => "a FROM item",
             Self::TableFunction(_) => "a TableFunction",
@@ -177,6 +182,7 @@ pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
         expr::EXPORTS,
         select::EXPORTS,
         grouping::EXPORTS,
+        like::EXPORTS,
         table::EXPORTS,
         with::EXPORTS,
         write::EXPORTS,

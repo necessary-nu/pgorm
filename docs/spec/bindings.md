@@ -870,7 +870,7 @@ the same terminals that run raw SQL.
 > (`bindings.pipeline-expressions`). The literal path and the bound path stay
 > apart: neither replaces the other.
 
-> [spec:pgorm:req:bindings.expressions+2]
+> [spec:pgorm:req:bindings.expressions+3]
 > An expression MUST lower into pgorm-query's own builders. `col` is a column,
 > qualified by a table and its schema. An operand that is not an expression is
 > a value bound as a parameter, never interpolated: inferred as a parameter
@@ -887,9 +887,14 @@ the same terminals that run raw SQL.
 > `Condition.any` pgorm-query's `Condition`, an empty one true and false.
 > Condition grouping and empty conditions mean what the named Rust API means.
 >
-> `like`, `ilike`, `similar_to` and their negations take a pattern, bound, and
-> an optional escape of one character, or the empty string, which turns
-> escaping off (`sql.ast.expr.similar-to`). `regex` (`~`), `not_regex`
+> `like`, `ilike`, `similar_to` and their negations take a pattern, bound, as
+> pgorm-query's take an `IntoLikeExpr` (`sql.ast.expr.similar-to`): text,
+> escaped by the default backslash, or a `LikeExpr`, pgorm-query's
+> `LikeExpr`, the class constructed over the pattern's text. Its
+> `escape(character)` escapes with that one character instead, any other
+> text, the empty string and NUL among it, a `ConstructionError`; and its
+> `no_escape()` turns escaping off. A `LikeExpr` is no expression, and
+> nothing but these six methods reads one. `regex` (`~`), `not_regex`
 > (`!~`), `iregex` (`~*`) and `not_iregex` (`!~*`) match a POSIX regular
 > expression. `matches` (`@@`) is `BinOper::Matches`, full-text search or a
 > `jsonpath` predicate. `path_exists` (`@?`) takes a `jsonpath` as text,
@@ -922,7 +927,7 @@ the same terminals that run raw SQL.
 > CHECK tests. `asc()` and `desc()` give an ordering, with NULLS FIRST or
 > LAST, and `as(alias)` an aliased projection item.
 
-> [spec:pgorm:req:bindings.quantifiers+2]
+> [spec:pgorm:req:bindings.quantifiers+3]
 > `any(source)` and `all(source)` MUST be `ANY (..)` and `ALL (..)`:
 > pgorm-query's `Expr::any` / `Expr::all` over a `Select`'s rows, and
 > `Func::any` / `Func::all` over an array, an expression or a value bound as
@@ -933,7 +938,8 @@ the same terminals that run raw SQL.
 >
 > - the comparisons `eq`, `ne`, `lt`, `lte`, `gt` and `gte`;
 > - `like`, `not_like`, `ilike` and `not_ilike`, the quantifier ranging over
->   patterns with no escape, since the grammar reads no `ESCAPE` after one;
+>   patterns, which carry no escape, since the grammar reads no `ESCAPE`
+>   after one;
 > - `regex`, `not_regex`, `iregex` and `not_iregex`;
 > - `contains`, `contained_by` and `overlaps`;
 > - `strictly_left_of`, `strictly_right_of`, `not_extend_right_of`,
@@ -957,9 +963,9 @@ the same terminals that run raw SQL.
 > right operand. The grammar reads none after `similar_to`, `not_similar_to`,
 > `is_distinct_from`, `is_not_distinct_from`, `between` or a membership test,
 > and the server refuses one after an operator whose result is no boolean
-> (`42809`), arithmetic and `concat`. Those operators, an escape given with a
-> quantified pattern, every other operand position, a membership list and
-> `bind` MUST refuse it with a `ConstructionError`.
+> (`42809`), arithmetic and `concat`. Those operators, every other operand
+> position, a membership list and `bind` MUST refuse it with a
+> `ConstructionError`.
 
 > [spec:pgorm:req:bindings.case]
 > `case_when(condition, result)` MUST build a searched CASE and

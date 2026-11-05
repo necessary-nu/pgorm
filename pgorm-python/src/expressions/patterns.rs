@@ -1,5 +1,5 @@
 //! `Expr`'s text matching: the literal substring helpers, LIKE, ILIKE and
-//! `SIMILAR TO` over a `LikePattern`, and the POSIX regular-expression
+//! `SIMILAR TO` over a pattern or a `LikeExpr`, and the POSIX regular-expression
 //! operators.
 
 use pgorm::pgorm_query::{BinOper, Expr, Func, Name, SimpleExpr};
@@ -20,8 +20,8 @@ impl PyExpr {
     }
 }
 
-// [spec:pgorm:req:bindings.expressions+2]
-// [spec:pgorm:req:bindings.quantifiers+2]
+// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.quantifiers+3]
 #[pymethods]
 impl PyExpr {
     fn starts_with(&self, text: &Bound<'_, PyAny>) -> PyResult<Self> {

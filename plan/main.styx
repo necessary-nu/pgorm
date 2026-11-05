@@ -18136,6 +18136,7 @@ children (
             {
                 id binding-parity.table-functions
                 title "A table function in FROM is built one way in both bindings, as pgorm-query's TableFunction is"
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:12:16.602396Z
@@ -18143,12 +18144,35 @@ children (
                         kind @status
                         text "Todo → Doing (nplan start)"
                     }
+
+                    {
+                        at 2026-11-05T14:18:19.603388Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T14:18:19.760676Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust's shape is TableFunction::new(call), TableFunction::rows_from(call), and .and(call), .column_definition(name, type) (for the call added last), .with_ordinality(), .columns(iter) and .alias(name) -> FromItem. Python already had exactly that (TableFunction(call), TableFunction.rows_from, and_, column_definition, with_ordinality, columns(*names), alias). JavaScript had a one-shot tableFunction(calls, { alias, ordinality, columns, rowsFrom }) whose record calls were { call, columnDefinitions: [[name, type], ..] }. Chosen: JavaScript takes the builder — tableFunction(call) (the factory napi.naming already named for this class, recorded in javascript.only as a language difference), TableFunction.rowsFrom(call), and, columnDefinition(name, type), withOrdinality(), columns(...names) and alias(name) — and the options shape is deleted. A record call with no definition is the server's refusal (42601), as in Rust and Python, so JavaScript's 'at least one column' refusal went with the list it guarded. Delivered in 1c6acd5b: bindings.select+4; bindings-surface.json shares TableFunction's six members. Owns no rules (binding-spec-consolidation owns bindings.select), so completed by hand."
+                        after_done true
+                    }
                 )
             }
 
             {
                 id binding-parity.like-patterns
                 title "A LIKE pattern and its escape are written one way in both bindings, as pgorm-query's LikeExpr is"
+                log (
+                    {
+                        at 2026-11-05T14:18:19.91199Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
             }
 
             {

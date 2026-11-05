@@ -16,10 +16,10 @@ use super::PyExpr;
 const SPELLED: [&str; 44] = [
     "a & b",
     "a | b",
-    "a.like(p.LikePattern('x'))",
-    "a.not_like(p.LikePattern('x'))",
-    "a.similar_to(p.LikePattern('x'))",
-    "a.not_similar_to(p.LikePattern('x'))",
+    "a.like('x')",
+    "a.not_like('x')",
+    "a.similar_to('x')",
+    "a.not_similar_to('x')",
     "a.is_null()",
     "a.is_not_null()",
     "a.is_distinct_from(1)",
@@ -43,8 +43,8 @@ const SPELLED: [&str; 44] = [
     "a % 1",
     "a.strictly_left_of(b)",
     "a.strictly_right_of(b)",
-    "a.ilike(p.LikePattern('x'))",
-    "a.not_ilike(p.LikePattern('x'))",
+    "a.ilike('x')",
+    "a.not_ilike('x')",
     "a.matches(b)",
     "a.contains(b)",
     "a.contained_by(b)",
@@ -60,7 +60,7 @@ const SPELLED: [&str; 44] = [
     "a.adjacent_to(b)",
 ];
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 #[test]
 fn every_binary_operator_is_written_or_left_out() -> PyResult<()> {
     Python::initialize();

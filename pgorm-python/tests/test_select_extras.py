@@ -26,7 +26,7 @@ def text_array(values):
 
 
 # [spec:pgorm:req:bindings.select+4/test]
-# [spec:pgorm:req:bindings.expressions+2/test]
+# [spec:pgorm:req:bindings.expressions+3/test]
 class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=1)
@@ -138,28 +138,28 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
                              .order_by(self.s("id").asc()))
 
         name = self.s("name")
-        self.assertEqual(await names(name.similar_to(p.LikePattern("(A|B)%"))), [("Ann",), ("Bob",)])
-        self.assertEqual(await names(name.not_similar_to(p.LikePattern("(A|B)%"))), [("Cy",), ("10%",)])
-        self.assertEqual(await names(name.similar_to(p.LikePattern("A"))), [])
-        self.assertEqual(await names(name.similar_to(p.LikePattern("[0-9]+\\%"))), [("10%",)])
-        self.assertEqual(await names(name.similar_to(p.LikePattern("%!%", escape="!"))), [("10%",)])
-        self.assertEqual(await names(name.not_similar_to(p.LikePattern("%!%", escape="!"))),
+        self.assertEqual(await names(name.similar_to("(A|B)%")), [("Ann",), ("Bob",)])
+        self.assertEqual(await names(name.not_similar_to(p.LikeExpr("(A|B)%"))), [("Cy",), ("10%",)])
+        self.assertEqual(await names(name.similar_to("A")), [])
+        self.assertEqual(await names(name.similar_to("[0-9]+\\%")), [("10%",)])
+        self.assertEqual(await names(name.similar_to(p.LikeExpr("%!%").escape("!"))), [("10%",)])
+        self.assertEqual(await names(name.not_similar_to(p.LikeExpr("%!%").escape("!"))),
                          [("Ann",), ("Bob",), ("Cy",)])
-        self.assertEqual(await names(name.similar_to(p.LikePattern("' OR 1=1 --"))), [])
+        self.assertEqual(await names(name.similar_to("' OR 1=1 --")), [])
 
-    # [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    an empty escape turns escaping off for
+    # [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    no_escape() turns escaping off for
     # LIKE, ILIKE and SIMILAR TO, a backslash then matching itself
-    async def test_empty_escape_turns_escaping_off(self):
+    async def test_no_escape_turns_escaping_off(self):
         def text(value):
             return p.bind(value).cast(p.TypeName("text"))
 
-        off = p.LikePattern("a\\b", escape="")
+        off = p.LikeExpr("a\\b").no_escape()
         answers = await self.rows(p.Select(
-            text("a\\b").like(p.LikePattern("a\\b")).as_("plain"),
+            text("a\\b").like("a\\b").as_("plain"),
             text("a\\b").like(off).as_("off"),
             text("A\\B").ilike(off).as_("folded"),
             text("a\\b").similar_to(off).as_("similar"),
-            text("50%").not_like(p.LikePattern("50\\%", escape="")).as_("percent")))
+            text("50%").not_like(p.LikeExpr("50\\%").no_escape()).as_("percent")))
         self.assertEqual(answers, [(False, True, True, True, True)])
 
     # [spec:pgorm:req:bindings.collations/test]    "C" orders and compares bytewise in both
@@ -276,7 +276,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
         count = p.Select(p.call("count", unaliased.col("id"))).from_(unaliased)
         self.assertEqual(await self.rows(count), [(200,)])
 
-    # [spec:pgorm:req:bindings.expressions+2/test]    array(select) collects a subquery's one
+    # [spec:pgorm:req:bindings.expressions+3/test]    array(select) collects a subquery's one
     # column into an array value, empty for no rows, cast as one value, and the server refuses a
     # subquery of two columns with 42601
     async def test_array_collects_a_subquery_column(self):

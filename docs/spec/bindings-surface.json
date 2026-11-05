@@ -59,6 +59,7 @@
       "JsonInput": [],
       "JsonTableColumn": ["exists", "nested", "ordinality", "query", "value"],
       "LifecycleError": [],
+      "LikeExpr": ["escape", "no_escape"],
       "Listener": ["close", "listen", "unlisten", "unlisten_all"],
       "Merge": ["inspect", "only", "returning", "returning_action", "when_matched", "when_not_matched", "when_not_matched_by_source", "with"],
       "MergeAction": ["delete", "do_nothing", "insert", "insert_defaults", "update"],
@@ -419,7 +420,6 @@
     },
     "undecided": {
       "pgorm.Identifier": {"question": "shapes"},
-      "pgorm.LikePattern": {"question": "shapes"},
       "pgorm.EntityInsertMany": {"question": "shapes"},
       "pipeline.Pipeline.all": {"question": "shapes"},
       "pipeline.Pipeline.one": {"question": "shapes"},
@@ -463,6 +463,7 @@
       "pgorm.copyTo": "the factory for a class Python constructs by calling it (napi.naming)",
       "pgorm.jsonDefault": "the factory for a class Python constructs by calling it (napi.naming)",
       "pgorm.tableFunction": "the factory for a class Python constructs by calling it (napi.naming)",
+      "pgorm.likeExpr": "the factory for a class Python constructs by calling it (napi.naming)",
       "pgorm.Aliased.inspect": "inherited from Builder, and refuses a part that is no statement",
       "pgorm.CaseOperand.inspect": "inherited from Builder, and refuses a part that is no statement",
       "pgorm.Conflict.inspect": "inherited from Builder, and refuses a part that is no statement",

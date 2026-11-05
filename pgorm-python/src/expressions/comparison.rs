@@ -6,7 +6,7 @@ use pyo3::{basic::CompareOp, prelude::*};
 
 use super::{PyExpr, coerce};
 
-// [spec:pgorm:req:bindings.expressions+2]
+// [spec:pgorm:req:bindings.expressions+3]
 // [spec:pgorm:req:python.naming+4]
 #[pymethods]
 impl PyExpr {

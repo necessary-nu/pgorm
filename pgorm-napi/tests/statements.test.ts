@@ -21,6 +21,8 @@ import {
   exists,
   insert,
   Interval,
+  LikeExpr,
+  likeExpr,
   literal,
   Pool,
   scalar,
@@ -197,7 +199,7 @@ test("a builder never changes: extending one in two directions leaves it and eac
   assert.deepStrictEqual(ids(await pool().query(base.orderBy(account.col("id").asc()))), [1n, 2n, 3n, 4n]);
 });
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 // [spec:pgorm:req:bindings.identifiers+2/test]
 test("values are bound and identifiers quoted: neither text becomes SQL", async () => {
   const hostile = "x' OR '1'='1";
@@ -215,7 +217,7 @@ test("values are bound and identifiers quoted: neither text becomes SQL", async 
   assert.deepStrictEqual(row, { "Mixed Case": 1, select: "kept" });
 });
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 test("membership in an empty list matches no row, and its negation every row", async () => {
   const base = select(account.col("id")).from(account).orderBy(account.col("id").asc());
   assert.deepStrictEqual(await pool().query(base.where(account.col("id").isIn([]))), []);
@@ -225,7 +227,7 @@ test("membership in an empty list matches no row, and its negation every row", a
   assert.deepStrictEqual(ids(await pool().query(pairs)), [1n]);
 });
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 test("text tests read their argument as text, and LIKE reads it as a pattern with its escape", async () => {
   const names = async (predicate: ReturnType<typeof col>) =>
     ids(await pool().query(select(account.col("name")).from(account).where(predicate).orderBy(account.col("id").asc())), "name");
@@ -235,26 +237,30 @@ test("text tests read their argument as text, and LIKE reads it as a pattern wit
   assert.deepStrictEqual(await names(account.col("name").containsText("%_")), ["50%_off"]);
   assert.deepStrictEqual(await names(account.col("name").like("%b%")), ["Bob"]);
   assert.deepStrictEqual(await names(account.col("name").ilike("%b%")), ["Bob", "O'Brien"]);
-  assert.deepStrictEqual(await names(account.col("name").like("50!%!_%", { escape: "!" })), ["50%_off"]);
+  assert.deepStrictEqual(await names(account.col("name").like(likeExpr("50!%!_%").escape("!"))), ["50%_off"]);
+  assert.deepStrictEqual(await names(account.col("name").like(likeExpr("%b%"))), ["Bob"]);
   assert.deepStrictEqual(await names(account.col("name").notLike("%o%")), ["Alice", "O'Brien"]);
 });
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 // [spec:pgorm:req:sql.ast.expr.similar-to+1/test]
-test("an empty escape turns escaping off, so a backslash in a pattern is itself", async () => {
+test("noEscape turns escaping off, so a backslash in a pattern is itself", async () => {
   const text = (value: string) => bind(value).cast("text");
+  const off = likeExpr("a\\b").noEscape();
   const answers = await pool().one(select(
     text("a\\b").like("a\\b").as("plain"),
-    text("a\\b").like("a\\b", { escape: "" }).as("off"),
-    text("A\\B").ilike("a\\b", { escape: "" }).as("folded"),
-    text("a\\b").similarTo("a\\b", { escape: "" }).as("similar"),
-    text("50%").notLike("50\\%", { escape: "" }).as("percent"),
+    text("a\\b").like(off).as("off"),
+    text("A\\B").ilike(off).as("folded"),
+    text("a\\b").similarTo(off).as("similar"),
+    text("50%").notLike(likeExpr("50\\%").noEscape()).as("percent"),
   ));
   assert.deepStrictEqual(answers, { plain: false, off: true, folded: true, similar: true, percent: true });
-  assert.match(text("a").like("a", { escape: "" }).inspect().sql, /ESCAPE ''$/);
+  assert.match(text("a").like(likeExpr("a").noEscape()).inspect().sql, /ESCAPE ''$/);
+  assert.match(text("a").like(likeExpr("a").noEscape().escape("#")).inspect().sql, /ESCAPE '#'$/);
+  assert.ok(off instanceof LikeExpr);
 });
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 test("regex, notRegex, iregex and notIregex, and pathExists, answer as PostgreSQL's operators", async () => {
   const names = async (predicate: ReturnType<typeof col>) =>
     ids(await pool().query(select(account.col("name")).from(account).where(predicate).orderBy(account.col("id").asc())), "name");
@@ -286,7 +292,7 @@ test("regex, notRegex, iregex and notIregex, and pathExists, answer as PostgreSQ
   assert.throws(() => doc.pathExists(1 as never), mistyped(/JSON path is a string/));
 });
 
-// [spec:pgorm:req:bindings.quantifiers+2/test]    matches is @@, and any and all quantify each
+// [spec:pgorm:req:bindings.quantifiers+3/test]    matches is @@, and any and all quantify each
 // comparison over an array, bound or an expression, and over a subquery's rows or its ARRAY(..),
 // an empty array false under ANY and true under ALL, each answering as the SQL written by hand
 test("matches, and any and all after a comparison, answer as PostgreSQL's operators", async () => {
@@ -332,13 +338,12 @@ test("matches, and any and all after a comparison, answer as PostgreSQL's operat
   assert.throws(() => account.col("name").concat(quantified as never), refused(/ANY and ALL follow .*, not "concat"/));
   assert.throws(() => account.col("id").isDistinctFrom(quantified as never), refused(/ANY and ALL follow a comparison/));
   assert.throws(() => account.col("name").similarTo(quantified as never), refused(/not "similarTo"/));
-  assert.throws(() => account.col("name").like(quantified as never, { escape: "!" }), refused(/takes no escape/));
   assert.throws(() => account.col("id").between(quantified as never, 3), refused(/got an ANY or ALL operand/));
   assert.throws(() => account.col("id").isIn([quantified as never]), refused(/expected an expression or a value, got an ANY or ALL operand/));
   assert.throws(() => bind(quantified as never), refused(/cannot be inferred/));
 });
 
-// [spec:pgorm:req:bindings.quantifiers+2/test]    any and all after LIKE's and ILIKE's family,
+// [spec:pgorm:req:bindings.quantifiers+3/test]    any and all after LIKE's and ILIKE's family,
 // the regular-expression matches, containment, the range positions, @@ and @?, over a bound
 // array or a subquery's rows, answer as the SQL written by hand
 test("any and all follow LIKE, regex, containment, range, @@ and @? operators as PostgreSQL's", async () => {
@@ -383,7 +388,7 @@ test("any and all follow LIKE, regex, containment, range, @@ and @? operators as
   await assert.rejects(built(doc.pathExists(any(["$.a"]))), refused(/cannot bind a `String` value to Postgres type `jsonpath`/));
 });
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 test("an enum value binds through its type's cast, scalar and array alike", async () => {
   const calm = new Value("calm", mood);
   const rows = await pool().query(select(account.col("id")).from(account).where(account.col("mood").eq(calm)));
@@ -393,7 +398,7 @@ test("an enum value binds through its type's cast, scalar and array alike", asyn
 });
 
 // [spec:pgorm:req:bindings.case/test]
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 // [spec:pgorm:req:bindings.collations/test]
 test("CASE, casts, collations and subscripts compute on the server", async () => {
   const row = await pool().one(
@@ -422,7 +427,7 @@ test("CASE, casts, collations and subscripts compute on the server", async () =>
 });
 
 // [spec:pgorm:req:bindings.from-subqueries/test]
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 test("subqueries: EXISTS, a scalar subquery, IN a subquery, a lateral join and a subquery as a FROM item", async () => {
   const clickers = select(event.col("account_id")).from(event).where(event.col("kind").eq("click"));
   const inSubquery = await pool().query(
@@ -453,7 +458,7 @@ test("subqueries: EXISTS, a scalar subquery, IN a subquery, a lateral join and a
   assert.equal(await pool().execute(select(sub.star()).from(sub)), 3);
 });
 
-// [spec:pgorm:req:bindings.expressions+2/test]    array() collects a subquery's one column into an
+// [spec:pgorm:req:bindings.expressions+3/test]    array() collects a subquery's one column into an
 // array value, empty for no rows, which is projected, cast and compared as one value, and a
 // subquery of two columns is refused with 42601
 test("array() collects a subquery's column into one array value", async () => {
@@ -581,14 +586,14 @@ test("a failing built statement rejects with the server's error", async () => {
   );
 });
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 test("a value with no statement form is refused as it is bound", () => {
   assert.throws(() => col("x").eq(null as never), refused(/null has no kind.*isNull\(\)/));
   assert.throws(() => bind(undefined as never), refused(/undefined/));
   assert.throws(() => col("x").eq(new Table("t") as never), refused(/expected an expression or a value, got a Table/));
 });
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 test("an interval binds in a built statement, each field and sign kept", async () => {
   const intervals = [
     new Interval({ months: 1, days: -2, microseconds: 3_000_004n }),
@@ -676,7 +681,7 @@ test("an identifier is 1–63 UTF-8 bytes without NUL, or refused", () => {
   assert.throws(() => new Table("t", { alias: 7 as never }), mistyped(/identifier is a string/));
 });
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 test("call() reaches only the functions pgorm-query constructs, at their argument counts", () => {
   assert.throws(() => call("pg_sleep" as never, 1), refused(/no "pg_sleep"/));
   assert.throws(() => call("lower", col("a"), col("b")), refused(/taking 2 argument/));
@@ -699,15 +704,19 @@ test("limits and offsets are non-negative integers within PostgreSQL's bigint", 
   assert.deepStrictEqual(base.limit(2n ** 63n - 1n).inspect().values.map((value) => value.value), [2n ** 63n - 1n]);
 });
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 // [spec:pgorm:req:bindings.argument-errors+1/test]
 test("shapes PostgreSQL has no SQL for are refused as they are built", () => {
   assert.throws(() => (select().select as () => unknown).call(select()), refused(/at least one item/));
   assert.throws(() => (tuple as () => unknown)(), refused(/at least one item/));
-  assert.throws(() => col("x").like("a", { escape: "ab" }), refused(/escape is one character/));
-  assert.throws(() => col("x").like("a", { escape: "\0" }), refused(/escape is one character/));
-  assert.throws(() => col("x").like("a", { escape: 1 as never }), mistyped(/escape is a string/));
+  assert.throws(() => likeExpr("a").escape("ab"), refused(/escape is one character/));
+  assert.throws(() => likeExpr("a").escape("\0"), refused(/escape is one character/));
+  assert.throws(() => likeExpr("a").escape(""), refused(/escape is one character/));
+  assert.throws(() => likeExpr("a").escape(1 as never), mistyped(/escape is a string/));
+  assert.throws(() => likeExpr(1 as never), mistyped(/pattern is a string/));
   assert.throws(() => col("x").like(1 as never), mistyped(/pattern is a string/));
+  assert.throws(() => col("x").like(col("y") as never), mistyped(/pattern is a string or a LikeExpr, not an expression/));
+  assert.throws(() => new (LikeExpr as unknown as new () => unknown)(), mistyped(/made by likeExpr\(pattern\)/));
   assert.throws(() => select(bind(1).asc() as never), mistyped(/projection is an expression, not an ordering/));
   assert.throws(() => select(1 as never), mistyped(/projection is an expression/));
   assert.throws(() => select().from(col("x") as never), mistyped(/FROM item is a Table or a FromItem/));

@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use super::{PyExpr, require_expr};
 use crate::errors::ConstructionError;
 
-// [spec:pgorm:req:bindings.expressions+2]
+// [spec:pgorm:req:bindings.expressions+3]
 // [spec:pgorm:req:python.naming+4]
 #[pymethods]
 impl PyExpr {

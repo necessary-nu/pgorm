@@ -66,7 +66,9 @@ def dispatch(name, i, d, p):
             pattern = i["pattern"].value
             path = "pgorm_query::SimpleExpr::" + method
             if method in ("like", "not_like", "ilike", "not_ilike"):
-                pattern = p.LikePattern(pattern, escape=d.get("escape"))
+                pattern = p.LikeExpr(pattern)
+                if d.get("escape") is not None:
+                    pattern = pattern.escape(d["escape"])
                 path = "pgorm_query::LikeExpr"
             return getattr(i["value"], method)(pattern), [path]
         case "expr.call":

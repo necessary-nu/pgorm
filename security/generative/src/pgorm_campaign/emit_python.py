@@ -661,9 +661,9 @@ class Emitter:
             case "expr.pattern":
                 pattern = var(i["pattern"]) + ".value"
                 if d["method"] in LIKE:
-                    pattern = (
-                        f"p.LikePattern({pattern}, escape={literal(d.get('escape'))})"
-                    )
+                    pattern = f"p.LikeExpr({pattern})"
+                    if d.get("escape") is not None:
+                        pattern += f".escape({literal(d['escape'])})"
                 return call(var(i["value"]), d["method"], [pattern])
             case "expr.call":
                 arguments = [literal(d["name"])] + self.variables(i["arguments"])

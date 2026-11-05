@@ -15,6 +15,7 @@ import {
   exists,
   type Expr,
   GroupingElement,
+  likeExpr,
   Pool,
   type Select,
   select,
@@ -203,7 +204,7 @@ test("GROUP BY DISTINCT groups each grouping set its elements reach once", async
   }
 });
 
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 // [spec:pgorm:req:sql.ast.expr.similar-to+1/test]
 test("SIMILAR TO matches a whole string against its pattern, the pattern bound and its escape honoured", async () => {
   const words = async (predicate: Expr) =>
@@ -212,19 +213,19 @@ test("SIMILAR TO matches a whole string against its pattern, the pattern bound a
   assert.deepStrictEqual(await words(word.col("w").notSimilarTo("a(b|x)%")), ["a%c", "xyz"]);
   assert.deepStrictEqual(await words(word.col("w").similarTo("a%c")), ["a%c", "abc"]);
   assert.deepStrictEqual(await words(word.col("w").similarTo("a\\%c")), ["a%c"]);
-  assert.deepStrictEqual(await words(word.col("w").similarTo("a!%c", { escape: "!" })), ["a%c"]);
-  assert.deepStrictEqual(await words(word.col("w").notSimilarTo("a!%c", { escape: "!" })), ["abc", "abd", "xyz"]);
+  assert.deepStrictEqual(await words(word.col("w").similarTo(likeExpr("a!%c").escape("!"))), ["a%c"]);
+  assert.deepStrictEqual(await words(word.col("w").notSimilarTo(likeExpr("a!%c").escape("!"))), ["abc", "abd", "xyz"]);
   assert.deepStrictEqual(await words(word.col("w").similarTo("ab")), []);
   const { sql, values } = word.col("w").similarTo("x' OR '1'='1").inspect();
   assert.equal(sql, 'SELECT "word"."w" SIMILAR TO $1');
   assert.deepStrictEqual(values.map((value) => value.value), ["x' OR '1'='1"]);
-  assert.throws(() => word.col("w").similarTo("a", { escape: "!!" }), refused(/one character/));
+  assert.throws(() => likeExpr("a").escape("!!"), refused(/one character/));
   assert.throws(() => word.col("w").notSimilarTo(1 as never), mistyped(/pattern is a string/));
-  assert.throws(() => word.col("w").similarTo("a", { escape: 1 as never }), mistyped(/escape is a string/));
+  assert.throws(() => likeExpr("a").escape(1 as never), mistyped(/escape is a string/));
 });
 
 // [spec:pgorm:req:bindings.select+4/test]
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 // [spec:pgorm:req:sql.ast.select.table-function+2/test]
 test("unnest WITH ORDINALITY numbers each element, reading a column of the item before it", async () => {
   const letters = tableFunction(call("unnest", bind(["x", "y", "z"]).cast("text", { array: true })))
@@ -245,7 +246,7 @@ test("unnest WITH ORDINALITY numbers each element, reading a column of the item 
 });
 
 // [spec:pgorm:req:bindings.select+4/test]
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 // [spec:pgorm:req:sql.ast.select.table-function+2/test]
 test("ROWS FROM reads its calls side by side, padding the shorter with NULL", async () => {
   const zipped = tableFunction(call("generate_series", int8(1), int8(2)))
@@ -286,7 +287,7 @@ test("ROWS FROM reads its calls side by side, padding the shorter with NULL", as
 });
 
 // [spec:pgorm:req:bindings.select+4/test]
-// [spec:pgorm:req:bindings.expressions+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
 // [spec:pgorm:req:sql.ast.select.column-definitions/test]
 test("a call returning record reads through its column definitions, alone or inside ROWS FROM", async () => {
   const one = tableFunction(call("json_to_record", new Value({ a: 7, tags: ["x", "y"] }, "json")))

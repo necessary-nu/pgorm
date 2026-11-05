@@ -122,7 +122,7 @@ from ._ranges import (
 )
 from ._query_types import (
     Identifier as Identifier, Direction as Direction, Nulls as Nulls,
-    Compiled as Compiled, LikePattern as LikePattern,
+    Compiled as Compiled, LikeExpr as LikeExpr,
     Aliased as Aliased, OrderBy as OrderBy,
 )
 from ._models import _model_result_names as _model_result_names, _model_count as _model_count

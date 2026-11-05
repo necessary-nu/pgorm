@@ -5,8 +5,8 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.expressions+2]
-// [spec:pgorm:req:bindings.quantifiers+2]
+// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.quantifiers+3]
 // [spec:pgorm:req:bindings.case]
 
 import type { Multirange, Param, Range, TypeName, Value } from "./index.d.ts";
@@ -133,27 +133,23 @@ export declare class Expr extends Builder {
   between<S>(this: S, lower: ComparisonOperand<S>, upper: ComparisonOperand<S>, options?: { readonly symmetric?: boolean }): Expr;
   notBetween<S>(this: S, lower: ComparisonOperand<S>, upper: ComparisonOperand<S>, options?: { readonly symmetric?: boolean }): Expr;
   /**
-   * A pattern match; the pattern is bound, and `escape` is one character, or
-   * `""` to turn escaping off. `any(..)` or `all(..)` over patterns takes no
-   * escape.
+   * A pattern match; the pattern is bound, a string escaped by the default
+   * backslash or a {@link LikeExpr} carrying its own escape. `any(..)` or
+   * `all(..)` over patterns carries none.
    */
-  like(pattern: string, options?: { readonly escape?: string }): Expr;
-  like(pattern: Quantified): Expr;
-  notLike(pattern: string, options?: { readonly escape?: string }): Expr;
-  notLike(pattern: Quantified): Expr;
-  ilike(pattern: string, options?: { readonly escape?: string }): Expr;
-  ilike(pattern: Quantified): Expr;
-  notIlike(pattern: string, options?: { readonly escape?: string }): Expr;
-  notIlike(pattern: Quantified): Expr;
+  like(pattern: string | LikeExpr | Quantified): Expr;
+  notLike(pattern: string | LikeExpr | Quantified): Expr;
+  ilike(pattern: string | LikeExpr | Quantified): Expr;
+  notIlike(pattern: string | LikeExpr | Quantified): Expr;
   /**
    * `SIMILAR TO`: whether the whole string matches a pattern in SQL's
    * regular-expression dialect — LIKE's `%` and `_` with `|`, `*`, `+`, `?`,
-   * repetition, grouping and bracket classes. Bound as LIKE's pattern is, with
-   * the same `escape`. A bound left operand needs its type, as
-   * the server cannot infer both sides from the operator alone.
+   * repetition, grouping and bracket classes. Bound as LIKE's pattern is, a
+   * {@link LikeExpr} carrying its escape. A bound left operand needs its
+   * type, as the server cannot infer both sides from the operator alone.
    */
-  similarTo(pattern: string, options?: { readonly escape?: string }): Expr;
-  notSimilarTo(pattern: string, options?: { readonly escape?: string }): Expr;
+  similarTo(pattern: string | LikeExpr): Expr;
+  notSimilarTo(pattern: string | LikeExpr): Expr;
   /** Whether the text begins with `text`, read as text: `%` and `_` match themselves. */
   startsWith(text: Operand): Expr;
   endsWith(text: Operand): Expr;
@@ -184,6 +180,23 @@ export declare class Expr extends Builder {
  * regular-expression matches, containment, the range positions, `matches`
  * and `pathExists` — and no expression of its own.
  */
+/**
+ * A LIKE, ILIKE or SIMILAR TO pattern and its `ESCAPE`, as pgorm-query's
+ * `LikeExpr` holds them: the pattern is bound, and the escape, a backslash
+ * until `escape` or `noEscape` replaces it, is written as a literal.
+ */
+export declare class LikeExpr {
+  #private;
+  private constructor();
+  /** Escape with `character`, `ESCAPE 'c'`, in place of the default backslash: one character, not NUL. */
+  escape(character: string): LikeExpr;
+  /** Turn escaping off, `ESCAPE ''`: a backslash in the pattern is then itself. */
+  noEscape(): LikeExpr;
+}
+
+/** A pattern with the default backslash escape, which `escape` or `noEscape` replaces. */
+export declare function likeExpr(pattern: string): LikeExpr;
+
 export declare class Quantified {
   #private;
   private constructor();

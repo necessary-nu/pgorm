@@ -37,6 +37,7 @@ export { CopyRowStream } from "./copy-rows.js";
 export { CaseOperand, caseOf, caseWhen, Condition, SearchedCase, SimpleCase } from "./conditions.js";
 export { Aliased, all, any, array, bind, call, col, exists, Expr, literal, OrderBy, Quantified, scalar, tuple } from "./expressions.js";
 export { Builder } from "./builder.js";
+export { LikeExpr, likeExpr } from "./predicates.js";
 export { FromItem, Select, select, Table, With } from "./select.js";
 export { GroupingElement } from "./grouping.js";
 export { TableFunction, tableFunction } from "./table-function.js";

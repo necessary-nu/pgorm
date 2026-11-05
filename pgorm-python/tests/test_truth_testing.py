@@ -110,7 +110,7 @@ def expression_samples():
     expression = p.col("id") > 1
     return [
         expression, p.Condition.all(expression), expression.as_("big"), expression.asc(),
-        p.LikePattern("a%"), p.Direction.Asc, p.Nulls.First, p.format_json(p.col("doc")),
+        p.LikeExpr("a%"), p.Direction.Asc, p.Nulls.First, p.format_json(p.col("doc")),
         p.JsonKind.Object, p.JsonExistsBehavior.Error, p.JsonValueBehavior.Null,
         p.JsonQueryBehavior.Null, p.JsonDefault("x"), p.JsonTableBehavior.Empty,
         p.JsonTableColumn.ordinality("n"), p.any_(p.col("ids")),

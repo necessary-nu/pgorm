@@ -3,8 +3,8 @@
 // build, which the Rust test `statements::parity` builds the same statement to
 // with pgorm-query's own builders.
 // [spec:pgorm:req:bindings.select+4/test]
-// [spec:pgorm:req:bindings.expressions+2/test]
-// [spec:pgorm:req:bindings.quantifiers+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
+// [spec:pgorm:req:bindings.quantifiers+3/test]
 // [spec:pgorm:req:bindings.cte-options/test]
 
 import {
@@ -22,6 +22,7 @@ import {
   Decimal,
   exists,
   GroupingElement,
+  likeExpr,
   literal,
   scalar,
   select,
@@ -100,9 +101,9 @@ export const cases: Record<string, () => Builder> = {
     select().from(t).where(
       Condition.any(
         col("a").like("A%"),
-        col("b").notLike("50\\%%", { escape: "\\" }),
+        col("b").notLike(likeExpr("50\\%%").escape("\\")),
         col("c").ilike("x_y"),
-        col("d").notIlike("%z", { escape: "!" }),
+        col("d").notIlike(likeExpr("%z").escape("!")),
         col("e").startsWith("50%_"),
         col("f").endsWith("O'Brien"),
         col("g").containsText("\\"),
@@ -291,8 +292,8 @@ export const cases: Record<string, () => Builder> = {
     select().from(t).where(
       Condition.all(
         col("a").similarTo("(x|y)%"),
-        col("b").notSimilarTo("!%%", { escape: "!" }),
-        col("c").similarTo("a\\_b", { escape: "\\" }),
+        col("b").notSimilarTo(likeExpr("!%%").escape("!")),
+        col("c").similarTo(likeExpr("a\\_b").escape("\\")),
         col("d").similarTo("%z").not(),
       ),
     ),

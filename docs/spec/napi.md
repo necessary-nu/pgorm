@@ -25,8 +25,8 @@ waiting on the operator. The WBS root is `napi`.
 > its last argument. A class Python constructs by calling it, JavaScript
 > constructs through a factory function named for it in camelCase (`select`,
 > `insert`, `update`, `merge`, `column`, `model`, `copyFrom`, `copyTo`,
-> `tableFunction`, `jsonDefault`), its constructor private where the factory
-> alone makes one. The DDL factories, `createTable`, `alterTable` and the
+> `tableFunction`, `likeExpr`, `jsonDefault`), its constructor private where
+> the factory alone makes one. The DDL factories, `createTable`, `alterTable` and the
 > rest, are both bindings' (`bindings.schema-api`). The pipeline is the
 > module's `pipeline` namespace.
 >

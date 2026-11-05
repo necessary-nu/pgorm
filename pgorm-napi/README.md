@@ -310,8 +310,9 @@ for await (const row of pool.stream(query, { tagged: true })) { /* .. */ }
   name is 1–63 bytes, always an identifier, its dots included.
 - **Expressions**: comparisons and arithmetic (`eq` .. `gte`, `add` .. `mod`,
   `concat`), `and`/`or`/`not` and `Condition.all`/`any`, `isNull`, `isIn` a list
-  or a `Select`, `between` (`{ symmetric }`), `like`/`ilike`/`similarTo` with
-  an `escape`, `startsWith`/`endsWith`/`containsText` (text, not patterns),
+  or a `Select`, `between` (`{ symmetric }`), `like`/`ilike`/`similarTo` over
+  a string or a `likeExpr(pattern)` with its `.escape(c)` or `.noEscape()`,
+  `startsWith`/`endsWith`/`containsText` (text, not patterns),
   `cast`, `collate`, `at`/`slice`, `caseWhen(..).when(..).else(..)`,
   `caseOf(x).when(..)`, `call` for the functions pgorm-query constructs
   (`uuidv7` and its shift among them, the set-returning `generate_series`
@@ -323,7 +324,7 @@ for await (const row of pool.stream(query, { tagged: true })) { /* .. */ }
 - **ANY and ALL**: `any(source)` and `all(source)` are `ANY (..)` and
   `ALL (..)`, the right operand of every operator PostgreSQL reads a
   quantifier after and of nothing else: `eq` .. `gte`, `like`, `notLike`,
-  `ilike` and `notIlike` (with no `escape`), the regular-expression matches,
+  `ilike` and `notIlike` (a pattern that carries no escape), the regular-expression matches,
   `contains`, `containedBy`, `overlaps`, the range positions, `matches` and
   `pathExists`. `similarTo`, `isDistinctFrom`, `between`, arithmetic and
   `concat` refuse one, and it has no `inspect` of its own. The server types a
