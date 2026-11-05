@@ -498,7 +498,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > bare `bit` being `bit(Some(1))`, and the Python and JavaScript `DataType`
 > `"bit"` with no length is `bit(1)`. `VarBit(n)` is `varbit(n)`.
 
-> [spec:pgorm:req:sql.ddl.alter-table+14]
+> [spec:pgorm:req:sql.ddl.alter-table+15]
 > `TableAlterStatement` names one table and collects `TableAlterOption`s:
 > `AddColumn` (with an `if_not_exists` flag), `ModifyColumn`,
 > `AlterColumnTypeUsing`, `DropDefault`, `DropColumn`, `AddForeignKey`,
@@ -508,7 +508,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > table and a first option are structural rather than checked:
 > `Table::alter(table)` yields a `PendingTableAlter`, which is a named table and
 > nothing more — it implements no build path and cannot render — and each of
-> its seventeen action methods consumes it
+> its eighteen action methods consumes it
 > and returns the statement, whose own methods append the rest. PostgreSQL parses
 > neither `ALTER TABLE "font"` nor `ALTER TABLE ADD COLUMN ...`, and neither MUST
 > be constructible (`[dec:pgorm:invalid-states-unrepresentable]`); the
@@ -632,6 +632,15 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > given its default again after. The live suite holds each: the values
 > converted through the expression, the retype refused with a default and
 > taken once it is dropped, and the generated column refused.
+> `alter_column_type_collated_using(c, type, collation, expr)`, on both types,
+> is the same retype under a collation, any `IntoCollation`, written where
+> PostgreSQL takes it, between the type and `USING`: `ALTER COLUMN "c" TYPE
+> <type> COLLATE <collation> USING <expr>`, the column taking that collation
+> as `modify_column`'s retype gives it a column's. Whether the type takes a
+> collation and whether the collation exists are the server's knowledge,
+> and the live suite holds what it does: the values converted and the
+> column's collation the one named, a collation on a type without one
+> refused (`42804`), and one the server does not have (`42704`).
 >
 > `add_not_null(constraint)`, on both types, takes a `NotNullConstraint`:
 > PostgreSQL 18's table-level `NOT NULL`, over one column the constructor

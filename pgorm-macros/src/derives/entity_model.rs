@@ -134,7 +134,7 @@ const WRITE: Direction = Direction {
 /// direction, so a second key of the pair, or the same key again, is refused
 /// rather than left to override the first.
 // [spec:pgorm:req:macros.derive.one-form]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+9]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
 fn conversion(
     meta: &ParseNestedMeta,
     declared: &Option<Conversion>,
@@ -216,7 +216,7 @@ fn conversion_arms(
 /// are entity-wide and accumulate across every field. A key whose value is Rust
 /// code takes it bare; `default_value` is an expression of the column's value,
 /// so a string literal there is that string.
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+9]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
 // [spec:pgorm:req:macros.derive.code-values+3]
 fn parse_field_attrs(
     field: &Field,
@@ -510,7 +510,7 @@ impl CompositeUnique {
     /// is refused, as PostgreSQL refuses the key (`42701`), and so is a list
     /// of one column, which is that field's own `unique`; a name is 1 to 63
     /// bytes, the identifier PostgreSQL would otherwise refuse or truncate.
-    // [spec:pgorm:syn:macros.derive.entity-model.attrs+9]
+    // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
     // [spec:pgorm:req:macros.derive.code-values+3]
     fn parse(meta: &ParseNestedMeta) -> syn::Result<Self> {
         let mut unique = Self {
@@ -606,9 +606,15 @@ impl CompositeUnique {
     /// The `UniqueKey` constant the key is, each column by the SQL name of the
     /// `Column` variant its path names. A path naming no variant of this
     /// model's `Column` is refused at the path, since the key is written
-    /// into the entity's `EntityName` as data, not resolved as code.
-    // [spec:pgorm:syn:macros.derive.entity-model.attrs+9]
-    fn expand(&self, columns: &[ColumnVariant]) -> syn::Result<TokenStream> {
+    /// into the entity's `EntityName` as data, not resolved as code, and so
+    /// is one naming a column in `virtual_columns`, which PostgreSQL cannot
+    /// key (0A000).
+    // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
+    fn expand(
+        &self,
+        columns: &[ColumnVariant],
+        virtual_columns: &[Ident],
+    ) -> syn::Result<TokenStream> {
         let names = self
             .columns
             .iter()
@@ -617,20 +623,27 @@ impl CompositeUnique {
                     [column, variant] if column.ident == "Column" => Some(&variant.ident),
                     _ => None,
                 };
-                variant
+                let column = variant
                     .and_then(|variant| {
                         columns
                             .iter()
                             .find(|column| column.iterated && column.variant.ident == *variant)
                     })
-                    .map(|column| column.name.clone())
                     .ok_or_else(|| {
                         syn::Error::new(
                             path.span(),
                             "a `unique` key's column is one of this model's columns, \
                              written `Column::<Variant>`",
                         )
-                    })
+                    })?;
+                if virtual_columns.contains(&column.variant.ident) {
+                    return Err(syn::Error::new(
+                        path.span(),
+                        "a VIRTUAL generated column cannot be in a `unique` key, which \
+                         PostgreSQL does not support; declare it `generated_stored`",
+                    ));
+                }
+                Ok(column.name.clone())
             })
             .collect::<syn::Result<Vec<String>>>()?;
         let name = match &self.name {
@@ -650,7 +663,7 @@ impl CompositeUnique {
 
 /// Method to derive an Model
 // [spec:pgorm:sem:macros.derive.entity-model+9]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+9]
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
 // [spec:pgorm:sem:macros.derive.entity-model.casing+4]
 // [spec:pgorm:sem:macros.derive.entity-model.column-def+10]
 // [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
@@ -721,6 +734,7 @@ pub fn expand_derive_entity_model(
     let mut key_spans: Vec<Span> = Vec::new();
     let mut key_periods: Vec<Option<Span>> = Vec::new();
     let mut serial_key_fields: Vec<Span> = Vec::new();
+    let mut virtual_columns: Vec<Ident> = Vec::new();
     if table_iden && table_name.is_some() {
         let table_field_name = Ident::new("Table", Span::call_site());
         columns_enum.push(ColumnVariant {
@@ -794,6 +808,9 @@ pub fn expand_derive_entity_model(
                 if ignore {
                     continue;
                 } else {
+                    if let Some((Generated::Virtual, _, _)) = generated {
+                        virtual_columns.push(field_name.clone());
+                    }
                     columns_enum.push(ColumnVariant {
                         variant: syn::parse_quote! {
                             #[doc = " Generated by pgorm-macros"]
@@ -989,7 +1006,7 @@ pub fn expand_derive_entity_model(
         uniques => {
             let keys = uniques
                 .iter()
-                .map(|unique| unique.expand(&columns_enum))
+                .map(|unique| unique.expand(&columns_enum, &virtual_columns))
                 .collect::<syn::Result<Vec<_>>>()?;
             Some(quote! {
                 fn unique_keys(&self) -> &'static [pgorm::UniqueKey] {

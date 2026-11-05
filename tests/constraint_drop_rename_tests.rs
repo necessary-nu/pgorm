@@ -62,7 +62,7 @@ const SCHEMA: &str = "CREATE TABLE parent (\
 /// row each refuses — a second code, a null note, a negative `v`, an orphan
 /// child — is admitted once it is dropped, and the catalogue no longer holds
 /// it.
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]    against a live server: a key, a NOT NULL,
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]    against a live server: a key, a NOT NULL,
 // a CHECK and a foreign key are each dropped by name, and admit what they refused
 #[pgorm_macros::test]
 async fn one_drop_serves_every_constraint_kind() -> Result<(), Error> {
@@ -126,7 +126,7 @@ async fn one_drop_serves_every_constraint_kind() -> Result<(), Error> {
 /// depends on (`2BP01`), said `RESTRICT` or not, which `CASCADE` drops with
 /// the foreign key; the `NOT NULL` of a primary-key column (`42P16`); and a
 /// constraint a table inherited, which only its parent drops (`42P16`).
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]    against a live server: a missing name,
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]    against a live server: a missing name,
 // a depended-on key, a key column's NOT NULL and an inherited constraint are refused, and
 // IF EXISTS and CASCADE do what they say
 #[pgorm_macros::test]
@@ -208,7 +208,7 @@ async fn a_drop_is_refused_where_it_cannot_be() -> Result<(), Error> {
 /// new name another constraint holds (`42710`) — or, renaming a key, a name
 /// another key's index holds (`42P07`), since the index takes the name too —
 /// and a rename of an inherited copy on the child (`42P16`).
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]    against a live server: a rename reaches
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]    against a live server: a rename reaches
 // a key's index and a child's inherited copy, and is refused for a missing or taken name
 // and on the child
 #[pgorm_macros::test]

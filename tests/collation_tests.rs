@@ -178,7 +178,7 @@ async fn a_nondeterministic_collation_equates_distinct_bytes(
 /// `"C"` as well.
 // [spec:pgorm:req:sql.ddl.column-def+13/test]    against a live server: a column compares by the
 // collation it was declared with
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]    the retype carries the collation
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]    the retype carries the collation
 // [spec:pgorm:req:sql.scope+23/test]
 async fn a_collated_column_compares_by_its_collation(
     db: &DatabaseConnection,

@@ -23,13 +23,13 @@ pub enum DdlStatement {
     /// table created after that one.
     AlterTable(TableAlterStatement),
     /// A change to a type, such as a value added to an enum.
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     AlterType(TypeAlterStatement),
     /// A type dropped.
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     DropType(TypeDropStatement),
     /// A table dropped.
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     DropTable(TableDropStatement),
 }
 

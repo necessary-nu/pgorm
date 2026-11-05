@@ -1226,7 +1226,7 @@ async fn every_commit_clears_and_notifies() -> Result<(), Error> {
 /// steps `add_disjoint_kind` writes run as two migrations of one batch, the
 /// first answering `commits_after()`, so the second uses the value the first
 /// added. The entity then writes and reads the new kind beside the old.
-// [spec:pgorm:sem:disjoint.evolve+1/test]    each step one migration, every step but the last
+// [spec:pgorm:sem:disjoint.evolve+2/test]    each step one migration, every step but the last
 // answering `commits_after()`
 // [spec:pgorm:req:migration.commit-after/test]    a batch running the steps of a change
 #[tokio::test]

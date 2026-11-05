@@ -36,7 +36,7 @@ use pgorm::pgorm_query::{Expr, Query};
 
 /// Every site's benign rendering parses and puts the name exactly where the
 /// registry says, and no two sites share an id.
-// [spec:pgorm:req:security.ident-oracle+15/test]
+// [spec:pgorm:req:security.ident-oracle+16/test]
 #[test]
 fn every_site_declares_where_its_name_lands() {
     let sites = sites();
@@ -67,7 +67,7 @@ fn every_site_declares_where_its_name_lands() {
 /// rejection of the empty name, a listed type spelling read as its type, a
 /// listed call form read as its expression. A failure
 /// names the site, the name and the structural difference.
-// [spec:pgorm:req:security.ident-oracle+15/test]
+// [spec:pgorm:req:security.ident-oracle+16/test]
 #[test]
 fn every_site_holds_every_hostile_name() {
     let sites = sites();
@@ -117,7 +117,7 @@ fn every_site_holds_every_hostile_name() {
 /// exist to hold the comparison itself: every corpus name before an `IN` list
 /// and before an `ARRAY` constructor reads back as the name with nothing else
 /// moved.
-// [spec:pgorm:req:security.ident-oracle+15/test]
+// [spec:pgorm:req:security.ident-oracle+16/test]
 #[test]
 fn offsets_after_a_name_are_set_aside() {
     let sites = [
@@ -168,7 +168,7 @@ fn offsets_after_a_name_are_set_aside() {
 /// hold, and a keyword whose bare spelling means something else can only
 /// render quoted.
 // [spec:pgorm:def:sql.types.type-name+8/test]
-// [spec:pgorm:req:security.ident-oracle+15/test]
+// [spec:pgorm:req:security.ident-oracle+16/test]
 #[test]
 fn type_name_sites_hold_every_keyword() {
     let keywords = scanner_keywords();
@@ -235,7 +235,7 @@ fn every_site_keeps_nul_out_of_the_server() {
 /// Each pinned defect still reproduces exactly as filed. A pin fails the
 /// moment its site × name pair starts passing, so a fix cannot land without
 /// the pin being retired, and the defect is reported on every run until then.
-// [spec:pgorm:req:security.ident-oracle+15/test]
+// [spec:pgorm:req:security.ident-oracle+16/test]
 #[test]
 fn pinned_identifier_defects_still_reproduce() {
     let sites = sites();

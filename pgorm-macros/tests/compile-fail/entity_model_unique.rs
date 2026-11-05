@@ -142,4 +142,21 @@ mod not_a_column {
     pub enum Relation {}
 }
 
+mod virtual_column {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Entity)]
+    #[pgorm(table_name = "virtual_column", unique(columns = (Column::A, Column::Doubled)))]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        pub a: i32,
+        #[pgorm(generated_virtual = Expr::col(Column::A).mul(2))]
+        pub doubled: i32,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
 fn main() {}

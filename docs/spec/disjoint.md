@@ -320,7 +320,7 @@ has a row for it, and is never written through.
 
 ## Changing the kinds
 
-> [spec:pgorm:sem:disjoint.evolve+1]
+> [spec:pgorm:sem:disjoint.evolve+2]
 > A change to a kinded disjoint entity's kinds after its tables exist MUST be
 > written by `Schema` from the declaration as it will be, as a
 > `DisjointChange`: an ordered list of steps, each a list of statements that
@@ -358,9 +358,16 @@ has a row for it, and is never written through.
 >   refuse to cast as well, and the declaration's is set again after the
 >   rename. A kind table's kind column is a generated column, which
 >   PostgreSQL retypes by no `USING` (`42611`), so it is among the generated
->   columns dropped and written again, of the new type. It takes an exclusive
->   lock on the base and on every kind table for as long as the rewrite runs,
->   which is the price of one atomic migration.
+>   columns dropped and written again, of the new type. Each table MUST be
+>   rewritten once: retyping the base's kind column and adding its stored
+>   generated key columns each rewrite it, so one `ALTER TABLE`, which
+>   PostgreSQL carries out in one rewrite, drops those columns, retypes the
+>   kind column and writes them again over the new type, whose rename they
+>   survive, and their foreign keys, which reference the kind tables, are
+>   added last, once every kind table has its kind column again and an added
+>   kind's table exists. It takes an exclusive lock on the base and on every
+>   kind table for as long as the rewrite runs, which is the price of one
+>   atomic migration.
 > - `Schema::remove_disjoint_kind::<E>(value)` MUST remove a value the
 >   database's kind type holds and the declaration does not, by the recreating
 >   route, there being no `ALTER TYPE ... DROP VALUE`. Its first statement

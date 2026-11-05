@@ -173,3 +173,45 @@ fn setting_a_key_nulls_the_other_columns() -> Result<(), Error> {
     assert_eq!(fresh.photo_id, ActiveValue::Set(None));
     Ok(())
 }
+
+/// A declaration a `macro_rules!` macro writes around the targets its caller
+/// passes as tokens, each target's column completed by the macro: the
+/// derive's input carries the caller's spans in each target and the macro's
+/// in each column's path and everywhere else.
+macro_rules! one_of_through_a_macro {
+    ($name:ident { $($variant:ident($($target:tt)*) at $column:ident),* $(,)? }) => {
+        #[derive(Clone, Copy, Debug, OneOf)]
+        #[pgorm(entity = comment::Entity)]
+        pub enum $name {
+            $(
+                #[pgorm(column = comment::Column::$column)]
+                $variant($($target)*),
+            )*
+        }
+    };
+}
+
+one_of_through_a_macro!(Pinned {
+    Post(post::Entity) at PostId,
+    Photo(photo::Entity) at PhotoId,
+});
+
+// [spec:pgorm:req:macros.derive.hygiene/test]    a one-of enum a `macro_rules!` macro writes around targets its caller passes, completing their column paths, reaches its targets and reads and sets their keys as one written out does
+#[test]
+fn a_declaration_a_macro_writes_reaches_its_targets() -> Result<(), Error> {
+    let mut targets = Targets(Vec::new());
+    Pinned::visit_targets(&mut targets);
+    assert_eq!(
+        targets.0,
+        [
+            ("post".to_owned(), "post_id".to_owned()),
+            ("photo".to_owned(), "photo_id".to_owned())
+        ]
+    );
+    assert_eq!(Pinned::key(&comment(None, Some(4)))?, PinnedKey::Photo(4));
+    let mut active = <comment::ActiveModel as Default>::default();
+    Pinned::set(&mut active, PinnedKey::Post(6))?;
+    assert_eq!(active.post_id, ActiveValue::Set(Some(6)));
+    assert_eq!(active.photo_id, ActiveValue::Set(None));
+    Ok(())
+}
