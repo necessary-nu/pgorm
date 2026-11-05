@@ -1585,7 +1585,7 @@ assertions (
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id instrumented-tx-conn-trait, kind @complete, author "brendan@necessary.nu", at 2026-11-05T15:52:07.355141Z}
     {id multi-pool-constructor, kind @complete, author "brendan@necessary.nu", at 2026-11-05T16:14:16.428067Z}
-    {id retire-try-from-u64, kind @doing, author "brendan@necessary.nu", at 2026-11-05T16:25:10.845835Z}
+    {id retire-try-from-u64, kind @complete, author "brendan@necessary.nu", at 2026-11-05T16:31:41.480605Z}
 )
 
 impl_evidence (
