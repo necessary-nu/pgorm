@@ -4,7 +4,7 @@
 // values, patterns and text tests. LIKE's family also takes `any(..)` or
 // `all(..)` over patterns, with no escape.
 // [spec:pgorm:req:bindings.expressions+2]
-// [spec:pgorm:req:bindings.quantifiers+1]
+// [spec:pgorm:req:bindings.quantifiers+2]
 
 import { arg, args, made } from "./builder.js";
 import { native } from "./operations.js";

@@ -15,20 +15,24 @@ import {
   col as statementCol,
   Conflict,
   ConstructionError,
+  CreatedRange,
   DatabaseError,
   Decimal,
   DecodeError,
   entities,
   entity,
+  type EntityColumn,
   type EntityRecord,
   graph,
   graphs,
   LifecycleError,
   pipeline as pl,
   Pool,
+  Range,
   select,
   Table,
   TypeName,
+  Value,
 } from "../../../lib/index.js";
 import { scratchDatabase } from "../../support.ts";
 
@@ -45,6 +49,7 @@ const Note = entity("app.Note");
 const Membership = entity("app.Membership");
 const Parcel = entity("app.Parcel");
 const Till = entity("app.Till");
+const Booking = entity("app.Booking");
 
 before(async () => {
   database = await scratchDatabase("pgorm_napi_entities");
@@ -69,6 +74,8 @@ before(async () => {
          codes napi_entities.code[] NOT NULL
        )`,
       "CREATE TABLE napi_entities.tills (id int4 PRIMARY KEY, takings money NOT NULL, floats money[])",
+      "CREATE TYPE napi_entities.floatrange AS RANGE (SUBTYPE = float8)",
+      "CREATE TABLE napi_entities.bookings (id int4 PRIMARY KEY, span napi_entities.floatrange NOT NULL, spares napi_entities.floatrange[])",
     ]
   ) {
     await pool().execute(sql);
@@ -77,7 +84,7 @@ before(async () => {
 
 beforeEach(async () => {
   await pool().execute(
-    "TRUNCATE napi_entities.accounts, napi_entities.notes, napi_entities.memberships, napi_entities.parcels, napi_entities.tills",
+    "TRUNCATE napi_entities.accounts, napi_entities.notes, napi_entities.memberships, napi_entities.parcels, napi_entities.tills, napi_entities.bookings",
   );
 });
 
@@ -108,6 +115,7 @@ test("the module names its registrations and describes each, and refuses a name 
   assert.deepStrictEqual(entities(), [
     "app.Account",
     "app.Auction",
+    "app.Booking",
     "app.Label",
     "app.Listing",
     "app.Membership",
@@ -442,6 +450,8 @@ test("a registered column's between and distinctness tests compare under its cas
 // expression it is compared as written
 // [spec:pgorm:req:bindings.column-operators+3/test]    a registered array column's containment and
 // overlap run through its ColumnTrait
+// [spec:pgorm:req:bindings.quantifiers+2/test]    an empty list is typed by the registered column, = ANY
+// of it false and <> ALL true, and refused as it is used where no registered column types it
 test("a registered column's quantified comparisons and containment compare under its casts", async () => {
   await seed();
   for (const [id, takings] of [[1, "12.35"], [2, "3"], [3, "7.5"]] as const) {
@@ -456,6 +466,10 @@ test("a registered column's quantified comparisons and containment compare under
   assert.match(takings.eq(any([new Decimal("3")])).inspect().sql, /= ANY\(CAST\(\$1::numeric\[\] AS money\[\]\)\)/);
   assert.deepStrictEqual(await ids(Till.find().where(takings.eq(any([new Decimal("3"), new Decimal("12.35")])))), [1, 2]);
   assert.deepStrictEqual(await ids(Till.find().where(takings.gt(all([new Decimal("1"), new Decimal("5")])))), [1, 3]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.eq(any([])))), []);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.ne(all([])))), [1, 2, 3]);
+  const empty = any([]);
+  assert.throws(() => statementCol("x").eq(empty), ConstructionError);
   assert.deepStrictEqual(await ids(Account.find().where(Account.col("mood").ne(all(["busy"])))), [1, 3]);
   const temper = Parcel.col("mood");
   assert.deepStrictEqual(await ids(Parcel.find().where(temper.eq(any(["busy"])))), [2]);
@@ -494,6 +508,60 @@ test("a decode refusal names the column the driver read and the decoder's reason
     await pool().execute("TRUNCATE napi_entities.notes");
     await pool().execute("ALTER TABLE napi_entities.notes ALTER COLUMN account_id TYPE int4 USING account_id::int4");
   }
+});
+
+// [spec:pgorm:req:bindings.entity-reads+3/test]    any(..) / all(..) over a list of ranges compared
+// with a column of a range type the schema created is the array of their texts cast to the type's
+// array
+// [spec:pgorm:req:bindings.quantifiers+2/test]    a list of ranges, of no kind the list alone names,
+// is typed by the registered column it meets
+test("a registered created range's quantified comparisons bind as the array of the ranges' texts", async () => {
+  for (const [id, lower, upper] of [[1, 1.5, 2.5], [2, 5, 6]] as const) {
+    await Booking.active().set("id", id).set("span", new Range(lower, upper)).insert(pool());
+  }
+  const ids = async (query: { all(pool: Pool): Promise<readonly EntityRecord[]> }) =>
+    (await query.all(pool())).map((record) => record.id).sort();
+  const span = Booking.col("span");
+  assert.match(
+    span.eq(any([new Range(1.5, 2.5)])).inspect().sql,
+    /= ANY\(CAST\(\$1::text\[\] AS napi_entities\.floatrange\[\]\)\)/,
+  );
+  assert.deepStrictEqual(await ids(Booking.find().where(span.eq(any([new Range(1.5, 2.5), new Range(7, 8)])))), [1]);
+  assert.deepStrictEqual(await ids(Booking.find().where(span.overlaps(any([new Range(2, 3), new Range(5.5, 5.6)])))), [1, 2]);
+  assert.deepStrictEqual(await ids(Booking.find().where(span.overlaps(all([new Range(2, 3), new Range(1, 1.6)])))), [1]);
+});
+
+// [spec:pgorm:req:bindings.created-ranges+2/test]    a registered column of an array of a created
+// range takes an array of the kind's values, the empty array and null elements included, as the array
+// of their texts cast to the type's array, compares through the column's casts, and reads back as an
+// array; no program declares such an array as a Value
+test("a registered created range array binds as the array of the ranges' texts", async () => {
+  await Booking.active().set("id", 1).set("span", new Range(1, 2)).set("spares", [new Range(1.5, 2.5), new Range(3, 4)])
+    .insert(pool());
+  await Booking.active().set("id", 2).set("span", new Range(1, 2)).set("spares", []).insert(pool());
+  const found = await Booking.find().where(Booking.col("id").eq(1)).one(pool());
+  assert.deepStrictEqual(found.spares, [new Range(1.5, 2.5), new Range(3, 4)]);
+  const ids = async (query: { all(pool: Pool): Promise<readonly EntityRecord[]> }) =>
+    (await query.all(pool())).map((record) => record.id).sort();
+  // The registration declares no column types, and an array of ranges is no `Operand`.
+  const spares: EntityColumn<unknown> = Booking.col("spares");
+  assert.match(
+    spares.eq([new Range(1.5, 2.5)]).inspect().sql,
+    /= CAST\(\$1::text\[\] AS napi_entities\.floatrange\[\]\)/,
+  );
+  assert.deepStrictEqual(await ids(Booking.find().where(spares.eq([new Range(1.5, 2.5), new Range(3, 4)]))), [1]);
+  assert.deepStrictEqual(await ids(Booking.find().where(spares.eq([]))), [2]);
+  assert.deepStrictEqual(await ids(Booking.find().where(spares.ne([new Range(1.5, 2.5), null]))), [1, 2]);
+  assert.deepStrictEqual(await ids(Booking.find().where(spares.contains([new Range(3, 4)]))), [1]);
+  const moved = await Booking.intoActive(found).set("spares", Booking.tagged(found, "spares")).set("span", new Range(0, 1))
+    .update(pool());
+  assert.deepStrictEqual(moved.spares, found.spares);
+  assert.throws(() => Booking.active().set("spares", ["nope"]), ConstructionError);
+  assert.throws(() => Booking.active().set("span", Booking.tagged(found, "spares")), ConstructionError);
+  assert.throws(
+    () => Value.array(new CreatedRange("floatrange", "f64", { schema: "napi_entities" }), [new Range(1, 2)]),
+    ConstructionError,
+  );
 });
 
 // [spec:pgorm:req:bindings.entity-writes/test]

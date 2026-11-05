@@ -244,10 +244,61 @@ try_getable_range_family!(jiff::civil::DateTime);
 #[cfg(feature = "with-jiff")]
 try_getable_range_family!(jiff::Timestamp);
 
+/// An array of a range type a schema created, each element decoded through
+/// its subtype's codec as `Range<T>` decodes one, and a NULL element refused,
+/// as in every array. The `CreatedRange` derive reads an array column of its
+/// type through this rather than `Vec<Range<T>>`, which a crate built without
+/// `postgres-array` lacks and which only a built-in range's subtype has.
+// [spec:pgorm:def:sql.value.created-range+8]
+#[doc(hidden)]
+pub fn try_get_created_ranges<T, I>(res: &QueryResult, idx: I) -> Result<Vec<Range<T>>, TryGetError>
+where
+    T: for<'a> FromSql<'a>,
+    I: RowIndex + std::fmt::Display,
+{
+    #[cfg(feature = "postgres-array")]
+    {
+        let result: Vec<RangeSql<T>> = res.row.try_get(idx).map_err(TryGetError::postgres)?;
+        Ok(result.into_iter().map(|range| range.0).collect())
+    }
+    #[cfg(not(feature = "postgres-array"))]
+    {
+        let _ = (res, idx);
+        Err(TryGetError::Db(crate::Error::Type(
+            "reading an array of a created range requires the `postgres-array` feature".to_owned(),
+        )))
+    }
+}
+
+/// An array column read as the texts of its elements: what the
+/// `CreatedRange` derive reads an array of a created multirange through, the
+/// driver reporting the multirange with no subtype, so the column's
+/// `select_as` casts it to `text[]`.
+// [spec:pgorm:def:sql.value.created-range+8]
+#[doc(hidden)]
+pub fn try_get_texts<I>(res: &QueryResult, idx: I) -> Result<Vec<String>, TryGetError>
+where
+    I: RowIndex + std::fmt::Display,
+{
+    #[cfg(feature = "postgres-array")]
+    {
+        <Vec<String> as TryGetable>::try_get_by(res, idx)
+    }
+    #[cfg(not(feature = "postgres-array"))]
+    {
+        let _ = (res, idx);
+        Err(TryGetError::Db(crate::Error::Type(
+            "reading an array of a created multirange requires the `postgres-array` feature"
+                .to_owned(),
+        )))
+    }
+}
+
 // The subtypes only a range type a schema created ranges over. Their
 // multiranges are reported by tokio-postgres as simple types, and an array of
-// them is not built, so the range alone decodes.
-// [spec:pgorm:def:sql.value.created-range+6]
+// their ranges is read by `try_get_created_ranges`, so the range alone
+// decodes here.
+// [spec:pgorm:def:sql.value.created-range+8]
 try_getable_range!(i16);
 try_getable_range!(f32);
 try_getable_range!(f64);

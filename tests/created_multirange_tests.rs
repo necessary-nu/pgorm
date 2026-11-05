@@ -58,6 +58,24 @@ mod spans {
 
 use spans::{FloatSpans, Labels, Slots};
 
+/// A table whose columns are arrays of multiranges a schema created.
+mod ledgers {
+    use super::spans::{FloatSpans, Slots};
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Entity)]
+    #[pgorm(table_name = "ledgers")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+        pub slots: Vec<Slots>,
+        pub spans: Option<Vec<FloatSpans>>,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {
     let ctx = TestContext::new("created_multirange_tests").await;
@@ -72,6 +90,7 @@ async fn main() -> Result<(), Error> {
     a_bound_holding_range_syntax_stays_data(&db).await?;
     a_builtin_multirange_reaches_a_created_one(&db).await?;
     the_server_refuses_what_it_cannot_store(&db).await?;
+    created_multirange_arrays_travel_as_texts(&db).await?;
 
     drop(db);
     ctx.delete().await;
@@ -135,8 +154,8 @@ async fn create_the_types(db: &DatabaseConnection) -> Result<(), Error> {
 
 /// A table built from the entity names each multirange in full, quoted where
 /// the name needs it, and the server takes it.
-// [spec:pgorm:def:sql.value.created-range+6/test]
-// [spec:pgorm:sem:macros.derive.created-range+2/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
+// [spec:pgorm:sem:macros.derive.created-range+3/test]
 async fn the_table_names_each_multirange(db: &DatabaseConnection) -> Result<(), Error> {
     let table = Schema::new().create_table_from_entity(spans::Entity)?;
     let sql = table.to_string();
@@ -178,8 +197,8 @@ fn written(id: i32) -> spans::Model {
 /// A model is written by an entity insert, its text bound and cast by name,
 /// and read back through the column's text cast; a `NULL` multirange stays
 /// `NULL` and the empty one stays empty.
-// [spec:pgorm:def:sql.value.created-range+6/test]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]
 async fn a_multirange_round_trips_through_an_entity(db: &DatabaseConnection) -> Result<(), Error> {
     let first = written(1);
     assert_eq!(first.clone().into_active_model().insert(db).await?, first);
@@ -210,7 +229,7 @@ async fn a_multirange_round_trips_through_an_entity(db: &DatabaseConnection) -> 
 
 /// `find`, the graph and the pipeline all read through the column's cast to
 /// `text`; without it the driver could not read the column at all.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]
 async fn every_reader_takes_the_text_cast(db: &DatabaseConnection) -> Result<(), Error> {
     let first = written(1);
     let found = spans::Entity::find_by_id(1).one(db).await?;
@@ -235,7 +254,7 @@ async fn every_reader_takes_the_text_cast(db: &DatabaseConnection) -> Result<(),
 
 /// The server stores a multirange sorted and merged, with the empty ranges
 /// dropped, and the merged value is what reads back.
-// [spec:pgorm:def:sql.value.created-range+6/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
 async fn the_server_merges_what_is_written(db: &DatabaseConnection) -> Result<(), Error> {
     let written = FloatSpans(multirange([
         Range::from(5.0..8.0),
@@ -264,7 +283,7 @@ async fn the_server_merges_what_is_written(db: &DatabaseConnection) -> Result<()
 
 /// A value cast to its type renders as an escaped literal inline and as a
 /// `text` parameter bound, and the two are the value written.
-// [spec:pgorm:def:sql.value.created-range+6/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
 async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Result<(), Error> {
     let slots = Slots(multirange([Range::from(1..=5)]));
     let query = Query::select().expr(slots.clone().into_expr()).to_owned();
@@ -286,7 +305,7 @@ async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Resul
 
 /// A bound holding the literal's syntax, the SQL string's, or a
 /// placeholder's is written and read back as the text it is.
-// [spec:pgorm:def:sql.value.created-range+6/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
 async fn a_bound_holding_range_syntax_stays_data(db: &DatabaseConnection) -> Result<(), Error> {
     let hostile = [
         "'); DROP TABLE spans; --",
@@ -321,9 +340,10 @@ async fn a_bound_holding_range_syntax_stays_data(db: &DatabaseConnection) -> Res
 
 /// A built-in `int4multirange` value written to a column of a multirange
 /// created over `int4` is turned into its text and cast, on both renderings,
-/// and a pipeline binds one compared with the column through its text too;
+/// an array of them compared with the column as the array of their texts, and
+/// a pipeline binds one compared with the column through its text too;
 /// cast as the built-in it is, it is refused.
-// [spec:pgorm:def:sql.value.created-range+6/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
 async fn a_builtin_multirange_reaches_a_created_one(db: &DatabaseConnection) -> Result<(), Error> {
     let builtin = multirange([Range::from(2..7)]);
     let insert = Query::insert()
@@ -363,6 +383,18 @@ async fn a_builtin_multirange_reaches_a_created_one(db: &DatabaseConnection) -> 
         vec![3]
     );
 
+    let quantified = spans::Entity::find()
+        .filter(spans::Column::Slots.eq_any([builtin.clone()]))
+        .all(db)
+        .await?;
+    assert_eq!(
+        quantified
+            .into_iter()
+            .map(|model| model.id)
+            .collect::<Vec<_>>(),
+        vec![3]
+    );
+
     let piped = {
         use pgorm::pipeline::{ExprOps, Pipeline};
         Pipeline::from(spans::Entity)
@@ -393,11 +425,81 @@ async fn a_builtin_multirange_reaches_a_created_one(db: &DatabaseConnection) -> 
     Ok(())
 }
 
+/// A column of an array of a multirange a schema created is written as the
+/// array of the values' texts cast to the type's array, and read cast to
+/// `text[]`, by `find`, the graph and the pipeline alike; a pipeline's bound
+/// built-in multirange array is cast through its text.
+// [spec:pgorm:def:sql.value.created-range+8/test]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]
+// [spec:pgorm:sem:macros.derive.created-range+3/test]    `Vec` of the newtype is a field, read
+// from the column's `text[]`
+async fn created_multirange_arrays_travel_as_texts(db: &DatabaseConnection) -> Result<(), Error> {
+    let table = Schema::new().create_table_from_entity(ledgers::Entity)?;
+    assert!(
+        table
+            .to_string()
+            .contains(r#""slots" "We""ird"."Slot Set"[] NOT NULL"#),
+        "{table}"
+    );
+    db.batch_execute(&table.to_string()).await?;
+    let first = ledgers::Model {
+        id: 1,
+        slots: vec![
+            Slots(multirange([Range::from(1..3), Range::from(5..8)])),
+            Slots(Multirange::default()),
+        ],
+        spans: Some(vec![FloatSpans(multirange([Range::from(0.5..1.5)]))]),
+    };
+    let second = ledgers::Model {
+        id: 2,
+        slots: Vec::new(),
+        spans: None,
+    };
+    for model in [&first, &second] {
+        assert_eq!(&model.clone().into_active_model().insert(db).await?, model);
+    }
+    assert_eq!(
+        ledgers::Entity::find()
+            .order_by_asc(ledgers::Column::Id)
+            .all(db)
+            .await?,
+        vec![first.clone(), second.clone()]
+    );
+    let graphed = ledgers::Entity::graph()
+        .filter(ledgers::Column::Id.eq(1))
+        .all(db)
+        .await?;
+    assert_eq!(graphed, vec![first.clone()]);
+
+    let builtin = vec![
+        multirange([Range::from(1..3), Range::from(5..8)]),
+        Multirange::default(),
+    ];
+    let found = ledgers::Entity::find()
+        .filter(ledgers::Column::Slots.eq(builtin.clone()))
+        .all(db)
+        .await?;
+    assert_eq!(found, vec![first.clone()]);
+    let piped = {
+        use pgorm::pipeline::{ExprOps, Pipeline};
+        Pipeline::from(ledgers::Entity)
+            .filter_with(|binder| ledgers::Column::Slots.eq(binder.bind(builtin.clone())))
+            .select_sources(ledgers::Entity)
+    };
+    let (sql, _) = piped.clone().into_sql().expect("the pipeline compiles");
+    assert!(
+        sql.contains(r#"slots = CAST($1::int4multirange[]::text AS "We""ird"."Slot Set"[])"#),
+        "{sql}"
+    );
+    assert_eq!(piped.all(db).await?, vec![Some(first)]);
+    Ok(())
+}
+
 /// What the server refuses, it refuses with its own code on both renderings:
 /// a range with bounds out of order, malformed text, and text that is a range
 /// rather than a multirange. Text that reads as no multirange of the subtype
 /// is refused on the way out.
-// [spec:pgorm:def:sql.value.created-range+6/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
 async fn the_server_refuses_what_it_cannot_store(db: &DatabaseConnection) -> Result<(), Error> {
     let cases = [
         (

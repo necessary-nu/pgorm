@@ -54,7 +54,7 @@ impl PyExpr {
     /// `ANY (..)` / `ALL (..)` when PostgreSQL reads one after `operator`.
     pub(crate) fn binary(&self, operator: BinOper, other: &Bound<'_, PyAny>) -> PyResult<Self> {
         let right = match other.extract::<PyRef<'_, PyQuantified>>() {
-            Ok(quantified) if takes_quantifier(operator) => quantified.inner.clone(),
+            Ok(quantified) if takes_quantifier(operator) => quantified.operand()?,
             _ => coerce(other)?.inner,
         };
         Ok(Self::from_rust(self.inner.clone().binary(operator, right)))
@@ -65,7 +65,7 @@ impl PyExpr {
 /// result is a boolean, as the server requires of one (`42809`). `SIMILAR
 /// TO`, `IS DISTINCT FROM`, `BETWEEN` and `IN` are read by the grammar with
 /// no quantifier at all.
-// [spec:pgorm:req:bindings.quantifiers+1]
+// [spec:pgorm:req:bindings.quantifiers+2]
 fn takes_quantifier(operator: BinOper) -> bool {
     matches!(
         operator,

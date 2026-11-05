@@ -61,6 +61,16 @@ fn a_created_range_types_its_columns() {
                 ColumnType::Integer
             )),
             Some(created("textrange", None, ColumnType::Text)),
+            Some(ColumnType::Array(Arc::new(created(
+                "floatrange",
+                None,
+                ColumnType::Double
+            )))),
+            Some(ColumnType::Array(Arc::new(multi(
+                "floatmultirange",
+                None,
+                ColumnType::Double
+            )))),
         ]
     );
 }
@@ -149,7 +159,7 @@ fn a_created_range_declares_its_multirange() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.types+12/test]    one newtype per range type,
+// [spec:pgorm:sem:codegen.entity.types+13/test]    one newtype per range type,
 // named in UpperCamelCase and deriving `CreatedRange` under its name and
 // schema, `Eq` but for a float subtype; the entity's fields name the newtypes
 // [spec:pgorm:req:codegen.entity.files+2/test]    `pgorm_range_types.rs` is
@@ -212,15 +222,15 @@ fn a_created_range_generates_a_compiling_newtype() {
     );
     assert_eq!(
         measurement::Entity::find().build().0,
-        r#"SELECT "measurement"."id", CAST("measurement"."spans" AS text), "measurement"."span", "measurement"."slot", CAST("measurement"."slots" AS text), "measurement"."label" FROM "measurement""#
+        r#"SELECT "measurement"."id", CAST("measurement"."spans" AS text), "measurement"."span", "measurement"."slot", CAST("measurement"."slots" AS text), "measurement"."label", "measurement"."spares", CAST("measurement"."ledgers" AS text[]) FROM "measurement""#
     );
 }
 
 // [spec:pgorm:req:codegen.ddl.unsupported+21/test]    what the bridge cannot
-// carry out of a range type is named: a subtype no newtype can hold, an array
-// of a created range, an option PostgreSQL does not have, a range with no
-// subtype, a serial subtype, and a type declared twice
-// [spec:pgorm:req:codegen.entity.types.unsupported+11/test]
+// carry out of a range type is named: a subtype no newtype can hold, an
+// option PostgreSQL does not have, a range with no subtype, a serial subtype,
+// and a type declared twice
+// [spec:pgorm:req:codegen.entity.types.unsupported+12/test]
 #[test]
 fn what_a_created_range_cannot_carry_is_named() {
     assert_eq!(
@@ -229,13 +239,6 @@ fn what_a_created_range_cannot_carry_is_named() {
         ),
         "table `t` column `f`: range type `flags` over Boolean is not supported by codegen; \
          a created range's subtype is one pgorm's `RangeSubtype` covers"
-    );
-    assert_eq!(
-        refused(
-            "CREATE TYPE floatrange AS RANGE (SUBTYPE = float8); CREATE TABLE t (id int PRIMARY KEY, f floatrange[]);"
-        ),
-        "table `t` column `f`: an array of range type `floatrange` is not supported by codegen; \
-         the newtype a created range generates has no array conversion"
     );
     assert_eq!(
         refused("CREATE TYPE floatrange AS RANGE (SUBTYPE = float8, FLAVOUR = sweet);"),
@@ -308,7 +311,7 @@ fn a_dropped_subtype_modifier_is_named() {
     }
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    a described range
+// [spec:pgorm:req:codegen.entity.types.unsupported+12/test]    a described range
 // type whose subtype carries a type modifier fails the run by name, since
 // PostgreSQL keeps none on a range's subtype
 #[test]

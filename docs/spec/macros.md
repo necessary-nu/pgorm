@@ -770,7 +770,7 @@ known limitations.
 > `From<T> for Value` (through `self.0`), `TryGetable`, and `ValueType` delegating to
 > the inner type with `type_name()` = the struct name; no `Nullable` impl is generated.
 
-> [spec:pgorm:sem:macros.derive.created-range+2]
+> [spec:pgorm:sem:macros.derive.created-range+3]
 > The `CreatedRange` derive names a range type a schema created, or the
 > multirange created beside one (`[spec:pgorm:def:sql.value.created-range]`),
 > on a tuple struct holding one field: written `Range<T>` under `range_name =
@@ -793,7 +793,15 @@ known limitations.
 > `column_type()` is `ColumnType::CreatedRange` or `CreatedMultirange`
 > carrying the name, the schema and `<T as ValueType>::column_type()`. A field of the newtype therefore
 > needs no `column_type` attribute: the `Entity` derive takes the created
-> range column type from it.
+> range column type from it. It implements `NotU8` too, so `Vec` of the
+> newtype is a field, an array of the type, converting into the `Value::Array`
+> of the texts, and `TryGetableArray`, through which such a field decodes:
+> for a range each element through its subtype's binary codec, for a
+> multirange the column's `text[]` (which its `select_as` casts it to), each
+> element parsed as the newtype's own column is, a failure the same
+> `TryGetError::Db`. Both read through functions pgorm exports hidden, which
+> answer with a `TryGetError` naming the feature in a build without
+> `postgres-array`, so the expansion compiles without it.
 
 ## Name derives and query helpers
 

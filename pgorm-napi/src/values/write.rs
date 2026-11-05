@@ -40,6 +40,25 @@ pub(crate) fn plain<'cx>(
                 }
             }
         }
+        // A registered entity's column of an array of a created range reads
+        // each element as the kind's value.
+        (Tag::Array(element), Value::Array(_, Some(items)))
+            if matches!(element.as_ref(), Tag::Created(_)) =>
+        {
+            let array = JsArray::new(cx, items.len());
+            for (index, item) in items.iter().enumerate() {
+                let item = plain(
+                    cx,
+                    codec,
+                    &Tagged {
+                        tag: element.as_ref().clone(),
+                        datum: item.clone(),
+                    },
+                )?;
+                array.set(cx, index_u32(index), item)?;
+            }
+            Ok(array.upcast())
+        }
         (_, value) => self::value(cx, codec, value),
     }
 }

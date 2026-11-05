@@ -5,7 +5,7 @@
 // an operator PostgreSQL reads a quantifier after may also be `any(..)` or
 // `all(..)`.
 // [spec:pgorm:req:bindings.expressions+2]
-// [spec:pgorm:req:bindings.quantifiers+1]
+// [spec:pgorm:req:bindings.quantifiers+2]
 
 import { arg, Builder, made } from "./builder.js";
 import { native } from "./operations.js";

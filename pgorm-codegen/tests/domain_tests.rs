@@ -205,9 +205,9 @@ fn refused_domain_shapes_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    an array of a domain over an
-// array, and an array of a domain over a range type a schema created, are refused by name;
-// a domain over either alone generates
+// [spec:pgorm:req:codegen.entity.types.unsupported+12/test]    an array of a domain over an
+// array is refused by name, and a domain over one alone generates; an array of a domain over
+// a range type a schema created generates as an array of the range does
 #[test]
 fn unholdable_domain_arrays_are_named() {
     assert_eq!(
@@ -218,18 +218,15 @@ fn unholdable_domain_arrays_are_named() {
         "table `t` column `a`: an array of a domain over an array is not supported by \
          codegen; an entity field holds one dimension"
     );
-    assert_eq!(
-        refused(
-            "CREATE TYPE floatrange AS RANGE (SUBTYPE = float8); \
-             CREATE DOMAIN span AS floatrange; \
-             CREATE TABLE t (id integer PRIMARY KEY, a span[]);"
-        ),
-        "table `t` column `a`: an array of range type `floatrange` is not supported by \
-         codegen; the newtype a created range generates has no array conversion"
+    let generated = from_sql(
+        "CREATE TYPE floatrange AS RANGE (SUBTYPE = float8); \
+         CREATE DOMAIN span AS floatrange; \
+         CREATE TABLE t (id integer PRIMARY KEY, a span[]);",
     );
+    assert_contains(generated.file("t.rs"), "pub a: Option<Vec<Floatrange>>,");
 }
 
-// [spec:pgorm:sem:codegen.entity.types+12/test]    a domain column is a field of its base's
+// [spec:pgorm:sem:codegen.entity.types+13/test]    a domain column is a field of its base's
 // Rust type, an array of one a `Vec` of it, an enum or a created range's newtype included
 // [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    the compact writer names every
 // domain column's type, the domain and its base spelled in full

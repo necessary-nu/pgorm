@@ -14,7 +14,7 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
-    ColumnType, Expr, Name, Query, SimpleExpr, TypeName, Value, Values,
+    BinOper, ColumnType, Expr, Name, Query, SimpleExpr, TypeName, Value, Values,
     extension::{RangeDefinition, Type},
 };
 use pgorm::{
@@ -116,6 +116,24 @@ mod subtypes {
 
 use measures::{FloatRange, LabelSpan, Slot};
 
+/// A table whose columns are arrays of a range type the schema created.
+mod shelves {
+    use super::measures::Slot;
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Entity)]
+    #[pgorm(table_name = "shelves")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+        pub slots: Vec<Slot>,
+        pub spare: Option<Vec<Slot>>,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
 #[path = "../pgorm-codegen/tests/sql/created_range/measurement.rs"]
 mod measurement;
 /// The entity pgorm-codegen generates from its created-range schema: the
@@ -140,6 +158,7 @@ async fn main() -> Result<(), Error> {
     a_column_reads_only_its_own_subtype(&db).await?;
     the_server_refuses_what_it_cannot_store(&db).await?;
     a_subtype_modifier_is_dropped(&db).await?;
+    created_range_arrays_bind_as_texts(&db).await?;
 
     drop(db);
     ctx.delete().await;
@@ -148,9 +167,10 @@ async fn main() -> Result<(), Error> {
 }
 
 /// A schema with range types it creates generates an entity that writes and
-/// reads its rows, a range and a multirange each: the DDL the generator read,
-/// run as written, then the generated model inserted and found.
-// [spec:pgorm:sem:codegen.entity.types+12/test]
+/// reads its rows, a range and a multirange each and an array of each: the
+/// DDL the generator read, run as written, then the generated model inserted
+/// and found.
+// [spec:pgorm:sem:codegen.entity.types+13/test]
 #[pgorm_macros::test]
 async fn a_generated_entity_round_trips() -> Result<(), Error> {
     let ctx = TestContext::new("created_range_generated_tests").await;
@@ -172,6 +192,13 @@ async fn a_generated_entity_round_trips() -> Result<(), Error> {
                 .collect(),
         ),
         slots: Some(Multirange::from(vec![Range::from(1..=5)]).into()),
+        spares: Some(vec![
+            pgorm_range_types::Floatrange(Range::from(1.5..2.5)),
+            pgorm_range_types::Floatrange(Range::Empty),
+        ]),
+        ledgers: Some(vec![pgorm_range_types::Floatmultirange(
+            [Range::from(0.5..1.5)].into_iter().collect(),
+        )]),
     };
     let returned = written.clone().into_active_model().insert(&db).await?;
     assert_eq!(returned, written);
@@ -179,6 +206,8 @@ async fn a_generated_entity_round_trips() -> Result<(), Error> {
         id: 2,
         slot: None,
         slots: None,
+        spares: Some(Vec::new()),
+        ledgers: None,
         ..written.clone()
     };
     unslotted.clone().into_active_model().insert(&db).await?;
@@ -260,8 +289,8 @@ async fn create_the_range_types(db: &DatabaseConnection) -> Result<(), Error> {
 
 /// A table built from the entity names each created type in full, quoted
 /// where the name needs it, and the server takes it.
-// [spec:pgorm:def:sql.value.created-range+6/test]
-// [spec:pgorm:sem:macros.derive.created-range+2/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
+// [spec:pgorm:sem:macros.derive.created-range+3/test]
 async fn the_table_names_each_created_type(db: &DatabaseConnection) -> Result<(), Error> {
     let schema = Schema::new();
     let measures = schema.create_table_from_entity(measures::Entity)?;
@@ -296,7 +325,7 @@ fn measure(id: i32) -> measures::Model {
 /// Every subtype is written by an entity insert, its text bound and cast by
 /// name, and read back from the range's binary form by its select; a NULL of
 /// a created range type round-trips too.
-// [spec:pgorm:def:sql.value.created-range+6/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
 // [spec:pgorm:def:exec.decode.range+3/test]
 async fn every_subtype_round_trips_through_an_entity(db: &DatabaseConnection) -> Result<(), Error> {
     let written = measure(1);
@@ -353,7 +382,7 @@ async fn every_subtype_round_trips_through_an_entity(db: &DatabaseConnection) ->
 
 /// A value cast to its type renders as an escaped literal inline and as a
 /// `text` parameter bound, and the two are one value — the value written.
-// [spec:pgorm:def:sql.value.created-range+6/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
 async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Result<(), Error> {
     let floats = [
         Range::from(1.5..2.5),
@@ -391,7 +420,7 @@ async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Resul
 
 /// The server's own text for a value reads back as the value written, and
 /// for a continuous range whose bounds print alike it is the text written.
-// [spec:pgorm:def:sql.value.created-range+6/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
 async fn the_canonical_text_reads_back_as_written(db: &DatabaseConnection) -> Result<(), Error> {
     async fn canonical(db: &DatabaseConnection, expr: SimpleExpr) -> Result<String, Error> {
         let query = select(expr.cast_as_type(TypeName::new(n("text"))));
@@ -443,7 +472,7 @@ async fn the_canonical_text_reads_back_as_written(db: &DatabaseConnection) -> Re
 /// A bound holding the range literal's own syntax, the SQL string's, or a
 /// placeholder's is written and read back as the text it is, by entity insert
 /// and by both renderings of a cast.
-// [spec:pgorm:def:sql.value.created-range+6/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
 async fn a_bound_holding_range_syntax_stays_data(db: &DatabaseConnection) -> Result<(), Error> {
     let hostile = [
         "'); DROP TABLE measures; --",
@@ -493,10 +522,11 @@ async fn a_bound_holding_range_syntax_stays_data(db: &DatabaseConnection) -> Res
 /// A built-in `int4range` value written to a column of a range type created
 /// over `int4` is turned into its text and cast, on both renderings, a
 /// pipeline binds one compared with the column through its text too, and so
-/// do the column's range operators. Written
+/// do the column's range operators and its quantified comparisons, an array
+/// of ranges written as the array of their texts. Written
 /// as the built-in it is, it is refused: there is no cast between two range
 /// types.
-// [spec:pgorm:def:sql.value.created-range+6/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
 async fn a_builtin_range_value_reaches_a_created_type(
     db: &DatabaseConnection,
 ) -> Result<(), Error> {
@@ -587,6 +617,22 @@ async fn a_builtin_range_value_reaches_a_created_type(
     assert_eq!(ids, vec![3]);
 
     let slot = measures::Column::Slot;
+    let quantified = measures::Entity::find()
+        .filter(slot.eq_any([Range::from(2..7)]))
+        .into_query();
+    assert!(
+        quantified
+            .to_string()
+            .contains(r#""measures"."slot" = ANY(CAST(ARRAY ['[2,7)'] AS slot[]))"#),
+        "{quantified}"
+    );
+    assert!(
+        quantified
+            .build()
+            .0
+            .contains("= ANY(CAST($1::text[] AS slot[]))"),
+        "{quantified}"
+    );
     for (operator, holds) in [
         (slot.overlaps(Range::from(5..9)), true),
         (slot.includes(Range::from(3..4)), true),
@@ -594,6 +640,18 @@ async fn a_builtin_range_value_reaches_a_created_type(
         (slot.strictly_left_of(Range::from(8..9)), true),
         (slot.strictly_right_of(Range::from(8..9)), false),
         (slot.adjacent_to(Range::from(7..8)), true),
+        (slot.eq_any([Range::from(1..2), Range::from(2..7)]), true),
+        (slot.ne_all([Range::from(2..7)]), false),
+        (slot.eq_any([Slot(Range::from(2..7))]), true),
+        (slot.eq_any(Vec::<Range<i32>>::new()), false),
+        (
+            slot.compare_any(BinOper::Overlap, vec![Range::from(6..9)]),
+            true,
+        ),
+        (
+            slot.compare_all(BinOper::Overlap, vec![Range::from(6..9), Range::from(0..1)]),
+            false,
+        ),
     ] {
         let found = measures::Entity::find()
             .filter(measures::Column::Id.eq(3))
@@ -620,11 +678,118 @@ async fn a_builtin_range_value_reaches_a_created_type(
     Ok(())
 }
 
+/// A column of an array of a range type the schema created takes its values
+/// as the array of their texts cast to the type's array — written, compared
+/// with, and bound by a pipeline — an empty array and a NULL element
+/// included, where a built-in range array cast as it is is refused.
+// [spec:pgorm:def:sql.value.created-range+8/test]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]
+// [spec:pgorm:sem:macros.derive.created-range+3/test]    `Vec` of the newtype is a field, read
+// element by element through the subtype's codec
+async fn created_range_arrays_bind_as_texts(db: &DatabaseConnection) -> Result<(), Error> {
+    use pgorm::pgorm_query::ArrayType;
+
+    db.batch_execute(
+        &Schema::new()
+            .create_table_from_entity(shelves::Entity)?
+            .to_string(),
+    )
+    .await?;
+    let shelf = |id, slots: Vec<Slot>, spare| shelves::Model { id, slots, spare };
+    for model in [
+        shelf(
+            1,
+            vec![Slot(Range::from(1..5)), Slot(Range::from(7..9))],
+            None,
+        ),
+        shelf(2, Vec::new(), Some(vec![Slot(Range::from(2..3))])),
+    ] {
+        model.into_active_model().insert(db).await?;
+    }
+    let mut found = shelves::Entity::find().all(db).await?;
+    found.sort_by_key(|model| model.id);
+    assert_eq!(
+        found,
+        vec![
+            shelf(
+                1,
+                vec![Slot(Range::from(1..5)), Slot(Range::from(7..9))],
+                None
+            ),
+            shelf(2, Vec::new(), Some(vec![Slot(Range::from(2..3))])),
+        ]
+    );
+
+    let filter = shelves::Entity::find()
+        .filter(shelves::Column::Slots.eq(vec![Range::from(1..5), Range::from(7..9)]))
+        .into_query();
+    assert!(
+        filter
+            .to_string()
+            .contains(r#""shelves"."slots" = CAST(ARRAY ['[1,5)','[7,9)'] AS slot[])"#),
+        "{filter}"
+    );
+    assert!(
+        filter.build().0.contains("= CAST($1::text[] AS slot[])"),
+        "{filter}"
+    );
+    let ids =
+        |models: Vec<shelves::Model>| models.into_iter().map(|model| model.id).collect::<Vec<_>>();
+    let null_element = Value::Array(
+        ArrayType::String,
+        Some(Box::new(vec![Value::String(None), Value::from("[2,3)")])),
+    );
+    for (predicate, expected) in [
+        (
+            shelves::Column::Slots.eq(vec![Range::from(1..5), Range::from(7..9)]),
+            vec![1],
+        ),
+        (shelves::Column::Slots.eq(Vec::<Range<i32>>::new()), vec![2]),
+        (
+            shelves::Column::Slots.includes(vec![Slot(Range::from(7..9))]),
+            vec![1],
+        ),
+        (shelves::Column::Spare.ne(null_element), vec![2]),
+    ] {
+        let found = shelves::Entity::find().filter(predicate).all(db).await?;
+        assert_eq!(ids(found), expected);
+    }
+
+    let piped = {
+        use pgorm::pipeline::{ExprOps, Pipeline};
+        Pipeline::from(shelves::Entity)
+            .filter_with(|binder| {
+                shelves::Column::Slots.eq(binder.bind(vec![Range::from(1..5), Range::from(7..9)]))
+            })
+            .select(shelves::Column::Id)
+    };
+    let (sql, _) = piped.clone().into_sql().expect("the pipeline compiles");
+    assert!(
+        sql.contains("slots = CAST($1::int4range[]::text AS slot[])"),
+        "{sql}"
+    );
+    let ids = piped
+        .into_tuple::<i32>()
+        .expect("the pipeline compiles")
+        .all(db)
+        .await?;
+    assert_eq!(ids, vec![1]);
+
+    let builtin = select(Expr::val(vec![Range::from(1..5)]).cast_as_type(Slot::name().array()));
+    let refused = (builtin.to_string(), Values(Vec::new()))
+        .into_tuple::<String>()
+        .one(db)
+        .await
+        .unwrap_err();
+    refused_with(&refused, &SqlState::CANNOT_COERCE);
+    Ok(())
+}
+
 /// A range type a schema creates has no canonical function — pgorm cannot
 /// author the C function one needs — so it is continuous whatever its
 /// subtype: a range over `int4` keeps the bounds written, where `int4range`
 /// moves them.
-// [spec:pgorm:def:sql.value.created-range+6/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
 async fn a_created_range_over_int4_is_continuous(db: &DatabaseConnection) -> Result<(), Error> {
     for range in [Range::from(1..=5), Range::new(Excluded(1), Included(5))] {
         let (inline, bound) = both::<Slot>(db, &select(Slot(range.clone()).into_expr())).await?;
@@ -662,7 +827,7 @@ async fn a_column_reads_only_its_own_subtype(db: &DatabaseConnection) -> Result<
 /// What the server refuses, it refuses with its own code on both renderings:
 /// bounds out of order, a bound the subtype does not read, and one outside
 /// its range.
-// [spec:pgorm:def:sql.value.created-range+6/test]
+// [spec:pgorm:def:sql.value.created-range+8/test]
 async fn the_server_refuses_what_it_cannot_store(db: &DatabaseConnection) -> Result<(), Error> {
     let cases = [
         (

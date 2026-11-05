@@ -1291,7 +1291,7 @@ fn array_subquery_matches_rust_expr_array() -> PyResult<()> {
 }
 
 // [spec:pgorm:req:bindings.expressions+2/test]    exists, scalar, IN a Select and any_ / all_
-// [spec:pgorm:req:bindings.quantifiers+1/test]
+// [spec:pgorm:req:bindings.quantifiers+2/test]
 // are Rust's Expr::exists, the scalar SubQuery, in_subquery / not_in_subquery and Expr::any /
 // Expr::all over a subquery or Func::any / Func::all over an array, a quantifier taken by each
 // comparison and refused by arithmetic, IS DISTINCT FROM, a membership list and bind
@@ -1359,7 +1359,7 @@ fn subquery_expressions_match_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.quantifiers+1/test]    any_ and all_ are the right operand of LIKE's
+// [spec:pgorm:req:bindings.quantifiers+2/test]    any_ and all_ are the right operand of LIKE's
 // and ILIKE's family, the regular-expression matches, containment, the range positions, @@ and
 // @?, each Rust's operator over Func::any / Func::all or Expr::any / Expr::all, and every other
 // operator and operand position refuses one

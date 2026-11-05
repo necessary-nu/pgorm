@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T03:45:45.445825Z
+last_sync_at 2026-11-05T06:02:16.430683Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -15,7 +15,7 @@ rule_versions (
     {id bindings.connections, version 2}
     {id bindings.copy, version 0}
     {id bindings.copy-rows, version 1}
-    {id bindings.created-ranges, version 1}
+    {id bindings.created-ranges, version 2}
     {id bindings.cte-options, version 0}
     {id bindings.cursors, version 0}
     {id bindings.delegation, version 0}
@@ -49,7 +49,7 @@ rule_versions (
     {id bindings.pipeline-binder, version 0}
     {id bindings.pipeline-expressions, version 3}
     {id bindings.pipeline-sources, version 3}
-    {id bindings.quantifiers, version 1}
+    {id bindings.quantifiers, version 2}
     {id bindings.ranges, version 0}
     {id bindings.registered-pools, version 0}
     {id bindings.relation-conditions, version 0}
@@ -104,9 +104,9 @@ rule_versions (
     {id codegen.entity.transform, version 18}
     {id codegen.entity.transform.conjunct, version 2}
     {id codegen.entity.transform.inverse, version 2}
-    {id codegen.entity.types, version 12}
+    {id codegen.entity.types, version 13}
     {id codegen.entity.types.datetime, version 2}
-    {id codegen.entity.types.unsupported, version 11}
+    {id codegen.entity.types.unsupported, version 12}
     {id conn.copy, version 2}
     {id conn.copy.rows, version 4}
     {id conn.listen, version 0}
@@ -151,7 +151,7 @@ rule_versions (
     {id entity.traits.active-enum.limits, version 2}
     {id entity.traits.column, version 9}
     {id entity.traits.column-def, version 2}
-    {id entity.traits.column.enum-cast, version 15}
+    {id entity.traits.column.enum-cast, version 17}
     {id entity.traits.crud, version 4}
     {id entity.traits.entity-name, version 5}
     {id entity.traits.from-query-result, version 5}
@@ -987,8 +987,11 @@ derived_priorities (
     {id tx-closure-only, priority 1, derived_at 2026-10-26T20:21:09.753689Z}
     {id tx-closure-send, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id type-part-keyword-names, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
+    {id typed-binds.created-range-array-column, priority 3, derived_at 2026-11-05T05:31:58.723137Z}
+    {id typed-binds.created-range-array-value, priority 3, derived_at 2026-11-05T06:02:16.430683Z}
     {id typed-binds.created-range-quantified, priority 3, derived_at 2026-11-05T03:45:45.445825Z}
     {id typed-binds.empty-quantified-list, priority 3, derived_at 2026-11-05T03:45:45.445825Z}
+    {id typed-binds.napi-range-array-operand, priority 3, derived_at 2026-11-05T06:02:16.430683Z}
     {id typed-binds.python-decode-reason, priority 3, derived_at 2026-11-05T02:15:29.773078Z}
     {id typed-binds.python-expression-operands, priority 3, derived_at 2026-11-05T02:15:29.773078Z}
     {id typed-binds.quantified-casts, priority 3, derived_at 2026-11-05T02:15:29.773078Z}
@@ -1476,6 +1479,9 @@ assertions (
     {id tx-closure-only, kind @doing, author "brendan@necessary.nu", at 2026-10-24T15:48:03.232328Z}
     {id tx-closure-send, kind @complete, author "brendan@necessary.nu", at 2026-10-24T15:30:08.176678Z}
     {id type-part-keyword-names, kind @complete, author "brendan@necessary.nu", at 2026-09-24T22:48:03.368721Z}
+    {id typed-binds.created-range-array-column, kind @complete, author "brendan@necessary.nu", at 2026-11-05T05:15:14.70763Z}
+    {id typed-binds.created-range-quantified, kind @complete, author "brendan@necessary.nu", at 2026-11-05T04:14:50.022376Z}
+    {id typed-binds.empty-quantified-list, kind @complete, author "brendan@necessary.nu", at 2026-11-05T04:21:04.166044Z}
     {id typed-binds.python-expression-operands, kind @complete, author "brendan@necessary.nu", at 2026-11-05T01:25:03.006459Z}
     {id typed-binds.quantified-casts, kind @complete, author "brendan@necessary.nu", at 2026-11-05T02:13:04.66451Z}
     {id unique-key-virtual-refused, kind @complete, author "brendan@necessary.nu", at 2026-11-04T21:57:05.162729Z}
@@ -2680,7 +2686,7 @@ impl_evidence (
         {impl_name javascript, rule bindings.quantifiers}
         {impl_name python, rule bindings.quantifiers}
     ), rule_versions_seen (
-        {id bindings.quantifiers, version 1}
+        {id bindings.quantifiers, version 2}
     )}
     {id query-reexports-curated, covered_rules (
         sql.surface

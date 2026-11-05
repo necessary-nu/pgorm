@@ -4,9 +4,10 @@
 // expression is a value, bound as a parameter: nothing a caller passes becomes
 // SQL text, and an identifier is quoted wherever it appears.
 // [spec:pgorm:req:bindings.expressions+2]
-// [spec:pgorm:req:bindings.quantifiers+1]
+// [spec:pgorm:req:bindings.quantifiers+2]
 
-import { arg, args, Builder, Handle, made, trusted, TRUSTED } from "./builder.js";
+import { arg, args, Builder, Deferred, Handle, made, trusted, TRUSTED } from "./builder.js";
+import { ConstructionError } from "./errors.js";
 import { native } from "./operations.js";
 import { Predicate } from "./predicates.js";
 import { Windowed } from "./windows.js";
@@ -214,7 +215,7 @@ export class Quantified extends Handle {
   constructor(handle, token, quantifier, source) {
     trusted(token, "quantified operand", "any() or all()");
     super(handle);
-    if (quantifier !== undefined && Array.isArray(source) && !source.some((item) => item instanceof Handle)) {
+    if (quantifier !== undefined && listable(source)) {
       this.#listed = Object.freeze([quantifier, Object.freeze([...source])]);
     }
   }
@@ -232,7 +233,7 @@ export class Quantified extends Handle {
  * @param {import("./select.js").Select | unknown} source
  */
 export function any(source) {
-  return new Quantified(native.exprQuantified("any", arg(source)), TRUSTED, "any", source);
+  return quantified("any", source);
 }
 
 /**
@@ -242,5 +243,35 @@ export function any(source) {
  * @param {import("./select.js").Select | unknown} source
  */
 export function all(source) {
-  return new Quantified(native.exprQuantified("all", arg(source)), TRUSTED, "all", source);
+  return quantified("all", source);
+}
+
+/**
+ * Whether `source` is a list of values a registered column can type: an
+ * array holding no expression.
+ *
+ * @param {unknown} source
+ * @returns {source is unknown[]}
+ */
+function listable(source) {
+  return Array.isArray(source) && !source.some((item) => item instanceof Handle);
+}
+
+/**
+ * `ANY` or `ALL` of `source`. A list the array cannot be inferred from, an
+ * empty one or one of ranges of no inferable kind, is kept for a registered
+ * column to type, and refused, with the error inferring it met, wherever it
+ * is used beside anything else.
+ * [spec:pgorm:req:bindings.quantifiers+2]
+ *
+ * @param {"any" | "all"} quantifier
+ * @param {unknown} source
+ */
+function quantified(quantifier, source) {
+  try {
+    return new Quantified(native.exprQuantified(quantifier, arg(source)), TRUSTED, quantifier, source);
+  } catch (error) {
+    if (!(error instanceof ConstructionError) || !listable(source)) throw error;
+    return new Quantified(new Deferred(error), TRUSTED, quantifier, source);
+  }
 }

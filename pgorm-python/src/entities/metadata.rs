@@ -81,22 +81,48 @@ impl InputKind {
 
     /// `values`, a list, as one array of the column's scalar kind,
     /// or `None` for a column of no scalar kind: the array a quantified
-    /// comparison with the column ranges over.
-    pub(crate) fn array_of(&self, values: &Bound<'_, PyAny>) -> PyResult<Option<PyValue>> {
-        if matches!(self, Self::Array(_) | Self::Explicit) {
-            return Ok(None);
+    /// comparison with the column ranges over. A created range's array is
+    /// no `Value` a program declares, but its elements are each the text a
+    /// compared range is, which the column's array cast reads.
+    pub(crate) fn array_of(&self, values: &Bound<'_, PyAny>) -> PyResult<Option<Value>> {
+        match self {
+            Self::Array(_) | Self::Explicit => Ok(None),
+            Self::Created(_) => {
+                let texts = values
+                    .try_iter()?
+                    .map(|value| Ok(self.coerce(&value?)?.inner))
+                    .collect::<PyResult<Vec<_>>>()?;
+                Ok(Some(Value::Array(ArrayType::String, Some(Box::new(texts)))))
+            }
+            _ => {
+                let py = values.py();
+                let class = py.get_type::<PyValue>();
+                let array: PyValue = class
+                    .call_method1("array", (self.kind(py)?, values))?
+                    .extract()?;
+                Ok(Some(array.inner))
+            }
         }
-        let py = values.py();
-        let class = py.get_type::<PyValue>();
-        Ok(Some(
-            class
-                .call_method1("array", (self.kind(py)?, values))?
-                .extract()?,
-        ))
     }
 
     pub(crate) fn coerce(&self, value: &Bound<'_, PyAny>) -> PyResult<PyValue> {
+        if let Self::Array(member) = self
+            && let Self::Created(kind) = member.as_ref()
+        {
+            return match value.extract::<PyRef<'_, PyValue>>() {
+                Ok(given) if given.created_element() == Some(kind) => Ok(given.clone()),
+                Ok(_) => Err(ConstructionError::new_err(
+                    "Value belongs to a different declared column type",
+                )),
+                Err(_) => Self::created_array(member, kind, value),
+            };
+        }
         if let Ok(value) = value.extract::<PyRef<'_, PyValue>>() {
+            if value.created_element().is_some() {
+                return Err(ConstructionError::new_err(
+                    "Value belongs to a different declared column type",
+                ));
+            }
             if let Some(kind) = value.created()
                 && !matches!(self, Self::Created(expected) if expected == kind)
             {
@@ -137,6 +163,24 @@ impl InputKind {
         Ok(result.extract()?)
     }
 
+    /// `values`, a list of `member`'s values or `None`, as a column of an
+    /// array of a created range takes it: the array of their texts, which
+    /// the column's cast reads, as a quantified comparison's is.
+    // [spec:pgorm:req:bindings.created-ranges+2]
+    fn created_array(
+        member: &Self,
+        kind: &CreatedKind,
+        values: &Bound<'_, PyAny>,
+    ) -> PyResult<PyValue> {
+        let array = match values.is_none() {
+            true => Value::Array(ArrayType::String, None),
+            false => member
+                .array_of(values)?
+                .unwrap_or(Value::Array(ArrayType::String, None)),
+        };
+        Ok(PyValue::from_created_array(array, kind.clone()))
+    }
+
     pub(crate) fn tagged(&self, value: Value) -> PyResult<PyValue> {
         match self {
             Self::Enum(name) if matches!(value, Value::String(_)) => {
@@ -154,6 +198,12 @@ impl InputKind {
                 Self::Enum(name) if matches!(value, Value::Array(ArrayType::String, _)) => {
                     Ok(PyValue::from_enum(value, name.clone(), true))
                 }
+                Self::Created(kind) if matches!(value, Value::Array(ArrayType::String, _)) => {
+                    Ok(PyValue::from_created_array(value, kind.clone()))
+                }
+                Self::Created(_) => Err(DecodeError::new_err(
+                    "compiled created range array returned an incompatible Rust Value",
+                )),
                 Self::Enum(_) => Err(DecodeError::new_err(
                     "compiled enum array returned an incompatible Rust Value",
                 )),

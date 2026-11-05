@@ -4,6 +4,7 @@
 //! together, as pgorm-python's application module is built.
 
 pub mod account;
+pub mod booking;
 pub mod graphs;
 pub mod labels;
 pub mod listings;
@@ -33,6 +34,7 @@ pub fn registry() -> Result<Registry, RegistrationError> {
     registry.entity::<parcel::Entity>("app.Parcel")?;
     registry.entity::<temper::Entity>("app.Temper")?;
     registry.entity::<till::Entity>("app.Till")?;
+    registry.entity::<booking::Entity>("app.Booking")?;
     registry.entity::<shipping::shipment::Entity>("app.Shipment")?;
     registry.entity::<shipping::packet::Entity>("app.Packet")?;
     registry.entity::<shipping::pallet::Entity>("app.Pallet")?;

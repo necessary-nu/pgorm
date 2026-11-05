@@ -20,7 +20,7 @@ const SCHEMA: &str = include_str!("../../tests/codegen_column_types/schema.sql")
 // `numeric(p, s)`, and arrays of each, and a range over `text` whose newtype's
 // `Range<String>` would infer one over `varchar`; every type its field infers states
 // none
-// [spec:pgorm:sem:codegen.entity.types+12/test]
+// [spec:pgorm:sem:codegen.entity.types+13/test]
 #[test]
 fn compact_entities_state_every_uninferred_type() {
     let generated = from_sql(SCHEMA);

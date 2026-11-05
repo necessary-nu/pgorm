@@ -69,6 +69,21 @@ impl PyValue {
     pub(crate) fn to_python(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match (&self.tag, &self.inner) {
             (Tag::Created(kind), Value::String(Some(text))) => kind.read(py, text),
+            (Tag::Array(element), Value::Array(_, Some(items)))
+                if matches!(element.as_ref(), Tag::Created(_)) =>
+            {
+                let items = items
+                    .iter()
+                    .map(|item| {
+                        Self {
+                            inner: item.clone(),
+                            tag: element.as_ref().clone(),
+                        }
+                        .to_python(py)
+                    })
+                    .collect::<PyResult<Vec<_>>>()?;
+                Ok(pyo3::types::PyList::new(py, items)?.into_any().unbind())
+            }
             _ => convert::to_python(py, &self.inner),
         }
     }
@@ -81,6 +96,30 @@ impl PyValue {
         }
     }
 
+    /// A registered entity's value of a column of an array of a created range
+    /// or multirange: the array of the values' texts, or SQL NULL. No program
+    /// declares one, `Value.array` refusing the kind; only such a column
+    /// makes and takes it.
+    // [spec:pgorm:req:bindings.created-ranges+2]
+    pub(crate) fn from_created_array(inner: Value, kind: CreatedKind) -> Self {
+        Self {
+            inner,
+            tag: Tag::Array(Box::new(Tag::Created(kind))),
+        }
+    }
+
+    /// The created range or multirange type each element of this array
+    /// belongs to, if it is an array of one.
+    pub(crate) fn created_element(&self) -> Option<&CreatedKind> {
+        match &self.tag {
+            Tag::Array(element) => match element.as_ref() {
+                Tag::Created(kind) => Some(kind),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     /// The created range or multirange type this value belongs to, if any.
     pub(crate) fn created(&self) -> Option<&CreatedKind> {
         match &self.tag {
@@ -90,19 +129,23 @@ impl PyValue {
     }
 
     /// Whether this value's SQL type is one the server names: a qualified enum
-    /// or a created range, which plain binding cannot spell.
+    /// or a created range, or an array of either, which plain binding cannot
+    /// spell.
     pub(crate) fn has_named_type(&self) -> bool {
-        self.enum_cast().is_some() || self.created().is_some()
+        self.enum_cast().is_some() || self.created().is_some() || self.created_element().is_some()
     }
 
     /// `expression`, which holds this value, written as its type needs: an
     /// enum label cast to its enum, a created range's text cast to its range
-    /// through `Expr::as_range`, anything else as it is.
+    /// through `Expr::as_range` and an array of them to the range's array,
+    /// anything else as it is.
     pub(crate) fn typed(&self, expression: SimpleExpr) -> SimpleExpr {
         if let Some(cast) = self.enum_cast() {
             expression.cast_as_type(cast)
         } else if let Some(kind) = self.created() {
             Expr::expr(expression).as_range(kind.name.rust_type())
+        } else if let Some(kind) = self.created_element() {
+            Expr::expr(expression).as_range(kind.name.rust_type().array())
         } else {
             expression
         }
