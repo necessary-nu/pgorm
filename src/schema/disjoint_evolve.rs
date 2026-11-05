@@ -421,6 +421,7 @@ impl<'s> Evolve<'s> {
         let kinded = shape.kinded()?;
         shape.check()?;
         shape.keyable()?;
+        shape.keys_named_apart()?;
         let ColumnType::Enum {
             name,
             schema,

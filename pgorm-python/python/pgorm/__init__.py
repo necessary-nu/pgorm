@@ -149,6 +149,7 @@ from .models import (
     Cursor, Paginator,
     Disjoint, DisjointEntity, DisjointQuery, DisjointWrite, DisjointCursor, DisjointPaginator,
     disjoint_entity, disjoint_entities,
+    OneOf, OneOfEntity, one_of_entity, one_of_entities,
 )
 from .transactions import Transaction, TransactionMode, IsolationLevel
 from .copy import CopyOutStream, CopyRows, CopyRowStream, CopySource
@@ -209,6 +210,10 @@ __all__ = [
     "DisjointPaginator",
     "disjoint_entity",
     "disjoint_entities",
+    "OneOf",
+    "OneOfEntity",
+    "one_of_entity",
+    "one_of_entities",
     "UnsupportedCapabilityError",
     "TypeName",
     "DataType",

@@ -107,7 +107,8 @@ class SchemaConstruction(unittest.TestCase):
             s.create_materialized_view(table, query), s.refresh_materialized_view(table),
             s.create_table_as(table, query), s.create_domain("quantity", "integer"),
             s.alter_domain("quantity"), s.create_sequence("ticket"), s.alter_sequence("ticket"),
-            s.alter_sequence("ticket").restart(),
+            s.alter_sequence("ticket").restart(), s.DisjointGap("bike", table),
+            s.DisjointStep((), None), s.DisjointChange(()),
         ]
         for sample in [*samples, s.create_table(table).inspect()]:
             with self.subTest(sample=sample), self.assertRaises(p.ConstructionError):

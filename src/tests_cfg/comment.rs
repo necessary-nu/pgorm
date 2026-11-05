@@ -30,7 +30,7 @@ pub enum Relation {
 }
 
 /// What a comment is on: a post, a photo, or nothing.
-// [spec:pgorm:def:disjoint.one-of+3]
+// [spec:pgorm:def:disjoint.one-of+4]
 #[derive(Clone, Copy, Debug, OneOf)]
 #[pgorm(entity = Entity, model_attrs(derive(PartialEq, Eq)))]
 pub enum Commentable {

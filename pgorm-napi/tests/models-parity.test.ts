@@ -12,7 +12,7 @@ import { cases } from "./parity/models.ts";
 
 const golden = JSON.parse(readFileSync(new URL("./parity/models.json", import.meta.url), "utf8")) as Record<string, Built>;
 
-// [spec:pgorm:req:bindings.models+4/test]
+// [spec:pgorm:req:bindings.models+5/test]
 test("the model family's JavaScript cases are the golden file's", () => {
   assert.deepStrictEqual(Object.keys(cases).sort(), Object.keys(golden).sort());
 });

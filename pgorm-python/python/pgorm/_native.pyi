@@ -173,6 +173,10 @@ from ._disjoint import (
     _Disjoint as _Disjoint, _disjoint_model as _disjoint_model,
     _disjoint_entity as _disjoint_entity, _disjoint_entities as _disjoint_entities,
 )
+from ._one_of import (
+    _OneOf as _OneOf, _one_of_model as _one_of_model, _one_of_entity as _one_of_entity,
+    _one_of_entities as _one_of_entities,
+)
 from ._writes import (
     Insert as Insert, Update as Update, Delete as Delete, RawSQL as RawSQL,
     Conflict as Conflict, ConflictTarget as ConflictTarget, ConflictUpdate as ConflictUpdate,

@@ -16719,6 +16719,10 @@ children (
                 id bindings-disjoint-evolve
                 title "Python and JavaScript write a disjoint model's kind changes as pgorm's DisjointShape does"
                 kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:bindings.disjoint-evolve])
+                    python ([spec:pgorm:req:bindings.disjoint-evolve])
+                }
                 deps (disjoint.evolve disjoint.bindings)
                 log (
                     {
@@ -16727,6 +16731,13 @@ children (
                         kind @note
                         text "Found by disjoint.evolve: DisjointShape gained add_kind, add_kind_recreating, remove_kind, add_kind_table and remove_kind_table (returning DisjointChange: steps of DdlStatements, each with an optional gap), so a binding can write kind changes as the typed Schema functions do. Neither binding exposes them, and bindings-surface.json is unchanged. Needs a bindings rule, both bindings, DisjointChange's steps and gaps surfaced in each language, and live tests."
                     }
+
+                    {
+                        at 2026-11-04T23:28:27.241426Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
                 )
             }
 
@@ -16734,6 +16745,10 @@ children (
                 id bindings-one-of
                 title "Python and JavaScript read, set and load a one-of reference and write its CHECK"
                 kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:bindings.one-of])
+                    python ([spec:pgorm:req:bindings.one-of])
+                }
                 deps (disjoint.one-of disjoint.bindings)
                 log (
                     {
@@ -16741,6 +16756,27 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.one-of: OneOf has no Python or JavaScript surface. The rule doesn't ask for one, but a binding that registers entities with nullable foreign keys under a one-of CHECK would want to read the reference as a tagged key, set it (nulling the others), load the targets one query per table, and write create_one_of's CHECK. Write a bindings rule first; the typed design (OneOfTarget, TargetVisitor) may need a runtime description like DisjointShape for the bindings to drive."
+                    }
+
+                    {
+                        at 2026-11-05T00:16:12.307211Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:17:47.771004Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Proposal, awaiting the operator; rule bindings.one-of written in docs/spec/bindings.md, nothing built. OneOf has no runtime description: TargetVisitor hands each target as a type, so a binding cannot drive it. Proposed: pgorm::OneOfShape (src/entity/one_of_shape.rs), as DisjointShape is for Disjoint: the entity's table, the enum's snake_case name, each target's value, column, column type, target table and its one key column, and whether a row may reference none. OneOfShape::of::<O>() describes a derive, OneOfShape::new(..) a binding's models. It owns check() (the CHECK), key(column values) (which target a row references, with OneOf::key's Error::Query), assignments(target, key) (the column set, the rest null), and per-target load statements and the absent-key error; Schema::create_one_of and OneOf::key/set/load delegate to it, so there is one implementation. Bindings: one_of(name, model, targets, {optional}) over models and Registry::one_of::<O>(name) for derives, with key/set/load/describe and schema create_one_of, per the rule. Decisions needed: (1) TargetVisitor/OneOfTarget carry no variant name, which the shape needs for a tagged key and describe(): add `const NAME: &'static str` to OneOfTarget (a pgorm-macros derive change, lane B's area), or take the value from the target's table name. (2) OneOf::load reads each target through load_one over the entity's Related relation, which evaluates an on_condition (reads_column refuses only a relation not joining exactly the column, a via or a period). A shape-driven load reads `target WHERE key IN (..)` and ignores an on_condition: route the typed load through the shape (and refuse an on_condition in reads_column, or accept the change), or keep the typed load relation-based and accept two load paths. (3) Scope: declared models, registered enums, or both (the rule says both). (4) The tagged key's spelling: Python (value, key), JavaScript [value, key], value = variant name in snake_case for a registration and the targets mapping's key for a model."
+                    }
+
+                    {
+                        at 2026-11-05T00:23:36.656053Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead, 2026-11-05, pending operator override: build OneOfShape as proposed, with one implementation that Schema::create_one_of, OneOf::key/set/load and both bindings delegate to. (1) Add `const NAME: &'static str` (the variant's name) to OneOfTarget in the OneOf derive. The variant is the enum's identity and its author picks it, while a target's table name is a different thing that can collide across schemas. (2) There is one load path, the shape's per-target `WHERE key IN (..)`; the typed OneOf::load decodes its rows into each target's Model. reads_column also refuses a Related relation that carries an on_condition, as Error::Type before anything is sent, alongside its refusal of a via, a period or another column. The reference is held by foreign keys, so its target row always exists; an on_condition can only make a held key look absent, so it is refused rather than evaluated. Bump disjoint.one-of for it. (3) Scope: both declared models and registered enums, as the rule says. (4) Tagged key: Python (value, key), JavaScript [value, key], unless the bindings already spell a tagged value some other way (the disjoint kind accessors), in which case follow that precedent."
                     }
                 )
             }
@@ -17446,6 +17482,10 @@ children (
                 id bindings-composite-unique
                 title "The Python and JavaScript bindings' model DDL declares composite unique keys"
                 kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:bindings.model-unique-keys])
+                    python ([spec:pgorm:req:bindings.model-unique-keys])
+                }
                 deps (entity-composite-unique)
                 log (
                     {
@@ -17453,6 +17493,52 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by entity-composite-unique (562c6dfc): Rust entities declare composite unique keys (`unique(..)`, EntityName::unique_keys, written by create_table_from_entity), but the Python and JavaScript bindings' model declarations have no way to declare one, so their model DDL can't write it. Needs a bindings rule (or a revision of the shared bindings entities rule), both bindings, describe() carrying it, and live tests."
+                    }
+                )
+            }
+
+            {
+                id unique-keys.entity-describe-keys
+                title "A registered entity's describe() reports its unique keys, as a model's does"
+                kind @fix
+                deps (bindings-composite-unique)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T01:46:52.034359Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T01:59:45.708617Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id unique-keys.model-key-name-clash
+                title "A binding model's named unique key that collides with a constraint name the disjoint schema generates is refused before the server"
+                kind @fix
+                deps (bindings-composite-unique)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T02:00:25.875604Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T02:29:19.94554Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
