@@ -16,6 +16,19 @@ export const TRUSTED = Symbol("pgorm-napi builder state");
 let handleOf;
 
 /**
+ * A native half that could not be made yet, and the error that said so: what
+ * stands in a handle whose construction waits on more than it was given, and
+ * is thrown wherever the handle is used as it stands.
+ */
+export class Deferred {
+  /** @param {unknown} error */
+  constructor(error) {
+    /** @readonly */
+    this.error = error;
+  }
+}
+
+/**
  * What holds pgorm-query builder state for JavaScript: its native half,
  * private. A `PendingMerge` is one, and has nothing to inspect.
  */
@@ -29,7 +42,10 @@ export class Handle {
   }
 
   static {
-    handleOf = (holder) => holder.#handle;
+    handleOf = (holder) => {
+      if (holder.#handle instanceof Deferred) throw holder.#handle.error;
+      return holder.#handle;
+    };
   }
 }
 

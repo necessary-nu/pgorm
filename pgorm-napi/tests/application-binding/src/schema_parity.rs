@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use pgorm::{EntityTrait, Schema};
 use serde_json::{Value as Json, json};
 
-use crate::{account, labels, listings, membership, note, parcel, shipping, temper, till};
+use crate::{account, booking, labels, listings, membership, note, parcel, shipping, temper, till};
 
 /// The entity's table, enum, index and comment statements as SQL, or the
 /// message `Schema::create_table_from_entity` refuses its table with.
@@ -41,6 +41,7 @@ fn entity_schemas_match_the_golden_file() {
         ("app.Parcel".to_owned(), generated::<parcel::Entity>()),
         ("app.Temper".to_owned(), generated::<temper::Entity>()),
         ("app.Till".to_owned(), generated::<till::Entity>()),
+        ("app.Booking".to_owned(), generated::<booking::Entity>()),
         (
             "app.Listing".to_owned(),
             generated::<listings::listing::Entity>(),

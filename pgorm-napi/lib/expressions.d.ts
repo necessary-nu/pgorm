@@ -6,10 +6,10 @@
 
 // [spec:pgorm:req:napi.typing+1]
 // [spec:pgorm:req:bindings.expressions+2]
-// [spec:pgorm:req:bindings.quantifiers+1]
+// [spec:pgorm:req:bindings.quantifiers+2]
 // [spec:pgorm:req:bindings.case]
 
-import type { Param, TypeName, Value } from "./index.d.ts";
+import type { Multirange, Param, Range, TypeName, Value } from "./index.d.ts";
 import type { EntityColumn } from "./entities.d.ts";
 import type { ModelColumn } from "./models.d.ts";
 import type { Select } from "./select.d.ts";
@@ -299,16 +299,23 @@ export declare function scalar(select: Select): Expr;
  */
 export declare function array(select: Select): Expr;
 /**
+ * What `any(..)` or `all(..)` ranges over: a subquery's rows, an array
+ * expression, a value bound as one array parameter, or a list of values,
+ * ranges among them, which a registered column types where the list alone
+ * says too little.
+ */
+export type QuantifiedSource = Select | Operand | readonly (BindValue | Range<any> | Multirange<any>)[];
+/**
  * `ANY (..)`: the operator holds for some element of an array — an
  * expression, or a value bound as one array parameter — or for some row of a
  * subquery; over an empty array or no rows it is false.
  */
-export declare function any(source: Select | Operand): Quantified;
+export declare function any(source: QuantifiedSource): Quantified;
 /**
  * `ALL (..)`: the operator holds for every element of an array, or every
  * row of a subquery; over an empty array or no rows it is true.
  */
-export declare function all(source: Select | Operand): Quantified;
+export declare function all(source: QuantifiedSource): Quantified;
 /** A searched `CASE` with its first arm. */
 export declare function caseWhen(condition: Predicate, result: Operand): SearchedCase;
 /** A simple `CASE` over `operand`; its first `when` makes it an expression. */

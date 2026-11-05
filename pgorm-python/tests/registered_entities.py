@@ -348,6 +348,8 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
     # [spec:pgorm:req:bindings.entity-reads+3/test]    any_(..) / all_(..) over a list compares through the
     # column's ColumnTrait, the list one array of its declared kind cast as eq_any's is: money as money[],
     # a column whose domain is over an enum as the enum, where the plain expression is refused
+    # [spec:pgorm:req:bindings.quantifiers+2/test]    an empty list is typed by the registered column, = ANY
+    # of it false and <> ALL true, and refused as it is used where no registered column types it
     async def test_quantified_lists_take_the_column_casts(self):
         await self.pool.execute(p.RawSQL(
             "CREATE TABLE python_entities.tills (id integer PRIMARY KEY, takings money NOT NULL, floats money[])"))
@@ -372,16 +374,24 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(await found(till, takings == p.any_([Decimal("3"), Decimal("12.35")])), [1, 2])
             self.assertEqual(await found(till, takings > p.all_([Decimal("1"), Decimal("5")])), [1, 3])
+            self.assertEqual(await found(till, takings == p.any_([])), [])
+            self.assertEqual(await found(till, takings != p.all_([])), [1, 2, 3])
             self.assertEqual(await found(self.account, mood != p.all_(["busy"])), [1])
             self.assertEqual(await found(temper, temper_mood == p.any_(["busy"]), "mood"), ["busy"])
             self.assertEqual(await found(temper, temper_mood > p.all_(["calm"]), "mood"), ["busy"])
             with self.assertRaises(p.DatabaseError) as refused:
                 await temper.find().where(temper_mood.expr() == p.any_(["busy"])).all(connection)
             self.assertEqual(refused.exception.sqlstate, "42883")
+        empty = p.any_([])
+        with self.assertRaises(p.ConstructionError):
+            p.col("x") == empty
+        with self.assertRaises(p.ConstructionError):
+            takings.expr() == p.all_([])
 
     # [spec:pgorm:req:bindings.column-operators+3/test]    a registered range column's containment, overlap
     # and range positions run through its ColumnTrait, a created range written as its text cast to the type,
-    # and an element is no value of the column's kind
+    # any_/all_ over a list of ranges as the array of their texts cast to the type's array, and an element
+    # is no value of the column's kind
     async def test_range_operators_take_the_column_casts(self):
         booking = p.entity("app.Booking")
         span = booking.col("span")
@@ -402,6 +412,11 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await ids(span.not_extend_right_of(p.Range(1.0, 3.0))), [1])
             self.assertEqual(await ids(span.not_extend_left_of(p.Range(4.0, 7.0))), [2])
             self.assertEqual(await ids(span.adjacent_to(p.Range(2.5, 3.0))), [1])
+            self.assertIn("= ANY(CAST($1::text[] AS python_entities.floatrange[]))",
+                          (span == p.any_([p.Range(1.5, 2.5)])).inspect().sql)
+            self.assertEqual(await ids(span == p.any_([p.Range(1.5, 2.5), p.Range(7.0, 8.0)])), [1])
+            self.assertEqual(await ids(span.overlaps(p.any_([p.Range(2.0, 3.0), p.Range(5.5, 5.6)]))), [1, 2])
+            self.assertEqual(await ids(span.overlaps(p.all_([p.Range(2.0, 3.0), p.Range(1.0, 1.6)]))), [1])
         with self.assertRaises(p.ConstructionError):
             span.contains(1.7)
 

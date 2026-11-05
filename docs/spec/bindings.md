@@ -873,7 +873,7 @@ the same terminals that run raw SQL.
 > CHECK tests. `asc()` and `desc()` give an ordering, with NULLS FIRST or
 > LAST, and `as(alias)` an aliased projection item.
 
-> [spec:pgorm:req:bindings.quantifiers+1]
+> [spec:pgorm:req:bindings.quantifiers+2]
 > `any(source)` and `all(source)` MUST be `ANY (..)` and `ALL (..)`:
 > pgorm-query's `Expr::any` / `Expr::all` over a `Select`'s rows, and
 > `Func::any` / `Func::all` over an array, an expression or a value bound as
@@ -894,6 +894,15 @@ the same terminals that run raw SQL.
 >   which pgorm sends no text as, so an array of text is a
 >   `ConstructionError` as the statement runs, and one cast to `jsonpath[]`
 >   is sent.
+>
+> A list no element of which names the list's kind — an empty one, or one of
+> ranges, whose kind no bound names — is typed by the registered column it is
+> compared with, as that column's `compare_any` / `compare_all`
+> (`bindings.entity-reads`): `= ANY` of an empty list is false and `<> ALL`
+> true. Nothing else can type it, so beside an expression, a column no
+> registration types, or anything but a registered column it MUST be
+> refused with the `ConstructionError` its kind's inference met, as the
+> quantifier is used rather than as it is built.
 >
 > Each is the pgorm-query operator of its meaning with the quantifier as its
 > right operand. The grammar reads none after `similar_to`, `not_similar_to`,

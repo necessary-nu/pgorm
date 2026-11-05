@@ -17795,6 +17795,22 @@ children (
                 title "An empty any_/all_ list on a registered column is typed by the column and compares, instead of being refused as the quantifier is built"
                 kind @fix
                 deps (typed-binds.quantified-casts)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T04:17:11.23495Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T04:21:04.166044Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
         )
     }
