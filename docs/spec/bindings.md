@@ -104,7 +104,7 @@ option.
 > the runtime: an operation that does I/O is awaited in the language's own
 > asynchronous form (`python.runtime`, `napi.promises`).
 
-> [spec:pgorm:req:bindings.errors+4]
+> [spec:pgorm:req:bindings.errors+5]
 > Each binding MUST report a failure as an instance of its own error classes,
 > all derived from one base class of the binding and from the language's own
 > base error:
@@ -128,7 +128,10 @@ option.
 >   `parameter $1 cannot be bound:` followed by pgorm's reason, the same text
 >   in each binding;
 > - `DecodeError` for a result that cannot become the native value asked for,
->   a wrong row count among them (`bindings.row-count`);
+>   a wrong row count among them (`bindings.row-count`); one the driver cannot
+>   read is reported with pgorm's `DecodeRefusal` text
+>   (`error.model.decode-refusal`), what it was reading followed by the
+>   decoder's reason, the same text in each binding;
 > - `LifecycleError` for a pool, connection, transaction, stream or listener
 >   used after it closed, or while another operation holds it;
 > - `TimeoutError` when no connection becomes free within a pool's acquire
@@ -1038,7 +1041,7 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > `all(..)` beside a comparison, is taken as written; a `Value` only of the
 > field's own kind; and null never, which `is_null()` tests.
 
-> [spec:pgorm:req:bindings.column-operators+2]
+> [spec:pgorm:req:bindings.column-operators+3]
 > A model's column and a registered entity's column MUST each be an
 > expression: every expression method applies to it, reading the column as
 > written, and it goes wherever an expression goes. A model column's other
@@ -1048,16 +1051,22 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > `not_extend_right_of`, `not_extend_left_of` and `adjacent_to` — MUST
 > convert their values as the column's comparisons do
 > (`bindings.model-columns`). A registered column's `between` and
-> `not_between`, `SYMMETRIC` or not, and its `is_distinct_from` and
-> `is_not_distinct_from` MUST be its `ColumnTrait`'s methods of the same
-> meaning: each value converted as its comparisons convert one
-> (`bindings.entity-reads`) and compared under the same casts, so a bound
-> compared with a `money` column is cast to `money` and a column whose
-> domain is over an enum is tested as the enum, where a bound left bare
-> would reach no operator (`42883`) or bind as a type it is not. A bound or
-> value that is an expression takes the whole test as written, and null is
-> refused. Every other method takes its operands as `bindings.expressions`
-> does, and a registered column's comparisons are those
+> `not_between`, `SYMMETRIC` or not, its `is_distinct_from` and
+> `is_not_distinct_from`, and its `contains`, `contained_by`, `overlaps`
+> and range positions MUST be its `ColumnTrait`'s methods of the same
+> meaning (`includes` for `contains`): each value converted as its
+> comparisons convert one (`bindings.entity-reads`) and compared under the
+> same casts, so a bound compared with a `money` column is cast to `money`,
+> a range compared with a created range's column is its text cast to the
+> type, and a column whose domain is over an enum is tested as the enum,
+> where a bound left bare would reach no operator (`42883`) or bind as a type
+> it is not. An element `contains` tests is no value of the column's kind,
+> and is given as an expression. `any(..)` / `all(..)` over a list beside a
+> range operator is the trait's `compare_any` / `compare_all`, as beside a
+> comparison. A bound or value that is an expression takes the whole test as
+> written, and null is refused. Every other method takes its operands as
+> `bindings.expressions` does — a pattern among them, which no column type
+> casts — and a registered column's comparisons are those
 > `bindings.entity-reads` names. Neither column describes itself: a
 > model column's declaration is read through its model's `describe()`
 > (`bindings.models`), and a registered column's through its registration's
@@ -1260,7 +1269,7 @@ Rust generic at run time, only use the ones compiled in.
 > as on a connection or a transaction. On a pool it runs on a connection lent
 > to it alone, as a pool's statement does.
 
-> [spec:pgorm:req:bindings.entity-reads+2]
+> [spec:pgorm:req:bindings.entity-reads+3]
 > `find()` MUST be the entity's `E::find()`, and `where`, `order_by`,
 > `limit` and `offset` the `Select<E>` methods of the same meaning. `all`,
 > `one` and `optional` MUST be `Select::all`, `one` and `one_opt`, `one` and
@@ -1271,8 +1280,12 @@ Rust generic at run time, only use the ones compiled in.
 > comparisons MUST be that trait's methods: a value converted to the column's
 > declared kind and written through the column's `save_as` — an enum's label
 > cast to its type, and a column whose domain is over an enum compared as the
-> enum, the column and the label each cast to it. An expression, or
-> `any(..)` / `all(..)`, is compared as written, and null is refused. Its
+> enum, the column and the label each cast to it. `any(..)` / `all(..)` over
+> a list of values MUST be the trait's `compare_any` / `compare_all`, the
+> values converted to the column's declared kind as one array and cast as
+> `eq_any`'s is, so a `money` column compares with a list of decimals; over a
+> `Select`, over an expression, or beside a column of no scalar kind it is
+> compared as written, as is an expression, and null is refused. Its
 > `is_in` and `is_not_in` MUST be the trait's `is_in` / `is_not_in` over a
 > list of values, each converted as a compared value is, and its
 > `in_subquery` / `not_in_subquery` over a `Select`, so a column whose domain

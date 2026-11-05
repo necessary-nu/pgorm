@@ -284,7 +284,7 @@ class ModelConstruction(unittest.TestCase):
         with self.assertRaises(p.ConstructionError):
             model.col("id") == model.col("display_name")
 
-    # [spec:pgorm:req:bindings.column-operators+2/test]
+    # [spec:pgorm:req:bindings.column-operators+3/test]
     def test_columns_are_expressions_converting_every_value_operator(self):
         model = accounts().as_("a")
         column, plain = model.col("id"), model.table.col("id")
@@ -427,7 +427,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         row["tags"].append("local mutation")
         self.assertEqual(row["tags"], ["a", None])
 
-    # [spec:pgorm:req:bindings.column-operators+2/test]
+    # [spec:pgorm:req:bindings.column-operators+3/test]
     async def test_value_operators_bind_the_declared_kind(self):
         for name, mood, tags in (("A", "calm", ["a", "b"]), ("B", "busy", ["b"]), ("C", "busy", None)):
             await self.model.insert(

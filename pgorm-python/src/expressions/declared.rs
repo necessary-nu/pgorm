@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 
 use super::PyExpr;
 
-// [spec:pgorm:req:bindings.column-operators+2]
+// [spec:pgorm:req:bindings.column-operators+3]
 #[pyclass(
     name = "_DeclaredColumn",
     module = "pgorm._native",

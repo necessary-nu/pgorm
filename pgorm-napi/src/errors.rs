@@ -93,7 +93,7 @@ impl Failure {
     /// The class name `lib/index.js` maps the failure to.
     pub(crate) fn kind(&self) -> &'static str {
         match self {
-            // [spec:pgorm:req:bindings.errors+4]    the constraint classes pgorm's SqlError names
+            // [spec:pgorm:req:bindings.errors+5]    the constraint classes pgorm's SqlError names
             Self::Database(diagnostics) => match diagnostics.sqlstate.as_str() {
                 "23505" => "UniqueViolationError",
                 "23503" => "ForeignKeyViolationError",
@@ -194,7 +194,7 @@ impl std::error::Error for Failure {}
 /// Classify a pgorm error. A PostgreSQL error anywhere in its cause chain
 /// decides the class, so a server's refusal during connection (a bad password,
 /// a missing database) carries its SQLSTATE like any other.
-// [spec:pgorm:req:bindings.errors+4]
+// [spec:pgorm:req:bindings.errors+5]
 pub(crate) fn failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
     let mut source: &(dyn std::error::Error + 'static) = error;
     loop {
@@ -223,28 +223,14 @@ pub(crate) fn failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
 
 fn postgres_failure(error: &tokio_postgres::Error, secrets: &Redactions) -> Failure {
     let Some(db) = error.as_db_error() else {
-        // tokio-postgres exposes no public error kind for its client-side
-        // failures, so the phase is read from its top-level message, never
-        // from a nested cause a caller could have shaped.
-        let phase = error.to_string();
-        // A codec's own refusal is the cause, and says what was wrong with
-        // the value.
-        let explained = match std::error::Error::source(error) {
-            Some(cause) => format!("{phase}: {cause}"),
-            None => phase.clone(),
-        };
-        return if phase.starts_with("error deserializing column ")
-            || phase.starts_with("invalid column `")
-            || phase == "query returned an unexpected number of columns"
-            || phase == "query returned an unexpected number of rows"
-        {
-            Failure::Decode(secrets.apply(&explained))
+        return if let Some(refusal) = pgorm::DecodeRefusal::of(error) {
+            Failure::Decode(secrets.apply(&refusal.to_string()))
         } else if let Some(refusal) = pgorm::BindRefusal::of(error) {
             Failure::Construction(secrets.apply(&refusal.to_string()))
         } else {
             Failure::Connection(format!(
                 "PostgreSQL connection or protocol failure: {}",
-                secrets.apply(&phase)
+                secrets.apply(&error.to_string())
             ))
         };
     };
@@ -320,7 +306,7 @@ mod tests {
         assert_eq!(Failure::Internal("x".into()).kind(), "InternalError");
     }
 
-    // [spec:pgorm:req:bindings.errors+4/test]
+    // [spec:pgorm:req:bindings.errors+5/test]
     #[test]
     fn a_constraint_violation_names_its_own_class() {
         let violation = |sqlstate: &str| {

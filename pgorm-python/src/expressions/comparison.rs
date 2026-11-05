@@ -45,12 +45,12 @@ impl PyExpr {
 
     /// `IS DISTINCT FROM`: inequality that reads NULL as a value, so it
     /// answers true or false for every pair.
-    pub(crate) fn is_distinct_from(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn is_distinct_from(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self::from_rust(
             Expr::expr(self.inner.clone()).is_distinct_from(coerce(other)?.inner),
         ))
     }
-    pub(crate) fn is_not_distinct_from(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn is_not_distinct_from(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self::from_rust(
             Expr::expr(self.inner.clone()).is_not_distinct_from(coerce(other)?.inner),
         ))

@@ -128,3 +128,18 @@ it.
 > followed by the reason, or the first part alone; each language binding
 > reports a refusal with exactly that text (`bindings.errors`). The struct is
 > `#[non_exhaustive]`.
+
+> [spec:pgorm:sem:error.model.decode-refusal]
+> `DecodeRefusal` is a result the driver could not read into what was asked
+> for: `reading`, the driver's account of what it was reading — `error
+> deserializing column N` (zero-based), ``invalid column `name` ``, `query
+> returned an unexpected number of columns`, or `query returned an
+> unexpected number of rows` — and `reason`, the decoder's refusal of the
+> value where the driver kept one. `DecodeRefusal::of(&tokio_postgres::Error)`
+> is the classifier, `None` for any other failure, reading the phase off the
+> error's top-level text as `BindRefusal::of` does and the reason off its
+> source; `Error::decode_refusal()` applies it to `Error::Postgres` and yields
+> `None` for every other variant. Its `Display` is `reading` followed by `: `
+> and the reason, or `reading` alone; each language binding reports the
+> failure as its `DecodeError` with exactly that text (`bindings.errors`).
+> The struct is `#[non_exhaustive]`.

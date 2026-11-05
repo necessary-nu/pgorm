@@ -227,12 +227,24 @@ first rule: a value reaches JavaScript exactly or not at all.
 > with a savepoint still open fails, and commits nothing. The options `mode`
 > and `isolation` select pgorm's `TransactionMode`.
 
-> [spec:pgorm:req:napi.cancellation+1]
+> [spec:pgorm:req:napi.cancellation+2]
 > Acquiring a connection, running a statement, opening a transaction or a
 > savepoint, pulling a stream's rows, a COPY, a listener's operations and
 > `notify` MUST each take an `AbortSignal` as the `signal` option. An aborted
 > operation rejects with the signal's reason, and behaves as
 > `bindings.cancellation` requires.
+>
+> An operation is aborted when its signal fires before its promise settles,
+> even where the addon finished the work first, its result queued behind the
+> abort: the promise MUST reject with the signal's reason all the same, after
+> releasing what the result holds. A statement's or a ping's result is
+> discarded; a connection it acquired goes back to its pool; a COPY TO it
+> opened is closed; a statement, a COPY or a job it ran in a transaction, and
+> a transaction or savepoint it began, end the whole transaction with nothing
+> committed and its connection discarded, as an abort the addon saw ends it; a
+> stream whose pull it was closes; a listener it opened closes, as one whose
+> `listen`, `unlisten` or `unlisten_all` it was does; and a notification a
+> pull received is kept for the listener's next pull, so none is lost.
 
 ## Pipelines
 

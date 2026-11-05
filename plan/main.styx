@@ -12797,6 +12797,29 @@ children (
                     }
                 )
             }
+
+            {
+                id napi.abort-race-all
+                title "Every abortable JavaScript operation rejects when its signal fired before the native call returned, without losing a notification or leaving a transaction open"
+                kind @fix
+                deps (napi-listen-abort-race)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T02:39:17.567966Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T02:43:23.954202Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
         )
         log (
             {
@@ -17673,6 +17696,70 @@ children (
 
                     {
                         at 2026-11-05T00:20:42.999496Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
+            }
+
+            {
+                id typed-binds.python-expression-operands
+                title "A Python registered column compares with an expression operand (==, any_, is_in) as written, as bindings.entity-reads says"
+                kind @fix
+                deps (bindings-between-casts)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T01:12:40.1992Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T01:25:03.006459Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id typed-binds.quantified-casts
+                title "any_/all_ and the range operators on a registered column bind their values under the column's casts"
+                kind @fix
+                deps (bindings-between-casts)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T01:41:28.826767Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T02:13:04.66451Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id typed-binds.python-decode-reason
+                title "Python's decode errors carry the codec's reason, as JavaScript's do"
+                kind @fix
+                implements {
+                    main ([spec:pgorm:sem:error.model.decode-refusal])
+                }
+                deps (python-bind-refusal-text)
+                log (
+                    {
+                        at 2026-11-05T02:16:09.101281Z
                         author "brendan@necessary.nu"
                         kind @status
                         text "Todo → Doing (nplan start)"

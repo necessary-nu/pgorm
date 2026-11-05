@@ -40,6 +40,7 @@ use pgorm::{ActiveValue, pgorm_query::Condition};
 
 use adapter::{Active, Between, Change, Comparison, Members, Read, Select, Write};
 pub(crate) use adapter::{EntityBackend, Model, PipelineColumn};
+use convert::column_array;
 use convert::{ModelHandle, Records, Wrote, entity_failure, names};
 pub(crate) use convert::{column_value, record};
 pub use graph::{GraphBindings, GraphModel, GraphSlots, RegisteredSlot, Source};
@@ -101,6 +102,7 @@ const EXPORTS: &[(&str, Export)] = &[
     ("entityCol", entity_col),
     ("entityCompare", entity_compare),
     ("entityBetween", entity_between),
+    ("entityQuantified", entity_quantified),
     ("entityIn", entity_in),
     ("entityFind", entity_find),
     ("entityActive", entity_active),
@@ -276,16 +278,9 @@ fn entity_col(mut cx: FunctionContext) -> JsResult<JsValue> {
     }
 }
 
-/// `entityCompare(entity, column, operator, value)`: the column compared
-/// through its `ColumnTrait` method — a comparison, or `IS [NOT] DISTINCT
-/// FROM` — the value converted to the column's declared kind and written
-/// through its `save_as`.
-// [spec:pgorm:req:bindings.entity-reads+2]
-// [spec:pgorm:req:bindings.column-operators+2]
-fn entity_compare(mut cx: FunctionContext) -> JsResult<JsValue> {
-    let entity = held!(cx, EntityHandle, 0);
-    let column = text!(cx, 1);
-    let comparison = match text!(cx, 2).as_str() {
+/// The comparison named at argument `index`, by its JavaScript method name.
+fn comparison_at(cx: &mut FunctionContext, index: usize) -> NeonResult<Comparison> {
+    Ok(match cx.argument::<JsString>(index)?.value(cx).as_str() {
         "eq" => Comparison::Eq,
         "ne" => Comparison::Ne,
         "gt" => Comparison::Gt,
@@ -294,10 +289,55 @@ fn entity_compare(mut cx: FunctionContext) -> JsResult<JsValue> {
         "lte" => Comparison::Le,
         "isDistinctFrom" => Comparison::IsDistinctFrom,
         "isNotDistinctFrom" => Comparison::IsNotDistinctFrom,
+        "contains" => Comparison::Contains,
+        "containedBy" => Comparison::ContainedBy,
+        "overlaps" => Comparison::Overlaps,
+        "strictlyLeftOf" => Comparison::StrictlyLeftOf,
+        "strictlyRightOf" => Comparison::StrictlyRightOf,
+        "notExtendRightOf" => Comparison::NotExtendRightOf,
+        "notExtendLeftOf" => Comparison::NotExtendLeftOf,
+        "adjacentTo" => Comparison::AdjacentTo,
         _ => return cx.throw_type_error("unknown comparison"),
-    };
+    })
+}
+
+/// `entityCompare(entity, column, operator, value)`: the column compared
+/// through its `ColumnTrait` method — a comparison, `IS [NOT] DISTINCT
+/// FROM` or a range operator — the value converted to the column's declared
+/// kind and written through its `save_as`.
+// [spec:pgorm:req:bindings.entity-reads+3]
+// [spec:pgorm:req:bindings.column-operators+3]
+fn entity_compare(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let entity = held!(cx, EntityHandle, 0);
+    let column = text!(cx, 1);
+    let comparison = comparison_at(&mut cx, 2)?;
     let value = compared_value(&mut cx, &*entity, &column, 3)?;
     match entity.compare(&column, comparison, value) {
+        Ok(expr) => Ok(cx.boxed(Node::Expr(expr)).upcast()),
+        Err(failure) => throw(&mut cx, failure),
+    }
+}
+
+/// `entityQuantified(entity, column, operator, "any" | "all", values)`: the
+/// column compared with `ANY` or `ALL` of `values` through its
+/// `ColumnTrait::compare_any` / `compare_all`, the values read as one array
+/// of the column's declared kind; `null` for a column of no scalar kind,
+/// whose quantifier is compared as written.
+// [spec:pgorm:req:bindings.entity-reads+3]
+fn entity_quantified(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let entity = held!(cx, EntityHandle, 0);
+    let column = text!(cx, 1);
+    let comparison = comparison_at(&mut cx, 2)?;
+    let all = text!(cx, 3) == "all";
+    let info = match entity.info().column(&column) {
+        Ok(info) => info.clone(),
+        Err(failure) => return throw(&mut cx, failure),
+    };
+    let values = cx.argument::<JsValue>(4)?;
+    let Some(array) = column_array(&mut cx, &info, values)? else {
+        return Ok(cx.null().upcast());
+    };
+    match entity.quantified(&column, comparison, all, array) {
         Ok(expr) => Ok(cx.boxed(Node::Expr(expr)).upcast()),
         Err(failure) => throw(&mut cx, failure),
     }
@@ -306,7 +346,7 @@ fn entity_compare(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `entityBetween(entity, column, negated, symmetric, lower, upper)`: the
 /// column's `[NOT] BETWEEN [SYMMETRIC]` through its `ColumnTrait` method,
 /// each bound converted as a compared value is.
-// [spec:pgorm:req:bindings.column-operators+2]
+// [spec:pgorm:req:bindings.column-operators+3]
 fn entity_between(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
     let column = text!(cx, 1);
@@ -349,7 +389,7 @@ fn compared_value(
 /// values read as the column's declared kind, `in_subquery` /
 /// `not_in_subquery` over a subquery's rows — so a column whose domain is over
 /// an enum is a member as the enum, and so is what the subquery projects.
-// [spec:pgorm:req:bindings.entity-reads+2]
+// [spec:pgorm:req:bindings.entity-reads+3]
 fn entity_in(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
     let column = text!(cx, 1);
@@ -420,7 +460,7 @@ fn count_at(cx: &mut FunctionContext, index: usize) -> NeonResult<Option<u64>> {
 
 /// `entitySelectChange(select, step, argument)`: the query with one more
 /// step — `where`, `orderBy`, `limit` or `offset` — as `Select<E>` takes it.
-// [spec:pgorm:req:bindings.entity-reads+2]
+// [spec:pgorm:req:bindings.entity-reads+3]
 fn select_change(mut cx: FunctionContext) -> JsResult<JsValue> {
     let select = held!(cx, SelectHandle, 0);
     let change = step(&mut cx)?;

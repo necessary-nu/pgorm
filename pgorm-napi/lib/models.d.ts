@@ -8,7 +8,7 @@
 // [spec:pgorm:req:bindings.models+5]
 // [spec:pgorm:req:bindings.model-unique-keys+2]
 
-import type { Compiled, Condition, Expr, ModelOperand, Operand, OrderBy, Predicate } from "./expressions.d.ts";
+import type { ComparisonOperand, Compiled, Condition, Expr, Operand, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Select, Table } from "./select.d.ts";
 import type { Conflict, ConflictUpdate, Delete, Insert, Update } from "./writes.d.ts";
 import type {
@@ -241,7 +241,7 @@ declare const operands: unique symbol;
  * A model's column as an expression, qualified as its model's table is
  * named. A value its comparisons, membership tests, `between`, distinctness
  * tests, containment, overlap and range positions take converts through the
- * column's declared kind, `I` ({@link ModelOperand}): an enum's label is
+ * column's declared kind, `I` ({@link ComparisonOperand}): an enum's label is
  * bound cast to its type, and a range or multirange column takes a `Range`
  * or `Multirange` as it stands. An expression, and `any(..)` / `all(..)`
  * beside an operator that reads one, are taken as written; comparing with

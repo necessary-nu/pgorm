@@ -20,14 +20,14 @@ impl PyExpr {
     /// `IN`: membership in a list or tuple of operands, Rust's `is_in`, an
     /// empty one holding nothing, or in a `Select`'s rows, Rust's
     /// `in_subquery`, the subquery checked as any embedded one is.
-    fn is_in(&self, values: &Bound<'_, PyAny>) -> PyResult<Self> {
+    pub(crate) fn is_in(&self, values: &Bound<'_, PyAny>) -> PyResult<Self> {
         let expr = Expr::expr(self.inner.clone());
         Ok(Self::from_rust(match subquery(values)? {
             Some(select) => expr.in_subquery(select),
             None => expr.is_in(sequence(values)?),
         }))
     }
-    fn is_not_in(&self, values: &Bound<'_, PyAny>) -> PyResult<Self> {
+    pub(crate) fn is_not_in(&self, values: &Bound<'_, PyAny>) -> PyResult<Self> {
         let expr = Expr::expr(self.inner.clone());
         Ok(Self::from_rust(match subquery(values)? {
             Some(select) => expr.not_in_subquery(select),

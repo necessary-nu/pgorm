@@ -1,0 +1,65 @@
+{
+  "counts": {
+    "construction_only_programs_constructed": {
+      "oracle_decided": false,
+      "reached_database": false,
+      "recorded": 150,
+      "scheduled": 150,
+      "verdicts": {
+        "defect": 0,
+        "expected-rejection": 0,
+        "incomplete": 0,
+        "invalid-control": 0,
+        "pass": 150
+      }
+    },
+    "control_programs_checked": {
+      "oracle_decided": true,
+      "reached_database": true,
+      "recorded": 23,
+      "scheduled": 23,
+      "verdicts": {
+        "defect": 0,
+        "expected-rejection": 0,
+        "incomplete": 0,
+        "invalid-control": 0,
+        "pass": 23
+      }
+    },
+    "invalid_input_programs_checked": {
+      "oracle_decided": true,
+      "reached_database": true,
+      "recorded": 6,
+      "scheduled": 6,
+      "verdicts": {
+        "defect": 0,
+        "expected-rejection": 6,
+        "incomplete": 0,
+        "invalid-control": 0,
+        "pass": 0
+      }
+    },
+    "live_database_programs_checked": {
+      "oracle_decided": true,
+      "reached_database": true,
+      "recorded": 30,
+      "scheduled": 30,
+      "verdicts": {
+        "defect": 0,
+        "expected-rejection": 0,
+        "incomplete": 0,
+        "invalid-control": 0,
+        "pass": 30
+      }
+    },
+    "note": "run classes are counted separately and are never summed"
+  },
+  "coverage_outstanding": [],
+  "dirty": false,
+  "fault_kinds": [],
+  "findings": [],
+  "output": "target/generative-lanec-run/smoke-bcd65528a8e2",
+  "passed": true,
+  "profile": "smoke",
+  "revision": "38968e1b0a2331fc4cce52a5d7fe9e0b094b9e76"
+}

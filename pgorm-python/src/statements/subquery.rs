@@ -3,7 +3,8 @@
 //! subquery's rows or an array.
 
 use pgorm::pgorm_query::{Expr, Func, SelectStatement, SimpleExpr, SubQueryStatement};
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyList};
+use std::sync::Arc;
 
 use super::select::PySelect;
 use crate::{
@@ -58,6 +59,32 @@ pub(crate) fn subquery_scalar(select: PyRef<'_, PySelect>) -> PyResult<PyExpr> {
 #[derive(Clone, Debug)]
 pub struct PyQuantified {
     pub(crate) inner: SimpleExpr,
+    /// The list of values the quantifier ranges over, when its source is one
+    /// holding no expression: a registered column compares
+    /// with them through its `ColumnTrait`, each converted to its declared
+    /// kind, rather than with the array `inner` bound as inferred.
+    pub(crate) listed: Option<Listed>,
+}
+
+/// A quantifier over a list of values, as [`PyQuantified::listed`] keeps it.
+#[derive(Clone, Debug)]
+pub(crate) struct Listed {
+    pub(crate) all: bool,
+    pub(crate) values: Arc<Py<PyAny>>,
+}
+
+/// `source` as a quantifier's listed values: a list holding no expression.
+fn listed(source: &Bound<'_, PyAny>, all: bool) -> PyResult<Option<Listed>> {
+    if !source.is_exact_instance_of::<PyList>() {
+        return Ok(None);
+    }
+    for item in source.try_iter()? {
+        if item?.is_instance_of::<PyExpr>() {
+            return Ok(None);
+        }
+    }
+    let values = Arc::new(source.clone().unbind());
+    Ok(Some(Listed { all, values }))
 }
 
 #[pymethods]
@@ -84,7 +111,8 @@ pub(crate) fn quantified_any(source: &Bound<'_, PyAny>) -> PyResult<PyQuantified
         Some(select) => Expr::any(select),
         None => Func::any(coerce(source)?.inner).into(),
     };
-    Ok(PyQuantified { inner })
+    let listed = listed(source, false)?;
+    Ok(PyQuantified { inner, listed })
 }
 
 /// `all_(source)`: `ALL (..)` over a `Select`'s rows, Rust's `Expr::all`, or
@@ -97,5 +125,6 @@ pub(crate) fn quantified_all(source: &Bound<'_, PyAny>) -> PyResult<PyQuantified
         Some(select) => Expr::all(select),
         None => Func::all(coerce(source)?.inner).into(),
     };
-    Ok(PyQuantified { inner })
+    let listed = listed(source, true)?;
+    Ok(PyQuantified { inner, listed })
 }

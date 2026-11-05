@@ -491,8 +491,9 @@ async fn a_bound_holding_range_syntax_stays_data(db: &DatabaseConnection) -> Res
 }
 
 /// A built-in `int4range` value written to a column of a range type created
-/// over `int4` is turned into its text and cast, on both renderings, and a
-/// pipeline binds one compared with the column through its text too. Written
+/// over `int4` is turned into its text and cast, on both renderings, a
+/// pipeline binds one compared with the column through its text too, and so
+/// do the column's range operators. Written
 /// as the built-in it is, it is refused: there is no cast between two range
 /// types.
 // [spec:pgorm:def:sql.value.created-range+6/test]
@@ -584,6 +585,23 @@ async fn a_builtin_range_value_reaches_a_created_type(
         .all(db)
         .await?;
     assert_eq!(ids, vec![3]);
+
+    let slot = measures::Column::Slot;
+    for (operator, holds) in [
+        (slot.overlaps(Range::from(5..9)), true),
+        (slot.includes(Range::from(3..4)), true),
+        (slot.contained_by(Range::from(0..10)), true),
+        (slot.strictly_left_of(Range::from(8..9)), true),
+        (slot.strictly_right_of(Range::from(8..9)), false),
+        (slot.adjacent_to(Range::from(7..8)), true),
+    ] {
+        let found = measures::Entity::find()
+            .filter(measures::Column::Id.eq(3))
+            .filter(operator)
+            .all(db)
+            .await?;
+        assert_eq!(found.len(), usize::from(holds));
+    }
 
     let builtin = select(Expr::val(Range::from(2..7)).cast_as_type(Slot::name()));
     let inline = (builtin.to_string(), Values(Vec::new()))

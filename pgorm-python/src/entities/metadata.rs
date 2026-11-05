@@ -79,6 +79,22 @@ impl InputKind {
         }
     }
 
+    /// `values`, a list, as one array of the column's scalar kind,
+    /// or `None` for a column of no scalar kind: the array a quantified
+    /// comparison with the column ranges over.
+    pub(crate) fn array_of(&self, values: &Bound<'_, PyAny>) -> PyResult<Option<PyValue>> {
+        if matches!(self, Self::Array(_) | Self::Explicit) {
+            return Ok(None);
+        }
+        let py = values.py();
+        let class = py.get_type::<PyValue>();
+        Ok(Some(
+            class
+                .call_method1("array", (self.kind(py)?, values))?
+                .extract()?,
+        ))
+    }
+
     pub(crate) fn coerce(&self, value: &Bound<'_, PyAny>) -> PyResult<PyValue> {
         if let Ok(value) = value.extract::<PyRef<'_, PyValue>>() {
             if let Some(kind) = value.created()
