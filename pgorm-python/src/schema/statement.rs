@@ -48,7 +48,7 @@ macro_rules! statements {
 
         impl Statement {
             // [spec:pgorm:req:bindings.schema]
-            fn sql(&self) -> String {
+            pub(crate) fn sql(&self) -> String {
                 match self {
                     $(Self::$variant(statement) => statement.to_string()),*
                 }

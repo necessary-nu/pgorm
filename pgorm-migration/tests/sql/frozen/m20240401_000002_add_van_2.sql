@@ -1,0 +1,2 @@
+CREATE TABLE "van" ( "id" integer NOT NULL, "doors" smallint NOT NULL, "kind" fleet_kind GENERATED ALWAYS AS ('van') STORED, PRIMARY KEY ("id"), CONSTRAINT "fk-van-id-kind" FOREIGN KEY ("id", "kind") REFERENCES "fleet" ("id", "kind") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE );
+ALTER TABLE "fleet" ADD COLUMN "van_id" integer GENERATED ALWAYS AS ((CASE WHEN ("kind" = 'van') THEN "id" END)) STORED, ADD CONSTRAINT "fk-fleet-van_id" FOREIGN KEY ("van_id") REFERENCES "van" ("id") DEFERRABLE INITIALLY IMMEDIATE;

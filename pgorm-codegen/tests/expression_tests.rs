@@ -47,26 +47,19 @@ fn expressions(table: &TableCreateStatement) -> Vec<String> {
 
 // [spec:pgorm:sem:codegen.ddl.tables+13/test]    a column's DEFAULT and generation expression,
 // stored or virtual, ride on the bridged statement
-// [spec:pgorm:sem:codegen.entity.expressions+2/test]    and reach the entity as the Rust that
+// [spec:pgorm:sem:codegen.entity.expressions+3/test]    and reach the entity as the Rust that
 // builds the same expressions: the schema built from the generated entities carries each
 // expression the bridge read, rendered alike
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]
 #[test]
 fn schema_expressions_reach_the_entity() {
     let generated = from_sql_with(SCHEMA, Opts::default());
-    for (file, fixture) in [
-        (
-            "stock_item.rs",
-            include_str!("sql/expressions/stock_item.rs"),
-        ),
-        ("formula.rs", include_str!("sql/expressions/formula.rs")),
-        (
-            "stock_code.rs",
-            include_str!("sql/expressions/stock_code.rs"),
-        ),
+    for (file, golden) in [
+        ("stock_item.rs", "sql/expressions/stock_item.rs"),
+        ("formula.rs", "sql/expressions/formula.rs"),
+        ("stock_code.rs", "sql/expressions/stock_code.rs"),
     ] {
-        let written = norm(generated.file(file)).replace(", )", ")");
-        assert!(written.contains(&norm(fixture)), "{file}: {written}");
+        generated.holds(file, golden);
     }
 
     let tables = parse_schema(SCHEMA).expect("schema should parse");
@@ -103,7 +96,7 @@ fn schema_expressions_reach_the_entity() {
 
 // [spec:pgorm:sem:codegen.entity.pk+5/test]    a key whose every column is generated is the
 // database's to fill: the key carries no `auto_increment = false`
-// [spec:pgorm:sem:codegen.entity.expressions+2/test]    and a VIRTUAL generated column in a key,
+// [spec:pgorm:sem:codegen.entity.expressions+3/test]    and a VIRTUAL generated column in a key,
 // which PostgreSQL does not support (0A000), is refused
 #[test]
 fn a_generated_key_is_the_databases() {
@@ -241,7 +234,7 @@ fn a_column_filled_twice_is_refused() {
 
 // [spec:pgorm:sem:codegen.entity.transform+18/test]    a caller-built statement's expressions are
 // read through the same subset, and what the entity could not hold is refused by name
-// [spec:pgorm:sem:codegen.entity.expressions+2/test]    a caller-built searched CASE is read
+// [spec:pgorm:sem:codegen.entity.expressions+3/test]    a caller-built searched CASE is read
 // back arm by arm, a `Condition` arm as the expression it means
 #[test]
 fn caller_built_expressions_pass_the_gate() {

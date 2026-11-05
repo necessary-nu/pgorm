@@ -370,7 +370,9 @@ assert_eq!(row.get::<_, String>(0), "carrot");
 
 [Disjoint enums](crate::guide::disjoint) produces changes of this kind: a change to
 the kinds is a list of steps, one migration each, every step but the last
-answering `true`.
+answering `true`. Frozen into migration files, each such step opens with the
+line `-- pgorm: commits-after`, which answers `true` for a file
+([Generated DDL in a migration](#generated-ddl-in-a-migration)).
 
 ## The ledger
 
@@ -659,42 +661,53 @@ match refused {
 
 ## Generated DDL in a migration
 
-A migration can create a table from its entity with [schema
-generation](crate::guide::schema), so the entity is the one place the table is
-described. The prelude's `Schema` is the query builder's `CREATE SCHEMA`
-statement, so a migration that also generates DDL names
-[`pgorm::Schema`](crate::Schema) by its path:
+[Schema generation](crate::guide::schema) writes a table's DDL from its entity,
+so the entity is the one place the table is described. But an entity
+describes the table as it is now, while a migration describes a change made
+once. A migration that generated its DDL as it ran would follow the entity as
+it changed: once the entity gained a column, a database built from nothing
+would get the column from the first migration and then again from the
+migration that added it, and fail.
+
+So generate the DDL once, when the change is made, and freeze it into a
+migration written as SQL. [`MigrationFile`](crate::MigrationFile), which the
+prelude exports, holds generated statements as a file's text, and
+[`freeze`](crate::MigrationFile::freeze) writes `<name>.sql` into the
+migrations directory if it is not there, answering whether it wrote it. A
+file already there is never rewritten: it is the migration databases have
+run, its checksum in their ledgers. So the code that freezes each change can
+live in a test or a small binary of the migration crate and run again
+whenever a change is added, writing the new file and keeping the old ones,
+however far the entities have moved on. Run it, then list the new file with
+`sql_migration!`, which reads the file as the crate compiles. The prelude's
+`Schema` is the query builder's `CREATE SCHEMA` statement, so code that
+generates DDL names [`pgorm::Schema`](crate::Schema) by its path:
 
 ```rust
 use pgorm_guide_support::bakery;
 use pgorm_migration::prelude::*;
 
-pub struct CreateBakery;
-
-impl MigrationName for CreateBakery {
-    fn name(&self) -> &str {
-        "m20260101_000001_create_bakery"
-    }
-}
-
-#[async_trait::async_trait]
-impl MigrationTrait for CreateBakery {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
-        let create = pgorm::Schema::new().create_table_from_entity(bakery::Entity)?;
-        tx.batch_execute(&create.to_string()).await
-    }
-}
-
 pub struct Migrator;
 
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![Box::new(CreateBakery)]
+        vec![Box::new(sql_migration!(
+            "docs/guide/migrations/m20260101_000001_create_bakery.sql"
+        ))]
     }
 }
 
 # #[tokio::main(flavor = "current_thread")]
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+// Frozen when the bakery table was added; freezing again writes nothing.
+let create = pgorm::Schema::new().create_table_from_entity(bakery::Entity)?;
+let file = MigrationFile::new("m20260101_000001_create_bakery", [create]);
+assert_eq!(
+    file.text(),
+    "CREATE TABLE \"bakery\" ( \"id\" serial NOT NULL, \"name\" varchar NOT NULL, \"city\" varchar NOT NULL, PRIMARY KEY (\"id\") );\n"
+);
+assert!(!file.freeze(concat!(env!("CARGO_MANIFEST_DIR"), "/docs/guide/migrations"))?);
+
 # let scratch = pgorm_guide_support::Scratch::empty("migrations_generated").await;
 # let pool = scratch.pool.clone();
 use pgorm::entity::prelude::*;
@@ -715,11 +728,12 @@ assert_eq!(sunrise.id, 1);
 # }
 ```
 
-An entity describes the table as it is now, while a migration describes a
-change at one moment. A migration that builds DDL from an entity applies the
-entity as it stands when the migration runs, so once the migration has shipped
-and the entity changes, write the change as a new migration rather than
-letting the old one follow the entity.
+A change PostgreSQL will not let one transaction finish is frozen into
+several files, a [disjoint enum](crate::guide::disjoint)'s new kind into one
+per step. A file whose first line is `-- pgorm: commits-after`, as
+[`committing_after`](crate::MigrationFile::committing_after) writes it,
+answers `true` from `commits_after`, so its batch commits once it has run, as
+[Committing partway](#committing-partway) describes.
 
 ## Statement caches
 

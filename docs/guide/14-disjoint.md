@@ -533,9 +533,8 @@ A step after which the program has rows to write carries a
 step but the last answers `commits_after()`.
 
 A change is written from the declaration, and the declaration keeps changing
-after the migration ships. Keep the statements a change returns, as text, in
-the migration that applies them, rather than computing them again each time
-the migration runs.
+after the change ships, so a migration must not compute it again each time it
+runs: freeze it when it is made, as the next section shows.
 
 Here the bakery began taking payments by card and in cash, and adds vouchers.
 The hidden lines create the tables as the earlier declaration did:
@@ -666,6 +665,140 @@ A step that recreates the kind type changes the type prepared statements
 were planned with, so a program running steps itself clears its pool's
 statement caches after each, as [pgorm-migration](crate::guide::migrations) does
 ([Statement caches and DDL](crate::guide::statement_caches)).
+
+### Freezing a change into migrations
+
+A migration that called `add_disjoint_kind` as it ran would compute the
+change from the declaration as it stands on the day it runs. So would the
+migration before it that called `create_disjoint`, which on a database built
+from nothing would already create the voucher kind the next migration adds,
+and the history would fail to replay. A change is therefore frozen into
+migration files when it is made, and the migrations list the files, which
+nothing computes again.
+
+[`migration_files`](crate::DisjointChange::migration_files) freezes a change
+as one [`MigrationFile`](crate::MigrationFile) per step, named after the
+migration with the step's number, and
+[`MigrationFile::new`](crate::MigrationFile::new) freezes any other
+statements, such as the tables `create_disjoint` writes. Every step but the
+last opens with the line `-- pgorm: commits-after`, which pgorm-migration
+reads as `commits_after()`, and a step leaving rows to the program ends with a
+comment naming them, for a migration of the program's own listed before the
+next file. [`freeze`](crate::MigrationFile::freeze) writes a file into the
+migrations directory only when it is not there, so the code that froze each
+change can stay and run again after the declaration has moved on: it writes
+what is new and keeps what has shipped. Run it when the change is made, from
+a test or a small binary, and then list the new files with
+[`sql_migration!`](crate::guide::migrations), which reads them as the crate
+compiles.
+
+The bakery froze its payment tables when it opened and the voucher kind when
+it added it, and a database built from nothing replays both:
+
+```rust
+# pub mod payment {
+#     use pgorm::entity::prelude::*;
+#     #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+#     #[pgorm(table_name = "payment")]
+#     pub struct Model {
+#         #[pgorm(primary_key)]
+#         pub id: i32,
+#         pub kind: super::PaymentKind,
+#         pub order_id: i32,
+#         #[pgorm(column_type = ColumnType::Decimal(Some((10, 2))))]
+#         pub amount: Decimal,
+#     }
+#     #[derive(Copy, Clone, Debug, Relation)]
+#     pub enum Relation {}
+# }
+# pub mod card_payment {
+#     use pgorm::entity::prelude::*;
+#     #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+#     #[pgorm(table_name = "card_payment")]
+#     pub struct Model {
+#         #[pgorm(primary_key, auto_increment = false)]
+#         pub payment_id: i32,
+#         pub last_four: String,
+#     }
+#     #[derive(Copy, Clone, Debug, Relation)]
+#     pub enum Relation {}
+# }
+# pub mod voucher_payment {
+#     use pgorm::entity::prelude::*;
+#     #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+#     #[pgorm(table_name = "voucher_payment")]
+#     pub struct Model {
+#         #[pgorm(primary_key, auto_increment = false)]
+#         pub payment_id: i32,
+#         pub code: String,
+#     }
+#     #[derive(Copy, Clone, Debug, Relation)]
+#     pub enum Relation {}
+# }
+use pgorm::entity::prelude::*;
+
+#[derive(Clone, Debug, PartialEq, Eq, Disjoint)]
+#[pgorm(base = payment::Entity)]
+pub enum Payment {
+    Card(card_payment::Model),
+    Cash,
+    Voucher(voucher_payment::Model),
+}
+
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+use pgorm::{MigrationFile, Schema};
+use pgorm_migration::{MigrationTrait, MigratorTrait, sql_migration};
+
+let migrations = concat!(env!("CARGO_MANIFEST_DIR"), "/docs/guide/migrations");
+let change = Schema::new().add_disjoint_kind::<Payment>(PaymentKind::Voucher)?;
+let files = change.migration_files("m20260301_000001_add_voucher");
+let names: Vec<&str> = files.iter().map(MigrationFile::name).collect();
+assert_eq!(names, ["m20260301_000001_add_voucher_1", "m20260301_000001_add_voucher_2"]);
+assert_eq!(
+    files[0].text(),
+    "-- pgorm: commits-after\nALTER TYPE \"payment_kind\" ADD VALUE 'voucher' AFTER 'cash';\n"
+);
+for file in &files {
+    // Frozen when vouchers were added, so there is nothing to write.
+    assert!(!file.freeze(migrations)?);
+}
+
+pub struct Migrator;
+
+impl MigratorTrait for Migrator {
+    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+        vec![
+            Box::new(sql_migration!("docs/guide/migrations/m20260201_000001_create_payment.sql")),
+            Box::new(sql_migration!("docs/guide/migrations/m20260301_000001_add_voucher_1.sql")),
+            Box::new(sql_migration!("docs/guide/migrations/m20260301_000001_add_voucher_2.sql")),
+        ]
+    }
+}
+
+# let scratch = pgorm_guide_support::Scratch::empty("disjoint_frozen").await;
+Migrator::up(scratch.pool.clone(), None).await?;
+
+let db = scratch.pool.get().await?;
+let (_, voucher) = Payment::insert(
+    payment::ActiveModel {
+        order_id: set(7),
+        amount: set(Decimal::new(500, 2)),
+        ..Default::default()
+    },
+    PaymentActiveModel::Voucher(voucher_payment::ActiveModel {
+        code: set("SPRING-2026"),
+        ..Default::default()
+    }),
+)?
+.exec_returning_model(&db)
+.await?;
+assert_eq!(voucher.kind(), PaymentKind::Voucher);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
 
 ## Tables pgorm did not write
 

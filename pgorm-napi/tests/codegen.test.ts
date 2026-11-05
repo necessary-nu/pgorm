@@ -9,6 +9,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { CodegenError, validate } from "../codegen/config.js";
+import { bracket, docComment, importOf, literal, objectType, union } from "../codegen/layout.js";
 import { manifest } from "../codegen/scaffold.js";
 import { columnType, propertyKey } from "../codegen/types.js";
 
@@ -155,4 +156,49 @@ test("a manifest's package, dependency versions and library name are read as sca
   assert.equal(napi.get("lib.name"), "pgorm_napi");
   const entities = manifest(join(fixture, "Cargo.toml"));
   assert.equal(entities.get("package.name"), "pgorm-napi-codegen-entities");
+});
+
+// [spec:pgorm:req:bindings.codegen-layout/test]    the module and its declarations are laid out as deno fmt and prettier lay them out: a bracket's items on its line within 80 columns and otherwise one to a line with a comma after each, an object type a member to a line, a long union each member led by its `|`, a doc comment wrapped to the width
+test("the generated module is laid out within 80 columns", () => {
+  assert.equal(
+    bracket("export type Row = [", ["AccountRecord", "NoteRecord | null"], "];"),
+    "export type Row = [AccountRecord, NoteRecord | null];",
+  );
+  assert.equal(
+    bracket("export type AccountWithDeliveryRow = [", ["AccountRecord | null", "DeliveryRecord | null"], "];"),
+    "export type AccountWithDeliveryRow = [\n  AccountRecord | null,\n  DeliveryRecord | null,\n];",
+  );
+  assert.equal(
+    bracket("export declare const Offers: UnkindedDisjointEntity<", ["OffersRow", '"auction" | "sale" | "draft"'], ">;", "", 0, false),
+    'export declare const Offers: UnkindedDisjointEntity<\n  OffersRow,\n  "auction" | "sale" | "draft"\n>;',
+  );
+  assert.equal(
+    `export declare const Account: Entity<${objectType(["record: AccountRecord", "input: AccountInput"], 0, 37, 2)}>;`,
+    "export declare const Account: Entity<{\n  record: AccountRecord;\n  input: AccountInput;\n}>;",
+  );
+  assert.equal(
+    union("export type DeliveriesRow =", [
+      '[DeliveryRecord, "parcel", ParcelRecord]',
+      '[DeliveryRecord, "letter", null]',
+    ]),
+    'export type DeliveriesRow =\n  | [DeliveryRecord, "parcel", ParcelRecord]\n  | [DeliveryRecord, "letter", null];',
+  );
+  assert.equal(
+    docComment("A record of `app.Account`: its columns by SQL name, as its reads and writes give them."),
+    "/**\n * A record of `app.Account`: its columns by SQL name, as its reads and writes\n * give them.\n */",
+  );
+  assert.equal(
+    importOf(["ActiveModel", "DisjointEntity", "Entity", "EntityGraph", "JsonValue"], "./index.js", "type "),
+    'import type {\n  ActiveModel,\n  DisjointEntity,\n  Entity,\n  EntityGraph,\n  JsonValue,\n} from "./index.js";',
+  );
+  assert.equal(
+    bracket("checkRegistrations(", [literal({ entities: ["app.Account"], "graph shapes": [] }, 2, 0, 1), '"f"'], ");"),
+    'checkRegistrations({ entities: ["app.Account"], "graph shapes": [] }, "f");',
+  );
+  assert.equal(
+    literal({ entities: Array.from({ length: 8 }, (_, index) => `app.Entity${index}`) }, 2, 0, 1),
+    '{\n  entities: [\n' +
+      Array.from({ length: 8 }, (_, index) => `    "app.Entity${index}",\n`).join("") +
+      "  ],\n}",
+  );
 });

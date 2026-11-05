@@ -162,11 +162,11 @@ fn a_created_range_declares_its_multirange() {
 // [spec:pgorm:sem:codegen.entity.types+13/test]    one newtype per range type,
 // named in UpperCamelCase and deriving `CreatedRange` under its name and
 // schema, `Eq` but for a float subtype; the entity's fields name the newtypes
-// [spec:pgorm:req:codegen.entity.files+2/test]    `pgorm_range_types.rs` is
+// [spec:pgorm:req:codegen.entity.files+3/test]    `pgorm_range_types.rs` is
 // written and declared beside the entities
-// [spec:pgorm:sem:codegen.entity.imports+4/test]    each entity imports the
+// [spec:pgorm:sem:codegen.entity.imports+5/test]    each entity imports the
 // newtypes its columns name
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    a range over a subtype
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]    a range over a subtype
 // its newtype's `E` does not infer names its whole type
 #[test]
 fn a_created_range_generates_a_compiling_newtype() {
@@ -184,12 +184,9 @@ fn a_created_range_generates_a_compiling_newtype() {
     for (file, fixture) in [
         (
             "pgorm_range_types.rs",
-            include_str!("sql/created_range/pgorm_range_types.rs"),
+            "sql/created_range/pgorm_range_types.rs",
         ),
-        (
-            "measurement.rs",
-            include_str!("sql/created_range/measurement.rs"),
-        ),
+        ("measurement.rs", "sql/created_range/measurement.rs"),
     ] {
         generated.holds(file, fixture);
     }

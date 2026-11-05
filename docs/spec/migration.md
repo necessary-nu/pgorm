@@ -356,6 +356,44 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > bytes, so what is checked, what is digested and what runs come from one read
 > of the file.
 
+> [spec:pgorm:req:migration.sql-file.commits-after]
+> A `SqlMigration` whose text opens with the line `-- pgorm: commits-after`
+> (`MigrationFile::COMMITS_AFTER`), ended by a line break or by the text's
+> end, MUST answer `true` from `commits_after()`, and any other text `false`
+> (`migration.commit-after`). `SqlMigration::new` reads it from the text, so
+> the macro's value and one built by hand from the same text agree. The
+> directive is a comment, which PostgreSQL ignores, and part of the text the
+> checksum digests (`migration.sql-file.checksum`), so adding or removing it
+> in an applied file reads as the edit it is. It is how a change PostgreSQL
+> will not let one transaction finish runs from the files it was frozen into
+> (`migration.frozen`).
+
+## Generated DDL frozen into a migration file
+
+> [spec:pgorm:def:migration.frozen]
+> DDL generated from a declaration describes the declaration as it stands
+> when it is generated, so a migration that generated it each time it ran
+> would follow the declaration as it changed: a database built from the
+> history would get today's tables from the first migration and the later
+> migrations' changes to them again, and fail. pgorm's `MigrationFile` is
+> generated DDL frozen as the text of a migration written as a SQL file,
+> generated once, when the change is made. `MigrationFile::new(name,
+> statements)` takes the file's stem, which is the migration's name, and any
+> statements that display as SQL, and its text is each statement followed by
+> `;` and a line break, in order; `committing_after()` opens the text with
+> the `migration.sql-file.commits-after` directive, and `commits_after()`
+> answers whether it does; `name()` and `text()` read it. `freeze(dir)`
+> writes the text to `<dir>/<name>.sql`, creating the file only where none
+> is there, and answers whether it wrote it: a file already there is left as
+> it is, never compared and never rewritten, because it is the migration
+> databases have run and recorded the checksum of, so the code that froze a
+> change can stay and run again after the declaration has moved on. A name
+> that is not a plain file stem — empty, `.` or `..`, or holding `/`, `\` or
+> a NUL — MUST be refused as `io::ErrorKind::InvalidInput` before anything is
+> written, and a directory that does not exist is the I/O error it is.
+> pgorm-migration's prelude exports `MigrationFile`, and `sql_migration!`
+> runs the files it writes (`migration.sql-file`).
+
 ## Adopting a ledger left under the inherited name
 
 > [spec:pgorm:req:migration.ledger-upgrade+2]

@@ -2009,12 +2009,20 @@ children (
                 id codegen-error-display
                 title "pgorm-codegen's Error displays its message, not the message's Debug form"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:39:51.011501Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (codegen chapter). pgorm-codegen/src/error.rs:25-27 formats with {e:?}, so Display shows \"unsupported DDL: SET at statement 1\" with the quotes and inner quotes escaped. The guide matches on Error::TransformError(message) instead of printing."
+                    }
+
+                    {
+                        at 2026-11-05T15:29:23.905758Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -2023,12 +2031,53 @@ children (
                 id codegen-formatted-output
                 title "pgorm-codegen writes formatted, idiomatic Rust, so a generated entity reads as the guide's Entities chapter shows one with no rustfmt step"
                 kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:bindings.codegen-layout])
+                    python ([spec:pgorm:req:bindings.codegen-layout])
+                }
                 log (
                     {
                         at 2026-11-05T14:39:51.325555Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (codegen chapter). Generated files are token text (`# [derive (Clone , Debug ...`), so a user runs rustfmt over them (e.g. prettyplease would format them in-process). Cosmetic, alongside: a column's DEFAULT false is written default_expr = Expr::val(false) where default_value = false is the idiom the Entities chapter teaches."
+                    }
+
+                    {
+                        at 2026-11-05T15:29:24.05945Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
+            }
+
+            {
+                id codegen-enum-warning-stdout
+                title "pgorm-codegen reports an enum value it encodes through tracing, not by printing to its caller's stdout"
+                kind @fix
+                deps (codegen-formatted-output)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T17:32:29.843554Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by codegen-formatted-output. ActiveEnum::validate (pgorm-codegen/src/entity/active_enum.rs) println!s \"Warning: item '..' in the enumeration '..' cannot be converted into a valid Rust enum member name...\" when a value's variant name falls back to the per-character encoding, and sem:codegen.entity.enums+9 requires that warning \"printed to stdout\". A library writing to its caller's stdout corrupts a build script's output (cargo reads build-script stdout as directives) and a tool's piped output; pgorm-codegen already depends on tracing and logs with info!, so the warning belongs there (tracing::warn!), with the rule revised to say so."
+                    }
+
+                    {
+                        at 2026-11-05T17:34:30.923469Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T17:42:33.212592Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -17314,12 +17363,31 @@ children (
                 id disjoint.change-replays
                 title "A disjoint kind change is frozen into its migration when it is made, so a fresh database replays the history"
                 kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:bindings.migration-file])
+                    main ([spec:pgorm:def:migration.frozen] [spec:pgorm:req:migration.sql-file.commits-after] [spec:pgorm:sem:disjoint.evolve.frozen])
+                    python ([spec:pgorm:req:bindings.migration-file])
+                }
                 log (
                     {
                         at 2026-11-05T14:39:50.709396Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (disjoint chapter). Schema::add_disjoint_kind and the other kind changes compute their steps from the current declaration, and so does create_disjoint; a migration history written by calling them at migration time cannot replay on a fresh database, since the first migration's create_disjoint (built from today's code) already holds the kind a later migration adds, and the add fails. The guide tells users to keep each change's statements as SQL text in its migration. Possible shape: pgorm-migration writes a DisjointChange's steps out as SQL-file migrations, freezing them when the change is made."
+                    }
+
+                    {
+                        at 2026-11-05T16:24:20.503191Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:26:33.741898Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lane decision (pending operator override), building the brief's suggested shape and making it general. A history replays only if every migration is a frozen artifact, so generated DDL is frozen into SQL-file migrations when a change is made, never recomputed when it runs. (1) pgorm core gains `MigrationFile` (src/schema/migration_file.rs, beside the DDL it freezes): `MigrationFile::new(name, statements)` over any Display statements (create_disjoint, create_table_from_entity, a DisjointChange step), `committing_after()`, `name()`, `text()`, and `freeze(dir) -> io::Result<bool>`, which writes `<dir>/<name>.sql` with create_new only when absent and never rewrites an existing file, so the code that froze a change can stay while the declaration moves on; a name that is not a plain file stem is refused (InvalidInput). (2) `DisjointChange::migration_files(name)` gives one file per step, `<name>` for a one-step change and `<name>_<n>` from 1 otherwise, every step but the last opening with the directive line `-- pgorm: commits-after`, and a step with a gap ending in a comment naming the rows the program writes before the next file (a Rust migration the program lists between them). (3) pgorm-migration's SqlMigration answers commits_after() from that directive, detected by SqlMigration::new (const), so a frozen multi-step change runs as the evolve rule asks; the directive is text, so it is checksummed like the rest. Rejected: recomputing at run time (the bug), comparing an existing file and failing (forces deleting the freeze code), a directory-embedding macro (scope), and putting the writer in pgorm-migration (the bindings would need pgorm-migration and its tracing-subscriber dependency for rendering that belongs beside the DDL). Bindings: a native `MigrationFile` class (name, text, freeze) and `migration_files(change, name)` over a change the binding's kind-change functions returned, which keeps a handle to pgorm's change, so the rendering is pgorm's alone."
                     }
                 )
             }

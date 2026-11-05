@@ -292,6 +292,25 @@ for step in change.steps:
         ...  # write a row in step.gap.table for every base row of step.gap.kind
 ```
 
+A change is written from the declaration, which keeps changing after the
+change ships, so a migration history freezes each change when it is made
+rather than computing it again as it runs. `pgorm.schema.migration_files(change,
+name)` freezes a change as pgorm's `DisjointChange::migration_files` does, a
+`MigrationFile` per step named `name_1`, `name_2` (or `name` for one step),
+every step but the last opening with `-- pgorm: commits-after` and a step
+with a gap ending with a comment naming the rows to write; and
+`pgorm.schema.migration_file(name, statements, commits_after=False)` freezes
+any statements, such as `create_disjoint`'s. A file's `freeze(directory)`
+writes `<name>.sql` only where no such file is, and answers whether it did,
+so the code that froze each change can run again without rewriting what has
+shipped. Each file is one migration for a tool that runs a directory of SQL
+files, each in its transaction:
+
+```python
+for file in pgorm.schema.migration_files(pgorm.schema.add_disjoint_kind(Fleet, "van"), "m20260301_000001_add_van"):
+    file.freeze("migrations")    # m20260301_000001_add_van_1.sql, m20260301_000001_add_van_2.sql
+```
+
 A reference to exactly one of several targets is a `OneOf` over a model whose
 nullable fields each hold one target's key, `optional=True` allowing a row
 that references none, as a unit variant of a Rust `#[derive(OneOf)]` does:

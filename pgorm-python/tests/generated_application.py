@@ -473,14 +473,20 @@ class GeneratedContract(unittest.TestCase):
         self.assertIn("def labels(self) -> list[str] | None:", stub)
         self.assertIn("def amount(self) -> Decimal:", stub)
         self.assertIn(
-            "DeliveriesRow: TypeAlias = tuple[DeliveryModel, Literal['parcel'], ParcelModel] "
-            "| tuple[DeliveryModel, Literal['letter'], None] "
-            "| tuple[DeliveryModel, Literal['pallet'], PalletModel]",
+            "DeliveriesRow: TypeAlias = (\n"
+            '    tuple[DeliveryModel, Literal["parcel"], ParcelModel]\n'
+            '    | tuple[DeliveryModel, Literal["letter"], None]\n'
+            '    | tuple[DeliveryModel, Literal["pallet"], PalletModel]\n'
+            ")",
             stub,
         )
         self.assertIn(
-            "Deliveries: WritableDisjointView[DeliveriesRow, Literal['parcel', 'letter', 'pallet'], "
-            "DeliveryActive, ParcelActive | PalletActive]",
+            "Deliveries: WritableDisjointView[\n"
+            "    DeliveriesRow,\n"
+            '    Literal["parcel", "letter", "pallet"],\n'
+            "    DeliveryActive,\n"
+            "    ParcelActive | PalletActive,\n"
+            "]",
             stub,
         )
         self.assertIn("Offers: DisjointView[OffersRow]", stub)
