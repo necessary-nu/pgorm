@@ -176,7 +176,7 @@ explicit limitations.
 > (`[spec:pgorm:sem:macros.derive.entity-model.column-def]`) and a hand-written
 > definition meets when its schema is created.
 
-> [spec:pgorm:sem:entity.traits.column.enum-cast+15]
+> [spec:pgorm:sem:entity.traits.column.enum-cast+16]
 > Enum-typed columns are transparently cast at the SQL boundary
 > (`src/entity/column.rs`). On read, `select_as` / `select_enum_as` casts an enum
 > column to `text` — or `text[]` when the column type is `Array` of an enum — and
@@ -334,8 +334,11 @@ explicit limitations.
 >
 > `save_array_as` / `save_enum_array_as` are the array counterpart of `save_as` /
 > `save_enum_as`, for the operands that are one array value rather than one value
-> per element (`eq_any`, `ne_all`): the default casts to `{enum_name}[]` when the
-> column's type is an enum or an array of one, and leaves every other column
+> per element (`eq_any`, `ne_all`, `compare_any`, `compare_all`): the default casts
+> to `{enum_name}[]` when the column's type is an enum or an array of one, to
+> `money[]` for a `money` column, and through `Expr::as_range` to the array of a
+> range type a schema created for a column of one, each range written as its text
+> (`[spec:pgorm:def:sql.value.created-range]`), and leaves every other column
 > untouched. It does not take the JSON-flattening path — flattening an array into
 > a scalar would destroy the operand `= ANY` needs. A column that overrides
 > `save_as` with a cast of its own also overrides `save_array_as` with the array

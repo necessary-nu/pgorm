@@ -68,6 +68,17 @@ pub(crate) fn column_array<'cx>(
     else {
         return Ok(None);
     };
+    if let Tag::Created(_) = tag {
+        // A created range's array is no `Value` a program declares, but its
+        // elements are each the text a compared range is, which the column's
+        // array cast reads.
+        let items = data.downcast_or_throw::<JsArray, _>(cx)?.to_vec(cx)?;
+        let mut texts = Vec::with_capacity(items.len());
+        for item in items {
+            texts.push(column_value(cx, column, item)?);
+        }
+        return Ok(Some(Value::Array(ArrayType::String, Some(Box::new(texts)))));
+    }
     let codec = Codec::get(cx)?;
     let tagged = read::tagged(cx, codec, data, &Tag::Array(Box::new(tag.clone())))?;
     Ok(Some(tagged.datum))

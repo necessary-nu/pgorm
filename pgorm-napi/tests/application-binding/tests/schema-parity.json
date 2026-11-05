@@ -18,6 +18,12 @@
     "indexes": [],
     "table": "CREATE TABLE \"napi_listings\".\"auctions\" ( \"listing_id\" integer NOT NULL, \"reserve\" integer NOT NULL, PRIMARY KEY (\"listing_id\") )"
   },
+  "app.Booking": {
+    "comments": [],
+    "enums": [],
+    "indexes": [],
+    "table": "CREATE TABLE \"napi_entities\".\"bookings\" ( \"id\" integer NOT NULL, \"span\" napi_entities.floatrange NOT NULL, PRIMARY KEY (\"id\") )"
+  },
   "app.Label": {
     "comments": [],
     "enums": [],

@@ -54,11 +54,15 @@ pub(crate) fn subquery_scalar(select: PyRef<'_, PySelect>) -> PyResult<PyExpr> {
 
 /// `ANY (..)` or `ALL (..)`: the right operand of an operator PostgreSQL
 /// reads one after and nothing else, so it has no SQL of its own to inspect.
-// [spec:pgorm:req:bindings.quantifiers+1]
+// [spec:pgorm:req:bindings.quantifiers+2]
 #[pyclass(name = "Quantified", module = "pgorm", frozen, from_py_object)]
 #[derive(Clone, Debug)]
 pub struct PyQuantified {
-    pub(crate) inner: SimpleExpr,
+    /// The quantifier as an operand, or the refusal of a list it cannot type
+    /// alone — an empty one, or ranges of no inferable kind — which only a
+    /// registered column it meets types; anywhere else it is refused as it
+    /// is used.
+    inner: Result<SimpleExpr, String>,
     /// The list of values the quantifier ranges over, when its source is one
     /// holding no expression: a registered column compares
     /// with them through its `ColumnTrait`, each converted to its declared
@@ -87,6 +91,41 @@ fn listed(source: &Bound<'_, PyAny>, all: bool) -> PyResult<Option<Listed>> {
     Ok(Some(Listed { all, values }))
 }
 
+impl PyQuantified {
+    /// The quantifier as the right operand of an operator, or the refusal of
+    /// a list no column has typed.
+    pub(crate) fn operand(&self) -> PyResult<SimpleExpr> {
+        self.inner.clone().map_err(ConstructionError::new_err)
+    }
+
+    /// `ANY` or `ALL` of `source`: a `Select`'s rows, or an array. A list the
+    /// array cannot be inferred from is kept, its refusal deferred to a use
+    /// no registered column types.
+    // [spec:pgorm:req:bindings.quantifiers+2]
+    fn of(
+        source: &Bound<'_, PyAny>,
+        all: bool,
+        quantify: impl FnOnce(SimpleExpr) -> SimpleExpr,
+        rows: impl FnOnce(SelectStatement) -> SimpleExpr,
+    ) -> PyResult<Self> {
+        let listed = listed(source, all)?;
+        let inner = match subquery(source)? {
+            Some(select) => Ok(rows(select)),
+            None => match coerce(source) {
+                Ok(array) => Ok(quantify(array.inner)),
+                Err(error)
+                    if listed.is_some()
+                        && error.is_instance_of::<ConstructionError>(source.py()) =>
+                {
+                    Err(error.value(source.py()).to_string())
+                }
+                Err(error) => return Err(error),
+            },
+        };
+        Ok(Self { inner, listed })
+    }
+}
+
 #[pymethods]
 impl PyQuantified {
     // [spec:pgorm:req:python.truth-testing+3]
@@ -104,27 +143,17 @@ impl PyQuantified {
 /// over an array, Rust's `Func::any`, the array bound unless it is an
 /// expression. The operator holds for some element or row; over none it is
 /// false.
-// [spec:pgorm:req:bindings.quantifiers+1]
+// [spec:pgorm:req:bindings.quantifiers+2]
 #[pyfunction(name = "any_")]
 pub(crate) fn quantified_any(source: &Bound<'_, PyAny>) -> PyResult<PyQuantified> {
-    let inner = match subquery(source)? {
-        Some(select) => Expr::any(select),
-        None => Func::any(coerce(source)?.inner).into(),
-    };
-    let listed = listed(source, false)?;
-    Ok(PyQuantified { inner, listed })
+    PyQuantified::of(source, false, |array| Func::any(array).into(), Expr::any)
 }
 
 /// `all_(source)`: `ALL (..)` over a `Select`'s rows, Rust's `Expr::all`, or
 /// over an array, Rust's `Func::all`. The operator holds for every element
 /// or row; over none it is true.
-// [spec:pgorm:req:bindings.quantifiers+1]
+// [spec:pgorm:req:bindings.quantifiers+2]
 #[pyfunction(name = "all_")]
 pub(crate) fn quantified_all(source: &Bound<'_, PyAny>) -> PyResult<PyQuantified> {
-    let inner = match subquery(source)? {
-        Some(select) => Expr::all(select),
-        None => Func::all(coerce(source)?.inner).into(),
-    };
-    let listed = listed(source, true)?;
-    Ok(PyQuantified { inner, listed })
+    PyQuantified::of(source, true, |array| Func::all(array).into(), Expr::all)
 }

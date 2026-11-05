@@ -39,7 +39,7 @@ type FromMultiText = fn(&str) -> Option<Multirange<Value>>;
 
 /// Whether `ty` is a range type a schema created: a range, and none of the
 /// six built in, each of which has a `RangeType` and so a `Value::Range`.
-// [spec:pgorm:def:sql.value.created-range+6]
+// [spec:pgorm:def:sql.value.created-range+7]
 pub(crate) fn is_created_range(ty: &Type) -> bool {
     matches!(ty.kind(), Kind::Range(_))
         && !matches!(
@@ -57,7 +57,7 @@ pub(crate) fn is_created_range(ty: &Type) -> bool {
 /// subtype, as [`completed_multiranges`] makes it: a multirange, and none of
 /// the six built in, each of which has a `RangeType` and so a
 /// `Value::Multirange`.
-// [spec:pgorm:def:sql.value.created-range+6]
+// [spec:pgorm:def:sql.value.created-range+7]
 pub(crate) fn is_created_multirange(ty: &Type) -> bool {
     matches!(ty.kind(), Kind::Multirange(_))
         && !matches!(
@@ -87,7 +87,7 @@ impl<'a> CreatedRangeCodec<'a> {
     /// The codec of `ty`, a range or multirange type a schema created; an
     /// error naming its subtype when no `RangeSubtype` reads that, a domain
     /// being read as the type it is over.
-    // [spec:pgorm:def:sql.value.created-range+6]
+    // [spec:pgorm:def:sql.value.created-range+7]
     pub(crate) fn of(ty: &'a Type) -> Result<Self, WireError> {
         let (Kind::Range(subtype) | Kind::Multirange(subtype)) = ty.kind() else {
             return Err(format!("`{ty}` is not a range or multirange type").into());

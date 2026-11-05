@@ -17772,6 +17772,22 @@ children (
                 title "A quantified comparison on a created-range column binds its array under the created type"
                 kind @fix
                 deps (typed-binds.quantified-casts pipeline-created-range-bind)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T03:47:57.209196Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T04:14:50.022376Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
@@ -17779,6 +17795,22 @@ children (
                 title "An empty any_/all_ list on a registered column is typed by the column and compares, instead of being refused as the quantifier is built"
                 kind @fix
                 deps (typed-binds.quantified-casts)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T04:17:11.23495Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T04:21:04.166044Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
         )
     }

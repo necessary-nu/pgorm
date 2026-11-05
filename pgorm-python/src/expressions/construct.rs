@@ -63,7 +63,7 @@ fn value_expr(value: &Bound<'_, PyAny>, literal: bool) -> PyResult<PyExpr> {
 /// An operand: an expression, or a value to bind. `ANY (..)` and `ALL (..)`
 /// are refused by name, since only the operators PostgreSQL reads one after
 /// take them, and those read them before coercing.
-// [spec:pgorm:req:bindings.quantifiers+1]
+// [spec:pgorm:req:bindings.quantifiers+2]
 pub(crate) fn coerce(value: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
     if let Ok(expr) = value.extract::<PyRef<'_, PyExpr>>() {
         Ok(expr.clone())

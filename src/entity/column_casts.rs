@@ -60,7 +60,7 @@ impl Casts for ColumnType {
 /// How a disjoint statement writes one column: read through its
 /// `select_as`, a value written through its `save_as`, and compared as its
 /// value predicates compare it.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+16]
 #[derive(Clone)]
 pub(crate) struct ColumnCasts {
     casts: Arc<dyn Casts>,

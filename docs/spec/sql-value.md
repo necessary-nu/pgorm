@@ -326,7 +326,7 @@ including panic semantics and quirks inherited from sea-query.
 
 ## Range types a schema creates
 
-> [spec:pgorm:def:sql.value.created-range+6]
+> [spec:pgorm:def:sql.value.created-range+7]
 > A range type a schema creates with `CREATE TYPE ... AS RANGE`
 > (`[spec:pgorm:req:sql.ddl.type-range]`) is named by that schema, so no
 > `RangeType` variant can carry it, and `Value` does not: it stays one pointer
@@ -372,12 +372,15 @@ including panic semantics and quirks inherited from sea-query.
 > `inf` as `Infinity`) the server's text reads back as the same value.
 >
 > `Expr::as_range(type_name)` is the cast. It writes a `Value::Range` or
-> `Value::Multirange` operand as its text — a `NULL` staying `NULL` — and
-> casts the operand to the `TypeName`, quoted and schema-qualifiable as every
+> `Value::Multirange` operand as its text — a `NULL` staying `NULL` — and an
+> array of them as the array of their texts, each `NULL` element staying
+> `NULL`, and casts the operand to the `TypeName`, quoted and schema-qualifiable as every
 > type name is (`[spec:pgorm:def:sql.types.type-name]`); any other operand,
 > such as the text the newtype converts into, is cast as it is. There is no
 > cast between two range types (`CAST(int4range(1, 5) AS slot)` is `42846`),
-> so text is the one form every range type reads. A text operand is a bound
+> nor between their arrays (`cannot cast type int4range[] to slot[]`), so
+> text is the one form every range type reads: `CAST($1::text[] AS slot[])`
+> reads an array of texts as one text casts to the type. A text operand is a bound
 > parameter pinned to `text`, `CAST($1::text AS floatrange)`, so the server's
 > input function reads it, every spelling the type takes; a bare `$1` there is
 > typed as the range, and a `String` bound to it is read by pgorm instead,
@@ -391,7 +394,10 @@ including panic semantics and quirks inherited from sea-query.
 > subtype is the `ColumnType` of what the bounds are, which no name says and
 > codegen reads. `ColumnTrait::save_as` on such a column is `as_range` to its
 > type (`[spec:pgorm:sem:entity.traits.column.enum-cast]`), so an insert, an
-> update and every value predicate write the text cast to the type. That is
+> update and every value predicate write the text cast to the type, and
+> `save_array_as` is `as_range` to the type's array, so a quantified
+> comparison (`eq_any`, `ne_all`, `compare_any`, `compare_all`) writes the
+> array of the ranges' texts cast to it. That is
 > what turns the `to_string()` of a built-in `Range<i32>` written to a column
 > of a range type over `int4` from a constructor call PostgreSQL refuses —
 > `42804` in an insert, `42883` against the column — into a literal it reads.

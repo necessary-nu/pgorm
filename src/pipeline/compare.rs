@@ -13,7 +13,7 @@ use super::sources::{pinned_cast, typed_cast};
 
 /// What an expression is as the value side of a comparison, which decides
 /// whether a column's `values_as` cast applies to it.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+16]
 #[derive(Debug, Clone)]
 pub(super) enum Operand {
     /// An expression the pipeline writes as it is: a column, a name, an
@@ -32,7 +32,7 @@ pub(super) enum Operand {
     /// type a schema created (`42846`), so `Expr::as_range` writes the value
     /// as its text, and the pipeline, which mints the placeholder before the
     /// comparison that casts it, has the server write it.
-    // [spec:pgorm:def:sql.value.created-range+6]
+    // [spec:pgorm:def:sql.value.created-range+7]
     BoundRange(Cow<'static, str>),
 }
 
@@ -47,7 +47,7 @@ impl Expr<'_> {
     /// The node an operand of a comparison or an extremum is written as: cast
     /// to the enum when it is a column whose domain is over one, PostgreSQL
     /// resolving no operator or aggregate for the domain itself.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+16]
     pub(super) fn compared(self) -> PlExpr {
         match &self.compares_as {
             Some(enum_type) => typed_cast(self.node, enum_type),
@@ -59,7 +59,7 @@ impl Expr<'_> {
     /// are cast to `values_as`: a literal or a bound placeholder cast to it,
     /// as the column's `ColumnTrait` writes a compared value, and anything
     /// else as [`compared`](Self::compared) writes it.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+16]
     pub(super) fn compared_with(self, values_as: Option<&TypeName>) -> PlExpr {
         match (self.operand, values_as) {
             (Operand::Literal, Some(cast)) => typed_cast(self.node, cast),
@@ -79,7 +79,7 @@ impl Expr<'_> {
 /// side as the entity column on the other casts a value compared with it
 /// ([`Expr::compared_with`]); arithmetic and logic keep their operands as they
 /// are, `money * 2` being an operator of its own that `money * money` is not.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+16]
 pub(super) fn bin<'brand>(lhs: Expr<'brand>, op: BinOp, rhs: Expr<'brand>) -> Expr<'brand> {
     let (lhs_values, rhs_values) = match op {
         BinOp::Eq
