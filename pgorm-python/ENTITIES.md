@@ -195,6 +195,27 @@ insert is typed by its row count, as Rust's `Insert<A, OneRow>` and
 `returning_upsert`, and `insert_many` an `EntityInsertMany`, whose terminal is
 `returning_upserts`.
 
+An insert has the rest of Rust's insert terminals of its row count too, each
+a statement terminal like the upserts:
+
+| Python | Rust |
+| --- | --- |
+| `entity.insert(active).execute(connection)` | `Insert::one(active).exec` |
+| `entity.insert(active).returning_pk(connection)` | `Insert::one(active).exec_returning_pk` |
+| `entity.insert(active).returning_model(connection)` | `Insert::one(active).exec_returning_model` |
+| `entity.insert_many(actives).execute(connection)` | `Insert::many(actives).exec` |
+| `entity.insert_many(actives).returning_pks(connection)` | `Insert::many(actives).exec_returning_pks` |
+| `entity.insert_many(actives).returning_models(connection)` | `Insert::many(actives).exec_returning_models` |
+| `insert.add(active)`, `insert.add_many(actives)` | `Insert::add`, `Insert::add_many` |
+
+A key is the value of a one-column key, or a tuple of a composite key's in
+its columns' order. A row the conflict clause held back is a `DecodeError`
+from `returning_pk` and `returning_model`, and left out of `returning_pks` and
+`returning_models`. `add` and `add_many` give the `EntityInsertMany` of the
+insert's ActiveModels and then theirs, its conflict clause kept; the
+ActiveModels of one insert set the same columns, a batch that does not a
+`ConstructionError` as it is built.
+
 These are statement terminals, as they are in Rust, so no `ActiveModelBehavior`
 hook runs around them: an `update` returning its change does not bump what a
 `before_save` would. With nothing set, `returning_change` sends nothing and

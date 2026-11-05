@@ -174,6 +174,27 @@ An insert is typed by its row count, as Rust's `Insert<A, OneRow>` and
 `returningUpsert`, and `insertMany` an `EntityInsertMany`, whose terminal is
 `returningUpserts`.
 
+An insert has the rest of Rust's insert terminals of its row count too, each
+a statement terminal like the upserts:
+
+| JavaScript | Rust |
+| --- | --- |
+| `entity.insert(active).execute(db)` | `Insert::one(active).exec` |
+| `entity.insert(active).returningPk(db)` | `Insert::one(active).exec_returning_pk` |
+| `entity.insert(active).returningModel(db)` | `Insert::one(active).exec_returning_model` |
+| `entity.insertMany(actives).execute(db)` | `Insert::many(actives).exec` |
+| `entity.insertMany(actives).returningPks(db)` | `Insert::many(actives).exec_returning_pks` |
+| `entity.insertMany(actives).returningModels(db)` | `Insert::many(actives).exec_returning_models` |
+| `insert.add(active)`, `insert.addMany(actives)` | `Insert::add`, `Insert::add_many` |
+
+A key is the value of a one-column key, or a frozen array of a composite
+key's in its columns' order. A row the conflict clause held back is a
+`DecodeError` from `returningPk` and `returningModel`, and left out of
+`returningPks` and `returningModels`. `add` and `addMany` give the
+`EntityInsertMany` of the insert's ActiveModels and then theirs, its conflict
+clause kept; the ActiveModels of one insert set the same columns, a batch that
+does not a `ConstructionError` as it is built.
+
 These are statement terminals in Rust, so no hook runs around them. A change
 is `{ old, new }`; an upsert `{ kind: "inserted", new }` or `{ kind:
 "updated", old, new }`; a row a conflict clause held back is `null` from

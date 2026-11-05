@@ -1,11 +1,10 @@
-//! The registered entity's writes that read each written row's two
+//! The registered entity's updates that read each written row's two
 //! versions, reached as the statement terminals they are in Rust — no
 //! `ActiveModelBehavior` hook runs around them: `UpdateOne`'s
-//! `exec_returning_change`, `UpdateMany`'s `exec_returning_changes`, and
-//! `Insert`'s `exec_returning_upsert` and `exec_returning_upserts`.
+//! `exec_returning_change` and `UpdateMany`'s `exec_returning_changes`. An
+//! insert's, its upserts' among them, are in `inserts`.
 
 use neon::prelude::*;
-use pgorm::pgorm_query::OnConflict;
 
 use super::{
     adapter::{Active, Assignment, VersionWrite},
@@ -21,7 +20,6 @@ use crate::{
 pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("entityChangeJob", change_job)?;
     cx.export_function("entityChangesJob", changes_job)?;
-    cx.export_function("entityUpsertsJob", upserts_job)?;
     Ok(())
 }
 
@@ -100,51 +98,5 @@ fn changes_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
     Ok(cx.boxed(versions_job(
         entity,
         VersionWrite::Changes(assignments, filter),
-    )))
-}
-
-/// `entityUpsertsJob(entity, actives, conflict, one)`: `Insert::one` or
-/// `Insert::many` of the ActiveModels, with the conflict clause if given,
-/// then `exec_returning_upsert` or `exec_returning_upserts`.
-// [spec:pgorm:req:bindings.entity-versions+3]
-fn upserts_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
-    let entity = held!(cx, super::EntityHandle, 0);
-    let list = cx.argument::<JsArray>(1)?.to_vec(&mut cx)?;
-    let mut actives = Vec::with_capacity(list.len());
-    for item in list {
-        let active = item
-            .downcast_or_throw::<JsBox<super::ActiveHandle>, _>(&mut cx)?
-            .0
-            .clone();
-        if active.info().name != entity.info().name {
-            return read::refuse(
-                &mut cx,
-                format!(
-                    "an ActiveModel of {} is no row of {}",
-                    active.info().name,
-                    entity.info().name
-                ),
-            );
-        }
-        actives.push(active);
-    }
-    let conflict = cx.argument::<JsValue>(2)?;
-    let conflict: Option<Box<OnConflict>> = if conflict.is_a::<JsNull, _>(&mut cx) {
-        None
-    } else {
-        Some(Box::new(match statements::node(&mut cx, conflict) {
-            Some(Node::Conflict(conflict)) => conflict,
-            Some(Node::ConflictUpdate(update)) => update.into(),
-            _ => return cx.throw_type_error("onConflict takes a Conflict action"),
-        }))
-    };
-    let one = cx.argument::<JsBoolean>(3)?.value(&mut cx);
-    Ok(cx.boxed(versions_job(
-        entity,
-        VersionWrite::Upserts {
-            actives,
-            conflict,
-            one,
-        },
     )))
 }

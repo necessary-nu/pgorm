@@ -116,6 +116,51 @@ class RegisteredVersions(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(hasattr(one, "returning_upserts"))
         self.assertFalse(hasattr(many, "returning_upsert"))
 
+    # [spec:pgorm:req:bindings.entity-inserts/test]
+    async def test_insert_terminals_of_each_row_count(self):
+        skip = p.Conflict.on("id").do_nothing()
+        async with self.pool.connection() as connection:
+            self.assertEqual(await self.account.insert(self.active(4, "four")).execute(connection), 1)
+            self.assertEqual(await self.account.insert(self.active(5, "five")).returning_pk(connection), 5)
+            six = await self.account.insert(self.active(6, "six")).returning_model(connection)
+            # A statement terminal: the hook that suffixes an inserted name does not run.
+            self.assertEqual((six["id"], six["display name"]), (6, "six"))
+            held = self.account.insert(self.active(6, "again")).on_conflict(skip)
+            for terminal in (held.returning_pk, held.returning_model):
+                with self.subTest(terminal=terminal.__name__), self.assertRaises(p.DecodeError):
+                    await terminal(connection)
+            self.assertEqual(await held.execute(connection), 0)
+            batch = self.account.insert(self.active(7, "seven")).add(self.active(8, "eight"))
+            batch = batch.add_many([self.active(9, "nine")])
+            self.assertIs(type(batch), p.EntityInsertMany)
+            self.assertEqual(await batch.returning_pks(connection), [7, 8, 9])
+            kept = self.account.insert_many([self.active(10, "ten")]).add(self.active(1, "one")).on_conflict(skip)
+            self.assertEqual([row["display name"] for row in await kept.returning_models(connection)], ["ten"])
+            empty = self.account.insert_many([])
+            self.assertEqual(
+                (await empty.execute(connection), await empty.returning_pks(connection),
+                 await empty.returning_models(connection)),
+                (0, [], []),
+            )
+            bare = self.account.active().set("id", 12).set("display name", "y")
+            mismatch = '"note" set in the first ActiveModel but not in a later one'
+            with self.assertRaisesRegex(p.ConstructionError, mismatch):
+                self.account.insert(self.active(11, "x")).add(bare)
+            with self.assertRaisesRegex(p.ConstructionError, mismatch):
+                self.account.insert_many([self.active(11, "x"), bare])
+            with self.assertRaises(p.LifecycleError):
+                self.account.insert(self.active(11, "x")).add(self.old.active().set("id", 1).set("label", "x"))
+            self.assertEqual(len(await self.account.find().all(connection)), 10)
+            membership = p.entity("app.Membership")
+            await connection.execute(s.from_entity(membership).table)
+            keys = await membership.insert_many([
+                membership.active().set("tenant_id", 7).set("role", "lead"),
+                membership.active().set("tenant_id", 7).set("role", "member"),
+            ]).returning_pks(connection)
+            self.assertEqual(keys, [(7, 1), (7, 2)])
+            one = membership.active().set("tenant_id", 8).set("role", "lead")
+            self.assertEqual(await membership.insert(one).returning_pk(connection), (8, 3))
+
     async def test_table_called_old_keeps_version_order(self):
         async with self.pool.connection() as connection:
             row = await self.old.insert(self.old.active().set("id", 1).set("label", "before")).returning_upsert(connection)

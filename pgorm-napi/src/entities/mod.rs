@@ -28,6 +28,7 @@ mod convert;
 mod graph;
 mod graphs;
 mod info;
+mod inserts;
 mod registry;
 mod selected;
 mod sources;
@@ -84,6 +85,7 @@ pub(crate) fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<
         cx.export_function(name, *export)?;
     }
     versions::export(cx)?;
+    inserts::export(cx)?;
     graphs::export(cx)?;
     selected::export(cx)?;
     let registry = cx.boxed(RegistryHandle(Arc::new(registry)));

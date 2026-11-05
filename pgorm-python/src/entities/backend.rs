@@ -142,6 +142,13 @@ pub(crate) trait EntityBackend: Debug + Send + Sync {
         db: Database<'a>,
         write: VersionWrite,
     ) -> BoxFuture<'a, Result<Vec<Versions>, Error>>;
+    /// `Insert::one` of one ActiveModel or `Insert::many` of a batch, with
+    /// the conflict clause if given, through the terminal `insertion` names.
+    fn insert<'a>(
+        &'a self,
+        db: Database<'a>,
+        insertion: Insertion,
+    ) -> BoxFuture<'a, Result<Insertions, Error>>;
     /// The model `row` holds under `prefix`, as the entity's own
     /// `FromQueryResult` reads it: one source of a read that decodes several,
     /// a disjoint one's.
@@ -163,13 +170,37 @@ pub(crate) enum VersionWrite {
     Change(Active),
     /// `UpdateMany::exec_returning_changes`.
     Changes(Vec<(String, Assignment)>, Condition),
-    /// `Insert::exec_returning_upsert` for one model, `exec_returning_upserts`
-    /// for a batch.
-    Upserts {
-        actives: Vec<Active>,
-        conflict: Option<Box<OnConflict>>,
-        one: bool,
-    },
+}
+
+/// An insert of a registration's ActiveModels: `Insert::one` of one when
+/// `one`, `Insert::many` of a batch otherwise, its conflict clause, and the
+/// terminal that runs it.
+#[derive(Clone, Debug)]
+pub(crate) struct Insertion {
+    pub(crate) actives: Vec<Active>,
+    pub(crate) conflict: Option<Box<OnConflict>>,
+    pub(crate) one: bool,
+    pub(crate) answer: InsertAnswer,
+}
+
+/// Which of Rust's insert terminals runs, each the row count's own: `exec`,
+/// `exec_returning_pk(s)`, `exec_returning_model(s)` or
+/// `exec_returning_upsert(s)`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum InsertAnswer {
+    Count,
+    Keys,
+    Models,
+    Upserts,
+}
+
+/// What an insert's terminal gave.
+pub(crate) enum Insertions {
+    Count(u64),
+    /// Each written row's key, its values in the primary key's column order.
+    Keys(Vec<Vec<Value>>),
+    Models(Vec<Model>),
+    Upserts(Vec<Versions>),
 }
 
 /// A written row's versions: `old` absent for a row an upsert inserted.

@@ -38,6 +38,10 @@ async def consumer(connection: Connection) -> None:
     assert_type(model.into_active(), AccountActive)
     assert_type(model.with_value("note", "local"), AccountModel)
     assert_type(await Account.find().all(connection), list[AccountModel])
+    assert_type(await Account.insert(active).returning_model(connection), AccountModel)
+    batch = Account.insert(active).add(active).add_many([active])
+    assert_type(await batch.returning_models(connection), list[AccountModel])
+    assert_type(await Account.insert_many([active]).execute(connection), int)
     assert_type(await Account.find().optional(connection), AccountModel | None)
     assert_type(
         await AccountNotes.find().all(connection),

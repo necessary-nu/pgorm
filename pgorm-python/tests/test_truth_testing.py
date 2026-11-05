@@ -57,8 +57,8 @@ BUILT_ELSEWHERE = {
     p.EntityColumn, p.EntityQuery, p.EntityUpdate, p.EntityUpdateMany, p.EntityInsert,
     p.EntityInsertMany, p.EntityGraphQuery, p.EntityGraphCursor, pl.SelectedSources, s.EntitySchema,
     views.QueryView, graph_views.GraphQueryView, graph_views.GraphCursorView,
-    version_views.UpdateView, version_views.UpdateManyView, version_views.InsertView,
-    version_views.InsertManyView, p.Notification, p.Listener, p.RowStream,
+    version_views.UpdateView, version_views.UpdateManyView, version_views._InsertView,
+    version_views.InsertView, version_views.InsertManyView, p.Notification, p.Listener, p.RowStream,
     p.CopyOutStream, p.CopyRowStream,
 }
 
@@ -178,7 +178,9 @@ class TruthTesting(unittest.TestCase):
         self.assertEqual(sampled & EXEMPT, set())
         for kind in BUILT_ELSEWHERE:
             with self.subTest(kind=kind):
-                self.assertIn("__bool__", vars(kind))
+                self.assertTrue(
+                    any("__bool__" in vars(own) for own in kind.__mro__ if own.__module__.startswith("pgorm"))
+                )
 
     # [spec:pgorm:req:python.truth-testing+3/test]
     def test_exempt_values_keep_python_truth(self):

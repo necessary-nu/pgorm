@@ -4,7 +4,7 @@ use crate::execution::Database;
 use std::{marker::PhantomData, sync::Arc};
 
 use futures_util::future::BoxFuture;
-use pgorm::pgorm_query::{Expr, Name, SimpleExpr, Value, Values};
+use pgorm::pgorm_query::{Expr, IntoValueTuple, Name, SimpleExpr, Value, Values};
 use pgorm::{
     ActiveModelBehavior, ActiveModelTrait, ActiveValue, Change as RustChange, ColumnTrait,
     EntityTrait, Error, FromQueryResult, Insert, IntoActiveModel, Iterable, ModelTrait,
@@ -148,6 +148,14 @@ where
         Box::pin(self.write_versions(db, write))
     }
 
+    fn insert<'a>(
+        &'a self,
+        db: Database<'a>,
+        insertion: Insertion,
+    ) -> BoxFuture<'a, Result<Insertions, Error>> {
+        Box::pin(self.write_insert(db, insertion))
+    }
+
     // [spec:pgorm:req:bindings.disjoint+1]
     fn decode(&self, row: &pgorm::QueryResult, prefix: &str) -> Result<Model, Error> {
         E::Model::from_query_result(row, prefix).map(|value| self.model(value))
@@ -244,38 +252,87 @@ where
                     .map(|change| self.change(change))
                     .collect())
             }
-            VersionWrite::Upserts {
-                actives,
-                conflict,
-                one,
-            } => {
-                let models = actives
-                    .iter()
-                    .map(concrete::<E>)
-                    .collect::<Result<Vec<_>, _>>()?;
-                let upserted = if one {
-                    let model = models.into_iter().next().ok_or_else(|| {
-                        Error::Type("an upsert of one row needs one ActiveModel".to_owned())
-                    })?;
-                    let mut insert = Insert::one(model);
-                    if let Some(conflict) = conflict {
-                        insert = insert.on_conflict(*conflict);
-                    }
+        }
+    }
+
+    // [spec:pgorm:req:bindings.entity-inserts]
+    async fn write_insert(
+        &self,
+        db: Database<'_>,
+        insertion: Insertion,
+    ) -> Result<Insertions, Error> {
+        let Insertion {
+            actives,
+            conflict,
+            one,
+            answer,
+        } = insertion;
+        let models = actives
+            .iter()
+            .map(concrete::<E>)
+            .collect::<Result<Vec<_>, _>>()?;
+        if one {
+            let model = models.into_iter().next().ok_or_else(|| {
+                Error::Type("an insert of one row needs one ActiveModel".to_owned())
+            })?;
+            let mut insert = Insert::one(model);
+            if let Some(conflict) = conflict {
+                insert = insert.on_conflict(*conflict);
+            }
+            return Ok(match answer {
+                InsertAnswer::Count => Insertions::Count(insert.exec(&db).await?),
+                InsertAnswer::Keys => Insertions::Keys(vec![
+                    insert
+                        .exec_returning_pk(&db)
+                        .await?
+                        .into_value_tuple()
+                        .into_iter()
+                        .collect(),
+                ]),
+                InsertAnswer::Models => {
+                    Insertions::Models(vec![self.model(insert.exec_returning_model(&db).await?)])
+                }
+                InsertAnswer::Upserts => Insertions::Upserts(
                     insert
                         .exec_returning_upsert(&db)
                         .await?
                         .into_iter()
-                        .collect()
-                } else {
-                    let mut insert = Insert::many(models);
-                    if let Some(conflict) = conflict {
-                        insert = insert.on_conflict(*conflict);
-                    }
-                    insert.exec_returning_upserts(&db).await?
-                };
-                Ok(upserted.into_iter().map(|row| self.upserted(row)).collect())
-            }
+                        .map(|row| self.upserted(row))
+                        .collect(),
+                ),
+            });
         }
+        let mut insert = Insert::many(models);
+        if let Some(conflict) = conflict {
+            insert = insert.on_conflict(*conflict);
+        }
+        Ok(match answer {
+            InsertAnswer::Count => Insertions::Count(insert.exec(&db).await?),
+            InsertAnswer::Keys => Insertions::Keys(
+                insert
+                    .exec_returning_pks(&db)
+                    .await?
+                    .into_iter()
+                    .map(|key| key.into_value_tuple().into_iter().collect())
+                    .collect(),
+            ),
+            InsertAnswer::Models => Insertions::Models(
+                insert
+                    .exec_returning_models(&db)
+                    .await?
+                    .into_iter()
+                    .map(|model| self.model(model))
+                    .collect(),
+            ),
+            InsertAnswer::Upserts => Insertions::Upserts(
+                insert
+                    .exec_returning_upserts(&db)
+                    .await?
+                    .into_iter()
+                    .map(|row| self.upserted(row))
+                    .collect(),
+            ),
+        })
     }
 }
 

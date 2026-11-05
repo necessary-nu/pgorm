@@ -205,7 +205,7 @@ export class Entity extends Handle {
    * @param {ActiveModel} active
    */
   insert(active) {
-    return new EntityInsert(inserted(this.#native, this.#name, [ownActive(active, this.#name)]), VERSIONS);
+    return new EntityInsert(inserted(this.#native, this.#name, this.columns, [ownActive(active, this.#name)]), VERSIONS);
   }
 
   /**
@@ -217,7 +217,7 @@ export class Entity extends Handle {
   insertMany(actives) {
     if (!Array.isArray(actives)) throw new TypeError("insertMany takes an array of ActiveModels");
     const owned = actives.map((active) => ownActive(active, this.#name));
-    return new EntityInsertMany(inserted(this.#native, this.#name, owned), VERSIONS);
+    return new EntityInsertMany(inserted(this.#native, this.#name, this.columns, owned), VERSIONS);
   }
 }
 
@@ -235,10 +235,13 @@ export function activeHandleOf(active) {
 }
 
 /**
+ * The native half of `active`, refused unless it is an ActiveModel of the
+ * registration `entity` names.
+ *
  * @param {unknown} active
  * @param {string} entity
  */
-function ownActive(active, entity) {
+export function ownActive(active, entity) {
   if (!(active instanceof ActiveModel)) throw new TypeError("expected an ActiveModel");
   if (active.entityName !== entity) throw new ConstructionError(`the ActiveModel is ${active.entityName}'s, not ${entity}'s`);
   return activeHandle(active);

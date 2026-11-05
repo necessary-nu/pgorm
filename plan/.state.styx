@@ -3128,6 +3128,12 @@ impl_evidence (
         {impl_name javascript, rule bindings.model-writes}
         {impl_name python, rule bindings.model-writes}
     )}
+    {id binding-parity.insert-terminals, covered_rules (
+        bindings.entity-inserts
+    ), covered_claims (
+        {impl_name javascript, rule bindings.entity-inserts}
+        {impl_name python, rule bindings.entity-inserts}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

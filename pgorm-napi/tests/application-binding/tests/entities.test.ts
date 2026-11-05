@@ -641,6 +641,44 @@ test("an entity's insert is typed by its row count, each with only its own upser
   assert.throws(() => new (EntityInsertMany as unknown as new (...args: unknown[]) => unknown)({}, Symbol()), TypeError);
 });
 
+// [spec:pgorm:req:bindings.entity-inserts/test]
+test("an entity's insert has Rust's other insert terminals of its row count, no hook running", async () => {
+  const account = (id: number, name: string) => Account.active().set("id", id).set("display name", name);
+  const skip = Conflict.on("id").doNothing();
+  assert.equal(await Account.insert(account(1, "Ann")).execute(pool()), 1);
+  assert.equal(await Account.insert(account(2, "Bob")).returningPk(pool()), 2);
+  const cy = await Account.insert(account(3, "Cy")).returningModel(pool());
+  assert.deepStrictEqual([cy.id, cy["display name"], cy.version], [3, "Cy", 1]);
+  const held = Account.insert(account(3, "Cy again")).onConflict(skip);
+  await assert.rejects(held.returningPk(pool()), DecodeError);
+  await assert.rejects(held.returningModel(pool()), DecodeError);
+  assert.equal(await held.execute(pool()), 0);
+  const batch = Account.insert(account(4, "Di")).add(account(5, "Ed")).addMany([account(6, "Flo")]);
+  assert.ok(batch instanceof EntityInsertMany);
+  assert.deepStrictEqual(await batch.returningPks(pool()), [4, 5, 6]);
+  const kept = Account.insertMany([account(7, "Gil")]).add(account(1, "Ann")).onConflict(skip);
+  assert.deepStrictEqual((await kept.returningModels(pool())).map((row) => row["display name"]), ["Gil"]);
+  const none = Account.insertMany([]);
+  assert.deepStrictEqual([await none.execute(pool()), await none.returningPks(pool()), await none.returningModels(pool())], [
+    0,
+    [],
+    [],
+  ]);
+  const team = Membership.active().set("account_id", 1).set("team", "red").set("role", "lead");
+  const key = await Membership.insert(team).returningPk(pool());
+  assert.deepStrictEqual(key, [1, "red"]);
+  assert.ok(Object.isFrozen(key));
+  const noted = account(11, "y").set("note", "n");
+  assert.throws(
+    () => Account.insert(account(10, "x")).add(noted),
+    refused(/set the same columns: "note" set in a later ActiveModel but not in the first/),
+  );
+  assert.throws(() => Account.insertMany([noted, account(10, "x")]), refused(/"note" set in the first ActiveModel/));
+  assert.throws(() => Account.insert(account(10, "x")).add(Note.active()), refused(/app.Note's, not app.Account's/));
+  assert.throws(() => Account.insert(account(10, "x")).addMany({} as never), TypeError);
+  assert.equal((await Account.find().all(pool())).length, 7);
+});
+
 // [spec:pgorm:req:bindings.entity-graphs+3/test]
 test("a registered graph decodes its root and slots, an absent optional slot null", async () => {
   await seed();

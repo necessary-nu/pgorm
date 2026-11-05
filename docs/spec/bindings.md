@@ -1379,6 +1379,27 @@ Rust generic at run time, only use the ones compiled in.
 > `all_rows()` before it runs, a `ConstructionError` otherwise, as a
 > statement's UPDATE does (`bindings.writes`).
 
+> [spec:pgorm:req:bindings.entity-inserts]
+> An entity's insert (`bindings.entity-versions`) MUST have the rest of
+> Rust's insert terminals of its row count, statement terminals as the
+> upserts are, so no `ActiveModelBehavior` hook runs around them. Both kinds
+> have `execute`, `Insert::exec`, giving the rows written. An `EntityInsert`
+> has `returning_pk` and `returning_model`, `exec_returning_pk` and
+> `exec_returning_model`, and an `EntityInsertMany` has `returning_pks` and
+> `returning_models`, `exec_returning_pks` and `exec_returning_models`, each
+> row's in the order the database wrote them. A key is as Rust's
+> `PrimaryKey::ValueType` holds it: the value of a key of one column, and the
+> values of a composite key's in its columns' order. A row a conflict clause
+> held back is a `DecodeError` from `returning_pk` and `returning_model`, and
+> left out of `returning_pks` and `returning_models`; a batch of none sends
+> nothing. Both kinds have `add(active)` and `add_many(actives)`, which give
+> the `EntityInsertMany` of its ActiveModels and then theirs, its conflict
+> clause kept, as Rust's `add` and `add_many` make a batch of any insert,
+> and refuse an ActiveModel of another registration as `bindings.entity-writes`
+> does. The ActiveModels of one insert MUST set the same columns: a batch
+> whose ActiveModels set different ones is a `ConstructionError` as it is
+> given, where Rust's `Insert` refuses it before anything is sent.
+
 > [spec:pgorm:req:bindings.entity-graphs+3]
 > `graph(name).find(aliases)` MUST build the registered `SelectGraph` with the
 > application's factory, its declared entity tuple, join slot kinds and

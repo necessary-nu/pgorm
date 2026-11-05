@@ -4,6 +4,7 @@ mod active;
 pub(crate) mod backend;
 mod column;
 pub(crate) mod generic;
+mod inserts;
 pub(crate) mod io;
 pub(crate) mod metadata;
 mod model;
@@ -16,14 +17,14 @@ mod versions;
 
 pub use active::{ActiveState, PyActiveModel, PyActiveValue};
 pub use column::PyEntityColumn;
+pub(crate) use inserts::TERMINALS as insert_terminals;
+pub use inserts::{PyEntityInsert, PyEntityInsertMany};
 pub use model::PyEntityModel;
 pub use query::PyEntityQuery;
 pub(crate) use registry::NativeRegistry;
 pub use registry::Registry;
 pub(crate) use versions::TERMINALS as version_terminals;
-pub use versions::{
-    PyChange, PyEntityInsert, PyEntityInsertMany, PyEntityUpdate, PyEntityUpdateMany, PyUpserted,
-};
+pub use versions::{PyChange, PyEntityUpdate, PyEntityUpdateMany, PyUpserted};
 
 use crate::identifiers::PyIdentifier;
 use pyo3::prelude::*;

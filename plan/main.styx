@@ -18279,6 +18279,46 @@ children (
                     }
                 )
             }
+
+            {
+                id binding-parity.insert-terminals
+                title "A registered entity's insert has Rust's insert terminals in both bindings: execute, returning_pk and returning_model on one row, returning_pks and returning_models on a batch, and add / add_many making a batch"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.entity-inserts])
+                    python ([spec:pgorm:req:bindings.entity-inserts])
+                }
+                deps (binding-parity.registered-inserts)
+                log (
+                    {
+                        at 2026-11-05T15:07:30.188143Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:24:10.418009Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Coordinator 2026-11-05: compare Rust's insert terminals with both bindings' registered and model inserts. Add what a Rust user would reach for, and record a mapping where a binding already covers it. Rust: Insert<A, OneRow> has exec, exec_returning_pk, exec_returning_model and exec_returning_upsert. Insert<A, ManyRows> has exec, exec_returning_pks, exec_returning_models and exec_returning_upserts. Both have on_conflict, add and add_many (which give ManyRows), and on_empty_do_nothing / on_conflict_do_nothing (which give a TryInsert). Registered entity inserts had only on_conflict and the upsert terminal. Added to both bindings, spelled by the naming rules: EntityInsert.execute, returning_pk and returning_model; EntityInsertMany.execute, returning_pks and returning_models; add(active) and add_many(actives) on both kinds, giving EntityInsertMany. They are statement terminals, so no hook runs, unlike ActiveModel.insert. A key is a scalar for a one-column key, and a tuple (Python) or frozen array (JavaScript) for a composite key, as PrimaryKey::ValueType is. A conflict-skipped row is a DecodeError from returning_pk / returning_model (Rust's RecordNotInserted / RecordNotFound) and is left out of the batch terminals. Native: both adapters' VersionWrite::Upserts became one Insertion { actives, conflict, one, answer: Count | Keys | Models | Upserts }, run through a new EntityBackend::insert, with the upserts on the same path. Batch uniformity: Rust records a column-set mismatch and refuses at exec with Error::Query, which Python classified as DatabaseError and JavaScript as ConstructionError. Both bindings now refuse a mismatched batch as it is built (insert_many, add, add_many) with the same ConstructionError message. Mapped rather than added: a model insert's exec is execute; exec_returning_model(s) is returning().one / all; exec_returning_pk(s) is returning(*key fields).one / all, giving records of the key fields. Its add / add_many came with binding-parity.model-inserts. Not added: TryInsert / on_conflict_do_nothing. on_conflict(Conflict.do_nothing()) writes the clause, and TryInsertResult's Conflicted / Empty are what returning_upsert's null and a batch of none's empty answers already say. New rule bindings.entity-inserts; bindings.entity-versions is unchanged."
+                    }
+                )
+            }
+
+            {
+                id binding-parity.foreign-active-error
+                title "An ActiveModel or record of another registration is refused with the same error class in both bindings: Python raises LifecycleError where JavaScript throws ConstructionError"
+                kind @fix
+                deps (binding-parity.insert-terminals)
+                log (
+                    {
+                        at 2026-11-05T15:24:19.640676Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by binding-parity.insert-terminals (2026-11-05). Python's entities refuse an ActiveModel of another registration with LifecycleError: versions.rs owned() says \"ActiveModel belongs to another entity registration\", and generic.rs concrete() raises Error::Type. registered_versions.py asserts LifecycleError for insert(self.old.active()...). JavaScript's ownActive (lib/entities.js) throws ConstructionError: \"the ActiveModel is app.Note's, not app.Account's\". bindings.entity-writes says only \"A record or an ActiveModel of another registration MUST be refused\", with no error class. bindings.errors / bindings.argument-errors should settle the class. A value the call cannot use is a ConstructionError under the argument-errors line, which suggests JavaScript's. Then one binding changes, along with its tests (registered_versions.py, registered_entities.py and the entity-writes tests), and bindings.entity-writes names the class."
+                    }
+                )
+            }
         )
         log (
             {

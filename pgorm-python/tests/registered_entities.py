@@ -72,7 +72,9 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         terminals = [
             "all", "one", "optional", "active.insert", "active.update", "active.delete",
             "update.returning_change", "update_many.returning_changes",
-            "insert.returning_upsert", "insert_many.returning_upserts",
+            "insert.execute", "insert.returning_pk", "insert.returning_model", "insert.returning_upsert",
+            "insert_many.execute", "insert_many.returning_pks", "insert_many.returning_models",
+            "insert_many.returning_upserts",
         ]
         operations = p.capabilities()["operations"]
         self.assertEqual([t for t in terminals if "entity." + t not in operations], [])
