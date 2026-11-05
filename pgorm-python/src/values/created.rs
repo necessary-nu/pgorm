@@ -50,7 +50,7 @@ impl CreatedKind {
     /// The kind a `ColumnType::CreatedRange` or `CreatedMultirange` column
     /// holds, when its subtype is one a created range can range over, as
     /// pgorm's codec reads the column type.
-    // [spec:pgorm:req:bindings.created-ranges+4]
+    // [spec:pgorm:req:bindings.created-ranges+5]
     pub(crate) fn from_column(ty: &ColumnType) -> Option<Self> {
         let (ColumnType::CreatedRange { name, schema, .. }
         | ColumnType::CreatedMultirange { name, schema, .. }) = ty
@@ -114,7 +114,7 @@ impl CreatedKind {
     /// The text form of a Python value of this kind: a `pgorm.Range` (or a
     /// `pgorm.Multirange`), each bound converted as the subtype's kind, or the
     /// text form itself, which is read and written back canonically.
-    // [spec:pgorm:req:bindings.created-ranges+4]
+    // [spec:pgorm:req:bindings.created-ranges+5]
     pub(crate) fn text(&self, data: &Bound<'_, PyAny>) -> PyResult<String> {
         let codec = self.codec()?;
         let ranges = if let Ok(text) = data.cast_exact::<PyString>() {
@@ -154,7 +154,7 @@ impl CreatedKind {
     }
 
     /// The Python value of this kind's text form.
-    // [spec:pgorm:req:bindings.created-ranges+4]
+    // [spec:pgorm:req:bindings.created-ranges+5]
     pub(crate) fn read(&self, py: Python<'_>, text: &str) -> PyResult<Py<PyAny>> {
         let ranges = self.codec()?.ranges(text).ok_or_else(|| {
             DecodeError::new_err(format!(

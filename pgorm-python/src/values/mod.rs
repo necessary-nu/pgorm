@@ -98,7 +98,7 @@ impl PyValue {
 
     /// An array of a created range or multirange: the array of the values'
     /// texts, or SQL NULL.
-    // [spec:pgorm:req:bindings.created-ranges+4]
+    // [spec:pgorm:req:bindings.created-ranges+5]
     pub(crate) fn from_created_array(inner: Value, kind: CreatedKind) -> Self {
         Self {
             inner,
@@ -168,7 +168,7 @@ impl PyValue {
     /// An array of `element`'s kind holding `values`, or SQL NULL for `None`.
     /// A created range's array holds each element's text form, the array
     /// its type's array reads.
-    // [spec:pgorm:req:bindings.created-ranges+4]
+    // [spec:pgorm:req:bindings.created-ranges+5]
     fn array_of(element: Tag, values: &Bound<'_, PyAny>) -> PyResult<Self> {
         let array_type = element.array_type()?;
         let inner = if values.is_none() {

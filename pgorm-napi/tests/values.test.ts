@@ -441,7 +441,7 @@ test("an empty array and an SQL NULL array still name their element kind", async
   throwsConstruction(() => Value.array("i32", [new Value(1, "i64")]), /i64 value is not a value of kind i32/);
 });
 
-// [spec:pgorm:req:bindings.created-ranges+4/test]
+// [spec:pgorm:req:bindings.created-ranges+5/test]
 test("a created range converts each bound through its subtype and travels as its text", async () => {
   const value = new Value(new Range(1.5, 2.5), floatrange);
   assert.equal(value.kind, "created_range");
@@ -467,7 +467,7 @@ test("a created range converts each bound through its subtype and travels as its
   throwsConstruction(() => new CreatedRange("r", "bool" as "i32"), /subtype/);
 });
 
-// [spec:pgorm:req:bindings.created-ranges+4/test]    an array of a created range is a value of its own
+// [spec:pgorm:req:bindings.created-ranges+5/test]    an array of a created range is a value of its own
 // kind both ways: each element held as its text, bound as the array of the texts, and decoded element by
 // element through the subtype's codec; a query's array of a created multirange, reported with no subtype,
 // is undecodable

@@ -106,7 +106,7 @@ pub(super) fn value(field: Field<'_>, ty: &Type, array: bool) -> PyResult<Option
 /// through pgorm's codec of the type, each element of an array alike, and
 /// held as the text form that type's values travel as, tagged with the
 /// type's name.
-// [spec:pgorm:req:bindings.created-ranges+4]
+// [spec:pgorm:req:bindings.created-ranges+5]
 fn created(
     field: Field<'_>,
     ty: &Type,

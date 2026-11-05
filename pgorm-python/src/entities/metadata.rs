@@ -460,6 +460,26 @@ mod tests {
             key(&multirange).as_deref(),
             Some("multirange \"slot_multirange\" of i32")
         );
+        // [spec:pgorm:req:bindings.created-ranges+5/test]    a created range over a domain is a
+        // range of the domain's base kind, and one over `char(n)` a range of text
+        let over = |subtype: ColumnType| ColumnType::CreatedRange {
+            name: Name::runtime("heightrange"),
+            schema: None,
+            subtype: Arc::new(subtype),
+        };
+        let height = ColumnType::Domain {
+            name: Name::runtime("height"),
+            schema: None,
+            base: Arc::new(ColumnType::Double),
+        };
+        assert_eq!(
+            key(&over(height)).as_deref(),
+            Some("range \"heightrange\" of f64")
+        );
+        assert_eq!(
+            key(&over(ColumnType::Char(Some(1)))).as_deref(),
+            Some("range \"heightrange\" of text")
+        );
 
         Python::initialize();
         Python::attach(|py| {

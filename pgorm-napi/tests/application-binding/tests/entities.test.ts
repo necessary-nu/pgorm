@@ -530,7 +530,7 @@ test("a registered created range's quantified comparisons bind as the array of t
   assert.deepStrictEqual(await ids(Booking.find().where(span.overlaps(all([new Range(2, 3), new Range(1, 1.6)])))), [1]);
 });
 
-// [spec:pgorm:req:bindings.created-ranges+4/test]    a registered column of an array of a created
+// [spec:pgorm:req:bindings.created-ranges+5/test]    a registered column of an array of a created
 // range takes an array of the kind's values, the empty array and null elements included, as the array
 // of their texts cast to the type's array, compares through the column's casts, and reads back as an
 // array, a declared Value of the array's kind included

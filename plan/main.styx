@@ -18039,6 +18039,22 @@ children (
                 title "The shared created-range column-type mapping looks through a domain subtype, as subtype_kind does for server types"
                 kind @fix
                 deps (value-codecs.char-created-range-kind)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T09:44:12.16597Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T09:46:18.255158Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
         )
     }
