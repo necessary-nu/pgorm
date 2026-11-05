@@ -55,7 +55,24 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
 Registration takes `E: EntityTrait + Send + Sync + 'static` whose model
 converts into its ActiveModel. A name or a Rust entity registered twice, a
 name outside 1–255 bytes, and a graph whose source entities are not
-registered first are refused with a `RegistrationError`. A graph's factory
+registered first are refused with a `RegistrationError`.
+
+`entity::<E>(name)` registers `E::default()`, whose table every statement of
+the registration names. An entity whose names are computed at run time, a
+hand-written `Entity` struct holding a tenant's schema, is registered once
+per instance it serves with `entity_in(name, entity)`, and each registration
+reads and writes its instance's table, as Rust's `Entity::find_in(entity)`
+and the other `_in` constructors do; JavaScript picks the tenant by the name
+it passes to `entity()`:
+
+```rust
+registry.entity::<note::Entity>("app.Note")?;
+registry.entity_in("app.AcmeNote", note::Entity { tenant: "acme" })?;
+```
+
+A type registers once for each table its instances name; the same type and
+table twice is a duplicate. A graph or source tuple over the type reads the
+metadata of its first registration. A graph's factory
 receives one alias per joined slot, in tuple order, and joins each slot under
 its alias; the root keeps its table's name. Rust's slotless shape and tuples
 of one to six `Req` or `Opt` slots are registrable.

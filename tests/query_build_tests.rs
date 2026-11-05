@@ -114,7 +114,7 @@ fn every_builder_wraps_one_statement() {
     );
 }
 
-// [spec:pgorm:sem:query.build.select-defaults/test]    the select list is every
+// [spec:pgorm:sem:query.build.select-defaults+1/test]    the select list is every
 // column in `Column::iter()` order through `select_as`, the FROM is the
 // entity's table ref, and nothing else is applied
 #[test]
@@ -936,7 +936,7 @@ fn relation_named_joins_match_the_long_spelling() {
     );
 }
 
-// [spec:pgorm:sem:query.build.insert+5/test]    `Insert::new` renders a valid
+// [spec:pgorm:sem:query.build.insert+6/test]    `Insert::new` renders a valid
 // DEFAULT VALUES statement before any model is added, and `one`/`many` /
 // `add`/`add_many` take anything `IntoActiveModel`
 #[test]
@@ -978,7 +978,7 @@ fn insert_new_is_a_default_values_statement() {
     );
 }
 
-// [spec:pgorm:sem:query.build.insert+5/test]    `add` writes `Set` and
+// [spec:pgorm:sem:query.build.insert+6/test]    `add` writes `Set` and
 // `Unchanged` columns through `col.save_as` and omits `NotSet` ones entirely
 #[test]
 fn insert_add_omits_not_set_columns() {
@@ -1015,7 +1015,7 @@ fn insert_add_omits_not_set_columns() {
     );
 }
 
-// [spec:pgorm:sem:query.build.insert+5/test]    `on_conflict` attaches the given
+// [spec:pgorm:sem:query.build.insert+6/test]    `on_conflict` attaches the given
 // pgorm-query clause verbatim
 #[test]
 fn insert_on_conflict_is_attached_verbatim() {
@@ -1086,7 +1086,7 @@ fn insert_many_rejects_mismatched_columns() {
     );
 }
 
-// [spec:pgorm:sem:query.build.insert+5/test]    a model with nothing set
+// [spec:pgorm:sem:query.build.insert+6/test]    a model with nothing set
 // contributes a default-values row rather than an arity-zero column and value
 // list, and one such row per model
 #[test]
@@ -1176,7 +1176,7 @@ fn try_insert_conversions_and_conflict_clause() {
     );
 }
 
-// [spec:pgorm:sem:query.build.update+4/test]    `Update::one` filters on every
+// [spec:pgorm:sem:query.build.update+5/test]    `Update::one` filters on every
 // primary-key column and SETs only `Set`, non-key columns
 #[test]
 fn update_one_sets_changed_non_key_columns() {
@@ -1225,7 +1225,7 @@ fn update_one_sets_changed_non_key_columns() {
     );
 }
 
-// [spec:pgorm:sem:query.build.update+4/test]    a `NotSet` primary key has no
+// [spec:pgorm:sem:query.build.update+5/test]    a `NotSet` primary key has no
 // filter to contribute, so `Update::one` refuses to build the statement
 #[test]
 fn update_one_errs_on_unset_primary_key() {
@@ -1254,7 +1254,7 @@ fn update_one_errs_on_unset_primary_key() {
     assert_eq!(err, Error::PrimaryKeyNotSet);
 }
 
-// [spec:pgorm:sem:query.build.update+4/test]    `Update::many` adds no implicit
+// [spec:pgorm:sem:query.build.update+5/test]    `Update::many` adds no implicit
 // filter; `set` writes `Set` columns including primary keys, `col_expr` writes
 // a raw expression, and `QueryFilter` supplies the WHERE clause
 #[test]
@@ -1292,7 +1292,7 @@ fn update_many_has_no_implicit_filter() {
     );
 }
 
-// [spec:pgorm:sem:query.build.delete+3/test]    `Delete::one` filters on the
+// [spec:pgorm:sem:query.build.delete+4/test]    `Delete::one` filters on the
 // primary key only — non-key attributes never reach the WHERE clause
 #[test]
 fn delete_one_filters_by_primary_key_only() {
@@ -1334,7 +1334,7 @@ fn delete_one_filters_by_primary_key_only() {
     );
 }
 
-// [spec:pgorm:sem:query.build.delete+3/test]    a `NotSet` primary key has no
+// [spec:pgorm:sem:query.build.delete+4/test]    a `NotSet` primary key has no
 // filter to contribute, so `Delete::one` refuses to build the statement
 #[test]
 fn delete_one_errs_on_unset_primary_key() {
@@ -1362,7 +1362,7 @@ fn delete_one_errs_on_unset_primary_key() {
     assert_eq!(err, Error::PrimaryKeyNotSet);
 }
 
-// [spec:pgorm:sem:query.build.delete+3/test]    `Delete::many` is bare; narrowing
+// [spec:pgorm:sem:query.build.delete+4/test]    `Delete::many` is bare; narrowing
 // it is the caller's job through `QueryFilter`
 #[test]
 fn delete_many_is_unconstrained_until_filtered() {

@@ -1,6 +1,7 @@
+use crate::entity::entity_table;
 use crate::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, EntityName, EntityTrait, Error, IntoActiveModel,
-    Iterable, QueryTrait, RuntimeError, StaticName,
+    ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Error, IntoActiveModel, Iterable,
+    QueryTrait, RuntimeError, StaticName,
 };
 use core::marker::PhantomData;
 use pgorm_query::{Expr, InsertStatement, OnConflict, SimpleExpr};
@@ -80,7 +81,7 @@ impl InsertColumns {
 /// A column the model does not carry contributes no value, exactly as a
 /// `NotSet` one does; where the other models of a batch do carry it, that is
 /// the disagreement [`Insert::ensure_uniform_columns`] reports.
-// [spec:pgorm:sem:query.build.insert+5]
+// [spec:pgorm:sem:query.build.insert+6]
 // [spec:pgorm:sem:disjoint.write+2]
 pub(crate) fn saved_values<A>(
     mut am: A,
@@ -133,7 +134,7 @@ fn quoted_columns(names: &[String]) -> String {
 /// The row count an [`Insert`] holding exactly one model is built for: it comes
 /// from [`Insert::one`], and its returning terminals answer with one key and
 /// one model.
-// [spec:pgorm:sem:query.build.insert+5]
+// [spec:pgorm:sem:query.build.insert+6]
 #[derive(Debug, Clone, Copy)]
 pub struct OneRow;
 
@@ -141,7 +142,7 @@ pub struct OneRow;
 /// none included: it comes from [`Insert::many`], and from adding a model to
 /// any insert, and its returning terminals answer with a key and a model for
 /// every row written.
-// [spec:pgorm:sem:query.build.insert+5]
+// [spec:pgorm:sem:query.build.insert+6]
 #[derive(Debug, Clone, Copy)]
 pub struct ManyRows;
 
@@ -152,7 +153,7 @@ pub struct ManyRows;
 /// `exec_returning_model` answer for one row, `exec_returning_pks` and
 /// `exec_returning_models` for a batch. A batch cannot ask for one row's
 /// answer, so it cannot be handed whichever row came back last.
-// [spec:pgorm:sem:query.build.insert+5]
+// [spec:pgorm:sem:query.build.insert+6]
 #[derive(Debug)]
 pub struct Insert<A, R>
 where
@@ -173,7 +174,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:query.build.insert+5]
+// [spec:pgorm:sem:query.build.insert+6]
 impl<A> Insert<A, OneRow>
 where
     A: ActiveModelTrait,
@@ -214,9 +215,38 @@ where
     {
         Self::new().push(m)
     }
+
+    /// [`one`](Insert::one) into the table `entity` names: the instance's
+    /// schema and table rather than [`Default`]'s, for an entity whose names
+    /// are computed at run time.
+    ///
+    /// ```
+    /// use pgorm::{entity::*, query::*, tests_cfg::tenant_cake};
+    ///
+    /// let acme = tenant_cake::Entity { tenant: "acme" };
+    /// assert_eq!(
+    ///     Insert::one_in(
+    ///         acme,
+    ///         tenant_cake::ActiveModel {
+    ///             name: set("Apple Pie"),
+    ///             ..Default::default()
+    ///         },
+    ///     )
+    ///     .as_query()
+    ///     .to_string(),
+    ///     r#"INSERT INTO "acme"."cake" ("name") VALUES ('Apple Pie')"#,
+    /// );
+    /// ```
+    // [spec:pgorm:sem:query.build.insert+6]
+    pub fn one_in<M>(entity: A::Entity, m: M) -> Self
+    where
+        M: IntoActiveModel<A>,
+    {
+        Self::new_in(entity).push(m)
+    }
 }
 
-// [spec:pgorm:sem:query.build.insert+5]
+// [spec:pgorm:sem:query.build.insert+6]
 impl<A> Insert<A, ManyRows>
 where
     A: ActiveModelTrait,
@@ -250,17 +280,34 @@ where
     {
         Self::new().add_many(models)
     }
+
+    /// [`many`](Insert::many) into the table `entity` names, as
+    /// [`one_in`](Insert::one_in) writes it.
+    // [spec:pgorm:sem:query.build.insert+6]
+    pub fn many_in<M, I>(entity: A::Entity, models: I) -> Self
+    where
+        M: IntoActiveModel<A>,
+        I: IntoIterator<Item = M>,
+    {
+        Self::new_in(entity).add_many(models)
+    }
 }
 
-// [spec:pgorm:sem:query.build.insert+5]
+// [spec:pgorm:sem:query.build.insert+6]
 impl<A, R> Insert<A, R>
 where
     A: ActiveModelTrait,
 {
     pub(crate) fn new() -> Self {
+        Self::new_in(A::Entity::default())
+    }
+
+    /// An insert into the table `entity` names, holding no model yet.
+    // [spec:pgorm:sem:query.build.insert+6]
+    pub(crate) fn new_in(entity: A::Entity) -> Self {
         Self {
             query: InsertStatement::new()
-                .into_table(A::Entity::default().table_ref())
+                .into_table(entity_table(&entity))
                 .or_default_values()
                 .to_owned(),
             columns: InsertColumns::Unset,
@@ -291,7 +338,7 @@ where
 
     /// Whether no model was ever added, as distinct from models that left every
     /// column `NotSet`: nothing was asked for, so there is no row to write.
-    // [spec:pgorm:sem:query.build.insert+5]
+    // [spec:pgorm:sem:query.build.insert+6]
     pub(crate) fn has_no_models(&self) -> bool {
         matches!(self.columns, InsertColumns::Unset)
     }
@@ -324,7 +371,7 @@ where
     /// recorded and reported by [`ensure_uniform_columns`](Self::ensure_uniform_columns)
     /// and by every execution path.
     // [spec:pgorm:req:query.build.insert.uniform-columns+4]
-    // [spec:pgorm:sem:query.build.insert+5]
+    // [spec:pgorm:sem:query.build.insert+6]
     #[allow(clippy::should_implement_trait)]
     pub fn add<M>(self, m: M) -> Insert<A, ManyRows>
     where
@@ -336,7 +383,7 @@ where
     /// Record one model's columns and values, keeping the row count the
     /// builder was made for.
     // [spec:pgorm:req:query.build.insert.uniform-columns+4]
-    // [spec:pgorm:sem:query.build.insert+5]
+    // [spec:pgorm:sem:query.build.insert+6]
     fn push<M>(mut self, m: M) -> Self
     where
         M: IntoActiveModel<A>,
@@ -540,6 +587,14 @@ where
     {
         Self::from_insert(Insert::one(m))
     }
+
+    // [spec:pgorm:sem:query.build.insert+6]
+    pub fn one_in<M>(entity: A::Entity, m: M) -> Self
+    where
+        M: IntoActiveModel<A>,
+    {
+        Self::from_insert(Insert::one_in(entity, m))
+    }
 }
 
 #[allow(missing_docs)]
@@ -553,6 +608,15 @@ where
         I: IntoIterator<Item = M>,
     {
         Self::from_insert(Insert::many(models))
+    }
+
+    // [spec:pgorm:sem:query.build.insert+6]
+    pub fn many_in<M, I>(entity: A::Entity, models: I) -> Self
+    where
+        M: IntoActiveModel<A>,
+        I: IntoIterator<Item = M>,
+    {
+        Self::from_insert(Insert::many_in(entity, models))
     }
 }
 

@@ -119,7 +119,7 @@ fn page_size(size: u64) -> NonZeroU64 {
     NonZeroU64::new(size).expect("page size is non-zero")
 }
 
-// [spec:pgorm:def:query.graph+1/test]    a graph declared as a root plus joined
+// [spec:pgorm:def:query.graph+2/test]    a graph declared as a root plus joined
 // sources executes as one statement whose rows carry every declared source
 // [spec:pgorm:sem:query.graph.writer+4/test]    three sources each carrying a
 // `name` and an `id` column decode without collision, because each is

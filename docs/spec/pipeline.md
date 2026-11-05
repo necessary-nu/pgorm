@@ -496,7 +496,7 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Qualification
 
-> [spec:pgorm:sem:pipeline.qualify+3]
+> [spec:pgorm:sem:pipeline.qualify+4]
 > Column references are table-qualified by construction. An entity column
 > already carries its entity, so `Into<Expr>` for `ColumnTrait` recovers the
 > qualification from `entity_name()` rather than making the caller restate
@@ -509,7 +509,10 @@ of the crate, compiled in every build. Rules are grouped under
 > operand, a set-operation operand — and there are four: an `EntityTrait`
 > entity (which contributes its `table_name` and, when it has one, its
 > `EntityName::schema_name`, so an entity source is schema-correct without a
-> second spelling), an `AliasName` token, a `Name`, and a whole `Pipeline`
+> second spelling; the instance's, so an entity whose names are computed at run time
+> reads the table of the instance handed to it, under the default's table name where
+> the instance's differs, since its columns qualify by that name —
+> `[spec:pgorm:req:entity.traits.entity-name]`), an `AliasName` token, a `Name`, and a whole `Pipeline`
 > ([spec:pgorm:req:pipeline.compose]). `into_source` yields the opaque
 > `Source` carrier, whose contents only the pipeline module can construct,
 > so the set of relation shapes is closed.

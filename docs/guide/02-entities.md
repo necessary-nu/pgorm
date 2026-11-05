@@ -639,8 +639,9 @@ holding what the name is computed from, derive
 [`EntityName`](crate::EntityName). The `Model` then derives `Entity` with no
 `table_name`.
 
-Every statement takes the entity's names from `Entity::default()`, so the
-`Default` implementation is where the name is decided:
+A statement built the usual way, by `find()`, `Insert::one` and the rest,
+takes the entity's names from `Entity::default()`, so for a name the whole
+program shares the `Default` implementation is where it is decided:
 
 ```rust
 use std::sync::OnceLock;
@@ -691,6 +692,93 @@ assert_eq!(
 );
 # }
 ```
+
+When the name changes from one statement to the next, such as a schema per
+tenant, hand the statement the entity itself. Each constructor has a form
+ending in `_in` that takes an entity value first and names its table:
+[`find_in`](crate::EntityTrait::find_in),
+[`find_by_id_in`](crate::EntityTrait::find_by_id_in),
+[`graph_in`](crate::EntityTrait::graph_in),
+[`delete_by_id_in`](crate::EntityTrait::delete_by_id_in),
+[`Insert::one_in`](crate::Insert::one_in) and
+[`many_in`](crate::Insert::many_in),
+[`Update::one_in`](crate::Update::one_in),
+[`Delete::one_in`](crate::Delete::one_in), and an active model's
+[`insert_in`](crate::ActiveModelTrait::insert_in),
+[`update_in`](crate::ActiveModelTrait::update_in) and
+[`delete_in`](crate::ActiveModelTrait::delete_in), which run its hooks as
+`insert` does. [`Update::many`](crate::Update::many),
+[`Delete::many`](crate::Delete::many) and
+[`Pipeline::from`](crate::pipeline::Pipeline::from) take the entity value
+already:
+
+```rust
+use pgorm::entity::prelude::*;
+
+#[derive(Copy, Clone, Debug, EntityTrait)]
+pub struct Entity {
+    pub tenant: &'static str,
+}
+
+impl Default for Entity {
+    fn default() -> Self {
+        Self { tenant: "public" }
+    }
+}
+
+impl EntityName for Entity {
+    fn schema_name(&self) -> Option<&str> {
+        Some(self.tenant)
+    }
+
+    fn table_name(&self) -> &str {
+        "cake"
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
+pub struct Model {
+    #[pgorm(primary_key)]
+    pub id: i32,
+    pub name: String,
+}
+
+#[derive(Copy, Clone, Debug, Relation)]
+pub enum Relation {}
+
+# fn main() -> Result<(), pgorm::Error> {
+let acme = Entity { tenant: "acme" };
+assert_eq!(
+    Entity::find_by_id_in(acme, 1).build().0,
+    r#"SELECT "cake"."id", "cake"."name" FROM "acme"."cake" WHERE "cake"."id" = $1"#
+);
+let rename = Update::one_in(
+    acme,
+    ActiveModel {
+        id: set(1),
+        name: set("Acme Tart"),
+    },
+)?;
+assert_eq!(
+    rename.as_query().to_string(),
+    r#"UPDATE "acme"."cake" SET "name" = 'Acme Tart' WHERE "cake"."id" = 1"#
+);
+// The default still decides what `find()` reads.
+assert_eq!(
+    Entity::find().build().0,
+    r#"SELECT "cake"."id", "cake"."name" FROM "public"."cake""#
+);
+# Ok(())
+# }
+```
+
+An entity's columns are qualified by the default's table name, so the default
+has to name a table, and an instance naming another table is read under the
+default's name: an entity whose table is `cake_2026` for one instance and
+`cake` by default reads `FROM "cake_2026" AS "cake"`. A statement keeps the
+entity value itself to name its table by, so the entity is `Copy` and
+`'static`: a name read at run time, such as a tenant's, is kept once for the
+program and handed out as a `&'static str`.
 
 An entity in a schema fixed when it is written says `schema_name = ".."`
 beside `table_name` instead.

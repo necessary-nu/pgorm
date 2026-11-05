@@ -36,14 +36,14 @@ fn built_filter_matches_text_compilation() {
     assert_eq!(built, text);
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3/test]
+// [spec:pgorm:sem:pipeline.qualify+4/test]
 #[test]
 fn schema_qualified_from_renders_both_parts() {
     let built = sql_of(Pipeline::from_schema(alias("archive"), INVOICE));
     assert_eq!(built, "SELECT * FROM archive.invoice");
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3/test]
+// [spec:pgorm:sem:pipeline.qualify+4/test]
 #[test]
 fn quoted_identifiers_survive_rendering() {
     let table = alias("User Order");
@@ -51,21 +51,21 @@ fn quoted_identifiers_survive_rendering() {
     assert_eq!(built, r#"SELECT "Total Price" FROM "User Order""#);
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3/test]
+// [spec:pgorm:sem:pipeline.qualify+4/test]
 #[test]
 fn entity_source_uses_table_metadata() {
     let built = sql_of(Pipeline::from(cake::Entity));
     assert_eq!(built, "SELECT * FROM cake");
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3/test]
+// [spec:pgorm:sem:pipeline.qualify+4/test]
 #[test]
 fn entity_source_honours_schema_name() {
     let built = sql_of(Pipeline::from(cake_filling_price::Entity));
     assert_eq!(built, "SELECT * FROM public.cake_filling_price");
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3/test]    a column carries its own table
+// [spec:pgorm:sem:pipeline.qualify+4/test]    a column carries its own table
 #[test]
 fn entity_columns_are_qualified_by_construction() {
     let built = sql_of(
@@ -963,7 +963,7 @@ fn parsed_select(sql: &str) -> pg_query::protobuf::SelectStmt {
     }
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3/test]
+// [spec:pgorm:sem:pipeline.qualify+4/test]
 #[test]
 fn reserved_word_table_is_quoted() {
     let order = alias("order");

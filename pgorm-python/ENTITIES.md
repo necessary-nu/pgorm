@@ -39,6 +39,23 @@ requires `E: EntityTrait + Send + Sync + 'static`,
 `E::ActiveModel: Send + Sync + 'static`. Duplicate names and duplicate Rust
 entity types fail before the entry is added.
 
+`entity::<E>(name)` registers `E::default()`, whose table every statement of
+the registration names. An entity whose names are computed at run time, a
+hand-written `Entity` struct holding a tenant's schema, is registered once
+per instance it serves with `entity_in(name, entity)`, and each registration
+reads and writes its instance's table, as Rust's `Entity::find_in(entity)`
+and the other `_in` constructors do; Python picks the tenant by the name it
+passes to `p.entity`:
+
+```rust
+registry.entity::<note::Entity>("app.Note")?;
+registry.entity_in("app.AcmeNote", note::Entity { tenant: "acme" })?;
+```
+
+A type registers once for each table its instances name; the same type and
+table twice is a duplicate. A graph or source tuple over the type reads the
+metadata of its first registration.
+
 Copy the matching `pgorm-python/python/pgorm` facade into the application's
 `python/pgorm` directory. Its Maturin configuration is:
 

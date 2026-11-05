@@ -56,7 +56,7 @@ pub trait SelectableSource: sealed::SealedSource {
 
     /// The name the projection qualifies this source's columns by: the
     /// [`named`](super::IntoSource::named) token, or the entity's own table
-    /// name (`[spec:pgorm:sem:pipeline.qualify+3]`).
+    /// name (`[spec:pgorm:sem:pipeline.qualify+4]`).
     fn qualifier(&self) -> String;
 }
 

@@ -252,7 +252,7 @@ impl JoinSide {
 /// source; [`alias`](pgorm_query::alias) and [`Name`] name a table no
 /// entity describes; and a whole [`Pipeline`] is a relation too, embedded as
 /// a `let`-bound subrelation.
-// [spec:pgorm:sem:pipeline.qualify+3]
+// [spec:pgorm:sem:pipeline.qualify+4]
 pub trait IntoSource {
     /// The relation, ready to embed.
     fn into_source(self) -> Source;
@@ -334,26 +334,34 @@ impl IntoSource for Source {
     }
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3]
+/// The instance's own schema and table, read under the default's table name
+/// where the instance's differs: an entity column qualifies itself by that
+/// name, so the relation has to answer to it.
+// [spec:pgorm:sem:pipeline.qualify+4]
 impl<E: EntityTrait> IntoSource for E {
     fn into_source(self) -> Source {
-        table_source(match self.schema_name() {
+        let mut source = table_source(match self.schema_name() {
             Some(schema) => {
                 adapter::ident_in(vec![schema.to_owned()], self.table_name().to_owned())
             }
             None => adapter::ident(self.table_name()),
-        })
+        });
+        let default = E::default();
+        if self.table_name() != default.table_name() {
+            source.alias = Some(default.table_name().to_owned());
+        }
+        source
     }
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3]
+// [spec:pgorm:sem:pipeline.qualify+4]
 impl IntoSource for AliasName {
     fn into_source(self) -> Source {
         table_source(adapter::ident(self.as_str()))
     }
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3]
+// [spec:pgorm:sem:pipeline.qualify+4]
 impl IntoSource for Name {
     fn into_source(self) -> Source {
         table_source(adapter::ident(&SqlName::to_string(&*self)))
@@ -460,7 +468,7 @@ impl Pipeline {
     }
 
     /// Start a pipeline from a schema-qualified table no entity describes.
-    // [spec:pgorm:sem:pipeline.qualify+3]
+    // [spec:pgorm:sem:pipeline.qualify+4]
     pub fn from_schema(schema: impl IntoName, table: impl IntoName) -> Self {
         let source = adapter::ident_in(
             vec![SqlName::to_string(&*schema.into_name())],

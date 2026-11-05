@@ -3,7 +3,10 @@ use crate::{
     ModelTrait, NoColumns, PrimaryKeyToColumn, PrimaryKeyTrait, QueryFilter, Related,
     RelationBuilder, RelationTrait, RelationType, Select, SelectGraph,
 };
-use pgorm_query::{IntoName, IntoTableName, IntoValueTuple, Name, TableName};
+use pgorm_query::{
+    IntoName, IntoNamedTable, IntoTableName, IntoValueTuple, Name, NamedTable, SelectStatement,
+    TableName,
+};
 pub use strum::IntoEnumIterator as Iterable;
 
 /// The base identifier contract of the entity layer: entities, columns and
@@ -25,7 +28,7 @@ pub use pgorm_query::StaticName;
 pub use pgorm_query::SqlName;
 
 /// A Trait for mapping an Entity to a database table
-// [spec:pgorm:req:entity.traits.entity-name+5]
+// [spec:pgorm:req:entity.traits.entity-name+6]
 pub trait EntityName: StaticName + Default {
     /// Method to get the name for the schema, defaults to [Option::None] if not set
     fn schema_name(&self) -> Option<&str> {
@@ -62,6 +65,24 @@ pub trait EntityName: StaticName + Default {
     }
 }
 
+/// The table a statement over `E` names for `entity`: the instance's schema
+/// and table, under `E`'s default table name where the instance's differs.
+///
+/// Every column reference a statement over `E` writes is qualified by the
+/// default's name ([`ColumnTrait::entity_name`]), so a table read under any
+/// other name is read under that one, as `FROM "acme"."cake_2026" AS "cake"`.
+/// A schema alone needs no alias: `FROM "acme"."cake"` answers to `cake`.
+// [spec:pgorm:req:entity.traits.entity-name+6]
+pub(crate) fn entity_table<E: EntityName>(entity: &E) -> NamedTable {
+    let table = entity.table_ref().into_named_table();
+    let default = E::default();
+    if entity.table_name() == default.table_name() {
+        table
+    } else {
+        table.alias(Name::new(default))
+    }
+}
+
 /// A unique key over two columns or more of an entity's table, as
 /// [`EntityName::unique_keys`] describes it: the constraint's name, or `None`
 /// for PostgreSQL to name it, the columns by their SQL names in key order,
@@ -69,7 +90,7 @@ pub trait EntityName: StaticName + Default {
 ///
 /// It is static data, as the table's name is, so the derive writes it as a
 /// constant and nothing is built until a statement is.
-// [spec:pgorm:req:entity.traits.entity-name+5]
+// [spec:pgorm:req:entity.traits.entity-name+6]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UniqueKey {
     /// The constraint's name, or `None` for PostgreSQL to choose one.
@@ -93,7 +114,7 @@ pub struct UniqueKey {
 /// updates start from [`Insert`](crate::Insert) and [`Update`](crate::Update),
 /// and other deletes from [`Delete`].
 // [spec:pgorm:def:entity.traits+4]
-// [spec:pgorm:req:entity.traits.crud+4]
+// [spec:pgorm:req:entity.traits.crud+5]
 pub trait EntityTrait: EntityName {
     #[allow(missing_docs)]
     type Model: ModelTrait<Entity = Self> + FromQueryResult;
@@ -172,6 +193,30 @@ pub trait EntityTrait: EntityName {
         Select::new()
     }
 
+    /// [`find`](EntityTrait::find) over the table `entity` names: the
+    /// instance's schema and table rather than [`Default`]'s, for an entity
+    /// whose names are computed at run time, such as a schema per tenant.
+    ///
+    /// ```
+    /// use pgorm::{entity::*, query::*, tests_cfg::tenant_cake};
+    ///
+    /// let acme = tenant_cake::Entity { tenant: "acme" };
+    /// assert_eq!(
+    ///     tenant_cake::Entity::find_in(acme).build().0,
+    ///     r#"SELECT "cake"."id", "cake"."name" FROM "acme"."cake""#
+    /// );
+    /// ```
+    ///
+    /// Columns are qualified by the default's table name, so an instance
+    /// naming another table is read under that name:
+    /// `FROM "acme"."cake_2026" AS "cake"`.
+    // [spec:pgorm:req:entity.traits.crud+5]
+    fn find_in(entity: Self) -> Select<Self> {
+        let mut select = Select::projected();
+        select.query.from(entity_table(&entity));
+        select
+    }
+
     /// Construct an N-ary relational read rooted at this entity.
     ///
     /// Where [`find`](EntityTrait::find) produces a
@@ -201,7 +246,7 @@ pub trait EntityTrait: EntityName {
     /// either direction: a graph's projection is generated from its
     /// declaration, never inherited from a builder whose select list a caller
     /// may have edited.
-    // [spec:pgorm:def:query.graph+1]
+    // [spec:pgorm:def:query.graph+2]
     #[doc(alias(
         "find_also_related",
         "find_with_related",
@@ -210,6 +255,16 @@ pub trait EntityTrait: EntityName {
     ))]
     fn graph() -> SelectGraph<Self> {
         SelectGraph::new()
+    }
+
+    /// [`graph`](EntityTrait::graph) rooted at the table `entity` names, as
+    /// [`find_in`](EntityTrait::find_in) reads it. The slots join the tables
+    /// their relations name.
+    // [spec:pgorm:def:query.graph+2]
+    fn graph_in(entity: Self) -> SelectGraph<Self> {
+        let mut query = SelectStatement::new();
+        query.from(entity_table(&entity));
+        SelectGraph::rooted(query, entity.table_ref())
     }
 
     /// Find a model by primary key
@@ -252,12 +307,26 @@ pub trait EntityTrait: EntityName {
     /// # Panics
     ///
     /// Panics if arity of input values don't match arity of primary key
-    // [spec:pgorm:req:entity.traits.crud+4]
+    // [spec:pgorm:req:entity.traits.crud+5]
     fn find_by_id<T>(values: T) -> Select<Self>
     where
         T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKeyTrait>::ValueType>,
     {
         filter_by_key::<Self, _, _>(Self::find(), values)
+    }
+
+    /// [`find_by_id`](EntityTrait::find_by_id) over the table `entity`
+    /// names, as [`find_in`](EntityTrait::find_in) reads it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if arity of input values don't match arity of primary key
+    // [spec:pgorm:req:entity.traits.crud+5]
+    fn find_by_id_in<T>(entity: Self, values: T) -> Select<Self>
+    where
+        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+    {
+        filter_by_key::<Self, _, _>(Self::find_in(entity), values)
     }
 
     /// Delete a model based on primary key
@@ -306,6 +375,20 @@ pub trait EntityTrait: EntityName {
     {
         filter_by_key::<Self, _, _>(Delete::many(Self::default()), values)
     }
+
+    /// [`delete_by_id`](EntityTrait::delete_by_id) from the table `entity`
+    /// names, as [`Delete::many`] deletes from it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if arity of input values don't match arity of primary key
+    // [spec:pgorm:req:entity.traits.crud+5]
+    fn delete_by_id_in<T>(entity: Self, values: T) -> DeleteMany<Self>
+    where
+        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+    {
+        filter_by_key::<Self, _, _>(Delete::many(entity), values)
+    }
 }
 
 /// `query` narrowed to the row of one primary key of `E`, each part of
@@ -316,7 +399,7 @@ pub trait EntityTrait: EntityName {
 /// # Panics
 ///
 /// Panics if the arity of `values` does not match the arity of the primary key
-// [spec:pgorm:req:entity.traits.crud+4]
+// [spec:pgorm:req:entity.traits.crud+5]
 pub(crate) fn filter_by_key<E, Q, T>(mut query: Q, values: T) -> Q
 where
     E: EntityTrait,

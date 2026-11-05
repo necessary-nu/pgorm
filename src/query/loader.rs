@@ -402,7 +402,7 @@ where
 fn root_graph<R: EntityTrait>(select: Select<R>) -> SelectGraph<R, ()> {
     let mut query = select.into_query();
     query.clear_selects();
-    SelectGraph::rooted(query)
+    SelectGraph::rooted(query, R::default().table_ref())
 }
 
 fn key_columns(identity: &Key) -> String {

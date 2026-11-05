@@ -190,7 +190,7 @@ where
     /// as an error rather than as a smaller count — so a `0` means nothing was
     /// asked for, never that something was asked for and dropped.
     // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
-    // [spec:pgorm:sem:query.build.insert+5]
+    // [spec:pgorm:sem:query.build.insert+6]
     // [spec:pgorm:req:query.build.insert.uniform-columns+4]
     #[doc(alias = "exec_without_returning")]
     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
@@ -216,7 +216,7 @@ where
     /// [`Error::RecordNotInserted`].
     // [spec:pgorm:sem:exec.crud.insert+6]
     // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
-    // [spec:pgorm:sem:query.build.insert+5]
+    // [spec:pgorm:sem:query.build.insert+6]
     #[doc(alias("last_insert_id", "InsertResult"))]
     pub async fn exec_returning_pk<C>(self, db: &C) -> Result<InsertedPrimaryKey<A>, Error>
     where
@@ -234,7 +234,7 @@ where
     /// [`Error::RecordNotFound`].
     // [spec:pgorm:sem:exec.crud.insert-returning+3]
     // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
-    // [spec:pgorm:sem:query.build.insert+5]
+    // [spec:pgorm:sem:query.build.insert+6]
     #[doc(alias = "exec_with_returning")]
     pub async fn exec_returning_model<C>(self, db: &C) -> Result<InsertedModel<A>, Error>
     where
@@ -262,7 +262,7 @@ where
     /// fails before anything is written.
     // [spec:pgorm:sem:exec.crud.insert+6]
     // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
-    // [spec:pgorm:sem:query.build.insert+5]
+    // [spec:pgorm:sem:query.build.insert+6]
     // [spec:pgorm:req:query.build.insert.uniform-columns+4]
     pub async fn exec_returning_pks<C>(self, db: &C) -> Result<Vec<InsertedPrimaryKey<A>>, Error>
     where
@@ -283,7 +283,7 @@ where
     /// ([`Insert::add`]) fails before anything is written.
     // [spec:pgorm:sem:exec.crud.insert-returning+3]
     // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
-    // [spec:pgorm:sem:query.build.insert+5]
+    // [spec:pgorm:sem:query.build.insert+6]
     // [spec:pgorm:req:query.build.insert.uniform-columns+4]
     #[doc(alias = "exec_with_returning")]
     pub async fn exec_returning_models<C>(self, db: &C) -> Result<Vec<InsertedModel<A>>, Error>

@@ -70,7 +70,7 @@ pub(super) fn name<'brand>(name: &str) -> Expr<'brand> {
 /// name becomes ambiguous the moment a join enters the pipeline. Minting the
 /// reference from a `(table, column)` [`SqlName`] pair makes the qualified form
 /// the only representable one.
-// [spec:pgorm:sem:pipeline.qualify+3]
+// [spec:pgorm:sem:pipeline.qualify+4]
 pub fn col<'brand>(table: impl IntoName, column: impl IntoName) -> Expr<'brand> {
     branded(adapter::ident_in(
         vec![SqlName::to_string(&*table.into_name())],
@@ -110,7 +110,7 @@ pub fn this<'brand>(column: impl IntoName) -> Expr<'brand> {
 /// An entity column read under `qualifier`, carrying the enum it compares as
 /// when its domain is over one: what the column says of its type holds under
 /// any name its relation is read by.
-// [spec:pgorm:sem:pipeline.qualify+3]
+// [spec:pgorm:sem:pipeline.qualify+4]
 // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
 pub(super) fn entity_column<'brand, C: ColumnTrait>(qualifier: String, column: &C) -> Expr<'brand> {
     let mut expr = branded(adapter::ident_in(
@@ -124,7 +124,7 @@ pub(super) fn entity_column<'brand, C: ColumnTrait>(qualifier: String, column: &
 
 /// An entity column is a table-qualified expression: the column enum carries
 /// its entity, so the qualification is recovered rather than restated.
-// [spec:pgorm:sem:pipeline.qualify+3]
+// [spec:pgorm:sem:pipeline.qualify+4]
 // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
 impl<'brand, C: ColumnTrait> From<C> for Expr<'brand> {
     fn from(column: C) -> Self {

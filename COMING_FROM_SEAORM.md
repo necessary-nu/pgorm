@@ -406,15 +406,25 @@ expanded entity said in a trait method, an attribute says:
 - An entity whose table or schema name is computed at run time keeps a
   hand-written part: its own `Entity` struct holding what the name is computed
   from, an `EntityName` impl, and the `EntityTrait` derive on the struct,
-  beside an `Entity` derive given no `table_name`.
+  beside an `Entity` derive given no `table_name`. `find()` and the other
+  static constructors read `Entity::default()`'s names; the `_in` forms,
+  `find_in(entity)`, `Insert::one_in(entity, model)` and the rest, read the
+  names of the instance they are given, where SeaORM's dynamic table name was
+  read through `Default` alone.
 
 ```rust
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::SimpleExpr;
 
-#[derive(Copy, Clone, Default, Debug, EntityTrait)]
+#[derive(Copy, Clone, Debug, EntityTrait)]
 pub struct Entity {
     pub tenant: &'static str,
+}
+
+impl Default for Entity {
+    fn default() -> Self {
+        Self { tenant: "public" }
+    }
 }
 
 impl EntityName for Entity {
@@ -441,6 +451,10 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
+
+fn tenant_cakes(tenant: &'static str) -> Select<Entity> {
+    Entity::find_in(Entity { tenant })
+}
 ```
 
 Some details differ besides:

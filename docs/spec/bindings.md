@@ -1283,7 +1283,7 @@ registrations. The program reaches each registration by name, and every
 operation on one is the entity's own Rust API. A binding cannot instantiate a
 Rust generic at run time, only use the ones compiled in.
 
-> [spec:pgorm:req:bindings.entities+5]
+> [spec:pgorm:req:bindings.entities+6]
 > Each binding MUST let a downstream application crate register its own
 > entities, `SelectGraph` shapes and pipeline source tuples, for any entity
 > whose model converts into its ActiveModel, and build one native module from
@@ -1292,6 +1292,19 @@ Rust generic at run time, only use the ones compiled in.
 > registered twice, and a graph or source tuple whose entities are not
 > registered, MUST be refused as they are registered. A binding MUST NOT
 > fabricate a generic instantiation at run time.
+>
+> An entity whose names are computed at run time is registered by instance
+> too: `Registry::entity_in(name, entity)` registers that entity value, and
+> every statement the registration builds — its reads, writes, version
+> writes, schema and pipeline source — names the instance's table, as Rust's
+> `_in` constructors do (`[spec:pgorm:req:entity.traits.entity-name]`), where
+> `entity::<E>(name)` registers `E::default()`. A binding cannot construct a
+> Rust value at run time, so an application registers each instance it
+> serves, a tenant's under a name of its own, and a program picks the tenant
+> by the name it reads. One Rust type may therefore be registered more than
+> once, once for each table its instances name; the same type and table twice
+> is the duplicate refused above. A graph or source tuple over the type reads
+> the metadata of its first registration.
 >
 > `entity(name)` and `graph(name)` give one registration, and a name the
 > module does not register is a `ConstructionError`; `entities()`, `graphs()`

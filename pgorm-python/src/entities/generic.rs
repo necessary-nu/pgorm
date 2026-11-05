@@ -1,7 +1,7 @@
 //! Each adapter below is monomorphized at downstream module build time.
 
 use crate::execution::Database;
-use std::{marker::PhantomData, sync::Arc};
+use std::sync::Arc;
 
 use futures_util::future::BoxFuture;
 use pgorm::pgorm_query::{Expr, Name, SimpleExpr, Value, Values};
@@ -22,10 +22,11 @@ fn column<E: EntityTrait>(name: &str) -> Result<E::Column, Error> {
 #[derive(Debug)]
 pub(crate) struct EntityAdapter<E> {
     pub(crate) info: Arc<EntityInfo>,
-    pub(crate) entity: PhantomData<E>,
+    /// The registered entity value, whose table every statement names.
+    pub(crate) entity: E,
 }
 
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 impl<E> EntityBackend for EntityAdapter<E>
 where
     E: EntityTrait + Send + Sync + 'static,
@@ -40,16 +41,16 @@ where
     fn schema(&self) -> Result<crate::schema::PyEntitySchema, Error> {
         let schema = pgorm::Schema::new();
         Ok(crate::schema::PyEntitySchema {
-            table: schema.create_table_from_entity(E::default())?,
-            enums: schema.create_enum_from_entity(E::default()),
-            indexes: schema.create_index_from_entity(E::default()),
-            comments: schema.create_comments_from_entity(E::default()),
+            table: schema.create_table_from_entity(self.entity)?,
+            enums: schema.create_enum_from_entity(self.entity),
+            indexes: schema.create_index_from_entity(self.entity),
+            comments: schema.create_comments_from_entity(self.entity),
         })
     }
 
     fn select(&self) -> Select {
         Arc::new(SelectAdapter::<E> {
-            query: E::find(),
+            query: E::find_in(self.entity),
             info: self.info.clone(),
         })
     }
@@ -223,13 +224,13 @@ where
     ) -> Result<Vec<Versions>, Error> {
         match write {
             VersionWrite::Change(active) => {
-                let change = Update::one(concrete::<E>(&active)?)?
+                let change = Update::one_in(self.entity, concrete::<E>(&active)?)?
                     .exec_returning_change(&db)
                     .await?;
                 Ok(vec![self.change(change)])
             }
             VersionWrite::Changes(assignments, filter) => {
-                let mut update = Update::many(E::default());
+                let mut update = Update::many(self.entity);
                 for (name, assignment) in assignments {
                     let column = column::<E>(&name)?;
                     let expression = match assignment {
@@ -257,7 +258,7 @@ where
                     let model = models.into_iter().next().ok_or_else(|| {
                         Error::Type("an upsert of one row needs one ActiveModel".to_owned())
                     })?;
-                    let mut insert = Insert::one(model);
+                    let mut insert = Insert::one_in(self.entity, model);
                     if let Some(conflict) = conflict {
                         insert = insert.on_conflict(*conflict);
                     }
@@ -267,7 +268,7 @@ where
                         .into_iter()
                         .collect()
                 } else {
-                    let mut insert = Insert::many(models);
+                    let mut insert = Insert::many_in(self.entity, models);
                     if let Some(conflict) = conflict {
                         insert = insert.on_conflict(*conflict);
                     }
@@ -454,10 +455,11 @@ where
     E::ActiveModel: Send + Sync + 'static,
 {
     async fn write(&self, db: Database<'_>, write: Write) -> Result<Written, Error> {
+        let (entity, active) = (self.info.entity::<E>()?, self.value.clone());
         let model = match write {
-            Write::Insert => self.value.clone().insert(&db).await?,
-            Write::Update => self.value.clone().update(&db).await?,
-            Write::Delete => return self.value.clone().delete(&db).await.map(Written::Count),
+            Write::Insert => active.insert_in(entity, &db).await?,
+            Write::Update => active.update_in(entity, &db).await?,
+            Write::Delete => return active.delete_in(entity, &db).await.map(Written::Count),
         };
         Ok(Written::Model(Arc::new(ModelAdapter::<E> {
             value: model,

@@ -3163,6 +3163,11 @@ impl_evidence (
         {impl_name main, rule exec.crud.selector-entry}
         {impl_name main, rule macros.sql}
     )}
+    {id runtime-entity-name-per-query, covered_rules (
+        pipeline.qualify
+    ), covered_claims (
+        {impl_name main, rule pipeline.qualify}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

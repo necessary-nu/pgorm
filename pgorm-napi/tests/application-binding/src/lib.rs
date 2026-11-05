@@ -14,6 +14,7 @@ pub mod parcel;
 pub mod shipping;
 pub mod sources;
 pub mod temper;
+pub mod tenant_note;
 pub mod till;
 
 #[cfg(test)]
@@ -25,7 +26,7 @@ use neon::prelude::*;
 use pgorm_napi::{RegistrationError, Registry};
 
 /// The application's registrations.
-// [spec:pgorm:req:bindings.entities+5/test]
+// [spec:pgorm:req:bindings.entities+6/test]
 pub fn registry() -> Result<Registry, RegistrationError> {
     let mut registry = Registry::default();
     registry.entity::<account::Entity>("app.Account")?;
@@ -35,6 +36,13 @@ pub fn registry() -> Result<Registry, RegistrationError> {
     registry.entity::<temper::Entity>("app.Temper")?;
     registry.entity::<till::Entity>("app.Till")?;
     registry.entity::<booking::Entity>("app.Booking")?;
+    registry.entity::<tenant_note::Entity>("app.TenantNote")?;
+    registry.entity_in(
+        "app.AcmeTenantNote",
+        tenant_note::Entity {
+            tenant: "napi_acme",
+        },
+    )?;
     registry.entity::<shipping::shipment::Entity>("app.Shipment")?;
     registry.entity::<shipping::packet::Entity>("app.Packet")?;
     registry.entity::<shipping::pallet::Entity>("app.Pallet")?;
@@ -64,7 +72,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
 mod tests {
     use super::*;
 
-    // [spec:pgorm:req:bindings.entities+5/test]
+    // [spec:pgorm:req:bindings.entities+6/test]
     #[test]
     fn registry_refuses_duplicate_names_and_entities() -> Result<(), RegistrationError> {
         let mut registry = Registry::default();
@@ -77,6 +85,19 @@ mod tests {
         });
         assert!(unregistered.is_err());
         registry.entity::<note::Entity>("app.Note")?;
+        // [spec:pgorm:req:bindings.entities+6/test]    a type registers once per table its
+        // instances name, so one table twice is still a collision
+        registry.entity::<tenant_note::Entity>("app.TenantNote")?;
+        let acme = tenant_note::Entity {
+            tenant: "napi_acme",
+        };
+        registry.entity_in("app.AcmeTenantNote", acme)?;
+        assert!(registry.entity_in("app.AcmeAgain", acme).is_err());
+        assert!(
+            registry
+                .entity::<tenant_note::Entity>("app.DefaultAgain")
+                .is_err()
+        );
         // [spec:pgorm:req:bindings.disjoint+1/test]    a disjoint enum registers once its base and kind entities have, and a name or an enum registered twice is refused
         assert!(
             registry

@@ -37,7 +37,7 @@ where
         type Column<A> = <Entity<A> as EntityTrait>::Column;
 
         if self.query.get_values().is_empty() {
-            return find_unchanged_model::<A, C>(&self.query, db).await;
+            return find_unchanged_model::<A, C>(self.entity, &self.query, db).await;
         }
 
         let returning = Query::returning()
@@ -125,6 +125,7 @@ where
 
 // [spec:pgorm:sem:exec.crud.update+7]
 pub(super) async fn find_unchanged_model<A, C>(
+    entity: A::Entity,
     query: &UpdateStatement,
     db: &C,
 ) -> Result<<A::Entity as EntityTrait>::Model, Error>
@@ -137,7 +138,7 @@ where
         .cloned()
         .ok_or(Error::PrimaryKeyNotSet)?;
 
-    <A::Entity as EntityTrait>::find()
+    <A::Entity as EntityTrait>::find_in(entity)
         .filter(condition)
         .one(db)
         .await

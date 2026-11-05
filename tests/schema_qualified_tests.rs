@@ -132,7 +132,7 @@ where
         .await
 }
 
-// [spec:pgorm:req:entity.traits.entity-name+5/test]    an entity handed straight to a raw
+// [spec:pgorm:req:entity.traits.entity-name+6/test]    an entity handed straight to a raw
 // builder's table position is qualified as `table_ref` qualifies it, so a select, a join and
 // each write reach `tenant_a.item` and never the `public.item` the `search_path` holds
 // [spec:pgorm:def:sql.types.table-ref+7/test]

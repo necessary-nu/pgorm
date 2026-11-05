@@ -72,7 +72,7 @@ fn graphs_require_sources_and_unique_names() -> PyResult<()> {
 }
 
 // [spec:pgorm:req:bindings.entity-graphs+3/test]
-// [spec:pgorm:req:bindings.entities+5/test]
+// [spec:pgorm:req:bindings.entities+6/test]
 #[test]
 fn temporal_keys_and_period_relations_match_rust() -> PyResult<()> {
     use crate::{room, stay};

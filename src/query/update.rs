@@ -1,3 +1,4 @@
+use crate::entity::entity_table;
 use crate::{
     ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Error, Iterable, PrimaryKeyToColumn,
     QueryFilter, QueryTrait,
@@ -17,6 +18,9 @@ where
 {
     pub(crate) query: UpdateStatement,
     pub(crate) model: A,
+    /// The entity whose table the update writes, which an update with
+    /// nothing to set reads its row back from.
+    pub(crate) entity: A::Entity,
 }
 
 /// Defines an UPDATE operation on multiple ActiveModels
@@ -68,11 +72,43 @@ impl Update {
         E: EntityTrait,
         A: ActiveModelTrait<Entity = E>,
     {
+        Self::one_in(E::default(), model)
+    }
+
+    /// [`one`](Update::one) of a row of the table `entity` names: the
+    /// instance's schema and table rather than [`Default`]'s, for an entity
+    /// whose names are computed at run time.
+    ///
+    /// ```
+    /// use pgorm::{entity::*, query::*, tests_cfg::tenant_cake};
+    ///
+    /// let acme = tenant_cake::Entity { tenant: "acme" };
+    /// assert_eq!(
+    ///     Update::one_in(
+    ///         acme,
+    ///         tenant_cake::ActiveModel {
+    ///             id: set(1),
+    ///             name: set("Apple Pie"),
+    ///         },
+    ///     )
+    ///     .expect("the primary key is set")
+    ///     .as_query()
+    ///     .to_string(),
+    ///     r#"UPDATE "acme"."cake" SET "name" = 'Apple Pie' WHERE "cake"."id" = 1"#,
+    /// );
+    /// ```
+    // [spec:pgorm:sem:query.build.update+5]
+    pub fn one_in<E, A>(entity: E, model: A) -> Result<UpdateOne<A>, Error>
+    where
+        E: EntityTrait,
+        A: ActiveModelTrait<Entity = E>,
+    {
         let one = UpdateOne {
             query: UpdateStatement::new()
-                .table(A::Entity::default().table_ref())
+                .table(entity_table(&entity))
                 .to_owned(),
             model,
+            entity,
         };
         one.prepare_filters()?.prepare_values()
     }
@@ -97,13 +133,15 @@ impl Update {
         E: EntityTrait,
     {
         UpdateMany {
-            query: UpdateStatement::new().table(entity.table_ref()).to_owned(),
+            query: UpdateStatement::new()
+                .table(entity_table(&entity))
+                .to_owned(),
             entity: PhantomData,
         }
     }
 }
 
-// [spec:pgorm:sem:query.build.update+4]
+// [spec:pgorm:sem:query.build.update+5]
 impl<A> UpdateOne<A>
 where
     A: ActiveModelTrait,
@@ -198,7 +236,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:query.build.update+4]
+// [spec:pgorm:sem:query.build.update+5]
 impl<E> UpdateMany<E>
 where
     E: EntityTrait,
@@ -259,7 +297,7 @@ where
     ///     .join(" "),
     /// );
     /// ```
-    // [spec:pgorm:sem:query.build.update+4]
+    // [spec:pgorm:sem:query.build.update+5]
     pub fn from<R>(mut self, tbl_ref: R) -> Self
     where
         R: IntoFromItem,

@@ -10529,12 +10529,29 @@ children (
                 id runtime-entity-name-per-query
                 title "A statement on an entity whose names are computed at run time can take the names from an instance, not only from Entity::default()"
                 kind @feat
+                implements {
+                    main ([spec:pgorm:sem:pipeline.qualify])
+                }
                 log (
                     {
                         at 2026-11-05T14:15:36.274983Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (entities chapter). An entity whose table or schema is computed at run time (hand-written Entity struct + EntityTrait derive + EntityName) names its table through `E::default().table_ref()` in every statement (src/query/select.rs:329, src/query/insert.rs:263, and the other builders), so the instance's fields are never consulted per query: a per-tenant or per-request schema cannot be chosen at the call site, only through Default (a OnceLock or thread-local, as tests/identifier_oracle/fixtures.rs does). COMING_FROM_SEAORM.md's example derives Default on `Entity { tenant: &'static str }`, whose default schema is the empty string. Decide whether find()/Insert/Update/Delete/graph take an entity instance (e.g. `Select::for_entity(e)`), or say in EntityName's docs that names come from Default. The guide shows the Default form."
+                    }
+
+                    {
+                        at 2026-11-05T16:12:58.750803Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:26:45.014948Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Built the lead's direction (pending operator override): the Default form stays the static path, and every constructor gains an instance-taking form named with an `_in` suffix, the entity value first (SQL order: the table before the row or key): EntityTrait::find_in(e), find_by_id_in(e, key), delete_by_id_in(e, key), graph_in(e) (and SelectGraph::new_in); Insert::one_in(e, m) / many_in(e, ms) and TryInsert's of the same names; Update::one_in(e, am); Delete::one_in(e, m); ActiveModelTrait::insert_in(e, db) / update_in(e, db) / delete_in(e, db), hooks included. Update::many(e), Delete::many(e) and Pipeline::from(e) already took the instance. Each static form is now its _in form over Self::default(). `_in` follows Rust's allocator-API naming (Vec::new_in) for \"the same constructor in this context\"; a builder-retargeting method was rejected because the lead asked for constructors and because UpdateOne's nothing-to-set read-back must know its table (UpdateOne now keeps its entity). Column references stay qualified by Default's table name (ColumnTrait::entity_name), so where an instance's table name differs from Default's the statement reads it under that name as an alias (FROM \"acme\".\"cake_2026\" AS \"cake\", INSERT/UPDATE/DELETE ... AS \"cake\", a pipeline `from cake = cake_2026`); a schema-only difference needs none. Consequence recorded in entity.traits.entity-name+6: Default MUST name a real table. tests/common/features/dyn_table_name_lazy_static.rs had derived Default (empty table name) and worked around it by overwriting statements' tables; it now has a real Default and its test uses the _in forms."
                     }
                 )
             }
