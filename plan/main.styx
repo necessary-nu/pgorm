@@ -13486,6 +13486,14 @@ children (
                         id napi.guide-gaps.json-shape
                         title "A model's json column decodes its documents as a type of the program's choosing, checked as they are read, as a Rust JsonValueType field does (guide 03-entities, 13-values)"
                         deps (napi-models guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T22:13:21.198647Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
                     }
 
                     {
@@ -13635,6 +13643,14 @@ children (
                         id napi.guide-gaps.model-column-casts
                         title "A declared model column reads and writes money (cast to and from numeric), compares a domain over an enum cast to the enum, and takes custom read and write casts, as Rust's ColumnType::Money, its domain-over-enum comparisons and select_as, save_as, select_with and save_with do (guide 13-values)"
                         deps (napi-models napi-values guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T22:13:54.84877Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "nplan_start refuses this node (\"dep napi-values is Todo\") though nplan_node reports napi-values done (delivered a54defe5), after nplan_sync; worked on in the guide.python-gaps.model-ddl worktree without the start, as the lane brief directs. Lead: the dep's status reading is the nplan defect gaps-common describes."
+                            }
+                        )
                     }
 
                     {
@@ -19455,6 +19471,14 @@ children (
                         id guide.python-gaps.model-types
                         title "Declared models type their columns as entities do: money (ColumnType::Money read as Decimal), domains (ColumnType::Domain, a domain over an enum compared as the enum), interval fields (IntervalSpec::Fields), the select_as, save_as, select_with, save_with and save_array_with casts (a cast to a type with a modifier such as bit(7) included), ValueType and JsonValueType newtypes, and ActiveEnum's rs_type, db_type and display"
                         deps (python.models python.values)
+                        log (
+                            {
+                                at 2026-11-05T22:13:17.603505Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
                     }
 
                     {
