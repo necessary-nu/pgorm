@@ -682,11 +682,14 @@ test("an entity's operations run on a connection or a transaction, with a statem
   );
   assert.equal(await Account.find().where(Account.col("id").eq(50)).optional(pool()), null);
   await pool().connection(async (connection) => {
-    const slow = pool().query("SELECT 1");
-    const reads = [Account.find().all(connection), Account.find().all(connection)];
-    const outcomes = await Promise.allSettled(reads);
-    assert.ok(outcomes.some((outcome) => outcome.status === "rejected" && outcome.reason instanceof LifecycleError));
-    await slow;
+    const sleeping = connection.execute("SELECT pg_sleep(0.05)");
+    await assert.rejects(Account.find().all(connection), (error: unknown) => {
+      assert.ok(error instanceof LifecycleError, `expected a LifecycleError, got ${error}`);
+      assert.match(error.message, /busy/);
+      return true;
+    });
+    await sleeping;
+    assert.equal((await Account.find().all(connection)).length, 3);
   });
   const signal = AbortSignal.abort(new Error("stop"));
   await assert.rejects(Account.find().all(pool(), { signal }), /stop/);
