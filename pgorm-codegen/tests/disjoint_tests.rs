@@ -66,7 +66,7 @@ fn n(name: &str) -> Name {
 }
 
 // [spec:pgorm:sem:codegen.entity.disjoint+3/test]    the statements `create_disjoint` writes for the vehicle and the composite listing, read as DDL text, generate each base's entity with its `#[derive(Disjoint)]` enum and each kind's entity, with no field for a bookkeeping column, a relation from each kind's key to its base and the base's to each kind, `kind`, `enum_name` and `schema_name` where they differ from the derive's defaults, and no `pgorm_active_enums.rs` for the kind types the derives declare
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    the ALTER TABLE adding the bases' generated key columns and keys folds into the base
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    the ALTER TABLE adding the bases' generated key columns and keys folds into the base
 #[test]
 fn disjoint_tables_generate_one_disjoint_entity() {
     let generated = from_sql(SCHEMA, Opts::default());

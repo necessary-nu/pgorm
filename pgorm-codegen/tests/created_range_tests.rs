@@ -55,7 +55,7 @@ fn created(name: &str, schema: Option<&str>, subtype: ColumnType) -> ColumnType 
     }
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a range type the file creates
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a range type the file creates
 // types the columns naming it, by its full identity and with its subtype read
 // as a column's type is
 // [spec:pgorm:sem:codegen.ddl.types+10/test]
@@ -84,7 +84,7 @@ fn a_created_range_types_its_columns() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a range type declares its
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a range type declares its
 // multirange too: under the name PostgreSQL derives, in the range's schema, or
 // under MULTIRANGE_TYPE_NAME as written
 #[test]
@@ -356,7 +356,7 @@ fn a_described_subtype_modifier_is_refused() {
     }
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    the options that do not change
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    the options that do not change
 // a row's value are read and set aside, and a range over an enum the file
 // declared reads its subtype as that enum, which no newtype holds
 #[test]

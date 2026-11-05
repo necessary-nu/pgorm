@@ -206,7 +206,7 @@ fn a_refusal_names_the_qualified_table() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    an index attaches to the table
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    an index attaches to the table
 // its own name resolves to, not to whatever shares the bare name
 #[test]
 fn an_index_attaches_by_qualified_name() {
@@ -217,7 +217,7 @@ fn an_index_attaches_by_qualified_name() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    and a qualified index that does
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    and a qualified index that does
 // name its table is folded into it, giving the column its `unique`
 #[test]
 fn a_qualified_index_reaches_its_own_table() {
@@ -233,7 +233,7 @@ fn a_qualified_index_reaches_its_own_table() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a comment resolves the same way
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a comment resolves the same way
 #[test]
 fn a_comment_attaches_by_qualified_name() {
     assert_error(
@@ -243,7 +243,7 @@ fn a_comment_attaches_by_qualified_name() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    an unqualified reference that
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    an unqualified reference that
 // two tables answer to is named as such, rather than attached to one of them
 #[test]
 fn an_ambiguous_unqualified_index_is_refused() {

@@ -171,7 +171,7 @@ fn column_types_map_through_the_vocabulary() {
     assert_contains(generated.file("owner.rs"), "pub name: String,");
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a CREATE TYPE ... AS ENUM
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a CREATE TYPE ... AS ENUM
 // reaches the generated active enum through the columns that name it
 #[test]
 fn enum_type_reaches_the_generated_active_enum() {
@@ -218,7 +218,7 @@ fn composite_key_junction_becomes_conjunct_relations() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a single-column unique index
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a single-column unique index
 // marks its column unique; a plain index states no entity fact
 #[test]
 fn unique_index_marks_its_column_unique() {
@@ -266,7 +266,7 @@ fn schema_qualified_table_names_are_kept() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    COMMENT ON statements are folded
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    COMMENT ON statements are folded
 // into the table and column they describe
 #[test]
 fn comments_are_folded_into_their_table() {
@@ -691,7 +691,7 @@ fn unsupported_index_clauses_are_named() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a unique index folds into the unique
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a unique index folds into the unique
 // constraint that enforces it, keeping its name, columns and NULLS NOT DISTINCT; an explicit
 // ASC, `USING btree` and IF NOT EXISTS fold away with nothing lost
 #[test]
@@ -948,6 +948,8 @@ fn composite_unique_keys_generate_from_ddl() {
 // from DDL with NULLS NOT DISTINCT, on its column, as a table constraint or as a
 // unique index, is refused rather than generated as the column's plain `unique`,
 // which admits a second null
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a unique index folded into a key of one
+// column with NULLS NOT DISTINCT is refused by the transform, not read as `unique`
 #[test]
 fn one_column_nulls_not_distinct_refused_from_ddl() {
     for sql in [
@@ -965,7 +967,7 @@ fn one_column_nulls_not_distinct_refused_from_ddl() {
     }
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    the round trip holds for the
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    the round trip holds for the
 // statements outside the table too: an enum type and a unique index
 #[test]
 fn enum_and_unique_index_round_trip() {
@@ -1317,7 +1319,7 @@ fn a_period_declared_before_the_key_is_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    an ALTER TABLE's added columns and constraints
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    an ALTER TABLE's added columns and constraints
 // fold into its table after the table's own, as the CREATE TABLE declaring them would make
 // it, whether it precedes or follows its table and whether or not it says ONLY
 #[test]

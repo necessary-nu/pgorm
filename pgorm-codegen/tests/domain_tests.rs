@@ -126,7 +126,7 @@ fn error(sql: &str) -> String {
 // reads as `ColumnType::Domain`, carrying the domain's identity and its base read as a
 // column's type is — another domain, an enum, an array and a range type among them —
 // through an array as on its own
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]
 #[test]
 fn the_bridge_reads_a_domain_column() {
     let statements = parse_schema(SCHEMA).expect("the schema parses");
@@ -142,7 +142,7 @@ fn the_bridge_reads_a_domain_column() {
     assert_eq!(columns, expected);
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a domain's COLLATE, DEFAULT, NOT NULL, NULL
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a domain's COLLATE, DEFAULT, NOT NULL, NULL
 // and CHECKs are read and set aside: the entity a domain generates is the one its bare
 // declaration does
 #[test]
