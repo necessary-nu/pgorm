@@ -203,12 +203,11 @@ fn values_of<'cx>(
             };
             let active = active.0.clone();
             if active.info().name != entity.info().name {
-                let failure = Failure::Construction(format!(
+                return cx.throw_type_error(format!(
                     "the ActiveModel is {}'s, not {}'s",
                     active.info().name,
                     entity.info().name
                 ));
-                return throw(cx, failure);
             }
             let mut values = Vec::new();
             for column in &entity.info().columns {
@@ -306,7 +305,7 @@ fn key_names(core: &Core) -> Vec<String> {
 }
 
 /// `disjointDescribe(disjoint)`: the model or registration as JSON.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 fn describe(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = cx.argument::<JsBox<DisjointHandle>>(0)?.0.clone();
     Ok(cx.string(core.description.to_string()).upcast())
@@ -345,7 +344,7 @@ fn result_names(mut cx: FunctionContext) -> JsResult<JsValue> {
 }
 
 /// `disjointFind(disjoint)`: the shape's read.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 fn find(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = cx.argument::<JsBox<DisjointHandle>>(0)?.0.clone();
     built(&mut cx, Ok(core.shape.find()))
@@ -493,7 +492,7 @@ fn written(
 
 /// `disjointInsert(disjoint, base, kind, row)`: the statement inserting a
 /// value of the kind `kind`.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 fn insert(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = cx.argument::<JsBox<DisjointHandle>>(0)?.0.clone();
     let (base, kind, row) = written(&mut cx, &core)?;
@@ -502,7 +501,7 @@ fn insert(mut cx: FunctionContext) -> JsResult<JsValue> {
 
 /// `disjointUpdate(disjoint, base, kind, row)`: the statement updating a
 /// value of the kind `kind`, found by the key `base` holds.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 fn update(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = cx.argument::<JsBox<DisjointHandle>>(0)?.0.clone();
     let (base, kind, row) = written(&mut cx, &core)?;
@@ -511,7 +510,7 @@ fn update(mut cx: FunctionContext) -> JsResult<JsValue> {
 
 /// `disjointChangeKind(disjoint, key, kind, row)`: the statement changing
 /// the kind of the row whose key `key` gives in key order.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 fn change_kind(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = cx.argument::<JsBox<DisjointHandle>>(0)?.0.clone();
     let key = base_values(&mut cx, &core, &key_names(&core), 1)?;
@@ -559,7 +558,7 @@ fn inspect(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// every row, the first of a read narrowed to one, the one row a write reads
 /// back, or a count. No row for `"one"` or `"write"` is pgorm's
 /// `RecordNotFound`, a `DecodeError`.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 // [spec:pgorm:req:bindings.registered-pools]
 fn job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = cx.argument::<JsBox<DisjointHandle>>(0)?.0.clone();
@@ -605,7 +604,7 @@ fn job(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `disjointStatements(disjoint)`: `[kind, statement]` for each statement
 /// creating the kind type, the tables and their constraints, in the order
 /// they run.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 fn statements(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = cx.argument::<JsBox<DisjointHandle>>(0)?.0.clone();
     let statements = match core.shape.create() {

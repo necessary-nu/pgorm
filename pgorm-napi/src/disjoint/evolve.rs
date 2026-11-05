@@ -15,7 +15,7 @@ use crate::{
 /// `statements` as `[kind, statement]` pairs, the kind naming the class
 /// `lib/disjoint.js` gives the statement: `createType`, `createTable` and
 /// `alterTable` for the builders that take more, `ddl` for the rest.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 // [spec:pgorm:req:bindings.disjoint-evolve]
 pub(super) fn ddl_pairs<'cx>(
     cx: &mut FunctionContext<'cx>,

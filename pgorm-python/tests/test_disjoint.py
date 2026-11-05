@@ -76,7 +76,7 @@ READ = (
 
 
 class DisjointDeclaration(unittest.TestCase):
-    # [spec:pgorm:req:bindings.disjoint+1/test]    a disjoint model declared over models sends nothing, describes itself under the declared keys, and builds the statements pgorm's shape builds: the read, its narrowing by key, kind, kinds and a kind's condition, and an insert
+    # [spec:pgorm:req:bindings.disjoint+2/test]    a disjoint model declared over models sends nothing, describes itself under the declared keys, and builds the statements pgorm's shape builds: the read, its narrowing by key, kind, kinds and a kind's condition, and an insert
     def test_declaration_builds_the_shape_statements(self):
         for operation in (
             "disjoint.declare",
@@ -147,7 +147,7 @@ class DisjointDeclaration(unittest.TestCase):
             ),
         )
 
-    # [spec:pgorm:req:bindings.disjoint+1/test]    what the Rust declaration refuses is a ConstructionError raised as the model is declared: no kinds, one model for two kinds, a kind model keyed by other types, a kind field missing, nullable, generated or of another type, and a kind model whose key the database fills; an argument of the wrong type is a TypeError
+    # [spec:pgorm:req:bindings.disjoint+2/test]    what the Rust declaration refuses is a ConstructionError raised as the model is declared: no kinds, one model for two kinds, a kind model keyed by other types, a kind field missing, nullable, generated or of another type, and a kind model whose key the database fills; an argument of the wrong type is a TypeError
     def test_declaration_refuses_what_rust_refuses(self):
         refused = {
             "no kinds": lambda: p.Disjoint("vehicle", vehicle(), {}, schema_name=SCHEMA),
@@ -226,7 +226,7 @@ class DisjointDeclaration(unittest.TestCase):
                 vehicles(base, car=kind)
             self.assertIn("is named as", str(raised.exception))
 
-    # [spec:pgorm:req:bindings.disjoint+1/test]    a write refuses, as a ConstructionError before anything is sent, the kind field given, a kind row's key given, values for a kind without a table, a kind the model lacks and a field it lacks
+    # [spec:pgorm:req:bindings.disjoint+2/test]    a write refuses, as a ConstructionError before anything is sent, the kind field given, a kind row's key given, values for a kind without a table, a kind the model lacks and a field it lacks
     def test_writes_refuse_before_sending(self):
         model = vehicles()
         refused = [
@@ -276,7 +276,7 @@ class DisjointDatabase(unittest.IsolatedAsyncioTestCase):
         base, kind, record = row
         return (dict(base), kind, None if record is None else dict(record))
 
-    # [spec:pgorm:req:bindings.disjoint+1/test]    the schema create_disjoint gives runs, and holds every row to its kind: a row inserted by hand for a kind with a table but no row is refused by the server's foreign key
+    # [spec:pgorm:req:bindings.disjoint+2/test]    the schema create_disjoint gives runs, and holds every row to its kind: a row inserted by hand for a kind with a table but no row is refused by the server's foreign key
     async def test_schema_runs_and_holds_rows_to_kinds(self):
         statements = ps.create_disjoint(self.model)
         self.assertEqual(
@@ -350,7 +350,7 @@ class DisjointDatabase(unittest.IsolatedAsyncioTestCase):
             await fleets.insert({"code": "a"}, "cart").returning_model(self.pool)
         self.assertEqual(raised.exception.constraint, "fleet_depot_code")
 
-    # [spec:pgorm:req:bindings.disjoint+1/test]    an insert of each kind returns what a read of its row gives, each row the base's record, the kind and the kind's record or None, an enum column of a kind's table read as its enum; reads narrow by key, kind, kinds and a kind's condition, order, slice, count, page, stream and read through a keyset cursor
+    # [spec:pgorm:req:bindings.disjoint+2/test]    an insert of each kind returns what a read of its row gives, each row the base's record, the kind and the kind's record or None, an enum column of a kind's table read as its enum; reads narrow by key, kind, kinds and a kind's condition, order, slice, count, page, stream and read through a keyset cursor
     async def test_inserts_and_reads(self):
         mini, lorry, bmx = await self.seed()
         self.assertIsInstance(mini[0], p.ModelRecord)
@@ -429,7 +429,7 @@ class DisjointDatabase(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             cursor.after(1, 2)
 
-    # [spec:pgorm:req:bindings.disjoint+1/test]    an update writes the base, the kind's row, both or neither, a row of another kind or a key no row has being a DecodeError that changes nothing; a change of kind moves the row between tables and to the kind without one, to its own kind being a DecodeError; a server's refusal keeps its class
+    # [spec:pgorm:req:bindings.disjoint+2/test]    an update writes the base, the kind's row, both or neither, a row of another kind or a key no row has being a DecodeError that changes nothing; a change of kind moves the row between tables and to the kind without one, to its own kind being a DecodeError; a server's refusal keeps its class
     async def test_updates_and_changes_of_kind(self):
         await self.seed()
         model = self.model
@@ -468,7 +468,7 @@ class DisjointDatabase(unittest.IsolatedAsyncioTestCase):
             await model.insert({"name": "seatless"}, "car").returning_model(self.pool)
         self.assertEqual(await model.find().count(self.pool), 3)
 
-    # [spec:pgorm:req:bindings.disjoint+1/test]    rows of tables written without the constraints, a car with no car row and a bike with a truck row, are each a DecodeError naming the base table, the key and the kinds, never a row read without its row
+    # [spec:pgorm:req:bindings.disjoint+2/test]    rows of tables written without the constraints, a car with no car row and a bike with a truck row, are each a DecodeError naming the base table, the key and the kinds, never a row read without its row
     async def test_inconsistent_rows_are_decode_errors(self):
         await self.pool.execute(p.RawSQL(f"DROP SCHEMA {SCHEMA} CASCADE"))
         await self.pool.execute(p.RawSQL(f"CREATE SCHEMA {SCHEMA}"))

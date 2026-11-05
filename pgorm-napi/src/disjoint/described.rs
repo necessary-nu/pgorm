@@ -237,7 +237,7 @@ fn described<'cx>(
 /// kindType]`, its kind column, the field that column is of and its kind
 /// type; an unkinded model's is `null`, its base holding no kind. What the
 /// shape refuses is a `ConstructionError`, thrown as the model is declared.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 // [spec:pgorm:req:bindings.disjoint-unkinded]
 pub(crate) fn disjoint_model(mut cx: FunctionContext) -> JsResult<JsValue> {
     let name = cx.argument::<JsString>(0)?.value(&mut cx);

@@ -41,7 +41,7 @@ pub(crate) use args::relation;
 /// `statement`, one of a list pgorm's `Schema` built, as Python's class of
 /// its kind: `CreateType`, `CreateTable` and `AlterTable` for the builders
 /// that take more, and `DDL` for the rest.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 // [spec:pgorm:req:bindings.disjoint-evolve]
 pub(crate) fn ddl_object(
     py: Python<'_>,

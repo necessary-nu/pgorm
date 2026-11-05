@@ -1493,7 +1493,7 @@ Rust generic at run time, only use the ones compiled in.
 
 ## Disjoint models
 
-> [spec:pgorm:req:bindings.disjoint+1]
+> [spec:pgorm:req:bindings.disjoint+2]
 > `disjoint(name, base, kinds, options)` MUST declare a disjoint model over a
 > base model (`bindings.models`), where `kinds` maps each kind's value, in
 > order, to the model of its table or to null for a kind with none. The
@@ -1522,9 +1522,12 @@ Rust generic at run time, only use the ones compiled in.
 > schema MUST be Rust's (`[spec:pgorm:sem:disjoint.read]`,
 > `[spec:pgorm:sem:disjoint.write]`, `[spec:pgorm:sem:disjoint.schema]`):
 > the same statements, the same refusals, the same errors as
-> `bindings.errors` classifies them, a refusal before anything is sent being
-> a `ConstructionError`, and a row the constraints do not admit and a write
-> that reads back no row (`RecordNotFound`) a `DecodeError`. A read gives
+> `bindings.errors` classifies them, a refusal before anything is sent of a
+> value that cannot become what pgorm sends being a `ConstructionError`, and
+> a row the constraints do not admit and a write that reads back no row
+> (`RecordNotFound`) a `DecodeError`. An ActiveModel of another entity given
+> for the base or a kind is an argument of the wrong type, a `TypeError`, as
+> `bindings.entity-writes` refuses one. A read gives
 > each row as a triple — a tuple in Python, an array in JavaScript — of the
 > base's record, the kind's value, and the kind's record or null: a model's
 > records, an enum column the read projects as its text read back as its

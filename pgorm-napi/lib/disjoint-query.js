@@ -3,7 +3,7 @@
 // What a disjoint model's statements run and are read through: the reads,
 // their pages and cursor, and a write's terminal. Every statement is the
 // native shape's; a row read back is viewed through the model's `View`.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 
 import { arg, TRUSTED } from "./builder.js";
 import { disjointStream, runJob } from "./connections.js";

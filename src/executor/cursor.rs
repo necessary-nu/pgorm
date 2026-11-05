@@ -412,7 +412,7 @@ impl<S, K> Cursor<S, K> {
     /// this [`reversed`](Self::reversed) says the rows are to be reversed into
     /// the cursor's own.
     // [spec:pgorm:sem:exec.cursor.order+4]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn statement(&mut self) -> Result<SelectStatement, Error> {
         self.compose()
     }
@@ -420,7 +420,7 @@ impl<S, K> Cursor<S, K> {
     /// Whether the rows of the last [`statement`](Self::statement) come in
     /// the reverse of the cursor's order, as a `last` window's do.
     // [spec:pgorm:sem:exec.cursor.window+1]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub fn reversed(&self) -> bool {
         self.is_result_reversed
     }

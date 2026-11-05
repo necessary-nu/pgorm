@@ -70,7 +70,7 @@ def _shape_of(disjoint: object, function: str) -> _NativeDisjoint:
     return disjoint._native
 
 
-# [spec:pgorm:req:bindings.disjoint+1]
+# [spec:pgorm:req:bindings.disjoint+2]
 # [spec:pgorm:req:bindings.disjoint-unkinded]
 # [spec:pgorm:req:bindings.codegen-disjoint]
 def create_disjoint(disjoint: KindedDisjoint) -> list[DDL]:

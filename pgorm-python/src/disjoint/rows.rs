@@ -71,7 +71,7 @@ impl Item {
 
 impl Core {
     /// Judge `row` by its kind and read it back.
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     pub(crate) fn decode(&self, row: Row) -> PyResult<Item> {
         match &self.codec {
             Codec::Models => {

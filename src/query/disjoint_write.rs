@@ -367,7 +367,7 @@ impl DisjointShape {
     /// table, a kind the shape lacks, and an unkinded shape, which is
     /// read-only. [`check`](Self::check) is the caller's to run.
     // [spec:pgorm:sem:disjoint.write+2]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn insert(
         &self,
@@ -427,7 +427,7 @@ impl DisjointShape {
     /// With nothing set in either, the write is a read of the row of that key
     /// and kind.
     // [spec:pgorm:sem:disjoint.write+2]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn update(
         &self,
@@ -515,7 +515,7 @@ impl DisjointShape {
     /// of another arity than the base's and what [`insert`](Self::insert)
     /// refuses of `row`, of `kind` and of the shape.
     // [spec:pgorm:sem:disjoint.write+2]
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn change_kind(
         &self,

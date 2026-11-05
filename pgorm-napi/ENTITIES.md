@@ -306,9 +306,12 @@ const [base, kind, packet] = await Shipments.insert(
 ).returningModel(pool);
 ```
 
-Its statements are `DisjointShape::of` the enum's, which the enum's own
-`find`, `insert` and `Schema::create_disjoint` build theirs from, and
-`createDisjoint(Shipments)` gives its schema.
+The kind column set and a kind row's key set are refused with a
+`ConstructionError` before anything is sent; an ActiveModel of another
+entity given for the base or a kind is an argument of the wrong type, a
+`TypeError`. Its statements are `DisjointShape::of` the enum's, which the
+enum's own `find`, `insert` and `Schema::create_disjoint` build theirs from,
+and `createDisjoint(Shipments)` gives its schema.
 
 An enum declared `#[pgorm(base = .., unkinded)]` registers the same way and is
 read-only, as its Rust declaration is: typed as an `UnkindedDisjointEntity`,

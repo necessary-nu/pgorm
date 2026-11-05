@@ -145,7 +145,7 @@ type KindedBy<'py> = (String, String, PyRef<'py, PyTypeName>);
 /// kind type; an unkinded model's is `None`, its base holding no kind. What
 /// the shape refuses is a `ConstructionError`, raised as the model is
 /// declared.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 // [spec:pgorm:req:bindings.disjoint-unkinded]
 #[pyfunction(name = "_disjoint_model")]
 pub(crate) fn disjoint_model(

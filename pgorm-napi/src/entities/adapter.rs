@@ -445,7 +445,7 @@ where
         Box::pin(self.write_insert(db, insertion))
     }
 
-    // [spec:pgorm:req:bindings.disjoint+1]
+    // [spec:pgorm:req:bindings.disjoint+2]
     fn decode(&self, row: &pgorm::QueryResult, prefix: &str) -> Result<Model, Error> {
         <E::Model as pgorm::FromQueryResult>::from_query_result(row, prefix)
             .map(|value| model_of::<E>(value, &self.info))

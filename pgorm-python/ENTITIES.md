@@ -330,8 +330,10 @@ base, kind, parcel = await shipments.insert(
 ).returning_model(pool)
 ```
 
-An ActiveModel of another registration, the kind column set and a kind
-row's key set are refused before anything is sent. The registration's
+The kind column set and a kind row's key set are refused with a
+`ConstructionError` before anything is sent; an ActiveModel of another
+entity given for the base or a kind is an argument of the wrong type, a
+`TypeError`. The registration's
 statements are `DisjointShape::of` the enum's, which `Vehicle::find()`,
 `Vehicle::insert` and `Schema::create_disjoint` build theirs from.
 

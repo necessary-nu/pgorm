@@ -63,7 +63,7 @@ const COUNT_SUBQUERY_ALIAS: &str = "sub_query";
 // [spec:pgorm:sem:exec.paginator.fetch+3]
 // [spec:pgorm:sem:exec.paginator.raw+6] (one shape for a built source and a raw one)
 // [spec:pgorm:req:exec.tie-limit+1]
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 pub fn page_statement(
     query: &SelectStatement,
     page_size: NonZeroU64,
@@ -91,7 +91,7 @@ pub fn page_statement(
 // [spec:pgorm:sem:exec.paginator.count]
 // [spec:pgorm:sem:exec.paginator.raw+6] (one shape for a built source and a raw one)
 // [spec:pgorm:req:exec.tie-limit+1]
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 pub fn count_statement(query: &SelectStatement) -> Result<SelectStatement, Error> {
     ensure_select_list(query)?;
     refuse_tie_limit(query, "paginator")?;

@@ -8,7 +8,7 @@
 // narrowing by key and kind, its pages and cursor, the writes and the
 // schema. JavaScript only converts the values written and views each row
 // read: `[base record, kind, kind record or null]`.
-// [spec:pgorm:req:bindings.disjoint+1]
+// [spec:pgorm:req:bindings.disjoint+2]
 
 import { Disjoined, DisjointWrite, handleOf, MADE, viewOf } from "./disjoint-query.js";
 import { statementsOf } from "./disjoint-schema.js";

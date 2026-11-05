@@ -3140,6 +3140,12 @@ impl_evidence (
         {impl_name javascript, rule bindings.entity-writes}
         {impl_name python, rule bindings.entity-writes}
     )}
+    {id binding-parity.disjoint-foreign-active, covered_rules (
+        bindings.disjoint
+    ), covered_claims (
+        {impl_name javascript, rule bindings.disjoint}
+        {impl_name python, rule bindings.disjoint}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}
