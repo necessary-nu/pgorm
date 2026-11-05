@@ -1,12 +1,13 @@
-use super::Database;
 use crate::{
     errors::{LifecycleError, database_error},
+    metrics::Metrics,
     runtime::{ConnectionState, NativeConnection, NativePool, Operation, PoolState},
     transactions::{
         NativeTransaction, State,
         work::{Output, Work},
     },
 };
+use pgorm::metric::InstrumentedPool;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use std::sync::Arc;
 
@@ -58,7 +59,7 @@ impl Target {
                 let result = tokio::select! {
                     _ = state.cancelled.cancelled() => return Err(LifecycleError::new_err("connection is closed")),
                     _ = state.pool.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
-                    result = work.run(Database::Connection(operation.connection()?)) => result,
+                    result = work.run(operation.connection()?) => result,
                 };
                 operation.restore();
                 result.map_err(|error| database_error(error, &state.pool.secrets))
@@ -70,7 +71,8 @@ impl Target {
 /// Where an operation on a registration runs: on a connection a pool lends it
 /// alone, or on the connection or transaction its caller holds.
 pub(crate) enum Executor {
-    Pool(Arc<PoolState>),
+    /// A pool, and its pgorm wrapper when it is instrumented.
+    Pool(Arc<PoolState>, Option<InstrumentedPool<Metrics>>),
     Held(Target),
 }
 
@@ -79,7 +81,7 @@ impl Executor {
     pub(crate) fn extract(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Self> {
         let native = native(value);
         if let Ok(pool) = native.extract::<PyRef<'_, NativePool>>() {
-            let executor = Self::Pool(pool.state.clone());
+            let executor = Self::Pool(pool.state.clone(), pool.metered.clone());
             executor.check(py)?;
             return Ok(executor);
         }
@@ -93,7 +95,7 @@ impl Executor {
     /// Whether what this runs on is still usable from here.
     pub(crate) fn check(&self, py: Python<'_>) -> PyResult<()> {
         match self {
-            Self::Pool(pool) => {
+            Self::Pool(pool, _) => {
                 pool.check_owner(py)?;
                 pool.ensure_open()
             }
@@ -106,7 +108,11 @@ impl Executor {
     pub(crate) async fn run(self, work: Work) -> PyResult<Output> {
         match self {
             Self::Held(target) => target.run(work).await,
-            Self::Pool(pool) => Target::Connection(pool.lend().await?).run(work).await,
+            Self::Pool(pool, metered) => {
+                Target::Connection(pool.lend(metered).await?)
+                    .run(work)
+                    .await
+            }
         }
     }
 }

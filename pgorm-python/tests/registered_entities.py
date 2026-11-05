@@ -90,7 +90,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             with self.subTest(terminal=terminal):
                 self.assertTrue(callable(getattr(owners[owner], method)))
 
-    # [spec:pgorm:req:python.truth-testing+4/test]
+    # [spec:pgorm:req:python.truth-testing+5/test]
     async def test_write_terminals_refuse_truth_testing(self):
         active = self.active(1)
         writes = [self.account.update(active), self.account.update_many(),

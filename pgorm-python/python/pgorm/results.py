@@ -97,7 +97,7 @@ class RowStream(Generic[T]):
     async def __aexit__(self, *exc: Any) -> None:
         await self.aclose()
 
-    # [spec:pgorm:req:python.truth-testing+4]
+    # [spec:pgorm:req:python.truth-testing+5]
     def __bool__(self) -> bool:
         raise _native.ConstructionError("result streams cannot be tested as Python booleans")
 

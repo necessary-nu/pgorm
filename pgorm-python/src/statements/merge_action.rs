@@ -84,7 +84,7 @@ impl PyMergeAction {
         }
     }
 
-    // [spec:pgorm:req:python.truth-testing+4]
+    // [spec:pgorm:req:python.truth-testing+5]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "MERGE actions cannot be tested as Python booleans",

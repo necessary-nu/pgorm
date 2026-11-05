@@ -31,7 +31,7 @@ use crate::{
     errors::{ConstructionError, DecodeError, InternalError, LifecycleError, database_error},
     execution::Target,
     results::{Field, value},
-    runtime::{ConnectionState, Operation},
+    runtime::{ConnectionState, Held, Operation},
     transactions::{Lease, State},
     values::PyValue,
 };
@@ -162,7 +162,11 @@ async fn pump_in(
             let Ok(connection) = operation.connection_mut() else {
                 return Outcome::Abandoned;
             };
-            let sink = match open_in(connection, &statement, rows.as_ref()).await {
+            let started = match connection {
+                Held::Plain(connection) => open_in(connection, &statement, rows.as_ref()).await,
+                Held::Metered(connection) => open_in(connection, &statement, rows.as_ref()).await,
+            };
+            let sink = match started {
                 Ok(sink) => sink,
                 Err(unopened) => return unopened.into(),
             };
@@ -213,7 +217,11 @@ async fn pump_out(
             let Ok(connection) = operation.connection_mut() else {
                 return Outcome::Abandoned;
             };
-            let stream = match open_out(connection, &statement, rows.as_ref()).await {
+            let started = match connection {
+                Held::Plain(connection) => open_out(connection, &statement, rows.as_ref()).await,
+                Held::Metered(connection) => open_out(connection, &statement, rows.as_ref()).await,
+            };
+            let stream = match started {
                 Ok(stream) => stream,
                 Err(unopened) => return unopened.into(),
             };

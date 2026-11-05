@@ -193,6 +193,10 @@ from ._copy import (
     _copy_in as _copy_in, _copy_out as _copy_out,
 )
 from ._listen import Notification as Notification, _Listener as _Listener
+from ._metrics import (
+    METRICS_HOOKS as METRICS_HOOKS, QueryContext as QueryContext,
+    QueryFingerprint as QueryFingerprint, _MetricsAnswer as _MetricsAnswer,
+)
 from ._runtime import (
     _Pool as _Pool, _Connection as _Connection, _Stream as _Stream,
     _Transaction as _Transaction, STATEMENT_CACHE_CHANNEL as STATEMENT_CACHE_CHANNEL,

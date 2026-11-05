@@ -103,13 +103,14 @@ async fn open(
 ) -> Result<Arc<StreamState>, Failure> {
     let connection = operation.state.clone();
     let secrets = &connection.pool.secrets;
+    let db = operation.connection()?;
     let rows = tokio::select! {
         biased;
         () = abort.token().cancelled() => return Err(Failure::Cancelled),
         () = connection.closing() => {
             return Err(Failure::Lifecycle("the connection closed as the stream opened".to_owned()));
         }
-        rows = operation.connection()?.query_raw(
+        rows = db.query_raw(
             &sql,
             params.iter().map(|param| param as &(dyn ToSql + Sync)),
         ) => rows.map_err(|error| failure(&error, secrets))?,

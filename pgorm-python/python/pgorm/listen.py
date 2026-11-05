@@ -94,7 +94,7 @@ class Listener:
     ) -> None:
         await self.aclose()
 
-    # [spec:pgorm:req:python.truth-testing+4]
+    # [spec:pgorm:req:python.truth-testing+5]
     def __bool__(self) -> bool:
         raise _native.ConstructionError("listeners cannot be tested as Python booleans")
 

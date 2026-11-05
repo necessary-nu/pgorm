@@ -7,13 +7,15 @@ chooses to construct, so unused metrics cost nothing.
 
 ## Collector contract
 
-> [spec:pgorm:def:metric.layer+2]
+> [spec:pgorm:def:metric.layer+3]
 > The metrics layer consists of a `MetricsCollector` trait (`Clone + Send +
 > Sync + 'static`) and three wrappers parameterized by it:
 > `InstrumentedPool<M>` (wrapping `DatabasePool`), `InstrumentedConnection<M>`
 > (wrapping `DatabaseConnection`), and `InstrumentedTransaction<'a, M>`
 > (wrapping `DatabaseTransaction<'a>`). Each wrapper exposes `inner()` and
-> `metrics()` accessors to reach the wrapped value and the collector; the pool
+> `metrics()` accessors to reach the wrapped value and the collector, and the
+> connection wrapper `into_inner()`, which gives its connection back so that
+> what runs on it from then on is not reported; the pool
 > wrapper also forwards `tag()`, `status()` and `clear_statement_caches()`
 > (`conn.pool.statement-cache.clear`). Two further public types are
 > the argument the query hooks take rather than machinery of their own:
@@ -163,12 +165,19 @@ chooses to construct, so unused metrics cost nothing.
 
 ## Transaction instrumentation
 
-> [spec:pgorm:sem:metric.layer.tx+4]
+> [spec:pgorm:sem:metric.layer.tx+5]
 > `InstrumentedConnection` and `InstrumentedTransaction` are `TransactionTrait`
 > implementors (`conn.tx`) whose closure is given an
 > `InstrumentedTransaction<'_, M>` sharing a clone of the collector, so the
 > statements, COPYs and savepoints inside an instrumented transaction are
-> instrumented with no wrapping by the caller. `InstrumentedTransaction` has no
+> instrumented with no wrapping by the caller. `InstrumentedConnection` also
+> has `DatabaseConnection`'s configured forms, `transaction_with(mode, f)` and
+> `transaction_with_retry(mode, max_retries, f)` (`conn.tx`, `conn.tx.retry`),
+> whose closures are given the same handle: the configured `BEGIN` is reported
+> as any opening is, and each attempt a retry makes is reported as a
+> transaction of its own, its opening, its statements and its ending. Like
+> `DatabaseConnection`'s, each returns a future that is `Send` whenever its
+> closure's is. `InstrumentedTransaction` has no
 > public constructor: it exists only as that handle, and its `inner()` reaches
 > the plain `DatabaseTransaction` beneath, whose statements bypass the
 > collector.

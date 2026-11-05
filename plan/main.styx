@@ -13678,7 +13678,25 @@ children (
                     {
                         id napi.guide-gaps.metrics
                         title "JavaScript instruments a pool, its connections and transactions with a collector of its own, told each query's operation, SQL and fingerprint, each acquisition and each transaction's begin, commit and rollback, as Rust's pgorm::metric InstrumentedPool, MetricsCollector, QueryContext, NoOpMetrics and LoggingMetrics do (guide 21-metrics)"
+                        implements {
+                            javascript (bindings.metrics)
+                        }
                         deps (napi-connections guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T18:47:11.083072Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:36:32.896816Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built together with guide.python-gaps.metrics in one shape (shared rule bindings.metrics); see that node's decision note for the full set. JavaScript specifics: new InstrumentedPool(pool, collector) extends Pool (Pool's constructor takes the native handle on a module-private TRUSTED path); the collector is an object of seven camelCase functions, each plain or promise-returning, awaited by the statement; hooks run on the JavaScript thread through the instance's shared, unref'd Neon channel; a throwing hook or rejected promise becomes process.emitWarning(MetricsWarning with cause) and never affects the statement; duration in milliseconds; operation names camelCase (queryAll, copyIn, begin...); QueryFingerprint.value is a bigint, toString() the 16 hex digits, equals() compares; LoggingMetrics(logger = console) writes debug/warn/error; MetricsCollector and MetricsLogger are interfaces in metrics.d.ts."
+                            }
+                        )
                     }
 
                     {
@@ -19693,7 +19711,18 @@ children (
                     {
                         id guide.python-gaps.metrics
                         title "Python has pgorm's metrics layer: InstrumentedPool, InstrumentedConnection and InstrumentedTransaction, a MetricsCollector a program implements, NoOpMetrics and LoggingMetrics, QueryContext, and query fingerprints (metrics-fingerprint)"
+                        implements {
+                            python (bindings.metrics)
+                        }
                         deps (python.runtime)
+                        log (
+                            {
+                                at 2026-11-05T19:36:32.447306Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Metrics layer in both bindings (shared rule bindings.metrics), built on pgorm::metric, decided by this lane pending operator override:\n(1) Shape: InstrumentedPool(pool, collector) (JS: new InstrumentedPool(pool, collector)) mirrors InstrumentedPool::new. It is a Pool subclass over the wrapped pool's shared native state (connections, status, closing; closing either closes both; dropping it closes neither — Python's native pools share one Closer). Connections and transactions it lends are the ordinary Connection/Transaction classes, natively InstrumentedConnection/InstrumentedTransaction; no separate binding classes for those. inner/metrics are properties. Wrapping an already-instrumented pool is a TypeError (Rust's type forbids it).\n(2) Internals: each binding holds enum Held {Plain(DatabaseConnection), Metered(InstrumentedConnection<Metrics>)} in its connection slot and its Database dispatch enum gained MeteredConnection/MeteredTransaction variants, frames serve enum Tx; so an uninstrumented pool runs on pgorm's plain types and calls no collector code ('unwrapped pays nothing' holds in the bindings). Rust gained InstrumentedConnection::transaction_with / transaction_with_retry (bindings open moded transactions) and into_inner (to discard), via a crate-private OpenWith trait shared with DatabaseConnection (metric.layer+3, metric.layer.tx+5).\n(3) Delivery: AWAITED, as Rust's hooks are. The runtime never runs language code: Python queues the hook on the pool's event loop with call_soon_threadsafe (the brief GIL hold pyo3-async-runtimes already takes to settle a result); JS sends it through the instance's shared Neon channel (unref'd, so an instrumented pool keeps no loop alive). The statement waits on a oneshot answered when a plain hook returns or an async hook/promise settles; so once the caller's await returns the collector has been told, and per-connection order holds. Fire-and-forget rejected: loses ordering/determinism and Rust parity. A hook that cannot be handed over (loop closed, instance gone) is skipped.\n(4) Hook failures never change the statement's outcome: Python -> loop.call_exception_handler({message: \"pgorm's metrics hook <name> raised\", exception}); JS -> process.emitWarning(Error named MetricsWarning, cause = the hook's error). Both are the language's channel for an error nothing awaits, observable and non-fatal.\n(5) metrics-fingerprint is enabled in both bindings (libpg_query is linked anyway; parse only when fingerprint is read); QueryContext is owned (operation, sql) and computes fingerprint lazily via pgorm's QueryContext::fingerprint; QueryFingerprint has str/toString = 16 hex, value int/bigint, ==/equals.\n(6) Units: duration in seconds (Python float) / milliseconds (JS number), matching each binding's timeouts. JS spells operation names camelCase (closed choice, napi.naming): queryAll, copyIn...\n(7) NoOpMetrics is a base class; hooks left unoverridden are never handed over. LoggingMetrics counterpart: Python logging ('pgorm.metrics' default logger), JS logger with debug/warn/error (console default), Rust's levels and messages.\n(8) An acquisition cut short by the binding's acquire_timeout is reported to nobody, as a Rust get() dropped by a caller's timeout is not."
+                            }
+                        )
                     }
 
                     {
@@ -19843,6 +19872,29 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Todo → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id guide.binding-typed-placeholders
+                title "The Python and JavaScript guides' SQL goldens show the typed placeholders sql.render.placeholder-typing writes ($1::numeric, $1::int4 in arithmetic), as the Rust guide's do since func-aggregate-expr-methods"
+                kind @docs
+                deps (func-aggregate-expr-methods guide.python guide.javascript)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T22:07:24.651624Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T22:16:10.360755Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
