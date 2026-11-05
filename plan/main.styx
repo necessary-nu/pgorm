@@ -18681,6 +18681,13 @@ children (
                     }
                 )
             }
+
+            {
+                id typed-binds.model-any
+                title "A declared Python model column's any_ and all_ bind their array cast to the column's type, as a registered column's and Rust's eq_any do, where today \"cake\".\"flavor\" = ANY($1) binds a bare text[] (unchecked for a domain over an enum or money)"
+                kind @fix
+                deps (guide.python python.models)
+            }
         )
     }
 
@@ -19193,6 +19200,14 @@ children (
                     python ([spec:pgorm:req:guide.dialects])
                 }
                 deps (guide.rust binding-parity)
+                log (
+                    {
+                        at 2026-11-05T17:44:21.266285Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Design of the Python guide (lead decisions, pending operator override): pgorm-python/guide/ holds chapters.json (the Rust ids in order plus python_only chapters: asyncio after getting-started, registrations and typing after codegen, distribution after bindings), NN-id.md chapters, README.md index, bakery.py (the bakery as declared pgorm.Model values plus create/seed through pgorm.schema, the same tables pgorm-guide-support creates) and examples.py (extraction, scratch databases named as testing.isolation mints, runner, CLI). Every ```python block is a whole program reading DATABASE_URL, no hidden lines; tests/test_guide.py holds structure and runs all standalone blocks plus pgorm-python/README.md's; checks/typing.py runs strict mypy over them; blocks fenced ```python registered run only in checks/guide.py, which builds the bakery's registration from pgorm-guide-support through pgorm.codegen (module rust_bakery) configured by 24-registrations.md's ```json application.json block, and runs in CI's application job and as an acceptance phase. Maintainer material from the old docs (ACCEPTANCE.md, DIRECT_BUILDERS.md, DISTRIBUTION's CI/evidence, the checks' run commands) moved to pgorm-python/checks/README.md. Gaps were filed under guide.python-gaps (the python container is sealed)."
+                    }
+                )
             }
 
             {
@@ -19208,6 +19223,236 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Lane decisions (lead brief, pending operator override):\n- The JavaScript guide is pgorm-napi/guide/NN-id.md, listed by pgorm-napi/guide/chapters.json: the Rust guide's 24 chapters under their ids and titles, in order, with four JavaScript-only chapters interleaved and declared \"javascript_only\": true (02-promises, 24-registered-entities, 25-generating-registrations, 26-typescript), the key matching the Python lane's python_only.\n- Every ```ts block runs: tests/guide.test.ts writes each into tests/guide-examples/<chapter>/<NN>.ts (committed, so plain `deno check` type-checks every example) and runs it in a scratch copy of the bakery (one template database per run, copied per example); PGORM_GUIDE_WRITE=1 rewrites, PGORM_GUIDE_CHAPTERS filters. A block names the bakery's models (guide/bakery.ts), pool and url undeclared, as the Rust guide's hidden lines supply them. <!-- example: empty --> gives an empty database; <!-- example: application --> marks registered-entity examples, skipped by the binding's own module and run by checks/entities.js against the application fixture. A sketch that needs a generated module is fenced `typescript`.\n- Gaps are paragraphs beginning \"Not available in JavaScript yet:\", filed under napi.guide-gaps.\n- The guide does not ship in the npm package: its examples rely on repository files and its links reach the Rust guide and specs. README.md (shipped) links it, and package.json's repository gains directory: pgorm-napi so npm resolves the README's relative links. checks/package.js's file lists are unchanged.\n- ENTITIES.md and CODEGEN.md are folded into chapters 24 and 25 and deleted; README.md is a short entry point keeping the Tests section DISTRIBUTION.md links.\n- The impl annotation lives in guide/examples.ts (nspec reads no markdown), and .config/nspec/config.styx's javascript impl includes pgorm-napi/guide/*.ts.\n- sql!/prql!: JavaScript's SQL text plus a parameter array is the stated difference; a run-time grammar check and PRQL text compile are filed as gaps (napi.guide-gaps.sql-grammar-check, prql-text)."
+                    }
+                )
+            }
+
+            {
+                id guide.python-gaps
+                title "Python gains what the Rust guide teaches and the Python guide names as not available in Python yet, each chapter updated as its feature arrives"
+                kind @feat
+                deps (guide.python)
+                children (
+                    {
+                        id guide.python-gaps.model-ddl
+                        title "A declared Python model writes its own DDL as an entity does: CREATE TABLE (Schema::create_table_from_entity), column types with length and precision (column_type), default_value and default_expr, generated_stored and generated_virtual expressions, indexed (create_index_from_entity), comment (create_comments_from_entity), rename_all, and a key's without_overlaps"
+                        deps (python.models python.schema)
+                    }
+
+                    {
+                        id guide.python-gaps.model-select
+                        title "A declared model's query has the entity Select's projections and clauses: select_only with columns, column_as and expr_as decoded through into_tuple, into_model and into_values; PartialModel's from_expr; distinct and distinct_on (DISTINCT ON in the statement builder too); group_by, having and aggregates; lock_exclusive, lock_shared and lock_with_behavior; right and reverse joins and a joined table's columns; Condition::add_option"
+                        deps (python.models)
+                    }
+
+                    {
+                        id guide.python-gaps.model-relations
+                        title "Declared models follow relations as entities do: a relation's on_condition; Related through a junction (find_related); Linked chains (find_linked, LinkedAlias::hop, last_hop_alias), a chain continuing from a second visit to one table included; load_many with a Select and load_many_via; a graph's related_one and related_maybe; from_alias on a via hop; join_maybe_filtered; cursor_by_on over a slot's columns and add_secondary_order_by"
+                        deps (python.models python.graph)
+                    }
+
+                    {
+                        id guide.python-gaps.model-writes
+                        title "Python writes have Rust's write surface: TryInsert and TryInsertResult (on_conflict_do_nothing on the key, on_empty_do_nothing, Conflicted, Empty); set_if_not_equals and is_changed on a registered ActiveModel; a declared model's update FROM and delete USING; and write hooks (ActiveModelBehavior) for a declared model"
+                        deps (python.models python.entities)
+                    }
+
+                    {
+                        id guide.python-gaps.model-types
+                        title "Declared models type their columns as entities do: money (ColumnType::Money read as Decimal), domains (ColumnType::Domain, a domain over an enum compared as the enum), interval fields (IntervalSpec::Fields), the select_as, save_as, select_with, save_with and save_array_with casts (a cast to a type with a modifier such as bit(7) included), ValueType and JsonValueType newtypes, and ActiveEnum's rs_type, db_type and display"
+                        deps (python.models python.values)
+                    }
+
+                    {
+                        id guide.python-gaps.raw-sql
+                        title "Python runs and decodes raw SQL as Rust does: batch_execute (an unprepared multi-statement script), a transaction's stream (query_raw on DatabaseTransaction), from_raw_sql and find_by_statement into a declared model or a registered entity, VerifyStatement::verify, SelectorRaw's paginate and count, and SQL parsed and PRQL compiled before they run (sql!, prql!)"
+                        deps (python.statements python.results python.pipeline)
+                    }
+
+                    {
+                        id guide.python-gaps.builder-functions
+                        title "Python's expressions call any function as Rust's do: Func::named beyond capabilities()[\"expression_functions\"], Expr::template, grouping(), the full-text search functions, any set-returning function as a table function, and the JSON operators get_json_field, cast_json_field and has_json_key (->, ->>, ?)"
+                        deps (python.expressions)
+                    }
+
+                    {
+                        id guide.python-gaps.pipeline-typed
+                        title "A Python pipeline decodes into declared models as Rust's does into entities: select_sources over declared models, and the typed terminals all::<M>, into_model and into_tuple, where today every pipeline over models returns records"
+                        deps (python.pipeline)
+                    }
+
+                    {
+                        id guide.python-gaps.migrations
+                        title "Python runs migrations as pgorm-migration does: MigrationTrait, MigratorTrait, MigrationName, sql_migration!, up, status, get_migration_with_status, get_pending_migrations and get_applied_migrations, commits_after, checksums, the ledger's table name and schema, the statement-cache notification, and adopting a SeaORM ledger"
+                        deps (python.transactions python.schema)
+                    }
+
+                    {
+                        id guide.python-gaps.model-codegen
+                        title "Python generates pgorm.Model declarations from DDL as pgorm-codegen generates entities: entities_from_sql, EntityWriterOptions, parse_schema, EntityTransformer and EntityWriter"
+                        deps (python.models)
+                    }
+
+                    {
+                        id guide.python-gaps.codegen-coverage
+                        title "pgorm.codegen's application.json describes one-of references and pipeline source tuples beside entities, graphs and disjoint enums, as bindings.codegen says it covers source tuples, so neither needs a registration crate written by hand"
+                        deps (python.codegen)
+                    }
+
+                    {
+                        id guide.python-gaps.registered-reads
+                        title "Registered entities and graphs read as Rust's do: an entity's stream and partial projections; a graph's stream and grouping, cursors over slot columns and composite orders, cursor SQL inspection and graphs of more than seven sources; and a paginator's fetch, advance and fetch_and_next"
+                        deps (python.entities python.graph)
+                    }
+
+                    {
+                        id guide.python-gaps.transaction-surface
+                        title "Python transactions and errors carry Rust's: transaction_with_retry and Error::is_retryable, TransactionError's Transaction, Connection and RollbackFailed, DatabaseConnection::discard, and BindRefusal's parameter and DecodeRefusal's fields as attributes rather than text"
+                        deps (python.transactions python.runtime)
+                    }
+
+                    {
+                        id guide.python-gaps.copy-rows-surface
+                        title "Python's row COPY has Rust's surface: CopyRowEncoder and CopyRowDecoder, copy_in_columns and copy_out_columns (column types, not only names), CopyRowSink::send_model and CopyRowStream::models"
+                        deps (python.statements)
+                    }
+
+                    {
+                        id guide.python-gaps.pool-config
+                        title "Python pools take Rust's configuration: connect_with, connect_with_builder, connect_multi_with_builder and ManagerConfig; PoolBuilder's wait, create and recycle timeouts, queue_mode and post_create, pre_recycle and post_recycle hooks; RecyclingMethod Clean and Custom; a pool's tag; custom TLS connectors and client certificates; sslmode verify-ca and allow with sslrootcert and sslcert; and connect_listener(config, tls, capacity)"
+                        deps (python.runtime)
+                    }
+
+                    {
+                        id guide.python-gaps.metrics
+                        title "Python has pgorm's metrics layer: InstrumentedPool, InstrumentedConnection and InstrumentedTransaction, a MetricsCollector a program implements, NoOpMetrics and LoggingMetrics, QueryContext, and query fingerprints (metrics-fingerprint)"
+                        deps (python.runtime)
+                    }
+
+                    {
+                        id guide.python-gaps.postgres-target
+                        title "Python reports the PostgreSQL release a build targets as pgorm_query::POSTGRES_TARGET does, beside capabilities()[\"features\"] listing pg-19"
+                        deps (python.package)
+                    }
+
+                    {
+                        id guide.python-gaps.raw-param-count-error
+                        title "A raw statement given the wrong number of parameters raises ConstructionError naming the counts, not ConnectionError(\"PostgreSQL connection or protocol failure\") with no sqlstate"
+                        kind @fix
+                        deps (python.runtime)
+                        log (
+                            {
+                                at 2026-11-05T17:44:18.2605Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found by guide.python (lane C). Repro: await pool.one(RawSQL(\"SELECT $1 AS x, $2 AS y\", [1])) raises pgorm.ConnectionError(\"PostgreSQL connection or protocol failure\"), sqlstate None. Cause: pgorm-python/src/errors.rs client_error() matches DecodeRefusal and BindRefusal only, so tokio-postgres's parameter-count error falls to the ConnectionError fallback. It is caller input, so bindings.errors/argument-errors make it a ConstructionError. Check pgorm-napi's classification too. The guide does not document the current behaviour."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.limited-graph
+                        title "A declared model's graph with a limit or offset refuses all_grouped, paginate, cursor and count with ConstructionError, as Rust refuses them at compile time, instead of answering partial groups, replacing the limit or dropping it"
+                        kind @fix
+                        deps (python.models python.graph)
+                        log (
+                            {
+                                at 2026-11-05T17:44:18.93901Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found by guide.python (lane B). Repro: await Bakery.graph().join_maybe(bakery_cakes).order_by(Bakery.col(\"id\").asc()).limit(2).all_grouped(pool) returns [(Sunrise, 2 cakes)] though Sunrise has 3 (the limit cuts joined rows, not roots). On the same limited graph paginate and cursor silently replace the limit and count drops it. Rust refuses these on a limited SelectGraph at compile time (E0599). pgorm-python/guide/07-relations.md \"Limits, pages and cursors\" documents the current behaviour with a warning; change that example when this is fixed."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.version-classes
+                        title "The Change, Inserted and Updated a declared model's or a generated view's returning_change(s) and returning_upsert(s) return have public names, and are the classes pgorm.Change and pgorm.Upserted name, rather than private pgorm._registered.versions classes a program must import to match or annotate them"
+                        kind @fix
+                        deps (python.models python.entities)
+                        log (
+                            {
+                                at 2026-11-05T17:44:19.414614Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found by guide.python (lanes A and F2). A declared model's returning_upsert(s)/returning_change(s) and a generated view's return pgorm._registered.versions.Inserted/Updated/Change (generic Python classes); registered entity writes return the native pgorm.Change and pgorm.Upserted.Inserted/Updated. isinstance(result, pgorm.Upserted) is False for a model's upsert, and `c: pgorm.Change = await Cake.update(..).returning_change(pool)` fails mypy (pgorm._registered.versions.Change[ModelRecord] vs pgorm._versions.Change). The guide's 04-writing.md and 24-registrations.md import Inserted/Updated from pgorm._registered.entities and say so; 25-typing.md avoids annotating them. Design choice for the lead: one family of public classes."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.copy-through-query
+                        title "A COPY run as an ordinary statement (pool.query(RawSQL(\"COPY cake TO STDOUT\"))) is refused with a ConstructionError naming copy_in and copy_out, not a ConnectionError protocol failure"
+                        kind @fix
+                        deps (python.statements)
+                        log (
+                            {
+                                at 2026-11-05T17:44:19.878685Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found by guide.python (lane E). pool.query(RawSQL(\"COPY cake TO STDOUT\")) raises ConnectionError \"PostgreSQL connection or protocol failure\"; the pool recovers. Should be a clear refusal pointing at copy_in/copy_out (or CopyTo). Check pgorm-napi."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.failed-commit
+                        title "A transaction whose block caught a failed statement's error and ended normally reports that its COMMIT rolled back, in Rust and both bindings, rather than succeeding while PostgreSQL answers the COMMIT with ROLLBACK"
+                        kind @fix
+                        deps (python.transactions)
+                        log (
+                            {
+                                at 2026-11-05T17:44:20.331736Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found by guide.python (lane E), pgorm-wide, so it may belong under a Rust transactions container (tx-closure-only is sealed). A block that catches a failed statement's error without a savepoint and exits normally issues COMMIT; PostgreSQL answers it with the ROLLBACK command tag and no error, and tokio-postgres's commit ignores the tag, so the transaction \"commits\" with nothing written and no error. pgorm-python/guide/08-transactions.md \"Savepoints\" documents this; docs/guide/07-transactions.md says only that later statements are refused. Fix in pgorm (check the COMMIT's command tag), then both bindings, then both guides."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.panic-class
+                        title "A Rust panic inside pgorm-python surfaces as the exception bindings.errors names (InternalError), or the rule and the guide's errors chapter agree on PyO3's PanicException; today the code catches none and the two disagree"
+                        kind @fix
+                        deps (python.runtime)
+                        log (
+                            {
+                                at 2026-11-05T17:44:20.799571Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Found by guide.python (lane E), unconfirmed: the old README/TYPING.md said an internal Rust panic keeps PyO3's identifiable panic exception, docs/spec/bindings.md bindings.errors says a caught panic is InternalError, and no panic handling was found in pgorm-python/src. pgorm-python/guide/09-errors.md follows the old docs (PyO3's panic exception). Confirm which is true and make the rule, code and chapter agree."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.binding-fixes
+                        title "What the Python guide's examples found broken: the stubs refuse range column types and Decimal, date, UUID, bytes, Interval and range pipeline operands the runtime takes; Range, Multirange and MergeAction, generic in the stubs, cannot be subscripted at run time; copy_in_rows writes a mapping's keys or a set's members as a row; and importing pgorm warns of an invalid escape"
+                        kind @fix
+                        deps (python.typing)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-05T18:04:57.005378Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T18:04:57.005378Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "single-flight overridden: started while guide.python had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T18:05:52.145361Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
+                            }
+                        )
                     }
                 )
             }

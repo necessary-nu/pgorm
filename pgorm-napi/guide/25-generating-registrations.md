@@ -7,7 +7,7 @@ description of what to register, and writes a TypeScript module typing each
 registration from what the built library describes: records keyed by SQL
 column with each column's type, nullability and an enum's labels, and graph
 rows and source-tuple rows as tuples of those records. It is the JavaScript
-counterpart of pgorm-python's [code generator](../../pgorm-python/CODEGEN.md):
+counterpart of pgorm-python's [code generator](../../pgorm-python/guide/24-registrations.md#building-an-application-wheel-with-pgormcodegen):
 a build, then generation. Running queries over the generated module needs
 neither.
 

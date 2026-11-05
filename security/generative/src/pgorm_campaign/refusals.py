@@ -14,9 +14,10 @@ UNQUOTABLE = (
     "quote or NUL byte, begins with `$`, or is `*`; rename it"
 )
 
-# pgorm-python STATEMENTS.md: "An insert with no rows raises an error;
-# `default_values()` explicitly requests one default row." An empty batch is
-# refused at compilation, before any statement reaches the server.
+# pgorm-python's statement builder refuses an insert with no rows, a select
+# or `default_values()` (the Python guide's query-builder chapter, under
+# INSERT): an empty batch is refused at compilation, before any statement
+# reaches the server.
 EMPTY_INSERT = "insert requires rows, a select or explicit default_values"
 
 # `bindings.errors+5`: a value tokio-postgres cannot encode while building the

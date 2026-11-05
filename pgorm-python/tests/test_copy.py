@@ -632,7 +632,7 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
             with self.subTest(reason=reason), self.assertRaises(p.ConstructionError) as caught:
                 await self.pool.copy_in_rows(copy, rows)
             self.assertIn(reason, str(caught.exception))
-        for rows in ([[1, "a"], "bc"], [[1, "a"], 5]):
+        for rows in ([[1, "a"], "bc"], [[1, "a"], 5], [{"id": 1, "name": "a"}], [{1, "a"}]):
             with self.subTest(rows=rows), self.assertRaises(TypeError) as caught:
                 await self.pool.copy_in_rows(copy, rows)
             self.assertIn("sequence", str(caught.exception))

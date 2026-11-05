@@ -189,7 +189,7 @@ def main():
     )
     # Later test runs must not overwrite the direct builder oracle's recorded report.
     environment.pop("PGORM_DIRECT_REPORT")
-    for name in ("entities", "codegen", "distribution"):
+    for name in ("entities", "codegen", "guide", "distribution"):
         outcomes[name] = phase(root, name, output, environment)
     run(["nplan", "spec", "validate"], environment, output / "nspec.log")
     summary = {

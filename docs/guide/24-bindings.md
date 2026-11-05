@@ -104,7 +104,8 @@ Neither package is published to a registry yet. Each is built from a checkout
 of pgorm's repository:
 
 - Python: `maturin build --manifest-path pgorm-python/Cargo.toml`, then
-  install the wheel it writes. pgorm-python's README has the full commands.
+  install the wheel it writes. The Python guide's first chapter,
+  `pgorm-python/guide/01-getting-started.md`, has the full commands.
 - JavaScript: `node pgorm-napi/scripts/build.mjs` builds the addon into
   `pgorm-napi/lib/`, and `pgorm-napi/lib/index.js` is the module to import.
   Once published, `npm install @necessary/pgorm` installs the package and the
@@ -127,9 +128,9 @@ The bindings' guides follow this one chapter for chapter, in the order the
 guide's chapter list gives, each in its own language. Each says where its
 binding differs from Rust, in shape, spelling or reach, and adds what its
 language needs: installing, the async runtime, typing, packaging. Each
-binding's documentation lives in its directory of pgorm's repository:
-`pgorm-python/README.md` and the guides beside it, and for JavaScript the
-guide in `pgorm-napi/guide/`, with `pgorm-napi/DISTRIBUTION.md` covering its
-npm packages. The rules both bindings
-follow are in `docs/spec/bindings.md`, with what differs by language in
+lives in its binding's directory of pgorm's repository: the Python guide is
+`pgorm-python/guide/`, whose index is `pgorm-python/guide/README.md`, and the
+JavaScript guide is `pgorm-napi/guide/`, with `pgorm-napi/DISTRIBUTION.md`
+covering its npm packages. The rules both bindings follow are in
+`docs/spec/bindings.md`, with what differs by language in
 `docs/spec/python.md` and `docs/spec/napi.md`.
