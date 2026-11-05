@@ -12848,6 +12848,7 @@ children (
                 title "The application binding's busy-connection test holds the connection with a statement still running, so its LifecycleError never depends on a read outlasting the JavaScript that follows it"
                 kind @test
                 deps (napi-entities)
+                sealed true
                 log (
                     {
                         at 2026-11-05T12:44:34.920152Z
@@ -12861,6 +12862,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T12:46:30.992558Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

@@ -1542,7 +1542,7 @@ assertions (
     {id value-codecs.char-created-range-kind, kind @complete, author "brendan@necessary.nu", at 2026-11-05T08:50:39.949866Z}
     {id infra.python-native-unit, kind @complete, author "brendan@necessary.nu", at 2026-11-05T09:43:26.942694Z}
     {id value-codecs.domain-subtype-column, kind @complete, author "brendan@necessary.nu", at 2026-11-05T09:46:18.255158Z}
-    {id napi.entity-busy-race, kind @doing, author "brendan@necessary.nu", at 2026-11-05T12:44:44.551776Z}
+    {id napi.entity-busy-race, kind @complete, author "brendan@necessary.nu", at 2026-11-05T12:46:30.992558Z}
 )
 
 impl_evidence (
