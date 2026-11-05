@@ -8,7 +8,7 @@ use pgorm::{
     ColumnTrait, ColumnTypeTrait, EntityTrait, JoinType, ModelTrait, PrimaryKeyTrait, QuerySelect,
     QueryTrait, RelationTrait,
 };
-use pgorm_codegen::{Error, WriterOutput, entities_from_sql, parse_schema};
+use pgorm_codegen::parse_schema;
 use pgorm_query::extension::Type;
 use pgorm_query::{ColumnSpec, ColumnType, Deferrability, Enforcement, TableName};
 
@@ -94,34 +94,6 @@ const SERIAL_KEYS: &str = "CREATE TABLE tenant_order (
 );
 CREATE TABLE coded_row (code text PRIMARY KEY, seq serial NOT NULL);
 CREATE TABLE badge (id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY, label text NOT NULL);";
-
-fn from_sql(sql: &str) -> Generated {
-    Generated {
-        files: files(entities_from_sql(sql, Opts::default()).expect("schema should generate")),
-    }
-}
-
-fn files(output: WriterOutput) -> Vec<(String, String)> {
-    output
-        .files
-        .into_iter()
-        .map(|file| (file.name, file.content))
-        .collect()
-}
-
-#[track_caller]
-fn error(sql: &str) -> String {
-    match entities_from_sql(sql, Opts::default()) {
-        Err(Error::TransformError(message)) => message,
-        Err(other) => panic!("expected a TransformError, got {other:?}"),
-        Ok(_) => panic!("expected an error, got generated entities"),
-    }
-}
-
-#[track_caller]
-fn assert_error(sql: &str, expected: &str) {
-    assert_eq!(error(sql), expected);
-}
 
 // [spec:pgorm:def:codegen.ddl+4/test]    the whole pipeline runs from DDL text:
 // one entity file per CREATE TABLE, plus index, prelude and active enums
@@ -346,43 +318,43 @@ fn a_column_collation_rides_on_the_statement() {
 // not read is named, never skipped
 #[test]
 fn unsupported_statements_are_named() {
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int); ALTER TABLE t DROP COLUMN id;",
         "unsupported DDL: ALTER TABLE ... DROP COLUMN on table `t` at statement 2",
     );
-    assert_error(
+    assert_refused(
         "CREATE INDEX i ON t (id); CREATE TABLE t (id int); ALTER INDEX i RENAME TO j;",
         "unsupported DDL: ALTER ... RENAME at statement 3",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int); CREATE TRIGGER x BEFORE INSERT ON t EXECUTE FUNCTION f();",
         "unsupported DDL: CREATE TRIGGER at statement 2",
     );
-    assert_error(
+    assert_refused(
         "CREATE VIEW v AS SELECT 1;",
         "unsupported DDL: CREATE VIEW at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE OR REPLACE RECURSIVE VIEW v (n) AS SELECT 1;",
         "unsupported DDL: CREATE VIEW at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int); CREATE MATERIALIZED VIEW m AS SELECT id FROM t;",
         "unsupported DDL: CREATE MATERIALIZED VIEW at statement 2",
     );
-    assert_error(
+    assert_refused(
         "REFRESH MATERIALIZED VIEW CONCURRENTLY m;",
         "unsupported DDL: REFRESH MATERIALIZED VIEW at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t AS SELECT 1 AS id WITH NO DATA;",
         "unsupported DDL: CREATE TABLE AS at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int); INSERT INTO t VALUES (1);",
         "unsupported DDL: INSERT at statement 2",
     );
-    assert_error(
+    assert_refused(
         "CREATE SEQUENCE s;",
         "unsupported DDL: CREATE SEQUENCE at statement 1",
     );
@@ -392,32 +364,32 @@ fn unsupported_statements_are_named() {
 // no entity meaning is named rather than dropped
 #[test]
 fn unsupported_table_clauses_are_named() {
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int) PARTITION BY RANGE (id);",
         "unsupported DDL: a PARTITION BY clause on table `t` at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int) INHERITS (u);",
         "unsupported DDL: an INHERITS clause on table `t` at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TEMP TABLE t (id int);",
         "unsupported DDL: a temporary or unlogged table on table `t` at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int) WITH (fillfactor = 70);",
         "unsupported DDL: a WITH storage option on table `t` at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (LIKE u);",
         "unsupported DDL: a LIKE clause on table `t` at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int, CONSTRAINT c CHECK (id IN (SELECT 1)));",
         "unsupported DDL: an expression codegen does not read in the CHECK `c` of table `t` \
          at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE other.app.t (id int);",
         "unsupported DDL: a cross-database table name on table `t` at statement 1",
     );
@@ -427,19 +399,19 @@ fn unsupported_table_clauses_are_named() {
 // clauses the entity model has no room for
 #[test]
 fn unsupported_column_clauses_are_named() {
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int CHECK (id > 0));",
         "unsupported DDL: a CHECK constraint on column `t`.`id` at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int GENERATED ALWAYS AS IDENTITY (START WITH 10));",
         "unsupported DDL: sequence options on the identity of column `t`.`id` at statement 1",
     );
-    assert_error(
+    assert_refused(
         r#"CREATE TABLE t (name text COLLATE db.pg_catalog."C");"#,
         "unsupported DDL: a cross-database collation name on column `t`.`name` at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int REFERENCES u);",
         "unsupported DDL: REFERENCES without a column list on column `t`.`id` at statement 1",
     );
@@ -452,24 +424,24 @@ fn unsupported_column_clauses_are_named() {
 fn postgres_18_constraints_are_named() {
     // An entity's unique columns are single columns, and a temporal unique
     // key has two at least.
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int, during tstzrange, UNIQUE (id, during WITHOUT OVERLAPS));",
         "unsupported DDL: a WITHOUT OVERLAPS unique key on table `t` at statement 1",
     );
     // PostgreSQL refuses PERIOD on one side alone (42830) and a temporal key
     // over its period alone (42601).
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int, during tstzrange,
             FOREIGN KEY (id, PERIOD during) REFERENCES u (id, during));",
         "unsupported DDL: a PERIOD on one side of a foreign key on table `t` at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (during tstzrange, PRIMARY KEY (during WITHOUT OVERLAPS));",
         "unsupported DDL: a WITHOUT OVERLAPS key over its period alone on table `t` at statement 1",
     );
     // A NOT ENFORCED anywhere but after a foreign key is named, where
     // PostgreSQL refuses it too (0A000 on a key, 42601 on a column's NOT NULL).
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int NOT NULL NOT ENFORCED);",
         "unsupported DDL: a NOT ENFORCED constraint on column `t`.`id` at statement 1",
     );
@@ -509,7 +481,7 @@ fn an_explicit_enforced_rides_on_the_statement() {
         format!("{parent} CREATE TABLE t (id int PRIMARY KEY, u_id int REFERENCES u (id));");
     assert_eq!(from_sql(&enforced).files, from_sql(&plain).files);
 
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int NOT NULL ENFORCED);",
         "unsupported DDL: an ENFORCED clause on column `t`.`id` at statement 1",
     );
@@ -606,12 +578,12 @@ fn conflicting_not_null_constraints_are_refused() {
             "declares NOT NULL both with and without NO INHERIT",
         ),
     ] {
-        assert_error(
+        assert_refused(
             &format!("CREATE TABLE t ({columns});"),
             &format!("statement 1: column `t`.`id` {problem}"),
         );
     }
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int, NOT NULL missing);",
         "statement 1: table `t` has no column `missing`",
     );
@@ -621,23 +593,23 @@ fn conflicting_not_null_constraints_are_refused() {
 // vocabulary is named, and so is a modifier the vocabulary cannot hold
 #[test]
 fn unsupported_types_are_named() {
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (data hstore);",
         "unsupported DDL: type `hstore` on column `t`.`data` at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (at timestamp(3));",
         "unsupported DDL: `timestamp` with a type modifier on column `t`.`at` at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (bits varbit);",
         "unsupported DDL: `varbit` without a length on column `t`.`bits` at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (tags text[3]);",
         "unsupported DDL: a sized array on column `t`.`tags` at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (grid text[][]);",
         "unsupported DDL: a multi-dimensional array on column `t`.`grid` at statement 1",
     );
@@ -648,7 +620,7 @@ fn unsupported_types_are_named() {
 #[test]
 fn types_codegen_cannot_render_reach_the_gate() {
     assert!(parse_schema("CREATE TABLE t (net inet);").is_ok());
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (net inet);",
         "table `t` column `net`: column type Inet is not supported by codegen",
     );
@@ -659,33 +631,33 @@ fn types_codegen_cannot_render_reach_the_gate() {
 #[test]
 fn unsupported_index_clauses_are_named() {
     let table = "CREATE TABLE t (id int, name text);";
-    assert_error(
+    assert_refused(
         &format!("{table} CREATE INDEX i ON t (name) WHERE id > 0;"),
         "unsupported DDL: a WHERE clause on index `i` at statement 2",
     );
-    assert_error(
+    assert_refused(
         &format!("{table} CREATE INDEX i ON t (lower(name));"),
         "unsupported DDL: an expression column on index `i` at statement 2",
     );
-    assert_error(
+    assert_refused(
         &format!("{table} CREATE INDEX i ON t (name) INCLUDE (id);"),
         "unsupported DDL: an INCLUDE clause on index `i` at statement 2",
     );
-    assert_error(
+    assert_refused(
         &format!("{table} CREATE INDEX CONCURRENTLY i ON t (name);"),
         "unsupported DDL: CONCURRENTLY on index `i` at statement 2",
     );
-    assert_error(
+    assert_refused(
         &format!("{table} CREATE INDEX i ON t (name NULLS FIRST);"),
         "unsupported DDL: a NULLS FIRST or NULLS LAST clause on index `i` at statement 2",
     );
     // A unique index is carried as the table constraint enforcing it, whose
     // key has no ordering and no access method to hold either.
-    assert_error(
+    assert_refused(
         &format!("{table} CREATE UNIQUE INDEX i ON t (name DESC);"),
         "unsupported DDL: a DESC column on unique index `i` at statement 2",
     );
-    assert_error(
+    assert_refused(
         &format!("{table} CREATE UNIQUE INDEX i ON t USING hash (name);"),
         "unsupported DDL: an access method other than btree on unique index `i` at statement 2",
     );
@@ -729,7 +701,7 @@ fn a_unique_index_folds_into_its_constraint() {
 // attach is named
 #[test]
 fn unsupported_comment_targets_are_named() {
-    assert_error(
+    assert_refused(
         "COMMENT ON SCHEMA public IS 'x';",
         "unsupported DDL: COMMENT ON an object other than a table or column at statement 1",
     );
@@ -739,19 +711,19 @@ fn unsupported_comment_targets_are_named() {
 // object the file does not declare is named too
 #[test]
 fn unresolved_references_are_named() {
-    assert_error(
+    assert_refused(
         "CREATE INDEX i ON missing (id);",
         "statement 1: no CREATE TABLE for table `missing`",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int); COMMENT ON COLUMN t.missing IS 'x';",
         "statement 2: table `t` has no column `missing`",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int); CREATE TABLE t (id int);",
         "statement 2: table `t` is declared twice",
     );
-    assert_error(
+    assert_refused(
         "CREATE TYPE s AS ENUM ('a'); CREATE TYPE s AS ENUM ('b');",
         "statement 2: type `s` is declared twice",
     );
@@ -770,7 +742,7 @@ fn a_second_primary_key_is_named() {
         "CREATE TABLE t (a int, b int PRIMARY KEY, PRIMARY KEY (a));",
         "CREATE TABLE t (a int PRIMARY KEY PRIMARY KEY);",
     ] {
-        assert_error(&format!("CREATE TABLE u (id int); {table}"), refused);
+        assert_refused(&format!("CREATE TABLE u (id int); {table}"), refused);
     }
     assert!(parse_schema("CREATE TABLE t (a int, b int, PRIMARY KEY (a, b));").is_ok());
 }
@@ -788,12 +760,12 @@ fn a_key_naming_a_column_twice_is_named() {
             "b",
         ),
     ] {
-        assert_error(
+        assert_refused(
             &format!("CREATE TABLE u (id int); {table}"),
             &format!("statement 2: table `t` names column `{column}` twice in one key"),
         );
     }
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (a int, b int); CREATE UNIQUE INDEX i ON t (a, b, a);",
         "unsupported DDL: column `a` named twice on unique index `i` at statement 2",
     );
@@ -810,23 +782,22 @@ fn a_key_naming_a_column_twice_is_named() {
 // whole pipeline runs, which is where every table is in hand at once
 #[test]
 fn unresolved_foreign_keys_are_named() {
-    assert_error(
+    assert_refused(
         "CREATE TABLE orders (id serial PRIMARY KEY, customer_id integer REFERENCES customers (id));",
         "table `orders`: relation to `customers` names a table the schema does not define",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE customers (id serial PRIMARY KEY);
          CREATE TABLE orders (id serial PRIMARY KEY, customer_id integer REFERENCES customers (code));",
         "table `orders`: relation to `customers` references column `code`, which `customers` does \
-         not have",
-    );
+         not have");
 }
 
 // [spec:pgorm:def:codegen.ddl+4/test]    text the PostgreSQL grammar rejects
 // comes back as the parser's own message
 #[test]
 fn invalid_sql_reports_the_parser_message() {
-    let message = error("CREATE TABLE t (id int;");
+    let message = refused("CREATE TABLE t (id int;");
     assert!(
         message.starts_with("schema SQL did not parse: "),
         "unexpected message: {message}"
@@ -959,7 +930,7 @@ fn one_column_nulls_not_distinct_refused_from_ddl() {
         "CREATE TABLE seat (id serial PRIMARY KEY, holder text); \
          CREATE UNIQUE INDEX seat_holder ON seat (holder) NULLS NOT DISTINCT;",
     ] {
-        assert_error(
+        assert_refused(
             sql,
             "table `seat` column `holder`: an entity cannot hold a unique key of one column \
              with NULLS NOT DISTINCT",
@@ -1057,7 +1028,7 @@ fn array_of_ranges_generates_a_vec() {
         assert_contains(span_list, field);
     }
     assert_not_contains(span_list, "column_type");
-    assert_error(
+    assert_refused(
         "CREATE TABLE span (id integer PRIMARY KEY, a int4range(3));",
         "unsupported DDL: `int4range` with a type modifier on column `span`.`a` at statement 1",
     );
@@ -1235,22 +1206,22 @@ fn a_refused_foreign_key_check_is_named() {
         ("INITIALLY DEFERRED INITIALLY IMMEDIATE", "INITIALLY"),
         ("NOT ENFORCED ENFORCED", "ENFORCED"),
     ] {
-        assert_error(
+        assert_refused(
             &format!("{parent} CREATE TABLE t (u_id int REFERENCES u (id) {clauses});"),
             &format!("statement 2: column `t`.`u_id` gives its foreign key {said} twice"),
         );
     }
-    assert_error(
+    assert_refused(
         &format!(
             "{parent} CREATE TABLE t (u_id int REFERENCES u (id) NOT DEFERRABLE INITIALLY DEFERRED);"
         ),
         "statement 2: INITIALLY DEFERRED on a NOT DEFERRABLE key on column `t`.`u_id`",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int, UNIQUE (id) DEFERRABLE);",
         "unsupported DDL: a deferrable constraint on table `t` at statement 1",
     );
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (id int UNIQUE DEFERRABLE);",
         "unsupported DDL: a deferrable constraint on column `t`.`id` at statement 1",
     );
@@ -1312,7 +1283,7 @@ fn temporal_key_and_period_relation_round_trip() {
 // declares before another key column is refused, its entity's key following its fields' order
 #[test]
 fn a_period_declared_before_the_key_is_refused() {
-    assert_error(
+    assert_refused(
         "CREATE TABLE t (valid_at daterange, id int, PRIMARY KEY (id, valid_at WITHOUT OVERLAPS));",
         "table `t`: the period `valid_at` of a WITHOUT OVERLAPS key is declared before another \
          key column; an entity's key follows its fields' order, its period last",
@@ -1427,7 +1398,7 @@ fn an_alter_table_changing_a_table_is_named() {
             "unsupported DDL: a deferrable constraint on table `t` at statement 2",
         ),
     ] {
-        assert_error(&format!("{table} {alter}"), expected);
+        assert_refused(&format!("{table} {alter}"), expected);
     }
 }
 

@@ -1890,6 +1890,22 @@ children (
                 title "pgorm-codegen's test files share one holds/from_sql helper instead of each carrying a copy"
                 kind @test
                 deps (codegen-enum-variant-names-all)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T00:28:22.482448Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:40:28.8974Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
         )
     }

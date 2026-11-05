@@ -331,7 +331,7 @@ fn colliding_enum_names_and_variants_are_refused() {
 #[test]
 fn variants_sharing_a_word_compile_clean() {
     use variant_names::{pgorm_active_enums::Outlet, sale};
-    let generated = generate_sql(include_str!("variant_names/schema.sql"), Opts::default());
+    let generated = from_sql(include_str!("variant_names/schema.sql"));
     for (file, fixture) in [
         ("sale.rs", include_str!("variant_names/sale.rs")),
         ("web_shop.rs", include_str!("variant_names/web_shop.rs")),

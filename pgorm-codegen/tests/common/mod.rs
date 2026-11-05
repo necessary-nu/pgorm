@@ -6,7 +6,10 @@
 //! `Relation` and friends all keep `pub(crate)` fields.
 #![allow(dead_code)]
 
-use pgorm_codegen::{EntityTransformer, EntityWriterContext, EntityWriterOptions, Error};
+use pgorm_codegen::{
+    EntityTransformer, EntityWriterContext, EntityWriterOptions, Error, WriterOutput,
+    entities_from_sql,
+};
 use pgorm_query::{
     ColumnDef, ColumnType, ForeignKey, ForeignKeyAction, Name, Table, TableCreateStatement,
     TableKey, Unique,
@@ -49,35 +52,63 @@ impl Generated {
     /// rustfmt's trailing commas aside.
     #[track_caller]
     pub fn holds(&self, file: &str, fixture: &str) {
-        let flat = |src: &str| norm(src).replace(" , )", " )").replace(" , }", " }");
         let written = flat(self.file(file));
         assert!(written.contains(&flat(fixture)), "{file}: {written}");
     }
 }
 
-pub fn generate_sql(sql: &str, opts: Opts) -> Generated {
-    Generated {
-        files: pgorm_codegen::entities_from_sql(sql, opts)
-            .unwrap_or_else(|error| panic!("{error}: {sql}"))
-            .files
-            .into_iter()
-            .map(|file| (file.name, file.content))
-            .collect(),
+impl From<WriterOutput> for Generated {
+    fn from(output: WriterOutput) -> Self {
+        Generated {
+            files: output
+                .files
+                .into_iter()
+                .map(|file| (file.name, file.content))
+                .collect(),
+        }
     }
+}
+
+#[track_caller]
+pub fn from_sql(sql: &str) -> Generated {
+    from_sql_with(sql, Opts::default())
+}
+
+/// Run the whole pipeline over DDL text, which has to generate.
+#[track_caller]
+pub fn from_sql_with(sql: &str, opts: Opts) -> Generated {
+    entities_from_sql(sql, opts)
+        .unwrap_or_else(|error| panic!("{error}: {sql}"))
+        .into()
+}
+
+#[track_caller]
+pub fn refused(sql: &str) -> String {
+    refused_with(sql, Opts::default())
+}
+
+/// The pipeline's refusal of DDL text, by its message.
+#[track_caller]
+pub fn refused_with(sql: &str, opts: Opts) -> String {
+    match entities_from_sql(sql, opts) {
+        Err(Error::TransformError(message)) => message,
+        Err(other) => panic!("expected a TransformError for {sql}, got {other:?}"),
+        Ok(_) => panic!("expected a TransformError for {sql}, got entities"),
+    }
+}
+
+#[track_caller]
+pub fn assert_refused(sql: &str, expected: &str) {
+    assert_eq!(refused(sql), expected);
 }
 
 /// Run the whole pipeline: schema statements in, generated files out.
 pub fn generate(stmts: Vec<TableCreateStatement>, opts: Opts) -> Generated {
     let ctx = context(opts);
-    let writer = EntityTransformer::transform(stmts, &ctx).expect("transform should succeed");
-    Generated {
-        files: writer
-            .generate(&ctx)
-            .files
-            .into_iter()
-            .map(|f| (f.name, f.content))
-            .collect(),
-    }
+    EntityTransformer::transform(stmts, &ctx)
+        .expect("transform should succeed")
+        .generate(&ctx)
+        .into()
 }
 
 /// The transform gate's refusal of a schema, by its exact message.
@@ -87,6 +118,12 @@ pub fn assert_transform_error(stmts: Vec<TableCreateStatement>, expected: &str) 
         Err(Error::TransformError(msg)) => assert_eq!(msg, expected),
         other => panic!("expected a TransformError, got {other:?}"),
     }
+}
+
+/// Token text with the trailing commas rustfmt writes into a fixture and the
+/// writer does not, so the two compare as the same program.
+pub fn flat(src: &str) -> String {
+    norm(src).replace(" , )", " )").replace(" , }", " }")
 }
 
 /// Canonical token text — every token separated by exactly one space — so

@@ -6,7 +6,7 @@ mod common;
 
 use common::*;
 use pgorm::{ColumnTrait, ColumnTypeTrait, Iterable, StaticName};
-use pgorm_codegen::{Error, WriterOutput, entities_from_sql, parse_schema};
+use pgorm_codegen::parse_schema;
 use pgorm_query::{
     ColumnType, Domain, Expr, ForeignKey, Name, StringLen, TableCreateStatement,
     extension::{RangeDefinition, Type},
@@ -97,31 +97,6 @@ fn described() -> Vec<(&'static str, ColumnType)> {
     ]
 }
 
-/// Token text with the trailing commas rustfmt writes into a fixture and the
-/// writer does not, so the two compare as the same program.
-fn flat(src: &str) -> String {
-    norm(src).replace(" , }", " }").replace(" , )", " )")
-}
-
-fn files(output: WriterOutput) -> Generated {
-    Generated {
-        files: output
-            .files
-            .into_iter()
-            .map(|file| (file.name, file.content))
-            .collect(),
-    }
-}
-
-#[track_caller]
-fn error(sql: &str) -> String {
-    match entities_from_sql(sql, Opts::default()) {
-        Err(Error::TransformError(message)) => message,
-        Err(other) => panic!("expected a TransformError, got {other:?}"),
-        Ok(_) => panic!("expected an error, got generated entities"),
-    }
-}
-
 // [spec:pgorm:sem:codegen.ddl.types+10/test]    a column named by a domain the file creates
 // reads as `ColumnType::Domain`, carrying the domain's identity and its base read as a
 // column's type is — another domain, an enum, an array and a range type among them —
@@ -153,7 +128,7 @@ fn domain_constraints_are_set_aside() {
                    CREATE TABLE t (id integer PRIMARY KEY, c d NOT NULL);";
     let nullable = "CREATE DOMAIN d AS text NULL; \
                     CREATE TABLE t (id integer PRIMARY KEY, c d NOT NULL);";
-    let generate = |sql| files(entities_from_sql(sql, Opts::default()).expect("generates")).files;
+    let generate = |sql| from_sql(sql).files;
     assert_eq!(generate(dressed), generate(bare));
     assert_eq!(generate(nullable), generate(bare));
 }
@@ -210,14 +185,14 @@ fn refused_domain_shapes_are_named() {
         ),
     ] {
         assert_eq!(
-            error(sql),
+            refused(sql),
             format!("unsupported DDL: {what} at statement 1"),
             "{sql}"
         );
     }
 
     assert_eq!(
-        error(
+        refused(
             "CREATE DOMAIN billing.amount AS integer; \
              CREATE TABLE t (id integer PRIMARY KEY, a amount);"
         ),
@@ -225,7 +200,7 @@ fn refused_domain_shapes_are_named() {
          under a different qualification does not resolve it"
     );
     assert_eq!(
-        error("CREATE TYPE d AS ENUM ('a'); CREATE DOMAIN d AS integer;"),
+        refused("CREATE TYPE d AS ENUM ('a'); CREATE DOMAIN d AS integer;"),
         "statement 2: type `d` is declared twice"
     );
 }
@@ -236,7 +211,7 @@ fn refused_domain_shapes_are_named() {
 #[test]
 fn unholdable_domain_arrays_are_named() {
     assert_eq!(
-        error(
+        refused(
             "CREATE DOMAIN labels AS text[]; \
              CREATE TABLE t (id integer PRIMARY KEY, a labels[]);"
         ),
@@ -244,7 +219,7 @@ fn unholdable_domain_arrays_are_named() {
          codegen; an entity field holds one dimension"
     );
     assert_eq!(
-        error(
+        refused(
             "CREATE TYPE floatrange AS RANGE (SUBTYPE = float8); \
              CREATE DOMAIN span AS floatrange; \
              CREATE TABLE t (id integer PRIMARY KEY, a span[]);"
@@ -260,8 +235,7 @@ fn unholdable_domain_arrays_are_named() {
 // domain column's type, the domain and its base spelled in full
 #[test]
 fn domain_columns_generate_a_compiling_entity() {
-    let generated =
-        files(entities_from_sql(SCHEMA, Opts::default()).expect("the schema generates"));
+    let generated = from_sql(SCHEMA);
     let written = flat(generated.file("stock_line.rs"));
     assert!(
         written.contains(&flat(include_str!("sql/domain/stock_line.rs"))),
@@ -345,7 +319,7 @@ fn rendered_domain_columns_read_back_whole() {
         .collect::<Vec<_>>()
         .join("\n");
     assert_eq!(
-        files(entities_from_sql(&text, Opts::default()).expect("the rendering generates")).files,
+        from_sql(&text).files,
         generate(vec![table], Opts::default()).files,
     );
 }
@@ -380,13 +354,13 @@ fn keys_over_an_enum_domain_are_refused() {
         (nested, "cheerful", "beaming"),
     ] {
         assert_eq!(
-            error(&referencing(declared, key, reference)),
+            refused(&referencing(declared, key, reference)),
             format!("table `c`: relation to `p` matches column `r` with `k`, {UNKEYABLE}"),
             "`{reference}` referencing `{key}`"
         );
     }
     assert_eq!(
-        error(
+        refused(
             "CREATE TYPE mood AS ENUM ('sad'); CREATE DOMAIN cheerful AS mood; \
              CREATE TABLE p (n integer, k cheerful, PRIMARY KEY (n, k)); \
              CREATE TABLE c (id integer PRIMARY KEY, n integer, r cheerful, \
@@ -395,7 +369,7 @@ fn keys_over_an_enum_domain_are_refused() {
         format!("table `c`: relation to `p` matches column `r` with `k`, {UNKEYABLE}")
     );
     assert_eq!(
-        error(
+        refused(
             "CREATE TYPE mood AS ENUM ('sad'); CREATE DOMAIN cheerful AS mood; \
              CREATE TABLE t (k cheerful PRIMARY KEY, up cheerful REFERENCES t (k));"
         ),
@@ -438,10 +412,7 @@ fn keyable_domain_pairs_generate_their_relation() {
         (tally, "tally", "tally"),
         (moods, "moods", "moods"),
     ] {
-        let generated = files(
-            entities_from_sql(&referencing(declared, key, reference), Opts::default())
-                .unwrap_or_else(|error| panic!("`{reference}` referencing `{key}`: {error}")),
-        );
+        let generated = from_sql(&referencing(declared, key, reference));
         assert_contains(
             &flat(generated.file("c.rs")),
             &flat(
