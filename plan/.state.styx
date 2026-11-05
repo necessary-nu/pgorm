@@ -1321,6 +1321,7 @@ assertions (
     {id graph-related-one, kind @complete, author "brendan@necessary.nu", at 2026-10-23T19:58:05.348074Z}
     {id graph-unicode-alias-collisions, kind @complete, author "brendan@necessary.nu", at 2026-09-07T21:59:36.946216Z}
     {id graph-via-as, kind @complete, author "brendan@necessary.nu", at 2026-10-25T22:56:58.951948Z}
+    {id guide.example-name-escaping, kind @complete, author "brendan@necessary.nu", at 2026-11-05T20:01:50.036752Z}
     {id guide.python-gaps.binding-fixes, kind @complete, author "brendan@necessary.nu", at 2026-11-05T18:05:52.145361Z}
     {id ident-oracle-disjoint-sites, kind @complete, author "brendan@necessary.nu", at 2026-11-05T00:07:10.622369Z}
     {id ident-oracle-load-flake, kind @complete, author "brendan@necessary.nu", at 2026-10-25T23:04:46.93252Z}
