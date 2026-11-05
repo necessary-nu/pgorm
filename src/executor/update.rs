@@ -46,7 +46,7 @@ where
 
         let (stmt, values) = self.query.build();
 
-        let found: Model<A> = SelectorRaw::<SelectModel<Model<A>>>::from_statement(stmt, values)
+        let found: Model<A> = SelectorRaw::<SelectModel<Model<A>>>::from_statement(&stmt, values)
             .one(db)
             .await?;
 
@@ -115,7 +115,7 @@ where
         let (stmt, values) = self.query.build();
 
         let models: Vec<E::Model> =
-            SelectorRaw::<SelectModel<E::Model>>::from_statement(stmt, values)
+            SelectorRaw::<SelectModel<E::Model>>::from_statement(&stmt, values)
                 .all(db)
                 .await?;
 

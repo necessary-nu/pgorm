@@ -82,7 +82,7 @@ async fn every_declared_window_is_read(db: &DatabaseConnection) -> Result<(), Er
         .window(n("by_kind"), by_kind())
         .window(n("everyone"), WindowStatement::new())
         .take();
-    let rows = Selector::<SelectModel<Totals>>::from_select::<Totals>(query)
+    let rows = Selector::<SelectModel<Totals>>::from_select(query)
         .all(db)
         .await?;
     let total = |kind_total| Totals {
@@ -133,7 +133,7 @@ async fn an_extended_window_runs_over_its_base(db: &DatabaseConnection) -> Resul
         sql.contains(r#""pair" AS ( "running" ROWS BETWEEN $1 PRECEDING AND CURRENT ROW )"#),
         "{sql}"
     );
-    let rows = Selector::<SelectModel<Running>>::from_select::<Running>(query)
+    let rows = Selector::<SelectModel<Running>>::from_select(query)
         .all(db)
         .await?;
     let row = |running, pair, place| Running {
@@ -289,7 +289,7 @@ async fn the_server_refuses_each_refused_clause(db: &DatabaseConnection) -> Resu
 // before it renders
 async fn executors_refuse_before_sending(db: &DatabaseConnection) -> Result<(), Error> {
     let query = declaring(vec![("w", by_kind().into()), ("w", ordered())]);
-    let error = Selector::<SelectModel<Totals>>::from_select::<Totals>(query)
+    let error = Selector::<SelectModel<Totals>>::from_select(query)
         .all(db)
         .await
         .expect_err("two windows of one name");

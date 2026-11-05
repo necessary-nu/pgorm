@@ -101,7 +101,7 @@ impl ExpectedColumn {
 /// ```no_run
 /// # #[cfg(feature = "macros")]
 /// # {
-/// # use pgorm::{error::*, DatabasePool, FromQueryResult, VerifyStatement};
+/// # use pgorm::{error::*, DatabasePool, FromQueryResult, Values, VerifyStatement};
 /// #
 /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
 /// #[derive(Debug, FromQueryResult)]
@@ -114,7 +114,7 @@ impl ExpectedColumn {
 /// let sql = r#"SELECT "name", COUNT(*) AS "num_of_cakes" FROM "cake" GROUP BY("name")"#;
 ///
 /// db.verify::<SelectResult>(sql).await?;
-/// let res: Vec<SelectResult> = SelectResult::find_by_statement(sql, vec![]).all(&db).await?;
+/// let res: Vec<SelectResult> = SelectResult::find_by_statement(sql, Values(vec![])).all(&db).await?;
 /// # Ok(())
 /// # }
 /// # }

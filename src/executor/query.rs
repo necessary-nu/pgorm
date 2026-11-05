@@ -1,4 +1,4 @@
-use crate::{SelectGetableValue, SelectorRaw, error::*};
+use crate::{SelectGetableValue, SelectorRaw, SqlText, error::*};
 use std::error::Error as _;
 
 #[cfg(feature = "postgres-array")]
@@ -647,9 +647,8 @@ pub trait TryGetableMany: Sized {
     ///
     /// let db = pool.get().await?;
     ///
-    /// let res: Vec<(String, i64)> = <(String, i64)>::find_by_statement::<ResultCol>(
-    ///     r#"SELECT "cake"."name", count("cake"."id") AS "num_of_cakes" FROM "cake" GROUP BY "cake"."name""#
-    ///         .to_owned(),
+    /// let res: Vec<(String, i64)> = <(String, i64)>::find_by_statement::<ResultCol, _>(
+    ///     r#"SELECT "cake"."name", count("cake"."id") AS "num_of_cakes" FROM "cake" GROUP BY "cake"."name""#,
     ///     Values(vec![]),
     /// )
     /// .all(&db)
@@ -658,14 +657,13 @@ pub trait TryGetableMany: Sized {
     /// # }
     /// # }
     /// ```
-    fn find_by_statement<C>(
-        stmt: String,
-        values: Values,
-    ) -> SelectorRaw<SelectGetableValue<Self, C>>
+    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    fn find_by_statement<C, T>(sql: &T, values: Values) -> SelectorRaw<SelectGetableValue<Self, C>>
     where
         C: strum::IntoEnumIterator + pgorm_query::SqlName,
+        T: ?Sized + SqlText,
     {
-        SelectorRaw::<SelectGetableValue<Self, C>>::with_columns(stmt, values)
+        SelectorRaw::with_columns(sql, values)
     }
 }
 

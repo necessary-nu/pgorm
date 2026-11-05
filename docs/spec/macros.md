@@ -884,7 +884,7 @@ known limitations.
 
 ## Compile-time SQL validation
 
-> [spec:pgorm:def:macros.sql+5]
+> [spec:pgorm:def:macros.sql+6]
 > `pgorm-sql-macro` is a proc-macro crate exporting two function-like macros for
 > callers: `sql!`, specified here, and `prql!` (`[spec:pgorm:def:macros.prql]`). A
 > third, hidden from its documentation, is the compile-time half of pgorm-migration's
@@ -915,16 +915,16 @@ known limitations.
 > of them MUST be a rule that finds them rather than a list that goes stale — the
 > list this rule used to carry named four of them while ten existed, which is
 > worse than no list, because an auditor who trusts it audits a quarter of the
-> surface. On a connection the rule is the `SqlText` bound
-> (`[spec:pgorm:def:conn.sql-text]`): every `ConnectionTrait` method taking
-> `&T where T: SqlText` — `execute`, `execute_raw`, `query_one`, `query_opt`,
-> `query_all`, `query_raw` — plus `batch_execute`, which takes its `&str`
-> directly because it runs a script through the simple-query protocol. Away from
-> a connection a raw statement is SQL text paired with its values, and the entry
-> points are `Select::from_raw_sql`, the three `SelectorRaw` constructors and the
-> three `DecodeRaw` methods on a `(sql, values)` pair
-> (`[spec:pgorm:sem:exec.crud.selector-entry]`), and
-> `FromQueryResult::find_by_statement`. Migration bodies are the last of them.
+> surface. The rule is the `SqlText` bound (`[spec:pgorm:def:conn.sql-text]`):
+> every function taking its SQL as `&T where T: SqlText`. On a connection that is
+> each `ConnectionTrait` method — `execute`, `execute_raw`, `query_one`,
+> `query_opt`, `query_all`, `query_raw` — plus `batch_execute`, which takes its
+> `&str` directly because it runs a script through the simple-query protocol. Away
+> from a connection a raw statement is SQL text paired with its values, and every
+> entry point takes the pair in the same shape, the text under that bound beside
+> its `Values` (`[spec:pgorm:sem:exec.crud.selector-entry]`), with the three
+> `DecodeRaw` methods taking the pair as their receiver, its text dereferencing to
+> `SqlText`. Migration bodies are the last of them.
 
 > [spec:pgorm:req:macros.sql.reject]
 > `sql!` MUST refuse, at compile time, both an input that is not a single string literal

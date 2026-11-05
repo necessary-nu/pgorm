@@ -377,7 +377,7 @@ where
     insert_statement.returning(returning);
     let (stmt, values) = insert_statement.build();
 
-    SelectorRaw::<SelectModel<InsertedModel<A>>>::from_statement(stmt, values)
+    SelectorRaw::<SelectModel<InsertedModel<A>>>::from_statement(&stmt, values)
         .all(db)
         .await
 }

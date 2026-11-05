@@ -350,7 +350,7 @@ where
     ///
     /// let mut pages = cake::Entity::find()
     ///     .from_raw_sql(
-    ///         r#"SELECT "id", "name" FROM "cake" ORDER BY "id""#.to_owned(),
+    ///         r#"SELECT "id", "name" FROM "cake" ORDER BY "id""#,
     ///         Values(vec![]),
     ///     )
     ///     .paginate(&db, PAGE_SIZE)?;

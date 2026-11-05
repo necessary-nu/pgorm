@@ -437,29 +437,41 @@ These rules capture what the code does today, including known gaps.
 > with the Postgres `QueryBuilder`, then binds each `Value` through the
 > `ValueHolder` `ToSql` adapter (see `exec.cursor.binding`).
 
-> [spec:pgorm:sem:exec.crud.selector-entry+2]
+> [spec:pgorm:sem:exec.crud.selector-entry+3]
 > A caller who has built a `SelectStatement` outside the entity builders —
 > a CTE used as the driving table has no entity behind it at all — MUST
 > still be able to name a decode target without collapsing the statement to
-> a string. `Selector` therefore has one constructor per decode shape:
-> `from_select::<M>(SelectStatement)` for a `FromQueryResult` type,
-> `into_tuple::<T>(SelectStatement)` for an ordinal tuple, and
-> `with_columns::<T, C>(SelectStatement)` for a tuple named by an `SqlName`
-> enum. `SelectorRaw` mirrors the last two over `(String, Values)`:
-> `from_statement::<M>`, `into_tuple::<T>` and `with_columns::<T, C>`.
+> a string. `Selector` therefore has one constructor per decode shape, each
+> on the impl of the selector type it builds:
+> `Selector::<SelectModel<M>>::from_select(SelectStatement)` for a
+> `FromQueryResult` type, `Selector::<SelectGetableTuple<T>>::into_tuple`
+> for an ordinal tuple, and `Selector::<SelectGetableValue<T, C>>::with_columns`
+> for a tuple named by an `SqlName` enum. `SelectorRaw` mirrors the three over
+> a raw statement: `from_statement`, `into_tuple` and `with_columns` on
+> `SelectorRaw<SelectModel<M>>`, `SelectorRaw<SelectGetableTuple<T>>` and
+> `SelectorRaw<SelectGetableValue<T, C>>`. Because the impl is the selector
+> type, a call names its target once, as that type, and no type parameter it
+> names goes unused.
 >
-> Those constructors name the row type twice — `Selector<S>`'s `S` is not
-> constrained by the call, so the target appears once to pick the selector
-> type and once as the constructor's own parameter, before the statement is
-> mentioned at all. The statement-first spelling is therefore the trait pair
-> `DecodeSelect` and `DecodeRaw`, whose `into_model::<M>`, `into_tuple::<T>`
-> and `into_values::<T, C>` name it once and read in the order the rest of
-> the builder does. `DecodeSelect` is implemented for `SelectStatement`;
-> `DecodeRaw` for `(S, Values)` where `S: Into<String>`, which is what
-> `SelectStatement::build`, `Pipeline::into_sql` and the `prql!` macro all
-> hand back, so a compiled query flows into a decode without being taken
-> apart first. They delegate to the constructors and add no behaviour of
-> their own; both spellings remain, and both are in `entity::prelude`.
+> Every raw entry point takes the statement in one shape, the one
+> `ConnectionTrait` takes its text in (`[spec:pgorm:def:conn.sql-text]`):
+> `sql: &T` where `T: ?Sized + SqlText` — a `&str` or a `&String` — and the
+> statement's `Values`. That is the three `SelectorRaw` constructors,
+> `Select::from_raw_sql`, `FromQueryResult::find_by_statement` and
+> `TryGetableMany::find_by_statement`; each copies the text into the selector
+> it returns, which owns it.
+>
+> The statement-first spelling is the trait pair `DecodeSelect` and
+> `DecodeRaw`, whose `into_model::<M>`, `into_tuple::<T>` and
+> `into_values::<T, C>` take the statement as their receiver and name the
+> target after it, in the order the rest of the builder reads.
+> `DecodeSelect` is implemented for `SelectStatement`; `DecodeRaw` for
+> `(S, Values)` where `S` dereferences to `SqlText` — a `&'static str`, a
+> `String`, or a reference to one — which is what `SelectStatement::build`,
+> `Pipeline::into_sql` and the `prql!` macro all hand back, so a compiled
+> query flows into a decode without being taken apart first. They delegate
+> to the constructors and add no behaviour of their own; both spellings
+> remain, and both are in `entity::prelude`.
 >
 > The `Selector` constructors yield an ordinary `Selector`, so what they
 > build is not a lesser statement: `one` still injects `LIMIT 1`

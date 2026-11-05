@@ -4,7 +4,8 @@ pub mod common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::{
-    Error, ExpectedColumn, RowIndex, TryGetable, VerifyError, VerifyStatement, entity::prelude::*,
+    Error, ExpectedColumn, RowIndex, TryGetable, Values, VerifyError, VerifyStatement,
+    entity::prelude::*,
 };
 use pretty_assertions::assert_eq;
 
@@ -161,7 +162,7 @@ async fn matching_target_verifies(db: &DatabaseConnection) -> Result<(), Error> 
 // [spec:pgorm:def:exec.verify+1/test]    the type mismatch a zero-row query hides
 // [spec:pgorm:req:exec.verify.errors/test]
 async fn wrong_type_caught_at_zero_rows(db: &DatabaseConnection) -> Result<(), Error> {
-    let decoded: Vec<WrongType> = WrongType::find_by_statement(NO_ROWS, vec![])
+    let decoded: Vec<WrongType> = WrongType::find_by_statement(NO_ROWS, Values(vec![]))
         .all(db)
         .await?;
     assert!(decoded.is_empty());
@@ -190,7 +191,7 @@ async fn wrong_type_caught_at_zero_rows(db: &DatabaseConnection) -> Result<(), E
 // [spec:pgorm:def:exec.verify+1/test]    the missing column a zero-row query hides
 // [spec:pgorm:req:exec.verify.errors/test]
 async fn missing_column_caught_at_zero_rows(db: &DatabaseConnection) -> Result<(), Error> {
-    let decoded: Vec<MissingColumn> = MissingColumn::find_by_statement(NO_ROWS, vec![])
+    let decoded: Vec<MissingColumn> = MissingColumn::find_by_statement(NO_ROWS, Values(vec![]))
         .all(db)
         .await?;
     assert!(decoded.is_empty());

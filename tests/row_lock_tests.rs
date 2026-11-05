@@ -60,12 +60,10 @@ fn aliased(alias: &str) -> NamedTable {
 
 /// Run `query` through `build`, its values bound, counting the rows it reads.
 async fn count<C: ConnectionTrait>(db: &C, query: SelectStatement) -> Result<usize, Error> {
-    Ok(
-        Selector::<SelectGetableTuple<i32>>::into_tuple::<i32>(query)
-            .all(db)
-            .await?
-            .len(),
-    )
+    Ok(Selector::<SelectGetableTuple<i32>>::into_tuple(query)
+        .all(db)
+        .await?
+        .len())
 }
 
 fn locking(from: impl IntoFromItem, of: &str) -> SelectStatement {

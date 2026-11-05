@@ -22,7 +22,8 @@ use pgorm::pgorm_query::{
     WindowStatement, WithClause, error::Error as QueryError,
 };
 use pgorm::{
-    Error, SelectGetableTuple, SelectModel, Selector, SelectorRaw, alias, entity::prelude::*,
+    Error, SelectGetableTuple, SelectModel, Selector, SelectorRaw, Values, alias,
+    entity::prelude::*,
 };
 use pretty_assertions::assert_eq;
 use tokio_postgres::error::SqlState;
@@ -129,7 +130,7 @@ struct PriceBracket {
 // [spec:pgorm:def:query.build.with+2/test]    a recursive CTE drives the query and the rows land in a
 // `FromQueryResult` struct through every terminal the ORM owns
 // [spec:pgorm:sem:query.build.with.attach+1/test]
-// [spec:pgorm:sem:exec.crud.selector-entry+2/test]
+// [spec:pgorm:sem:exec.crud.selector-entry+3/test]
 // [spec:pgorm:sem:sql.render.placeholder-typing+1/test]    the anchor's cast is what makes the
 // recursion typecheck at all
 #[pgorm_macros::test]
@@ -149,7 +150,7 @@ pub async fn recursive_cte_decodes_all_one_and_stream() -> Result<(), Error> {
             .to_owned()
     };
 
-    let all = Selector::<SelectModel<PriceBracket>>::from_select::<PriceBracket>(ascending())
+    let all = Selector::<SelectModel<PriceBracket>>::from_select(ascending())
         .all(&db)
         .await?;
     assert_eq!(
@@ -165,7 +166,7 @@ pub async fn recursive_cte_decodes_all_one_and_stream() -> Result<(), Error> {
 
     // `one` pushes its LIMIT onto the carrying select, not into the CTE, so a
     // multi-row query yields its first row instead of a protocol error.
-    let fullest = Selector::<SelectModel<PriceBracket>>::from_select::<PriceBracket>(
+    let fullest = Selector::<SelectModel<PriceBracket>>::from_select(
         bracket_counts()
             .order_by_expr(
                 Expr::col((cake::Entity, cake::Column::Id)).count(),
@@ -180,10 +181,9 @@ pub async fn recursive_cte_decodes_all_one_and_stream() -> Result<(), Error> {
     .await?;
     assert_eq!(fullest, PriceBracket { lo: 0, cakes: 2 });
 
-    let mut stream =
-        Selector::<SelectModel<PriceBracket>>::from_select::<PriceBracket>(ascending())
-            .stream(&db)
-            .await?;
+    let mut stream = Selector::<SelectModel<PriceBracket>>::from_select(ascending())
+        .stream(&db)
+        .await?;
     let mut streamed = Vec::new();
     while let Some(row) = stream.next().await {
         streamed.push(row?);
@@ -226,7 +226,7 @@ pub async fn recursive_cte_anchor_needs_a_cast() -> Result<(), Error> {
         ))
         .to_owned();
 
-    let refused = Selector::<SelectGetableTuple<(i32,)>>::into_tuple::<(i32,)>(uncast)
+    let refused = Selector::<SelectGetableTuple<(i32,)>>::into_tuple(uncast)
         .all(&db)
         .await
         .expect_err("an untyped anchor placeholder cannot carry an integer band");
@@ -337,7 +337,7 @@ pub async fn lateral_top_n_decodes_into_struct() -> Result<(), Error> {
     let db = ctx.db.get().await?;
     seed(&db).await?;
 
-    let rows = Selector::<SelectModel<TopCake>>::from_select::<TopCake>(top_two_per_bakery())
+    let rows = Selector::<SelectModel<TopCake>>::from_select(top_two_per_bakery())
         .all(&db)
         .await?;
 
@@ -369,7 +369,7 @@ pub async fn lateral_top_n_decodes_into_struct() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:exec.crud.selector-entry+2/test]    the very same statement decodes ordinally
+// [spec:pgorm:sem:exec.crud.selector-entry+3/test]    the very same statement decodes ordinally
 // through `Selector::into_tuple`, and its raw counterpart through `SelectorRaw::into_tuple`
 #[pgorm_macros::test]
 pub async fn lateral_top_n_decodes_into_tuple() -> Result<(), Error> {
@@ -379,11 +379,9 @@ pub async fn lateral_top_n_decodes_into_tuple() -> Result<(), Error> {
     seed(&db).await?;
 
     let tuples: Vec<(String, String)> =
-        Selector::<SelectGetableTuple<(String, String)>>::into_tuple::<(String, String)>(
-            top_two_per_bakery(),
-        )
-        .all(&db)
-        .await?;
+        Selector::<SelectGetableTuple<(String, String)>>::into_tuple(top_two_per_bakery())
+            .all(&db)
+            .await?;
     assert_eq!(tuples.len(), 4);
     assert_eq!(
         tuples[0],
@@ -393,12 +391,70 @@ pub async fn lateral_top_n_decodes_into_tuple() -> Result<(), Error> {
 
     let (sql, values) = top_two_per_bakery().build();
     let raw: Vec<(String, String)> =
-        SelectorRaw::<SelectGetableTuple<(String, String)>>::into_tuple::<(String, String)>(
-            sql, values,
+        SelectorRaw::<SelectGetableTuple<(String, String)>>::into_tuple(&sql, values)
+            .all(&db)
+            .await?;
+    assert_eq!(raw, tuples, "the raw entry point decodes the same rows");
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:sem:exec.crud.selector-entry+3/test]    every raw entry point takes the statement
+// in the shape a connection takes it, the text as a `&str` or a `&String` beside its `Values`, and
+// each decodes the same rows
+#[pgorm_macros::test]
+pub async fn raw_entry_points_take_one_shape() -> Result<(), Error> {
+    let ctx = TestContext::new("raw_entry_points_take_one_shape").await;
+    create_tables(&ctx.db).await?;
+    let db = ctx.db.get().await?;
+    seed(&db).await?;
+
+    let (sql, values) = top_two_per_bakery().build();
+    let text: &str = &sql;
+    let expected: Vec<TopCake> = (&sql, values.clone()).into_model().all(&db).await?;
+    assert_eq!(expected.len(), 4);
+
+    let constructed: Vec<TopCake> =
+        SelectorRaw::<SelectModel<TopCake>>::from_statement(text, values.clone())
+            .all(&db)
+            .await?;
+    assert_eq!(constructed, expected);
+    assert_eq!(
+        TopCake::find_by_statement(&sql, values.clone())
+            .all(&db)
+            .await?,
+        expected
+    );
+    let tuples: Vec<(String, String)> =
+        SelectorRaw::<SelectGetableTuple<(String, String)>>::into_tuple(text, values.clone())
+            .all(&db)
+            .await?;
+    assert_eq!(
+        tuples,
+        expected
+            .iter()
+            .map(|row| (row.bakery.clone(), row.cake.clone()))
+            .collect::<Vec<_>>()
+    );
+    let (owned, owned_values) = top_two_per_bakery().build();
+    assert_eq!(
+        (owned, owned_values)
+            .into_model::<TopCake>()
+            .all(&db)
+            .await?,
+        expected
+    );
+
+    let by_raw_sql = Bakery::find()
+        .from_raw_sql(
+            r#"SELECT "id", "name", "profit_margin" FROM "bakery" ORDER BY "id""#,
+            Values(vec![]),
         )
         .all(&db)
         .await?;
-    assert_eq!(raw, tuples, "the raw entry point decodes the same rows");
+    assert_eq!(by_raw_sql.len(), 2);
 
     drop(db);
     ctx.delete().await;
@@ -693,7 +749,7 @@ fn sorted_names(cakes: &[cake::Model]) -> Vec<String> {
     names
 }
 
-// [spec:pgorm:sem:exec.crud.selector-entry+2/test]    the new constructor is a `Selector`, so it
+// [spec:pgorm:sem:exec.crud.selector-entry+3/test]    the new constructor is a `Selector`, so it
 // inherits the empty-projection guard rather than sending `SELECT  FROM …`
 // [spec:pgorm:sem:query.build.modifiers+10/test]
 #[pgorm_macros::test]
@@ -703,7 +759,7 @@ pub async fn from_select_guards_an_empty_projection() -> Result<(), Error> {
     let db = ctx.db.get().await?;
 
     let empty = Query::select().from(cake::Entity).to_owned();
-    let refused = Selector::<SelectModel<cake::Model>>::from_select::<cake::Model>(empty)
+    let refused = Selector::<SelectModel<cake::Model>>::from_select(empty)
         .all(&db)
         .await
         .expect_err("a statement with no projection never reaches the server");

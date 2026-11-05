@@ -286,9 +286,10 @@ async fn by_name(db: &DatabaseConnection) -> Result<Vec<cake::Model>, Error> {
 }
 ```
 
-`cake::Entity::find().from_raw_sql(sql, values)` and
-`Model::find_by_statement(sql, values)` likewise take the SQL text and its
-values where SeaORM took a `Statement`. A statement built with pgorm-query
+`cake::Entity::find().from_raw_sql(sql, values)`,
+`Model::find_by_statement(sql, values)` and the `SelectorRaw` constructors
+likewise take the SQL text, a `&str` or `&String` as `ConnectionTrait`'s
+methods take it, and its `Values`, where SeaORM took a `Statement`. A statement built with pgorm-query
 gives the pair from `build()`; to execute one directly, wrap each value in
 `ValueHolder`:
 

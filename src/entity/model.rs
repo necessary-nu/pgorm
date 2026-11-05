@@ -1,6 +1,7 @@
 use crate::{
     ActiveModelBehavior, ActiveModelTrait, ConnectionTrait, EntityTrait, Error, ExpectedColumn,
     IntoActiveModel, Linked, QueryFilter, QueryResult, Related, Select, SelectModel, SelectorRaw,
+    SqlText,
 };
 use async_trait::async_trait;
 pub use pgorm_query::Value;
@@ -178,7 +179,7 @@ pub trait FromQueryResult: Sized {
     /// ```no_run
     /// # #[cfg(feature = "macros")]
     /// # {
-    /// # use pgorm::{error::*, query::*, DatabasePool, FromQueryResult};
+    /// # use pgorm::{error::*, query::*, DatabasePool, FromQueryResult, Values};
     /// #
     /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
     /// #[derive(Debug, PartialEq, FromQueryResult)]
@@ -191,7 +192,7 @@ pub trait FromQueryResult: Sized {
     ///
     /// let res: Vec<SelectResult> = SelectResult::find_by_statement(
     ///     r#"SELECT "name", COUNT(*) AS "num_of_cakes" FROM "cake" GROUP BY("name")"#,
-    ///     vec![],
+    ///     Values(vec![]),
     /// )
     /// .all(&db)
     /// .await?;
@@ -199,11 +200,12 @@ pub trait FromQueryResult: Sized {
     /// # }
     /// # }
     /// ```
-    fn find_by_statement(
-        stmt: impl Into<String>,
-        values: Vec<Value>,
-    ) -> SelectorRaw<SelectModel<Self>> {
-        SelectorRaw::<SelectModel<Self>>::from_statement(stmt.into(), Values(values))
+    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    fn find_by_statement<T>(sql: &T, values: Values) -> SelectorRaw<SelectModel<Self>>
+    where
+        T: ?Sized + SqlText,
+    {
+        SelectorRaw::from_statement(sql, values)
     }
 }
 

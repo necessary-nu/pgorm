@@ -5,7 +5,7 @@ pub mod common;
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use pgorm::{
     Error, PartialModelTrait, PrimaryKeyTrait, QueryResult, Related, RelationDef, RelationTrait,
-    Schema, Select, Value, entity::prelude::*,
+    Schema, Select, Value, Values, entity::prelude::*,
 };
 use pgorm_query::{
     BinOper, Expr, IntoName, IntoValueTuple, QueryBuilder, TableName, TryFromValueTuple,
@@ -1376,10 +1376,12 @@ async fn from_query_result_surface() -> Result<(), Error> {
     .await?;
 
     // `find_by_statement` builds a SelectorRaw that decodes raw SQL into `Self`.
-    let rows: Vec<ItemRow> =
-        ItemRow::find_by_statement(r#"SELECT "id", "name" FROM "item" ORDER BY "id""#, vec![])
-            .all(&db)
-            .await?;
+    let rows: Vec<ItemRow> = ItemRow::find_by_statement(
+        r#"SELECT "id", "name" FROM "item" ORDER BY "id""#,
+        Values(vec![]),
+    )
+    .all(&db)
+    .await?;
     assert_eq!(
         rows,
         [
@@ -1405,7 +1407,7 @@ async fn from_query_result_surface() -> Result<(), Error> {
         r#"SELECT "id" AS "s0_id", "name" AS "s0_name",
                   NULL::int AS "s1_id", NULL::text AS "s1_name"
            FROM "item" WHERE "id" = 1"#,
-        vec![],
+        Values(vec![]),
     )
     .one(&db)
     .await?;
