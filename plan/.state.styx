@@ -3148,6 +3148,11 @@ impl_evidence (
     ), rule_versions_seen (
         {id error.model.decode-refusal, version 0}
     )}
+    {id signature-types-reexported, covered_rules (
+        conn.driver-types
+    ), covered_claims (
+        {impl_name main, rule conn.driver-types}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

@@ -7,10 +7,9 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use pgorm::entity::prelude::*;
 use pgorm::{
-    Config, DatabasePool, MakeTlsConnect, ManagerConfig, NoTls, PoolBuilder, RecyclingMethod,
-    Socket, StatementCacheSize, TlsConnect,
+    Config, DatabasePool, MakeTlsConnect, ManagerConfig, NoTls, PoolBuilder, PoolConfig,
+    RecyclingMethod, Socket, StatementCacheSize, TlsConnect,
 };
-use pgorm_pool::PoolConfig;
 use pretty_assertions::assert_eq;
 
 fn database_url() -> String {

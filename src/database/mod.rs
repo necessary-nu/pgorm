@@ -23,11 +23,56 @@ pub use tokio_postgres::Notification;
 /// [`CopyInSink`] needs no direct dependency on `bytes`.
 // [spec:pgorm:req:conn.copy+2]
 pub use bytes::Bytes;
+
+/// The buffer [`CopyRowEncoder`] writes a binary COPY's header, rows and
+/// trailer into.
+// [spec:pgorm:req:conn.driver-types]
+pub use bytes::BytesMut;
+
+/// The traits [`CopyInSink`] and the streams pgorm returns implement, for
+/// code that names them in a signature of its own. Reading a stream or
+/// writing a sink still takes the extension traits of the `futures` crate.
+// [spec:pgorm:req:conn.driver-types]
+pub use futures::{Sink, Stream};
+
 pub use tokio_postgres::{Config, IsolationLevel};
+
+/// The row [`query_one`], [`query_opt`] and [`query_all`] return, and the
+/// stream of them [`query_raw`] returns.
+///
+/// [`query_one`]: ConnectionTrait::query_one
+/// [`query_opt`]: ConnectionTrait::query_opt
+/// [`query_all`]: ConnectionTrait::query_all
+/// [`query_raw`]: ConnectionTrait::query_raw
+// [spec:pgorm:req:conn.driver-types]
+pub use tokio_postgres::{Row, RowStream};
+
+/// The driver's error, which [`Error::Postgres`] carries, renamed so that it
+/// does not collide with pgorm's own [`Error`].
+// [spec:pgorm:req:conn.driver-types]
+pub use tokio_postgres::Error as PostgresError;
+
+/// What the driver's error reports of a refusal the server sent: the
+/// server's error, and the SQLSTATE that [`PostgresError::code`] returns.
+// [spec:pgorm:req:conn.driver-types]
+pub use tokio_postgres::error::{DbError, SqlState};
+
+/// What [`Config`]'s setters take and its getters return.
+// [spec:pgorm:req:conn.driver-types]
+pub use tokio_postgres::config::{
+    ChannelBinding, Host, LoadBalanceHosts, SslMode, SslNegotiation, TargetSessionAttrs,
+};
 
 /// The pool and manager knobs [`connect_with`] takes, re-exported so shaping a
 /// pool never requires naming `pgorm_pool` itself.
 pub use pgorm_pool::{ManagerConfig, PoolBuilder, RecyclingMethod, StatementCacheSize};
+
+/// What [`PoolBuilder`]'s setters take, what [`DatabasePool::status`] returns,
+/// and the error [`Error::Pool`] carries, with what its variants hold.
+// [spec:pgorm:req:conn.driver-types]
+pub use pgorm_pool::{
+    Hook, HookError, PoolConfig, PoolError, QueueMode, Runtime, Status, TimeoutType, Timeouts,
+};
 
 /// The channel pgorm-migration's runner notifies once a batch that applied a
 /// migration commits: the one to give

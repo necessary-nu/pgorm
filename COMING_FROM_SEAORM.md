@@ -266,8 +266,8 @@ async fn rename(db: &DatabaseConnection) -> Result<u64, Error> {
 
 The methods of `ConnectionTrait` follow tokio-postgres: `execute` returns
 the row count; `query_one` expects exactly one row, `query_opt` at most one,
-`query_all` any number, each as a `tokio_postgres::Row`; `query_raw` streams
-the rows, where SeaORM had `stream`. `execute_unprepared` is `batch_execute`,
+`query_all` any number, each as a `pgorm::Row`, tokio-postgres's row
+re-exported; `query_raw` streams the rows, where SeaORM had `stream`. `execute_unprepared` is `batch_execute`,
 which runs a whole script of `;`-separated statements and takes no
 parameters. There is no `get_database_backend` and no `support_returning`:
 the answer is always PostgreSQL, and it always supports `RETURNING`.

@@ -1661,12 +1661,22 @@ children (
                 id signature-types-reexported
                 title "pgorm re-exports every type its public signatures take or return, so a crate depending only on pgorm can name them: Row, RowStream, SqlState, BytesMut and the pool's Runtime, Timeouts, Status and PoolError"
                 kind @feat
+                implements {
+                    main ([spec:pgorm:req:conn.driver-types])
+                }
                 log (
                     {
                         at 2026-11-05T14:39:47.926014Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (reading, errors, configuration and COPY chapters). src/database/mod.rs re-exports Config, IsolationLevel, NoTls, Socket, the TLS traits, ManagerConfig, PoolBuilder, RecyclingMethod, StatementCacheSize and Bytes, but not: tokio_postgres's Row and RowStream (which query_one/query_all and query_raw return), its SqlState (so matching a SQLSTATE outside SqlError's classes compares error.code().map(|s| s.code()) as text), bytes::BytesMut (which CopyRowEncoder's header/trailer/encode take, src/database/copy_rows.rs:266-285), and deadpool's Runtime (every pool timeout needs builder.runtime(..)), Timeouts, QueueMode, Status (which DatabasePool::status and InstrumentedPool::status return) and PoolError. A crate depending only on pgorm cannot name them; the guide names pgorm_pool::Runtime and tokio_postgres::Row directly."
+                    }
+
+                    {
+                        at 2026-11-05T15:32:15.050835Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Audit (rustdoc links from every pgorm page to another crate's, impl and implementor lists excluded) plus deadpool's own reexport set. The rule, new as conn.driver-types: every tokio-postgres/deadpool/bytes/futures type that using pgorm makes a caller write is re-exported at pgorm's root under its own name. First level (pgorm's own signatures): Row, RowStream, tokio_postgres::Error, PoolError, Status, BytesMut, and the Stream/Sink traits (CopyRowStream::models returns impl Stream; CopyInSink is a Sink). Second level (what a caller writes to use those or conn.pool's re-exports): SqlState and DbError (PostgresError::code / as_db_error), TimeoutType and HookError (PoolError's payloads), Runtime/Timeouts/QueueMode/PoolConfig/Hook (PoolBuilder's setters), SslMode/SslNegotiation/TargetSessionAttrs/ChannelBinding/LoadBalanceHosts/Host (Config's setters and getters). tokio_postgres::Error is re-exported as PostgresError, the one rename, because pgorm::Error is pgorm's. Left out, as third level a caller never has to write: deadpool's Metrics and pgorm_pool's ClientWrapper (a hook closure's inferred arguments), BuildError (PoolBuilder::build, which pgorm calls), tokio_postgres's Column (Row::columns, used through methods), TlsStream (implementing a connector, the TLS crates' job), Client/Connection (Config::connect, not pgorm's path). StreamExt/SinkExt are not re-exported: they are not in any signature, and a reader still takes futures for them. The re-exports sit in src/database/mod.rs, not the error module, so the entity prelude (which globs error::*) is unchanged. Python and JavaScript have no counterpart: they expose no driver types."
                     }
                 )
             }

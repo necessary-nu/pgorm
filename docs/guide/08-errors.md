@@ -12,8 +12,9 @@ This chapter goes through each, and how a program tells them apart.
 
 A statement the server rejects comes back as
 [`Error::Postgres`](crate::Error::Postgres), holding the tokio-postgres
-error with everything the server reported: its SQLSTATE code, its message,
-and the table, column or constraint involved.
+error, [`PostgresError`](crate::PostgresError), with everything the server
+reported: its SQLSTATE code, its message, and the table, column or
+constraint involved.
 
 The refusals a program most often has to answer are constraint violations: a
 duplicate email address, an order line for a cake that does not exist.
@@ -140,22 +141,29 @@ assert!(matches!(clash.sql_error(), Some(SqlError::ExclusionConstraintViolation(
 # }
 ```
 
-Any other refusal is read off the server's SQLSTATE, through the
-tokio-postgres error's [`code`](https://docs.rs/tokio-postgres/latest/tokio_postgres/error/struct.Error.html#method.code):
+Any other refusal is read off the server's SQLSTATE. `Error::Postgres`
+holds tokio-postgres's error, re-exported as
+[`PostgresError`](crate::PostgresError), whose
+[`code`](crate::PostgresError::code) is a [`SqlState`](crate::SqlState)
+with a constant for every code PostgreSQL defines, and whose
+[`as_db_error`](crate::PostgresError::as_db_error) is the whole of what the
+server sent, a [`DbError`](crate::DbError):
 
 ```rust
 # #[tokio::main(flavor = "current_thread")]
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("errors_sqlstate").await;
 # let db = scratch.pool.get().await?;
-use pgorm::{ConnectionTrait, Error};
+use pgorm::{ConnectionTrait, Error, SqlState};
 
 let missing = db.query_all("SELECT * FROM pastry", &[]).await;
 let Err(Error::Postgres(error)) = missing else {
     panic!("expected the server to refuse the query, got {missing:?}");
 };
-// 42P01 is undefined_table.
-assert_eq!(error.code().map(|state| state.code()), Some("42P01"));
+assert_eq!(error.code(), Some(&SqlState::UNDEFINED_TABLE));
+assert_eq!(SqlState::UNDEFINED_TABLE.code(), "42P01");
+let server = error.as_db_error().expect("the server refused it");
+assert_eq!(server.message(), r#"relation "pastry" does not exist"#);
 # drop(db);
 # scratch.finish().await;
 # Ok(())
@@ -290,20 +298,25 @@ assert!(matches!(null, Err(Error::Type(_))));
 
 A pool that cannot open a connection reports it when one is asked for, at
 [`get`](crate::DatabasePool::get), since building the pool connects to
-nothing:
+nothing. The [`PoolError`](crate::PoolError) inside says why; one the server
+refused holds the server's error:
 
 ```rust
 # #[tokio::main(flavor = "current_thread")]
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::empty("errors_pool").await;
-use pgorm::Error;
+use pgorm::{Error, PoolError, SqlState};
 
 let mut config: pgorm::Config = scratch.url().parse()?;
 config.dbname("no_such_bakery");
 let pool = pgorm::connect(config);
 
 let refused = pool.get().await;
-assert!(matches!(refused, Err(Error::Pool(_))));
+assert!(matches!(
+    &refused,
+    Err(Error::Pool(PoolError::Backend(error)))
+        if error.code() == Some(&SqlState::INVALID_CATALOG_NAME)
+));
 # scratch.finish().await;
 # Ok(())
 # }

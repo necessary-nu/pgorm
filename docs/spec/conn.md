@@ -55,6 +55,43 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > rule for every fallible entry point here: `connect_with` itself, and
 > `connect_multi_with_builder` (`conn.pool.multi`), fail the same way.
 
+> [spec:pgorm:req:conn.driver-types]
+> A crate depending on pgorm alone MUST be able to name every type of the
+> crates pgorm is built on — tokio-postgres, deadpool, `bytes` and `futures` —
+> that using pgorm makes it write. Each MUST be re-exported from pgorm's root
+> under its own name, but for the driver's error, which is `PostgresError`
+> because pgorm's own is `Error`. That is every such type pgorm's public
+> signatures take or return:
+>
+> - `Row` and `RowStream`, which the `ConnectionTrait` statement methods
+>   return;
+> - `PostgresError`, which `Error::Postgres` carries and `BindRefusal::of` and
+>   `DecodeRefusal::of` take;
+> - `PoolError`, which `Error::Pool` carries, and `Status`, which
+>   `DatabasePool::status` and `InstrumentedPool::status` return;
+> - `BytesMut`, which `CopyRowEncoder` writes into, beside the `Bytes` of
+>   `conn.copy`;
+> - the `Stream` and `Sink` traits that the COPY sink and stream, the row
+>   streams and `Notifications` implement;
+>
+> and every type a caller writes to use one of those, or one `conn.pool`
+> re-exports:
+>
+> - `SqlState`, the code `PostgresError::code` returns and is compared
+>   against, and `DbError`, the server's error `PostgresError::as_db_error`
+>   returns;
+> - `TimeoutType` and `HookError`, which `PoolError`'s variants carry;
+> - `Runtime`, `Timeouts`, `QueueMode`, `PoolConfig` and `Hook`, which
+>   `PoolBuilder`'s setters take: a pool timeout needs a runtime to time it;
+> - `SslMode`, `SslNegotiation`, `TargetSessionAttrs`, `ChannelBinding`,
+>   `LoadBalanceHosts` and `Host`, which `Config`'s setters take and its
+>   getters return.
+>
+> Without them a program that sets a pool timeout, matches a SQLSTATE outside
+> `SqlError`'s classes, or writes a helper taking a `Row` has to add the
+> dependency pgorm already carries, at a version it has to keep in step by
+> hand.
+
 > [spec:pgorm:sem:conn.pool.get+1]
 > `DatabasePool::get()` asynchronously acquires a pooled connection and wraps
 > it as `DatabaseConnection`; acquisition failure surfaces as

@@ -5,7 +5,7 @@ pub mod common;
 pub use common::{TestContext, bakery_chain::*, setup::*};
 
 use pgorm::{ColumnFromStrError, Error, RuntimeError, entity::prelude::*};
-use pgorm_pool::{PoolError, Runtime};
+use pgorm::{PoolError, Runtime};
 use pretty_assertions::assert_eq;
 use std::{error::Error as StdError, fmt, str::FromStr, time::Duration};
 use tokio_postgres::error::SqlState;
