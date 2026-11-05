@@ -678,7 +678,7 @@ fn unqualified_kind_named_as_base_is_unwritten() {
     );
 }
 
-// [spec:pgorm:req:bindings.model-unique-keys+1/test]    a described table's unique keys are written in its CREATE TABLE after its primary key, each named or left for PostgreSQL to name and NULLS NOT DISTINCT where it says so, the base's beside the UNIQUE key the shape adds and a kind's beside its key to the base
+// [spec:pgorm:req:bindings.model-unique-keys+2/test]    a described table's unique keys are written in its CREATE TABLE after its primary key, each named or left for PostgreSQL to name and NULLS NOT DISTINCT where it says so, the base's beside the UNIQUE key the shape adds and a kind's beside its key to the base
 #[test]
 fn a_described_table_writes_its_unique_keys() {
     let base = base()
@@ -714,7 +714,7 @@ fn a_described_table_writes_its_unique_keys() {
     );
 }
 
-// [spec:pgorm:req:bindings.model-unique-keys+1/test]    a described table's unique key over no column, a column it lacks, a column twice or a VIRTUAL generated column is refused as `Error::Type` naming the table and column
+// [spec:pgorm:req:bindings.model-unique-keys+2/test]    a described table's unique key over no column, a column it lacks, a column twice or a VIRTUAL generated column is refused as `Error::Type` naming the table and column
 #[test]
 fn a_described_unique_key_refuses_what_postgres_would() {
     let refused = |outcome: Result<DisjointTable, Error>| match outcome {
@@ -752,7 +752,7 @@ fn a_described_unique_key_refuses_what_postgres_would() {
     );
 }
 
-// [spec:pgorm:req:bindings.model-unique-keys+1/test]    a described table's unique key named as a name the disjoint schema adds, the base's UNIQUE key, the base's foreign key for a kind or a kind table's onto its base row, or as another table's unique key, is refused as the shape is described, naming both; one named as another key of its own table or its composite primary key is refused by with_unique_key
+// [spec:pgorm:req:bindings.model-unique-keys+2/test]    a described table's unique key named as a name the disjoint schema adds, the base's UNIQUE key, the base's foreign key for a kind or a kind table's onto its base row, or as another table's unique key, is refused as the shape is described, naming both; one named as another key of its own table or its composite primary key is refused by with_unique_key
 #[test]
 fn schema_named_keys_are_refused() {
     let shape = |base: DisjointTable, car: DisjointTable| {
@@ -838,4 +838,150 @@ fn schema_named_keys_are_refused() {
         refused(pair.with_unique_key(Some("pk-pair"), &["b", "a"], false)),
         "`pair` names two of its keys `pk-pair`, which PostgreSQL refuses (42P07)"
     );
+}
+
+/// A gizmo's base, whose entity names a unique key as the disjoint schema's
+/// `UNIQUE` key over its key and kind.
+pub mod gizmo {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(
+        table_name = "gizmo",
+        unique(name = "uq-gizmo-id-kind", columns = (Column::Name, Column::Kind))
+    )]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        pub kind: super::GizmoKind,
+        pub name: String,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Disjoint)]
+#[pgorm(base = gizmo::Entity)]
+pub enum Gizmo {
+    Car(car::Model),
+    Plain,
+}
+
+// [spec:pgorm:sem:disjoint.schema+3/test]    a typed entity's own unique(..) key named as a name the disjoint schema adds is refused as its schema is written, naming both
+#[test]
+fn typed_schema_named_keys_are_refused() {
+    match pgorm::Schema::new().create_disjoint::<Gizmo>() {
+        Err(Error::Type(message)) => assert_eq!(
+            message,
+            "the unique key `uq-gizmo-id-kind` of `gizmo` is named as the `UNIQUE` key the \
+             disjoint schema adds to `gizmo`: PostgreSQL holds one index of a name to a schema \
+             and one constraint of a name to a table"
+        ),
+        other => panic!("expected the key refused, got {other:?}"),
+    }
+}
+
+/// A shape over a base named `name`, its columns long-named, with the keys
+/// `keys` gives it, and the kinds `vehicles` has.
+fn long_named(name: &str, keys: &[(Option<&str>, &[&str])]) -> Result<DisjointShape, Error> {
+    let mut base = table(
+        name,
+        vec![
+            DisjointColumn::new("id", ColumnType::Integer.def().identity_by_default()),
+            DisjointColumn::new("kind", vehicle_kind().def()),
+            DisjointColumn::new(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                ColumnType::Integer.def().nullable(),
+            ),
+            DisjointColumn::new(
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                ColumnType::Integer.def().nullable(),
+            ),
+        ],
+        &["id"],
+    );
+    for (key_name, columns) in keys {
+        base = base.with_unique_key(*key_name, columns, false)?;
+    }
+    DisjointShape::new(
+        base,
+        "kind",
+        kind_type(),
+        vec![
+            ("car".to_owned(), Some(car())),
+            ("truck".to_owned(), Some(truck())),
+            ("bike".to_owned(), None),
+        ],
+    )
+}
+
+// [spec:pgorm:req:bindings.model-unique-keys+2/test]    a key named as a name PostgreSQL gives the shape's tables itself — an unnamed primary key's {table}_pkey, an unnamed unique key's {table}_{columns}_key and a not-null constraint's {table}_{column}_not_null, each cut to 63 bytes as the server cuts it — is refused as the shape is described: every such name the server gives the tables, read back live, is one the shape refuses
+#[pgorm_macros::test]
+async fn implicitly_named_keys_are_refused_live() -> Result<(), Error> {
+    const LONG: &str = "a_table_named_with_quite_a_lot_of_characters_to_make_it_long_x";
+    let unnamed: &[(Option<&str>, &[&str])] = &[(
+        None,
+        &[
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        ],
+    )];
+    let shape = long_named(LONG, unnamed)?;
+    let ctx = TestContext::new("disjoint_implicit_names").await;
+    let db = ctx.db.get().await?;
+    for statement in shape.create()? {
+        db.execute(&statement.to_string(), &[]).await?;
+    }
+    let rows = db
+        .query_all(
+            "SELECT c.conname, t.relname FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid \
+             WHERE t.relname IN ($1, 'car', 'truck') AND c.contype IN ('p', 'u', 'n') \
+             AND c.conname NOT LIKE 'uq-%' ORDER BY 2, 1",
+            &[&LONG],
+        )
+        .await?;
+    let named: Vec<(String, String)> = rows
+        .iter()
+        .map(|row| Ok((row.try_get("conname")?, row.try_get("relname")?)))
+        .collect::<Result<_, Error>>()?;
+    assert!(
+        named.contains(&(
+            "a_table_named_with_quite_a_lo_aaaaaaaaaaaaaaaaaaaaaaaaaaaaa_key".to_owned(),
+            LONG.to_owned()
+        )),
+        "{named:?}"
+    );
+    assert!(
+        named.contains(&(
+            "a_table_named_with_quite_a_lot_of_characters_to_make_it_lo_pkey".to_owned(),
+            LONG.to_owned()
+        )),
+        "{named:?}"
+    );
+    for (name, relation) in &named {
+        let mut keys = unnamed.to_vec();
+        keys.push((
+            Some(name.as_str()),
+            &["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "kind"],
+        ));
+        let refused = long_named(LONG, &keys);
+        let indexed = name.ends_with("_pkey") || name.ends_with("_key");
+        if indexed || relation == LONG {
+            match refused {
+                Err(Error::Type(message)) => {
+                    assert!(message.contains("PostgreSQL names"), "{name}: {message}")
+                }
+                other => panic!("expected {name} refused, got {other:?}"),
+            }
+        } else {
+            assert!(
+                refused.is_ok(),
+                "{name} is another table's constraint: {refused:?}"
+            );
+        }
+    }
+    drop(db);
+    ctx.delete().await;
+    Ok(())
 }

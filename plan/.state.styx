@@ -1508,6 +1508,7 @@ assertions (
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id unique-keys.entity-describe-keys, kind @complete, author "brendan@necessary.nu", at 2026-11-05T01:59:45.708617Z}
     {id unique-keys.model-key-name-clash, kind @complete, author "brendan@necessary.nu", at 2026-11-05T02:29:19.94554Z}
+    {id unique-keys.implicit-name-clash, kind @complete, author "brendan@necessary.nu", at 2026-11-05T03:10:36.3658Z}
 )
 
 impl_evidence (

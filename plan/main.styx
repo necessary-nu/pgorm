@@ -17542,6 +17542,22 @@ children (
                     }
                 )
             }
+
+            {
+                id unique-keys.implicit-name-clash
+                title "A disjoint model's key named as PostgreSQL's implicit {table}_pkey or {table}_{column}_key, or clashing with a typed table's own unique(..) names, is refused before the server"
+                kind @fix
+                deps (unique-keys.model-key-name-clash)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T03:10:36.3658Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Done (nplan complete)"
+                    }
+                )
+            }
         )
     }
 

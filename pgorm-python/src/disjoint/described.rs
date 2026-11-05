@@ -103,7 +103,7 @@ type DescribedKey = (Option<String>, Vec<String>, bool);
 
 /// One model's table, as Python describes it: its schema, its name, its
 /// columns in field order, its key's columns and its unique keys.
-// [spec:pgorm:req:bindings.model-unique-keys+1]
+// [spec:pgorm:req:bindings.model-unique-keys+2]
 pub(crate) fn table_of(table: &Bound<'_, PyAny>) -> PyResult<DisjointTable> {
     let described = table.cast::<PyDict>()?;
     let schema: Option<String> = item(described, "schema")?.extract()?;

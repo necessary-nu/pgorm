@@ -140,6 +140,10 @@ pub struct DisjointTable {
     /// The unique keys [`DisjointTable::with_unique_key`] gave the table,
     /// which its `CREATE TABLE` writes beside its body's.
     pub(crate) unique_keys: Vec<DisjointUniqueKey>,
+    /// The unique keys a typed table's entity declares, which its body
+    /// writes: `EntityName::unique_keys`, none for a table described at run
+    /// time.
+    pub(crate) declared_keys: &'static [crate::UniqueKey],
 }
 
 /// A unique key of a [`DisjointTable`]: the constraint's name, or `None` for
@@ -216,6 +220,7 @@ impl DisjointTable {
             without_overlaps: false,
             body: TableBody::Columns,
             unique_keys: Vec::new(),
+            declared_keys: &[],
         })
     }
 
@@ -232,7 +237,7 @@ impl DisjointTable {
     /// key, `pk-{table}`, has (`42P07`). A name the disjoint schema gives a
     /// constraint of the shape the table is in is refused by
     /// [`DisjointShape::new`] and the schema's statements.
-    // [spec:pgorm:req:bindings.model-unique-keys+1]
+    // [spec:pgorm:req:bindings.model-unique-keys+2]
     pub fn with_unique_key(
         mut self,
         name: Option<&str>,
@@ -309,6 +314,7 @@ impl DisjointTable {
                 crate::schema::table_from_entity(E::default(), keep)
             })),
             unique_keys: Vec::new(),
+            declared_keys: entity.unique_keys(),
         }
     }
 
@@ -808,7 +814,7 @@ impl DisjointShape {
     /// base's onto the kind's table is (`42830`); a temporal base key is
     /// matched by its `UNIQUE` key over the key columns and the kind column,
     /// and is held.
-    // [spec:pgorm:sem:disjoint.schema+2]
+    // [spec:pgorm:sem:disjoint.schema+3]
     pub(crate) fn keyable(&self) -> Result<(), Error> {
         let base = &self.base;
         for column in base.key() {

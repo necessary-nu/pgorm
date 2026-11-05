@@ -204,7 +204,7 @@ class DisjointDeclaration(unittest.TestCase):
             with self.subTest(wrong=wrong), self.assertRaises(TypeError):
                 wrong()
 
-    # [spec:pgorm:req:bindings.model-unique-keys+1/test]    a model's unique key named as a name the disjoint schema adds, or as another model's unique key, is a ConstructionError raised as the disjoint model is declared, naming both
+    # [spec:pgorm:req:bindings.model-unique-keys+2/test]    a model's unique key named as a name the disjoint schema adds, as one PostgreSQL gives the tables itself, or as another model's unique key, is a ConstructionError raised as the disjoint model is declared, naming both
     def test_declaration_refuses_schema_named_keys(self):
         def keyed(model, name, fields):
             return p.Model(
@@ -218,6 +218,8 @@ class DisjointDeclaration(unittest.TestCase):
             "another model's key": (
                 keyed(vehicle(), "shared", ["name", "kind"]), keyed(car(), "shared", ["seats", "id"])
             ),
+            "PostgreSQL's primary key": (keyed(vehicle(), "vehicle_pkey", ["name", "kind"]), car()),
+            "PostgreSQL's not-null": (vehicle(), keyed(car(), "car_seats_not_null", ["seats", "id"])),
         }
         for case, (base, kind) in cases.items():
             with self.subTest(case=case), self.assertRaises(p.ConstructionError) as raised:
@@ -306,7 +308,7 @@ class DisjointDatabase(unittest.IsolatedAsyncioTestCase):
             ps.create_disjoint(undeclared)
         self.assertIn("has a default its description does not state", str(raised.exception))
 
-    # [spec:pgorm:req:bindings.model-unique-keys+1/test]    create_disjoint writes the base's and each kind model's unique keys after its primary key, which the server then holds, nulls equal under a key declared nulls_not_distinct
+    # [spec:pgorm:req:bindings.model-unique-keys+2/test]    create_disjoint writes the base's and each kind model's unique keys after its primary key, which the server then holds, nulls equal under a key declared nulls_not_distinct
     async def test_schema_writes_the_models_unique_keys(self):
         fleet = p.Model(
             "fleet",

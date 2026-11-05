@@ -256,7 +256,7 @@ where
 /// belongs-to relation `writes_key` keeps: a disjoint kind's table leaves out
 /// the one its key to its base row implies.
 // [spec:pgorm:sem:schema.from-entity+12]
-// [spec:pgorm:sem:disjoint.schema+2]
+// [spec:pgorm:sem:disjoint.schema+3]
 pub(crate) fn table_from_entity<E, K>(
     entity: E,
     writes_key: K,
@@ -315,7 +315,7 @@ where
 /// column, which an `EntityName` written by hand or a table described at run
 /// time can describe and PostgreSQL cannot write (`UNIQUE ()`).
 // [spec:pgorm:sem:schema.from-entity+12]
-// [spec:pgorm:req:bindings.model-unique-keys+1]
+// [spec:pgorm:req:bindings.model-unique-keys+2]
 pub(crate) fn unique_key(
     label: &str,
     name: Option<&str>,

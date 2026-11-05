@@ -112,7 +112,7 @@ class ModelConstruction(unittest.TestCase):
                 self.assertFalse(hasattr(model.columns["id"], name))
         self.assertFalse(hasattr(model.col("id"), "describe"))
 
-    # [spec:pgorm:req:bindings.model-unique-keys+1/test]    a model declares its unique keys in order, one field or several, named or not and NULLS NOT DISTINCT or not, describes each and keeps them under an alias, sending nothing
+    # [spec:pgorm:req:bindings.model-unique-keys+2/test]    a model declares its unique keys in order, one field or several, named or not and NULLS NOT DISTINCT or not, describes each and keeps them under an alias, sending nothing
     def test_unique_keys_are_declared_and_described(self):
         columns = {
             "id": p.Column("i32", primary_key=True),
@@ -135,7 +135,7 @@ class ModelConstruction(unittest.TestCase):
         self.assertEqual(model.as_("m").describe()["unique_keys"], expected)
         self.assertEqual(p.Model("members", columns).describe()["unique_keys"], [])
 
-    # [spec:pgorm:req:bindings.model-unique-keys+1/test]    a unique key naming no field, a field the model lacks or a field twice, or a name that is no identifier, is a ConstructionError as the model is declared; a key of another type, an unknown option and a mistyped field, name or flag a TypeError
+    # [spec:pgorm:req:bindings.model-unique-keys+2/test]    a unique key naming no field, a field the model lacks or a field twice, or a name that is no identifier, is a ConstructionError as the model is declared; a key of another type, an unknown option and a mistyped field, name or flag a TypeError
     def test_unique_keys_refuse_what_postgres_refuses(self):
         columns = {"id": p.Column("i32", primary_key=True), "handle": p.Column("text")}
 
