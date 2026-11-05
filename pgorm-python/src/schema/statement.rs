@@ -114,7 +114,7 @@ impl PyDDL {
         }
     }
 
-    // [spec:pgorm:req:python.truth-testing+4]
+    // [spec:pgorm:req:python.truth-testing+5]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "SQL statements cannot be tested as Python booleans",

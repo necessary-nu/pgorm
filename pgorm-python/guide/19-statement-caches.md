@@ -268,5 +268,5 @@ checked out for its whole life keeps its statements until it returns it. An
 empty channel name, or one longer than 63 bytes, which no notification could
 reach, raises `ConstructionError` when the pool is built. Here Python differs
 from Rust in spelling: the channel is a keyword argument of `Pool`, where Rust
-sets `ManagerConfig::statement_cache_channel`. Rust's metrics layer does not
-see these clears; Python has no metrics layer yet ([Metrics](21-metrics.md)).
+sets `ManagerConfig::statement_cache_channel`. The metrics layer does not see
+these clears ([Metrics](21-metrics.md)).

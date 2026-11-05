@@ -143,7 +143,7 @@ fn pool_listener(mut cx: FunctionContext) -> JsResult<JsPromise> {
             })
             .await?;
         let listening = Arc::new(ListenerState {
-            pool: state.clone(),
+            pool: state.state.clone(),
             listener,
             notifications: Arc::new(Mutex::new(Some(notifications))),
             closed: CancellationToken::new(),

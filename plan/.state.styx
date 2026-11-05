@@ -3330,6 +3330,8 @@ impl_evidence (
     ), rule_versions_seen (
         {id error.model.decode-refusal, version 0}
     )}
+    {id guide.python-gaps.metrics}
+    {id napi.guide-gaps.metrics}
 )
 
 onboarding {kind @adopt, phase 11}

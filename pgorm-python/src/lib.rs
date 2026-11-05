@@ -18,6 +18,7 @@ pub mod graphs;
 pub mod identifiers;
 pub mod json;
 mod listen;
+mod metrics;
 mod models;
 mod one_of;
 pub mod pipeline;
@@ -75,6 +76,7 @@ pub fn install(module: &Bound<'_, PyModule>, registry: entities::Registry) -> Py
     statements::register(module)?;
     copy::register(module)?;
     listen::register(module)?;
+    metrics::register(module)?;
     results::register(module)?;
     models::register(module)?;
     entities::install(module, registry)?;
