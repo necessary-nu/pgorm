@@ -63,23 +63,18 @@ pub(crate) fn column_tag(ty: &ColumnType) -> Option<Tag> {
         ColumnType::Enum {
             name: n, schema, ..
         } => Some(Tag::Enum(name(n, schema))),
+        // [spec:pgorm:req:bindings.created-ranges+4]
         ColumnType::CreatedRange {
-            name: n,
-            schema,
-            subtype,
+            name: n, schema, ..
         }
         | ColumnType::CreatedMultirange {
-            name: n,
-            schema,
-            subtype,
+            name: n, schema, ..
         } => {
-            let multirange = matches!(ty, ColumnType::CreatedMultirange { .. });
-            let subtype = scalar(subtype)
-                .filter(|kind| pgorm::CreatedRangeCodec::new(kind, multirange).is_some())?;
+            let codec = pgorm::CreatedRangeCodec::of_column(ty)?;
             Some(Tag::Created(CreatedKind {
                 name: name(n, schema),
-                subtype,
-                multirange,
+                subtype: codec.subtype().clone(),
+                multirange: codec.is_multirange(),
             }))
         }
         ColumnType::Array(member) => column_tag(member).map(|tag| Tag::Array(Box::new(tag))),
@@ -400,6 +395,20 @@ mod tests {
             key(&created).as_deref(),
             Some("range \"floatrange\" of f64")
         );
+        // [spec:pgorm:req:bindings.created-ranges+4/test]    a created range over `char(n)` is
+        // a range of text, as pgorm's column-type mapping reads it
+        for length in [None, Some(1), Some(4)] {
+            let over_char = ColumnType::CreatedRange {
+                name: Name::runtime("letters"),
+                schema: None,
+                subtype: Arc::new(ColumnType::Char(length)),
+            };
+            assert_eq!(
+                key(&over_char).as_deref(),
+                Some("range \"letters\" of text"),
+                "{length:?}"
+            );
+        }
         assert_eq!(key(&ColumnType::Money).as_deref(), Some("decimal"));
         assert_eq!(
             key(&ColumnType::Interval(IntervalSpec::Any(None))).as_deref(),

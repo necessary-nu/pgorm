@@ -317,7 +317,7 @@ const MULTISPANS = [
 ];
 
 // [spec:pgorm:req:bindings.copy-rows+1/test]    a multirange type a schema created reads as a Multirange and writes back from a Value of its kind or from its text
-// [spec:pgorm:req:bindings.created-ranges+3/test]
+// [spec:pgorm:req:bindings.created-ranges+4/test]
 test("a multirange type a schema created reads out of a binary COPY and writes back in", async () => {
   for (const statement of MULTISPANS) await pool().execute(statement);
   const spans = new Table("spans", { schema: "geo" });

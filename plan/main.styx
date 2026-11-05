@@ -1634,6 +1634,12 @@ children (
                     }
                 )
             }
+
+            {
+                id infra.python-native-unit
+                title "pgorm-python's Rust unit tests run in nplan check and CI, as pgorm-napi's do"
+                kind @ci
+            }
         )
     }
 
@@ -17948,6 +17954,22 @@ children (
                 title "Both bindings decode built-in ranges and multiranges through pgorm's range_from_sql/multirange_from_sql, with no decoder of their own"
                 kind @refactor
                 deps (typed-binds.shared-range-codec)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T08:25:19.048554Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T08:36:32.196984Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
@@ -17955,6 +17977,22 @@ children (
                 title "Both bindings give a created range over char(n) the same kind, through one shared column-type mapping"
                 kind @fix
                 deps (typed-binds.shared-range-codec)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T08:45:51.126078Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T08:50:39.949866Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
@@ -17962,6 +18000,29 @@ children (
                 title "pgorm's binary COPY rows reads a numeric exactly, refusing a value rust_decimal would round, as a created range's numeric bound is read"
                 kind @fix
                 deps (typed-binds.shared-range-codec)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T08:11:05.035353Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T08:16:34.416051Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id value-codecs.domain-subtype-column
+                title "The shared created-range column-type mapping looks through a domain subtype, as subtype_kind does for server types"
+                kind @fix
+                deps (value-codecs.char-created-range-kind)
             }
         )
     }

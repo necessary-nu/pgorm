@@ -936,7 +936,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > computing them as the rows go in; a COPY TO reads one only through a
 > `SELECT` source naming it, since `CopyToStatement` takes no column list.
 
-> [spec:pgorm:req:conn.copy.rows+4]
+> [spec:pgorm:req:conn.copy.rows+5]
 > Binary COPY carries rows of pgorm `Value`s, each field in its value's
 > binary form, the form a parameter is bound in and a result column decoded
 > from. The format sends no column types — a header, then each row as its
@@ -1014,7 +1014,14 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > `timestamptz`, and `uuid` under `with-uuid`, a domain over one read as the
 > one — and written as that type's `Display` writes it, so a model's newtype
 > field reads through `models`, and an array of one reads as an `Array` of
-> those `String`s. A `money` field, its column's places known, reads as the
+> those `String`s. A `numeric` field reads as `ExactDecimal` reads one, a
+> `Decimal` holding it exactly, its scale included, and an array as an
+> `Array` of those: rust_decimal's own decoder rounds a value with more than
+> 28 fractional digits, or with a coefficient past 96 bits whose integer
+> part a `Decimal` still holds (`7.9228162514264337593543950336`, and the
+> trailing zero of `12345678901234567890123456789.0`), and such a field is
+> refused, as are `NaN`, `Infinity` and `-Infinity` and an integer part past
+> 96 bits, which no `Decimal` holds at all. A `money` field, its column's places known, reads as the
 > `Decimal` of its minor units at those places, the amount PostgreSQL's cast
 > to `numeric` gives, and an array of them as an `Array` of `Decimal`s, so
 > what a COPY TO reads writes back through a COPY FROM and a model's

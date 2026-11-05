@@ -6,7 +6,10 @@ use std::error::Error as _;
 mod domain;
 #[path = "query_range.rs"]
 mod range;
-pub(crate) use range::{multirange_from_sql, range_from_sql};
+pub use range::{
+    MultirangeSql, RangeSql, multirange_from_sql, multirange_from_sql_with, range_from_sql,
+    range_from_sql_with,
+};
 #[doc(hidden)]
 pub use range::{try_get_created_ranges, try_get_texts};
 
