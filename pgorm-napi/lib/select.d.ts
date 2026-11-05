@@ -5,7 +5,7 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.select+2]
+// [spec:pgorm:req:bindings.select+3]
 // [spec:pgorm:req:bindings.from-subqueries]
 // [spec:pgorm:req:bindings.row-locks]
 // [spec:pgorm:req:bindings.with+1]
@@ -76,7 +76,8 @@ export declare class Select extends Builder {
   groupBy(...items: (Expr | GroupingElement)[]): Select;
   /**
    * `GROUP BY DISTINCT`: a grouping set the list reaches more than once —
-   * `rollup(a, b)` beside `rollup(a)` reaches `(a)` three ways — grouped once.
+   * `ROLLUP (a, b)` beside `ROLLUP (a)` reaches `(a)` three ways — grouped
+   * once.
    */
   groupByDistinct(): Select;
   having(predicate: Predicate): Select;
@@ -142,19 +143,17 @@ export declare function select(...items: Projection[]): Select;
 export declare class GroupingElement {
   #private;
   private constructor();
+  /** One grouping set, `(a, b)`; one expression renders bare, and none `()`. */
+  static set(...expressions: Expr[]): GroupingElement;
+  /** The empty grouping set, `()`: the whole input as one group. */
+  static empty(): GroupingElement;
+  /** `ROLLUP (a, b)`: the sets `(a, b)`, `(a)` and `()`. A `tuple` item is one unit. */
+  static rollup(...expressions: Expr[]): GroupingElement;
+  /** `CUBE (a, b)`: every subset of the list, `()` included. */
+  static cube(...expressions: Expr[]): GroupingElement;
+  /** `GROUPING SETS (..)`: exactly its items' sets, an expression the set of itself; never empty. */
+  static sets(first: Expr | GroupingElement, ...rest: (Expr | GroupingElement)[]): GroupingElement;
 }
-
-/** One grouping set, `(a, b)`; with no expressions `()`, the whole input as one group. */
-export declare function groupingSet(...expressions: Expr[]): GroupingElement;
-/** `ROLLUP (a, b)`: the sets `(a, b)`, `(a)` and `()`. A `tuple` item is one unit. */
-export declare function rollup(...expressions: Expr[]): GroupingElement;
-/** `CUBE (a, b)`: every subset of the list, `()` included. */
-export declare function cube(...expressions: Expr[]): GroupingElement;
-/** `GROUPING SETS (..)`: exactly its items' sets, an expression the set of itself; never empty. */
-export declare function groupingSets(
-  first: Expr | GroupingElement,
-  ...rest: (Expr | GroupingElement)[]
-): GroupingElement;
 
 /** How a {@link tableFunction} is read. */
 export interface TableFunctionOptions {

@@ -214,7 +214,7 @@ const MAX_PARAMETERS: usize = 65_535;
 /// the ORDER BY or window entry they turn on may arrive later, so this is
 /// the first point the statement is final.
 // [spec:pgorm:req:bindings.statements]
-// [spec:pgorm:req:bindings.select+2]
+// [spec:pgorm:req:bindings.select+3]
 // [spec:pgorm:req:bindings.windows]
 pub(crate) fn compile<'cx>(cx: &mut Cx<'cx>, node: &Node) -> NeonResult<(String, Values)> {
     let built = match node {

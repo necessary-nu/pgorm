@@ -156,7 +156,7 @@ from .copy import CopyOutStream, CopyRows, CopyRowStream, CopySource
 from .listen import Listener
 
 # [spec:pgorm:req:bindings.surface+2]
-# [spec:pgorm:req:python.naming+3]
+# [spec:pgorm:req:python.naming+4]
 select = Select
 insert = Insert
 update = Update

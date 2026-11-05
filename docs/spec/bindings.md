@@ -626,7 +626,7 @@ the same terminals that run raw SQL.
 > language or PostgreSQL limit on a representation MUST be an explicit error,
 > never a silent normalization.
 
-> [spec:pgorm:req:bindings.select+2]
+> [spec:pgorm:req:bindings.select+3]
 > `select` MUST build pgorm-query's `SelectStatement` through the Rust
 > builder's own methods:
 >
@@ -643,10 +643,15 @@ the same terminals that run raw SQL.
 >   and `JSON_TABLE` (`bindings.sql-json`);
 > - inner, left, right and full joins on a predicate, and cross joins;
 > - WHERE and HAVING, each call ANDed to what is there;
-> - GROUP BY over expressions and the grouping elements — a grouping set, the
->   empty set, ROLLUP, CUBE and GROUPING SETS, which takes its first element
->   so it is never empty, an expression among its elements being the set of
->   itself — and `group_by_distinct` (`sql.ast.select.grouping`,
+> - GROUP BY over expressions and the grouping elements, each made by the
+>   static factory of `GroupingElement` named for the pgorm-query constructor
+>   that builds it: `set(exprs..)`, a grouping set, one expression rendering
+>   bare and none `()`; `empty()`, the empty set; `rollup(exprs..)` and
+>   `cube(exprs..)`; and `sets(first, rest..)`, GROUPING SETS, which takes its
+>   first element so it is never empty, an expression among its elements
+>   being the set of itself. `GroupingElement` is exported for annotations and
+>   `isinstance` (`instanceof`) and cannot be called, a call being a
+>   `TypeError`. And `group_by_distinct` (`sql.ast.select.grouping`,
 >   `sql.ast.select.group-distinct`);
 > - ORDER BY with a direction and NULLS FIRST or LAST;
 > - LIMIT and OFFSET, each a non-negative integer within PostgreSQL's `bigint`,

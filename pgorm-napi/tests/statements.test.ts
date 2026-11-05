@@ -124,7 +124,7 @@ function refused(pattern: RegExp): (error: unknown) => true {
 
 const ids = (rows: Record<string, unknown>[], key = "id") => rows.map((row) => row[key]);
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 test("a SELECT with a join, a nested filter, grouping, HAVING, ordering and a limit runs", async () => {
   const count = call("count", event.col("id"));
   const query = select(account.col("name"), count.as("clicks"))
@@ -480,7 +480,7 @@ test("array() collects a subquery's column into one array value", async () => {
   );
 });
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 test("set operations combine rows with and without duplicates", async () => {
   const kinds = select(event.col("kind")).from(event);
   const count = async (query: ReturnType<typeof select>) => (await pool().query(query)).length;
@@ -492,7 +492,7 @@ test("set operations combine rows with and without duplicates", async () => {
   assert.equal(await count(kinds.intersectAll(kinds)), 7);
 });
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:sem:sql.ast.select.union+2/test]
 test("a chain of set operations combines in call order, for every pair of operators", async () => {
   const bag = (name: keyof typeof BAGS) => select(col("v")).from(new Table(name));
@@ -685,7 +685,7 @@ test("call() reaches only the functions pgorm-query constructs, at their argumen
   assert.equal(call("uuidv7").inspect().sql, "SELECT UUIDV7()");
 });
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 test("limits and offsets are non-negative integers within PostgreSQL's bigint", () => {
   const base = select().from(new Table("t"));
   for (const bad of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, 2n ** 63n, -1n, Number.NaN]) {

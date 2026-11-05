@@ -7,7 +7,7 @@ use pgorm::pgorm_query::GroupingElement;
 
 use super::{
     Node,
-    args::{choice, expressions_at, list, node, refuse},
+    args::{arg, choice, expressions_at, list, node},
 };
 
 pub(super) const EXPORTS: &[(&str, super::Build)] = &[
@@ -17,7 +17,7 @@ pub(super) const EXPORTS: &[(&str, super::Build)] = &[
 
 /// A `GROUP BY` item: a grouping element, or an expression, which is the set
 /// of that one expression and renders bare, as `add_group_by` writes it.
-// [spec:pgorm:req:bindings.select+2]
+// [spec:pgorm:req:bindings.select+3]
 pub(super) fn element<'cx>(
     cx: &mut Cx<'cx>,
     value: Handle<'cx, JsValue>,
@@ -37,33 +37,37 @@ pub(super) fn element<'cx>(
     }
 }
 
-/// `groupingNew("set" | "rollup" | "cube", expressions)`: one set,
-/// `("a", "b")` — `()` with no expressions — or `ROLLUP` or `CUBE` over the
-/// expressions, each of which may be a `tuple` standing as one unit.
-// [spec:pgorm:req:bindings.select+2]
+/// `groupingNew("set" | "empty" | "rollup" | "cube", expressions)`: one set,
+/// `("a", "b")`, the empty set `()`, or `ROLLUP` or `CUBE` over the
+/// expressions, each of which may be a `tuple` standing as one unit — each
+/// through pgorm-query's `GroupingElement` constructor of the same name.
+// [spec:pgorm:req:bindings.select+3]
 fn grouping_new(cx: &mut FunctionContext) -> NeonResult<Node> {
-    let kind = choice(cx, 0, "a grouping element", &["set", "rollup", "cube"])?;
+    let kind = choice(
+        cx,
+        0,
+        "a grouping element",
+        &["set", "empty", "rollup", "cube"],
+    )?;
     let expressions = expressions_at(cx, 1)?;
     let element = match kind {
         "set" => GroupingElement::set(expressions),
+        "empty" => GroupingElement::empty(),
         "rollup" => GroupingElement::rollup(expressions),
         _ => GroupingElement::cube(expressions),
     };
     Ok(Node::GroupingElement(element))
 }
 
-/// `groupingSets(items)`: `GROUPING SETS (..)` over at least one item, each a
-/// grouping element or an expression, as pgorm-query's builder takes its
-/// first element before any other.
-// [spec:pgorm:req:bindings.select+2]
+/// `groupingSets(first, rest)`: `GROUPING SETS (..)` over its first item and
+/// the array of the others, each a grouping element or an expression, as
+/// pgorm-query's builder takes its first element before any other.
+// [spec:pgorm:req:bindings.select+3]
 fn grouping_sets(cx: &mut FunctionContext) -> NeonResult<Node> {
-    let mut items = list(cx, 0)?.into_iter();
-    let Some(first) = items.next() else {
-        return refuse(cx, "GROUPING SETS takes at least one element");
-    };
+    let first = arg(cx, 0);
     let first = element(cx, first)?;
     let mut sets = GroupingElement::sets(first);
-    for item in items {
+    for item in list(cx, 1)? {
         sets = sets.add(element(cx, item)?);
     }
     Ok(Node::GroupingElement(sets.into()))

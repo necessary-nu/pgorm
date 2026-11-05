@@ -2,7 +2,7 @@
 // with the JavaScript API, and `select.json` holds the SQL and values it must
 // build, which the Rust test `statements::parity` builds the same statement to
 // with pgorm-query's own builders.
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:bindings.expressions+2/test]
 // [spec:pgorm:req:bindings.quantifiers+2/test]
 // [spec:pgorm:req:bindings.cte-options/test]
@@ -18,14 +18,11 @@ import {
   caseWhen,
   col,
   Condition,
-  cube,
   DataType,
   Decimal,
   exists,
-  groupingSet,
-  groupingSets,
+  GroupingElement,
   literal,
-  rollup,
   scalar,
   select,
   Table,
@@ -277,11 +274,16 @@ export const cases: Record<string, () => Builder> = {
       .from(t)
       .groupBy(
         col("a"),
-        rollup(col("a"), col("b")),
-        cube(col("b"), tuple(col("a"), col("b"))),
-        groupingSets(groupingSet(col("a"), col("b")), col("b"), groupingSet(), rollup(col("a"))),
+        GroupingElement.rollup(col("a"), col("b")),
+        GroupingElement.cube(col("b"), tuple(col("a"), col("b"))),
+        GroupingElement.sets(
+          GroupingElement.set(col("a"), col("b")),
+          col("b"),
+          GroupingElement.empty(),
+          GroupingElement.rollup(col("a")),
+        ),
       )
-      .groupBy(groupingSet(), rollup())
+      .groupBy(GroupingElement.set(), GroupingElement.rollup())
       .groupByDistinct(),
   "group-by-distinct-ungrouped": () => select(col("a")).from(t).groupByDistinct(),
   "similar-to": () =>

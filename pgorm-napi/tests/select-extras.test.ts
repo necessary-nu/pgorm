@@ -10,15 +10,12 @@ import {
   call,
   col,
   ConstructionError,
-  cube,
   DataType,
   DatabaseError,
   exists,
   type Expr,
-  groupingSet,
-  groupingSets,
+  GroupingElement,
   Pool,
-  rollup,
   type Select,
   select,
   Table,
@@ -92,7 +89,7 @@ const ranked = select(score.col("player"), score.col("score")).from(score);
 const byScore = score.col("score").desc();
 const unordered = ranked.limitWithTies(2);
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2/test]
 test("a tie limit keeps every row tied with the last one counted, in LIMIT's slot", async () => {
   const tied = ranked.orderBy(byScore).limitWithTies(2);
@@ -112,7 +109,7 @@ test("a tie limit keeps every row tied with the last one counted, in LIMIT's slo
   }
 });
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2/test]
 test("a tie limit with no ORDER BY, or beside SKIP LOCKED, is refused by inspect() and every run before it is sent", async () => {
   const skipping = ranked.orderBy(byScore).limitWithTies(2).lock("update", { wait: "skipLocked" });
@@ -149,7 +146,7 @@ test("a tie limit with no ORDER BY, or beside SKIP LOCKED, is refused by inspect
   }
 });
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2/test]
 test("a refused tie limit cannot be read into another statement, where nothing could still order it", async () => {
   for (
@@ -171,14 +168,14 @@ test("a refused tie limit cannot be read into another statement, where nothing c
   ]);
 });
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:sql.ast.select.group-distinct/test]
 // [spec:pgorm:def:sql.ast.select.grouping/test]
 test("GROUP BY DISTINCT groups each grouping set its elements reach once", async () => {
   const grouped = (select: Select) =>
     select.orderBy(col("a").asc({ nulls: "last" }), col("b").asc({ nulls: "last" }));
   const totals = select(col("a"), col("b"), call("count", col("a")).as("n")).from(sale);
-  const repeated = totals.groupBy(rollup(col("a"), col("b")), rollup(col("a")));
+  const repeated = totals.groupBy(GroupingElement.rollup(col("a"), col("b")), GroupingElement.rollup(col("a")));
   assert.equal((await pool().query(repeated)).length, 8);
   assert.deepStrictEqual(await pool().query(grouped(repeated.groupByDistinct())), [
     { a: 1, b: 2, n: 1n },
@@ -186,22 +183,23 @@ test("GROUP BY DISTINCT groups each grouping set its elements reach once", async
     { a: 1, b: null, n: 2n },
     { a: null, b: null, n: 2n },
   ]);
-  assert.equal((await pool().query(totals.groupBy(cube(col("a"), col("b"))))).length, 6);
+  assert.equal((await pool().query(totals.groupBy(GroupingElement.cube(col("a"), col("b"))))).length, 6);
   const sets = select(col("a"), call("count", col("a")).as("n")).from(sale)
-    .groupBy(groupingSets(col("a"), groupingSet())).orderBy(col("a").asc({ nulls: "last" }));
+    .groupBy(GroupingElement.sets(col("a"), GroupingElement.empty())).orderBy(col("a").asc({ nulls: "last" }));
   assert.deepStrictEqual(await pool().query(sets), [{ a: 1, n: 2n }, { a: null, n: 2n }]);
   const plain = totals.groupBy(col("a"), col("b"));
   assert.deepStrictEqual(await pool().query(grouped(plain.groupByDistinct())), await pool().query(grouped(plain)));
   for (
     const [build, reason] of [
       [() => totals.groupBy(1 as never), /grouping item is an expression or a grouping element/],
-      [() => groupingSets(score as never), /grouping item is an expression or a grouping element, not a Table/],
-      [() => rollup("a" as never), /expected an expression/],
+      [() => GroupingElement.sets(score as never), /grouping item is an expression or a grouping element, not a Table/],
+      [() => GroupingElement.rollup("a" as never), /expected an expression/],
+      [() => (GroupingElement.sets as () => unknown)(), /grouping item is an expression or a grouping element/],
+      [() => new (GroupingElement as unknown as new () => unknown)(), /made by GroupingElement\.set\(\)/],
     ] as const
   ) {
     assert.throws(build, mistyped(reason));
   }
-  assert.throws(() => (groupingSets as () => unknown)(), refused(/GROUPING SETS takes at least one element/));
 });
 
 // [spec:pgorm:req:bindings.expressions+2/test]
@@ -224,7 +222,7 @@ test("SIMILAR TO matches a whole string against its pattern, the pattern bound a
   assert.throws(() => word.col("w").similarTo("a", { escape: 1 as never }), mistyped(/escape is a string/));
 });
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:bindings.expressions+2/test]
 // [spec:pgorm:req:sql.ast.select.table-function+2/test]
 test("unnest WITH ORDINALITY numbers each element, reading a column of the item before it", async () => {
@@ -246,7 +244,7 @@ test("unnest WITH ORDINALITY numbers each element, reading a column of the item 
   assert.deepStrictEqual(rows, [{ id: 1n, tag: "x", n: 1n }, { id: 1n, tag: "y", n: 2n }, { id: 2n, tag: "z", n: 1n }]);
 });
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:bindings.expressions+2/test]
 // [spec:pgorm:req:sql.ast.select.table-function+2/test]
 test("ROWS FROM reads its calls side by side, padding the shorter with NULL", async () => {
@@ -284,7 +282,7 @@ test("ROWS FROM reads its calls side by side, padding the shorter with NULL", as
   assert.throws(() => call(7 as never), mistyped(/a function's name is a string/));
 });
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:bindings.expressions+2/test]
 // [spec:pgorm:req:sql.ast.select.column-definitions/test]
 test("a call returning record reads through its column definitions, alone or inside ROWS FROM", async () => {
@@ -340,7 +338,7 @@ test("a call returning record reads through its column definitions, alone or ins
   );
 });
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:sql.ast.select.table-sample/test]
 test("TABLESAMPLE draws a bound share of a table's rows, the same sample again for the same seed", async () => {
   const ids = async (sample: ReturnType<Table["tablesample"]>) =>

@@ -23,7 +23,7 @@ fn function_call(value: &Bound<'_, PyAny>) -> PyResult<FunctionCall> {
     }
 }
 
-// [spec:pgorm:req:bindings.select+2]
+// [spec:pgorm:req:bindings.select+3]
 /// A function in FROM: one call, or several read side by side under
 /// `ROWS FROM (..)`, the shorter padded with NULLs; `with_ordinality` adds a
 /// final `bigint` column numbering the rows from 1, `columns` names the

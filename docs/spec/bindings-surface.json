@@ -51,7 +51,7 @@
       "FrameType": ["Groups", "Range", "Rows", "current_row", "following", "preceding", "unbounded_preceding"],
       "FromItem": ["col", "star"],
       "Graph": ["all", "all_grouped", "col", "count", "cursor", "inspect", "join_maybe", "join_one", "limit", "offset", "one", "optional", "order_by", "paginate", "stream", "via", "where"],
-      "GroupingElement": [],
+      "GroupingElement": ["cube", "empty", "rollup", "set", "sets"],
       "Insert": ["columns", "default_values", "inspect", "on_conflict", "overriding", "returning", "select", "values", "with"],
       "InternalError": [],
       "Interval": [],
@@ -423,12 +423,7 @@
       "pgorm.EntityInsertMany": {"question": "shapes"},
       "pipeline.Pipeline.all": {"question": "shapes"},
       "pipeline.Pipeline.one": {"question": "shapes"},
-      "pipeline.Pipeline.optional": {"question": "shapes"},
-      "pgorm.GroupingElement.set": {"question": "shapes"},
-      "pgorm.GroupingElement.empty": {"question": "shapes"},
-      "pgorm.GroupingElement.rollup": {"question": "shapes"},
-      "pgorm.GroupingElement.cube": {"question": "shapes"},
-      "pgorm.GroupingElement.sets": {"question": "shapes"}
+      "pipeline.Pipeline.optional": {"question": "shapes"}
     }
   },
   "javascript": {
@@ -479,10 +474,6 @@
     },
     "gaps": {},
     "undecided": {
-      "pgorm.cube": {"question": "shapes"},
-      "pgorm.groupingSet": {"question": "shapes"},
-      "pgorm.groupingSets": {"question": "shapes"},
-      "pgorm.rollup": {"question": "shapes"},
       "pgorm.tableFunction": {"question": "shapes"},
       "pgorm.EntityInsert.returningUpserts": {"question": "shapes"}
     }

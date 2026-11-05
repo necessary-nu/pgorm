@@ -66,7 +66,7 @@ class SetOperationTests(unittest.IsolatedAsyncioTestCase):
     def side(self, table):
         return p.Select(p.col("n")).from_(table)
 
-    # [spec:pgorm:req:bindings.select+2/test]    each of the six operators, its ALL form keeping
+    # [spec:pgorm:req:bindings.select+3/test]    each of the six operators, its ALL form keeping
     # duplicates and the other removing them
     async def test_each_operation_combines_the_rows(self):
         left, right = self.side(self.left), self.side(self.right)
@@ -79,7 +79,7 @@ class SetOperationTests(unittest.IsolatedAsyncioTestCase):
                     bool(combined)
         self.assertEqual(await self.numbers(left), LEFT)
 
-    # [spec:pgorm:req:bindings.select+2/test]    the receiver's ORDER BY and limits bound the
+    # [spec:pgorm:req:bindings.select+3/test]    the receiver's ORDER BY and limits bound the
     # combined rows whenever they were set, an arm's own stay inside its parentheses, and bound
     # values number across the arms
     async def test_order_and_limits_cover_combined_rows(self):
@@ -99,7 +99,7 @@ class SetOperationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([value.value for value in compiled.params], [1, 4])
         self.assertEqual(await self.numbers(filtered), [1, 2, 3, 3, 3, 3, 3])
 
-    # [spec:pgorm:req:bindings.select+2/test]    an ordering of the combined rows names a result
+    # [spec:pgorm:req:bindings.select+3/test]    an ordering of the combined rows names a result
     # column: the server refuses a qualified column of the first arm and any other expression
     async def test_combined_order_names_result_columns(self):
         aliased = self.left.as_("l")
@@ -113,7 +113,7 @@ class SetOperationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(refused.exception.sqlstate, sqlstate)
         self.assertEqual(await self.numbers(qualified.order_by(p.col("n").asc())), [1, 2, 3, 4])
 
-    # [spec:pgorm:req:bindings.select+2/test]    the receiver's WITH clause precedes the whole
+    # [spec:pgorm:req:bindings.select+3/test]    the receiver's WITH clause precedes the whole
     # statement, so every arm reads it
     async def test_with_clause_reaches_every_arm(self):
         shared = p.Table("shared")
@@ -123,7 +123,7 @@ class SetOperationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(combined.inspect().sql.startswith('WITH "shared" AS (SELECT "n" FROM'))
         self.assertEqual(await self.numbers(combined), [1, 3])
 
-    # [spec:pgorm:req:bindings.select+2/test]    a chain combines in call order: every pair of
+    # [spec:pgorm:req:bindings.select+3/test]    a chain combines in call order: every pair of
     # operators over three tables reads (left op1 right) op2 third, the bags chosen so that where
     # PostgreSQL's precedence would read the flat chain otherwise, the two readings differ
     # [spec:pgorm:sem:sql.ast.select.union+2/test]
@@ -139,7 +139,7 @@ class SetOperationTests(unittest.IsolatedAsyncioTestCase):
                     if second in intersects and first not in intersects:
                         self.assertNotEqual(combine(first, LEFT, combine(second, RIGHT, THIRD)), in_call_order)
 
-    # [spec:pgorm:req:bindings.select+2/test]    only an INTERSECT after a UNION or EXCEPT
+    # [spec:pgorm:req:bindings.select+3/test]    only an INTERSECT after a UNION or EXCEPT
     # parenthesises what came before it, and a combined arm keeps its own grouping
     async def test_intersect_after_union_groups_the_union(self):
         one, two, three = (p.Select(p.literal(number).as_("n")) for number in (1, 2, 3))

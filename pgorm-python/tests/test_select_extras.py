@@ -25,7 +25,7 @@ def text_array(values):
     return p.bind(p.Value.array("text", values)).cast(p.TypeName("text"), array=True)
 
 
-# [spec:pgorm:req:bindings.select+2/test]
+# [spec:pgorm:req:bindings.select+3/test]
 # [spec:pgorm:req:bindings.expressions+2/test]
 class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -127,6 +127,8 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(await self.rows(cube)), 6)
         mixed = p.Select(a, b).from_(pairs).group_by(a, G.set(a, b)).order_by(b.asc())
         self.assertEqual(await self.rows(mixed), [(1, 2), (1, 3)])
+        with self.assertRaises(TypeError):
+            G()
 
     # [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    a whole-string match, the default
     # backslash escape and a chosen one
@@ -205,7 +207,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
                   .order_by(self.s("id").asc()))
         self.assertEqual(await self.rows(joined), [(1, "a"), (2, "b"), (3, "c")])
 
-    # [spec:pgorm:req:bindings.select+2/test]    a call returning record reads through the
+    # [spec:pgorm:req:bindings.select+3/test]    a call returning record reads through the
     # columns its definition list gives, a lone call's list in the alias, each call of a ROWS FROM
     # with its own, and the server refuses a missing list or one on another function
     # [spec:pgorm:req:sql.ast.select.column-definitions/test]

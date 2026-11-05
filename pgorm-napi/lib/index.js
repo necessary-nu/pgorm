@@ -6,7 +6,7 @@
 // what an application imports.
 // [spec:pgorm:def:bindings.api]
 // [spec:pgorm:req:bindings.surface+2]
-// [spec:pgorm:req:napi.naming+4]
+// [spec:pgorm:req:napi.naming+5]
 // [spec:pgorm:def:napi.api+1]
 // [spec:pgorm:req:napi.typing+1]
 
@@ -38,7 +38,7 @@ export { CaseOperand, caseOf, caseWhen, Condition, SearchedCase, SimpleCase } fr
 export { Aliased, all, any, array, bind, call, col, exists, Expr, literal, OrderBy, Quantified, scalar, tuple } from "./expressions.js";
 export { Builder } from "./builder.js";
 export { FromItem, Select, select, Table, With } from "./select.js";
-export { cube, GroupingElement, groupingSet, groupingSets, rollup } from "./grouping.js";
+export { GroupingElement } from "./grouping.js";
 export { tableFunction } from "./table-function.js";
 export { Delete, deleteFrom, Insert, insert, ReturningRow, Update, update } from "./writes.js";
 export { Conflict, ConflictTarget, ConflictUpdate } from "./conflicts.js";

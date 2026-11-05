@@ -55,7 +55,7 @@ pub(super) fn refused<E: pyo3::PyTypeInfo>(
     Ok(())
 }
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 #[test]
 fn select_structure_matches_rust_builders() -> PyResult<()> {
     Python::initialize();
@@ -720,7 +720,7 @@ def over(name):
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2/test]    the tie limit shares `limit`'s slot, either
 // replacing the other and `None` clearing both
 #[test]
@@ -774,7 +774,7 @@ fn tie_limits_share_the_rust_limit_slot() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2/test]    a tie limit with no ORDER BY is refused at
 // inspection, at execution's compile and as a CTE body or subquery reads it, and its count is
 // checked as `limit`'s is
@@ -861,7 +861,7 @@ fn tie_limits_without_order_are_refused() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:sql.ast.select.group-distinct/test]    grouping elements interleave with
 // expressions in call order, and DISTINCT quantifies the whole list
 #[test]
@@ -932,7 +932,7 @@ fn grouping_elements_match_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:sql.ast.select.table-function+2/test]    one call, ROWS FROM, ordinality and
 // column names, the lone plain call as Rust's FunctionCall item, and anything but a call refused
 #[test]
@@ -1029,7 +1029,7 @@ fn table_functions_match_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+3/test]
 // [spec:pgorm:req:sql.ast.select.table-sample/test]    both methods, the percentage and seed
 // bound as doubles, and numbers a double cannot hold exactly refused
 #[test]
@@ -1112,7 +1112,7 @@ fn table_samples_match_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]    each operator appends one parenthesised arm in
+// [spec:pgorm:req:bindings.select+3/test]    each operator appends one parenthesised arm in
 // call order, and the receiver's ORDER BY, limits and WITH clause cover the combined rows
 #[test]
 fn set_operations_match_rust_builders() -> PyResult<()> {
@@ -1184,7 +1184,7 @@ fn set_operations_match_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]    an arm is read into the statement, so its tie
+// [spec:pgorm:req:bindings.select+3/test]    an arm is read into the statement, so its tie
 // limit is checked as it is read; anything but a Select is a TypeError
 #[test]
 fn set_operation_arms_are_checked_when_read() -> PyResult<()> {

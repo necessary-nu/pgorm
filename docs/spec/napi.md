@@ -17,7 +17,7 @@ waiting on the operator. The WBS root is `napi`.
 > classes it rejects with and builds values from, exports them, and is what an
 > application imports; the addon is not imported directly.
 
-> [spec:pgorm:req:napi.naming+4]
+> [spec:pgorm:req:napi.naming+5]
 > JavaScript MUST spell a shared rule's neutral name in camelCase — functions,
 > methods and option keys — and a class as written. A closed choice is a
 > string literal in camelCase (`"inner"`, `"noKeyUpdate"`, `"skipLocked"`,
@@ -32,9 +32,7 @@ waiting on the operator. The WBS root is `napi`.
 >
 > A reserved word is spelled otherwise: `deleteFrom` for `delete`, and
 > `thisColumn`, `thatColumn` and `caseWhen` for a pipeline's `this`, `that`
-> and `case`. The grouping elements differ from the shared shape by choice
-> and wait on the operator (`bindings.surface`): the functions `groupingSet`,
-> `rollup`, `cube` and `groupingSets`.
+> and `case`.
 
 ## Targeting and loading
 

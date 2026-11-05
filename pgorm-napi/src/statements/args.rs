@@ -305,7 +305,7 @@ fn unchecked<'cx>(cx: &mut Cx<'cx>, value: Handle<'cx, JsValue>) -> NeonResult<S
 /// LOCKED — and a WINDOW clause it refuses are refused here, as `compile`
 /// refuses them in a statement run on its own, rather than by the server
 /// once the outer statement is sent.
-// [spec:pgorm:req:bindings.select+2]
+// [spec:pgorm:req:bindings.select+3]
 // [spec:pgorm:req:bindings.windows]
 pub(crate) fn embedded<'cx>(
     cx: &mut Cx<'cx>,

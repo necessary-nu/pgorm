@@ -298,7 +298,7 @@ for await (const row of pool.stream(query, { tagged: true })) { /* .. */ }
   its receiver's pgorm-query state, so a base query can be extended in two
   directions. Builders come from the module's functions (`select`, `col`,
   `bind`, `literal`, `call`, `caseWhen`, `caseOf`, `exists`, `scalar`, `array`, `tuple`,
-  `groupingSet`, `rollup`, `cube`, `groupingSets`, `tableFunction`) and the
+  `tableFunction`), the static factories of `GroupingElement` and the
   `Table` and `With` constructors.
 - **Values are bound, identifiers quoted.** An operand that is not an
   expression is a parameter, inferred as one is or declared with `Value` — an
@@ -338,8 +338,9 @@ for await (const row of pool.stream(query, { tagged: true })) { /* .. */ }
   `col("score").gt(all(select(..)))` compares with every row. Over an empty
   array or no rows, `ANY` is false and `ALL` true.
 - **SELECT**: `select(..)`, `from`, `join` (`kind`, `lateral`), `crossJoin`,
-  `where`, `groupBy` (expressions, and `groupingSet`, `rollup`, `cube` and
-  `groupingSets`), `groupByDistinct`, `having`, `orderBy`, `limit`/`offset`
+  `where`, `groupBy` (expressions, and the grouping elements
+  `GroupingElement.set`, `.empty`, `.rollup`, `.cube` and `.sets`),
+  `groupByDistinct`, `having`, `orderBy`, `limit`/`offset`
   (`null` removes), `limitWithTies` (`FETCH FIRST n ROWS WITH TIES`, in
   LIMIT's slot), `distinct`, `union` .. `exceptAll` (a chain combines in
   call order: `a.union(b).intersect(c)` is `(a UNION b) INTERSECT c`),

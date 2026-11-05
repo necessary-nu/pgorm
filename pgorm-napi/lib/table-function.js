@@ -2,7 +2,7 @@
 
 // Set-returning functions read as a FROM item: one call, or several zipped
 // side by side under ROWS FROM, the shorter ones padded with NULLs.
-// [spec:pgorm:req:bindings.select+2]
+// [spec:pgorm:req:bindings.select+3]
 
 import { arg, Handle, TRUSTED } from "./builder.js";
 import { native } from "./operations.js";
