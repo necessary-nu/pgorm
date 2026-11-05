@@ -54,7 +54,7 @@ where
             let active = models.into_iter().next().ok_or_else(|| {
                 Error::Custom("an insert of one row needs one ActiveModel".to_owned())
             })?;
-            let mut insert = Insert::one(active);
+            let mut insert = Insert::one_in(self.entity, active);
             if let Some(conflict) = conflict {
                 insert = insert.on_conflict(*conflict);
             }
@@ -81,7 +81,7 @@ where
                 ),
             });
         }
-        let mut insert = Insert::many(models);
+        let mut insert = Insert::many_in(self.entity, models);
         if let Some(conflict) = conflict {
             insert = insert.on_conflict(*conflict);
         }

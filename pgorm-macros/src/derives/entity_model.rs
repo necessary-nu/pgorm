@@ -217,7 +217,7 @@ fn conversion_arms(
 /// code takes it bare; `default_value` is an expression of the column's value,
 /// so a string literal there is that string.
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
-// [spec:pgorm:req:macros.derive.code-values+3]
+// [spec:pgorm:req:macros.derive.code-values+4]
 fn parse_field_attrs(
     field: &Field,
     column_name: Option<String>,
@@ -511,7 +511,7 @@ impl CompositeUnique {
     /// of one column, which is that field's own `unique`; a name is 1 to 63
     /// bytes, the identifier PostgreSQL would otherwise refuse or truncate.
     // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
-    // [spec:pgorm:req:macros.derive.code-values+3]
+    // [spec:pgorm:req:macros.derive.code-values+4]
     fn parse(meta: &ParseNestedMeta) -> syn::Result<Self> {
         let mut unique = Self {
             key: meta.path.span(),

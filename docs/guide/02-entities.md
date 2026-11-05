@@ -583,15 +583,53 @@ assert!(mo.weekly);
 # }
 ```
 
-A form derives `IntoActiveModel` in the module its entity is declared in,
-where `ActiveModel` names the entity's active model, or names another with
-`#[pgorm(active_model = ..)]`. A field of type `Option<T>` sets its column
-when it is `Some` and leaves it out when it is `None`; a nullable column is
-set to `NULL` by a field of type `Option<Option<T>>` holding `Some(None)`.
+A form beside its entity converts into the `ActiveModel` there. Anywhere
+else, in another module or another crate, such as beside the handler that
+reads it, `#[pgorm(active_model = ..)]` names the active model by its path. A
+field may be of any column type, an `ActiveEnum` among them:
+
+```rust
+use pgorm::entity::prelude::*;
+use pgorm_guide_support::cake::{self, Flavor};
+
+/// What the shop's "new cake" form sends.
+#[derive(IntoActiveModel)]
+#[pgorm(active_model = cake::ActiveModel)]
+struct NewCake {
+    name: String,
+    flavor: Flavor,
+    price: Decimal,
+    gluten_free: bool,
+    bakery_id: i32,
+}
+
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("entities_form_elsewhere").await;
+# let db = scratch.pool.get().await?;
+let form = NewCake {
+    name: "Lemon Tart".to_owned(),
+    flavor: Flavor::Lemon,
+    price: Decimal::new(410, 2),
+    gluten_free: false,
+    bakery_id: 1,
+};
+let tart = form.into_active_model().insert(&db).await?;
+assert_eq!(tart.flavor, Flavor::Lemon);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+A field of type `Option<T>` sets its column when it is `Some` and leaves it
+out when it is `None`; a nullable column is set to `NULL` by a field of type
+`Option<Option<T>>` holding `Some(None)`.
 
 A `ValueType` newtype stands for the type it wraps, wherever a column value
-goes: as a field, as a bound parameter, as a decoded value. The recipe below
-weighs its flour in grams, a type the compiler keeps apart from other
+goes: as a field, as a bound parameter, as a decoded value, and as an
+`Option` of one, a nullable column. The recipe below weighs its flour, and
+perhaps its sugar, in grams, a type the compiler keeps apart from other
 integers, stored as an ordinary `integer`:
 
 ```rust
@@ -607,6 +645,7 @@ mod recipe {
         #[pgorm(primary_key)]
         pub id: i32,
         pub flour: Grams,
+        pub sugar: Option<Grams>,
     }
 
     #[derive(Copy, Clone, Debug, Relation)]
@@ -619,12 +658,15 @@ use pgorm::entity::prelude::*;
 let heavy = recipe::Entity::find().filter(recipe::Column::Flour.gt(recipe::Grams(500)));
 assert_eq!(
     heavy.build().0,
-    r#"SELECT "recipe"."id", "recipe"."flour" FROM "recipe" WHERE "recipe"."flour" > $1"#
+    r#"SELECT "recipe"."id", "recipe"."flour", "recipe"."sugar" FROM "recipe" WHERE "recipe"."flour" > $1"#
 );
 assert_eq!(
     pgorm::Schema::new().create_table_from_entity(recipe::Entity)?.to_string(),
-    r#"CREATE TABLE "recipe" ( "id" serial NOT NULL, "flour" integer NOT NULL, PRIMARY KEY ("id") )"#
+    r#"CREATE TABLE "recipe" ( "id" serial NOT NULL, "flour" integer NOT NULL, "sugar" integer, PRIMARY KEY ("id") )"#
 );
+// A newtype's `None` is its integer's NULL.
+let unsweetened: Value = Option::<recipe::Grams>::None.into();
+assert_eq!(unsweetened, Value::Int(None));
 # Ok(())
 # }
 ```
@@ -639,8 +681,9 @@ holding what the name is computed from, derive
 [`EntityName`](crate::EntityName). The `Model` then derives `Entity` with no
 `table_name`.
 
-Every statement takes the entity's names from `Entity::default()`, so the
-`Default` implementation is where the name is decided:
+A statement built the usual way, by `find()`, `Insert::one` and the rest,
+takes the entity's names from `Entity::default()`, so for a name the whole
+program shares the `Default` implementation is where it is decided:
 
 ```rust
 use std::sync::OnceLock;
@@ -691,6 +734,93 @@ assert_eq!(
 );
 # }
 ```
+
+When the name changes from one statement to the next, such as a schema per
+tenant, hand the statement the entity itself. Each constructor has a form
+ending in `_in` that takes an entity value first and names its table:
+[`find_in`](crate::EntityTrait::find_in),
+[`find_by_id_in`](crate::EntityTrait::find_by_id_in),
+[`graph_in`](crate::EntityTrait::graph_in),
+[`delete_by_id_in`](crate::EntityTrait::delete_by_id_in),
+[`Insert::one_in`](crate::Insert::one_in) and
+[`many_in`](crate::Insert::many_in),
+[`Update::one_in`](crate::Update::one_in),
+[`Delete::one_in`](crate::Delete::one_in), and an active model's
+[`insert_in`](crate::ActiveModelTrait::insert_in),
+[`update_in`](crate::ActiveModelTrait::update_in) and
+[`delete_in`](crate::ActiveModelTrait::delete_in), which run its hooks as
+`insert` does. [`Update::many`](crate::Update::many),
+[`Delete::many`](crate::Delete::many) and
+[`Pipeline::from`](crate::pipeline::Pipeline::from) take the entity value
+already:
+
+```rust
+use pgorm::entity::prelude::*;
+
+#[derive(Copy, Clone, Debug, EntityTrait)]
+pub struct Entity {
+    pub tenant: &'static str,
+}
+
+impl Default for Entity {
+    fn default() -> Self {
+        Self { tenant: "public" }
+    }
+}
+
+impl EntityName for Entity {
+    fn schema_name(&self) -> Option<&str> {
+        Some(self.tenant)
+    }
+
+    fn table_name(&self) -> &str {
+        "cake"
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
+pub struct Model {
+    #[pgorm(primary_key)]
+    pub id: i32,
+    pub name: String,
+}
+
+#[derive(Copy, Clone, Debug, Relation)]
+pub enum Relation {}
+
+# fn main() -> Result<(), pgorm::Error> {
+let acme = Entity { tenant: "acme" };
+assert_eq!(
+    Entity::find_by_id_in(acme, 1).build().0,
+    r#"SELECT "cake"."id", "cake"."name" FROM "acme"."cake" WHERE "cake"."id" = $1"#
+);
+let rename = Update::one_in(
+    acme,
+    ActiveModel {
+        id: set(1),
+        name: set("Acme Tart"),
+    },
+)?;
+assert_eq!(
+    rename.as_query().to_string(),
+    r#"UPDATE "acme"."cake" SET "name" = 'Acme Tart' WHERE "cake"."id" = 1"#
+);
+// The default still decides what `find()` reads.
+assert_eq!(
+    Entity::find().build().0,
+    r#"SELECT "cake"."id", "cake"."name" FROM "public"."cake""#
+);
+# Ok(())
+# }
+```
+
+An entity's columns are qualified by the default's table name, so the default
+has to name a table, and an instance naming another table is read under the
+default's name: an entity whose table is `cake_2026` for one instance and
+`cake` by default reads `FROM "cake_2026" AS "cake"`. A statement keeps the
+entity value itself to name its table by, so the entity is `Copy` and
+`'static`: a name read at run time, such as a tenant's, is kept once for the
+program and handed out as a `&'static str`.
 
 An entity in a schema fixed when it is written says `schema_name = ".."`
 beside `table_name` instead.

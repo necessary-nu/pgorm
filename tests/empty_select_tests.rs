@@ -148,7 +148,7 @@ pub async fn empty_select_list_is_refused(db: &DatabaseConnection) {
 // which the typestate never sees, is refused by the same guard
 pub async fn raw_builder_select_list_is_refused(db: &DatabaseConnection) {
     assert_empty_select_list(
-        Selector::<SelectGetableTuple<i32>>::into_tuple::<i32>(SelectStatement::new())
+        Selector::<SelectGetableTuple<i32>>::into_tuple(SelectStatement::new())
             .all(db)
             .await
             .expect_err("raw statement with no projection"),

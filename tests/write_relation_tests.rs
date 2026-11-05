@@ -80,7 +80,7 @@ async fn seed(db: &DatabaseConnection) -> Result<(i32, i32), Error> {
 /// the rows the join predicate matches.
 // [spec:pgorm:req:sql.ast.update+5/test]
 // [spec:pgorm:req:sql.render.update-delete+3/test]
-// [spec:pgorm:sem:query.build.update+4/test]
+// [spec:pgorm:sem:query.build.update+5/test]
 pub async fn update_from_reads_the_joined_table(db: &DatabaseConnection) -> Result<(), Error> {
     let (seaside_id, _inland_id) = seed(db).await?;
 
@@ -136,7 +136,7 @@ pub async fn update_from_reads_the_joined_table(db: &DatabaseConnection) -> Resu
 /// the property that separates USING from a two-table delete.
 // [spec:pgorm:def:sql.ast.delete+4/test]
 // [spec:pgorm:req:sql.render.update-delete+3/test]
-// [spec:pgorm:sem:query.build.delete+3/test]
+// [spec:pgorm:sem:query.build.delete+4/test]
 pub async fn delete_using_narrows_on_the_joined_table(
     db: &DatabaseConnection,
 ) -> Result<(), Error> {

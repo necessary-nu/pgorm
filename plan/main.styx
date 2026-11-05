@@ -10790,12 +10790,37 @@ children (
                 id runtime-entity-name-per-query
                 title "A statement on an entity whose names are computed at run time can take the names from an instance, not only from Entity::default()"
                 kind @feat
+                implements {
+                    main ([spec:pgorm:sem:pipeline.qualify])
+                }
                 log (
                     {
                         at 2026-11-05T14:15:36.274983Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (entities chapter). An entity whose table or schema is computed at run time (hand-written Entity struct + EntityTrait derive + EntityName) names its table through `E::default().table_ref()` in every statement (src/query/select.rs:329, src/query/insert.rs:263, and the other builders), so the instance's fields are never consulted per query: a per-tenant or per-request schema cannot be chosen at the call site, only through Default (a OnceLock or thread-local, as tests/identifier_oracle/fixtures.rs does). COMING_FROM_SEAORM.md's example derives Default on `Entity { tenant: &'static str }`, whose default schema is the empty string. Decide whether find()/Insert/Update/Delete/graph take an entity instance (e.g. `Select::for_entity(e)`), or say in EntityName's docs that names come from Default. The guide shows the Default form."
+                    }
+
+                    {
+                        at 2026-11-05T16:12:58.750803Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:26:45.014948Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Built the lead's direction (pending operator override): the Default form stays the static path, and every constructor gains an instance-taking form named with an `_in` suffix, the entity value first (SQL order: the table before the row or key): EntityTrait::find_in(e), find_by_id_in(e, key), delete_by_id_in(e, key), graph_in(e) (and SelectGraph::new_in); Insert::one_in(e, m) / many_in(e, ms) and TryInsert's of the same names; Update::one_in(e, am); Delete::one_in(e, m); ActiveModelTrait::insert_in(e, db) / update_in(e, db) / delete_in(e, db), hooks included. Update::many(e), Delete::many(e) and Pipeline::from(e) already took the instance. Each static form is now its _in form over Self::default(). `_in` follows Rust's allocator-API naming (Vec::new_in) for \"the same constructor in this context\"; a builder-retargeting method was rejected because the lead asked for constructors and because UpdateOne's nothing-to-set read-back must know its table (UpdateOne now keeps its entity). Column references stay qualified by Default's table name (ColumnTrait::entity_name), so where an instance's table name differs from Default's the statement reads it under that name as an alias (FROM \"acme\".\"cake_2026\" AS \"cake\", INSERT/UPDATE/DELETE ... AS \"cake\", a pipeline `from cake = cake_2026`); a schema-only difference needs none. Consequence recorded in entity.traits.entity-name+6: Default MUST name a real table. tests/common/features/dyn_table_name_lazy_static.rs had derived Default (empty table name) and worked around it by overwriting statements' tables; it now has a real Default and its test uses the _in forms."
+                    }
+
+                    {
+                        at 2026-11-05T18:03:19.890938Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Two corrections to the decision note. (1) SelectGraph::new_in and Select::new_in were removed before the delivery commit: the trivial-function gate refused EntityTrait::find_in/graph_in as pass-throughs, so those two now build the statement themselves and Select::new / SelectGraph::new call them over Default. (2) entity.traits.entity-name+6 says the default SHOULD name a table, not MUST: tests/identifier_oracle/fixtures.rs's dyn_named entity derives Default (an empty table name), and the alias rendered `AS \"\"`, which PostgreSQL refuses; a default whose table name is empty now gives an instance's table no alias (entity::default_alias), so such an entity renders what it did before (9bcce980). Binding dialect (bindings.entities+6): Registry::entity_in(name, entity) in both bindings registers an instance — a binding cannot construct a Rust value at run time, so a program picks a tenant by registration name; EntityInfo carries the instance type-erased for ActiveModel writes, EntityAdapter holds it for reads, version writes, schema and pipeline source; a type may be registered once per table its instances name."
+                        after_done true
                     }
                 )
             }
@@ -10804,12 +10829,29 @@ children (
                 id raw-entry-points-one-shape
                 title "The raw-statement entry points take one argument shape and ask for no type they ignore"
                 kind @fix
+                implements {
+                    main ([spec:pgorm:sem:exec.crud.selector-entry] [spec:pgorm:def:macros.sql])
+                }
                 log (
                     {
                         at 2026-11-05T14:39:48.550311Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (raw SQL chapter). SelectorRaw's from_statement, into_tuple and with_columns sit on impl<S: SelectorTrait> SelectorRaw<S> (src/executor/select.rs ~647/682/695), so a call names a selector type the constructor then ignores: SelectorRaw::<SelectGetableTuple<(i32, String)>>::into_tuple::<(i32, String)>(..). And the raw entry points take different argument shapes: FromQueryResult::find_by_statement takes impl Into<String>, Vec<Value> (src/entity/model.rs:202) where Select::from_raw_sql and SelectorRaw::from_statement take String, Values. The guide steers readers to DecodeRaw on a (sql, values) pair."
+                    }
+
+                    {
+                        at 2026-11-05T15:55:53.156423Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:07:09.326408Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Built the lead's decision (pending operator override): every raw entry point takes `sql: &T where T: ?Sized + SqlText` plus `Values` — SelectorRaw::from_statement / into_tuple / with_columns, Select::from_raw_sql, FromQueryResult::find_by_statement and TryGetableMany::find_by_statement (the last was not in the node's list; same shape, so changed too, now `find_by_statement::<C, _>`). Each copies the text into the SelectorRaw it returns. The constructors moved to impls on their selector types (impl<M: FromQueryResult> SelectorRaw<SelectModel<M>>, impl<T> SelectorRaw<SelectGetableTuple<T>>, impl<T, C> SelectorRaw<SelectGetableValue<T, C>>), so a call is SelectorRaw::<SelectModel<M>>::from_statement(sql, values): the target is named once, as the selector type, and no parameter is ignored. Lane choices beyond the brief: (1) Selector's from_select / into_tuple / with_columns had the same phantom-S flaw (exec.crud.selector-entry describes both), so they moved the same way; (2) DecodeRaw's pair narrowed from `(S: Into<String>, Values)` to `(S, Values) where S: Deref, S::Target: SqlText` — &'static str, String, &String, Box<str>, Cow<str> — so the pair is the same text a connection takes; (3) with one bound covering every entry point, macros.sql's call-site rule (+6) now finds them by the SqlText bound instead of listing them."
                     }
                 )
             }
@@ -10854,12 +10896,83 @@ children (
                 id pipeline-model-read-casts
                 title "Pipeline terminals decode an entity's Model with its read casts, so a model with an enum column decodes"
                 kind @fix
+                implements {
+                    main ([spec:pgorm:sem:pipeline.terminal] [spec:pgorm:def:exec.verify])
+                }
                 log (
                     {
                         at 2026-11-05T14:39:51.620981Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (pipeline chapter). Pipeline::from(cake::Entity).all::<cake::Model>(&db) fails WrongType on the flavor enum column: all, one, one_opt and into_model decode from SELECT * without the read casts select_sources applies (src/pipeline/terminal.rs), so the server sends the enum where the model reads text. The guide steers model reads to select_sources and says why."
+                    }
+
+                    {
+                        at 2026-11-05T15:36:37.084648Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Design (lane decision, pending operator override): the read cast is a property of what the decode target reads, so ExpectedColumn carries it (ExpectedColumn::selected_as(&column) probes the column's own select_as through graph::source_read_cast; read_cast() reports it) and the Model and PartialModel derives report it per field. The pipeline's model terminals (into_model, all, one, one_opt) end the pipeline in a projection of M's columns ONLY when M reports a cast column: `select {this.id, this.name, tea = CAST(this.tea AS text)}`. Otherwise SQL is unchanged (into_sql == model SQL). Rejected: always projecting M's columns — prqlc pushes a projection after append into the first UNION branch only, and refuses one after intersect/remove (\"wildcard usage is not yet supported\"), so every model read after a set operation would break; decode-side enum acceptance — cannot cover money, created multiranges or select_as overrides. `this.` qualifies so a column named like a PRQL std binding (date, rank, count) resolves to the column; the terminal's own aliases are screened as identifiers but not as reserved aliases, since they end the pipeline (probed: prqlc accepts `count = ...` as a final alias). A join of relations sharing a column name is refused as Compile(\"Ambiguous name\") — documented, select_sources is the per-source decode. Also fixed: PartialModel's from_col projected its column through column_as without select_as, so a renamed enum field failed WrongType on Select::into_partial_model too."
+                    }
+                )
+            }
+
+            {
+                id api-honesty.pipeline-select-after-append
+                title "A projection after a pipeline's append projects the whole union, not only its first branch"
+                kind @fix
+                implements {
+                    main ([spec:pgorm:req:pipeline.compose])
+                }
+                log (
+                    {
+                        at 2026-11-05T15:37:00.604494Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by pipeline-model-read-casts. Pipeline::from(cake::Entity).append(cake::Entity).select(cake::Column::Id).into_sql() gives \"SELECT id FROM cake UNION ALL SELECT * FROM cake AS table_0\": prqlc pushes the projection into the union's first branch and leaves the second a wildcard, so the branches' column counts differ (PostgreSQL refuses the UNION) or, where they happen to match, the second branch is not projected at all. Embedding the appended pipeline first (Pipeline::from(appended).select(..)) gives the right \"WITH table_0 AS (.. UNION ALL ..) SELECT id FROM table_0\", so the fix is likely a settle before a projection that follows a pending append, as set_op settles before a set operation that would reassociate. After intersect or remove the same projection is refused as Compile(\"This wildcard usage is not yet supported\"). The model terminals' cast projection (pipeline.terminal+1) inherits this for a model with a cast column read after an append."
+                    }
+
+                    {
+                        at 2026-11-05T18:07:30.986818Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T18:20:36.062445Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Fixed in pgorm's pipeline compilation, not in the prqlc fork. Probed every stage after each set operation over wildcard and projected operands: after append, a select rendered on the first operand's SELECT alone (`SELECT id FROM a UNION ALL SELECT * FROM b`) and a group pruned its key column from the first operand only (`WITH t AS (SELECT id FROM a UNION ALL SELECT * FROM b) ... GROUP BY id`) — both wrong arity, and wrong rows where the arities happen to agree; with projected operands prqlc pushes a later narrowing projection into both arms, which is right for UNION ALL but changes INTERSECT/EXCEPT (they then compare fewer columns). filter/derive/sort/take after append were already wrapped by prqlc. The cause is prqlc's anchor/positional-mapping pass (sql/pq/anchor.rs lets a Select share the union's query; positional_mapping.rs cannot map a wildcard bottom), and probing showed that a `let`-bound set operation is rendered correctly in every one of those cases, pruning included: the CTE boundary is a bracket prqlc keeps. pgorm already settles into bindings for the same kind of reason (distinct, set-op precedence), so the cleaner fix is a `combined` flag the builder sets after append/intersect/remove and discharges by settling (new `hoist`, a settle that records no reshape) before the next stage that reads the result; a further set operation and a distinct directly after append (the UNION DISTINCT fold) carry it onward. Because the settle renames nothing, source-qualified references after intersect/remove are now repointed at the binding and resolve (the old test expecting a Compile error there now asserts the same SQL as the bare-name form). select_sources after append projects its single listed source from the binding (requalified) and refuses a list of more than one as ReshapedSources(\"append\"). Remaining, documented and not silent: over wildcard operands intersect/remove still compile only to stages that read no column (take, distinct) — prqlc's std `intersect`/`remove` are joins over `t.*`, which catalog-less lowering cannot expand (\"This wildcard usage is not yet supported\"); that is a fork-level resolver change, so it is filed separately. Rules: pipeline.compose+1, pipeline.select-sources+5."
+                    }
+
+                    {
+                        at 2026-11-05T18:50:17.250806Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Correction to the decision note: the gate's function-density cap kept builder.rs from carrying a separate `hoist`; `settle` takes `owed_to: Option<&'static str>` instead, and a set operation's result is settled with `None`, which records no reshape."
+                        after_done true
+                    }
+                )
+            }
+
+            {
+                id api-honesty.pipeline-wildcard-intersect-reads
+                title "A stage reading a column after intersect or remove over wildcard operands compiles, as it does after append"
+                kind @fix
+                deps (api-honesty.pipeline-select-after-append)
+                log (
+                    {
+                        at 2026-11-05T18:20:47.738629Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by api-honesty.pipeline-select-after-append. `Pipeline::from(alias(\"a\")).intersect(alias(\"b\")).select(alias(\"id\"))` (and filter, derive, sort, group after intersect or remove) is refused by prqlc as Compile(\"This wildcard usage is not yet supported.\"), even with the set operation let-bound: prqlc's std.prql defines `intersect` and `remove` as joins over `t.*` / `b.*` (tuple_zip, tuple_map _eq) that preprocess.rs later recognises as INTERSECT/EXCEPT, and catalog-less lowering (semantic/lowering.rs, the tuple-ref and All arms) cannot expand a wildcard tuple a later column reference resolves into. take and distinct compose because they read no column. Not silent — a refusal — but `append` composes over the same operands. Fix belongs in the necessary-nu/prql fork (lower the operations as relation-level transforms, as append is, or let a column reference resolve through the wildcard into the top operand's inferred frame), then the rev moved in every manifest and lockfile (tests/fork_pin_tests.rs). The workaround is to project the operands first."
+                    }
+
+                    {
+                        at 2026-11-05T18:25:32.775406Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Related, seen while writing the guide example: appending two wildcard pipelines that each read different columns (`Pipeline::from(cake).filter(price < 3.5).append(Pipeline::from(cake).filter(price > 5.5)).select(name)`) is refused as Compile(\"cannot append two relations with non-matching number of columns. top has 2 columns, but bottom has 1\"): prqlc infers each operand's columns from the references it sees, so the operands' inferred frames differ though both are `cake`. Projecting both operands first composes. The same fork-level inference fix would cover it."
                     }
                 )
             }
@@ -17252,12 +17365,100 @@ children (
                 title "A form derives IntoActiveModel from any crate, names its active model by path, and carries any column type"
                 kind @fix
                 deps (derives.paths)
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:15:36.020114Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (entities chapter). Three gaps in #[derive(IntoActiveModel)]: (1) derived in a crate other than its entity's, it fails E0119 against the Entity derive's `impl IntoActiveModel<ActiveModel> for <Entity as EntityTrait>::Model` (pgorm-macros/src/derives/active_model.rs:92; the impl header names the projection rather than `Model`, and coherence across crates does not see past it), so a form cannot live beside the handler that uses it; (2) `#[pgorm(active_model = ..)]` parses a bare syn::Ident (derives/into_active_model.rs:11), not a path, unlike every other code-valued key (macros.derive.code-values), so `active_model = customer::ActiveModel` is a parse error; (3) IntoActiveValue is implemented only for the primitive types in src/entity/active_model.rs:593-640, not for ActiveEnum, ValueType, JsonValueType or CreatedRange types, so a form field of any of those does not compile. The guide (docs/guide/02-entities.md) shows a form beside its entity with String fields."
+                    }
+
+                    {
+                        at 2026-11-05T17:11:19.153173Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T17:18:53.730902Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "(a) E0119 reproduced in tests/into_active_model_tests.rs (a separate crate from pgorm's tests_cfg entities): the composite derive's impls named `<Entity as EntityTrait>::Model` in their headers; they now name `Model` (the composite derive only runs on a struct named Model, so the two are the same type) — From<Model>, IntoActiveModel<ActiveModel> for Model, TryFrom<ActiveModel> for Model, TryIntoModel<Model>. (b) active_model parses a syn::Path (defaulting to the bare `ActiveModel`), added to macros.derive.code-values+4's list. (c) rather than a blanket IntoActiveValue (which would overlap the Option<V> impls through `Option<T>: ValueType`), one shared pgorm-macros helper (util::into_active_value) writes `impl IntoActiveValue<Self> for Self` from each of the four value derives. Option<T> of an ActiveEnum, JsonValueType or CreatedRange works through the existing Option impl; Option<ValueTypeNewtype> does not, because the ValueType derive deliberately writes no Nullable (macros.derive.value-type+6 says so) — filed as derives.value-type-optional-column rather than changed here. Rules bumped: macros.derive.active-model+8, macros.derive.code-values+4."
+                    }
+
+                    {
+                        at 2026-11-05T17:32:56.549917Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Correction to the decision note: only the `IntoActiveModel<ActiveModel>` impl header now names `Model`. Naming `Model` in From<Model> for ActiveModel and TryFrom<ActiveModel> for Model as well turned on rustc's more precise dead-code analysis for concrete self types — an entity whose Model the program never builds (one used only for SQL or DDL, as many test fixtures are) then warned \"struct `Model` is never constructed\", because the projection-headed TryFrom impl had been what counted as constructing it. Those impls keep the projection; they take no part in the cross-crate conflict."
+                    }
+
+                    {
+                        at 2026-11-05T17:33:16.978693Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id derives.partial-model-from-col-read-cast
+                title "A PartialModel field reading a column through from_col selects it under the column's read cast, so a renamed enum field decodes"
+                kind @fix
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T15:37:00.867155Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found and fixed by pipeline-model-read-casts. The PartialModel derive wrote a from_col field as QuerySelect::column_as(select, col, alias(field)), which takes any IntoSimpleExpr and so applies no select_as: a field `#[pgorm(from_col = Column::Tea)] kind: Tea` over an enum column came back as the enum type and failed WrongType on Select::into_partial_model, where a default field (QuerySelect::column) is cast. The derive now writes column_as(select, ColumnTrait::select_as(&col, col.into_expr()), alias(field)), and reports the column's read cast in expected_columns (macros.derive.partial-model+6). Tested by tests/pipeline_live_tests.rs model_terminals_apply_read_casts (the Brew partial model, read through both a pipeline and Select::into_partial_model)."
+                    }
+
+                    {
+                        at 2026-11-05T15:55:41.570966Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id derives.value-type-optional-column
+                title "A ValueType newtype can be a nullable column, an Option of it binding as NULL, in an entity and in a form"
+                kind @fix
+                deps (derives.into-active-model-forms)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T17:17:17.908979Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by derives.into-active-model-forms. An entity field `Option<Grams>`, Grams a `#[derive(ValueType)]` newtype, does not compile: `Grams: Nullable` is unsatisfied (From<Option<T>> for Value, ActiveValue's Clone/PartialEq bounds and IntoActiveValue<Option<V>> all need it), so a ValueType newtype cannot be a nullable column, nor an Option field of a form. macros.derive.value-type+6 says outright \"no `Nullable` impl is generated\" — perhaps because a newtype may wrap an Option (the derive unwraps Option<T> for its column type), for which `<Option<T> as Nullable>::null()` has no impl — so the fix is a decision, not a one-liner: generate `Nullable` delegating to the inner type when it is not an Option (the derive already detects that case through unwrap_option), and state it in the rule. ActiveEnum, JsonValueType and CreatedRange derives already write Nullable."
+                    }
+
+                    {
+                        at 2026-11-05T18:34:59.356334Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T18:42:24.932999Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Built the lead's decision (pending operator override). History: \"no `Nullable` impl is generated\" entered macros.derive.value-type at the nplan onboarding (dfd363cc), describing the derive SeaORM's DeriveValueType had left as it was; neither that commit nor the rule gives a reason, and the derive's later rewrites (7370e2d6, a86a9ead, 420d8d41) never touched it. The one soundness hazard is a newtype over an Option (the derive already unwraps `Option<T>` for its column type), where `<Option<T> as Nullable>` has no impl to delegate to. Solved by deriving the null from the inner type's Nullable after the same unwrap: `Nullable for Newtype { null() = <T as Nullable>::null() }`, T the field type or an Option field's payload. An inner type with no Nullable of its own becomes a compile error at the derive; pgorm's value types all have one. `Option<Newtype>` then binds `None` as the inner type's typed NULL and reads NULL back as None; a form's `Option<Option<Newtype>>` sets a column to NULL. A field `Option<Newtype-over-Option>` reads NULL as Some(Newtype(None)) — the double optional is the program's to avoid; not changed. Bindings: no registered entity in either application crate has a newtype column, and the bindings read and write registered columns through ModelTrait/ActiveModelTrait and the ColumnType, so they need no change. Rules: macros.derive.value-type+7; macros.derive.active-model+9 (its Option sentence now covers all four value derives)."
+                    }
+
+                    {
+                        at 2026-11-05T18:50:01.606962Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -18941,12 +19142,29 @@ children (
                 id value-codecs.model-decimal-exact
                 title "A model's Decimal field reads numeric through ExactDecimal, refusing what it cannot hold exactly, as COPY rows and the bindings do"
                 kind @fix
+                implements {
+                    main ([spec:pgorm:req:exec.decode.decimal-exact])
+                }
                 log (
                     {
                         at 2026-11-05T14:39:49.773788Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (values chapter). TryGetable for Decimal (src/executor/query.rs:324) uses rust_decimal's own FromSql, which rounds a numeric past 28 fractional digits (as ExactDecimal's doc says, src/executor/exact_decimal.rs:10-14), while COPY rows (src/database/copy_rows.rs:663), created ranges and the bindings refuse such a value through ExactDecimal, so find() and a binary COPY of one column disagree. The guide advises a precision and scale that fit."
+                    }
+
+                    {
+                        at 2026-11-05T16:50:43.302752Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:56:15.328636Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Every Rust decode of a Decimal now reads through ExactDecimal (new rule exec.decode.decimal-exact): TryGetable for Decimal and Vec<Decimal> (so models, partial models, into_tuple/into_values, the graph and the pipeline all inherit it), and range bounds. For ranges I added one mapping rather than a Decimal special case: a doc(hidden) BoundSql trait, `type Wire: FromSql + Into<Self>`, implemented as the subtype itself for every range subtype and as ExactDecimal for Decimal; the range/multirange TryGetable macros and try_get_created_ranges (the CreatedRange derive's array path, which also read bounds through rust_decimal's lossy FromSql) decode WireRange<T> and map bounds with Into. COPY rows, created-range scalars and both bindings' Value decodes were already exact and are unchanged. A refusal surfaces as Error::Postgres (the driver's FromSql error) carrying ExactDecimal's reason, the same shape as any other type mismatch. Note rust_decimal already errors (ExceedsMaximumPossibleValue) for a plain integer past 96 bits; the rounding cases are >28 fractional digits and a coefficient that overflows only at its scale (7922816251426433759354395033.55), which the test uses."
                     }
                 )
             }

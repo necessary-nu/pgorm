@@ -5,7 +5,7 @@ use syn::{Data, DataStruct, Field, Fields, Type, punctuated::IntoIter};
 
 /// The `ActiveModel` the composite derive writes beside its `Model`, and its
 /// `ActiveModelBehavior` with no hooks unless the program writes its own.
-// [spec:pgorm:sem:macros.derive.active-model+7]
+// [spec:pgorm:sem:macros.derive.active-model+9]
 // [spec:pgorm:sem:macros.derive.boilerplate]
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]    the field-key vocabulary this
 // expansion shares with the `Entity` derive
@@ -88,8 +88,12 @@ fn derive_active_model(all_fields: IntoIter<Field>) -> syn::Result<TokenStream> 
             }
         }
 
+        // Named, not projected: coherence does not normalize a projection in
+        // another crate's impl header, so a form deriving `IntoActiveModel`
+        // for this `ActiveModel` in a crate of its own would be refused as
+        // conflicting with this impl (E0119).
         #[automatically_derived]
-        impl pgorm::IntoActiveModel<ActiveModel> for <Entity as pgorm::EntityTrait>::Model {
+        impl pgorm::IntoActiveModel<ActiveModel> for Model {
             fn into_active_model(self) -> ActiveModel {
                 self.into()
             }

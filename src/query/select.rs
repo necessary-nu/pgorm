@@ -326,14 +326,20 @@ impl<E> Select<E>
 where
     E: EntityTrait,
 {
-    // [spec:pgorm:sem:query.build.select-defaults]
+    // [spec:pgorm:sem:query.build.select-defaults+1]
     pub(crate) fn new() -> Self {
+        E::find_in(E::default())
+    }
+
+    /// The default select list, every column under its read cast, with no
+    /// `FROM` yet: what [`EntityTrait::find_in`] adds its table to.
+    // [spec:pgorm:sem:query.build.select-defaults+1]
+    pub(crate) fn projected() -> Self {
         Self {
             query: SelectStatement::new(),
             entity: PhantomData,
         }
         .prepare_select()
-        .prepare_from()
     }
 
     fn prepare_select(mut self) -> Self {
@@ -345,11 +351,6 @@ where
         E::Column::iter()
             .map(|col| col.select_as(col.into_expr()))
             .collect()
-    }
-
-    fn prepare_from(mut self) -> Self {
-        self.query.from(E::default().table_ref());
-        self
     }
 
     /// Clear the selection list, moving to the projection-less

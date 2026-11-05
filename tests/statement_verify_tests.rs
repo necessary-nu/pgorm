@@ -4,7 +4,8 @@ pub mod common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::{
-    Error, ExpectedColumn, RowIndex, TryGetable, VerifyError, VerifyStatement, entity::prelude::*,
+    Error, ExpectedColumn, RowIndex, TryGetable, Values, VerifyError, VerifyStatement,
+    entity::prelude::*,
 };
 use pretty_assertions::assert_eq;
 
@@ -151,17 +152,17 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:exec.verify/test]    a target whose columns the statement returns
+// [spec:pgorm:def:exec.verify+1/test]    a target whose columns the statement returns
 async fn matching_target_verifies(db: &DatabaseConnection) -> Result<(), Error> {
     db.verify::<Matching>(NO_ROWS).await?;
 
     Ok(())
 }
 
-// [spec:pgorm:def:exec.verify/test]    the type mismatch a zero-row query hides
+// [spec:pgorm:def:exec.verify+1/test]    the type mismatch a zero-row query hides
 // [spec:pgorm:req:exec.verify.errors/test]
 async fn wrong_type_caught_at_zero_rows(db: &DatabaseConnection) -> Result<(), Error> {
-    let decoded: Vec<WrongType> = WrongType::find_by_statement(NO_ROWS, vec![])
+    let decoded: Vec<WrongType> = WrongType::find_by_statement(NO_ROWS, Values(vec![]))
         .all(db)
         .await?;
     assert!(decoded.is_empty());
@@ -187,10 +188,10 @@ async fn wrong_type_caught_at_zero_rows(db: &DatabaseConnection) -> Result<(), E
     Ok(())
 }
 
-// [spec:pgorm:def:exec.verify/test]    the missing column a zero-row query hides
+// [spec:pgorm:def:exec.verify+1/test]    the missing column a zero-row query hides
 // [spec:pgorm:req:exec.verify.errors/test]
 async fn missing_column_caught_at_zero_rows(db: &DatabaseConnection) -> Result<(), Error> {
-    let decoded: Vec<MissingColumn> = MissingColumn::find_by_statement(NO_ROWS, vec![])
+    let decoded: Vec<MissingColumn> = MissingColumn::find_by_statement(NO_ROWS, Values(vec![]))
         .all(db)
         .await?;
     assert!(decoded.is_empty());
@@ -277,14 +278,14 @@ async fn accepts_follows_the_decode_path(db: &DatabaseConnection) -> Result<(), 
     Ok(())
 }
 
-// [spec:pgorm:def:exec.verify/test]    a partial model derives the same hook
+// [spec:pgorm:def:exec.verify+1/test]    a partial model derives the same hook
 async fn partial_model_target_verifies(db: &DatabaseConnection) -> Result<(), Error> {
     db.verify::<PartialWidget>(NO_ROWS).await?;
 
     Ok(())
 }
 
-// [spec:pgorm:sem:macros.derive.model+6/test]    an entity model reports its columns
+// [spec:pgorm:sem:macros.derive.model+7/test]    an entity model reports its columns
 async fn entity_model_target_verifies(db: &DatabaseConnection) -> Result<(), Error> {
     db.verify::<widget::Model>(NO_ROWS).await?;
 
@@ -333,7 +334,7 @@ async fn invalid_sql_reports_the_server_error(db: &DatabaseConnection) -> Result
     Ok(())
 }
 
-// [spec:pgorm:def:exec.verify/test]    an open transaction verifies on its own client
+// [spec:pgorm:def:exec.verify+1/test]    an open transaction verifies on its own client
 async fn verify_inside_transaction(db: &mut DatabaseConnection) -> Result<(), Error> {
     let outcome = db
         .transaction(async |tx| {

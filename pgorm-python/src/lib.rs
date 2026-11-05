@@ -49,7 +49,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
 /// Install the shared Python API and a concrete application registry into one
 /// native module. Downstream crates disable `standalone-module` and export
 /// their own PyO3 initializer calling this function.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 pub fn install(module: &Bound<'_, PyModule>, registry: entities::Registry) -> PyResult<()> {
     if module.hasattr("_registry")? {
         return Err(errors::ConstructionError::new_err(

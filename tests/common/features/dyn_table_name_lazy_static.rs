@@ -3,9 +3,20 @@ use pgorm::entity::prelude::*;
 
 pub type TableName = ArrayString<U32>;
 
-#[derive(Copy, Clone, Default, Debug, EntityTrait)]
+/// A table name chosen per statement. Its columns are qualified by the
+/// default's name, so a statement over another instance reads its table
+/// under that name.
+#[derive(Copy, Clone, Debug, EntityTrait)]
 pub struct Entity {
     pub table_name: TableName,
+}
+
+impl Default for Entity {
+    fn default() -> Self {
+        Entity {
+            table_name: TableName::from_str_truncate("dyn_table_name_lazy_static"),
+        }
+    }
 }
 
 impl EntityName for Entity {

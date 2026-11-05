@@ -490,7 +490,7 @@ async fn decode_many() -> Result<(), Error> {
     // `find_by_statement` names the columns by iterating the `C` identifier
     // enum, so the decoded tuple follows the enum's declaration order.
     let named: (i32, String) =
-        <(i32, String)>::find_by_statement::<ResultCol>(SQL.to_owned(), Values(Vec::new()))
+        <(i32, String)>::find_by_statement::<ResultCol, _>(SQL, Values(Vec::new()))
             .one(&db)
             .await?;
     assert_eq!(named, (1, "word".to_owned()));

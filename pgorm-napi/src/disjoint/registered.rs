@@ -58,7 +58,7 @@ impl Registry {
     /// write and its schema.
     // [spec:pgorm:req:bindings.disjoint+2]
     // [spec:pgorm:req:bindings.disjoint-unkinded]
-    // [spec:pgorm:req:bindings.entities+5]
+    // [spec:pgorm:req:bindings.entities+6]
     // [spec:pgorm:sem:disjoint.unkinded+1]
     pub fn disjoint<D>(&mut self, name: &str) -> Result<&mut Self, RegistrationError>
     where
