@@ -668,6 +668,40 @@ assert_eq!(
 # }
 ```
 
+A step after a combination reads the whole combined relation. The
+combination is written as a `WITH` query first and the step reads it, so a
+projection or a grouping after an `append` applies to the rows of both
+relations rather than to the first one's alone. Every cake, counted twice:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("pipeline_append_then_group").await;
+# let db = scratch.pool.get().await?;
+use pgorm::pipeline::{ExprOps, Pipeline, alias, count_rows};
+use pgorm_guide_support::cake::{self, Column as C};
+
+let cakes = alias("cakes");
+let twice = Pipeline::from(cake::Entity)
+    .append(cake::Entity)
+    .group(C::BakeryId)
+    .aggregate(count_rows().as_(cakes));
+
+let (sql, _) = twice.clone().into_sql()?;
+assert!(
+    sql.starts_with("WITH table_0 AS (SELECT * FROM cake UNION ALL SELECT * FROM cake")
+        && sql.ends_with("FROM table_0 GROUP BY bakery_id"),
+    "{sql}"
+);
+let mut rows: Vec<(i32, i64)> = twice.into_tuple()?.all(&db).await?;
+rows.sort();
+assert_eq!(rows, [(1, 6), (2, 4)]);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
 ## When a pipeline fails
 
 Building a pipeline cannot fail: every method appends one whole step. What

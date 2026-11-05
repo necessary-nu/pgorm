@@ -3174,6 +3174,11 @@ impl_evidence (
     ), covered_claims (
         {impl_name main, rule exec.decode.decimal-exact}
     )}
+    {id api-honesty.pipeline-select-after-append, covered_rules (
+        pipeline.compose
+    ), covered_claims (
+        {impl_name main, rule pipeline.compose}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

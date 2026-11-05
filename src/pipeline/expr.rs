@@ -82,12 +82,12 @@ pub fn col<'brand>(table: impl IntoName, column: impl IntoName) -> Expr<'brand> 
 /// condition whose column name exists on both sides.
 ///
 /// An embedded pipeline has no name the caller can write
-/// (`[spec:pgorm:req:pipeline.compose]`), so when its column shares a name
+/// (`[spec:pgorm:req:pipeline.compose+1]`), so when its column shares a name
 /// with one of the consumer's, `that(column)` qualifies it by role instead:
 /// `that(ID)` is the joined relation's `id`. The qualification is scoped to
 /// the join condition; stages after the join refer to the column by its own
 /// name, renamed in the embedded pipeline's projection if it collides.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub fn that<'brand>(column: impl IntoName) -> Expr<'brand> {
     branded(adapter::ident_in(
         vec!["that".to_owned()],
@@ -99,7 +99,7 @@ pub fn that<'brand>(column: impl IntoName) -> Expr<'brand> {
 /// counterpart of [`that`], for the join condition whose consumer is itself
 /// an embedded pipeline with no name to qualify by. Scoped to the join
 /// condition, like [`that`].
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub fn this<'brand>(column: impl IntoName) -> Expr<'brand> {
     branded(adapter::ident_in(
         vec!["this".to_owned()],

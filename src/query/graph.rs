@@ -298,7 +298,7 @@ pub fn source_prefix(index: usize) -> String {
 /// quoted where it has to be, and only a `TypeName::raw` type expression —
 /// program text — is written as it stands.
 // [spec:pgorm:sem:query.graph.writer+4]
-// [spec:pgorm:sem:pipeline.select-sources+4]
+// [spec:pgorm:sem:pipeline.select-sources+5]
 // [spec:pgorm:req:sql.ast.cast-shape+2]
 pub(crate) fn source_read_cast<C: ColumnTrait>(col: &C) -> Option<TypeName> {
     use pgorm_query::SimpleExpr;

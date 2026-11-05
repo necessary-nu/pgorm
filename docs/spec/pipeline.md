@@ -217,7 +217,7 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Composition
 
-> [spec:pgorm:req:pipeline.compose]
+> [spec:pgorm:req:pipeline.compose+1]
 > A whole `Pipeline` is a relation: `IntoSource` is implemented for
 > `Pipeline` by value, so another pipeline can read it (`from`), join it
 > (`join`), or combine with it (`append` / `intersect` / `remove`). This is
@@ -262,10 +262,37 @@ of the crate, compiled in every build. Rules are grouped under
 > and folded by prqlc into `UNION DISTINCT` when it directly follows
 > `append`. When both projections are visible to prqlc a column-count
 > mismatch is refused at `into_sql`; relations with wildcard projections
-> are the server's to check. After `intersect` or `remove` the combined
-> relation is renamed, so later stages refer to its columns by bare name —
-> an entity-qualified reference no longer resolves — while after `append`
-> the left side's naming survives.
+> are the server's to check.
+>
+> A stage after a set operation reads the combined relation whole. prqlc
+> renders such a stage into the query of the operation's first operand where
+> it can, which is wrong for every stage that narrows the columns: a
+> projection lands on that operand's `SELECT` alone, so the other keeps its
+> wildcard and the arms no longer line up (`SELECT id FROM a UNION ALL SELECT
+> * FROM b`); a column an aggregation needs is pruned from the first operand
+> only; and under `INTERSECT` and `EXCEPT` pruning both operands changes the
+> relation, since the operation then compares fewer columns. The set
+> operation's stages are therefore settled into a binding before the next
+> stage that reads its result — a projection, a filter, a `derive`, a sort, a
+> `take`, a join, a window, an aggregation, a model terminal's projection —
+> and that stage reads the binding, a CTE prqlc renders whole:
+> `WITH table_0 AS (SELECT * FROM a UNION ALL SELECT * FROM b) SELECT id FROM
+> table_0`. Two stages owe the settle onward rather than discharging it: a
+> further set operation, a chain the precedence rule below brackets where it
+> must, and a deduplication directly after `append`, which folds into
+> `UNION DISTINCT`. A set operation nothing reads renders flat, as it always
+> did. The settle renames nothing, so a reference written against a source of
+> the combined relation — `col(source, column)`, an entity column — is
+> repointed at the binding and still resolves, after `intersect` and `remove`
+> as after `append`; a bare name reads the column too. `select_sources` after
+> `append` projects its one listed source from the binding, and refuses a
+> list of more than one, whose columns the combined relation no longer keeps
+> apart (`ReshapedSources("append")`). Over operands whose columns prqlc
+> cannot see, `intersect` and `remove` compile only to a stage that reads no
+> column (`take`, `distinct`): prqlc's catalog-less expansion of their
+> wildcards refuses any other as `Compile` ("This wildcard usage is not yet
+> supported"), so a pipeline that reads their result projects its operands
+> first.
 >
 > `this` expands over a relation whose columns no projection has replaced
 > to the wildcard that relation still carries, so the deduplication key
@@ -557,7 +584,7 @@ of the crate, compiled in every build. Rules are grouped under
 > prqlc refuses it as `Compile` ("Ambiguous name"), which is the case
 > `select_sources` exists for.
 
-> [spec:pgorm:sem:pipeline.select-sources+4]
+> [spec:pgorm:sem:pipeline.select-sources+5]
 > `select_sources(sources)` is the model-decode terminal: where
 > `into_model::<M>` asks the caller for a row type whose projection the
 > caller must have arranged, `select_sources` takes the relations
@@ -620,9 +647,13 @@ of the crate, compiled in every build. Rules are grouped under
 > typed `PipelineError` variant naming the offending stage — before prqlc
 > compiles, so the caller reads "select_sources after <stage>" rather
 > than an opaque unresolved-name diagnostic. `filter`, `derive`, `sort`,
-> `take` / `take_range`, `join`, `window` and `append` (whose left-side
-> naming survives) leave every source addressable and compose freely ahead
-> of the terminal; construction itself stays infallible per
+> `take` / `take_range`, `join` and `window` leave every source addressable
+> and compose freely ahead of the terminal. After `append` the union is read
+> whole from the binding it is settled into (`[spec:pgorm:req:pipeline.compose]`),
+> and a single listed source is projected from that binding, its references
+> repointed there; a list of more than one is refused as
+> `ReshapedSources("append")`, the combined relation no longer keeping the
+> sources' columns apart; construction itself stays infallible per
 > `[spec:pgorm:req:pipeline.errors]`.
 >
 > `distinct` composes ahead of the terminal except where it settles the

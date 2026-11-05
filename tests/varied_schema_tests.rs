@@ -481,7 +481,7 @@ async fn same_table_name_in_two_schemas() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    the pipeline reads
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    the pipeline reads
 // qualified sources: a cross-schema join lands whole models per source, and
 // streaming decodes the qualified projection row by row
 // [spec:pgorm:sem:exec.stream.decode+1/test]

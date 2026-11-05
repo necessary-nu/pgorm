@@ -10637,12 +10637,51 @@ children (
                 id api-honesty.pipeline-select-after-append
                 title "A projection after a pipeline's append projects the whole union, not only its first branch"
                 kind @fix
+                implements {
+                    main ([spec:pgorm:req:pipeline.compose])
+                }
                 log (
                     {
                         at 2026-11-05T15:37:00.604494Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by pipeline-model-read-casts. Pipeline::from(cake::Entity).append(cake::Entity).select(cake::Column::Id).into_sql() gives \"SELECT id FROM cake UNION ALL SELECT * FROM cake AS table_0\": prqlc pushes the projection into the union's first branch and leaves the second a wildcard, so the branches' column counts differ (PostgreSQL refuses the UNION) or, where they happen to match, the second branch is not projected at all. Embedding the appended pipeline first (Pipeline::from(appended).select(..)) gives the right \"WITH table_0 AS (.. UNION ALL ..) SELECT id FROM table_0\", so the fix is likely a settle before a projection that follows a pending append, as set_op settles before a set operation that would reassociate. After intersect or remove the same projection is refused as Compile(\"This wildcard usage is not yet supported\"). The model terminals' cast projection (pipeline.terminal+1) inherits this for a model with a cast column read after an append."
+                    }
+
+                    {
+                        at 2026-11-05T18:07:30.986818Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T18:20:36.062445Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Fixed in pgorm's pipeline compilation, not in the prqlc fork. Probed every stage after each set operation over wildcard and projected operands: after append, a select rendered on the first operand's SELECT alone (`SELECT id FROM a UNION ALL SELECT * FROM b`) and a group pruned its key column from the first operand only (`WITH t AS (SELECT id FROM a UNION ALL SELECT * FROM b) ... GROUP BY id`) — both wrong arity, and wrong rows where the arities happen to agree; with projected operands prqlc pushes a later narrowing projection into both arms, which is right for UNION ALL but changes INTERSECT/EXCEPT (they then compare fewer columns). filter/derive/sort/take after append were already wrapped by prqlc. The cause is prqlc's anchor/positional-mapping pass (sql/pq/anchor.rs lets a Select share the union's query; positional_mapping.rs cannot map a wildcard bottom), and probing showed that a `let`-bound set operation is rendered correctly in every one of those cases, pruning included: the CTE boundary is a bracket prqlc keeps. pgorm already settles into bindings for the same kind of reason (distinct, set-op precedence), so the cleaner fix is a `combined` flag the builder sets after append/intersect/remove and discharges by settling (new `hoist`, a settle that records no reshape) before the next stage that reads the result; a further set operation and a distinct directly after append (the UNION DISTINCT fold) carry it onward. Because the settle renames nothing, source-qualified references after intersect/remove are now repointed at the binding and resolve (the old test expecting a Compile error there now asserts the same SQL as the bare-name form). select_sources after append projects its single listed source from the binding (requalified) and refuses a list of more than one as ReshapedSources(\"append\"). Remaining, documented and not silent: over wildcard operands intersect/remove still compile only to stages that read no column (take, distinct) — prqlc's std `intersect`/`remove` are joins over `t.*`, which catalog-less lowering cannot expand (\"This wildcard usage is not yet supported\"); that is a fork-level resolver change, so it is filed separately. Rules: pipeline.compose+1, pipeline.select-sources+5."
+                    }
+                )
+            }
+
+            {
+                id api-honesty.pipeline-wildcard-intersect-reads
+                title "A stage reading a column after intersect or remove over wildcard operands compiles, as it does after append"
+                kind @fix
+                deps (api-honesty.pipeline-select-after-append)
+                log (
+                    {
+                        at 2026-11-05T18:20:47.738629Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by api-honesty.pipeline-select-after-append. `Pipeline::from(alias(\"a\")).intersect(alias(\"b\")).select(alias(\"id\"))` (and filter, derive, sort, group after intersect or remove) is refused by prqlc as Compile(\"This wildcard usage is not yet supported.\"), even with the set operation let-bound: prqlc's std.prql defines `intersect` and `remove` as joins over `t.*` / `b.*` (tuple_zip, tuple_map _eq) that preprocess.rs later recognises as INTERSECT/EXCEPT, and catalog-less lowering (semantic/lowering.rs, the tuple-ref and All arms) cannot expand a wildcard tuple a later column reference resolves into. take and distinct compose because they read no column. Not silent — a refusal — but `append` composes over the same operands. Fix belongs in the necessary-nu/prql fork (lower the operations as relation-level transforms, as append is, or let a column reference resolve through the wildcard into the top operand's inferred frame), then the rev moved in every manifest and lockfile (tests/fork_pin_tests.rs). The workaround is to project the operands first."
+                    }
+
+                    {
+                        at 2026-11-05T18:25:32.775406Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Related, seen while writing the guide example: appending two wildcard pipelines that each read different columns (`Pipeline::from(cake).filter(price < 3.5).append(Pipeline::from(cake).filter(price > 5.5)).select(name)`) is refused as Compile(\"cannot append two relations with non-matching number of columns. top has 2 columns, but bottom has 1\"): prqlc infers each operand's columns from the references it sees, so the operands' inferred frames differ though both are `cake`. Projecting both operands first composes. The same fork-level inference fix would cover it."
                     }
                 )
             }
