@@ -10483,12 +10483,27 @@ children (
                 title "The identifier oracle holds create_disjoint, the disjoint change functions and create_one_of to every hostile name"
                 kind @test
                 deps (disjoint.evolve disjoint.one-of)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:37.221399Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.evolve: security.ident-oracle's sites don't include create_disjoint, the five disjoint change functions (add_disjoint_kind, add_disjoint_kind_recreating, remove_disjoint_kind, add_disjoint_kind_table, remove_disjoint_kind_table), or create_one_of, though DisjointShape::new takes table, column, type and value names at run time (the bindings' route). Register each with the oracle so every hostile name lands only in its benign positions, including the derived names (ck-, the {type}_next temporary type, the generated key columns), which take the bounded spelling as the schema-gen sites do."
+                    }
+
+                    {
+                        at 2026-11-04T23:38:38.017788Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:07:10.622369Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
