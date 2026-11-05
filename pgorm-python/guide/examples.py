@@ -12,6 +12,8 @@ block runs against the standalone wheel.
     python examples.py run [CHAPTER ...]     run the chapters' examples
     python examples.py write DIRECTORY [CHAPTER ...]
                                              write each example as a module
+    python examples.py typecheck DIRECTORY   check them with strict mypy
+                                             against the package's source stubs
 
 Both take ``--registered`` to select the registered examples instead.
 """
@@ -26,6 +28,7 @@ import os
 from pathlib import Path
 import shutil
 import socket
+import subprocess
 import sys
 import tempfile
 import time
@@ -129,8 +132,11 @@ def all_examples(*, registered: bool, only: set[str] | None = None) -> list[Exam
 
 def write(directory: Path, selected: list[Example]) -> list[Path]:
     """Write each example as a module of its own beside a copy of ``bakery``,
-    for a type checker to read."""
+    for a type checker to read, replacing the modules a previous write left
+    there, so an example since removed is not checked again."""
     directory.mkdir(parents=True, exist_ok=True)
+    for stale in directory.glob("*.py"):
+        stale.unlink()
     shutil.copyfile(GUIDE / "bakery.py", directory / "bakery.py")
     paths = []
     for example in selected:
@@ -263,7 +269,16 @@ def _main() -> None:
     writing = commands.add_parser("write")
     writing.add_argument("directory", type=Path)
     writing.add_argument("chapters", nargs="*")
+    checking = commands.add_parser("typecheck")
+    checking.add_argument("directory", type=Path)
     options = parser.parse_args()
+    if options.command == "typecheck":
+        modules = options.directory / "examples"
+        write(modules, all_examples(registered=options.registered))
+        environment = {**os.environ, "MYPYPATH": str(GUIDE.parent / "python")}
+        command = ["uv", "tool", "run", "--from", "mypy@latest", "mypy", "--strict",
+                   "--cache-dir", str(options.directory / "cache"), str(modules)]
+        raise SystemExit(subprocess.run(command, env=environment).returncode)
     if options.command == "write":
         selected = all_examples(registered=options.registered, only=set(options.chapters) or None)
         for path in write(options.directory, selected):
