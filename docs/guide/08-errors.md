@@ -240,7 +240,6 @@ it promised, before or instead of sending a statement:
 | [`Json`](crate::Error::Json) | a JSON value that does not deserialize into its field |
 | [`Conversion`](crate::Error::Conversion) | a value that did not fit the type it was converted into |
 | [`UnpackInsertId`](crate::Error::UnpackInsertId) | the key an insert returned could not be read as the entity's key type |
-| [`ConvertFromU64`](crate::Error::ConvertFromU64) | [`TryFromU64`](crate::TryFromU64) was asked for a type that is not an integer |
 | [`Query`](crate::Error::Query) | a read pgorm could not carry out as asked, with a message saying why, such as a loader whose keys do not match |
 | [`Pool`](crate::Error::Pool) | the pool could not lend a connection: one could not be opened, or none came free in time |
 | [`Verify`](crate::Error::Verify) | a decode target that does not match the statement it would read |

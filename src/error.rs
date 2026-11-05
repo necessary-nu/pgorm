@@ -1,7 +1,7 @@
 use tokio_postgres::error::SqlState;
 
 /// An error from unsuccessful database operations
-// [spec:pgorm:def:error.model+12]
+// [spec:pgorm:def:error.model+13]
 #[derive(thiserror::Error, Debug)]
 #[doc(alias = "DbErr")]
 #[non_exhaustive]
@@ -25,9 +25,6 @@ pub enum Error {
     /// An error occurred while performing a query
     #[error("Query Error: {0}")]
     Query(#[source] RuntimeError),
-    /// Type error: the specified type cannot be converted from u64. This is not a runtime error.
-    #[error("Type '{0}' cannot be converted from u64")]
-    ConvertFromU64(&'static str),
     /// The inserted row's primary key could not be decoded from `RETURNING`
     #[error("Failed to unpack the inserted primary key")]
     UnpackInsertId,
@@ -173,7 +170,7 @@ pub enum ListenError {
 ///
 /// assert!(first_cake_id().is_err());
 /// ```
-// [spec:pgorm:def:error.model+12]    crate-root Result alias
+// [spec:pgorm:def:error.model+13]    crate-root Result alias
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Runtime error
@@ -185,7 +182,7 @@ pub enum RuntimeError {
     Internal(String),
 }
 
-// [spec:pgorm:def:error.model+12]    Display-string equality
+// [spec:pgorm:def:error.model+13]    Display-string equality
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         self.to_string() == other.to_string()

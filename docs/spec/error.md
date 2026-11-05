@@ -6,7 +6,7 @@ it.
 
 ## Taxonomy
 
-> [spec:pgorm:def:error.model+12]
+> [spec:pgorm:def:error.model+13]
 > `Error` is the crate-wide error enum. Driver and pool failures convert in
 > via `From`: `Postgres(tokio_postgres::Error)` (the variant every
 > `ConnectionTrait` call and transaction commit produces on database failure;
@@ -28,14 +28,16 @@ it.
 > construction site that conversion is, its `source()` the cause. The
 > remaining variants
 > are constructed by pgorm itself: `Conversion { from, into, source }`,
-> `Query(RuntimeError)`, `ConvertFromU64(&'static str)`, `UnpackInsertId`,
+> `Query(RuntimeError)`, `UnpackInsertId`,
 > `PrimaryKeyNotSet`, `AttrNotSet(String)`, `Type(String)`,
 > `Json(String)`, `RecordNotFound`, `RecordNotInserted`, `NothingToSet`
 > and `Custom(String)`. Every variant MUST have at least one construction
 > site: variants that no code can produce are removed rather than kept as
 > documentation. `RecordNotUpdated` was removed under that rule when
 > `exec.crud.update` deleted `Updater::check_record_exists`, its only
-> producer.
+> producer, and `ConvertFromU64` with the `TryFromU64` trait that raised it:
+> SeaORM's conversion of a `last_insert_id` into a key, which pgorm, reading
+> every inserted key back through `RETURNING`, never called.
 >
 > `NothingToSet` is the counter-case: it exists because
 > `[spec:pgorm:sem:exec.crud.update]` raises it, and it names the statement

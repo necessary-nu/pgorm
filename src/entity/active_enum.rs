@@ -1,4 +1,4 @@
-use crate::{ColumnDef, Error, Iterable, QueryResult, TryFromU64, TryGetError, TryGetable};
+use crate::{ColumnDef, Error, Iterable, QueryResult, TryGetError, TryGetable};
 use pgorm_query::{Expr, Name, Nullable, SimpleExpr, Value, ValueType};
 use tokio_postgres::row::RowIndex;
 
@@ -155,7 +155,7 @@ pub trait ActiveEnum: Sized + Iterable {
 }
 
 /// The Rust Value backing ActiveEnums
-// [spec:pgorm:req:entity.traits.active-enum.limits+2]
+// [spec:pgorm:req:entity.traits.active-enum.limits+3]
 pub trait ActiveEnumValue: Into<Value> + ValueType + Nullable + TryGetable {
     /// For getting an array of enum. Postgres only
     fn try_get_vec_by<I: RowIndex + std::fmt::Display>(
@@ -212,18 +212,6 @@ impl_active_enum_value_with_pg_array!(i8);
 impl_active_enum_value_with_pg_array!(i16);
 impl_active_enum_value_with_pg_array!(i32);
 impl_active_enum_value_with_pg_array!(i64);
-
-// [spec:pgorm:req:entity.traits.active-enum.limits+2]
-impl<T> TryFromU64 for T
-where
-    T: ActiveEnum,
-{
-    fn try_from_u64(_: u64) -> Result<Self, Error> {
-        Err(Error::ConvertFromU64(
-            "Fail to construct ActiveEnum from a u64, if your primary key consist of a ActiveEnum field, its auto increment should be set to false.",
-        ))
-    }
-}
 
 #[cfg(test)]
 mod tests {

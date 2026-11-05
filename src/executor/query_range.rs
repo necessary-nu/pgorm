@@ -14,7 +14,7 @@ use tokio_postgres::{
     types::{FromSql, Kind, Type},
 };
 
-use super::{QueryResult, TryFromU64, TryGetError, TryGetable};
+use super::{QueryResult, TryGetError, TryGetable};
 
 type WireResult<T> = Result<T, Box<dyn std::error::Error + Sync + Send>>;
 
@@ -144,24 +144,6 @@ pub fn range_from_sql_with<'a, B>(
             upper: side(upper)?,
         },
     })
-}
-
-/// A range is no counter, so no `u64` stands for one, as one stands for a
-/// text key's string; a temporal key holds one as its period.
-// [spec:pgorm:def:exec.decode.from-u64+3]
-impl<T> TryFromU64 for Range<T> {
-    fn try_from_u64(_: u64) -> Result<Self, crate::Error> {
-        Err(crate::Error::ConvertFromU64("Range"))
-    }
-}
-
-/// A multirange, which a temporal key may hold as its period, is no counter
-/// either.
-// [spec:pgorm:def:exec.decode.from-u64+3]
-impl<T> TryFromU64 for Multirange<T> {
-    fn try_from_u64(_: u64) -> Result<Self, crate::Error> {
-        Err(crate::Error::ConvertFromU64("Multirange"))
-    }
 }
 
 /// A range over a subtype, read whatever range type the server reports over

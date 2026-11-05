@@ -1242,7 +1242,8 @@ which is useful in tests and logs.
 | `DbErr::RecordNotUpdated` | gone: an update that matches nothing returns `Ok(0)` |
 | `DbErr::Conn`, `DbErr::Exec`, `DbErr::Query` from the database | `Error::Postgres`, the server's or the driver's error |
 | `DbErr::ConnectionAcquire` | `Error::Pool` |
-| `DbErr::Custom`, `Type`, `Json`, `AttrNotSet`, `RecordNotInserted`, `UnpackInsertId`, `ConvertFromU64` | the same names |
+| `DbErr::Custom`, `Type`, `Json`, `AttrNotSet`, `RecordNotInserted`, `UnpackInsertId` | the same names |
+| `DbErr::ConvertFromU64` | gone, with `TryFromU64`: an inserted key is read back through `RETURNING` in its own type, never converted from a `last_insert_id` |
 | `DbErr::UpdateGetPrimaryKey` | `Error::PrimaryKeyNotSet`, raised when the statement is built |
 | `err.sql_err()` → `SqlErr` | `err.sql_error()` → `SqlError` |
 | `SqlErr::UniqueConstraintViolation(String)` | `SqlError::UniqueConstraintViolation(ConstraintViolation)`, with the constraint and table names |

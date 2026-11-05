@@ -852,7 +852,6 @@ children (
                         [spec:pgorm:def:exec.decode.many]
                         [spec:pgorm:req:exec.decode.many-arity]
                         [spec:pgorm:def:exec.decode.json]
-                        [spec:pgorm:def:exec.decode.from-u64]
                         [spec:pgorm:def:exec.crud]
                         [spec:pgorm:sem:exec.crud.select]
                         [spec:pgorm:sem:exec.crud.insert]
@@ -2670,6 +2669,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (errors chapter). TryFromU64 is a bound on PrimaryKeyTrait::ValueType (src/entity/primary_key.rs:22) and implemented throughout (src/executor/query.rs:851, active_enum.rs:221, query_range.rs:153/162), but nothing in pgorm calls try_from_u64, so Error::ConvertFromU64 is produced only if a caller invokes the trait itself: a SeaORM leftover (last_insert_id) the error taxonomy still lists. Remove the trait, its bound and the variant, or say what reaches it."
+                    }
+
+                    {
+                        at 2026-11-05T16:25:10.845835Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T16:28:16.665627Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision built (pending operator override): TryFromU64 deleted with every impl (the numeric, String and refusing impls in src/executor/query.rs, the blanket ActiveEnum impl, Range and Multirange), its bound on PrimaryKeyTrait::ValueType, and Error::ConvertFromU64. Nothing in the workspace or either binding called try_from_u64. Rule exec.decode.from-u64 deleted (and removed from orm.exec's implements); entity.traits.primary-key +8 (the bound), entity.traits.active-enum.limits +3 (its \"MUST declare auto_increment = false\" sentence went with the blanket impl it followed from: auto_increment on a non-integer key renders the plain type in schema generation and an insert reads the key back through RETURNING, so nothing else needs it), error.model +13 (records the removal beside RecordNotUpdated's). The guide's errors table loses the row; COMING_FROM_SEAORM.md maps DbErr::ConvertFromU64 and TryFromU64 as gone. Side effect: a primary key's value type no longer has to implement a pgorm trait no derive wrote."
                     }
                 )
             }
