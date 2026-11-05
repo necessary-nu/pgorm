@@ -3134,6 +3134,12 @@ impl_evidence (
         {impl_name javascript, rule bindings.entity-inserts}
         {impl_name python, rule bindings.entity-inserts}
     )}
+    {id binding-parity.foreign-active-error, covered_rules (
+        bindings.entity-writes
+    ), covered_claims (
+        {impl_name javascript, rule bindings.entity-writes}
+        {impl_name python, rule bindings.entity-writes}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

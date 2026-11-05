@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use pgorm::pgorm_query::Condition;
-use pyo3::{IntoPyObjectExt, prelude::*, types::PyList};
+use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*, types::PyList};
 use pyo3_async_runtimes::tokio::future_into_py;
 
 use super::{
@@ -14,7 +14,7 @@ use super::{
     backend::{Active, Assignment, EntityBackend, VersionWrite, Versions},
 };
 use crate::{
-    errors::{ConstructionError, InternalError, LifecycleError},
+    errors::{ConstructionError, InternalError},
     execution::Executor,
     expressions::PyExpr,
     statements::condition,
@@ -139,12 +139,16 @@ fn run<'py>(
     })
 }
 
-/// An ActiveModel of this registration, refused if another minted it.
+/// An ActiveModel of this registration; another's is an argument of the
+/// wrong type.
+// [spec:pgorm:req:bindings.entity-writes+1]
 pub(super) fn owned(entity: &Arc<dyn EntityBackend>, active: &PyActiveModel) -> PyResult<Active> {
     if active.inner.info().name != entity.info().name {
-        return Err(LifecycleError::new_err(
-            "ActiveModel belongs to another entity registration",
-        ));
+        return Err(PyTypeError::new_err(format!(
+            "the ActiveModel is {}'s, not {}'s",
+            active.inner.info().name,
+            entity.info().name
+        )));
     }
     Ok(active.inner.clone())
 }

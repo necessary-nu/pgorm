@@ -102,8 +102,15 @@ class RegisteredVersions(unittest.IsolatedAsyncioTestCase):
             self.assertEqual([row.into_model()["display name"] for row in upserted], ["three again", "five"])
             self.assertEqual(upserted[0].change.old["display name"], "name 3|before")
             self.assertEqual(await self.account.insert_many([]).returning_upserts(connection), [])
-            with self.assertRaises(p.LifecycleError):
-                self.account.insert(self.old.active().set("id", 1).set("label", "x"))
+            foreign = self.old.active().set("id", 1).set("label", "x")
+            with self.assertRaisesRegex(TypeError, "the ActiveModel is app.Old's, not app.Account's"):
+                self.account.insert(foreign)
+            for refused in (
+                lambda: self.account.insert_many([foreign]),
+                lambda: self.account.update(foreign),
+            ):
+                with self.assertRaises(TypeError):
+                    refused()
 
     # [spec:pgorm:req:bindings.entity-versions+3/test]
     def test_insert_is_typed_by_row_count(self):
@@ -148,7 +155,7 @@ class RegisteredVersions(unittest.IsolatedAsyncioTestCase):
                 self.account.insert(self.active(11, "x")).add(bare)
             with self.assertRaisesRegex(p.ConstructionError, mismatch):
                 self.account.insert_many([self.active(11, "x"), bare])
-            with self.assertRaises(p.LifecycleError):
+            with self.assertRaises(TypeError):
                 self.account.insert(self.active(11, "x")).add(self.old.active().set("id", 1).set("label", "x"))
             self.assertEqual(len(await self.account.find().all(connection)), 10)
             membership = p.entity("app.Membership")

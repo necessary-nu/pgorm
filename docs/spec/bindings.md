@@ -1345,7 +1345,7 @@ Rust generic at run time, only use the ones compiled in.
 > is over an enum is a member as the enum and the subquery's projection is
 > cast beside it. A list holding an expression is a member as written.
 
-> [spec:pgorm:req:bindings.entity-writes]
+> [spec:pgorm:req:bindings.entity-writes+1]
 > `active()` MUST be the entity's `ActiveModelBehavior::new`, its defaults
 > included, and turning a record into an ActiveModel the real
 > `IntoActiveModel` of the model behind the record. An ActiveModel MUST
@@ -1356,8 +1356,10 @@ Rust generic at run time, only use the ones compiled in.
 > application's `ActiveModelBehavior` hooks running around them, and a hook's
 > refusal a `ConstructionError`. Setting a value on a record is
 > `ModelTrait::set` on a copy, writing nothing, and a record's tagged value
-> is the column's value with the kind the entity declares. A record or an
-> ActiveModel of another registration MUST be refused.
+> is the column's value with the kind the entity declares. A record, an
+> ActiveModel or a column of another registration, given where this entity's
+> is expected, is an argument of the wrong type and MUST be refused with a
+> `TypeError` (`bindings.argument-errors`).
 
 > [spec:pgorm:req:bindings.entity-versions+3]
 > The write terminals that read a row's two versions MUST be the statement

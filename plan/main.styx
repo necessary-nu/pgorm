@@ -15204,7 +15204,6 @@ children (
                 [spec:pgorm:req:bindings.entities]
                 [spec:pgorm:req:bindings.entity-graphs]
                 [spec:pgorm:req:bindings.entity-reads]
-                [spec:pgorm:req:bindings.entity-writes]
                 [spec:pgorm:req:bindings.errors]
                 [spec:pgorm:req:bindings.expressions]
                 [spec:pgorm:req:bindings.identifiers]
@@ -15290,7 +15289,6 @@ children (
                 [spec:pgorm:req:bindings.entities]
                 [spec:pgorm:req:bindings.entity-graphs]
                 [spec:pgorm:req:bindings.entity-reads]
-                [spec:pgorm:req:bindings.entity-writes]
                 [spec:pgorm:req:bindings.errors]
                 [spec:pgorm:req:bindings.expressions]
                 [spec:pgorm:req:bindings.identifiers]
@@ -18307,8 +18305,12 @@ children (
 
             {
                 id binding-parity.foreign-active-error
-                title "An ActiveModel or record of another registration is refused with the same error class in both bindings: Python raises LifecycleError where JavaScript throws ConstructionError"
+                title "A record, ActiveModel or column of another registration is refused in both bindings as an argument of the wrong type, a TypeError"
                 kind @fix
+                implements {
+                    javascript ([spec:pgorm:req:bindings.entity-writes])
+                    python ([spec:pgorm:req:bindings.entity-writes])
+                }
                 deps (binding-parity.insert-terminals)
                 log (
                     {
@@ -18316,6 +18318,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by binding-parity.insert-terminals (2026-11-05). Python's entities refuse an ActiveModel of another registration with LifecycleError: versions.rs owned() says \"ActiveModel belongs to another entity registration\", and generic.rs concrete() raises Error::Type. registered_versions.py asserts LifecycleError for insert(self.old.active()...). JavaScript's ownActive (lib/entities.js) throws ConstructionError: \"the ActiveModel is app.Note's, not app.Account's\". bindings.entity-writes says only \"A record or an ActiveModel of another registration MUST be refused\", with no error class. bindings.errors / bindings.argument-errors should settle the class. A value the call cannot use is a ConstructionError under the argument-errors line, which suggests JavaScript's. Then one binding changes, along with its tests (registered_versions.py, registered_entities.py and the entity-writes tests), and bindings.entity-writes names the class."
+                    }
+
+                    {
+                        at 2026-11-05T15:35:48.512966Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T15:41:57.838437Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Lead decision 2026-11-05, pending operator override: an ActiveModel of another registration, passed where this entity's is expected, is an argument of the wrong type. So under the operator's decision (12) of 2026-10-30 it is a TypeError in both bindings, not the ConstructionError kept for a value that cannot become what pgorm sends. Applied to every handle of another registration given where this entity's is expected. Python: owned() in entities/versions.rs (update, insert, insert_many, add, add_many); a column of another entity in entities/column.rs name() (ActiveModel get/set/not_set/reset, EntityModel.with_value, update_many().set), which was LifecycleError; and the generated typed views in _registered/entities.py (ModelView, ActiveView, EntityView, QueryView), which were LifecycleError. JavaScript: ownActive and modelOf in lib/entities.js (update, insert, insertMany, add, addMany, intoActive, withValue, tagged), which were ConstructionError; and the addon's own checks behind them (entities/versions.rs own_active, entities/inserts.rs). Both bindings word it as \"the ActiveModel / record / column is X's, not Y's\". bindings.entity-writes is +1 and names the class; its claims moved here from binding-spec-consolidation. Left as is: a disjoint kind write given another kind entity's ActiveModel. Both bindings refuse it with a ConstructionError, which bindings.disjoint+1 names for every refusal before anything is sent, so changing it would be a disjoint-rule decision."
                     }
                 )
             }

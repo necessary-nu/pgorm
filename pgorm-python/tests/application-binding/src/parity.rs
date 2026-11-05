@@ -187,7 +187,7 @@ fn assert_active(native: &Bound<'_, PyAny>, rust: &account::ActiveModel) -> PyRe
     Ok(())
 }
 
-// [spec:pgorm:req:bindings.entity-writes/test]
+// [spec:pgorm:req:bindings.entity-writes+1/test]
 #[test]
 fn active_state_and_values_match_rust() -> PyResult<()> {
     Python::initialize();

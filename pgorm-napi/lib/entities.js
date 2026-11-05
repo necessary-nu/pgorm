@@ -12,7 +12,6 @@
 import { Handle, TRUSTED } from "./builder.js";
 import { Condition } from "./conditions.js";
 import { runJob } from "./connections.js";
-import { ConstructionError } from "./errors.js";
 import { Expr } from "./expressions.js";
 import { EntityColumn, EntityQuery, QUERIES } from "./entity-queries.js";
 import { EntityInsert, EntityInsertMany, EntityUpdate, EntityUpdateMany, inserted, VERSIONS } from "./entity-versions.js";
@@ -63,7 +62,7 @@ export function recordsOf(entity, [columns, rows]) {
 function modelOf(record, entity) {
   const model = typeof record === "object" && record !== null ? models.get(record) : undefined;
   if (!model) throw new TypeError("expected a record a registered entity read or wrote");
-  if (model.entity !== entity) throw new ConstructionError(`the record is ${model.entity}'s, not ${entity}'s`);
+  if (model.entity !== entity) throw new TypeError(`the record is ${model.entity}'s, not ${entity}'s`);
   return model.handle;
 }
 
@@ -236,14 +235,15 @@ export function activeHandleOf(active) {
 
 /**
  * The native half of `active`, refused unless it is an ActiveModel of the
- * registration `entity` names.
+ * registration `entity` names: another's is an argument of the wrong type.
+ * [spec:pgorm:req:bindings.entity-writes+1]
  *
  * @param {unknown} active
  * @param {string} entity
  */
 export function ownActive(active, entity) {
   if (!(active instanceof ActiveModel)) throw new TypeError("expected an ActiveModel");
-  if (active.entityName !== entity) throw new ConstructionError(`the ActiveModel is ${active.entityName}'s, not ${entity}'s`);
+  if (active.entityName !== entity) throw new TypeError(`the ActiveModel is ${active.entityName}'s, not ${entity}'s`);
   return activeHandle(active);
 }
 

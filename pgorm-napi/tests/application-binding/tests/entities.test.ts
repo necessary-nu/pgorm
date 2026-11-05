@@ -102,6 +102,14 @@ async function seed(): Promise<void> {
   await pool().execute("INSERT INTO napi_entities.notes VALUES (10, 1, 'a1'), (11, 1, 'a2'), (12, 2, 'b1')");
 }
 
+function mistyped(pattern: RegExp): (error: unknown) => true {
+  return (error: unknown) => {
+    assert.ok(error instanceof TypeError, `expected a TypeError, got ${error}`);
+    assert.match(error.message, pattern);
+    return true;
+  };
+}
+
 function refused(pattern: RegExp): (error: unknown) => true {
   return (error: unknown) => {
     assert.ok(error instanceof ConstructionError, `expected a ConstructionError, got ${error}`);
@@ -215,7 +223,7 @@ test("one and optional narrow a row limit and never widen one of zero", async ()
   assert.equal(String(five.inspect("one").values.at(-1)?.value), "1");
 });
 
-// [spec:pgorm:req:bindings.entity-writes/test]
+// [spec:pgorm:req:bindings.entity-writes+1/test]
 test("an ActiveModel holds each column's state, and its writes run the application's hooks", async () => {
   const fresh = Account.active();
   assert.deepStrictEqual(fresh.get("version"), { state: "set", value: 1 });
@@ -563,7 +571,7 @@ test("a registered created range array binds as the array of the ranges' texts",
   assert.throws(() => Booking.active().set("spares", Value.array(new CreatedRange("floatrange", "f64"), [])), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.entity-writes/test]
+// [spec:pgorm:req:bindings.entity-writes+1/test]
 test("a record's model converts and copies as Rust's does, and belongs to its entity", async () => {
   await seed();
   const bob = await Account.find().where(Account.col("id").eq(2)).one(pool());
@@ -578,8 +586,12 @@ test("a record's model converts and copies as Rust's does, and belongs to its en
   assert.throws(() => Account.intoActive({ ...bob }), TypeError);
   const note = await Note.find().optional(pool());
   assert.ok(note);
-  assert.throws(() => Account.intoActive(note), refused(/app.Note's, not app.Account's/));
-  assert.throws(() => Account.update(Note.active()), refused(/app.Note's, not app.Account's/));
+  assert.throws(() => Account.intoActive(note), mistyped(/the record is app.Note's, not app.Account's/));
+  assert.throws(() => Account.update(Note.active()), mistyped(/the ActiveModel is app.Note's, not app.Account's/));
+  assert.throws(() => Account.insert(Note.active()), mistyped(/the ActiveModel is app.Note's/));
+  assert.throws(() => Account.insertMany([Note.active()]), mistyped(/the ActiveModel is app.Note's/));
+  assert.throws(() => Account.withValue(note, "note", "x"), mistyped(/the record is app.Note's/));
+  assert.throws(() => Account.tagged(note, "id"), mistyped(/the record is app.Note's/));
 });
 
 // [spec:pgorm:req:bindings.entity-versions+3/test]
@@ -674,7 +686,7 @@ test("an entity's insert has Rust's other insert terminals of its row count, no 
     refused(/set the same columns: "note" set in a later ActiveModel but not in the first/),
   );
   assert.throws(() => Account.insertMany([noted, account(10, "x")]), refused(/"note" set in the first ActiveModel/));
-  assert.throws(() => Account.insert(account(10, "x")).add(Note.active()), refused(/app.Note's, not app.Account's/));
+  assert.throws(() => Account.insert(account(10, "x")).add(Note.active()), mistyped(/app.Note's, not app.Account's/));
   assert.throws(() => Account.insert(account(10, "x")).addMany({} as never), TypeError);
   assert.equal((await Account.find().all(pool())).length, 7);
 });

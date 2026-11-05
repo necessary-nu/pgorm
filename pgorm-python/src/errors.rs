@@ -71,7 +71,7 @@ pub(crate) fn database_error(error: pgorm::Error, secrets: &Redactions) -> PyErr
         // A write pgorm refuses to build from what it was given, and the
         // refusal an application's ActiveModelBehavior hook returns:
         // pgorm-python makes no `Error::Custom` of its own.
-        // [spec:pgorm:req:bindings.entity-writes]
+        // [spec:pgorm:req:bindings.entity-writes+1]
         pgorm::Error::NothingToSet
         | pgorm::Error::PrimaryKeyNotSet
         | pgorm::Error::AttrNotSet(_)

@@ -229,8 +229,8 @@ column's declared type and writes it through the column's `save_as`, or takes
 an `Expr` as written. An insert of models that set different columns is
 refused, and a batch of none writes and answers nothing. Rust renames the two
 versions in `RETURNING`, so an entity whose table is called `old` or `new`
-still reports them in order. An ActiveModel of another registration raises
-`LifecycleError`. A generated module's typed views return `Change`,
+still reports them in order. A record, an ActiveModel or a column of another
+registration is an argument of the wrong type and raises `TypeError`. A generated module's typed views return `Change`,
 `Inserted` and `Updated` from `pgorm._registered.entities` holding its typed
 models. Like an entity query, each of these writes and the typed view over it
 raises `ConstructionError` on Python truth testing.

@@ -57,7 +57,7 @@ class RegisteredTransactions(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await self.account.find().all(tx), [])
 
     # [spec:pgorm:req:bindings.transactions/test]
-    # [spec:pgorm:req:bindings.entity-writes/test]    the hook's refusal, a ConstructionError,
+    # [spec:pgorm:req:bindings.entity-writes+1/test]    the hook's refusal, a ConstructionError,
     # rolls back the write it refused inside the transaction
     async def test_after_hook_exception_rolls_back_database_write(self):
         with self.assertRaisesRegex(p.ConstructionError, "after_save refused"):

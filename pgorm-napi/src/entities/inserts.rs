@@ -20,7 +20,6 @@ use crate::{
     errors::throw,
     rows,
     statements::{self, Node},
-    values::read,
 };
 
 pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
@@ -164,14 +163,11 @@ fn insert_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
             .0
             .clone();
         if active.info().name != entity.info().name {
-            return read::refuse(
-                &mut cx,
-                format!(
-                    "an ActiveModel of {} is no row of {}",
-                    active.info().name,
-                    entity.info().name
-                ),
-            );
+            return cx.throw_type_error(format!(
+                "the ActiveModel is {}'s, not {}'s",
+                active.info().name,
+                entity.info().name
+            ));
         }
         actives.push(active);
     }

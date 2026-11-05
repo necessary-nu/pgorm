@@ -151,7 +151,7 @@ await Account.intoActive(changed).delete(pool);
 `set`, `notSet` and `reset` return a new ActiveModel. `insert`, `update` and
 `delete` are `ActiveModelTrait`'s, the application's hooks around them; a
 hook's refusal is a `ConstructionError`. A record or ActiveModel of another
-registration is refused.
+registration is an argument of the wrong type, a `TypeError`.
 
 ## Writes that return both versions
 

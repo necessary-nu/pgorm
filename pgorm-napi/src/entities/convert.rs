@@ -28,7 +28,7 @@ impl Finalize for ModelHandle {}
 /// declared kind, converted exactly or refused; a column of a type the
 /// binding has no kind for takes a `Value`, or a value whose kind is
 /// inferred.
-// [spec:pgorm:req:bindings.entity-writes]
+// [spec:pgorm:req:bindings.entity-writes+1]
 pub(crate) fn column_value<'cx>(
     cx: &mut Cx<'cx>,
     column: &ColumnInfo,
@@ -151,7 +151,7 @@ fn list<'cx, T>(
 /// is the error `napi.errors` classifies it as; otherwise a terminal finding
 /// no row where it needs one is a `DecodeError`, and a write its ActiveModel
 /// or its hooks refuse is a `ConstructionError`.
-// [spec:pgorm:req:bindings.entity-writes]
+// [spec:pgorm:req:bindings.entity-writes+1]
 pub(crate) fn entity_failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
     let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
     while let Some(cause) = source {

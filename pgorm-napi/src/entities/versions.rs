@@ -14,7 +14,6 @@ use super::{
 use crate::{
     connect::job::{Job, JobHandle, Output},
     statements::{self, Node},
-    values::read,
 };
 
 pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
@@ -46,14 +45,11 @@ fn own_active(cx: &mut FunctionContext, index: usize) -> NeonResult<Active> {
     let entity = held!(cx, super::EntityHandle, 0);
     let active = held!(cx, super::ActiveHandle, index);
     if active.info().name != entity.info().name {
-        return read::refuse(
-            cx,
-            format!(
-                "the ActiveModel is {}'s, not {}'s",
-                active.info().name,
-                entity.info().name
-            ),
-        );
+        return cx.throw_type_error(format!(
+            "the ActiveModel is {}'s, not {}'s",
+            active.info().name,
+            entity.info().name
+        ));
     }
     Ok(active)
 }

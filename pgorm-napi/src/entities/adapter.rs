@@ -602,7 +602,7 @@ where
     })
 }
 
-// [spec:pgorm:req:bindings.entity-writes]
+// [spec:pgorm:req:bindings.entity-writes+1]
 impl<E> ModelBackend for ModelAdapter<E>
 where
     E: EntityTrait + Send + Sync + 'static,
@@ -661,7 +661,7 @@ where
     }
 }
 
-// [spec:pgorm:req:bindings.entity-writes]
+// [spec:pgorm:req:bindings.entity-writes+1]
 impl<E> ActiveBackend for ActiveAdapter<E>
 where
     E: EntityTrait + Send + Sync + 'static,

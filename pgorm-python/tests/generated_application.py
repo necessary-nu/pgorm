@@ -155,7 +155,7 @@ class GeneratedApplication(unittest.IsolatedAsyncioTestCase):
 
     # [spec:pgorm:req:bindings.codegen/test]
     async def test_views_reject_foreign_entities(self):
-        with self.assertRaises(p.LifecycleError):
+        with self.assertRaisesRegex(TypeError, "the ActiveModel is app.Note's, not app.Account's"):
             app.AccountActive(p.entity("app.Note").active())
         with self.assertRaises(p.ConstructionError):
             app.Account.active().set_id(p.Value(1, "i64"))
@@ -169,7 +169,7 @@ class GeneratedApplication(unittest.IsolatedAsyncioTestCase):
                 .set_body("B")
                 .insert(connection)
             )
-            with self.assertRaises(p.LifecycleError):
+            with self.assertRaisesRegex(TypeError, "the model is app.Note's, not app.Account's"):
                 app.AccountModel(model.native)
 
 
