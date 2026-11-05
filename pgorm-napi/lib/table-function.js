@@ -1,51 +1,94 @@
 // @ts-check
 
 // Set-returning functions read as a FROM item: one call, or several zipped
-// side by side under ROWS FROM, the shorter ones padded with NULLs.
-// [spec:pgorm:req:bindings.select+3]
+// side by side under ROWS FROM, the shorter ones padded with NULLs — built as
+// pgorm-query's TableFunction is, and finished by `alias`.
+// [spec:pgorm:req:bindings.select+4]
 
-import { arg, Handle, TRUSTED } from "./builder.js";
+import { arg, Handle, trusted, TRUSTED } from "./builder.js";
 import { native } from "./operations.js";
 import { FromItem } from "./select.js";
 
 /**
  * @typedef {import("./expressions.js").Expr} Expr
- * @typedef {readonly [string, import("./data-type.js").DataType | string]} ColumnDefinition
- * @typedef {{ readonly call: Expr, readonly columnDefinitions: readonly ColumnDefinition[] }} RecordCall
  */
 
-/**
- * `f(..) AS alias`, or `ROWS FROM (f(..), g(..)) AS alias` over several
- * calls or when `rowsFrom` says; `ordinality` adds a final `bigint` column
- * numbering the rows from 1, and `columns` names the columns in the alias,
- * the ordinal last. Each call is one `call()` made — `generate_series` and
- * `unnest` among them — or, for a function returning `record`, `{ call,
- * columnDefinitions }`, its columns' names and types. The alias is required,
- * as every FROM item that is not a table has one.
- *
- * @param {Expr | RecordCall | readonly (Expr | RecordCall)[]} calls
- * @param {{ alias: string, ordinality?: boolean, columns?: readonly string[], rowsFrom?: boolean }} options
- */
-export function tableFunction(
-  calls,
-  { alias, ordinality = false, columns, rowsFrom = false } = /** @type {any} */ ({}),
-) {
-  const each = Array.isArray(calls) ? calls : [calls];
-  const list = each.map((call) => arg(recordCall(call) ? call.call : call));
-  const definitions = each.map((call) =>
-    recordCall(call) ? Array.from(call.columnDefinitions, (column) => Array.from(column, arg)) : null
-  );
-  const handle = native.tableFunction(list, alias, ordinality === true, columns, rowsFrom === true, definitions);
-  return new FromItem(handle, TRUSTED);
+/** A function in FROM before its alias, which `alias` gives it. */
+export class TableFunction extends Handle {
+  /**
+   * @param {unknown} handle
+   * @param {symbol} [token]
+   */
+  constructor(handle, token) {
+    trusted(token, "TableFunction", "tableFunction() or TableFunction.rowsFrom()");
+    super(handle);
+  }
+
+  /**
+   * `ROWS FROM (f(..))`, to which `and` adds calls. Over one call it differs
+   * from `tableFunction(call)` only for a function returning a composite,
+   * whose columns `ROWS FROM` expands.
+   *
+   * @param {Expr} call
+   */
+  static rowsFrom(call) {
+    return new TableFunction(native.tableFunctionNew(arg(call), true), TRUSTED);
+  }
+
+  /**
+   * Another call read beside the others; several calls are `ROWS FROM`
+   * whichever factory began it.
+   *
+   * @param {Expr} call
+   */
+  and(call) {
+    return new TableFunction(native.tableFunctionAnd(arg(this), arg(call)), TRUSTED);
+  }
+
+  /**
+   * A column of the `record` the call added last returns, its name and type:
+   * a lone call writes the list in its alias, and each call of a `ROWS FROM`
+   * carries its own.
+   *
+   * @param {string} name
+   * @param {import("./schema.d.ts").ColumnType} type
+   */
+  columnDefinition(name, type) {
+    return new TableFunction(native.tableFunctionColumnDefinition(arg(this), name, arg(type)), TRUSTED);
+  }
+
+  /** `WITH ORDINALITY`: a final `bigint` column numbering the rows from 1. */
+  withOrdinality() {
+    return new TableFunction(native.tableFunctionWithOrdinality(arg(this)), TRUSTED);
+  }
+
+  /**
+   * The relation's columns named in its alias, `AS "t"("a", "b")`, the
+   * ordinal column last, replacing any names given before.
+   *
+   * @param {...string} names
+   */
+  columns(...names) {
+    return new TableFunction(native.tableFunctionColumns(arg(this), names), TRUSTED);
+  }
+
+  /**
+   * The relation under `name`, the FROM item `from` and the joins take.
+   *
+   * @param {string} name
+   */
+  alias(name) {
+    return new FromItem(native.tableFunctionAlias(arg(this), name), TRUSTED);
+  }
 }
 
 /**
- * Whether `call` is a call with its column definition list rather than a
- * call alone.
+ * One set-returning call, `f(..)`, read as a relation: a call `call()` made,
+ * `generate_series` and `unnest` among them, or one returning `record` with
+ * the columns `columnDefinition` gives it.
  *
- * @param {unknown} call
- * @returns {call is RecordCall}
+ * @param {Expr} call
  */
-function recordCall(call) {
-  return typeof call === "object" && call !== null && !(call instanceof Handle) && "call" in call;
+export function tableFunction(call) {
+  return new TableFunction(native.tableFunctionNew(arg(call), false), TRUSTED);
 }

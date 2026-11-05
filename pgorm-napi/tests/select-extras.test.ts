@@ -19,6 +19,7 @@ import {
   type Select,
   select,
   Table,
+  TableFunction,
   tableFunction,
   Value,
   With,
@@ -89,7 +90,7 @@ const ranked = select(score.col("player"), score.col("score")).from(score);
 const byScore = score.col("score").desc();
 const unordered = ranked.limitWithTies(2);
 
-// [spec:pgorm:req:bindings.select+3/test]
+// [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2/test]
 test("a tie limit keeps every row tied with the last one counted, in LIMIT's slot", async () => {
   const tied = ranked.orderBy(byScore).limitWithTies(2);
@@ -109,7 +110,7 @@ test("a tie limit keeps every row tied with the last one counted, in LIMIT's slo
   }
 });
 
-// [spec:pgorm:req:bindings.select+3/test]
+// [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2/test]
 test("a tie limit with no ORDER BY, or beside SKIP LOCKED, is refused by inspect() and every run before it is sent", async () => {
   const skipping = ranked.orderBy(byScore).limitWithTies(2).lock("update", { wait: "skipLocked" });
@@ -146,7 +147,7 @@ test("a tie limit with no ORDER BY, or beside SKIP LOCKED, is refused by inspect
   }
 });
 
-// [spec:pgorm:req:bindings.select+3/test]
+// [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2/test]
 test("a refused tie limit cannot be read into another statement, where nothing could still order it", async () => {
   for (
@@ -168,7 +169,7 @@ test("a refused tie limit cannot be read into another statement, where nothing c
   ]);
 });
 
-// [spec:pgorm:req:bindings.select+3/test]
+// [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:sql.ast.select.group-distinct/test]
 // [spec:pgorm:def:sql.ast.select.grouping/test]
 test("GROUP BY DISTINCT groups each grouping set its elements reach once", async () => {
@@ -222,21 +223,20 @@ test("SIMILAR TO matches a whole string against its pattern, the pattern bound a
   assert.throws(() => word.col("w").similarTo("a", { escape: 1 as never }), mistyped(/escape is a string/));
 });
 
-// [spec:pgorm:req:bindings.select+3/test]
+// [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:bindings.expressions+2/test]
 // [spec:pgorm:req:sql.ast.select.table-function+2/test]
 test("unnest WITH ORDINALITY numbers each element, reading a column of the item before it", async () => {
-  const letters = tableFunction(call("unnest", bind(["x", "y", "z"]).cast("text", { array: true })), {
-    alias: "t",
-    ordinality: true,
-    columns: ["tag", "position"],
-  });
+  const letters = tableFunction(call("unnest", bind(["x", "y", "z"]).cast("text", { array: true })))
+    .withOrdinality()
+    .columns("tag", "position")
+    .alias("t");
   assert.deepStrictEqual(await pool().query(select().from(letters).orderBy(letters.col("position").asc())), [
     { tag: "x", position: 1n },
     { tag: "y", position: 2n },
     { tag: "z", position: 3n },
   ]);
-  const tags = tableFunction([call("unnest", bag.col("tags"))], { alias: "t", ordinality: true, columns: ["tag", "n"] });
+  const tags = tableFunction(call("unnest", bag.col("tags"))).withOrdinality().columns("tag", "n").alias("t");
   const rows = await pool().query(
     select(bag.col("id"), tags.col("tag"), tags.col("n")).from(bag).crossJoin(tags)
       .orderBy(bag.col("id").asc(), tags.col("n").asc()),
@@ -244,52 +244,56 @@ test("unnest WITH ORDINALITY numbers each element, reading a column of the item 
   assert.deepStrictEqual(rows, [{ id: 1n, tag: "x", n: 1n }, { id: 1n, tag: "y", n: 2n }, { id: 2n, tag: "z", n: 1n }]);
 });
 
-// [spec:pgorm:req:bindings.select+3/test]
+// [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:bindings.expressions+2/test]
 // [spec:pgorm:req:sql.ast.select.table-function+2/test]
 test("ROWS FROM reads its calls side by side, padding the shorter with NULL", async () => {
-  const zipped = tableFunction(
-    [
-      call("generate_series", int8(1), int8(2)),
-      call("unnest", bind(["a", "b", "c"]).cast("text", { array: true })),
-    ],
-    { alias: "r", ordinality: true, columns: ["x", "y", "n"] },
-  );
+  const zipped = tableFunction(call("generate_series", int8(1), int8(2)))
+    .and(call("unnest", bind(["a", "b", "c"]).cast("text", { array: true })))
+    .withOrdinality()
+    .columns("x", "y", "n")
+    .alias("r");
   assert.deepStrictEqual(await pool().query(select().from(zipped).orderBy(zipped.col("n").asc())), [
     { x: 1n, y: "a", n: 1n },
     { x: 2n, y: "b", n: 2n },
     { x: null, y: "c", n: 3n },
   ]);
-  const stepped = tableFunction(call("generate_series", int8(10), int8(1), int8(-3)), { alias: "s", rowsFrom: true });
+  const stepped = TableFunction.rowsFrom(call("generate_series", int8(10), int8(1), int8(-3))).alias("s");
   assert.deepStrictEqual(field(await pool().query(select().from(stepped)), "s"), [10n, 7n, 4n, 1n]);
-  const series = tableFunction(call("generate_series", int8(1), int8(3)), { alias: "g" });
+  const series = tableFunction(call("generate_series", int8(1), int8(3))).alias("g");
   assert.equal(
     select().from(series).inspect().sql,
     'SELECT * FROM GENERATE_SERIES(CAST($1::int8 AS int8), CAST($2::int8 AS int8)) AS "g"',
   );
   for (
     const [build, reason] of [
-      [() => tableFunction(col("x"), { alias: "t" }), /reads a function call, not an expression/],
-      [() => tableFunction([] as never, { alias: "t" }), /at least one call/],
+      [() => tableFunction(col("x")), /reads a function call, not an expression/],
+      [() => TableFunction.rowsFrom(col("x")), /reads a function call, not an expression/],
+      [() => tableFunction(call("generate_series", int8(1), int8(2))).and(col("x")), /reads a function call, not an expression/],
+      [() => tableFunction(call("generate_series", int8(1), int8(2))).alias(""), /identifier/],
+      [() => tableFunction(call("generate_series", int8(1), int8(2))).columns("a", ""), /identifier/],
       [() => call("generate_series", 1), /no "generate_series" taking 1 argument/],
       [() => call("unnest"), /no "unnest" taking 0 argument/],
     ] as const
   ) {
     assert.throws(build, refused(reason));
   }
-  assert.throws(() => tableFunction(call("generate_series", int8(1), int8(2)), {} as never), mistyped(/needs its alias/));
-  assert.throws(() => tableFunction(1 as never, { alias: "t" }), mistyped(/reads a function call/));
+  assert.throws(() => tableFunction(call("generate_series", int8(1), int8(2))).alias(undefined as never), mistyped(/identifier/));
+  assert.throws(() => tableFunction(1 as never), mistyped(/reads a function call/));
+  assert.throws(() => tableFunction(series as never), mistyped(/reads a function call, not a FROM item/));
+  assert.throws(() => new (TableFunction as unknown as new () => unknown)(), mistyped(/made by tableFunction\(\)/));
   assert.throws(() => call(7 as never), mistyped(/a function's name is a string/));
 });
 
-// [spec:pgorm:req:bindings.select+3/test]
+// [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:bindings.expressions+2/test]
 // [spec:pgorm:req:sql.ast.select.column-definitions/test]
 test("a call returning record reads through its column definitions, alone or inside ROWS FROM", async () => {
-  const one = tableFunction({
-    call: call("json_to_record", new Value({ a: 7, tags: ["x", "y"] }, "json")),
-    columnDefinitions: [["a", "integer"], ["tags", new DataType("text").array()], ["missing", "text"]],
-  }, { alias: "r" });
+  const one = tableFunction(call("json_to_record", new Value({ a: 7, tags: ["x", "y"] }, "json")))
+    .columnDefinition("a", "integer")
+    .columnDefinition("tags", new DataType("text").array())
+    .columnDefinition("missing", "text")
+    .alias("r");
   const query = select(one.star()).from(one);
   assert.equal(
     query.inspect().sql,
@@ -297,48 +301,48 @@ test("a call returning record reads through its column definitions, alone or ins
   );
   assert.deepStrictEqual(await pool().query(query), [{ a: 7, tags: ["x", "y"], missing: null }]);
 
-  const zipped = tableFunction([
-    { call: call("jsonb_to_recordset", new Value([{ b: "x" }, { b: "y" }], "json")), columnDefinitions: [["b", "text"]] },
-    call("generate_series", int8(10), int8(12)),
-  ], { alias: "z", ordinality: true, columns: ["b", "s", "n"] });
+  const zipped = tableFunction(call("jsonb_to_recordset", new Value([{ b: "x" }, { b: "y" }], "json")))
+    .columnDefinition("b", "text")
+    .and(call("generate_series", int8(10), int8(12)))
+    .withOrdinality()
+    .columns("b", "s", "n")
+    .alias("z");
   const rows = await pool().query(select(zipped.star()).from(zipped).orderBy(zipped.col("n").asc()));
   assert.deepStrictEqual(rows, [
     { b: "x", s: 10n, n: 1n },
     { b: "y", s: 11n, n: 2n },
     { b: null, s: 12n, n: 3n },
   ]);
-  const numbered = tableFunction({ call: call("json_to_record", new Value({ a: 1 }, "json")), columnDefinitions: [["a", "integer"]] }, {
-    alias: "o",
-    ordinality: true,
-  });
+  const numbered = tableFunction(call("json_to_record", new Value({ a: 1 }, "json")))
+    .columnDefinition("a", "integer")
+    .withOrdinality()
+    .alias("o");
   assert.equal(
     select().from(numbered).inspect().sql,
     'SELECT * FROM ROWS FROM (JSON_TO_RECORD($1) AS ("a" integer)) WITH ORDINALITY AS "o"',
   );
   assert.deepStrictEqual(await pool().query(select().from(numbered)), [{ a: 1, ordinality: 1n }]);
 
-  const bare = tableFunction(call("json_to_record", new Value({ a: 1 }, "json")), { alias: "b" });
+  const bare = tableFunction(call("json_to_record", new Value({ a: 1 }, "json"))).alias("b");
   await assert.rejects(pool().query(select().from(bare)), sqlstate("42601"));
-  const typed = tableFunction({ call: call("generate_series", int8(1), int8(2)), columnDefinitions: [["a", "bigint"]] }, {
-    alias: "g",
-  });
+  const typed = tableFunction(call("generate_series", int8(1), int8(2))).columnDefinition("a", "bigint").alias("g");
   await assert.rejects(pool().query(select().from(typed)), sqlstate("42601"));
   for (
     const [build, reason] of [
-      [() => tableFunction({ call: call("json_to_record", col("d")), columnDefinitions: [] as never }, { alias: "t" }), /at least one column/],
-      [() => tableFunction({ call: call("json_to_record", col("d")), columnDefinitions: [["", "text"]] }, { alias: "t" }), /identifier/],
+      [() => tableFunction(call("json_to_record", col("d"))).columnDefinition("", "text"), /identifier/],
+      [() => tableFunction(call("json_to_record", col("d"))).columnDefinition("a", "no such type" as never), /no built-in type/],
       [() => call("json_to_record"), /no "json_to_record" taking 0 argument/],
     ] as const
   ) {
     assert.throws(build, refused(reason));
   }
   assert.throws(
-    () => tableFunction({ call: call("json_to_record", col("d")), columnDefinitions: [["a"] as never] }, { alias: "t" }),
-    mistyped(/\[name, type\] pair/),
+    () => tableFunction(call("json_to_record", col("d"))).columnDefinition("a", 1 as never),
+    mistyped(/a kind is a kind name/),
   );
 });
 
-// [spec:pgorm:req:bindings.select+3/test]
+// [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:sql.ast.select.table-sample/test]
 test("TABLESAMPLE draws a bound share of a table's rows, the same sample again for the same seed", async () => {
   const ids = async (sample: ReturnType<Table["tablesample"]>) =>

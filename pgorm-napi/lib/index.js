@@ -39,7 +39,7 @@ export { Aliased, all, any, array, bind, call, col, exists, Expr, literal, Order
 export { Builder } from "./builder.js";
 export { FromItem, Select, select, Table, With } from "./select.js";
 export { GroupingElement } from "./grouping.js";
-export { tableFunction } from "./table-function.js";
+export { TableFunction, tableFunction } from "./table-function.js";
 export { Delete, deleteFrom, Insert, insert, ReturningRow, Update, update } from "./writes.js";
 export { Conflict, ConflictTarget, ConflictUpdate } from "./conflicts.js";
 export { Merge, merge, MergeAction, MergeInsert, MergeUpdate, PendingMerge } from "./merge.js";

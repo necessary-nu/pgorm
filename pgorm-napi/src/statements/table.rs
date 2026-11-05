@@ -6,15 +6,14 @@
 
 use neon::prelude::*;
 use pgorm::pgorm_query::{
-    ColumnRef, ColumnType, Expr, FromItem, FunctionCall, Name, NamedTable, SampleMethod,
-    SimpleExpr, TableFunction, TableName, TableSample,
+    ColumnRef, Expr, FromItem, FunctionCall, NamedTable, SampleMethod, SimpleExpr, TableFunction,
+    TableName, TableSample,
 };
 
 use super::{
     Node,
     args::{
-        absent, arg, choice, flag, items, list, name, name_at, optional_name, refuse, select_at,
-        this,
+        absent, arg, choice, flag, list, name, name_at, optional_name, refuse, select_at, this,
     },
 };
 
@@ -24,12 +23,23 @@ pub(super) const EXPORTS: &[(&str, super::Build)] = &[
     ("tableCol", table_col),
     ("tableStar", table_star),
     ("tableSample", table_sample),
-    ("tableFunction", table_function),
+    ("tableFunctionNew", table_function_new),
+    ("tableFunctionAnd", table_function_and),
+    (
+        "tableFunctionColumnDefinition",
+        table_function_column_definition,
+    ),
+    (
+        "tableFunctionWithOrdinality",
+        table_function_with_ordinality,
+    ),
+    ("tableFunctionColumns", table_function_columns),
+    ("tableFunctionAlias", table_function_alias),
     ("fromSubquery", from_subquery),
 ];
 
 /// `tableNew(name, schema, alias)`.
-// [spec:pgorm:req:bindings.select+3]
+// [spec:pgorm:req:bindings.select+4]
 fn table_new(cx: &mut FunctionContext) -> NeonResult<Node> {
     let name = name_at(cx, 0)?;
     let schema = arg(cx, 1);
@@ -115,7 +125,7 @@ fn sample_number(cx: &mut FunctionContext, index: usize, what: &str) -> NeonResu
 /// `TABLESAMPLE BERNOULLI` or `SYSTEM`, its percentage and optional
 /// `REPEATABLE` seed bound. The table keeps its schema and alias, the name
 /// the item answers to.
-// [spec:pgorm:req:bindings.select+3]
+// [spec:pgorm:req:bindings.select+4]
 fn table_sample(cx: &mut FunctionContext) -> NeonResult<Node> {
     let Node::Table(table) = this(cx, 0)? else {
         return cx.throw_type_error("only a Table is sampled");
@@ -152,90 +162,77 @@ fn table_call<'cx>(cx: &mut Cx<'cx>, value: Handle<'cx, JsValue>) -> NeonResult<
     }
 }
 
-/// The column definition list `value` holds, `[[name, type], ..]`: each
-/// column an identifier and a type as `DataType` arguments take one, at least
-/// one of them, since a call without a list has none to give.
-// [spec:pgorm:req:bindings.select+3]
-fn column_definitions<'cx>(
-    cx: &mut Cx<'cx>,
-    value: Handle<'cx, JsValue>,
-) -> NeonResult<Vec<(Name, ColumnType)>> {
-    let mut definitions = Vec::new();
-    for column in items(cx, value)? {
-        let pair = items(cx, column)?;
-        let [column_name, column_type] = pair.as_slice() else {
-            return cx.throw_type_error("a column definition is a [name, type] pair");
-        };
-        let column_name = name(cx, *column_name)?;
-        definitions.push((
-            column_name,
-            super::data_type::column_type(cx, *column_type)?,
-        ));
+fn table_function_at(cx: &mut FunctionContext, index: usize) -> NeonResult<TableFunction> {
+    match this(cx, index)? {
+        Node::TableFunction(function) => Ok(function),
+        other => {
+            let what = other.describe();
+            cx.throw_type_error(format!("expected a TableFunction, got {what}"))
+        }
     }
-    if definitions.is_empty() {
-        return refuse(cx, "a column definition list names at least one column");
-    }
-    Ok(definitions)
 }
 
-/// `tableFunction(calls, alias, ordinality, columns, rowsFrom, definitions)`:
-/// at least one set-returning call as an aliased FROM item — `ROWS FROM (..)`
-/// when there are several or `rowsFrom` says, numbered `WITH ORDINALITY` when
-/// asked, its columns named in the alias — each call with the column
-/// definition list `definitions` holds for it, if any.
-// [spec:pgorm:req:bindings.select+3]
-fn table_function(cx: &mut FunctionContext) -> NeonResult<Node> {
-    let definitions = arg(cx, 5);
-    let definitions = if absent(cx, definitions) {
-        Vec::new()
+/// `tableFunctionNew(call, rowsFrom)`: one set-returning call, `f(..)`, or
+/// `ROWS FROM (f(..))` when `rowsFrom` says — `TableFunction::new` or
+/// `TableFunction::rows_from`.
+// [spec:pgorm:req:bindings.select+4]
+fn table_function_new(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let call = arg(cx, 0);
+    let call = table_call(cx, call)?;
+    let function = if flag(cx, 1)? {
+        TableFunction::rows_from(call)
     } else {
-        items(cx, definitions)?
+        TableFunction::new(call)
     };
-    let mut calls = Vec::new();
-    for (at, value) in list(cx, 0)?.into_iter().enumerate() {
-        let call = table_call(cx, value)?;
-        let defined = match definitions.get(at) {
-            Some(list) if !absent(cx, *list) => column_definitions(cx, *list)?,
-            _ => Vec::new(),
-        };
-        calls.push((call, defined));
+    Ok(Node::TableFunction(function))
+}
+
+/// `tableFunctionAnd(function, call)`: another call read beside the others.
+// [spec:pgorm:req:bindings.select+4]
+fn table_function_and(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let function = table_function_at(cx, 0)?;
+    let call = arg(cx, 1);
+    let call = table_call(cx, call)?;
+    Ok(Node::TableFunction(function.and(call)))
+}
+
+/// `tableFunctionColumnDefinition(function, name, type)`: a column of the
+/// `record` the call added last returns, its type as `DataType` arguments
+/// take one.
+// [spec:pgorm:req:bindings.select+4]
+fn table_function_column_definition(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let function = table_function_at(cx, 0)?;
+    let column = name_at(cx, 1)?;
+    let column_type = arg(cx, 2);
+    let column_type = super::data_type::column_type(cx, column_type)?;
+    Ok(Node::TableFunction(
+        function.column_definition(column, column_type),
+    ))
+}
+
+fn table_function_with_ordinality(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let function = table_function_at(cx, 0)?;
+    Ok(Node::TableFunction(function.with_ordinality()))
+}
+
+/// `tableFunctionColumns(function, names)`: the names the alias gives the
+/// relation's columns, replacing any given before.
+// [spec:pgorm:req:bindings.select+4]
+fn table_function_columns(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let function = table_function_at(cx, 0)?;
+    let mut names = Vec::new();
+    for column in list(cx, 1)? {
+        names.push(name(cx, column)?);
     }
-    let mut calls = calls.into_iter();
-    let Some((first, first_defined)) = calls.next() else {
-        return refuse(cx, "a table function reads at least one call");
-    };
-    let alias = arg(cx, 1);
-    if absent(cx, alias) {
-        return cx.throw_type_error(
-            "a table function needs its alias, as every FROM item that is not a table does",
-        );
-    }
-    let alias = name(cx, alias)?;
-    let mut function = if flag(cx, 4)? {
-        TableFunction::rows_from(first)
-    } else {
-        TableFunction::new(first)
-    };
-    for (column_name, column_type) in first_defined {
-        function = function.column_definition(column_name, column_type);
-    }
-    for (call, defined) in calls {
-        function = function.and(call);
-        for (column_name, column_type) in defined {
-            function = function.column_definition(column_name, column_type);
-        }
-    }
-    if flag(cx, 2)? {
-        function = function.with_ordinality();
-    }
-    let columns = arg(cx, 3);
-    if !absent(cx, columns) {
-        let mut names = Vec::new();
-        for column in items(cx, columns)? {
-            names.push(name(cx, column)?);
-        }
-        function = function.columns(names);
-    }
+    Ok(Node::TableFunction(function.columns(names)))
+}
+
+/// `tableFunctionAlias(function, alias)`: the relation as the FROM item the
+/// FROM list and the joins take.
+// [spec:pgorm:req:bindings.select+4]
+fn table_function_alias(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let function = table_function_at(cx, 0)?;
+    let alias = name_at(cx, 1)?;
     Ok(Node::FromItem(function.alias(alias)))
 }
 

@@ -18114,11 +18114,36 @@ children (
             {
                 id binding-parity.grouping
                 title "Grouping elements are built one way in both bindings, as pgorm-query's GroupingElement constructors build them"
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:12:09.728212Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T14:12:09.955749Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust's shape is GroupingElement::{set(iter), empty(), rollup(iter), cube(iter), sets(first) -> GroupingSets.add(e)}. Python already had it as GroupingElement.set/empty/rollup/cube (statics, variadic) and sets(first, *rest); JavaScript had the top-level functions groupingSet (empty with no argument), rollup, cube and groupingSets. Chosen: both bindings make grouping elements only through GroupingElement's static factories set, empty, rollup, cube and sets(first, ...rest); the top-level JavaScript functions are deleted and GroupingElement cannot be called in either binding (TypeError). GROUPING SETS keeps the variadic sets(first, *rest) rather than a GroupingSets class with add(): the variadic is how both bindings already spell a Rust accumulator that takes its first item (Condition.all/any, Conflict.on), and it keeps the never-empty guarantee as Rust's sets(first) does. Delivered in 5e2fd4d0: bindings.select+3, napi.naming+5 and python.naming+4 (the grouping exceptions gone; bindings.select joins python.naming's factory-alone list), bindings-surface.json shares GroupingElement's five members. The node owns no rules (binding-spec-consolidation owns bindings.select and the naming rules), so it was completed by hand."
+                        after_done true
+                    }
+                )
             }
 
             {
                 id binding-parity.table-functions
                 title "A table function in FROM is built one way in both bindings, as pgorm-query's TableFunction is"
+                log (
+                    {
+                        at 2026-11-05T14:12:16.602396Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
             }
 
             {

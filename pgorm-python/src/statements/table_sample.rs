@@ -60,7 +60,7 @@ fn double(value: &Bound<'_, PyAny>, what: &str) -> PyResult<f64> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+3]
+// [spec:pgorm:req:bindings.select+4]
 /// `table TABLESAMPLE method (percentage) [REPEATABLE (seed)]`, both numbers
 /// bound; a percentage outside 0 to 100 is the server's refusal (`2202H`).
 pub(super) fn sample(

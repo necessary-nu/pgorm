@@ -62,7 +62,7 @@ impl PyTable {
         )
     }
 
-    // [spec:pgorm:req:bindings.select+3]
+    // [spec:pgorm:req:bindings.select+4]
     /// This table read through `TABLESAMPLE`, a `FromItem` qualified by the
     /// table's alias, or by its unqualified name: `method` draws each row
     /// (or page) with probability `percentage` out of 100, and `repeatable`

@@ -626,7 +626,7 @@ the same terminals that run raw SQL.
 > language or PostgreSQL limit on a representation MUST be an explicit error,
 > never a silent normalization.
 
-> [spec:pgorm:req:bindings.select+3]
+> [spec:pgorm:req:bindings.select+4]
 > `select` MUST build pgorm-query's `SelectStatement` through the Rust
 > builder's own methods:
 >
@@ -635,12 +635,18 @@ the same terminals that run raw SQL.
 > - FROM items: a `Table`, schema-qualified and aliased, or a `FromItem`,
 >   which is always aliased; a table's `tablesample`, by the Bernoulli or
 >   system method with a bound percentage and an optional bound seed
->   (`sql.ast.select.table-sample`); a table function over function calls,
->   `ROWS FROM` over several, `WITH ORDINALITY` and its column names, and for
->   a call returning `record` a non-empty column definition list, each name
->   and type lowered into pgorm-query's `column_definition`
->   (`sql.ast.select.table-function`, `sql.ast.select.column-definitions`);
->   and `JSON_TABLE` (`bindings.sql-json`);
+>   (`sql.ast.select.table-sample`); a table function, built as
+>   pgorm-query's `TableFunction` is (`sql.ast.select.table-function`): the
+>   class constructed over one set-returning call, or `rows_from(call)`,
+>   `ROWS FROM` over it; `and(call)`, a further call read beside the others,
+>   which is `ROWS FROM` whichever began it; `with_ordinality()`;
+>   `columns(names..)`, the column names its alias gives, replacing any
+>   given before; `column_definition(name, type)`, a column of the `record`
+>   the call added last returns, lowered into pgorm-query's
+>   `column_definition` (`sql.ast.select.column-definitions`); and
+>   `alias(name)`, which finishes it as the `FromItem` the FROM list and the
+>   joins take. Each call is one `call` makes, another expression a
+>   `ConstructionError`; and `JSON_TABLE` (`bindings.sql-json`);
 > - inner, left, right and full joins on a predicate, and cross joins;
 > - WHERE and HAVING, each call ANDed to what is there;
 > - GROUP BY over expressions and the grouping elements, each made by the

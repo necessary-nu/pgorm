@@ -5,7 +5,7 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.select+3]
+// [spec:pgorm:req:bindings.select+4]
 // [spec:pgorm:req:bindings.from-subqueries]
 // [spec:pgorm:req:bindings.row-locks]
 // [spec:pgorm:req:bindings.with+1]
@@ -14,8 +14,8 @@
 import type { Aliased, Builder, Expr, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Merge } from "./merge.d.ts";
 import type { ExtendedWindow, Window, Windowed } from "./windows.d.ts";
-import type { BuiltinType, DataType } from "./json.d.ts";
 import type { Delete, Insert, Update } from "./writes.d.ts";
+import type { ColumnType } from "./schema.d.ts";
 
 /** A table, schema-qualified and aliased when the options say. Its names are identifiers, quoted. */
 export declare class Table extends Builder {
@@ -155,44 +155,44 @@ export declare class GroupingElement {
   static sets(first: Expr | GroupingElement, ...rest: (Expr | GroupingElement)[]): GroupingElement;
 }
 
-/** How a {@link tableFunction} is read. */
-export interface TableFunctionOptions {
-  /** The item's alias, which every FROM item that is not a table has. */
-  readonly alias: string;
+/**
+ * A set-returning function in FROM before its alias: one call, or several
+ * read side by side under `ROWS FROM (..)`, which pads the shorter ones with
+ * NULLs. `alias` finishes it as the {@link FromItem} `from` and the joins take.
+ */
+export declare class TableFunction {
+  #private;
+  private constructor();
+  /**
+   * `ROWS FROM (f(..))`, to which `and` adds calls. Over one call it differs
+   * from {@link tableFunction} only for a function returning a composite,
+   * whose columns `ROWS FROM` expands.
+   */
+  static rowsFrom(call: Expr): TableFunction;
+  /** Another call read beside the others; several calls are always `ROWS FROM`. */
+  and(call: Expr): TableFunction;
+  /**
+   * A column of the `record` the call added last returns, `json_to_record`
+   * and its kin among them: its name and type. A lone call writes its list in
+   * the alias, `AS "t"("a" integer)`; beside `withOrdinality` or `columns`, or
+   * among several calls, each call carries its own inside `ROWS FROM (..)`.
+   */
+  columnDefinition(name: string, type: ColumnType): TableFunction;
   /** `WITH ORDINALITY`: a final `bigint` column numbering the rows from 1. */
-  readonly ordinality?: boolean;
-  /** The columns' names in the alias, `AS "t"("a", "b")`, the ordinal last. */
-  readonly columns?: readonly string[];
-  /** `ROWS FROM (..)` over a single call; several calls are always read so. */
-  readonly rowsFrom?: boolean;
+  withOrdinality(): TableFunction;
+  /** The columns' names in the alias, `AS "t"("a", "b")`, the ordinal last, replacing any given before. */
+  columns(...names: string[]): TableFunction;
+  /** The relation under `name`, as every FROM item that is not a table is. */
+  alias(name: string): FromItem;
 }
 
 /**
- * A call to a function returning `record`, `json_to_record` and its kin among
- * them, with the column definition list that gives its columns: each a name
- * and a type, at least one.
+ * One set-returning call read as a relation, `f(..)`: a {@link call} made,
+ * `generate_series` and `unnest` among them, or one returning `record` with
+ * the columns `columnDefinition` gives it; any other expression is a
+ * {@link ConstructionError}.
  */
-export interface RecordCall {
-  readonly call: Expr;
-  readonly columnDefinitions: readonly [ColumnDefinition, ...ColumnDefinition[]];
-}
-
-/** A column of a {@link RecordCall}: its name and its type. */
-export type ColumnDefinition = readonly [name: string, type: DataType | BuiltinType];
-
-/**
- * Set-returning calls as a FROM item: `f(..) AS alias`, or `ROWS FROM (f(..),
- * g(..))` over several, which reads them side by side and pads the shorter
- * ones with NULLs. Each call is one {@link call} made, `generate_series` and
- * `unnest` among them, or a {@link RecordCall}; any other expression is a
- * {@link ConstructionError}. A lone record call writes its list in the alias,
- * `AS "t"("a" integer)`, and beside `ordinality` or `columns`, or among
- * several calls, each call carries its own inside `ROWS FROM (..)`.
- */
-export declare function tableFunction(
-  calls: Expr | RecordCall | readonly [Expr | RecordCall, ...(Expr | RecordCall)[]],
-  options: TableFunctionOptions,
-): FromItem;
+export declare function tableFunction(call: Expr): TableFunction;
 
 /** A common table expression's column names and materialization. */
 export interface CteOptions {

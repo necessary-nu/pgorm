@@ -5,7 +5,7 @@
 // constructor that builds it. Each stands for a list of grouping sets, and a
 // GROUP BY list groups by every combination of its items' sets, so two items
 // can reach one set twice — which `groupByDistinct()` groups once.
-// [spec:pgorm:req:bindings.select+3]
+// [spec:pgorm:req:bindings.select+4]
 
 import { arg, args, Handle, trusted, TRUSTED } from "./builder.js";
 import { native } from "./operations.js";

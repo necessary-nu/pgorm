@@ -282,7 +282,7 @@ export type FunctionName =
  *
  * `json_to_record`, `jsonb_to_record`, `json_to_recordset` and
  * `jsonb_to_recordset` (one document each) return `record`, read by
- * `tableFunction` through the column definition list a `RecordCall` gives.
+ * `tableFunction` through the columns `columnDefinition` gives it.
  */
 export declare function call(name: FunctionName, ...operands: Operand[]): Expr;
 /** `(a, b, ..)`, at least one item. */

@@ -1,7 +1,7 @@
 // @ts-check
 
 // SELECT, the tables and other items it reads, and common table expressions.
-// [spec:pgorm:req:bindings.select+3]
+// [spec:pgorm:req:bindings.select+4]
 // [spec:pgorm:req:bindings.from-subqueries]
 // [spec:pgorm:req:bindings.row-locks]
 // [spec:pgorm:req:bindings.with+1]
@@ -80,7 +80,7 @@ export class FromItem extends Builder {
    * @param {symbol} [token]
    */
   constructor(handle, token) {
-    trusted(token, "FromItem", "select.as(alias), jsonTable(), tableFunction() or table.tablesample()");
+    trusted(token, "FromItem", "select.as(alias), jsonTable(), tableFunction(..).alias(alias) or table.tablesample()");
     super(handle);
   }
 

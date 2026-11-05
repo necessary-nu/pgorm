@@ -346,10 +346,12 @@ for await (const row of pool.stream(query, { tagged: true })) { /* .. */ }
   call order: `a.union(b).intersect(c)` is `(a UNION b) INTERSECT c`),
   `lock("update", { of, wait })`, `with`, and `as(alias)` to read a query as
   a FROM item.
-  `tableFunction(calls, { alias, ordinality, columns, rowsFrom })` reads
-  set-returning calls as one — `ROWS FROM` over several — a call returning
-  `record` (`json_to_record` and its kin) given as `{ call, columnDefinitions:
-  [["a", "integer"], ..] }`, the columns that type it, and
+  `tableFunction(call)` reads a set-returning call as one, built as
+  pgorm-query's `TableFunction` is — `TableFunction.rowsFrom(call)`, `.and(call)`
+  for `ROWS FROM` over several, `.withOrdinality()`, `.columns(..names)`, and
+  for a call returning `record` (`json_to_record` and its kin)
+  `.columnDefinition("a", "integer")` for each column that types it — and
+  finished by `.alias(name)`, and
   `table.tablesample("bernoulli" | "system", percentage, { repeatable })`
   samples a table. `new With(name, query, { columns, materialized }).cte(..)`
   and `With.recursive(name, query, { search, cycle })` are its common table

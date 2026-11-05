@@ -38,8 +38,8 @@ use neon::{prelude::*, types::Finalize};
 use pgorm::pgorm_query::{
     AnyWithClause, ColumnType, Condition, ConflictUpdate, ExtendedWindow, FrameClause, FromItem,
     FunctionCall, GroupingElement, JsonInput, JsonTableColumn, MergeStatement, NamedTable,
-    NullOrdering, OnConflict, Order, PendingMerge, Query, SelectStatement, SimpleExpr, Value,
-    Values, WindowStatement,
+    NullOrdering, OnConflict, Order, PendingMerge, Query, SelectStatement, SimpleExpr,
+    TableFunction, Value, Values, WindowStatement,
 };
 
 use crate::{codec::Codec, rows, values::Tagged};
@@ -79,6 +79,8 @@ pub(crate) enum Node {
     Quantified(SimpleExpr),
     Table(NamedTable),
     FromItem(FromItem),
+    /// A function in FROM before its alias makes it a FROM item.
+    TableFunction(TableFunction),
     /// An item of a `GROUP BY` list beyond a bare expression: a set,
     /// `ROLLUP`, `CUBE` or `GROUPING SETS`.
     GroupingElement(GroupingElement),
@@ -136,6 +138,7 @@ impl Node {
             Self::Quantified(_) => "an ANY or ALL operand",
             Self::Table(_) => "a Table",
             Self::FromItem(_) => "a FROM item",
+            Self::TableFunction(_) => "a TableFunction",
             Self::GroupingElement(_) => "a grouping element",
             Self::Select(_) => "a Select",
             Self::With(_) => "a WITH clause",
@@ -214,7 +217,7 @@ const MAX_PARAMETERS: usize = 65_535;
 /// the ORDER BY or window entry they turn on may arrive later, so this is
 /// the first point the statement is final.
 // [spec:pgorm:req:bindings.statements]
-// [spec:pgorm:req:bindings.select+3]
+// [spec:pgorm:req:bindings.select+4]
 // [spec:pgorm:req:bindings.windows]
 pub(crate) fn compile<'cx>(cx: &mut Cx<'cx>, node: &Node) -> NeonResult<(String, Values)> {
     let built = match node {

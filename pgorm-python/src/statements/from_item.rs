@@ -4,7 +4,7 @@ use pyo3::{exceptions::PyTypeError, prelude::*};
 use super::table::PyTable;
 use crate::{errors::ConstructionError, expressions::PyExpr, identifiers::PyIdentifier};
 
-// [spec:pgorm:req:bindings.select+3]
+// [spec:pgorm:req:bindings.select+4]
 /// A FROM item that is not a plain named table, owned by Rust's `FromItem`.
 /// A value-producing item is always aliased, as PostgreSQL requires, so its
 /// columns are qualified by a name the caller chose; a sampled table is
