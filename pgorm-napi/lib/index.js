@@ -96,7 +96,7 @@ export { DisjointCursor, DisjointPaginator, DisjointQuery, DisjointWrite } from 
 export { ActiveModel, entities, Entity, entity } from "./entities.js";
 export { EntitySchema, fromEntity } from "./entity-schema.js";
 export { EntityColumn, EntityQuery } from "./entity-queries.js";
-export { EntityInsert, EntityUpdate, EntityUpdateMany } from "./entity-versions.js";
+export { EntityInsert, EntityInsertMany, EntityUpdate, EntityUpdateMany } from "./entity-versions.js";
 export { EntityGraph, EntityGraphCursor, EntityGraphQuery, graph, graphs } from "./entity-graphs.js";
 export {
   ColumnDef,

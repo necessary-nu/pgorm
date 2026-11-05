@@ -169,6 +169,11 @@ const each = await Account.insertMany([a, b]).onConflict(renamed).returningUpser
 | `entity.insert(active).onConflict(..).returningUpsert(db)` | `Insert::one(active).on_conflict(..).exec_returning_upsert` |
 | `entity.insertMany(actives).onConflict(..).returningUpserts(db)` | `Insert::many(actives).on_conflict(..).exec_returning_upserts` |
 
+An insert is typed by its row count, as Rust's `Insert<A, OneRow>` and
+`Insert<A, ManyRows>` are: `insert` gives an `EntityInsert`, whose terminal is
+`returningUpsert`, and `insertMany` an `EntityInsertMany`, whose terminal is
+`returningUpserts`.
+
 These are statement terminals in Rust, so no hook runs around them. A change
 is `{ old, new }`; an upsert `{ kind: "inserted", new }` or `{ kind:
 "updated", old, new }`; a row a conflict clause held back is `null` from

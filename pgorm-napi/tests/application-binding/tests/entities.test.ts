@@ -21,6 +21,8 @@ import {
   DecodeError,
   entities,
   entity,
+  EntityInsert,
+  EntityInsertMany,
   type EntityRecord,
   graph,
   graphs,
@@ -580,8 +582,7 @@ test("a record's model converts and copies as Rust's does, and belongs to its en
   assert.throws(() => Account.update(Note.active()), refused(/app.Note's, not app.Account's/));
 });
 
-// [spec:pgorm:req:bindings.entity-versions+2/test]
-// [spec:pgorm:req:bindings.entity-versions+2/test]
+// [spec:pgorm:req:bindings.entity-versions+3/test]
 test("the version terminals return each written row before and after, no hook running", async () => {
   await seed();
   const ann = await Account.find().where(Account.col("id").eq(1)).one(pool());
@@ -620,6 +621,24 @@ test("the version terminals return each written row before and after, no hook ru
   ]).onConflict(renamed).returningUpserts(pool());
   assert.deepStrictEqual(batch.map((row) => [row.kind, row.new["display name"]]), [["updated", "Bobby"], ["inserted", "Ivy"]]);
   assert.deepStrictEqual(await Account.insertMany([]).returningUpserts(pool()), []);
+});
+
+// [spec:pgorm:req:bindings.entity-versions+3/test]
+test("an entity's insert is typed by its row count, each with only its own upsert terminal", () => {
+  const one = Account.insert(Account.active().set("id", 9));
+  const many = Account.insertMany([Account.active().set("id", 9)]);
+  assert.ok(one instanceof EntityInsert && !(one instanceof EntityInsertMany));
+  assert.ok(many instanceof EntityInsertMany && !(many instanceof EntityInsert));
+  assert.ok(one.onConflict(Conflict.doNothing()) instanceof EntityInsert);
+  assert.ok(many.onConflict(Conflict.doNothing()) instanceof EntityInsertMany);
+  assert.equal("returningUpserts" in one, false);
+  assert.equal("returningUpsert" in many, false);
+  // @ts-expect-error: an insert of one row answers for its row alone
+  assert.equal(typeof one.returningUpserts, "undefined");
+  // @ts-expect-error: a batch answers for every row it wrote
+  assert.equal(typeof many.returningUpsert, "undefined");
+  assert.throws(() => new (EntityInsert as unknown as new (...args: unknown[]) => unknown)({}, Symbol()), TypeError);
+  assert.throws(() => new (EntityInsertMany as unknown as new (...args: unknown[]) => unknown)({}, Symbol()), TypeError);
 });
 
 // [spec:pgorm:req:bindings.entity-graphs+3/test]

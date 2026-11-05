@@ -37,6 +37,7 @@
       "EntityGraphCursor": ["after", "after_with", "all", "asc", "before", "before_with", "desc", "first", "last"],
       "EntityGraphQuery": ["all", "col", "cursor", "inspect", "optional", "order_by", "where"],
       "EntityInsert": ["on_conflict", "returning_upsert"],
+      "EntityInsertMany": ["on_conflict", "returning_upserts"],
       "EntityQuery": ["all", "inspect", "limit", "offset", "one", "optional", "order_by", "where"],
       "EntityUpdate": ["returning_change"],
       "EntityUpdateMany": ["all_rows", "returning_changes", "set", "where"],
@@ -420,7 +421,6 @@
       "pgorm.Identifier": {"question": "shapes"},
       "pgorm.LikePattern": {"question": "shapes"},
       "pgorm.TableFunction": {"question": "shapes"},
-      "pgorm.EntityInsertMany": {"question": "shapes"},
       "pipeline.Pipeline.all": {"question": "shapes"},
       "pipeline.Pipeline.one": {"question": "shapes"},
       "pipeline.Pipeline.optional": {"question": "shapes"},
@@ -483,8 +483,7 @@
       "pgorm.groupingSet": {"question": "shapes"},
       "pgorm.groupingSets": {"question": "shapes"},
       "pgorm.rollup": {"question": "shapes"},
-      "pgorm.tableFunction": {"question": "shapes"},
-      "pgorm.EntityInsert.returningUpserts": {"question": "shapes"}
+      "pgorm.tableFunction": {"question": "shapes"}
     }
   }
 }

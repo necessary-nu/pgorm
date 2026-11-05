@@ -41,7 +41,7 @@ pub(crate) const TERMINALS: [(&str, &str); 4] = [
     ),
 ];
 
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 // [spec:pgorm:req:python.records]
 /// A row as it was before a write and as the write left it.
 #[pyclass(name = "Change", module = "pgorm", frozen, get_all, from_py_object)]
@@ -58,7 +58,7 @@ impl PyChange {
     }
 }
 
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 // [spec:pgorm:req:python.records]
 /// What an upsert did with a row it wrote: `Inserted(model)`, or
 /// `Updated(change)` for the row its `ON CONFLICT DO UPDATE` updated.
@@ -171,7 +171,7 @@ fn owned(entity: &Arc<dyn EntityBackend>, active: &PyActiveModel) -> PyResult<Ac
     Ok(active.inner.clone())
 }
 
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 /// `Entity::update(active)`: an update by the model's key.
 #[pyclass(name = "EntityUpdate", module = "pgorm", frozen, from_py_object)]
 #[derive(Clone, Debug)]
@@ -209,7 +209,7 @@ impl PyEntityUpdate {
     }
 }
 
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 /// `Entity::update_many()`: an update of every row its filters admit, which
 /// runs only once `where` or `all_rows()` has said which rows those are.
 #[pyclass(name = "EntityUpdateMany", module = "pgorm", frozen, from_py_object)]
@@ -267,7 +267,7 @@ impl PyEntityUpdateMany {
     /// server returned them. An update with neither `where` nor `all_rows()`,
     /// and one setting nothing (Rust's `NothingToSet`), are refused before
     /// anything is sent.
-    // [spec:pgorm:req:bindings.entity-versions+2]
+    // [spec:pgorm:req:bindings.entity-versions+3]
     fn returning_changes<'py>(
         &self,
         py: Python<'py>,
@@ -332,7 +332,7 @@ impl Inserted {
     }
 }
 
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 /// `Insert::one` of a registration's ActiveModel, with an optional `ON
 /// CONFLICT` action.
 #[pyclass(name = "EntityInsert", module = "pgorm", frozen, from_py_object)]
@@ -379,7 +379,7 @@ impl PyEntityInsert {
     }
 }
 
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 /// `Insert::many` of a registration's ActiveModels, with an optional `ON
 /// CONFLICT` action.
 #[pyclass(name = "EntityInsertMany", module = "pgorm", frozen, from_py_object)]

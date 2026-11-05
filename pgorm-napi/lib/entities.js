@@ -15,7 +15,7 @@ import { runJob } from "./connections.js";
 import { ConstructionError } from "./errors.js";
 import { Expr } from "./expressions.js";
 import { EntityColumn, EntityQuery, QUERIES } from "./entity-queries.js";
-import { EntityInsert, EntityUpdate, EntityUpdateMany, VERSIONS } from "./entity-versions.js";
+import { EntityInsert, EntityInsertMany, EntityUpdate, EntityUpdateMany, inserted, VERSIONS } from "./entity-versions.js";
 import { native } from "./operations.js";
 
 /** Marks a construction from within the module. */
@@ -199,29 +199,25 @@ export class Entity extends Handle {
   }
 
   /**
-   * An insert of one ActiveModel, whose terminal says what it did with the row.
+   * An insert of one ActiveModel, `Insert::one`, whose terminal says what it
+   * did with the row.
    *
    * @param {ActiveModel} active
    */
   insert(active) {
-    return new EntityInsert(this.#native, this.#name, [ownActive(active, this.#name)], null, true, VERSIONS);
+    return new EntityInsert(inserted(this.#native, this.#name, [ownActive(active, this.#name)]), VERSIONS);
   }
 
   /**
-   * An insert of ActiveModels, whose terminal says what it did with each row.
+   * An insert of ActiveModels, `Insert::many`, whose terminal says what it
+   * did with each row.
    *
    * @param {readonly ActiveModel[]} actives
    */
   insertMany(actives) {
     if (!Array.isArray(actives)) throw new TypeError("insertMany takes an array of ActiveModels");
-    return new EntityInsert(
-      this.#native,
-      this.#name,
-      actives.map((active) => ownActive(active, this.#name)),
-      null,
-      false,
-      VERSIONS,
-    );
+    const owned = actives.map((active) => ownActive(active, this.#name));
+    return new EntityInsertMany(inserted(this.#native, this.#name, owned), VERSIONS);
   }
 }
 

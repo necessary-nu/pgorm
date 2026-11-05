@@ -193,10 +193,10 @@ export declare class Entity<T extends EntityTypes<any, any> = EntityTypes> {
   update(active: ActiveModel<T>): EntityUpdate<EntityRecordOf<T>>;
   /** An update of every row its condition admits. */
   updateMany(): EntityUpdateMany<T>;
-  /** An insert of one ActiveModel. */
+  /** An insert of one ActiveModel, by `Insert::one`. */
   insert(active: ActiveModel<T>): EntityInsert<EntityRecordOf<T>>;
-  /** An insert of ActiveModels; a batch of none writes nothing. */
-  insertMany(actives: readonly ActiveModel<T>[]): EntityInsert<EntityRecordOf<T>>;
+  /** An insert of ActiveModels, by `Insert::many`; a batch of none writes nothing. */
+  insertMany(actives: readonly ActiveModel<T>[]): EntityInsertMany<EntityRecordOf<T>>;
 }
 
 /** A registered entity's `Select<E>`. Every method returns a new query. */
@@ -264,13 +264,19 @@ export declare class EntityUpdateMany<T extends EntityTypes<any, any> = EntityTy
   returningChanges(db: Queryable, options?: OperationOptions): Promise<Change<EntityRecordOf<T>>[]>;
 }
 
-/** An insert of ActiveModels, with the conflict clause it takes. */
+/** An insert of one ActiveModel, `Insert<A, OneRow>`, with the conflict clause it takes. */
 export declare class EntityInsert<R = EntityRecord> {
   private constructor();
   onConflict(action: Conflict | ConflictUpdate): EntityInsert<R>;
-  /** What the insert of one row did, or `null` where its conflict clause wrote nothing. */
+  /** What the insert did with its row, by `exec_returning_upsert`, or `null` where its conflict clause wrote nothing. */
   returningUpsert(db: Queryable, options?: OperationOptions): Promise<Upserted<R> | null>;
-  /** What the insert did with each row it wrote. */
+}
+
+/** An insert of ActiveModels, `Insert<A, ManyRows>`, with the conflict clause it takes. */
+export declare class EntityInsertMany<R = EntityRecord> {
+  private constructor();
+  onConflict(action: Conflict | ConflictUpdate): EntityInsertMany<R>;
+  /** What the insert did with each row it wrote, by `exec_returning_upserts`; a row its conflict clause held back is left out. */
   returningUpserts(db: Queryable, options?: OperationOptions): Promise<Upserted<R>[]>;
 }
 

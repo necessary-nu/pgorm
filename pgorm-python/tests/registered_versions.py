@@ -11,7 +11,7 @@ def rows(changes):
     return [(change.old["id"], change.old["note"], change.new["note"]) for change in changes]
 
 
-# [spec:pgorm:req:bindings.entity-versions+2/test]
+# [spec:pgorm:req:bindings.entity-versions+3/test]
 class RegisteredVersions(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=1)
@@ -63,7 +63,7 @@ class RegisteredVersions(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.ConstructionError):
                 await self.account.update_many().where(self.account.col("id") == 1).returning_changes(connection)
 
-    # [spec:pgorm:req:bindings.entity-versions+2/test]
+    # [spec:pgorm:req:bindings.entity-versions+3/test]
     async def test_update_many_needs_where_or_all_rows(self):
         async with self.pool.connection() as connection:
             unguarded = self.account.update_many().set("note", "every")
@@ -104,6 +104,17 @@ class RegisteredVersions(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await self.account.insert_many([]).returning_upserts(connection), [])
             with self.assertRaises(p.LifecycleError):
                 self.account.insert(self.old.active().set("id", 1).set("label", "x"))
+
+    # [spec:pgorm:req:bindings.entity-versions+3/test]
+    def test_insert_is_typed_by_row_count(self):
+        one = self.account.insert(self.active(9, "nine"))
+        many = self.account.insert_many([self.active(9, "nine")])
+        self.assertIs(type(one), p.EntityInsert)
+        self.assertIs(type(many), p.EntityInsertMany)
+        self.assertIs(type(one.on_conflict(p.Conflict.do_nothing())), p.EntityInsert)
+        self.assertIs(type(many.on_conflict(p.Conflict.do_nothing())), p.EntityInsertMany)
+        self.assertFalse(hasattr(one, "returning_upserts"))
+        self.assertFalse(hasattr(many, "returning_upsert"))
 
     async def test_table_called_old_keeps_version_order(self):
         async with self.pool.connection() as connection:

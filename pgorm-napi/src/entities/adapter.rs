@@ -451,7 +451,7 @@ where
         }
     }
 
-    // [spec:pgorm:req:bindings.entity-versions+2]
+    // [spec:pgorm:req:bindings.entity-versions+3]
     async fn write_versions(
         &self,
         db: Database<'_>,

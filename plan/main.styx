@@ -15204,7 +15204,6 @@ children (
                 [spec:pgorm:req:bindings.entities]
                 [spec:pgorm:req:bindings.entity-graphs]
                 [spec:pgorm:req:bindings.entity-reads]
-                [spec:pgorm:req:bindings.entity-versions]
                 [spec:pgorm:req:bindings.entity-writes]
                 [spec:pgorm:req:bindings.errors]
                 [spec:pgorm:req:bindings.expressions]
@@ -15292,7 +15291,6 @@ children (
                 [spec:pgorm:req:bindings.entities]
                 [spec:pgorm:req:bindings.entity-graphs]
                 [spec:pgorm:req:bindings.entity-reads]
-                [spec:pgorm:req:bindings.entity-versions]
                 [spec:pgorm:req:bindings.entity-writes]
                 [spec:pgorm:req:bindings.errors]
                 [spec:pgorm:req:bindings.expressions]
@@ -18134,6 +18132,19 @@ children (
             {
                 id binding-parity.registered-inserts
                 title "A registered entity's insert is typed by row count in both bindings, as Rust's Insert::one and Insert::many are, upsert returns included"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.entity-versions])
+                    python ([spec:pgorm:req:bindings.entity-versions])
+                }
+                log (
+                    {
+                        at 2026-11-05T14:00:17.014645Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust types an insert by row count: Insert<A, OneRow> (Insert::one) has exec_returning_upsert, Insert<A, ManyRows> (Insert::many) has exec_returning_upserts, and neither has the other's. Python already had that shape (Entity.insert -> EntityInsert: on_conflict, returning_upsert; Entity.insert_many -> EntityInsertMany: on_conflict, returning_upserts). JavaScript had one EntityInsert for both, with returningUpserts on a one-row insert and returningUpsert refused at run time on a batch. Chosen: JavaScript takes Python's (Rust's) shape. insert() gives EntityInsert (onConflict, returningUpsert) and insertMany() gives EntityInsertMany (onConflict, returningUpserts), both over one module-private Inserted holding the ActiveModels and conflict clause, so no code is duplicated. EntityInsertMany is now a shared name in bindings-surface.json, and both undecided entries are gone. bindings.entity-versions is +3 and states the row-count typing. Its python and javascript claims moved here from binding-spec-consolidation, so this node is what delivers the bumped rule. Not added, because neither binding had them and parity holds without them: Rust's other row-count terminals on a registered insert (exec / exec_returning_pk(s) / exec_returning_model(s)) and add/add_many promoting one to many. ActiveModel.insert stays the hooked single-row insert."
+                        after_done true
+                    }
+                )
             }
 
             {

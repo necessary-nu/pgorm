@@ -3,7 +3,7 @@
 // A registered entity's writes that read each written row's two versions,
 // reached as the statement terminals they are in Rust, no
 // `ActiveModelBehavior` hook running around them.
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 
 import { arg } from "./builder.js";
 import { Condition } from "./conditions.js";
@@ -120,7 +120,7 @@ export class EntityUpdateMany {
     return new EntityUpdateMany(this.#entity, this.#name, this.#assignments, ALL_ROWS, VERSIONS);
   }
 
-  // [spec:pgorm:req:bindings.entity-versions+2]
+  // [spec:pgorm:req:bindings.entity-versions+3]
   /**
    * Each row the update wrote, before and after, by
    * `UpdateMany::exec_returning_changes`; setting nothing is a
@@ -148,8 +148,8 @@ function upserted([old, now]) {
   return Object.freeze(old === null ? { kind: "inserted", new: now } : { kind: "updated", old, new: now });
 }
 
-/** An insert of ActiveModels, with the conflict clause it takes. */
-export class EntityInsert {
+/** An insert's ActiveModels and the conflict clause it takes. */
+class Inserted {
   /** @type {unknown} */
   #entity;
   /** @type {string} */
@@ -158,48 +158,70 @@ export class EntityInsert {
   #actives;
   /** @type {Conflict | ConflictUpdate | null} */
   #conflict;
-  /** @type {boolean} */
-  #one;
 
   /**
    * @param {unknown} entity
    * @param {string} name
    * @param {readonly unknown[]} actives
    * @param {Conflict | ConflictUpdate | null} conflict
-   * @param {boolean} one
-   * @param {symbol} token
    */
-  constructor(entity, name, actives, conflict, one, token) {
-    if (token !== VERSIONS) throw new TypeError("an EntityInsert comes from an entity's insert() or insertMany()");
+  constructor(entity, name, actives, conflict) {
     this.#entity = entity;
     this.#name = name;
     this.#actives = Object.freeze([...actives]);
     this.#conflict = conflict;
-    this.#one = one;
   }
 
   /**
-   * What a conflict does: the statement builders' `Conflict`, naming SQL
-   * columns.
+   * The same insert with `action` as its conflict clause: the statement
+   * builders' `Conflict`, naming SQL columns.
    *
    * @param {unknown} action
    */
-  onConflict(action) {
+  withConflict(action) {
     if (!(action instanceof Conflict) && !(action instanceof ConflictUpdate)) {
       throw new TypeError("a conflict's action is Conflict.doNothing(), or a target's doNothing() or update(..)");
     }
-    return new EntityInsert(this.#entity, this.#name, this.#actives, action, this.#one, VERSIONS);
-  }
-
-  /** @param {unknown} db @param {unknown} options */
-  async #upserts(db, options) {
-    const conflict = this.#conflict === null ? null : arg(this.#conflict);
-    const job = native.entityUpsertsJob(this.#entity, this.#actives, conflict, this.#one);
-    return versionsOf(this.#name, await runJob(db, job, options)).map(upserted);
+    return new Inserted(this.#entity, this.#name, this.#actives, action);
   }
 
   /**
-   * What the insert did with its one row, by `Insert::exec_returning_upsert`:
+   * What the insert did with each row it wrote, by `exec_returning_upsert`
+   * when `one`, `exec_returning_upserts` otherwise.
+   *
+   * @param {boolean} one
+   * @param {unknown} db
+   * @param {unknown} options
+   */
+  async upserts(one, db, options) {
+    const conflict = this.#conflict === null ? null : arg(this.#conflict);
+    const job = native.entityUpsertsJob(this.#entity, this.#actives, conflict, one);
+    return versionsOf(this.#name, await runJob(db, job, options)).map(upserted);
+  }
+}
+
+// [spec:pgorm:req:bindings.entity-versions+3]
+/** An insert of one ActiveModel, `Insert::one`'s, with the conflict clause it takes. */
+export class EntityInsert {
+  /** @type {Inserted} */
+  #inserted;
+
+  /**
+   * @param {Inserted} inserted
+   * @param {symbol} token
+   */
+  constructor(inserted, token) {
+    if (token !== VERSIONS) throw new TypeError("an EntityInsert comes from an entity's insert()");
+    this.#inserted = inserted;
+  }
+
+  /** @param {unknown} action */
+  onConflict(action) {
+    return new EntityInsert(this.#inserted.withConflict(action), VERSIONS);
+  }
+
+  /**
+   * What the insert did with its row, by `Insert::exec_returning_upsert`:
    * inserted it, updated the row its conflict found, or — null — wrote
    * nothing, its conflict clause holding it back.
    *
@@ -207,8 +229,28 @@ export class EntityInsert {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async returningUpsert(db, options) {
-    if (!this.#one) throw new TypeError("an insert of many rows answers through returningUpserts()");
-    return (await this.#upserts(db, options))[0] ?? null;
+    return (await this.#inserted.upserts(true, db, options))[0] ?? null;
+  }
+}
+
+// [spec:pgorm:req:bindings.entity-versions+3]
+/** An insert of ActiveModels, `Insert::many`'s, with the conflict clause it takes. */
+export class EntityInsertMany {
+  /** @type {Inserted} */
+  #inserted;
+
+  /**
+   * @param {Inserted} inserted
+   * @param {symbol} token
+   */
+  constructor(inserted, token) {
+    if (token !== VERSIONS) throw new TypeError("an EntityInsertMany comes from an entity's insertMany()");
+    this.#inserted = inserted;
+  }
+
+  /** @param {unknown} action */
+  onConflict(action) {
+    return new EntityInsertMany(this.#inserted.withConflict(action), VERSIONS);
   }
 
   /**
@@ -220,6 +262,18 @@ export class EntityInsert {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async returningUpserts(db, options) {
-    return await this.#upserts(db, options);
+    return await this.#inserted.upserts(false, db, options);
   }
+}
+
+/**
+ * An insert of `actives`, the ActiveModels of the entity `entity` names
+ * `name`, with no conflict clause yet.
+ *
+ * @param {unknown} entity
+ * @param {string} name
+ * @param {readonly unknown[]} actives
+ */
+export function inserted(entity, name, actives) {
+  return new Inserted(entity, name, actives, null);
 }

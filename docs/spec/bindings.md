@@ -1353,13 +1353,18 @@ Rust generic at run time, only use the ones compiled in.
 > is the column's value with the kind the entity declares. A record or an
 > ActiveModel of another registration MUST be refused.
 
-> [spec:pgorm:req:bindings.entity-versions+2]
+> [spec:pgorm:req:bindings.entity-versions+3]
 > The write terminals that read a row's two versions MUST be the statement
 > terminals they are in Rust, so no `ActiveModelBehavior` hook runs around
-> them: an update's `returning_change` is `UpdateOne::exec_returning_change`;
-> `update_many()`'s `returning_changes` is `UpdateMany::exec_returning_changes`;
-> and an insert's `returning_upsert` and `insert_many`'s `returning_upserts`
-> are `Insert::exec_returning_upsert` and `Insert::exec_returning_upserts`. A
+> them: an update's `returning_change` is `UpdateOne::exec_returning_change`,
+> and `update_many()`'s `returning_changes` is
+> `UpdateMany::exec_returning_changes`. An insert MUST be typed by its row
+> count, as Rust's `Insert<A, OneRow>` and `Insert<A, ManyRows>` are:
+> `insert(active)` gives an `EntityInsert`, `Insert::one`'s, whose terminal is
+> `returning_upsert`, `Insert::exec_returning_upsert`; and
+> `insert_many(actives)` gives an `EntityInsertMany`, `Insert::many`'s, whose
+> terminal is `returning_upserts`, `Insert::exec_returning_upserts`. Each
+> takes `on_conflict` and has no terminal of the other's. A
 > change holds two records, old and new. An upsert is inserted, holding the
 > new record, or updated, holding both. A row a conflict clause held back is
 > null from `returning_upsert` and left out of `returning_upserts`.

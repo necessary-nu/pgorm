@@ -189,7 +189,11 @@ for the row its `ON CONFLICT DO UPDATE` updated; `into_model()` is the row as
 the statement left it either way. `returning_upsert` answers `None`, and
 `returning_upserts` leaves out the row, when the conflict clause did not write
 it (`DO NOTHING`, or a `DO UPDATE` whose `WHERE` held it back). The conflict
-action is the statement builders' own `Conflict` or `ConflictUpdate`.
+action is the statement builders' own `Conflict` or `ConflictUpdate`. An
+insert is typed by its row count, as Rust's `Insert<A, OneRow>` and
+`Insert<A, ManyRows>` are: `insert` gives an `EntityInsert`, whose terminal is
+`returning_upsert`, and `insert_many` an `EntityInsertMany`, whose terminal is
+`returning_upserts`.
 
 These are statement terminals, as they are in Rust, so no `ActiveModelBehavior`
 hook runs around them: an `update` returning its change does not bump what a

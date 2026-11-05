@@ -62,7 +62,7 @@ fn own_active(cx: &mut FunctionContext, index: usize) -> NeonResult<Active> {
 
 /// `entityChangeJob(entity, active)`: `Update::one(active)
 /// .exec_returning_change`.
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 fn change_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
     let entity = held!(cx, super::EntityHandle, 0);
     let active = own_active(&mut cx, 1)?;
@@ -73,7 +73,7 @@ fn change_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
 /// assignment `[column, value]` written through the column's `save_as` or
 /// an expression as written, filtered by the predicate, then
 /// `exec_returning_changes`.
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 fn changes_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
     let entity = held!(cx, super::EntityHandle, 0);
     let pairs = cx.argument::<JsArray>(1)?.to_vec(&mut cx)?;
@@ -106,7 +106,7 @@ fn changes_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
 /// `entityUpsertsJob(entity, actives, conflict, one)`: `Insert::one` or
 /// `Insert::many` of the ActiveModels, with the conflict clause if given,
 /// then `exec_returning_upsert` or `exec_returning_upserts`.
-// [spec:pgorm:req:bindings.entity-versions+2]
+// [spec:pgorm:req:bindings.entity-versions+3]
 fn upserts_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
     let entity = held!(cx, super::EntityHandle, 0);
     let list = cx.argument::<JsArray>(1)?.to_vec(&mut cx)?;
