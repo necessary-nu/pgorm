@@ -685,12 +685,27 @@ children (
                 title "ALTER COLUMN ... TYPE with USING can also set the column's collation"
                 kind @feat
                 deps (disjoint.evolve)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:44.53115Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.evolve, which added TableAlterOption::AlterColumnTypeUsing (`ALTER COLUMN c TYPE t USING e`, sql.ddl.alter-table+14): PostgreSQL's form also takes COLLATE between the type and USING, which pgorm-query can't write. Add it if a caller needs it; low priority."
+                    }
+
+                    {
+                        at 2026-11-04T23:22:53.278404Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:37:56.559191Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -2448,12 +2463,34 @@ children (
                 id annotation-verbs-match
                 title "Every spec annotation's verb matches its rule's"
                 kind @chore
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:35.031923Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by derives.paths: eleven annotations cite a rule under the wrong verb, e.g. `exec.crud.exec-vocabulary` written as `sem` where the rule is `req` (src/executor/update.rs, src/executor/delete.rs, plan/main.styx), and others in pgorm-query/tests/surface/citations.rs and plan/decisions/*.md. nplan doesn't check this (filed in nplan's DEFECTS.md); fix every site, and also put the bindings.disjoint-unkinded and bindings.disjoint claims under the python and javascript impls, as bindings.codegen-disjoint's are, rather than main."
+                    }
+
+                    {
+                        at 2026-11-05T00:13:55.016702Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:24:53.742265Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Re-diagnosed on 29c5b0e9 + this lane: the wrong-verb annotations were already fixed by exec-vocabulary-annotation-verb (Done), which also added the guard every_citation_names_its_rules_verb (pgorm-query/tests/surface/citations.rs) holding every bracketed citation in the checkout to its rule's verb. A scan of every file against docs/spec's markers finds one mismatch only, inside a plan log entry's text (exec-vocabulary-annotation-verb's own note), which the guard exempts because the log is append-only history. What remained is the claims: bindings.disjoint (disjoint.bindings) and bindings.disjoint-unkinded (disjoint.bindings-unkinded) move from main to python and javascript, as bindings.codegen-disjoint is claimed. Both bindings' code and tests already annotate both rules, so per-impl coverage stays 100% (nplan_spec_uncovered and nplan_spec_untested for pgorm/python and pgorm/javascript report nothing). The Rust core's main-impl annotations of the two rules stay as references: DisjointShape::new and the shape builders are what both bindings call."
+                    }
+
+                    {
+                        at 2026-11-05T00:25:19.803423Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -10476,12 +10513,27 @@ children (
                 title "The identifier oracle holds create_disjoint, the disjoint change functions and create_one_of to every hostile name"
                 kind @test
                 deps (disjoint.evolve disjoint.one-of)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:37.221399Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.evolve: security.ident-oracle's sites don't include create_disjoint, the five disjoint change functions (add_disjoint_kind, add_disjoint_kind_recreating, remove_disjoint_kind, add_disjoint_kind_table, remove_disjoint_kind_table), or create_one_of, though DisjointShape::new takes table, column, type and value names at run time (the bindings' route). Register each with the oracle so every hostile name lands only in its benign positions, including the derived names (ck-, the {type}_next temporary type, the generated key columns), which take the bounded spelling as the schema-gen sites do."
+                    }
+
+                    {
+                        at 2026-11-04T23:38:38.017788Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:07:10.622369Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -16293,12 +16345,34 @@ children (
                 id active-enum-unknown-key-message
                 title "The ActiveEnum derive's unknown-key error names the key, not Rust debug output"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:38.032183Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by derives.paths: the ActiveEnum derive's error for an unknown attribute key prints Rust debug output (`Some(Ident(..))`) instead of the key's name. Word it as the other derives' unknown-key errors are, with a compile-fail test pinning the message."
+                    }
+
+                    {
+                        at 2026-11-04T21:59:55.364466Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T22:00:08.013793Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Re-diagnosed: already fixed before this node was filed. e1815a14 (derives.boilerplate, 2026-11-02 22:58) replaced both `Unknown attribute parameter found: {:?}` sites in active_enum.rs (enum level and variant level) with util::unknown_pgorm_key, the wording every other derive uses (\"unknown pgorm attribute `<key>`\", spanned at the key). The message is already pinned by pgorm-macros/tests/compile-fail/active_enum_storage.{rs,stderr} (`enum_nmae` on the enum, `string_valeu` on a variant), under syn:macros.derive.active-enum+6/test (\"an unknown key at either level\"), and that test passes on 29c5b0e9. No code, test or spec change was needed; the node closes on that evidence."
+                    }
+
+                    {
+                        at 2026-11-04T22:00:09.051918Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -16382,7 +16456,8 @@ children (
                 id disjoint.bindings
                 title "Python and JavaScript declare, register, read and write disjoint models"
                 implements {
-                    main ([spec:pgorm:req:bindings.disjoint])
+                    javascript ([spec:pgorm:req:bindings.disjoint])
+                    python ([spec:pgorm:req:bindings.disjoint])
                 }
                 deps (disjoint.write)
                 log (
@@ -16503,7 +16578,8 @@ children (
                 id disjoint.bindings-unkinded
                 title "Python and JavaScript declare and register read-only unkinded disjoint models"
                 implements {
-                    main ([spec:pgorm:req:bindings.disjoint-unkinded])
+                    javascript ([spec:pgorm:req:bindings.disjoint-unkinded])
+                    python ([spec:pgorm:req:bindings.disjoint-unkinded])
                 }
                 deps (disjoint.codegen-unkinded disjoint.bindings)
                 log (
@@ -16527,6 +16603,9 @@ children (
                 id disjoint-derive-macro-hygiene
                 title "The Disjoint derive compiles on an enum whose variants a macro_rules! macro writes"
                 kind @fix
+                implements {
+                    main ([spec:pgorm:req:macros.derive.hygiene])
+                }
                 deps (disjoint.declare)
                 log (
                     {
@@ -16534,6 +16613,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.evolve: an enum deriving Disjoint whose variants a macro_rules! macro writes fails to compile with E0425 on `visitor` and `kind`, identifiers the derive's generated code introduces under spans taken from the input, so macro hygiene separates their definitions from their uses. Give the derive's own bindings one consistent span (Span::call_site or mixed_site for every introduced identifier), check the other derives for the same pattern, and add a test that declares a disjoint enum through a macro_rules! macro."
+                    }
+
+                    {
+                        at 2026-11-04T22:01:09.012318Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
                     }
                 )
             }
@@ -16543,12 +16629,27 @@ children (
                 title "Recreating a disjoint kind type rewrites the base table once, not twice"
                 kind @perf
                 deps (disjoint.evolve)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:39.330099Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.evolve: the recreating route (add_disjoint_kind_recreating, remove_disjoint_kind) rewrites the base table twice under its exclusive lock: once retyping its kind column, again re-adding the STORED generated key columns. Ordering the statements so both happen in one ALTER TABLE (or one rewrite) halves the lock time on a large base. Probe on 18.6 that the combined ALTER rewrites once, and keep the live tests."
+                    }
+
+                    {
+                        at 2026-11-04T22:28:29.148994Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:21:50.632807Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -17231,12 +17332,20 @@ children (
                 title "The Entity derive refuses a VIRTUAL generated column inside unique(..), as the field-level unique does"
                 kind @fix
                 deps (entity-composite-unique)
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:13.699834Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by entity-composite-unique (562c6dfc): `#[pgorm(unique(columns = (..)))]` accepts a VIRTUAL generated column, which PostgreSQL refuses at CREATE (0A000, a virtual generated column cannot be in a key), while the field-level `unique` already refuses it at compile time. Refuse it in the derive the same way, with a compile-fail test."
+                    }
+
+                    {
+                        at 2026-11-04T21:57:05.162729Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

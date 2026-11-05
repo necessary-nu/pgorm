@@ -10,4 +10,5 @@ pub mod oracle;
 pub mod pins;
 pub mod registry;
 pub mod registry_ddl;
+pub mod registry_disjoint;
 pub mod registry_orm;

@@ -69,7 +69,7 @@ fn a_table_key_carries_its_deferrability() {
 
 // [spec:pgorm:req:sql.ddl.deferrability+4/test]    `ALTER TABLE` adds a key as
 // `ADD UNIQUE (…)` / `ADD PRIMARY KEY (…)`, the clause after it
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]
 #[test]
 fn an_added_key_carries_its_deferrability() {
     let sql = Table::alter(Glyph::Table)

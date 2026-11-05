@@ -501,6 +501,20 @@ pub fn sites() -> Vec<Site> {
             },
         },
         Site {
+            id: "ddl/alter-table.alter-column-type-collated-using",
+            api: "TableAlterStatement::alter_column_type_collated_using(.., Name, ..)",
+            kinds: &["ColumnDef.coll_clause.collname[0]"],
+            policy: Quoted,
+            render: |n| {
+                sql(&Table::alter(fixed("t")).alter_column_type_collated_using(
+                    fixed("c"),
+                    ColumnType::Text,
+                    n_(n),
+                    Expr::col(fixed("c")),
+                ))
+            },
+        },
+        Site {
             id: "ddl/alter-table.drop-default",
             api: "TableAlterStatement::drop_default(Name)",
             kinds: &["AlterTableCmd.name"],

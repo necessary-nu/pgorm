@@ -423,3 +423,56 @@ fn variants_named_as_their_enum_compile_clean() {
         ["web_shop", "storefront_shop", "closed_shop"]
     );
 }
+
+/// A declaration a `macro_rules!` macro writes around the variants its caller
+/// passes as tokens, so the derive's input carries spans of two contexts: the
+/// caller's in the variants, the macro's everywhere else.
+macro_rules! disjoint_through_a_macro {
+    ($name:ident { $($variants:tt)* }) => {
+        #[derive(Clone, Debug, PartialEq, Disjoint)]
+        #[pgorm(base = vehicle::Entity, enum_name = "vehicle_kind")]
+        pub enum $name {
+            $($variants)*
+        }
+    };
+}
+
+mod through_a_macro {
+    use pgorm::entity::prelude::*;
+    use pgorm::tests_cfg::{truck, vehicle};
+
+    disjoint_through_a_macro!(Vehicle {
+        Truck(truck::Model),
+        Bike,
+    });
+}
+
+// [spec:pgorm:req:macros.derive.hygiene/test]    a disjoint enum a `macro_rules!` macro writes around variants its caller passes declares its kinds, reaches them and takes its `ActiveModel` apart as one written out does
+#[test]
+fn a_declaration_a_macro_writes_declares_its_kinds() {
+    use through_a_macro::{Vehicle, VehicleActiveModel, VehicleKind};
+    assert_eq!(VehicleKind::values(), ["truck", "bike"]);
+    assert_eq!(
+        describe::<Vehicle>(),
+        [
+            (
+                "truck".to_owned(),
+                Some((
+                    "truck".to_owned(),
+                    vec![key_column("vehicle_id", "Integer")]
+                ))
+            ),
+            ("bike".to_owned(), None),
+        ]
+    );
+    assert_eq!(Vehicle::Bike.kind(), VehicleKind::Bike);
+    let truck = VehicleActiveModel::Truck(truck::ActiveModel {
+        axles: set(2_i16),
+        ..Default::default()
+    });
+    assert_eq!(truck.kind(), VehicleKind::Truck);
+    assert_eq!(
+        truck.visit(SetColumns),
+        ("truck".to_owned(), vec!["axles".to_owned()])
+    );
+}

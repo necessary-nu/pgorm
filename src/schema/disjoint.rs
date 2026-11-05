@@ -349,8 +349,8 @@ pub(super) struct Generated {
 /// foreign key to it.
 pub(super) struct KindKeys {
     pub(super) generated: Generated,
-    columns: Vec<ColumnDef>,
-    foreign_key: TableForeignKey,
+    pub(super) columns: Vec<ColumnDef>,
+    pub(super) foreign_key: TableForeignKey,
 }
 
 /// `kind`'s table written against the base.

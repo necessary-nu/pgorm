@@ -20,7 +20,7 @@ the modules under `tests/identifier_oracle/`.
 
 ## The property
 
-> [spec:pgorm:req:security.ident-oracle+15]
+> [spec:pgorm:req:security.ident-oracle+16]
 > Every public API that renders a caller-supplied name into SQL text MUST be
 > registered with the oracle. A new identifier-bearing API is incomplete until
 > it is registered, and an unregistered site is not covered by this rule. The
@@ -29,6 +29,17 @@ the modules under `tests/identifier_oracle/`.
 > - `tests/identifier_oracle/registry.rs` for pgorm-query;
 > - `registry_orm.rs` for pgorm: the pipeline, the graph, `QuerySelect` and the
 >   write helpers, relation and entity names, and schema generation;
+> - `registry_disjoint.rs` for the disjoint schema and the one-of `CHECK`:
+>   `create_disjoint` and the five changes to a disjoint entity's kinds
+>   (`add_disjoint_kind`, `add_disjoint_kind_recreating`,
+>   `remove_disjoint_kind`, `add_disjoint_kind_table`,
+>   `remove_disjoint_kind_table`), over a shape a binding describes at run
+>   time (`DisjointShape::new`), its base, kind table, key column, kind
+>   column, kind type, the type's schema and a kind's value each a name, and
+>   the value a change removes and the table it drops; and `create_one_of`
+>   over an entity whose table and schema are named at run time. A change is
+>   a list of statements, so each name is held at each statement it reaches,
+>   one site apiece;
 > - `live_capture.rs` for sites whose SQL exists only against a live server:
 >   pgorm-pool's savepoint name, the migration ledger's custom table name,
 >   and the cursor's qualifiers (`Cursor::new`'s table,
@@ -46,7 +57,16 @@ the modules under `tests/identifier_oracle/`.
 >
 > A name the API derives from the caller's, such as `pk-{table}` or
 > `idx-{table}-{column}`, is one of those positions. There, the hostile
-> rendering must carry the same derivation of the hostile name.
+> rendering must carry the same derivation of the hostile name, bounded to
+> 63 bytes as pgorm bounds every name it composes. A derived name one of
+> whose `-`-separated parts is itself a name pgorm composed and bounded — a
+> disjoint base's foreign key `fk-{base}-{value}_{column}`, named for its
+> generated key column — carries that part's derivation, bounded, inside its
+> own. A disjoint kind's value is an enum label, a value, from which pgorm
+> also composes identifiers (the generated key columns, their foreign key,
+> the `CHECK` refusing a removed kind): standing alone it must come back as
+> the value's bytes, which no identifier limit truncates, and within a name
+> as that name's derivation.
 >
 > Each site is rendered with every name in a hostile corpus
 > (`tests/identifier_oracle/corpus.rs`). The corpus contains at least:
