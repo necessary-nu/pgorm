@@ -81,18 +81,28 @@ impl InputKind {
 
     /// `values`, a list, as one array of the column's scalar kind,
     /// or `None` for a column of no scalar kind: the array a quantified
-    /// comparison with the column ranges over.
-    pub(crate) fn array_of(&self, values: &Bound<'_, PyAny>) -> PyResult<Option<PyValue>> {
-        if matches!(self, Self::Array(_) | Self::Explicit) {
-            return Ok(None);
+    /// comparison with the column ranges over. A created range's array is
+    /// no `Value` a program declares, but its elements are each the text a
+    /// compared range is, which the column's array cast reads.
+    pub(crate) fn array_of(&self, values: &Bound<'_, PyAny>) -> PyResult<Option<Value>> {
+        match self {
+            Self::Array(_) | Self::Explicit => Ok(None),
+            Self::Created(_) => {
+                let texts = values
+                    .try_iter()?
+                    .map(|value| Ok(self.coerce(&value?)?.inner))
+                    .collect::<PyResult<Vec<_>>>()?;
+                Ok(Some(Value::Array(ArrayType::String, Some(Box::new(texts)))))
+            }
+            _ => {
+                let py = values.py();
+                let class = py.get_type::<PyValue>();
+                let array: PyValue = class
+                    .call_method1("array", (self.kind(py)?, values))?
+                    .extract()?;
+                Ok(Some(array.inner))
+            }
         }
-        let py = values.py();
-        let class = py.get_type::<PyValue>();
-        Ok(Some(
-            class
-                .call_method1("array", (self.kind(py)?, values))?
-                .extract()?,
-        ))
     }
 
     pub(crate) fn coerce(&self, value: &Bound<'_, PyAny>) -> PyResult<PyValue> {

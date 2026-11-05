@@ -104,7 +104,7 @@ impl PyEntityColumn {
             if let Some(array) = input.array_of(listed.values.bind(value.py()))? {
                 return self
                     .entity
-                    .quantified(&self.name, op, listed.all, array.inner)
+                    .quantified(&self.name, op, listed.all, array)
                     .map(PyExpr::from_rust)
                     .map_err(|error| ConstructionError::new_err(error.to_string()));
             }

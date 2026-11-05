@@ -32,13 +32,13 @@ pub struct Expr<'brand> {
     /// [`compares_as`](ExprOps::compares_as) names. Only the column itself
     /// carries it: what an operator builds from the column is a new
     /// expression of its own type.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+16]
     pub(super) compares_as: Option<TypeName>,
     /// The type a value compared with this column is cast to: an entity
     /// column's, as its `ColumnTrait` casts a compared value
     /// ([`compared_value_cast`]), or the type `compares_as` names. Only the
     /// column itself carries it, as it carries `compares_as`.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+16]
     pub(super) values_as: Option<TypeName>,
     pub(super) operand: Operand,
     pub(super) _brand: PhantomData<fn(&'brand ()) -> &'brand ()>,
@@ -111,7 +111,7 @@ pub fn this<'brand>(column: impl IntoName) -> Expr<'brand> {
 /// when its domain is over one: what the column says of its type holds under
 /// any name its relation is read by.
 // [spec:pgorm:sem:pipeline.qualify+3]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+16]
 pub(super) fn entity_column<'brand, C: ColumnTrait>(qualifier: String, column: &C) -> Expr<'brand> {
     let mut expr = branded(adapter::ident_in(
         vec![qualifier],
@@ -125,7 +125,7 @@ pub(super) fn entity_column<'brand, C: ColumnTrait>(qualifier: String, column: &
 /// An entity column is a table-qualified expression: the column enum carries
 /// its entity, so the qualification is recovered rather than restated.
 // [spec:pgorm:sem:pipeline.qualify+3]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+15]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+16]
 impl<'brand, C: ColumnTrait> From<C> for Expr<'brand> {
     fn from(column: C) -> Self {
         entity_column(SqlName::to_string(&*column.entity_name()), &column)
@@ -344,7 +344,7 @@ pub trait ExprOps<'brand>: Into<Expr<'brand>> + Sized {
     /// assert_eq!(sql, "SELECT * FROM line WHERE CAST(mood AS mood) = CAST('glad' AS mood)");
     /// # Ok::<_, pgorm::pipeline::PipelineError>(())
     /// ```
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+16]
     // [spec:pgorm:req:pipeline.surface+4]
     fn compares_as(self, type_name: impl Into<TypeName>) -> Expr<'brand> {
         let type_name = type_name.into();

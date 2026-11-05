@@ -17772,6 +17772,22 @@ children (
                 title "A quantified comparison on a created-range column binds its array under the created type"
                 kind @fix
                 deps (typed-binds.quantified-casts pipeline-created-range-bind)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T03:47:57.209196Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T04:14:50.022376Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {

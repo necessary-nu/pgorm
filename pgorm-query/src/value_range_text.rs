@@ -43,7 +43,7 @@ pub(crate) mod sealed {
 /// the same value and whose wire form pgorm decodes, so a range over it can
 /// be written as text and read either way. Sealed, because the set is what
 /// those three facts were checked for.
-// [spec:pgorm:def:sql.value.created-range+6]
+// [spec:pgorm:def:sql.value.created-range+7]
 pub trait RangeSubtype: ValueType + Nullable + Into<Value> + Clone + sealed::Sealed {}
 
 macro_rules! range_subtype {
@@ -93,7 +93,7 @@ macro_rules! microseconds {
 /// microsecond for the same reason; an array, a range and a multirange are
 /// written in their own text forms, so a hand-built range whose bound is one
 /// still has a spelling.
-// [spec:pgorm:def:sql.value.created-range+6]
+// [spec:pgorm:def:sql.value.created-range+7]
 pub(crate) fn value_text(value: &Value) -> Option<String> {
     Some(match value {
         Value::Bool(v) => if (*v)? { "t" } else { "f" }.to_owned(),
@@ -183,7 +183,7 @@ fn escape(text: &str, by: char) -> String {
 /// A range's text form, as PostgreSQL's range output writes it: `empty`, or
 /// a bracket, each bound, and a bracket. An unbounded side, and a `NULL`
 /// bound — which is no bound, as everywhere else — is written as nothing.
-// [spec:pgorm:def:sql.value.created-range+6]
+// [spec:pgorm:def:sql.value.created-range+7]
 pub(crate) fn range_text(range: &Range<Value>) -> String {
     use std::ops::Bound::{Excluded, Included, Unbounded};
 
@@ -228,7 +228,7 @@ fn range_bound(text: &str) -> String {
 
 /// A multirange's text form, `{[1,3),[5,8)}`: its ranges in the order
 /// written.
-// [spec:pgorm:def:sql.value.created-range+6]
+// [spec:pgorm:def:sql.value.created-range+7]
 pub(crate) fn multirange_text(multirange: &Multirange<Value>) -> String {
     let ranges: Vec<String> = multirange.iter().map(range_text).collect();
     format!("{{{}}}", ranges.join(","))
@@ -249,7 +249,7 @@ pub(crate) fn multirange_text(multirange: &Multirange<Value>) -> String {
 ///     r#"["a,b","say ""hi"""]"#,
 /// );
 /// ```
-// [spec:pgorm:def:sql.value.created-range+6]
+// [spec:pgorm:def:sql.value.created-range+7]
 impl<T> fmt::Display for Range<T>
 where
     T: RangeSubtype,
@@ -260,7 +260,7 @@ where
 }
 
 /// A multirange's text form, `{[1,3),[5,8)}`.
-// [spec:pgorm:def:sql.value.created-range+6]
+// [spec:pgorm:def:sql.value.created-range+7]
 impl<T> fmt::Display for Multirange<T>
 where
     T: RangeSubtype,
@@ -287,7 +287,7 @@ where
 /// );
 /// assert!("[1.5,2.5".parse::<Range<f64>>().is_err());
 /// ```
-// [spec:pgorm:def:sql.value.created-range+6]
+// [spec:pgorm:def:sql.value.created-range+7]
 impl<T> FromStr for Range<T>
 where
     T: RangeSubtype,
@@ -317,7 +317,7 @@ where
 /// );
 /// assert_eq!("{}".parse().ok(), Some(Multirange::<i32>::default()));
 /// ```
-// [spec:pgorm:def:sql.value.created-range+6]
+// [spec:pgorm:def:sql.value.created-range+7]
 impl<T> FromStr for Multirange<T>
 where
     T: RangeSubtype,
@@ -463,7 +463,7 @@ mod tests {
         text
     }
 
-    // [spec:pgorm:def:sql.value.created-range+6/test]
+    // [spec:pgorm:def:sql.value.created-range+7/test]
     #[test]
     fn each_subtype_reads_back_its_text() {
         assert_eq!(round_trip(Range::from(1i16..5)), "[1,5)");
@@ -514,7 +514,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:def:sql.value.created-range+6/test]
+    // [spec:pgorm:def:sql.value.created-range+7/test]
     #[test]
     fn bounds_are_quoted_where_the_parser_needs() {
         let text = |lower: &str, upper: &str| Range::from(lower.to_owned()..upper.to_owned());
@@ -533,7 +533,7 @@ mod tests {
         assert_eq!(round_trip(Range::<String>::from(..)), "(,)");
     }
 
-    // [spec:pgorm:def:sql.value.created-range+6/test]
+    // [spec:pgorm:def:sql.value.created-range+7/test]
     #[test]
     fn the_parser_reads_what_the_server_accepts() {
         let parse = |text: &str| text.parse::<Range<String>>().ok();
@@ -570,7 +570,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:def:sql.value.created-range+6/test]
+    // [spec:pgorm:def:sql.value.created-range+7/test]
     #[test]
     fn a_null_bound_writes_no_bound() {
         let range = Range::new(Included(Value::Int(None)), Excluded(Value::Int(Some(5))));
@@ -581,7 +581,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:def:sql.value.created-range+6/test]
+    // [spec:pgorm:def:sql.value.created-range+7/test]
     #[test]
     fn a_bound_of_any_value_has_a_text() {
         let text = |value: Value| value_text(&value).unwrap();
@@ -605,7 +605,7 @@ mod tests {
         assert_eq!(range_text(&nested), "[\"[1,3)\",\"[4,5)\")");
     }
 
-    // [spec:pgorm:def:sql.value.created-range+6/test]
+    // [spec:pgorm:def:sql.value.created-range+7/test]
     #[test]
     fn a_multirange_reads_back_its_text() {
         let multirange = Multirange::from(vec![
