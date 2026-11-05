@@ -99,7 +99,7 @@ fn commentable() -> Check {
         .name(n("ck-comment-commentable"))
 }
 
-// [spec:pgorm:def:disjoint.one-of+3/test]    the statements `create_table_from_entity` and `create_one_of` write for the comment, read as DDL text, generate its module with a `#[derive(OneOf)]` enum after its `Relation` enum, named for the constraint after `ck-comment-`, a variant per column in the CHECK's order named for its target and holding its entity, and for `<= 1` the unit variant `None`
+// [spec:pgorm:def:disjoint.one-of+4/test]    the statements `create_table_from_entity` and `create_one_of` write for the comment, read as DDL text, generate its module with a `#[derive(OneOf)]` enum after its `Relation` enum, named for the constraint after `ck-comment-`, a variant per column in the CHECK's order named for its target and holding its entity, and for `<= 1` the unit variant `None`
 // [spec:pgorm:sem:codegen.ddl.tables+13/test]    a CHECK added by an ALTER TABLE is read into the table's statement
 #[test]
 fn a_one_of_check_generates_its_enum() {
@@ -126,7 +126,7 @@ fn a_one_of_check_generates_its_enum() {
     }
 }
 
-// [spec:pgorm:def:disjoint.one-of+3/test]    a CHECK whose targets include its own table generates the enum, the variant naming the module's own `Entity`, which its `Relation` enum's self-reference makes `Related` to itself (compiled and run in `tests/codegen_one_of_tests.rs`)
+// [spec:pgorm:def:disjoint.one-of+4/test]    a CHECK whose targets include its own table generates the enum, the variant naming the module's own `Entity`, which its `Relation` enum's self-reference makes `Related` to itself (compiled and run in `tests/codegen_one_of_tests.rs`)
 #[test]
 fn a_self_referencing_one_of_generates_its_enum() {
     let generated = from_sql(include_str!(
@@ -146,7 +146,7 @@ fn a_self_referencing_one_of_generates_its_enum() {
     }
 }
 
-// [spec:pgorm:def:disjoint.one-of+3/test]    a CHECK named `ck-{enum}` because `ck-{table}-{enum}` would pass 63 bytes, under a table's long name or with an enum's of 59 bytes, generates the enum named for it whole (compiled and run in `tests/codegen_one_of_tests.rs`)
+// [spec:pgorm:def:disjoint.one-of+4/test]    a CHECK named `ck-{enum}` because `ck-{table}-{enum}` would pass 63 bytes, under a table's long name or with an enum's of 59 bytes, generates the enum named for it whole (compiled and run in `tests/codegen_one_of_tests.rs`)
 #[test]
 fn long_named_one_of_keeps_its_enum_name() {
     let generated = from_sql(include_str!(
@@ -176,7 +176,7 @@ fn long_named_one_of_keeps_its_enum_name() {
     }
 }
 
-// [spec:pgorm:def:disjoint.one-of+3/test]    `ck-{rest}` names the enum for `rest` only where `ck-{table}-{rest}` would not be under 63 bytes, so `create_one_of` would have left the table out; under that, and for a name of 63 bytes, the bounded spelling of a longer one, the enum is named for the whole name
+// [spec:pgorm:def:disjoint.one-of+4/test]    `ck-{rest}` names the enum for `rest` only where `ck-{table}-{rest}` would not be under 63 bytes, so `create_one_of` would have left the table out; under that, and for a name of 63 bytes, the bounded spelling of a longer one, the enum is named for the whole name
 #[test]
 fn ck_prefix_drops_as_create_one_of_writes() {
     let enum_of = |table: &str, constraint: &str| {
@@ -206,14 +206,14 @@ fn ck_prefix_drops_as_create_one_of_writes() {
     );
 }
 
-// [spec:pgorm:def:disjoint.one-of+3/test]    a schema described in code, each table whole with its CHECK, generates as the same DDL text does
+// [spec:pgorm:def:disjoint.one-of+4/test]    a schema described in code, each table whole with its CHECK, generates as the same DDL text does
 #[test]
 fn described_tables_generate_as_ddl_text_does() {
     let described = generate(described(commentable()), Opts::default());
     assert_eq!(described.files, from_sql(SCHEMA).files);
 }
 
-// [spec:pgorm:def:disjoint.one-of+3/test]    the enum is named for the whole name of a constraint not written as `ck-{table}-..`, and an unnamed CHECK as PostgreSQL names it, `{table}_check` or `{table}_{column}_check` over one column, numbered where an earlier CHECK took the name; `= 1` declares no unit variant
+// [spec:pgorm:def:disjoint.one-of+4/test]    the enum is named for the whole name of a constraint not written as `ck-{table}-..`, and an unnamed CHECK as PostgreSQL names it, `{table}_check` or `{table}_{column}_check` over one column, numbered where an earlier CHECK took the name; `= 1` declares no unit variant
 #[test]
 fn the_enum_is_named_for_the_constraint() {
     let named = from_sql(&comment(
@@ -251,7 +251,7 @@ fn the_enum_is_named_for_the_constraint() {
     );
 }
 
-// [spec:pgorm:def:disjoint.one-of+3/test]    near misses are refused, naming the CHECK: one naming a column twice, over a column with no foreign key, over a column not nullable, `>= 1`, `= 2`, operands the other way round, `num_nulls`, an extra conjunct, NOT ENFORCED, a column of another type than its target's key, a key onto a column that is not the target's primary key, and a target the table reaches by two keys; the columns of a table with no CHECK stay the ordinary nullable fields
+// [spec:pgorm:def:disjoint.one-of+4/test]    near misses are refused, naming the CHECK: one naming a column twice, over a column with no foreign key, over a column not nullable, `>= 1`, `= 2`, operands the other way round, `num_nulls`, an extra conjunct, NOT ENFORCED, a column of another type than its target's key, a key onto a column that is not the target's primary key, and a target the table reaches by two keys; the columns of a table with no CHECK stay the ordinary nullable fields
 #[test]
 fn near_misses_are_refused() {
     let cases: Vec<(&str, String)> = vec![
@@ -338,7 +338,7 @@ fn near_misses_are_refused() {
     assert_contains(comment, "pub post_id: Option<i32>,");
 }
 
-// [spec:pgorm:def:disjoint.one-of+3/test]    near misses described in code are refused as their DDL text is: `>= 1`, an extra conjunct and NOT ENFORCED
+// [spec:pgorm:def:disjoint.one-of+4/test]    near misses described in code are refused as their DDL text is: `>= 1`, an extra conjunct and NOT ENFORCED
 #[test]
 fn described_near_misses_are_refused() {
     let count = || Expr::expr(num_nonnulls(&["post_id", "photo_id"]));
@@ -351,7 +351,7 @@ fn described_near_misses_are_refused() {
     }
 }
 
-// [spec:pgorm:def:disjoint.one-of+3/test]    an enum, key enum, model enum or variant named as a name the module already declares or its code names otherwise is refused, naming both
+// [spec:pgorm:def:disjoint.one-of+4/test]    an enum, key enum, model enum or variant named as a name the module already declares or its code names otherwise is refused, naming both
 #[test]
 fn clashing_names_are_refused() {
     assert_eq!(

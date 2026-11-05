@@ -20,6 +20,7 @@ pub struct Registry {
     pub(crate) graphs: BTreeMap<String, Arc<dyn crate::graphs::backend::Factory>>,
     pub(crate) sources: BTreeMap<String, Arc<dyn crate::pipeline::selected_backend::Factory>>,
     pub(crate) disjoints: crate::disjoint::Registered,
+    pub(crate) one_ofs: crate::one_of::Registered,
 }
 
 impl Registry {

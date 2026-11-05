@@ -400,7 +400,7 @@ has a row for it, and is never written through.
 
 ## References to one of several entities
 
-> [spec:pgorm:def:disjoint.one-of+3]
+> [spec:pgorm:def:disjoint.one-of+4]
 > `#[derive(OneOf)]` on an enum MUST declare a reference from one entity to
 > exactly one of several others, stored as one nullable column per target,
 > each a foreign key the entity's own `belongs_to` relation declares:
@@ -423,21 +423,36 @@ has a row for it, and is never written through.
 > derive `Clone`, `Debug` and `PartialEq`, and `Clone` and `Debug`, and
 > `key_attrs(..)` and `model_attrs(..)` give each further attributes after
 > its own derives, as `kind_attrs(..)` gives a disjoint entity's kind type
-> (`[spec:pgorm:def:disjoint.declare]`). A model's reference reads as its
+> (`[spec:pgorm:def:disjoint.declare]`). Each target's `OneOfTarget::NAME` is
+> its variant's name in snake_case.
+>
+> `OneOfShape` MUST describe the reference as data: `OneOfShape::of::<E>()`
+> the derive's, and `OneOfShape::new` a reference over tables described at
+> run time, as a language binding's models are, refusing as `Error::Type`
+> what the derive does not compile (a name past 59 bytes, no target, a value
+> twice, a column the entity lacks, one that is not nullable or holds two
+> targets' keys, a target keyed by other than one column or by another type
+> than its column's, and one table the target of two values). Reading,
+> setting and loading a reference and its `CHECK` are the shape's, which the
+> derive's methods and `Schema::create_one_of` delegate to, so the two are
+> one implementation. A model's reference reads as its
 > `<Enum>Key`, `OneOf::key(&model)` — the variant whose column is set — and
 > a row with two columns set, or none where the enum has no unit variant,
 > MUST be an `Error::Query` naming the table, the key and the columns, never
 > read as one of them; setting an `<Enum>Key` on the entity's `ActiveModel`,
 > `OneOf::set(&mut active, key)`, sets that variant's column and sets every
 > other one to null. Loading the targets of a list of rows,
-> `OneOf::load(&models, db)`, MUST read each target table once, for the keys
-> its variant holds, as `load_one` reads a relation, and give each row its
-> `<Enum>Model`. The relation it reads is the entity's `Related` relation to
-> the target, and one that does not join exactly the variant's column to the
-> target's key MUST be refused as `Error::Type` before anything is sent; a
-> key its target table does not hold, which `load_one` gives as `None`, MUST
-> be an `Error::Query` naming the table, the row's key, the target's key and
-> the column, since the variant holds a `Model`.
+> `OneOf::load(&models, db)`, MUST read each target table once, in one
+> statement selecting its rows whose key is among those its variant holds
+> (`WHERE <key> IN (..)`, each key compared under the key column's casts),
+> and give each row its `<Enum>Model`. The entity's `Related` relation to
+> each target is the foreign key holding the reference, so one that does not
+> join exactly the variant's column to the target's key, through no `via`
+> and with no period, MUST be refused as `Error::Type` before anything is
+> sent, and so MUST one carrying an `on_condition`, which could only make a
+> key the foreign key holds look absent; a key its target table does not
+> hold MUST be an `Error::Query` naming the table, the row's key, the
+> target's key and the column, since the variant holds a `Model`.
 >
 > `Schema::create_one_of::<E>()` MUST return the `ALTER TABLE` adding a
 > `CHECK` on the entity's table: `num_nonnulls(<columns>) = 1`, or `<= 1`

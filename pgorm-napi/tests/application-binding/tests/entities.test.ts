@@ -108,6 +108,7 @@ test("the module names its registrations and describes each, and refuses a name 
   assert.deepStrictEqual(entities(), [
     "app.Account",
     "app.Auction",
+    "app.Label",
     "app.Listing",
     "app.Membership",
     "app.Note",

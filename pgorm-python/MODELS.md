@@ -285,6 +285,25 @@ for step in change.steps:
         ...  # write a row in step.gap.table for every base row of step.gap.kind
 ```
 
+A reference to exactly one of several targets is a `OneOf` over a model whose
+nullable fields each hold one target's key, `optional=True` allowing a row
+that references none, as a unit variant of a Rust `#[derive(OneOf)]` does:
+
+```python
+Commentable = p.OneOf("commentable", Comment, {"post": ("post_id", Post), "photo": ("photo_id", Photo)}, optional=True)
+await pool.execute(pgorm.schema.create_one_of(Commentable))  # CHECK (num_nonnulls("post_id", "photo_id") <= 1)
+await Comment.insert({"id": 1, "body": "hi", **Commentable.set("photo", 2)}).execute(pool)
+Commentable.key(record)                  # ("photo", 2), or None for no target
+await Commentable.load(pool, records)    # [("photo", photo_record), None, ...], one read per target table
+```
+
+A field the model lacks, one that is not nullable, one field for two targets, a
+field of another kind than its target's key, a target keyed by more than one
+field and one target model for two values are each a `ConstructionError`; a row
+setting two fields is a `DecodeError` as its key is read. A registered enum is
+`pgorm.one_of_entity(name)`, its targets named as its variants in snake_case and
+its `set(active, value, key)` writing the entity's ActiveModel.
+
 Tables an existing schema holds with no kind column — a base, and tables each
 keyed by a foreign key from its primary key onto the base's — are declared
 `unkinded=True`, and read by which kind's table has a row for each base row,

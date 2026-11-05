@@ -41,6 +41,7 @@ use crate::{
     values::PyValue,
 };
 
+pub(crate) use described::table_of;
 pub(crate) use registered::{Registered, disjoint_entities, disjoint_entity};
 
 /// How a disjoint read's rows become records: as `Record`s a model views by

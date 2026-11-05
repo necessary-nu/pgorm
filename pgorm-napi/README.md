@@ -653,6 +653,18 @@ program writes in `table`, one for every base row of `kind`, before the next
 step runs. Clear the pool's statement caches after a step that recreates the
 kind type.
 
+`oneOf(name, model, { post: ["postId", Post], photo: ["photoId", Photo] }, {
+optional })` declares a reference from a model's nullable fields to exactly one
+of several targets, or at most one where `optional` says so: `createOneOf`
+gives its `CHECK`, `set(value, key)` the fields a write sets (the target's to
+the key, the rest `null`), `key(record)` a record's reference as `[value, key]`
+or `null`, and `load(db, records)` each record's `[value, target record]`,
+reading each target's table once. What a Rust `#[derive(OneOf)]` does not
+compile is a `ConstructionError` as the reference is declared, and a row
+setting two fields a `DecodeError`. A registered enum is `oneOfEntity(name)`,
+its targets named as its variants in snake_case and its `set(active, value,
+key)` writing the entity's ActiveModel.
+
 `disjoint(name, base, kinds, { unkinded: true })` declares tables an existing
 schema holds with no kind column, read by which kind's table has a row for
 each base row, `null` naming at most one kind of a row with none. Nothing there

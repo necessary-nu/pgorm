@@ -955,7 +955,7 @@ fn label_of(table: &TableName) -> String {
 }
 
 /// Column types as an error lists them.
-fn types(types: &[&ColumnType]) -> String {
+pub(crate) fn types(types: &[&ColumnType]) -> String {
     types
         .iter()
         .map(|column_type| describe(column_type))

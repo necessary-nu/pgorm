@@ -1484,7 +1484,7 @@ Rust generic at run time, only use the ones compiled in.
 > regardless is refused with the `ConstructionError` naming the base as
 > read-only (`bindings.disjoint-unkinded`).
 
-> [spec:pgorm:req:bindings.one-of]
+> [spec:pgorm:req:bindings.one-of+1]
 > Each binding MUST read, set and load a reference to exactly one of several
 > targets (`[spec:pgorm:def:disjoint.one-of]`) and write its `CHECK` through
 > pgorm's `OneOfShape`, the reference as data, as `DisjointShape` is a
@@ -1503,20 +1503,24 @@ Rust generic at run time, only use the ones compiled in.
 > registration and list them, its values its variants' names in snake_case.
 > What the derive refuses — a field the model lacks, one that is not
 > nullable, a field named twice, one whose kind is not its target's key's, a
-> target keyed by more than one field, one target model given twice, and no
-> target — MUST be a `ConstructionError` raised as the reference is declared
-> or registered, and declaring or registering one sends nothing.
+> target keyed by more than one field, one target model given twice, no
+> target, and a name past 59 bytes — MUST be a `ConstructionError` raised as
+> the reference is declared or registered, and declaring or registering one
+> sends nothing.
 >
 > `key(record)` MUST read a record's reference as a tagged key — Python's
 > tuple `(value, key)`, JavaScript's array `[value, key]` — or null for a row
 > referencing none where the reference is optional; a row setting two of its
 > fields, or none where it is not optional, is a `DecodeError` naming the
-> table, the row's key and the fields, `OneOf::key`'s refusal. `set(value,
-> key)` MUST give the values a write sets for the reference: the value's
-> field set to the key and every other field to null, or every field null
-> for null where the reference is optional, which a model's `insert` and
-> `update` take beside their other values and a registration's sets on its
-> entity's ActiveModel. `load(db, records)` MUST read each target's table
+> table, the row's key and the fields, `OneOf::key`'s refusal. A setting
+> MUST be the shape's: the value's field set to the key and every other
+> field to null, or every field null for null where the reference is
+> optional. A model's reference's `set(value, key)` gives those fields and
+> their values, which its `insert` and `update` take beside their other
+> values, and a registration's `set(active, value, key)` gives its entity's
+> ActiveModel with them set; a value that names no target, a target without
+> its key, and null where the reference is not optional are each a
+> `ConstructionError`. `load(db, records)` MUST read each target's table
 > once, for the keys the records hold for it, and give each record its
 > target's record, tagged as a key is, in the records' order; a key its
 > target's table does not hold is a `DecodeError` naming the table, the

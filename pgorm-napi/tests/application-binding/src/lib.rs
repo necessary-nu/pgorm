@@ -5,6 +5,7 @@
 
 pub mod account;
 pub mod graphs;
+pub mod labels;
 pub mod listings;
 pub mod membership;
 pub mod note;
@@ -36,6 +37,8 @@ pub fn registry() -> Result<Registry, RegistrationError> {
     registry.entity::<shipping::packet::Entity>("app.Packet")?;
     registry.entity::<shipping::pallet::Entity>("app.Pallet")?;
     registry.disjoint::<shipping::shipment::Shipment>("app.Shipments")?;
+    registry.entity::<labels::label::Entity>("app.Label")?;
+    registry.one_of::<labels::label::Labelled>("app.Labelled")?;
     registry.entity::<listings::listing::Entity>("app.Listing")?;
     registry.entity::<listings::auction::Entity>("app.Auction")?;
     registry.entity::<listings::sale::Entity>("app.Sale")?;
@@ -90,6 +93,19 @@ mod tests {
         assert!(
             registry
                 .disjoint::<shipping::shipment::Shipment>("app.Others")
+                .is_err()
+        );
+        // [spec:pgorm:req:bindings.one-of+1/test]    a one-of enum registers once its entity and its targets' entities have, and a name or an enum registered twice is refused
+        assert!(
+            registry
+                .one_of::<labels::label::Labelled>("app.Labelled")
+                .is_err()
+        );
+        registry.entity::<labels::label::Entity>("app.Label")?;
+        registry.one_of::<labels::label::Labelled>("app.Labelled")?;
+        assert!(
+            registry
+                .one_of::<labels::label::Labelled>("app.Others")
                 .is_err()
         );
         graphs::register(&mut Registry::default()).expect_err("graphs need their entities");

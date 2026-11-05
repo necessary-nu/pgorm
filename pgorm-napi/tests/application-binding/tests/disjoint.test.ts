@@ -8,12 +8,17 @@ import { after, before, beforeEach, test } from "node:test";
 
 import {
   addDisjointKind,
+  CheckViolationError,
   ConstructionError,
   createDisjoint,
+  createOneOf,
   DecodeError,
   disjointEntities,
   disjointEntity,
   entity,
+  fromEntity,
+  oneOfEntities,
+  oneOfEntity,
   Pool,
   removeDisjointKind,
   type UnkindedDisjointEntity,
@@ -215,6 +220,45 @@ test("a registration's kind changes are the enum's", async () => {
   const [row] = await pool().query("SELECT enum_range(NULL::napi_shipments.shipment_kind)::text AS kinds");
   assert.deepStrictEqual(row, { kinds: "{packet,letter,pallet}" });
   assert.equal((await seed()).length, 3);
+});
+
+// [spec:pgorm:req:bindings.one-of+1/test]    a registered one-of enum is listed and described beside its entities, writes the CHECK Schema::create_one_of writes, sets a reference on its entity's ActiveModel, reads it back as a tagged key named by its variant, and loads each target as the target entity's record, a name the module does not register refused
+test("a registered one-of enum reads, sets and loads", async () => {
+  assert.deepStrictEqual(oneOfEntities(), ["app.Labelled"]);
+  const labelled = oneOfEntity("app.Labelled");
+  assert.deepStrictEqual(labelled.describe(), {
+    name: "app.Labelled",
+    model: "app.Label",
+    targets: [
+      { value: "packet", field: "packet_id", target: "app.Packet" },
+      { value: "pallet", field: "pallet_id", target: "app.Pallet" },
+    ],
+    optional: true,
+  });
+  assert.throws(() => oneOfEntity("app.Missing"), ConstructionError);
+  const Label = entity("app.Label");
+  await pool().execute(fromEntity(Label).table);
+  const check = createOneOf(labelled);
+  assert.equal(
+    check.inspect().sql,
+    'ALTER TABLE "napi_shipments"."labels" ADD CONSTRAINT "ck-labels-labelled" CHECK (num_nonnulls("packet_id", "pallet_id") <= 1)',
+  );
+  await pool().execute(check);
+  const [boxed, , crate] = await seed();
+  const packet = (boxed as [unknown, string, Record<string, unknown>])[2];
+  const pallet = (crate as [unknown, string, Record<string, unknown>])[2];
+  const written = [];
+  for (const [id, value, key] of [[1, "pallet", pallet.id], [2, "packet", packet.shipment_id], [3, null, null]] as const) {
+    const active = labelled.set(Label.active().set("id", id).set("text", String(id)), value, key);
+    written.push(await active.insert(pool()));
+  }
+  assert.deepStrictEqual(written.map((record) => labelled.key(record)), [["pallet", pallet.id], ["packet", packet.shipment_id], null]);
+  const loaded = await labelled.load(pool(), written);
+  assert.deepStrictEqual(loaded, [["pallet", pallet], ["packet", packet], null]);
+  await assert.rejects(
+    pool().execute("UPDATE napi_shipments.labels SET pallet_id = packet_id WHERE id = 2"),
+    CheckViolationError,
+  );
 });
 
 // [spec:pgorm:req:bindings.disjoint-unkinded/test]    a registered unkinded enum's writes and schema are refused with a ConstructionError naming its base read-only, before anything is sent, and its type offers none of them

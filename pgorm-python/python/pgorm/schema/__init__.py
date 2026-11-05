@@ -9,7 +9,7 @@ gives the statement. A statement is made by its function (``create_table``,
 for annotations and ``isinstance`` and cannot be called.
 """
 
-from typing import TYPE_CHECKING, Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
 # [spec:pgorm:req:bindings.schema-api+2]
 from .._native import (
@@ -48,6 +48,7 @@ from .changes import DisjointChange, DisjointGap, DisjointStep
 if TYPE_CHECKING:
     from .._registered.disjoints import WritableDisjointView
     from ..models.disjoint import Disjoint, DisjointEntity
+    from ..models.one_of import OneOf, OneOfEntity
 
 # A disjoint model or registration whose base holds each row's kind, which
 # its schema and kind changes take: a type checker refuses an unkinded one.
@@ -139,8 +140,21 @@ def remove_disjoint_kind_table(
     return _change(disjoint, "remove_disjoint_kind_table", "remove_kind_table", value, table)
 
 
+# [spec:pgorm:req:bindings.one-of+1]
+def create_one_of(one_of: "OneOf | OneOfEntity") -> AlterTable:
+    """The ``ALTER TABLE`` adding the ``CHECK`` that holds every row of a
+    one-of reference to one target, or to one at most where it is optional:
+    pgorm's ``OneOfShape::check``, which ``Schema::create_one_of`` writes for
+    a registered enum."""
+    from ..models.one_of import _OneOf
+
+    if not isinstance(one_of, _OneOf):
+        raise TypeError("create_one_of takes a OneOf or a OneOfEntity")
+    return cast(AlterTable, one_of._native.statement())
+
+
 __all__ = [
-    "DataType", "ColumnDef", "DDL", "EntitySchema", "from_entity", "create_disjoint",
+    "DataType", "ColumnDef", "DDL", "EntitySchema", "from_entity", "create_disjoint", "create_one_of",
     "add_disjoint_kind", "add_disjoint_kind_recreating", "remove_disjoint_kind",
     "add_disjoint_kind_table", "remove_disjoint_kind_table", "DisjointChange", "DisjointStep",
     "DisjointGap",

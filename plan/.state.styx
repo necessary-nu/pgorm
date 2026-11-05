@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T01:05:37.133974Z
+last_sync_at 2026-11-05T01:18:18.072814Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -127,7 +127,7 @@ rule_versions (
     {id conn.tx.retry, version 3}
     {id disjoint.declare, version 5}
     {id disjoint.evolve, version 2}
-    {id disjoint.one-of, version 3}
+    {id disjoint.one-of, version 4}
     {id disjoint.read, version 2}
     {id disjoint.schema, version 2}
     {id disjoint.unkinded, version 1}
@@ -985,6 +985,8 @@ derived_priorities (
     {id tx-closure-send, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id type-part-keyword-names, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id unique-key-virtual-refused, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
+    {id unique-keys.entity-describe-keys, priority 2, derived_at 2026-11-05T01:18:18.072814Z}
+    {id unique-keys.model-key-name-clash, priority 2, derived_at 2026-11-05T01:18:18.072814Z}
     {id unique-keys.objects-wording, priority 2, derived_at 2026-11-05T00:28:09.491091Z}
     {id unrep.build-any, priority 3, derived_at 2026-09-02T14:40:48.714779Z}
     {id unrep.condition-chain, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
@@ -1045,7 +1047,6 @@ assertions (
     {id bindings-array-subquery, kind @complete, author "brendan@necessary.nu", at 2026-10-25T23:53:58.290968Z}
     {id bindings-copy-created-multiranges, kind @complete, author "brendan@necessary.nu", at 2026-10-26T10:21:29.151829Z}
     {id bindings-expression-gaps, kind @complete, author "brendan@necessary.nu", at 2026-10-26T17:15:31.190363Z}
-    {id bindings-one-of, kind @doing, author "brendan@necessary.nu", at 2026-11-05T00:16:12.307211Z}
     {id bindings-tx-closure-only, kind @complete, author "brendan@necessary.nu", at 2026-10-25T23:17:55.346864Z}
     {id binoper-missing-variants, kind @complete, author "brendan@necessary.nu", at 2026-10-26T10:26:17.005467Z}
     {id bit-unbounded-renders-bit-one, kind @complete, author "brendan@necessary.nu", at 2026-11-03T10:13:23.143946Z}
@@ -1769,7 +1770,12 @@ impl_evidence (
     ), rule_versions_seen (
         {id bindings.disjoint-evolve, version 0}
     )}
-    {id bindings-one-of}
+    {id bindings-one-of, covered_rules (
+        bindings.one-of
+    ), covered_claims (
+        {impl_name javascript, rule bindings.one-of}
+        {impl_name python, rule bindings.one-of}
+    )}
     {id codegen.generate, covered_rules (
         codegen.entity
         codegen.entity.compact

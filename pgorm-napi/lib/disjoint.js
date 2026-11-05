@@ -28,7 +28,7 @@ import { TypeName } from "./values.js";
  *
  * @param {import("./model-shape.js").Shape} shape
  */
-function described(shape) {
+export function described(shape) {
   return {
     schema: shape.schema,
     table: shape.name,
@@ -54,7 +54,7 @@ function described(shape) {
  * @param {unknown} model
  * @param {string} what
  */
-function modelOf(model, what) {
+export function modelOf(model, what) {
   if (!(model instanceof Model)) throw new TypeError(`${what} is a Model`);
   const shape = shapeOf(model);
   if (shape.alias !== null) {

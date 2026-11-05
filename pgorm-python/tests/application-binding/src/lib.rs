@@ -3,6 +3,7 @@
 pub mod account;
 pub mod booking;
 pub mod graphs;
+pub mod labels;
 pub mod listings;
 pub mod membership;
 pub mod note;
@@ -40,6 +41,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     registry.entity::<shipping::parcel::Entity>("app.Parcel")?;
     registry.entity::<shipping::pallet::Entity>("app.Pallet")?;
     registry.disjoint::<shipping::shipment::Shipment>("app.Shipments")?;
+    registry.entity::<labels::label::Entity>("app.Label")?;
+    registry.one_of::<labels::label::Labelled>("app.Labelled")?;
     registry.entity::<listings::listing::Entity>("app.Listing")?;
     registry.entity::<listings::auction::Entity>("app.Auction")?;
     registry.entity::<listings::sale::Entity>("app.Sale")?;
@@ -86,6 +89,19 @@ mod tests {
                 .disjoint::<shipping::shipment::Shipment>("app.Others")
                 .is_err()
         );
+        // [spec:pgorm:req:bindings.one-of+1/test]    a one-of enum registers once its entity and its targets' entities have, and a name or an enum registered twice is refused
+        assert!(
+            registry
+                .one_of::<labels::label::Labelled>("app.Labelled")
+                .is_err()
+        );
+        registry.entity::<labels::label::Entity>("app.Label")?;
+        registry.one_of::<labels::label::Labelled>("app.Labelled")?;
+        assert!(
+            registry
+                .one_of::<labels::label::Labelled>("app.Others")
+                .is_err()
+        );
         Python::attach(|py| {
             let module = PyModule::new(py, "pgorm._native")?;
             pgorm_python::install(&module, registry)?;
@@ -96,12 +112,19 @@ mod tests {
                     .get_item("registrations")?
                     .get_item("entities")?
                     .len()?,
-                5
+                6
             );
             assert_eq!(
                 manifest
                     .get_item("registrations")?
                     .get_item("disjoints")?
+                    .len()?,
+                1
+            );
+            assert_eq!(
+                manifest
+                    .get_item("registrations")?
+                    .get_item("one_ofs")?
                     .len()?,
                 1
             );

@@ -46,6 +46,7 @@ pub struct Registry {
     pub(crate) graphs: BTreeMap<String, Arc<dyn Factory>>,
     pub(crate) sources: BTreeMap<String, Arc<dyn super::sources::SourcesFactory>>,
     pub(crate) disjoints: crate::disjoint::Registered,
+    pub(crate) one_ofs: crate::one_of::Registered,
 }
 
 impl Registry {
@@ -120,16 +121,20 @@ impl Registry {
     pub(crate) fn backend<E: EntityTrait + 'static>(
         &self,
     ) -> Result<Arc<dyn EntityBackend>, RegistrationError> {
+        self.backend_of(TypeId::of::<E>()).ok_or_else(|| {
+            RegistrationError(format!(
+                "register the entity {} before the disjoint entity over it",
+                std::any::type_name::<E>()
+            ))
+        })
+    }
+
+    /// The registered entity whose Rust type is `entity`.
+    pub(crate) fn backend_of(&self, entity: TypeId) -> Option<Arc<dyn EntityBackend>> {
         self.types
-            .get(&TypeId::of::<E>())
+            .get(&entity)
             .and_then(|name| self.entities.get(name))
             .cloned()
-            .ok_or_else(|| {
-                RegistrationError(format!(
-                    "register the entity {} before the disjoint entity over it",
-                    std::any::type_name::<E>()
-                ))
-            })
     }
 
     /// The registration of `E`, which a graph's sources name.

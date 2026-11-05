@@ -247,6 +247,26 @@ class DescriptionTests(unittest.TestCase):
         self.assert_declared("pgorm.DisjointEntity", [p.disjoint_entity(name).describe() for name in names])
 
     # [spec:pgorm:req:bindings.surface+2/test]
+    # [spec:pgorm:req:bindings.one-of+1/test]
+    def test_one_of_describes_the_declared_keys(self):
+        target = p.Model("posts", {"id": p.Column("i32", primary_key=True)}, schema="app")
+        model = p.Model(
+            "comments",
+            {"id": p.Column("i32", primary_key=True), "post": p.Column("i32", nullable=True)},
+            schema="app",
+        )
+        reference = p.OneOf("commentable", model, {"post": ("post", target)}, optional=True)
+        self.assert_declared("pgorm.OneOf", [reference.describe()])
+
+    # [spec:pgorm:req:bindings.surface+2/test]
+    # [spec:pgorm:req:bindings.one-of+1/test]
+    def test_one_of_entity_describes_the_declared_keys(self):
+        names = p.one_of_entities()
+        if not names:
+            self.skipTest("the module registers no one-of entity; checks/entities.py runs this against an application's")
+        self.assert_declared("pgorm.OneOfEntity", [p.one_of_entity(name).describe() for name in names])
+
+    # [spec:pgorm:req:bindings.surface+2/test]
     # [spec:pgorm:req:bindings.entities+4/test]
     def test_entity_description_has_the_declared_keys(self):
         names = p.entities()

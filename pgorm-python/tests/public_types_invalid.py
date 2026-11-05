@@ -109,5 +109,8 @@ async def invalid(connection: p.Connection) -> None:
     # [spec:pgorm:req:bindings.disjoint-evolve/test]    an unkinded disjoint model's kinds are not changed
     s.add_disjoint_kind(shops, "online")  # expected-error: arg-type
     s.remove_disjoint_kind_table(shops, "online", "online")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.one-of+1/test]    a one-of reference's CHECK is written from a reference, and its targets are (field, Model) pairs
+    s.create_one_of(accounts)  # expected-error: arg-type
+    p.OneOf("ref", accounts, {"self": accounts})  # expected-error: dict-item
     p.Disjoint("shops", accounts, {"dormant": None}, unkinded=True, kind="state")  # expected-error: call-overload
     kinded: p.Disjoint = shops  # expected-error: assignment

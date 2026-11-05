@@ -11,6 +11,8 @@
 
 mod described;
 mod evolve;
+
+pub(crate) use described::table_of;
 mod registered;
 mod rows;
 

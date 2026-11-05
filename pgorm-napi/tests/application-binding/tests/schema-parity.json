@@ -18,6 +18,12 @@
     "indexes": [],
     "table": "CREATE TABLE \"napi_listings\".\"auctions\" ( \"listing_id\" integer NOT NULL, \"reserve\" integer NOT NULL, PRIMARY KEY (\"listing_id\") )"
   },
+  "app.Label": {
+    "comments": [],
+    "enums": [],
+    "indexes": [],
+    "table": "CREATE TABLE \"napi_shipments\".\"labels\" ( \"id\" integer NOT NULL, \"text\" varchar NOT NULL, \"packet_id\" integer, \"pallet_id\" integer, PRIMARY KEY (\"id\"), CONSTRAINT \"fk-labels-packet_id\" FOREIGN KEY (\"packet_id\") REFERENCES \"napi_shipments\".\"packets\" (\"shipment_id\"), CONSTRAINT \"fk-labels-pallet_id\" FOREIGN KEY (\"pallet_id\") REFERENCES \"napi_shipments\".\"pallets\" (\"id\") )"
+  },
   "app.Listing": {
     "comments": [],
     "enums": [],
