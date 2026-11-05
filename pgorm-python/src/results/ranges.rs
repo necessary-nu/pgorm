@@ -6,19 +6,17 @@ use std::ops::Bound;
 
 use jiff::{
     Timestamp,
-    civil::{Date, DateTime, Time},
+    civil::{Date, DateTime},
 };
-use pgorm::pgorm_query::{ArrayType, Multirange, Range, RangeType, Value, base_type};
+use pgorm::{
+    CreatedRangeCodec, CreatedRangeText, ExactDecimal,
+    pgorm_query::{ArrayType, Multirange, Range, RangeType, Value, base_type},
+};
 use postgres_protocol::types::{self as wire, RangeBound};
 use pyo3::PyResult;
 use tokio_postgres::types::{FromSql, Kind, Type};
 
-use uuid::Uuid;
-
-use super::{
-    codecs::ExactDecimal,
-    decode::{Field, typed},
-};
+use super::decode::{Field, typed};
 use crate::{
     errors::DecodeError,
     values::{CreatedKind, PyTypeName, PyValue},
@@ -182,10 +180,10 @@ pub(super) fn value(field: Field<'_>, ty: &Type, array: bool) -> PyResult<Option
     Ok(Some(PyValue::from_rust(value)))
 }
 
-/// A column of a range type a schema created, or of an array of one: read in
-/// binary as a range of its subtype's Rust type, through the subtype's own
-/// codec, each element of an array alike, and held as the text form that
-/// type's values travel as, tagged with the type's name.
+/// A column of a range type a schema created, or of an array of one: read
+/// through pgorm's codec of the type, each element of an array alike, and
+/// held as the text form that type's values travel as, tagged with the
+/// type's name.
 // [spec:pgorm:req:bindings.created-ranges+3]
 fn created(
     field: Field<'_>,
@@ -194,43 +192,15 @@ fn created(
     multi: bool,
     array: bool,
 ) -> PyResult<PyValue> {
-    let index = field.index();
-    macro_rules! text {
-        ($rust:ty, $kind:ident, $bound:expr) => {
-            (
-                ArrayType::$kind,
-                if multi {
-                    typed::<MultirangeCodec<$rust>>(field, array, ArrayType::String, |v| {
-                        Value::String(v.map(|v| Box::new(v.0.map($bound).to_string())))
-                    })?
-                } else {
-                    typed::<RangeCodec<$rust>>(field, array, ArrayType::String, |v| {
-                        Value::String(v.map(|v| Box::new(v.0.map($bound).to_string())))
-                    })?
-                },
-            )
-        };
-    }
-    let (kind, value) = match *base_type(subtype) {
-        Type::INT2 => text!(i16, SmallInt, |v| v),
-        Type::INT4 => text!(i32, Int, |v| v),
-        Type::INT8 => text!(i64, BigInt, |v| v),
-        Type::FLOAT4 => text!(f32, Float, |v| v),
-        Type::FLOAT8 => text!(f64, Double, |v| v),
-        Type::NUMERIC => text!(ExactDecimal, Decimal, |v: ExactDecimal| v.0),
-        Type::TEXT | Type::VARCHAR | Type::BPCHAR => text!(String, String, |v| v),
-        Type::DATE => text!(Date, Date, |v| v),
-        Type::TIME => text!(Time, Time, |v| v),
-        Type::TIMESTAMP => text!(DateTime, DateTime, |v| v),
-        Type::TIMESTAMPTZ => text!(Timestamp, DateTimeWithTimeZone, |v| v),
-        Type::UUID => text!(Uuid, Uuid, |v| v),
-        _ => {
-            return Err(DecodeError::new_err(format!(
-                "column {index} ranges over `{subtype}`, which a created range read from \
-                 Python cannot"
-            )));
-        }
+    let Some(kind) = CreatedRangeCodec::subtype_kind(subtype) else {
+        return Err(DecodeError::new_err(format!(
+            "column {} ranges over `{subtype}`, which a created range read from Python cannot",
+            field.index()
+        )));
     };
+    let value = typed::<CreatedRangeText>(field, array, ArrayType::String, |v| {
+        Value::String(v.map(|v| Box::new(v.0)))
+    })?;
     let kind = CreatedKind {
         name: PyTypeName {
             name: ty.name().to_owned(),

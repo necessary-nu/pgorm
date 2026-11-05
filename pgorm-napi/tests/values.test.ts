@@ -359,7 +359,7 @@ test("a range's lower bound is written as its lower bound", async () => {
   same(range, new Range(3, 10));
 });
 
-// [spec:pgorm:req:bindings.value-tags/test]
+// [spec:pgorm:req:bindings.value-tags+1/test]
 test("a typed NULL keeps its kind, and JSON's null is not SQL NULL", async () => {
   const typed = Value.null("i64");
   assert.equal(typed.kind, "i64");
@@ -380,7 +380,7 @@ test("a typed NULL keeps its kind, and JSON's null is not SQL NULL", async () =>
   assert.equal(row.json_null?.kind, "json");
 });
 
-// [spec:pgorm:req:bindings.value-tags/test]
+// [spec:pgorm:req:bindings.value-tags+1/test]
 // [spec:pgorm:req:napi.records/test]
 test("tagged rows carry each column's kind, an integer's width and an enum's type included", async () => {
   const [row] = await db().query(
@@ -403,7 +403,7 @@ test("tagged rows carry each column's kind, an integer's width and an enum's typ
   assert.equal(row.f?.items(), null);
 });
 
-// [spec:pgorm:req:bindings.value-tags/test]
+// [spec:pgorm:req:bindings.value-tags+1/test]
 test("an enum label binds as a string and reads back with its type", async () => {
   assert.equal(await roundTrip("app.mood", "calm"), "calm");
   assert.equal(await roundTrip("app.mood", new Value('a "quoted", label', mood)), 'a "quoted", label');
@@ -412,6 +412,9 @@ test("an enum label binds as a string and reads back with its type", async () =>
   const value = new Value("calm", mood);
   assert.equal(value.kind, "enum");
   assert.deepEqual(value.typeName, mood);
+  assert.deepEqual(Value.array(mood, ["calm"]).typeName, mood);
+  assert.deepEqual(Value.array(mood, null).typeName, mood);
+  assert.equal(Value.array("i32", [1]).typeName, null);
   await assert.rejects(roundTrip("app.mood", "furious"), (error: unknown) => {
     assert.ok(error instanceof DatabaseError);
     assert.equal(error.sqlstate, "22P02");
@@ -421,7 +424,7 @@ test("an enum label binds as a string and reads back with its type", async () =>
   throwsConstruction(() => new TypeName("x".repeat(64)), /1–63 UTF-8 bytes/);
 });
 
-// [spec:pgorm:req:bindings.value-tags/test]
+// [spec:pgorm:req:bindings.value-tags+1/test]
 test("an empty array and an SQL NULL array still name their element kind", async () => {
   const empty = Value.array("i32", []);
   assert.equal(empty.kind, "array");
@@ -472,6 +475,8 @@ test("an array of a created range holds each element as its text and decodes ele
   const array = Value.array(floatrange, [new Range(1.5, 2.5), null, "[3,4]", new Value(new Range(5, 6), floatrange)]);
   assert.equal(array.kind, "array");
   assert.deepEqual(array.elementType, floatrange);
+  assert.deepEqual(array.typeName, new TypeName("floatrange", { schema: "app" }));
+  assert.equal(array.createdType, null);
   same(array.value, [new Range(1.5, 2.5), null, new Range(3, 4, "[]"), new Range(5, 6)]);
   assert.deepEqual(array.items()?.map((item) => item.kind), Array(4).fill("created_range"));
   same(Value.array(floatrange, []).value, []);
@@ -488,7 +493,7 @@ test("an array of a created range holds each element as its text and decodes ele
   await undecodable(`SELECT '{"{[1,2)}"}'::app.floatmultirange[] AS v`);
 });
 
-// [spec:pgorm:req:bindings.value-tags/test]
+// [spec:pgorm:req:bindings.value-tags+1/test]
 test("a Value converts at construction, can be bound again, and hands out independent copies", async () => {
   const value = new Value([1, 2, 3]);
   assert.equal(value.kind, "array");

@@ -2,7 +2,6 @@
 //! identity plain JavaScript cannot carry — an enum's type, a created range's
 //! type and subtype, an array's element kind.
 
-pub(crate) mod created;
 pub(crate) mod json;
 pub(crate) mod read;
 mod value;
@@ -11,7 +10,10 @@ pub(crate) mod write;
 use neon::prelude::{
     Context, FunctionContext, JsArray, JsResult, ModuleContext, NeonResult, Object,
 };
-use pgorm::pgorm_query::{ArrayType, Value};
+use pgorm::{
+    CreatedRangeCodec,
+    pgorm_query::{ArrayType, Value},
+};
 
 use crate::errors::Failure;
 
@@ -56,6 +58,14 @@ pub(crate) struct CreatedKind {
     pub(crate) multirange: bool,
 }
 
+impl CreatedKind {
+    /// pgorm's codec of this kind's values, `None` for a subtype no
+    /// `RangeSubtype` is, which no kind the binding makes has.
+    pub(crate) fn codec(&self) -> Option<CreatedRangeCodec> {
+        CreatedRangeCodec::new(&self.subtype, self.multirange)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Tag {
     /// A kind with no type name: one of pgorm's `Value` variants.
@@ -75,22 +85,6 @@ pub(crate) struct Tagged {
 }
 
 impl neon::types::Finalize for Tagged {}
-
-/// The value kinds a created range can range over: pgorm's `RangeSubtype`.
-pub(crate) const CREATED_SUBTYPES: [ArrayType; 12] = [
-    ArrayType::SmallInt,
-    ArrayType::Int,
-    ArrayType::BigInt,
-    ArrayType::Float,
-    ArrayType::Double,
-    ArrayType::Decimal,
-    ArrayType::String,
-    ArrayType::Date,
-    ArrayType::Time,
-    ArrayType::DateTime,
-    ArrayType::DateTimeWithTimeZone,
-    ArrayType::Uuid,
-];
 
 /// The kind a pgorm value declares itself.
 pub(crate) fn value_tag(value: &Value) -> Tag {

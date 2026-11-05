@@ -326,7 +326,7 @@ including panic semantics and quirks inherited from sea-query.
 
 ## Range types a schema creates
 
-> [spec:pgorm:def:sql.value.created-range+8]
+> [spec:pgorm:def:sql.value.created-range+9]
 > A range type a schema creates with `CREATE TYPE ... AS RANGE`
 > (`[spec:pgorm:req:sql.ddl.type-range]`) is named by that schema, so no
 > `RangeType` variant can carry it, and `Value` does not: it stays one pointer
@@ -437,6 +437,17 @@ including panic semantics and quirks inherited from sea-query.
 > type a schema created over a `RangeSubtype` reads as the `String` of its
 > text form, the value its newtype converts into, and so does the multirange
 > beside it (`conn.copy.rows`).
+>
+> That format has one implementation, `pgorm::CreatedRangeCodec`, named by
+> the value kind of the subtype and whether it is the multirange: a value's
+> binary form read through the subtype's codec into its text form
+> (`CreatedRangeText`, the `FromSql` of such a column), and the text form
+> written from ranges whose bounds are `Value`s of the subtype's kind and
+> read back into them. A `numeric` bound is read as `ExactDecimal` reads a
+> `numeric`, held to what a `Decimal` keeps exactly and refused rather than
+> rounded past it. pgorm's binary COPY and cursor bindings read and write a
+> created range through it, and so do both language bindings, which keep no
+> codec of their own (`bindings.created-ranges`).
 >
 > pgorm cannot author the C function a canonical function is
 > (`[spec:pgorm:req:sql.ddl.type-range]`), so a range type a schema creates

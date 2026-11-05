@@ -16,7 +16,7 @@ def pinned(value, name):
 
 
 # [spec:pgorm:req:bindings.values/test]
-# [spec:pgorm:req:bindings.value-tags/test]
+# [spec:pgorm:req:bindings.value-tags+1/test]
 class RangeResultTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=1)

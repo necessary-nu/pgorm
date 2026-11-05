@@ -7,7 +7,7 @@
 // hold what it accepted.
 // [spec:pgorm:req:bindings.values]
 // [spec:pgorm:req:napi.values+1]
-// [spec:pgorm:req:bindings.value-tags]
+// [spec:pgorm:req:bindings.value-tags+1]
 // [spec:pgorm:req:napi.temporal+1]
 
 import { ConstructionError, InternalError } from "./errors.js";

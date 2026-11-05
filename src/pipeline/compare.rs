@@ -33,7 +33,7 @@ pub(super) enum Operand {
     /// created (`42846`), so `Expr::as_range` writes the value as its text,
     /// and the pipeline, which mints the placeholder before the comparison
     /// that casts it, has the server write it.
-    // [spec:pgorm:def:sql.value.created-range+8]
+    // [spec:pgorm:def:sql.value.created-range+9]
     BoundRange(Cow<'static, str>),
 }
 

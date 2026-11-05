@@ -28,7 +28,7 @@ pub(crate) use ranges::{column_type as range_column_type, kind_names as range_ki
 pub use types::PyTypeName;
 pub(crate) use types::{Tag, unrepresented};
 
-// [spec:pgorm:req:bindings.value-tags]
+// [spec:pgorm:req:bindings.value-tags+1]
 /// Immutable owned Rust value plus qualified enum/array identity.
 #[pyclass(name = "Value", module = "pgorm", frozen, eq, from_py_object)]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -266,9 +266,16 @@ impl PyValue {
         self.inner.is_null()
     }
 
+    /// The type an enum or a created range is named by, an array's being
+    /// its element's.
+    // [spec:pgorm:req:bindings.value-tags+1]
     #[getter]
     fn type_name(&self) -> Option<PyTypeName> {
-        match &self.tag {
+        let tag = match &self.tag {
+            Tag::Array(element) => element.as_ref(),
+            tag => tag,
+        };
+        match tag {
             Tag::Enum(name) => Some(name.clone()),
             Tag::Created(kind) => Some(kind.name.clone()),
             _ => None,

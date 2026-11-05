@@ -6,7 +6,7 @@ use std::ops::Bound;
 use neon::{prelude::*, types::JsBigInt};
 use pgorm::pgorm_query::{Range, Value};
 
-use super::{Tag, Tagged, created};
+use super::{Tag, Tagged};
 use crate::{
     codec::Codec,
     errors::{Failure, throw},
@@ -28,7 +28,7 @@ pub(crate) fn plain<'cx>(
 ) -> JsResult<'cx, JsValue> {
     match (&tagged.tag, &tagged.datum) {
         (Tag::Created(kind), Value::String(Some(text))) => {
-            let Some(ranges) = created::ranges(&kind.subtype, text, kind.multirange) else {
+            let Some(ranges) = kind.codec().and_then(|codec| codec.ranges(text)) else {
                 return undecodable(cx, format!("{text:?} is no value of {}", kind.name.name));
             };
             if kind.multirange {

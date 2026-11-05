@@ -15159,7 +15159,7 @@ children (
                 [spec:pgorm:req:bindings.streams]
                 [spec:pgorm:req:bindings.surface]
                 [spec:pgorm:req:bindings.transactions]
-                [spec:pgorm:req:bindings.value-tags]
+                [spec:pgorm:req:bindings.value-tags+1]
                 [spec:pgorm:req:bindings.values]
                 [spec:pgorm:req:bindings.windows]
                 [spec:pgorm:req:napi.application]
@@ -15247,7 +15247,7 @@ children (
                 [spec:pgorm:req:bindings.streams]
                 [spec:pgorm:req:bindings.surface]
                 [spec:pgorm:req:bindings.transactions]
-                [spec:pgorm:req:bindings.value-tags]
+                [spec:pgorm:req:bindings.value-tags+1]
                 [spec:pgorm:req:bindings.values]
                 [spec:pgorm:req:bindings.windows]
                 [spec:pgorm:def:python.api]
@@ -17895,6 +17895,22 @@ children (
                 title "Both bindings encode and decode created ranges through pgorm's CreatedRangeCodec, with no codec of their own"
                 kind @refactor
                 deps (typed-binds.created-range-array-value)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T06:42:17.186901Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T07:06:21.774062Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
@@ -17902,6 +17918,50 @@ children (
                 title "A Python Value's type_name names an enum array's type, as JavaScript's does"
                 kind @fix
                 deps (typed-binds.created-range-array-value)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T07:24:31.379589Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T07:38:04.65324Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+        )
+    }
+
+    {
+        id value-codecs
+        title "Every value codec lives once, in pgorm, reads exactly, and both bindings map each column type to the same kind"
+        kind @fix
+        children (
+            {
+                id value-codecs.builtin-range-codec
+                title "Both bindings decode built-in ranges and multiranges through pgorm's range_from_sql/multirange_from_sql, with no decoder of their own"
+                kind @refactor
+                deps (typed-binds.shared-range-codec)
+            }
+
+            {
+                id value-codecs.char-created-range-kind
+                title "Both bindings give a created range over char(n) the same kind, through one shared column-type mapping"
+                kind @fix
+                deps (typed-binds.shared-range-codec)
+            }
+
+            {
+                id value-codecs.copy-numeric-exact
+                title "pgorm's binary COPY rows reads a numeric exactly, refusing a value rust_decimal would round, as a created range's numeric bound is read"
+                kind @fix
+                deps (typed-binds.shared-range-codec)
             }
         )
     }

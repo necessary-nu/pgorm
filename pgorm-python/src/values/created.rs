@@ -7,57 +7,14 @@
 //! which the cast needs, and the subtype, which converts each bound with that
 //! scalar kind's limits and reads the text back.
 
-use std::ops;
-
-use jiff::{
-    Timestamp,
-    civil::{Date, DateTime, Time},
-};
-use pgorm::pgorm_query::{
-    ArrayType, ColumnType, Multirange, Range, RangeSubtype, StringLen, Value,
+use pgorm::{
+    CreatedRangeCodec,
+    pgorm_query::{ArrayType, ColumnType, Multirange, Range, StringLen, Value},
 };
 use pyo3::{prelude::*, types::PyString};
-use rust_decimal::Decimal;
-use uuid::Uuid;
 
 use super::{classes::PyMultirange, ranges, types::PyTypeName};
 use crate::errors::{ConstructionError, DecodeError};
-
-/// The value kinds a created range can range over: `RangeSubtype`'s twelve.
-const SUBTYPES: [ArrayType; 12] = [
-    ArrayType::SmallInt,
-    ArrayType::Int,
-    ArrayType::BigInt,
-    ArrayType::Float,
-    ArrayType::Double,
-    ArrayType::Decimal,
-    ArrayType::String,
-    ArrayType::Date,
-    ArrayType::Time,
-    ArrayType::DateTime,
-    ArrayType::DateTimeWithTimeZone,
-    ArrayType::Uuid,
-];
-
-/// Run a generic function at the Rust type of a subtype's value kind.
-macro_rules! dispatch {
-    ($subtype:expr, $f:ident, $($arg:expr),*) => {
-        match $subtype {
-            ArrayType::SmallInt => $f::<i16>($($arg),*),
-            ArrayType::Int => $f::<i32>($($arg),*),
-            ArrayType::BigInt => $f::<i64>($($arg),*),
-            ArrayType::Float => $f::<f32>($($arg),*),
-            ArrayType::Double => $f::<f64>($($arg),*),
-            ArrayType::Decimal => $f::<Decimal>($($arg),*),
-            ArrayType::Date => $f::<Date>($($arg),*),
-            ArrayType::Time => $f::<Time>($($arg),*),
-            ArrayType::DateTime => $f::<DateTime>($($arg),*),
-            ArrayType::DateTimeWithTimeZone => $f::<Timestamp>($($arg),*),
-            ArrayType::Uuid => $f::<Uuid>($($arg),*),
-            _ => $f::<String>($($arg),*),
-        }
-    };
-}
 
 /// A created range or multirange type: its name, its subtype's value kind,
 /// and which of the two it is.
@@ -76,7 +33,7 @@ impl CreatedKind {
         multirange: bool,
     ) -> PyResult<Self> {
         let subtype = ArrayType::from_kind_name(subtype)
-            .filter(|kind| SUBTYPES.contains(kind))
+            .filter(|kind| CreatedRangeCodec::new(kind, multirange).is_some())
             .ok_or_else(|| {
                 ConstructionError::new_err(
                     "a created range's subtype is one of i16, i32, i64, f32, f64, decimal, \
@@ -164,6 +121,13 @@ impl CreatedKind {
         }
     }
 
+    /// pgorm's codec of this kind's values; a kind is made only over a
+    /// subtype it has one for.
+    fn codec(&self) -> PyResult<CreatedRangeCodec> {
+        CreatedRangeCodec::new(&self.subtype, self.multirange)
+            .ok_or_else(|| ConstructionError::new_err("a created range's subtype has no codec"))
+    }
+
     pub(crate) fn kind_name(&self) -> &'static str {
         if self.multirange {
             "created_multirange"
@@ -185,8 +149,9 @@ impl CreatedKind {
     /// text form itself, which is read and written back canonically.
     // [spec:pgorm:req:bindings.created-ranges+3]
     pub(crate) fn text(&self, data: &Bound<'_, PyAny>) -> PyResult<String> {
+        let codec = self.codec()?;
         let ranges = if let Ok(text) = data.cast_exact::<PyString>() {
-            match dispatch!(self.subtype, parsed, text.to_str()?, self.multirange) {
+            match codec.ranges(text.to_str()?) {
                 Some(ranges) => ranges,
                 None => {
                     return Err(ConstructionError::new_err(format!(
@@ -199,7 +164,8 @@ impl CreatedKind {
         } else {
             self.bounds(data)?
         };
-        dispatch!(self.subtype, written, ranges, self.multirange)
+        codec
+            .text(ranges)
             .ok_or_else(|| ConstructionError::new_err("a bound does not convert to the subtype"))
     }
 
@@ -223,7 +189,7 @@ impl CreatedKind {
     /// The Python value of this kind's text form.
     // [spec:pgorm:req:bindings.created-ranges+3]
     pub(crate) fn read(&self, py: Python<'_>, text: &str) -> PyResult<Py<PyAny>> {
-        let ranges = dispatch!(self.subtype, parsed, text, self.multirange).ok_or_else(|| {
+        let ranges = self.codec()?.ranges(text).ok_or_else(|| {
             DecodeError::new_err(format!(
                 "text is no value of {} {}",
                 self.kind_name(),
@@ -237,51 +203,6 @@ impl CreatedKind {
             Ok(Py::new(py, ranges::write(py, &range)?)?.into_any())
         }
     }
-}
-
-/// A range of subtype values as a range of `T`, or `None` if a bound is not
-/// a `T`.
-fn typed<T: RangeSubtype>(range: Range<Value>) -> Option<Range<T>> {
-    let bound = |bound: ops::Bound<Value>| -> Option<ops::Bound<T>> {
-        Some(match bound {
-            ops::Bound::Included(value) => ops::Bound::Included(T::try_from(value).ok()?),
-            ops::Bound::Excluded(value) => ops::Bound::Excluded(T::try_from(value).ok()?),
-            ops::Bound::Unbounded => ops::Bound::Unbounded,
-        })
-    };
-    Some(match range {
-        Range::Empty => Range::Empty,
-        Range::Bounds { lower, upper } => Range::new(bound(lower)?, bound(upper)?),
-    })
-}
-
-/// The text form Rust's `Display` writes for these ranges, as a range or a
-/// multirange.
-fn written<T: RangeSubtype>(ranges: Vec<Range<Value>>, multirange: bool) -> Option<String> {
-    let ranges = ranges
-        .into_iter()
-        .map(typed::<T>)
-        .collect::<Option<Vec<_>>>()?;
-    if multirange {
-        Some(Multirange::from(ranges).to_string())
-    } else {
-        ranges.into_iter().next().map(|range| range.to_string())
-    }
-}
-
-/// The ranges a text form holds, read with `T`'s own `FromStr`.
-fn parsed<T: RangeSubtype>(text: &str, multirange: bool) -> Option<Vec<Range<Value>>> {
-    let ranges: Vec<Range<T>> = if multirange {
-        text.parse::<Multirange<T>>().ok()?.into_iter().collect()
-    } else {
-        vec![text.parse::<Range<T>>().ok()?]
-    };
-    Some(
-        ranges
-            .into_iter()
-            .map(|range| range.map(Into::into))
-            .collect(),
-    )
 }
 
 /// A range type a schema created, named in full, and the value kind of its

@@ -37,7 +37,7 @@ fn tagged<'cx>(
 
 /// `valueNew(data, kind?)`: a value of the declared kind, or of the kind
 /// `data` infers as.
-// [spec:pgorm:req:bindings.value-tags]
+// [spec:pgorm:req:bindings.value-tags+1]
 fn value_new(mut cx: FunctionContext) -> JsResult<JsBox<Tagged>> {
     let data = cx.argument::<JsValue>(0)?;
     let kind = cx.argument_opt(1);
@@ -70,7 +70,7 @@ fn value_null(mut cx: FunctionContext) -> JsResult<JsBox<Tagged>> {
 
 /// `valueJson(data)`: a JSON document, `null` being JSON's null rather than
 /// SQL NULL.
-// [spec:pgorm:req:bindings.value-tags]
+// [spec:pgorm:req:bindings.value-tags+1]
 fn value_json(mut cx: FunctionContext) -> JsResult<JsBox<Tagged>> {
     let data = cx.argument::<JsValue>(0)?;
     let codec = Codec::get(&mut cx)?;
@@ -82,7 +82,7 @@ fn value_json(mut cx: FunctionContext) -> JsResult<JsBox<Tagged>> {
 /// `valueArray(kind, items)`: an array of the element kind, `null` items SQL
 /// NULLs; `items` `null` is an SQL NULL array that still names its element
 /// kind.
-// [spec:pgorm:req:bindings.value-tags]
+// [spec:pgorm:req:bindings.value-tags+1]
 fn value_array(mut cx: FunctionContext) -> JsResult<JsBox<Tagged>> {
     let kind = cx.argument::<JsValue>(0)?;
     let items = cx.argument::<JsValue>(1)?;
@@ -143,18 +143,20 @@ fn kind_object<'cx>(cx: &mut Cx<'cx>, codec: Codec<'cx>, tag: &Tag) -> JsResult<
     }
 }
 
-/// An enum's type name, or a created range's.
+/// The type an enum or a created range is named by, an array's being its
+/// element's.
+// [spec:pgorm:req:bindings.value-tags+1]
 fn value_type_name(mut cx: FunctionContext) -> JsResult<JsValue> {
     let value = tagged(&mut cx, 0)?;
     let codec = Codec::get(&mut cx)?;
-    let name = match &value.tag {
+    let tag = match &value.tag {
+        Tag::Array(element) => element.as_ref(),
+        tag => tag,
+    };
+    let name = match tag {
         Tag::Enum(name) => name.clone(),
         Tag::Created(kind) => kind.name.clone(),
-        Tag::Array(element) => match element.as_ref() {
-            Tag::Enum(name) => name.clone(),
-            _ => return Ok(cx.null().upcast()),
-        },
-        Tag::Scalar(_) => return Ok(cx.null().upcast()),
+        Tag::Array(_) | Tag::Scalar(_) => return Ok(cx.null().upcast()),
     };
     type_name(&mut cx, codec, &name)
 }
