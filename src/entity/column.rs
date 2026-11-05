@@ -660,7 +660,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// an array of one to `text[]`: the driver reports such a multirange as a
     /// simple type with no subtype to read its binary form by, so it is read
     /// as its text, which the newtype's `FromStr` parses. A `money` column is
-    /// read as `numeric` ([`money_type_name`]).
+    /// read as `numeric`.
     // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
     // [spec:pgorm:def:sql.value.created-range+9]
     // [spec:pgorm:req:sql.ast.cast-shape+2]
@@ -691,7 +691,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// [`ColumnTrait::save_enum_as`], and like it the fallback a derived
     /// [`save_array_as`][ColumnTrait::save_array_as] override keeps for
     /// columns without a `save_as` attribute. A `money` column's array is
-    /// cast to its `money[]` ([`money_type_name`]), and the array of a column
+    /// cast to its `money[]`, and the array of a column
     /// of a range type a schema created goes through
     /// [`Expr::as_range`] to the type's array, each range written as its text.
     // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
@@ -718,7 +718,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// A column of a range type a schema created takes its value through
     /// [`Expr::as_range`]: a range is written as its text form and cast to the
     /// type by name, there being no cast to it from a built-in range type. A
-    /// `money` column's value is cast to its `money` ([`money_type_name`]).
+    /// `money` column's value is cast to its `money`.
     // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
     // [spec:pgorm:def:sql.value.created-range+9]
     // [spec:pgorm:req:sql.ast.cast-shape+2]

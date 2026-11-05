@@ -1,0 +1,20 @@
+[package]
+name = "pgorm-guide-support"
+version = "0.2.0"
+authors = []
+edition = "2024"
+rust-version = "1.89"
+description = "The bakery schema the pgorm user guide's examples share, and the scratch databases they run in"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# A dev-dependency of pgorm, for the guide's doctests. Doctests link the
+# library itself rather than a test build of it, so the pgorm this crate
+# names is the one the examples name, and their types agree.
+[dependencies]
+pgorm = { path = "..", features = ["macros", "with-jiff", "with-json"] }
+pgorm-test-support = { path = "../pgorm-test-support" }
+dotenvy = "0.15.7"
+
+[dev-dependencies]
+tokio.workspace = true

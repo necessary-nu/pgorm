@@ -42,7 +42,7 @@ pub struct WindowStatement {
 
 /// What `OVER` may follow: a function call, or one of SQL/JSON's two
 /// aggregates, which are calls in the grammar but carry clauses a
-/// [`FunctionCall`] cannot. Sealed, because the grammar fixes the set.
+/// [`FunctionCall`](crate::FunctionCall) cannot. Sealed, because the grammar fixes the set.
 // [spec:pgorm:def:sql.ast.window-statement+8]
 pub trait WindowFunction: Into<SimpleExpr> + sealed::Sealed {}
 

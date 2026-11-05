@@ -1403,9 +1403,8 @@ async fn instrumented(pool: DatabasePool) -> Result<(), Error> {
 }
 ```
 
-Write your own collector by implementing `MetricsCollector`. See
-[METRICS.md](https://github.com/necessary-nu/pgorm/blob/main/METRICS.md) for the
-full guide. For logging every statement, PostgreSQL's own `log_statement`
+Write your own collector by implementing `MetricsCollector`. The guide's
+[Metrics](crate::guide::metrics) chapter covers the layer in full. For logging every statement, PostgreSQL's own `log_statement`
 and `pg_stat_statements` remain the most complete record.
 
 ## What pgorm adds

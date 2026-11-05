@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T10:06:09.82785Z
+last_sync_at 2026-11-05T14:14:15.598156Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -482,6 +482,13 @@ derived_priorities (
     {id binding-coverage-per-impl, priority 1, derived_at 2026-10-30T13:42:29.080898Z}
     {id binding-describe-shapes, priority 1, derived_at 2026-10-31T22:52:03.347907Z}
     {id binding-graph-describe-shapes, priority 0, derived_at 2026-11-01T03:02:37.492868Z}
+    {id binding-parity.grouping, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.identifiers, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.like-patterns, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.pipeline-terminals, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.registered-inserts, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.table-functions, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.verify-annotations, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
     {id binding-renames, priority 1, derived_at 2026-10-30T14:41:04.802037Z}
     {id binding-spec-consolidation, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id binding-statement-defects, priority 0, derived_at 2026-11-01T03:02:37.492868Z}
@@ -660,6 +667,9 @@ derived_priorities (
     {id graph-unicode-alias-collisions, priority 3, derived_at 2026-09-07T22:03:19.945209Z}
     {id graph-via-as, priority 0, derived_at 2026-10-24T06:20:32.099314Z}
     {id grouped, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
+    {id guide.javascript, priority 2, derived_at 2026-11-05T14:14:15.598156Z}
+    {id guide.python, priority 2, derived_at 2026-11-05T14:14:15.598156Z}
+    {id guide.rust, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
     {id ident-oracle-disjoint-sites, priority 3, derived_at 2026-11-04T23:38:41.404888Z}
     {id ident-oracle-load-flake, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id identifier-bypass-surfaces, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
@@ -737,6 +747,7 @@ derived_priorities (
     {id napi-statements, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
     {id napi-values, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id napi.abort-race-all, priority 1, derived_at 2026-11-05T02:15:29.773078Z}
+    {id napi.entity-busy-race, priority 3, derived_at 2026-11-05T14:14:15.598156Z}
     {id nested-source-from-entry, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id nopanic.codegen-gate, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
     {id nopanic.connect-builders, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
@@ -3094,6 +3105,15 @@ impl_evidence (
         {impl_name main, rule error.model.decode-refusal}
     ), rule_versions_seen (
         {id error.model.decode-refusal, version 0}
+    )}
+    {id guide.rust, covered_rules (
+        guide.chapters
+        guide.examples
+        guide.rust
+    ), covered_claims (
+        {impl_name main, rule guide.chapters}
+        {impl_name main, rule guide.examples}
+        {impl_name main, rule guide.rust}
     )}
 )
 

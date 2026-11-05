@@ -1,36 +1,55 @@
 # pgorm
 
-A fork of [SeaORM](https://github.com/SeaQL/sea-orm) focused entirely on Postgres support.
+pgorm is an async ORM for PostgreSQL, and for PostgreSQL alone. You declare
+each table as a Rust type, and pgorm reads and writes it with SQL it builds
+for you: every value bound as a parameter, never pasted into the SQL, and
+each statement prepared and cached per connection. Where the types can say
+so, a statement PostgreSQL would refuse does not compile. It runs on [tokio-postgres](https://docs.rs/tokio-postgres) and a
+[deadpool](https://docs.rs/deadpool) pool, and targets PostgreSQL 18 (or 19,
+with the `pg-19` feature).
 
-Porting an application from SeaORM? [Coming from SeaORM](COMING_FROM_SEAORM.md) maps every
-removed or renamed API to its replacement. The same guide is the `pgorm::coming_from_seaorm`
-page of the API documentation, whose search also finds each old name: searching
-`find_also_related` leads to `related_maybe`.
+Because it serves one database, pgorm offers what PostgreSQL has: `RETURNING`
+on every write, `ON CONFLICT` and `MERGE`, `COPY` in and out, `LISTEN` and
+`NOTIFY`, enums, domains, arrays, JSON, ranges and multiranges, and
+PostgreSQL 18's virtual generated columns and temporal keys. Beside the ORM
+it has a typed SQL builder, a PRQL-shaped pipeline for composing queries,
+compile-time checking of raw SQL against PostgreSQL's own grammar, entities
+stored as a base table plus a table per kind, an opt-in metrics layer, a
+forward-only migration runner and an entity generator. Python and JavaScript
+bindings wrap the same crate.
 
-## Primary differences with SeaORM
+## Documentation
 
-- Supports ONLY Postgres; the test suite runs against PostgreSQL 18 and no older release. The `pg-19`
-  feature targets PostgreSQL 19 instead: it adds what only 19 accepts, and its test suite runs
-  against a 19 server
-- Uses deadpool for the database pool
-- Uses tokio-postgres for the Postgres engine (i.e. no sqlx functionality)
-- More effective use of statements (you pass the arguments with the statement so it is prepared properly)
-- All Postgres-specific functionality is expected to be present
-- Significant performance and stability gains
-- Invalid SQL is a compile error where the type system can make it one: the
-  query and DDL builders refuse to construct statements PostgreSQL would
-  reject, and the render paths do not panic
-- Every rendered statement in the test suite is validated against the real
-  PostgreSQL grammar via libpg_query; the same parser backs the optional
-  `sql!` macro (compile-time checking of raw SQL) and query fingerprinting
-  in the metrics layer
-- Pared-back migrations: `pgorm-migration` is a minimal up-only runner with no down migrations or rollback
-- Scoped transactions
-- Opt-in metrics layer in `pgorm::metric` — wrap a pool to instrument it, pay nothing if you don't (see [METRICS.md](METRICS.md))
-- `set(...)` and `From<...>` for ActiveValue fields: `name: set("Apple")` and `name: "Apple".into()`
-  both reach an `ActiveValue<String>`, so a column value needs no `.to_owned()`
-- `pgorm-query` (fork of `sea-query`) is in-tree and all non-Postgres functionality is removed
-- Failsafe behaviour for `insert_many` on an empty iterator
+- **[The guide](docs/guide/README.md)** teaches pgorm from a first query to
+  every feature, and every example in it runs as a test. It is also the
+  `pgorm::guide` module of the API documentation: run `cargo doc --open` and
+  follow `guide`, where the examples read without their test scaffolding and
+  every link resolves.
+- [Coming from SeaORM](COMING_FROM_SEAORM.md) maps each SeaORM API to what
+  replaces it, for porting an application. pgorm began as a fork of SeaORM
+  and keeps its shape: entities, models, active models and relations.
+- The API reference is `cargo doc`.
+
+```toml
+[dependencies]
+pgorm = { git = "https://github.com/necessary-nu/pgorm" }
+```
+
+pgorm depends on forks of two crates, pinned to a git revision, so it is not
+published on crates.io; depend on it by git.
+
+## The repository
+
+| Crate | What it is |
+| --- | --- |
+| `pgorm` | The ORM |
+| `pgorm-query` | The SQL builder, re-exported as `pgorm::pgorm_query` |
+| `pgorm-macros`, `pgorm-sql-macro` | The derives, and the `sql!` and `prql!` macros |
+| `pgorm-pool` | The connection pool |
+| `pgorm-migration` | The migration runner ([guide](docs/guide/21-migrations.md)) |
+| `pgorm-codegen` | Entity generation from DDL ([guide](docs/guide/22-codegen.md)) |
+| `pgorm-python` | The Python package `pgorm` |
+| `pgorm-napi` | The npm package `@necessary/pgorm`, for Node.js and Deno |
 
 ## License
 

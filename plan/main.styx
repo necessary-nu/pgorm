@@ -1656,6 +1656,35 @@ children (
                     }
                 )
             }
+
+            {
+                id signature-types-reexported
+                title "pgorm re-exports every type its public signatures take or return, so a crate depending only on pgorm can name them: Row, RowStream, SqlState, BytesMut and the pool's Runtime, Timeouts, Status and PoolError"
+                kind @feat
+                log (
+                    {
+                        at 2026-11-05T14:39:47.926014Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (reading, errors, configuration and COPY chapters). src/database/mod.rs re-exports Config, IsolationLevel, NoTls, Socket, the TLS traits, ManagerConfig, PoolBuilder, RecyclingMethod, StatementCacheSize and Bytes, but not: tokio_postgres's Row and RowStream (which query_one/query_all and query_raw return), its SqlState (so matching a SQLSTATE outside SqlError's classes compares error.code().map(|s| s.code()) as text), bytes::BytesMut (which CopyRowEncoder's header/trailer/encode take, src/database/copy_rows.rs:266-285), and deadpool's Runtime (every pool timeout needs builder.runtime(..)), Timeouts, QueueMode, Status (which DatabasePool::status and InstrumentedPool::status return) and PoolError. A crate depending only on pgorm cannot name them; the guide names pgorm_pool::Runtime and tokio_postgres::Row directly."
+                    }
+                )
+            }
+
+            {
+                id instrumented-tx-conn-trait
+                title "An instrumented transaction's &mut handle is a ConnectionTrait, as a plain transaction's is"
+                kind @fix
+                deps (tx-closure-only)
+                log (
+                    {
+                        at 2026-11-05T14:39:49.154195Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (metrics chapter). ConnectionTrait is implemented for &mut DatabaseTransaction<'_> (src/database/db_connection.rs:622) but not for &mut InstrumentedTransaction<'_, M> (src/metric/mod.rs), so inside an instrumented transaction closure find().all(&txn) fails E0277 where the plain closure's compiles; the guide passes &*txn and explains why."
+                    }
+                )
+            }
         )
     }
 
@@ -1941,6 +1970,34 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id codegen-error-display
+                title "pgorm-codegen's Error displays its message, not the message's Debug form"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:51.011501Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (codegen chapter). pgorm-codegen/src/error.rs:25-27 formats with {e:?}, so Display shows \"unsupported DDL: SET at statement 1\" with the quotes and inner quotes escaped. The guide matches on Error::TransformError(message) instead of printing."
+                    }
+                )
+            }
+
+            {
+                id codegen-formatted-output
+                title "pgorm-codegen writes formatted, idiomatic Rust, so a generated entity reads as the guide's Entities chapter shows one with no rustfmt step"
+                kind @feat
+                log (
+                    {
+                        at 2026-11-05T14:39:51.325555Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (codegen chapter). Generated files are token text (`# [derive (Clone , Debug ...`), so a user runs rustfmt over them (e.g. prettyplease would format them in-process). Cosmetic, alongside: a column's DEFAULT false is written default_expr = Expr::val(false) where default_value = false is the idiom the Entities chapter teaches."
                     }
                 )
             }
@@ -2536,6 +2593,34 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id inert-features
+                title "pgorm's features each do something: runtime-tokio and pgorm-internal are removed or given a meaning, and debug-print says what it gates"
+                kind @chore
+                log (
+                    {
+                        at 2026-11-05T14:15:36.450828Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (getting started chapter). Cargo.toml declares runtime-tokio (on by default) and pgorm-internal, which no cfg reads anywhere in the workspace, and debug-print, which gates only the exported debug_print! macro (src/util.rs:16) that pgorm itself never calls. The guide's feature table leaves all three out. Remove them (and from package.metadata.docs.rs and the self dev-dependency), or give each a meaning and document it."
+                    }
+                )
+            }
+
+            {
+                id retire-try-from-u64
+                title "TryFromU64 and Error::ConvertFromU64, which nothing in pgorm calls, are retired"
+                kind @refactor
+                log (
+                    {
+                        at 2026-11-05T14:39:48.842374Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (errors chapter). TryFromU64 is a bound on PrimaryKeyTrait::ValueType (src/entity/primary_key.rs:22) and implemented throughout (src/executor/query.rs:851, active_enum.rs:221, query_range.rs:153/162), but nothing in pgorm calls try_from_u64, so Error::ConvertFromU64 is produced only if a caller invokes the trait itself: a SeaORM leftover (last_insert_id) the error taxonomy still lists. Remove the trait, its bound and the variant, or say what reaches it."
                     }
                 )
             }
@@ -4121,6 +4206,91 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id func-aggregate-expr-methods
+                title "A Func call and a column aggregate are expressions in their own right: projected, read into a partial model and compared in having() without an Expr::expr wrapper"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:47.044764Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (reading and query-builder chapters). IntoSimpleExpr has no impl for FunctionCall (src/query/select.rs:130-150), so PartialModel's from_expr = Func::upper(..) and column_as(Func::..(..), alias) do not compile without Expr::expr(..). The ColumnTrait aggregates (count, max, ...) and what cast_as or a function call returns are SimpleExpr, which lacks Expr's comparison and operator methods: having(Column::Id.count().gt(2)) does not compile, and the error is misleading (\"SimpleExpr is not an iterator\", Iterator::lt being what matches). The guide (04-reading.md, 10-query-builder.md) writes Expr::expr(..).gt(2) and says why."
+                    }
+                )
+            }
+
+            {
+                id decoded-selector-renders
+                title "A decoded Selector renders its statement, as the Select it came from does"
+                kind @feat
+                log (
+                    {
+                        at 2026-11-05T14:39:47.584484Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (reading chapter). After into_tuple, into_model, into_values or into_partial_model a Selector has no build() or as_query(), so the SQL it will run cannot be asserted or logged; the guide imports PartialModelTrait (not in the prelude) and calls select_cols on the Select instead."
+                    }
+                )
+            }
+
+            {
+                id savepoint-error-composes
+                title "A savepoint's TransactionError converts into its enclosing closure's error, so ? works on a nested transaction"
+                kind @feat
+                deps (tx-closure-only)
+                log (
+                    {
+                        at 2026-11-05T14:39:48.247913Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (transactions chapter). TransactionTrait::transaction on a DatabaseTransaction (a savepoint) returns Result<T, TransactionError<E>>, while the enclosing closure returns Result<_, E>, and no From connects them (src/database/transaction.rs), so ? on a nested savepoint needs a hand-written map_err over the variants. The guide inspects is_err() instead."
+                    }
+                )
+            }
+
+            {
+                id membership-takes-str
+                title "eq_any and ne_all take string slices, as eq does"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:50.083734Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (values chapter). eq_any and ne_all bound their items on V: ValueType (src/entity/column.rs:524), so eq_any([\"a\", \"b\"]) is E0277 while eq(\"a\") compiles; the guide's examples use Strings. Related, as a note only: eq takes any Into<Value> rather than the column's own type, so Days.eq(0b111_1111) on an i64 field binds int4."
+                    }
+                )
+            }
+
+            {
+                id value-type-try-from-collision
+                title "ValueType's conversion from a Value does not collide with TryFrom::try_from when the prelude is in scope"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:50.394533Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (values chapter). With pgorm::entity::prelude::* in scope, Decimal::try_from(value) is E0034 (ambiguous between pgorm_query::ValueType::try_from and std's TryFrom::try_from, which the 2021+ prelude brings), so the guide writes <Decimal as ValueType>::try_from(..). Rename the ValueType method (e.g. try_from_value) or keep the trait out of the prelude."
+                    }
+                )
+            }
+
+            {
+                id like-pattern-from-text
+                title "LikeExpr builds a pattern from literal text with its wildcards escaped, as contains and starts_with do"
+                kind @feat
+                log (
+                    {
+                        at 2026-11-05T14:39:52.582937Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (query-builder chapter). escape_like_text (src/entity/column_def.rs:55) is crate-private, used only by the ORM's contains, starts_with and ends_with, so a pgorm-query LIKE over user text has no way to escape its % and _ short of writing the escaping by hand."
                     }
                 )
             }
@@ -10072,6 +10242,20 @@ children (
                     }
                 )
             }
+
+            {
+                id template-static-text
+                title "Expr::template takes its SQL as program text, a &'static str, as cast_as_raw and TypeName::raw do"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:52.24982Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (query-builder chapter). Expr::template takes its SQL as impl Into<String> (pgorm-query/src/expr.rs:403), so text built at run time can become SQL, where cast_as_raw and TypeName::raw require &'static str to rule exactly that out. The guide tells readers the template text must be written in the program."
+                    }
+                )
+            }
         )
     }
 
@@ -10337,6 +10521,62 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id runtime-entity-name-per-query
+                title "A statement on an entity whose names are computed at run time can take the names from an instance, not only from Entity::default()"
+                kind @feat
+                log (
+                    {
+                        at 2026-11-05T14:15:36.274983Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (entities chapter). An entity whose table or schema is computed at run time (hand-written Entity struct + EntityTrait derive + EntityName) names its table through `E::default().table_ref()` in every statement (src/query/select.rs:329, src/query/insert.rs:263, and the other builders), so the instance's fields are never consulted per query: a per-tenant or per-request schema cannot be chosen at the call site, only through Default (a OnceLock or thread-local, as tests/identifier_oracle/fixtures.rs does). COMING_FROM_SEAORM.md's example derives Default on `Entity { tenant: &'static str }`, whose default schema is the empty string. Decide whether find()/Insert/Update/Delete/graph take an entity instance (e.g. `Select::for_entity(e)`), or say in EntityName's docs that names come from Default. The guide shows the Default form."
+                    }
+                )
+            }
+
+            {
+                id raw-entry-points-one-shape
+                title "The raw-statement entry points take one argument shape and ask for no type they ignore"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:48.550311Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (raw SQL chapter). SelectorRaw's from_statement, into_tuple and with_columns sit on impl<S: SelectorTrait> SelectorRaw<S> (src/executor/select.rs ~647/682/695), so a call names a selector type the constructor then ignores: SelectorRaw::<SelectGetableTuple<(i32, String)>>::into_tuple::<(i32, String)>(..). And the raw entry points take different argument shapes: FromQueryResult::find_by_statement takes impl Into<String>, Vec<Value> (src/entity/model.rs:202) where Select::from_raw_sql and SelectorRaw::from_statement take String, Values. The guide steers readers to DecodeRaw on a (sql, values) pair."
+                    }
+                )
+            }
+
+            {
+                id multi-pool-constructor
+                title "connect_multi_with_builder returns a DatabaseMultiPool, or the public type with no constructor goes"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:49.469135Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (configuration chapter). DatabaseMultiPool (src/database/db_connection.rs:116) is public, with get and status, but nothing constructs it: connect_multi_with_builder returns BTreeMap<Arc<String>, DatabasePool>. The guide documents the map and leaves the type out."
+                    }
+                )
+            }
+
+            {
+                id pipeline-model-read-casts
+                title "Pipeline terminals decode an entity's Model with its read casts, so a model with an enum column decodes"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:51.620981Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (pipeline chapter). Pipeline::from(cake::Entity).all::<cake::Model>(&db) fails WrongType on the flavor enum column: all, one, one_opt and into_model decode from SELECT * without the read casts select_sources applies (src/pipeline/terminal.rs), so the server sends the enum where the model reads text. The guide steers model reads to select_sources and says why."
                     }
                 )
             }
@@ -16505,6 +16745,21 @@ children (
                     }
                 )
             }
+
+            {
+                id derives.into-active-model-forms
+                title "A form derives IntoActiveModel from any crate, names its active model by path, and carries any column type"
+                kind @fix
+                deps (derives.paths)
+                log (
+                    {
+                        at 2026-11-05T14:15:36.020114Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (entities chapter). Three gaps in #[derive(IntoActiveModel)]: (1) derived in a crate other than its entity's, it fails E0119 against the Entity derive's `impl IntoActiveModel<ActiveModel> for <Entity as EntityTrait>::Model` (pgorm-macros/src/derives/active_model.rs:92; the impl header names the projection rather than `Model`, and coherence across crates does not see past it), so a form cannot live beside the handler that uses it; (2) `#[pgorm(active_model = ..)]` parses a bare syn::Ident (derives/into_active_model.rs:11), not a path, unlike every other code-valued key (macros.derive.code-values), so `active_model = customer::ActiveModel` is a parse error; (3) IntoActiveValue is implemented only for the primitive types in src/entity/active_model.rs:593-640, not for ActiveEnum, ValueType, JsonValueType or CreatedRange types, so a form field of any of those does not compile. The guide (docs/guide/02-entities.md) shows a form beside its entity with String fields."
+                    }
+                )
+            }
         )
         log (
             {
@@ -16949,6 +17204,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id disjoint.change-replays
+                title "A disjoint kind change is frozen into its migration when it is made, so a fresh database replays the history"
+                kind @feat
+                log (
+                    {
+                        at 2026-11-05T14:39:50.709396Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (disjoint chapter). Schema::add_disjoint_kind and the other kind changes compute their steps from the current declaration, and so does create_disjoint; a migration history written by calling them at migration time cannot replay on a fresh database, since the first migration's create_disjoint (built from today's code) already holds the kind a later migration adds, and the add fails. The guide tells users to keep each change's statements as SQL text in its migration. Possible shape: pgorm-migration writes a DisjointChange's steps out as SQL-file migrations, freezing them when the change is made."
                     }
                 )
             }
@@ -18003,6 +18272,20 @@ children (
                     }
                 )
             }
+
+            {
+                id typed-binds.polymorphic-operands
+                title "A bound array, range or scalar carries its type where an overloaded operator or polymorphic function reads it, outside a cast too"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:51.928067Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (query-builder chapter). Func::unnest(Expr::val(vec![..])) and Expr::val(Range).contains(col) fail 42725 (function/operator is not unique): the bound value's type ($1::int4[], $1::tstzrange) is attached only inside cast_as. A bound integer added to a date (day + $1) fails the same way. The guide shows the casts and explains them."
+                    }
+                )
+            }
         )
     }
 
@@ -18102,6 +18385,20 @@ children (
                     }
                 )
             }
+
+            {
+                id value-codecs.model-decimal-exact
+                title "A model's Decimal field reads numeric through ExactDecimal, refusing what it cannot hold exactly, as COPY rows and the bindings do"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-05T14:39:49.773788Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by guide.rust (values chapter). TryGetable for Decimal (src/executor/query.rs:324) uses rust_decimal's own FromSql, which rounds a numeric past 28 fractional digits (as ExactDecimal's doc says, src/executor/exact_decimal.rs:10-14), while COPY rows (src/database/copy_rows.rs:663), created ranges and the bindings refuse such a value through ExactDecimal, so find() and a binary COPY of one column disagree. The guide advises a precision and scale that fit."
+                    }
+                )
+            }
         )
     }
 
@@ -18166,17 +18463,26 @@ children (
             {
                 id guide.rust
                 title "The Rust user guide teaches all of pgorm from a first query on, every example a doctest"
+                implements {
+                    main ([spec:pgorm:req:guide.rust] [spec:pgorm:req:guide.examples] [spec:pgorm:req:guide.chapters])
+                }
             }
 
             {
                 id guide.python
                 title "The Python guide is the Rust guide's dialect: the same chapters in Python, every example run against a server"
+                implements {
+                    python ([spec:pgorm:req:guide.dialects])
+                }
                 deps (guide.rust binding-parity)
             }
 
             {
                 id guide.javascript
                 title "The JavaScript guide is the Rust guide's dialect: the same chapters in JavaScript, every example run in Node.js and Deno"
+                implements {
+                    javascript ([spec:pgorm:req:guide.dialects])
+                }
                 deps (guide.rust binding-parity)
             }
         )

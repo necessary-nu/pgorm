@@ -30,11 +30,14 @@ pgorm is a fork of SeaORM focused entirely on PostgreSQL support. It uses tokio-
 - `pgorm-pool` - Database connection pool (vendored deadpool-postgres fork)
 - `pgorm-query` - SQL query builder (fork of sea-query, PostgreSQL-only), with its own `pgorm-query-attr`, `pgorm-query-derive` and `pgorm-query-derive-internals` members; the last is an ordinary library holding the `SqlName`/`StaticName` expansion, which pgorm-query-derive (naming `pgorm_query::`) and pgorm-macros (naming `pgorm::pgorm_query::`, so a crate depending only on pgorm can derive them) share
 - `pgorm-test-support` - Unpublished test infrastructure: the run-scoped names live tests give their databases and roles, and the sweep of crashed runs' leftovers. It talks to the server through tokio-postgres and does not depend on pgorm, so pgorm's tests see one copy of pgorm's types
+- `pgorm-guide-support` - Unpublished doctest support for the user guide: the bakery entities every chapter's examples share, and `Scratch`, the scratch database (scoped name, schema, seed rows) each runnable example opens in its hidden lines and drops with `finish()`. A dev-dependency of pgorm; doctests link the library itself, so its pgorm is the examples' pgorm
 - `pgorm-sql-macro` - The `sql!` and `prql!` macros, both always in scope (`pgorm::sql`, `pgorm::prql`; there is no gating feature). `sql!` holds a raw SQL string literal to the real PostgreSQL grammar (libpg_query) at compile time; `prql!` compiles PRQL text through prqlc at build time, validates the emitted SQL the same way, and arity-checks its `$N` placeholders against the macro arguments, expanding to `(&'static str, pgorm::Values)`
 
 `pgorm::pipeline` (in-crate module, always compiled) is a PRQL-shaped composable query frontend: relation-to-relation transforms compiled through prqlc's PL AST to PostgreSQL SQL, with bound parameters minted by a per-pipeline binder (branded lifetimes make cross-pipeline placeholder mixing a compile error) and terminals landing on the ordinary decode paths. prqlc (pure Rust) is a plain dependency, pinned to one revision of the necessary-nu fork (`prqlc = { git, rev }`); pg_query is pinned the same way to its fork.
 
 Two dependencies are git forks pinned by exact rev, because a `[patch]` table reaches only the workspace declaring it: prqlc (`necessary-nu/prql`) and pg_query (`necessary-nu/pg_query.rs`, branch `pgorm/postgres-18`: upstream's unreleased 18.0.0 on libpg_query 18.1.0, so every parse in pgorm uses PostgreSQL 18.6's grammar). Each is declared at the same rev in every manifest that names it, allowed in `deny.toml`'s `allow-git`, and held there, with every committed lockfile including the detached workspaces under `security/` and `pgorm-python/`, by `tests/fork_pin_tests.rs`. Moving a fork's rev means editing every declaration and re-resolving every lockfile (`cargo metadata --manifest-path <dir>/Cargo.toml` re-locks one minimally). crates.io refuses git dependencies, so pgorm is not publishable there while they stand.
+
+The user guide is `docs/guide/`: one markdown file per chapter, listed in reading order by `docs/guide/chapters.json` (the list the Python and JavaScript guides are held to) and included by `src/guide.rs` as the empty modules of `pgorm::guide`, so rustdoc renders it and runs every example as a pgorm doctest (`cargo test --doc -p pgorm guide`, or `guide::<chapter>`). `tests/guide_tests.rs` holds the list, the modules, the index and the examples' shape to each other; the rules are `docs/spec/guide.md`. A feature pgorm adds arrives in the guide with it.
 
 There is no CLI crate: the inherited `pgorm-cli` was retired (it targeted sqlx/sea-schema and a migration surface this fork dropped). Entity generation is available as a library through `pgorm-codegen`; a starter migration-crate template lives at `pgorm-migration/template/migration/`.
 
@@ -105,7 +108,7 @@ The naming and the sweep live once, in the `pgorm-test-support` crate, which pgo
 
 ### Observability and Metrics
 
-pgorm ships an opt-in metrics layer in `pgorm::metric` — see [METRICS.md](METRICS.md) for the full guide. The core types (`DatabasePool`, `DatabaseConnection`, `DatabaseTransaction`) carry no metrics hooks; instrumentation lives only in wrapper types the application chooses to construct, so unwrapped code pays nothing.
+pgorm ships an opt-in metrics layer in `pgorm::metric` — the guide's Metrics chapter ([docs/guide/20-metrics.md](docs/guide/20-metrics.md)) covers it in full. The core types (`DatabasePool`, `DatabaseConnection`, `DatabaseTransaction`) carry no metrics hooks; instrumentation lives only in wrapper types the application chooses to construct, so unwrapped code pays nothing.
 
 ```rust
 use pgorm::metric::{InstrumentedPool, LoggingMetrics};

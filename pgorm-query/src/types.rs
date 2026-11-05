@@ -1119,12 +1119,12 @@ impl LikeExpr {
     /// let query = Query::select()
     ///     .column(Glyph::Image)
     ///     .from(Glyph::Table)
-    ///     .and_where(Expr::col(Glyph::Image).like(LikeExpr::new(r"a").no_escape()))
+    ///     .and_where(Expr::col(Glyph::Image).like(LikeExpr::new(r"a\b").no_escape()))
     ///     .to_owned();
     ///
     /// assert_eq!(
     ///     query.to_string(),
-    ///     r#"SELECT "image" FROM "glyph" WHERE "image" LIKE E'a\b' ESCAPE ''"#
+    ///     r#"SELECT "image" FROM "glyph" WHERE "image" LIKE E'a\\b' ESCAPE ''"#
     /// );
     /// ```
     // [spec:pgorm:req:sql.ast.expr.similar-to+1]
