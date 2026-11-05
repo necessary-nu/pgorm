@@ -10,7 +10,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from .. import _native as p
-from .record import Database, Row, Source, decode_all
+from .record import Database, Decode, Row, decode_all
 
 if TYPE_CHECKING:
     from .model import Model
@@ -35,16 +35,18 @@ def _rows(value: object, what: str) -> int:
 class Keyed:
     """What a cursor pages over: the statement it composes with an ordering,
     further conditions and a limit; the query's own limit, which a window
-    replaces; the sources its rows decode as; its order columns; and the
-    tiebreaks after them."""
+    replaces; how its rows decode; its order columns; the tiebreaks after
+    them; and each model the query reads, with the name its table answers
+    to, which a secondary ordering may name."""
 
     build: Callable[
         [tuple[p.OrderBy, ...], tuple[p.Expr | p.Condition, ...], int | None], p.Select
     ]
     limit: int | None
-    sources: tuple[Source, ...]
+    sources: Decode
     order: tuple[KeyColumn, ...]
     tiebreaks: tuple[KeyColumn, ...]
+    tables: tuple[tuple[Model, str], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +82,33 @@ class Cursor:
             model.columns[field]._value(value)
             for (model, _, field), value in zip(keyset, values)
         )
+
+    # [spec:pgorm:req:bindings.cursor-secondary-order]
+    def add_secondary_order_by(self, model: Model, field: str) -> Cursor:
+        """The cursor ordered by ``field`` of ``model`` after its key and the
+        entries before it: a column of the queried model or a table it
+        joined, ``model`` named as the query names it, its alias included, as
+        Rust's ``add_secondary_order_by(table, column)``. ``after`` and
+        ``before`` still take the key alone, so they skip every row sharing
+        the boundary's key; ``after_with`` and ``before_with`` take the whole
+        ordering and resume from exactly one row."""
+        from .model import Model
+        from .relations import same_table
+
+        if not isinstance(model, Model):
+            raise TypeError("a secondary ordering names a Model and one of its fields")
+        name = model.col(field).field_name
+        read = any(
+            same_table(table, model) and qualifier == model.qualifier
+            for table, qualifier in self.keyed.tables
+        )
+        if not read:
+            raise p.ConstructionError(
+                f"the cursor's query reads no table named {model.qualifier}"
+            )
+        keyed = self.keyed
+        entry = (model, model.qualifier, name)
+        return replace(self, keyed=replace(keyed, tiebreaks=(*keyed.tiebreaks, entry)))
 
     def after(self, *values: Any) -> Cursor:
         """Rows past the one whose order-field values these are."""
@@ -163,11 +192,11 @@ class Cursor:
 @dataclass(frozen=True, slots=True)
 class Pageable:
     """What a paginator pages: the statement of one page, the statement whose
-    rows it counts, and the sources each row decodes as."""
+    rows it counts, and how each row decodes."""
 
     page: Callable[[int, int], p.Select]
     counted: p.Select
-    sources: tuple[Source, ...]
+    sources: Decode
 
 
 # [spec:pgorm:req:bindings.pagination]

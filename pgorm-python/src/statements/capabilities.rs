@@ -92,6 +92,10 @@ pub(crate) fn operations() -> Map<String, Value> {
         ),
         ("select.distinct", "pgorm_query::SelectStatement::distinct"),
         (
+            "select.distinct_on",
+            "pgorm_query::SelectStatement::distinct_on",
+        ),
+        (
             "select.window",
             "pgorm_query::SelectStatement::{window, check_windows}",
         ),

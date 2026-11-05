@@ -304,7 +304,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(p.ConstructionError, "starts at post_tag, which the query does not read"):
             Account.find().join(tag_of)
         with self.assertRaises(TypeError):
-            Post.find().join(author, kind=p.Join.Full)
+            Post.find().join(author, kind="full")  # type: ignore[arg-type]
         async with await Account.find().order_by(by_account).stream(self.pool) as rows:
             self.assertEqual([row["name"] async for row in rows], ["Ann", "Bob", "Cy"])
         async with self.pool.transaction() as transaction:

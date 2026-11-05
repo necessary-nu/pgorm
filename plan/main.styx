@@ -13280,19 +13280,76 @@ children (
                     {
                         id napi.guide-gaps.model-query-clauses
                         title "A model query takes DISTINCT and DISTINCT ON, GROUP BY with HAVING and aggregate projections (count, sum, min, max, column_as/expr_as), and FOR UPDATE / FOR SHARE locks with NOWAIT or SKIP LOCKED, still decoding typed rows, as Rust's Select::distinct, distinct_on, group_by, having and lock_with_behavior do (guide 05-reading)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.model-clauses] [spec:pgorm:req:bindings.distinct-on])
+                            python ([spec:pgorm:req:bindings.model-clauses] [spec:pgorm:req:bindings.distinct-on])
+                        }
                         deps (napi-models guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T18:49:32.257721Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:46:24.853212Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built with guide.python-gaps.model-select in one shape (see its decision note). JS: distinct(), distinctOn(...columns), groupBy(...), having(..), lock(strength, { wait, of }) (the statement builder's lock), join(rel, { kind: \"inner\"|\"left\"|\"right\"|\"full\" }), joinRev(rel, ..), on ModelQuery and ModelProjection through one shared Clauses base (lib/model-clauses.js); aggregates project through exprAs(call(\"count\", ..), name, column(\"i64\")). To let the query modules build on Clauses without an import cycle, a relation's parts moved to lib/relation-parts.js (relations.js re-exports relationOn and shapesOf)."
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.model-expression-shape
                         title "A declared read shape holds expressions and skipped fields beside a model's columns, selected and decoded together, as Rust's PartialModel from_expr, from_col and skip do (guide 05-reading)"
-                        deps (napi-models guide.javascript)
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.partial-models])
+                            python ([spec:pgorm:req:bindings.partial-models])
+                        }
+                        deps (napi-models guide.javascript guide.python-gaps.partial-model-skip)
+                        log (
+                            {
+                                at 2026-11-05T18:49:33.31256Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:46:23.412325Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "PartialModel(model, {field: ModelColumn | FromExpr(expr, Column) | Skip(value)}) in Python; partialModel(model, {..}) with fromExpr(expr, column(..)) and skip(value) in JavaScript; ModelQuery.into_partial_model(shape) / intoPartialModel(shape) gives a ModelSelector whose rows are a read-only mapping (Python) or a plain object (JS) of the shape's fields in declaration order. A model column is Rust's from_col (a field named for its column being Rust's plain field), aliased where the field is not the column's name, as Rust's select_cols writes it. Skip holds the program's value, Rust's skip taking the type's Default. Found and fixed in Rust on the way: the PartialModel derive accepted `skip` but still projected the same-named column (compile error when the entity has none, a wasted column otherwise); macros.derive.partial-model bumped to +6 (skip selects nothing, and needs no entity). Filed as guide.python-gaps.partial-model-skip."
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.cursor-secondary-order
                         title "A model query's cursor takes a secondary ordering after its key, so after() skips a whole run of one key while afterWith() resumes inside it, as Rust's Cursor::add_secondary_order_by and after_with do (guide 06-pagination)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.cursor-secondary-order])
+                            python ([spec:pgorm:req:bindings.cursor-secondary-order])
+                        }
                         deps (napi-models guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T18:49:33.973141Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:46:24.258743Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Cursor.addSecondaryOrderBy(model, field) (Python add_secondary_order_by), Rust's add_secondary_order_by(table, column): the model names the table as the query names it, its alias included, and must be the queried model or one the query joined (ConstructionError otherwise); the field's declared kind converts its boundary value. It appends a tiebreak after the key and the entries before it, so after()/before() take the key alone and afterWith()/beforeWith() the whole ordering (the bindings' existing keyset logic). Graph cursors take it too, appended after the graph's own key tiebreaks. A selector's cursor (a projection read into tuples or objects) takes it the same way. This also gives a cursor ordered by a joined table's column, as a secondary entry."
+                            }
+                        )
                     }
 
                     {
@@ -19242,7 +19299,19 @@ children (
                     {
                         id guide.python-gaps.model-select
                         title "A declared model's query has the entity Select's projections and clauses: select_only with columns, column_as and expr_as decoded through into_tuple, into_model and into_values; PartialModel's from_expr; distinct and distinct_on (DISTINCT ON in the statement builder too); group_by, having and aggregates; lock_exclusive, lock_shared and lock_with_behavior; right and reverse joins and a joined table's columns; Condition::add_option"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.model-projections] [spec:pgorm:req:bindings.condition-option])
+                            python ([spec:pgorm:req:bindings.model-projections] [spec:pgorm:req:bindings.condition-option])
+                        }
                         deps (python.models)
+                        log (
+                            {
+                                at 2026-11-05T19:46:22.233293Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Shape, shared by both bindings (built in one worktree, the queries fork of the model-ddl lane). (1) Clauses on a model query and its projection: distinct, distinct_on(columns), group_by, having, lock(strength, wait=, of=) — the statement builder's lock spelling stands for Rust's lock/lock_shared/lock_exclusive/lock_with_behavior, no second vocabulary; join(kind=Inner|Left|Right|Full) and join_rev(relation) = Rust join_rev (relation's condition as it stands). (2) Projections: select_only() -> ModelProjection; column/columns/column_as/expr_as(expr, name, Column decl) -> into_tuple/into_values(*names)/into_model(target) -> ModelSelector (Rust Selector) with all/one/optional/stream/count/cursor/paginate; ModelQuery has the item and into_* methods directly, seeded with its fields. An expression's type is stated by its Column declaration, where Rust states it in into_tuple's tuple type; no column aggregate methods (call(\"count\", ..) is the aggregate; Expr-level count/sum belongs to the expressions area). Python into_model(target) calls target(**row) (a dataclass, dict); JS intoModel(make?) gives the row object or make(row). Item key = field name; result column follows each binding's ModelQuery (Python field name, JS SQL name). (3) Condition.add_option built in both bindings as Rust's add_option, not left as a stated difference: it is Rust's API and costs one method. (4) Python's cursor secondary ordering has no node of its own and is built under this node, mirroring napi.guide-gaps.cursor-secondary-order: Cursor.add_secondary_order_by(model, field), Rust's (table, column), the model naming the table (alias included). Statement builder Select.distinct_on(*columns) added in both (columns only, as Rust's IntoColumnRef). Every new SQL shape is held to a Rust oracle: pgorm-napi/src/models/parity.rs builds it with pgorm's entity Select/PartialModel/Cursor into tests/parity/models.json, which both bindings' parity suites read."
+                            }
+                        )
                     }
 
                     {
@@ -19451,6 +19520,27 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @status
                                 text "Doing → Done (nplan complete)"
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.partial-model-skip
+                        title "A PartialModel field marked skip selects nothing, as the guide says: the derive accepted `skip` but still projected the same-named column, a compile error where the entity has none and a wasted column otherwise (found building the bindings' partial models)"
+                        kind @fix
+                        log (
+                            {
+                                at 2026-11-05T19:47:03.809046Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:47:03.809046Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "single-flight overridden: started while guide.python-gaps.model-select had uncommitted WIP"
                             }
                         )
                     }

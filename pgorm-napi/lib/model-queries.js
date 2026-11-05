@@ -1,98 +1,27 @@
 // @ts-check
 
-// A model's reads: a SELECT of its fields, filtered, ordered, limited and
-// joined along its relations, run through terminals that decode each row
-// into a record of the model's fields.
+// A model's reads: a SELECT of its fields, filtered, ordered, limited,
+// grouped, locked and joined along its relations, run through terminals that
+// decode each row into a record of the model's fields, or chosen into a
+// projection.
 // [spec:pgorm:req:bindings.model-reads]
 
-import { arg, TRUSTED } from "./builder.js";
-import { Condition } from "./conditions.js";
-import { ConstructionError } from "./errors.js";
-import { Expr, OrderBy } from "./expressions.js";
-import { cursorOver, paginatorOver } from "./cursors.js";
+import { Clauses, countOf, keyedCursor, pagesOf, recipeOf, selectOf, sourcesOf } from "./model-clauses.js";
 import { decodeAll, decodeCount, decodeOne, decodeOptional, decodeStream } from "./model-decode.js";
-import { fieldOf, projected, qualified, sameTable } from "./model-shape.js";
-import { native } from "./operations.js";
-import { relationOn, shapesOf } from "./relations.js";
-import { Select, select } from "./select.js";
+import { partialSelector, projectionOf } from "./model-projections.js";
+import { projected, qualified } from "./model-shape.js";
 
 /** Marks a construction from within the module. */
 const MADE = Symbol("pgorm-napi model query");
 
-/**
- * What a model query reads and how: the fields it selects, the tables it
- * joins, its conditions, ordering and window.
- *
- * @typedef {object} Recipe
- * @property {import("./model-shape.js").Shape} shape
- * @property {readonly import("./model-shape.js").Field[]} fields
- * @property {readonly { table: import("./select.js").Table, on: Expr | Condition, kind: "inner" | "left", shape: import("./model-shape.js").Shape, qualifier: string }[]} joins
- * @property {readonly (Expr | Condition)[]} wheres
- * @property {readonly OrderBy[]} orders
- * @property {number | bigint | null} limit
- * @property {number | bigint | null} offset
- */
-
-/**
- * @param {unknown} predicate
- * @returns {Expr | Condition}
- */
-export function predicateOf(predicate) {
-  if (!(predicate instanceof Expr) && !(predicate instanceof Condition)) {
-    throw new TypeError("a condition is an expression or a Condition");
-  }
-  return predicate;
-}
-
-/**
- * @param {readonly unknown[]} orderings
- * @returns {OrderBy[]}
- */
-export function orderingsOf(orderings) {
-  return orderings.map((ordering) => {
-    if (!(ordering instanceof OrderBy)) throw new TypeError("an ordering is expr.asc() or expr.desc()");
-    return ordering;
-  });
-}
-
-/**
- * The SELECT a recipe reads, its ordering and window those given.
- *
- * @param {Recipe} recipe
- * @param {readonly OrderBy[]} orders
- * @param {readonly (Expr | Condition)[]} wheres
- * @param {number | bigint | null} limit
- * @returns {Select}
- */
-export function selectOf(recipe, orders = recipe.orders, wheres = recipe.wheres, limit = recipe.limit) {
-  const { shape } = recipe;
-  const projection = recipe.fields.map((field) => projected(field, qualified(field, shape.qualifier), field.sql));
-  let query = select(...projection).from(shape.table);
-  for (const join of recipe.joins) query = query.join(join.table, join.on, { kind: join.kind });
-  for (const where of wheres) query = query.where(where);
-  if (orders.length > 0) query = query.orderBy(...orders);
-  if (limit !== null) query = query.limit(limit);
-  if (recipe.offset !== null) query = query.offset(recipe.offset);
-  return query;
-}
-
-/**
- * The source a recipe's rows decode as: its fields, under their own names.
- *
- * @param {Recipe} recipe
- * @returns {import("./model-decode.js").Source[]}
- */
-export function sourcesOf(recipe) {
-  return [{ fields: recipe.fields, names: recipe.fields.map((field) => field.sql), optional: false }];
-}
+/** @typedef {import("./model-clauses.js").Recipe} Recipe */
+/** @typedef {import("./select.js").Select} Select */
 
 /**
  * A model's SELECT: every method returns a new query, and the terminals
  * decode each row into a record of the fields it selects.
  */
-export class ModelQuery {
-  /** @type {Recipe} */
-  #recipe;
+export class ModelQuery extends Clauses {
   /** @type {Select} */
   #statement;
 
@@ -102,13 +31,8 @@ export class ModelQuery {
    */
   constructor(recipe, token) {
     if (token !== MADE) throw new TypeError("a ModelQuery comes from a model's find() or select()");
-    this.#recipe = Object.freeze(recipe);
+    super(recipe, (changed) => new ModelQuery(changed, MADE));
     this.#statement = selectOf(recipe);
-  }
-
-  /** @param {Partial<Recipe>} change */
-  #with(change) {
-    return new ModelQuery({ ...this.#recipe, ...change }, MADE);
   }
 
   /** The SELECT it runs. */
@@ -127,50 +51,71 @@ export class ModelQuery {
     throw new TypeError('a model query inspects itself, or its "count"');
   }
 
+  /** A projection of no items yet, the query's clauses kept: Rust's `select_only`. */
+  selectOnly() {
+    return projectionOf({ ...recipeOf(this), items: [] });
+  }
+
+  /** A projection of the fields the query selects, each projected as the query projects it. */
+  #projection() {
+    const recipe = recipeOf(this);
+    const items = recipe.fields.map((field) => ({
+      field,
+      projected: projected(field, qualified(field, recipe.shape.qualifier), field.sql),
+    }));
+    return projectionOf({ ...recipe, items });
+  }
+
+  /** @param {unknown} column */
+  column(column) {
+    return this.#projection().column(column);
+  }
+
+  /** @param {...unknown} columns */
+  columns(...columns) {
+    return this.#projection().columns(...columns);
+  }
+
   /**
-   * Rows that also satisfy `predicate`.
-   *
-   * @param {unknown} predicate
+   * @param {unknown} column
+   * @param {unknown} name
    */
-  where(predicate) {
-    return this.#with({ wheres: [...this.#recipe.wheres, predicateOf(predicate)] });
-  }
-
-  /** @param {...unknown} orderings */
-  orderBy(...orderings) {
-    return this.#with({ orders: [...this.#recipe.orders, ...orderingsOf(orderings)] });
-  }
-
-  /** @param {number | bigint | null} count */
-  limit(count) {
-    return this.#with({ limit: count });
-  }
-
-  /** @param {number | bigint | null} count */
-  offset(count) {
-    return this.#with({ offset: count });
+  columnAs(column, name) {
+    return this.#projection().columnAs(column, name);
   }
 
   /**
-   * Join the table at the other end of `relation`, from the query's model or
-   * a table it joined, without reading its columns: what a condition on a
-   * related row needs.
-   *
-   * @param {import("./relations.js").Relation} relation
-   * @param {{ kind?: "inner" | "left", alias?: string }} [options]
+   * @param {unknown} expr
+   * @param {unknown} name
+   * @param {unknown} declaration
    */
-  join(relation, { kind = "inner", alias } = {}) {
-    if (kind !== "inner" && kind !== "left") throw new TypeError('a model join is "inner" or "left"');
-    const [from, to] = shapesOf(relation);
-    const recipe = this.#recipe;
-    const left = [recipe.shape, ...recipe.joins.map((join) => join.shape)];
-    const index = left.findIndex((shape) => sameTable(shape, from));
-    if (index < 0) throw new ConstructionError(`the relation starts at ${from.name}, which the query does not read`);
-    const leftQualifier = index === 0 ? recipe.shape.qualifier : /** @type {any} */ (recipe.joins[index - 1]).qualifier;
-    const qualifier = alias ?? to.qualifier;
-    const table = alias === undefined ? to.table : to.table.as(alias);
-    const on = relationOn(relation, leftQualifier, qualifier);
-    return this.#with({ joins: [...recipe.joins, { table, on, kind, shape: to, qualifier }] });
+  exprAs(expr, name, declaration) {
+    return this.#projection().exprAs(expr, name, declaration);
+  }
+
+  /** The rows as arrays of the fields' values, in the order selected. */
+  intoTuple() {
+    return this.#projection().intoTuple();
+  }
+
+  /** @param {...unknown} names */
+  intoValues(...names) {
+    return this.#projection().intoValues(...names);
+  }
+
+  /** @param {unknown} [make] */
+  intoModel(make) {
+    return this.#projection().intoModel(make);
+  }
+
+  /**
+   * The rows read as `shape` declares them, the query's clauses kept: Rust's
+   * `into_partial_model`.
+   *
+   * @param {unknown} shape
+   */
+  intoPartialModel(shape) {
+    return partialSelector(shape, recipeOf(this));
   }
 
   /**
@@ -180,7 +125,7 @@ export class ModelQuery {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async all(db, options) {
-    return await decodeAll(db, this.#statement, sourcesOf(this.#recipe), options);
+    return await decodeAll(db, this.#statement, sourcesOf(recipeOf(this)), options);
   }
 
   /**
@@ -190,7 +135,7 @@ export class ModelQuery {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async one(db, options) {
-    return await decodeOne(db, this.#statement, sourcesOf(this.#recipe), options);
+    return await decodeOne(db, this.#statement, sourcesOf(recipeOf(this)), options);
   }
 
   /**
@@ -200,7 +145,7 @@ export class ModelQuery {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async optional(db, options) {
-    return await decodeOptional(db, this.#statement, sourcesOf(this.#recipe), options);
+    return await decodeOptional(db, this.#statement, sourcesOf(recipeOf(this)), options);
   }
 
   /**
@@ -210,7 +155,7 @@ export class ModelQuery {
    * @param {{ signal?: AbortSignal }} [options]
    */
   stream(db, options) {
-    return decodeStream(db, this.#statement, sourcesOf(this.#recipe), options);
+    return decodeStream(db, this.#statement, sourcesOf(recipeOf(this)), options);
   }
 
   /**
@@ -230,15 +175,7 @@ export class ModelQuery {
    * @param {...string} fields
    */
   cursor(...fields) {
-    const recipe = this.#recipe;
-    if (fields.length === 0) throw new ConstructionError("a cursor orders by at least one field");
-    return cursorOver({
-      build: (orders, wheres, limit) => selectOf(recipe, orders, [...recipe.wheres, ...wheres], limit),
-      limit: recipe.limit,
-      sources: sourcesOf(recipe),
-      order: fields.map((name) => ({ field: fieldOf(recipe.shape, name), qualifier: recipe.shape.qualifier })),
-      tiebreaks: [],
-    });
+    return keyedCursor(recipeOf(this), fields, sourcesOf(recipeOf(this)), null);
   }
 
   /**
@@ -247,23 +184,8 @@ export class ModelQuery {
    * @param {number} pageSize
    */
   paginate(pageSize) {
-    const recipe = this.#recipe;
-    return paginatorOver({
-      page: (limit, offset) => selectOf({ ...recipe, offset }, recipe.orders, recipe.wheres, limit),
-      counted: countOf(this.#statement),
-      sources: sourcesOf(recipe),
-    }, pageSize);
+    return pagesOf(recipeOf(this), sourcesOf(recipeOf(this)), null, pageSize);
   }
-}
-
-/**
- * The statement counting the rows `statement` reads.
- *
- * @param {Select} statement
- * @returns {Select}
- */
-export function countOf(statement) {
-  return new Select(native.modelCount(arg(statement)), TRUSTED);
 }
 
 /**
@@ -273,5 +195,18 @@ export function countOf(statement) {
  * @param {readonly import("./model-shape.js").Field[]} fields
  */
 export function query(shape, fields) {
-  return new ModelQuery({ shape, fields, joins: [], wheres: [], orders: [], limit: null, offset: null }, MADE);
+  return new ModelQuery({
+    shape,
+    fields,
+    joins: [],
+    wheres: [],
+    orders: [],
+    limit: null,
+    offset: null,
+    distinct: false,
+    groups: [],
+    havings: [],
+    lock: null,
+    items: null,
+  }, MADE);
 }

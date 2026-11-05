@@ -16,7 +16,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 
 from .. import _native as p
 from .._registered.versions import Change, Inserted, Updated
-from .queries import ModelRows, predicate_of, written
+from .clauses import predicate_of
+from .queries import ModelRows, written
 from .record import Database, ModelRecord, Source, decode_all, decode_single
 
 if TYPE_CHECKING:

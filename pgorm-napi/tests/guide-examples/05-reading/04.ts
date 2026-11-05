@@ -16,9 +16,9 @@ export default async function example(): Promise<void> {
 
   // A search with an optional upper price: no condition at all when it is absent.
   function search(maxPrice: Decimal | null) {
-    let query = Cake.select("name").where(Cake.col("bakeryId").eq(1));
-    if (maxPrice !== null) query = query.where(Cake.col("price").lte(maxPrice));
-    return query;
+    return Cake.select("name").where(
+      Condition.all(Cake.col("bakeryId").eq(1)).addOption(maxPrice === null ? null : Cake.col("price").lte(maxPrice)),
+    );
   }
   assert.equal(search(null).inspect().sql, `SELECT "cake"."name" FROM "cake" WHERE "cake"."bakery_id" = $1`);
   assert.equal(

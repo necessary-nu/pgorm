@@ -211,13 +211,14 @@ none.
 
 ### Ties and secondary keys
 
-Here Python differs from Rust: a model query's cursor has no
-`add_secondary_order_by`. Rust appends a column there after the key, of the
-queried table or a joined one, so that `after` and `before` can take the key
-alone while `after_with` and `before_with` take the whole ordering. In
-Python, a model query's key is the fields `cursor` names, all of the queried
-model, and a boundary takes a value for each: write the tiebreak into the key.
-Ordering a cursor by a joined table's column is not available in Python yet.
+`add_secondary_order_by(model, field)` appends a column of the queried model
+or a joined one to the cursor's ordering, after the key, which is how a cursor
+over a join is made total; the model names the table as the query names it,
+an aliased model its alias, as Rust's `add_secondary_order_by(table, column)`
+names it. `after` and `before` still take the key alone, and so resume past
+every row sharing the boundary's key. `after_with` and `before_with` take the
+whole ordering, the appended columns included, and resume from exactly one
+row:
 
 ```python
 import asyncio
@@ -232,14 +233,16 @@ from bakery import Cake
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
         # By bakery, then by id within each bakery.
-        by_bakery = Cake.find().cursor("bakery_id", "id")
+        by_bakery = Cake.find().cursor("bakery_id").add_secondary_order_by(Cake, "id")
 
         first = cast(list[ModelRecord], await by_bakery.first(2).all(pool))
         assert [cake["id"] for cake in first] == [1, 2]
 
-        # Bakery 1 has a third cake, which a boundary of the bakery alone would skip.
-        rest = cast(list[ModelRecord], await by_bakery.after(1, 2).first(2).all(pool))
+        # Bakery 1 has a third cake, which `after(1)` would skip.
+        rest = cast(list[ModelRecord], await by_bakery.after_with(1, 2).first(2).all(pool))
         assert [cake["id"] for cake in rest] == [5, 3]
+        skipped = cast(list[ModelRecord], await by_bakery.after(1).first(2).all(pool))
+        assert [cake["id"] for cake in skipped] == [3, 4]
 
 
 asyncio.run(main())

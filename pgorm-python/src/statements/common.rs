@@ -1,6 +1,6 @@
 use pgorm::pgorm_query::{
-    BinOper, Condition, Expr, IntoCondition, OrderedStatement, Query, ReturningClause,
-    SelectStatement, Values,
+    BinOper, ColumnRef, Condition, Expr, IntoCondition, OrderedStatement, Query, ReturningClause,
+    SelectStatement, SimpleExpr, Values,
 };
 use pyo3::{
     exceptions::PyTypeError,
@@ -20,6 +20,27 @@ pub(crate) fn condition(value: &Bound<'_, PyAny>) -> PyResult<Condition> {
     } else {
         Ok(require_expr(value)?.inner.into_condition())
     }
+}
+
+/// The columns `items` names, each a column expression as pgorm-query's
+/// `IntoColumnRef` takes one, and at least one: `what` names the method in
+/// the error refusing another expression or none.
+// [spec:pgorm:req:bindings.distinct-on]
+pub(super) fn columns(items: &Bound<'_, PyTuple>, what: &str) -> PyResult<Vec<ColumnRef>> {
+    if items.is_empty() {
+        return Err(ConstructionError::new_err(format!(
+            "{what} names at least one column"
+        )));
+    }
+    items
+        .iter()
+        .map(|item| match require_expr(&item)?.inner {
+            SimpleExpr::Column(column) => Ok(column),
+            _ => Err(ConstructionError::new_err(format!(
+                "{what} takes columns, which an expression is not"
+            ))),
+        })
+        .collect()
 }
 
 pub(super) fn project(query: &mut SelectStatement, items: &Bound<'_, PyTuple>) -> PyResult<()> {

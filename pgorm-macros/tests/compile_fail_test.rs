@@ -17,7 +17,7 @@
 // [spec:pgorm:sem:macros.derive.model+6/test]    a further model refuses the composite's container and field keys, and `enum_name` naming `variant`
 // [spec:pgorm:sem:macros.derive.column+7/test]    an unknown variant key, and any key on the enum
 // [spec:pgorm:sem:macros.derive.active-model+7/test]    `IntoActiveModel` refuses a field key
-// [spec:pgorm:sem:macros.derive.partial-model+5/test]    an unknown field key, and the both-keys conflict the accumulating parser makes reachable
+// [spec:pgorm:sem:macros.derive.partial-model+6/test]    an unknown field key, and the both-keys conflict the accumulating parser makes reachable
 // [spec:pgorm:sem:macros.derive.value-type+6/test]    non-tuple input and an unread `#[pgorm(...)]` key
 // [spec:pgorm:syn:macros.derive.active-enum+6/test]    `db_type` without `rs_type`, `rs_type` without `db_type`, a number or a discriminant in a PostgreSQL enum, an unknown key at either level, named, and a PostgreSQL enum's value over 63 bytes, given or derived from its variant, spelt in one byte a character or more, refused at the value or the variant
 // [spec:pgorm:syn:macros.derive.relation+7/test]    `belongs_to` without `from` is rejected, `from` / `to` of unequal arity are rejected while the arity is still known, an `on_condition` closure takes two tables, a variant is one kind of relation, the enum's keys are `entity` alone, `hooks` included, and `related` is only `false`, on an entity one variant reaches

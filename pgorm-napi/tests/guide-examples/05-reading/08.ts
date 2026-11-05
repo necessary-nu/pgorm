@@ -2,19 +2,24 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { column, model } from "@necessary/pgorm";
+import { call, column } from "@necessary/pgorm";
+import { Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  /** A cake on the menu board: two of the cake table's columns. */
-  const MenuLine = model("cake", {
-    columns: {
-      id: column("i32", { primaryKey: true }),
-      name: column("text"),
-      freeFromGluten: column("bool", { name: "gluten_free" }),
-    },
-  });
+  const names: [string][] = await Cake.select("name").orderBy(Cake.col("id").asc()).intoTuple().all(pool);
+  assert.deepEqual(names[0], ["Chocolate Fudge"]);
 
-  const lemon = await MenuLine.find().where(MenuLine.col("id").eq(2)).one(pool);
-  assert.deepEqual(lemon, { id: 2, name: "Lemon Drizzle", freeFromGluten: true });
+  const flavors = Cake.select("flavor")
+    .exprAs(call("count", Cake.col("id")), "cakes", column("i64"))
+    .groupBy(Cake.col("flavor"))
+    .orderBy(Cake.col("flavor").asc());
+  assert.equal(
+    flavors.inspect().sql,
+    `SELECT "cake"."flavor", COUNT("cake"."id") AS "cakes" FROM "cake" GROUP BY "cake"."flavor" ORDER BY "cake"."flavor" ASC`,
+  );
+  const counted = await flavors.intoTuple().all(pool);
+  assert.deepEqual(counted[0], ["chocolate", 2n]);
+  const byName: [bigint, string][] = await flavors.intoValues("cakes", "flavor").all(pool);
+  assert.deepEqual(byName[0], [2n, "chocolate"]);
 }

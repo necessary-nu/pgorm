@@ -11,8 +11,8 @@ from pgorm._registered import disjoints as disjoint_views, entities as views, gr
 from pgorm.codegen import source
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
-    Column, Model, ModelRecord, Relation, cursors, disjoint_query, graphs, model, one_of, queries,
-    record, writes,
+    Column, Model, ModelRecord, Relation, clauses, cursors, disjoint_query, graphs, model, one_of,
+    projections, record, writes,
 )
 from pgorm.runtime import PoolStatus
 
@@ -39,7 +39,7 @@ EXEMPT = {
     # Registrations and declarations: they name what a query reads and are
     # true as any declared object is; the queries they start refuse.
     p.Entity, p.EntityGraph, Model, Column, Relation, pl.SourceSelection, pl.Binder,
-    model.UniqueKey, model._DeclaredKey,
+    model.UniqueKey, model._DeclaredKey, p.PartialModel, p.FromExpr, p.Skip,
     views.EntityView, graph_views.GraphView, FieldType,
     # The layout the codegen writes source with: build-time values no query
     # reads.
@@ -50,7 +50,8 @@ EXEMPT = {
     # The private state a model query, graph, cursor or paginator holds and
     # builds its statements from: data the application never handles, held by
     # a query that refuses.
-    queries.Recipe, queries.Joined, graphs.State, graphs.Table, graphs.Edge,
+    clauses.Recipe, clauses.Joined, clauses.Lock, projections.Item, graphs.State, graphs.Table,
+    graphs.Edge,
     cursors.Keyed, cursors.Position, cursors.Pageable, record.Source,
 }
 
@@ -69,7 +70,7 @@ BUILT_ELSEWHERE = {
 
 # Bases the model writes share and no program builds: every write refuses
 # through the __bool__ they give it, and each is sampled through a write.
-BASES = {writes._Write, writes._Insert, writes._Guarded, changes._Part}
+BASES = {writes._Write, writes._Insert, writes._Guarded, changes._Part, clauses.Clauses}
 
 
 def defined_classes():
@@ -144,6 +145,7 @@ def other_samples():
         model.col("id"), model.find(), model.delete(), model.insert({"id": 1}), model.insert_many([]),
         model.update({"id": 2}), model.insert({"id": 1}).returning("id"),
         model.graph(), model.find().cursor("id"), model.find().paginate(2),
+        model.find().select_only(), model.find().into_tuple(),
         *disjoint_samples(),
     ]
 

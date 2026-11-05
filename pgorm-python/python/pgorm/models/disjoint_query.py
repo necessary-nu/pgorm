@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast
 
 from .. import _native as p
-from .queries import orderings_of, predicate_of
+from .clauses import orderings_of, predicate_of
 from .record import Database
 
 if TYPE_CHECKING:

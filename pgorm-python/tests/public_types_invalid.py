@@ -126,3 +126,15 @@ async def invalid(connection: p.Connection) -> None:
     p.OneOf("ref", accounts, {"self": accounts})  # expected-error: dict-item
     p.Disjoint("shops", accounts, {"dormant": None}, unkinded=True, kind="state")  # expected-error: call-overload
     kinded: p.Disjoint = shops  # expected-error: assignment
+    # [spec:pgorm:req:bindings.model-projections/test]    a projection reads no rows until into_tuple, into_values or into_model says what each becomes
+    projection = accounts.find().select_only().column(accounts.col("id"))
+    await projection.all(connection)  # expected-error: attr-defined
+    ids: list[int] = await projection.into_tuple().all(connection)  # expected-error: assignment
+    projection.expr_as(p.call("count", accounts.col("id")), "n", "i64")  # expected-error: arg-type
+    projection.column(p.col("id"))  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.partial-models/test]    a partial model's field is a model column, a FromExpr or a Skip
+    p.PartialModel(accounts, {"id": "id"})  # expected-error: dict-item
+    # [spec:pgorm:req:bindings.cursor-secondary-order/test]    a secondary ordering names a model, not a table's name
+    accounts.find().cursor("id").add_secondary_order_by("accounts", "id")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.model-clauses/test]    a model query's lock takes a LockStrength
+    accounts.find().lock("update")  # expected-error: arg-type

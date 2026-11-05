@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
 Database: TypeAlias = "Connection | Pool | Transaction"
 Row: TypeAlias = "ModelRecord | tuple[ModelRecord | None, ...]"
+# A row's decode: its sources' records, or what a projection reads it as.
+Decode: TypeAlias = "Sequence[Source] | Callable[[p.Record], Any]"
 
 
 # [spec:pgorm:req:bindings.model-records+1]
@@ -116,9 +118,12 @@ def own_source(model: Model, fields: tuple[str, ...]) -> Source:
     return Source(model, fields, fields)
 
 
-def decoder(sources: Sequence[Source]) -> Callable[[p.Record], Any]:
+def decoder(sources: Decode) -> Callable[[p.Record], Any]:
     """The decode of a native row into its one source's record, or a tuple of
-    each source's, the row's columns held to exactly the sources' names."""
+    each source's, the row's columns held to exactly the sources' names; a
+    projection's decode as it is."""
+    if callable(sources):
+        return sources
     expected = tuple(name for source in sources for name in source.names)
 
     def decode(row: p.Record) -> Any:
@@ -141,13 +146,13 @@ def _record(row: p.Record, source: Source) -> ModelRecord | None:
     return ModelRecord(source.model, row, source.fields, source.names)
 
 
-async def decode_all(db: Database, statement: Any, sources: Sequence[Source]) -> list[Any]:
+async def decode_all(db: Database, statement: Any, sources: Decode) -> list[Any]:
     decode = decoder(sources)
     return [decode(row) for row in await db.query(statement)]
 
 
 async def decode_single(
-    db: Database, statement: Any, sources: Sequence[Source], *, optional: bool
+    db: Database, statement: Any, sources: Decode, *, optional: bool
 ) -> Any:
     """The one row ``statement`` reads, decoded: exactly one, or with
     ``optional`` at most one, None when it reads none."""
@@ -158,7 +163,7 @@ async def decode_single(
 
 
 async def decode_stream(
-    db: Connection | Pool, statement: Any, sources: Sequence[Source]
+    db: Connection | Pool, statement: Any, sources: Decode
 ) -> RowStream[Any]:
     from ..runtime import Connection, Pool
 

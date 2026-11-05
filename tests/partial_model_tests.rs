@@ -86,6 +86,50 @@ struct IntScaledBakery {
     double_margin: f64,
 }
 
+/// A bakery with a field no column fills: `cached` names no column of the
+/// table, so the projection must not select it.
+#[derive(Debug, PartialEq, PartialModel)]
+#[pgorm(entity = bakery::Entity)]
+struct SkipsAField {
+    id: i32,
+    #[pgorm(skip)]
+    cached: String,
+}
+
+// [spec:pgorm:sem:macros.derive.partial-model+6/test]    a skipped field selects nothing and decodes as its default
+#[pgorm_macros::test]
+async fn partial_model_skip_selects_nothing() -> Result<(), Error> {
+    use pgorm::{PartialModelTrait, QuerySelect, QueryTrait};
+
+    let select = SkipsAField::select_cols(bakery::Entity::find().select_only());
+    assert_eq!(select.build().0, r#"SELECT "bakery"."id" FROM "bakery""#);
+
+    let ctx = TestContext::new("partial_model_skip").await;
+    create_tables(&ctx.db).await?;
+    let db = ctx.db.get().await?;
+    bakery::ActiveModel {
+        name: set("SeaSide Bakery"),
+        profit_margin: set(10.5),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await?;
+    let rows = bakery::Entity::find()
+        .into_partial_model::<SkipsAField>()
+        .all(&db)
+        .await?;
+    assert_eq!(
+        rows,
+        [SkipsAField {
+            id: 1,
+            cached: String::new(),
+        }]
+    );
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
 // [spec:pgorm:def:exec.crud+1/test]    `Select::into_partial_model` re-targets
 // the decoded type, and `one` / `all` run through the same selector
 #[pgorm_macros::test]

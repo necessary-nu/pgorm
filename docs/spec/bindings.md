@@ -702,6 +702,13 @@ the same terminals that run raw SQL.
 > by the name it answers to in the statement, and with NOWAIT or SKIP LOCKED,
 > through pgorm-query's own lock builder.
 
+> [spec:pgorm:req:bindings.distinct-on]
+> A `Select` MUST take `distinct_on(columns..)`, `SELECT DISTINCT ON (..)`,
+> through pgorm-query's `distinct_on`, which takes columns: each argument is a
+> column expression, and another expression, or no column at all, is a
+> `ConstructionError`. `distinct()` and `distinct_on` replace each other, the
+> later call winning, as pgorm-query's do.
+
 > [spec:pgorm:req:bindings.with+1]
 > A WITH clause MUST hold common table expressions in call order, each named.
 > A body is a `Select`, or a MERGE with a RETURNING list. A SELECT and a MERGE
@@ -930,6 +937,13 @@ the same terminals that run raw SQL.
 > `domain_value()` is `Expr::domain_value()`, the keyword `VALUE` a domain's
 > CHECK tests. `asc()` and `desc()` give an ordering, with NULLS FIRST or
 > LAST, and `as(alias)` an aliased projection item.
+
+> [spec:pgorm:req:bindings.condition-option]
+> A `Condition` MUST take `add_option(condition)`, pgorm-query's
+> `Condition::add_option`: the condition with the expression or `Condition`
+> added, or the condition as it is when the argument is the language's
+> absent value (`None`, `null` or `undefined`), so a search whose fields are
+> optional adds each without a branch around the builder.
 
 > [spec:pgorm:req:bindings.quantifiers+3]
 > `any(source)` and `all(source)` MUST be `ANY (..)` and `ALL (..)`:
@@ -1280,6 +1294,86 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > ordering dropped, `SELECT COUNT(*) AS "num_items" FROM (..) AS
 > "sub_query"`, and give an exact integer; `num_pages` rounds the pages up;
 > and `pages` yields each page from the first until one is empty.
+
+> [spec:pgorm:req:bindings.model-clauses]
+> A model query, and a projection of one (`bindings.model-projections`), MUST
+> take the clauses of pgorm's entity `Select` beside `where`, `order_by`,
+> `limit` and `offset`, each a new query decoding as the one it was called on:
+> `distinct()`; `distinct_on(columns..)`, of the queried model or a table it
+> joined (`bindings.distinct-on`); `group_by(items..)`, expressions and
+> grouping elements as the statement builder's `group_by` takes them, and
+> `having(condition)`, ANDed as `where` is; and `lock(strength, wait, of)`,
+> the statement builder's row lock (`bindings.row-locks`), which is Rust's
+> `lock`, `lock_shared`, `lock_exclusive` and `lock_with_behavior`. A model
+> query's records stay the model's: a grouped or distinct query decodes each
+> row as its model declares it.
+>
+> `join(relation)` MUST take an inner, left, right or full join, Rust's
+> `join(JoinType, RelationDef)`; a row a right or full join reads with no
+> match holds NULL in the queried model's columns, which a field not
+> nullable refuses as `bindings.model-records` says. `join_rev(relation)`
+> MUST join the table the relation starts at from its far end, which the
+> query's model or a table it joined is, on the relation's condition as it
+> stands: Rust's `join_rev`, so a relation declared on one model joins from
+> the other. A relation whose start (for `join`) or end (for `join_rev`) is
+> no table the query reads is a `ConstructionError`.
+
+> [spec:pgorm:req:bindings.model-projections]
+> A model query MUST become a projection, Rust's `select_only` and the
+> projections the entity `Select` takes: `select_only()` with no items;
+> `column(column)`, `columns(columns..)`, `column_as(column, name)` and
+> `expr_as(expr, name, declaration)` each add items, called on a model query
+> after its fields. A column is a model's column, the queried one's or a
+> joined table's, and its item is read under its field's name and decoded as
+> its field declares; `column_as` names it, aliased as Rust's `column_as`
+> aliases. An expression's item is decoded as its declaration, a `Column` of
+> a kind, nullability, array and values and nothing else, says — the type an
+> aggregate or a function returns, which Rust states in the type it decodes
+> into — and any other option is a `ConstructionError`. Each item is
+> projected as a model's field is, a created multirange's cast to `text`
+> (`bindings.model-records`). Two items of one name, or of one result
+> column, and a projection of no items are `ConstructionError`s.
+>
+> A projection reads rows once `into_tuple()`, `into_values(names..)` or
+> `into_model(..)` says what each becomes — the items' values in order, the
+> named items' values in the order named (Rust's `into_values`), or an
+> object keyed by item name, made by the binding's own form of a
+> `FromQueryResult` target — and a model query takes the three directly, as
+> a projection of its fields. Each is a selector, Rust's `Selector`, with
+> `all`, `one`, `optional`, `stream`, `count`, `cursor` (by the queried
+> model's fields) and `paginate`, as `bindings.model-reads`,
+> `bindings.cursors` and `bindings.pagination` state them. A selector MUST
+> decode each row as a model's terminals do: the result's columns exactly
+> the items', each of its item's declared kind, and a NULL an item is not
+> declared nullable for, or a label an enum item does not list, a
+> `DecodeError`.
+
+> [spec:pgorm:req:bindings.partial-models]
+> A partial model MUST declare a read shape over a model, as Rust's
+> `PartialModel` derive does: each field one of the model's columns (Rust's
+> `from_col`, a field named for its column being Rust's plain field), a
+> `FromExpr` of an expression and the declaration it decodes by (Rust's
+> `from_expr`, its declaration as an `expr_as` item's), or a `Skip` holding a
+> value (Rust's `skip`), and at least one field not skipped.
+> `into_partial_model(shape)` on a model query MUST select what the shape
+> declares as Rust's `PartialModelTrait::select_cols` does, the query's other
+> clauses kept — a column under the field's name, aliased where that is not
+> the column's own; an expression aliased to its field; a skipped field
+> nothing — and decode each row into the shape's fields in declaration
+> order, a skipped field holding its value, as a selector decodes. A shape
+> over another table than the query's is a `ConstructionError`.
+
+> [spec:pgorm:req:bindings.cursor-secondary-order]
+> A cursor MUST take `add_secondary_order_by(model, field)`, Rust's
+> `Cursor::add_secondary_order_by(table, column)`: an ordering by the field of
+> the queried model or a table the query joined, the model named as the
+> query names its table, its alias included, appended after the cursor's key
+> and the entries before it, its boundary values converted through the
+> field's declared kind. A model the query reads under no such name is a
+> `ConstructionError`. `after` and `before` still take the key alone, so
+> they resume past every row sharing the boundary's key; `after_with` and
+> `before_with` take the key or the whole ordering, so a window that ended
+> inside a run of one key resumes inside it (`bindings.cursors`).
 
 ## Registered entities
 
