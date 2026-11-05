@@ -69,8 +69,7 @@ pub mod bike {
 /// The base of one declaration of the fleet: an entity over `$table`, whose
 /// kind column is of `$kind`. Each version of the declaration a change starts
 /// from or ends at has its own, as a program's entity code has before and
-/// after it changes. The enums are written out beside them, since the
-/// `Disjoint` derive does not take its variants through a `macro_rules!`.
+/// after it changes. The enums are written out beside them.
 macro_rules! fleet_base {
     ($base:ident, $table:literal, $kind:ident) => {
         pub mod $base {
@@ -263,19 +262,46 @@ fn refusal<T: Debug>(outcome: Result<T, Error>) -> String {
 /// commit: [`values`], prepared against the kind type a change drops, fails
 /// once it has (`XX000`, a cache lookup of the dropped type).
 async fn run_all(pool: &DatabasePool, statements: &[DdlStatement]) -> Result<(), Error> {
+    rewrites(pool, statements, &[]).await.map(drop)
+}
+
+/// [`run_all`], counting for each of `tables` the statements that rewrite
+/// it: those after which its `relfilenode`, the file holding its rows, is
+/// another.
+async fn rewrites(
+    pool: &DatabasePool,
+    statements: &[DdlStatement],
+    tables: &[&str],
+) -> Result<Vec<usize>, Error> {
+    const STORAGE: &str = "SELECT array_agg(c.relfilenode::int8 ORDER BY t.n) \
+                           FROM unnest($1::text[]) WITH ORDINALITY AS t(name, n) \
+                           JOIN pg_class c ON c.oid = t.name::regclass";
     let mut db = pool.get().await?;
     let outcome = db
         .transaction(async |tx| {
+            let mut counts = vec![0; tables.len()];
+            if tables.is_empty() {
+                for statement in statements {
+                    tx.execute(&statement.to_string(), &[]).await?;
+                }
+                return Ok(counts);
+            }
+            let mut storage: Vec<i64> = tx.query_one(STORAGE, &[&tables]).await?.get(0);
             for statement in statements {
                 tx.execute(&statement.to_string(), &[]).await?;
+                let next: Vec<i64> = tx.query_one(STORAGE, &[&tables]).await?.get(0);
+                for (count, (before, after)) in counts.iter_mut().zip(storage.iter().zip(&next)) {
+                    *count += usize::from(before != after);
+                }
+                storage = next;
             }
-            Ok::<_, Error>(())
+            Ok::<_, Error>(counts)
         })
         .await;
     drop(db);
     pool.clear_statement_caches();
     match outcome {
-        Ok(()) => Ok(()),
+        Ok(counts) => Ok(counts),
         Err(TransactionError::Transaction(error) | TransactionError::Connection(error)) => {
             Err(error)
         }
@@ -365,7 +391,7 @@ async fn seed_fleet_one(db: &DatabaseConnection) -> Result<(i32, i32), Error> {
     Ok((car.id, bike.id))
 }
 
-// [spec:pgorm:sem:disjoint.evolve+1/test]    a kind with a table is added in two steps, the value placed after the kind before it, then the table as `create_disjoint` writes it and the base's generated key columns and foreign key for it; run in one transaction the second is refused, run in two the entity reads its old rows and writes the new kind, and its constraints hold the new kind's rows
+// [spec:pgorm:sem:disjoint.evolve+2/test]    a kind with a table is added in two steps, the value placed after the kind before it, then the table as `create_disjoint` writes it and the base's generated key columns and foreign key for it; run in one transaction the second is refused, run in two the entity reads its old rows and writes the new kind, and its constraints hold the new kind's rows
 #[pgorm_macros::test]
 async fn kind_with_table_added_in_two_steps_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_evolve_add").await;
@@ -459,7 +485,7 @@ async fn kind_with_table_added_in_two_steps_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.evolve+1/test]    a kind without a table is added in one step, its value placed after the last kind, and is written and read as its unit variant
+// [spec:pgorm:sem:disjoint.evolve+2/test]    a kind without a table is added in one step, its value placed after the last kind, and is written and read as its unit variant
 #[pgorm_macros::test]
 async fn unit_kind_added_in_one_step_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_evolve_add_unit").await;
@@ -500,7 +526,7 @@ async fn unit_kind_added_in_one_step_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.evolve+1/test]    the recreating route adds a kind with a table in one step: the type made again with every value in declaration order under its own name, the rows written before keeping their kinds, the base laid out as `create_disjoint` lays it out, and the entity reading and writing every kind with its constraints
+// [spec:pgorm:sem:disjoint.evolve+2/test]    the recreating route adds a kind with a table in one step: the type made again with every value in declaration order under its own name, the rows written before keeping their kinds, the base laid out as `create_disjoint` lays it out, and the entity reading and writing every kind with its constraints
 #[pgorm_macros::test]
 async fn a_kind_is_added_by_recreating_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_evolve_recreate").await;
@@ -596,7 +622,27 @@ async fn a_kind_is_added_by_recreating_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.evolve+1/test]    removing a value fails at its first statement while a base row still has the kind, changing nothing, and once none does recreates the type without it, the entity reading and writing its remaining kinds
+// [spec:pgorm:sem:disjoint.evolve+2/test]    the recreating route rewrites the base once, in the statement retyping its kind column and writing its generated key columns again, and each kind table it keeps once
+#[pgorm_macros::test]
+async fn recreating_rewrites_each_table_once_live() -> Result<(), Error> {
+    let ctx = TestContext::new("disjoint_evolve_rewrites").await;
+    create::<FleetOne>(&ctx.db).await?;
+    seed_fleet_one(&ctx.db.get().await?).await?;
+
+    let change = Schema::new().add_disjoint_kind_recreating::<FleetVan>(FleetVanKind::Van)?;
+    let [step] = change.steps() else {
+        panic!("the recreating route is one step");
+    };
+    assert_eq!(
+        rewrites(&ctx.db, step.statements(), &["fleet", "car"]).await?,
+        [1, 1]
+    );
+
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:sem:disjoint.evolve+2/test]    removing a value fails at its first statement while a base row still has the kind, changing nothing, and once none does recreates the type without it, the entity reading and writing its remaining kinds
 #[pgorm_macros::test]
 async fn kind_removed_once_no_row_has_it_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_evolve_remove").await;
@@ -673,7 +719,7 @@ async fn kind_removed_once_no_row_has_it_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.evolve+1/test]    a unit kind gains its table in two steps with a gap: the table and the base's generated key columns with a foreign key added NOT VALID, which still refuses a new base row of the kind without its row; VALIDATE refuses while a row is missing and passes once the program has written them, the entity then reading the kind's rows
+// [spec:pgorm:sem:disjoint.evolve+2/test]    a unit kind gains its table in two steps with a gap: the table and the base's generated key columns with a foreign key added NOT VALID, which still refuses a new base row of the kind without its row; VALIDATE refuses while a row is missing and passes once the program has written them, the entity then reading the kind's rows
 #[pgorm_macros::test]
 async fn a_unit_kind_gains_a_table_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_evolve_add_table").await;
@@ -765,7 +811,7 @@ async fn a_unit_kind_gains_a_table_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.evolve+1/test]    a kind's table is dropped with the base's generated key columns and foreign key for it, in one step, after which its rows read and write as the unit kind
+// [spec:pgorm:sem:disjoint.evolve+2/test]    a kind's table is dropped with the base's generated key columns and foreign key for it, in one step, after which its rows read and write as the unit kind
 #[pgorm_macros::test]
 async fn a_kind_loses_its_table_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_evolve_remove_table").await;
@@ -824,7 +870,7 @@ async fn a_kind_loses_its_table_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.evolve+1/test]    a schema-qualified kind type with a mixed-case, spaced name takes every change: a value added, a kind's table dropped, the value removed by recreating, and the kind added again by recreating, the entity reading and writing after each
+// [spec:pgorm:sem:disjoint.evolve+2/test]    a schema-qualified kind type with a mixed-case, spaced name takes every change: a value added, a kind's table dropped, the value removed by recreating, and the kind added again by recreating, the entity reading and writing after each
 #[pgorm_macros::test]
 async fn a_quoted_schema_qualified_kind_type_changes_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_evolve_quoted").await;
@@ -936,7 +982,7 @@ async fn a_quoted_schema_qualified_kind_type_changes_live() -> Result<(), Error>
 
 const VAN_TABLE: &str = r#"CREATE TABLE "van" ( "id" integer NOT NULL, "doors" smallint NOT NULL, "kind" fleet_kind GENERATED ALWAYS AS ('van') STORED, PRIMARY KEY ("id"), CONSTRAINT "fk-van-id-kind" FOREIGN KEY ("id", "kind") REFERENCES "fleet" ("id", "kind") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE )"#;
 
-// [spec:pgorm:sem:disjoint.evolve+1/test]    a kind with a table is added in two steps, the value after the kind declared before it, then its table as `create_disjoint` writes it and the base's generated key columns and foreign key for it, under the names `create_disjoint` gives them; a kind declared first is added before the one after it
+// [spec:pgorm:sem:disjoint.evolve+2/test]    a kind with a table is added in two steps, the value after the kind declared before it, then its table as `create_disjoint` writes it and the base's generated key columns and foreign key for it, under the names `create_disjoint` gives them; a kind declared first is added before the one after it
 #[test]
 fn kind_added_as_value_then_table() {
     let change = Schema::new()
@@ -975,7 +1021,7 @@ fn kind_added_as_value_then_table() {
     );
 }
 
-// [spec:pgorm:sem:disjoint.evolve+1/test]    the recreating route is one step: a new enum `{type}_next` of every value in order, each kind table's kind column dropped with its foreign key, the base's generated key columns, their keys and its UNIQUE key dropped and its kind column retyped USING its text after its default, the old type dropped and the new one renamed, then every constraint and generated column written again as `create_disjoint` writes it, the new kind's table among them
+// [spec:pgorm:sem:disjoint.evolve+2/test]    the recreating route is one step: a new enum `{type}_next` of every value in order, each kind table's kind column dropped with its foreign key, then one statement dropping the base's generated key columns, their keys and its UNIQUE key, retyping its kind column USING its text after its default and writing its generated key columns again, the old type dropped and the new one renamed, then every constraint and kind column written again as `create_disjoint` writes it, the new kind's table among them, and last the base's foreign keys to the kind tables
 #[test]
 fn a_kind_added_by_recreating_rewrites_every_constraint() {
     let change = Schema::new()
@@ -991,7 +1037,11 @@ fn a_kind_added_by_recreating_rewrites_every_constraint() {
                 r#"DROP CONSTRAINT "fk-fleet-car_id", DROP COLUMN "car_id","#,
                 r#"ALTER COLUMN "kind" DROP DEFAULT,"#,
                 r#"ALTER COLUMN "kind" TYPE fleet_kind_next"#,
-                r#"USING CAST(CAST("kind" AS text) AS fleet_kind_next)"#,
+                r#"USING CAST(CAST("kind" AS text) AS fleet_kind_next),"#,
+                r#"ADD COLUMN "car_id" integer"#,
+                r#"GENERATED ALWAYS AS ((CASE WHEN ("kind" = 'car') THEN "id" END)) STORED,"#,
+                r#"ADD COLUMN "van_id" integer"#,
+                r#"GENERATED ALWAYS AS ((CASE WHEN ("kind" = 'van') THEN "id" END)) STORED"#,
             ]
             .join(" "),
             r#"DROP TYPE "fleet_kind""#.to_owned(),
@@ -1008,11 +1058,7 @@ fn a_kind_added_by_recreating_rewrites_every_constraint() {
             .join(" "),
             VAN_TABLE.to_owned(),
             [
-                r#"ALTER TABLE "fleet" ADD COLUMN "car_id" integer"#,
-                r#"GENERATED ALWAYS AS ((CASE WHEN ("kind" = 'car') THEN "id" END)) STORED,"#,
-                r#"ADD COLUMN "van_id" integer"#,
-                r#"GENERATED ALWAYS AS ((CASE WHEN ("kind" = 'van') THEN "id" END)) STORED,"#,
-                r#"ADD CONSTRAINT "fk-fleet-car_id" FOREIGN KEY ("car_id")"#,
+                r#"ALTER TABLE "fleet" ADD CONSTRAINT "fk-fleet-car_id" FOREIGN KEY ("car_id")"#,
                 r#"REFERENCES "car" ("id") DEFERRABLE INITIALLY IMMEDIATE,"#,
                 r#"ADD CONSTRAINT "fk-fleet-van_id" FOREIGN KEY ("van_id")"#,
                 r#"REFERENCES "van" ("id") DEFERRABLE INITIALLY IMMEDIATE"#,
@@ -1022,7 +1068,7 @@ fn a_kind_added_by_recreating_rewrites_every_constraint() {
     );
 }
 
-// [spec:pgorm:sem:disjoint.evolve+1/test]    removing a value is one step whose first statement adds the CHECK refusing it, named as the schema's names are, and whose next drops it, before the recreating route without the value
+// [spec:pgorm:sem:disjoint.evolve+2/test]    removing a value is one step whose first statement adds the CHECK refusing it, named as the schema's names are, and whose next drops it, before the recreating route without the value
 #[test]
 fn kind_removed_after_check_refusing_it() {
     let change = Schema::new()
@@ -1040,7 +1086,7 @@ fn kind_removed_after_check_refusing_it() {
     assert_eq!(step.len(), 10);
 }
 
-// [spec:pgorm:sem:disjoint.evolve+1/test]    a unit kind gains its table in two steps, the first ending in a gap naming the rows the program writes, its foreign key added NOT VALID, the second validating it; a kind loses its table in one step dropping the base's foreign key and generated key columns for it and then the table
+// [spec:pgorm:sem:disjoint.evolve+2/test]    a unit kind gains its table in two steps, the first ending in a gap naming the rows the program writes, its foreign key added NOT VALID, the second validating it; a kind loses its table in one step dropping the base's foreign key and generated key columns for it and then the table
 #[test]
 fn a_kind_table_is_added_and_dropped() {
     let change = Schema::new()
@@ -1094,7 +1140,7 @@ fn a_kind_table_is_added_and_dropped() {
     );
 }
 
-// [spec:pgorm:sem:disjoint.evolve+1/test]    each function refuses a change the declaration does not describe as `Error::Type` naming the kind — a kind added that it does not hold, a value removed that it holds, a table given to a kind it declares without one and dropped from one it declares with one — and runs `check_disjoint` first, returning its refusal as its own
+// [spec:pgorm:sem:disjoint.evolve+2/test]    each function refuses a change the declaration does not describe as `Error::Type` naming the kind — a kind added that it does not hold, a value removed that it holds, a table given to a kind it declares without one and dropped from one it declares with one — and runs `check_disjoint` first, returning its refusal as its own
 #[test]
 fn changes_the_declaration_does_not_describe_are_refused() {
     let schema = Schema::new();
@@ -1156,7 +1202,7 @@ fn changes_the_declaration_does_not_describe_are_refused() {
     );
 }
 
-// [spec:pgorm:sem:disjoint.evolve+1/test]    the base's kind column loses its default before the retype, which PostgreSQL would refuse to cast, and gets the declaration's back after the rename, of the new type
+// [spec:pgorm:sem:disjoint.evolve+2/test]    the base's kind column loses its default before the retype, which PostgreSQL would refuse to cast, and gets the declaration's back after the rename, of the new type
 #[pgorm_macros::test]
 async fn a_kind_columns_default_survives_recreating_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_evolve_default").await;

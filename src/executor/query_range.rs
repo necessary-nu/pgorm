@@ -247,7 +247,7 @@ try_getable_range_family!(jiff::Timestamp);
 // The subtypes only a range type a schema created ranges over. Their
 // multiranges are reported by tokio-postgres as simple types, and an array of
 // them is not built, so the range alone decodes.
-// [spec:pgorm:def:sql.value.created-range+5]
+// [spec:pgorm:def:sql.value.created-range+6]
 try_getable_range!(i16);
 try_getable_range!(f32);
 try_getable_range!(f64);

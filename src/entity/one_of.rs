@@ -1,8 +1,10 @@
 use crate::{
-    ConnectionTrait, EntityTrait, Error, Iterable, LoaderTrait, ModelTrait, PrimaryKeyToColumn,
-    PrimaryKeyTrait, Related, StaticName, entity::disjoint::table_label, error::query_err,
+    ConnectionTrait, EntityTrait, Error, Iterable, ModelTrait, OneOfShape, PrimaryKeyToColumn,
+    PrimaryKeyTrait, QueryFilter, Related, StaticName, entity::disjoint::table_label,
+    error::query_err,
 };
 use async_trait::async_trait;
+use pgorm_query::Value;
 use std::{fmt::Debug, future::Future, pin::Pin};
 
 /// The key a target entity's rows are keyed by: what its variant of
@@ -40,7 +42,7 @@ pub type TargetKey<T> = <<T as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::Val
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+4]
 #[async_trait]
 pub trait OneOf: Sized + Send + Sync + 'static {
     /// The entity whose rows hold the reference.
@@ -75,75 +77,51 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     }
 
     /// The reference `model` holds: the variant of `<Enum>Key` whose column
-    /// is set, or the unit variant where none is and the enum has one.
+    /// is set, or the unit variant where none is and the enum has one, as
+    /// [`OneOfShape::referenced`] decides it.
     ///
     /// A row with two or more columns set, or none where the enum has no
     /// unit variant, contradicts the declaration, and is [`Error::Query`]
     /// naming its table, its key and the columns.
-    // [spec:pgorm:def:disjoint.one-of+1]
+    // [spec:pgorm:def:disjoint.one-of+4]
     fn key(model: &<Self::Entity as EntityTrait>::Model) -> Result<Self::Key, Error> {
         let mut read = Read {
             model,
-            set: Vec::new(),
-            columns: Vec::new(),
+            keys: Vec::new(),
         };
         Self::visit_targets(&mut read);
-        let Read { set, columns, .. } = read;
-        let row = || {
-            let entity = <Self::Entity as Default>::default();
-            format!(
-                "the `{}` row whose key is ({})",
-                table_label(&entity),
-                row_key(model)
-            )
+        let set: Vec<bool> = read.keys.iter().map(Option::is_some).collect();
+        let referenced = OneOfShape::of::<Self>().referenced(&row_key(model), &set)?;
+        let key = match referenced {
+            Some(index) => read.keys.into_iter().nth(index).flatten(),
+            None => Self::none().map(|(key, _)| key),
         };
-        let spelled = |columns: &[String]| {
-            columns
-                .iter()
-                .map(|column| format!("`{column}`"))
-                .collect::<Vec<_>>()
-                .join(", ")
-        };
-        let mut set = set.into_iter();
-        match (set.next(), set.next()) {
-            (Some((_, key)), None) => Ok(key),
-            (None, _) => Self::none().map(|(key, _)| key).ok_or_else(|| {
-                query_err(format!(
-                    "{} references no target, setting none of {}, where exactly one is set",
-                    row(),
-                    spelled(&columns),
-                ))
-            }),
-            (Some((first, _)), Some((second, _))) => {
-                let named: Vec<String> = [first, second]
-                    .into_iter()
-                    .chain(set.map(|(column, _)| column))
-                    .collect();
-                Err(query_err(format!(
-                    "{} references more than one target, setting {}, where at most one of {} \
-                     is set",
-                    row(),
-                    spelled(&named),
-                    spelled(&columns),
-                )))
-            }
-        }
+        key.ok_or_else(|| query_err("a row's reference was read as a variant it does not hold"))
     }
 
     /// Set `active`'s reference to `key`: its variant's column to its key,
     /// and every other column to null; for the unit variant, every column to
-    /// null.
+    /// null, as [`OneOfShape::assigned`] assigns them.
     ///
     /// An `ActiveModel` refusing a column is its [`ActiveModelTrait::set`](crate::ActiveModelTrait::set)'s
     /// error.
-    // [spec:pgorm:def:disjoint.one-of+1]
+    // [spec:pgorm:def:disjoint.one-of+4]
     fn set(
         active: &mut <Self::Entity as EntityTrait>::ActiveModel,
         key: Self::Key,
     ) -> Result<(), Error> {
+        let mut variant = Variant {
+            key: &key,
+            index: 0,
+            found: None,
+        };
+        Self::visit_targets(&mut variant);
+        let assigned = OneOfShape::of::<Self>().assigned(variant.found)?;
         let mut write = Write {
             active,
             key: &key,
+            assigned: &assigned,
+            index: 0,
             written: Ok(()),
         };
         Self::visit_targets(&mut write);
@@ -153,15 +131,17 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     /// The targets `models` reference, each as its `<Enum>Model`, in the
     /// order of `models`.
     ///
-    /// Each target table is read once, for the keys its variant holds, by
-    /// [`LoaderTrait::load_one`] over the entity's relation to it, which joins
-    /// exactly the variant's column to the target's key, and a relation that
-    /// joins anything else is refused as [`Error::Type`] before anything is
+    /// Each target table is read once, in one statement selecting the rows
+    /// whose key is among those its variant holds,
+    /// [`OneOfShape::load_condition`], and each row read is decoded as the
+    /// target's `Model`. The entity's relation to each target is the foreign
+    /// key holding the reference, so one that joins anything but exactly the
+    /// variant's column to the target's key, or that carries an
+    /// `on_condition`, is refused as [`Error::Type`] before anything is
     /// sent. A row's reference is read as [`key`](Self::key) reads it, and
-    /// its errors are this one's; a key its target table does not hold, which
-    /// `load_one` gives as `None`, is [`Error::Query`] naming the table, the
-    /// key and the column it was read from.
-    // [spec:pgorm:def:disjoint.one-of+1]
+    /// its errors are this one's; a key its target table does not hold is
+    /// [`OneOfShape::absent`]'s [`Error::Query`].
+    // [spec:pgorm:def:disjoint.one-of+4]
     async fn load<C>(
         models: &[<Self::Entity as EntityTrait>::Model],
         db: &C,
@@ -173,11 +153,14 @@ pub trait OneOf: Sized + Send + Sync + 'static {
             .iter()
             .map(Self::key)
             .collect::<Result<Vec<_>, _>>()?;
+        let shape = OneOfShape::of::<Self>();
         let loads = {
             let mut load = Load::<Self, C> {
+                shape: &shape,
                 models,
                 keys: &keys,
                 db,
+                index: 0,
                 loads: Vec::new(),
                 refused: Ok(()),
             };
@@ -206,7 +189,7 @@ pub trait OneOf: Sized + Send + Sync + 'static {
 }
 
 /// What [`OneOf::visit_targets`] calls for each variant naming a target.
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+4]
 pub trait TargetVisitor<O: OneOf> {
     /// The variant whose target is `T`, its key held in
     /// [`OneOfTarget::COLUMN`] and the relation reading it the entity's
@@ -344,12 +327,16 @@ pub trait TargetVisitor<O: OneOf> {
 /// }
 /// # fn main() {}
 /// ```
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+4]
 #[diagnostic::on_unimplemented(
     message = "`{Self}` is not a target of `{O}`",
     label = "a `OneOf` variant names its target entity, `Post(post::Entity)`"
 )]
 pub trait OneOfTarget<O: OneOf>: EntityTrait<Model: Sync> {
+    /// The target's name in `O`: its variant's name in snake_case, which a
+    /// [`OneOfShape`](crate::OneOfShape) names it by.
+    const NAME: &'static str;
+
     /// The column of `O`'s entity holding this target's key: nullable, and
     /// of the target's key type, which the derive holds it to.
     const COLUMN: <O::Entity as EntityTrait>::Column;
@@ -373,15 +360,11 @@ pub trait OneOfTarget<O: OneOf>: EntityTrait<Model: Sync> {
     fn model(model: Self::Model) -> O::Model;
 }
 
-/// A row's key as an error names it: each key column and its value.
-fn row_key<M: ModelTrait>(model: &M) -> String {
+/// A row's key values, in its entity's key order.
+fn row_key<M: ModelTrait>(model: &M) -> Vec<Value> {
     <<M::Entity as EntityTrait>::PrimaryKey as Iterable>::iter()
-        .map(|key| {
-            let column = key.into_column();
-            format!("`{}` = {}", column.as_str(), model.get(column))
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
+        .map(|key| model.get(key.into_column()))
+        .collect()
 }
 
 struct Columns<O: OneOf>(Vec<<O::Entity as EntityTrait>::Column>);
@@ -395,12 +378,11 @@ impl<O: OneOf> TargetVisitor<O> for Columns<O> {
     }
 }
 
-/// The variants whose columns a row sets, each by its column, and every
-/// variant's column.
+/// Each variant's key a row holds, `None` where its column is null, in
+/// declaration order.
 struct Read<'a, O: OneOf> {
     model: &'a <O::Entity as EntityTrait>::Model,
-    set: Vec<(String, O::Key)>,
-    columns: Vec<String>,
+    keys: Vec<Option<O::Key>>,
 }
 
 impl<O: OneOf> TargetVisitor<O> for Read<'_, O> {
@@ -408,18 +390,37 @@ impl<O: OneOf> TargetVisitor<O> for Read<'_, O> {
     where
         O::Entity: Related<T>,
     {
-        let column = T::COLUMN.as_str().to_owned();
-        if let Some(key) = T::read(self.model) {
-            self.set.push((column.clone(), T::key(key)));
-        }
-        self.columns.push(column);
+        self.keys.push(T::read(self.model).map(T::key));
     }
 }
 
-/// Each variant's column written for `key`, until one is refused.
+/// Where in declaration order the variant of `key` stands, `None` for the
+/// unit variant.
+struct Variant<'a, O: OneOf> {
+    key: &'a O::Key,
+    index: usize,
+    found: Option<usize>,
+}
+
+impl<O: OneOf> TargetVisitor<O> for Variant<'_, O> {
+    fn target<T: OneOfTarget<O>>(&mut self)
+    where
+        O::Entity: Related<T>,
+    {
+        if T::of_key(self.key).is_some() {
+            self.found = Some(self.index);
+        }
+        self.index += 1;
+    }
+}
+
+/// Each variant's column written: `key` where `assigned` says so, null
+/// otherwise, until one is refused.
 struct Write<'a, O: OneOf> {
     active: &'a mut <O::Entity as EntityTrait>::ActiveModel,
     key: &'a O::Key,
+    assigned: &'a [bool],
+    index: usize,
     written: Result<(), Error>,
 }
 
@@ -428,9 +429,14 @@ impl<O: OneOf> TargetVisitor<O> for Write<'_, O> {
     where
         O::Entity: Related<T>,
     {
+        let key = match self.assigned.get(self.index) {
+            Some(true) => T::of_key(self.key),
+            _ => None,
+        };
         if self.written.is_ok() {
-            self.written = T::write(self.active, T::of_key(self.key));
+            self.written = T::write(self.active, key);
         }
+        self.index += 1;
     }
 }
 
@@ -441,9 +447,11 @@ type TargetLoad<'a, M> = Pin<Box<dyn Future<Output = Result<Vec<(usize, M)>, Err
 /// The reads of a load, one per target some row references, built before
 /// any is sent so that a relation refused refuses the whole load.
 struct Load<'a, O: OneOf, C> {
+    shape: &'a OneOfShape,
     models: &'a [<O::Entity as EntityTrait>::Model],
     keys: &'a [O::Key],
     db: &'a C,
+    index: usize,
     loads: Vec<TargetLoad<'a, O::Model>>,
     refused: Result<(), Error>,
 }
@@ -453,39 +461,63 @@ impl<'a, O: OneOf, C: ConnectionTrait> TargetVisitor<O> for Load<'a, O, C> {
     where
         O::Entity: Related<T>,
     {
+        let index = self.index;
+        self.index += 1;
         if self.refused.is_ok() {
             self.refused = reads_column::<O, T>();
         }
-        let (rows, subset): (Vec<usize>, Vec<_>) = self
+        let wanted: Vec<(usize, Value)> = self
             .models
             .iter()
             .zip(self.keys)
             .enumerate()
             .filter(|(_, (_, key))| T::of_key(key).is_some())
-            .map(|(row, (model, _))| (row, model.clone()))
-            .unzip();
-        if rows.is_empty() {
+            .map(|(row, (model, _))| (row, model.get(T::COLUMN)))
+            .collect();
+        if wanted.is_empty() || self.refused.is_err() {
             return;
         }
-        let db = self.db;
+        let condition = match self
+            .shape
+            .load_condition(index, wanted.iter().map(|(_, key)| key.clone()).collect())
+        {
+            Ok(condition) => condition,
+            Err(error) => {
+                self.refused = Err(error);
+                return;
+            }
+        };
+        let (shape, models, db) = (self.shape, self.models, self.db);
         self.loads.push(Box::pin(async move {
-            let targets = subset.load_one(T::default(), db).await?;
-            rows.into_iter()
-                .zip(&subset)
-                .zip(targets)
-                .map(|((row, model), target)| match target {
-                    Some(target) => Ok((row, T::model(target))),
-                    None => Err(absent::<O, T>(model)),
+            let found = T::find().filter(condition).all(db).await?;
+            let key = <T::PrimaryKey as Iterable>::iter()
+                .next()
+                .map(PrimaryKeyToColumn::into_column);
+            wanted
+                .into_iter()
+                .map(|(row, wanted)| {
+                    let target =
+                        key.and_then(|key| found.iter().find(|target| target.get(key) == wanted));
+                    match target {
+                        Some(target) => Ok((row, T::model(target.clone()))),
+                        None => Err(shape.absent(
+                            index,
+                            &models.get(row).map(row_key).unwrap_or_default(),
+                            &wanted,
+                        )),
+                    }
                 })
                 .collect()
         }));
     }
 }
 
-/// Refuse a relation to `T` that does not join exactly `T`'s column to `T`'s
-/// key: `load_one` reads the relation, so one joining anything else would
-/// read targets by other columns than the reference's.
-// [spec:pgorm:def:disjoint.one-of+1]
+/// Refuse a relation to `T` that is not the foreign key holding the
+/// reference: one joining other than exactly `T`'s column to `T`'s key, or
+/// through a `via` or a period, would hold another reference than the
+/// variant's, and an `on_condition` could only make a key its foreign key
+/// holds look absent.
+// [spec:pgorm:def:disjoint.one-of+4]
 fn reads_column<O, T>() -> Result<(), Error>
 where
     O: OneOf,
@@ -502,20 +534,27 @@ where
         .iter()
         .map(|(from, to)| (from.to_string(), to.to_string()))
         .collect();
+    let entity = <O::Entity as Default>::default();
+    let target = <T as Default>::default();
+    let (table, target_table) = (table_label(&entity), table_label(&target));
+    if relation.on_condition.is_some() {
+        return Err(Error::Type(format!(
+            "`{table}`'s relation to `{target_table}` carries an on_condition, and the \
+             foreign key holding `{table}`.`{column}` holds its target row whatever a \
+             condition says: the relation a one-of reference's target is loaded by joins \
+             `{column}` to `{target_table}`'s key alone"
+        )));
+    }
     let reads = <O::Entity as Related<T>>::via().is_none()
         && relation.columns.period().is_none()
         && matches!(pairs.as_slice(), [(from, to)] if *from == column && key == [to.clone()]);
     if reads {
         return Ok(());
     }
-    let entity = <O::Entity as Default>::default();
-    let target = <T as Default>::default();
     Err(Error::Type(format!(
         "`{table}`.`{column}` holds the key of `{target_table}`, but `{table}`'s relation to \
-         `{target_table}` joins {joined}, and loading reads that relation: it must join \
-         `{column}` to `{target_table}`'s key `{key}` alone",
-        table = table_label(&entity),
-        target_table = table_label(&target),
+         `{target_table}` joins {joined}, and that relation is the foreign key holding the \
+         reference: it must join `{column}` to `{target_table}`'s key `{key}` alone",
         joined = pairs
             .iter()
             .map(|(from, to)| format!("`{from}` to `{to}`"))
@@ -523,27 +562,4 @@ where
             .join(", "),
         key = key.join("`, `"),
     )))
-}
-
-/// The error for `model`'s key of `T`, which `T`'s table does not hold.
-// [spec:pgorm:def:disjoint.one-of+1]
-fn absent<O, T>(model: &<O::Entity as EntityTrait>::Model) -> Error
-where
-    O: OneOf,
-    T: OneOfTarget<O>,
-{
-    let entity = <O::Entity as Default>::default();
-    let target = <T as Default>::default();
-    let key = T::read(model)
-        .map(|key| format!("{key:?}"))
-        .unwrap_or_default();
-    query_err(format!(
-        "the `{table}` row whose key is ({row}) references the `{target_table}` row of key \
-         {key} through `{column}`, and reading `{table}`'s relation to `{target_table}` finds \
-         no such row",
-        table = table_label(&entity),
-        row = row_key(model),
-        target_table = table_label(&target),
-        column = T::COLUMN.as_str(),
-    ))
 }

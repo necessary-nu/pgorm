@@ -79,7 +79,7 @@ pub(super) fn columns(value: &Bound<'_, PyAny>, what: &str) -> PyResult<(Name, V
 /// The relation a statement names: a name, or a `Table` with no alias, its
 /// schema kept. A sequence and a view are relations too.
 // [spec:pgorm:req:bindings.schema]
-pub(super) fn relation(value: &Bound<'_, PyAny>) -> PyResult<TableName> {
+pub(crate) fn relation(value: &Bound<'_, PyAny>) -> PyResult<TableName> {
     if let Ok(table) = value.extract::<PyRef<'_, PyTable>>() {
         if table.inner.alias.is_some() {
             return Err(ConstructionError::new_err(

@@ -326,7 +326,7 @@ including panic semantics and quirks inherited from sea-query.
 
 ## Range types a schema creates
 
-> [spec:pgorm:def:sql.value.created-range+5]
+> [spec:pgorm:def:sql.value.created-range+6]
 > A range type a schema creates with `CREATE TYPE ... AS RANGE`
 > (`[spec:pgorm:req:sql.ddl.type-range]`) is named by that schema, so no
 > `RangeType` variant can carry it, and `Value` does not: it stays one pointer
@@ -395,6 +395,15 @@ including panic semantics and quirks inherited from sea-query.
 > what turns the `to_string()` of a built-in `Range<i32>` written to a column
 > of a range type over `int4` from a constructor call PostgreSQL refuses —
 > `42804` in an insert, `42883` against the column — into a literal it reads.
+> A pipeline compares a bound built-in `Range` or `Multirange` with such a
+> column — an entity column, or one `compares_as` names the type of
+> (`[spec:pgorm:req:pipeline.surface]`) — through its text as well, but has
+> the server write it: the placeholder is minted before the comparison that
+> casts it, and may be compared elsewhere in its stage as the range it is, so
+> the value stays the built-in range bound in binary, pinned to its type and
+> cast to `text` before the column's type, `CAST($1::int4range::text AS
+> slot)`. The server's text of a built-in range reads back as the same
+> range.
 > A row decodes from the range's binary form: tokio-postgres reports a created
 > range as a range over its subtype, so `Range<T>` decodes for every
 > `RangeSubtype` and refuses one over another subtype

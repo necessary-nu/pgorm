@@ -70,7 +70,7 @@ def _labels(values: object) -> tuple[str, ...]:
     return labels
 
 
-# [spec:pgorm:req:bindings.models+4]
+# [spec:pgorm:req:bindings.models+5]
 @dataclass(frozen=True, slots=True)
 class Column:
     kind: str | p.TypeName | p.CreatedRange | p.CreatedMultirange
@@ -189,7 +189,7 @@ class Column:
 
 
 # [spec:pgorm:req:bindings.model-columns+1]
-# [spec:pgorm:req:bindings.column-operators+1]
+# [spec:pgorm:req:bindings.column-operators+3]
 class ModelColumn(p._DeclaredColumn):
     """A model field's column, itself the column's expression.
 

@@ -294,7 +294,7 @@ fn enum_columns_are_cast_at_the_sql_boundary() {
     // an enum column on the server, so no cast is applied to either side. This
     // is why `eq` was not widened to admit a column — a widened bound would have
     // dropped the cast above without saying so.
-    // [spec:pgorm:def:entity.traits.column+7/test]    the `_col` family does not
+    // [spec:pgorm:def:entity.traits.column+9/test]    the `_col` family does not
     // route its operand through `save_as`
     assert_eq!(
         filter_sql(casts::Column::Tea.eq_col(casts::Column::Tea)),

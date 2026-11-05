@@ -9,7 +9,7 @@ from pgorm_campaign.grammar_rejection import RULES
 from pgorm_campaign.grammar_state import Limits, State
 from pgorm_campaign.parameters import input_ids
 from pgorm_campaign.program import Program
-from pgorm_campaign.refusals import EMPTY_INSERT, UNSERIALIZABLE
+from pgorm_campaign.refusals import EMPTY_INSERT
 
 
 def _reachable(nodes, step):
@@ -186,16 +186,15 @@ class GrammarTests(unittest.TestCase):
             if case == "unquotable-identifier":
                 self.assertEqual(error["class"], "ConstructionError")
                 self.assertRegex(error["cause"], r'^identifier `origin[^`]*"[^`]*` ')
+            elif case == "unsigned-overflow" and error["class"] == "ConstructionError":
+                self.assertRegex(
+                    error["cause"],
+                    r"^parameter \$1 cannot be bound: "
+                    r"value `\d+` is out of range for Postgres type `int8`$",
+                )
             elif case == "unsigned-overflow":
-                self.assertIn(
-                    error,
-                    (
-                        {
-                            "class": "ConstructionError",
-                            "cause": UNSERIALIZABLE.format(0),
-                        },
-                        {"class": "DatabaseError", "cause": "sqlstate:22003"},
-                    ),
+                self.assertEqual(
+                    error, {"class": "DatabaseError", "cause": "sqlstate:22003"}
                 )
             else:
                 self.assertEqual(error["cause"], causes[case])

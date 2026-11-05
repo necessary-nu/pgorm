@@ -135,7 +135,7 @@ async fn create_the_types(db: &DatabaseConnection) -> Result<(), Error> {
 
 /// A table built from the entity names each multirange in full, quoted where
 /// the name needs it, and the server takes it.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 // [spec:pgorm:sem:macros.derive.created-range+2/test]
 async fn the_table_names_each_multirange(db: &DatabaseConnection) -> Result<(), Error> {
     let table = Schema::new().create_table_from_entity(spans::Entity)?;
@@ -178,7 +178,7 @@ fn written(id: i32) -> spans::Model {
 /// A model is written by an entity insert, its text bound and cast by name,
 /// and read back through the column's text cast; a `NULL` multirange stays
 /// `NULL` and the empty one stays empty.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 // [spec:pgorm:sem:entity.traits.column.enum-cast+15/test]
 async fn a_multirange_round_trips_through_an_entity(db: &DatabaseConnection) -> Result<(), Error> {
     let first = written(1);
@@ -235,7 +235,7 @@ async fn every_reader_takes_the_text_cast(db: &DatabaseConnection) -> Result<(),
 
 /// The server stores a multirange sorted and merged, with the empty ranges
 /// dropped, and the merged value is what reads back.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 async fn the_server_merges_what_is_written(db: &DatabaseConnection) -> Result<(), Error> {
     let written = FloatSpans(multirange([
         Range::from(5.0..8.0),
@@ -264,7 +264,7 @@ async fn the_server_merges_what_is_written(db: &DatabaseConnection) -> Result<()
 
 /// A value cast to its type renders as an escaped literal inline and as a
 /// `text` parameter bound, and the two are the value written.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Result<(), Error> {
     let slots = Slots(multirange([Range::from(1..=5)]));
     let query = Query::select().expr(slots.clone().into_expr()).to_owned();
@@ -286,7 +286,7 @@ async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Resul
 
 /// A bound holding the literal's syntax, the SQL string's, or a
 /// placeholder's is written and read back as the text it is.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 async fn a_bound_holding_range_syntax_stays_data(db: &DatabaseConnection) -> Result<(), Error> {
     let hostile = [
         "'); DROP TABLE spans; --",
@@ -320,9 +320,10 @@ async fn a_bound_holding_range_syntax_stays_data(db: &DatabaseConnection) -> Res
 }
 
 /// A built-in `int4multirange` value written to a column of a multirange
-/// created over `int4` is turned into its text and cast, on both renderings;
+/// created over `int4` is turned into its text and cast, on both renderings,
+/// and a pipeline binds one compared with the column through its text too;
 /// cast as the built-in it is, it is refused.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 async fn a_builtin_multirange_reaches_a_created_one(db: &DatabaseConnection) -> Result<(), Error> {
     let builtin = multirange([Range::from(2..7)]);
     let insert = Query::insert()
@@ -362,6 +363,24 @@ async fn a_builtin_multirange_reaches_a_created_one(db: &DatabaseConnection) -> 
         vec![3]
     );
 
+    let piped = {
+        use pgorm::pipeline::{ExprOps, Pipeline};
+        Pipeline::from(spans::Entity)
+            .filter_with(|binder| spans::Column::Slots.eq(binder.bind(builtin.clone())))
+            .select(spans::Column::Id)
+    };
+    let (sql, _) = piped.clone().into_sql().expect("the pipeline compiles");
+    assert!(
+        sql.contains(r#"slots = CAST($1::int4multirange::text AS "We""ird"."Slot Set")"#),
+        "{sql}"
+    );
+    let ids = piped
+        .into_tuple::<i32>()
+        .expect("the pipeline compiles")
+        .all(db)
+        .await?;
+    assert_eq!(ids, vec![3]);
+
     let cast = Query::select()
         .expr(Expr::val(builtin).cast_as_type(Slots::name()))
         .to_owned();
@@ -378,7 +397,7 @@ async fn a_builtin_multirange_reaches_a_created_one(db: &DatabaseConnection) -> 
 /// a range with bounds out of order, malformed text, and text that is a range
 /// rather than a multirange. Text that reads as no multirange of the subtype
 /// is refused on the way out.
-// [spec:pgorm:def:sql.value.created-range+5/test]
+// [spec:pgorm:def:sql.value.created-range+6/test]
 async fn the_server_refuses_what_it_cannot_store(db: &DatabaseConnection) -> Result<(), Error> {
     let cases = [
         (

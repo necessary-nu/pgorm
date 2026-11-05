@@ -227,7 +227,8 @@ function assertDeclared(owner: string, descriptions: readonly unknown[]) {
 }
 
 // [spec:pgorm:req:bindings.surface+2/test]
-// [spec:pgorm:req:bindings.models+4/test]
+// [spec:pgorm:req:bindings.models+5/test]
+// [spec:pgorm:req:bindings.model-unique-keys+2/test]
 test("a model's describe() reports exactly the keys the surface declares", () => {
   const declared = pgorm.model("accounts", {
     schema: "app",
@@ -235,6 +236,7 @@ test("a model's describe() reports exactly the keys the surface declares", () =>
       id: pgorm.column("i64", { primaryKey: true, generated: "always" }),
       mood: pgorm.column(new pgorm.TypeName("mood", { schema: "app" }), { nullable: true, values: ["calm"] }),
     },
+    uniqueKeys: [{ fields: ["mood", "id"], name: "accounts_mood_id" }],
   });
   assertDeclared("pgorm.Model", [declared.describe(), declared.as("a").describe()]);
 });
@@ -265,7 +267,28 @@ test("a registered disjoint enum's describe() reports exactly the keys the surfa
 });
 
 // [spec:pgorm:req:bindings.surface+2/test]
-// [spec:pgorm:req:bindings.entities+4/test]
+// [spec:pgorm:req:bindings.one-of+1/test]
+test("a one-of reference's describe() reports exactly the keys the surface declares", () => {
+  const target = pgorm.model("posts", { schema: "app", columns: { id: pgorm.column("i32", { primaryKey: true }) } });
+  const declared = pgorm.model("comments", {
+    schema: "app",
+    columns: { id: pgorm.column("i32", { primaryKey: true }), post: pgorm.column("i32", { nullable: true }) },
+  });
+  const reference = pgorm.oneOf("commentable", declared, { post: ["post", target] }, { optional: true });
+  assertDeclared("pgorm.OneOf", [reference.describe()]);
+});
+
+// [spec:pgorm:req:bindings.surface+2/test]
+// [spec:pgorm:req:bindings.one-of+1/test]
+test("a registered one-of enum's describe() reports exactly the keys the surface declares", {
+  skip: pgorm.oneOfEntities().length === 0 &&
+    "the module registers no one-of entity; checks/entities.js runs this against an application's",
+}, () => {
+  assertDeclared("pgorm.OneOfEntity", pgorm.oneOfEntities().map((name) => pgorm.oneOfEntity(name).describe()));
+});
+
+// [spec:pgorm:req:bindings.surface+2/test]
+// [spec:pgorm:req:bindings.entities+5/test]
 test("a registered entity's describe() reports exactly the keys the surface declares", {
   skip: pgorm.entities().length === 0 && "the module registers no entity; checks/entities.js runs this against an application's",
 }, () => {

@@ -4,7 +4,7 @@
 mod common;
 
 use common::*;
-use pgorm_codegen::{Column, EntityTransformer, Error};
+use pgorm_codegen::{Column, Error};
 use pgorm_query::{
     ColumnDef, ColumnType, IdentityGeneration, IntervalSpec, Name, PgInterval, SequenceOption,
     StringLen, TypeName,
@@ -360,22 +360,14 @@ fn column_conversion_rejects_an_unrespellable_named_type() {
 // type — no placeholder code, and no panic
 #[test]
 fn transform_rejects_column_type_outside_mapping() {
-    let unsupported = EntityTransformer::transform(
+    assert_transform_error(
         vec![keyed_with(
             "device",
             &["id"],
             vec![serial("id"), typed("address", ColumnType::Inet)],
         )],
-        &context(Opts::default()),
+        "table `device` column `address`: column type Inet is not supported by codegen",
     );
-
-    match unsupported {
-        Err(Error::TransformError(msg)) => assert_eq!(
-            msg,
-            "table `device` column `address`: column type Inet is not supported by codegen"
-        ),
-        other => panic!("expected a TransformError, got {other:?}"),
-    }
 }
 
 // [spec:pgorm:req:codegen.entity.types.unsupported+11/test]    an array of an
@@ -428,7 +420,7 @@ fn column_conversion_rejects_unsupported_type() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    an identity is read off
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    an identity is read off
 // the column definition as its form, and makes the column NOT NULL; one
 // carrying sequence options is refused, since an entity declares no options
 #[test]

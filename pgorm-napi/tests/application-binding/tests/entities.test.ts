@@ -102,12 +102,13 @@ function refused(pattern: RegExp): (error: unknown) => true {
   };
 }
 
-// [spec:pgorm:req:bindings.entities+4/test]
+// [spec:pgorm:req:bindings.entities+5/test]
 // [spec:pgorm:req:bindings.relation-conditions/test]
 test("the module names its registrations and describes each, and refuses a name it does not register", () => {
   assert.deepStrictEqual(entities(), [
     "app.Account",
     "app.Auction",
+    "app.Label",
     "app.Listing",
     "app.Membership",
     "app.Note",
@@ -128,6 +129,11 @@ test("the module names its registrations and describes each, and refuses a name 
   assert.equal(described.schema, "napi_entities");
   assert.equal(described.table, "accounts");
   assert.deepStrictEqual(described.primaryKey, ["id"]);
+  assert.deepStrictEqual(described.uniqueKeys, []);
+  // [spec:pgorm:req:bindings.entities+5/test]    a registration's describe() reports the unique keys its entity's unique(..) declares, each its name, its columns by their SQL names in key order and nullsNotDistinct
+  assert.deepStrictEqual(entity("app.Label").describe().uniqueKeys, [
+    { name: "labels_text_packet", columns: ["text", "packet_id"], nullsNotDistinct: true },
+  ]);
   assert.deepStrictEqual(
     described.columns.map((column) => [column.name, column.kind, column.nullable]),
     [["id", "i32", false], ["display name", "text", false], ["note", "text", true], ["version", "i32", false], [
@@ -159,7 +165,7 @@ test("the module names its registrations and describes each, and refuses a name 
   ]);
 });
 
-// [spec:pgorm:req:bindings.entity-reads+2/test]
+// [spec:pgorm:req:bindings.entity-reads+3/test]
 test("a query reads records through Select's terminals, keyed by SQL column", async () => {
   await seed();
   const busy = await Account.find().where(Account.col("mood").eq("busy")).all(pool());
@@ -183,7 +189,7 @@ test("a query reads records through Select's terminals, keyed by SQL column", as
   assert.equal(counted.n, 1n);
 });
 
-// [spec:pgorm:req:bindings.entity-reads+2/test]
+// [spec:pgorm:req:bindings.entity-reads+3/test]
 test("one and optional narrow a row limit and never widen one of zero", async () => {
   await seed();
   const none = Account.find().orderBy(Account.col("id").asc()).limit(0);
@@ -234,13 +240,13 @@ test("an ActiveModel holds each column's state, and its writes run the applicati
   assert.throws(() => Account.active().set("mood", "wild"), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.entities+4/test]    a registered entity whose columns are domains, over an
+// [spec:pgorm:req:bindings.entities+5/test]    a registered entity whose columns are domains, over an
 // integer, over an enum and an array of one over text, describes, reads, writes and compares
 // through them as through their base types
 // [spec:pgorm:req:bindings.schema-domains+2/test]    a domain column reports, binds and reads as the
 // kind it is over, and a check refuses a value written to it as a CheckViolationError naming the
 // domain
-// [spec:pgorm:req:bindings.entity-reads+2/test]    a column whose domain is over an enum compares as
+// [spec:pgorm:req:bindings.entity-reads+3/test]    a column whose domain is over an enum compares as
 // the enum
 test("a registered entity's domain columns read, write and compare as the types they are over", async () => {
   assert.deepStrictEqual(
@@ -291,7 +297,7 @@ test("a registered entity's domain columns read, write and compare as the types 
   assert.deepStrictEqual(ids(await Parcel.find().orderBy(byId).all(pool())), [1, 2, 3, 4]);
 });
 
-// [spec:pgorm:req:bindings.entity-reads+2/test]    a column whose domain is over an enum is a
+// [spec:pgorm:req:bindings.entity-reads+3/test]    a column whose domain is over an enum is a
 // member of a list of values and of a subquery's rows as the enum, either way round, where the
 // column's plain expression is refused with 42883
 // [spec:pgorm:req:bindings.pipeline-sources+3/test]    a registered column a pipeline reads
@@ -338,7 +344,7 @@ test("a registered column whose domain is over an enum is a member, and a pipeli
   await assert.rejects(rows(pl.from(Parcel).filter(pl.col("parcels", "mood").eq("busy"))), undefinedOperator);
 });
 
-// [spec:pgorm:req:bindings.entities+4/test]    a money column, and an array of it, is a decimal column:
+// [spec:pgorm:req:bindings.entities+5/test]    a money column, and an array of it, is a decimal column:
 // described as one, set, compared and read back as a Decimal through the entity's own casts, and
 // compared as money by a pipeline that reads the registered column, where the column named by text
 // takes no Decimal
@@ -376,6 +382,118 @@ test("a registered entity's money columns bind and read as decimals", async () =
     piped(pl.from(Till).filter(pl.col("tills", "takings").gt(new Decimal("5")))),
     refused(/cannot bind a `Decimal` value to Postgres type `money`/),
   );
+});
+
+// [spec:pgorm:req:bindings.column-operators+3/test]    a registered column's between, symmetric or
+// not, and its distinctness tests run through its ColumnTrait: a money column's bounds cast to money,
+// an enum's labels to the enum, and a column whose domain is over an enum tested as the enum, where
+// the column's plain expression is refused; an expression bound is taken as written, null never
+test("a registered column's between and distinctness tests compare under its casts", async () => {
+  await seed();
+  for (const [id, takings] of [[1, "12.35"], [2, "3"], [3, "7.5"]] as const) {
+    await Till.active().set("id", id).set("takings", new Decimal(takings)).insert(pool());
+  }
+  for (const [id, mood] of [[1, "calm"], [2, "busy"]] as const) {
+    await Parcel.active().set("id", id).set("mood", mood).set("codes", []).insert(pool());
+  }
+  const ids = async (query: { all(pool: Pool): Promise<readonly EntityRecord[]> }) =>
+    (await query.all(pool())).map((record) => record.id).sort();
+  const takings = Till.col("takings");
+  const [low, high] = [new Decimal("3"), new Decimal("8")];
+  assert.match(
+    takings.between(low, high).inspect().sql,
+    /BETWEEN CAST\(\$1::numeric AS money\) AND CAST\(\$2::numeric AS money\)/,
+  );
+  assert.deepStrictEqual(await ids(Till.find().where(takings.between(low, high))), [2, 3]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.notBetween(low, high))), [1]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.between(high, low))), []);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.between(high, low, { symmetric: true }))), [2, 3]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.notBetween(high, low, { symmetric: true }))), [1]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.isDistinctFrom(low))), [1, 3]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.isNotDistinctFrom(low))), [2]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.between(takings, takings))), [1, 2, 3]);
+
+  const mood = Account.col("mood");
+  assert.deepStrictEqual(await ids(Account.find().where(mood.between("busy", "busy"))), [2]);
+  assert.deepStrictEqual(await ids(Account.find().where(mood.notBetween("busy", "calm", { symmetric: true }))), []);
+  assert.deepStrictEqual(await ids(Account.find().where(mood.isDistinctFrom("busy"))), [1, 3]);
+  assert.deepStrictEqual(await ids(Account.find().where(mood.isNotDistinctFrom("busy"))), [2]);
+
+  const temper = Parcel.col("mood");
+  assert.deepStrictEqual(await ids(Parcel.find().where(temper.between("calm", "calm"))), [1]);
+  assert.deepStrictEqual(await ids(Parcel.find().where(temper.between("busy", "calm", { symmetric: true }))), [1, 2]);
+  assert.deepStrictEqual(await ids(Parcel.find().where(temper.isDistinctFrom("calm"))), [2]);
+  assert.deepStrictEqual(await ids(Parcel.find().where(temper.isNotDistinctFrom("busy"))), [2]);
+  const plain = statementCol("mood", { table: "parcels", schema: "napi_entities" });
+  for (const bare of [plain.between("calm", "busy"), plain.isDistinctFrom("calm")]) {
+    await assert.rejects(Parcel.find().where(bare).all(pool()), (error: unknown) => {
+      assert.ok(error instanceof DatabaseError, `expected a DatabaseError, got ${error}`);
+      assert.equal(error.sqlstate, "42883");
+      return true;
+    });
+  }
+  assert.throws(() => takings.between(null as never, high), refused(/compared with null is never true/));
+  assert.throws(() => takings.isDistinctFrom(null as never), refused(/compared with null is never true/));
+});
+
+// [spec:pgorm:req:bindings.entity-reads+3/test]    any(..) / all(..) over a list compares through the
+// column's ColumnTrait, the list one array of its declared kind cast as eq_any's is: money as money[],
+// a column whose domain is over an enum as the enum, where the plain expression is refused; over an
+// expression it is compared as written
+// [spec:pgorm:req:bindings.column-operators+3/test]    a registered array column's containment and
+// overlap run through its ColumnTrait
+test("a registered column's quantified comparisons and containment compare under its casts", async () => {
+  await seed();
+  for (const [id, takings] of [[1, "12.35"], [2, "3"], [3, "7.5"]] as const) {
+    await Till.active().set("id", id).set("takings", new Decimal(takings)).insert(pool());
+  }
+  for (const [id, mood, codes] of [[1, "calm", ["a", "b"]], [2, "busy", ["c"]]] as const) {
+    await Parcel.active().set("id", id).set("mood", mood).set("codes", [...codes]).insert(pool());
+  }
+  const ids = async (query: { all(pool: Pool): Promise<readonly EntityRecord[]> }) =>
+    (await query.all(pool())).map((record) => record.id).sort();
+  const takings = Till.col("takings");
+  assert.match(takings.eq(any([new Decimal("3")])).inspect().sql, /= ANY\(CAST\(\$1::numeric\[\] AS money\[\]\)\)/);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.eq(any([new Decimal("3"), new Decimal("12.35")])))), [1, 2]);
+  assert.deepStrictEqual(await ids(Till.find().where(takings.gt(all([new Decimal("1"), new Decimal("5")])))), [1, 3]);
+  assert.deepStrictEqual(await ids(Account.find().where(Account.col("mood").ne(all(["busy"])))), [1, 3]);
+  const temper = Parcel.col("mood");
+  assert.deepStrictEqual(await ids(Parcel.find().where(temper.eq(any(["busy"])))), [2]);
+  assert.deepStrictEqual(await ids(Parcel.find().where(temper.gt(all(["calm"])))), [2]);
+  const plain = statementCol("mood", { table: "parcels", schema: "napi_entities" });
+  await assert.rejects(Parcel.find().where(plain.eq(any(["busy"]))).all(pool()), (error: unknown) => {
+    assert.ok(error instanceof DatabaseError, `expected a DatabaseError, got ${error}`);
+    assert.equal(error.sqlstate, "42883");
+    return true;
+  });
+  const identifier = Account.col("id");
+  const versions = select(Account.col("version")).from(new Table("accounts", { schema: "napi_entities" }));
+  assert.deepStrictEqual(await ids(Account.find().where(identifier.eq(any(versions)))), [1]);
+
+  const codes = Parcel.col("codes");
+  assert.deepStrictEqual(await ids(Parcel.find().where(codes.contains(["a"]))), [1]);
+  assert.deepStrictEqual(await ids(Parcel.find().where(codes.containedBy(["a", "b", "c"]))), [1, 2]);
+  assert.deepStrictEqual(await ids(Parcel.find().where(codes.overlaps(["c", "d"]))), [2]);
+});
+
+// [spec:pgorm:req:bindings.errors+5/test]    a column the entity cannot read as its field's type is a
+// DecodeError naming what the driver was reading and the decoder's reason, as Python reports it
+test("a decode refusal names the column the driver read and the decoder's reason", async () => {
+  await pool().execute("ALTER TABLE napi_entities.notes ALTER COLUMN account_id TYPE text USING account_id::text");
+  try {
+    await pool().execute("INSERT INTO napi_entities.notes VALUES (1, 'one', 'b')");
+    await assert.rejects(Note.find().all(pool()), (error: unknown) => {
+      assert.ok(error instanceof DecodeError, `expected a DecodeError, got ${error}`);
+      assert.equal(
+        error.message,
+        "error deserializing column 1: cannot convert between the Rust type `i32` and the Postgres type `text`",
+      );
+      return true;
+    });
+  } finally {
+    await pool().execute("TRUNCATE napi_entities.notes");
+    await pool().execute("ALTER TABLE napi_entities.notes ALTER COLUMN account_id TYPE int4 USING account_id::int4");
+  }
 });
 
 // [spec:pgorm:req:bindings.entity-writes/test]
@@ -485,7 +603,7 @@ test("a registered graph's cursor pages by keyset, resuming inside a root's slot
   assert.throws(() => cursor.after("x"), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.entities+4/test]
+// [spec:pgorm:req:bindings.entities+5/test]
 // [spec:pgorm:req:bindings.registered-pools/test]
 test("an entity's operations run on a connection or a transaction, with a statement's refusals and aborts", async () => {
   await seed();

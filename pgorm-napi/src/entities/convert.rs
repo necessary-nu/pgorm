@@ -53,6 +53,26 @@ pub(crate) fn column_value<'cx>(
     Ok(tagged.datum)
 }
 
+/// `data`, a JavaScript array, as one array of `column`'s scalar kind, or
+/// `None` for a column whose kind is no scalar's: what a quantified
+/// comparison with the column ranges over.
+pub(crate) fn column_array<'cx>(
+    cx: &mut Cx<'cx>,
+    column: &ColumnInfo,
+    data: Handle<'cx, JsValue>,
+) -> NeonResult<Option<Value>> {
+    let Some(tag) = column
+        .tag
+        .as_ref()
+        .filter(|tag| !matches!(tag, Tag::Array(_)))
+    else {
+        return Ok(None);
+    };
+    let codec = Codec::get(cx)?;
+    let tagged = read::tagged(cx, codec, data, &Tag::Array(Box::new(tag.clone())))?;
+    Ok(Some(tagged.datum))
+}
+
 /// A column's value with the kind it reads as: the column's own where it
 /// names a type — an enum's, a created range's — that the value, a string,
 /// does not carry, and otherwise the value's.

@@ -125,6 +125,90 @@ async fn sql_error_classification() {
     ctx.delete().await;
 }
 
+// [spec:pgorm:sem:error.model.bind-refusal/test]    a value its parameter's type refuses is a
+// BindRefusal naming the parameter by its placeholder and carrying pgorm's reason, its Display the
+// text the bindings report, and a refusal the server makes is none
+#[pgorm_macros::test]
+async fn bind_refusal_names_the_parameter_and_reason() {
+    use pgorm::{BindRefusal, DecodeRaw, pgorm_query::Values};
+
+    let ctx = TestContext::new("bind_refusal").await;
+    let db = ctx.db.get().await.unwrap();
+
+    let statement = "SELECT $1::int8 AS a, $2::int4 AS n";
+    let values = Values(vec![Value::from(1i64), Value::from("one")]);
+    let error = (statement, values)
+        .into_tuple::<(i64, i32)>()
+        .one(&db)
+        .await
+        .expect_err("a String has no int4 to bind as");
+    let refusal: BindRefusal = error.bind_refusal().expect("a bind refusal");
+    assert_eq!(
+        (refusal.parameter, refusal.reason.as_deref()),
+        (
+            2,
+            Some("cannot bind a `String` value to Postgres type `int4`")
+        )
+    );
+    assert_eq!(
+        refusal.to_string(),
+        "parameter $2 cannot be bound: cannot bind a `String` value to Postgres type `int4`"
+    );
+
+    let overflow = (
+        "SELECT $1::int4 + 2147483647 AS n",
+        Values(vec![Value::from(1i32)]),
+    )
+        .into_tuple::<i32>()
+        .one(&db)
+        .await
+        .expect_err("the server refuses the overflow");
+    assert_eq!(overflow.bind_refusal(), None);
+    assert_eq!(Error::RecordNotFound.bind_refusal(), None);
+
+    drop(db);
+    ctx.delete().await;
+}
+
+// [spec:pgorm:sem:error.model.decode-refusal/test]    a column the driver cannot read as what was
+// asked is a DecodeRefusal naming what it was reading and carrying the decoder's reason, its Display
+// the text the bindings report, and a refusal the server makes or a bind refusal is none
+#[pgorm_macros::test]
+async fn decode_refusal_names_the_column_and_reason() {
+    use pgorm::{DecodeRaw, DecodeRefusal, pgorm_query::Values};
+
+    let ctx = TestContext::new("decode_refusal").await;
+    let db = ctx.db.get().await.unwrap();
+
+    let error = ("SELECT 1 AS one, 'x'::text AS n", Values(Vec::new()))
+        .into_tuple::<(i32, i32)>()
+        .one(&db)
+        .await
+        .expect_err("text has no i32 to read as");
+    let refusal: DecodeRefusal = error.decode_refusal().expect("a decode refusal");
+    let reason = "cannot convert between the Rust type `i32` and the Postgres type `text`";
+    assert_eq!(
+        (refusal.reading.as_str(), refusal.reason.as_deref()),
+        ("error deserializing column 1", Some(reason))
+    );
+    assert_eq!(
+        refusal.to_string(),
+        format!("error deserializing column 1: {reason}")
+    );
+
+    let bind = ("SELECT $1::int4 AS n", Values(vec![Value::from("one")]))
+        .into_tuple::<i32>()
+        .one(&db)
+        .await
+        .expect_err("a String has no int4 to bind as");
+    assert_eq!(bind.decode_refusal(), None);
+    assert!(bind.bind_refusal().is_some());
+    assert_eq!(Error::RecordNotFound.decode_refusal(), None);
+
+    drop(db);
+    ctx.delete().await;
+}
+
 // [spec:pgorm:sem:error.model.sql-class+4/test]    the payload is the server DbError's message and names
 #[pgorm_macros::test]
 async fn sql_error_payload_carries_server_message() {

@@ -79,7 +79,7 @@ has a row for it, and is never written through.
 
 ## Schema
 
-> [spec:pgorm:sem:disjoint.schema+2]
+> [spec:pgorm:sem:disjoint.schema+3]
 > `Schema::create_disjoint::<E>()` MUST run `check_disjoint::<E>()` first,
 > returning its refusal as its own, then refuse the keys below, and otherwise
 > return the statements that create a disjoint entity's type and tables, a
@@ -154,7 +154,18 @@ has a row for it, and is never written through.
 > and otherwise spelled as a head and a hash of the whole in exactly 63. A
 > generated name equal to a column an entity declares, or to another name
 > generated on the same table, MUST be refused with `Error::Type` naming
-> both, before any statement is returned.
+> both, before any statement is returned. So MUST a unique key a table of the
+> entity declares by name (`unique(..)`, `[spec:pgorm:req:entity.traits.entity-name]`)
+> that PostgreSQL would refuse beside the statements' other names: named as
+> the base's `UNIQUE` key or a composite primary key's `pk-{table}`, or as an
+> index PostgreSQL names itself, an unnamed one-column primary key's
+> `{table}_pkey` or an unnamed unique key's `{table}_{columns}_key` (its
+> `makeObjectName`, the longer part shortened first to fit 63 bytes), all in
+> the key's schema (`42P07`); as a foreign key the schema adds to the key's
+> own table, or a not-null constraint PostgreSQL 18 names
+> `{table}_{column}_not_null` there (`42710`); or as another such key in its
+> schema. A relation of the schema outside the entity's tables is the
+> server's to refuse.
 
 ## Reads
 
@@ -320,7 +331,7 @@ has a row for it, and is never written through.
 
 ## Changing the kinds
 
-> [spec:pgorm:sem:disjoint.evolve+1]
+> [spec:pgorm:sem:disjoint.evolve+2]
 > A change to a kinded disjoint entity's kinds after its tables exist MUST be
 > written by `Schema` from the declaration as it will be, as a
 > `DisjointChange`: an ordered list of steps, each a list of statements that
@@ -358,9 +369,16 @@ has a row for it, and is never written through.
 >   refuse to cast as well, and the declaration's is set again after the
 >   rename. A kind table's kind column is a generated column, which
 >   PostgreSQL retypes by no `USING` (`42611`), so it is among the generated
->   columns dropped and written again, of the new type. It takes an exclusive
->   lock on the base and on every kind table for as long as the rewrite runs,
->   which is the price of one atomic migration.
+>   columns dropped and written again, of the new type. Each table MUST be
+>   rewritten once: retyping the base's kind column and adding its stored
+>   generated key columns each rewrite it, so one `ALTER TABLE`, which
+>   PostgreSQL carries out in one rewrite, drops those columns, retypes the
+>   kind column and writes them again over the new type, whose rename they
+>   survive, and their foreign keys, which reference the kind tables, are
+>   added last, once every kind table has its kind column again and an added
+>   kind's table exists. It takes an exclusive lock on the base and on every
+>   kind table for as long as the rewrite runs, which is the price of one
+>   atomic migration.
 > - `Schema::remove_disjoint_kind::<E>(value)` MUST remove a value the
 >   database's kind type holds and the declaration does not, by the recreating
 >   route, there being no `ALTER TYPE ... DROP VALUE`. Its first statement
@@ -393,7 +411,7 @@ has a row for it, and is never written through.
 
 ## References to one of several entities
 
-> [spec:pgorm:def:disjoint.one-of+1]
+> [spec:pgorm:def:disjoint.one-of+4]
 > `#[derive(OneOf)]` on an enum MUST declare a reference from one entity to
 > exactly one of several others, stored as one nullable column per target,
 > each a foreign key the entity's own `belongs_to` relation declares:
@@ -403,8 +421,9 @@ has a row for it, and is never written through.
 > variant MAY say that a row references none of them. A column that is not
 > the entity's, is not nullable, appears twice, or whose type is not the
 > target's key type, a target the entity has no `Related` relation to, two
-> variants naming one target, and an enum with no variant naming a target
-> MUST NOT compile. A column's type is the type of the field the entity's
+> variants naming one target, an enum with no variant naming a target, and
+> an enum whose name in snake_case passes 59 bytes, which the `CHECK` below
+> could not keep whole, MUST NOT compile. A column's type is the type of the field the entity's
 > `Model` declares for it, reachable from the column through the
 > `ColumnField` the `Model` derive implements
 > (`[spec:pgorm:sem:macros.derive.model]`).
@@ -415,35 +434,59 @@ has a row for it, and is never written through.
 > derive `Clone`, `Debug` and `PartialEq`, and `Clone` and `Debug`, and
 > `key_attrs(..)` and `model_attrs(..)` give each further attributes after
 > its own derives, as `kind_attrs(..)` gives a disjoint entity's kind type
-> (`[spec:pgorm:def:disjoint.declare]`). A model's reference reads as its
+> (`[spec:pgorm:def:disjoint.declare]`). Each target's `OneOfTarget::NAME` is
+> its variant's name in snake_case.
+>
+> `OneOfShape` MUST describe the reference as data: `OneOfShape::of::<E>()`
+> the derive's, and `OneOfShape::new` a reference over tables described at
+> run time, as a language binding's models are, refusing as `Error::Type`
+> what the derive does not compile (a name past 59 bytes, no target, a value
+> twice, a column the entity lacks, one that is not nullable or holds two
+> targets' keys, a target keyed by other than one column or by another type
+> than its column's, and one table the target of two values). Reading,
+> setting and loading a reference and its `CHECK` are the shape's, which the
+> derive's methods and `Schema::create_one_of` delegate to, so the two are
+> one implementation. A model's reference reads as its
 > `<Enum>Key`, `OneOf::key(&model)` — the variant whose column is set — and
 > a row with two columns set, or none where the enum has no unit variant,
 > MUST be an `Error::Query` naming the table, the key and the columns, never
 > read as one of them; setting an `<Enum>Key` on the entity's `ActiveModel`,
 > `OneOf::set(&mut active, key)`, sets that variant's column and sets every
 > other one to null. Loading the targets of a list of rows,
-> `OneOf::load(&models, db)`, MUST read each target table once, for the keys
-> its variant holds, as `load_one` reads a relation, and give each row its
-> `<Enum>Model`. The relation it reads is the entity's `Related` relation to
-> the target, and one that does not join exactly the variant's column to the
-> target's key MUST be refused as `Error::Type` before anything is sent; a
-> key its target table does not hold, which `load_one` gives as `None`, MUST
-> be an `Error::Query` naming the table, the row's key, the target's key and
-> the column, since the variant holds a `Model`.
+> `OneOf::load(&models, db)`, MUST read each target table once, in one
+> statement selecting its rows whose key is among those its variant holds
+> (`WHERE <key> IN (..)`, each key compared under the key column's casts),
+> and give each row its `<Enum>Model`. The entity's `Related` relation to
+> each target is the foreign key holding the reference, so one that does not
+> join exactly the variant's column to the target's key, through no `via`
+> and with no period, MUST be refused as `Error::Type` before anything is
+> sent, and so MUST one carrying an `on_condition`, which could only make a
+> key the foreign key holds look absent; a key its target table does not
+> hold MUST be an `Error::Query` naming the table, the row's key, the
+> target's key and the column, since the variant holds a `Model`.
 >
 > `Schema::create_one_of::<E>()` MUST return the `ALTER TABLE` adding a
 > `CHECK` on the entity's table: `num_nonnulls(<columns>) = 1`, or `<= 1`
 > where the enum has a unit variant, so PostgreSQL refuses a row referencing
 > two targets, and refuses one referencing none unless the enum says a row
 > may. It is named `ck-{table}-{enum}`, the table bare and the enum's name in
-> snake_case, bounded as prefixed result names are
-> (`[spec:pgorm:sem:query.graph.writer]`). The foreign keys are the
-> relations' own, written by `create_table_from_entity`.
+> snake_case, where that is under PostgreSQL's 63 bytes, and `ck-{enum}`
+> otherwise: a `CHECK`'s name is its table's alone, so the table the
+> constraint is on says what the name leaves out, and the enum's name, which
+> codegen names the enum for, is kept whole. A `OneOf` implemented by hand
+> whose name `ck-{enum}` could not hold is named that bounded as prefixed
+> result names are (`[spec:pgorm:sem:query.graph.writer]`). The foreign keys
+> are the relations' own, written by `create_table_from_entity`.
 >
 > Codegen MUST generate the enum for nullable foreign-key columns covered by
 > exactly such a `CHECK`, named for the constraint, from DDL text and from
-> statements described in code alike, and generate the columns as the
-> ordinary nullable fields they are when no such `CHECK` covers them. Exactly
+> statements described in code alike, and MUST refuse every other table
+> `CHECK`, near misses included, as ``TransformError("table `<table>`: an
+> entity cannot hold the CHECK `<name>`, which is not a one-of
+> reference's")``, an unnamed one named as below: the entity holds no other
+> `CHECK`, so an entity generated without it would not create the table it
+> was read from (`[spec:pgorm:sem:codegen.ddl.tables]`). Columns no `CHECK`
+> covers are the ordinary nullable fields they are. Exactly
 > such a `CHECK` is an enforced table `CHECK` whose expression is
 > `num_nonnulls` of one or more distinct columns of the table compared `= 1`
 > or `<= 1`, each column nullable and the one column of a foreign key of the
@@ -453,9 +496,13 @@ has a row for it, and is never written through.
 > in the table's module after its `Relation` enum, `#[pgorm(entity =
 > Entity)]`, deriving `Clone`, `Copy`, `Debug` and `OneOf` and allowing
 > `clippy::enum_variant_names`, as a disjoint enum does. It is named in
-> UpperCamelCase for the constraint's name after `ck-{table}-` where the name
-> begins so, as `create_one_of` writes it, so a schema it wrote generates the
-> enum it was written from, and for the whole name otherwise; an unnamed
+> UpperCamelCase for the enum's part of the constraint's name where
+> `create_one_of` writes it, so a schema it wrote generates the enum it was
+> written from whatever the names' lengths: in a name under 63 bytes, what
+> follows `ck-{table}-`, or what follows `ck-` where `ck-{table}-` before it
+> would not be under 63. Otherwise it is named for the whole name, a name of
+> 63 bytes included, which is a longer one bounded to a head and a hash and
+> keeps no enum's name whole; an unnamed
 > `CHECK` is named as PostgreSQL names it, `{table}_check`, or
 > `{table}_{column}_check` over one column, numbered from 1 where an earlier
 > `CHECK` of the table took that name. It has a variant per

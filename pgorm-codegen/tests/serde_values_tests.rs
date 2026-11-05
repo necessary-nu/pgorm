@@ -12,7 +12,7 @@ use pgorm::entity::prelude::{
     Date, DateTime, DateTimeWithTimeZone, Decimal, Interval, Multirange, Range,
 };
 use pgorm::{ActiveModelTrait, ActiveValue, Iterable, ModelTrait};
-use pgorm_codegen::{WithSerde, entities_from_sql};
+use pgorm_codegen::WithSerde;
 use serde_json::{Value, json};
 
 const SCHEMA: &str = include_str!("sql/serde_values/schema.sql");
@@ -119,21 +119,13 @@ fn each_serde_mode_generates_the_compiled_fixtures() {
         ),
     ] {
         let with_serde: WithSerde = mode.parse().expect("a mode name");
-        let output = entities_from_sql(
+        let generated = from_sql_with(
             SCHEMA,
             Opts {
                 with_serde,
                 ..Default::default()
             },
-        )
-        .expect("the schema generates");
-        let generated = Generated {
-            files: output
-                .files
-                .into_iter()
-                .map(|file| (file.name, file.content))
-                .collect(),
-        };
+        );
         for (file, fixture) in [("ledger.rs", ledger), ("pgorm_range_types.rs", range_types)] {
             let (header, written) = generated
                 .file(file)

@@ -64,7 +64,7 @@ pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
 }
 
 /// A cancellation the caller's `AbortSignal` fires.
-// [spec:pgorm:req:napi.cancellation+1]
+// [spec:pgorm:req:napi.cancellation+2]
 #[derive(Debug, Clone)]
 pub(crate) struct Abort(CancellationToken);
 

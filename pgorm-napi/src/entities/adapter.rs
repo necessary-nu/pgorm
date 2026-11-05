@@ -10,8 +10,8 @@ use std::{any::Any, fmt::Debug, marker::PhantomData, sync::Arc};
 
 use futures_util::future::BoxFuture;
 use pgorm::pgorm_query::{
-    CommentStatement, Condition, Expr, IndexCreateStatement, Name, NullOrdering, OnConflict, Order,
-    SelectStatement, SimpleExpr, TableCreateStatement, Value, Values,
+    BinOper, CommentStatement, Condition, Expr, IndexCreateStatement, Name, NullOrdering,
+    OnConflict, Order, SelectStatement, SimpleExpr, TableCreateStatement, Value, Values,
     extension::TypeCreateStatement,
 };
 use pgorm::{
@@ -37,6 +37,48 @@ pub(crate) enum Comparison {
     Ge,
     Lt,
     Le,
+    IsDistinctFrom,
+    IsNotDistinctFrom,
+    Contains,
+    ContainedBy,
+    Overlaps,
+    StrictlyLeftOf,
+    StrictlyRightOf,
+    NotExtendRightOf,
+    NotExtendLeftOf,
+    AdjacentTo,
+}
+
+impl Comparison {
+    /// The operator a quantified comparison applies.
+    fn operator(self) -> BinOper {
+        match self {
+            Self::Eq => BinOper::Equal,
+            Self::Ne => BinOper::NotEqual,
+            Self::Gt => BinOper::GreaterThan,
+            Self::Ge => BinOper::GreaterThanOrEqual,
+            Self::Lt => BinOper::SmallerThan,
+            Self::Le => BinOper::SmallerThanOrEqual,
+            Self::IsDistinctFrom => BinOper::IsDistinctFrom,
+            Self::IsNotDistinctFrom => BinOper::IsNotDistinctFrom,
+            Self::Contains => BinOper::Contains,
+            Self::ContainedBy => BinOper::Contained,
+            Self::Overlaps => BinOper::Overlap,
+            Self::StrictlyLeftOf => BinOper::LShift,
+            Self::StrictlyRightOf => BinOper::RShift,
+            Self::NotExtendRightOf => BinOper::NotExtendRightOf,
+            Self::NotExtendLeftOf => BinOper::NotExtendLeftOf,
+            Self::AdjacentTo => BinOper::AdjacentTo,
+        }
+    }
+}
+
+/// Which of `[NOT] BETWEEN [SYMMETRIC]` a column is tested by, through its
+/// `ColumnTrait` method of that meaning.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Between {
+    pub(crate) negated: bool,
+    pub(crate) symmetric: bool,
 }
 
 /// A read terminal of `Select<E>`.
@@ -157,6 +199,22 @@ pub(crate) trait EntityBackend: Debug + Send + Sync {
         comparison: Comparison,
         value: Value,
     ) -> Result<SimpleExpr, Failure>;
+    fn between(
+        &self,
+        column: &str,
+        between: Between,
+        lower: Value,
+        upper: Value,
+    ) -> Result<SimpleExpr, Failure>;
+    /// `column <comparison> ANY (array)`, or `ALL` with `all`, through the
+    /// column's `ColumnTrait::compare_any` / `compare_all`.
+    fn quantified(
+        &self,
+        column: &str,
+        comparison: Comparison,
+        all: bool,
+        array: Value,
+    ) -> Result<SimpleExpr, Failure>;
     fn membership(
         &self,
         column: &str,
@@ -215,7 +273,7 @@ pub(crate) struct EntityAdapter<E> {
     pub(crate) entity: PhantomData<E>,
 }
 
-// [spec:pgorm:req:bindings.entities+4]
+// [spec:pgorm:req:bindings.entities+5]
 impl<E> EntityBackend for EntityAdapter<E>
 where
     E: EntityTrait + Send + Sync + 'static,
@@ -273,10 +331,52 @@ where
             Comparison::Ge => column.gte(value),
             Comparison::Lt => column.lt(value),
             Comparison::Le => column.lte(value),
+            Comparison::IsDistinctFrom => column.is_distinct_from(value),
+            Comparison::IsNotDistinctFrom => column.is_not_distinct_from(value),
+            Comparison::Contains => column.includes(value),
+            Comparison::ContainedBy => column.contained_by(value),
+            Comparison::Overlaps => column.overlaps(value),
+            Comparison::StrictlyLeftOf => column.strictly_left_of(value),
+            Comparison::StrictlyRightOf => column.strictly_right_of(value),
+            Comparison::NotExtendRightOf => column.not_extend_right_of(value),
+            Comparison::NotExtendLeftOf => column.not_extend_left_of(value),
+            Comparison::AdjacentTo => column.adjacent_to(value),
         })
     }
 
-    // [spec:pgorm:req:bindings.entity-reads+2]
+    // [spec:pgorm:req:bindings.entity-reads+3]
+    fn quantified(
+        &self,
+        name: &str,
+        comparison: Comparison,
+        all: bool,
+        array: Value,
+    ) -> Result<SimpleExpr, Failure> {
+        let column = column::<E>(&self.info, name)?;
+        Ok(match all {
+            false => column.compare_any(comparison.operator(), array),
+            true => column.compare_all(comparison.operator(), array),
+        })
+    }
+
+    // [spec:pgorm:req:bindings.column-operators+3]
+    fn between(
+        &self,
+        name: &str,
+        between: Between,
+        lower: Value,
+        upper: Value,
+    ) -> Result<SimpleExpr, Failure> {
+        let column = column::<E>(&self.info, name)?;
+        Ok(match (between.negated, between.symmetric) {
+            (false, false) => column.between(lower, upper),
+            (true, false) => column.not_between(lower, upper),
+            (false, true) => column.between_symmetric(lower, upper),
+            (true, true) => column.not_between_symmetric(lower, upper),
+        })
+    }
+
+    // [spec:pgorm:req:bindings.entity-reads+3]
     fn membership(
         &self,
         name: &str,
@@ -422,7 +522,7 @@ pub(crate) struct SelectAdapter<E: EntityTrait> {
     pub(crate) info: Arc<EntityInfo>,
 }
 
-// [spec:pgorm:req:bindings.entity-reads+2]
+// [spec:pgorm:req:bindings.entity-reads+3]
 impl<E> SelectBackend for SelectAdapter<E>
 where
     E: EntityTrait + Send + Sync + 'static,

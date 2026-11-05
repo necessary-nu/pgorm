@@ -26,6 +26,7 @@ export * from "./models.d.ts";
 export * from "./graphs.d.ts";
 export * from "./entities.d.ts";
 export * from "./disjoint.d.ts";
+export * from "./one-of.d.ts";
 export * from "./copy.d.ts";
 export * from "./listen.d.ts";
 
@@ -461,13 +462,15 @@ export interface PoolStatus {
   readonly waiting: number;
 }
 
-// [spec:pgorm:req:napi.cancellation+1]
+// [spec:pgorm:req:napi.cancellation+2]
 /** Options of the operations that wait on the server or the pool: an `AbortSignal` that ends one. */
 export interface OperationOptions {
   /**
-   * Aborting rejects with the signal's reason. The operation's outcome is
-   * then unknown — a write may or may not have happened — so its connection
-   * is discarded, and a transaction it ran in ends.
+   * Aborting before the operation settles rejects with the signal's reason,
+   * even where the work had finished. Stopped part way, its outcome is
+   * unknown — a write may or may not have happened — so its connection is
+   * discarded; finished, its result is discarded. Either way a transaction
+   * it ran in ends with nothing committed.
    */
   readonly signal?: AbortSignal;
 }

@@ -156,7 +156,7 @@ fn spending() -> Pipeline {
         .aggregate((sum(O::Total).as_(SPENT), count_rows().as_(ORDER_COUNT)))
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]    HAVING placement with a bound
+// [spec:pgorm:req:pipeline.surface+4/test]    HAVING placement with a bound
 // threshold: the group filter runs against grouped sums, not rows
 #[pgorm_macros::test]
 async fn having_filters_groups_with_bound_param() {
@@ -183,7 +183,7 @@ async fn having_filters_groups_with_bound_param() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]    filter-after-window nests the
+// [spec:pgorm:req:pipeline.surface+4/test]    filter-after-window nests the
 // windowed stage in a CTE and filters outside it, with the rank bound
 #[pgorm_macros::test]
 async fn window_rank_filter_nests_through_cte() {
@@ -220,7 +220,7 @@ async fn window_rank_filter_nests_through_cte() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]    explicit join condition against
+// [spec:pgorm:req:pipeline.surface+4/test]    explicit join condition against
 // live rows, with the customer name bound
 #[pgorm_macros::test]
 async fn join_on_explicit_condition_binds_params() {
@@ -251,7 +251,7 @@ async fn join_on_explicit_condition_binds_params() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]    an explicit ROWS frame computes
+// [spec:pgorm:req:pipeline.surface+4/test]    an explicit ROWS frame computes
 // a running sum per partition on live rows
 #[pgorm_macros::test]
 async fn rows_frame_computes_running_sum() {
@@ -355,7 +355,7 @@ async fn a_spanning_frame_agrees_across_both_paths() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.surface+3/test]    fn(Pipeline) -> Pipeline scopes
+// [spec:pgorm:req:pipeline.surface+4/test]    fn(Pipeline) -> Pipeline scopes
 // compose, each binding its own parameters, and the placeholders stay aligned
 #[pgorm_macros::test]
 async fn composed_scopes_bind_params_in_order() {

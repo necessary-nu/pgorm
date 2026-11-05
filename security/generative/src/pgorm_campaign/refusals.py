@@ -19,23 +19,34 @@ UNQUOTABLE = (
 # refused at compilation, before any statement reaches the server.
 EMPTY_INSERT = "insert requires rows, a select or explicit default_values"
 
-# pgorm-python errors.rs: a value tokio-postgres cannot encode while building
-# the bind message is a ConstructionError carrying the driver's own top-level
-# text, which names the parameter's zero-based position.
-UNSERIALIZABLE = "error serializing parameter {}"
+# `bindings.errors+5`: a value tokio-postgres cannot encode while building the
+# bind message is a ConstructionError naming the parameter by its one-based
+# placeholder, followed by pgorm's refusal of the value.
+UNSERIALIZABLE = "parameter ${} cannot be bound: {}"
+
+# pgorm's refusal of a value its parameter's type cannot hold, naming the
+# value and the type (`exec.cursor.binding-coerce+2`).
+OUT_OF_RANGE = "value `{}` is out of range for Postgres type `{}`"
 
 # The largest u64 an int8 carrier can hold (`exec.cursor.binding-coerce+2`).
 CARRIED_UNSIGNED = 2**63 - 1
 
 
 def unsigned_overflow(value):
-    """Whether a tagged value is, or holds, a u64 no int8 carrier can take."""
+    """The first u64 a tagged value is, or holds, that no int8 carrier can
+    take, as its digits, or None: an array is encoded element by element, so
+    the first such element is the one refused."""
     tag = value["type"]
     if value["sql_null"]:
-        return False
+        return None
     if tag["kind"] == "array":
-        return any(unsigned_overflow(item) for item in value["data"])
-    return tag["kind"] == "u64" and int(value["data"]) > CARRIED_UNSIGNED
+        return next(
+            (digits for item in value["data"] if (digits := unsigned_overflow(item))),
+            None,
+        )
+    if tag["kind"] == "u64" and int(value["data"]) > CARRIED_UNSIGNED:
+        return value["data"]
+    return None
 
 
 def unquotable(name):
@@ -46,6 +57,7 @@ def unquotable(name):
 __all__ = [
     "CARRIED_UNSIGNED",
     "EMPTY_INSERT",
+    "OUT_OF_RANGE",
     "UNQUOTABLE",
     "UNSERIALIZABLE",
     "unquotable",

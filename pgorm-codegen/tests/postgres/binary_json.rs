@@ -9,5 +9,6 @@ pub struct Model {
     #[pgorm(column_type = ColumnType::JsonBinary)]
     pub payload_binary: Json,
 }
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}

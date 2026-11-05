@@ -218,7 +218,7 @@ fn manifest() -> Value {
             "type_changes": "native driver caches type metadata; close and recreate application pools after altering existing enum labels or type names",
             "unsupported": ["schema introspection", "automatic migrations", "raw column options", "concurrent indexes"]
         },
-        "registrations": {"entities": [], "graphs": [], "sources": [], "disjoints": []},
+        "registrations": {"entities": [], "graphs": [], "sources": [], "disjoints": [], "one_ofs": []},
         "python": {"abi": "cp314", "free_threading": false, "subinterpreters": false}
     });
     // The release pgorm targets: 18 by default, 19 when it was built with
@@ -246,6 +246,12 @@ fn manifest() -> Value {
             operations.insert(
                 name.to_owned(),
                 json!({"rust_api": api, "features": [], "registration_required": name == "disjoint_entity"}),
+            );
+        }
+        for (name, api) in crate::one_of::OPERATIONS {
+            operations.insert(
+                name.to_owned(),
+                json!({"rust_api": api, "features": [], "registration_required": name == "one_of_entity"}),
             );
         }
         operations.extend(crate::pipeline::capabilities());
@@ -286,6 +292,14 @@ pub(crate) fn capabilities<'py>(module: &Bound<'py, PyModule>) -> PyResult<Bound
         .by_name
         .values()
         .map(|disjoint| disjoint.description.clone())
+        .collect::<Vec<_>>()
+        .into();
+    manifest["registrations"]["one_ofs"] = registry
+        .0
+        .one_ofs
+        .by_name
+        .values()
+        .map(|one_of| one_of.description.clone())
         .collect::<Vec<_>>()
         .into();
     manifest["registrations"]["sources"] = registry

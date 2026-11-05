@@ -13,6 +13,7 @@ mod disjoint;
 pub mod entities;
 mod errors;
 mod models;
+mod one_of;
 mod params;
 #[cfg(debug_assertions)]
 mod probes;
@@ -42,7 +43,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
 /// into one module: what an application's own `#[neon::main]` calls, having
 /// registered its entities, in a crate that depends on this one without its
 /// `standalone-module` feature.
-// [spec:pgorm:req:bindings.entities+4]
+// [spec:pgorm:req:bindings.entities+5]
 // [spec:pgorm:req:napi.application+2]
 pub fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<()> {
     runtime::runtime(cx)?;
@@ -54,6 +55,7 @@ pub fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<()> {
     models::export(cx)?;
     entities::install(cx, registry)?;
     disjoint::export(cx)?;
+    one_of::export(cx)?;
     #[cfg(debug_assertions)]
     probes::export(cx)?;
     let version = cx.string(env!("CARGO_PKG_VERSION"));

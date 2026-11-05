@@ -51,7 +51,7 @@ fn enum_name(col_type: &ColumnType) -> Option<&Name> {
 /// The `LIKE`-metacharacter escape behind the substring sugar: `%`, `_` and
 /// the escape character itself become literal, so search text matches
 /// itself and nothing else.
-// [spec:pgorm:def:entity.traits.column+7]
+// [spec:pgorm:def:entity.traits.column+9]
 pub(crate) fn escape_like_text(text: &str) -> String {
     text.replace('\\', "\\\\")
         .replace('%', "\\%")
@@ -247,7 +247,7 @@ pub(crate) fn under_domains(col_type: &ColumnType) -> &ColumnType {
 /// The range or multirange type a schema created that a column stores, as
 /// the [`TypeName`] a value written to it is cast to: a domain over one is
 /// cast to by the domain's name, which reads the same text.
-// [spec:pgorm:def:sql.value.created-range+5]
+// [spec:pgorm:def:sql.value.created-range+6]
 pub(crate) fn created_range_type_name(col_type: &ColumnType) -> Option<pgorm_query::TypeName> {
     match col_type {
         ColumnType::CreatedRange { name, schema, .. }
@@ -584,7 +584,7 @@ mod tests {
     #[cfg(feature = "macros")]
     fn domain_enum_column_compares_as_enum() {
         use crate::{QueryFilter, QueryTrait};
-        use pgorm_query::{Expr, Query};
+        use pgorm_query::{BinOper, Expr, Query};
 
         use moody::Column::{Id, Mood};
         let condition = |filter: pgorm_query::SimpleExpr| {
@@ -607,6 +607,14 @@ mod tests {
             format!("{column} BETWEEN {calm} AND {busy}")
         );
         assert_eq!(
+            condition(Mood.not_between_symmetric("busy", "calm")),
+            format!("{column} NOT BETWEEN SYMMETRIC {busy} AND {calm}")
+        );
+        assert_eq!(
+            condition(Mood.is_distinct_from("calm")),
+            format!("{column} IS DISTINCT FROM {calm}")
+        );
+        assert_eq!(
             condition(Mood.is_not_in(["calm", "busy"])),
             format!("{column} NOT IN ({calm}, {busy})")
         );
@@ -617,6 +625,10 @@ mod tests {
         assert_eq!(
             condition(Mood.ne_all(["calm".to_owned()])),
             format!("{column} <> ALL(CAST(ARRAY ['calm'] AS custom.mood[]))")
+        );
+        assert_eq!(
+            condition(Mood.compare_any(BinOper::GreaterThan, vec!["calm".to_owned()])),
+            format!("{column} > ANY(CAST(ARRAY ['calm'] AS custom.mood[]))")
         );
         assert_eq!(
             condition(Expr::expr(Mood.if_null("calm")).is_not_null()),

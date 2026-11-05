@@ -62,6 +62,38 @@ pub mod note {
     }
 }
 
+/// A pin whose relation to `post` carries a condition of its own.
+pub mod pin {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Entity)]
+    #[pgorm(table_name = "pin")]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        pub post_id: Option<i32>,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {
+        #[pgorm(
+            belongs_to = pgorm::tests_cfg::post::Entity,
+            from = Column::PostId,
+            to = pgorm::tests_cfg::post::Column::Id,
+            on_condition = pgorm::tests_cfg::post::Column::Title.like("%pinned%")
+        )]
+        Post,
+    }
+}
+
+#[derive(Clone, Copy, Debug, OneOf)]
+#[pgorm(entity = pin::Entity)]
+pub enum Pinned {
+    #[pgorm(column = pin::Column::PostId)]
+    Post(post::Entity),
+    Loose,
+}
+
 #[derive(Clone, Copy, Debug, OneOf)]
 #[pgorm(entity = note::Entity)]
 pub enum Noted {
@@ -179,7 +211,7 @@ async fn refused<C: ConnectionTrait>(db: &C, sql: &str, state: &SqlState) {
     }
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    `create_one_of` adds the named CHECK `num_nonnulls(..) <= 1` where the enum has a unit variant: PostgreSQL refuses a row referencing two targets and accepts one referencing none
+// [spec:pgorm:def:disjoint.one-of+4/test]    `create_one_of` adds the named CHECK `num_nonnulls(..) <= 1` where the enum has a unit variant: PostgreSQL refuses a row referencing two targets and accepts one referencing none
 #[pgorm_macros::test]
 async fn check_with_a_unit_variant_allows_none_live() -> Result<(), Error> {
     let ctx = TestContext::new("one_of_check_unit").await;
@@ -230,7 +262,7 @@ async fn check_with_a_unit_variant_allows_none_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    without a unit variant the CHECK is `num_nonnulls(..) = 1`: PostgreSQL refuses a row referencing none as well as one referencing two
+// [spec:pgorm:def:disjoint.one-of+4/test]    without a unit variant the CHECK is `num_nonnulls(..) = 1`: PostgreSQL refuses a row referencing none as well as one referencing two
 #[pgorm_macros::test]
 async fn check_without_a_unit_variant_requires_one_live() -> Result<(), Error> {
     let ctx = TestContext::new("one_of_check_exact").await;
@@ -260,7 +292,7 @@ async fn check_without_a_unit_variant_requires_one_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    each key written through `set` reads back as itself, the unit variant included, and setting another key on the row's `ActiveModel` sets its column and nulls the old one in the stored row
+// [spec:pgorm:def:disjoint.one-of+4/test]    each key written through `set` reads back as itself, the unit variant included, and setting another key on the row's `ActiveModel` sets its column and nulls the old one in the stored row
 #[pgorm_macros::test]
 async fn set_and_read_each_variant_live() -> Result<(), Error> {
     let ctx = TestContext::new("one_of_set_read").await;
@@ -302,7 +334,7 @@ async fn set_and_read_each_variant_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    loading a mixed list reads each target table once, in one statement for the keys its variant holds, and gives each row its `<Enum>Model` in order, the unit variant for a row referencing none; a list referencing one target reads one table, and an empty list reads none
+// [spec:pgorm:def:disjoint.one-of+4/test]    loading a mixed list reads each target table once, in one statement for the keys its variant holds, and gives each row its `<Enum>Model` in order, the unit variant for a row referencing none; a list referencing one target reads one table, and an empty list reads none
 #[pgorm_macros::test]
 async fn load_reads_each_target_once_live() -> Result<(), Error> {
     let ctx = TestContext::new("one_of_load").await;
@@ -376,7 +408,7 @@ async fn load_reads_each_target_once_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    a key its target table does not hold, which `load_one` gives as `None`, is an error naming the table, the key and the column; a row against its declaration fails the load as `key` fails it, before anything is sent
+// [spec:pgorm:def:disjoint.one-of+4/test]    a key its target table does not hold is an error naming the table, the key and the column; a row against its declaration fails the load as `key` fails it, before anything is sent
 #[pgorm_macros::test]
 async fn load_refuses_an_unmatched_key_live() -> Result<(), Error> {
     let ctx = TestContext::new("one_of_unmatched").await;
@@ -401,7 +433,7 @@ async fn load_refuses_an_unmatched_key_live() -> Result<(), Error> {
         Err(Error::Query(message)) => assert_eq!(
             message.to_string(),
             "the `comment` row whose key is (`id` = 7) references the `post` row of key 9 \
-             through `post_id`, and reading `comment`'s relation to `post` finds no such row"
+             through `post_id`, and `post` holds no such row"
         ),
         other => panic!("expected the unmatched key refused, got {other:?}"),
     }
@@ -429,7 +461,7 @@ async fn load_refuses_an_unmatched_key_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    a relation to a target joining another column than the variant's is refused as `Error::Type` before anything is sent
+// [spec:pgorm:def:disjoint.one-of+4/test]    a relation to a target joining another column than the variant's is refused as `Error::Type` before anything is sent
 #[pgorm_macros::test]
 async fn load_refuses_a_relation_of_another_column_live() -> Result<(), Error> {
     let ctx = TestContext::new("one_of_relation").await;
@@ -446,8 +478,36 @@ async fn load_refuses_a_relation_of_another_column_live() -> Result<(), Error> {
         Err(Error::Type(message)) => assert_eq!(
             message,
             "`note`.`post_id` holds the key of `post`, but `note`'s relation to `post` joins \
-             `legacy_post_id` to `id`, and loading reads that relation: it must join `post_id` \
-             to `post`'s key `id` alone"
+             `legacy_post_id` to `id`, and that relation is the foreign key holding the \
+             reference: it must join `post_id` to `post`'s key `id` alone"
+        ),
+        other => panic!("expected the relation refused, got {other:?}"),
+    }
+    assert_eq!(statements.take(), Vec::<String>::new());
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:def:disjoint.one-of+4/test]    a relation to a target carrying an `on_condition` is refused as `Error::Type` before anything is sent, since the foreign key holding the reference holds its target row whatever the condition says
+#[pgorm_macros::test]
+async fn load_refuses_a_conditioned_relation_live() -> Result<(), Error> {
+    let ctx = TestContext::new("one_of_conditioned").await;
+    let statements = Statements::default();
+    let pool = InstrumentedPool::new(ctx.db.clone(), statements.clone());
+    let db = pool.get().await?;
+    let pins = [pin::Model {
+        id: 1,
+        post_id: Some(1),
+    }];
+
+    match Pinned::load(&pins, &db).await {
+        Err(Error::Type(message)) => assert_eq!(
+            message,
+            "`pin`'s relation to `post` carries an on_condition, and the foreign key holding \
+             `pin`.`post_id` holds its target row whatever a condition says: the relation a \
+             one-of reference's target is loaded by joins `post_id` to `post`'s key alone"
         ),
         other => panic!("expected the relation refused, got {other:?}"),
     }

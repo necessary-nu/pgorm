@@ -7,7 +7,7 @@ mod common;
 
 use common::*;
 use pgorm::{ColumnTrait, ColumnTypeTrait, Iterable, StaticName};
-use pgorm_codegen::{Error, WriterOutput, entities_from_sql, parse_schema};
+use pgorm_codegen::parse_schema;
 use pgorm_query::{ColumnType, IntervalPrecision, IntervalSpec, PgInterval, TableCreateStatement};
 use std::sync::Arc;
 
@@ -68,25 +68,6 @@ fn built() -> TableCreateStatement {
         })
         .collect();
     keyed_with("interval_span", &["id"], columns)
-}
-
-fn files(output: WriterOutput) -> Generated {
-    Generated {
-        files: output
-            .files
-            .into_iter()
-            .map(|file| (file.name, file.content))
-            .collect(),
-    }
-}
-
-#[track_caller]
-fn error(sql: &str) -> String {
-    match entities_from_sql(sql, Opts::default()) {
-        Err(Error::TransformError(message)) => message,
-        Err(other) => panic!("expected a TransformError, got {other:?}"),
-        Ok(_) => panic!("expected an error, got generated entities"),
-    }
 }
 
 #[track_caller]
@@ -155,7 +136,7 @@ fn the_bridge_reads_each_interval_qualifier() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+20/test]    a qualifier no
+// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a qualifier no
 // `IntervalSpec` holds is named, as is a precision the server would quietly
 // reduce
 // [spec:pgorm:sem:codegen.ddl.types+10/test]
@@ -184,7 +165,7 @@ fn an_interval_modifier_beyond_the_spec_is_named() {
         ),
     ] {
         assert_eq!(
-            error(sql),
+            refused(sql),
             format!("unsupported DDL: {what} at statement 1"),
             "{sql}"
         );
@@ -200,8 +181,7 @@ fn an_interval_modifier_beyond_the_spec_is_named() {
 // shape is refused
 #[test]
 fn interval_columns_generate_a_compiling_entity() {
-    let generated =
-        files(entities_from_sql(SCHEMA, Opts::default()).expect("the schema generates"));
+    let generated = from_sql(SCHEMA);
     let written = norm(generated.file("interval_span.rs")).replace(", )", ")");
     assert!(
         written.contains(&norm(include_str!("sql/interval/interval_span.rs"))),
@@ -225,7 +205,7 @@ fn interval_columns_generate_a_compiling_entity() {
 fn rendered_interval_columns_read_back_whole() {
     let text = format!("{};", built());
     assert_eq!(
-        files(entities_from_sql(&text, Opts::default()).expect("the rendering generates")).files,
+        from_sql(&text).files,
         generate(vec![built()], Opts::default()).files,
     );
 }

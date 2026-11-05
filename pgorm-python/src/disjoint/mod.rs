@@ -16,13 +16,14 @@
 //! `DecodeError`.
 
 mod described;
+mod evolve;
 mod registered;
 mod rows;
 
 use std::{fmt, num::NonZeroU64, sync::Arc};
 
 use pgorm::pgorm_query::{IntoCondition, SelectStatement, Value};
-use pgorm::{DdlStatement, DisjointShape, DisjointTable, DisjointValues, Error};
+use pgorm::{DisjointShape, DisjointTable, DisjointValues, Error};
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,
@@ -35,12 +36,12 @@ use crate::{
     errors::{ConstructionError, DecodeError, InternalError},
     execution::Executor,
     expressions::Compiled,
-    schema::{PyCreateTable, PyCreateType},
     statements::{PySelect, condition},
     transactions::work::{Output, Work},
     values::PyValue,
 };
 
+pub(crate) use described::table_of;
 pub(crate) use registered::{Registered, disjoint_entities, disjoint_entity};
 
 /// How a disjoint read's rows become records: as `Record`s a model views by
@@ -592,29 +593,22 @@ impl NativeDisjoint {
             .shape
             .create()
             .map_err(|error| ConstructionError::new_err(error.to_string()))?;
-        let base = self.core.shape.base().table().clone();
-        let objects = statements
-            .into_iter()
-            .map(|statement| -> PyResult<Bound<'py, PyAny>> {
-                Ok(match statement {
-                    DdlStatement::CreateType(statement) => {
-                        PyCreateType::object(py, statement)?.into_any()
-                    }
-                    DdlStatement::CreateTable(statement) => {
-                        PyCreateTable::object(py, statement)?.into_any()
-                    }
-                    DdlStatement::AlterTable(statement) => {
-                        crate::schema::altered_table(py, base.clone(), statement)?
-                    }
-                    _ => {
-                        return Err(InternalError::new_err(
-                            "a disjoint schema statement of a kind this build does not know",
-                        ));
-                    }
-                })
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        PyTuple::new(py, objects)
+        evolve::ddl_tuple(py, statements)
+    }
+
+    /// The kind change `change` names, of the kind `value`, as its steps:
+    /// each its statements and its gap, `None` or the gap's kind and the
+    /// kind table's schema and name.
+    // [spec:pgorm:req:bindings.disjoint-evolve]
+    #[pyo3(signature = (change, value, table=None))]
+    fn change<'py>(
+        &self,
+        py: Python<'py>,
+        change: &str,
+        value: &str,
+        table: Option<&Bound<'py, PyAny>>,
+    ) -> PyResult<Bound<'py, PyList>> {
+        evolve::change(py, &self.core.shape, change, value, table)
     }
 }
 
@@ -628,7 +622,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 /// Each disjoint operation beside the Rust API that answers it; only
 /// `disjoint_entity` needs a registration.
-pub(crate) const OPERATIONS: [(&str, &str); 12] = [
+pub(crate) const OPERATIONS: [(&str, &str); 13] = [
     ("disjoint.declare", "pgorm::DisjointShape::new"),
     ("disjoint.find", "pgorm::DisjointShape::find"),
     ("disjoint.find_by_key", "pgorm::DisjointShape::key_is"),
@@ -649,6 +643,11 @@ pub(crate) const OPERATIONS: [(&str, &str); 12] = [
     ("disjoint.update", "pgorm::DisjointShape::update"),
     ("disjoint.change_kind", "pgorm::DisjointShape::change_kind"),
     ("disjoint.schema", "pgorm::DisjointShape::create"),
+    (
+        "disjoint.evolve",
+        "pgorm::DisjointShape::{add_kind, add_kind_recreating, remove_kind, add_kind_table, \
+         remove_kind_table}",
+    ),
     (
         "disjoint_entity",
         "pgorm_python::entities::Registry::disjoint / pgorm::DisjointShape::of",

@@ -46,13 +46,14 @@ pub struct Registry {
     pub(crate) graphs: BTreeMap<String, Arc<dyn Factory>>,
     pub(crate) sources: BTreeMap<String, Arc<dyn super::sources::SourcesFactory>>,
     pub(crate) disjoints: crate::disjoint::Registered,
+    pub(crate) one_ofs: crate::one_of::Registered,
 }
 
 impl Registry {
     /// Register an entity's real `EntityTrait`, model, columns and
     /// ActiveModel under `name`. A name or a Rust type registered twice is
     /// refused, and nothing is added.
-    // [spec:pgorm:req:bindings.entities+4]
+    // [spec:pgorm:req:bindings.entities+5]
     // [spec:pgorm:req:napi.application+2]
     pub fn entity<E>(&mut self, name: &str) -> Result<&mut Self, RegistrationError>
     where
@@ -120,16 +121,20 @@ impl Registry {
     pub(crate) fn backend<E: EntityTrait + 'static>(
         &self,
     ) -> Result<Arc<dyn EntityBackend>, RegistrationError> {
+        self.backend_of(TypeId::of::<E>()).ok_or_else(|| {
+            RegistrationError(format!(
+                "register the entity {} before the disjoint entity over it",
+                std::any::type_name::<E>()
+            ))
+        })
+    }
+
+    /// The registered entity whose Rust type is `entity`.
+    pub(crate) fn backend_of(&self, entity: TypeId) -> Option<Arc<dyn EntityBackend>> {
         self.types
-            .get(&TypeId::of::<E>())
+            .get(&entity)
             .and_then(|name| self.entities.get(name))
             .cloned()
-            .ok_or_else(|| {
-                RegistrationError(format!(
-                    "register the entity {} before the disjoint entity over it",
-                    std::any::type_name::<E>()
-                ))
-            })
     }
 
     /// The registration of `E`, which a graph's sources name.
@@ -184,7 +189,7 @@ mod tests {
         pub enum Relation {}
     }
 
-    // [spec:pgorm:req:bindings.entities+4/test]    a name or a Rust entity registered
+    // [spec:pgorm:req:bindings.entities+5/test]    a name or a Rust entity registered
     // twice, a name out of bounds and a graph of an unregistered entity are each
     // refused, and nothing is added
     #[test]

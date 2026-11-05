@@ -52,4 +52,11 @@ pub enum NoTarget {
     Detached,
 }
 
+#[derive(OneOf)]
+#[pgorm(entity = pgorm::tests_cfg::comment::Entity)]
+pub enum TheReferenceANoteMakesToTheIssuesOrReleaseItIsOn {
+    #[pgorm(column = pgorm::tests_cfg::comment::Column::PostId)]
+    Post(post::Entity),
+}
+
 fn main() {}

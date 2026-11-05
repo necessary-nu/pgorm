@@ -245,26 +245,21 @@ impl ObservedError {
 
     fn from_postgres(error: &tokio_postgres::Error, secrets: &Redactions) -> Self {
         let Some(db) = error.as_db_error() else {
-            // Pinned tokio-postgres 0.7.18 exposes no public error-kind accessor
-            // for FromSql/ToSql failures. Its top-level Display identifies the
-            // phase; inspect that before redaction, never a nested cause whose
-            // content the program under test chose.
-            let phase = error.to_string();
-            let class = if phase.starts_with("error deserializing column ")
-                || phase.starts_with("invalid column `")
-                || phase == "query returned an unexpected number of columns"
-            {
-                "DecodeError"
-            } else if phase.starts_with("error serializing parameter ") {
-                "ConstructionError"
-            } else {
+            if let Some(refusal) = pgorm::DecodeRefusal::of(error) {
+                return Self::new("DecodeError", secrets.apply(&refusal.to_string()), None);
+            }
+            if let Some(refusal) = pgorm::BindRefusal::of(error) {
                 return Self::new(
-                    "ConnectionError",
-                    "PostgreSQL connection or protocol failure",
+                    "ConstructionError",
+                    secrets.apply(&refusal.to_string()),
                     None,
                 );
-            };
-            return Self::new(class, secrets.apply(&phase), None);
+            }
+            return Self::new(
+                "ConnectionError",
+                "PostgreSQL connection or protocol failure",
+                None,
+            );
         };
         Self::new(
             "DatabaseError",

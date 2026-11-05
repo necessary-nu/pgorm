@@ -40,12 +40,13 @@ to the enum in every comparison, `in_array`, `coalesce`, `min` and `max`, becaus
 PostgreSQL has no operator for the domain itself (`42883`). A column named by text
 carries no type. Where a column of that kind has no registration — a `Table`, an
 alias naming a projection — `expr.compares_as(p.TypeName(name, schema=...))` names
-the enum it compares as:
+the type it compares as, the column and each value compared with it cast to it: the
+enum a domain is over, or `money` for a `money` column compared with a `Decimal`:
 
 ```python
 lines = pl.col("lines", "mood").compares_as(p.TypeName("mood"))
 query = pl.from_(p.Table("lines")).filter(lines == "glad")
-assert query.inspect().sql == "SELECT * FROM lines WHERE CAST(mood AS mood) = $1"
+assert query.inspect().sql == "SELECT * FROM lines WHERE CAST(mood AS mood) = CAST($1::text AS mood)"
 ```
 
 Every stage returns a new pipeline. `filter`, `derive`, `select`, `group`,

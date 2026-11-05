@@ -33,11 +33,11 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
     def active(self, identity, name="Nora"):
         return self.account.active().set("id", identity).set("display name", name)
 
-    # [spec:pgorm:req:bindings.entities+4/test]
+    # [spec:pgorm:req:bindings.entities+5/test]
     async def test_registration_declares_real_types_and_mapping(self):
         registrations = p.capabilities()["registrations"]["entities"]
         self.assertEqual([r["name"] for r in registrations],
-                         ["app.Account", "app.Auction", "app.Booking", "app.Listing", "app.Membership",
+                         ["app.Account", "app.Auction", "app.Booking", "app.Label", "app.Listing", "app.Membership",
                           "app.Note", "app.Old", "app.Pallet", "app.Parcel", "app.Room", "app.Sale",
                           "app.Shipment", "app.Stay", "app.Temper", "app.Till"])
         self.assertEqual(p.entities(), [r["name"] for r in registrations])
@@ -56,6 +56,12 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             ("id", "i32", None), ("display name", "text", None), ("note", "text", None), ("version", "i32", None),
             ("mood", 'enum "python_entities"."Mood"', ["calm", "busy"]),
         ])
+        self.assertEqual(info["unique_keys"], [])
+        # [spec:pgorm:req:bindings.entities+5/test]    a registration's describe() reports the unique keys its entity's unique(..) declares, each its name, its columns by their SQL names in key order and nulls_not_distinct
+        self.assertEqual(
+            p.entity("app.Label").describe()["unique_keys"],
+            [{"name": "labels_text_parcel", "columns": ["text", "parcel_id"], "nulls_not_distinct": True}],
+        )
         with self.assertRaises(p.UnsupportedCapabilityError):
             p.entity("invented.Entity")
         with self.assertRaises(p.ConstructionError):
@@ -150,8 +156,8 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.ConstructionError):
                 booking.active().set("span", p.Range(1, 2))
 
-    # [spec:pgorm:req:bindings.entity-reads+2/test]
-    # [spec:pgorm:req:bindings.column-operators+1/test]    a registered column is its own expression,
+    # [spec:pgorm:req:bindings.entity-reads+3/test]
+    # [spec:pgorm:req:bindings.column-operators+3/test]    a registered column is its own expression,
     # every Expr method reading it as written, and describes nothing itself
     async def test_typed_select_reuses_real_entity_projection(self):
         async with self.pool.connection() as connection:
@@ -181,7 +187,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             self.assertNotEqual(query.inspect().sql, query.inspect(terminal="one").sql)
             self.assertEqual(query.inspect().params[0].kind, "i32")
 
-    # [spec:pgorm:req:bindings.entity-reads+2/test]    a registered column is a member of values and of
+    # [spec:pgorm:req:bindings.entity-reads+3/test]    a registered column is a member of values and of
     # a Select's rows through its ColumnTrait, a column whose domain is over an enum as the enum,
     # where the column's plain expression is refused with 42883
     async def test_column_membership_runs_through_column_trait(self):
@@ -211,12 +217,39 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
                 await self.active(identity, f"account{identity}").insert(connection)
             chosen = self.account.find().where(self.account.col("id").is_in((1, 3)))
             self.assertEqual(sorted(row["id"] for row in await chosen.all(connection)), [1, 3])
-        with self.assertRaises(p.ConstructionError):
-            mood.is_in([p.col("x")])
         with self.assertRaises(TypeError):
             mood.is_in("busy")
 
-    # [spec:pgorm:req:bindings.entities+4/test]    a money column, and an array of it, is a decimal
+    # [spec:pgorm:req:bindings.entity-reads+3/test]    a registered column compares with an expression, or
+    # any_(..) / all_(..) over one, as written, and a list holding an expression is a member as written
+    async def test_expression_operands_compare_as_written(self):
+        identifier, version = self.account.col("id"), self.account.col("version")
+        self.assertEqual(
+            (identifier == version).inspect().sql,
+            'SELECT "accounts"."id" = "accounts"."version"',
+        )
+        self.assertEqual(
+            identifier.is_in([p.literal(1), 3]).inspect().sql,
+            'SELECT "accounts"."id" IN (1, $1)',
+        )
+        async with self.pool.connection() as connection:
+            for identity in (1, 2, 3):
+                await self.active(identity, f"account{identity}").insert(connection)
+
+            async def ids(predicate):
+                return sorted(row["id"] for row in await self.account.find().where(predicate).all(connection))
+
+            self.assertEqual(await ids(identifier == version), [1])
+            self.assertEqual(await ids(identifier.is_distinct_from(version)), [2, 3])
+            self.assertEqual(await ids(identifier > p.literal(1)), [2, 3])
+            versions = p.array(p.Select(version).from_(p.Table("accounts", schema="python_entities")))
+            self.assertEqual(await ids(identifier == p.any_(versions)), [1])
+            self.assertEqual(await ids(identifier == p.any_([1, 3])), [1, 3])
+            self.assertEqual(await ids(identifier != p.all_([1, 3])), [2])
+            self.assertEqual(await ids(identifier.is_in([p.literal(1), 3])), [1, 3])
+            self.assertEqual(await ids(identifier.is_not_in((version, 3))), [2])
+
+    # [spec:pgorm:req:bindings.entities+5/test]    a money column, and an array of it, is a decimal
     # column: described as one, set, compared and read back as a Decimal through the entity's own
     # casts, and compared as money by a pipeline that reads the registered column, where the column
     # named by text takes no Decimal
@@ -255,7 +288,138 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.ConstructionError):
                 await piped(pl.from_(till).filter(pl.col("tills", "takings") > Decimal("5")))
 
-    # [spec:pgorm:req:bindings.entity-reads+2/test]
+    # [spec:pgorm:req:bindings.column-operators+3/test]    a registered column's between, symmetric or
+    # not, and its distinctness tests run through its ColumnTrait: a money column's bounds cast to money,
+    # an enum's labels to the enum, and a column whose domain is over an enum tested as the enum, where
+    # the column's plain expression is refused; an expression bound is taken as written, null never
+    async def test_between_and_distinctness_take_the_column_casts(self):
+        await self.pool.execute(p.RawSQL(
+            "CREATE TABLE python_entities.tills (id integer PRIMARY KEY, takings money NOT NULL, floats money[])"))
+        await self.pool.execute(p.RawSQL('CREATE DOMAIN python_entities.temper AS python_entities."Mood"'))
+        await self.pool.execute(p.RawSQL(
+            "CREATE TABLE python_entities.tempers "
+            "(mood python_entities.temper PRIMARY KEY, settles_into python_entities.temper NOT NULL)"))
+        await self.pool.execute(p.RawSQL(
+            "INSERT INTO python_entities.tempers VALUES ('calm', 'busy'), ('busy', 'busy')"))
+        till, temper = p.entity("app.Till"), p.entity("app.Temper")
+        takings, temper_mood, mood = till.col("takings"), temper.col("mood"), self.account.col("mood")
+        async with self.pool.connection() as connection:
+            for identity, amount in ((1, "12.35"), (2, "3"), (3, "7.5")):
+                await till.active().set("id", identity).set("takings", Decimal(amount)).insert(connection)
+            await self.active(1).insert(connection)
+            await self.active(2).set("mood", "busy").insert(connection)
+
+            async def found(entity, predicate, key="id"):
+                return sorted(row[key] for row in await entity.find().where(predicate).all(connection))
+
+            low, high = Decimal("3"), Decimal("8")
+            self.assertIn("BETWEEN CAST($1::numeric AS money) AND CAST($2::numeric AS money)",
+                          till.find().where(takings.between(low, high)).inspect().sql)
+            self.assertEqual(await found(till, takings.between(low, high)), [2, 3])
+            self.assertEqual(await found(till, takings.not_between(low, high)), [1])
+            self.assertEqual(await found(till, takings.between(high, low)), [])
+            self.assertEqual(await found(till, takings.between(high, low, symmetric=True)), [2, 3])
+            self.assertEqual(await found(till, takings.not_between(high, low, symmetric=True)), [1])
+            self.assertEqual(await found(till, takings.is_distinct_from(low)), [1, 3])
+            self.assertEqual(await found(till, takings.is_not_distinct_from(low)), [2])
+            self.assertEqual(await found(till, takings.between(takings.expr(), takings)), [1, 2, 3])
+
+            self.assertEqual(await found(self.account, mood.between("busy", "busy")), [2])
+            self.assertEqual(await found(self.account, mood.not_between("busy", "calm", symmetric=True)), [])
+            self.assertEqual(await found(self.account, mood.is_distinct_from("busy")), [1])
+            self.assertEqual(await found(self.account, mood.is_not_distinct_from("busy")), [2])
+
+            self.assertEqual(await found(temper, temper_mood.between("calm", "calm"), "mood"), ["calm"])
+            self.assertEqual(await found(temper, temper_mood.between("busy", "calm", symmetric=True), "mood"),
+                             ["busy", "calm"])
+            self.assertEqual(await found(temper, temper_mood.is_distinct_from("calm"), "mood"), ["busy"])
+            self.assertEqual(await found(temper, temper_mood.is_not_distinct_from("busy"), "mood"), ["busy"])
+            for plain in (temper_mood.expr().between("calm", "busy"), temper_mood.expr().is_distinct_from("calm")):
+                with self.assertRaises(p.DatabaseError) as refused:
+                    await temper.find().where(plain).all(connection)
+                self.assertEqual(refused.exception.sqlstate, "42883")
+        with self.assertRaises(p.ConstructionError):
+            takings.between(None, high)
+        with self.assertRaises(p.ConstructionError):
+            takings.is_distinct_from(None)
+        with self.assertRaises(p.ConstructionError):
+            takings.eq(None)
+
+    # [spec:pgorm:req:bindings.entity-reads+3/test]    any_(..) / all_(..) over a list compares through the
+    # column's ColumnTrait, the list one array of its declared kind cast as eq_any's is: money as money[],
+    # a column whose domain is over an enum as the enum, where the plain expression is refused
+    async def test_quantified_lists_take_the_column_casts(self):
+        await self.pool.execute(p.RawSQL(
+            "CREATE TABLE python_entities.tills (id integer PRIMARY KEY, takings money NOT NULL, floats money[])"))
+        await self.pool.execute(p.RawSQL('CREATE DOMAIN python_entities.temper AS python_entities."Mood"'))
+        await self.pool.execute(p.RawSQL(
+            "CREATE TABLE python_entities.tempers "
+            "(mood python_entities.temper PRIMARY KEY, settles_into python_entities.temper NOT NULL)"))
+        await self.pool.execute(p.RawSQL(
+            "INSERT INTO python_entities.tempers VALUES ('calm', 'busy'), ('busy', 'busy')"))
+        till, temper = p.entity("app.Till"), p.entity("app.Temper")
+        takings, temper_mood, mood = till.col("takings"), temper.col("mood"), self.account.col("mood")
+        self.assertIn("= ANY(CAST($1::numeric[] AS money[]))",
+                      (takings == p.any_([Decimal("3")])).inspect().sql)
+        async with self.pool.connection() as connection:
+            for identity, amount in ((1, "12.35"), (2, "3"), (3, "7.5")):
+                await till.active().set("id", identity).set("takings", Decimal(amount)).insert(connection)
+            await self.active(1).insert(connection)
+            await self.active(2).set("mood", "busy").insert(connection)
+
+            async def found(entity, predicate, key="id"):
+                return sorted(row[key] for row in await entity.find().where(predicate).all(connection))
+
+            self.assertEqual(await found(till, takings == p.any_([Decimal("3"), Decimal("12.35")])), [1, 2])
+            self.assertEqual(await found(till, takings > p.all_([Decimal("1"), Decimal("5")])), [1, 3])
+            self.assertEqual(await found(self.account, mood != p.all_(["busy"])), [1])
+            self.assertEqual(await found(temper, temper_mood == p.any_(["busy"]), "mood"), ["busy"])
+            self.assertEqual(await found(temper, temper_mood > p.all_(["calm"]), "mood"), ["busy"])
+            with self.assertRaises(p.DatabaseError) as refused:
+                await temper.find().where(temper_mood.expr() == p.any_(["busy"])).all(connection)
+            self.assertEqual(refused.exception.sqlstate, "42883")
+
+    # [spec:pgorm:req:bindings.column-operators+3/test]    a registered range column's containment, overlap
+    # and range positions run through its ColumnTrait, a created range written as its text cast to the type,
+    # and an element is no value of the column's kind
+    async def test_range_operators_take_the_column_casts(self):
+        booking = p.entity("app.Booking")
+        span = booking.col("span")
+        async with self.pool.connection() as connection:
+            for identity, (lower, upper) in ((1, (1.5, 2.5)), (2, (5.0, 6.0))):
+                await booking.active().set("id", identity).set("span", p.Range(lower, upper)).insert(connection)
+
+            async def ids(predicate):
+                return sorted(row["id"] for row in await booking.find().where(predicate).all(connection))
+
+            self.assertIn("&& CAST($1::text AS python_entities.floatrange)",
+                          span.overlaps(p.Range(2.0, 3.0)).inspect().sql)
+            self.assertEqual(await ids(span.overlaps(p.Range(2.0, 3.0))), [1])
+            self.assertEqual(await ids(span.contains(p.Range(1.6, 1.7))), [1])
+            self.assertEqual(await ids(span.contained_by(p.Range(0.0, 10.0))), [1, 2])
+            self.assertEqual(await ids(span.strictly_left_of(p.Range(4.0, 4.5))), [1])
+            self.assertEqual(await ids(span.strictly_right_of(p.Range(4.0, 4.5))), [2])
+            self.assertEqual(await ids(span.not_extend_right_of(p.Range(1.0, 3.0))), [1])
+            self.assertEqual(await ids(span.not_extend_left_of(p.Range(4.0, 7.0))), [2])
+            self.assertEqual(await ids(span.adjacent_to(p.Range(2.5, 3.0))), [1])
+        with self.assertRaises(p.ConstructionError):
+            span.contains(1.7)
+
+    # [spec:pgorm:req:bindings.errors+5/test]    a column the entity cannot read as its field's type is a
+    # DecodeError naming what the driver was reading and the decoder's reason, as JavaScript reports it
+    async def test_decode_refusal_names_column_and_reason(self):
+        await self.pool.execute(p.RawSQL(
+            "ALTER TABLE python_entities.notes ALTER COLUMN account_id TYPE text USING account_id::text"))
+        await self.pool.execute(p.RawSQL("INSERT INTO python_entities.notes VALUES (1, 'one', 'b')"))
+        with self.assertRaises(p.DecodeError) as refused:
+            await self.note.find().all(self.pool)
+        self.assertEqual(
+            str(refused.exception),
+            "error deserializing column 1: "
+            "cannot convert between the Rust type `i32` and the Postgres type `text`",
+        )
+
+    # [spec:pgorm:req:bindings.entity-reads+3/test]
     async def test_one_never_widens_a_zero_limit(self):
         async with self.pool.connection() as connection:
             await self.active(1).insert(connection)
@@ -364,8 +528,8 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
                 await after.into_active().delete(connection)
             self.assertIsNone(await self.account.find().where(self.account.col("id") == 98).optional(connection))
 
-    # [spec:pgorm:req:bindings.entity-reads+2/test]
-    # [spec:pgorm:req:bindings.errors+3/test]
+    # [spec:pgorm:req:bindings.entity-reads+3/test]
+    # [spec:pgorm:req:bindings.errors+5/test]
     async def test_decode_failure_does_not_become_absence(self):
         async with self.pool.connection() as connection:
             await self.active(1).insert(connection)
@@ -373,14 +537,14 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.DecodeError):
                 await self.account.find().optional(connection)
 
-    # [spec:pgorm:req:bindings.errors+3/test]
+    # [spec:pgorm:req:bindings.errors+5/test]
     async def test_parameter_failure_preserves_connection(self):
         async with self.pool.connection() as connection:
             with self.assertRaises(p.ConstructionError):
                 await connection.one(p.RawSQL("SELECT $1::integer AS n", [p.Value("text", "text")]))
             self.assertTrue(await connection.ping())
 
-    # [spec:pgorm:req:bindings.entities+4/test]
+    # [spec:pgorm:req:bindings.entities+5/test]
     # [spec:pgorm:req:bindings.cancellation/test]
     async def test_cancellation_interrupts_an_active_rust_hook(self):
         async with self.pool.connection() as connection:

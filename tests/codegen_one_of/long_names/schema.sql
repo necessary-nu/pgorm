@@ -1,0 +1,6 @@
+CREATE TABLE "issue" ( "id" serial NOT NULL, "title" varchar NOT NULL, PRIMARY KEY ("id") );
+CREATE TABLE "release" ( "id" serial NOT NULL, "tag" varchar NOT NULL, PRIMARY KEY ("id") );
+CREATE TABLE "remark_left_on_an_issue_or_a_release_in_the_project_archive" ( "id" serial NOT NULL, "body" varchar NOT NULL, "issue_id" integer, "release_id" integer, PRIMARY KEY ("id"), CONSTRAINT "fk-remark_left_on_an_issue_or_a_release_in_the_83277342c47100f4" FOREIGN KEY ("issue_id") REFERENCES "issue" ("id"), CONSTRAINT "fk-remark_left_on_an_issue_or_a_release_in_the_b9b5b57a87601baa" FOREIGN KEY ("release_id") REFERENCES "release" ("id") );
+ALTER TABLE "remark_left_on_an_issue_or_a_release_in_the_project_archive" ADD CONSTRAINT "ck-subject" CHECK (num_nonnulls("issue_id", "release_id") <= 1);
+CREATE TABLE "note" ( "id" serial NOT NULL, "body" varchar NOT NULL, "issue_id" integer, "release_id" integer, PRIMARY KEY ("id"), CONSTRAINT "fk-note-issue_id" FOREIGN KEY ("issue_id") REFERENCES "issue" ("id"), CONSTRAINT "fk-note-release_id" FOREIGN KEY ("release_id") REFERENCES "release" ("id") );
+ALTER TABLE "note" ADD CONSTRAINT "ck-the_reference_a_note_makes_to_the_issue_or_release_it_is_on" CHECK (num_nonnulls("issue_id", "release_id") = 1);

@@ -59,7 +59,7 @@ fn constraint(name: &str, valid: bool, no_inherit: bool) -> (String, bool, bool)
 /// ones the same way, and once they are mended it makes the constraint valid.
 /// Without `NOT VALID` the same action is refused over the same rows, the
 /// control.
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]    against a live server: a foreign key and a
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]    against a live server: a foreign key and a
 // CHECK added NOT VALID skip the rows there, hold new rows, and validate once mended
 #[pgorm_macros::test]
 async fn not_valid_skips_the_rows_already_there() -> Result<(), Error> {
@@ -155,7 +155,7 @@ async fn not_valid_skips_the_rows_already_there() -> Result<(), Error> {
 /// A constraint that is `NOT ENFORCED` is never valid, whatever else it says,
 /// and `VALIDATE CONSTRAINT` refuses it (`55000`); added `NOT VALID` as well,
 /// it is accepted and stays as it was.
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]    against a live server: NOT VALID beside NOT
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]    against a live server: NOT VALID beside NOT
 // ENFORCED is taken, and the constraint cannot be validated
 #[pgorm_macros::test]
 async fn not_enforced_and_not_valid_never_validates() -> Result<(), Error> {

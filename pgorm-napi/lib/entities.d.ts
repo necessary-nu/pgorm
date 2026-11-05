@@ -6,7 +6,7 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.entities+4]
+// [spec:pgorm:req:bindings.entities+5]
 
 import type { Compiled, ComparisonOperand, Expr, Operand, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Conflict, ConflictUpdate } from "./writes.d.ts";
@@ -89,7 +89,13 @@ declare const operands: unique symbol;
  * `eq`, `ne`, `gt`, `gte`, `lt` and `lte` compare with a value of the
  * column's declared kind, a range or multirange column's `Range` or
  * `Multirange` included, written through its `save_as`, or with an
- * expression, `any(..)` or `all(..)` as it stands. `isIn` and `isNotIn` test
+ * expression, or `any(..)` / `all(..)` over a `Select` or an expression, as
+ * it stands; `any(..)` / `all(..)` over a list compare through the trait's
+ * `compare_any` / `compare_all`, each value read as the column's declared
+ * kind. `between` and `notBetween`, `SYMMETRIC` or not, take their bounds the
+ * same way, and `isDistinctFrom`, `isNotDistinctFrom`, `contains`,
+ * `containedBy`, `overlaps` and the range positions their value; a bound that
+ * is an expression takes the whole test as written. `isIn` and `isNotIn` test
  * membership in a list of values, each read as the column's declared kind as
  * a compared value is, or in a subquery's rows, by the column's `ColumnTrait`:
  * a column whose domain is over an enum is a member as the enum. A list
@@ -128,6 +134,12 @@ export interface EntityDescription {
   readonly primaryKey: readonly string[];
   /** Whether the key's last column is a period matched `WITHOUT OVERLAPS`. */
   readonly primaryKeyWithoutOverlaps: boolean;
+  /** The table's unique keys over two columns or more: each its name, null where PostgreSQL names it, its columns and whether nulls are equal under it. */
+  readonly uniqueKeys: readonly {
+    readonly name: string | null;
+    readonly columns: readonly string[];
+    readonly nullsNotDistinct: boolean;
+  }[];
   readonly relations: readonly {
     readonly name: string;
     readonly type: "hasOne" | "hasMany";

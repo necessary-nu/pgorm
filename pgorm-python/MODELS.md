@@ -40,10 +40,20 @@ non-boolean flag, a `generated` or `values` of the wrong type and an unknown
 a generated column with a default and labels on a column that is no enum a
 `ConstructionError`. An unknown option is Python's own `TypeError`.
 
+`unique_keys=[{"fields": ("realm", "handle"), "name": "members_realm_handle",
+"nulls_not_distinct": True}]` declares the table's unique keys, as an entity's
+`unique(..)` does: each of one field or several in key order, its `name` and
+`nulls_not_distinct` optional (`pgorm.models.model.UniqueKey` types it). A key
+naming no field, a field the model lacks or one field twice, and a name that is
+no identifier, is a `ConstructionError`; a key that is no mapping, an unknown
+option or a mistyped value a `TypeError`. `create_disjoint` writes each into
+its model's table.
+
 A `Column` is a declaration and has no methods: a model converts each value
 through its field's column where it takes one, and `Value(data, kind)` is the
 conversion a program calls. `model.describe()` reports the declaration as data:
-the table's `schema`, `table` and `alias`, the `primary_key` fields, and under
+the table's `schema`, `table` and `alias`, the `primary_key` fields, the
+`unique_keys` (each its `name`, `fields` and `nulls_not_distinct`), and under
 `fields` each field's SQL `column`, its `kind` (`i64`, `text[]`,
 `enum "app"."mood"`, `range "app"."floatrange" of f64`), `nullable`,
 `primary_key`, `default`, `generated` and an enum's `values`: the keys
@@ -252,6 +262,47 @@ a kind row's key given a value is refused before anything is sent.
 `pgorm.schema.create_disjoint(model)` gives the kind type, the tables and the
 constraints holding each base row to exactly its kind's table; a column
 declared `default=True` has no `DEFAULT` to write, so its table is refused.
+
+A change to the kinds once the tables exist is written from the declaration as
+it will be, as pgorm's `DisjointShape` writes it: `add_disjoint_kind(model,
+value)` (an `ALTER TYPE ... ADD VALUE`, then a kind's table in a second step),
+`add_disjoint_kind_recreating` (one step recreating the kind type),
+`remove_disjoint_kind` (refused by the server while a row has the kind),
+`add_disjoint_kind_table` and `remove_disjoint_kind_table(model, value,
+table)`, all in `pgorm.schema`. Each gives a `DisjointChange` whose `steps`
+each hold `statements` to run in one transaction and a `gap`, `None` or the
+`DisjointGap` naming the `kind` whose base rows need a row in its `table`
+before the next step:
+
+```python
+change = pgorm.schema.add_disjoint_kind_table(Fleet, "bike")
+for step in change.steps:
+    async with pool.transaction() as tx:
+        for statement in step.statements:
+            await tx.execute(statement)
+    pool.clear_statement_caches()
+    if step.gap is not None:
+        ...  # write a row in step.gap.table for every base row of step.gap.kind
+```
+
+A reference to exactly one of several targets is a `OneOf` over a model whose
+nullable fields each hold one target's key, `optional=True` allowing a row
+that references none, as a unit variant of a Rust `#[derive(OneOf)]` does:
+
+```python
+Commentable = p.OneOf("commentable", Comment, {"post": ("post_id", Post), "photo": ("photo_id", Photo)}, optional=True)
+await pool.execute(pgorm.schema.create_one_of(Commentable))  # CHECK (num_nonnulls("post_id", "photo_id") <= 1)
+await Comment.insert({"id": 1, "body": "hi", **Commentable.set("photo", 2)}).execute(pool)
+Commentable.key(record)                  # ("photo", 2), or None for no target
+await Commentable.load(pool, records)    # [("photo", photo_record), None, ...], one read per target table
+```
+
+A field the model lacks, one that is not nullable, one field for two targets, a
+field of another kind than its target's key, a target keyed by more than one
+field and one target model for two values are each a `ConstructionError`; a row
+setting two fields is a `DecodeError` as its key is read. A registered enum is
+`pgorm.one_of_entity(name)`, its targets named as its variants in snake_case and
+its `set(active, value, key)` writing the entity's ActiveModel.
 
 Tables an existing schema holds with no kind column — a base, and tables each
 keyed by a foreign key from its primary key onto the base's — are declared

@@ -96,7 +96,7 @@
     "values": [["i64","10"],["text","small"],["i64","1"],["i64","2"],["i64","3"],["i64","4"],["text","a"],["i64","0"]]
   },
   "compares-as": {
-    "sql": "SELECT * FROM items WHERE CAST(category AS app.\"Mood\") IN ($1, 'calm') AND CAST(m AS mood) < $2",
+    "sql": "SELECT * FROM items WHERE CAST(category AS app.\"Mood\") IN (CAST($1::text AS app.\"Mood\"), CAST('calm' AS app.\"Mood\")) AND CAST(m AS mood) < CAST($2::text AS mood)",
     "values": [["text","glad"],["text","glad"]]
   }
 }

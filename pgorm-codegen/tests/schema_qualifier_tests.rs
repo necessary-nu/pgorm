@@ -5,39 +5,15 @@
 mod common;
 
 use common::*;
-use pgorm_codegen::{Error, WriterOutput, entities_from_sql};
-
-fn from_sql(sql: &str, opts: Opts) -> Generated {
-    Generated {
-        files: files(entities_from_sql(sql, opts).expect("schema should generate")),
-    }
-}
-
-fn files(output: WriterOutput) -> Vec<(String, String)> {
-    output
-        .files
-        .into_iter()
-        .map(|file| (file.name, file.content))
-        .collect()
-}
-
-#[track_caller]
-fn assert_error(sql: &str, expected: &str) {
-    match entities_from_sql(sql, Opts::default()) {
-        Err(Error::TransformError(message)) => assert_eq!(message, expected),
-        Err(other) => panic!("expected a TransformError, got {other:?}"),
-        Ok(_) => panic!("expected an error, got generated entities"),
-    }
-}
 
 const QUALIFIED: &str = "CREATE TABLE tenant_a.item (id int PRIMARY KEY);";
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    the source table's schema
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    the source table's schema
 // survives transformation and reaches the compact entity
-// [spec:pgorm:def:codegen.entity.compact+6/test]
+// [spec:pgorm:def:codegen.entity.compact+7/test]
 #[test]
 fn compact_entity_carries_the_source_schema() {
-    let generated = from_sql(QUALIFIED, Opts::default());
+    let generated = from_sql_with(QUALIFIED, Opts::default());
 
     assert_contains(
         generated.file("item.rs"),
@@ -45,11 +21,11 @@ fn compact_entity_carries_the_source_schema() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    an unqualified table
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    an unqualified table
 // still generates no schema of its own
 #[test]
 fn an_unqualified_table_carries_no_schema() {
-    let generated = from_sql("CREATE TABLE item (id int PRIMARY KEY);", Opts::default());
+    let generated = from_sql_with("CREATE TABLE item (id int PRIMARY KEY);", Opts::default());
 
     assert_contains(
         generated.file("item.rs"),
@@ -63,7 +39,7 @@ fn an_unqualified_table_carries_no_schema() {
 // never contradicts one that names its own schema
 #[test]
 fn the_configured_schema_is_only_a_default() {
-    let generated = from_sql(
+    let generated = from_sql_with(
         "CREATE TABLE tenant_a.item (id int PRIMARY KEY);
          CREATE TABLE stock (id int PRIMARY KEY);",
         Opts {
@@ -86,7 +62,7 @@ fn the_configured_schema_is_only_a_default() {
 // tables are two tables that want one file, and the gate says so
 #[test]
 fn same_name_in_two_schemas_is_refused() {
-    assert_error(
+    assert_refused(
         "CREATE TABLE tenant_a.item (id int PRIMARY KEY);
          CREATE TABLE tenant_b.item (id int PRIMARY KEY);",
         "tables `tenant_a.item` and `tenant_b.item` both generate the module name `item`: \
@@ -100,7 +76,7 @@ fn same_name_in_two_schemas_is_refused() {
 // table is `search_path`'s business, and either way there is one `item.rs`
 #[test]
 fn qualified_and_unqualified_namesakes_are_refused() {
-    assert_error(
+    assert_refused(
         "CREATE TABLE tenant_a.item (id int PRIMARY KEY);
          CREATE TABLE item (id int PRIMARY KEY);",
         "tables `tenant_a.item` and `item` both generate the module name `item`: same-named \
@@ -112,16 +88,10 @@ fn qualified_and_unqualified_namesakes_are_refused() {
 // twice is a duplicate, not a collision
 #[test]
 fn a_table_declared_twice_is_refused() {
-    use pgorm_codegen::EntityTransformer;
-
-    let twice = vec![qualified_item(), qualified_item()];
-
-    match EntityTransformer::transform(twice, &context(Opts::default())) {
-        Err(Error::TransformError(message)) => {
-            assert_eq!(message, "table `tenant_a.item` is declared twice");
-        }
-        other => panic!("expected a TransformError, got {other:?}"),
-    }
+    assert_transform_error(
+        vec![qualified_item(), qualified_item()],
+        "table `tenant_a.item` is declared twice",
+    );
 }
 
 fn qualified_item() -> pgorm_query::TableCreateStatement {
@@ -131,15 +101,14 @@ fn qualified_item() -> pgorm_query::TableCreateStatement {
         .to_owned()
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    a qualified foreign key
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    a qualified foreign key
 // resolves to the table it names, across schemas
 #[test]
 fn a_foreign_key_resolves_across_schemas() {
-    let generated = from_sql(
+    let generated = from_sql_with(
         "CREATE TABLE tenant_a.item (id int PRIMARY KEY);
          CREATE TABLE tenant_b.cart (id int PRIMARY KEY, item_id int REFERENCES tenant_a.item(id));",
-        Opts::default(),
-    );
+        Opts::default());
 
     assert_contains(
         generated.file("cart.rs"),
@@ -152,11 +121,11 @@ fn a_foreign_key_resolves_across_schemas() {
     assert_contains(generated.file("item.rs"), "has_many = super::cart::Entity");
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    an unqualified reference
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    an unqualified reference
 // resolves to the one table with that bare name, whatever schema it is in
 #[test]
 fn an_unqualified_key_reaches_a_qualified_table() {
-    let generated = from_sql(
+    let generated = from_sql_with(
         "CREATE TABLE tenant_a.item (id int PRIMARY KEY);
          CREATE TABLE cart (id int PRIMARY KEY, item_id int REFERENCES item(id));",
         Opts::default(),
@@ -169,22 +138,22 @@ fn an_unqualified_key_reaches_a_qualified_table() {
     assert_contains(generated.file("item.rs"), "has_many = super::cart::Entity");
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    a key onto another
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    a key onto another
 // schema's table is a key onto a table this schema does not define
 #[test]
 fn a_key_onto_another_schemas_table_is_unresolved() {
-    assert_error(
+    assert_refused(
         "CREATE TABLE tenant_a.item (id int PRIMARY KEY);
          CREATE TABLE cart (id int PRIMARY KEY, item_id int REFERENCES tenant_b.item(id));",
         "table `cart`: relation to `tenant_b.item` names a table the schema does not define",
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    self-reference is decided
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    self-reference is decided
 // on identity: a qualified table keying itself is still `SelfRef`
 #[test]
 fn a_qualified_table_can_reference_itself() {
-    let generated = from_sql(
+    let generated = from_sql_with(
         "CREATE TABLE tenant_a.node (id int PRIMARY KEY, parent int REFERENCES tenant_a.node(id));",
         Opts::default(),
     );
@@ -196,32 +165,32 @@ fn a_qualified_table_can_reference_itself() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.transform+17/test]    the gate names a table by
+// [spec:pgorm:sem:codegen.entity.transform+18/test]    the gate names a table by
 // its identity, so a failure in one of two schemas' tables says which
 #[test]
 fn a_refusal_names_the_qualified_table() {
-    assert_error(
+    assert_refused(
         "CREATE TABLE tenant_a.item (id int PRIMARY KEY, \"1st\" int);",
         "table `tenant_a.item` column `1st`: `1st` is not a valid Rust identifier",
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    an index attaches to the table
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    an index attaches to the table
 // its own name resolves to, not to whatever shares the bare name
 #[test]
 fn an_index_attaches_by_qualified_name() {
-    assert_error(
+    assert_refused(
         "CREATE TABLE tenant_a.item (id int PRIMARY KEY, sku text);
          CREATE UNIQUE INDEX item_sku ON tenant_b.item (sku);",
         "statement 2: no CREATE TABLE for table `tenant_b.item`",
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    and a qualified index that does
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    and a qualified index that does
 // name its table is folded into it, giving the column its `unique`
 #[test]
 fn a_qualified_index_reaches_its_own_table() {
-    let generated = from_sql(
+    let generated = from_sql_with(
         "CREATE TABLE tenant_a.item (id int PRIMARY KEY, sku text);
          CREATE UNIQUE INDEX item_sku ON tenant_a.item (sku);",
         Opts::default(),
@@ -233,21 +202,21 @@ fn a_qualified_index_reaches_its_own_table() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a comment resolves the same way
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a comment resolves the same way
 #[test]
 fn a_comment_attaches_by_qualified_name() {
-    assert_error(
+    assert_refused(
         "CREATE TABLE tenant_a.item (id int PRIMARY KEY);
          COMMENT ON TABLE tenant_b.item IS 'the other one';",
         "statement 2: no CREATE TABLE for table `tenant_b.item`",
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    an unqualified reference that
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    an unqualified reference that
 // two tables answer to is named as such, rather than attached to one of them
 #[test]
 fn an_ambiguous_unqualified_index_is_refused() {
-    assert_error(
+    assert_refused(
         "CREATE TABLE tenant_a.item (id int PRIMARY KEY, sku text);
          CREATE TABLE tenant_b.item (id int PRIMARY KEY, sku text);
          CREATE UNIQUE INDEX item_sku ON item (sku);",
@@ -255,7 +224,7 @@ fn an_ambiguous_unqualified_index_is_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.tables+12/test]    the bridge preserved the
+// [spec:pgorm:sem:codegen.ddl.tables+13/test]    the bridge preserved the
 // qualifier all along; it is the whole pipeline that now keeps it
 #[test]
 fn bridge_and_generated_entity_agree_on_schema() {
@@ -273,17 +242,17 @@ fn bridge_and_generated_entity_agree_on_schema() {
             if schema.to_string() == "tenant_a" && table.to_string() == "item"
     ));
     assert_contains(
-        from_sql(QUALIFIED, Opts::default()).file("item.rs"),
+        from_sql_with(QUALIFIED, Opts::default()).file("item.rs"),
         r#"schema_name = "tenant_a""#,
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+7/test]    a schema-qualified enum's
+// [spec:pgorm:sem:codegen.entity.enums+8/test]    a schema-qualified enum's
 // schema survives into the generated ActiveEnum attribute, so the
 // entity round-trips the type it was described with
 #[test]
 fn qualified_enum_preserves_its_schema() {
-    let generated = from_sql(
+    let generated = from_sql_with(
         "CREATE TYPE custom.status AS ENUM ('open'); \
          CREATE TABLE custom.task (id integer PRIMARY KEY, status custom.status NOT NULL);",
         Opts::default(),
@@ -300,7 +269,7 @@ fn qualified_enum_preserves_its_schema() {
 // NOT satisfy it
 #[test]
 fn qualified_enum_does_not_resolve_another_schema() {
-    assert_error(
+    assert_refused(
         "CREATE TYPE a.status AS ENUM ('open'); \
          CREATE TABLE task (id integer PRIMARY KEY, status b.status NOT NULL);",
         "statement 2: type `b.status` on column `task`.`status` is not declared; \
@@ -312,7 +281,7 @@ fn qualified_enum_does_not_resolve_another_schema() {
 // reference resolve a type declared only under a schema
 #[test]
 fn unqualified_reference_needs_an_unqualified_declaration() {
-    assert_error(
+    assert_refused(
         "CREATE TYPE a.status AS ENUM ('open'); \
          CREATE TABLE task (id integer PRIMARY KEY, status status NOT NULL);",
         "statement 2: type `status` on column `task`.`status` is not declared; \
@@ -320,12 +289,12 @@ fn unqualified_reference_needs_an_unqualified_declaration() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.enums+7/test]    one bare Rust enum cannot
+// [spec:pgorm:sem:codegen.entity.enums+8/test]    one bare Rust enum cannot
 // stand for two differently-qualified database types: the collision is
 // refused rather than generated
 #[test]
 fn same_named_enums_in_two_schemas_are_refused() {
-    assert_error(
+    assert_refused(
         "CREATE TYPE a.status AS ENUM ('open'); \
          CREATE TYPE b.status AS ENUM ('closed'); \
          CREATE TABLE t1 (id integer PRIMARY KEY, s a.status NOT NULL); \
@@ -342,13 +311,13 @@ fn same_named_enums_in_two_schemas_are_refused() {
 // two and generate
 #[test]
 fn qualified_enums_claim_the_name_they_declare() {
-    assert_error(
+    assert_refused(
         "CREATE TYPE market.grade AS ENUM ('a');
          CREATE TYPE \"GRADE\" AS ENUM ('b');
          CREATE TABLE mark (id int PRIMARY KEY, g market.grade, h \"GRADE\");",
         "enums `GRADE` and `market.grade` both generate the type name `Grade`",
     );
-    let generated = from_sql(
+    let generated = from_sql_with(
         "CREATE TYPE market.listing_category AS ENUM ('a');
          CREATE TYPE market_listing_category AS ENUM ('b');
          CREATE TABLE listing (id int PRIMARY KEY, c market.listing_category, \

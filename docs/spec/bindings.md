@@ -104,7 +104,7 @@ option.
 > the runtime: an operation that does I/O is awaited in the language's own
 > asynchronous form (`python.runtime`, `napi.promises`).
 
-> [spec:pgorm:req:bindings.errors+3]
+> [spec:pgorm:req:bindings.errors+5]
 > Each binding MUST report a failure as an instance of its own error classes,
 > all derived from one base class of the binding and from the language's own
 > base error:
@@ -123,9 +123,15 @@ option.
 > - `ConnectionError` when the server cannot be reached or the connection
 >   breaks;
 > - `ConstructionError` for an argument whose value cannot become what pgorm
->   sends;
+>   sends; one its parameter's type refuses as the driver encodes it is
+>   reported with pgorm's `BindRefusal` text (`error.model.bind-refusal`),
+>   `parameter $1 cannot be bound:` followed by pgorm's reason, the same text
+>   in each binding;
 > - `DecodeError` for a result that cannot become the native value asked for,
->   a wrong row count among them (`bindings.row-count`);
+>   a wrong row count among them (`bindings.row-count`); one the driver cannot
+>   read is reported with pgorm's `DecodeRefusal` text
+>   (`error.model.decode-refusal`), what it was reading followed by the
+>   decoder's reason, the same text in each binding;
 > - `LifecycleError` for a pool, connection, transaction, stream or listener
 >   used after it closed, or while another operation holds it;
 > - `TimeoutError` when no connection becomes free within a pool's acquire
@@ -950,10 +956,11 @@ decode into records of its fields, and its relations, graphs, cursors and
 pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 `Paginator`.
 
-> [spec:pgorm:req:bindings.models+4]
-> `model(name, columns, schema)` MUST declare a model of a table,
-> schema-qualified when a schema is given, from a mapping of fields, each a
-> `Column(kind, options)`. The kind is one every result decodes as — any
+> [spec:pgorm:req:bindings.models+5]
+> `model(name, columns, schema, unique_keys)` MUST declare a model of a
+> table, schema-qualified when a schema is given, from a mapping of fields,
+> each a `Column(kind, options)`, and the table's unique keys
+> (`bindings.model-unique-keys`). The kind is one every result decodes as — any
 > value kind but `u64` and `char`, which no column decodes as — or a
 > schema-qualified `TypeName`, `CreatedRange` or `CreatedMultirange`, as a
 > decoded row names each type. The options are `name` (the SQL column, the
@@ -976,7 +983,8 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > (`bindings.value-tags`) is the conversion a program calls. `describe()`
 > MUST report the model as data, under these keys and no other, each spelled
 > by the binding's naming rule: `schema`, `table` and `alias`, its table's;
-> `primary_key`, its key fields; and `fields`, mapping each field to its SQL
+> `primary_key`, its key fields; `unique_keys`, its unique keys
+> (`bindings.model-unique-keys`); and `fields`, mapping each field to its SQL
 > `column`, its `kind`, `nullable`, `primary_key`, `default`, `generated`
 > (always or by default, or null) and an enum's `values` (null for any other
 > column). A kind is spelled as a decoded column's is compared
@@ -987,6 +995,43 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > written as its schema and name, each double-quoted with its own quotes
 > doubled, joined by a dot, or as its quoted name alone.
 
+> [spec:pgorm:req:bindings.model-unique-keys+2]
+> A model's `unique_keys` MUST declare its table's unique keys, in order, as
+> an entity's `unique(..)` declares them
+> (`[spec:pgorm:req:entity.traits.entity-name]`): each key an object of
+> `fields`, one field or a non-empty list of them in key order, and the
+> options `name`, the constraint's name, which PostgreSQL chooses when none
+> is given, and `nulls_not_distinct`, whether nulls are equal under the key.
+> A key may be of one field, a model's column having no `unique` of its own.
+> A key naming no field, a field the model lacks or one field twice, which
+> PostgreSQL refuses (`42701`), and a name pgorm would not take as an
+> identifier MUST be a `ConstructionError` raised as the model is declared,
+> and a key that is not an object, or names an option it does not know, a
+> `TypeError` (`bindings.argument-errors`). Declaring them sends nothing,
+> and `as(alias)` keeps them. `describe()` reports each, in order, as its
+> `name`, null when none was given, its `fields` as a list and
+> `nulls_not_distinct`.
+>
+> The tables `create_disjoint` writes from models (`bindings.disjoint`) MUST
+> each write its model's keys after its primary key, each a `UNIQUE`
+> constraint over its fields' SQL columns, as pgorm's `DisjointTable` writes
+> the keys `with_unique_key` gives it, which refuses also what a model cannot
+> declare: a `VIRTUAL` generated column, which PostgreSQL cannot key
+> (`0A000`). A key named as one PostgreSQL would refuse beside the shape's
+> other names MUST be a `ConstructionError` raised as the disjoint model is
+> declared, the shape's refusal naming both, before anything is sent: as
+> another key of its table or its composite primary key, `pk-{table}`
+> (`42P07`); as a name the disjoint schema adds (`[spec:pgorm:sem:disjoint.schema]`),
+> the base's `UNIQUE` key or another table's composite primary key in its
+> schema (`42P07`), or the base's foreign key to a kind's table or a kind
+> table's to its base row on its own table (`42710`); as a name PostgreSQL
+> gives the shape's tables itself, an unnamed one-column primary key's
+> `{table}_pkey` or an unnamed unique key's `{table}_{columns}_key` in its
+> schema (`42P07`), or a not-null constraint's `{table}_{column}_not_null`
+> on its own table (`42710`), each derived as `disjoint.schema` says; or as
+> another table's unique key in its schema (`42P07`). A relation of the
+> schema outside the shape is the server's to refuse.
+
 > [spec:pgorm:req:bindings.model-columns+1]
 > `col(field)` MUST be a model field's column, qualified as the model's
 > columns are. Its comparisons `eq`, `ne`, `lt`, `lte`, `gt` and `gte`, and
@@ -996,7 +1041,7 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > `all(..)` beside a comparison, is taken as written; a `Value` only of the
 > field's own kind; and null never, which `is_null()` tests.
 
-> [spec:pgorm:req:bindings.column-operators+1]
+> [spec:pgorm:req:bindings.column-operators+3]
 > A model's column and a registered entity's column MUST each be an
 > expression: every expression method applies to it, reading the column as
 > written, and it goes wherever an expression goes. A model column's other
@@ -1005,9 +1050,24 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > and `overlaps`, and `strictly_left_of`, `strictly_right_of`,
 > `not_extend_right_of`, `not_extend_left_of` and `adjacent_to` — MUST
 > convert their values as the column's comparisons do
-> (`bindings.model-columns`). Every other method takes its operands as
-> `bindings.expressions` does, and a registered column's comparisons are
-> those `bindings.entity-reads` names. Neither column describes itself: a
+> (`bindings.model-columns`). A registered column's `between` and
+> `not_between`, `SYMMETRIC` or not, its `is_distinct_from` and
+> `is_not_distinct_from`, and its `contains`, `contained_by`, `overlaps`
+> and range positions MUST be its `ColumnTrait`'s methods of the same
+> meaning (`includes` for `contains`): each value converted as its
+> comparisons convert one (`bindings.entity-reads`) and compared under the
+> same casts, so a bound compared with a `money` column is cast to `money`,
+> a range compared with a created range's column is its text cast to the
+> type, and a column whose domain is over an enum is tested as the enum,
+> where a bound left bare would reach no operator (`42883`) or bind as a type
+> it is not. An element `contains` tests is no value of the column's kind,
+> and is given as an expression. `any(..)` / `all(..)` over a list beside a
+> range operator is the trait's `compare_any` / `compare_all`, as beside a
+> comparison. A bound or value that is an expression takes the whole test as
+> written, and null is refused. Every other method takes its operands as
+> `bindings.expressions` does — a pattern among them, which no column type
+> casts — and a registered column's comparisons are those
+> `bindings.entity-reads` names. Neither column describes itself: a
 > model column's declaration is read through its model's `describe()`
 > (`bindings.models`), and a registered column's through its registration's
 > (`bindings.entities`).
@@ -1155,7 +1215,7 @@ registrations. The program reaches each registration by name, and every
 operation on one is the entity's own Rust API. A binding cannot instantiate a
 Rust generic at run time, only use the ones compiled in.
 
-> [spec:pgorm:req:bindings.entities+4]
+> [spec:pgorm:req:bindings.entities+5]
 > Each binding MUST let a downstream application crate register its own
 > entities, `SelectGraph` shapes and pipeline source tuples, for any entity
 > whose model converts into its ActiveModel, and build one native module from
@@ -1180,7 +1240,11 @@ Rust generic at run time, only use the ones compiled in.
 > (`[spec:pgorm:sem:entity.traits.column.enum-cast]`) — and an enum's
 > `values` (null for any other column);
 > `primary_key`, and `primary_key_without_overlaps`, whether that key ends
-> `WITHOUT OVERLAPS`; `relations`, each with its `name`, `type` (has one or
+> `WITHOUT OVERLAPS`; `unique_keys`, the table's unique keys over two columns
+> or more as the entity's `EntityName::unique_keys` declares them
+> (`[spec:pgorm:req:entity.traits.entity-name]`), each its `name`, null where
+> PostgreSQL names the constraint, its `columns` by their SQL names in key
+> order and `nulls_not_distinct`; `relations`, each with its `name`, `type` (has one or
 > has many), the `from` and `to` tables, each its `schema` and `table`, its
 > `columns` as pairs, its `PERIOD` pair as `period`, `condition_type` and
 > `on_condition` (`bindings.relation-conditions`), `enforcement` and
@@ -1205,7 +1269,7 @@ Rust generic at run time, only use the ones compiled in.
 > as on a connection or a transaction. On a pool it runs on a connection lent
 > to it alone, as a pool's statement does.
 
-> [spec:pgorm:req:bindings.entity-reads+2]
+> [spec:pgorm:req:bindings.entity-reads+3]
 > `find()` MUST be the entity's `E::find()`, and `where`, `order_by`,
 > `limit` and `offset` the `Select<E>` methods of the same meaning. `all`,
 > `one` and `optional` MUST be `Select::all`, `one` and `one_opt`, `one` and
@@ -1216,8 +1280,12 @@ Rust generic at run time, only use the ones compiled in.
 > comparisons MUST be that trait's methods: a value converted to the column's
 > declared kind and written through the column's `save_as` — an enum's label
 > cast to its type, and a column whose domain is over an enum compared as the
-> enum, the column and the label each cast to it. An expression, or
-> `any(..)` / `all(..)`, is compared as written, and null is refused. Its
+> enum, the column and the label each cast to it. `any(..)` / `all(..)` over
+> a list of values MUST be the trait's `compare_any` / `compare_all`, the
+> values converted to the column's declared kind as one array and cast as
+> `eq_any`'s is, so a `money` column compares with a list of decimals; over a
+> `Select`, over an expression, or beside a column of no scalar kind it is
+> compared as written, as is an expression, and null is refused. Its
 > `is_in` and `is_not_in` MUST be the trait's `is_in` / `is_not_in` over a
 > list of values, each converted as a compared value is, and its
 > `in_subquery` / `not_in_subquery` over a `Select`, so a column whose domain
@@ -1426,6 +1494,86 @@ Rust generic at run time, only use the ones compiled in.
 > `ConstructionError` naming the base as read-only, the shape's refusal. Its `describe()` has `bindings.disjoint`'s keys, its
 > `kind_field` null and its `kind_type`'s `schema` and `name` null.
 
+> [spec:pgorm:req:bindings.disjoint-evolve]
+> Each binding MUST write a change to a kinded disjoint model's or
+> registration's kinds as pgorm's `DisjointShape` writes it
+> (`[spec:pgorm:sem:disjoint.evolve]`), from the declaration as it will be,
+> through five functions beside `create_disjoint`, each taking the disjoint
+> model or registration and a kind's value as `kinds` gives it:
+> `add_disjoint_kind` (`DisjointShape::add_kind`),
+> `add_disjoint_kind_recreating` (`add_kind_recreating`),
+> `remove_disjoint_kind` (`remove_kind`), `add_disjoint_kind_table`
+> (`add_kind_table`) and `remove_disjoint_kind_table` (`remove_kind_table`),
+> the last also taking the table dropped, named as `bindings.schema` names a
+> table. Each gives a `DisjointChange`, whose `steps` are, in the order they
+> run, each a `DisjointStep` of its `statements`, the binding's DDL
+> statements in the order they run in one transaction committed before the
+> next step, and its `gap`: null, or the `DisjointGap` naming the `kind` and
+> the `table`, a `Table` schema-qualified as the kind's table is, in which
+> the program writes a row for every base row of that kind before the next
+> step runs. They are data, Python's frozen classes of those names and
+> JavaScript's frozen plain objects, as each binding's other results are
+> (`python.records`, `napi.records`), and calling a function sends nothing.
+>
+> What the shape refuses — what `create_disjoint` refuses, a kind added or
+> given a table that the declaration does not declare or declares without
+> one, a kind removed that it still declares, and a table dropped from a
+> kind it declares with one — MUST be a `ConstructionError` raised as the
+> function is called, and a value that is not text, or a first argument
+> that is no disjoint model or registration, a `TypeError`. An unkinded
+> model or registration has no kind type to change: each binding's types
+> MUST take none, as they take none for `create_disjoint`, and a call made
+> regardless is refused with the `ConstructionError` naming the base as
+> read-only (`bindings.disjoint-unkinded`).
+
+> [spec:pgorm:req:bindings.one-of+1]
+> Each binding MUST read, set and load a reference to exactly one of several
+> targets (`[spec:pgorm:def:disjoint.one-of]`) and write its `CHECK` through
+> pgorm's `OneOfShape`, the reference as data, as `DisjointShape` is a
+> disjoint entity's (`bindings.disjoint`): described from models, or
+> `OneOfShape::of` a downstream crate's `#[derive(OneOf)]` enum. Every
+> statement and every refusal is the shape's, so a binding's reads, loads
+> and `CHECK` are Rust's.
+>
+> `one_of(name, model, targets, options)` MUST declare one over a model,
+> `targets` mapping each target's value, in order, to the field holding its
+> key and the target's model, keyed by one field, and the option `optional`
+> declaring that a row may reference none, as a unit variant does. A
+> downstream crate's enum MUST be registrable as an entity is
+> (`bindings.entities`), its entity and its targets' entities registered
+> before it, and `one_of_entity(name)` and `one_of_entities()` give one
+> registration and list them, its values its variants' names in snake_case.
+> What the derive refuses — a field the model lacks, one that is not
+> nullable, a field named twice, one whose kind is not its target's key's, a
+> target keyed by more than one field, one target model given twice, no
+> target, and a name past 59 bytes — MUST be a `ConstructionError` raised as
+> the reference is declared or registered, and declaring or registering one
+> sends nothing.
+>
+> `key(record)` MUST read a record's reference as a tagged key — Python's
+> tuple `(value, key)`, JavaScript's array `[value, key]` — or null for a row
+> referencing none where the reference is optional; a row setting two of its
+> fields, or none where it is not optional, is a `DecodeError` naming the
+> table, the row's key and the fields, `OneOf::key`'s refusal. A setting
+> MUST be the shape's: the value's field set to the key and every other
+> field to null, or every field null for null where the reference is
+> optional. A model's reference's `set(value, key)` gives those fields and
+> their values, which its `insert` and `update` take beside their other
+> values, and a registration's `set(active, value, key)` gives its entity's
+> ActiveModel with them set; a value that names no target, a target without
+> its key, and null where the reference is not optional are each a
+> `ConstructionError`. `load(db, records)` MUST read each target's table
+> once, for the keys the records hold for it, and give each record its
+> target's record, tagged as a key is, in the records' order; a key its
+> target's table does not hold is a `DecodeError` naming the table, the
+> row's key, the target's key and the field. `create_one_of(one_of)` gives
+> the `CHECK` `Schema::create_one_of` writes, an `AlterTable`. `describe()`
+> MUST report a declaration or registration under these keys and no other,
+> each spelled by the binding's naming rule: `name`; `model`, the model's
+> table name or the entity's registration name; `targets`, each with its
+> `value`, its `field` and its `target`, the target model's table name or
+> the target entity's registration name; and `optional`.
+
 ## Pipelines
 
 Each binding composes pgorm's PRQL-shaped pipeline, `pgorm::pipeline`:
@@ -1456,7 +1604,7 @@ placeholders belong to the stage that minted them.
 > `ConstructionError` from `inspect()` or the terminal, before anything is
 > sent.
 
-> [spec:pgorm:req:bindings.pipeline-expressions+2]
+> [spec:pgorm:req:bindings.pipeline-expressions+3]
 > Pipeline expressions MUST be objects of their own, lowered into
 > `pgorm::pipeline::Expr` only as a stage takes them, never mixed with the
 > statement builders' expressions: `col(table, column)`, qualified as prqlc
@@ -1465,8 +1613,10 @@ placeholders belong to the stage that minted them.
 > `lte`, and, or, not, negation, `add` .. `rem`, `coalesce`, `is_null`,
 > `is_not_null`, `in_array`, `cast` over pgorm's closed `CastType` set, `as`,
 > `asc` and `desc`; `compares_as(type)`, a name or a `TypeName`, lowered
-> through `ExprOps::compares_as`, the enum a column no registration types
-> compares as (`entity.traits.column.enum-cast`); `case(arms, otherwise)`;
+> through `ExprOps::compares_as`, the type a column no registration types
+> compares as — the enum a domain is over, `money` — the column and each
+> value compared with it cast to it (`pipeline.surface`); `case(arms,
+> otherwise)`;
 > and the aggregates and window functions pgorm's pipeline has, each at the
 > argument count it takes. `over()` builds a window's partition, ordering
 > and ROWS or RANGE frame, and takes no value, bound or not, as pgorm's `Over`

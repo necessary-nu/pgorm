@@ -14,7 +14,7 @@ import { arg, Builder, trusted, TRUSTED } from "./builder.js";
 import { pump } from "./copy-feed.js";
 import { CopyRowStream, pumpRows, rowSource } from "./copy-rows.js";
 import { LifecycleError } from "./errors.js";
-import { abortable, native, queryOptions, TRUSTED as HANDLE } from "./operations.js";
+import { abortable, LATE, native, queryOptions, TRUSTED as HANDLE } from "./operations.js";
 
 /**
  * @typedef {"text" | "csv" | "binary"} CopyFormat
@@ -255,6 +255,14 @@ export class CopyRunner {
   }
 
   /**
+   * Release what an operation that finished after its abort holds: nothing
+   * here, a transaction ending itself.
+   *
+   * @returns {Promise<void>}
+   */
+  async [LATE]() {}
+
+  /**
    * Run a `COPY … FROM STDIN`, writing the bytes `source` yields — a
    * `Uint8Array`, or an iterable or async iterable of them — and resolve with
    * the rows it wrote. The source is checked before anything is sent, and
@@ -275,7 +283,7 @@ export class CopyRunner {
     return await abortable(signal, async (token) => {
       const handle = await this[COPY]("in", arg(statement), token, false);
       return await pump(handle, open, signal);
-    });
+    }, () => this[LATE]());
   }
 
   /**
@@ -292,7 +300,11 @@ export class CopyRunner {
       throw new TypeError("copyOut runs a COPY TO STDOUT, from copyTo(source, format)");
     }
     const { signal } = queryOptions(options);
-    const handle = await abortable(signal, (token) => this[COPY]("out", arg(statement), token, false));
+    const handle = await abortable(
+      signal,
+      (token) => this[COPY]("out", arg(statement), token, false),
+      (opened) => closeCopyOut(this, opened),
+    );
     return new CopyOutStream(handle, this, signal, HANDLE);
   }
 
@@ -318,7 +330,7 @@ export class CopyRunner {
     return await abortable(signal, async (token) => {
       const handle = await this[COPY]("in", arg(statement), token, true);
       return await pumpRows(handle, open, signal);
-    });
+    }, () => this[LATE]());
   }
 
   /**
@@ -336,9 +348,25 @@ export class CopyRunner {
       throw new TypeError('copyOutRows runs a binary COPY TO STDOUT, from copyTo(source, "binary")');
     }
     const { signal } = queryOptions(options);
-    const handle = await abortable(signal, (token) => this[COPY]("out", arg(statement), token, true));
+    const handle = await abortable(
+      signal,
+      (token) => this[COPY]("out", arg(statement), token, true),
+      (opened) => closeCopyOut(this, opened),
+    );
     return new CopyRowStream(handle, this, signal, HANDLE);
   }
+}
+
+/**
+ * Close a COPY TO that opened after its abort, discarding the data it holds,
+ * and release what `runner` ran it on.
+ *
+ * @param {CopyRunner} runner
+ * @param {unknown} handle
+ */
+async function closeCopyOut(runner, handle) {
+  await native.copyOutClose(handle);
+  await runner[LATE]();
 }
 
 /**

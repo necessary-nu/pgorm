@@ -1,5 +1,6 @@
 """Installed Python pipeline composition, scope ownership and PostgreSQL results."""
 
+from decimal import Decimal
 import os
 import unittest
 
@@ -293,7 +294,7 @@ class PipelineDatabase(unittest.IsolatedAsyncioTestCase):
             with self.subTest(name=name):
                 await cases[name].all(self.connection)
 
-    # [spec:pgorm:req:bindings.pipeline-expressions+2/test]
+    # [spec:pgorm:req:bindings.pipeline-expressions+3/test]
     # [spec:pgorm:req:bindings.operands/test]
     async def test_literal_and_bound_text_remain_values(self):
         payload = "O'Brien'); DROP TABLE items; -- 雪"
@@ -316,7 +317,7 @@ class PipelineDatabase(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((row["id"], row["category"]), (5, payload))
         self.assertEqual(len(await base.all(self.connection)), 5)
 
-    # [spec:pgorm:req:bindings.pipeline-expressions+2/test]
+    # [spec:pgorm:req:bindings.pipeline-expressions+3/test]
     async def test_aggregates_windows_and_typed_nulls(self):
         base = pl.from_(p.Table("items"))
         amount = pl.col("items", "amount")
@@ -375,6 +376,11 @@ class PipelineDomainEnums(unittest.IsolatedAsyncioTestCase):
             "CREATE DOMAIN pipeline_enums.cheerful AS pipeline_enums.\"Mood\"",
             "CREATE TABLE pipeline_enums.lines (id integer PRIMARY KEY, mood pipeline_enums.cheerful NOT NULL)",
             "INSERT INTO pipeline_enums.lines VALUES (1, 'calm'), (2, 'glad'), (3, 'calm'), (4, 'glad')",
+            "CREATE TABLE pipeline_enums.tills (id integer PRIMARY KEY, takings money NOT NULL)",
+            "INSERT INTO pipeline_enums.tills VALUES (1, 12.35), (2, 3)",
+            "CREATE TYPE pipeline_enums.slot AS RANGE (SUBTYPE = int4)",
+            "CREATE TABLE pipeline_enums.spans (id integer PRIMARY KEY, span pipeline_enums.slot NOT NULL)",
+            "INSERT INTO pipeline_enums.spans VALUES (1, '[1,5)'), (2, '[7,9)')",
         ):
             await self.connection.execute(p.RawSQL(statement))
 
@@ -388,7 +394,7 @@ class PipelineDomainEnums(unittest.IsolatedAsyncioTestCase):
         await self.connection.close()
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.pipeline-expressions+2/test]    a column with no registration compares as the
+    # [spec:pgorm:req:bindings.pipeline-expressions+3/test]    a column with no registration compares as the
     # schema-qualified enum compares_as names, bound, literal, listed and through an alias,
     # where each left bare is refused with 42883
     async def test_untyped_columns_compare_as_the_named_enum(self):
@@ -405,11 +411,11 @@ class PipelineDomainEnums(unittest.IsolatedAsyncioTestCase):
         named = pl.alias("named")
         self.assertEqual(
             base.filter(typed == pl.literal("glad")).inspect().sql,
-            'SELECT * FROM pipeline_enums.lines WHERE CAST(mood AS pipeline_enums."Mood") = \'glad\'',
+            'SELECT * FROM pipeline_enums.lines WHERE CAST(mood AS pipeline_enums."Mood") = CAST(\'glad\' AS pipeline_enums."Mood")',
         )
         self.assertEqual(
             base.filter(typed == "glad").inspect().sql,
-            'SELECT * FROM pipeline_enums.lines WHERE CAST(mood AS pipeline_enums."Mood") = $1',
+            'SELECT * FROM pipeline_enums.lines WHERE CAST(mood AS pipeline_enums."Mood") = CAST($1::text AS pipeline_enums."Mood")',
         )
         for query, expected in (
             (base.filter(typed == pl.literal("glad")), [2, 4]),
@@ -437,6 +443,42 @@ class PipelineDomainEnums(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(p.DatabaseError) as refused:
                     await query.all(self.connection)
                 self.assertEqual(refused.exception.sqlstate, "42883")
+
+    # [spec:pgorm:req:bindings.pipeline-expressions+3/test]    a money column with no registration
+    # compares with a Decimal, bound or listed, as the money compares_as names, where left bare the
+    # Decimal cannot be bound to it
+    async def test_untyped_money_compares_as_money(self):
+        base = pl.from_(p.Table("tills", schema="pipeline_enums"))
+        identifier = pl.col("tills", "id")
+        takings = pl.col("tills", "takings").compares_as(p.TypeName("money"))
+
+        async def ids(query):
+            return sorted(row["id"] for row in await query.select(identifier).all(self.connection))
+
+        self.assertEqual(
+            base.filter(takings > Decimal("5")).inspect().sql,
+            "SELECT * FROM pipeline_enums.tills WHERE CAST(takings AS money) > CAST($1::numeric AS money)",
+        )
+        self.assertEqual(await ids(base.filter(takings > Decimal("5"))), [1])
+        self.assertEqual(await ids(base.filter_with(lambda binder: takings <= binder.bind(Decimal("3")))), [2])
+        self.assertEqual(await ids(base.filter(takings.in_array([Decimal("3"), Decimal("12.35")]))), [1, 2])
+        with self.assertRaises(p.ConstructionError):
+            await ids(base.filter(pl.col("tills", "takings") > Decimal("5")))
+
+    # [spec:pgorm:req:bindings.pipeline-expressions+3/test]    a built-in range bound in a pipeline
+    # and compared with a created range's column, which compares_as names, is written through its text
+    async def test_created_range_reads_bound_range_as_text(self):
+        span = pl.col("spans", "span").compares_as(p.TypeName("slot", schema="pipeline_enums"))
+        query = (pl.from_(p.Table("spans", schema="pipeline_enums"))
+                 .filter(span == p.Value(p.Range(1, 5), "int4range"))
+                 .select(pl.col("spans", "id")))
+        self.assertEqual(
+            query.inspect().sql,
+            "SELECT id FROM pipeline_enums.spans WHERE CAST(span AS pipeline_enums.slot) "
+            "= CAST($1::int4range::text AS pipeline_enums.slot)",
+        )
+        self.assertEqual([row["id"] for row in await query.all(self.connection)], [1])
+
 
 if __name__ == "__main__":
     unittest.main()

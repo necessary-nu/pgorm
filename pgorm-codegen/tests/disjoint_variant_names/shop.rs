@@ -9,6 +9,7 @@ pub struct Model {
     pub name: String,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(has_one = super::pop_up_shop::Entity)]

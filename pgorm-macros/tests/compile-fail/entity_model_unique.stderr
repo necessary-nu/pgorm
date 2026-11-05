@@ -51,3 +51,9 @@ error: a `unique` key's column is one of this model's columns, written `Column::
     |
 133 |     #[pgorm(table_name = "not_a_column", unique(columns = (Column::A, Column::Nope)))]
     |                                                                       ^^^^^^
+
+error: a VIRTUAL generated column cannot be in a `unique` key, which PostgreSQL does not support; declare it `generated_stored`
+   --> tests/compile-fail/entity_model_unique.rs:149:73
+    |
+149 |     #[pgorm(table_name = "virtual_column", unique(columns = (Column::A, Column::Doubled)))]
+    |                                                                         ^^^^^^

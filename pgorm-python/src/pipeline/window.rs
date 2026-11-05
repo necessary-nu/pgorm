@@ -28,7 +28,7 @@ pub(super) fn plan(values: &Bound<'_, PyTuple>) -> PyResult<Plan> {
 /// A window's partition or ordering, which take no value: pgorm's `Over`
 /// takes only expressions that bind nothing.
 // [spec:pgorm:req:bindings.pipeline-binder]
-// [spec:pgorm:req:bindings.pipeline-expressions+2]
+// [spec:pgorm:req:bindings.pipeline-expressions+3]
 fn keys(values: &Bound<'_, PyTuple>) -> PyResult<Vec<pl::Expr<'static>>> {
     let plan = plan(values)?;
     if plan.binds() {

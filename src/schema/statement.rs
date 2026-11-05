@@ -11,7 +11,7 @@ use std::fmt;
 ///
 /// The enum is `#[non_exhaustive]` because a later list may hold a kind of
 /// statement none does yet.
-// [spec:pgorm:sem:disjoint.schema+2]
+// [spec:pgorm:sem:disjoint.schema+3]
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum DdlStatement {
@@ -23,13 +23,13 @@ pub enum DdlStatement {
     /// table created after that one.
     AlterTable(TableAlterStatement),
     /// A change to a type, such as a value added to an enum.
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     AlterType(TypeAlterStatement),
     /// A type dropped.
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     DropType(TypeDropStatement),
     /// A table dropped.
-    // [spec:pgorm:sem:disjoint.evolve+1]
+    // [spec:pgorm:sem:disjoint.evolve+2]
     DropTable(TableDropStatement),
 }
 

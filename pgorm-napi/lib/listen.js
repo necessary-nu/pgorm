@@ -48,6 +48,13 @@ export class Listener {
   #native;
   #done = false;
   #pulling = false;
+  /**
+   * The notification a pull received after its abort, kept for the next
+   * pull: the aborted one lost nothing.
+   *
+   * @type {readonly [string, string, number] | undefined}
+   */
+  #kept;
 
   /**
    * @param {unknown} handle
@@ -71,7 +78,11 @@ export class Listener {
    */
   async #send(verb, channel, options) {
     const signal = signalOption(options);
-    await abortable(signal, (token) => native.listenerSend(this.#native, verb, channel, token));
+    await abortable(
+      signal,
+      (token) => native.listenerSend(this.#native, verb, channel, token),
+      () => this.#finish(),
+    );
   }
 
   /**
@@ -121,7 +132,18 @@ export class Listener {
     const signal = signalOption(options ?? {});
     this.#pulling = true;
     try {
-      const item = await abortable(signal, (token) => native.listenerNext(this.#native, token));
+      signal?.throwIfAborted();
+      const kept = this.#kept;
+      this.#kept = undefined;
+      /** @type {readonly [string, string, number] | null} */
+      const item = kept !== undefined ? kept : await abortable(
+        signal,
+        (token) => native.listenerNext(this.#native, token),
+        (/** @type {readonly [string, string, number] | null} */ received) => {
+          if (received === null) this.#done = true;
+          else this.#kept = received;
+        },
+      );
       if (item === null) {
         this.#done = true;
         return { done: true, value: undefined };
@@ -158,6 +180,7 @@ export class Listener {
 
   async #finish() {
     this.#done = true;
+    this.#kept = undefined;
     await native.listenerClose(this.#native);
   }
 

@@ -563,6 +563,12 @@ const pages = Account.find().orderBy(Account.col("id").asc()).paginate(50);
   enum's `values`. A declaration of the wrong shape — an unknown option, an
   option of the wrong type — throws a `TypeError` as it is made, and one that
   cannot be used a `ConstructionError`.
+- **Unique keys**: `uniqueKeys: [{ fields: ["realm", "handle"], name,
+  nullsNotDistinct }]` declares the table's unique keys, as an entity's
+  `unique(..)` does, each of one field or several, its `name` and
+  `nullsNotDistinct` optional. A key naming no field, a field the model lacks
+  or one field twice is a `ConstructionError`; `describe()` reports them under
+  `uniqueKeys`, and `createDisjoint` writes them into each model's table.
 - **Records** are checked against the declaration as they decode: the
   result's columns are exactly the ones selected, each of its declared kind —
   an `int8` read into an `i32` field, or another schema's enum, is a
@@ -636,6 +642,28 @@ its terminals are `all`, `one` and `stream`, beside `count`, `paginate` and
 terminal `returningModel` reads back the written row; a write that touches
 no row is a `DecodeError`. A registered enum is `disjointEntity(name)`, its
 records the entities' own and its writes their ActiveModels (`ENTITIES.md`).
+
+A change to the kinds once the tables exist is written from the declaration
+as it will be, as pgorm's `DisjointShape` writes it: `addDisjointKind(model,
+value)`, `addDisjointKindRecreating`, `removeDisjointKind`,
+`addDisjointKindTable` and `removeDisjointKindTable(model, value, table)`.
+Each gives `{ steps }`, each step its `statements`, to run in one transaction
+before the next step, and its `gap`, `null` or `{ kind, table }`: the rows the
+program writes in `table`, one for every base row of `kind`, before the next
+step runs. Clear the pool's statement caches after a step that recreates the
+kind type.
+
+`oneOf(name, model, { post: ["postId", Post], photo: ["photoId", Photo] }, {
+optional })` declares a reference from a model's nullable fields to exactly one
+of several targets, or at most one where `optional` says so: `createOneOf`
+gives its `CHECK`, `set(value, key)` the fields a write sets (the target's to
+the key, the rest `null`), `key(record)` a record's reference as `[value, key]`
+or `null`, and `load(db, records)` each record's `[value, target record]`,
+reading each target's table once. What a Rust `#[derive(OneOf)]` does not
+compile is a `ConstructionError` as the reference is declared, and a row
+setting two fields a `DecodeError`. A registered enum is `oneOfEntity(name)`,
+its targets named as its variants in snake_case and its `set(active, value,
+key)` writing the entity's ActiveModel.
 
 `disjoint(name, base, kinds, { unkinded: true })` declares tables an existing
 schema holds with no kind column, read by which kind's table has a row for
@@ -786,8 +814,9 @@ await pool.query(top);
   entity types it), `pl.alias(name)` for a name a stage introduces,
   `pl.thisColumn` and `pl.thatColumn` for a join's sides, the comparison,
   logical and arithmetic methods, `coalesce`, `isNull`, `inArray`, `cast`,
-  `comparesAs(type)` — the enum a column whose domain is over one compares
-  as, which PostgreSQL needs and no catalog tells prqlc —, `as`, `asc`/`desc`,
+  `comparesAs(type)` — the type a column compares as, the column and each
+  value beside it cast to it: the enum a domain is over, or `money`, which
+  PostgreSQL needs and no catalog tells prqlc —, `as`, `asc`/`desc`,
   `pl.caseWhen`, the aggregates (`sum`, `min`, `max`, `average`, `stddev`,
   `count`, `countDistinct`, `countRows`) and the window functions
   (`rowNumber`, `rank`, `rankDense`, `lag`, `lead`, `first`, `last`) over

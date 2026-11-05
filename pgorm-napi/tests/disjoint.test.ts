@@ -19,6 +19,7 @@ import {
   NotNullViolationError,
   Pool,
   TypeName,
+  UniqueViolationError,
 } from "../lib/index.js";
 import { scratchDatabase } from "./support.ts";
 
@@ -272,6 +273,73 @@ test("the schema runs and holds rows to kinds", async () => {
     { schemaName: SCHEMA },
   );
   assert.throws(() => createDisjoint(undeclared), refused(/has a default its description does not state/));
+});
+
+// [spec:pgorm:req:bindings.model-unique-keys+2/test]    a model's unique key named as a name the disjoint schema adds, as one PostgreSQL gives the tables itself, or as another model's unique key, is a ConstructionError thrown as the disjoint model is declared, naming both
+test("a key named as the schema's names is refused as the model is declared", () => {
+  const keyed = (name: string, fields: string[]) => [{ fields, name }] as never;
+  const base = (uniqueKeys: never) =>
+    model("vehicle", {
+      schema: SCHEMA,
+      columns: {
+        id: column("i32", { primaryKey: true, generated: "byDefault" }),
+        kind: column(kindType, { values: ["car", "truck", "bike"] }),
+        name: column("text"),
+      },
+      uniqueKeys,
+    });
+  const kind = (uniqueKeys: never) =>
+    model("car", { schema: SCHEMA, columns: { id: column("i32", { primaryKey: true }), seats: column("i16") }, uniqueKeys });
+  assert.throws(() => vehicles(base(keyed("uq-vehicle-id-kind", ["name", "kind"])), car()), refused(/is named as the `UNIQUE` key/));
+  assert.throws(() => vehicles(vehicle(), kind(keyed("fk-car-id-kind", ["seats", "id"]))), refused(/is named as the foreign key/));
+  assert.throws(
+    () => vehicles(base(keyed("shared", ["name", "kind"])), kind(keyed("shared", ["seats", "id"]))),
+    refused(/is named as a unique key of/),
+  );
+  assert.throws(() => vehicles(base(keyed("vehicle_pkey", ["name", "kind"])), car()), refused(/the primary key PostgreSQL names/));
+  assert.throws(
+    () => vehicles(vehicle(), kind(keyed("car_seats_not_null", ["seats", "id"]))),
+    refused(/the not-null constraint PostgreSQL names/),
+  );
+});
+
+// [spec:pgorm:req:bindings.model-unique-keys+2/test]    createDisjoint writes the base's and each kind model's unique keys after its primary key, which the server then holds, nulls equal under a key declared nullsNotDistinct
+test("the schema writes the models' unique keys", async () => {
+  const fleet = model("fleet", {
+    schema: SCHEMA,
+    columns: {
+      id: column("i32", { primaryKey: true, generated: "byDefault" }),
+      kind: column(new TypeName("fleet_kind", { schema: SCHEMA }), { values: ["van", "cart"] }),
+      code: column("text"),
+      depot: column("text", { nullable: true }),
+    },
+    uniqueKeys: [{ fields: ["depot", "code"], name: "fleet_depot_code", nullsNotDistinct: true }],
+  });
+  const van = model("van", {
+    schema: SCHEMA,
+    columns: { id: column("i32", { primaryKey: true }), plate: column("text") },
+    uniqueKeys: [{ fields: "plate" }],
+  });
+  const fleets = disjoint("fleet", fleet, { van, cart: null }, { schemaName: SCHEMA });
+  const statements = createDisjoint(fleets);
+  const [base, kind] = statements.slice(1, 3).map((statement) => statement.inspect().sql);
+  assert.ok(
+    base?.includes(
+      'PRIMARY KEY ("id"), CONSTRAINT "fleet_depot_code" UNIQUE NULLS NOT DISTINCT ("depot", "code"), ' +
+        'CONSTRAINT "uq-fleet-id-kind" UNIQUE ("id", "kind")',
+    ),
+    base,
+  );
+  assert.ok(kind?.includes('PRIMARY KEY ("id"), UNIQUE ("plate"), CONSTRAINT "fk-van-id-kind"'), kind);
+  for (const statement of statements) await pool().execute(statement);
+  const violates = (constraint: string) => (error: unknown) => {
+    assert.ok(error instanceof UniqueViolationError, `expected a UniqueViolationError, got ${error}`);
+    assert.equal(error.constraint, constraint);
+    return true;
+  };
+  await fleets.insert({ code: "a" }, "van", { plate: "P1" }).returningModel(pool());
+  await assert.rejects(fleets.insert({ code: "b" }, "van", { plate: "P1" }).returningModel(pool()), violates("van_plate_key"));
+  await assert.rejects(fleets.insert({ code: "a" }, "cart").returningModel(pool()), violates("fleet_depot_code"));
 });
 
 // [spec:pgorm:req:bindings.disjoint+1/test]    an insert of each kind returns what a read of its row gives, each row the base's record, the kind and the kind's record or null, an enum column of a kind's table read as its enum; reads narrow by key, kind, kinds and a kind's condition, order, slice, count, page, stream and read through a keyset cursor

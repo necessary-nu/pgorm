@@ -24,7 +24,8 @@
 //! only thing the oracle's tree comparison can find moving is the name.
 //! The registry is split by area, one file each, all listed by [`sites`]:
 //! this file holds pgorm-query's DML and expression sites, `registry_ddl.rs`
-//! its DDL sites, `registry_orm.rs` pgorm's, and `live_capture.rs` the sites
+//! its DDL sites, `registry_orm.rs` pgorm's, `registry_disjoint.rs` the
+//! disjoint schema's and the one-of `CHECK`'s, and `live_capture.rs` the sites
 //! whose statements exist only against a live server (pgorm-pool's savepoint,
 //! the migration ledger, the cursor's qualifiers).
 
@@ -63,6 +64,7 @@ pub fn sites() -> Vec<Site> {
     let mut sites = query_sites();
     sites.extend(super::registry_ddl::sites());
     sites.extend(super::registry_orm::sites());
+    sites.extend(super::registry_disjoint::sites());
     sites
 }
 

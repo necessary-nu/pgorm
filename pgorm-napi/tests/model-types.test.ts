@@ -124,6 +124,7 @@ function operands(registered: Entity<Booked>): Expr[] {
     Booking.col("open").eq(open),
     registered.col("seats").eq(seats),
     registered.col("seats").isNotIn([seats]),
+    registered.col("seats").contains(seats),
     // @ts-expect-error: a scalar column takes no Range
     Booking.col("id").eq(seats),
     // @ts-expect-error: nor does its containment
@@ -132,15 +133,15 @@ function operands(registered: Entity<Booked>): Expr[] {
     Booking.col("span").eq(open),
     // @ts-expect-error: a registered scalar column takes no Range
     registered.col("id").eq(seats),
-    // @ts-expect-error: a registered column's containment binds as an expression's does, which infers no range's kind
-    registered.col("seats").contains(seats),
+    // @ts-expect-error: nor does its containment
+    registered.col("id").contains(seats),
     // @ts-expect-error: a free expression infers no range's kind
     col("seats").eq(seats),
   ];
 }
 
 // [spec:pgorm:req:napi.typing+1/test]
-// [spec:pgorm:req:bindings.column-operators+1/test]
+// [spec:pgorm:req:bindings.column-operators+3/test]
 test("the declarations take a range or multirange column's Range or Multirange as its kind converts it", () => {
   assert.equal(typeof operands, "function");
   assert.equal(Booking.col("seats").isIn([seats]).inspect().values[0]?.kind, "int4range");

@@ -99,8 +99,17 @@ const first = await query.optional(pool);    // Select::one_opt, LIMIT 1
 - `col(name)` names a column as the entity's `ColumnTrait` does. Its
   comparisons are that trait's: a value converts to the column's declared
   kind and is written through its `save_as`, so an enum's label is cast to
-  its type; an expression, and `any(..)` or `all(..)`, are compared as
-  written; `null` is refused. Its
+  its type; `any(..)` or `all(..)` over a list is the trait's `compare_any`
+  / `compare_all`, the list converted to one array of the column's kind and
+  cast as `eq_any`'s is; an expression, and a quantifier over a `Select` or
+  an expression, are compared as written; `null` is refused. `between` and
+  `notBetween`, with `{ symmetric }` or without, `isDistinctFrom` and
+  `isNotDistinctFrom`, and `contains`, `containedBy`, `overlaps` and the
+  range positions are the trait's too, their values converted and cast the
+  same way, so a `money` column's bounds are cast to `money` and a created
+  range is written as its text cast to the type; a bound that is an
+  expression takes the whole test as written, an element `contains` tests
+  among them. Its
   `isIn` and `isNotIn` are the trait's too, over a list of values converted
   the same way or over a `Select`'s rows (`in_subquery`), so a column whose
   domain is over an enum is a member as the enum, which is the only way
@@ -115,7 +124,9 @@ const first = await query.optional(pool);    // Select::one_opt, LIMIT 1
   `columns`, each one's SQL `name`, the `jsonKey` its Rust field serializes
   under, `sqlType`, `rustType`, `nullable`, `primaryKey`, `kind` and an enum's
   `values`; the `primaryKey` and whether it ends `WITHOUT OVERLAPS`
-  (`primaryKeyWithoutOverlaps`); every relation with its columns, period,
+  (`primaryKeyWithoutOverlaps`); the `uniqueKeys` its entity's `unique(..)`
+  declares, each its `name`, `columns` and `nullsNotDistinct`; every relation
+  with its columns, period,
   condition type (`all` or `any`), whether an `on_condition` adds a condition
   of its own, enforcement and deferrability; and under `rust` the Rust types
   behind it. These are the keys Python's `describe()` reports, each spelled in
@@ -233,7 +244,8 @@ the entity's own column under the qualifier its relation is read by — its
 table's name, or the name of a `pl.source(entity).named(..)` — compared as the
 entity types it, so a column whose domain is over an enum compares as the enum.
 `pl.col(qualifier, "name")` only qualifies, and such a column needs
-`.comparesAs(new TypeName(name, { schema }))` to be compared at all.
+`.comparesAs(new TypeName(name, { schema }))` to be compared at all, as a
+`money` column needs `.comparesAs("money")` to be compared with a `Decimal`.
 
 Each source is projected under the qualifier given for it, or its table's
 name. A row's source that the join left empty is `null`, read through the

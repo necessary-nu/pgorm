@@ -459,7 +459,7 @@ fn refusal<D: KindedDisjoint>() -> String {
     }
 }
 
-// [spec:pgorm:sem:disjoint.schema+2/test]    the kind type, the base with its UNIQUE key, each kind table with its generated kind column and cascading key, then one ALTER adding the base's generated key columns and keys, in that order; car's own relation to its base writes no second key
+// [spec:pgorm:sem:disjoint.schema+3/test]    the kind type, the base with its UNIQUE key, each kind table with its generated kind column and cascading key, then one ALTER adding the base's generated key columns and keys, in that order; car's own relation to its base writes no second key
 #[test]
 fn vehicle_schema_renders_in_run_order() {
     assert_eq!(
@@ -528,7 +528,7 @@ fn vehicle_schema_renders_in_run_order() {
     );
 }
 
-// [spec:pgorm:sem:disjoint.schema+2/test]    a composite key, a named kind column and schema-qualified tables: each key pairs column by column, and every reference names its schema
+// [spec:pgorm:sem:disjoint.schema+3/test]    a composite key, a named kind column and schema-qualified tables: each key pairs column by column, and every reference names its schema
 #[test]
 fn composite_schema_pairs_every_key_column() {
     assert_eq!(
@@ -594,7 +594,7 @@ fn long_names() -> [String; 4] {
     ]
 }
 
-// [spec:pgorm:sem:disjoint.schema+2/test]    a name composed past 63 bytes is bounded to 63 as result names are, with its head kept, and the statements spell it so
+// [spec:pgorm:sem:disjoint.schema+3/test]    a name composed past 63 bytes is bounded to 63 as result names are, with its head kept, and the statements spell it so
 #[test]
 fn names_past_the_bound_are_bounded() {
     let names = long_names();
@@ -614,7 +614,7 @@ fn names_past_the_bound_are_bounded() {
     assert!(statements.contains(&format!("('{LONG_VALUE}')")));
 }
 
-// [spec:pgorm:sem:disjoint.schema+2/test]    a generated column a base declares, a kind column a kind table declares, and one name generated twice are each refused as `Error::Type` naming both
+// [spec:pgorm:sem:disjoint.schema+3/test]    a generated column a base declares, a kind column a kind table declares, and one name generated twice are each refused as `Error::Type` naming both
 #[test]
 fn generated_name_collisions_are_refused() {
     assert_eq!(
@@ -634,7 +634,7 @@ fn generated_name_collisions_are_refused() {
     );
 }
 
-// [spec:pgorm:sem:disjoint.schema+2/test]    `check_disjoint` runs first, its refusal returned as the schema's
+// [spec:pgorm:sem:disjoint.schema+3/test]    `check_disjoint` runs first, its refusal returned as the schema's
 #[test]
 fn declaration_is_checked_before_anything() {
     let checked = match check_disjoint::<Loose>() {
@@ -644,7 +644,7 @@ fn declaration_is_checked_before_anything() {
     assert_eq!(refusal::<Loose>(), checked);
 }
 
-// [spec:pgorm:sem:disjoint.schema+2/test]    a base key that is a generated column, a base key of a domain over an enum and a kind's key ending `WITHOUT OVERLAPS` are each refused as `Error::Type` naming the table and column, where a temporal base key is written
+// [spec:pgorm:sem:disjoint.schema+3/test]    a base key that is a generated column, a base key of a domain over an enum and a kind's key ending `WITHOUT OVERLAPS` are each refused as `Error::Type` naming the table and column, where a temporal base key is written
 #[test]
 fn unkeyable_key_shapes_are_refused() {
     assert_eq!(
@@ -708,7 +708,7 @@ const TRUCK_WITH_ROW: &str = "WITH v AS (INSERT INTO vehicle (kind, name) VALUES
      18000 FROM v RETURNING vehicle_id";
 const CAR_ALONE: &str = "INSERT INTO vehicle (kind, name) VALUES ('car', 'ghost')";
 
-// [spec:pgorm:sem:disjoint.schema+2/test]    the probe matrix: a car with its row in one statement, a bike alone, a change of kind in one statement and a cascading delete succeed; a car with no row, a truck row for a car, a vehicle with two kinds' rows, a change of kind leaving the old row and deleting a kind's row alone are refused
+// [spec:pgorm:sem:disjoint.schema+3/test]    the probe matrix: a car with its row in one statement, a bike alone, a change of kind in one statement and a cascading delete succeed; a car with no row, a truck row for a car, a vehicle with two kinds' rows, a change of kind leaving the old row and deleting a kind's row alone are refused
 #[pgorm_macros::test]
 async fn every_state_the_enum_omits_is_refused_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_schema").await;
@@ -815,7 +815,7 @@ async fn every_state_the_enum_omits_is_refused_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.schema+2/test]    every key is DEFERRABLE INITIALLY IMMEDIATE: inside a transaction a violation is reported by the statement causing it, and under SET CONSTRAINTS ALL DEFERRED a two-statement insert commits while one left incomplete is refused at COMMIT; the server holds the names, actions and STORED columns the statements give, and no second key for car's relation
+// [spec:pgorm:sem:disjoint.schema+3/test]    every key is DEFERRABLE INITIALLY IMMEDIATE: inside a transaction a violation is reported by the statement causing it, and under SET CONSTRAINTS ALL DEFERRED a two-statement insert commits while one left incomplete is refused at COMMIT; the server holds the names, actions and STORED columns the statements give, and no second key for car's relation
 #[pgorm_macros::test]
 async fn keys_are_checked_per_statement_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_schema_txn").await;
@@ -912,7 +912,7 @@ async fn keys_are_checked_per_statement_live() -> Result<(), Error> {
 
 const LISTING: &str = "INSERT INTO market.listing (tenant_id, id, category, title) VALUES ($1, $2, $3::text::market.listing_category, 'listed')";
 
-// [spec:pgorm:sem:disjoint.schema+2/test]    a composite key in a schema of its own: an apartment with its flat in one statement, a building plot alone, a change of kind in one statement and a cascading delete succeed; an apartment with no flat, a flat for a building plot or for another tenant's key, and deleting a flat alone are refused
+// [spec:pgorm:sem:disjoint.schema+3/test]    a composite key in a schema of its own: an apartment with its flat in one statement, a building plot alone, a change of kind in one statement and a cascading delete succeed; an apartment with no flat, a flat for a building plot or for another tenant's key, and deleting a flat alone are refused
 #[pgorm_macros::test]
 async fn composite_keys_hold_every_row_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_schema_composite").await;
@@ -997,7 +997,7 @@ async fn composite_keys_hold_every_row_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.schema+2/test]    names bounded to 63 bytes are the server's names: it creates every constraint and column under exactly the name the statements give, none truncated
+// [spec:pgorm:sem:disjoint.schema+3/test]    names bounded to 63 bytes are the server's names: it creates every constraint and column under exactly the name the statements give, none truncated
 #[pgorm_macros::test]
 async fn bounded_names_are_the_servers_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_schema_names").await;
@@ -1038,7 +1038,7 @@ async fn bounded_names_are_the_servers_live() -> Result<(), Error> {
 
 // [spec:pgorm:req:sql.ddl.column-types+8/test]    an enum's name and schema are quoted in a column's type wherever they need it, as its `CREATE TYPE` quotes them, so a mixed-case, spaced or keyword name declares the column of the type it creates
 // [spec:pgorm:req:sql.render.ddl.enum-type+6/test]
-// [spec:pgorm:sem:disjoint.schema+2/test]
+// [spec:pgorm:sem:disjoint.schema+3/test]
 #[pgorm_macros::test]
 async fn quoted_enum_names_create_their_columns_live() -> Result<(), Error> {
     use pgorm::set;
@@ -1146,7 +1146,7 @@ async fn quoted_enum_names_create_their_columns_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:disjoint.schema+2/test]    against a live server: each refused key shape sends nothing, leaving no table behind, and a temporal base key's schema runs and holds a row of a kind with a table, written and read through the disjoint entity
+// [spec:pgorm:sem:disjoint.schema+3/test]    against a live server: each refused key shape sends nothing, leaving no table behind, and a temporal base key's schema runs and holds a row of a kind with a table, written and read through the disjoint entity
 #[pgorm_macros::test]
 async fn unkeyable_key_shapes_send_nothing_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_key_shapes").await;

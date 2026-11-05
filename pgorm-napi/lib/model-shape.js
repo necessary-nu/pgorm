@@ -4,7 +4,8 @@
 // qualified, and its fields in declaration order. Held apart from the Model
 // class so the query, relation and graph modules read it without importing
 // the class that builds on them.
-// [spec:pgorm:req:bindings.models+4]
+// [spec:pgorm:req:bindings.models+5]
+// [spec:pgorm:req:bindings.model-unique-keys+2]
 
 import { ConstructionError } from "./errors.js";
 import { modelColumn, readsText } from "./model-columns.js";
@@ -20,6 +21,17 @@ import { native } from "./operations.js";
  */
 
 /**
+ * A unique key of a model's table: the constraint's name, or null for
+ * PostgreSQL to choose one, its fields in key order, and whether nulls are
+ * equal under it.
+ *
+ * @typedef {object} UniqueKey
+ * @property {string | null} name
+ * @property {readonly Field[]} fields
+ * @property {boolean} nullsNotDistinct
+ */
+
+/**
  * A model as the other model modules read it.
  *
  * @typedef {object} Shape
@@ -32,6 +44,7 @@ import { native } from "./operations.js";
  * @property {readonly Field[]} fields
  * @property {ReadonlyMap<string, Field>} byField
  * @property {readonly Field[]} primaryKey
+ * @property {readonly UniqueKey[]} uniqueKeys
  */
 
 /** @type {WeakMap<object, Shape>} */

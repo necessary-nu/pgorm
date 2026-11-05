@@ -5,9 +5,10 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.models+4]
+// [spec:pgorm:req:bindings.models+5]
+// [spec:pgorm:req:bindings.model-unique-keys+2]
 
-import type { Compiled, Condition, Expr, ModelOperand, Operand, OrderBy, Predicate } from "./expressions.d.ts";
+import type { ComparisonOperand, Compiled, Condition, Expr, Operand, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Select, Table } from "./select.d.ts";
 import type { Conflict, ConflictUpdate, Delete, Insert, Update } from "./writes.d.ts";
 import type {
@@ -240,7 +241,7 @@ declare const operands: unique symbol;
  * A model's column as an expression, qualified as its model's table is
  * named. A value its comparisons, membership tests, `between`, distinctness
  * tests, containment, overlap and range positions take converts through the
- * column's declared kind, `I` ({@link ModelOperand}): an enum's label is
+ * column's declared kind, `I` ({@link ComparisonOperand}): an enum's label is
  * bound cast to its type, and a range or multirange column takes a `Range`
  * or `Multirange` as it stands. An expression, and `any(..)` / `all(..)`
  * beside an operator that reads one, are taken as written; comparing with
@@ -270,12 +271,29 @@ export interface RelationKeys<From extends Model<any>, To extends Model<any>> {
   readonly to: KeyFields<ColumnsOf<To>>;
 }
 
+/**
+ * A unique key of a model's table: its fields in key order, the constraint's
+ * `name`, which PostgreSQL chooses when none is given, and whether nulls are
+ * equal under it. A key naming no field, a field the model lacks or one
+ * field twice is a {@link ConstructionError} as the model is declared.
+ */
+export interface UniqueKey<C> {
+  readonly fields: KeyFields<C>;
+  readonly name?: string;
+  readonly nullsNotDistinct?: boolean;
+}
+
 /** A model's declaration as data. */
 export interface ModelDescription {
   readonly schema: string | null;
   readonly table: string;
   readonly alias: string | null;
   readonly primaryKey: readonly string[];
+  readonly uniqueKeys: readonly {
+    readonly name: string | null;
+    readonly fields: readonly string[];
+    readonly nullsNotDistinct: boolean;
+  }[];
   readonly fields: {
     readonly [field: string]: {
       readonly column: string;
@@ -344,13 +362,13 @@ export declare class Model<C extends Columns = Columns> {
 
 /**
  * Declare a model of the table `name`, schema-qualified when `schema` is
- * given. A field is a key of `columns`, and its SQL column the column's
- * `name` or else the field; two fields of one column are a
- * {@link ConstructionError}.
+ * given, with the table's `uniqueKeys`. A field is a key of `columns`, and
+ * its SQL column the column's `name` or else the field; two fields of one
+ * column are a {@link ConstructionError}.
  */
 export declare function model<const C extends Columns>(
   name: string,
-  declaration: { readonly schema?: string; readonly columns: C },
+  declaration: { readonly schema?: string; readonly columns: C; readonly uniqueKeys?: readonly UniqueKey<C>[] },
 ): Model<C>;
 
 /** The options of a model query's join. */

@@ -68,8 +68,11 @@ impl<'brand> Binder<'brand> {
     /// or not every binding survived.
     pub fn bind(&mut self, value: impl Into<Value>) -> Expr<'brand> {
         let value = value.into();
-        let pin = value.source_type_name();
+        let bound = match (&value, value.source_type_name()) {
+            (Value::Range(..) | Value::Multirange(..), Some(pin)) => Operand::BoundRange(pin),
+            (_, pin) => Operand::Bound(pin),
+        };
         self.values.push(value);
-        operand(adapter::param(self.values.len()), Operand::Bound(pin))
+        operand(adapter::param(self.values.len()), bound)
     }
 }

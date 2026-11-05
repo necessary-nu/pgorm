@@ -85,12 +85,14 @@ explicit limitations.
 > `.to_owned()`. These two are the only APIs that take a key value; a cursor boundary
 > takes a value tuple over its order columns, not a key.
 
-> [spec:pgorm:def:entity.traits.column+7]
+> [spec:pgorm:def:entity.traits.column+9]
 > `ColumnTrait: StaticName + Iterable + FromStr` (`src/entity/column.rs`) describes one
 > column of an entity. `def()` returns the column's `ColumnDef`; `entity_name()` and
 > `as_column_ref()` qualify the column with its `EntityName`. The trait exposes an
 > expression-building surface wrapping `pgorm_query::Expr`: comparison operators `eq`,
-> `ne`, `gt`, `gte`, `lt`, `lte`; range `between` / `not_between`; pattern matching
+> `ne`, `gt`, `gte`, `lt`, `lte`; range `between` / `not_between` and their
+> `SYMMETRIC` forms `between_symmetric` / `not_between_symmetric`; the null-safe
+> comparisons `is_distinct_from` / `is_not_distinct_from`; pattern matching
 > `like`, `not_like`, and the sugar `starts_with`, `ends_with` and
 > `contains`, whose search text is LITERAL: `%`, `_` and `\` in it are
 > escaped before the pattern is built (`s%`, `%s`, `%s%`), so
@@ -98,12 +100,24 @@ explicit limitations.
 > is `like`'s job and `like`/`not_like` take theirs verbatim; aggregates `max`, `min`, `sum`, `count`; null checks `is_null`,
 > `is_not_null`, `if_null`; set membership `is_in` / `is_not_in`, its
 > array-parameter counterpart `eq_any` / `ne_all`
-> (`[spec:pgorm:req:sql.ast.expr.eq-any]`), and subqueries
-> `in_subquery` / `not_in_subquery`; plus `into_expr` and `into_returning_expr`.
-> The comparison and set-membership operators pass their values through `save_as`, so
-> enum-typed columns compare against properly cast values; `eq_any` / `ne_all` pass
-> their single array value through `save_array_as` instead, the whole array being one
-> operand.
+> (`[spec:pgorm:req:sql.ast.expr.eq-any]`) and its general form
+> `compare_any(op, array)` / `compare_all(op, array)`, `op ANY` / `op ALL` of
+> one array for a comparison or range operator `op`, and subqueries
+> `in_subquery` / `not_in_subquery`; the range and array operators `includes`
+> (`@>`, named apart from the `contains` sugar), `contained_by` (`<@`),
+> `overlaps` (`&&`), `strictly_left_of` (`<<`), `strictly_right_of` (`>>`),
+> `not_extend_right_of` (`&<`), `not_extend_left_of` (`&>`) and `adjacent_to`
+> (`-|-`), each over a value of the column's own type; plus `into_expr` and
+> `into_returning_expr`.
+> The comparison, range, null-safe, range-operator and set-membership operators pass
+> their values through `save_as`, so enum-typed columns compare against properly cast
+> values; `eq_any`, `ne_all`, `compare_any` and `compare_all` pass their single array
+> value through `save_array_as` instead, the whole array being one operand. An element
+> `@>` or `<@` tests is not the column's type, and casting one to it is refused
+> (`22P02`, *malformed range literal*), so it is an expression's to compare; nor is a
+> pattern, which a cast to the column's type would change the match of (a pattern cast
+> to `citext` matches case-insensitively), so the pattern operators take theirs as
+> written and `compare_any` is for comparisons and range operators alone.
 >
 > The comparison operators above take a *value*, bound by `Into<Value>`. Comparing
 > against another column, or against a computed expression, is a separate named

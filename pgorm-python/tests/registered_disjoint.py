@@ -163,6 +163,74 @@ class RegisteredDisjoint(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             shipments.insert({"label": "x"}, "letter")
 
+    # [spec:pgorm:req:bindings.disjoint-evolve/test]    a registered enum's kind changes are the shape's, Schema's for the enum: a value the database holds and the enum does not is removed live, the kind type recreated with the enum's values in order
+    async def test_kind_changes_are_the_enums(self):
+        added = s.add_disjoint_kind(self.shipments, "pallet")
+        self.assertEqual(
+            [statement.inspect().sql for statement in added.steps[0].statements],
+            ['ALTER TYPE "python_shipments"."shipment_kind" ADD VALUE \'pallet\' AFTER \'letter\''],
+        )
+        self.assertEqual(len(added.steps), 2)
+        await self.pool.execute(p.RawSQL("ALTER TYPE python_shipments.shipment_kind ADD VALUE 'ghost'"))
+        for step in s.remove_disjoint_kind(self.shipments, "ghost").steps:
+            async with self.pool.transaction() as tx:
+                for statement in step.statements:
+                    await tx.execute(statement)
+        self.pool.clear_statement_caches()
+        kinds = await self.pool.one(
+            p.RawSQL("SELECT enum_range(NULL::python_shipments.shipment_kind)::text AS kinds")
+        )
+        self.assertEqual(kinds["kinds"], "{parcel,letter,pallet}")
+        self.assertEqual(len(await self.seed()), 3)
+
+    # [spec:pgorm:req:bindings.one-of+1/test]    a registered one-of enum is listed and described beside its entities, writes the CHECK Schema::create_one_of writes, sets a reference on its entity's ActiveModel, reads it back as a tagged key named by its variant, and loads each target as the target entity's model, a name the module does not register refused
+    async def test_registered_one_of_reads_sets_and_loads(self):
+        self.assertEqual(p.one_of_entities(), ["app.Labelled"])
+        labelled = p.one_of_entity("app.Labelled")
+        self.assertEqual(
+            labelled.describe(),
+            {
+                "name": "app.Labelled",
+                "model": "app.Label",
+                "targets": [
+                    {"value": "parcel", "field": "parcel_id", "target": "app.Parcel"},
+                    {"value": "pallet", "field": "pallet_id", "target": "app.Pallet"},
+                ],
+                "optional": True,
+            },
+        )
+        self.assertIn(labelled.describe(), p.capabilities()["registrations"]["one_ofs"])
+        p.require_capability("one_of_entity")
+        with self.assertRaises(p.UnsupportedCapabilityError):
+            p.one_of_entity("app.Missing")
+        label = p.entity("app.Label")
+        await self.pool.execute(s.from_entity(label).table)
+        check = s.create_one_of(labelled)
+        self.assertEqual(
+            check.inspect().sql,
+            'ALTER TABLE "python_shipments"."labels" ADD CONSTRAINT "ck-labels-labelled" '
+            'CHECK (num_nonnulls("parcel_id", "pallet_id") <= 1)',
+        )
+        await self.pool.execute(check)
+        boxed, _, crate = await self.seed()
+        written = []
+        for at, value, key in ((1, "pallet", crate[2]["id"]), (2, "parcel", boxed[2]["shipment_id"]), (3, None, None)):
+            active = labelled.set(label.active().set("id", at).set("text", str(at)), value, key)
+            written.append(await active.insert(self.pool))
+        self.assertEqual(
+            [labelled.key(model) for model in written],
+            [("pallet", crate[2]["id"]), ("parcel", boxed[2]["shipment_id"]), None],
+        )
+        loaded = await labelled.load(self.pool, written)
+        self.assertEqual(
+            [None if item is None else (item[0], item[1].entity_name) for item in loaded],
+            [("pallet", "app.Pallet"), ("parcel", "app.Parcel"), None],
+        )
+        self.assertEqual(dict(loaded[0][1]), dict(crate[2]))
+        with self.assertRaises(p.CheckViolationError):
+            await self.pool.execute(
+                p.RawSQL("UPDATE python_shipments.labels SET pallet_id = parcel_id WHERE id = 2")
+            )
 
 
 # Listings as an existing schema holds them: no kind column, each kind's
@@ -244,6 +312,7 @@ class RegisteredUnkinded(unittest.IsolatedAsyncioTestCase):
             lambda: listings.update(self.listing.active().set("id", 1).set("title", "x"), "draft"),
             lambda: listings.change_kind({"id": 1}, "draft"),
             lambda: s.create_disjoint(listings),
+            lambda: s.add_disjoint_kind(listings, "draft"),
         ]
         for index, write in enumerate(refused):
             with self.subTest(index=index), self.assertRaises(p.ConstructionError) as raised:

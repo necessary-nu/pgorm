@@ -56,6 +56,7 @@ def _model(value: object, what: str) -> Model:
     return value
 
 
+# [spec:pgorm:req:bindings.model-unique-keys+2]
 def _table(model: Model) -> dict[str, Any]:
     """A model's table as the native shape is described from."""
     return {
@@ -74,6 +75,10 @@ def _table(model: Model) -> dict[str, Any]:
             for column in model.columns.values()
         ],
         "key": [model._sql(field) for field in model.primary_key],
+        "unique_keys": [
+            (key.name, [model._sql(field) for field in key.fields], key.nulls_not_distinct)
+            for key in model._unique_keys
+        ],
     }
 
 

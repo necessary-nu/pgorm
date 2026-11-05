@@ -71,6 +71,8 @@ fn refused_by<T: std::fmt::Debug>(outcome: Result<T, Error>, state: &SqlState, c
 }
 
 // [spec:pgorm:sem:codegen.entity.disjoint+3/test]    live, the tables the generated entities create hold their rows to the schema's keys: a book on a shelf of its kind is written, one on a map shelf is refused by the foreign key onto the UNIQUE pair, and two unlabelled shelves outside every aisle by the key treating nulls as equal
+// [spec:pgorm:sem:codegen.entity.transform.inverse+2/test]    and the shelf's inverse of the book's key, which contains the book's primary key, is at most one: each shelf loads its book or none
+// [spec:pgorm:sem:codegen.entity.transform.inverse+2/test]    and the shelf's inverse of the book's key, which contains the book's primary key, is at most one: each shelf loads its book or none
 #[pgorm_macros::test]
 async fn generated_entities_create_their_tables_live() -> Result<(), Error> {
     let ctx = TestContext::new("codegen_near_miss").await;
@@ -98,6 +100,10 @@ async fn generated_entities_create_their_tables_live() -> Result<(), Error> {
         book(maps.id).insert(&db).await,
         &SqlState::FOREIGN_KEY_VIOLATION,
         "fk-book-id-kind",
+    );
+    assert_eq!(
+        vec![books, maps].load_one(book::Entity, &db).await?,
+        [Some(written), None]
     );
 
     shelf(ShelfKind::Map, None).insert(&db).await?;

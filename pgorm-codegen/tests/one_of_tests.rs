@@ -2,8 +2,9 @@
 //! `num_nonnulls(..) = 1` or `<= 1` `Schema::create_one_of` writes — generate
 //! as a `#[derive(OneOf)]` enum in their table's module, from DDL text and
 //! from statements built in code alike, named for the constraint; a `CHECK`
-//! of any other shape, or over columns that are not such keys, leaves them
-//! the ordinary nullable fields they are.
+//! of any other shape, or over columns that are not such keys, is refused by
+//! name, since the entity holds no other `CHECK`, and columns no `CHECK`
+//! covers stay the ordinary nullable fields they are.
 //!
 //! The files the writer is held to here are compiled, and the schema they
 //! were generated from created and written through against a live server, at
@@ -12,11 +13,10 @@
 
 mod common;
 
+use common::runtime_name as n;
 use common::*;
-use pgorm_codegen::entities_from_sql;
 use pgorm_query::{
-    Check, ColumnDef, Enforcement, Expr, ForeignKey, Func, Name, SimpleExpr, Table,
-    TableCreateStatement,
+    Check, ColumnDef, Enforcement, Expr, ForeignKey, Func, SimpleExpr, Table, TableCreateStatement,
 };
 
 const SCHEMA: &str = include_str!("../../tests/codegen_one_of/schema.sql");
@@ -24,25 +24,6 @@ const SCHEMA: &str = include_str!("../../tests/codegen_one_of/schema.sql");
 /// The tables the comment's references reach, as DDL text.
 const TARGETS: &str = "CREATE TABLE post (id serial PRIMARY KEY, title varchar NOT NULL); \
                        CREATE TABLE photo (id bigserial PRIMARY KEY, url varchar NOT NULL);";
-
-fn from_sql(sql: &str) -> Generated {
-    Generated {
-        files: entities_from_sql(sql, Opts::default())
-            .unwrap_or_else(|error| panic!("{error}: {sql}"))
-            .files
-            .into_iter()
-            .map(|file| (file.name, file.content))
-            .collect(),
-    }
-}
-
-fn refused(sql: &str) -> String {
-    match entities_from_sql(sql, Opts::default()) {
-        Err(pgorm_codegen::Error::TransformError(message)) => message,
-        Err(other) => panic!("expected a TransformError, got {other:?}"),
-        Ok(_) => panic!("expected a TransformError, got entities: {sql}"),
-    }
-}
 
 /// The comment table, its columns, the post and photo it may reference, and
 /// `check` among its constraints.
@@ -53,26 +34,11 @@ fn comment(check: &str) -> String {
     )
 }
 
-/// Assert that the generated `file` is `fixture`, rustfmt's trailing commas
-/// aside.
-#[track_caller]
-fn holds(generated: &Generated, file: &str, fixture: &str) {
-    let flat = |src: &str| norm(src).replace(" , )", " )").replace(" , }", " }");
-    let written = flat(generated.file(file));
-    assert!(written.contains(&flat(fixture)), "{file}: {written}");
-}
-
-/// Assert that `comment.rs` declares no one-of enum, and keeps both columns
-/// as the nullable fields they are.
-#[track_caller]
-fn ordinary(generated: &Generated, case: &str) {
-    let comment = generated.file("comment.rs");
-    assert!(!comment.contains("OneOf"), "{case}: {comment}");
-    assert_contains(comment, "pub post_id: Option<i32>,");
-}
-
-fn n(name: &str) -> Name {
-    Name::runtime(name)
+/// The refusal of the comment table's `CHECK` named `name`.
+fn unheld(name: &str) -> String {
+    format!(
+        "table `comment`: an entity cannot hold the CHECK `{name}`, which is not a one-of reference's"
+    )
 }
 
 fn num_nonnulls(columns: &[&str]) -> SimpleExpr {
@@ -133,8 +99,8 @@ fn commentable() -> Check {
         .name(n("ck-comment-commentable"))
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    the statements `create_table_from_entity` and `create_one_of` write for the comment, read as DDL text, generate its module with a `#[derive(OneOf)]` enum after its `Relation` enum, named for the constraint after `ck-comment-`, a variant per column in the CHECK's order named for its target and holding its entity, and for `<= 1` the unit variant `None`
-// [spec:pgorm:sem:codegen.ddl.tables+12/test]    a CHECK added by an ALTER TABLE is read into the table's statement
+// [spec:pgorm:def:disjoint.one-of+4/test]    the statements `create_table_from_entity` and `create_one_of` write for the comment, read as DDL text, generate its module with a `#[derive(OneOf)]` enum after its `Relation` enum, named for the constraint after `ck-comment-`, a variant per column in the CHECK's order named for its target and holding its entity, and for `<= 1` the unit variant `None`
+// [spec:pgorm:sem:codegen.ddl.tables+13/test]    a CHECK added by an ALTER TABLE is read into the table's statement
 #[test]
 fn a_one_of_check_generates_its_enum() {
     let generated = from_sql(SCHEMA);
@@ -156,18 +122,98 @@ fn a_one_of_check_generates_its_enum() {
             include_str!("../../tests/codegen_one_of/photo.rs"),
         ),
     ] {
-        holds(&generated, file, fixture);
+        generated.holds(file, fixture);
     }
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    a schema described in code, each table whole with its CHECK, generates as the same DDL text does
+// [spec:pgorm:def:disjoint.one-of+4/test]    a CHECK whose targets include its own table generates the enum, the variant naming the module's own `Entity`, which its `Relation` enum's self-reference makes `Related` to itself (compiled and run in `tests/codegen_one_of_tests.rs`)
+#[test]
+fn a_self_referencing_one_of_generates_its_enum() {
+    let generated = from_sql(include_str!(
+        "../../tests/codegen_one_of/self_reference/schema.sql"
+    ));
+    for (file, fixture) in [
+        (
+            "remark.rs",
+            include_str!("../../tests/codegen_one_of/self_reference/remark.rs"),
+        ),
+        (
+            "topic.rs",
+            include_str!("../../tests/codegen_one_of/self_reference/topic.rs"),
+        ),
+    ] {
+        generated.holds(file, fixture);
+    }
+}
+
+// [spec:pgorm:def:disjoint.one-of+4/test]    a CHECK named `ck-{enum}` because `ck-{table}-{enum}` would pass 63 bytes, under a table's long name or with an enum's of 59 bytes, generates the enum named for it whole (compiled and run in `tests/codegen_one_of_tests.rs`)
+#[test]
+fn long_named_one_of_keeps_its_enum_name() {
+    let generated = from_sql(include_str!(
+        "../../tests/codegen_one_of/long_names/schema.sql"
+    ));
+    for (file, fixture) in [
+        (
+            "remark_left_on_an_issue_or_a_release_in_the_project_archive.rs",
+            include_str!(
+                "../../tests/codegen_one_of/long_names/remark_left_on_an_issue_or_a_release_in_the_project_archive.rs"
+            ),
+        ),
+        (
+            "note.rs",
+            include_str!("../../tests/codegen_one_of/long_names/note.rs"),
+        ),
+        (
+            "issue.rs",
+            include_str!("../../tests/codegen_one_of/long_names/issue.rs"),
+        ),
+        (
+            "release.rs",
+            include_str!("../../tests/codegen_one_of/long_names/release.rs"),
+        ),
+    ] {
+        generated.holds(file, fixture);
+    }
+}
+
+// [spec:pgorm:def:disjoint.one-of+4/test]    `ck-{rest}` names the enum for `rest` only where `ck-{table}-{rest}` would not be under 63 bytes, so `create_one_of` would have left the table out; under that, and for a name of 63 bytes, the bounded spelling of a longer one, the enum is named for the whole name
+#[test]
+fn ck_prefix_drops_as_create_one_of_writes() {
+    let enum_of = |table: &str, constraint: &str| {
+        let sql = format!(
+            "{TARGETS} CREATE TABLE {table} (id serial PRIMARY KEY, \
+             post_id integer REFERENCES post (id), photo_id bigint REFERENCES photo (id), \
+             CONSTRAINT \"{constraint}\" CHECK (num_nonnulls(post_id, photo_id) = 1));"
+        );
+        let generated = from_sql(&sql);
+        let module = generated.file(&format!("{table}.rs"));
+        let one_of = &module[module.find("OneOf").expect("a one-of enum")..];
+        let rest = &one_of[one_of.find("pub enum ").expect("its name") + "pub enum ".len()..];
+        let at = rest.find(' ').expect("the enum's name ends");
+        rest[..at].to_owned()
+    };
+    assert_eq!(enum_of("comment", "ck-target"), "CkTarget");
+    let long = "comment_left_on_a_post_or_a_photo_in_a_gallery_archive";
+    assert!(format!("ck-{long}-target").len() >= 63);
+    assert!(format!("ck-{long}-tag").len() < 63);
+    assert_eq!(enum_of(long, "ck-tag"), "CkTag");
+    assert_eq!(enum_of(long, "ck-target"), "Target");
+    let bounded = format!("ck-{}", "a".repeat(60));
+    assert_eq!(bounded.len(), 63);
+    assert_eq!(
+        enum_of("comment", &bounded),
+        format!("Ck{}", "A".to_owned() + &"a".repeat(59))
+    );
+}
+
+// [spec:pgorm:def:disjoint.one-of+4/test]    a schema described in code, each table whole with its CHECK, generates as the same DDL text does
 #[test]
 fn described_tables_generate_as_ddl_text_does() {
     let described = generate(described(commentable()), Opts::default());
     assert_eq!(described.files, from_sql(SCHEMA).files);
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    the enum is named for the whole name of a constraint not written as `ck-{table}-..`, and an unnamed CHECK as PostgreSQL names it, `{table}_check` or `{table}_{column}_check` over one column, numbered where an earlier CHECK took the name; `= 1` declares no unit variant
+// [spec:pgorm:def:disjoint.one-of+4/test]    the enum is named for the whole name of a constraint not written as `ck-{table}-..`, and an unnamed CHECK as PostgreSQL names it, `{table}_check` or `{table}_{column}_check` over one column, numbered where an earlier CHECK took the name; `= 1` declares no unit variant
 #[test]
 fn the_enum_is_named_for_the_constraint() {
     let named = from_sql(&comment(
@@ -205,20 +251,20 @@ fn the_enum_is_named_for_the_constraint() {
     );
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    near misses generate the ordinary nullable fields: a CHECK naming a column twice, over a column with no foreign key, over a column not nullable, `>= 1`, `= 2`, operands the other way round, `num_nulls`, an extra conjunct, NOT ENFORCED, a column of another type than its target's key, a key onto a column that is not the target's primary key, and a target the table reaches by two keys
+// [spec:pgorm:def:disjoint.one-of+4/test]    near misses are refused, naming the CHECK: one naming a column twice, over a column with no foreign key, over a column not nullable, `>= 1`, `= 2`, operands the other way round, `num_nulls`, an extra conjunct, NOT ENFORCED, a column of another type than its target's key, a key onto a column that is not the target's primary key, and a target the table reaches by two keys; the columns of a table with no CHECK stay the ordinary nullable fields
 #[test]
-fn near_misses_keep_the_ordinary_fields() {
+fn near_misses_are_refused() {
     let cases: Vec<(&str, String)> = vec![
         (
-            "a column twice",
+            "comment_post_id_check",
             comment("CHECK (num_nonnulls(post_id, post_id) = 1)"),
         ),
         (
-            "a column with no foreign key",
+            "comment_check",
             comment("CHECK (num_nonnulls(post_id, body) <= 1)"),
         ),
         (
-            "a column not nullable",
+            "comment_check",
             format!(
                 "{TARGETS} CREATE TABLE comment (id serial PRIMARY KEY, \
                  post_id integer REFERENCES post (id), \
@@ -227,31 +273,33 @@ fn near_misses_keep_the_ordinary_fields() {
             ),
         ),
         (
-            ">= 1",
-            comment("CHECK (num_nonnulls(post_id, photo_id) >= 1)"),
+            "at_least_one",
+            comment("CONSTRAINT at_least_one CHECK (num_nonnulls(post_id, photo_id) >= 1)"),
         ),
         (
-            "= 2",
+            "comment_check",
             comment("CHECK (num_nonnulls(post_id, photo_id) = 2)"),
         ),
         (
-            "the operands the other way round",
+            "comment_check",
             comment("CHECK (1 = num_nonnulls(post_id, photo_id))"),
         ),
         (
-            "num_nulls",
+            "comment_check",
             comment("CHECK (num_nulls(post_id, photo_id) = 1)"),
         ),
         (
-            "an extra conjunct",
+            "comment_check",
             comment("CHECK (num_nonnulls(post_id, photo_id) = 1 AND body <> '')"),
         ),
         (
-            "NOT ENFORCED",
-            comment("CHECK (num_nonnulls(post_id, photo_id) = 1) NOT ENFORCED"),
+            "ck-comment-commentable",
+            comment(
+                r#"CONSTRAINT "ck-comment-commentable" CHECK (num_nonnulls(post_id, photo_id) = 1) NOT ENFORCED"#,
+            ),
         ),
         (
-            "a column of another type than its target's key",
+            "comment_check",
             format!(
                 "{TARGETS} CREATE TABLE comment (id serial PRIMARY KEY, \
                  post_id integer REFERENCES post (id), \
@@ -260,7 +308,7 @@ fn near_misses_keep_the_ordinary_fields() {
             ),
         ),
         (
-            "a key onto a column that is not the target's primary key",
+            "comment_post_id_check",
             "CREATE TABLE post (id serial PRIMARY KEY, code integer UNIQUE); \
              CREATE TABLE comment (id serial PRIMARY KEY, \
              post_id integer REFERENCES post (code), \
@@ -268,7 +316,7 @@ fn near_misses_keep_the_ordinary_fields() {
                 .to_owned(),
         ),
         (
-            "a target the table reaches by two keys",
+            "comment_check",
             format!(
                 "{TARGETS} CREATE TABLE comment (id serial PRIMARY KEY, \
                  post_id integer REFERENCES post (id), \
@@ -278,31 +326,32 @@ fn near_misses_keep_the_ordinary_fields() {
             ),
         ),
     ];
-    for (case, sql) in cases {
-        ordinary(&from_sql(&sql), case);
+    for (name, sql) in cases {
+        assert_eq!(refused(&sql), unheld(name), "{sql}");
     }
+    let plain = from_sql(&format!(
+        "{TARGETS} CREATE TABLE comment (id serial PRIMARY KEY, body varchar NOT NULL, \
+         post_id integer REFERENCES post (id), photo_id bigint REFERENCES photo (id));"
+    ));
+    let comment = plain.file("comment.rs");
+    assert!(!comment.contains("OneOf"), "{comment}");
+    assert_contains(comment, "pub post_id: Option<i32>,");
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    near misses described in code generate the ordinary fields as their DDL text does: `>= 1`, an extra conjunct and NOT ENFORCED
+// [spec:pgorm:def:disjoint.one-of+4/test]    near misses described in code are refused as their DDL text is: `>= 1`, an extra conjunct and NOT ENFORCED
 #[test]
-fn described_near_misses_keep_the_ordinary_fields() {
+fn described_near_misses_are_refused() {
     let count = || Expr::expr(num_nonnulls(&["post_id", "photo_id"]));
-    for (case, check) in [
-        (">= 1", Check::new(count().gte(1))),
-        (
-            "an extra conjunct",
-            Check::new(count().eq(1).and(Expr::col(n("body")).ne(""))),
-        ),
-        (
-            "NOT ENFORCED",
-            Check::new(count().eq(1)).enforcement(Enforcement::NotEnforced),
-        ),
+    for check in [
+        Check::new(count().gte(1)),
+        Check::new(count().eq(1).and(Expr::col(n("body")).ne(""))),
+        Check::new(count().eq(1)).enforcement(Enforcement::NotEnforced),
     ] {
-        ordinary(&generate(described(check), Opts::default()), case);
+        assert_transform_error(described(check), &unheld("comment_check"));
     }
 }
 
-// [spec:pgorm:def:disjoint.one-of+1/test]    an enum, key enum, model enum or variant named as a name the module already declares or its code names otherwise is refused, naming both
+// [spec:pgorm:def:disjoint.one-of+4/test]    an enum, key enum, model enum or variant named as a name the module already declares or its code names otherwise is refused, naming both
 #[test]
 fn clashing_names_are_refused() {
     assert_eq!(
@@ -349,18 +398,33 @@ fn clashing_names_are_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.tables+12/test]    any table-level CHECK within the expression subset is read, named or not, and generates nothing in an entity that is no one-of reference
+// [spec:pgorm:sem:codegen.ddl.tables+13/test]    any table-level CHECK within the expression subset is read onto the statement, named or not, and one that is no one-of reference's is refused by the transform, naming it
 #[test]
-fn other_checks_are_read_and_generate_nothing() {
-    let generated = from_sql(
-        "CREATE TABLE t (id int PRIMARY KEY, n int NOT NULL, CHECK (n > 0), \
-         CONSTRAINT small CHECK (n < 10) NOT ENFORCED);",
+fn other_checks_are_read_and_refused() {
+    let sql = "CREATE TABLE t (id int PRIMARY KEY, n int NOT NULL, CHECK (n > 0), \
+               CONSTRAINT small CHECK (n < 10) NOT ENFORCED);";
+    let statements = pgorm_codegen::parse_schema(sql).expect("the schema reads");
+    let checks: Vec<Option<String>> = statements[0]
+        .get_checks()
+        .iter()
+        .map(|check| check.get_name().map(|name| name.to_string()))
+        .collect();
+    assert_eq!(checks, [None, Some("small".to_owned())]);
+    assert_eq!(
+        refused(sql),
+        "table `t`: an entity cannot hold the CHECK `t_n_check`, which is not a one-of \
+         reference's"
     );
-    assert!(!generated.file("t.rs").contains("CHECK"));
-    assert!(!generated.file("t.rs").contains("OneOf"));
+    assert_eq!(
+        refused(
+            "CREATE TABLE t (id int PRIMARY KEY, n int NOT NULL, \
+             CONSTRAINT small CHECK (n < 10) NOT ENFORCED);"
+        ),
+        "table `t`: an entity cannot hold the CHECK `small`, which is not a one-of reference's"
+    );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+20/test]    a table-level CHECK naming a column its table lacks is refused as unresolved
+// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a table-level CHECK naming a column its table lacks is refused as unresolved
 #[test]
 fn a_check_on_a_missing_column_is_refused() {
     assert_eq!(
