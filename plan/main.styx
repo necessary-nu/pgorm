@@ -18175,6 +18175,7 @@ children (
                 title "Every shared binding rule is verified in both bindings: Python tests bindings.model-columns and JavaScript tests bindings.optional"
                 kind @test
                 deps (binding-parity.model-column-operands)
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:22:33.1695Z
@@ -18202,6 +18203,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Audit of 2026-11-05: every bindings.* rule in docs/spec/bindings.md (81 with bindings.pipeline-terminals) checked for impl and /test annotations in both bindings, using the impl and test include sets of .config/nspec/config.styx, at each rule's current version. nplan_spec_untested and nplan_spec_uncovered agree per impl. Only the two named holes were real. (bindings.with and bindings.relation-conditions are tested in Python by unit tests under pgorm-python/src, which nspec counts.) No annotation is pinned off its rule's version. Python, bindings.model-columns: no test proved it, so ModelDatabase.test_columns_compare_through_the_declared_kind in pgorm-python/tests/test_models.py covers it live. It checks the qualification by the model's table or alias, eq/ne/lt/lte/gt/gte and is_in/is_not_in through the declared kind with the enum's label cast to its type, any_/all_ and expressions as written, a Value of the field's kind only, and None refused (is_null tests it). Writing it exposed Python refusing a model column of another declared type, fixed first in binding-parity.model-column-operands. JavaScript, bindings.optional: a /test must sit in a test_include path, and pgorm-napi/checks/package.js is impl-side. So the test is in tests/package/smoke.test.ts, which checks/package.js runs in fresh Node.js and Deno projects that installed the packed packages: neither installed package carries a tests/fixtures/security/sqlmap/generative/checks/scripts/src/target/plan path or a .ts (other than .d.ts), .rs, .toml, .lock or .py file; neither manifest declares dependencies, devDependencies, peerDependencies, bundled dependencies or scripts; and the addon's DEPENDENCIES.json links none of pgorm-test-support, pgorm-python, pyo3, pgorm-generative-bridge or pgorm-sqlmap-adapter. This is the JavaScript counterpart of check_artifacts.py."
+                    }
+
+                    {
+                        at 2026-11-05T14:28:00.572587Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

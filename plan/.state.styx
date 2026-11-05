@@ -1555,7 +1555,7 @@ assertions (
     {id value-codecs.domain-subtype-column, kind @complete, author "brendan@necessary.nu", at 2026-11-05T09:46:18.255158Z}
     {id napi.entity-busy-race, kind @complete, author "brendan@necessary.nu", at 2026-11-05T12:46:30.992558Z}
     {id binding-parity.model-column-operands, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:24:01.248474Z}
-    {id binding-parity.verify-annotations, kind @doing, author "brendan@necessary.nu", at 2026-11-05T14:24:07.870065Z}
+    {id binding-parity.verify-annotations, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:28:00.572587Z}
 )
 
 impl_evidence (
