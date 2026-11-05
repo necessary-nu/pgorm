@@ -1556,6 +1556,7 @@ assertions (
     {id napi.entity-busy-race, kind @complete, author "brendan@necessary.nu", at 2026-11-05T12:46:30.992558Z}
     {id binding-parity.model-column-operands, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:24:01.248474Z}
     {id binding-parity.verify-annotations, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:28:00.572587Z}
+    {id binding-parity.disjoint-foreign-active, kind @complete, author "brendan@necessary.nu", at 2026-11-05T16:04:14.696674Z}
 )
 
 impl_evidence (

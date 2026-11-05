@@ -16577,6 +16577,10 @@ children (
             {
                 id disjoint.bindings
                 title "Python and JavaScript declare, register, read and write disjoint models"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.disjoint])
+                    python ([spec:pgorm:req:bindings.disjoint])
+                }
                 deps (disjoint.write)
                 log (
                     {
@@ -18336,11 +18340,8 @@ children (
                 id binding-parity.disjoint-foreign-active
                 title "A disjoint kind write given an ActiveModel or record of another entity refuses it in both bindings as an argument of the wrong type, a TypeError, as a registered entity's write does"
                 kind @fix
-                implements {
-                    javascript ([spec:pgorm:req:bindings.disjoint])
-                    python ([spec:pgorm:req:bindings.disjoint])
-                }
                 deps (binding-parity.foreign-active-error)
+                sealed true
                 log (
                     {
                         at 2026-11-05T15:51:07.766289Z
@@ -18354,6 +18355,21 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Lead decision 2026-11-05: argument-errors (12) governs a wrong-typed argument everywhere. A registered disjoint enum's insert, update or change_kind given an ActiveModel of another entity, for the base or for a kind, now refuses it with TypeError (\"the ActiveModel is X's, not Y's\") in both bindings, as bindings.entity-writes+1 does for a registered entity's write. The check is in the native values step of each binding (pgorm-python/src/disjoint/mod.rs, pgorm-napi/src/disjoint/mod.rs), where it was a ConstructionError. bindings.disjoint is +2: a refusal before anything is sent stays a ConstructionError for a value that cannot become what pgorm sends (the kind column set, a kind row's key set, a row for a kind without a table), and an ActiveModel of another entity is named a TypeError. Annotations are re-pinned everywhere, src/ and tests/ included. The rule's python and javascript claims moved here from disjoint.bindings, so the bump leaves that node with nothing stale. The disjoint docs in both bindings' ENTITIES.md are updated. A model-based disjoint write takes values, not handles, so it is unaffected."
+                    }
+
+                    {
+                        at 2026-11-05T16:04:14.696674Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T16:04:14.873973Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Correction to the decision note: the bindings.disjoint claims went back to disjoint.bindings, its only implements, because moving them left that delivered node with nothing to be Done by. It was re-covered at bindings.disjoint +2 by a commit typed feat, its kind. This node, delivered by ba56cf54, is completed by hand."
+                        after_done true
                     }
                 )
             }
