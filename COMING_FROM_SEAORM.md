@@ -1324,6 +1324,16 @@ one transaction finish, such as using an enum value `ALTER TYPE ... ADD VALUE`
 added: the batch commits after it and runs the rest in a new transaction, so
 a later failure leaves it applied and the next `up` resumes after it.
 
+A migration that generated its DDL from an entity as it ran, as SeaORM's
+`Schema::create_table_from_entity` in a migration does, follows the entity as
+it changes, so a database built from the history gets today's table from the
+first migration. pgorm freezes generated DDL instead: `MigrationFile` holds
+the statements as a `.sql` file's text and `freeze` writes the file once,
+when the change is made, never again, and `sql_migration!` runs it. A
+disjoint enum's kind change freezes the same way, a file per step through
+`DisjointChange::migration_files`, every step but the last opening with
+`-- pgorm: commits-after`.
+
 Your existing history carries over. A migration's name is its file name, as
 in SeaORM, and the ledger keeps the same `version` and `applied_at` columns.
 The first `up` finds the `seaql_migrations` table and renames it to

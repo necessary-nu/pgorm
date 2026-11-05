@@ -1296,3 +1296,118 @@ async fn a_disjoint_kind_is_added_through_the_runner() -> Result<(), Error> {
     ctx.delete().await;
     Ok(())
 }
+
+/// A change frozen when it is made: the tables a declaration creates in one
+/// file, a kind added to it in a file per step, the first committing after
+/// it runs, each the text the committed fixtures hold. A file already there
+/// is never written again, so freezing the tables from the declaration as it
+/// stands later leaves the history as it was.
+// [spec:pgorm:def:migration.frozen/test]
+// [spec:pgorm:req:migration.sql-file.commits-after/test]
+// [spec:pgorm:sem:disjoint.evolve.frozen/test]
+#[test]
+fn a_change_freezes_into_its_migration_files() -> Result<(), Box<dyn std::error::Error>> {
+    use common::migrator::disjoint::{Fleet, VannedFleet, VannedFleetKind};
+    use pgorm::{MigrationFile, Schema};
+
+    let created = MigrationFile::new(
+        "m20240401_000001_create_fleet",
+        Schema::new().create_disjoint::<Fleet>()?,
+    );
+    let added = Schema::new()
+        .add_disjoint_kind::<VannedFleet>(VannedFleetKind::Van)?
+        .migration_files("m20240401_000002_add_van");
+    let names: Vec<&str> = added.iter().map(MigrationFile::name).collect();
+    assert_eq!(
+        names,
+        ["m20240401_000002_add_van_1", "m20240401_000002_add_van_2"]
+    );
+    assert_eq!(
+        created.text(),
+        include_str!("sql/frozen/m20240401_000001_create_fleet.sql")
+    );
+    assert_eq!(
+        added[0].text(),
+        include_str!("sql/frozen/m20240401_000002_add_van_1.sql")
+    );
+    assert_eq!(
+        added[1].text(),
+        include_str!("sql/frozen/m20240401_000002_add_van_2.sql")
+    );
+    assert!(added[0].commits_after() && !added[1].commits_after());
+    assert!(sql_migration!("tests/sql/frozen/m20240401_000002_add_van_1.sql").commits_after());
+    assert!(!sql_migration!("tests/sql/frozen/m20240401_000002_add_van_2.sql").commits_after());
+
+    let dir = std::env::temp_dir().join(pgorm_test_support::scoped_name("pgorm_migration_frozen"));
+    std::fs::create_dir_all(&dir)?;
+    assert!(created.freeze(&dir)?);
+    assert!(!created.freeze(&dir)?);
+    let later = MigrationFile::new(
+        "m20240401_000001_create_fleet",
+        Schema::new().create_disjoint::<VannedFleet>()?,
+    );
+    assert_ne!(later.text(), created.text());
+    assert!(!later.freeze(&dir)?);
+    let path = dir.join("m20240401_000001_create_fleet.sql");
+    assert_eq!(std::fs::read_to_string(&path)?, created.text());
+
+    for name in ["", "..", "nested/file", "back\\slash"] {
+        let refused = MigrationFile::new(name, ["SELECT 1"]).freeze(&dir);
+        assert_eq!(
+            refused.map_err(|error| error.kind()),
+            Err(std::io::ErrorKind::InvalidInput),
+            "{name}"
+        );
+    }
+    std::fs::remove_dir_all(&dir)?;
+    Ok(())
+}
+
+/// The frozen history replays on a database built from nothing: the tables
+/// as they were first declared, then the van kind, its value committed before
+/// its table uses it, after which the entity as it is declared now writes a
+/// van. The same history generated as each migration runs cannot: its first
+/// migration creates the kind its second adds.
+// [spec:pgorm:sem:disjoint.evolve.frozen/test]    a fresh database replays the frozen history
+// [spec:pgorm:req:migration.sql-file.commits-after/test]    the directive commits the batch
+#[tokio::test]
+async fn a_frozen_history_replays_on_a_fresh_database() -> Result<(), Error> {
+    use common::migrator::disjoint::{
+        Frozen, Recomputed, VannedFleet, VannedFleetActiveModel, van, vanned_fleet,
+    };
+    use pgorm::{Disjoint, set};
+
+    let ctx = TestContext::new("pgorm_migration_frozen_replay").await;
+    let db = &ctx.db;
+    Frozen::up(db.clone(), None).await?;
+    assert_eq!(count_rows(db, "pgorm_migrations").await?, 3);
+    let conn = db.get().await?;
+    let (camper, _) = VannedFleet::insert(
+        vanned_fleet::ActiveModel {
+            name: set("camper"),
+            ..Default::default()
+        },
+        VannedFleetActiveModel::Van(van::ActiveModel {
+            doors: set(4_i16),
+            ..Default::default()
+        }),
+    )?
+    .exec_returning_model(&conn)
+    .await?;
+    assert_eq!(camper.name, "camper");
+    drop(conn);
+    Frozen::up(db.clone(), None).await?;
+    assert_eq!(count_rows(db, "pgorm_migrations").await?, 3);
+    ctx.delete().await;
+
+    let ctx = TestContext::new("pgorm_migration_recomputed_replay").await;
+    let replayed = Recomputed::up(ctx.db.clone(), None).await;
+    assert!(
+        replayed
+            .as_ref()
+            .is_err_and(|error| error.to_string().contains("already exists")),
+        "{replayed:?}"
+    );
+    ctx.delete().await;
+    Ok(())
+}

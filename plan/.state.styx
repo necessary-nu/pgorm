@@ -3158,6 +3158,15 @@ impl_evidence (
     ), rule_versions_seen (
         {id error.model.decode-refusal, version 0}
     )}
+    {id disjoint.change-replays, covered_rules (
+        disjoint.evolve.frozen
+        migration.frozen
+        migration.sql-file.commits-after
+    ), covered_claims (
+        {impl_name main, rule disjoint.evolve.frozen}
+        {impl_name main, rule migration.frozen}
+        {impl_name main, rule migration.sql-file.commits-after}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}
