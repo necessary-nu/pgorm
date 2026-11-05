@@ -13299,12 +13299,20 @@ children (
                         id napi.guide-gaps.transaction-streams
                         title "A transaction streams the rows of SQL text, a statement and a model query, as Rust's stream and query_raw on a DatabaseTransaction do; today Transaction has no stream and ModelQuery.stream refuses one with a TypeError (guide 06-pagination)"
                         deps (napi-connections guide.javascript)
+                        sealed true
                         log (
                             {
                                 at 2026-11-05T21:41:44.216428Z
                                 author "brendan@necessary.nu"
                                 kind @status
                                 text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T23:05:25.995127Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
                             }
                         )
                     }
