@@ -11,7 +11,6 @@
 mod common;
 
 use common::*;
-use pgorm_codegen::entities_from_sql;
 
 const SCHEMA: &str = include_str!("../../tests/codegen_column_types/schema.sql");
 
@@ -24,14 +23,7 @@ const SCHEMA: &str = include_str!("../../tests/codegen_column_types/schema.sql")
 // [spec:pgorm:sem:codegen.entity.types+12/test]
 #[test]
 fn compact_entities_state_every_uninferred_type() {
-    let generated = entities_from_sql(SCHEMA, Opts::default()).expect("the schema generates");
-    let generated = Generated {
-        files: generated
-            .files
-            .into_iter()
-            .map(|file| (file.name, file.content))
-            .collect(),
-    };
+    let generated = from_sql(SCHEMA);
     for (file, fixture) in [
         (
             "specimen.rs",
@@ -46,9 +38,6 @@ fn compact_entities_state_every_uninferred_type() {
             include_str!("../../tests/codegen_column_types/pgorm_range_types.rs"),
         ),
     ] {
-        // rustfmt and the writer differ only on trailing commas.
-        let flat = |src: &str| norm(src).replace(" , )", " )").replace(" , }", " }");
-        let written = flat(generated.file(file));
-        assert!(written.contains(&flat(fixture)), "{file}: {written}");
+        generated.holds(file, fixture);
     }
 }

@@ -5,7 +5,7 @@ mod common;
 
 use common::*;
 use pgorm::{ColumnTrait, ColumnTypeTrait, EntityTrait, Iterable, QueryTrait};
-use pgorm_codegen::{Error, WriterOutput, entities_from_sql, parse_schema};
+use pgorm_codegen::parse_schema;
 use pgorm_query::{ColumnType, Name, StringLen};
 use std::sync::Arc;
 
@@ -19,25 +19,6 @@ mod pgorm_range_types;
 
 #[path = "sql/created_range/measurement.rs"]
 mod measurement;
-
-fn files(output: WriterOutput) -> Generated {
-    Generated {
-        files: output
-            .files
-            .into_iter()
-            .map(|file| (file.name, file.content))
-            .collect(),
-    }
-}
-
-#[track_caller]
-fn error(sql: &str) -> String {
-    match entities_from_sql(sql, Opts::default()) {
-        Err(Error::TransformError(message)) => message,
-        Err(other) => panic!("expected a TransformError, got {other:?}"),
-        Ok(_) => panic!("expected an error, got generated entities"),
-    }
-}
 
 fn multi(name: &str, schema: Option<&str>, subtype: ColumnType) -> ColumnType {
     ColumnType::CreatedMultirange {
@@ -55,7 +36,7 @@ fn created(name: &str, schema: Option<&str>, subtype: ColumnType) -> ColumnType 
     }
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a range type the file creates
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a range type the file creates
 // types the columns naming it, by its full identity and with its subtype read
 // as a column's type is
 // [spec:pgorm:sem:codegen.ddl.types+10/test]
@@ -84,7 +65,7 @@ fn a_created_range_types_its_columns() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    a range type declares its
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a range type declares its
 // multirange too: under the name PostgreSQL derives, in the range's schema, or
 // under MULTIRANGE_TYPE_NAME as written
 #[test]
@@ -161,7 +142,7 @@ fn a_created_range_declares_its_multirange() {
         )),
     );
     assert_eq!(
-        error(
+        refused(
             "CREATE TYPE floatrange AS RANGE (SUBTYPE = float8); CREATE TYPE floatmultirange AS ENUM ('a');"
         ),
         "statement 2: type `floatmultirange` is declared twice"
@@ -179,8 +160,7 @@ fn a_created_range_declares_its_multirange() {
 // its newtype's `E` does not infer names its whole type
 #[test]
 fn a_created_range_generates_a_compiling_newtype() {
-    let generated =
-        files(entities_from_sql(SCHEMA, Opts::default()).expect("the schema generates"));
+    let generated = from_sql(SCHEMA);
     assert_eq!(
         generated.names(),
         [
@@ -201,10 +181,7 @@ fn a_created_range_generates_a_compiling_newtype() {
             include_str!("sql/created_range/measurement.rs"),
         ),
     ] {
-        // rustfmt and the writer differ only on trailing commas.
-        let flat = |src: &str| norm(src).replace(" , )", " )").replace(" , }", " }");
-        let written = flat(generated.file(file));
-        assert!(written.contains(&flat(fixture)), "{file}: {written}");
+        generated.holds(file, fixture);
     }
 
     assert_eq!(
@@ -239,7 +216,7 @@ fn a_created_range_generates_a_compiling_newtype() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+20/test]    what the bridge cannot
+// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    what the bridge cannot
 // carry out of a range type is named: a subtype no newtype can hold, an array
 // of a created range, an option PostgreSQL does not have, a range with no
 // subtype, a serial subtype, and a type declared twice
@@ -247,44 +224,44 @@ fn a_created_range_generates_a_compiling_newtype() {
 #[test]
 fn what_a_created_range_cannot_carry_is_named() {
     assert_eq!(
-        error(
+        refused(
             "CREATE TYPE flags AS RANGE (SUBTYPE = bool); CREATE TABLE t (id int PRIMARY KEY, f flags);"
         ),
         "table `t` column `f`: range type `flags` over Boolean is not supported by codegen; \
          a created range's subtype is one pgorm's `RangeSubtype` covers"
     );
     assert_eq!(
-        error(
+        refused(
             "CREATE TYPE floatrange AS RANGE (SUBTYPE = float8); CREATE TABLE t (id int PRIMARY KEY, f floatrange[]);"
         ),
         "table `t` column `f`: an array of range type `floatrange` is not supported by codegen; \
          the newtype a created range generates has no array conversion"
     );
     assert_eq!(
-        error("CREATE TYPE floatrange AS RANGE (SUBTYPE = float8, FLAVOUR = sweet);"),
+        refused("CREATE TYPE floatrange AS RANGE (SUBTYPE = float8, FLAVOUR = sweet);"),
         "unsupported DDL: option `flavour` on range type `floatrange` at statement 1"
     );
     assert_eq!(
-        error("CREATE TYPE floatrange AS RANGE (SUBTYPE_DIFF = float8mi);"),
+        refused("CREATE TYPE floatrange AS RANGE (SUBTYPE_DIFF = float8mi);"),
         "statement 1: range type `floatrange` has no SUBTYPE"
     );
     assert_eq!(
-        error("CREATE TYPE serials AS RANGE (SUBTYPE = serial);"),
+        refused("CREATE TYPE serials AS RANGE (SUBTYPE = serial);"),
         "unsupported DDL: a serial type as the SUBTYPE of range type `serials` at statement 1"
     );
     assert_eq!(
-        error("CREATE TYPE span AS ENUM ('a'); CREATE TYPE span AS RANGE (SUBTYPE = int4);"),
+        refused("CREATE TYPE span AS ENUM ('a'); CREATE TYPE span AS RANGE (SUBTYPE = int4);"),
         "statement 2: type `span` is declared twice"
     );
     assert_eq!(
-        error(
+        refused(
             "CREATE TYPE app.slot AS RANGE (SUBTYPE = int4); CREATE TABLE t (id int PRIMARY KEY, s slot);"
         ),
         "statement 2: type `slot` on column `t`.`s` is not declared; a same-named range type \
          under a different qualification does not resolve it"
     );
     assert_eq!(
-        error(
+        refused(
             "CREATE TYPE a.slot AS RANGE (SUBTYPE = int4); CREATE TYPE b.slot AS RANGE (SUBTYPE = int4); \
                CREATE TABLE t (id int PRIMARY KEY, x a.slot, y b.slot);"
         ),
@@ -292,7 +269,7 @@ fn what_a_created_range_cannot_carry_is_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+20/test]    a type modifier on a range
+// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a type modifier on a range
 // type's SUBTYPE, which PostgreSQL drops, is named rather than carried, `char`'s
 // implicit length among them; the subtype written without one is read
 #[test]
@@ -307,7 +284,7 @@ fn a_dropped_subtype_modifier_is_named() {
         "interval YEAR TO MONTH",
     ] {
         assert_eq!(
-            error(&format!("CREATE TYPE r AS RANGE (SUBTYPE = {subtype});")),
+            refused(&format!("CREATE TYPE r AS RANGE (SUBTYPE = {subtype});")),
             "unsupported DDL: a type modifier PostgreSQL drops on the SUBTYPE of range \
              type `r` at statement 1",
             "{subtype}"
@@ -356,7 +333,7 @@ fn a_described_subtype_modifier_is_refused() {
     }
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+11/test]    the options that do not change
+// [spec:pgorm:sem:codegen.ddl.objects+12/test]    the options that do not change
 // a row's value are read and set aside, and a range over an enum the file
 // declared reads its subtype as that enum, which no newtype holds
 #[test]
@@ -372,7 +349,7 @@ fn range_options_are_read_and_set_aside() {
         Some(&created("textrange", None, ColumnType::Text))
     );
     assert!(
-        error(
+        refused(
             "CREATE TYPE mood AS ENUM ('sad', 'happy'); \
              CREATE TYPE moodrange AS RANGE (SUBTYPE = mood); \
              CREATE TABLE t (id int PRIMARY KEY, r moodrange);"

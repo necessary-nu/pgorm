@@ -138,7 +138,7 @@ async fn not_enforced_constraints_hold_no_row() -> Result<(), Error> {
 /// while it was not enforced, refusing the statement while one breaks it, and
 /// `NOT ENFORCED` leaves it unchecked and not valid again. A constraint added
 /// `NOT ENFORCED` to a table already holding rows that break it is accepted.
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]    a foreign key and a CHECK are
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]    a foreign key and a CHECK are
 // added NOT ENFORCED, and ALTER CONSTRAINT moves the foreign key between the two
 // [spec:pgorm:req:sql.ddl.enforcement/test]    ENFORCED validates as it goes, and
 // NOT ENFORCED clears validity
@@ -221,7 +221,7 @@ async fn alter_constraint_enforces_a_foreign_key() -> Result<(), Error> {
 /// `ENFORCED` checks the rows already there, refusing the statement while one
 /// breaks the condition (`23514`), and the constraint is valid once they
 /// pass; `NOT ENFORCED` leaves it unchecked and not valid again.
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]    ENFORCED and NOT ENFORCED apply
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]    ENFORCED and NOT ENFORCED apply
 // to a CHECK as to a foreign key, from PostgreSQL 19
 // [spec:pgorm:req:sql.ddl.enforcement/test]    ALTER CONSTRAINT moves a CHECK
 // between the two on 19, ENFORCED checking the rows as it goes

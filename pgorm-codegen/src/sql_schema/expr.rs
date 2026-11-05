@@ -21,7 +21,7 @@ const GRAMMAR_CALLS: [&str; 4] = ["coalesce", "greatest", "least", "nullif"];
 
 /// Read `node`, the expression of `what` (`the DEFAULT of column `t`.`c``),
 /// into the subset, or name the first construct outside it.
-// [spec:pgorm:sem:codegen.ddl.tables+12]
+// [spec:pgorm:sem:codegen.ddl.tables+13]
 pub(super) fn read(node: &Node, what: &str, at: usize) -> Result<ColumnExpr, Error> {
     let refuse = |construct: &str| unsupported(format!("{construct} in {what}"), at);
     let Some(node) = &node.node else {

@@ -236,7 +236,7 @@ async fn a_deferred_primary_key_is_checked_at_commit(
 /// `ADD UNIQUE (…)`.
 // [spec:pgorm:req:sql.ddl.deferrability+4/test]    against a live server: INITIALLY IMMEDIATE is
 // checked at the end of the statement, NOT DEFERRABLE per row
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]
 async fn an_initially_immediate_key_checks_at_statement_end(
     db: &DatabaseConnection,
 ) -> Result<(), Error> {

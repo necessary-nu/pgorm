@@ -685,12 +685,27 @@ children (
                 title "ALTER COLUMN ... TYPE with USING can also set the column's collation"
                 kind @feat
                 deps (disjoint.evolve)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:44.53115Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.evolve, which added TableAlterOption::AlterColumnTypeUsing (`ALTER COLUMN c TYPE t USING e`, sql.ddl.alter-table+14): PostgreSQL's form also takes COLLATE between the type and USING, which pgorm-query can't write. Add it if a caller needs it; low priority."
+                    }
+
+                    {
+                        at 2026-11-04T23:22:53.278404Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:37:56.559191Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -1867,12 +1882,43 @@ children (
                 title "Codegen's Relation enum and the enums in pgorm_active_enums.rs pass clippy's enum_variant_names"
                 kind @fix
                 deps (codegen-enum-variant-names)
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:11.138424Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by enum-label-length's lane (codegen-enum-variant-names, 7cff255b), which fixed only the generated disjoint enums: codegen's Relation enum, and the enums it writes into pgorm_active_enums.rs, trip clippy's enum_variant_names the same way when every variant shares a suffix or prefix (three related tables, or three values, ending `_shop`). Fix as the disjoint case was (an allow the generated code carries, or names that don't share the affix) and decide which in the rule; it changes every generated golden, the bindings' codegen fixtures included."
+                    }
+
+                    {
+                        at 2026-11-04T22:47:10.313511Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id codegen.test-helpers-shared
+                title "pgorm-codegen's test files share one holds/from_sql helper instead of each carrying a copy"
+                kind @test
+                deps (codegen-enum-variant-names-all)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T00:28:22.482448Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:40:28.8974Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -2440,12 +2486,34 @@ children (
                 id annotation-verbs-match
                 title "Every spec annotation's verb matches its rule's"
                 kind @chore
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:35.031923Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by derives.paths: eleven annotations cite a rule under the wrong verb, e.g. `exec.crud.exec-vocabulary` written as `sem` where the rule is `req` (src/executor/update.rs, src/executor/delete.rs, plan/main.styx), and others in pgorm-query/tests/surface/citations.rs and plan/decisions/*.md. nplan doesn't check this (filed in nplan's DEFECTS.md); fix every site, and also put the bindings.disjoint-unkinded and bindings.disjoint claims under the python and javascript impls, as bindings.codegen-disjoint's are, rather than main."
+                    }
+
+                    {
+                        at 2026-11-05T00:13:55.016702Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:24:53.742265Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Re-diagnosed on 29c5b0e9 + this lane: the wrong-verb annotations were already fixed by exec-vocabulary-annotation-verb (Done), which also added the guard every_citation_names_its_rules_verb (pgorm-query/tests/surface/citations.rs) holding every bracketed citation in the checkout to its rule's verb. A scan of every file against docs/spec's markers finds one mismatch only, inside a plan log entry's text (exec-vocabulary-annotation-verb's own note), which the guard exempts because the log is append-only history. What remained is the claims: bindings.disjoint (disjoint.bindings) and bindings.disjoint-unkinded (disjoint.bindings-unkinded) move from main to python and javascript, as bindings.codegen-disjoint is claimed. Both bindings' code and tests already annotate both rules, so per-impl coverage stays 100% (nplan_spec_uncovered and nplan_spec_untested for pgorm/python and pgorm/javascript report nothing). The Rust core's main-impl annotations of the two rules stay as references: DisjointShape::new and the shape builders are what both bindings call."
+                    }
+
+                    {
+                        at 2026-11-05T00:25:19.803423Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -10468,12 +10536,27 @@ children (
                 title "The identifier oracle holds create_disjoint, the disjoint change functions and create_one_of to every hostile name"
                 kind @test
                 deps (disjoint.evolve disjoint.one-of)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:37.221399Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.evolve: security.ident-oracle's sites don't include create_disjoint, the five disjoint change functions (add_disjoint_kind, add_disjoint_kind_recreating, remove_disjoint_kind, add_disjoint_kind_table, remove_disjoint_kind_table), or create_one_of, though DisjointShape::new takes table, column, type and value names at run time (the bindings' route). Register each with the oracle so every hostile name lands only in its benign positions, including the derived names (ck-, the {type}_next temporary type, the generated key columns), which take the bounded spelling as the schema-gen sites do."
+                    }
+
+                    {
+                        at 2026-11-04T23:38:38.017788Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:07:10.622369Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -16307,12 +16390,34 @@ children (
                 id active-enum-unknown-key-message
                 title "The ActiveEnum derive's unknown-key error names the key, not Rust debug output"
                 kind @fix
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:38.032183Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by derives.paths: the ActiveEnum derive's error for an unknown attribute key prints Rust debug output (`Some(Ident(..))`) instead of the key's name. Word it as the other derives' unknown-key errors are, with a compile-fail test pinning the message."
+                    }
+
+                    {
+                        at 2026-11-04T21:59:55.364466Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T22:00:08.013793Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Re-diagnosed: already fixed before this node was filed. e1815a14 (derives.boilerplate, 2026-11-02 22:58) replaced both `Unknown attribute parameter found: {:?}` sites in active_enum.rs (enum level and variant level) with util::unknown_pgorm_key, the wording every other derive uses (\"unknown pgorm attribute `<key>`\", spanned at the key). The message is already pinned by pgorm-macros/tests/compile-fail/active_enum_storage.{rs,stderr} (`enum_nmae` on the enum, `string_valeu` on a variant), under syn:macros.derive.active-enum+6/test (\"an unknown key at either level\"), and that test passes on 29c5b0e9. No code, test or spec change was needed; the node closes on that evidence."
+                    }
+
+                    {
+                        at 2026-11-04T22:00:09.051918Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -16396,7 +16501,8 @@ children (
                 id disjoint.bindings
                 title "Python and JavaScript declare, register, read and write disjoint models"
                 implements {
-                    main ([spec:pgorm:req:bindings.disjoint])
+                    javascript ([spec:pgorm:req:bindings.disjoint])
+                    python ([spec:pgorm:req:bindings.disjoint])
                 }
                 deps (disjoint.write)
                 log (
@@ -16517,7 +16623,8 @@ children (
                 id disjoint.bindings-unkinded
                 title "Python and JavaScript declare and register read-only unkinded disjoint models"
                 implements {
-                    main ([spec:pgorm:req:bindings.disjoint-unkinded])
+                    javascript ([spec:pgorm:req:bindings.disjoint-unkinded])
+                    python ([spec:pgorm:req:bindings.disjoint-unkinded])
                 }
                 deps (disjoint.codegen-unkinded disjoint.bindings)
                 log (
@@ -16541,6 +16648,9 @@ children (
                 id disjoint-derive-macro-hygiene
                 title "The Disjoint derive compiles on an enum whose variants a macro_rules! macro writes"
                 kind @fix
+                implements {
+                    main ([spec:pgorm:req:macros.derive.hygiene])
+                }
                 deps (disjoint.declare)
                 log (
                     {
@@ -16548,6 +16658,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.evolve: an enum deriving Disjoint whose variants a macro_rules! macro writes fails to compile with E0425 on `visitor` and `kind`, identifiers the derive's generated code introduces under spans taken from the input, so macro hygiene separates their definitions from their uses. Give the derive's own bindings one consistent span (Span::call_site or mixed_site for every introduced identifier), check the other derives for the same pattern, and add a test that declares a disjoint enum through a macro_rules! macro."
+                    }
+
+                    {
+                        at 2026-11-04T22:01:09.012318Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
                     }
                 )
             }
@@ -16557,12 +16674,27 @@ children (
                 title "Recreating a disjoint kind type rewrites the base table once, not twice"
                 kind @perf
                 deps (disjoint.evolve)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:39.330099Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.evolve: the recreating route (add_disjoint_kind_recreating, remove_disjoint_kind) rewrites the base table twice under its exclusive lock: once retyping its kind column, again re-adding the STORED generated key columns. Ordering the statements so both happen in one ALTER TABLE (or one rewrite) halves the lock time on a large base. Probe on 18.6 that the combined ALTER rewrites once, and keep the live tests."
+                    }
+
+                    {
+                        at 2026-11-04T22:28:29.148994Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:21:50.632807Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -16602,12 +16734,27 @@ children (
                 title "Generated code for a one-of whose target is its own table compiles and round-trips"
                 kind @test
                 deps (codegen-check-not-dropped)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:48.835096Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.one-of: codegen recognises a one-of CHECK whose targets include the table itself (a comment that may reference another comment), but no test compiles the generated code for that case, where the target entity is the entity's own module and the Related impl and the OneOfTarget impl both name Entity. Add it to the codegen live round trip."
+                    }
+
+                    {
+                        at 2026-11-04T23:50:01.780424Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:55:27.562584Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -16617,12 +16764,34 @@ children (
                 title "Codegen names a one-of enum correctly when its CHECK's name was bounded to 63 bytes"
                 kind @fix
                 deps (codegen-check-not-dropped)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:51.492826Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.one-of: Schema::create_one_of names its CHECK ck-{table}-{enum} through derived_name, which past 63 bytes becomes a 47-byte head plus a hash. Codegen names the generated enum for the constraint, so a long one comes back named from the truncated head and hash rather than the original enum. Decide how the enum's name survives: name it from the targets when the constraint name is bounded, or have create_one_of record the enum name (e.g. COMMENT ON CONSTRAINT) for codegen to read. Test with a long table and enum name."
+                    }
+
+                    {
+                        at 2026-11-04T23:56:23.610159Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:57:18.592033Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "The enum's name survives in the constraint's name, not in a comment and not by renaming from the targets. A CHECK's name is scoped to its table (pg_constraint keys it by relation), so the table the constraint is on already says what `ck-{table}-` repeats. Schema::create_one_of names the CHECK `ck-{table}-{enum}` when that is under 63 bytes, as now, and otherwise `ck-{enum}`; codegen reads a name under 63 bytes on table T as enum `rest` when it is `ck-T-{rest}`, or when it is `ck-{rest}` and `ck-T-{rest}` would not have been under 63 bytes (so create_one_of would have written the short form), and the whole name otherwise. Both readings are exact for every name create_one_of writes, need no hash to verify, and leave every name it writes today unchanged. The one case `ck-{enum}` cannot hold, an enum whose snake_case name passes 59 bytes, the OneOf derive refuses at compile time, as the unique(name) and enum-label limits are refused; a hand-written OneOf with such a name gets the bounded `ck-{enum}` and codegen names it for the whole name. Rejected: naming from the targets when a 63-byte name is seen (the enum's name is lost, and create_one_of on the generated enum writes a different constraint, so the schema no longer round-trips); COMMENT ON CONSTRAINT (a second statement from create_one_of, a comment surface the bridge and TableCreateStatement do not have, and a user-owned comment repurposed)."
+                    }
+
+                    {
+                        at 2026-11-05T00:16:45.052411Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -16632,6 +16801,7 @@ children (
                 title "Codegen never generates an entity that silently drops a table CHECK it read"
                 kind @fix
                 deps (disjoint.one-of)
+                sealed true
                 log (
                     {
                         at 2026-11-03T17:47:46.640992Z
@@ -16645,6 +16815,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Lead, 2026-11-03, pending operator override: take (a). Codegen refuses every table CHECK that is not exactly the one-of shape, restoring the 2026-10-08 decision \"CHECK stays refused (the entity holds none)\" that disjoint.one-of reversed without approval. The near-miss tests expect the refusal, naming the constraint; the rule's \"ordinary nullable fields\" means columns no CHECK covers. Revise codegen.ddl.tables / codegen.ddl.unsupported and disjoint.one-of to say so. Option (b), entities declaring CHECKs, is not this node."
+                    }
+
+                    {
+                        at 2026-11-04T23:38:20.782437Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:48:45.903544Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -17157,12 +17341,20 @@ children (
                 title "The Entity derive refuses a VIRTUAL generated column inside unique(..), as the field-level unique does"
                 kind @fix
                 deps (entity-composite-unique)
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:13.699834Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by entity-composite-unique (562c6dfc): `#[pgorm(unique(columns = (..)))]` accepts a VIRTUAL generated column, which PostgreSQL refuses at CREATE (0A000, a virtual generated column cannot be in a key), while the field-level `unique` already refuses it at compile time. Refuse it in the derive the same way, with a compile-fail test."
+                    }
+
+                    {
+                        at 2026-11-04T21:57:05.162729Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -17172,12 +17364,34 @@ children (
                 title "Codegen refuses a one-column unique key with INCLUDE or deferrability instead of reading it as a plain unique"
                 kind @fix
                 deps (entity-composite-unique)
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:19.120436Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by entity-composite-unique (pre-existing): a one-column unique key carrying INCLUDE or a deferrability, from a statement built in code, is read by codegen as the column's plain `unique`, silently dropping those parts. The composite case is already refused by name (transformer.rs, the `unique(..)` reading); do the same for one column, or give the entity a way to hold them."
+                    }
+
+                    {
+                        at 2026-11-04T22:52:07.127549Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:24:04.825773Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "The note named INCLUDE and deferrability; NULLS NOT DISTINCT on a one-column key is the same loss and reachable from DDL text (`col text UNIQUE NULLS NOT DISTINCT`, a table constraint, a unique index): the column's `unique` cannot hold it, and dropping it admits a second null (probed on 18.6: the NND key refuses it). So a one-column unique key carrying any of the three is refused by name, `table `t` column `c`: an entity cannot hold a unique key of one column with NULLS NOT DISTINCT` (or `an INCLUDE list`, `a deferrability`). A one-column key's name stays dropped, as before: it changes no row the key admits, and refusing it would refuse every pg_dump, which names every key. Giving the field's `unique` a way to hold NND is a derive feature, not this node. codegen.entity.transform +18."
+                    }
+
+                    {
+                        at 2026-11-04T23:26:29.172994Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -17187,12 +17401,27 @@ children (
                 title "Codegen gives a foreign key whose columns contain the referencing table's unique key an at-most-one inverse, not has_many"
                 kind @fix
                 deps (entity-composite-unique)
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:21.693016Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by disjoint.codegen's near-miss tests (pre-existing): a table keyed by `id` with a foreign key `(id, kind)` onto another table's UNIQUE pair (the disjoint near miss) is given a `has_many` inverse, though its primary key allows at most one row per referenced row. codegen-relation-cardinality infers at-most-one only when the FK's columns are each unique or equal the full primary key; the general rule is that an FK whose column set contains any unique key of the referencing table (primary or unique) is at most one."
+                    }
+
+                    {
+                        at 2026-11-04T23:28:02.214034Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-04T23:35:09.965359Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -17208,6 +17437,29 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by entity-composite-unique (562c6dfc): Rust entities declare composite unique keys (`unique(..)`, EntityName::unique_keys, written by create_table_from_entity), but the Python and JavaScript bindings' model declarations have no way to declare one, so their model DDL can't write it. Needs a bindings rule (or a revision of the shared bindings entities rule), both bindings, describe() carrying it, and live tests."
+                    }
+                )
+            }
+
+            {
+                id unique-keys.objects-wording
+                title "codegen.ddl.objects says which one-column unique keys the transform refuses rather than reading as the column's unique"
+                kind @docs
+                deps (codegen-unique-parts-dropped)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T00:25:46.326762Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:27:31.843976Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

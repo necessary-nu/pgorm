@@ -438,10 +438,17 @@ fn impl_disjoint(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> 
             None => quote!(),
         })
         .collect();
+    // Bound at the call site and used under the payload's span, which a
+    // `macro_rules!` caller may have written in another hygiene context.
+    // [spec:pgorm:req:macros.derive.hygiene]
+    let visitor = format_ident!("visitor");
+    let kind_value = format_ident!("kind");
     let visits = kinds.iter().map(|kind| {
         let variant = &kind.variant;
         match &kind.payload {
-            Some(payload) => quote_spanned! {payload.span()=> visitor.table::<#payload>(kind) },
+            Some(payload) => {
+                quote_spanned! {payload.span()=> #visitor.table::<#payload>(#kind_value) }
+            }
             None => quote!(visitor.unit(Self::#variant)),
         }
     });
@@ -510,11 +517,15 @@ fn impl_kinded(
 ) -> TokenStream {
     let kind_ident = format_ident!("{}Kind", ident);
     let active_ident = format_ident!("{}ActiveModel", ident);
+    // Bound at the call site and used under the payload's span, which a
+    // `macro_rules!` caller may have written in another hygiene context.
+    // [spec:pgorm:req:macros.derive.hygiene]
+    let visitor = format_ident!("visitor");
     let active_visits = kinds.iter().map(|kind| {
         let variant = &kind.variant;
         match &kind.payload {
             Some(payload) => quote_spanned! {payload.span()=>
-                Self::#variant(active) => visitor.table::<#payload>(#kind_ident::#variant, active)
+                Self::#variant(active) => #visitor.table::<#payload>(#kind_ident::#variant, active)
             },
             None => quote!(Self::#variant => visitor.unit(#kind_ident::#variant)),
         }

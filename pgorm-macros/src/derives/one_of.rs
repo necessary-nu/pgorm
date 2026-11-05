@@ -60,7 +60,7 @@ fn attrs(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<Vec<Meta>> {
         .collect())
 }
 
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+3]
 // [spec:pgorm:req:macros.derive.code-values+3]
 fn container(input: &DeriveInput) -> syn::Result<Container> {
     let mut entity = None;
@@ -97,7 +97,7 @@ fn container(input: &DeriveInput) -> syn::Result<Container> {
     })
 }
 
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+3]
 // [spec:pgorm:req:macros.derive.code-values+3]
 fn reference(variant: &Variant) -> syn::Result<Reference> {
     let mut column = None;
@@ -173,7 +173,12 @@ fn reference(variant: &Variant) -> syn::Result<Reference> {
 /// `#[derive(OneOf)]`: `<Enum>Key` and `<Enum>Model`, `OneOf` for the enum
 /// and `OneOfTarget` for each target, with the checks that hold each column
 /// to the entity, to its target's key type and to one variant.
-// [spec:pgorm:def:disjoint.one-of+1]
+///
+/// The enum's name in snake_case is at most 59 bytes: `Schema::create_one_of`
+/// names its `CHECK` `ck-{enum}` where its table's name leaves no room, and
+/// pgorm-codegen names the enum it generates for that, so the name has to fit
+/// whole within PostgreSQL's 63.
+// [spec:pgorm:def:disjoint.one-of+3]
 pub fn expand_derive_one_of(input: DeriveInput) -> syn::Result<TokenStream> {
     let Data::Enum(data) = &input.data else {
         return Err(syn::Error::new(
@@ -185,6 +190,18 @@ pub fn expand_derive_one_of(input: DeriveInput) -> syn::Result<TokenStream> {
         return Err(syn::Error::new_spanned(
             &input.generics,
             "a `OneOf` enum takes no generic parameters",
+        ));
+    }
+    let name = trim_starting_raw_identifier(&input.ident).to_snake_case();
+    if name.len() > 59 {
+        return Err(syn::Error::new(
+            input.ident.span(),
+            format!(
+                "a `OneOf` enum's name is at most 59 bytes in snake_case, so that the CHECK \
+                 `Schema::create_one_of` names for it keeps it whole within PostgreSQL's 63; \
+                 `{name}` is {}",
+                name.len()
+            ),
         ));
     }
     let container = container(&input)?;
@@ -214,7 +231,7 @@ pub fn expand_derive_one_of(input: DeriveInput) -> syn::Result<TokenStream> {
         ));
     }
     let mut expanded = generated_enums(&input, &container, &references);
-    expanded.extend(impl_one_of(&input, &container, &targets, none));
+    expanded.extend(impl_one_of(&input, &name, &container, &targets, none));
     expanded.extend(
         targets
             .iter()
@@ -229,7 +246,7 @@ pub fn expand_derive_one_of(input: DeriveInput) -> syn::Result<TokenStream> {
 ///
 /// Both repeat the enum's variants, which clippy's `enum_variant_names`
 /// judges where the enum is declared, so it is allowed on them.
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+3]
 fn generated_enums(
     input: &DeriveInput,
     container: &Container,
@@ -290,9 +307,10 @@ fn generated_enums(
 /// `OneOf` for the enum: its entity, its generated enums, its name in
 /// snake_case, its unit variant, and a visit of its targets, each requiring
 /// the entity's relation to the target.
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+3]
 fn impl_one_of(
     input: &DeriveInput,
+    name: &str,
     container: &Container,
     targets: &[&Target],
     none: Option<&Ident>,
@@ -301,15 +319,18 @@ fn impl_one_of(
     let entity = &container.entity;
     let key_ident = format_ident!("{}Key", ident);
     let model_ident = format_ident!("{}Model", ident);
-    let name = trim_starting_raw_identifier(ident).to_snake_case();
     let none = match none {
         Some(variant) => quote! {
             ::core::option::Option::Some((#key_ident::#variant, #model_ident::#variant))
         },
         None => quote!(::core::option::Option::None),
     };
+    // Bound at the call site and used under the target's span, which a
+    // `macro_rules!` caller may have written in another hygiene context.
+    // [spec:pgorm:req:macros.derive.hygiene]
+    let visitor = format_ident!("visitor");
     let visits = targets.iter().map(|Target { entity, .. }| {
-        quote_spanned! {entity.span()=> visitor.target::<#entity>(); }
+        quote_spanned! {entity.span()=> #visitor.target::<#entity>(); }
     });
     quote! {
         #[automatically_derived]
@@ -337,7 +358,7 @@ fn impl_one_of(
 /// entity's `Column`, so another entity's does not compile, and is read
 /// through the field its entity's `Model` declares for it, bound as `Option`
 /// of the target's key type, so a field of any other type does not compile.
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+3]
 fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenStream {
     let base = &container.entity;
     let key_ident = format_ident!("{}Key", ident);
@@ -351,9 +372,14 @@ fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenSt
     let column_const = quote_spanned! {column.span()=>
         const COLUMN: <#base as pgorm::EntityTrait>::Column = #column;
     };
+    // Bound under the target's span and used under the column's, which a
+    // `macro_rules!` may have written in two hygiene contexts, so it takes
+    // the call site's at both.
+    // [spec:pgorm:req:macros.derive.hygiene]
+    let model = format_ident!("model");
     let read = quote_spanned! {column.span()=>
         let field: &::core::option::Option<pgorm::TargetKey<Self>> =
-            <<#base as pgorm::EntityTrait>::Model as pgorm::ColumnField<{ (#column) as usize }>>::field(model);
+            <<#base as pgorm::EntityTrait>::Model as pgorm::ColumnField<{ (#column) as usize }>>::field(#model);
         ::core::clone::Clone::clone(field)
     };
     quote_spanned! {entity.span()=>
@@ -363,7 +389,7 @@ fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenSt
 
             #[allow(clippy::clone_on_copy)]
             fn read(
-                model: &<#base as pgorm::EntityTrait>::Model,
+                #model: &<#base as pgorm::EntityTrait>::Model,
             ) -> ::core::option::Option<pgorm::TargetKey<Self>> {
                 #read
             }
@@ -401,7 +427,7 @@ fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenSt
 /// A constant for each pair of targets refusing, as it is evaluated, two
 /// variants naming one column. Both columns are the entity's `Column`, so
 /// equal discriminants are one column, however each path is written.
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+3]
 fn distinct_columns(targets: &[&Target]) -> TokenStream {
     let mut checks = TokenStream::new();
     for (index, second) in targets.iter().enumerate() {

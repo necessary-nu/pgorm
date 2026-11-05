@@ -9,6 +9,7 @@ pub struct Model {
     pub self_idd: Option<i32> ,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(

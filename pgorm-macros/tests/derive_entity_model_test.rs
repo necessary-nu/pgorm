@@ -386,7 +386,7 @@ mod serde_keys {
 }
 
 // [spec:pgorm:sem:macros.derive.entity-model+9/test]
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+9/test]    struct-level table_name / schema_name / comment
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+10/test]    struct-level table_name / schema_name / comment
 #[test]
 fn struct_attributes_drive_entity_and_entity_name() {
     // (3) `table_name` present, so `pub struct Entity;` plus a hand-rolled
@@ -559,7 +559,7 @@ fn json_key_reports_the_serde_key() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+9/test]    `table_iden` adds a Table variant
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+10/test]    `table_iden` adds a Table variant
 #[test]
 fn table_iden_variant_is_skipped_by_iteration() {
     // The variant exists, but iterating the columns leaves it out.
@@ -571,14 +571,14 @@ fn table_iden_variant_is_skipped_by_iteration() {
     );
 }
 
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+9/test]    the Table variant has no column def
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+10/test]    the Table variant has no column def
 #[test]
 #[should_panic(expected = "Table cannot be used as a column")]
 fn table_iden_variant_has_no_column_def() {
     let _ = filling::Column::Table.def();
 }
 
-// [spec:pgorm:syn:macros.derive.entity-model.attrs+9/test]    field-level keys
+// [spec:pgorm:syn:macros.derive.entity-model.attrs+10/test]    field-level keys
 #[test]
 fn field_level_attributes_shape_the_column_defs() {
     use pgorm::ColumnTypeTrait;

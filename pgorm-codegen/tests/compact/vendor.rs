@@ -11,6 +11,7 @@ pub struct Model {
     pub fruit_id: Option<i32> ,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(

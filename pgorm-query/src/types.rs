@@ -15,7 +15,7 @@ pub trait SqlName: Any + Send + Sync {
     /// Write the identifier as PostgreSQL spells one: wrapped in double
     /// quotes, with any embedded double quote doubled.
     // [spec:pgorm:req:sql.render.ident-quoting+7]
-    // [spec:pgorm:req:security.ident-oracle+15] (the quoting every registered
+    // [spec:pgorm:req:security.ident-oracle+17] (the quoting every registered
     // name position renders through, held to the identifier render oracle)
     fn prepare(&self, s: &mut dyn fmt::Write) {
         write!(s, "\"{}\"", self.quoted()).unwrap();

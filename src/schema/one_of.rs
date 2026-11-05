@@ -1,6 +1,6 @@
 //! The `CHECK` holding a `OneOf` reference to one target per row.
 
-use crate::{EntityName, OneOf, Schema, executor::result_name::derived_name};
+use crate::{EntityName, OneOf, Schema, executor::result_name::bounded_identifier};
 use pgorm_query::{Check, Expr, Func, Name, Table, TableAlterStatement};
 
 impl Schema {
@@ -11,9 +11,13 @@ impl Schema {
     /// referencing none unless the enum says a row may.
     ///
     /// The constraint is named `ck-{table}-{enum}`, the table bare and the
-    /// enum's name in snake_case, bounded to PostgreSQL's 63 bytes as the
-    /// names schema generation gives its keys are. The foreign keys are the
-    /// entity's relations' own, which
+    /// enum's name in snake_case, or `ck-{enum}` where that would pass
+    /// PostgreSQL's 63 bytes: a `CHECK`'s name is its table's alone, so the
+    /// table it is on says what the name leaves out, and the enum's name,
+    /// which pgorm-codegen names the enum it generates for, is kept whole.
+    /// The derive refuses an enum whose name `ck-{enum}` could not hold; one
+    /// implemented by hand is bounded as the names schema generation gives
+    /// its keys are. The foreign keys are the entity's relations' own, which
     /// [`create_table_from_entity`](Self::create_table_from_entity) writes.
     ///
     /// ```
@@ -24,7 +28,7 @@ impl Schema {
     ///     r#"ALTER TABLE "comment" ADD CONSTRAINT "ck-comment-commentable" CHECK (num_nonnulls("post_id", "photo_id") <= 1)"#
     /// );
     /// ```
-    // [spec:pgorm:def:disjoint.one-of+1]
+    // [spec:pgorm:def:disjoint.one-of+3]
     pub fn create_one_of<O: OneOf>(&self) -> TableAlterStatement {
         let entity = <O::Entity as Default>::default();
         let set = O::columns().into_iter().fold(
@@ -35,7 +39,12 @@ impl Schema {
             Some(_) => Expr::expr(set).lte(1),
             None => Expr::expr(set).eq(1),
         };
-        let name = derived_name("ck", entity.table_name(), [O::name()]);
+        let short = format!("ck-{}-{}", entity.table_name(), O::name());
+        let name = if bounded_identifier(short.clone()) == short {
+            short
+        } else {
+            bounded_identifier(format!("ck-{}", O::name()))
+        };
         Table::alter(entity.table_ref()).add_check(Check::new(check).name(Name::runtime(name)))
     }
 }

@@ -98,7 +98,7 @@ pub trait ModelTrait: Clone + Send + Debug {
 /// assert_eq!(cake_id, &Some(2));
 /// ```
 // [spec:pgorm:sem:macros.derive.model+6]
-// [spec:pgorm:def:disjoint.one-of+1]
+// [spec:pgorm:def:disjoint.one-of+3]
 pub trait ColumnField<const COLUMN: usize> {
     /// The type the model declares the field as, an `Option` where the column
     /// is nullable.

@@ -8,6 +8,7 @@ pub struct Model {
     pub seats: i16,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {
     #[pgorm(

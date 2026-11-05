@@ -9,5 +9,6 @@ pub struct Model {
     pub doubles: Vec<f64> ,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}

@@ -192,7 +192,7 @@ fn cross_join_renders_without_on_clause() {
 // the sole action of an ALTER TABLE, so a column rename is a statement of its
 // own and cannot be listed beside an ADD COLUMN.
 // [spec:pgorm:req:sql.render.oracle+4/test]
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]
 #[test]
 fn column_rename_is_its_own_statement() {
     let added = Table::alter(Font::Table)
@@ -380,7 +380,7 @@ fn oracle_records_parse_valid_defects() {
 // with the state it guarded — the strings below have no builder left to produce
 // them.
 // [spec:pgorm:req:sql.render.oracle+4/test]
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]
 // [spec:pgorm:req:sql.ddl.index-create+11/test]
 // [spec:pgorm:sem:sql.ddl.panics+4/test]
 #[test]
@@ -425,7 +425,7 @@ fn create_table_with_no_columns_is_valid() {
 // [spec:pgorm:req:sql.ddl.index-create+11/test]
 // [spec:pgorm:req:sql.ddl.index-drop+3/test]
 // [spec:pgorm:req:sql.ddl.drop-rename-truncate+4/test]
-// [spec:pgorm:req:sql.ddl.alter-table+14/test]
+// [spec:pgorm:req:sql.ddl.alter-table+15/test]
 // [spec:pgorm:req:sql.ddl.foreign-key+10/test]
 #[test]
 fn ddl_targets_are_taken_by_construction() {

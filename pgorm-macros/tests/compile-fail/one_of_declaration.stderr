@@ -45,3 +45,9 @@ error: a `OneOf` enum references one of several entities, and this enum has no v
    |
 51 | pub enum NoTarget {
    |          ^^^^^^^^
+
+error: a `OneOf` enum's name is at most 59 bytes in snake_case, so that the CHECK `Schema::create_one_of` names for it keeps it whole within PostgreSQL's 63; `the_reference_a_note_makes_to_the_issues_or_release_it_is_on` is 60
+  --> tests/compile-fail/one_of_declaration.rs:57:10
+   |
+57 | pub enum TheReferenceANoteMakesToTheIssuesOrReleaseItIsOn {
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
