@@ -10661,6 +10661,14 @@ children (
                         kind @decision
                         text "Fixed in pgorm's pipeline compilation, not in the prqlc fork. Probed every stage after each set operation over wildcard and projected operands: after append, a select rendered on the first operand's SELECT alone (`SELECT id FROM a UNION ALL SELECT * FROM b`) and a group pruned its key column from the first operand only (`WITH t AS (SELECT id FROM a UNION ALL SELECT * FROM b) ... GROUP BY id`) — both wrong arity, and wrong rows where the arities happen to agree; with projected operands prqlc pushes a later narrowing projection into both arms, which is right for UNION ALL but changes INTERSECT/EXCEPT (they then compare fewer columns). filter/derive/sort/take after append were already wrapped by prqlc. The cause is prqlc's anchor/positional-mapping pass (sql/pq/anchor.rs lets a Select share the union's query; positional_mapping.rs cannot map a wildcard bottom), and probing showed that a `let`-bound set operation is rendered correctly in every one of those cases, pruning included: the CTE boundary is a bracket prqlc keeps. pgorm already settles into bindings for the same kind of reason (distinct, set-op precedence), so the cleaner fix is a `combined` flag the builder sets after append/intersect/remove and discharges by settling (new `hoist`, a settle that records no reshape) before the next stage that reads the result; a further set operation and a distinct directly after append (the UNION DISTINCT fold) carry it onward. Because the settle renames nothing, source-qualified references after intersect/remove are now repointed at the binding and resolve (the old test expecting a Compile error there now asserts the same SQL as the bare-name form). select_sources after append projects its single listed source from the binding (requalified) and refuses a list of more than one as ReshapedSources(\"append\"). Remaining, documented and not silent: over wildcard operands intersect/remove still compile only to stages that read no column (take, distinct) — prqlc's std `intersect`/`remove` are joins over `t.*`, which catalog-less lowering cannot expand (\"This wildcard usage is not yet supported\"); that is a fork-level resolver change, so it is filed separately. Rules: pipeline.compose+1, pipeline.select-sources+5."
                     }
+
+                    {
+                        at 2026-11-05T18:50:17.250806Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Correction to the decision note: the gate's function-density cap kept builder.rs from carrying a separate `hoist`; `settle` takes `owed_to: Option<&'static str>` instead, and a set operation's result is settled with `None`, which records no reshape."
+                        after_done true
+                    }
                 )
             }
 
@@ -16922,6 +16930,7 @@ children (
                 title "A ValueType newtype can be a nullable column, an Option of it binding as NULL, in an entity and in a form"
                 kind @fix
                 deps (derives.into-active-model-forms)
+                sealed true
                 log (
                     {
                         at 2026-11-05T17:17:17.908979Z
@@ -16942,6 +16951,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Built the lead's decision (pending operator override). History: \"no `Nullable` impl is generated\" entered macros.derive.value-type at the nplan onboarding (dfd363cc), describing the derive SeaORM's DeriveValueType had left as it was; neither that commit nor the rule gives a reason, and the derive's later rewrites (7370e2d6, a86a9ead, 420d8d41) never touched it. The one soundness hazard is a newtype over an Option (the derive already unwraps `Option<T>` for its column type), where `<Option<T> as Nullable>` has no impl to delegate to. Solved by deriving the null from the inner type's Nullable after the same unwrap: `Nullable for Newtype { null() = <T as Nullable>::null() }`, T the field type or an Option field's payload. An inner type with no Nullable of its own becomes a compile error at the derive; pgorm's value types all have one. `Option<Newtype>` then binds `None` as the inner type's typed NULL and reads NULL back as None; a form's `Option<Option<Newtype>>` sets a column to NULL. A field `Option<Newtype-over-Option>` reads NULL as Some(Newtype(None)) — the double optional is the program's to avoid; not changed. Bindings: no registered entity in either application crate has a newtype column, and the bindings read and write registered columns through ModelTrait/ActiveModelTrait and the ColumnType, so they need no change. Rules: macros.derive.value-type+7; macros.derive.active-model+9 (its Option sentence now covers all four value derives)."
+                    }
+
+                    {
+                        at 2026-11-05T18:50:01.606962Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
