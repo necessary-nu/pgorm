@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T04:16:58.301025Z
+last_sync_at 2026-11-05T04:30:55.810346Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -49,7 +49,7 @@ rule_versions (
     {id bindings.pipeline-binder, version 0}
     {id bindings.pipeline-expressions, version 3}
     {id bindings.pipeline-sources, version 3}
-    {id bindings.quantifiers, version 1}
+    {id bindings.quantifiers, version 2}
     {id bindings.ranges, version 0}
     {id bindings.registered-pools, version 0}
     {id bindings.relation-conditions, version 0}
@@ -2681,8 +2681,6 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.quantifiers}
         {impl_name python, rule bindings.quantifiers}
-    ), rule_versions_seen (
-        {id bindings.quantifiers, version 1}
     )}
     {id query-reexports-curated, covered_rules (
         sql.surface
