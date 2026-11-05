@@ -28,7 +28,7 @@ pub(super) fn integer(value: &Bound<'_, PyAny>) -> PyResult<i64> {
 /// `literal(value)`: a value written into the SQL as pgorm's pipeline
 /// writes a literal — `None`, a `bool`, an integer within `bigint`, a
 /// finite `float` or a `str`, plain or as a `Value` of that kind.
-// [spec:pgorm:req:bindings.pipeline-expressions+2]
+// [spec:pgorm:req:bindings.pipeline-expressions+3]
 #[pyfunction]
 pub(super) fn pipeline_literal(value: &Bound<'_, PyAny>) -> PyResult<PyPipelineExpr> {
     let literal = if value.is_none() {
@@ -72,7 +72,7 @@ pub(super) fn pipeline_alias(name: &Bound<'_, PyAny>) -> PyResult<PyPipelineExpr
 /// `pl.col(table, column)`: a column qualified by the relation it is read
 /// from. A registered entity's column (`entity.col(name)`) is the entity's
 /// own, compared as the entity types it; any other name only qualifies.
-// [spec:pgorm:req:bindings.pipeline-expressions+2]
+// [spec:pgorm:req:bindings.pipeline-expressions+3]
 // [spec:pgorm:req:bindings.pipeline-sources+3]
 #[pyfunction]
 pub(super) fn pipeline_col(

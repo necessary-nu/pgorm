@@ -85,12 +85,14 @@ explicit limitations.
 > `.to_owned()`. These two are the only APIs that take a key value; a cursor boundary
 > takes a value tuple over its order columns, not a key.
 
-> [spec:pgorm:def:entity.traits.column+7]
+> [spec:pgorm:def:entity.traits.column+8]
 > `ColumnTrait: StaticName + Iterable + FromStr` (`src/entity/column.rs`) describes one
 > column of an entity. `def()` returns the column's `ColumnDef`; `entity_name()` and
 > `as_column_ref()` qualify the column with its `EntityName`. The trait exposes an
 > expression-building surface wrapping `pgorm_query::Expr`: comparison operators `eq`,
-> `ne`, `gt`, `gte`, `lt`, `lte`; range `between` / `not_between`; pattern matching
+> `ne`, `gt`, `gte`, `lt`, `lte`; range `between` / `not_between` and their
+> `SYMMETRIC` forms `between_symmetric` / `not_between_symmetric`; the null-safe
+> comparisons `is_distinct_from` / `is_not_distinct_from`; pattern matching
 > `like`, `not_like`, and the sugar `starts_with`, `ends_with` and
 > `contains`, whose search text is LITERAL: `%`, `_` and `\` in it are
 > escaped before the pattern is built (`s%`, `%s`, `%s%`), so
@@ -100,8 +102,8 @@ explicit limitations.
 > array-parameter counterpart `eq_any` / `ne_all`
 > (`[spec:pgorm:req:sql.ast.expr.eq-any]`), and subqueries
 > `in_subquery` / `not_in_subquery`; plus `into_expr` and `into_returning_expr`.
-> The comparison and set-membership operators pass their values through `save_as`, so
-> enum-typed columns compare against properly cast values; `eq_any` / `ne_all` pass
+> The comparison, range, null-safe and set-membership operators pass their values
+> through `save_as`, so enum-typed columns compare against properly cast values; `eq_any` / `ne_all` pass
 > their single array value through `save_array_as` instead, the whole array being one
 > operand.
 >

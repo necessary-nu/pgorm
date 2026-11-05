@@ -89,7 +89,10 @@ declare const operands: unique symbol;
  * `eq`, `ne`, `gt`, `gte`, `lt` and `lte` compare with a value of the
  * column's declared kind, a range or multirange column's `Range` or
  * `Multirange` included, written through its `save_as`, or with an
- * expression, `any(..)` or `all(..)` as it stands. `isIn` and `isNotIn` test
+ * expression, `any(..)` or `all(..)` as it stands. `between` and
+ * `notBetween`, `SYMMETRIC` or not, take their bounds the same way, and
+ * `isDistinctFrom` and `isNotDistinctFrom` their value; a bound that is an
+ * expression takes the whole test as written. `isIn` and `isNotIn` test
  * membership in a list of values, each read as the column's declared kind as
  * a compared value is, or in a subquery's rows, by the column's `ColumnTrait`:
  * a column whose domain is over an enum is a member as the enum. A list

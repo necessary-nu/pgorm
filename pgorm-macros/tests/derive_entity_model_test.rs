@@ -517,7 +517,7 @@ fn attributes_say_what_column_methods_said() {
 // [spec:pgorm:sem:macros.derive.entity-model+9/test]    the `json_key` arm: the
 // field's own name under `serde`'s renames, with the SQL naming attributes kept
 // out of it and the rest of `serde` stepped over
-// [spec:pgorm:def:entity.traits.column+7/test]    the namespace `json_key` names,
+// [spec:pgorm:def:entity.traits.column+8/test]    the namespace `json_key` names,
 // beside the SQL one `as_str` names
 #[test]
 fn json_key_reports_the_serde_key() {

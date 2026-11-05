@@ -151,7 +151,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
                 booking.active().set("span", p.Range(1, 2))
 
     # [spec:pgorm:req:bindings.entity-reads+2/test]
-    # [spec:pgorm:req:bindings.column-operators+1/test]    a registered column is its own expression,
+    # [spec:pgorm:req:bindings.column-operators+2/test]    a registered column is its own expression,
     # every Expr method reading it as written, and describes nothing itself
     async def test_typed_select_reuses_real_entity_projection(self):
         async with self.pool.connection() as connection:
@@ -254,6 +254,63 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await piped(pl.from_(till).filter_with(lambda binder: column <= binder.bind(3))), [2])
             with self.assertRaises(p.ConstructionError):
                 await piped(pl.from_(till).filter(pl.col("tills", "takings") > Decimal("5")))
+
+    # [spec:pgorm:req:bindings.column-operators+2/test]    a registered column's between, symmetric or
+    # not, and its distinctness tests run through its ColumnTrait: a money column's bounds cast to money,
+    # an enum's labels to the enum, and a column whose domain is over an enum tested as the enum, where
+    # the column's plain expression is refused; an expression bound is taken as written, null never
+    async def test_between_and_distinctness_take_the_column_casts(self):
+        await self.pool.execute(p.RawSQL(
+            "CREATE TABLE python_entities.tills (id integer PRIMARY KEY, takings money NOT NULL, floats money[])"))
+        await self.pool.execute(p.RawSQL('CREATE DOMAIN python_entities.temper AS python_entities."Mood"'))
+        await self.pool.execute(p.RawSQL(
+            "CREATE TABLE python_entities.tempers "
+            "(mood python_entities.temper PRIMARY KEY, settles_into python_entities.temper NOT NULL)"))
+        await self.pool.execute(p.RawSQL(
+            "INSERT INTO python_entities.tempers VALUES ('calm', 'busy'), ('busy', 'busy')"))
+        till, temper = p.entity("app.Till"), p.entity("app.Temper")
+        takings, temper_mood, mood = till.col("takings"), temper.col("mood"), self.account.col("mood")
+        async with self.pool.connection() as connection:
+            for identity, amount in ((1, "12.35"), (2, "3"), (3, "7.5")):
+                await till.active().set("id", identity).set("takings", Decimal(amount)).insert(connection)
+            await self.active(1).insert(connection)
+            await self.active(2).set("mood", "busy").insert(connection)
+
+            async def found(entity, predicate, key="id"):
+                return sorted(row[key] for row in await entity.find().where(predicate).all(connection))
+
+            low, high = Decimal("3"), Decimal("8")
+            self.assertIn("BETWEEN CAST($1::numeric AS money) AND CAST($2::numeric AS money)",
+                          till.find().where(takings.between(low, high)).inspect().sql)
+            self.assertEqual(await found(till, takings.between(low, high)), [2, 3])
+            self.assertEqual(await found(till, takings.not_between(low, high)), [1])
+            self.assertEqual(await found(till, takings.between(high, low)), [])
+            self.assertEqual(await found(till, takings.between(high, low, symmetric=True)), [2, 3])
+            self.assertEqual(await found(till, takings.not_between(high, low, symmetric=True)), [1])
+            self.assertEqual(await found(till, takings.is_distinct_from(low)), [1, 3])
+            self.assertEqual(await found(till, takings.is_not_distinct_from(low)), [2])
+            self.assertEqual(await found(till, takings.between(takings.expr(), takings)), [1, 2, 3])
+
+            self.assertEqual(await found(self.account, mood.between("busy", "busy")), [2])
+            self.assertEqual(await found(self.account, mood.not_between("busy", "calm", symmetric=True)), [])
+            self.assertEqual(await found(self.account, mood.is_distinct_from("busy")), [1])
+            self.assertEqual(await found(self.account, mood.is_not_distinct_from("busy")), [2])
+
+            self.assertEqual(await found(temper, temper_mood.between("calm", "calm"), "mood"), ["calm"])
+            self.assertEqual(await found(temper, temper_mood.between("busy", "calm", symmetric=True), "mood"),
+                             ["busy", "calm"])
+            self.assertEqual(await found(temper, temper_mood.is_distinct_from("calm"), "mood"), ["busy"])
+            self.assertEqual(await found(temper, temper_mood.is_not_distinct_from("busy"), "mood"), ["busy"])
+            for plain in (temper_mood.expr().between("calm", "busy"), temper_mood.expr().is_distinct_from("calm")):
+                with self.assertRaises(p.DatabaseError) as refused:
+                    await temper.find().where(plain).all(connection)
+                self.assertEqual(refused.exception.sqlstate, "42883")
+        with self.assertRaises(p.ConstructionError):
+            takings.between(None, high)
+        with self.assertRaises(p.ConstructionError):
+            takings.is_distinct_from(None)
+        with self.assertRaises(p.ConstructionError):
+            takings.eq(None)
 
     # [spec:pgorm:req:bindings.entity-reads+2/test]
     async def test_one_never_widens_a_zero_limit(self):
@@ -365,7 +422,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(await self.account.find().where(self.account.col("id") == 98).optional(connection))
 
     # [spec:pgorm:req:bindings.entity-reads+2/test]
-    # [spec:pgorm:req:bindings.errors+3/test]
+    # [spec:pgorm:req:bindings.errors+4/test]
     async def test_decode_failure_does_not_become_absence(self):
         async with self.pool.connection() as connection:
             await self.active(1).insert(connection)
@@ -373,7 +430,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.DecodeError):
                 await self.account.find().optional(connection)
 
-    # [spec:pgorm:req:bindings.errors+3/test]
+    # [spec:pgorm:req:bindings.errors+4/test]
     async def test_parameter_failure_preserves_connection(self):
         async with self.pool.connection() as connection:
             with self.assertRaises(p.ConstructionError):

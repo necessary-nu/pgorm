@@ -25,12 +25,13 @@ export let registeredColumn;
 /**
  * A registered entity's column. A value it is compared with converts to the
  * column's declared kind and is written through its `save_as`, by the
- * column's own `ColumnTrait` method, and so do the values of a list it is
- * tested for membership in; a subquery's rows are compared by the trait's
+ * column's own `ColumnTrait` method, and so do `between`'s bounds, the value
+ * of a distinctness test and the values of a list it is tested for
+ * membership in; a subquery's rows are compared by the trait's
  * `in_subquery`; an expression, and `any(..)` or `all(..)`, are compared as
  * written.
  */
-// [spec:pgorm:req:bindings.column-operators+1]
+// [spec:pgorm:req:bindings.column-operators+2]
 export class EntityColumn extends Expr {
   /** @type {unknown} */
   #entity;
@@ -90,12 +91,66 @@ export class EntityColumn extends Expr {
   }
 
   /**
-   * @param {"eq" | "ne" | "gt" | "gte" | "lt" | "lte"} operator
+   * @param {"eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "isDistinctFrom" | "isNotDistinctFrom"} operator
    * @param {unknown} other
    */
   #compare(operator, other) {
     if (other instanceof Expr || other instanceof Quantified) return null;
     return new Expr(native.entityCompare(this.#entity, this.#column, operator, other), TRUSTED);
+  }
+
+  /**
+   * `[NOT] BETWEEN [SYMMETRIC]` through the column's `ColumnTrait`, or `null`
+   * for a bound that is an expression, which leaves the test to `Expr`'s,
+   * both bounds as written.
+   *
+   * @param {boolean} negated
+   * @param {unknown} lower
+   * @param {unknown} upper
+   * @param {{ symmetric?: boolean }} options
+   */
+  #between(negated, lower, upper, { symmetric = false } = {}) {
+    if (lower instanceof Expr || upper instanceof Expr) return null;
+    return new Expr(
+      native.entityBetween(this.#entity, this.#column, negated, symmetric === true, lower, upper),
+      TRUSTED,
+    );
+  }
+
+  /**
+   * @override
+   * @param {unknown} lower
+   * @param {unknown} upper
+   * @param {{ symmetric?: boolean }} [options]
+   */
+  between(lower, upper, options) {
+    return this.#between(false, lower, upper, options) ?? super.between(lower, upper, options);
+  }
+
+  /**
+   * @override
+   * @param {unknown} lower
+   * @param {unknown} upper
+   * @param {{ symmetric?: boolean }} [options]
+   */
+  notBetween(lower, upper, options) {
+    return this.#between(true, lower, upper, options) ?? super.notBetween(lower, upper, options);
+  }
+
+  /**
+   * @override
+   * @param {unknown} other
+   */
+  isDistinctFrom(other) {
+    return this.#compare("isDistinctFrom", other) ?? super.isDistinctFrom(other);
+  }
+
+  /**
+   * @override
+   * @param {unknown} other
+   */
+  isNotDistinctFrom(other) {
+    return this.#compare("isNotDistinctFrom", other) ?? super.isNotDistinctFrom(other);
   }
 
   /**

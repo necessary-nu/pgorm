@@ -63,7 +63,7 @@ impl Scope {
 /// A value to bind: any parameter, inferred or declared with `Value`, but none
 /// whose kind needs a cast pgorm's pipeline cannot write, nor `None`, which has
 /// no kind.
-// [spec:pgorm:req:bindings.pipeline-expressions+2]
+// [spec:pgorm:req:bindings.pipeline-expressions+3]
 // [spec:pgorm:req:bindings.operands]
 pub(super) fn bindable(value: &Bound<'_, PyAny>) -> PyResult<Value> {
     if value.is_none() {

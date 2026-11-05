@@ -118,7 +118,7 @@ use column_def::{
 
 // LINT: when the operand value does not match column type
 /// API for working with a `Column`. Mostly a wrapper of the identically named methods in [`pgorm_query::Expr`]
-// [spec:pgorm:def:entity.traits.column+7]
+// [spec:pgorm:def:entity.traits.column+8]
 pub trait ColumnTrait: StaticName + Iterable + FromStr {
     #[allow(missing_docs)]
     type EntityName: EntityName;
@@ -286,6 +286,79 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
         compared_column(self, Expr::col((self.entity_name(), *self))).not_between(a, b)
     }
 
+    /// `BETWEEN SYMMETRIC`: [`between`][ColumnTrait::between] with its
+    /// bounds sorted first, so they hold in whichever order they are given.
+    ///
+    /// ```
+    /// use pgorm::{entity::*, query::*, tests_cfg::cake};
+    ///
+    /// assert_eq!(
+    ///     cake::Entity::find()
+    ///         .filter(cake::Column::Id.between_symmetric(3, 2))
+    ///         .as_query()
+    ///         .to_string(),
+    ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."id" BETWEEN SYMMETRIC 3 AND 2"#
+    /// );
+    /// ```
+    // [spec:pgorm:def:entity.traits.column+8]
+    fn between_symmetric<V>(&self, a: V, b: V) -> SimpleExpr
+    where
+        V: Into<Value>,
+    {
+        let a = compared_value(self, Expr::val(a));
+        let b = compared_value(self, Expr::val(b));
+        compared_column(self, Expr::col((self.entity_name(), *self))).between_symmetric(a, b)
+    }
+
+    /// `NOT BETWEEN SYMMETRIC`, the complement of
+    /// [`between_symmetric`][ColumnTrait::between_symmetric].
+    // [spec:pgorm:def:entity.traits.column+8]
+    fn not_between_symmetric<V>(&self, a: V, b: V) -> SimpleExpr
+    where
+        V: Into<Value>,
+    {
+        let a = compared_value(self, Expr::val(a));
+        let b = compared_value(self, Expr::val(b));
+        compared_column(self, Expr::col((self.entity_name(), *self))).not_between_symmetric(a, b)
+    }
+
+    /// `IS DISTINCT FROM`: inequality that reads NULL as a value, so it
+    /// answers true or false for every pair, a null operand being a `None` of
+    /// the column's type (`Option::<String>::None`).
+    ///
+    /// ```
+    /// use pgorm::{entity::*, query::*, tests_cfg::cake};
+    ///
+    /// assert_eq!(
+    ///     cake::Entity::find()
+    ///         .filter(cake::Column::Name.is_distinct_from("cheese"))
+    ///         .as_query()
+    ///         .to_string(),
+    ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."name" IS DISTINCT FROM 'cheese'"#
+    /// );
+    /// ```
+    // [spec:pgorm:def:entity.traits.column+8]
+    #[allow(clippy::wrong_self_convention)]
+    fn is_distinct_from<V>(&self, v: V) -> SimpleExpr
+    where
+        V: Into<Value>,
+    {
+        let v = compared_value(self, Expr::val(v));
+        compared_column(self, Expr::col((self.entity_name(), *self))).is_distinct_from(v)
+    }
+
+    /// `IS NOT DISTINCT FROM`, the null-safe equality complementing
+    /// [`is_distinct_from`][ColumnTrait::is_distinct_from].
+    // [spec:pgorm:def:entity.traits.column+8]
+    #[allow(clippy::wrong_self_convention)]
+    fn is_not_distinct_from<V>(&self, v: V) -> SimpleExpr
+    where
+        V: Into<Value>,
+    {
+        let v = compared_value(self, Expr::val(v));
+        compared_column(self, Expr::col((self.entity_name(), *self))).is_not_distinct_from(v)
+    }
+
     /// ```
     /// use pgorm::{entity::*, query::*, tests_cfg::cake};
     ///
@@ -338,7 +411,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."name" LIKE 'cheese%'"#
     /// );
     /// ```
-    // [spec:pgorm:def:entity.traits.column+7]
+    // [spec:pgorm:def:entity.traits.column+8]
     fn starts_with<T>(&self, s: T) -> SimpleExpr
     where
         T: Into<String>,
@@ -358,7 +431,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."name" LIKE '%cheese'"#
     /// );
     /// ```
-    // [spec:pgorm:def:entity.traits.column+7]
+    // [spec:pgorm:def:entity.traits.column+8]
     fn ends_with<T>(&self, s: T) -> SimpleExpr
     where
         T: Into<String>,
@@ -378,7 +451,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."name" LIKE '%cheese%'"#
     /// );
     /// ```
-    // [spec:pgorm:def:entity.traits.column+7]
+    // [spec:pgorm:def:entity.traits.column+8]
     fn contains<T>(&self, s: T) -> SimpleExpr
     where
         T: Into<String>,
@@ -485,7 +558,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// newtype's `FromStr` parses. A `money` column is read as `numeric`
     /// ([`money_type_name`]).
     // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
-    // [spec:pgorm:def:sql.value.created-range+5]
+    // [spec:pgorm:def:sql.value.created-range+6]
     // [spec:pgorm:req:sql.ast.cast-shape+2]
     fn select_enum_as(&self, expr: Expr) -> SimpleExpr {
         select_cast(self.def().get_column_type(), expr)
@@ -537,7 +610,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// type by name, there being no cast to it from a built-in range type. A
     /// `money` column's value is cast to its `money` ([`money_type_name`]).
     // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
-    // [spec:pgorm:def:sql.value.created-range+5]
+    // [spec:pgorm:def:sql.value.created-range+6]
     // [spec:pgorm:req:sql.ast.cast-shape+2]
     fn save_enum_as(&self, val: Expr) -> SimpleExpr {
         save_cast(self.def().get_column_type(), val)
@@ -550,7 +623,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
 /// as it is. A column described only at run time, as a disjoint shape's is,
 /// is read by this alone.
 // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
-// [spec:pgorm:def:sql.value.created-range+5]
+// [spec:pgorm:def:sql.value.created-range+6]
 // [spec:pgorm:req:sql.ast.cast-shape+2]
 pub(crate) fn select_cast(col_type: &ColumnType, expr: Expr) -> SimpleExpr {
     if let ColumnType::CreatedMultirange { .. } = under_domains(col_type) {
@@ -572,7 +645,7 @@ pub(crate) fn select_cast(col_type: &ColumnType, expr: Expr) -> SimpleExpr {
 /// `col_type`: cast to the column's enum, `money` or created range, and
 /// anything else as it is.
 // [spec:pgorm:sem:entity.traits.column.enum-cast+15]
-// [spec:pgorm:def:sql.value.created-range+5]
+// [spec:pgorm:def:sql.value.created-range+6]
 // [spec:pgorm:req:sql.ast.cast-shape+2]
 pub(crate) fn save_cast(col_type: &ColumnType, val: Expr) -> SimpleExpr {
     if let Some(money) = money_type_name(col_type) {
@@ -1110,6 +1183,22 @@ mod tests {
         assert_eq!(
             clause(guarded::Column::Two.not_between(1, 2)),
             r#""guarded"."two" NOT BETWEEN CAST(1 AS text) AND CAST(2 AS text)"#
+        );
+        assert_eq!(
+            clause(guarded::Column::Two.between_symmetric(2, 1)),
+            r#""guarded"."two" BETWEEN SYMMETRIC CAST(2 AS text) AND CAST(1 AS text)"#
+        );
+        assert_eq!(
+            clause(guarded::Column::Two.not_between_symmetric(2, 1)),
+            r#""guarded"."two" NOT BETWEEN SYMMETRIC CAST(2 AS text) AND CAST(1 AS text)"#
+        );
+        assert_eq!(
+            clause(guarded::Column::Two.is_distinct_from(1)),
+            r#""guarded"."two" IS DISTINCT FROM CAST(1 AS text)"#
+        );
+        assert_eq!(
+            clause(guarded::Column::Two.is_not_distinct_from(1)),
+            r#""guarded"."two" IS NOT DISTINCT FROM CAST(1 AS text)"#
         );
         assert_eq!(
             clause(guarded::Column::Two.eq_any([1, 2])),
