@@ -25,7 +25,7 @@ impl From<StringVec> for Value {
 }
 
 impl pgorm_query::ValueType for StringVec {
-    fn try_from(v: Value) -> Result<Self, pgorm_query::ValueTypeError> {
+    fn from_value(v: Value) -> Result<Self, pgorm_query::ValueTypeError> {
         match v {
             pgorm::Value::Json(Some(json)) => Ok(
                 serde_json::from_value(*json).map_err(|_| pgorm::pgorm_query::ValueTypeError)?

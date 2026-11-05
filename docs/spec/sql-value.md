@@ -101,13 +101,19 @@ including panic semantics and quirks inherited from sea-query.
 > `From<Vec<u8>> for Value::Array` — `u8` vectors always become `Bytes` (see
 > `[spec:pgorm:def:sql.value.array]`).
 
-> [spec:pgorm:def:sql.value.value-type+4]
+> [spec:pgorm:def:sql.value.value-type+5]
 > `ValueType` is the extraction/reflection trait implemented by every Rust type
-> that maps into `Value`. `try_from(v: Value) -> Result<Self, ValueTypeError>`
+> that maps into `Value`. `from_value(v: Value) -> Result<Self, ValueTypeError>`
 > succeeds only when `v` is the matching variant with a `Some` payload
 > (`ValueTypeError` displays as "Value type mismatch") and is the trait's only
 > extraction entry point: there is no panicking `unwrap`/`expect` pair, on the
-> trait or as an inherent convenience on `Value`.
+> trait or as an inherent convenience on `Value`. Its name is its own: a
+> method named `try_from` made `Decimal::try_from(value)` ambiguous with the
+> language prelude's `TryFrom::try_from` (`E0034`) wherever the trait was
+> imported, and one named `try_from_value` would be ambiguous on every
+> `ActiveEnum` beside that trait's `try_from_value(&Self::Value)`, the two
+> traits often imported together. `Decimal::from_value(value)` therefore
+> resolves as written.
 > `type_name()` returns the Rust type name, `array_type()` the matching
 > `ArrayType` tag, and `column_type()` the default `ColumnType` for schema
 > generation (e.g. `String`→`String(StringLen::None)`, `Vec<u8>`→`Bytea`,
@@ -121,7 +127,7 @@ including panic semantics and quirks inherited from sea-query.
 >
 > `Nullable` provides `null() -> Value`, the typed-NULL constructor used by the
 > `Option` conversions. `ValueType for Option<T>` returns `Ok(None)` when the
-> input equals `T::null()` and otherwise delegates to `T::try_from`, so a
+> input equals `T::null()` and otherwise delegates to `T::from_value`, so a
 > `None` payload of the right variant round-trips to `Option::None` while a
 > wrong-variant value still errors.
 
@@ -140,7 +146,7 @@ including panic semantics and quirks inherited from sea-query.
 > variant entirely, and the return value cannot distinguish them. The `is_*`
 > predicate of the pair is the discriminator for a caller that needs the
 > distinction — `is_array` is true for an `Array` of any element tag — and
-> `ValueType::try_from` is the typed extraction that reports a mismatch as
+> `ValueType::from_value` is the typed extraction that reports a mismatch as
 > `ValueTypeError`.
 >
 > `as_naive_utc_in_string` stringifies any non-NULL temporal variant, in
@@ -173,7 +179,7 @@ including panic semantics and quirks inherited from sea-query.
 > `u8`), because `Vec<u8>` is claimed by the `Bytes` conversion. `Nullable for
 > Vec<T>` produces `Array(tag, None)`. `ValueType for Vec<T>` requires the
 > stored tag to equal `T::array_type()` and then converts every element through
-> `T::try_from`, so a mismatched element inside the vector surfaces as
+> `T::from_value`, so a mismatched element inside the vector surfaces as
 > `ValueTypeError` rather than panicking.
 > `ValueType::column_type()` for `Vec<T>` is
 > `ColumnType::Array(Arc::new(T::column_type()))`.
@@ -632,7 +638,7 @@ including panic semantics and quirks inherited from sea-query.
 > the same single length check — 1 for the scalar impl, 2..=12 for the tuple
 > impls — and any other length is `ValueTupleError::Arity { expected, actual }`,
 > both fields plain lengths rather than named shapes. Element extraction goes
-> through `ValueType::try_from`, so a type mismatch at any position is
+> through `ValueType::from_value`, so a type mismatch at any position is
 > `ValueTupleError::Element { position, expected }`, naming the zero-based
 > position and the `ValueType::type_name` required there. The conversion is
 > short-circuiting: the leftmost failing position is the one reported.

@@ -1230,6 +1230,7 @@ trait.
 | `Expr::cust("..")` | `Expr::raw("..")`, which takes a `&'static str` |
 | `Expr::cust_with_values(..)`, `cust_with_expr(s)` | `Expr::template(..)`, `template_with_expr(s)`, which check the placeholders |
 | `Expr::asterisk()` | `Asterisk` |
+| `ValueType::try_from(value)` | `ValueType::from_value(value)`, which no other trait in scope shares |
 | `Expr::expr(Func::upper(..)).eq(..)`, `Expr::expr(col.count()).gt(..)` | `Func::upper(..).eq(..)`, `col.count().gt(..)` |
 | `build(PostgresQueryBuilder)` | `build()` |
 | `to_string(PostgresQueryBuilder)` | `to_string()` |

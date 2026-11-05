@@ -43,7 +43,9 @@ When pgorm builds a statement it carries each parameter as a
 [`Value`](crate::Value), one enum with a variant per kind of value. Every
 variant holds an `Option`, so a typed `NULL` remains a `NULL` of its own type.
 Anything that converts into `Value` can be bound, and
-[`ValueType`](crate::pgorm_query::ValueType) reads one back out:
+[`ValueType`](crate::pgorm_query::ValueType)'s
+[`from_value`](crate::pgorm_query::ValueType::from_value) reads one back
+out:
 
 ```rust
 use pgorm::entity::prelude::*;
@@ -57,8 +59,8 @@ let missing: Value = Option::<String>::None.into();
 assert_eq!(missing, Value::String(None));
 
 // Reading back checks the variant.
-assert_eq!(<Decimal as ValueType>::try_from(price.clone())?, Decimal::new(450, 2));
-assert!(<i32 as ValueType>::try_from(price).is_err());
+assert_eq!(Decimal::from_value(price.clone())?, Decimal::new(450, 2));
+assert!(i32::from_value(price).is_err());
 # Ok::<(), pgorm::pgorm_query::ValueTypeError>(())
 ```
 

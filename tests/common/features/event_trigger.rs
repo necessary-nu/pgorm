@@ -47,8 +47,8 @@ impl TryGetable for Events {
 }
 
 impl ValueType for Events {
-    fn try_from(v: Value) -> Result<Self, pgorm_query::ValueTypeError> {
-        let value: Option<Vec<String>> = ValueType::try_from(v)?;
+    fn from_value(v: Value) -> Result<Self, pgorm_query::ValueTypeError> {
+        let value: Option<Vec<String>> = ValueType::from_value(v)?;
         let vec = match value {
             Some(v) => v.into_iter().map(Event).collect(),
             None => vec![],
