@@ -51,7 +51,7 @@
       "FrameType": ["Groups", "Range", "Rows", "current_row", "following", "preceding", "unbounded_preceding"],
       "FromItem": ["col", "star"],
       "Graph": ["all", "all_grouped", "col", "count", "cursor", "inspect", "join_maybe", "join_one", "limit", "offset", "one", "optional", "order_by", "paginate", "stream", "via", "where"],
-      "GroupingElement": [],
+      "GroupingElement": ["cube", "empty", "rollup", "set", "sets"],
       "Insert": ["columns", "default_values", "inspect", "on_conflict", "overriding", "returning", "select", "values", "with"],
       "InternalError": [],
       "Interval": [],
@@ -59,6 +59,7 @@
       "JsonInput": [],
       "JsonTableColumn": ["exists", "nested", "ordinality", "query", "value"],
       "LifecycleError": [],
+      "LikeExpr": ["escape", "no_escape"],
       "Listener": ["close", "listen", "unlisten", "unlisten_all"],
       "Merge": ["inspect", "only", "returning", "returning_action", "when_matched", "when_not_matched", "when_not_matched_by_source", "with"],
       "MergeAction": ["delete", "do_nothing", "insert", "insert_defaults", "update"],
@@ -90,6 +91,7 @@
       "Select": ["as", "cross_join", "distinct", "except", "except_all", "from", "group_by", "group_by_distinct", "having", "inspect", "intersect", "intersect_all", "join", "limit", "limit_with_ties", "lock", "offset", "order_by", "select", "union", "union_all", "where", "window", "with"],
       "SimpleCase": ["add", "adjacent_to", "and", "as", "asc", "at", "between", "cast", "collate", "concat", "contained_by", "contains", "contains_text", "desc", "div", "else", "ends_with", "eq", "gt", "gte", "ilike", "inspect", "iregex", "is_distinct_from", "is_in", "is_not_distinct_from", "is_not_in", "is_not_null", "is_null", "like", "lt", "lte", "matches", "mod", "mul", "ne", "not", "not_between", "not_extend_left_of", "not_extend_right_of", "not_ilike", "not_iregex", "not_like", "not_regex", "not_similar_to", "or", "over", "overlaps", "path_exists", "regex", "similar_to", "slice", "starts_with", "strictly_left_of", "strictly_right_of", "sub", "when"],
       "Table": ["as", "col", "star", "tablesample"],
+      "TableFunction": ["alias", "and", "column_definition", "columns", "rows_from", "with_ordinality"],
       "TimeoutError": [],
       "Transaction": ["copy_in", "copy_in_rows", "copy_out", "copy_out_rows", "execute", "notify", "one", "optional", "query", "transaction"],
       "TypeName": [],
@@ -417,18 +419,10 @@
     "gaps": {
     },
     "undecided": {
-      "pgorm.Identifier": {"question": "shapes"},
-      "pgorm.LikePattern": {"question": "shapes"},
-      "pgorm.TableFunction": {"question": "shapes"},
       "pgorm.EntityInsertMany": {"question": "shapes"},
       "pipeline.Pipeline.all": {"question": "shapes"},
       "pipeline.Pipeline.one": {"question": "shapes"},
-      "pipeline.Pipeline.optional": {"question": "shapes"},
-      "pgorm.GroupingElement.set": {"question": "shapes"},
-      "pgorm.GroupingElement.empty": {"question": "shapes"},
-      "pgorm.GroupingElement.rollup": {"question": "shapes"},
-      "pgorm.GroupingElement.cube": {"question": "shapes"},
-      "pgorm.GroupingElement.sets": {"question": "shapes"}
+      "pipeline.Pipeline.optional": {"question": "shapes"}
     }
   },
   "javascript": {
@@ -467,6 +461,8 @@
       "pgorm.copyFrom": "the factory for a class Python constructs by calling it (napi.naming)",
       "pgorm.copyTo": "the factory for a class Python constructs by calling it (napi.naming)",
       "pgorm.jsonDefault": "the factory for a class Python constructs by calling it (napi.naming)",
+      "pgorm.tableFunction": "the factory for a class Python constructs by calling it (napi.naming)",
+      "pgorm.likeExpr": "the factory for a class Python constructs by calling it (napi.naming)",
       "pgorm.Aliased.inspect": "inherited from Builder, and refuses a part that is no statement",
       "pgorm.CaseOperand.inspect": "inherited from Builder, and refuses a part that is no statement",
       "pgorm.Conflict.inspect": "inherited from Builder, and refuses a part that is no statement",
@@ -479,11 +475,6 @@
     },
     "gaps": {},
     "undecided": {
-      "pgorm.cube": {"question": "shapes"},
-      "pgorm.groupingSet": {"question": "shapes"},
-      "pgorm.groupingSets": {"question": "shapes"},
-      "pgorm.rollup": {"question": "shapes"},
-      "pgorm.tableFunction": {"question": "shapes"},
       "pgorm.EntityInsert.returningUpserts": {"question": "shapes"}
     }
   }

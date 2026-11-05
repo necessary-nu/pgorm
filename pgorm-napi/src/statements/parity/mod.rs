@@ -132,9 +132,9 @@ pub(crate) fn check(file: &str, built: Vec<(&str, (String, Values))>) {
     }
 }
 
-// [spec:pgorm:req:bindings.select+2/test]
-// [spec:pgorm:req:bindings.expressions+2/test]
-// [spec:pgorm:req:bindings.quantifiers+2/test]
+// [spec:pgorm:req:bindings.select+4/test]
+// [spec:pgorm:req:bindings.expressions+3/test]
+// [spec:pgorm:req:bindings.quantifiers+3/test]
 // [spec:pgorm:req:bindings.cte-options/test]
 #[test]
 fn select_family_matches_its_golden_file() {

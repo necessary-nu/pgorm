@@ -75,7 +75,7 @@ def _unique_key(key: object, declarations: Mapping[str, Column]) -> _DeclaredKey
         raise p.ConstructionError("a unique key names at least one field")
     name = key.get("name")
     if name is not None:
-        name = p.Identifier(name).name
+        name = p._identifier(name)
     nulls_not_distinct = key.get("nulls_not_distinct", False)
     if type(nulls_not_distinct) is not bool:
         raise TypeError("a unique key's nulls_not_distinct is a bool")
@@ -114,7 +114,7 @@ class Model:
         declarations = {}
         physical = set()
         for identity, column in columns.items():
-            identity = p.Identifier(identity).name
+            identity = p._identifier(identity)
             if identity in declarations:
                 raise p.ConstructionError("duplicate model field identity")
             if not isinstance(column, Column):
@@ -158,7 +158,7 @@ class Model:
         return self._column(field, self.qualifier)
 
     def _column(self, field: str, qualifier: str) -> ModelColumn:
-        name = p.Identifier(field).name
+        name = p._identifier(field)
         if name not in self.columns:
             raise p.ConstructionError(f"{self.table.name} has no field {name!r}")
         return ModelColumn(name, self.columns[name], p.col(self._sql(name), table=qualifier))

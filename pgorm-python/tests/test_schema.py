@@ -94,7 +94,7 @@ class SchemaConstruction(unittest.TestCase):
             with self.subTest(action=action), self.assertRaises(TypeError):
                 action()
 
-    # [spec:pgorm:req:python.truth-testing+3/test]    every schema builder and pending ALTER
+    # [spec:pgorm:req:python.truth-testing+4/test]    every schema builder and pending ALTER
     # refuses truth testing too
     def test_schema_objects_refuse_truth_testing(self):
         table, query = p.Table("test"), p.select(p.col("id")).from_(p.Table("source"))
@@ -203,7 +203,7 @@ class SchemaDatabase(unittest.IsolatedAsyncioTestCase):
             await connection.execute(s.drop_table(renamed))
             await connection.execute(s.drop_table(renamed, if_exists=True))
 
-    # [spec:pgorm:req:bindings.expressions+2/test]
+    # [spec:pgorm:req:bindings.expressions+3/test]
     async def test_uuidv7_default_keys_rows_in_write_order(self):
         table = p.Table("minted", schema=self.namespace)
         ddl = s.create_table(table).column(s.ColumnDef("id", "uuid").default(p.call("uuidv7"))).primary_key("id")

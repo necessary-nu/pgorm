@@ -194,7 +194,7 @@ pub struct PyPendingAlterSequence {
 
 #[pymethods]
 impl PyPendingAlterSequence {
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "an ALTER SEQUENCE with no clause cannot be tested as a Python boolean",

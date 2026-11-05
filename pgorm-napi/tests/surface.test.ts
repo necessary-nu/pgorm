@@ -128,7 +128,7 @@ const { expected, gaps, classes } = declared();
 const own = ownNames();
 
 // [spec:pgorm:req:bindings.surface+2/test]
-// [spec:pgorm:req:napi.naming+4/test]
+// [spec:pgorm:req:napi.naming+5/test]
 test("the module offers every shared name, or the surface lists it as a gap with its plan node", () => {
   const missing = [...expected].filter(([key]) => !all.has(key)).map(([, path]) => path).sort();
   assert.deepStrictEqual(missing, []);

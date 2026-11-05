@@ -2,10 +2,10 @@ use pgorm::pgorm_query::{ColumnRef, Condition, Expr, Func, Query, SimpleExpr};
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyTuple};
 
 use super::{PyExpr, compiled::Compiled};
-use crate::{errors::ConstructionError, identifiers::PyIdentifier, values::PyValue};
+use crate::{errors::ConstructionError, identifiers::Identifier, values::PyValue};
 
 // [spec:pgorm:req:bindings.delegation]
-// [spec:pgorm:req:bindings.identifiers+2]
+// [spec:pgorm:req:bindings.identifiers+3]
 #[pyfunction]
 #[pyo3(signature = (name, *, table=None, schema=None))]
 pub(crate) fn col(
@@ -13,9 +13,9 @@ pub(crate) fn col(
     table: Option<&Bound<'_, PyAny>>,
     schema: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyExpr> {
-    let name = PyIdentifier::new(name)?.name();
-    let table = table.map(PyIdentifier::new).transpose()?;
-    let schema = schema.map(PyIdentifier::new).transpose()?;
+    let name = Identifier::new(name)?.name();
+    let table = table.map(Identifier::new).transpose()?;
+    let schema = schema.map(Identifier::new).transpose()?;
     let column = match (schema, table) {
         (Some(schema), Some(table)) => {
             ColumnRef::SchemaTableColumn(schema.name(), table.name(), name)
@@ -63,7 +63,7 @@ fn value_expr(value: &Bound<'_, PyAny>, literal: bool) -> PyResult<PyExpr> {
 /// An operand: an expression, or a value to bind. `ANY (..)` and `ALL (..)`
 /// are refused by name, since only the operators PostgreSQL reads one after
 /// take them, and those read them before coercing.
-// [spec:pgorm:req:bindings.quantifiers+2]
+// [spec:pgorm:req:bindings.quantifiers+3]
 pub(crate) fn coerce(value: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
     if let Ok(expr) = value.extract::<PyRef<'_, PyExpr>>() {
         Ok(expr.clone())
@@ -178,7 +178,7 @@ pub(crate) fn require_expr(value: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
         .map_err(|_| PyTypeError::new_err("expected a query expression"))
 }
 
-// [spec:pgorm:req:bindings.expressions+2]
+// [spec:pgorm:req:bindings.expressions+3]
 #[pyfunction]
 #[pyo3(signature = (name, *arguments))]
 pub(crate) fn call(name: &str, arguments: &Bound<'_, PyTuple>) -> PyResult<PyExpr> {

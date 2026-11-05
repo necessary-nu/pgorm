@@ -17,7 +17,7 @@ waiting on the operator. The WBS root is `napi`.
 > classes it rejects with and builds values from, exports them, and is what an
 > application imports; the addon is not imported directly.
 
-> [spec:pgorm:req:napi.naming+4]
+> [spec:pgorm:req:napi.naming+5]
 > JavaScript MUST spell a shared rule's neutral name in camelCase — functions,
 > methods and option keys — and a class as written. A closed choice is a
 > string literal in camelCase (`"inner"`, `"noKeyUpdate"`, `"skipLocked"`,
@@ -25,16 +25,14 @@ waiting on the operator. The WBS root is `napi`.
 > its last argument. A class Python constructs by calling it, JavaScript
 > constructs through a factory function named for it in camelCase (`select`,
 > `insert`, `update`, `merge`, `column`, `model`, `copyFrom`, `copyTo`,
-> `tableFunction`, `jsonDefault`), its constructor private where the factory
-> alone makes one. The DDL factories, `createTable`, `alterTable` and the
+> `tableFunction`, `likeExpr`, `jsonDefault`), its constructor private where
+> the factory alone makes one. The DDL factories, `createTable`, `alterTable` and the
 > rest, are both bindings' (`bindings.schema-api`). The pipeline is the
 > module's `pipeline` namespace.
 >
 > A reserved word is spelled otherwise: `deleteFrom` for `delete`, and
 > `thisColumn`, `thatColumn` and `caseWhen` for a pipeline's `this`, `that`
-> and `case`. The grouping elements differ from the shared shape by choice
-> and wait on the operator (`bindings.surface`): the functions `groupingSet`,
-> `rollup`, `cube` and `groupingSets`.
+> and `case`.
 
 ## Targeting and loading
 

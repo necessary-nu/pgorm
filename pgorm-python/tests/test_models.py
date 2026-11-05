@@ -323,8 +323,8 @@ class ModelConstruction(unittest.TestCase):
         )
         self.assertEqual((column + 1).inspect().params, (plain + 1).inspect().params)
         self.assertEqual(
-            model.col("display_name").like(p.LikePattern("N%")).inspect().sql,
-            model.table.col("display name").like(p.LikePattern("N%")).inspect().sql,
+            model.col("display_name").like(p.LikeExpr("N%")).inspect().sql,
+            model.table.col("display name").like(p.LikeExpr("N%")).inspect().sql,
         )
         self.assertEqual(column.cast(p.TypeName("int8")).inspect().sql, plain.cast(p.TypeName("int8")).inspect().sql)
         self.assertEqual(
@@ -447,7 +447,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await names(column("tags").contains(["b"])), ["A", "B"])
         self.assertEqual(await names(column("tags").contained_by(["b", "c"])), ["B"])
         self.assertEqual(await names(column("tags").overlaps(["a"])), ["A"])
-        self.assertEqual(await names(column("display_name").like(p.LikePattern("_"))), ["A", "B", "C"])
+        self.assertEqual(await names(column("display_name").like("_")), ["A", "B", "C"])
         self.assertEqual(await names(column("id") % 2 == 0), ["B"])
 
     # [spec:pgorm:req:bindings.model-writes+1/test]

@@ -5,7 +5,7 @@ use super::{
     from_item::PyFromItem,
     table_sample::{PySampleMethod, sample},
 };
-use crate::{errors::ConstructionError, expressions::PyExpr, identifiers::PyIdentifier};
+use crate::{errors::ConstructionError, expressions::PyExpr, identifiers::Identifier};
 
 /// A runtime table name and optional alias, owned by Rust's NamedTable.
 #[pyclass(name = "Table", module = "pgorm", frozen, from_py_object)]
@@ -23,26 +23,26 @@ impl PyTable {
         schema: Option<&Bound<'_, PyAny>>,
         alias: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        let name = PyIdentifier::new(name)?.name();
+        let name = Identifier::new(name)?.name();
         let name = match schema {
-            Some(schema) => TableName::SchemaTable(PyIdentifier::new(schema)?.name(), name),
+            Some(schema) => TableName::SchemaTable(Identifier::new(schema)?.name(), name),
             None => TableName::Table(name),
         };
         let mut inner = NamedTable::from(name);
         if let Some(alias) = alias {
-            inner = inner.alias(PyIdentifier::new(alias)?.name());
+            inner = inner.alias(Identifier::new(alias)?.name());
         }
         Ok(Self { inner })
     }
 
     fn as_(&self, alias: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self {
-            inner: self.inner.clone().alias(PyIdentifier::new(alias)?.name()),
+            inner: self.inner.clone().alias(Identifier::new(alias)?.name()),
         })
     }
 
     fn col(&self, name: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
-        let name = PyIdentifier::new(name)?.name();
+        let name = Identifier::new(name)?.name();
         let column = match (&self.inner.alias, &self.inner.name) {
             (Some(alias), _) => ColumnRef::TableColumn(alias.clone(), name),
             (None, TableName::Table(table)) => ColumnRef::TableColumn(table.clone(), name),
@@ -62,7 +62,7 @@ impl PyTable {
         )
     }
 
-    // [spec:pgorm:req:bindings.select+2]
+    // [spec:pgorm:req:bindings.select+4]
     /// This table read through `TABLESAMPLE`, a `FromItem` qualified by the
     /// table's alias, or by its unqualified name: `method` draws each row
     /// (or page) with probability `percentage` out of 100, and `repeatable`
@@ -101,7 +101,7 @@ impl PyTable {
         )
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "SQL tables cannot be tested as Python booleans",

@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T15:00:37.202811Z
+last_sync_at 2026-11-05T15:12:14.696135Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -28,10 +28,10 @@ rule_versions (
     {id bindings.entity-versions, version 2}
     {id bindings.entity-writes, version 0}
     {id bindings.errors, version 5}
-    {id bindings.expressions, version 2}
+    {id bindings.expressions, version 3}
     {id bindings.from-subqueries, version 0}
     {id bindings.graphs, version 0}
-    {id bindings.identifiers, version 2}
+    {id bindings.identifiers, version 3}
     {id bindings.listen, version 2}
     {id bindings.merge, version 2}
     {id bindings.merge-sources, version 0}
@@ -49,7 +49,7 @@ rule_versions (
     {id bindings.pipeline-binder, version 0}
     {id bindings.pipeline-expressions, version 3}
     {id bindings.pipeline-sources, version 3}
-    {id bindings.quantifiers, version 2}
+    {id bindings.quantifiers, version 3}
     {id bindings.ranges, version 0}
     {id bindings.registered-pools, version 0}
     {id bindings.relation-conditions, version 0}
@@ -70,7 +70,7 @@ rule_versions (
     {id bindings.schema-tables, version 0}
     {id bindings.schema-types, version 0}
     {id bindings.schema-views, version 2}
-    {id bindings.select, version 2}
+    {id bindings.select, version 4}
     {id bindings.sql-json, version 0}
     {id bindings.statements, version 0}
     {id bindings.streams, version 0}
@@ -275,7 +275,7 @@ rule_versions (
     {id napi.inference, version 0}
     {id napi.lifecycle, version 2}
     {id napi.loading, version 1}
-    {id napi.naming, version 4}
+    {id napi.naming, version 5}
     {id napi.notices, version 0}
     {id napi.packages, version 1}
     {id napi.pipeline-table-names, version 0}
@@ -301,14 +301,14 @@ rule_versions (
     {id python.distribution, version 0}
     {id python.expressions, version 7}
     {id python.lifecycle, version 3}
-    {id python.naming, version 3}
+    {id python.naming, version 4}
     {id python.package, version 0}
     {id python.pipeline, version 0}
     {id python.raw, version 0}
     {id python.records, version 0}
     {id python.runtime, version 1}
     {id python.transactions, version 3}
-    {id python.truth-testing, version 3}
+    {id python.truth-testing, version 4}
     {id python.typing, version 2}
     {id python.value-tags, version 1}
     {id python.values, version 7}
@@ -1096,6 +1096,10 @@ assertions (
     {id binding-coverage-per-impl, kind @complete, author "brendan@necessary.nu", at 2026-10-30T14:18:38.065807Z}
     {id binding-describe-shapes, kind @complete, author "brendan@necessary.nu", at 2026-11-01T03:02:51.587914Z}
     {id binding-graph-describe-shapes, kind @complete, author "brendan@necessary.nu", at 2026-11-01T12:27:44.245853Z}
+    {id binding-parity.grouping, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:12:09.728212Z}
+    {id binding-parity.identifiers, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:45:39.300725Z}
+    {id binding-parity.like-patterns, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:28:42.880149Z}
+    {id binding-parity.table-functions, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:18:19.603388Z}
     {id binding-renames, kind @complete, author "brendan@necessary.nu", at 2026-10-30T14:35:54.859252Z}
     {id binding-statement-defects, kind @complete, author "brendan@necessary.nu", at 2026-11-01T12:27:44.145896Z}
     {id binding-variant-coverage, kind @complete, author "brendan@necessary.nu", at 2026-11-01T03:02:50.884953Z}
@@ -1242,6 +1246,7 @@ assertions (
     {id identity-arity-collapse, kind @complete, author "brendan@necessary.nu", at 2026-09-07T11:24:33.746636Z}
     {id in-subquery-enum-shapes, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:22:25.129436Z}
     {id infra.prepared-api, kind @complete, author "brendan@necessary.nu", at 2026-09-03T20:25:06.421353Z}
+    {id infra.python-native-unit, kind @complete, author "brendan@necessary.nu", at 2026-11-05T09:43:26.942694Z}
     {id infra.schema-index-qualify, kind @complete, author "brendan@necessary.nu", at 2026-09-02T12:11:17.901701Z}
     {id infra.sql-err, kind @complete, author "brendan@necessary.nu", at 2026-09-01T23:57:44.542609Z}
     {id infra.statement-cache, kind @complete, author "brendan@necessary.nu", at 2026-09-03T21:23:45.108082Z}
@@ -1303,6 +1308,7 @@ assertions (
     {id napi-schema-statement-name, kind @complete, author "brendan@necessary.nu", at 2026-10-26T00:13:51.100898Z}
     {id napi-statements, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:52:18.33172Z}
     {id napi.abort-race-all, kind @complete, author "brendan@necessary.nu", at 2026-11-05T02:43:23.954202Z}
+    {id napi.entity-busy-race, kind @complete, author "brendan@necessary.nu", at 2026-11-05T12:46:30.992558Z}
     {id nested-source-from-entry, kind @complete, author "brendan@necessary.nu", at 2026-09-15T12:40:14.356897Z}
     {id nopanic.codegen-gate, kind @complete, author "brendan@necessary.nu", at 2026-09-02T16:09:12.032584Z}
     {id nopanic.connect-builders, kind @complete, author "brendan@necessary.nu", at 2026-09-02T15:44:54.028454Z}
@@ -1523,10 +1529,14 @@ assertions (
     {id tx-closure-send, kind @complete, author "brendan@necessary.nu", at 2026-10-24T15:30:08.176678Z}
     {id type-part-keyword-names, kind @complete, author "brendan@necessary.nu", at 2026-09-24T22:48:03.368721Z}
     {id typed-binds.created-range-array-column, kind @complete, author "brendan@necessary.nu", at 2026-11-05T05:15:14.70763Z}
+    {id typed-binds.created-range-array-value, kind @complete, author "brendan@necessary.nu", at 2026-11-05T06:27:28.67808Z}
     {id typed-binds.created-range-quantified, kind @complete, author "brendan@necessary.nu", at 2026-11-05T04:14:50.022376Z}
     {id typed-binds.empty-quantified-list, kind @complete, author "brendan@necessary.nu", at 2026-11-05T04:21:04.166044Z}
+    {id typed-binds.enum-array-type-name, kind @complete, author "brendan@necessary.nu", at 2026-11-05T07:38:04.65324Z}
+    {id typed-binds.napi-range-array-operand, kind @complete, author "brendan@necessary.nu", at 2026-11-05T06:06:46.155153Z}
     {id typed-binds.python-expression-operands, kind @complete, author "brendan@necessary.nu", at 2026-11-05T01:25:03.006459Z}
     {id typed-binds.quantified-casts, kind @complete, author "brendan@necessary.nu", at 2026-11-05T02:13:04.66451Z}
+    {id typed-binds.shared-range-codec, kind @complete, author "brendan@necessary.nu", at 2026-11-05T07:06:21.774062Z}
     {id unique-key-virtual-refused, kind @complete, author "brendan@necessary.nu", at 2026-11-04T21:57:05.162729Z}
     {id unique-keys.entity-describe-keys, kind @complete, author "brendan@necessary.nu", at 2026-11-05T01:59:45.708617Z}
     {id unique-keys.implicit-name-clash, kind @complete, author "brendan@necessary.nu", at 2026-11-05T03:10:36.3658Z}
@@ -1553,6 +1563,10 @@ assertions (
     {id update-noop-filters, kind @complete, author "brendan@necessary.nu", at 2026-09-07T12:47:17.383924Z}
     {id update-nothing-distinct, kind @complete, author "brendan@necessary.nu", at 2026-09-21T14:57:13.616578Z}
     {id upstream-necessary-nu, kind @complete, author "brendan@necessary.nu", at 2026-11-03T00:40:47.846477Z}
+    {id value-codecs.builtin-range-codec, kind @complete, author "brendan@necessary.nu", at 2026-11-05T08:36:32.196984Z}
+    {id value-codecs.char-created-range-kind, kind @complete, author "brendan@necessary.nu", at 2026-11-05T08:50:39.949866Z}
+    {id value-codecs.copy-numeric-exact, kind @complete, author "brendan@necessary.nu", at 2026-11-05T08:16:34.416051Z}
+    {id value-codecs.domain-subtype-column, kind @complete, author "brendan@necessary.nu", at 2026-11-05T09:46:18.255158Z}
     {id value-decode-created-multiranges, kind @complete, author "brendan@necessary.nu", at 2026-10-25T23:08:16.108726Z}
     {id value-decode-created-ranges, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:42:57.820055Z}
     {id value-float-eq-hash, kind @complete, author "brendan@necessary.nu", at 2026-09-05T20:09:20.231538Z}
@@ -1569,16 +1583,6 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
-    {id typed-binds.napi-range-array-operand, kind @complete, author "brendan@necessary.nu", at 2026-11-05T06:06:46.155153Z}
-    {id typed-binds.created-range-array-value, kind @complete, author "brendan@necessary.nu", at 2026-11-05T06:27:28.67808Z}
-    {id typed-binds.shared-range-codec, kind @complete, author "brendan@necessary.nu", at 2026-11-05T07:06:21.774062Z}
-    {id typed-binds.enum-array-type-name, kind @complete, author "brendan@necessary.nu", at 2026-11-05T07:38:04.65324Z}
-    {id value-codecs.copy-numeric-exact, kind @complete, author "brendan@necessary.nu", at 2026-11-05T08:16:34.416051Z}
-    {id value-codecs.builtin-range-codec, kind @complete, author "brendan@necessary.nu", at 2026-11-05T08:36:32.196984Z}
-    {id value-codecs.char-created-range-kind, kind @complete, author "brendan@necessary.nu", at 2026-11-05T08:50:39.949866Z}
-    {id infra.python-native-unit, kind @complete, author "brendan@necessary.nu", at 2026-11-05T09:43:26.942694Z}
-    {id value-codecs.domain-subtype-column, kind @complete, author "brendan@necessary.nu", at 2026-11-05T09:46:18.255158Z}
-    {id napi.entity-busy-race, kind @complete, author "brendan@necessary.nu", at 2026-11-05T12:46:30.992558Z}
 )
 
 impl_evidence (
@@ -2246,6 +2250,10 @@ impl_evidence (
         {impl_name main, rule guide.chapters}
         {impl_name main, rule guide.examples}
         {impl_name main, rule guide.rust}
+    ), rule_versions_seen (
+        {id guide.chapters, version 0}
+        {id guide.examples, version 0}
+        {id guide.rust, version 0}
     )}
     {id identifier-render-oracle, covered_rules (
         security.ident-oracle
@@ -2749,8 +2757,6 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.quantifiers}
         {impl_name python, rule bindings.quantifiers}
-    ), rule_versions_seen (
-        {id bindings.quantifiers, version 2}
     )}
     {id query-reexports-curated, covered_rules (
         sql.surface

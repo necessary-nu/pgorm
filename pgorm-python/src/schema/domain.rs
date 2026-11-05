@@ -195,7 +195,7 @@ impl PyPendingAlterDomain {
         Ok(self.altered(|pending| pending.rename_to(name)))
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "an ALTER DOMAIN with no action cannot be tested as a Python boolean",

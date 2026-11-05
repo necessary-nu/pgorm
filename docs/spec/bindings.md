@@ -613,20 +613,24 @@ the same terminals that run raw SQL.
 > condition is no statement to run. A statement binding more than 65,535
 > values MUST be refused with a `ConstructionError` before anything is sent.
 
-> [spec:pgorm:req:bindings.identifiers+2]
+> [spec:pgorm:req:bindings.identifiers+3]
 > Identifiers, qualified type names, values, typed structural choices and raw
 > SQL MUST each have their own constructors, so no one is taken for another.
 > Every identifier — of a column, a table, a schema, an alias, a collation, a
 > common table expression or a type — MUST be text of 1 to 63 UTF-8 bytes
 > without NUL, minted with `Name::runtime`, so it is quoted wherever
 > pgorm-query writes it and a dot in it is part of the name; any other text is
-> a `ConstructionError`. Schema, table and column names are runtime inputs;
+> a `ConstructionError`. `Name::runtime` is Rust's one route from text to a
+> name, and every name a binding is given is computed at run time, so the
+> binding mints it where an identifier position reads the text: there is no
+> identifier class of a binding's own, and an identifier is the language's
+> string in both. Schema, table and column names are runtime inputs;
 > no fixture's names are required. Accepted text MUST reach the Rust API
 > unchanged, quotes, percent signs, backslashes and Unicode included. A
 > language or PostgreSQL limit on a representation MUST be an explicit error,
 > never a silent normalization.
 
-> [spec:pgorm:req:bindings.select+2]
+> [spec:pgorm:req:bindings.select+4]
 > `select` MUST build pgorm-query's `SelectStatement` through the Rust
 > builder's own methods:
 >
@@ -635,18 +639,29 @@ the same terminals that run raw SQL.
 > - FROM items: a `Table`, schema-qualified and aliased, or a `FromItem`,
 >   which is always aliased; a table's `tablesample`, by the Bernoulli or
 >   system method with a bound percentage and an optional bound seed
->   (`sql.ast.select.table-sample`); a table function over function calls,
->   `ROWS FROM` over several, `WITH ORDINALITY` and its column names, and for
->   a call returning `record` a non-empty column definition list, each name
->   and type lowered into pgorm-query's `column_definition`
->   (`sql.ast.select.table-function`, `sql.ast.select.column-definitions`);
->   and `JSON_TABLE` (`bindings.sql-json`);
+>   (`sql.ast.select.table-sample`); a table function, built as
+>   pgorm-query's `TableFunction` is (`sql.ast.select.table-function`): the
+>   class constructed over one set-returning call, or `rows_from(call)`,
+>   `ROWS FROM` over it; `and(call)`, a further call read beside the others,
+>   which is `ROWS FROM` whichever began it; `with_ordinality()`;
+>   `columns(names..)`, the column names its alias gives, replacing any
+>   given before; `column_definition(name, type)`, a column of the `record`
+>   the call added last returns, lowered into pgorm-query's
+>   `column_definition` (`sql.ast.select.column-definitions`); and
+>   `alias(name)`, which finishes it as the `FromItem` the FROM list and the
+>   joins take. Each call is one `call` makes, another expression a
+>   `ConstructionError`; and `JSON_TABLE` (`bindings.sql-json`);
 > - inner, left, right and full joins on a predicate, and cross joins;
 > - WHERE and HAVING, each call ANDed to what is there;
-> - GROUP BY over expressions and the grouping elements — a grouping set, the
->   empty set, ROLLUP, CUBE and GROUPING SETS, which takes its first element
->   so it is never empty, an expression among its elements being the set of
->   itself — and `group_by_distinct` (`sql.ast.select.grouping`,
+> - GROUP BY over expressions and the grouping elements, each made by the
+>   static factory of `GroupingElement` named for the pgorm-query constructor
+>   that builds it: `set(exprs..)`, a grouping set, one expression rendering
+>   bare and none `()`; `empty()`, the empty set; `rollup(exprs..)` and
+>   `cube(exprs..)`; and `sets(first, rest..)`, GROUPING SETS, which takes its
+>   first element so it is never empty, an expression among its elements
+>   being the set of itself. `GroupingElement` is exported for annotations and
+>   `isinstance` (`instanceof`) and cannot be called, a call being a
+>   `TypeError`. And `group_by_distinct` (`sql.ast.select.grouping`,
 >   `sql.ast.select.group-distinct`);
 > - ORDER BY with a direction and NULLS FIRST or LAST;
 > - LIMIT and OFFSET, each a non-negative integer within PostgreSQL's `bigint`,
@@ -859,7 +874,7 @@ the same terminals that run raw SQL.
 > (`bindings.pipeline-expressions`). The literal path and the bound path stay
 > apart: neither replaces the other.
 
-> [spec:pgorm:req:bindings.expressions+2]
+> [spec:pgorm:req:bindings.expressions+3]
 > An expression MUST lower into pgorm-query's own builders. `col` is a column,
 > qualified by a table and its schema. An operand that is not an expression is
 > a value bound as a parameter, never interpolated: inferred as a parameter
@@ -876,9 +891,14 @@ the same terminals that run raw SQL.
 > `Condition.any` pgorm-query's `Condition`, an empty one true and false.
 > Condition grouping and empty conditions mean what the named Rust API means.
 >
-> `like`, `ilike`, `similar_to` and their negations take a pattern, bound, and
-> an optional escape of one character, or the empty string, which turns
-> escaping off (`sql.ast.expr.similar-to`). `regex` (`~`), `not_regex`
+> `like`, `ilike`, `similar_to` and their negations take a pattern, bound, as
+> pgorm-query's take an `IntoLikeExpr` (`sql.ast.expr.similar-to`): text,
+> escaped by the default backslash, or a `LikeExpr`, pgorm-query's
+> `LikeExpr`, the class constructed over the pattern's text. Its
+> `escape(character)` escapes with that one character instead, any other
+> text, the empty string and NUL among it, a `ConstructionError`; and its
+> `no_escape()` turns escaping off. A `LikeExpr` is no expression, and
+> nothing but these six methods reads one. `regex` (`~`), `not_regex`
 > (`!~`), `iregex` (`~*`) and `not_iregex` (`!~*`) match a POSIX regular
 > expression. `matches` (`@@`) is `BinOper::Matches`, full-text search or a
 > `jsonpath` predicate. `path_exists` (`@?`) takes a `jsonpath` as text,
@@ -911,7 +931,7 @@ the same terminals that run raw SQL.
 > CHECK tests. `asc()` and `desc()` give an ordering, with NULLS FIRST or
 > LAST, and `as(alias)` an aliased projection item.
 
-> [spec:pgorm:req:bindings.quantifiers+2]
+> [spec:pgorm:req:bindings.quantifiers+3]
 > `any(source)` and `all(source)` MUST be `ANY (..)` and `ALL (..)`:
 > pgorm-query's `Expr::any` / `Expr::all` over a `Select`'s rows, and
 > `Func::any` / `Func::all` over an array, an expression or a value bound as
@@ -922,7 +942,8 @@ the same terminals that run raw SQL.
 >
 > - the comparisons `eq`, `ne`, `lt`, `lte`, `gt` and `gte`;
 > - `like`, `not_like`, `ilike` and `not_ilike`, the quantifier ranging over
->   patterns with no escape, since the grammar reads no `ESCAPE` after one;
+>   patterns, which carry no escape, since the grammar reads no `ESCAPE`
+>   after one;
 > - `regex`, `not_regex`, `iregex` and `not_iregex`;
 > - `contains`, `contained_by` and `overlaps`;
 > - `strictly_left_of`, `strictly_right_of`, `not_extend_right_of`,
@@ -946,9 +967,9 @@ the same terminals that run raw SQL.
 > right operand. The grammar reads none after `similar_to`, `not_similar_to`,
 > `is_distinct_from`, `is_not_distinct_from`, `between` or a membership test,
 > and the server refuses one after an operator whose result is no boolean
-> (`42809`), arithmetic and `concat`. Those operators, an escape given with a
-> quantified pattern, every other operand position, a membership list and
-> `bind` MUST refuse it with a `ConstructionError`.
+> (`42809`), arithmetic and `concat`. Those operators, every other operand
+> position, a membership list and `bind` MUST refuse it with a
+> `ConstructionError`.
 
 > [spec:pgorm:req:bindings.case]
 > `case_when(condition, result)` MUST build a searched CASE and

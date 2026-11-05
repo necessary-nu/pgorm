@@ -15,7 +15,7 @@ use super::{
 use crate::{
     UnsupportedCapabilityError,
     errors::{ConstructionError, LifecycleError},
-    identifiers::PyIdentifier,
+    identifiers::Identifier,
     values::PyTypeName,
 };
 
@@ -252,5 +252,5 @@ pub(super) fn alias_name(value: &Bound<'_, PyAny>) -> PyResult<String> {
             "pipeline names require identifiers or alias tokens",
         ));
     }
-    Ok(PyIdentifier::new(value)?.name)
+    Ok(Identifier::new(value)?.name)
 }

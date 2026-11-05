@@ -298,7 +298,7 @@ for await (const row of pool.stream(query, { tagged: true })) { /* .. */ }
   its receiver's pgorm-query state, so a base query can be extended in two
   directions. Builders come from the module's functions (`select`, `col`,
   `bind`, `literal`, `call`, `caseWhen`, `caseOf`, `exists`, `scalar`, `array`, `tuple`,
-  `groupingSet`, `rollup`, `cube`, `groupingSets`, `tableFunction`) and the
+  `tableFunction`), the static factories of `GroupingElement` and the
   `Table` and `With` constructors.
 - **Values are bound, identifiers quoted.** An operand that is not an
   expression is a parameter, inferred as one is or declared with `Value` — an
@@ -310,8 +310,9 @@ for await (const row of pool.stream(query, { tagged: true })) { /* .. */ }
   name is 1–63 bytes, always an identifier, its dots included.
 - **Expressions**: comparisons and arithmetic (`eq` .. `gte`, `add` .. `mod`,
   `concat`), `and`/`or`/`not` and `Condition.all`/`any`, `isNull`, `isIn` a list
-  or a `Select`, `between` (`{ symmetric }`), `like`/`ilike`/`similarTo` with
-  an `escape`, `startsWith`/`endsWith`/`containsText` (text, not patterns),
+  or a `Select`, `between` (`{ symmetric }`), `like`/`ilike`/`similarTo` over
+  a string or a `likeExpr(pattern)` with its `.escape(c)` or `.noEscape()`,
+  `startsWith`/`endsWith`/`containsText` (text, not patterns),
   `cast`, `collate`, `at`/`slice`, `caseWhen(..).when(..).else(..)`,
   `caseOf(x).when(..)`, `call` for the functions pgorm-query constructs
   (`uuidv7` and its shift among them, the set-returning `generate_series`
@@ -323,7 +324,7 @@ for await (const row of pool.stream(query, { tagged: true })) { /* .. */ }
 - **ANY and ALL**: `any(source)` and `all(source)` are `ANY (..)` and
   `ALL (..)`, the right operand of every operator PostgreSQL reads a
   quantifier after and of nothing else: `eq` .. `gte`, `like`, `notLike`,
-  `ilike` and `notIlike` (with no `escape`), the regular-expression matches,
+  `ilike` and `notIlike` (a pattern that carries no escape), the regular-expression matches,
   `contains`, `containedBy`, `overlaps`, the range positions, `matches` and
   `pathExists`. `similarTo`, `isDistinctFrom`, `between`, arithmetic and
   `concat` refuse one, and it has no `inspect` of its own. The server types a
@@ -338,17 +339,20 @@ for await (const row of pool.stream(query, { tagged: true })) { /* .. */ }
   `col("score").gt(all(select(..)))` compares with every row. Over an empty
   array or no rows, `ANY` is false and `ALL` true.
 - **SELECT**: `select(..)`, `from`, `join` (`kind`, `lateral`), `crossJoin`,
-  `where`, `groupBy` (expressions, and `groupingSet`, `rollup`, `cube` and
-  `groupingSets`), `groupByDistinct`, `having`, `orderBy`, `limit`/`offset`
+  `where`, `groupBy` (expressions, and the grouping elements
+  `GroupingElement.set`, `.empty`, `.rollup`, `.cube` and `.sets`),
+  `groupByDistinct`, `having`, `orderBy`, `limit`/`offset`
   (`null` removes), `limitWithTies` (`FETCH FIRST n ROWS WITH TIES`, in
   LIMIT's slot), `distinct`, `union` .. `exceptAll` (a chain combines in
   call order: `a.union(b).intersect(c)` is `(a UNION b) INTERSECT c`),
   `lock("update", { of, wait })`, `with`, and `as(alias)` to read a query as
   a FROM item.
-  `tableFunction(calls, { alias, ordinality, columns, rowsFrom })` reads
-  set-returning calls as one — `ROWS FROM` over several — a call returning
-  `record` (`json_to_record` and its kin) given as `{ call, columnDefinitions:
-  [["a", "integer"], ..] }`, the columns that type it, and
+  `tableFunction(call)` reads a set-returning call as one, built as
+  pgorm-query's `TableFunction` is — `TableFunction.rowsFrom(call)`, `.and(call)`
+  for `ROWS FROM` over several, `.withOrdinality()`, `.columns(..names)`, and
+  for a call returning `record` (`json_to_record` and its kin)
+  `.columnDefinition("a", "integer")` for each column that types it — and
+  finished by `.alias(name)`, and
   `table.tablesample("bernoulli" | "system", percentage, { repeatable })`
   samples a table. `new With(name, query, { columns, materialized }).cte(..)`
   and `With.recursive(name, query, { search, cycle })` are its common table

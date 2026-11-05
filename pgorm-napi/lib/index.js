@@ -6,7 +6,7 @@
 // what an application imports.
 // [spec:pgorm:def:bindings.api]
 // [spec:pgorm:req:bindings.surface+2]
-// [spec:pgorm:req:napi.naming+4]
+// [spec:pgorm:req:napi.naming+5]
 // [spec:pgorm:def:napi.api+1]
 // [spec:pgorm:req:napi.typing+1]
 
@@ -37,9 +37,10 @@ export { CopyRowStream } from "./copy-rows.js";
 export { CaseOperand, caseOf, caseWhen, Condition, SearchedCase, SimpleCase } from "./conditions.js";
 export { Aliased, all, any, array, bind, call, col, exists, Expr, literal, OrderBy, Quantified, scalar, tuple } from "./expressions.js";
 export { Builder } from "./builder.js";
+export { LikeExpr, likeExpr } from "./predicates.js";
 export { FromItem, Select, select, Table, With } from "./select.js";
-export { cube, GroupingElement, groupingSet, groupingSets, rollup } from "./grouping.js";
-export { tableFunction } from "./table-function.js";
+export { GroupingElement } from "./grouping.js";
+export { TableFunction, tableFunction } from "./table-function.js";
 export { Delete, deleteFrom, Insert, insert, ReturningRow, Update, update } from "./writes.js";
 export { Conflict, ConflictTarget, ConflictUpdate } from "./conflicts.js";
 export { Merge, merge, MergeAction, MergeInsert, MergeUpdate, PendingMerge } from "./merge.js";

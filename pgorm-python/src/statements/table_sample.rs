@@ -20,7 +20,7 @@ pub enum PySampleMethod {
 
 #[pymethods]
 impl PySampleMethod {
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "sample methods cannot be tested as Python booleans",
@@ -60,7 +60,7 @@ fn double(value: &Bound<'_, PyAny>, what: &str) -> PyResult<f64> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+2]
+// [spec:pgorm:req:bindings.select+4]
 /// `table TABLESAMPLE method (percentage) [REPEATABLE (seed)]`, both numbers
 /// bound; a percentage outside 0 to 100 is the server's refusal (`2202H`).
 pub(super) fn sample(

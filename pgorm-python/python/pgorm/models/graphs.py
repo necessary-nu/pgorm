@@ -147,7 +147,7 @@ class Graph:
             raise p.ConstructionError(
                 f"the relation starts at {start.table.name}, which the graph does not read"
             )
-        qualifier = end.qualifier if alias is None else p.Identifier(alias).name
+        qualifier = end.qualifier if alias is None else p._identifier(alias)
         if any(table.qualifier == qualifier for table in state.tables):
             raise p.ConstructionError(
                 f"the graph already reads a table called {qualifier!r}: give this one an alias"

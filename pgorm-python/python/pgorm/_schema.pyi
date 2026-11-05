@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from typing import Any, Literal, NotRequired, TypeAlias, TypedDict, Never, Unpack
-from ._native import Identifier, TypeName, Compiled
+from ._native import TypeName, Compiled
 from ._ranges import CreatedRange, CreatedMultirange
 from ._expressions import Expr
 from ._from_items import Table
@@ -8,7 +8,7 @@ from ._entities import Entity
 from ._schema_tables import CreateTable, CreateIndex
 from ._schema_types import CreateType
 
-Name: TypeAlias = str | Identifier
+Name: TypeAlias = str
 BuiltinType: TypeAlias = Literal["char", "varchar", "text", "smallint", "integer", "bigint", "real", "double", "numeric", "boolean", "date", "time", "timestamp", "timestamptz", "interval", "bytea", "bit", "varbit", "money", "json", "jsonb", "uuid", "vector", "cidr", "inet", "macaddr", "ltree"]
 ColumnType: TypeAlias = DataType | BuiltinType | TypeName | CreatedRange | CreatedMultirange
 TableRef: TypeAlias = Name | Table

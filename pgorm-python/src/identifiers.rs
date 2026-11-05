@@ -3,22 +3,19 @@ use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use crate::errors::ConstructionError;
 
-// [spec:pgorm:req:bindings.identifiers+2]
-/// One owned PostgreSQL identifier; punctuation is never parsed as SQL.
-#[pyclass(name = "Identifier", module = "pgorm", frozen, eq, from_py_object)]
+// [spec:pgorm:req:bindings.identifiers+3]
+/// One identifier as an identifier position reads it: a `str`, validated,
+/// which `name` mints with Rust's `Name::runtime`, so its punctuation is never
+/// parsed as SQL. Python has no class for it: every name a binding is given is
+/// computed at run time, so the position that takes the text is where Rust's
+/// one route from text to a name runs.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PyIdentifier {
-    #[pyo3(get)]
+pub struct Identifier {
     pub name: String,
 }
 
-#[pymethods]
-impl PyIdentifier {
-    #[new]
+impl Identifier {
     pub fn new(name: &Bound<'_, PyAny>) -> PyResult<Self> {
-        if let Ok(name) = name.extract::<PyRef<'_, Self>>() {
-            return Ok(name.clone());
-        }
         let name = name
             .extract::<String>()
             .map_err(|_| PyTypeError::new_err("identifier requires a string"))?;
@@ -26,15 +23,18 @@ impl PyIdentifier {
         Ok(Self { name })
     }
 
-    fn __repr__(&self) -> String {
-        format!("Identifier({:?})", self.name)
-    }
-}
-
-impl PyIdentifier {
     pub fn name(&self) -> Name {
         Name::runtime(&self.name)
     }
+}
+
+/// The identifier `name` holds, refused as every identifier position refuses
+/// one: what a model declaration checks its names with before any statement
+/// reads them.
+// [spec:pgorm:req:bindings.identifiers+3]
+#[pyfunction(name = "_identifier")]
+fn identifier(name: &Bound<'_, PyAny>) -> PyResult<String> {
+    Identifier::new(name).map(|identifier| identifier.name)
 }
 
 pub(crate) fn validate_name(name: &str) -> PyResult<()> {
@@ -54,9 +54,9 @@ pub(crate) fn collation(
     name: &Bound<'_, PyAny>,
     schema: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Collation> {
-    let name = PyIdentifier::new(name)?.name();
+    let name = Identifier::new(name)?.name();
     Ok(match schema {
-        Some(schema) => (PyIdentifier::new(schema)?.name(), name).into_collation(),
+        Some(schema) => (Identifier::new(schema)?.name(), name).into_collation(),
         None => name.into_collation(),
     })
 }
@@ -71,7 +71,7 @@ pub enum Direction {
 
 #[pymethods]
 impl Direction {
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "sort directions cannot be tested as Python booleans",
@@ -115,7 +115,7 @@ impl Nulls {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<PyIdentifier>()?;
+    module.add_function(wrap_pyfunction!(identifier, module)?)?;
     module.add_class::<Direction>()?;
     module.add_class::<Nulls>()?;
     Ok(())

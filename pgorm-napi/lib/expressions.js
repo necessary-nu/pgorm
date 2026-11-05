@@ -3,8 +3,8 @@
 // Expressions over pgorm-query's builders. An operand that is not an
 // expression is a value, bound as a parameter: nothing a caller passes becomes
 // SQL text, and an identifier is quoted wherever it appears.
-// [spec:pgorm:req:bindings.expressions+2]
-// [spec:pgorm:req:bindings.quantifiers+2]
+// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.quantifiers+3]
 
 import { arg, args, Builder, Deferred, Handle, made, trusted, TRUSTED } from "./builder.js";
 import { ConstructionError } from "./errors.js";
@@ -262,7 +262,7 @@ function listable(source) {
  * empty one or one of ranges of no inferable kind, is kept for a registered
  * column to type, and refused, with the error inferring it met, wherever it
  * is used beside anything else.
- * [spec:pgorm:req:bindings.quantifiers+2]
+ * [spec:pgorm:req:bindings.quantifiers+3]
  *
  * @param {"any" | "all"} quantifier
  * @param {unknown} source

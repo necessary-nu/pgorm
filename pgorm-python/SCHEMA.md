@@ -51,7 +51,7 @@ object and no action yet — `s.alter_table(table)`, `s.alter_type(name)`,
 its own, no `DDL`: it has no `inspect()`, every terminal refuses it with
 `ConstructionError`, and its first action gives the statement.
 
-A table or sequence is named by a `str`, a `p.Identifier` or a `p.Table`
+A table or sequence is named by a `str` or a `p.Table`
 without an alias, whose `schema=` qualifies it; a type or domain by a name or a
 `p.TypeName`. Where a statement takes several names — a key's columns, the
 objects a drop drops — it takes one name or a non-empty list of them. A closed
@@ -292,8 +292,8 @@ version=None, cascade=False)` writes the version as a literal, and
 ## Schemas
 
 A schema is the namespace a `p.Table(..., schema=...)`, a `p.TypeName` or a
-sequence is qualified by. It is named by one identifier, a `str` or a
-`p.Identifier`, quoted, and never qualified itself.
+sequence is qualified by. It is named by one identifier, a `str`, quoted,
+and never qualified itself.
 
 ```python
 statements = [
@@ -317,8 +317,8 @@ TO`, which name a role, are not built.
 ## Domains
 
 A domain is a named type over a base type, with a default, a `NOT NULL` and
-named `CHECK`s of its own. It is named as a type is: a `str` or a
-`p.Identifier`, or a `p.TypeName` carrying its schema. A column whose type is a
+named `CHECK`s of its own. It is named as a type is: a `str`, or a
+`p.TypeName` carrying its schema. A column whose type is a
 domain names it as a `p.TypeName`, exactly as a column of an enum type does.
 
 ```python

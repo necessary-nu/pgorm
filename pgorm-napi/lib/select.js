@@ -1,7 +1,7 @@
 // @ts-check
 
 // SELECT, the tables and other items it reads, and common table expressions.
-// [spec:pgorm:req:bindings.select+2]
+// [spec:pgorm:req:bindings.select+4]
 // [spec:pgorm:req:bindings.from-subqueries]
 // [spec:pgorm:req:bindings.row-locks]
 // [spec:pgorm:req:bindings.with+1]
@@ -80,7 +80,7 @@ export class FromItem extends Builder {
    * @param {symbol} [token]
    */
   constructor(handle, token) {
-    trusted(token, "FromItem", "select.as(alias), jsonTable(), tableFunction() or table.tablesample()");
+    trusted(token, "FromItem", "select.as(alias), jsonTable(), tableFunction(..).alias(alias) or table.tablesample()");
     super(handle);
   }
 
@@ -149,7 +149,8 @@ export class Select extends Builder {
 
   /**
    * Items added to the GROUP BY list in order: expressions, and the grouping
-   * elements `groupingSet`, `rollup`, `cube` and `groupingSets` make.
+   * elements `GroupingElement.set`, `.empty`, `.rollup`, `.cube` and `.sets`
+   * make.
    *
    * @param {...(Expr | import("./grouping.js").GroupingElement)} items
    */
@@ -159,7 +160,8 @@ export class Select extends Builder {
 
   /**
    * `GROUP BY DISTINCT`: a grouping set the list reaches more than once —
-   * `rollup(a, b)` beside `rollup(a)` reaches `(a)` three ways — grouped once.
+   * `ROLLUP (a, b)` beside `ROLLUP (a)` reaches `(a)` three ways — grouped
+   * once.
    */
   groupByDistinct() {
     return new Select(native.selectGroupByDistinct(arg(this)), TRUSTED);

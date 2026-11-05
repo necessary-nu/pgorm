@@ -154,7 +154,7 @@ class StreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(rows.closed)
         self.assertEqual([row["n"] async for row in rows], [1, 2, 3])
 
-    # [spec:pgorm:req:python.truth-testing+3/test]    a stream's truth would not say whether rows remain
+    # [spec:pgorm:req:python.truth-testing+4/test]    a stream's truth would not say whether rows remain
     async def test_result_stream_refuses_truth_testing(self):
         async with await self.pool.stream(p.RawSQL("SELECT 1 AS n")) as rows:
             with self.assertRaises(p.ConstructionError):

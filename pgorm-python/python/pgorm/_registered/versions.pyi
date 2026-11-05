@@ -4,7 +4,7 @@ from ..runtime import Connection, Pool
 from ..transactions import Transaction
 
 M = TypeVar("M")
-Column = str | native_types.Identifier | native_types.EntityColumn
+Column = str | native_types.EntityColumn
 
 class Change(Generic[M]):
     old: M

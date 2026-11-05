@@ -121,8 +121,8 @@ from ._ranges import (
     CreatedRange as CreatedRange, CreatedMultirange as CreatedMultirange,
 )
 from ._query_types import (
-    Identifier as Identifier, Direction as Direction, Nulls as Nulls,
-    Compiled as Compiled, LikePattern as LikePattern,
+    _identifier as _identifier, Direction as Direction, Nulls as Nulls,
+    Compiled as Compiled, LikeExpr as LikeExpr,
     Aliased as Aliased, OrderBy as OrderBy,
 )
 from ._models import _model_result_names as _model_result_names, _model_count as _model_count

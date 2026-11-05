@@ -20,6 +20,7 @@ mod expr;
 mod grouping;
 mod json;
 mod json_table;
+mod like;
 mod merge;
 #[cfg(test)]
 pub(crate) mod parity;
@@ -37,9 +38,9 @@ mod write;
 use neon::{prelude::*, types::Finalize};
 use pgorm::pgorm_query::{
     AnyWithClause, ColumnType, Condition, ConflictUpdate, ExtendedWindow, FrameClause, FromItem,
-    FunctionCall, GroupingElement, JsonInput, JsonTableColumn, MergeStatement, NamedTable,
-    NullOrdering, OnConflict, Order, PendingMerge, Query, SelectStatement, SimpleExpr, Value,
-    Values, WindowStatement,
+    FunctionCall, GroupingElement, JsonInput, JsonTableColumn, LikeExpr, MergeStatement,
+    NamedTable, NullOrdering, OnConflict, Order, PendingMerge, Query, SelectStatement, SimpleExpr,
+    TableFunction, Value, Values, WindowStatement,
 };
 
 use crate::{codec::Codec, rows, values::Tagged};
@@ -77,8 +78,13 @@ pub(crate) enum Node {
     /// `ANY (..)` or `ALL (..)`, which PostgreSQL's grammar reads only as the
     /// right operand of an operator, so no other position takes it.
     Quantified(SimpleExpr),
+    /// A pattern LIKE, ILIKE and SIMILAR TO take, which no other operator
+    /// reads.
+    LikeExpr(LikeExpr),
     Table(NamedTable),
     FromItem(FromItem),
+    /// A function in FROM before its alias makes it a FROM item.
+    TableFunction(TableFunction),
     /// An item of a `GROUP BY` list beyond a bare expression: a set,
     /// `ROLLUP`, `CUBE` or `GROUPING SETS`.
     GroupingElement(GroupingElement),
@@ -134,8 +140,10 @@ impl Node {
             Self::Ordering(_) => "an ordering",
             Self::CaseOperand(_) => "a CASE with no WHEN arm",
             Self::Quantified(_) => "an ANY or ALL operand",
+            Self::LikeExpr(_) => "a LikeExpr",
             Self::Table(_) => "a Table",
             Self::FromItem(_) => "a FROM item",
+            Self::TableFunction(_) => "a TableFunction",
             Self::GroupingElement(_) => "a grouping element",
             Self::Select(_) => "a Select",
             Self::With(_) => "a WITH clause",
@@ -174,6 +182,7 @@ pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
         expr::EXPORTS,
         select::EXPORTS,
         grouping::EXPORTS,
+        like::EXPORTS,
         table::EXPORTS,
         with::EXPORTS,
         write::EXPORTS,
@@ -214,7 +223,7 @@ const MAX_PARAMETERS: usize = 65_535;
 /// the ORDER BY or window entry they turn on may arrive later, so this is
 /// the first point the statement is final.
 // [spec:pgorm:req:bindings.statements]
-// [spec:pgorm:req:bindings.select+2]
+// [spec:pgorm:req:bindings.select+4]
 // [spec:pgorm:req:bindings.windows]
 pub(crate) fn compile<'cx>(cx: &mut Cx<'cx>, node: &Node) -> NeonResult<(String, Values)> {
     let built = match node {

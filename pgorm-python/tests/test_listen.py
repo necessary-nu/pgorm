@@ -31,7 +31,7 @@ async def listening_pid(executor, channel):
 
 class ListenerSurface(unittest.TestCase):
     # [spec:pgorm:req:bindings.listen+2/test]    listeners come from a pool
-    # [spec:pgorm:req:python.truth-testing+3/test]    neither Listener nor Notification is a boolean
+    # [spec:pgorm:req:python.truth-testing+4/test]    neither Listener nor Notification is a boolean
     def test_listener_objects_refuse_truth_testing(self):
         with self.assertRaises(TypeError):
             p.Listener(object())

@@ -26,7 +26,7 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > compiled Rust entity and graph types reach it through the extension's
 > registration mechanism.
 
-> [spec:pgorm:req:python.naming+3]
+> [spec:pgorm:req:python.naming+4]
 > Python MUST spell a shared rule's neutral name as written: functions,
 > methods and keyword arguments in snake_case, classes in PascalCase, and an
 > option as a keyword argument. A name that is a Python keyword takes a
@@ -35,7 +35,8 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > (`Join.Inner`, `Direction.Asc`, `FrameType.Rows`, `ReturningRow.Old`). A
 > class is constructed by calling it, where JavaScript calls a factory
 > function (`napi.naming`), unless a shared rule makes it by a factory alone
-> (`bindings.writes`, `bindings.merge`, `bindings.schema-api`); `select`,
+> (`bindings.select`, `bindings.writes`, `bindings.merge`,
+> `bindings.schema-api`); `select`,
 > `insert`, `update` and `delete` are the classes `Select`, `Insert`,
 > `Update` and `Delete` under those names.
 >
@@ -45,9 +46,7 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > for `and`, `or` and `not`; and unary `-` for a pipeline's negation.
 >
 > `any_` and `all_` take an underscore, and `tuple_expr` its suffix, so as not
-> to shadow Python's builtins. The grouping elements differ from the shared
-> shape by choice and wait on the operator (`bindings.surface`):
-> `GroupingElement.set`, `.empty`, `.rollup`, `.cube` and `.sets`.
+> to shadow Python's builtins.
 
 > [spec:pgorm:req:python.package]
 > The package MUST declare its Rust crate, Python distribution, import module,
@@ -138,7 +137,7 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > against it. A model's and a registered entity's column give their plain
 > expression through `expr`.
 
-> [spec:pgorm:req:python.truth-testing+3]
+> [spec:pgorm:req:python.truth-testing+4]
 > Every class the package defines MUST raise `ConstructionError` on Python
 > truth testing — `bool()`, `if`, `not`, `and`, `or` — so `if statement:` or
 > `statement or fallback` fails where it is written instead of reading the
@@ -150,8 +149,8 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > generated code wraps them in, every stream — `RowStream`,
 > `CopyOutStream`, `CopyRowStream` and `Listener` — whose truth would say
 > nothing of whether rows remain, so `if rows:` fails as well, and each
-> `Notification`. Exempt are values (`Value`, the range types, `Interval`,
-> `TypeName` and `Identifier`, compared with `==` as data), rows, models and
+> `Notification`. Exempt are values (`Value`, the range types, `Interval`
+> and `TypeName`, compared with `==` as data), rows, models and
 > what a write answers, pools, connections and transactions and the private
 > native handles under them and under the streams, registrations and model
 > declarations, and exceptions. A test MUST enumerate every class the

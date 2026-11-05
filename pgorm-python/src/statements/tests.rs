@@ -55,7 +55,7 @@ pub(super) fn refused<E: pyo3::PyTypeInfo>(
     Ok(())
 }
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+4/test]
 #[test]
 fn select_structure_matches_rust_builders() -> PyResult<()> {
     Python::initialize();
@@ -720,7 +720,7 @@ def over(name):
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2/test]    the tie limit shares `limit`'s slot, either
 // replacing the other and `None` clearing both
 #[test]
@@ -774,7 +774,7 @@ fn tie_limits_share_the_rust_limit_slot() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2/test]    a tie limit with no ORDER BY is refused at
 // inspection, at execution's compile and as a CTE body or subquery reads it, and its count is
 // checked as `limit`'s is
@@ -861,7 +861,7 @@ fn tie_limits_without_order_are_refused() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:sql.ast.select.group-distinct/test]    grouping elements interleave with
 // expressions in call order, and DISTINCT quantifies the whole list
 #[test]
@@ -932,7 +932,7 @@ fn grouping_elements_match_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:sql.ast.select.table-function+2/test]    one call, ROWS FROM, ordinality and
 // column names, the lone plain call as Rust's FunctionCall item, and anything but a call refused
 #[test]
@@ -951,7 +951,7 @@ fn table_functions_match_rust_builders() -> PyResult<()> {
         parity(
             py,
             &globals,
-            "p.Select().from_(T(series).with_ordinality().columns('v', p.Identifier('N')).alias('t'))",
+            "p.Select().from_(T(series).with_ordinality().columns('v', 'N').alias('t'))",
             Query::select()
                 .column(Asterisk)
                 .from(
@@ -1029,7 +1029,7 @@ fn table_functions_match_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]
+// [spec:pgorm:req:bindings.select+4/test]
 // [spec:pgorm:req:sql.ast.select.table-sample/test]    both methods, the percentage and seed
 // bound as doubles, and numbers a double cannot hold exactly refused
 #[test]
@@ -1112,7 +1112,7 @@ fn table_samples_match_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]    each operator appends one parenthesised arm in
+// [spec:pgorm:req:bindings.select+4/test]    each operator appends one parenthesised arm in
 // call order, and the receiver's ORDER BY, limits and WITH clause cover the combined rows
 #[test]
 fn set_operations_match_rust_builders() -> PyResult<()> {
@@ -1184,7 +1184,7 @@ fn set_operations_match_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.select+2/test]    an arm is read into the statement, so its tie
+// [spec:pgorm:req:bindings.select+4/test]    an arm is read into the statement, so its tie
 // limit is checked as it is read; anything but a Select is a TypeError
 #[test]
 fn set_operation_arms_are_checked_when_read() -> PyResult<()> {
@@ -1233,7 +1233,7 @@ fn set_operation_arms_are_checked_when_read() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+2/test]    array(select) is Rust's Expr::array over the
+// [spec:pgorm:req:bindings.expressions+3/test]    array(select) is Rust's Expr::array over the
 // subquery as it embeds, projected and compared as one value, and an ordered-with-ties subquery
 // is refused as any embedded one is
 #[test]
@@ -1290,8 +1290,8 @@ fn array_subquery_matches_rust_expr_array() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+2/test]    exists, scalar, IN a Select and any_ / all_
-// [spec:pgorm:req:bindings.quantifiers+2/test]
+// [spec:pgorm:req:bindings.expressions+3/test]    exists, scalar, IN a Select and any_ / all_
+// [spec:pgorm:req:bindings.quantifiers+3/test]
 // are Rust's Expr::exists, the scalar SubQuery, in_subquery / not_in_subquery and Expr::any /
 // Expr::all over a subquery or Func::any / Func::all over an array, a quantifier taken by each
 // comparison and refused by arithmetic, IS DISTINCT FROM, a membership list and bind
@@ -1359,7 +1359,7 @@ fn subquery_expressions_match_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.quantifiers+2/test]    any_ and all_ are the right operand of LIKE's
+// [spec:pgorm:req:bindings.quantifiers+3/test]    any_ and all_ are the right operand of LIKE's
 // and ILIKE's family, the regular-expression matches, containment, the range positions, @@ and
 // @?, each Rust's operator over Func::any / Func::all or Expr::any / Expr::all, and every other
 // operator and operand position refuses one
@@ -1452,7 +1452,7 @@ fn quantifiers_follow_each_operator_postgres_reads() -> PyResult<()> {
                 "ConstructionError",
             ),
             ("p.col('a').at(p.any_(p.col('b')))", "ConstructionError"),
-            ("p.col('a').like('a%')", "TypeError"),
+            ("p.col('a').like(1)", "TypeError"),
             ("p.col('a').path_exists(1)", "TypeError"),
         ] {
             let error = py

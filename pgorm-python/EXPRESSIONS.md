@@ -32,7 +32,6 @@ the SQL; its wire parameter retains the underlying Rust string/array tag.
 
 | Python | Corresponding Rust boundary |
 | --- | --- |
-| `Identifier(name)` | owned `Name`; one validated identifier part |
 | `col(name, table=..., schema=...)` | `Expr::col` with `ColumnRef` qualification |
 | `bind(value)` | `Expr::value`; a separately collected parameter |
 | `literal(value)` | `SimpleExpr::Constant`; rendered by Rust as a literal |
@@ -47,12 +46,13 @@ the SQL; its wire parameter retains the underlying Rust string/array tag.
 | `case_of(operand).when(value, result)` | `Expr::case_of` and `CaseOperand::when`; a simple `CASE`, `SimpleCase.when` adding arms |
 | `expr.at(index)` | `Expr::index`; `a[index]` |
 | `expr.slice(lower, upper)` | `Expr::subscript(Subscript::Slice)`; `a[lower:upper]`, `None` an open end |
-| `LikePattern(pattern, escape=...)` | `LikeExpr::new` and optional `escape`; `escape=""` is `no_escape` |
+| `LikeExpr(pattern).escape(c)` / `.no_escape()` | `LikeExpr::new`, `LikeExpr::escape` and `LikeExpr::no_escape` |
 | `expr.as_(name)` | owned projection expression plus validated `Name` |
 | `expr.asc()` / `expr.desc()` | owned expression plus Rust `Order` |
 | `OrderBy(expr, Direction.Asc, nulls=Nulls.First)` | typed direction and `NullOrdering` |
 
-Column, table, schema and alias names may be strings or `Identifier` objects.
+Column, table, schema and alias names are strings, each minted as Rust's
+`Name::runtime` mints a name computed at run time, where the method reads it.
 Each part is 1–63 UTF-8 bytes without NUL. Dots are part of an identifier, not
 qualification syntax: `col("a.b")` is one column name; use `table="a"` to
 qualify column `b`. Type names are separate objects. Case, quotes, percent
@@ -90,7 +90,7 @@ the left. These lower to the corresponding Rust `BinOper` through
 Combine expressions with `&`, `|` and `~`. Parenthesize comparisons because
 Python's operator precedence still applies. SQL expressions, conditions,
 projection aliases, orderings, `format_json`'s `JsonInput`, `window_function`'s
-`WindowFunction`, a windowed call, a `LikePattern`, `any_` and `all_`'s
+`WindowFunction`, a windowed call, a `LikeExpr`, `any_` and `all_`'s
 `Quantified`, `case_of`'s `CaseOperand`, `Direction`, `Nulls` and
 the SQL/JSON kinds, behaviours, defaults and `JSON_TABLE` columns raise
 `ConstructionError` on Python truth testing. Python `and`, `or`, `not`, chained comparisons and implicit truth
@@ -249,12 +249,12 @@ including `%`, `_`, backslashes and quotes. They lower to these Rust builders:
 There is no second escaping implementation in the bindings. These helpers
 use PostgreSQL string functions and ordinary Rust value expressions.
 
-For pattern semantics, use `expr.like(LikePattern(...))`, `not_like`, `ilike`
-or `not_ilike`. The pattern and optional single-character ESCAPE clause
-are handled by Rust's `LikeExpr`; `escape=""` turns escaping off, `ESCAPE ''`,
-so a backslash in the pattern is itself. A plain string is rejected at this
-boundary.
-`similar_to` and `not_similar_to` take the same `LikePattern` for `SIMILAR TO`,
+For pattern semantics, use `expr.like(pattern)`, `not_like`, `ilike` or
+`not_ilike`. The pattern is a string, bound with the default backslash
+escape, or a `LikeExpr`, Rust's `LikeExpr`: `LikeExpr(pattern).escape("!")`
+escapes with `!` instead, `ESCAPE '!'`, and `LikeExpr(pattern).no_escape()`
+turns escaping off, `ESCAPE ''`, so a backslash in the pattern is itself.
+`similar_to` and `not_similar_to` take the same pattern for `SIMILAR TO`,
 a whole-string match in SQL's regular-expression dialect (LIKE's `%` and `_`
 with `|`, `*`, `+`, `?`, `{m,n}`, grouping and bracket classes); its default
 escape is a backslash.

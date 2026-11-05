@@ -34,7 +34,7 @@ def dispatch(name, i, d, p):
         case "value":
             return materialize(d["value"], p), ["pgorm_query::Value"]
         case "name":
-            return p.Identifier(i["value"].value), ["pgorm_query::Name"]
+            return i["value"].value, ["pgorm_query::Name"]
         case "table":
             options = {key: value for key, value in d.items() if key != "name"}
             return p.Table(i.get("name", d.get("name")), **options), [
@@ -66,7 +66,9 @@ def dispatch(name, i, d, p):
             pattern = i["pattern"].value
             path = "pgorm_query::SimpleExpr::" + method
             if method in ("like", "not_like", "ilike", "not_ilike"):
-                pattern = p.LikePattern(pattern, escape=d.get("escape"))
+                pattern = p.LikeExpr(pattern)
+                if d.get("escape") is not None:
+                    pattern = pattern.escape(d["escape"])
                 path = "pgorm_query::LikeExpr"
             return getattr(i["value"], method)(pattern), [path]
         case "expr.call":

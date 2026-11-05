@@ -69,7 +69,7 @@ pub(crate) fn operations() -> Map<String, Value> {
             "expr.ends_with",
             "pgorm_query::Func::named(right), Func::char_length, Expr::eq",
         ),
-        ("like_pattern", "pgorm_query::LikeExpr"),
+        ("like_expr", "pgorm_query::LikeExpr::{new, escape, no_escape}"),
         ("expr.like", "pgorm_query::SimpleExpr::like"),
         ("expr.not_like", "pgorm_query::SimpleExpr::not_like"),
         ("expr.ilike", "pgorm_query::Expr::ilike"),

@@ -18411,21 +18411,110 @@ children (
             {
                 id binding-parity.grouping
                 title "Grouping elements are built one way in both bindings, as pgorm-query's GroupingElement constructors build them"
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:12:09.728212Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T14:12:09.955749Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust's shape is GroupingElement::{set(iter), empty(), rollup(iter), cube(iter), sets(first) -> GroupingSets.add(e)}. Python already had it as GroupingElement.set/empty/rollup/cube (statics, variadic) and sets(first, *rest); JavaScript had the top-level functions groupingSet (empty with no argument), rollup, cube and groupingSets. Chosen: both bindings make grouping elements only through GroupingElement's static factories set, empty, rollup, cube and sets(first, ...rest); the top-level JavaScript functions are deleted and GroupingElement cannot be called in either binding (TypeError). GROUPING SETS keeps the variadic sets(first, *rest) rather than a GroupingSets class with add(): the variadic is how both bindings already spell a Rust accumulator that takes its first item (Condition.all/any, Conflict.on), and it keeps the never-empty guarantee as Rust's sets(first) does. Delivered in 5e2fd4d0: bindings.select+3, napi.naming+5 and python.naming+4 (the grouping exceptions gone; bindings.select joins python.naming's factory-alone list), bindings-surface.json shares GroupingElement's five members. The node owns no rules (binding-spec-consolidation owns bindings.select and the naming rules), so it was completed by hand."
+                        after_done true
+                    }
+                )
             }
 
             {
                 id binding-parity.table-functions
                 title "A table function in FROM is built one way in both bindings, as pgorm-query's TableFunction is"
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:12:16.602396Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:18:19.603388Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T14:18:19.760676Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust's shape is TableFunction::new(call), TableFunction::rows_from(call), and .and(call), .column_definition(name, type) (for the call added last), .with_ordinality(), .columns(iter) and .alias(name) -> FromItem. Python already had exactly that (TableFunction(call), TableFunction.rows_from, and_, column_definition, with_ordinality, columns(*names), alias). JavaScript had a one-shot tableFunction(calls, { alias, ordinality, columns, rowsFrom }) whose record calls were { call, columnDefinitions: [[name, type], ..] }. Chosen: JavaScript takes the builder — tableFunction(call) (the factory napi.naming already named for this class, recorded in javascript.only as a language difference), TableFunction.rowsFrom(call), and, columnDefinition(name, type), withOrdinality(), columns(...names) and alias(name) — and the options shape is deleted. A record call with no definition is the server's refusal (42601), as in Rust and Python, so JavaScript's 'at least one column' refusal went with the list it guarded. Delivered in 1c6acd5b: bindings.select+4; bindings-surface.json shares TableFunction's six members. Owns no rules (binding-spec-consolidation owns bindings.select), so completed by hand."
+                        after_done true
+                    }
+                )
             }
 
             {
                 id binding-parity.like-patterns
                 title "A LIKE pattern and its escape are written one way in both bindings, as pgorm-query's LikeExpr is"
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:18:19.91199Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:28:42.880149Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T14:28:43.050869Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust's shape: Expr::like / not_like / ilike / not_ilike / similar_to / not_similar_to take impl IntoLikeExpr — a string (default backslash escape) or LikeExpr::new(pattern) with .escape(c) or .no_escape(). Python had LikePattern(pattern, escape=..), required (a plain string a TypeError), escape=\"\" meaning no_escape; JavaScript had like(pattern, { escape }), escape \"\" meaning off. Chosen: both take text or a LikeExpr, named for Rust's type — Python LikeExpr(pattern) (constructed by calling it), JavaScript likeExpr(pattern) (the factory napi.naming gives such a class, recorded in javascript.only) — with escape(c) and no_escape()/noEscape(). The empty-string-means-off spelling is gone in both: escape('') is a ConstructionError, as no_escape() is Rust's spelling; NUL is refused as before. A quantified pattern can no longer be given an escape at all, so bindings.quantifiers drops that refusal. Python's capability key like_pattern became like_expr. Delivered in 8dc60d44: bindings.expressions+3, bindings.quantifiers+3; campaign emitter and dispatcher write p.LikeExpr(..).escape(..). Owns no rules, so completed by hand."
+                        after_done true
+                    }
+                )
             }
 
             {
                 id binding-parity.identifiers
                 title "A runtime identifier is passed one way in both bindings, as Rust passes one"
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T14:28:43.185865Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:45:39.300725Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T14:45:39.469979Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust's shape: an identifier is a Name; text becomes one only through Name::runtime(text) (there is deliberately no IntoName for &str, so the minting is greppable), and a name fixed by the program is an AliasName token, alias(\"rn\"), or a derived SqlName. Python had an Identifier class (validated text, .name) accepted beside a str at every identifier position and returned by Aliased.alias; JavaScript passes strings, validated and minted by args::name. Chosen: delete Python's Identifier, so both bindings take the language's string at each identifier position and mint it with Name::runtime there. Reason: every name a binding is given is computed at run time, so the binding's identifier position is exactly where Rust's runtime route runs; Rust demands the explicit call only to tell runtime text from names fixed in the program's types, a distinction a binding has no second kind for. Python's wrapper was optional and changed nothing a str did not; making a Name wrapper mandatory in both would contradict bindings.identifiers (identifiers are text) and change every call site for no safety gained. Aliased.alias now answers a str; model declarations validate names through a private _native._identifier (the one Rust validator). Delivered in 3f0ebf28: bindings.identifiers+3, python.truth-testing+4 (Identifier no longer an exempt value); the campaign's name op yields the text. Unsure point flagged to the lead: a strict reading of 'Rust's shape' could instead want a Name/Name.runtime value in both bindings. Owns no rules, so completed by hand."
+                        after_done true
+                    }
+                )
             }
 
             {

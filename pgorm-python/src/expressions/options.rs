@@ -4,53 +4,62 @@ use pyo3::{exceptions::PyTypeError, prelude::*};
 use super::{PyExpr, construct::require_expr};
 use crate::{
     errors::ConstructionError,
-    identifiers::{Direction, Nulls, PyIdentifier},
+    identifiers::{Direction, Identifier, Nulls},
 };
 
-/// An explicit SQL LIKE pattern, including its optional escape character; an
-/// empty escape turns escaping off.
-#[pyclass(name = "LikePattern", module = "pgorm", frozen, from_py_object)]
+/// A LIKE, ILIKE or SIMILAR TO pattern and its `ESCAPE`, which the grammar
+/// admits only there, as Rust's `LikeExpr` holds them: the pattern is bound,
+/// and the escape, a backslash until `escape` or `no_escape` replaces it, is
+/// written as a literal.
+// [spec:pgorm:req:bindings.expressions+3]
+#[pyclass(name = "LikeExpr", module = "pgorm", frozen, from_py_object)]
 #[derive(Clone, Debug)]
-pub struct LikePattern {
+pub struct PyLikeExpr {
     pub inner: LikeExpr,
 }
 
 #[pymethods]
-impl LikePattern {
+impl PyLikeExpr {
     #[new]
-    #[pyo3(signature = (pattern, *, escape=None))]
-    fn new(pattern: &Bound<'_, PyAny>, escape: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
-        let pattern: String = pattern
+    fn new(pattern: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self {
+            inner: LikeExpr::new(pattern_text(pattern)?),
+        })
+    }
+
+    /// Escape with `character`, `ESCAPE 'c'`, in place of the default
+    /// backslash.
+    fn escape(&self, character: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let character: String = character
             .extract()
-            .map_err(|_| PyTypeError::new_err("LIKE pattern requires a string"))?;
-        let mut inner = LikeExpr::new(pattern);
-        if let Some(escape) = escape {
-            let refused = || {
-                ConstructionError::new_err(
-                    "LIKE escape requires one Unicode scalar, or an empty string to turn escaping off",
-                )
-            };
-            let escape: String = escape
-                .extract()
-                .map_err(|_| PyTypeError::new_err("LIKE escape requires a string"))?;
-            let mut chars = escape.chars();
-            inner = match (chars.next(), chars.next()) {
-                (None, _) => inner.no_escape(),
-                (Some('\0'), None) => {
-                    return Err(ConstructionError::new_err("LIKE escape cannot contain NUL"));
-                }
-                (Some(character), None) => inner.escape(character),
-                (Some(_), Some(_)) => return Err(refused()),
-            };
+            .map_err(|_| PyTypeError::new_err("a LIKE escape is a string"))?;
+        let mut chars = character.chars();
+        let character = match (chars.next(), chars.next()) {
+            (Some(character), None) if character != '\0' => character,
+            _ => {
+                return Err(ConstructionError::new_err(
+                    "a LIKE escape is one character, not NUL; no_escape() turns escaping off",
+                ));
+            }
+        };
+        Ok(Self {
+            inner: self.inner.clone().escape(character),
+        })
+    }
+
+    /// Turn escaping off, `ESCAPE ''`: every character of the pattern, a
+    /// backslash included, is then literal or a wildcard.
+    fn no_escape(&self) -> Self {
+        Self {
+            inner: self.inner.clone().no_escape(),
         }
-        Ok(Self { inner })
     }
 
     fn __repr__(&self) -> &'static str {
-        "LikePattern(...)"
+        "LikeExpr(...)"
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "LIKE patterns cannot be tested as Python booleans",
@@ -64,12 +73,16 @@ impl LikePattern {
 pub struct Aliased {
     #[pyo3(get)]
     pub expr: PyExpr,
-    #[pyo3(get)]
-    pub alias: PyIdentifier,
+    pub alias: Identifier,
 }
 
 #[pymethods]
 impl Aliased {
+    #[getter(alias)]
+    fn alias_name(&self) -> &str {
+        &self.alias.name
+    }
+
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "SQL projections cannot be tested as Python booleans",
@@ -108,9 +121,17 @@ impl OrderBy {
     }
 }
 
-pub(super) fn pattern(value: &Bound<'_, PyAny>) -> PyResult<LikeExpr> {
+fn pattern_text(value: &Bound<'_, PyAny>) -> PyResult<String> {
     value
-        .extract::<PyRef<'_, LikePattern>>()
-        .map(|value| value.inner.clone())
-        .map_err(|_| PyTypeError::new_err("use LikePattern to select SQL pattern semantics"))
+        .extract()
+        .map_err(|_| PyTypeError::new_err("a LIKE pattern is a string or a LikeExpr"))
+}
+
+/// The pattern `like` and its kin take: a `LikeExpr`, or a string, which is
+/// the pattern with the default escape, as Rust's `IntoLikeExpr` reads one.
+pub(super) fn pattern(value: &Bound<'_, PyAny>) -> PyResult<LikeExpr> {
+    match value.extract::<PyRef<'_, PyLikeExpr>>() {
+        Ok(pattern) => Ok(pattern.inner.clone()),
+        Err(_) => pattern_text(value).map(LikeExpr::new),
+    }
 }

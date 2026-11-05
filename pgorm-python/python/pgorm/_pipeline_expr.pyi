@@ -1,9 +1,9 @@
 from typing import Any, TypeAlias, Never
-from ._native import Value, Identifier, TypeName
+from ._native import Value, TypeName
 
 Operand: TypeAlias = PipelineExpr | Value | bool | int | float | str | list[Any] | dict[str, Any]
 LiteralValue: TypeAlias = Value | None | bool | int | float | str
-Name: TypeAlias = str | Identifier | PipelineExpr
+Name: TypeAlias = str | PipelineExpr
 
 class PipelineExpr:
     def __init__(self, _native_only: Never, /) -> None: ...

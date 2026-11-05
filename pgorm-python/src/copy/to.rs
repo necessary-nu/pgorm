@@ -13,7 +13,7 @@ use super::{Format, character, names, table_name, text};
 use crate::{
     errors::ConstructionError,
     expressions::Compiled,
-    identifiers::PyIdentifier,
+    identifiers::Identifier,
     statements::{PyDelete, PyInsert, PyMerge, PyPendingMerge, PySelect, PyTable, PyUpdate},
 };
 
@@ -156,7 +156,7 @@ impl PyCopyTo {
     /// An empty list forces nothing, as in Rust.
     #[pyo3(signature = (*columns))]
     fn force_quote(&self, columns: &Bound<'_, PyTuple>) -> PyResult<Self> {
-        let columns: Vec<_> = names(columns)?.iter().map(PyIdentifier::name).collect();
+        let columns: Vec<_> = names(columns)?.iter().map(Identifier::name).collect();
         let mut next = self.clone();
         csv_only!(CopyTo, &mut next.inner, "FORCE_QUOTE", |s| s
             .force_quote(columns))?;

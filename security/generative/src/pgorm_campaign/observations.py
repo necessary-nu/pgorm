@@ -51,8 +51,8 @@ def construction(value, p):
     result = {"python_type": type(value).__name__}
     if isinstance(value, p.Value):
         result["value"] = wire.validate(value.snapshot())
-    elif isinstance(value, p.Identifier):
-        result["name"] = value.name
+    elif isinstance(value, str):
+        result["name"] = value
     elif isinstance(value, p.RawSQL):
         result["inline_sql"] = value.inline_sql()
     elif isinstance(value, p.ActiveModel):
