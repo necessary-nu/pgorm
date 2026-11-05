@@ -25,7 +25,7 @@ impl EntityTransformer {
     // [spec:pgorm:sem:codegen.entity.transform.inverse+2]
     // [spec:pgorm:sem:codegen.entity.transform.conjunct+2]
     // [spec:pgorm:req:codegen.entity.collisions+3]
-    // [spec:pgorm:def:codegen.entity+7]
+    // [spec:pgorm:def:codegen.entity+8]
     // [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
     pub fn transform(
         table_create_stmts: Vec<TableCreateStatement>,

@@ -9,7 +9,7 @@ golden fixtures under `pgorm-codegen/tests/`. A schema reaches the pipeline as
 DDL text, through `entities_from_sql` and `parse_schema` at the crate root,
 specified under [Schema from DDL text](#schema-from-ddl-text).
 
-> [spec:pgorm:def:codegen.entity+7]
+> [spec:pgorm:def:codegen.entity+8]
 > The entity generator is the pipeline
 > `EntityTransformer::transform(Vec<TableCreateStatement>, &EntityWriterContext) -> EntityWriter`
 > followed by `EntityWriter::generate(&EntityWriterContext) -> WriterOutput`.
@@ -30,7 +30,11 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 > `#[...]` lines on the Model struct or enum.
 >
 > Errors are the `#[non_exhaustive]` `Error` enum, whose two variants are
-> `StdIoError(io::Error)` and `TransformError(String)` (`sql.surface`).
+> `StdIoError(io::Error)` and `TransformError(String)` (`sql.surface`). An
+> `Error` displays its message and nothing else: a `TransformError` its string
+> as written, and a `StdIoError` its `io::Error` as that displays itself, so a
+> program prints a refusal with `{}` and reads what codegen wrote, never the
+> string's `Debug` form with its quotes and escapes.
 >
 > Where generated source spells a member of one of pgorm-query's growing
 > enums — a built-in `RangeType`, a `ForeignKeyAction` — the writer reads it

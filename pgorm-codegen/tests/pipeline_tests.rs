@@ -41,7 +41,7 @@ fn enum_schema() -> Vec<pgorm_query::TableCreateStatement> {
     )]
 }
 
-// [spec:pgorm:def:codegen.entity+7/test]    transform -> generate hands back named
+// [spec:pgorm:def:codegen.entity+8/test]    transform -> generate hands back named
 // files in memory; the writer itself never touches the filesystem
 #[test]
 fn pipeline_returns_output_files_without_writing_to_disk() {
@@ -67,7 +67,7 @@ fn pipeline_returns_output_files_without_writing_to_disk() {
     }
 }
 
-// [spec:pgorm:def:codegen.entity+7/test]    the Entity model's table name, column
+// [spec:pgorm:def:codegen.entity+8/test]    the Entity model's table name, column
 // facts (type, auto_increment, not_null, unique), relations, conjunct relations
 // and primary keys all reach the generated output
 #[test]
@@ -95,7 +95,7 @@ fn entity_model_carries_column_relation_and_pk_facts() {
     );
 }
 
-// [spec:pgorm:def:codegen.entity+7/test]    errors are the two-variant `Error` enum
+// [spec:pgorm:def:codegen.entity+8/test]    errors are the two-variant `Error` enum
 #[test]
 fn errors_are_the_two_variant_error_enum() {
     let untyped = Table::create(Name::runtime("cake"))
@@ -110,7 +110,30 @@ fn errors_are_the_two_variant_error_enum() {
     assert!(matches!(from_io, Error::StdIoError(_)));
 }
 
-// [spec:pgorm:def:codegen.entity+7/test]    every `EntityWriterContext` option
+// [spec:pgorm:def:codegen.entity+8/test]    an `Error` displays its message as
+// written, a quote in it unescaped, and an I/O error as that displays itself
+#[test]
+fn an_error_displays_its_message() {
+    let quoted = r#"CREATE TABLE "odd""name" (id serial PRIMARY KEY, drop_off point NOT NULL);"#;
+    let error = pgorm_codegen::entities_from_sql(quoted, Opts::default())
+        .err()
+        .expect("a point column is refused");
+    let Error::TransformError(message) = &error else {
+        panic!("expected a TransformError, got {error:?}");
+    };
+    assert_eq!(error.to_string(), *message);
+    assert_eq!(
+        error.to_string(),
+        r#"unsupported DDL: type `point` on column `odd"name`.`drop_off` at statement 1"#
+    );
+
+    let io = std::io::Error::other("disk \"full\"");
+    let expected = io.to_string();
+    assert_eq!(Error::from(io).to_string(), expected);
+    assert_eq!(expected, r#"disk "full""#);
+}
+
+// [spec:pgorm:def:codegen.entity+8/test]    every `EntityWriterContext` option
 // selects something in the generated output
 #[test]
 fn every_context_option_selects_generated_output() {

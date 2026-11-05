@@ -198,31 +198,31 @@ generation expressions; `ALTER TABLE` adding a column or a constraint to a
 table the text creates; enum and range types; domains; indexes; schemas; and
 comments on tables and columns. Anything else, from a `CREATE TRIGGER` to a
 `CHECK` on a column, is refused with a `TransformError` naming it and the
-statement it is in, never skipped.
+statement it is in, never skipped. The error displays that message, so a
+program prints it as it is.
 
 So the output of `pg_dump --schema-only` is refused: it opens with `SET`s,
 changes owners, and adds its keys with `ALTER TABLE` after the tables. Write
 the schema as `CREATE` statements, each table's keys inside it.
 
 ```rust
-use pgorm_codegen::{EntityWriterOptions, Error, entities_from_sql};
+use pgorm_codegen::{EntityWriterOptions, entities_from_sql};
 
 # fn main() {
 let dumped = "SET statement_timeout = 0;\nCREATE TABLE bakery (id serial PRIMARY KEY);";
-match entities_from_sql(dumped, EntityWriterOptions::default()) {
-    Err(Error::TransformError(message)) => {
-        assert_eq!(message, "unsupported DDL: SET at statement 1");
-    }
-    _ => panic!("a pg_dump preamble is refused"),
-}
+let Err(error) = entities_from_sql(dumped, EntityWriterOptions::default()) else {
+    panic!("a pg_dump preamble is refused");
+};
+assert_eq!(error.to_string(), "unsupported DDL: SET at statement 1");
 
 let geometry = "CREATE TABLE delivery (id serial PRIMARY KEY, drop_off point NOT NULL);";
-match entities_from_sql(geometry, EntityWriterOptions::default()) {
-    Err(Error::TransformError(message)) => {
-        assert_eq!(message, "unsupported DDL: type `point` on column `delivery`.`drop_off` at statement 1");
-    }
-    _ => panic!("a type the entity model lacks is refused"),
-}
+let Err(error) = entities_from_sql(geometry, EntityWriterOptions::default()) else {
+    panic!("a type the entity model lacks is refused");
+};
+assert_eq!(
+    error.to_string(),
+    "unsupported DDL: type `point` on column `delivery`.`drop_off` at statement 1"
+);
 # }
 ```
 
