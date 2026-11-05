@@ -18165,6 +18165,7 @@ children (
             {
                 id binding-parity.like-patterns
                 title "A LIKE pattern and its escape are written one way in both bindings, as pgorm-query's LikeExpr is"
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:18:19.91199Z
@@ -18172,12 +18173,35 @@ children (
                         kind @status
                         text "Todo → Doing (nplan start)"
                     }
+
+                    {
+                        at 2026-11-05T14:28:42.880149Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+
+                    {
+                        at 2026-11-05T14:28:43.050869Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust's shape: Expr::like / not_like / ilike / not_ilike / similar_to / not_similar_to take impl IntoLikeExpr — a string (default backslash escape) or LikeExpr::new(pattern) with .escape(c) or .no_escape(). Python had LikePattern(pattern, escape=..), required (a plain string a TypeError), escape=\"\" meaning no_escape; JavaScript had like(pattern, { escape }), escape \"\" meaning off. Chosen: both take text or a LikeExpr, named for Rust's type — Python LikeExpr(pattern) (constructed by calling it), JavaScript likeExpr(pattern) (the factory napi.naming gives such a class, recorded in javascript.only) — with escape(c) and no_escape()/noEscape(). The empty-string-means-off spelling is gone in both: escape('') is a ConstructionError, as no_escape() is Rust's spelling; NUL is refused as before. A quantified pattern can no longer be given an escape at all, so bindings.quantifiers drops that refusal. Python's capability key like_pattern became like_expr. Delivered in 8dc60d44: bindings.expressions+3, bindings.quantifiers+3; campaign emitter and dispatcher write p.LikeExpr(..).escape(..). Owns no rules, so completed by hand."
+                        after_done true
+                    }
                 )
             }
 
             {
                 id binding-parity.identifiers
                 title "A runtime identifier is passed one way in both bindings, as Rust passes one"
+                log (
+                    {
+                        at 2026-11-05T14:28:43.185865Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
             }
 
             {

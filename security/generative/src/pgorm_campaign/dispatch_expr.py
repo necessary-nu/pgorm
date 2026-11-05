@@ -34,7 +34,7 @@ def dispatch(name, i, d, p):
         case "value":
             return materialize(d["value"], p), ["pgorm_query::Value"]
         case "name":
-            return p.Identifier(i["value"].value), ["pgorm_query::Name"]
+            return i["value"].value, ["pgorm_query::Name"]
         case "table":
             options = {key: value for key, value in d.items() if key != "name"}
             return p.Table(i.get("name", d.get("name")), **options), [

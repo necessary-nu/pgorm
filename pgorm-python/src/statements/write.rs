@@ -5,7 +5,7 @@ use super::{common, from_item::from_item, table::PyTable, with::PyWith};
 use crate::{
     errors::ConstructionError,
     expressions::{Compiled, coerce},
-    identifiers::PyIdentifier,
+    identifiers::Identifier,
 };
 
 // [spec:pgorm:req:bindings.writes+2]
@@ -47,7 +47,7 @@ impl PyUpdate {
     }
 
     fn set(&self, column: &Bound<'_, PyAny>, value: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let name = PyIdentifier::new(column)?;
+        let name = Identifier::new(column)?;
         if self
             .inner
             .get_values()

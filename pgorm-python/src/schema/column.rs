@@ -10,7 +10,7 @@ use super::{
 use crate::{
     errors::ConstructionError,
     expressions,
-    identifiers::{PyIdentifier, collation},
+    identifiers::{Identifier, collation},
 };
 use pgorm::pgorm_query::{Check, ColumnDef, GeneratedKind, IdentityGeneration};
 use pyo3::{prelude::*, types::PyDict};
@@ -46,7 +46,7 @@ impl PyColumnDef {
     #[new]
     #[pyo3(signature=(name, kind=None))]
     fn new(name: &Bound<'_, PyAny>, kind: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
-        let name = PyIdentifier::new(name)?.name();
+        let name = Identifier::new(name)?.name();
         Ok(Self {
             inner: match kind {
                 Some(kind) => ColumnDef::new_with_type(name, PyDataType::coerce(kind)?.inner),

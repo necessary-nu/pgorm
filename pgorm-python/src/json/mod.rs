@@ -16,7 +16,7 @@ mod variants;
 use pgorm::pgorm_query::{ColumnType, JsonInput, Name};
 use pyo3::{prelude::*, types::PyDict};
 
-use crate::{expressions::coerce, identifiers::PyIdentifier, schema::PyDataType};
+use crate::{expressions::coerce, identifiers::Identifier, schema::PyDataType};
 pub(crate) use capabilities::operations as capabilities;
 pub use kinds::{
     PyJsonDefault, PyJsonExistsBehavior, PyJsonInput, PyJsonKind, PyJsonQueryBehavior,
@@ -48,7 +48,7 @@ fn variables(passing: Option<&Bound<'_, PyDict>>) -> PyResult<Vec<(JsonInput, Na
     };
     passing
         .iter()
-        .map(|(name, value)| Ok((input(&value)?, PyIdentifier::new(&name)?.name())))
+        .map(|(name, value)| Ok((input(&value)?, Identifier::new(&name)?.name())))
         .collect()
 }
 

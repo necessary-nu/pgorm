@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 
 use super::{Aliased, Compiled, OrderBy, PyExpr};
 use crate::{
-    identifiers::{Direction, Nulls, PyIdentifier, collation},
+    identifiers::{Direction, Identifier, Nulls, collation},
     values::PyTypeName,
 };
 
@@ -39,7 +39,7 @@ impl PyExpr {
     fn as_(&self, alias: &Bound<'_, PyAny>) -> PyResult<Aliased> {
         Ok(Aliased {
             expr: self.clone(),
-            alias: PyIdentifier::new(alias)?,
+            alias: Identifier::new(alias)?,
         })
     }
     /// This call over a window: a `Window` or an `ExtendedWindow` written

@@ -4,7 +4,7 @@ import concurrent.futures
 import unittest
 
 from pgorm import (
-    Condition, ConstructionError, Direction, Expr, Identifier, LikeExpr,
+    Condition, ConstructionError, Direction, Expr, LikeExpr,
     Nulls, OrderBy, TypeName, UnsupportedCapabilityError, Value, Window,
     bind, call, col, format_json, literal, require_capability, tuple_expr, window_function,
 )
@@ -16,7 +16,7 @@ def inspection(expression):
 
 
 # [spec:pgorm:req:bindings.expressions+3/test]
-# [spec:pgorm:req:bindings.identifiers+2/test]
+# [spec:pgorm:req:bindings.identifiers+3/test]
 # [spec:pgorm:req:bindings.operands/test]
 # [spec:pgorm:req:bindings.statements/test]
 # [spec:pgorm:req:bindings.delegation/test]
@@ -24,7 +24,7 @@ class ExpressionTests(unittest.TestCase):
     def test_identifiers_and_values_have_separate_paths(self):
         name = 'A"雪.%\\'
         value = "' OR TRUE; -- %\\雪"
-        expression = col(Identifier(name), table="T", schema="S").eq(value)
+        expression = col(name, table="T", schema="S").eq(value)
         compiled = expression.inspect()
         self.assertEqual(compiled.sql, 'SELECT "S"."T"."A""雪.%\\" = $1')
         self.assertEqual(compiled.params, [Value(value)])
@@ -37,8 +37,6 @@ class ExpressionTests(unittest.TestCase):
                 col(name)
         with self.assertRaises(ConstructionError):
             col("x", schema="s")
-        with self.assertRaises(ConstructionError):
-            bind(Identifier("x"))
 
     def test_literal_and_bound_values_stay_selectable(self):
         expression = bind(Value(7, "i16")) + literal(3)
@@ -183,7 +181,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertEqual(ordering.nulls, Nulls.Last)
         self.assertEqual(OrderBy(expression, Direction.Asc).direction, Direction.Asc)
         alias = expression.as_('result"')
-        self.assertEqual(alias.alias.name, 'result"')
+        self.assertEqual(alias.alias, 'result"')
         self.assertEqual(inspection(alias.expr), inspection(expression))
         with self.assertRaises(TypeError):
             OrderBy(expression, "DESC; SELECT")

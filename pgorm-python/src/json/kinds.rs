@@ -54,7 +54,7 @@ pub enum PyJsonKind {
 
 #[pymethods]
 impl PyJsonKind {
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "SQL/JSON clauses cannot be tested as Python booleans",

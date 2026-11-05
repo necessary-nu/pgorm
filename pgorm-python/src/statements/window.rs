@@ -17,7 +17,7 @@ use super::common;
 use crate::{
     errors::ConstructionError,
     expressions::{coerce, require_expr},
-    identifiers::PyIdentifier,
+    identifiers::Identifier,
 };
 
 /// A frame's mode, and where a frame is begun. There is no
@@ -71,7 +71,7 @@ impl PyFrameType {
         })
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "window frames cannot be tested as Python booleans",
@@ -337,7 +337,7 @@ impl PyExtendedWindow {
     #[new]
     fn new(base: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self {
-            inner: ExtendedWindow::new(PyIdentifier::new(base)?.name()),
+            inner: ExtendedWindow::new(Identifier::new(base)?.name()),
         })
     }
 
@@ -415,7 +415,7 @@ impl WindowCall {
         } else if let Ok(window) = window.extract::<PyRef<'_, PyExtendedWindow>>() {
             Over::Inline(window.inner.clone().into())
         } else {
-            Over::Named(PyIdentifier::new(window)?.name())
+            Over::Named(Identifier::new(window)?.name())
         };
         Ok(PyWindowed {
             call: self,
@@ -479,7 +479,7 @@ impl PyWindowed {
 impl PyWindowed {
     fn as_(&self, alias: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self {
-            alias: Some(PyIdentifier::new(alias)?.name()),
+            alias: Some(Identifier::new(alias)?.name()),
             ..self.clone()
         })
     }

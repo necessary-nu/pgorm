@@ -1545,7 +1545,8 @@ assertions (
     {id napi.entity-busy-race, kind @complete, author "brendan@necessary.nu", at 2026-11-05T12:46:30.992558Z}
     {id binding-parity.grouping, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:12:09.728212Z}
     {id binding-parity.table-functions, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:18:19.603388Z}
-    {id binding-parity.like-patterns, kind @doing, author "brendan@necessary.nu", at 2026-11-05T14:18:19.91199Z}
+    {id binding-parity.like-patterns, kind @complete, author "brendan@necessary.nu", at 2026-11-05T14:28:42.880149Z}
+    {id binding-parity.identifiers, kind @doing, author "brendan@necessary.nu", at 2026-11-05T14:28:43.185865Z}
 )
 
 impl_evidence (

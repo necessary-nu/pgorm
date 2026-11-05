@@ -951,7 +951,7 @@ fn table_functions_match_rust_builders() -> PyResult<()> {
         parity(
             py,
             &globals,
-            "p.Select().from_(T(series).with_ordinality().columns('v', p.Identifier('N')).alias('t'))",
+            "p.Select().from_(T(series).with_ordinality().columns('v', 'N').alias('t'))",
             Query::select()
                 .column(Asterisk)
                 .from(

@@ -32,7 +32,6 @@ the SQL; its wire parameter retains the underlying Rust string/array tag.
 
 | Python | Corresponding Rust boundary |
 | --- | --- |
-| `Identifier(name)` | owned `Name`; one validated identifier part |
 | `col(name, table=..., schema=...)` | `Expr::col` with `ColumnRef` qualification |
 | `bind(value)` | `Expr::value`; a separately collected parameter |
 | `literal(value)` | `SimpleExpr::Constant`; rendered by Rust as a literal |
@@ -52,7 +51,8 @@ the SQL; its wire parameter retains the underlying Rust string/array tag.
 | `expr.asc()` / `expr.desc()` | owned expression plus Rust `Order` |
 | `OrderBy(expr, Direction.Asc, nulls=Nulls.First)` | typed direction and `NullOrdering` |
 
-Column, table, schema and alias names may be strings or `Identifier` objects.
+Column, table, schema and alias names are strings, each minted as Rust's
+`Name::runtime` mints a name computed at run time, where the method reads it.
 Each part is 1–63 UTF-8 bytes without NUL. Dots are part of an identifier, not
 qualification syntax: `col("a.b")` is one column name; use `table="a"` to
 qualify column `b`. Type names are separate objects. Case, quotes, percent

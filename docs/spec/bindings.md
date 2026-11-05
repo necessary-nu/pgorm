@@ -613,14 +613,18 @@ the same terminals that run raw SQL.
 > condition is no statement to run. A statement binding more than 65,535
 > values MUST be refused with a `ConstructionError` before anything is sent.
 
-> [spec:pgorm:req:bindings.identifiers+2]
+> [spec:pgorm:req:bindings.identifiers+3]
 > Identifiers, qualified type names, values, typed structural choices and raw
 > SQL MUST each have their own constructors, so no one is taken for another.
 > Every identifier — of a column, a table, a schema, an alias, a collation, a
 > common table expression or a type — MUST be text of 1 to 63 UTF-8 bytes
 > without NUL, minted with `Name::runtime`, so it is quoted wherever
 > pgorm-query writes it and a dot in it is part of the name; any other text is
-> a `ConstructionError`. Schema, table and column names are runtime inputs;
+> a `ConstructionError`. `Name::runtime` is Rust's one route from text to a
+> name, and every name a binding is given is computed at run time, so the
+> binding mints it where an identifier position reads the text: there is no
+> identifier class of a binding's own, and an identifier is the language's
+> string in both. Schema, table and column names are runtime inputs;
 > no fixture's names are required. Accepted text MUST reach the Rust API
 > unchanged, quotes, percent signs, backslashes and Unicode included. A
 > language or PostgreSQL limit on a representation MUST be an explicit error,

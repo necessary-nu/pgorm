@@ -16,7 +16,7 @@ use super::{Format, character, names, table_name, text};
 use crate::{
     errors::ConstructionError,
     expressions::Compiled,
-    identifiers::PyIdentifier,
+    identifiers::Identifier,
     statements::{PyTable, condition},
 };
 
@@ -95,7 +95,7 @@ impl PyCopyFrom {
             }
             next.columns.push(column.name.clone());
         }
-        let columns: Vec<_> = columns.iter().map(PyIdentifier::name).collect();
+        let columns: Vec<_> = columns.iter().map(Identifier::name).collect();
         every!(CopyFrom, &mut next.inner, |s| s.columns(columns));
         Ok(next)
     }
@@ -217,7 +217,7 @@ impl PyCopyFrom {
     /// An empty list forces nothing, as in Rust.
     #[pyo3(signature = (*columns))]
     fn force_not_null(&self, columns: &Bound<'_, PyTuple>) -> PyResult<Self> {
-        let columns: Vec<_> = names(columns)?.iter().map(PyIdentifier::name).collect();
+        let columns: Vec<_> = names(columns)?.iter().map(Identifier::name).collect();
         let mut next = self.clone();
         csv_only!(CopyFrom, &mut next.inner, "FORCE_NOT_NULL", |s| s
             .force_not_null(columns))?;
@@ -233,7 +233,7 @@ impl PyCopyFrom {
 
     #[pyo3(signature = (*columns))]
     fn force_null(&self, columns: &Bound<'_, PyTuple>) -> PyResult<Self> {
-        let columns: Vec<_> = names(columns)?.iter().map(PyIdentifier::name).collect();
+        let columns: Vec<_> = names(columns)?.iter().map(Identifier::name).collect();
         let mut next = self.clone();
         csv_only!(CopyFrom, &mut next.inner, "FORCE_NULL", |s| s
             .force_null(columns))?;

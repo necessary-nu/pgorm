@@ -419,7 +419,6 @@
     "gaps": {
     },
     "undecided": {
-      "pgorm.Identifier": {"question": "shapes"},
       "pgorm.EntityInsertMany": {"question": "shapes"},
       "pipeline.Pipeline.all": {"question": "shapes"},
       "pipeline.Pipeline.one": {"question": "shapes"},

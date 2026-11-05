@@ -99,7 +99,7 @@ fn expression_structure_matches_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.identifiers+2/test]
+// [spec:pgorm:req:bindings.identifiers+3/test]
 #[test]
 fn qualified_casts_preserve_source_typed_parameters() -> PyResult<()> {
     Python::initialize();
@@ -562,7 +562,7 @@ fn collations_lower_into_rust_collate() -> PyResult<()> {
         parity(
             py,
             &globals,
-            "p.col('name').collate(p.Identifier('C \"x\"'), schema='pg_catalog') < 'b'",
+            "p.col('name').collate('C \"x\"', schema='pg_catalog') < 'b'",
             name()
                 .collate((Name::runtime("pg_catalog"), Name::runtime("C \"x\"")))
                 .lt("b"),

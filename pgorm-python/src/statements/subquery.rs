@@ -128,7 +128,7 @@ impl PyQuantified {
 
 #[pymethods]
 impl PyQuantified {
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "ANY and ALL cannot be tested as Python booleans",

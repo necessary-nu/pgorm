@@ -14,7 +14,7 @@ use super::{
 use crate::{
     errors::{ConstructionError, LifecycleError},
     expressions::PyExpr,
-    identifiers::PyIdentifier,
+    identifiers::Identifier,
     statements::PyQuantified,
 };
 
@@ -285,7 +285,7 @@ pub(crate) fn name(input: &Bound<'_, PyAny>, owner: &Arc<EntityInfo>) -> PyResul
         }
         column.name.clone()
     } else {
-        PyIdentifier::new(input)?.name
+        Identifier::new(input)?.name
     };
     owner.column(&name)?;
     Ok(name)

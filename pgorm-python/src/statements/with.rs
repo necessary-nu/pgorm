@@ -17,7 +17,7 @@ use super::{
 use crate::{
     errors::ConstructionError,
     expressions::{PyExpr, coerce},
-    identifiers::PyIdentifier,
+    identifiers::Identifier,
 };
 
 // [spec:pgorm:req:bindings.with+1]
@@ -33,7 +33,7 @@ fn expression(
     columns: Option<&Bound<'_, PyAny>>,
     materialized: Option<bool>,
 ) -> PyResult<CommonTableExpression> {
-    let name = PyIdentifier::new(name)?.name();
+    let name = Identifier::new(name)?.name();
     let mut expression = if let Ok(select) = query.extract::<PyRef<'_, PySelect>>() {
         CommonTableExpression::new(name, select.embedded()?)
     } else if let Ok(insert) = query.extract::<PyRef<'_, PyInsert>>() {
@@ -57,7 +57,7 @@ fn expression(
             .extract::<Vec<Bound<'_, PyAny>>>()
             .map_err(|_| PyTypeError::new_err("a common table expression's columns are a list"))?;
         for column in columns {
-            expression.column(PyIdentifier::new(&column)?.name());
+            expression.column(Identifier::new(&column)?.name());
         }
     }
     if let Some(materialized) = materialized {
@@ -149,7 +149,7 @@ impl PyWith {
         }
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "WITH clauses cannot be tested as Python booleans",
@@ -206,7 +206,7 @@ impl PySearch {
             PySearchOrder::Depth => SearchOrder::DEPTH,
         };
         Ok(Self {
-            inner: Search::new(order, coerce(by)?.inner, PyIdentifier::new(set)?.name()),
+            inner: Search::new(order, coerce(by)?.inner, Identifier::new(set)?.name()),
         })
     }
 
@@ -237,8 +237,8 @@ impl PyCycle {
         Ok(Self {
             inner: Cycle::new(
                 coerce(by)?.inner,
-                PyIdentifier::new(set)?.name(),
-                PyIdentifier::new(using)?.name(),
+                Identifier::new(set)?.name(),
+                Identifier::new(using)?.name(),
             ),
         })
     }
@@ -272,7 +272,7 @@ impl PyReturningRow {
 #[pymethods]
 impl PyReturningRow {
     fn col(&self, name: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
-        let name = PyIdentifier::new(name)?.name();
+        let name = Identifier::new(name)?.name();
         Ok(PyExpr::from_rust(Expr::col((self.rust(), name)).into()))
     }
 

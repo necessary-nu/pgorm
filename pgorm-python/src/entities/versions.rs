@@ -201,7 +201,7 @@ impl PyEntityUpdate {
         run(py, connection, self.entity.clone(), write, Answer::Change)
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "entity writes cannot be tested as Python booleans",

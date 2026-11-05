@@ -25,7 +25,7 @@ pub use versions::{
     PyChange, PyEntityInsert, PyEntityInsertMany, PyEntityUpdate, PyEntityUpdateMany, PyUpserted,
 };
 
-use crate::identifiers::PyIdentifier;
+use crate::identifiers::Identifier;
 use pyo3::prelude::*;
 use std::sync::Arc;
 
@@ -52,7 +52,7 @@ impl PyEntity {
         py: Python<'py>,
         name: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyEntityColumn>> {
-        let name = PyIdentifier::new(name)?.name;
+        let name = Identifier::new(name)?.name;
         self.backend.info().column(&name)?;
         Bound::new(py, PyEntityColumn::new(self.backend.clone(), name)?)
     }

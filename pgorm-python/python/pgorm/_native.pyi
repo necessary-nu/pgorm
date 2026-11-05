@@ -121,7 +121,7 @@ from ._ranges import (
     CreatedRange as CreatedRange, CreatedMultirange as CreatedMultirange,
 )
 from ._query_types import (
-    Identifier as Identifier, Direction as Direction, Nulls as Nulls,
+    _identifier as _identifier, Direction as Direction, Nulls as Nulls,
     Compiled as Compiled, LikeExpr as LikeExpr,
     Aliased as Aliased, OrderBy as OrderBy,
 )

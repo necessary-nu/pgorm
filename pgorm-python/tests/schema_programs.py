@@ -111,9 +111,9 @@ def schemas(p):
     name = 'schema "雪"'
     return {
         "create_schema": p.create_schema(name),
-        "create_schema_if_not_exists": p.create_schema(p.Identifier(name), if_not_exists=True),
+        "create_schema_if_not_exists": p.create_schema(name, if_not_exists=True),
         "drop_schema": p.drop_schema(name),
-        "drop_schemas": p.drop_schema([name, "archive", p.Identifier('Old "x"')], if_exists=True, behavior="cascade"),
+        "drop_schemas": p.drop_schema([name, "archive", 'Old "x"'], if_exists=True, behavior="cascade"),
         "rename_schema": p.rename_schema(name, 'renamed "雪"'),
     }
 

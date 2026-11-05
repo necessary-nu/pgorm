@@ -4,7 +4,7 @@ use pyo3::{exceptions::PyTypeError, prelude::*};
 use super::{PyExpr, construct::require_expr};
 use crate::{
     errors::ConstructionError,
-    identifiers::{Direction, Nulls, PyIdentifier},
+    identifiers::{Direction, Identifier, Nulls},
 };
 
 /// A LIKE, ILIKE or SIMILAR TO pattern and its `ESCAPE`, which the grammar
@@ -59,7 +59,7 @@ impl PyLikeExpr {
         "LikeExpr(...)"
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "LIKE patterns cannot be tested as Python booleans",
@@ -73,12 +73,16 @@ impl PyLikeExpr {
 pub struct Aliased {
     #[pyo3(get)]
     pub expr: PyExpr,
-    #[pyo3(get)]
-    pub alias: PyIdentifier,
+    pub alias: Identifier,
 }
 
 #[pymethods]
 impl Aliased {
+    #[getter(alias)]
+    fn alias_name(&self) -> &str {
+        &self.alias.name
+    }
+
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "SQL projections cannot be tested as Python booleans",

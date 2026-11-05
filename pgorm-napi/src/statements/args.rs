@@ -71,7 +71,7 @@ pub(crate) fn items<'cx>(
 
 /// An identifier: a JavaScript string of 1–63 UTF-8 bytes without NUL,
 /// minted into a `Name`, which renders quoted — never SQL.
-// [spec:pgorm:req:bindings.identifiers+2]
+// [spec:pgorm:req:bindings.identifiers+3]
 pub(crate) fn name<'cx>(cx: &mut Cx<'cx>, value: Handle<'cx, JsValue>) -> NeonResult<Name> {
     let text = read::text(cx, value, "an identifier")?;
     if text.is_empty() || text.len() > 63 || text.contains('\0') {

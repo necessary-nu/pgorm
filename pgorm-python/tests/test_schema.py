@@ -94,7 +94,7 @@ class SchemaConstruction(unittest.TestCase):
             with self.subTest(action=action), self.assertRaises(TypeError):
                 action()
 
-    # [spec:pgorm:req:python.truth-testing+3/test]    every schema builder and pending ALTER
+    # [spec:pgorm:req:python.truth-testing+4/test]    every schema builder and pending ALTER
     # refuses truth testing too
     def test_schema_objects_refuse_truth_testing(self):
         table, query = p.Table("test"), p.select(p.col("id")).from_(p.Table("source"))

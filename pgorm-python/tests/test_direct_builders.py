@@ -15,7 +15,7 @@ import pgorm as p
 
 def quoted(name):
     """Fixture DDL only; protected application queries use public builders."""
-    return '"' + p.Identifier(name).name.replace('"', '""') + '"'
+    return '"' + name.replace('"', '""') + '"'
 
 
 async def collect(stream):

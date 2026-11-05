@@ -6,7 +6,7 @@ use pyo3::{exceptions::PyTypeError, prelude::*, types::PyTuple};
 
 use super::from_item::PyFromItem;
 use crate::{
-    errors::ConstructionError, expressions::PyExpr, identifiers::PyIdentifier, schema::PyDataType,
+    errors::ConstructionError, expressions::PyExpr, identifiers::Identifier, schema::PyDataType,
 };
 
 /// The call an expression holds; any other expression cannot stand in FROM,
@@ -74,7 +74,7 @@ impl PyTableFunction {
     fn columns(&self, names: &Bound<'_, PyTuple>) -> PyResult<Self> {
         let names = names
             .iter()
-            .map(|name| PyIdentifier::new(&name).map(|name| name.name()))
+            .map(|name| Identifier::new(&name).map(|name| name.name()))
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
             inner: self.inner.clone().columns(names),
@@ -91,7 +91,7 @@ impl PyTableFunction {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: self.inner.clone().column_definition(
-                PyIdentifier::new(name)?.name(),
+                Identifier::new(name)?.name(),
                 PyDataType::coerce(data_type)?.inner,
             ),
         })
@@ -99,7 +99,7 @@ impl PyTableFunction {
 
     fn alias(&self, name: &Bound<'_, PyAny>) -> PyResult<PyFromItem> {
         Ok(PyFromItem {
-            inner: self.inner.clone().alias(PyIdentifier::new(name)?.name()),
+            inner: self.inner.clone().alias(Identifier::new(name)?.name()),
         })
     }
 
@@ -107,7 +107,7 @@ impl PyTableFunction {
         "TableFunction(...)"
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "FROM items cannot be tested as Python booleans",

@@ -200,7 +200,7 @@ test("a builder never changes: extending one in two directions leaves it and eac
 });
 
 // [spec:pgorm:req:bindings.expressions+3/test]
-// [spec:pgorm:req:bindings.identifiers+2/test]
+// [spec:pgorm:req:bindings.identifiers+3/test]
 test("values are bound and identifiers quoted: neither text becomes SQL", async () => {
   const hostile = "x' OR '1'='1";
   const query = select(account.col("id")).from(account).where(account.col("name").eq(hostile));
@@ -668,7 +668,7 @@ test("literal() writes a value into the SQL as pgorm-query renders a constant, a
   assert.throws(() => literal(undefined as never), refused(/undefined is no SQL value/));
 });
 
-// [spec:pgorm:req:bindings.identifiers+2/test]
+// [spec:pgorm:req:bindings.identifiers+3/test]
 // [spec:pgorm:req:bindings.argument-errors+1/test]
 test("an identifier is 1–63 UTF-8 bytes without NUL, or refused", () => {
   assert.throws(() => col(""), refused(/identifier/));

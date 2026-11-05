@@ -11,7 +11,7 @@ use super::common;
 use crate::{
     errors::ConstructionError,
     expressions::{PyExpr, coerce},
-    identifiers::PyIdentifier,
+    identifiers::Identifier,
 };
 
 /// A completed Rust ON CONFLICT clause.
@@ -54,11 +54,11 @@ impl PyConflict {
     #[staticmethod]
     fn on_constraint(name: &Bound<'_, PyAny>) -> PyResult<PyConflictTarget> {
         Ok(PyConflictTarget {
-            inner: Arbiter::Constraint(OnConflict::constraint(PyIdentifier::new(name)?.name())),
+            inner: Arbiter::Constraint(OnConflict::constraint(Identifier::new(name)?.name())),
         })
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "conflict clauses cannot be tested as Python booleans",
@@ -105,12 +105,12 @@ fn element(target: Option<ConflictTarget>, item: &Bound<'_, PyAny>) -> PyResult<
             None => OnConflict::expr(expr),
         });
     }
-    if !item.is_instance_of::<PyString>() && !item.is_instance_of::<PyIdentifier>() {
+    if !item.is_instance_of::<PyString>() {
         return Err(PyTypeError::new_err(
             "a conflict target is a column name or an index expression",
         ));
     }
-    let column = PyIdentifier::new(item)?.name();
+    let column = Identifier::new(item)?.name();
     Ok(match target {
         Some(target) => target.and_column(column),
         None => OnConflict::column(column),
@@ -122,7 +122,7 @@ fn element(target: Option<ConflictTarget>, item: &Bound<'_, PyAny>) -> PyResult<
 fn excluded(columns: &Bound<'_, PyTuple>) -> PyResult<(Name, Vec<Name>)> {
     let mut names = columns
         .iter()
-        .map(|column| Ok(PyIdentifier::new(&column)?.name()))
+        .map(|column| Ok(Identifier::new(&column)?.name()))
         .collect::<PyResult<Vec<_>>>()?;
     if names.is_empty() {
         return Err(ConstructionError::new_err(
@@ -184,7 +184,7 @@ impl PyConflictTarget {
             inner: self
                 .inner
                 .clone()
-                .value(PyIdentifier::new(column)?.name(), coerce(value)?.inner),
+                .value(Identifier::new(column)?.name(), coerce(value)?.inner),
         })
     }
 
@@ -209,7 +209,7 @@ impl PyConflictUpdate {
             inner: self
                 .inner
                 .clone()
-                .value(PyIdentifier::new(column)?.name(), coerce(value)?.inner),
+                .value(Identifier::new(column)?.name(), coerce(value)?.inner),
         })
     }
 

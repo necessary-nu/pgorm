@@ -8,7 +8,7 @@ use super::{
     lock::{PyLockStrength, PyLockWait, lock},
     window::window_definition,
 };
-use crate::{errors::ConstructionError, expressions::Compiled, identifiers::PyIdentifier};
+use crate::{errors::ConstructionError, expressions::Compiled, identifiers::Identifier};
 
 /// Join kinds which require an ON condition; CROSS JOIN has its own method.
 #[pyclass(name = "Join", module = "pgorm", eq, from_py_object)]
@@ -22,7 +22,7 @@ pub enum Join {
 
 #[pymethods]
 impl Join {
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "join kinds cannot be tested as Python booleans",
@@ -246,7 +246,7 @@ impl PySelect {
     fn window(&self, name: &Bound<'_, PyAny>, window: &Bound<'_, PyAny>) -> PyResult<Self> {
         let mut next = self.clone();
         next.inner
-            .window(PyIdentifier::new(name)?.name(), window_definition(window)?);
+            .window(Identifier::new(name)?.name(), window_definition(window)?);
         Ok(next)
     }
 
@@ -263,7 +263,7 @@ impl PySelect {
     /// FROM item is. It is final once read, so its tie limit and windows are
     /// checked here.
     fn as_(&self, alias: &Bound<'_, PyAny>) -> PyResult<PyFromItem> {
-        let alias = PyIdentifier::new(alias)?.name();
+        let alias = Identifier::new(alias)?.name();
         Ok(PyFromItem {
             inner: FromItem::SubQuery(self.embedded()?, alias),
         })

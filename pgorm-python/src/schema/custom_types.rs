@@ -282,7 +282,7 @@ impl PyPendingAlterType {
         PyRenameAttribute::object(slf.py(), statement)
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "an ALTER TYPE with no change cannot be tested as a Python boolean",

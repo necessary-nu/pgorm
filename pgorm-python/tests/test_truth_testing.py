@@ -21,7 +21,7 @@ EXEMPT = {
     # `or` and `if` over them stay ordinary Python. A multirange is false when
     # it holds no range, as any container is.
     p.Value, p.Range, p.Multirange, p.CreatedRange, p.CreatedMultirange, p.Interval,
-    p.TypeName, p.Identifier,
+    p.TypeName,
     # Rows, models and their write state, and what a write answers: data read
     # after SQL ran. A record or a model is a mapping, false with no fields.
     p.Record, p.Field, p.EntityModel, p.ActiveModel, p.ActiveValue, p.ActiveState,
@@ -159,7 +159,7 @@ def disjoint_samples():
 
 
 class TruthTesting(unittest.TestCase):
-    # [spec:pgorm:req:python.truth-testing+3/test]
+    # [spec:pgorm:req:python.truth-testing+4/test]
     def test_every_query_class_refuses_truth_testing(self):
         samples = statement_samples() + expression_samples() + other_samples()
         for sample in samples:
@@ -180,10 +180,9 @@ class TruthTesting(unittest.TestCase):
             with self.subTest(kind=kind):
                 self.assertIn("__bool__", vars(kind))
 
-    # [spec:pgorm:req:python.truth-testing+3/test]
+    # [spec:pgorm:req:python.truth-testing+4/test]
     def test_exempt_values_keep_python_truth(self):
         self.assertTrue(p.Value(0))
-        self.assertTrue(p.Identifier("id"))
         self.assertFalse(p.Multirange([]))
         self.assertTrue(p.Multirange([p.Range(1, 2)]))
         self.assertTrue(p.ConstructionError("refused"))

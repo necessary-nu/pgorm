@@ -2,7 +2,7 @@ use pgorm::pgorm_query::{ColumnRef, Expr, FromItem};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use super::table::PyTable;
-use crate::{errors::ConstructionError, expressions::PyExpr, identifiers::PyIdentifier};
+use crate::{errors::ConstructionError, expressions::PyExpr, identifiers::Identifier};
 
 // [spec:pgorm:req:bindings.select+4]
 /// A FROM item that is not a plain named table, owned by Rust's `FromItem`.
@@ -22,7 +22,7 @@ impl PyFromItem {
         Ok(PyExpr::from_rust(
             Expr::col(ColumnRef::TableColumn(
                 self.inner.qualifier().clone(),
-                PyIdentifier::new(name)?.name(),
+                Identifier::new(name)?.name(),
             ))
             .into(),
         ))
@@ -43,7 +43,7 @@ impl PyFromItem {
         format!("FromItem(alias={:?})", self.alias())
     }
 
-    // [spec:pgorm:req:python.truth-testing+3]
+    // [spec:pgorm:req:python.truth-testing+4]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "FROM items cannot be tested as Python booleans",
