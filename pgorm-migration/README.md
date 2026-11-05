@@ -6,6 +6,9 @@ and applied migrations are recorded in a tracking table. There are no down
 migrations, no rollback, and no CLI: you write forward migrations and run
 them from your own binary.
 
+The [Migrations](../docs/guide/21-migrations.md) chapter of the pgorm guide
+teaches the runner from a first migration on; this page is a summary.
+
 A starter migration crate lives at
 [`template/migration/`](template/migration/) — copy it into your project,
 add your migration modules to the migrator, and run it against your

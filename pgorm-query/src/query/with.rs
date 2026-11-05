@@ -63,10 +63,9 @@ impl CommonTableExpression {
         self
     }
 
-    /// Some databases allow you to put "MATERIALIZED" or "NOT MATERIALIZED" in the CTE definition.
-    /// This affects how the CTE is executed when the statement carrying the clause runs. If the
-    /// database doesn't support this syntax this option specified here will be ignored and not
-    /// appear in the generated sql.
+    /// Write `MATERIALIZED` (`true`) or `NOT MATERIALIZED` (`false`) in the CTE definition:
+    /// whether PostgreSQL computes the CTE once and reads the result, or may fold it into the
+    /// query that reads it. Without a call the planner chooses.
     pub fn materialized(&mut self, materialized: bool) -> &mut Self {
         self.materialized = Some(materialized);
         self
@@ -153,8 +152,7 @@ impl CommonTableExpression {
     }
 }
 
-/// For [RecursiveWithClause]s the traversing order can be specified in some databases
-/// that support this functionality.
+/// The order a [RecursiveWithClause]'s [Search] clause numbers the rows in.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SearchOrder {
     /// Breadth first traversal during the execution of the recursive query.
@@ -163,8 +161,8 @@ pub enum SearchOrder {
     DEPTH,
 }
 
-/// For [RecursiveWithClause]s the traversing order can be specified in some databases
-/// that support this functionality.
+/// The SEARCH clause of a [RecursiveWithClause]: an order column numbering the rows breadth
+/// first or depth first, which the query can then order by.
 ///
 /// The clause contains the type of traversal ([SearchOrder]), the expression that is used to
 /// construct the current path, and the name of the order column this clause generates. All three
@@ -321,8 +319,7 @@ impl WithClause {
 ///     cte_name(a,b,c,d) AS (SELECT ... UNION SELECT ... FROM ... JOIN cte_name ON ... WHERE ...)
 ///     DELETE FROM table WHERE table.a = cte_name.a)
 ///
-/// pgorm-query does not check these; it is your responsibility to ensure the recursive query you
-/// put together is valid for the database that you are using.
+/// pgorm-query does not check these; PostgreSQL refuses a recursive query that breaks them.
 ///
 /// # Examples
 ///
@@ -395,16 +392,12 @@ impl RecursiveWithClause {
     }
 
     /// Specify the [Search] clause.
-    ///
-    /// Some databases don't support this clause. In that case this option will be silently ignored.
     pub fn search(&mut self, search: Search) -> &mut Self {
         self.search = Some(search);
         self
     }
 
     /// Specify the [Cycle] clause.
-    ///
-    /// Some databases don't support this clause. In that case this option will be silently ignored.
     pub fn cycle(&mut self, cycle: Cycle) -> &mut Self {
         self.cycle = Some(cycle);
         self

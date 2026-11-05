@@ -894,8 +894,8 @@ pub async fn fingerprint_follows_postgres_18_query_ids() {
             .expect("the statement parses")
     };
 
-    // METRICS.md's examples, which kept their fingerprints across the move
-    // from libpg_query 17: no alias, no schema, no RETURNING.
+    // The guide's Metrics chapter shows the first of these: statements with no
+    // alias, no schema and no RETURNING, fingerprinted as libpg_query 17 did.
     assert_eq!(
         print("SELECT id FROM widget WHERE id = 1").to_string(),
         "394a2f90c244bffe"

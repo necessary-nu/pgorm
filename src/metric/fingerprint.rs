@@ -43,9 +43,9 @@ impl fmt::Display for QueryFingerprint {
 /// anything must copy it out.
 ///
 /// [`sql`](Self::sql) is `Some` for every statement operation — a statement is
-/// its text and nothing else (`conn.sql-text`) — and `None` only for the two
-/// hooks that report a transaction verb (`"begin"`, `"rollback"`), where there
-/// is no statement to name.
+/// its text and nothing else (`conn.sql-text`) — and `None` only for the
+/// failed transaction verbs `record_query_error` reports (`"begin"`,
+/// `"commit"`, `"rollback"`), where there is no statement to name.
 // [spec:pgorm:req:metric.fingerprint+3]
 #[derive(Clone, Copy, Debug)]
 pub struct QueryContext<'a> {
@@ -63,7 +63,8 @@ impl<'a> QueryContext<'a> {
     }
 
     /// The name of the operation being reported: one of the seven
-    /// `ConnectionTrait` methods, or `"begin"` / `"rollback"` for a failed
+    /// `ConnectionTrait` methods, `"copy_in"` / `"copy_out"` for the start of
+    /// a COPY, or `"begin"` / `"commit"` / `"rollback"` for a failed
     /// transaction round trip.
     pub fn operation(&self) -> &'a str {
         self.operation

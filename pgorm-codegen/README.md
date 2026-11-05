@@ -7,6 +7,9 @@ active enums. The text is read with
 server's own parser, so it is read as PostgreSQL 18 reads it. Library-only;
 there is no CLI. Call it from a build script or a small binary of your own.
 
+The [Generating entities](../docs/guide/22-codegen.md) chapter of the pgorm
+guide teaches it with runnable examples; this page is a summary.
+
 `entities_from_sql` is the whole pipeline. It returns a `WriterOutput`, whose
 `files` are `OutputFile`s holding a name and its source, for you to write;
 `EntityWriterOptions` chooses what is generated:

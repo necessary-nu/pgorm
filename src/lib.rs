@@ -1,8 +1,46 @@
-//! An async, dynamic ORM for PostgreSQL, built on tokio-postgres and deadpool.
+//! An async ORM for PostgreSQL, built on tokio-postgres and deadpool.
 //!
-//! Entities are declared as Rust types, queries are composed through the
-//! [`pgorm_query`] builder and executed with their values bound as parameters
-//! rather than interpolated.
+//! You declare each table as an entity, a Rust type, and pgorm writes the SQL
+//! that reads and writes it. Every value is bound as a parameter rather than
+//! pasted into the SQL text, and each statement is prepared and cached per
+//! connection. pgorm serves PostgreSQL alone, so it offers what PostgreSQL
+//! has: `RETURNING`, `ON CONFLICT`, `MERGE`, `COPY`, `LISTEN` and `NOTIFY`,
+//! enums, domains, arrays, JSON, ranges and multiranges.
+//!
+//! **Start with [the guide](crate::guide).** It teaches pgorm from a first
+//! query to every feature, chapter by chapter, and every example in it runs
+//! against a real server. Porting from SeaORM, read [Coming from
+//! SeaORM](crate::coming_from_seaorm) beside it.
+//!
+//! ```
+//! use pgorm::entity::prelude::*;
+//!
+//! #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+//! #[pgorm(table_name = "cake")]
+//! pub struct Model {
+//!     #[pgorm(primary_key)]
+//!     pub id: i32,
+//!     pub name: String,
+//! }
+//!
+//! #[derive(Copy, Clone, Debug, Relation)]
+//! pub enum Relation {}
+//!
+//! # fn main() {
+//! let lemon = Entity::find().filter(Column::Name.contains("lemon"));
+//! assert_eq!(
+//!     lemon.build().0,
+//!     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."name" LIKE $1"#
+//! );
+//! # }
+//! ```
+//!
+//! The modules split the API as the guide does: [`entity`] declares tables,
+//! [`query`] builds the statements that read and write them, [`pipeline`]
+//! composes queries as relation transforms, [`schema`] turns entities into
+//! DDL, [`metric`] instruments a pool, and [`pgorm_query`] is the SQL builder
+//! beneath them all. The connection, transaction, `COPY` and `LISTEN` types
+//! are at the crate root.
 //!
 //! # PostgreSQL release
 //!
@@ -51,6 +89,7 @@ pub mod entity;
 pub mod error;
 /// This module performs execution of queries on a Model or ActiveModel
 mod executor;
+pub mod guide;
 /// Holds types and methods to perform metric collection
 pub mod metric;
 // The module documents itself. A second doc comment here would not merely

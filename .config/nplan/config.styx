@@ -269,7 +269,7 @@ platforms (
     }
     {
         platform "rust"
-        files (src/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs tests/**/*.rs)
+        files (src/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs pgorm-guide-support/**/*.rs tests/**/*.rs)
         checks {
             format {
                 cmd "cargo fmt --all -- --check"
@@ -318,7 +318,7 @@ platforms (
         // that code cannot rot unseen. The live suite under it needs a 19
         // server and stays out of the gate as nextest does.
         platform "rust-pg-19"
-        files (Cargo.toml Cargo.lock src/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs tests/**/*.rs pgorm-macros/Cargo.toml pgorm-codegen/Cargo.toml pgorm-migration/Cargo.toml pgorm-pool/Cargo.toml pgorm-query/Cargo.toml pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-sql-macro/Cargo.toml pgorm-test-support/Cargo.toml)
+        files (Cargo.toml Cargo.lock src/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs pgorm-guide-support/**/*.rs tests/**/*.rs pgorm-macros/Cargo.toml pgorm-codegen/Cargo.toml pgorm-migration/Cargo.toml pgorm-pool/Cargo.toml pgorm-query/Cargo.toml pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-sql-macro/Cargo.toml pgorm-test-support/Cargo.toml pgorm-guide-support/Cargo.toml)
         checks {
             check {
                 cmd "cargo check --workspace --all-targets --features pg-19"

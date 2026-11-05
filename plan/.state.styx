@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T10:06:09.82785Z
+last_sync_at 2026-11-05T15:00:37.202811Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -220,6 +220,10 @@ rule_versions (
     {id generative.replay-parity, version 0}
     {id generative.shrink, version 0}
     {id generative.verdict, version 0}
+    {id guide.chapters, version 0}
+    {id guide.dialects, version 0}
+    {id guide.examples, version 0}
+    {id guide.rust, version 0}
     {id macros.derive, version 7}
     {id macros.derive.active-enum, version 6}
     {id macros.derive.active-enum.expansion, version 6}
@@ -482,6 +486,13 @@ derived_priorities (
     {id binding-coverage-per-impl, priority 1, derived_at 2026-10-30T13:42:29.080898Z}
     {id binding-describe-shapes, priority 1, derived_at 2026-10-31T22:52:03.347907Z}
     {id binding-graph-describe-shapes, priority 0, derived_at 2026-11-01T03:02:37.492868Z}
+    {id binding-parity.grouping, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.identifiers, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.like-patterns, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.pipeline-terminals, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.registered-inserts, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.table-functions, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.verify-annotations, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
     {id binding-renames, priority 1, derived_at 2026-10-30T14:41:04.802037Z}
     {id binding-spec-consolidation, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id binding-statement-defects, priority 0, derived_at 2026-11-01T03:02:37.492868Z}
@@ -522,7 +533,9 @@ derived_priorities (
     {id codegen-enum-array-expanded, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id codegen-enum-variant-names, priority 0, derived_at 2026-11-03T10:52:41.808438Z}
     {id codegen-enum-variant-names-all, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
+    {id codegen-error-display, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id codegen-fk-covering-key-at-most-one, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
+    {id codegen-formatted-output, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id codegen-identity-collisions, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id codegen-interval-columns, priority 1, derived_at 2026-10-24T06:20:32.099314Z}
     {id codegen-junction-detection, priority 3, derived_at 2026-09-06T16:36:02.710141Z}
@@ -576,10 +589,12 @@ derived_priorities (
     {id decide.statement, priority 0, derived_at 2026-09-02T10:37:35.415375Z}
     {id decide.turso, priority 0, derived_at 2026-09-02T00:45:23.577997Z}
     {id decimal-scale-returned, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
+    {id decoded-selector-renders, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id deps-refresh-2026-10, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id derives.boilerplate, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
     {id derives.compact-only, priority 1, derived_at 2026-11-02T14:23:29.374268Z}
     {id derives.expanded, priority 0, derived_at 2026-11-02T14:23:29.374268Z}
+    {id derives.into-active-model-forms, priority 3, derived_at 2026-11-05T15:00:37.202811Z}
     {id derives.names, priority 2, derived_at 2026-11-02T14:23:29.374268Z}
     {id derives.paths, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
     {id disjoint-derive-macro-hygiene, priority 3, derived_at 2026-11-04T23:38:41.404888Z}
@@ -588,6 +603,7 @@ derived_priorities (
     {id disjoint.bindings, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
     {id disjoint.bindings-codegen, priority 3, derived_at 2026-11-03T07:11:51.915781Z}
     {id disjoint.bindings-unkinded, priority 3, derived_at 2026-11-03T08:39:14.136613Z}
+    {id disjoint.change-replays, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id disjoint.codegen, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
     {id disjoint.codegen-unkinded, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
     {id disjoint.declare, priority 3, derived_at 2026-11-02T14:23:29.374268Z}
@@ -634,6 +650,7 @@ derived_priorities (
     {id ergo.with-carry, priority 1, derived_at 2026-09-04T14:19:01.307427Z}
     {id exec-vocabulary-annotation-verb, priority 0, derived_at 2026-11-02T19:55:15.934339Z}
     {id from-json-serialization, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
+    {id func-aggregate-expr-methods, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id generative-interval-kind, priority 1, derived_at 2026-10-24T06:20:32.099314Z}
     {id generative-killpg-eperm, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id generative-live-wire-kinds, priority 2, derived_at 2026-10-24T06:20:32.099314Z}
@@ -660,12 +677,16 @@ derived_priorities (
     {id graph-unicode-alias-collisions, priority 3, derived_at 2026-09-07T22:03:19.945209Z}
     {id graph-via-as, priority 0, derived_at 2026-10-24T06:20:32.099314Z}
     {id grouped, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
+    {id guide.javascript, priority 2, derived_at 2026-11-05T14:14:15.598156Z}
+    {id guide.python, priority 2, derived_at 2026-11-05T14:14:15.598156Z}
+    {id guide.rust, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
     {id ident-oracle-disjoint-sites, priority 3, derived_at 2026-11-04T23:38:41.404888Z}
     {id ident-oracle-load-flake, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id identifier-bypass-surfaces, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id identifier-render-oracle, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id identity-arity-collapse, priority 0, derived_at 2026-09-07T11:29:18.890823Z}
     {id in-subquery-enum-shapes, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
+    {id inert-features, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id infra.prepared-api, priority 0, derived_at 2026-09-04T14:19:01.307427Z}
     {id infra.python-native-unit, priority 0, derived_at 2026-11-05T09:36:31.119097Z}
     {id infra.schema-index-qualify, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
@@ -684,11 +705,13 @@ derived_priorities (
     {id inline-string-escaping, priority 0, derived_at 2026-09-08T15:20:53.390093Z}
     {id inline-window-over-named, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id insert-returning-manual-pk, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
+    {id instrumented-tx-conn-trait, priority 2, derived_at 2026-11-05T15:00:37.202811Z}
     {id jiff-temporal, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id joined-row-decode-errors, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id json-server-bug-guards, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
     {id like-escape-off, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id like-ilike-render-parens, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
+    {id like-pattern-from-text, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id like-sugar-escaping, priority 0, derived_at 2026-09-08T15:20:53.390093Z}
     {id linked-fold, priority 3, derived_at 2026-09-06T16:36:02.710141Z}
     {id literal-temporal-precision, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
@@ -702,6 +725,7 @@ derived_priorities (
     {id macro-partial-model-attrs, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id macro-sea-attr-name, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id macro-unknown-attrs, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
+    {id membership-takes-str, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id merge-beyond-pg16, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id metrics-rollback-honest, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id migration-checksums, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
@@ -715,6 +739,7 @@ derived_priorities (
     {id migration-test-database-gate, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id minimal-feature-build, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
     {id money-beyond-entities, priority 1, derived_at 2026-11-02T23:02:57.694884Z}
+    {id multi-pool-constructor, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id napi-addon-size, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id napi-binding-decisions, priority 1, derived_at 2026-10-30T14:41:04.802037Z}
     {id napi-codegen, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
@@ -737,6 +762,7 @@ derived_priorities (
     {id napi-statements, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
     {id napi-values, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id napi.abort-race-all, priority 1, derived_at 2026-11-05T02:15:29.773078Z}
+    {id napi.entity-busy-race, priority 3, derived_at 2026-11-05T14:14:15.598156Z}
     {id nested-source-from-entry, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id nopanic.codegen-gate, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
     {id nopanic.connect-builders, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
@@ -788,6 +814,7 @@ derived_priorities (
     {id pipeline-hostile-identifiers, priority 0, derived_at 2026-09-08T15:20:53.390093Z}
     {id pipeline-identifier-quoting-own, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id pipeline-join-distinct-order, priority 0, derived_at 2026-09-13T11:14:12.956602Z}
+    {id pipeline-model-read-casts, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id pipeline-native-panic, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id pipeline-read-cast-verbatim, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id pipeline-rejects-backtick-name, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
@@ -902,14 +929,18 @@ derived_priorities (
     {id query-verbs-keep-promises, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id quoted-result-name-doubled, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id range-arrays-and-overlap, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
+    {id raw-entry-points-one-shape, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id raw-identifier-casts, priority 0, derived_at 2026-09-08T15:20:53.390093Z}
     {id raw-pagination-placeholder-lexing, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
     {id relation-def-rev, priority 0, derived_at 2026-09-07T15:33:15.757479Z}
     {id repair.doctests, priority 2, derived_at 2026-09-01T22:48:19.179922Z}
+    {id retire-try-from-u64, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
+    {id runtime-entity-name-per-query, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id rust, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id rust-view-body-check, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id same-named-tables-across-schemas, priority 0, derived_at 2026-11-03T03:52:36.39422Z}
     {id save-as-predicate-casts, priority 0, derived_at 2026-09-07T15:33:15.757479Z}
+    {id savepoint-error-composes, priority 2, derived_at 2026-11-05T15:00:37.202811Z}
     {id scalar-kinds-shared, priority 1, derived_at 2026-10-26T20:21:09.753689Z}
     {id schema-enum-arrays, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id schema-enum-dedup, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
@@ -949,6 +980,7 @@ derived_priorities (
     {id set-op-keeps-deduplication, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id set-operation-grouping, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id settled-source-name-resolves, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
+    {id signature-types-reexported, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id spec, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id spec-prose-unversioned-refs, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id sql-domains, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
@@ -982,6 +1014,7 @@ derived_priorities (
     {id supply-chain-unscanned, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id table-function-column-defs, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id table-key-distinct-columns, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
+    {id template-static-text, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id test-run-isolation, priority 0, derived_at 2026-10-24T06:20:32.099314Z}
     {id tokenizer-backslash-standard, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id transaction-stale-plan-recovery, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
@@ -994,6 +1027,7 @@ derived_priorities (
     {id typed-binds.empty-quantified-list, priority 3, derived_at 2026-11-05T03:45:45.445825Z}
     {id typed-binds.enum-array-type-name, priority 3, derived_at 2026-11-05T06:41:03.587248Z}
     {id typed-binds.napi-range-array-operand, priority 3, derived_at 2026-11-05T06:02:16.430683Z}
+    {id typed-binds.polymorphic-operands, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id typed-binds.python-decode-reason, priority 3, derived_at 2026-11-05T02:15:29.773078Z}
     {id typed-binds.python-expression-operands, priority 3, derived_at 2026-11-05T02:15:29.773078Z}
     {id typed-binds.quantified-casts, priority 3, derived_at 2026-11-05T02:15:29.773078Z}
@@ -1028,10 +1062,12 @@ derived_priorities (
     {id value-codecs.char-created-range-kind, priority 3, derived_at 2026-11-05T08:09:51.053281Z}
     {id value-codecs.copy-numeric-exact, priority 3, derived_at 2026-11-05T08:09:51.053281Z}
     {id value-codecs.domain-subtype-column, priority 3, derived_at 2026-11-05T09:36:31.119097Z}
+    {id value-codecs.model-decimal-exact, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id value-decode-created-multiranges, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id value-decode-created-ranges, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id value-float-eq-hash, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id value-serde-impls, priority 2, derived_at 2026-10-24T06:20:32.099314Z}
+    {id value-type-try-from-collision, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id varied-schemas, priority 2, derived_at 2026-09-08T15:20:53.390093Z}
     {id verify.codegen, priority 0, derived_at 2026-09-02T10:37:35.415375Z}
     {id verify.conn, priority 1, derived_at 2026-09-02T10:37:35.415375Z}
@@ -2199,6 +2235,17 @@ impl_evidence (
         query.graph.grouped
     ), covered_claims (
         {impl_name main, rule query.graph.grouped}
+    )}
+    {id guide.javascript}
+    {id guide.python}
+    {id guide.rust, covered_rules (
+        guide.chapters
+        guide.examples
+        guide.rust
+    ), covered_claims (
+        {impl_name main, rule guide.chapters}
+        {impl_name main, rule guide.examples}
+        {impl_name main, rule guide.rust}
     )}
     {id identifier-render-oracle, covered_rules (
         security.ident-oracle
