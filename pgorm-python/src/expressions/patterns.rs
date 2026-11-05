@@ -20,7 +20,7 @@ impl PyExpr {
     }
 }
 
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 // [spec:pgorm:req:bindings.quantifiers+3]
 #[pymethods]
 impl PyExpr {

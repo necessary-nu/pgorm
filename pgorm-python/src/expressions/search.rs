@@ -7,7 +7,7 @@ use pyo3::{exceptions::PyTypeError, prelude::*};
 use super::PyExpr;
 use crate::statements::PyQuantified;
 
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 // [spec:pgorm:req:bindings.quantifiers+3]
 #[pymethods]
 impl PyExpr {

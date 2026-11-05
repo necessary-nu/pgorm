@@ -889,11 +889,11 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         /// );
         /// assert_eq!(values.0, vec!["(A|B)%".into(), "!%%".into()]);
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.similar-to+2]
+        // [spec:pgorm:req:sql.ast.expr.similar-to+3]
         similar_to => SimilarTo,
         /// Express a `NOT SIMILAR TO` expression, the complement of
         /// [`similar_to`](ExprTrait::similar_to).
-        // [spec:pgorm:req:sql.ast.expr.similar-to+2]
+        // [spec:pgorm:req:sql.ast.expr.similar-to+3]
         not_similar_to => NotSimilarTo,
     }
 

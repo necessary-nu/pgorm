@@ -32,7 +32,7 @@ async fn answers<C: ConnectionTrait>(
     Ok(rows[0])
 }
 
-// [spec:pgorm:req:sql.ast.expr.similar-to+2/test]    against a live server: `no_escape` turns
+// [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    against a live server: `no_escape` turns
 // escaping off for LIKE, ILIKE and SIMILAR TO, a backslash then matching itself
 #[pgorm_macros::test]
 async fn no_escape_reads_a_backslash_as_itself() -> Result<(), Error> {
@@ -79,6 +79,58 @@ async fn no_escape_reads_a_backslash_as_itself() -> Result<(), Error> {
         )
         .await?,
         (false, true, false)
+    );
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    against a live server: a
+// pattern built from text matches that text and nothing its `%`, `_` or
+// escape character would otherwise widen it to, under the default escape and
+// a chosen one; with escaping off its wildcards are wildcards
+#[pgorm_macros::test]
+async fn patterns_from_text_match_the_text() -> Result<(), Error> {
+    let ctx = TestContext::new("patterns_from_text_match_the_text").await;
+    let db = ctx.db.get().await?;
+
+    let search = r"50%_off\";
+    assert_eq!(
+        answers(
+            &db,
+            [
+                text(r"save 50%_off\ now").like(LikeExpr::containing(search)),
+                text("save 50xyoff now").like(LikeExpr::containing(search)),
+                text(r"50%_off\").like(LikeExpr::literal(search)),
+            ],
+        )
+        .await?,
+        (true, false, true)
+    );
+    assert_eq!(
+        answers(
+            &db,
+            [
+                text("a!b%c").ilike(LikeExpr::starting_with("A!B%").escape('!')),
+                text("a!bxc").ilike(LikeExpr::starting_with("A!B%").escape('!')),
+                text("xx_y").like(LikeExpr::ending_with("_y")),
+            ],
+        )
+        .await?,
+        (true, false, true)
+    );
+    assert_eq!(
+        answers(
+            &db,
+            [
+                text("50x off").like(LikeExpr::starting_with("50%").no_escape()),
+                text("ab").not_like(LikeExpr::ending_with("_")),
+                text("a_").like(LikeExpr::ending_with("_")),
+            ],
+        )
+        .await?,
+        (true, true, true)
     );
 
     drop(db);

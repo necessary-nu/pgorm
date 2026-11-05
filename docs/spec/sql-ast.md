@@ -955,7 +955,7 @@ today, including panicking edges and deliberate failsafes.
 > corresponding function call. JSON field, path and key-existence access is
 > `sql.ast.expr.json`.
 
-> [spec:pgorm:req:sql.ast.expr.similar-to+2]
+> [spec:pgorm:req:sql.ast.expr.similar-to+3]
 > `similar_to(pattern)` and `not_similar_to(pattern)`, on every expression
 > (`ExprTrait`), build `SIMILAR TO` and `NOT SIMILAR TO`
 > (`BinOper::SimilarTo`, `BinOper::NotSimilarTo`): whether the whole string
@@ -973,6 +973,20 @@ today, including panicking edges and deliberate failsafes.
 > construction: `escape` takes a `char` and `no_escape` nothing. Both
 > operators are of the LIKE family the renderer ranks by
 > (`sql.render.precedence`), where the grammar ranks `SIMILAR`.
+>
+> A pattern is also built from literal text, a user's search among it:
+> `LikeExpr::literal(text)` matches exactly the text,
+> `LikeExpr::containing(text)` is `%text%`, `starting_with(text)` `text%` and
+> `ending_with(text)` `%text`. The text's `%`, `_` and escape character are
+> each preceded by the escape, so the text matches itself and nothing it
+> would otherwise widen to. The escaping is the pattern's: it is done for
+> the escape character in force when the statement renders, so `escape(c)`
+> chosen after the text escapes it with `c`, and under `no_escape()` nothing
+> is escaped and the text's `%` and `_` are wildcards. The set escaped is
+> LIKE's; under `SIMILAR TO` the regular-expression characters keep their
+> meaning. This is the one escaping pgorm has: the entity columns'
+> `starts_with`, `ends_with` and `contains` (`entity.traits.column`) are
+> these constructors.
 
 > [spec:pgorm:req:sql.ast.expr.in+1]
 > `is_in`/`is_not_in` MUST build an `IN`/`NOT IN` over a `Tuple` of the given

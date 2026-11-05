@@ -312,6 +312,8 @@ for await (const row of pool.stream(query, { tagged: true })) { /* .. */ }
   `concat`), `and`/`or`/`not` and `Condition.all`/`any`, `isNull`, `isIn` a list
   or a `Select`, `between` (`{ symmetric }`), `like`/`ilike`/`similarTo` over
   a string or a `likeExpr(pattern)` with its `.escape(c)` or `.noEscape()`,
+  or one built from literal text, `LikeExpr.containing(text)` (and
+  `literal`, `startingWith`, `endingWith`), its `%`, `_` and escape escaped,
   `startsWith`/`endsWith`/`containsText` (text, not patterns),
   `cast`, `collate`, `at`/`slice`, `caseWhen(..).when(..).else(..)`,
   `caseOf(x).when(..)`, `call` for the functions pgorm-query constructs

@@ -6,7 +6,8 @@
 //! aggregated — is [`ExprTrait`](crate::ExprTrait)'s, which both implement.
 
 use crate::{
-    SqlJson, Subscript, error::Result, func::*, query::*, template::SqlTemplate, types::*, value::*,
+    LikeExpr, SqlJson, Subscript, error::Result, func::*, query::*, template::SqlTemplate,
+    types::*, value::*,
 };
 
 /// The entry point of an expression: a column, a value, another expression,

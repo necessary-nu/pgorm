@@ -26,7 +26,7 @@ def text_array(values):
 
 
 # [spec:pgorm:req:bindings.select+4/test]
-# [spec:pgorm:req:bindings.expressions+3/test]
+# [spec:pgorm:req:bindings.expressions+4/test]
 class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=1)
@@ -130,7 +130,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             G()
 
-    # [spec:pgorm:req:sql.ast.expr.similar-to+2/test]    a whole-string match, the default
+    # [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    a whole-string match, the default
     # backslash escape and a chosen one
     async def test_similar_to_matches_whole_strings(self):
         def names(predicate):
@@ -147,7 +147,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
                          [("Ann",), ("Bob",), ("Cy",)])
         self.assertEqual(await names(name.similar_to("' OR 1=1 --")), [])
 
-    # [spec:pgorm:req:sql.ast.expr.similar-to+2/test]    no_escape() turns escaping off for
+    # [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    no_escape() turns escaping off for
     # LIKE, ILIKE and SIMILAR TO, a backslash then matching itself
     async def test_no_escape_turns_escaping_off(self):
         def text(value):
@@ -161,6 +161,23 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
             text("a\\b").similar_to(off).as_("similar"),
             text("50%").not_like(p.LikeExpr("50\\%").no_escape()).as_("percent")))
         self.assertEqual(answers, [(False, True, True, True, True)])
+
+    # [spec:pgorm:req:bindings.expressions+4/test]    a pattern built from literal text
+    # matches the text and nothing its % or _ would widen it to, under the default escape
+    # and a chosen one
+    async def test_patterns_from_text_match_the_text(self):
+        def text(value):
+            return p.bind(value).cast(p.TypeName("text"))
+
+        answers = await self.rows(p.Select(
+            text("save 50%_off now").like(p.LikeExpr.containing("50%_off")).as_("inside"),
+            text("save 50xyoff now").like(p.LikeExpr.containing("50%_off")).as_("widened"),
+            text("50%").like(p.LikeExpr.literal("50%")).as_("exact"),
+            text("A!B%c").ilike(p.LikeExpr.starting_with("a!b%").escape("!")).as_("chosen"),
+            text("x_y").like(p.LikeExpr.ending_with("_y")).as_("tail")))
+        self.assertEqual(answers, [(True, False, True, True, True)])
+        with self.assertRaises(TypeError):
+            p.LikeExpr.containing(1)
 
     # [spec:pgorm:req:bindings.collations/test]    "C" orders and compares bytewise in both
     # positions, and the server refuses a collation it lacks or a type without one
@@ -276,7 +293,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
         count = p.Select(p.call("count", unaliased.col("id"))).from_(unaliased)
         self.assertEqual(await self.rows(count), [(200,)])
 
-    # [spec:pgorm:req:bindings.expressions+3/test]    array(select) collects a subquery's one
+    # [spec:pgorm:req:bindings.expressions+4/test]    array(select) collects a subquery's one
     # column into an array value, empty for no rows, cast as one value, and the server refuses a
     # subquery of two columns with 42601
     async def test_array_collects_a_subquery_column(self):

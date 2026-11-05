@@ -15,7 +15,7 @@ def inspection(expression):
     return compiled.sql, [value.snapshot() for value in compiled.params]
 
 
-# [spec:pgorm:req:bindings.expressions+3/test]
+# [spec:pgorm:req:bindings.expressions+4/test]
 # [spec:pgorm:req:bindings.identifiers+3/test]
 # [spec:pgorm:req:bindings.operands/test]
 # [spec:pgorm:req:bindings.statements/test]

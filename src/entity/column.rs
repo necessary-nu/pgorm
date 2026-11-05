@@ -1,6 +1,7 @@
 use crate::{EntityName, IntoSimpleExpr, Iterable, SqlName, StaticName};
 use pgorm_query::{
-    ArrayElement, BinOper, Expr, ExprTrait, Func, Name, SelectStatement, SimpleExpr, Value,
+    ArrayElement, BinOper, Expr, ExprTrait, Func, LikeExpr, Name, SelectStatement, SimpleExpr,
+    Value,
 };
 use std::str::FromStr;
 
@@ -136,9 +137,7 @@ macro_rules! bind_subquery_func {
     };
 }
 
-use column_def::{
-    created_range_type_name, enum_type_name, escape_like_text, holds_array, under_domains,
-};
+use column_def::{created_range_type_name, enum_type_name, holds_array, under_domains};
 
 // LINT: when the operand value does not match column type
 /// API for working with a `Column`. Mostly a wrapper of the identically named methods in [`pgorm_query::Expr`]
@@ -440,8 +439,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     where
         T: Into<String>,
     {
-        let pattern = format!("{}%", escape_like_text(&s.into()));
-        Expr::col((self.entity_name(), *self)).like(pattern)
+        Expr::col((self.entity_name(), *self)).like(LikeExpr::starting_with(s))
     }
 
     /// ```
@@ -460,8 +458,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     where
         T: Into<String>,
     {
-        let pattern = format!("%{}", escape_like_text(&s.into()));
-        Expr::col((self.entity_name(), *self)).like(pattern)
+        Expr::col((self.entity_name(), *self)).like(LikeExpr::ending_with(s))
     }
 
     /// ```
@@ -480,8 +477,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     where
         T: Into<String>,
     {
-        let pattern = format!("%{}%", escape_like_text(&s.into()));
-        Expr::col((self.entity_name(), *self)).like(pattern)
+        Expr::col((self.entity_name(), *self)).like(LikeExpr::containing(s))
     }
 
     bind_compared_aggregate!(max);

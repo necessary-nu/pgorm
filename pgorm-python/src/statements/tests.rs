@@ -1233,7 +1233,7 @@ fn set_operation_arms_are_checked_when_read() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+3/test]    array(select) is Rust's Expr::array over the
+// [spec:pgorm:req:bindings.expressions+4/test]    array(select) is Rust's Expr::array over the
 // subquery as it embeds, projected and compared as one value, and an ordered-with-ties subquery
 // is refused as any embedded one is
 #[test]
@@ -1290,7 +1290,7 @@ fn array_subquery_matches_rust_expr_array() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+3/test]    exists, scalar, IN a Select and any_ / all_
+// [spec:pgorm:req:bindings.expressions+4/test]    exists, scalar, IN a Select and any_ / all_
 // [spec:pgorm:req:bindings.quantifiers+3/test]
 // are Rust's Expr::exists, the scalar SubQuery, in_subquery / not_in_subquery and Expr::any /
 // Expr::all over a subquery or Func::any / Func::all over an array, a quantifier taken by each

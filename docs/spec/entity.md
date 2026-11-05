@@ -95,7 +95,9 @@ explicit limitations.
 > comparisons `is_distinct_from` / `is_not_distinct_from`; pattern matching
 > `like`, `not_like`, and the sugar `starts_with`, `ends_with` and
 > `contains`, whose search text is LITERAL: `%`, `_` and `\` in it are
-> escaped before the pattern is built (`s%`, `%s`, `%s%`), so
+> escaped before the pattern is built (`s%`, `%s`, `%s%`) — they are
+> `LikeExpr::starting_with`, `ending_with` and `containing`
+> (`sql.ast.expr.similar-to`), the one escaping pgorm has — so
 > `contains("%")` matches a percent sign rather than every row — a pattern
 > is `like`'s job and `like`/`not_like` take theirs verbatim; aggregates `max`, `min`, `sum`, `count`; null checks `is_null`,
 > `is_not_null`, `if_null`; set membership `is_in` / `is_not_in`, its

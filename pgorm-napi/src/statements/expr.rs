@@ -54,7 +54,7 @@ fn receiver<'cx>(cx: &mut FunctionContext<'cx>, index: usize) -> NeonResult<Simp
 
 /// `exprCol(name, table, schema)`: a column, qualified by a table and its
 /// schema when they are given.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 fn col(cx: &mut FunctionContext) -> NeonResult<Node> {
     let column = name_at(cx, 0)?;
     let table = arg(cx, 1);
@@ -71,7 +71,7 @@ fn col(cx: &mut FunctionContext) -> NeonResult<Node> {
 }
 
 /// `exprBind(value)`: a bound value.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 fn bind(cx: &mut FunctionContext) -> NeonResult<Node> {
     let value = arg(cx, 0);
     let expr = args::bound(cx, value)?;
@@ -128,7 +128,7 @@ fn function(name: &str, args: &[SimpleExpr]) -> Option<FunctionCall> {
 /// `exprCall(name, args)`: a call to one of the functions pgorm-query has a
 /// constructor for. Another name or argument count is refused: the name
 /// selects a constructor and never reaches SQL.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 fn call(cx: &mut FunctionContext) -> NeonResult<Node> {
     let value = arg(cx, 0);
     let name = crate::values::read::text(cx, value, "a function's name")?;
@@ -161,7 +161,7 @@ fn tuple(cx: &mut FunctionContext) -> NeonResult<Node> {
 /// `exprSubquery(kind, select)`: a scalar subquery, `(SELECT ..)`,
 /// `EXISTS (SELECT ..)`, or `ARRAY(SELECT ..)`, its one column collected into
 /// one array value through `Expr::array`.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 fn subquery(cx: &mut FunctionContext) -> NeonResult<Node> {
     let kind = choice(cx, 0, "a subquery's kind", &["scalar", "exists", "array"])?;
     let select = select_at(cx, 1)?;
@@ -272,7 +272,7 @@ pub(super) const BINARY: [(&str, BinOper); 26] = [
 /// operand bound unless it is an expression, or `ANY (..)` or `ALL (..)` for
 /// an operator PostgreSQL reads one after. `isNotDistinctFrom` is the one
 /// operator outside the table, as pgorm-query spells it.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 fn binary(cx: &mut FunctionContext) -> NeonResult<Node> {
     let left = receiver(cx, 0)?;
     let operator = arg(cx, 1);
@@ -296,7 +296,7 @@ fn binary(cx: &mut FunctionContext) -> NeonResult<Node> {
 /// `exprPathExists(expr, path)`: `@?`, the path a string bound as text cast
 /// to `jsonpath` by pgorm-query's `json_path_exists`, or `ANY (..)` or
 /// `ALL (..)` over `jsonpath` values.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 // [spec:pgorm:req:bindings.quantifiers+3]
 fn path_exists(cx: &mut FunctionContext) -> NeonResult<Node> {
     let expr = receiver(cx, 0)?;
@@ -337,7 +337,7 @@ fn unary(cx: &mut FunctionContext) -> NeonResult<Node> {
 /// `exprIn(expr, negated, values | select)`: membership in a list — empty
 /// included, which pgorm-query renders as a comparison that is always false
 /// for `IN` and always true for `NOT IN` — or in a subquery's rows.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 fn membership(cx: &mut FunctionContext) -> NeonResult<Node> {
     let expr = Expr::expr(receiver(cx, 0)?);
     let negated = args::flag(cx, 1)?;
@@ -380,7 +380,7 @@ fn between(cx: &mut FunctionContext) -> NeonResult<Node> {
 /// TO's, over a string or a `LikeExpr`. LIKE's family also takes `ANY (..)`
 /// or `ALL (..)` over patterns, which carry no escape, as the grammar reads
 /// none after one.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 // [spec:pgorm:req:bindings.quantifiers+3]
 fn like(cx: &mut FunctionContext) -> NeonResult<Node> {
     let left = receiver(cx, 0)?;
@@ -433,7 +433,7 @@ fn quantified_like(
 /// `exprText(expr, helper, text)`: a test that reads its argument as text,
 /// `%`, `_` and backslashes included, through PostgreSQL's own functions —
 /// `starts_with`, `strpos` and `right` — so there is no escaping to get wrong.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 fn text(cx: &mut FunctionContext) -> NeonResult<Node> {
     let expr = receiver(cx, 0)?;
     let helper = choice(
@@ -460,7 +460,7 @@ fn text(cx: &mut FunctionContext) -> NeonResult<Node> {
 
 /// `exprCast(expr, type, array)`: `CAST(expr AS type)`, the type named by
 /// identifier and quoted.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 fn cast(cx: &mut FunctionContext) -> NeonResult<Node> {
     let expr = receiver(cx, 0)?;
     let named = arg(cx, 1);
@@ -545,7 +545,7 @@ fn order(cx: &mut FunctionContext) -> NeonResult<Node> {
 
 /// `conditionNew("all" | "any", items)`: pgorm-query's `Condition::all` or
 /// `any` over the items, an empty one being true or false as Rust has it.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 fn condition_new(cx: &mut FunctionContext) -> NeonResult<Node> {
     let kind = choice(cx, 0, "a condition's kind", &["all", "any"])?;
     let mut condition = if kind == "all" {

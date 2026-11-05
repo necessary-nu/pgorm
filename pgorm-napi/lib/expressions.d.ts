@@ -5,7 +5,7 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 // [spec:pgorm:req:bindings.quantifiers+3]
 // [spec:pgorm:req:bindings.case]
 
@@ -188,6 +188,14 @@ export declare class Expr extends Builder {
 export declare class LikeExpr {
   #private;
   private constructor();
+  /** A pattern matching exactly `text`, its `%`, `_` and escape character escaped. */
+  static literal(text: string): LikeExpr;
+  /** `%text%` over literal text, escaped as `literal` escapes it. */
+  static containing(text: string): LikeExpr;
+  /** `text%` over literal text. */
+  static startingWith(text: string): LikeExpr;
+  /** `%text` over literal text. */
+  static endingWith(text: string): LikeExpr;
   /** Escape with `character`, `ESCAPE 'c'`, in place of the default backslash: one character, not NUL. */
   escape(character: string): LikeExpr;
   /** Turn escaping off, `ESCAPE ''`: a backslash in the pattern is then itself. */

@@ -47,6 +47,7 @@ the SQL; its wire parameter retains the underlying Rust string/array tag.
 | `expr.at(index)` | `Expr::index`; `a[index]` |
 | `expr.slice(lower, upper)` | `Expr::subscript(Subscript::Slice)`; `a[lower:upper]`, `None` an open end |
 | `LikeExpr(pattern).escape(c)` / `.no_escape()` | `LikeExpr::new`, `LikeExpr::escape` and `LikeExpr::no_escape` |
+| `LikeExpr.literal(text)`, `.containing(text)`, `.starting_with(text)`, `.ending_with(text)` | `LikeExpr::literal`, `containing`, `starting_with` and `ending_with`: literal text, its `%`, `_` and escape character escaped |
 | `expr.as_(name)` | owned projection expression plus validated `Name` |
 | `expr.asc()` / `expr.desc()` | owned expression plus Rust `Order` |
 | `OrderBy(expr, Direction.Asc, nulls=Nulls.First)` | typed direction and `NullOrdering` |
@@ -254,6 +255,11 @@ For pattern semantics, use `expr.like(pattern)`, `not_like`, `ilike` or
 escape, or a `LikeExpr`, Rust's `LikeExpr`: `LikeExpr(pattern).escape("!")`
 escapes with `!` instead, `ESCAPE '!'`, and `LikeExpr(pattern).no_escape()`
 turns escaping off, `ESCAPE ''`, so a backslash in the pattern is itself.
+`LikeExpr.containing(text)` builds the pattern from literal text instead, a
+user's search among it: its `%`, `_` and escape character are escaped, so
+`col.like(p.LikeExpr.containing("50%"))` matches the text `50%` and not
+`500`; `literal`, `starting_with` and `ending_with` are the exact, `text%`
+and `%text` shapes.
 `similar_to` and `not_similar_to` take the same pattern for `SIMILAR TO`,
 a whole-string match in SQL's regular-expression dialect (LIKE's `%` and `_`
 with `|`, `*`, `+`, `?`, `{m,n}`, grouping and bracket classes); its default

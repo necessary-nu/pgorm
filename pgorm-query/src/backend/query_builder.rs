@@ -1,6 +1,6 @@
 use crate::keywords::Position;
+use crate::like::LikeEscape;
 use crate::query::RowLimit;
-use crate::types::LikeEscape;
 use crate::{
     extension::{
         ExtensionCreateStatement, ExtensionDropOpt, ExtensionDropStatement, TypeAlterAddOpt,
@@ -524,7 +524,7 @@ impl QueryBuilder {
     /// `LIKE` / `ILIKE` / `SIMILAR TO`.
     // [spec:pgorm:def:sql.render.operators+8]
     fn prepare_like_expr(&self, like: &LikeExpr, sql: &mut dyn SqlWriter) {
-        sql.push_param(like.pattern.clone().into());
+        sql.push_param(like.pattern().into());
         match like.escape {
             Some(LikeEscape::Char(escape)) => {
                 write!(sql, " ESCAPE ").unwrap();

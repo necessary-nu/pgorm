@@ -251,7 +251,7 @@ let query = Query::select()
     .from(cake::Entity)
     .cond_where(
         Condition::any()
-            .add(Expr::col(cake::Column::Name).like(LikeExpr::new("%Choc%")))
+            .add(Expr::col(cake::Column::Name).like(LikeExpr::containing("Choc")))
             .add(
                 Condition::all()
                     .add(Expr::col(cake::Column::GlutenFree).eq(true))
@@ -280,9 +280,13 @@ A few expressions take a little more care:
 - A `LIKE` pattern is a [`LikeExpr`](crate::pgorm_query::LikeExpr). Its `%`
   and `_` are wildcards and its backslash escapes them, and
   [`escape`](crate::pgorm_query::LikeExpr::escape) picks another escape
-  character. A pattern holding text from a user must have that text's
-  wildcards escaped first; the entity columns' `contains`, `starts_with` and
-  `ends_with` do it for you ([Reading rows](crate::guide::reading)).
+  character. Text from a user goes through
+  [`LikeExpr::containing`](crate::pgorm_query::LikeExpr::containing),
+  [`starting_with`](crate::pgorm_query::LikeExpr::starting_with),
+  [`ending_with`](crate::pgorm_query::LikeExpr::ending_with) or
+  [`literal`](crate::pgorm_query::LikeExpr::literal), which escape its `%`,
+  `_` and escape character so it matches itself, as the entity columns'
+  `contains`, `starts_with` and `ends_with` do ([Reading rows](crate::guide::reading)).
 - [`cast_as`](crate::pgorm_query::ExprTrait::cast_as) writes `CAST(.. AS type)`,
   its type given as a name. A cast, like a function call or a column's
   aggregate, is an expression in its own right, so it is compared and built

@@ -15,6 +15,7 @@ import {
   exists,
   type Expr,
   GroupingElement,
+  LikeExpr,
   likeExpr,
   Pool,
   type Select,
@@ -204,8 +205,8 @@ test("GROUP BY DISTINCT groups each grouping set its elements reach once", async
   }
 });
 
-// [spec:pgorm:req:bindings.expressions+3/test]
-// [spec:pgorm:req:sql.ast.expr.similar-to+2/test]
+// [spec:pgorm:req:bindings.expressions+4/test]
+// [spec:pgorm:req:sql.ast.expr.similar-to+3/test]
 test("SIMILAR TO matches a whole string against its pattern, the pattern bound and its escape honoured", async () => {
   const words = async (predicate: Expr) =>
     field(await pool().query(select(word.col("w")).from(word).where(predicate)), "w").sort();
@@ -224,8 +225,27 @@ test("SIMILAR TO matches a whole string against its pattern, the pattern bound a
   assert.throws(() => likeExpr("a").escape(1 as never), mistyped(/escape is a string/));
 });
 
+// [spec:pgorm:req:bindings.expressions+4/test]
+test("a pattern built from literal text matches the text and nothing its % or _ would widen it to", async () => {
+  const text = (value: string) => bind(value).cast("text");
+  const answers = await pool().query(
+    select(
+      text("save 50%_off now").like(LikeExpr.containing("50%_off")).as("inside"),
+      text("save 50xyoff now").like(LikeExpr.containing("50%_off")).as("widened"),
+      text("50%").like(LikeExpr.literal("50%")).as("exact"),
+      text("A!B%c").ilike(LikeExpr.startingWith("a!b%").escape("!")).as("chosen"),
+      text("x_y").like(LikeExpr.endingWith("_y")).as("tail"),
+    ),
+  );
+  assert.deepStrictEqual(
+    ["inside", "widened", "exact", "chosen", "tail"].map((name) => field(answers, name)[0]),
+    [true, false, true, true, true],
+  );
+  assert.throws(() => LikeExpr.containing(1 as never), mistyped(/text is a string/));
+});
+
 // [spec:pgorm:req:bindings.select+4/test]
-// [spec:pgorm:req:bindings.expressions+3/test]
+// [spec:pgorm:req:bindings.expressions+4/test]
 // [spec:pgorm:req:sql.ast.select.table-function+2/test]
 test("unnest WITH ORDINALITY numbers each element, reading a column of the item before it", async () => {
   const letters = tableFunction(call("unnest", bind(["x", "y", "z"]).cast("text", { array: true })))
@@ -246,7 +266,7 @@ test("unnest WITH ORDINALITY numbers each element, reading a column of the item 
 });
 
 // [spec:pgorm:req:bindings.select+4/test]
-// [spec:pgorm:req:bindings.expressions+3/test]
+// [spec:pgorm:req:bindings.expressions+4/test]
 // [spec:pgorm:req:sql.ast.select.table-function+2/test]
 test("ROWS FROM reads its calls side by side, padding the shorter with NULL", async () => {
   const zipped = tableFunction(call("generate_series", int8(1), int8(2)))
@@ -287,7 +307,7 @@ test("ROWS FROM reads its calls side by side, padding the shorter with NULL", as
 });
 
 // [spec:pgorm:req:bindings.select+4/test]
-// [spec:pgorm:req:bindings.expressions+3/test]
+// [spec:pgorm:req:bindings.expressions+4/test]
 // [spec:pgorm:req:sql.ast.select.column-definitions/test]
 test("a call returning record reads through its column definitions, alone or inside ROWS FROM", async () => {
   const one = tableFunction(call("json_to_record", new Value({ a: 7, tags: ["x", "y"] }, "json")))

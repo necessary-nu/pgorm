@@ -125,7 +125,7 @@ pub(crate) fn rust_type(named: &values::TypeName) -> TypeName {
 /// `Value`, written as its kind needs — an enum's label cast to the enum, a
 /// created range's text cast to its range type through `ExprTrait::as_range`.
 /// Nothing here interpolates: the value is a placeholder's.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 pub(crate) fn bound<'cx>(cx: &mut Cx<'cx>, data: Handle<'cx, JsValue>) -> NeonResult<SimpleExpr> {
     let codec = Codec::get(cx)?;
     let Some(tagged) = read::infer(cx, codec, data)? else {

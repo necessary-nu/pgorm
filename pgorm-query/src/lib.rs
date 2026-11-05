@@ -674,6 +674,7 @@ mod index;
 mod json;
 mod key;
 mod keywords;
+mod like;
 mod prepare;
 mod query;
 mod schema;
@@ -734,7 +735,8 @@ pub use json::{
     JsonExistsColumn, JsonNestedColumns, JsonQueryColumn, JsonTable, JsonTableBehavior,
     JsonTableColumn, JsonValueColumn,
 };
-pub use types::{BinOper, IntoLikeExpr, Keyword, LikeExpr, SubQueryOper, UnOper};
+pub use like::{IntoLikeExpr, LikeExpr};
+pub use types::{BinOper, Keyword, SubQueryOper, UnOper};
 
 // Values: what a bound parameter carries, the conversions in and out, and
 // the type a value of a domain travels as.

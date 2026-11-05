@@ -4243,6 +4243,7 @@ children (
                 id decoded-selector-renders
                 title "A decoded Selector renders its statement, as the Select it came from does"
                 kind @feat
+                sealed true
                 log (
                     {
                         at 2026-11-05T14:39:47.584484Z
@@ -4263,6 +4264,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Selector<S> implements QueryTrait, the same build surface Select, SelectGraph, the writes and the disjoint selects have, rather than a pair of inherent build/as_query methods: one rendering vocabulary for every statement-carrying type, query() included so apply_if works on a decoded selector too. SelectorRaw is left as it is: it is made from the caller's own (String, Values), which the caller already holds. The guide's reading chapter renders into_partial_model::<MenuLine>() directly and no longer imports PartialModelTrait for select_cols. Neither binding has a counterpart: Python's EntityQuery and JavaScript's entity queries have no separate decode-target object, and both render through inspect()/compile."
+                    }
+
+                    {
+                        at 2026-11-05T17:30:17.721767Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -4364,6 +4372,20 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by guide.rust (query-builder chapter). escape_like_text (src/entity/column_def.rs:55) is crate-private, used only by the ORM's contains, starts_with and ends_with, so a pgorm-query LIKE over user text has no way to escape its % and _ short of writing the escaping by hand."
+                    }
+
+                    {
+                        at 2026-11-05T17:30:18.194034Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T17:40:07.020193Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "LikeExpr gains four constructors over literal text, named for the pattern's shape: literal(text) (exact), containing (%text%), starting_with (text%), ending_with (%text). The shared implementation lives once, in pgorm-query's new like.rs (LikeExpr, its escape and IntoLikeExpr moved there from types.rs, which was over the function cap): a pattern is either Written (new, as it stands) or Text { text, any_before, any_after }, and the text is escaped when the statement renders, for the escape character then in force. So escape(c) chosen after the text escapes it with c, which a text pre-escaped with a backslash would get wrong, and no_escape() escapes nothing (the text's % and _ then wildcards, what escaping off says). The escaped set is LIKE's (%, _, the escape); SIMILAR TO's regex characters keep their meaning, documented. pgorm's crate-private escape_like_text is gone: ColumnTrait::contains/starts_with/ends_with are LikeExpr::containing/starting_with/ending_with, rendering exactly as before. Python: LikeExpr.literal/containing/starting_with/ending_with static methods; JavaScript: LikeExpr.literal/containing/startingWith/endingWith static methods on the class (one native, likeExprText(text, shape)), as the class is the factory's product there; bindings-surface.json lists the four members."
                     }
                 )
             }

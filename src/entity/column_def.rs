@@ -48,16 +48,6 @@ fn enum_name(col_type: &ColumnType) -> Option<&Name> {
     }
 }
 
-/// The `LIKE`-metacharacter escape behind the substring sugar: `%`, `_` and
-/// the escape character itself become literal, so search text matches
-/// itself and nothing else.
-// [spec:pgorm:def:entity.traits.column+9]
-pub(crate) fn escape_like_text(text: &str) -> String {
-    text.replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_")
-}
-
 /// A type's name and schema as the structured [`TypeName`] a cast renders.
 fn qualified(name: &Name, schema: &Option<Name>) -> pgorm_query::TypeName {
     let type_name = pgorm_query::TypeName::new(Name::clone(name));
