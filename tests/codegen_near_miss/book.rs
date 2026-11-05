@@ -2,7 +2,7 @@ use pgorm::entity::prelude::*;
 
 use super::pgorm_active_enums::ShelfKind;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(table_name = "book")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]
@@ -20,7 +20,7 @@ pub enum Relation {
         from = (Column::Id, Column::Kind),
         to = (super::shelf::Column::Id, super::shelf::Column::Kind),
         on_delete = ForeignKeyAction::Cascade,
-        deferrability = Deferrability::DeferrableInitiallyImmediate,
+        deferrability = Deferrability::DeferrableInitiallyImmediate
     )]
     Shelf,
 }

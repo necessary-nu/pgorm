@@ -3,6 +3,7 @@ from asyncio import CancelledError as CancelledError
 from ._schema import (
     DataType as DataType, ColumnDef as ColumnDef, DDL as DDL, EntitySchema as EntitySchema,
     schema_from_entity as schema_from_entity,
+    MigrationFile as MigrationFile, migration_file as migration_file,
 )
 from ._schema_tables import (
     CreateTable as CreateTable, CreateIndex as CreateIndex,
@@ -170,7 +171,7 @@ from ._versions import (
 from ._graphs import EntityGraph as EntityGraph, EntityGraphQuery as EntityGraphQuery, EntityGraphCursor as EntityGraphCursor, graph as graph, graphs as graphs
 from ._entity_models import EntityModel as EntityModel, ActiveModel as ActiveModel, ActiveValue as ActiveValue, ActiveState as ActiveState
 from ._disjoint import (
-    _Disjoint as _Disjoint, _disjoint_model as _disjoint_model,
+    _Disjoint as _Disjoint, _DisjointChange as _DisjointChange, _disjoint_model as _disjoint_model,
     _disjoint_entity as _disjoint_entity, _disjoint_entities as _disjoint_entities,
 )
 from ._one_of import (

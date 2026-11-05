@@ -109,6 +109,7 @@ class SchemaConstruction(unittest.TestCase):
             s.alter_domain("quantity"), s.create_sequence("ticket"), s.alter_sequence("ticket"),
             s.alter_sequence("ticket").restart(), s.DisjointGap("bike", table),
             s.DisjointStep((), None), s.DisjointChange(()),
+            s.migration_file("m20260101_000001_create_test", [s.create_table(table)]),
         ]
         for sample in [*samples, s.create_table(table).inspect()]:
             with self.subTest(sample=sample), self.assertRaises(p.ConstructionError):

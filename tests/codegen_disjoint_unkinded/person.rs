@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(schema_name = "crm", table_name = "person")]
 pub struct Model {
     #[pgorm(primary_key, auto_increment = false)]

@@ -436,6 +436,26 @@ columns and foreign keys — `Schema::create_disjoint`'s, from pgorm's
 `DisjointShape` (`MODELS.md`). The types the tables' other columns use are
 not among them.
 
+## Freezing generated DDL into migration files
+
+Statements generated from a declaration describe it as it stands when they are
+generated, so a migration history freezes them when a change is made rather
+than generating them again as each migration runs.
+`s.migration_file(name, statements, commits_after=False)` gives a
+`MigrationFile`, pgorm's: its `name`, its `text` (each statement followed by
+`;` on a line of its own, opening with `-- pgorm: commits-after` where
+`commits_after`), and `freeze(directory)`, which writes `<name>.sql` there
+only where no such file is, answering whether it did, and never rewrites one.
+A name that is no plain file stem is a `ConstructionError`.
+`s.migration_files(change, name)` freezes a disjoint kind change a file per
+step (`MODELS.md`). Each file is one migration for a tool that runs a
+directory of SQL files, each in its own transaction:
+
+```python
+file = s.migration_file("m20260101_000001_create_account", [s.from_entity(p.entity("app.Account")).table])
+file.freeze("migrations")  # True the first time, False ever after
+```
+
 ## Registered Rust entities
 
 In an application wheel, `s.from_entity(p.entity("app.Account"))` invokes the

@@ -2,7 +2,7 @@ use pgorm::entity::prelude::*;
 
 use super::pgorm_active_enums::ShelfKind;
 
-#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Entity)]
 #[pgorm(
     table_name = "shelf",
     unique(name = "uq-shelf-id-kind", columns = (Column::Id, Column::Kind)),

@@ -7,7 +7,7 @@ use pgorm_codegen::WithSerde;
 use pgorm_query::{ColumnDef, ColumnType, Name, StringLen, Table};
 
 // [spec:pgorm:req:macros.derive.one-form/test]    codegen writes the one form
-// [spec:pgorm:def:codegen.entity.compact+7/test]    the compact format emits
+// [spec:pgorm:def:codegen.entity.compact+8/test]    the compact format emits
 // imports, Model and Relation, in order, and leaves the `Related` impl one
 // relation reaches and the behaviour with no hooks to the derives
 #[test]
@@ -20,7 +20,7 @@ fn compact_format_emits_its_blocks_in_order() {
     assert_starts_with(blocks[0], "use pgorm::entity::prelude::*;");
     assert_starts_with(
         blocks[1],
-        r#"#[derive(Clone, Debug, PartialEq, Entity, Eq)]
+        r#"#[derive(Clone, Debug, PartialEq, Eq, Entity)]
            #[pgorm(table_name = "fruit")]
            pub struct Model"#,
     );
@@ -32,7 +32,7 @@ fn compact_format_emits_its_blocks_in_order() {
     assert_not_contains(fruit, "ActiveModelBehavior");
 }
 
-// [spec:pgorm:def:codegen.entity.compact+7/test]    the `schema_name` part of the
+// [spec:pgorm:def:codegen.entity.compact+8/test]    the `schema_name` part of the
 // Model attribute appears only when configured, and an entity with no relations
 // emits the empty `pub enum Relation {}`
 #[test]
@@ -54,7 +54,7 @@ fn compact_model_attribute_and_empty_relation_enum() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    the `#[pgorm(..)]` field
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]    the `#[pgorm(..)]` field
 // attribute assembles its parts in one fixed order
 #[test]
 fn compact_field_attribute_parts_assembled_in_fixed_order() {
@@ -81,7 +81,7 @@ fn compact_field_attribute_parts_assembled_in_fixed_order() {
             column_name = "camelCase",
             primary_key,
             auto_increment = false,
-            column_type = ColumnType::Decimal(Some((10u32, 2u32))),
+            column_type = ColumnType::Decimal(Some((10, 2))),
             nullable,
             unique
         )]
@@ -91,7 +91,7 @@ fn compact_field_attribute_parts_assembled_in_fixed_order() {
 
 // [spec:pgorm:req:macros.derive.one-form/test]    codegen states a `column_type` as the
 // bare expression the derive takes
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    `column_type` is emitted
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]    `column_type` is emitted
 // on every type its field's Rust type does not infer — a length, `char` of any length,
 // a precision and scale, `money`, `text`, `jsonb`, a named type — and on `Float`,
 // `Double` and `Bytea`, spelled as the type's whole `ColumnType` expression
@@ -124,15 +124,15 @@ fn compact_column_type_attribute_covers_ambiguous_types() {
     for (field, rendered) in [
         ("a_float", "Float"),
         ("a_double", "Double"),
-        ("a_decimal", "Decimal(Some((10u32, 2u32)))"),
+        ("a_decimal", "Decimal(Some((10, 2)))"),
         ("a_money", "Money"),
         ("a_text", "Text"),
         ("a_jsonb", "JsonBinary"),
         ("a_named", r#"named("citext")"#),
         ("a_bytea", "Bytea"),
-        ("a_varchar", "String(StringLen::N(3u32))"),
+        ("a_varchar", "String(StringLen::N(3))"),
         ("a_longest", "String(StringLen::Max)"),
-        ("a_char", "Char(Some(2u32))"),
+        ("a_char", "Char(Some(2))"),
         ("a_bpchar", "Char(None)"),
     ] {
         assert_contains(
@@ -142,7 +142,7 @@ fn compact_column_type_attribute_covers_ambiguous_types() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    a field needing none of
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]    a field needing none of
 // the parts carries no `#[pgorm]` attribute, and `nullable` never appears
 // without a `column_type`
 #[test]
@@ -174,7 +174,7 @@ fn compact_fields_without_applicable_parts_carry_no_attribute() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.model+2/test]    derives, struct
+// [spec:pgorm:sem:codegen.entity.compact.model+3/test]    derives, struct
 // attribute, extra attributes and fields are emitted as one ordered block
 #[test]
 fn compact_model_assembles_derives_attributes_fields_in_order() {
@@ -204,7 +204,7 @@ fn compact_model_assembles_derives_attributes_fields_in_order() {
 
     assert_contains(
         generated.file("cake.rs"),
-        r#"#[derive(Clone, Debug, PartialEq, Entity, Eq, Serialize, Deserialize, Default)]
+        r#"#[derive(Clone, Debug, PartialEq, Eq, Entity, Serialize, Deserialize, Default)]
            #[pgorm(schema_name = "public", table_name = "cake")]
            #[serde(rename_all = "camelCase")]
            pub struct Model {
@@ -217,7 +217,7 @@ fn compact_model_assembles_derives_attributes_fields_in_order() {
     );
 }
 
-// [spec:pgorm:sem:codegen.entity.compact.model+2/test]    primary-key membership
+// [spec:pgorm:sem:codegen.entity.compact.model+3/test]    primary-key membership
 // is decided against the raw DB column name, not the snake_case field name
 #[test]
 fn compact_model_pk_membership_uses_raw_column_name() {
@@ -240,25 +240,28 @@ fn compact_model_pk_membership_uses_raw_column_name() {
     );
 }
 
-// [spec:pgorm:def:codegen.entity.compact+7/test]    each section is one
-// contiguous blank-line-separated block, with the generated header prepended
+// [spec:pgorm:def:codegen.entity.compact+8/test]    each section is one
+// contiguous block after a blank line, formatted on its own, with the
+// generated header prepended
 #[test]
 fn sections_are_one_contiguous_block_each() {
     let generated = generate(vec![cake(), fruit()], Opts::default());
     let content = generated.file("fruit.rs");
 
     assert!(content.starts_with("//! `pgorm` Entity, @generated by pgorm-codegen"));
-    for block in blocks(content) {
+    let blocks = blocks(content);
+    assert_eq!(blocks.len(), 3, "{blocks:#?}");
+    for block in blocks {
         assert!(
-            !block.contains('\n'),
-            "each section should be a single unformatted block: {block}"
+            !block.lines().any(str::is_empty),
+            "a section holds no blank line: {block}"
         );
         // every block lexes on its own, i.e. sections do not straddle the join
         let _ = norm(block);
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.imports+4/test]    the import block is the prelude
+// [spec:pgorm:sem:codegen.entity.imports+5/test]    the import block is the prelude
 // import plus the serde import selected by `WithSerde`
 #[test]
 fn import_block_matches_the_with_serde_variant() {
@@ -289,8 +292,9 @@ fn import_block_matches_the_with_serde_variant() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.imports+4/test]    entity files import each active
-// enum once, in first-use column order, looking through `Array`
+// [spec:pgorm:sem:codegen.entity.imports+5/test]    entity files import each active
+// enum once, looking through `Array`, a module's types in one `use`, sorted, a
+// blank line after the crates' imports
 #[test]
 fn entity_imports_each_enum_once_in_first_use() {
     let alpha = || ColumnType::Enum {
@@ -319,17 +323,11 @@ fn entity_imports_each_enum_once_in_first_use() {
     );
     let blocks = blocks(generated.file("task.rs"));
 
-    assert_eq!(
-        norm(blocks[0]),
-        norm(
-            "use pgorm::entity::prelude::*;
-             use super::pgorm_active_enums::Zeta;
-             use super::pgorm_active_enums::Alpha;"
-        )
-    );
+    assert_eq!(blocks[0], "use pgorm::entity::prelude::*;");
+    assert_eq!(blocks[1], "use super::pgorm_active_enums::{Alpha, Zeta};");
 }
 
-// [spec:pgorm:sem:codegen.entity.imports+4/test]    `pgorm_active_enums.rs` heads
+// [spec:pgorm:sem:codegen.entity.imports+5/test]    `pgorm_active_enums.rs` heads
 // with the same import block, without any enum imports, directly below the
 // generated-file header
 #[test]
@@ -350,13 +348,16 @@ fn active_enums_file_imports_serde_not_enum_modules() {
     let lines: Vec<&str> = enums.lines().filter(|l| !l.is_empty()).collect();
     assert!(lines[0].starts_with("//! `pgorm` Entity, @generated by pgorm-codegen"));
     assert_eq!(
-        norm(lines[1]),
-        norm("use pgorm::entity::prelude::*; use serde::{Deserialize, Serialize};")
+        lines[1..3],
+        [
+            "use pgorm::entity::prelude::*;",
+            "use serde::{Deserialize, Serialize};"
+        ]
     );
     assert_not_contains(enums, "use super::pgorm_active_enums::TaskState;");
 }
 
-// [spec:pgorm:sem:codegen.entity.imports+4/test]    in entity files the imports sit
+// [spec:pgorm:sem:codegen.entity.imports+5/test]    in entity files the imports sit
 // directly below the generated-file header
 #[test]
 fn imports_sit_directly_below_the_generated_header() {

@@ -174,7 +174,7 @@ fn an_interval_modifier_beyond_the_spec_is_named() {
 
 // [spec:pgorm:sem:codegen.entity.types+13/test]    an interval column is an
 // `Interval` field, an array of them a `Vec<Interval>`, whatever the qualifier
-// [spec:pgorm:sem:codegen.entity.compact.attrs+13/test]    the compact writer
+// [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]    the compact writer
 // names the column type exactly where the field's `Interval` does not: a
 // qualifier or a precision, alone or as an array's element
 // [spec:pgorm:req:codegen.entity.types.unsupported+12/test]    no interval
@@ -182,11 +182,7 @@ fn an_interval_modifier_beyond_the_spec_is_named() {
 #[test]
 fn interval_columns_generate_a_compiling_entity() {
     let generated = from_sql(SCHEMA);
-    let written = norm(generated.file("interval_span.rs")).replace(", )", ")");
-    assert!(
-        written.contains(&norm(include_str!("sql/interval/interval_span.rs"))),
-        "{written}"
-    );
+    generated.holds("interval_span.rs", "sql/interval/interval_span.rs");
 
     for (column, (name, col_type)) in interval_span::Column::iter().zip(described()) {
         assert_eq!(column.as_str(), name);

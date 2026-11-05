@@ -1492,6 +1492,27 @@ Rust generic at run time, only use the ones compiled in.
 > native module and every registration it names describe as they did when it
 > was written, and refuse to load otherwise.
 
+> [spec:pgorm:req:bindings.codegen-layout]
+> The module each binding's codegen writes (`bindings.codegen`), and its
+> declarations, MUST read as a person writes the language, laid out as the
+> language's usual formatter lays it out, so nothing needs to run over it
+> once it is written, as pgorm-codegen's Rust needs no `rustfmt`
+> (`[spec:pgorm:req:codegen.entity.files]`). Python is black's layout:
+> strings double-quoted; a bracket's contents on its line where they fit in
+> 88 columns, on a line of their own where those fit, and otherwise one to a
+> line, each followed by a comma; a conditional expression too long for its
+> line split before its `if` and its `else`; a long union a member to a
+> line inside parentheses; two blank lines around each top-level class and
+> function and one between a class's methods, the stub in black's `--pyi`
+> style; and the imports the module uses and no others, grouped and sorted
+> as isort sorts them. The compatibility data the module checks as it loads
+> is a literal laid out the same way, not one line. TypeScript and
+> JavaScript are deno fmt's and prettier's layout: a bracket's items on its
+> line where they fit in 80 columns and otherwise one to a line, each
+> followed by a comma; an object type a member to a line where it does not
+> fit; a long union a member to a line, each led by its `|`; and each doc
+> comment wrapped to the width.
+
 > [spec:pgorm:req:bindings.codegen-disjoint]
 > The codegen workflow (`bindings.codegen`) MUST carry an application's
 > `#[derive(Disjoint)]` enums beside its entities: the description names
@@ -1630,6 +1651,26 @@ Rust generic at run time, only use the ones compiled in.
 > MUST take none, as they take none for `create_disjoint`, and a call made
 > regardless is refused with the `ConstructionError` naming the base as
 > read-only (`bindings.disjoint-unkinded`).
+
+> [spec:pgorm:req:bindings.migration-file]
+> Each binding MUST freeze generated DDL as pgorm freezes it
+> (`[spec:pgorm:def:migration.frozen]`), the text and the file written by
+> pgorm's `MigrationFile` alone: `migration_file(name, statements,
+> commits_after)` freezes the binding's DDL statements, `commits_after`
+> false unless given; `migration_files(change, name)` freezes a
+> `DisjointChange` a kind-change function of `bindings.disjoint-evolve`
+> returned as `DisjointChange::migration_files` does
+> (`[spec:pgorm:sem:disjoint.evolve.frozen]`), a `TypeError` for anything
+> else, a change built by hand included, since only one of those carries the
+> change pgorm wrote. Each gives `MigrationFile`s, instances made by those
+> functions alone, each reading its `name`, its `text` and whether it
+> `commits_after`, and `freeze(directory)` writing `<name>.sql` where no file
+> of that name is and answering whether it did, never rewriting one. A name
+> that is no plain file stem MUST be a `ConstructionError`, and any other
+> failure to write the file the language's own I/O error. A binding has no
+> migration runner: each file is one migration for a tool that runs a
+> directory of SQL files, each in its own transaction, or for
+> pgorm-migration's `sql_migration!`.
 
 > [spec:pgorm:req:bindings.one-of+1]
 > Each binding MUST read, set and load a reference to exactly one of several

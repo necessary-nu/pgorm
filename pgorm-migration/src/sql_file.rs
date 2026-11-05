@@ -2,7 +2,7 @@
 
 use std::fmt::Write;
 
-use pgorm::{ConnectionTrait, DatabaseTransaction};
+use pgorm::{ConnectionTrait, DatabaseTransaction, MigrationFile};
 use sha2::{Digest, Sha256};
 
 use crate::{Error, MigrationName, MigrationTrait};
@@ -58,6 +58,22 @@ use crate::{Error, MigrationName, MigrationTrait};
 /// edited text is checked and digested again. Line endings are read as LF, so
 /// a checkout that writes CRLF runs the same text and reports the same
 /// checksum.
+///
+/// A file whose first line is [`MigrationFile::COMMITS_AFTER`],
+/// `-- pgorm: commits-after`, answers `true` from
+/// [`commits_after`](MigrationTrait::commits_after), so the batch commits
+/// once it has run. That is how a change PostgreSQL will not let one
+/// transaction finish, which [`MigrationFile`] freezes into several files,
+/// runs from them:
+///
+/// ```
+/// use pgorm_migration::prelude::*;
+///
+/// let added = sql_migration!("tests/sql/frozen/m20240401_000002_add_van_1.sql");
+/// assert!(added.sql().starts_with("-- pgorm: commits-after\n"));
+/// assert!(added.commits_after());
+/// assert!(!sql_migration!("tests/sql/m20260101_000001_create_note.sql").commits_after());
+/// ```
 // [spec:pgorm:def:migration.sql-file]
 // [spec:pgorm:req:migration.sql-file.compile+1]    a refusal is a compile error
 #[macro_export]
@@ -74,6 +90,7 @@ macro_rules! sql_migration {
 pub struct SqlMigration {
     name: &'static str,
     sql: &'static str,
+    commits_after: bool,
 }
 
 impl SqlMigration {
@@ -83,7 +100,11 @@ impl SqlMigration {
     /// file and checks the text's grammar while the crate compiles. Text given
     /// here is run as it is, unchecked until the server parses it.
     pub const fn new(name: &'static str, sql: &'static str) -> Self {
-        Self { name, sql }
+        Self {
+            name,
+            sql,
+            commits_after: opens_with_commits_after(sql),
+        }
     }
 
     /// The script `up` runs.
@@ -105,10 +126,33 @@ impl MigrationTrait for SqlMigration {
         tx.batch_execute(self.sql).await
     }
 
+    // [spec:pgorm:req:migration.sql-file.commits-after]
+    fn commits_after(&self) -> bool {
+        self.commits_after
+    }
+
     // [spec:pgorm:req:migration.sql-file.checksum]
     fn checksum(&self) -> Option<String> {
         Some(sha256_hex(self.sql))
     }
+}
+
+/// Whether `sql`'s first line is [`MigrationFile::COMMITS_AFTER`], ended by
+/// a line break or by the text's end.
+// [spec:pgorm:req:migration.sql-file.commits-after]
+const fn opens_with_commits_after(sql: &str) -> bool {
+    let (text, directive) = (sql.as_bytes(), MigrationFile::COMMITS_AFTER.as_bytes());
+    if text.len() < directive.len() {
+        return false;
+    }
+    let mut at = 0;
+    while at < directive.len() {
+        if text[at] != directive[at] {
+            return false;
+        }
+        at += 1;
+    }
+    text.len() == directive.len() || text[directive.len()] == b'\n'
 }
 
 /// The lowercase hexadecimal SHA-256 digest of `text`'s bytes.

@@ -409,6 +409,26 @@ has a row for it, and is never written through.
 > and refuses an unkinded declaration at compile time, as `create_disjoint`
 > does.
 
+> [spec:pgorm:sem:disjoint.evolve.frozen]
+> A `DisjointChange` is written from the declaration as it will be
+> (`disjoint.evolve`), as `create_disjoint` writes the tables from the
+> declaration as it is, so a history whose migrations called them as they
+> ran would replay today's declaration in its first migration and fail at
+> the change that follows. `DisjointChange::migration_files(name)` MUST
+> freeze the change as `MigrationFile`s
+> (`[spec:pgorm:def:migration.frozen]`), one per step, in order: named
+> `name` for a change of one step and `<name>_<n>` from 1 otherwise; every
+> step but the last committing after
+> (`[spec:pgorm:req:migration.sql-file.commits-after]`), so the batch
+> commits an added value before the step that uses it, as
+> `[spec:pgorm:req:migration.commit-after]` asks; and a step with a gap
+> ending with the comment `-- Before the next migration runs, write <gap>.`,
+> the gap displayed as `DisjointGap` displays itself, for the migration of
+> the program's own that writes those rows, listed between the two files.
+> Frozen when the change is made, with the tables frozen from
+> `create_disjoint` when they were, the files replay on a database built
+> from nothing, whatever the declaration says by then.
+
 ## References to one of several entities
 
 > [spec:pgorm:def:disjoint.one-of+4]
