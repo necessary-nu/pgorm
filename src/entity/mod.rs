@@ -53,6 +53,7 @@ mod partial_model;
 pub mod prelude;
 mod primary_key;
 mod relation;
+mod table_shape;
 
 pub use active_enum::*;
 pub use active_model::*;
@@ -70,6 +71,7 @@ pub use partial_model::*;
 // pub use prelude::*;
 pub use primary_key::*;
 pub use relation::*;
+pub use table_shape::*;
 
 /// The derives of the `SqlName` and `StaticName` traits `base_entity`'s glob
 /// brings. pgorm-query's derives of the same names ride in with the traits and

@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from .. import _native as p
 
@@ -17,6 +17,19 @@ if TYPE_CHECKING:
     from .record import Database, ModelRecord
 
 KINDS = ("belongs_to", "has_one", "has_many")
+
+# A foreign key's referential actions, as the schema builders spell them.
+ACTIONS = ("no_action", "restrict", "cascade", "set_null", "set_default")
+
+ReferentialAction = Literal["no_action", "restrict", "cascade", "set_null", "set_default"]
+
+
+def _action(value: object, option: str) -> ReferentialAction | None:
+    if value is None:
+        return None
+    if type(value) is not str or value not in ACTIONS:
+        raise TypeError(f"a relation's {option} is one of {', '.join(ACTIONS)}")
+    return cast(ReferentialAction, value)
 
 
 def _fields(model: Model, names: object, side: str) -> tuple[str, ...]:
@@ -31,19 +44,24 @@ def _fields(model: Model, names: object, side: str) -> tuple[str, ...]:
     return fields
 
 
-# [spec:pgorm:req:bindings.relations]
+# [spec:pgorm:req:bindings.relations+2]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
 class Relation:
     """A relation from one model to another: the fields of each that are
     equal in a related pair of rows, matched in order. A ``belongs_to`` or
     ``has_one`` relation reads at most one row at its far end, a
-    ``has_many`` any number."""
+    ``has_many`` any number. A ``belongs_to`` relation is the side holding
+    the foreign key, whose actions and name it carries for the schema its
+    model writes."""
 
     kind: Literal["belongs_to", "has_one", "has_many"]
     from_: Model
     to: Model
     from_fields: tuple[str, ...]
     to_fields: tuple[str, ...]
+    on_delete: ReferentialAction | None
+    on_update: ReferentialAction | None
+    fk_name: str | None
 
     def __init__(
         self,
@@ -52,6 +70,9 @@ class Relation:
         target: Model,
         from_: str | Sequence[str],
         to: str | Sequence[str],
+        on_delete: ReferentialAction | None = None,
+        on_update: ReferentialAction | None = None,
+        fk_name: str | None = None,
     ) -> None:
         from .model import Model
 
@@ -63,14 +84,38 @@ class Relation:
         to_fields = _fields(target, to, "to")
         if len(from_fields) != len(to_fields):
             raise p.ConstructionError("a relation pairs as many fields at each end")
+        keyed = (_action(on_delete, "on_delete"), _action(on_update, "on_update"))
+        if fk_name is not None:
+            fk_name = p._identifier(fk_name)
+        if kind != "belongs_to" and (keyed != (None, None) or fk_name is not None):
+            raise TypeError(
+                "a foreign key is the belongs_to side's: only it takes on_delete, on_update "
+                "and fk_name"
+            )
         for name, value in (
             ("kind", kind),
             ("from_", origin),
             ("to", target),
             ("from_fields", from_fields),
             ("to_fields", to_fields),
+            ("on_delete", keyed[0]),
+            ("on_update", keyed[1]),
+            ("fk_name", fk_name),
         ):
             object.__setattr__(self, name, value)
+
+    # [spec:pgorm:req:bindings.schema-from-model]
+    def _described(self) -> dict[str, Any]:
+        """The relation's foreign key as the native table shape takes it."""
+        return {
+            "schema": self.to.table.schema,
+            "table": self.to.table.name,
+            "from": [self.from_._sql(field) for field in self.from_fields],
+            "to": [self.to._sql(field) for field in self.to_fields],
+            "on_delete": self.on_delete,
+            "on_update": self.on_update,
+            "fk_name": self.fk_name,
+        }
 
     @property
     def cardinality(self) -> Literal["one", "many"]:

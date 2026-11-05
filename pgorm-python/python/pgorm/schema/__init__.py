@@ -11,7 +11,7 @@ for annotations and ``isinstance`` and cannot be called.
 
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
-# [spec:pgorm:req:bindings.schema-api+2]
+# [spec:pgorm:req:bindings.schema-api+3]
 from .._native import (
     DataType as DataType, ColumnDef as ColumnDef, DDL as DDL, EntitySchema as EntitySchema,
     schema_from_entity as from_entity,
@@ -42,12 +42,17 @@ from .._native import (
 )
 
 
-from .._native import Table, _Disjoint as _NativeDisjoint
+from .._native import Table, _Disjoint as _NativeDisjoint, ConstructionError
+from .._native import _model_schema as _native_model_schema
 from .._native import MigrationFile as MigrationFile, migration_file as migration_file
 from .changes import DisjointChange, DisjointGap, DisjointStep
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from .._registered.disjoints import WritableDisjointView
+    from ..models.model import Model
+    from ..models.relations import Relation
     from ..models.disjoint import Disjoint, DisjointEntity
     from ..models.one_of import OneOf, OneOfEntity
 
@@ -158,6 +163,42 @@ def remove_disjoint_kind_table(
     return _change(disjoint, "remove_disjoint_kind_table", "remove_kind_table", value, table)
 
 
+# [spec:pgorm:req:bindings.schema-from-model]
+def from_model(model: "Model", *, relations: "Sequence[Relation]" = ()) -> EntitySchema:
+    """The schema of a declared model's table, written by pgorm's ``Schema``
+    from the ``TableShape`` the model describes, as ``from_entity`` writes a
+    registered entity's: its ``CREATE TABLE`` with its primary key, unique
+    keys and a foreign key for each ``belongs_to`` relation in ``relations``,
+    the ``CREATE TYPE`` of each enum its columns use, an index for each
+    ``indexed`` column, and its comments."""
+    from ..models.model import Model as Declared
+    from ..models.relations import Relation as Related, same_table
+
+    if not isinstance(model, Declared):
+        raise TypeError("from_model takes a declared Model; a registered entity's is from_entity")
+    if model.table.alias is not None:
+        raise ConstructionError(
+            "a model's table is created under its name: pass the model, not an alias of it"
+        )
+    if not isinstance(relations, (list, tuple)):
+        raise TypeError("from_model's relations are a list or tuple of relations")
+    described = []
+    for relation in relations:
+        if not isinstance(relation, Related):
+            raise TypeError("from_model's relations are the model's belongs_to relations")
+        if relation.kind != "belongs_to":
+            raise ConstructionError(
+                f"a {relation.kind} relation holds no foreign key of its model's table: "
+                "pass the belongs_to relation of the table that holds it"
+            )
+        if not same_table(relation.from_, model):
+            raise ConstructionError(
+                f"the relation starts at {relation.from_.table.name}, not at {model.table.name}"
+            )
+        described.append(relation._described())
+    return _native_model_schema(model._described(), described)
+
+
 # [spec:pgorm:req:bindings.one-of+1]
 def create_one_of(one_of: "OneOf | OneOfEntity") -> AlterTable:
     """The ``ALTER TABLE`` adding the ``CHECK`` that holds every row of a
@@ -172,7 +213,8 @@ def create_one_of(one_of: "OneOf | OneOfEntity") -> AlterTable:
 
 
 __all__ = [
-    "DataType", "ColumnDef", "DDL", "EntitySchema", "from_entity", "create_disjoint", "create_one_of",
+    "DataType", "ColumnDef", "DDL", "EntitySchema", "from_entity", "from_model", "create_disjoint",
+    "create_one_of",
     "add_disjoint_kind", "add_disjoint_kind_recreating", "remove_disjoint_kind",
     "add_disjoint_kind_table", "remove_disjoint_kind_table", "DisjointChange", "DisjointStep",
     "DisjointGap", "MigrationFile", "migration_file", "migration_files",

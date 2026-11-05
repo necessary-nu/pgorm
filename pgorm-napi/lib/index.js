@@ -96,7 +96,7 @@ export { MigrationFile, migrationFile, migrationFiles } from "./migration-file.j
 export { createOneOf, OneOf, oneOf, OneOfEntity, oneOfEntities, oneOfEntity } from "./one-of.js";
 export { DisjointCursor, DisjointPaginator, DisjointQuery, DisjointWrite } from "./disjoint-query.js";
 export { ActiveModel, entities, Entity, entity } from "./entities.js";
-export { EntitySchema, fromEntity } from "./entity-schema.js";
+export { EntitySchema, fromEntity, fromModel } from "./entity-schema.js";
 export { EntityColumn, EntityQuery } from "./entity-queries.js";
 export { EntityInsert, EntityInsertMany, EntityUpdate, EntityUpdateMany } from "./entity-versions.js";
 export { EntityGraph, EntityGraphCursor, EntityGraphQuery, graph, graphs } from "./entity-graphs.js";

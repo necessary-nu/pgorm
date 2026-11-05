@@ -3,11 +3,11 @@
 
 use super::{
     DdlStatement,
-    entity::{column_ddl, create_enum_from_column_type, unique_key, write_primary_key},
+    entity::{create_enum_from_column_type, table_from_shape, unique_key},
 };
 use crate::{
     ColumnPairs, ColumnType, DisjointKind, DisjointShape, DisjointTable, Error, KindedDisjoint,
-    RelationDef, RelationType, Schema, TableBody,
+    RelationDef, RelationType, Schema, TableBody, TableShape,
     entity::KindedBy,
     executor::result_name::{bounded_identifier, derived_name},
     unpack_table_name,
@@ -117,43 +117,22 @@ fn body(
     table: &DisjointTable,
     keep: &dyn Fn(&RelationDef) -> bool,
 ) -> Result<TableCreateStatement, Error> {
-    let mut stmt = match &table.body {
-        TableBody::Entity(write) => write(keep)?,
-        TableBody::Columns => {
-            let mut stmt = TableCreateStatement::new(table.table.clone());
-            for column in &table.columns {
-                if column.unstated_default {
-                    return Err(Error::Type(format!(
-                        "`{}`.`{}` has a default its description does not state, so its \
-                         table cannot be written",
-                        table.label,
-                        column.name.to_string()
-                    )));
-                }
-                stmt.col(column_ddl(
-                    Name::clone(&column.name),
-                    column.def.clone(),
-                    false,
-                ));
+    match &table.body {
+        TableBody::Entity(write) => {
+            let mut stmt = write(keep)?;
+            for key in &table.unique_keys {
+                let columns: Vec<&str> = key.columns.iter().map(String::as_str).collect();
+                stmt.unique(unique_key(
+                    &table.label,
+                    key.name.as_deref(),
+                    &columns,
+                    key.nulls_not_distinct,
+                )?);
             }
-            let keys = table
-                .key()
-                .map(|column| Name::clone(&column.name))
-                .collect();
-            write_primary_key(&mut stmt, &table.name().to_string(), keys, None);
-            stmt
+            Ok(stmt)
         }
-    };
-    for key in &table.unique_keys {
-        let columns: Vec<&str> = key.columns.iter().map(String::as_str).collect();
-        stmt.unique(unique_key(
-            &table.label,
-            key.name.as_deref(),
-            &columns,
-            key.nulls_not_distinct,
-        )?);
+        TableBody::Columns => table_from_shape(&TableShape::of_disjoint(table), |_| true),
     }
-    Ok(stmt)
 }
 
 /// What every kind's table is written against: the base's table, key and

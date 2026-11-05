@@ -3,7 +3,7 @@
 // Relations between models: columns of one model's table equal to columns
 // of another's, which a query joins by, a graph decodes along, and `find`
 // and `load` read the far end of.
-// [spec:pgorm:req:bindings.relations]
+// [spec:pgorm:req:bindings.relations+2]
 
 import { Condition } from "./conditions.js";
 import { ConstructionError, DecodeError } from "./errors.js";
@@ -11,10 +11,28 @@ import { tuple } from "./expressions.js";
 import { columnValue } from "./model-columns.js";
 import { query } from "./model-queries.js";
 import { fieldOf, qualified, shapeOf } from "./model-shape.js";
-import { Decimal, Interval, Uuid } from "./values.js";
+import { Decimal, Interval, isIdentifier, Uuid } from "./values.js";
 
 /** Marks a construction from a model's relation methods. */
 const MADE = Symbol("pgorm-napi relation");
+
+/** A foreign key's referential actions, as the schema builders spell them. */
+const ACTIONS = new Set(["noAction", "restrict", "cascade", "setNull", "setDefault"]);
+
+const KEY_OPTIONS = new Set(["from", "to", "onDelete", "onUpdate", "fkName"]);
+
+/**
+ * @param {unknown} action
+ * @param {string} what
+ * @returns {string | null}
+ */
+function actionOf(action, what) {
+  if (action === undefined || action === null) return null;
+  if (typeof action !== "string" || !ACTIONS.has(action)) {
+    throw new TypeError(`a relation's ${what} is one of ${[...ACTIONS].join(", ")}`);
+  }
+  return action;
+}
 
 /** @type {(relation: Relation) => { from: import("./model-shape.js").Shape, to: import("./model-shape.js").Shape, fromFields: import("./model-shape.js").Field[], toFields: import("./model-shape.js").Field[] }} */
 let partsOf;
@@ -50,6 +68,8 @@ export class Relation {
   #fromFields;
   /** @type {import("./model-shape.js").Field[]} */
   #toFields;
+  /** @type {{ onDelete: string | null, onUpdate: string | null, fkName: string | null }} */
+  #key;
 
   /**
    * @param {"belongsTo" | "hasOne" | "hasMany"} kind
@@ -61,7 +81,11 @@ export class Relation {
   constructor(kind, from, to, keys, token) {
     if (token !== MADE) throw new TypeError("a Relation comes from a model's belongsTo(), hasOne() or hasMany()");
     if (typeof keys !== "object" || keys === null) throw new TypeError("a relation's keys are { from, to }");
-    const { from: fromNames, to: toNames } = /** @type {{ from?: unknown, to?: unknown }} */ (keys);
+    for (const option of Object.keys(keys)) {
+      if (!KEY_OPTIONS.has(option)) throw new TypeError(`${JSON.stringify(option)} is no relation option`);
+    }
+    const { from: fromNames, to: toNames, onDelete, onUpdate, fkName = null } =
+      /** @type {{ from?: unknown, to?: unknown, onDelete?: unknown, onUpdate?: unknown, fkName?: unknown }} */ (keys);
     this.#kind = kind;
     this.#from = shapeOf(from);
     this.#to = shapeOf(to);
@@ -69,6 +93,14 @@ export class Relation {
     this.#toFields = keyFields(this.#to, toNames, "to");
     if (this.#fromFields.length !== this.#toFields.length) {
       throw new ConstructionError("a relation pairs as many fields at each end");
+    }
+    if (fkName !== null) {
+      if (typeof fkName !== "string") throw new TypeError("a relation's fkName is a string");
+      if (!isIdentifier(fkName)) throw new ConstructionError("an identifier is 1–63 UTF-8 bytes without NUL");
+    }
+    this.#key = { onDelete: actionOf(onDelete, "onDelete"), onUpdate: actionOf(onUpdate, "onUpdate"), fkName };
+    if (kind !== "belongsTo" && (onDelete !== undefined || onUpdate !== undefined || fkName !== null)) {
+      throw new TypeError("a foreign key is the belongsTo side's: only it takes onDelete, onUpdate and fkName");
     }
     Object.freeze(this);
   }
@@ -102,6 +134,21 @@ export class Relation {
 
   get toFields() {
     return Object.freeze(this.#toFields.map((field) => field.field));
+  }
+
+  /** The action of the foreign key a `belongsTo` relation holds, `ON DELETE`. */
+  get onDelete() {
+    return this.#key.onDelete;
+  }
+
+  /** The action of the foreign key a `belongsTo` relation holds, `ON UPDATE`. */
+  get onUpdate() {
+    return this.#key.onUpdate;
+  }
+
+  /** The name of the foreign key a `belongsTo` relation holds, or null for pgorm's `fk-{table}-{columns}`. */
+  get fkName() {
+    return this.#key.fkName;
   }
 
   /** Whether a row reads at most one row at the far end, or any number. */
@@ -223,6 +270,27 @@ export function relationOn(relation, left, right) {
   return Condition.all(Condition.all(...fromFields.map((field, index) =>
     qualified(field, left).eq(qualified(/** @type {import("./model-shape.js").Field} */ (toFields[index]), right))
   )));
+}
+
+// [spec:pgorm:req:bindings.schema-from-model]
+/**
+ * The foreign key a `belongsTo` relation holds, as the native table shape
+ * takes it: the table it reaches, the columns it pairs at each end, its
+ * actions and its name.
+ *
+ * @param {Relation} relation
+ */
+export function foreignKeyOf(relation) {
+  const { to, fromFields, toFields } = partsOf(relation);
+  return {
+    schema: to.schema,
+    table: to.name,
+    from: fromFields.map((field) => field.sql),
+    to: toFields.map((field) => field.sql),
+    onDelete: relation.onDelete,
+    onUpdate: relation.onUpdate,
+    fkName: relation.fkName,
+  };
 }
 
 /**

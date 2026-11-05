@@ -16,7 +16,7 @@ PG_19 = "pg-19" in p.capabilities()["features"]
 
 class SchemaConstruction(unittest.TestCase):
     # [spec:pgorm:req:bindings.schema/test]
-    # [spec:pgorm:req:bindings.schema-api+2/test]
+    # [spec:pgorm:req:bindings.schema-api+3/test]
     def test_capabilities_and_detached_builders(self):
         manifest = p.capabilities()
         self.assertFalse(manifest["schema_policy"]["automatic_ddl"])

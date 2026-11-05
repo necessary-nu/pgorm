@@ -2,18 +2,35 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Bakery, Cake } from "../../../guide/bakery.ts";
+import { col, column, DataType, Decimal, fromModel, model } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const cakeBakery = Cake.belongsTo(Bakery, { from: "bakeryId", to: "id" });
-  const bakeryCakes = Bakery.hasMany(Cake, { from: "id", to: "bakeryId" });
+  const money = new DataType("numeric", { precision: 10, scale: 2 });
+  const OrderLine = model("order_line", {
+    renameAll: "snake_case",
+    columns: {
+      id: column("i32", { primaryKey: true, autoIncrement: true }),
+      orderId: column("i32"),
+      cakeId: column("i32"),
+      quantity: column("i32", { defaultValue: 1 }),
+      price: column("decimal", { columnType: money }),
+      total: column("decimal", { columnType: money, generatedStored: col("price").mul(col("quantity")) }),
+    },
+    uniqueKeys: [{ name: "one_line_per_cake", fields: ["orderId", "cakeId"] }],
+  });
 
-  assert.equal(cakeBakery.cardinality, "one");
-  assert.equal(bakeryCakes.cardinality, "many");
-  assert.deepEqual([cakeBakery.fromFields, cakeBakery.toFields], [["bakeryId"], ["id"]]);
+  const create = fromModel(OrderLine).table;
+  assert.equal(
+    create.inspect().sql,
+    `CREATE TABLE "order_line" ( "id" serial NOT NULL, "order_id" integer NOT NULL, "cake_id" integer NOT NULL, "quantity" integer NOT NULL DEFAULT 1, "price" decimal(10, 2) NOT NULL, "total" decimal(10, 2) NOT NULL GENERATED ALWAYS AS ("price" * "quantity") STORED, PRIMARY KEY ("id"), CONSTRAINT "one_line_per_cake" UNIQUE ("order_id", "cake_id") )`,
+  );
+  await pool.execute(create);
 
-  const lemonDrizzle = await Cake.findByKey({ id: 2 }).one(pool);
-  const sunrise = await cakeBakery.find(lemonDrizzle).one(pool);
-  assert.equal(sunrise.name, "Sunrise");
+  // The quantity takes its default, and the database computes the total.
+  const line = await OrderLine.insert({ orderId: 1, cakeId: 2, price: new Decimal("3.20") })
+    .returning("quantity", "total")
+    .one(pool);
+  assert.equal(line.quantity, 1);
+  assert.equal(line.total.toString(), "3.20");
 }

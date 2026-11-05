@@ -5,7 +5,7 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.models+5]
+// [spec:pgorm:req:bindings.models+6]
 // [spec:pgorm:req:bindings.model-unique-keys+2]
 
 import type { ComparisonOperand, Compiled, Condition, Expr, Operand, OrderBy, Predicate } from "./expressions.d.ts";
@@ -30,6 +30,7 @@ import type {
   Value,
 } from "./index.d.ts";
 import type { Cursor, Graph, KeyInputs, Paginator } from "./graphs.d.ts";
+import type { ColumnType as DdlType, ReferentialAction } from "./schema.d.ts";
 
 /**
  * The kinds a model column declares: every kind a result decodes as. `u64`
@@ -119,6 +120,29 @@ export interface ColumnOptions {
   readonly generated?: "always" | "byDefault";
   /** An enum column's labels, which every value it reads or writes is one of. */
   readonly values?: readonly string[];
+  /**
+   * The column's type in the table {@link fromModel} writes, Rust's
+   * `column_type`: `"varchar"`, `new DataType("numeric", { precision: 10, scale: 2 })`.
+   * An array column's is its elements'. The kind's own type when absent; an
+   * enum or created range column's is always its kind's.
+   */
+  readonly columnType?: DdlType;
+  /** A value the table fills the column with, `DEFAULT`, converted through its kind. */
+  readonly defaultValue?: unknown;
+  /** An expression the table fills the column with, `DEFAULT`, such as `currentTimestamp()`. */
+  readonly defaultExpr?: Expr;
+  /** The column computed from the row's others and stored, `GENERATED ALWAYS AS (..) STORED`; no write sets it. */
+  readonly generatedStored?: Expr;
+  /** The column computed from the row's others as it is read, `GENERATED ALWAYS AS (..) VIRTUAL`; no write sets it. */
+  readonly generatedVirtual?: Expr;
+  /** A one-column `i16`, `i32` or `i64` key drawn from the serial family, Rust's default for such a key. */
+  readonly autoIncrement?: boolean;
+  /** Whether the table's schema creates an index on the column, `idx-{table}-{column}`. */
+  readonly indexed?: boolean;
+  /** The column's `COMMENT ON COLUMN`. */
+  readonly comment?: string;
+  /** Whether a range or multirange key column is the key's period, `WITHOUT OVERLAPS`: the key's last field. */
+  readonly withoutOverlaps?: boolean;
 }
 
 declare const declared: unique symbol;
@@ -137,6 +161,16 @@ export declare class Column<K extends ColumnKind = ColumnKind, O extends ColumnO
   readonly default: boolean;
   readonly generated: "always" | "byDefault" | null;
   readonly values: readonly string[] | null;
+  readonly columnType: DdlType | null;
+  /** The `defaultValue`, converted through the column's kind. */
+  readonly defaultValue: Value | null;
+  readonly defaultExpr: Expr | null;
+  readonly generatedStored: Expr | null;
+  readonly generatedVirtual: Expr | null;
+  readonly autoIncrement: boolean;
+  readonly indexed: boolean;
+  readonly comment: string | null;
+  readonly withoutOverlaps: boolean;
   /** The options the column was declared with, as the types know them. */
   readonly [declared]?: O;
 }
@@ -211,10 +245,16 @@ export type RowOf<M> = Row<ColumnsOf<M>>;
 
 type Optioned<C, Test> = { [F in keyof C]: C[F] extends Column<any, infer O> ? (O extends Test ? F : never) : never }[keyof C];
 
-type GeneratedAlways<C> = Optioned<C, { readonly generated: "always" }>;
+type GeneratedAlways<C> =
+  | Optioned<C, { readonly generated: "always" }>
+  | Optioned<C, { readonly generatedStored: Expr }>
+  | Optioned<C, { readonly generatedVirtual: Expr }>;
 type Omissible<C> =
   | Optioned<C, { readonly nullable: true }>
   | Optioned<C, { readonly default: true }>
+  | Optioned<C, { readonly defaultValue: unknown }>
+  | Optioned<C, { readonly defaultExpr: Expr }>
+  | Optioned<C, { readonly autoIncrement: true }>
   | Optioned<C, { readonly generated: "byDefault" }>;
 type PrimaryKey<C> = Optioned<C, { readonly primaryKey: true }>;
 
@@ -272,6 +312,17 @@ export interface RelationKeys<From extends Model<any>, To extends Model<any>> {
 }
 
 /**
+ * A `belongsTo` relation's fields, and the foreign key it holds as
+ * {@link fromModel} writes it: its `ON DELETE` and `ON UPDATE` actions and
+ * its name, Rust's `on_delete`, `on_update` and `fk_name`.
+ */
+export interface BelongsToKeys<From extends Model<any>, To extends Model<any>> extends RelationKeys<From, To> {
+  readonly onDelete?: ReferentialAction;
+  readonly onUpdate?: ReferentialAction;
+  readonly fkName?: string;
+}
+
+/**
  * A unique key of a model's table: its fields in key order, the constraint's
  * `name`, which PostgreSQL chooses when none is given, and whether nulls are
  * equal under it. A key naming no field, a field the model lacks or one
@@ -321,6 +372,8 @@ export declare class Model<C extends Columns = Columns> {
   readonly alias: string | null;
   /** The table, schema-qualified and aliased as the model is. */
   readonly table: Table;
+  /** The table's `COMMENT ON TABLE`, which {@link fromModel} writes. */
+  readonly comment: string | null;
   /** Each field's column declaration. */
   readonly columns: C;
   /** The primary key's fields, in declaration order. */
@@ -350,7 +403,7 @@ export declare class Model<C extends Columns = Columns> {
   /** A DELETE, which needs `where` or `allRows()` before it runs. */
   delete(): ModelDelete<C>;
   /** A relation from this model's foreign key to the key of `target`, which reads at most one row. */
-  belongsTo<T extends Model<any>>(target: T, keys: RelationKeys<Model<C>, T>): Relation<Model<C>, T, "one">;
+  belongsTo<T extends Model<any>>(target: T, keys: BelongsToKeys<Model<C>, T>): Relation<Model<C>, T, "one">;
   /** A relation from this model's key to at most one row of `target`. */
   hasOne<T extends Model<any>>(target: T, keys: RelationKeys<Model<C>, T>): Relation<Model<C>, T, "one">;
   /** A relation from this model's key to any number of rows of `target`. */
@@ -360,16 +413,38 @@ export declare class Model<C extends Columns = Columns> {
   describe(): ModelDescription;
 }
 
+/** The case styles a model's `renameAll` names its columns in, as Rust's `rename_all` spells them. */
+export type CaseStyle =
+  | "camelCase"
+  | "PascalCase"
+  | "kebab-case"
+  | "snake_case"
+  | "SCREAMING_SNAKE_CASE"
+  | "SCREAMING-KEBAB-CASE"
+  | "lowercase"
+  | "UPPERCASE"
+  | "title_case"
+  | "mixed_case";
+
+/** What a model declares beside its table's name. */
+export interface ModelDeclaration<C extends Columns> {
+  readonly schema?: string;
+  readonly columns: C;
+  readonly uniqueKeys?: readonly UniqueKey<C>[];
+  /** The table's `COMMENT ON TABLE`. */
+  readonly comment?: string;
+  /** The case style each field's column is named in where the column names none, Rust's `rename_all`. */
+  readonly renameAll?: CaseStyle;
+}
+
 /**
  * Declare a model of the table `name`, schema-qualified when `schema` is
  * given, with the table's `uniqueKeys`. A field is a key of `columns`, and
- * its SQL column the column's `name` or else the field; two fields of one
- * column are a {@link ConstructionError}.
+ * its SQL column the column's `name`, or else the field written in the case
+ * style `renameAll` names, or else the field; two fields of one column are a
+ * {@link ConstructionError}.
  */
-export declare function model<const C extends Columns>(
-  name: string,
-  declaration: { readonly schema?: string; readonly columns: C; readonly uniqueKeys?: readonly UniqueKey<C>[] },
-): Model<C>;
+export declare function model<const C extends Columns>(name: string, declaration: ModelDeclaration<C>): Model<C>;
 
 /** The options of a model query's join. */
 export interface ModelJoinOptions {
@@ -538,6 +613,12 @@ export declare class Relation<
   readonly to: To;
   readonly fromFields: readonly string[];
   readonly toFields: readonly string[];
+  /** The `ON DELETE` action of the foreign key a `belongsTo` relation holds. */
+  readonly onDelete: ReferentialAction | null;
+  /** The `ON UPDATE` action of the foreign key a `belongsTo` relation holds. */
+  readonly onUpdate: ReferentialAction | null;
+  /** The name of the foreign key a `belongsTo` relation holds, or null for pgorm's `fk-{table}-{columns}`. */
+  readonly fkName: string | null;
   readonly cardinality: Card;
   /** The rows at the far end related to `row`: none when one of its key fields is null. */
   find(row: Partial<RowOf<From>>): ModelQuery<ColumnsOf<To>, RowOf<To>>;

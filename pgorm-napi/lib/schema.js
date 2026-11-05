@@ -6,7 +6,7 @@
 // escaped literals and runs as SQL text; `inspect()` gives that SQL and no
 // values. Every builder is immutable, as the query builders are.
 // [spec:pgorm:req:bindings.schema]
-// [spec:pgorm:req:bindings.schema-api+2]
+// [spec:pgorm:req:bindings.schema-api+3]
 
 import { arg, Builder, Handle, trusted, TRUSTED } from "./builder.js";
 import { native } from "./operations.js";

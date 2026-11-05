@@ -13329,7 +13329,32 @@ children (
                     {
                         id napi.guide-gaps.model-schema
                         title "A declared model generates its CREATE TABLE with its keys and foreign keys, its enum types, indexes and comments, as Rust's Schema::create_table_from_entity, create_enum_from_entity, create_index_from_entity and create_comments_from_entity do and fromEntity does for a registered entity (guide 03-entities, 14-schema)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.schema-from-model])
+                        }
                         deps (napi-models napi-schema guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T19:49:41.609273Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:49:41.609273Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "single-flight overridden: started while guide.python-gaps.model-ddl had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T20:22:05.640009Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built together with guide.python-gaps.model-ddl in one shape (see its decision note): fromModel(model, { relations }) → EntitySchema through pgorm's TableShape writer; column options columnType, defaultValue, defaultExpr, generatedStored, generatedVirtual, autoIncrement, indexed, comment, withoutOverlaps; model({ comment, renameAll }); belongsTo keys onDelete/onUpdate/fkName (hasOne/hasMany refuse them with TypeError, as an unknown relation option now is). Native side pgorm-napi/src/models/shape.rs (modelSchema, modelTable, modelRenamed), sharing the column lowering with the disjoint description. guide/bakery.ts writes its tables with fromModel and names its columns with renameAll: \"snake_case\"."
+                            }
+                        )
                     }
 
                     {
@@ -19236,7 +19261,19 @@ children (
                     {
                         id guide.python-gaps.model-ddl
                         title "A declared Python model writes its own DDL as an entity does: CREATE TABLE (Schema::create_table_from_entity), column types with length and precision (column_type), default_value and default_expr, generated_stored and generated_virtual expressions, indexed (create_index_from_entity), comment (create_comments_from_entity), rename_all, and a key's without_overlaps"
+                        implements {
+                            main ([spec:pgorm:sem:schema.from-shape])
+                            python ([spec:pgorm:req:bindings.schema-from-model])
+                        }
                         deps (python.models python.schema)
+                        log (
+                            {
+                                at 2026-11-05T20:22:04.233505Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built both bindings' model DDL through one Rust writer. pgorm gains TableShape/TableColumn (src/entity/table_shape.rs), a table as data, and Schema::create_{table,enum,index,comments}_from_shape; the four entity methods now describe E with TableShape::of::<E>() and write through the same functions, and a disjoint model's column-described tables (DisjointTable::shape()) too, so there is one DDL writer. RelationDef::belongs_to(from, to, pairs) builds a run-time model's foreign key. Binding shape (rule bindings.schema-from-model, shared): schema.from_model(model, relations=[belongs_to..]) / fromModel(model, { relations }) returns the existing EntitySchema; Column takes Rust's field attributes by name (column_type, default_value converted through the kind, default_expr, generated_stored, generated_virtual, auto_increment, indexed, comment, without_overlaps; camelCase in JS), Model takes comment and rename_all; belongs_to takes on_delete/on_update/fk_name (has_one/has_many refuse them with TypeError). Choices: (1) default=True keeps meaning 'filled by a default the declaration does not state', so from_model refuses its table (as create_disjoint already did); auto_increment is the explicit serial, since a Python/JS model assumes nothing about a key. (2) column_type is the element type for an array column, refused on enum/created-range columns (their type is the kind's) and when it names an array. (3) A generation expression makes the column generated \"always\" (describe() reports that); describe() gains no DDL keys — the DDL is read back as from_model's statements. (4) rename_all converts with the derive's own code: new leaf crate pgorm-case-style (CaseStyle, re-exported as pgorm::CaseStyle), used by pgorm-macros and both bindings, so no second case conversion exists. (5) The model is checked as declared by building its TableShape natively (_model_table / modelTable), so DDL refusals are ConstructionErrors at declaration. (6) bakery.py/bakery.ts now write their tables with from_model/fromModel; the only text difference from Rust's is the schema-qualified flavor type (public.flavor), which a model's enum column must name. Bumped bindings.models+6, bindings.relations+2, bindings.schema-api+3; new schema.from-shape (schema-gen.md) and bindings.schema-from-model."
+                            }
+                        )
                     }
 
                     {

@@ -99,7 +99,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute(p.RawSQL(f"DROP SCHEMA {SCHEMA} CASCADE"))
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.relations/test]
+    # [spec:pgorm:req:bindings.relations+2/test]
     async def test_relation_find_reads_none_for_null_keys(self):
         ann = (await Account.find().order_by(by_account).limit(1).all(self.pool))[0]
         found = await posts.find(ann).order_by(by_post).all(self.pool)
@@ -114,7 +114,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         self.assertIs(author.from_, Post)
         self.assertIs(author.to, Account)
 
-    # [spec:pgorm:req:bindings.relations/test]
+    # [spec:pgorm:req:bindings.relations+2/test]
     async def test_load_reads_far_ends_in_one_query(self):
         accounts = await Account.find().order_by(by_account).all(self.pool)
         loaded = await posts.load(self.pool, accounts)
@@ -140,7 +140,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
             [dict(row) for row in await pairs.load(self.pool, tagged)], [dict(row) for row in tagged]
         )
 
-    # [spec:pgorm:req:bindings.relations/test]
+    # [spec:pgorm:req:bindings.relations+2/test]
     def test_relation_pairs_equal_field_counts(self):
         with self.assertRaisesRegex(p.ConstructionError, "as many fields"):
             Post.belongs_to(Account, from_=["author_id", "id"], to="id")

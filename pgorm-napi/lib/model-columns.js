@@ -15,7 +15,27 @@ import { CreatedMultirange, CreatedRange, TypeName, Value } from "./values.js";
 /** Marks a column made by `column()`. */
 const DECLARED = Symbol("pgorm-napi column");
 
-const OPTIONS = new Set(["name", "nullable", "array", "primaryKey", "default", "generated", "values"]);
+const OPTIONS = new Set([
+  "name", "nullable", "array", "primaryKey", "default", "generated", "values",
+  "columnType", "defaultValue", "defaultExpr", "generatedStored", "generatedVirtual",
+  "autoIncrement", "indexed", "comment", "withoutOverlaps",
+]);
+
+/** The kinds a serial key is drawn from, as Rust's one-column integer key is. */
+const SERIAL = new Set(["i16", "i32", "i64"]);
+
+/**
+ * An option that is an expression, or absent.
+ *
+ * @param {unknown} value
+ * @param {string} what
+ * @returns {Expr | null}
+ */
+function expressionOf(value, what) {
+  if (value === undefined || value === null) return null;
+  if (!(value instanceof Expr)) throw new TypeError(`a column's ${what} is an expression`);
+  return value;
+}
 
 /**
  * The kinds a result never decodes as, so a model column cannot declare
@@ -120,16 +140,106 @@ export class Column {
     /** @readonly */
     this.values = labels(declared.values, kind);
     if (this.primaryKey && this.nullable) throw new ConstructionError("a primary-key column is not nullable");
-    if (this.default && this.generated !== null) {
-      throw new ConstructionError("a generated column has no default of its own: declare one or the other");
+    /** @readonly @type {unknown} */
+    this.columnType = declared.columnType ?? null;
+    /** @readonly */
+    this.defaultExpr = expressionOf(declared.defaultExpr, "defaultExpr");
+    /** @readonly */
+    this.generatedStored = expressionOf(declared.generatedStored, "generatedStored");
+    /** @readonly */
+    this.generatedVirtual = expressionOf(declared.generatedVirtual, "generatedVirtual");
+    /** @readonly */
+    this.autoIncrement = flag(declared.autoIncrement, "autoIncrement");
+    /** @readonly */
+    this.indexed = flag(declared.indexed, "indexed");
+    /** @readonly */
+    this.withoutOverlaps = flag(declared.withoutOverlaps, "withoutOverlaps");
+    if (declared.comment !== undefined && typeof declared.comment !== "string") {
+      throw new TypeError("a column's comment is a string");
     }
+    /** @readonly @type {string | null} */
+    this.comment = declared.comment ?? null;
+    const computed = this.generatedStored !== null || this.generatedVirtual !== null;
+    if (computed) {
+      if (this.generated === "byDefault") {
+        throw new ConstructionError("a generated column is generated always: no write sets it");
+      }
+      this.generated = "always";
+    }
+    // PostgreSQL holds a column to one fill: a default, an identity, a
+    // generation expression or the serial family (42601).
+    const fills = [
+      this.default,
+      declared.defaultValue !== undefined,
+      this.defaultExpr !== null,
+      this.generated !== null && !computed,
+      this.generatedStored !== null,
+      this.generatedVirtual !== null,
+      this.autoIncrement,
+    ].filter(Boolean).length;
+    if (fills > 1) {
+      throw new ConstructionError(
+        "a column is filled one way: a default (default, defaultValue or defaultExpr), an identity " +
+          "(generated), a generation expression (generatedStored or generatedVirtual) or the serial " +
+          "family (autoIncrement)",
+      );
+    }
+    checkDdl(this);
     this.#key = native.modelKindKey(kind, this.array);
+    /** @readonly @type {Value | null} */
+    this.defaultValue = declared.defaultValue === undefined ? null : defaultOf(this, declared.defaultValue);
+    if (this.defaultValue instanceof Value && this.defaultValue.isNull) {
+      throw new ConstructionError("a column's defaultValue is a value: NULL is every column's default");
+    }
     Object.freeze(this);
   }
 
   static {
     keyOf = (column) => column.#key;
   }
+}
+
+// [spec:pgorm:req:bindings.schema-from-model]
+/**
+ * Refuse what a column's DDL options cannot say of its kind.
+ *
+ * @param {Column} column
+ */
+function checkDdl(column) {
+  const kind = column.kind;
+  if (column.columnType !== null && named(kind)) {
+    throw new ConstructionError("an enum or created range column's type is its kind's own: it takes no columnType");
+  }
+  if (column.autoIncrement && (!column.primaryKey || column.array || typeof kind !== "string" || !SERIAL.has(kind))) {
+    throw new ConstructionError("autoIncrement draws a key column from the serial family: an i16, i32 or i64 primary key");
+  }
+  const ranged = kind instanceof CreatedRange || kind instanceof CreatedMultirange ||
+    (typeof kind === "string" && kind.endsWith("range"));
+  if (column.withoutOverlaps && (!column.primaryKey || column.array || !ranged)) {
+    throw new ConstructionError("withoutOverlaps makes a range or multirange key column the key's period");
+  }
+}
+
+/**
+ * The value a column's `defaultValue` gives, converted through its kind.
+ *
+ * @param {Column} column
+ * @param {unknown} value
+ */
+function defaultOf(column, value) {
+  if (value instanceof Expr) throw new TypeError("a column's defaultValue is a value: an expression is its defaultExpr");
+  return /** @type {Value} */ (columnValue(column, "defaultValue", value));
+}
+
+/**
+ * Whether an insert may leave `column` out: it is nullable, filled by a
+ * default stated or not, by the serial family, or generated.
+ *
+ * @param {Column} column
+ */
+export function omissible(column) {
+  return column.nullable || column.default || column.generated !== null || column.defaultValue !== null ||
+    column.defaultExpr !== null || column.autoIncrement;
 }
 
 /**

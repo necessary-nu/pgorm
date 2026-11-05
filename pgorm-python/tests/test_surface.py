@@ -211,7 +211,7 @@ class DescriptionTests(unittest.TestCase):
         self.assertEqual(unreached, [], "declared keys no live description reached")
 
     # [spec:pgorm:req:bindings.surface+2/test]
-    # [spec:pgorm:req:bindings.models+5/test]
+    # [spec:pgorm:req:bindings.models+6/test]
     # [spec:pgorm:req:bindings.model-unique-keys+2/test]
     def test_model_description_has_the_declared_keys(self):
         model = p.Model(

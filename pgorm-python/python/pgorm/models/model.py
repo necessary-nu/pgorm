@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Required, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Literal, Required, TypeAlias, TypedDict, cast
 
 from .. import _native as p
 from .columns import Column, ModelColumn
@@ -13,8 +13,16 @@ from .columns import Column, ModelColumn
 if TYPE_CHECKING:
     from .graphs import Graph
     from .queries import ModelQuery
-    from .relations import Relation
+    from .relations import ReferentialAction, Relation
     from .writes import ModelDelete, ModelInsert, ModelInsertMany, ModelUpdate
+
+
+# The case styles a model's rename_all renames its columns by, as Rust's
+# entity derive spells them.
+CaseStyle: TypeAlias = Literal[
+    "camelCase", "PascalCase", "kebab-case", "snake_case", "SCREAMING_SNAKE_CASE",
+    "SCREAMING-KEBAB-CASE", "lowercase", "UPPERCASE", "title_case", "mixed_case",
+]
 
 
 # [spec:pgorm:req:bindings.model-unique-keys+2]
@@ -43,6 +51,21 @@ _UNIQUE_OPTIONS = frozenset({"fields", "name", "nulls_not_distinct"})
 
 
 # [spec:pgorm:req:bindings.model-unique-keys+2]
+# [spec:pgorm:req:bindings.schema-from-model]
+def _check_key(declarations: Mapping[str, Column], key: tuple[str, ...]) -> None:
+    """Refuse a key the serial family or a period cannot be part of: a
+    serial key is of one column, and a period is the key's last column and
+    is preceded by another, as PostgreSQL requires of ``WITHOUT OVERLAPS``."""
+    columns = [declarations[field] for field in key]
+    if any(column.auto_increment for column in columns) and len(columns) != 1:
+        raise p.ConstructionError("auto_increment draws a one-column key from the serial family")
+    periods = [index for index, column in enumerate(columns) if column.without_overlaps]
+    if periods and (periods != [len(columns) - 1] or len(columns) < 2):
+        raise p.ConstructionError(
+            "without_overlaps marks the last field of a key of two or more as its period"
+        )
+
+
 def _unique_key(key: object, declarations: Mapping[str, Column]) -> _DeclaredKey:
     """``key`` as the model whose fields are ``declarations`` declares it:
     refused as PostgreSQL or the Rust derive would refuse it, as the model is
@@ -82,13 +105,15 @@ def _unique_key(key: object, declarations: Mapping[str, Column]) -> _DeclaredKey
     return _DeclaredKey(name, tuple(fields), nulls_not_distinct)
 
 
-# [spec:pgorm:req:bindings.models+5]
+# [spec:pgorm:req:bindings.models+6]
 # [spec:pgorm:req:bindings.model-unique-keys+2]
+# [spec:pgorm:req:bindings.schema-from-model]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
 class Model:
     table: p.Table
     columns: Mapping[str, Column]
     primary_key: tuple[str, ...]
+    comment: str | None
     _unique_keys: tuple[_DeclaredKey, ...]
 
     def __init__(
@@ -98,6 +123,8 @@ class Model:
         *,
         schema: str | None = None,
         unique_keys: Sequence[UniqueKey] = (),
+        comment: str | None = None,
+        rename_all: CaseStyle | None = None,
     ) -> None:
         if isinstance(table, p.Table):
             if schema is not None:
@@ -111,6 +138,10 @@ class Model:
             raise TypeError("a model's columns are a mapping of fields to Columns")
         if not columns:
             raise p.ConstructionError("model columns require a non-empty mapping")
+        if comment is not None and type(comment) is not str:
+            raise TypeError("a model's comment is a string")
+        if rename_all is not None and type(rename_all) is not str:
+            raise TypeError("a model's rename_all is a case style's name")
         declarations = {}
         physical = set()
         for identity, column in columns.items():
@@ -119,9 +150,9 @@ class Model:
                 raise p.ConstructionError("duplicate model field identity")
             if not isinstance(column, Column):
                 raise TypeError("each model field is a Column declaration")
-            column = replace(
-                column, name=identity if column.name is None else column.name
-            )
+            if column.name is None:
+                name = identity if rename_all is None else p._renamed(identity, rename_all)
+                column = replace(column, name=name)
             if column.name in physical:
                 raise p.ConstructionError(
                     "multiple model fields map to the same SQL column"
@@ -130,11 +161,10 @@ class Model:
             physical.add(column.name)
         object.__setattr__(self, "table", native)
         object.__setattr__(self, "columns", MappingProxyType(declarations))
-        object.__setattr__(
-            self,
-            "primary_key",
-            tuple(name for name, column in declarations.items() if column.primary_key),
-        )
+        key = tuple(name for name, column in declarations.items() if column.primary_key)
+        _check_key(declarations, key)
+        object.__setattr__(self, "primary_key", key)
+        object.__setattr__(self, "comment", comment)
         if not isinstance(unique_keys, (list, tuple)):
             raise TypeError("a model's unique_keys are a list or tuple of keys")
         object.__setattr__(
@@ -142,6 +172,7 @@ class Model:
             "_unique_keys",
             tuple(_unique_key(key, declarations) for key in unique_keys),
         )
+        p._model_table(self._described())
 
     @property
     def qualifier(self) -> str:
@@ -150,9 +181,27 @@ class Model:
         return self.table.alias or self.table.name
 
     def as_(self, alias: str) -> Model:
-        aliased = Model(self.table.as_(alias), self.columns)
+        aliased = Model(self.table.as_(alias), self.columns, comment=self.comment)
         object.__setattr__(aliased, "_unique_keys", self._unique_keys)
         return aliased
+
+    def _described(self) -> dict[str, Any]:
+        """The model's table as the native table shape is described from:
+        its columns, key, unique keys and comment."""
+        key = [self.columns[field] for field in self.primary_key]
+        return {
+            "schema": self.table.schema,
+            "table": self.table.name,
+            "columns": [column._described(self._sql(name)) for name, column in self.columns.items()],
+            "key": [self._sql(field) for field in self.primary_key],
+            "auto_increment": any(column.auto_increment for column in key),
+            "without_overlaps": any(column.without_overlaps for column in key),
+            "unique_keys": [
+                (unique.name, [self._sql(field) for field in unique.fields], unique.nulls_not_distinct)
+                for unique in self._unique_keys
+            ],
+            "comment": self.comment,
+        }
 
     def col(self, field: str) -> ModelColumn:
         return self._column(field, self.qualifier)
@@ -241,12 +290,23 @@ class Model:
         return ModelDelete(self, p.Delete(self.table))
 
     def belongs_to(
-        self, target: Model, *, from_: str | Sequence[str], to: str | Sequence[str]
+        self,
+        target: Model,
+        *,
+        from_: str | Sequence[str],
+        to: str | Sequence[str],
+        on_delete: ReferentialAction | None = None,
+        on_update: ReferentialAction | None = None,
+        fk_name: str | None = None,
     ) -> Relation:
-        """A relation from this model's foreign key to the key of ``target``."""
+        """A relation from this model's foreign key to the key of ``target``,
+        whose actions and constraint name the table's foreign key takes when
+        ``schema.from_model`` writes it."""
         from .relations import Relation
 
-        return Relation("belongs_to", self, target, from_, to)
+        return Relation(
+            "belongs_to", self, target, from_, to, on_delete, on_update, fk_name
+        )
 
     def has_one(
         self, target: Model, *, from_: str | Sequence[str], to: str | Sequence[str]

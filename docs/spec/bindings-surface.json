@@ -204,6 +204,7 @@
       "drop_type": null,
       "drop_view": null,
       "from_entity": null,
+      "from_model": null,
       "migration_file": null,
       "migration_files": null,
       "remove_disjoint_kind": null,

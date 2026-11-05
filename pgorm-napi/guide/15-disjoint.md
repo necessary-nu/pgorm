@@ -111,9 +111,13 @@ assert.throws(
 the kind type and the tables, in the order they run: the kind type, the base
 table, each kind's table, and one `ALTER TABLE` on the base adding what points
 back at the kinds' tables. It is Rust's `Schema::create_disjoint`. Each
-table's columns are typed from the models' kinds, so a `text` field is a
-`text` column and a `decimal` one a `numeric` of no fixed scale; the base's
-key is an identity column, which a model declares `generated: "byDefault"`:
+table's columns are written as [`fromModel`](14-schema.md) writes a model's:
+typed from the models' kinds unless a column's `columnType` names another,
+so a `text` field is a `text` column and a `decimal` one a `numeric` of no
+fixed scale, with the default, generation expression or identity the column
+states. A model's indexes and comments are not among the statements;
+`fromModel` of the model gives those. The base's key here is an identity
+column, which a model declares `generated: "byDefault"`:
 
 <!-- example: empty -->
 ```ts

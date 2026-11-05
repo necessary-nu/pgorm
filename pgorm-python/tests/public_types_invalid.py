@@ -80,6 +80,14 @@ async def invalid(connection: p.Connection) -> None:
     accounts = p.Model("accounts", {"id": p.Column("i64", primary_key=True)})
     p.Model("accounts", {"id": p.Column("i64")}, unique_keys=[{"fields": "id", "nulls_distinct": True}])  # expected-error: typeddict-unknown-key
     p.Column("i32", generated="sometimes")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.schema-from-model/test]    the DDL options are typed: expressions, a closed case style, a belongs_to's actions
+    p.Column("i32", default_expr=1)  # expected-error: arg-type
+    p.Column("i32", generated_stored="price")  # expected-error: arg-type
+    p.Column("i32", column_type="not_a_type")  # expected-error: arg-type
+    p.Model("accounts", {"id": p.Column("i64")}, rename_all="Camel")  # expected-error: arg-type
+    accounts.belongs_to(accounts, from_="id", to="id", on_delete="drop")  # expected-error: arg-type
+    accounts.has_many(accounts, from_="id", to="id", on_delete="cascade")  # expected-error: call-arg
+    s.from_model(p.entity("accounts"))  # expected-error: arg-type
     accounts.graph().join_one(accounts.col("id"))  # expected-error: arg-type
     accounts.find().cursor("id").first("2")  # expected-error: arg-type
     accounts.find().join(accounts.col("id"))  # expected-error: arg-type

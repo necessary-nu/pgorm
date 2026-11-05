@@ -1024,22 +1024,33 @@ decode into records of its fields, and its relations, graphs, cursors and
 pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 `Paginator`.
 
-> [spec:pgorm:req:bindings.models+5]
-> `model(name, columns, schema, unique_keys)` MUST declare a model of a
-> table, schema-qualified when a schema is given, from a mapping of fields,
-> each a `Column(kind, options)`, and the table's unique keys
-> (`bindings.model-unique-keys`). The kind is one every result decodes as — any
-> value kind but `u64` and `char`, which no column decodes as — or a
-> schema-qualified `TypeName`, `CreatedRange` or `CreatedMultirange`, as a
-> decoded row names each type. The options are `name` (the SQL column, the
-> field's own name by default), `nullable`, `array`, `primary_key`, `default`,
-> `generated` (always or by default) and an enum's `values`.
+> [spec:pgorm:req:bindings.models+6]
+> `model(name, columns, schema, unique_keys, comment, rename_all)` MUST
+> declare a model of a table, schema-qualified when a schema is given, from a
+> mapping of fields, each a `Column(kind, options)`, the table's unique keys
+> (`bindings.model-unique-keys`), its comment and the case style its columns
+> are named in (`bindings.schema-from-model`). The kind is one every result
+> decodes as — any value kind but `u64` and `char`, which no column decodes
+> as — or a schema-qualified `TypeName`, `CreatedRange` or
+> `CreatedMultirange`, as a decoded row names each type. The options are
+> `name` (the SQL column, the field's own name, or the field written in the
+> `rename_all` style, by default), `nullable`, `array`, `primary_key`,
+> `default` (filled by a default the declaration does not state),
+> `generated` (always or by default) and an enum's `values`, and the table's
+> DDL options `bindings.schema-from-model` gives: `column_type`,
+> `default_value`, `default_expr`, `generated_stored`, `generated_virtual`,
+> `auto_increment`, `indexed`, `comment` and `without_overlaps`. A column with
+> a generation expression is generated always, as no write sets it; an insert
+> may leave out a column that is nullable, generated, drawn from the serial
+> family or filled by a default, stated or not.
 >
 > Any other value MUST be a `ConstructionError` raised as the model is
-> declared: a key column that is nullable, a generated
-> column with a default, labels on a column that is no enum, two fields of
+> declared: a key column that is nullable, a column filled two ways (a
+> default, stated or not, an identity, a generation expression, the serial
+> family), labels on a column that is no enum, two fields of
 > one column, a field named twice, an enum or created range without its
-> schema, and an identifier pgorm would not take. Declaring a model MUST send
+> schema, an identifier pgorm would not take, and what
+> `bindings.schema-from-model` refuses of the DDL options. Declaring a model MUST send
 > nothing, run no DDL and claim no Rust entity: no derive, `EntityTrait`,
 > implementation or ActiveModel hook is behind it. A model and its columns
 > never change; `as(alias)` gives another model reading the table under an
@@ -1217,10 +1228,16 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > conflict clause did not write is null from `returning_upsert` and left out
 > of `returning_upserts`.
 
-> [spec:pgorm:req:bindings.relations]
+> [spec:pgorm:req:bindings.relations+2]
 > A model's `belongs_to`, `has_one` and `has_many` MUST make a relation to
 > another model, pairing fields of each — one, or non-empty lists of equal
-> length — in order. A join along it MUST be the condition pgorm's
+> length — in order. A `belongs_to` relation is the side holding the foreign
+> key, and takes its `on_delete` and `on_update` actions — `no_action`,
+> `restrict`, `cascade`, `set_null` or `set_default`, spelled in the
+> binding's case — and its `fk_name`, as an entity's `belongs_to` does, which
+> `bindings.schema-from-model` writes; the relation reports each, null when
+> none was given. `has_one` and `has_many` take neither, one given being a
+> `TypeError`, as an action outside the set is. A join along it MUST be the condition pgorm's
 > `join_condition` writes for a relation's columns, each pair equal and the
 > pairs ANDed, between the tables as the join names them. `find(row)` MUST
 > read the far end's rows whose paired fields equal the row's, and none when
@@ -1845,7 +1862,7 @@ placeholders belong to the stage that minted them.
 > `ConstructionError`, and its first action gives the statement. A
 > `ColumnDef` is no statement, and a terminal refuses it likewise.
 
-> [spec:pgorm:req:bindings.schema-api+2]
+> [spec:pgorm:req:bindings.schema-api+3]
 > Each binding MUST spell the DDL `bindings.schema` describes as these
 > functions and the builders they give, every complete statement of the `DDL`
 > class or a class extending it, so a statement the terminals take; no class
@@ -1902,7 +1919,8 @@ placeholders belong to the stage that minted them.
 >   statement; and `drop_domain(names)`;
 > - `from_entity(entity)` gives an `EntitySchema` of the table, enum, index
 >   and comment statements (`bindings.schema-from-entity`), its enums each a
->   `CreateType`.
+>   `CreateType`, and `from_model(model, relations)` one of a declared
+>   model's (`bindings.schema-from-model`).
 >
 > Each statement's further options are those the rules below give it, as
 > options. A list of names is one name or a non-empty list, an empty list a
@@ -1911,7 +1929,7 @@ placeholders belong to the stage that minted them.
 > spelled in the binding's case, `"not_enforced"` in Python and
 > `"notEnforced"` in JavaScript. Python's capability manifest lists each
 > function and constructor as a `schema.` operation needing no registration
-> but `from_entity`'s (`python.capabilities`).
+> but `from_entity`'s (`python.capabilities`), `from_model` among them.
 
 > [spec:pgorm:req:bindings.schema-from-entity]
 > The schema of a registered entity MUST be generated by pgorm's own entity
@@ -1921,6 +1939,66 @@ placeholders belong to the stage that minted them.
 > (`schema.from-entity`), the binding MUST raise a `ConstructionError`
 > carrying the Rust message, and MUST NOT give a schema that leaves the key
 > out.
+
+> [spec:pgorm:req:bindings.schema-from-model]
+> The schema of a declared model MUST be written by pgorm's own `Schema`
+> from the `TableShape` the model describes
+> (`[spec:pgorm:sem:schema.from-shape]`), the statements
+> `create_table_from_entity` and its siblings write for an entity of the same
+> declaration, and offered as an `EntitySchema`: its `CREATE TABLE`, the
+> `CREATE TYPE` of each enum its columns hold, an index for each `indexed`
+> column and its comments. The table is the model's, unaliased (an aliased
+> model is a `ConstructionError`), with a column per field in declaration
+> order under its SQL name, of the kind's own type
+> (`ArrayType::column_type`, an enum of the labels it lists, a created range
+> over its subtype), `NOT NULL` unless it is nullable; its primary key, of
+> its key fields in declaration order; each unique key the model declares;
+> its comment; and a foreign key for each `belongs_to` relation in
+> `relations`, starting at the model's table, with the actions and name the
+> relation gives (`bindings.relations`), written as `RelationDef` converts
+> (`[spec:pgorm:req:entity.relation.fk]`). A relation of another kind, one
+> starting at another table, and a column filled by a `default` the
+> declaration does not state, which has no `DEFAULT` to write, MUST be a
+> `ConstructionError` carrying the Rust message.
+>
+> A column's DDL options are Rust's field attributes of the same names:
+> `column_type` its type instead of the kind's, any type a `ColumnDef` takes
+> but an array, since an array column's is its elements' (Rust's
+> `column_type`); `default_value` a value converted through the kind,
+> written as pgorm-query's escaped literal, and `default_expr` an
+> expression, its `DEFAULT`; `generated_stored` and `generated_virtual` an
+> expression it is `GENERATED ALWAYS AS (..)`, `STORED` or `VIRTUAL`;
+> `generated` without one an identity, always or by default; `auto_increment`
+> a one-column `i16`, `i32` or `i64` key drawn from the serial family, as a
+> Rust entity's one-column integer key is unless it says otherwise; `indexed`
+> an index of its own, `idx-{table}-{column}`; `comment` its `COMMENT ON
+> COLUMN`; and `without_overlaps` a range or multirange key column that is
+> the key's period, written `WITHOUT OVERLAPS` after the rest. A model's
+> `comment` is its `COMMENT ON TABLE`, and `rename_all` names each field's
+> column, where the column names none, by the case style Rust's
+> `rename_all` takes (`camelCase`, `PascalCase`, `kebab-case`,
+> `snake_case`, `SCREAMING_SNAKE_CASE`, `SCREAMING-KEBAB-CASE`,
+> `lowercase`, `UPPERCASE`, `title_case`, `mixed_case`), converted by the
+> derive's own conversion, pgorm's `CaseStyle`; any other style is a
+> `TypeError`. The tables of a disjoint model (`bindings.disjoint`) and a
+> one-of model (`bindings.one-of`) are described from their models' columns
+> by the same lowering, so a column's `column_type` replaces the type its
+> kind is written with there too, and `create_disjoint` writes its stated
+> default, generation expression or identity; that schema writes no index or
+> comment, which `from_model` of the kind's model gives.
+>
+> What the options cannot say MUST be a `ConstructionError` raised as the
+> model is declared, before anything is sent: a `column_type` on an enum or
+> created range column, whose type is its kind's, or naming an array; a
+> `default_value` of NULL or not of the column's kind; a generation
+> expression on a column generated by default; `auto_increment` on a column
+> that is no `i16`, `i32` or `i64` primary key, or in a key of more than one
+> column; `without_overlaps` on a column that is no range or multirange key
+> column, on a key field but the last, or in a key of one column, which
+> PostgreSQL refuses; and whatever pgorm's `TableShape` refuses, its unique
+> keys over a `VIRTUAL` generated column among them. A `default_expr`,
+> `generated_stored` or `generated_virtual` that is no expression, and a
+> `comment` that is no string, are `TypeError`s.
 
 > [spec:pgorm:req:bindings.schema-tables]
 > Creating a table MUST build pgorm-query's `TableCreateStatement`: columns,

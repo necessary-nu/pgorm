@@ -98,6 +98,40 @@ executes SQL.
 > always names a table, so the comment target needs no conversion and the
 > stream has no failure mode.
 
+## Tables described as data
+
+> [spec:pgorm:sem:schema.from-shape]
+> A `TableShape` MUST describe a table as data — its `TableName`, its
+> columns in order, each a name and an ORM `ColumnDef`, its primary key, a
+> one-column key's serial family (`auto_increment`), a temporal key's
+> `WITHOUT OVERLAPS`, its unique keys, its belongs-to relations and its
+> comment — and `Schema::create_table_from_shape`,
+> `create_enum_from_shape`, `create_index_from_shape` and
+> `create_comments_from_shape` MUST write from it exactly the statements
+> `schema.from-entity`, `schema.from-entity.enum` and
+> `schema.from-entity.index` describe, in the same order, under the same
+> derived names and with the same refusals. `TableShape::of::<E>()`
+> describes an entity, and the four entity methods MUST be those four over
+> it, so an entity's statements and a shape's come from one writer.
+> `TableShape::new` describes a table known only at run time, as a language
+> binding's model is: a column `with_unstated_default`, which the database
+> fills by a default the description does not state, has no `DEFAULT` to
+> write, so `create_table_from_shape` MUST refuse its table with
+> `Error::Type` naming the column, as the disjoint schema refuses one
+> (`[spec:pgorm:sem:disjoint.schema]`).
+>
+> What a shape cannot describe MUST be refused as it is described, with
+> `Error::Type`: two columns of one name; a primary key of no column, of a
+> column the table lacks or of one column twice; a unique key as
+> `schema.from-entity` refuses one, or over a `VIRTUAL` generated column,
+> which PostgreSQL cannot key (`0A000`), or named as another of the table's
+> keys is, its composite primary key's `pk-{table}` included (`42P07`); and
+> a relation that is an owner (`has_one`, `has_many`), which holds no key of
+> the table, or pairs a column the table lacks. A relation's foreign key is
+> written as its `RelationDef` converts (`[spec:pgorm:req:entity.relation.fk]`),
+> and refused as `schema.from-entity` refuses a key over a domain over an
+> enum, from the types its `ColumnPairs` records.
+
 ## Secondary indexes
 
 > [spec:pgorm:sem:schema.from-entity.index+2]

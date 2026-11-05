@@ -227,7 +227,7 @@ function assertDeclared(owner: string, descriptions: readonly unknown[]) {
 }
 
 // [spec:pgorm:req:bindings.surface+2/test]
-// [spec:pgorm:req:bindings.models+5/test]
+// [spec:pgorm:req:bindings.models+6/test]
 // [spec:pgorm:req:bindings.model-unique-keys+2/test]
 test("a model's describe() reports exactly the keys the surface declares", () => {
   const declared = pgorm.model("accounts", {

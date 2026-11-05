@@ -72,7 +72,7 @@ async function seed(): Promise<void> {
 
 const byId = Account.col("id").asc();
 
-// [spec:pgorm:req:bindings.models+5/test]
+// [spec:pgorm:req:bindings.models+6/test]
 test("a declaration is data: it sends nothing, and describes its table and fields", () => {
   const unconnected = model("nowhere", { schema: "absent", columns: { id: column("i32", { primaryKey: true }) } });
   assert.equal(unconnected.find().inspect().sql, 'SELECT "nowhere"."id" FROM "absent"."nowhere"');
@@ -100,7 +100,7 @@ test("a declaration is data: it sends nothing, and describes its table and field
   assert.equal(Account.alias, null);
 });
 
-// [spec:pgorm:req:bindings.models+5/test]
+// [spec:pgorm:req:bindings.models+6/test]
 // [spec:pgorm:req:bindings.argument-errors+1/test]
 test("a declaration that cannot be used is refused as it is made", () => {
   const unknown = { nullabel: true } as unknown as Record<string, never>;
@@ -114,7 +114,7 @@ test("a declaration that cannot be used is refused as it is made", () => {
   assert.throws(() => column("u64" as "i64"), refused(/never decodes as u64/));
   assert.throws(() => column(new TypeName("mood")), refused(/names its type's schema/));
   assert.throws(() => column("i32", { primaryKey: true, nullable: true }), refused(/primary-key column is not nullable/));
-  assert.throws(() => column("i32", { generated: "always", default: true }), refused(/declare one or the other/));
+  assert.throws(() => column("i32", { generated: "always", default: true }), refused(/filled one way/));
   assert.throws(() => column("text", { values: ["a"] }), refused(/only an enum column lists its values/));
   assert.throws(() => column(new TypeName("mood", { schema: "app" }), { values: ["a", "a"] }), refused(/each value once/));
   assert.throws(
@@ -368,7 +368,7 @@ test("a result that breaks the declaration is a DecodeError, never a value", asy
   assert.equal((await partial.find().all(pool())).length, 4);
 });
 
-// [spec:pgorm:req:bindings.models+5/test]
+// [spec:pgorm:req:bindings.models+6/test]
 // [spec:pgorm:req:bindings.model-records+1/test]
 // [spec:pgorm:req:bindings.created-ranges+5/test]
 test("a created multirange field is projected as its text and read as the multirange of its declared subtype", async () => {

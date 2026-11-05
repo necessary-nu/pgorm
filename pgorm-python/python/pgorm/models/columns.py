@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError, dataclass, field
+from dataclasses import KW_ONLY, FrozenInstanceError, dataclass, field
 from collections.abc import Sequence
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from .. import _native as p
 
@@ -50,6 +50,12 @@ MODEL_KINDS = frozenset(
 
 GENERATED = ("always", "by_default")
 
+# The kinds a serial key is drawn from, as Rust's one-column integer key is.
+SERIAL_KINDS = frozenset({"i16", "i32", "i64"})
+
+if TYPE_CHECKING:
+    from .._schema import ColumnType as DdlType
+
 
 def _flag(value: object, option: str) -> bool:
     if type(value) is not bool:
@@ -70,7 +76,14 @@ def _labels(values: object) -> tuple[str, ...]:
     return labels
 
 
-# [spec:pgorm:req:bindings.models+5]
+def _expression(value: object, option: str) -> p.Expr | None:
+    if value is not None and not isinstance(value, p.Expr):
+        raise TypeError(f"a column's {option} is an expression")
+    return value
+
+
+# [spec:pgorm:req:bindings.models+6]
+# [spec:pgorm:req:bindings.schema-from-model]
 @dataclass(frozen=True, slots=True)
 class Column:
     kind: str | p.TypeName | p.CreatedRange | p.CreatedMultirange
@@ -81,10 +94,24 @@ class Column:
     default: bool = False
     generated: Literal["always", "by_default"] | None = None
     values: Sequence[str] | None = None
+    _: KW_ONLY
+    column_type: DdlType | None = None
+    default_value: Any = None
+    default_expr: p.Expr | None = None
+    generated_stored: p.Expr | None = None
+    generated_virtual: p.Expr | None = None
+    auto_increment: bool = False
+    indexed: bool = False
+    comment: str | None = None
+    without_overlaps: bool = False
     _null: p.Value = field(init=False, repr=False, compare=False)
+    _default: p.Value | None = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        for option in ("nullable", "primary_key", "array", "default"):
+        for option in (
+            "nullable", "primary_key", "array", "default", "auto_increment", "indexed",
+            "without_overlaps",
+        ):
             _flag(getattr(self, option), option)
         if self.primary_key and self.nullable:
             raise p.ConstructionError("primary-key columns cannot be nullable")
@@ -93,10 +120,37 @@ class Column:
                 raise TypeError('a column is generated "always" or "by_default"')
             if self.generated not in GENERATED:
                 raise TypeError('a column is generated "always" or "by_default"')
-            if self.default:
+        if self.comment is not None and type(self.comment) is not str:
+            raise TypeError("a column's comment is a string")
+        default_expr = _expression(self.default_expr, "default_expr")
+        expressions = [
+            _expression(self.generated_stored, "generated_stored"),
+            _expression(self.generated_virtual, "generated_virtual"),
+        ]
+        computed = any(expression is not None for expression in expressions)
+        if computed:
+            if self.generated == "by_default":
                 raise p.ConstructionError(
-                    "a generated column has no default of its own: declare one or the other"
+                    "a generated column is generated always: no write sets it"
                 )
+            object.__setattr__(self, "generated", "always")
+        # PostgreSQL holds a column to one fill: a default, an identity, a
+        # generation expression or the serial family (42601).
+        fills = [
+            self.default,
+            self.default_value is not None,
+            default_expr is not None,
+            self.generated is not None and not computed,
+            *(expression is not None for expression in expressions),
+            self.auto_increment,
+        ]
+        if sum(fills) > 1:
+            raise p.ConstructionError(
+                "a column is filled one way: a default (default, default_value or "
+                "default_expr), an identity (generated), a generation expression "
+                "(generated_stored or generated_virtual) or the serial family "
+                "(auto_increment)"
+            )
         if self.name is not None:
             object.__setattr__(self, "name", p._identifier(self.name))
         if isinstance(self.kind, (p.TypeName, p.CreatedRange, p.CreatedMultirange)):
@@ -120,11 +174,64 @@ class Column:
         kind = self.kind
         null = p.Value.array(kind, None) if self.array else p.Value.null(kind)
         object.__setattr__(self, "_null", null)
+        self._check_ddl()
+        default = None if self.default_value is None else self._value(self.default_value)
+        if default is not None and default.is_null:
+            raise p.ConstructionError("a column's default_value is a value: NULL is every column's default")
+        object.__setattr__(self, "_default", default)
+
+    def _check_ddl(self) -> None:
+        """Refuse what the column's DDL options cannot say of its kind."""
+        named = isinstance(self.kind, (p.TypeName, p.CreatedRange, p.CreatedMultirange))
+        if self.column_type is not None and named:
+            raise p.ConstructionError(
+                "an enum or created range column's type is its kind's own: it takes no column_type"
+            )
+        if self.auto_increment and (
+            not self.primary_key or self.array or self.kind not in SERIAL_KINDS
+        ):
+            raise p.ConstructionError(
+                "auto_increment draws a key column from the serial family: an i16, i32 or i64 "
+                "primary key"
+            )
+        ranged = isinstance(self.kind, (p.CreatedRange, p.CreatedMultirange)) or (
+            isinstance(self.kind, str) and self.kind.endswith("range")
+        )
+        if self.without_overlaps and (not self.primary_key or self.array or not ranged):
+            raise p.ConstructionError(
+                "without_overlaps makes a range or multirange key column the key's period"
+            )
 
     @property
     def omissible(self) -> bool:
         """Whether an insert may leave the column out."""
-        return self.nullable or self.default or self.generated is not None
+        return (
+            self.nullable
+            or self.default
+            or self.generated is not None
+            or self._default is not None
+            or self.default_expr is not None
+            or self.auto_increment
+        )
+
+    def _described(self, name: str) -> dict[str, Any]:
+        """The column as the native table shape is described from."""
+        return {
+            "name": name,
+            "kind": self.kind,
+            "array": self.array,
+            "nullable": self.nullable,
+            "default": self.default,
+            "generated": self.generated,
+            "values": None if self.values is None else list(self.values),
+            "column_type": self.column_type,
+            "default_value": self._default,
+            "default_expr": self.default_expr,
+            "generated_stored": self.generated_stored,
+            "generated_virtual": self.generated_virtual,
+            "indexed": self.indexed,
+            "comment": self.comment,
+        }
 
     def _validate(self, value: p.Value, *, decoding: bool = False) -> p.Value:
         """``value``, refused unless it is of the declared kind, null only

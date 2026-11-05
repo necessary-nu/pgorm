@@ -215,4 +215,10 @@ pub use pgorm_sql_macro::prql;
 pub use pgorm_query;
 pub use pgorm_query::{AliasName, Values, alias};
 
+/// The case styles a `rename_all` renames by: the derives rename an entity's
+/// columns by them at compile time, and a language binding names the columns
+/// of a model it declares at run time by the same [`CaseStyle::convert`].
+// [spec:pgorm:sem:schema.from-shape]
+pub use pgorm_case_style::{CASE_STYLES, CaseStyle, UnknownCaseStyle};
+
 pub use tokio_postgres::types;

@@ -4,9 +4,10 @@
 // qualified, and its fields in declaration order. Held apart from the Model
 // class so the query, relation and graph modules read it without importing
 // the class that builds on them.
-// [spec:pgorm:req:bindings.models+5]
+// [spec:pgorm:req:bindings.models+6]
 // [spec:pgorm:req:bindings.model-unique-keys+2]
 
+import { arg } from "./builder.js";
 import { ConstructionError } from "./errors.js";
 import { modelColumn, readsText } from "./model-columns.js";
 import { native } from "./operations.js";
@@ -45,6 +46,7 @@ import { native } from "./operations.js";
  * @property {ReadonlyMap<string, Field>} byField
  * @property {readonly Field[]} primaryKey
  * @property {readonly UniqueKey[]} uniqueKeys
+ * @property {string | null} comment The table's comment, which its schema writes.
  */
 
 /** @type {WeakMap<object, Shape>} */
@@ -119,4 +121,44 @@ export function projected(field, expr, name) {
  */
 export function sameTable(left, right) {
   return left.name === right.name && left.schema === right.schema;
+}
+
+// [spec:pgorm:req:bindings.model-unique-keys+2]
+// [spec:pgorm:req:bindings.schema-from-model]
+/**
+ * A model's table as the native table shape is described from: its columns,
+ * its key and how the key is generated, its unique keys and its comment.
+ *
+ * @param {Shape} shape
+ */
+export function described(shape) {
+  return {
+    schema: shape.schema,
+    table: shape.name,
+    columns: shape.fields.map(({ sql, column }) => ({
+      name: sql,
+      kind: column.kind,
+      array: column.array,
+      nullable: column.nullable,
+      default: column.default,
+      generated: column.generated,
+      values: column.values,
+      columnType: arg(column.columnType),
+      defaultValue: arg(column.defaultValue),
+      defaultExpr: arg(column.defaultExpr),
+      generatedStored: arg(column.generatedStored),
+      generatedVirtual: arg(column.generatedVirtual),
+      indexed: column.indexed,
+      comment: column.comment,
+    })),
+    key: shape.primaryKey.map((field) => field.sql),
+    autoIncrement: shape.primaryKey.some((field) => field.column.autoIncrement),
+    withoutOverlaps: shape.primaryKey.some((field) => field.column.withoutOverlaps),
+    uniqueKeys: shape.uniqueKeys.map((key) => ({
+      name: key.name,
+      columns: key.fields.map((field) => field.sql),
+      nullsNotDistinct: key.nullsNotDistinct,
+    })),
+    comment: shape.comment,
+  };
 }

@@ -10,7 +10,7 @@
 import { runStatement } from "./connections.js";
 import { ConstructionError, DecodeError } from "./errors.js";
 import { col } from "./expressions.js";
-import { columnValue } from "./model-columns.js";
+import { columnValue, omissible } from "./model-columns.js";
 import { decodeAll, decodeOne, decodeOptional } from "./model-decode.js";
 import { fieldOf, projected } from "./model-shape.js";
 import { native } from "./operations.js";
@@ -52,8 +52,7 @@ function assignments(shape, values, write) {
   if (write === "insert") {
     for (const field of shape.fields) {
       const { column } = field;
-      const optional = column.nullable || column.default || column.generated !== null;
-      if (!optional && !Object.hasOwn(given, field.field)) {
+      if (!omissible(column) && !Object.hasOwn(given, field.field)) {
         throw new ConstructionError(`${field.field} is required: it is not nullable and has no default`);
       }
     }

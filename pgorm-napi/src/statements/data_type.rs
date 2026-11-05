@@ -174,7 +174,7 @@ fn data_type_array(cx: &mut FunctionContext) -> NeonResult<Node> {
 }
 
 /// The type `value` names: a `DataType`, or a built-in type's name.
-pub(super) fn column_type<'cx>(
+pub(crate) fn column_type<'cx>(
     cx: &mut Cx<'cx>,
     value: Handle<'cx, JsValue>,
 ) -> NeonResult<ColumnType> {

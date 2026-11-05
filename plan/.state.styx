@@ -3330,6 +3330,18 @@ impl_evidence (
     ), rule_versions_seen (
         {id error.model.decode-refusal, version 0}
     )}
+    {id guide.python-gaps.model-ddl, covered_rules (
+        bindings.schema-from-model
+        schema.from-shape
+    ), covered_claims (
+        {impl_name main, rule schema.from-shape}
+        {impl_name python, rule bindings.schema-from-model}
+    )}
+    {id napi.guide-gaps.model-schema, covered_rules (
+        bindings.schema-from-model
+    ), covered_claims (
+        {impl_name javascript, rule bindings.schema-from-model}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

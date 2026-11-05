@@ -11,6 +11,9 @@
 
 #[cfg(test)]
 mod parity;
+mod shape;
+
+pub(crate) use shape::{columns, flag, names, property, table_name, text, unique_keys};
 
 use neon::prelude::*;
 use pgorm::pgorm_query::{Asterisk, Expr, Func, Name, Query, SelectStatement, Value};
@@ -28,7 +31,7 @@ pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("modelReadText", read_text)?;
     cx.export_function("modelResultName", result_name)?;
     cx.export_function("modelCount", count)?;
-    Ok(())
+    shape::export(cx)
 }
 
 /// A kind as one string, the same for a declared column and a decoded one:
