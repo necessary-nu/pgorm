@@ -2455,12 +2455,34 @@ children (
                 id annotation-verbs-match
                 title "Every spec annotation's verb matches its rule's"
                 kind @chore
+                sealed true
                 log (
                     {
                         at 2026-11-03T14:52:35.031923Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by derives.paths: eleven annotations cite a rule under the wrong verb, e.g. `exec.crud.exec-vocabulary` written as `sem` where the rule is `req` (src/executor/update.rs, src/executor/delete.rs, plan/main.styx), and others in pgorm-query/tests/surface/citations.rs and plan/decisions/*.md. nplan doesn't check this (filed in nplan's DEFECTS.md); fix every site, and also put the bindings.disjoint-unkinded and bindings.disjoint claims under the python and javascript impls, as bindings.codegen-disjoint's are, rather than main."
+                    }
+
+                    {
+                        at 2026-11-05T00:13:55.016702Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T00:24:53.742265Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Re-diagnosed on 29c5b0e9 + this lane: the wrong-verb annotations were already fixed by exec-vocabulary-annotation-verb (Done), which also added the guard every_citation_names_its_rules_verb (pgorm-query/tests/surface/citations.rs) holding every bracketed citation in the checkout to its rule's verb. A scan of every file against docs/spec's markers finds one mismatch only, inside a plan log entry's text (exec-vocabulary-annotation-verb's own note), which the guard exempts because the log is append-only history. What remained is the claims: bindings.disjoint (disjoint.bindings) and bindings.disjoint-unkinded (disjoint.bindings-unkinded) move from main to python and javascript, as bindings.codegen-disjoint is claimed. Both bindings' code and tests already annotate both rules, so per-impl coverage stays 100% (nplan_spec_uncovered and nplan_spec_untested for pgorm/python and pgorm/javascript report nothing). The Rust core's main-impl annotations of the two rules stay as references: DisjointShape::new and the shape builders are what both bindings call."
+                    }
+
+                    {
+                        at 2026-11-05T00:25:19.803423Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -16426,7 +16448,8 @@ children (
                 id disjoint.bindings
                 title "Python and JavaScript declare, register, read and write disjoint models"
                 implements {
-                    main ([spec:pgorm:req:bindings.disjoint])
+                    javascript ([spec:pgorm:req:bindings.disjoint])
+                    python ([spec:pgorm:req:bindings.disjoint])
                 }
                 deps (disjoint.write)
                 log (
@@ -16547,7 +16570,8 @@ children (
                 id disjoint.bindings-unkinded
                 title "Python and JavaScript declare and register read-only unkinded disjoint models"
                 implements {
-                    main ([spec:pgorm:req:bindings.disjoint-unkinded])
+                    javascript ([spec:pgorm:req:bindings.disjoint-unkinded])
+                    python ([spec:pgorm:req:bindings.disjoint-unkinded])
                 }
                 deps (disjoint.codegen-unkinded disjoint.bindings)
                 log (
