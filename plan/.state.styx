@@ -3112,6 +3112,14 @@ impl_evidence (
     ), rule_versions_seen (
         {id error.model.decode-refusal, version 0}
     )}
+    {id binding-parity.pipeline-terminals, covered_rules (
+        bindings.pipeline-terminals
+        python.pipeline
+    ), covered_claims (
+        {impl_name javascript, rule bindings.pipeline-terminals}
+        {impl_name python, rule bindings.pipeline-terminals}
+        {impl_name python, rule python.pipeline}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

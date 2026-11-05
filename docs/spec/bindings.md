@@ -1656,6 +1656,20 @@ placeholders belong to the stage that minted them.
 > `ConstructionError` from `inspect()` or the terminal, before anything is
 > sent.
 
+> [spec:pgorm:req:bindings.pipeline-terminals]
+> A `Pipeline`'s own terminals MUST be pgorm's: `all`, `one` and `optional`
+> are `Pipeline::all`, `one` and `one_opt`, each row a record as the
+> statement terminals decode one (`bindings.results`). `one` and `optional`
+> append a `take 1` stage before compiling, as Rust's do, so at most one row
+> leaves the server, `one` finding none a `DecodeError` (`bindings.row-count`)
+> and `optional` null. Each runs on a pool, a connection or a transaction, on
+> a pool on a connection lent to it alone, as a pool's statement does.
+> `inspect(terminal)` gives the SQL and values `all`, `one` or `optional`
+> sends, `all`'s by default. Given to the statement terminals instead, a
+> pipeline runs as Rust runs the `(String, Values)` its `into_sql` gives,
+> through `ConnectionTrait`: as compiled, `one` and `optional` keeping their
+> cardinality (`bindings.pipeline`).
+
 > [spec:pgorm:req:bindings.pipeline-expressions+3]
 > Pipeline expressions MUST be objects of their own, lowered into
 > `pgorm::pipeline::Expr` only as a stage takes them, never mixed with the

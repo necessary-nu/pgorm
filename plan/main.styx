@@ -15335,7 +15335,6 @@ children (
                 [spec:pgorm:req:bindings.pipeline-expressions]
                 [spec:pgorm:req:bindings.relation-conditions]
                 [spec:pgorm:req:bindings.schema-from-entity]
-                [spec:pgorm:req:python.pipeline]
             )
         }
         log (
@@ -18150,6 +18149,25 @@ children (
             {
                 id binding-parity.pipeline-terminals
                 title "A pipeline runs through the same terminals in both bindings, as Rust's pipeline terminals run it"
+                implements {
+                    javascript ([spec:pgorm:req:bindings.pipeline-terminals])
+                    python ([spec:pgorm:req:bindings.pipeline-terminals] [spec:pgorm:req:python.pipeline])
+                }
+                log (
+                    {
+                        at 2026-11-05T14:14:50.832252Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T14:19:09.653278Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Rust runs a pipeline two ways. Its own terminals are Pipeline::all, one and one_opt; one and one_opt append take 1 before compiling, so at most one row leaves the server and none is RecordNotFound / None. The other way is into_sql(), which gives (String, Values), the raw currency ConnectionTrait's execute / query / query_raw run as written. Before: Python had Pipeline.all/one/optional (take 1 for one and optional, inspect(terminal=...)), but only on a Connection or Transaction. JavaScript had no terminal of the pipeline's own: it ran only through db.query / one / optional / stream / execute(pipeline), and its inspect() took no terminal. Both bindings already took a pipeline at the statement terminals, which is the binding's spelling of into_sql + ConnectionTrait, as for every built statement, so that stays in both. Chosen: JavaScript gains Pipeline.all/one/optional(db, options), the options being the statement terminals' QueryOptions, tagged included, plus inspect(terminal). The terminals are written over the Queryable terminals with this.take(1), so no decode path is duplicated. Python's Pipeline terminals now also take a Pool, on a lent connection through the shared Executor, which results::fetch now takes. Every other registration and source-selection terminal already ran on a pool in both bindings (bindings.registered-pools), and JavaScript's Queryable includes Pool. Rust's DatabasePool is no ConnectionTrait, but in the bindings a Pool is a statement runner, so leaving it out of this one terminal would have been the odd one out. New shared rule bindings.pipeline-terminals. python.pipeline is +1 and keeps only null(), its terminal clause now shared. Its claim moved here from binding-spec-consolidation. bindings.pipeline is unchanged, since its statement-terminal clause still holds. Pipeline.all/one/optional are shared names in bindings-surface.json."
+                    }
+                )
             }
 
             {

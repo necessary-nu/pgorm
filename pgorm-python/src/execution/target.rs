@@ -79,13 +79,26 @@ impl Executor {
     pub(crate) fn extract(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Self> {
         let native = native(value);
         if let Ok(pool) = native.extract::<PyRef<'_, NativePool>>() {
-            pool.state.check_owner(py)?;
-            pool.state.ensure_open()?;
-            return Ok(Self::Pool(pool.state.clone()));
+            let executor = Self::Pool(pool.state.clone());
+            executor.check(py)?;
+            return Ok(executor);
         }
         Target::held(py, &native)?.map(Self::Held).ok_or_else(|| {
-            PyTypeError::new_err("a registration runs on a Pool, a Connection or a Transaction")
+            PyTypeError::new_err(
+                "a registration or a pipeline runs on a Pool, a Connection or a Transaction",
+            )
         })
+    }
+
+    /// Whether what this runs on is still usable from here.
+    pub(crate) fn check(&self, py: Python<'_>) -> PyResult<()> {
+        match self {
+            Self::Pool(pool) => {
+                pool.check_owner(py)?;
+                pool.ensure_open()
+            }
+            Self::Held(target) => target.check(py),
+        }
     }
 
     /// Run `work`. A pool's connection goes back to it once the work has

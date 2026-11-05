@@ -779,7 +779,7 @@ await pool.execute(createSequence("ticket").options({ incrementBy: 10, maxValue:
 
 pgorm's PRQL-shaped pipeline is the module's `pipeline` namespace:
 relation-to-relation stages over sources, compiled through prqlc to
-PostgreSQL SQL and run as any statement is.
+PostgreSQL SQL and run by its own terminals or as any statement is.
 
 ```js
 import { pipeline as pl, Table } from "@necessary/pgorm";
@@ -799,7 +799,8 @@ const top = pl.from(items)
   .take(5);                                                   // LIMIT 5: a count is no expression
 
 top.inspect();               // { sql: "SELECT category, COALESCE(SUM(amount), 0) AS total ..", values: [..] }
-await pool.query(top);
+await top.all(pool);         // Pipeline::all; top.one(pool) and top.optional(pool) append take 1
+await pool.query(top);       // as any statement runs
 ```
 
 - **Stages**: `from(source)`, then `filter`, `derive`, `select`, `group(..)`
@@ -830,10 +831,14 @@ await pool.query(top);
   binds only while its function runs, and a placeholder anywhere but its own
   stage — a plain stage, another binder's, another pipeline, a window's keys —
   is a `LifecycleError`.
-- **Terminals** are the pool's, connection's and transaction's, with their
-  cardinality: `one` wants exactly one row, so ask for it with `.take(1)`.
-  What prqlc cannot compile — an alias it reserves, a name it cannot write —
-  is a `ConstructionError` before anything is sent.
+- **Terminals**: a pipeline's own `all(db)`, `one(db)` and `optional(db)`
+  are Rust's `Pipeline::all`, `one` and `one_opt`, on a pool, a connection or
+  a transaction; `one` and `optional` append `take 1`, as Rust's do, and
+  `inspect("one")` shows the SQL they send. The pool's, connection's and
+  transaction's terminals take a pipeline too, with their own cardinality:
+  there `one` wants exactly one row. What prqlc cannot compile — an alias it
+  reserves, a name it cannot write — is a `ConstructionError` before anything
+  is sent.
 
 ## Registered entities
 

@@ -51,8 +51,8 @@ security harness. See [schema](SCHEMA.md), [statements](STATEMENTS.md),
 | `Model.update(values)` | `ModelUpdate`: `where`, `all_rows`, `returning_change(s)`, `returning`, `execute`, `inspect` |
 | `Model.delete()` | `ModelDelete`: `where`, `all_rows`, `returning`, `execute`, `inspect` |
 | `Entity.find().all(connection_or_transaction)` | `list[EntityModel]` |
-| `Pipeline.all(connection_or_transaction)` | `list[Record]` |
-| `Pipeline.optional(connection_or_transaction)` | `Record \| None` |
+| `Pipeline.all(executor)` | `list[Record]` |
+| `Pipeline.optional(executor)` | `Record \| None` |
 
 `Pool.connection()` and every `transaction()` return async context managers;
 use `async with` directly. A `Transaction` is not one itself; its block's exit

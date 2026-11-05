@@ -141,6 +141,7 @@ class PipelineConstruction(unittest.TestCase):
 
     # [spec:pgorm:req:bindings.pipeline-binder/test]
     # [spec:pgorm:req:bindings.operands/test]
+    # [spec:pgorm:req:python.pipeline+1/test]
     def test_plain_operands_bind_through_their_stage(self):
         base = pl.from_(p.Table("items"))
         key, amount = pl.col("items", "id"), pl.col("items", "amount")
@@ -228,7 +229,7 @@ class PipelineDatabase(unittest.IsolatedAsyncioTestCase):
         await self.pool.close()
 
     # [spec:pgorm:req:bindings.pipeline/test]
-    # [spec:pgorm:req:python.pipeline/test]
+    # [spec:pgorm:req:bindings.pipeline-terminals/test]
     # [spec:pgorm:req:bindings.row-count/test]
     async def test_terminals_models_and_dynamic_streams(self):
         model = p.Model(
@@ -251,6 +252,25 @@ class PipelineDatabase(unittest.IsolatedAsyncioTestCase):
         async with await self.connection.stream(query) as rows:
             found = [row["id"] async for row in rows]
         self.assertEqual(found, [1, 2, 3, 4])
+        self.assertEqual([row["id"] for row in await query.all(self.connection)], [1, 2, 3, 4])
+        self.assertNotIn("LIMIT", query.inspect().sql)
+        self.assertEqual(query.inspect(terminal="optional").sql, query.inspect(terminal="one").sql)
+        with self.assertRaises(TypeError):
+            query.all(object())
+
+    # [spec:pgorm:req:bindings.pipeline-terminals/test]
+    async def test_terminals_run_on_a_pool(self):
+        name = pl.col("pg_type", "typname")
+        int4 = pl.from_(p.Table("pg_type", schema="pg_catalog")).filter(name == "int4").select(name)
+        pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=1)
+        try:
+            self.assertEqual([row["typname"] for row in await int4.all(pool)], ["int4"])
+            self.assertEqual((await int4.one(pool))["typname"], "int4")
+            self.assertIsNone(await int4.filter(name == "no such type").optional(pool))
+            async with pool.transaction() as transaction:
+                self.assertEqual((await int4.optional(transaction))["typname"], "int4")
+        finally:
+            await pool.close()
 
     # [spec:pgorm:req:bindings.pipeline/test]
     async def test_pipeline_stages_execute_in_postgresql(self):
