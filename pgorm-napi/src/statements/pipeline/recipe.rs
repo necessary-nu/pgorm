@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use pgorm::{
-    pgorm_query::{Name, TypeName, Value},
+    pgorm_query::{ColumnType, Name, TypeName, Value},
     pipeline::{self as pl, ExprOps},
 };
 
@@ -124,6 +124,9 @@ pub(super) enum Recipe {
     /// The placeholder a binder minted, by its index in the binder's values.
     Bound(usize),
     Column(Name, Name),
+    /// A declared model's column, under the name its relation is read by,
+    /// typed by its declaration.
+    Typed(Name, Name, ColumnType),
     /// A registered entity's column, under the name its relation is read by.
     Registered(Name, Arc<dyn PipelineColumn>),
     Alias(Name),
@@ -190,6 +193,7 @@ impl Recipe {
             Self::Value(value) => with.binder.as_mut()?.bind(value.clone()),
             Self::Bound(index) => with.bound.get(*index)?.clone(),
             Self::Column(table, column) => pl::col(table.clone(), column.clone()),
+            Self::Typed(table, column, kind) => pl::col_typed(table.clone(), column.clone(), kind),
             Self::Registered(table, column) => column.lower(table.clone()),
             Self::Alias(name) => name.clone().into(),
             Self::This(name) => pl::this(name.clone()),

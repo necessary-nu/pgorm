@@ -78,7 +78,7 @@ function refused(kind: typeof ConstructionError | typeof LifecycleError, pattern
 const lifecycle = (pattern: RegExp) => refused(LifecycleError, pattern);
 const construction = (pattern: RegExp) => refused(ConstructionError, pattern);
 
-// [spec:pgorm:req:bindings.pipeline/test]
+// [spec:pgorm:req:bindings.pipeline+1/test]
 test("a pipeline's stages run as any statement does, through each terminal", async () => {
   const totals = base.filter(category.isNotNull()).group(category).aggregate(pl.sum(amount).as(total))
     .filter(total.gt(5)).sort(total.desc());
@@ -227,7 +227,7 @@ test("an interval binds in a pipeline as any value does", async () => {
   ]);
 });
 
-// [spec:pgorm:req:bindings.pipeline/test]
+// [spec:pgorm:req:bindings.pipeline+1/test]
 test("a window computes over its partition, ordering and frame", async () => {
   const position = pl.alias("position");
   const ranked = base.filter(category.isNotNull()).window(
@@ -248,7 +248,7 @@ test("a window computes over its partition, ordering and frame", async () => {
   assert.deepStrictEqual(await pool().query(shifted), [{ before: null }, { before: 5 }]);
 });
 
-// [spec:pgorm:req:bindings.pipeline/test]
+// [spec:pgorm:req:bindings.pipeline+1/test]
 test("joins read named sources and embedded pipelines, whose values travel with them", async () => {
   const peer = base.join(pl.source(items).named("peer"), category.eq(pl.col("peer", "category")).and(
     id.lt(pl.col("peer", "id")),
@@ -267,7 +267,7 @@ test("joins read named sources and embedded pipelines, whose values travel with 
   assert.deepStrictEqual(await pool().query(left), [{ id: 1n, other_id: null }]);
 });
 
-// [spec:pgorm:req:bindings.pipeline/test]
+// [spec:pgorm:req:bindings.pipeline+1/test]
 test("set operations append, intersect and remove rows, and distinct keeps one of each", async () => {
   const low = base.filter(amount.lt(6)).select(id);
   const fruit = base.filter(category.eq("fruit")).select(id);
@@ -365,7 +365,7 @@ test("shapes a pipeline cannot take are refused as they are built", () => {
   assert.throws(() => pl.lag("1" as never, amount), mistyped(/offset is a number/));
 });
 
-// [spec:pgorm:req:bindings.pipeline/test]
+// [spec:pgorm:req:bindings.pipeline+1/test]
 test("what pgorm's compile step judges is a ConstructionError before anything is sent", async () => {
   await assert.rejects(pool().query(base.select(pl.literal(1).as("sum"))), construction(/PRQL built-in/));
   assert.throws(() => base.select(pl.col("items", 'a"b')).inspect(), construction(/a"b/));

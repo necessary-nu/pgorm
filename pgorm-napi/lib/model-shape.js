@@ -71,6 +71,15 @@ export function shapeOf(model) {
 }
 
 /**
+ * Whether `value` is a model `model()` made.
+ *
+ * @param {unknown} value
+ */
+export function isModel(value) {
+  return typeof value === "object" && value !== null && shapes.has(value);
+}
+
+/**
  * The field of `shape` named `name`.
  *
  * @param {Shape} shape

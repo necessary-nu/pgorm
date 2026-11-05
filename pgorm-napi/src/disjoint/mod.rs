@@ -10,6 +10,7 @@
 //! a registration's as its entities' own models.
 
 mod described;
+pub(crate) use described::column_type;
 mod evolve;
 
 pub(crate) use described::table_of;

@@ -7,28 +7,24 @@ import { Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const cake = (column: string) => pl.col("cake", column);
-  const tier = pl.alias("tier");
-  const flavorName = pl.alias("flavor_name");
+  const glutenFree = pl.from(Cake)
+    .filter(pl.col(Cake, "glutenFree").eq(pl.literal(true)))
+    .sort(pl.col(Cake, "price"));
 
-  const tiers = pl.from(Cake.table)
-    .derive(
-      pl.caseWhen([[cake("price").gte(pl.literal(4)), pl.literal("premium")]], pl.literal("standard")).as(tier),
-      cake("flavor").cast("text").as(flavorName),
-    )
-    .sort(cake("id"))
-    .takeRange(2, 3)
-    .select(cake("name"), tier, flavorName);
+  const cakes = await glutenFree.intoModel(Cake).all(pool);
+  assert.deepEqual(cakes.map((cake) => [cake.name, cake.glutenFree]), [
+    ["Vanilla Sponge", true],
+    ["Lemon Drizzle", true],
+    ["Chocolate Torte", true],
+  ]);
 
-  assert.equal(
-    tiers.inspect().sql,
-    "WITH table_0 AS (SELECT name, CASE WHEN price >= 4 THEN 'premium' ELSE 'standard' END " +
-      "AS tier, CAST(flavor AS text) AS flavor_name, id FROM cake ORDER BY id LIMIT 2 OFFSET 1) " +
-      "SELECT name, tier, flavor_name FROM table_0 ORDER BY id",
-  );
-
-  assert.deepEqual(await tiers.all(pool), [
-    { name: "Lemon Drizzle", tier: "standard", flavor_name: "lemon" },
-    { name: "Carrot Cake", tier: "standard", flavor_name: "carrot" },
+  const priced = glutenFree.select(pl.col(Cake, "name"), pl.col(Cake, "price"));
+  const label = await priced.intoModel((row) => `${row.name} at ${row.price}`).one(pool);
+  assert.equal(label, "Vanilla Sponge at 2.90");
+  const pairs = await priced.intoTuple().all(pool);
+  assert.deepEqual(pairs.map(([name, price]) => [name, String(price)]), [
+    ["Vanilla Sponge", "2.90"],
+    ["Lemon Drizzle", "3.20"],
+    ["Chocolate Torte", "6.00"],
   ]);
 }

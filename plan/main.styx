@@ -13622,6 +13622,30 @@ children (
                         kind @fix
                         deps (napi-models napi-connections guide.javascript)
                     }
+
+                    {
+                        id napi.guide-gaps.model-writes
+                        title "JavaScript writes have Rust's write surface, as Python's: a model insert's onConflictDoNothing and onEmptyDoNothing give a try-insert answering inserted, conflicted or empty (TryInsert, TryInsertResult); a model update's from and a delete's using read another table (Update::many(..).from, Delete::many(..).using); a registered ActiveModel's setIfNotEquals and isChanged (guide 04-writing)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.model-try-inserts] [spec:pgorm:req:bindings.model-write-sources])
+                        }
+                        deps (napi-models napi-entities guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T21:33:41.038525Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T21:33:41.038525Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "single-flight overridden: started while guide.python-gaps.model-writes had uncommitted WIP"
+                            }
+                        )
+                    }
                 )
             }
         )
@@ -19402,6 +19426,9 @@ children (
                     {
                         id guide.python-gaps.model-writes
                         title "Python writes have Rust's write surface: TryInsert and TryInsertResult (on_conflict_do_nothing on the key, on_empty_do_nothing, Conflicted, Empty); set_if_not_equals and is_changed on a registered ActiveModel; a declared model's update FROM and delete USING; and write hooks (ActiveModelBehavior) for a declared model"
+                        implements {
+                            python ([spec:pgorm:req:bindings.model-try-inserts] [spec:pgorm:req:bindings.model-write-sources])
+                        }
                         deps (python.models python.entities)
                         log (
                             {
