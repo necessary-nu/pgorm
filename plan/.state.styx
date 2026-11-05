@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-05T06:02:16.430683Z
+last_sync_at 2026-11-05T06:29:44.445488Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -15,7 +15,7 @@ rule_versions (
     {id bindings.connections, version 2}
     {id bindings.copy, version 0}
     {id bindings.copy-rows, version 1}
-    {id bindings.created-ranges, version 2}
+    {id bindings.created-ranges, version 3}
     {id bindings.cte-options, version 0}
     {id bindings.cursors, version 0}
     {id bindings.delegation, version 0}
