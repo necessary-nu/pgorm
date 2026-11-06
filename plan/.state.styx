@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-06T07:12:35.396701Z
+last_sync_at 2026-11-06T08:48:50.642727Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -42,8 +42,10 @@ rule_versions (
     {id bindings.merge-sources, version 0}
     {id bindings.metrics, version 0}
     {id bindings.migration-file, version 0}
+    {id bindings.model-casts, version 0}
     {id bindings.model-clauses, version 0}
     {id bindings.model-columns, version 2}
+    {id bindings.model-conversions, version 0}
     {id bindings.model-projections, version 0}
     {id bindings.model-reads, version 0}
     {id bindings.model-records, version 1}
@@ -268,7 +270,7 @@ rule_versions (
     {id macros.derive.model, version 7}
     {id macros.derive.names, version 2}
     {id macros.derive.one-form, version 0}
-    {id macros.derive.partial-model, version 6}
+    {id macros.derive.partial-model, version 7}
     {id macros.derive.relation, version 7}
     {id macros.derive.test-attr, version 1}
     {id macros.derive.value-type, version 7}
@@ -368,6 +370,7 @@ rule_versions (
     {id schema.from-entity.enum, version 3}
     {id schema.from-entity.index, version 2}
     {id schema.from-shape, version 0}
+    {id schema.shape-casts, version 0}
     {id security.ident-oracle, version 17}
     {id security.ident-oracle.nul, version 2}
     {id security.sqlmap, version 0}
@@ -527,6 +530,7 @@ derived_priorities (
     {id binding-parity.model-inserts, priority 1, derived_at 2026-11-05T16:07:38.416147Z}
     {id binding-parity.pipeline-terminals, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
     {id binding-parity.registered-inserts, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
+    {id binding-parity.shared-runtime, priority 3, derived_at 2026-11-06T08:48:50.642727Z}
     {id binding-parity.table-functions, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
     {id binding-parity.verify-annotations, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
     {id binding-renames, priority 1, derived_at 2026-10-30T14:41:04.802037Z}
@@ -720,6 +724,7 @@ derived_priorities (
     {id guide.example-name-escaping, priority 3, derived_at 2026-11-05T22:17:03.171598Z}
     {id guide.javascript, priority 2, derived_at 2026-11-05T14:14:15.598156Z}
     {id guide.python, priority 2, derived_at 2026-11-05T14:14:15.598156Z}
+    {id guide.python-gaps.annotated-operand-goldens, priority 0, derived_at 2026-11-06T08:48:50.642727Z}
     {id guide.python-gaps.binding-fixes, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
     {id guide.python-gaps.builder-functions, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
     {id guide.python-gaps.codegen-coverage, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
@@ -1743,6 +1748,8 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.model-writes}
         {impl_name python, rule bindings.model-writes}
+    ), rule_versions_seen (
+        {id bindings.model-writes, version 3}
     )}
     {id binding-parity.pipeline-terminals, covered_rules (
         bindings.pipeline-terminals
@@ -2462,13 +2469,23 @@ impl_evidence (
         {impl_name javascript, rule conn.copy.statement}
         {impl_name main, rule conn.copy.statement}
         {impl_name python, rule conn.copy.statement}
+    ), rule_versions_seen (
+        {id conn.copy.statement, version 0}
     )}
     {id guide.python-gaps.failed-commit, covered_rules (
         conn.tx.aborted
     ), covered_claims (
         {impl_name main, rule conn.tx.aborted}
+    ), rule_versions_seen (
+        {id conn.tx.aborted, version 0}
     )}
-    {id guide.python-gaps.metrics}
+    {id guide.python-gaps.metrics, covered_rules (
+        bindings.metrics
+    ), covered_claims (
+        {impl_name python, rule bindings.metrics}
+    ), rule_versions_seen (
+        {id bindings.metrics, version 0}
+    )}
     {id guide.python-gaps.model-ddl, covered_rules (
         bindings.schema-from-model
         schema.from-shape
@@ -2506,6 +2523,8 @@ impl_evidence (
         {impl_name javascript, rule error.model.parameter-count}
         {impl_name main, rule error.model.parameter-count}
         {impl_name python, rule error.model.parameter-count}
+    ), rule_versions_seen (
+        {id error.model.parameter-count, version 0}
     )}
     {id guide.rust, covered_rules (
         guide.chapters
@@ -2698,7 +2717,13 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.model-conversions}
     )}
-    {id napi.guide-gaps.metrics}
+    {id napi.guide-gaps.metrics, covered_rules (
+        bindings.metrics
+    ), covered_claims (
+        {impl_name javascript, rule bindings.metrics}
+    ), rule_versions_seen (
+        {id bindings.metrics, version 0}
+    )}
     {id napi.guide-gaps.model-column-casts, covered_rules (
         bindings.model-casts
     ), covered_claims (
@@ -2790,6 +2815,32 @@ impl_evidence (
         {impl_name main, rule entity.traits.from-query-result}
         {impl_name main, rule entity.traits.model}
         {impl_name main, rule entity.traits.primary-key}
+    ), rule_versions_seen (
+        {id entity.active-model, version 4}
+        {id entity.active-model.active-value, version 1}
+        {id entity.active-model.active-value.ops, version 0}
+        {id entity.active-model.from-sugar, version 1}
+        {id entity.active-model.hooks, version 1}
+        {id entity.active-model.into, version 3}
+        {id entity.active-model.json, version 4}
+        {id entity.active-model.persistence, version 3}
+        {id entity.active-model.save, version 1}
+        {id entity.relation, version 1}
+        {id entity.relation.builder, version 1}
+        {id entity.relation.def, version 12}
+        {id entity.relation.fk, version 6}
+        {id entity.relation.linked, version 4}
+        {id entity.traits, version 4}
+        {id entity.traits.active-enum, version 2}
+        {id entity.traits.active-enum.limits, version 3}
+        {id entity.traits.column, version 9}
+        {id entity.traits.column-def, version 2}
+        {id entity.traits.column.enum-cast, version 17}
+        {id entity.traits.crud, version 5}
+        {id entity.traits.entity-name, version 6}
+        {id entity.traits.from-query-result, version 5}
+        {id entity.traits.model, version 3}
+        {id entity.traits.primary-key, version 8}
     )}
     {id orm.exec, covered_rules (
         exec.crud
@@ -2949,6 +3000,9 @@ impl_evidence (
     ), covered_claims (
         {impl_name python, rule bindings.column-operators}
         {impl_name python, rule bindings.model-columns}
+    ), rule_versions_seen (
+        {id bindings.column-operators, version 3}
+        {id bindings.model-columns, version 2}
     )}
     {id python-model-gaps, covered_rules (
         bindings.cursors
@@ -3064,6 +3118,8 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.quantifiers}
         {impl_name python, rule bindings.quantifiers}
+    ), rule_versions_seen (
+        {id bindings.quantifiers, version 4}
     )}
     {id query-reexports-curated, covered_rules (
         sql.surface
