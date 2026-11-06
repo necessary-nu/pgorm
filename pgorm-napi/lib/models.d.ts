@@ -143,6 +143,21 @@ export interface ColumnOptions {
   readonly comment?: string;
   /** Whether a range or multirange key column is the key's period, `WITHOUT OVERLAPS`: the key's last field. */
   readonly withoutOverlaps?: boolean;
+  /** The type the column is read cast to, Rust's `select_as`: `"bigint"`, or a `DataType` with modifiers. */
+  readonly selectAs?: DdlType;
+  /** The type each value is written cast to, Rust's `save_as`: `new DataType("bit", { length: 7 })`. */
+  readonly saveAs?: DdlType;
+  /** The expression the column is read through, Rust's `select_with`. */
+  readonly selectWith?: (column: Expr) => Expr;
+  /** The expression each value is written through, Rust's `save_with`; a comparison's value too. */
+  readonly saveWith?: (value: Expr) => Expr;
+  /**
+   * The program's own value of each decoded one, checked as it is read, as a
+   * Rust `ValueType` or `JsonValueType` field is read: a throw is a {@link DecodeError}.
+   */
+  readonly decode?: (value: any) => unknown;
+  /** The column's value of the program's, before it is converted through the kind: `decode`'s inverse. */
+  readonly encode?: (value: any) => unknown;
 }
 
 declare const declared: unique symbol;
@@ -171,6 +186,12 @@ export declare class Column<K extends ColumnKind = ColumnKind, O extends ColumnO
   readonly indexed: boolean;
   readonly comment: string | null;
   readonly withoutOverlaps: boolean;
+  readonly selectAs: DdlType | null;
+  readonly saveAs: DdlType | null;
+  readonly selectWith: ((column: Expr) => Expr) | null;
+  readonly saveWith: ((value: Expr) => Expr) | null;
+  readonly decode: ((value: any) => unknown) | null;
+  readonly encode: ((value: any) => unknown) | null;
   /** The options the column was declared with, as the types know them. */
   readonly [declared]?: O;
 }
@@ -204,8 +225,16 @@ export type KindInput<K, O = {}> = K extends keyof KindInputs ? KindInputs[K] : 
 type Arrayed<T, O> = O extends { readonly array: true } ? (T | null)[] : T;
 type Nulled<T, O> = O extends { readonly nullable: true } ? T | null : T;
 
+/** What a field declared with a `decode` reads as: what the function returns. */
+type Decoded<T, O> = O extends { readonly decode: (value: any) => infer D } ? D : T;
+
+/** What a field declared with an `encode` is written as: what the function takes. */
+type Encoded<T, O> = O extends { readonly encode: (value: infer E) => any } ? E : T;
+
 /** What a column's field reads as in a record. */
-export type FieldValue<C> = C extends Column<infer K, infer O> ? Nulled<Arrayed<KindValue<K, O>, O>, O> : never;
+export type FieldValue<C> = C extends Column<infer K, infer O>
+  ? Nulled<Decoded<Arrayed<KindValue<K, O>, O>, O>, O>
+  : never;
 
 /**
  * What a column's field is written as: a value of its kind, `null` where it
@@ -213,7 +242,7 @@ export type FieldValue<C> = C extends Column<infer K, infer O> ? Nulled<Arrayed<
  * it stands.
  */
 export type FieldInput<C> = C extends Column<infer K, infer O>
-  ? Nulled<Arrayed<KindInput<K, O>, O>, O> | Value | Expr
+  ? Nulled<Encoded<Arrayed<KindInput<K, O>, O>, O>, O> | Value | Expr
   : never;
 
 /**
@@ -223,7 +252,7 @@ export type FieldInput<C> = C extends Column<infer K, infer O>
  * expression. Never `null`, which `isNull()` tests.
  */
 export type FieldOperand<C> = C extends Column<infer K, infer O>
-  ? Exclude<Arrayed<KindInput<K, O>, O>, null> | Value | Expr
+  ? Exclude<Encoded<Arrayed<KindInput<K, O>, O>, O>, null> | Value | Expr
   : never;
 
 /** A model's columns by field. */

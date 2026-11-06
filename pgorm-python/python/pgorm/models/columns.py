@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import KW_ONLY, FrozenInstanceError, dataclass, field
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Literal
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from .. import _native as p
+from . import casts
 
 # These tags are produced by the native Record decoder without reinterpretation.
 MODEL_KINDS = frozenset(
@@ -76,6 +77,11 @@ def _labels(values: object) -> tuple[str, ...]:
     return labels
 
 
+def _callable(value: object, option: str) -> None:
+    if value is not None and not callable(value):
+        raise TypeError(f"a column's {option} is a function")
+
+
 def _expression(value: object, option: str) -> p.Expr | None:
     if value is not None and not isinstance(value, p.Expr):
         raise TypeError(f"a column's {option} is an expression")
@@ -84,6 +90,8 @@ def _expression(value: object, option: str) -> p.Expr | None:
 
 # [spec:pgorm:req:bindings.models+6]
 # [spec:pgorm:req:bindings.schema-from-model]
+# [spec:pgorm:req:bindings.model-casts]
+# [spec:pgorm:req:bindings.model-conversions]
 @dataclass(frozen=True, slots=True)
 class Column:
     kind: str | p.TypeName | p.CreatedRange | p.CreatedMultirange
@@ -104,8 +112,15 @@ class Column:
     indexed: bool = False
     comment: str | None = None
     without_overlaps: bool = False
+    select_as: DdlType | None = None
+    save_as: DdlType | None = None
+    select_with: Callable[[p.Expr], p.Expr] | None = None
+    save_with: Callable[[p.Expr], p.Expr] | None = None
+    decode: Callable[[Any], Any] | None = None
+    encode: Callable[[Any], Any] | None = None
     _null: p.Value = field(init=False, repr=False, compare=False)
     _default: p.Value | None = field(init=False, repr=False, compare=False)
+    _casts: p._ModelColumnCasts | None = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         for option in (
@@ -122,6 +137,12 @@ class Column:
                 raise TypeError('a column is generated "always" or "by_default"')
         if self.comment is not None and type(self.comment) is not str:
             raise TypeError("a column's comment is a string")
+        for option in ("select_with", "save_with", "decode", "encode"):
+            _callable(getattr(self, option), option)
+        if self.select_as is not None and self.select_with is not None:
+            raise p.ConstructionError("a column is read through select_as or select_with, not both")
+        if self.save_as is not None and self.save_with is not None:
+            raise p.ConstructionError("a column is written through save_as or save_with, not both")
         default_expr = _expression(self.default_expr, "default_expr")
         expressions = [
             _expression(self.generated_stored, "generated_stored"),
@@ -179,13 +200,16 @@ class Column:
         if default is not None and default.is_null:
             raise p.ConstructionError("a column's default_value is a value: NULL is every column's default")
         object.__setattr__(self, "_default", default)
+        casted = (self.column_type, self.select_as, self.save_as) != (None, None, None)
+        handle = p._model_casts(self._described("column")) if casted else None
+        object.__setattr__(self, "_casts", handle)
 
     def _check_ddl(self) -> None:
         """Refuse what the column's DDL options cannot say of its kind."""
-        named = isinstance(self.kind, (p.TypeName, p.CreatedRange, p.CreatedMultirange))
-        if self.column_type is not None and named:
+        created = isinstance(self.kind, (p.CreatedRange, p.CreatedMultirange))
+        if self.column_type is not None and created:
             raise p.ConstructionError(
-                "an enum or created range column's type is its kind's own: it takes no column_type"
+                "a created range column's type is its kind's own: it takes no column_type"
             )
         if self.auto_increment and (
             not self.primary_key or self.array or self.kind not in SERIAL_KINDS
@@ -231,6 +255,8 @@ class Column:
             "generated_virtual": self.generated_virtual,
             "indexed": self.indexed,
             "comment": self.comment,
+            "select_as": self.select_as,
+            "save_as": self.save_as,
         }
 
     def _validate(self, value: p.Value, *, decoding: bool = False) -> p.Value:
@@ -254,8 +280,12 @@ class Column:
         return value
 
     def _value(self, data: Any) -> p.Value:
-        """``data`` converted to the declared kind, and validated."""
+        """``data`` converted to the declared kind, and validated: through the
+        column's ``encode`` first, where it has one and ``data`` is no
+        ``Value``."""
         kind = self.kind
+        if self.encode is not None and data is not None and not isinstance(data, p.Value):
+            data = self.encode(data)
         if isinstance(data, p.Value):
             result = data
         elif self.array:
@@ -269,8 +299,13 @@ class Column:
         """Whether the column is projected as its text: a created multirange
         is, and an array of one as ``text[]``, since the driver reports one
         with no subtype to read its binary form by, so it is read cast to
-        text as pgorm's ``ColumnTrait::select_as`` reads an entity's."""
-        return isinstance(self.kind, p.CreatedMultirange)
+        text as pgorm's ``ColumnTrait::select_as`` reads an entity's; and so
+        is an enum column typed as a domain over its enum, which pgorm reads
+        as its text, unless the column reads itself another way."""
+        if isinstance(self.kind, p.CreatedMultirange):
+            return True
+        declared = self.column_type is not None and isinstance(self.kind, p.TypeName)
+        return declared and self.select_as is None and self.select_with is None
 
     def _decoded(self, value: p.Value) -> p.Value:
         """``value``, the column as its projection read it, as the declared
@@ -333,25 +368,32 @@ class ModelColumn(p._DeclaredColumn):
             raise p.ConstructionError(
                 f"{self.field_name} compared with None is never true: test it with is_null()"
             )
-        return self.declaration._value(value)
+        return casts.compared(self.declaration, self.declaration._value(value))
+
+    def _apply(self, method: str, *operands: Any, **options: Any) -> p.Expr:
+        """The operator ``method`` of the column as a comparison takes it, the
+        enum a domain over one compares as, over ``operands``."""
+        left = casts.compared_column(self.declaration, self._expression)
+        receiver: Any = super() if left is None else left
+        return cast(p.Expr, getattr(receiver, method)(*operands, **options))
 
     def eq(self, other: Any) -> p.Expr:
-        return super().eq(self._operand(other))
+        return self._apply("eq", self._operand(other))
 
     def ne(self, other: Any) -> p.Expr:
-        return super().ne(self._operand(other))
+        return self._apply("ne", self._operand(other))
 
     def gt(self, other: Any) -> p.Expr:
-        return super().gt(self._operand(other))
+        return self._apply("gt", self._operand(other))
 
     def gte(self, other: Any) -> p.Expr:
-        return super().gte(self._operand(other))
+        return self._apply("gte", self._operand(other))
 
     def lt(self, other: Any) -> p.Expr:
-        return super().lt(self._operand(other))
+        return self._apply("lt", self._operand(other))
 
     def lte(self, other: Any) -> p.Expr:
-        return super().lte(self._operand(other))
+        return self._apply("lte", self._operand(other))
 
     def __eq__(self, other: object) -> p.Expr:  # type: ignore[override]
         return self.eq(other)
@@ -372,52 +414,52 @@ class ModelColumn(p._DeclaredColumn):
         return self.lte(other)
 
     def is_distinct_from(self, other: Any) -> p.Expr:
-        return super().is_distinct_from(self._operand(other))
+        return self._apply("is_distinct_from", self._operand(other))
 
     def is_not_distinct_from(self, other: Any) -> p.Expr:
-        return super().is_not_distinct_from(self._operand(other))
+        return self._apply("is_not_distinct_from", self._operand(other))
 
     def between(self, lower: Any, upper: Any, *, symmetric: bool = False) -> p.Expr:
-        return super().between(
+        return self._apply("between", 
             self._operand(lower), self._operand(upper), symmetric=symmetric
         )
 
     def not_between(
         self, lower: Any, upper: Any, *, symmetric: bool = False
     ) -> p.Expr:
-        return super().not_between(
+        return self._apply("not_between", 
             self._operand(lower), self._operand(upper), symmetric=symmetric
         )
 
     def contains(self, other: Any) -> p.Expr:
-        return super().contains(self._operand(other))
+        return self._apply("contains", self._operand(other))
 
     def contained_by(self, other: Any) -> p.Expr:
-        return super().contained_by(self._operand(other))
+        return self._apply("contained_by", self._operand(other))
 
     def overlaps(self, other: Any) -> p.Expr:
-        return super().overlaps(self._operand(other))
+        return self._apply("overlaps", self._operand(other))
 
     def strictly_left_of(self, other: Any) -> p.Expr:
-        return super().strictly_left_of(self._operand(other))
+        return self._apply("strictly_left_of", self._operand(other))
 
     def strictly_right_of(self, other: Any) -> p.Expr:
-        return super().strictly_right_of(self._operand(other))
+        return self._apply("strictly_right_of", self._operand(other))
 
     def not_extend_right_of(self, other: Any) -> p.Expr:
-        return super().not_extend_right_of(self._operand(other))
+        return self._apply("not_extend_right_of", self._operand(other))
 
     def not_extend_left_of(self, other: Any) -> p.Expr:
-        return super().not_extend_left_of(self._operand(other))
+        return self._apply("not_extend_left_of", self._operand(other))
 
     def adjacent_to(self, other: Any) -> p.Expr:
-        return super().adjacent_to(self._operand(other))
+        return self._apply("adjacent_to", self._operand(other))
 
     def is_in(self, values: list[Any] | tuple[Any, ...] | p.Select) -> p.Expr:
-        return super().is_in(self._members(values))
+        return self._apply("is_in", self._members(values))
 
     def is_not_in(self, values: list[Any] | tuple[Any, ...] | p.Select) -> p.Expr:
-        return super().is_not_in(self._members(values))
+        return self._apply("is_not_in", self._members(values))
 
     def _members(
         self, values: Any

@@ -2,18 +2,35 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { ConstructionError, Multirange, Range, Value } from "@necessary/pgorm";
+import { column, model, Range } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  await assert.rejects(pool.one("SELECT $1 AS span", [new Range(1, 5) as never]), ConstructionError);
+  await pool.execute(
+    "CREATE TABLE season (id serial PRIMARY KEY, cake varchar NOT NULL, on_sale daterange NOT NULL, batch_sizes int4range NOT NULL)",
+  );
+  const Season = model("season", {
+    columns: {
+      id: column("i32", { primaryKey: true, default: true }),
+      cake: column("text"),
+      onSale: column("daterange", { name: "on_sale" }),
+      batchSizes: column("int4range", { name: "batch_sizes" }),
+    },
+  });
 
-  const empty = await pool.one("SELECT $1::int4range AS span", [new Value(new Range(5, 5), "int4range")]);
-  assert.ok(empty.span instanceof Range);
-  assert.equal(empty.span.isEmpty, true);
+  const date = (text: string) => Temporal.PlainDate.from(text);
+  const gingerbread = await Season.insert({
+    cake: "Gingerbread",
+    onSale: new Range(date("2026-11-15"), date("2027-01-07")),
+    batchSizes: new Range(12, 48, "[]"),
+  }).returning().one(pool);
 
-  const merged = await pool.one("SELECT $1::int4multirange AS spans", [
-    new Value(new Multirange([new Range(5, 8), new Range(1, 3), new Range(3, 4)]), "int4multirange"),
-  ]);
-  assert.equal(String(merged.spans), "{[1,4),[5,8)}");
+  // A discrete range comes back in PostgreSQL's canonical form: [12,49).
+  assert.equal(gingerbread.batchSizes.toString(), "[12,49)");
+  assert.deepEqual([gingerbread.batchSizes.lower, gingerbread.batchSizes.upper], [12, 49]);
+
+  // What is on sale over the Christmas week?
+  const christmas = new Range(date("2026-12-21"), date("2026-12-28"));
+  const onSale = await Season.select("cake").where(Season.col("onSale").overlaps(christmas)).all(pool);
+  assert.deepEqual(onSale, [{ cake: "Gingerbread" }]);
 }

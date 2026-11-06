@@ -167,6 +167,87 @@ fn a_run_time_shape_writes_every_part() -> Result<(), Error> {
     Ok(())
 }
 
+/// `expr` rendered as a query's select list, an expression alone having no
+/// `Display`.
+fn text(expr: impl Into<pgorm::pgorm_query::SimpleExpr>) -> String {
+    let query = pgorm::pgorm_query::Query::select().expr(expr).to_owned();
+    query.to_string().replacen("SELECT ", "", 1)
+}
+
+/// The read of a column `c` (or "as it stands" where it reads uncast), the
+/// write of `value`, and the two sides of a comparison of `c` with `value`.
+fn casts(column: &TableColumn, value: Expr) -> [String; 4] {
+    let c = || Expr::col(Name::runtime("c"));
+    [
+        column
+            .select(c())
+            .map_or_else(|| "as it stands".to_owned(), text),
+        text(column.save(value.clone())),
+        text(column.compared_column(c())),
+        text(column.compared_value(value)),
+    ]
+}
+
+// [spec:pgorm:sem:schema.shape-casts/test]    a run-time column reads, writes and compares as an entity's column of its type does
+#[test]
+fn a_columns_type_says_its_casts() {
+    let flavor = ColumnType::Enum {
+        name: Name::runtime("flavor"),
+        schema: None,
+        variants: vec![Name::runtime("lemon")],
+    };
+    let fancy = ColumnType::Domain {
+        name: Name::runtime("fancy"),
+        schema: None,
+        base: std::sync::Arc::new(flavor),
+    };
+    let fancy = TableColumn::new("c", fancy.def());
+    assert_eq!(
+        casts(
+            &TableColumn::new("c", ColumnType::Money.def()),
+            Expr::val(1.5)
+        ),
+        [
+            r#"CAST("c" AS numeric)"#,
+            "CAST(1.5 AS money)",
+            r#""c""#,
+            "CAST(1.5 AS money)"
+        ]
+    );
+    assert_eq!(
+        casts(&fancy, Expr::val("lemon")),
+        [
+            r#"CAST("c" AS text)"#,
+            "CAST('lemon' AS fancy)",
+            r#"CAST("c" AS flavor)"#,
+            "CAST('lemon' AS flavor)"
+        ]
+    );
+    assert_eq!(
+        fancy.compares_as().map(|t| t.to_sql_string()),
+        Some("flavor".to_owned())
+    );
+    assert_eq!(
+        casts(
+            &TableColumn::new("c", ColumnType::Text.def()),
+            Expr::val("x")
+        ),
+        ["as it stands", "'x'", r#""c""#, "'x'"]
+    );
+    let days = TableColumn::new("c", ColumnType::Bit(Some(7)).def())
+        .with_select_as(pgorm::pgorm_query::TypeName::new(Name::runtime("bigint")))
+        .with_save_as(pgorm::pgorm_query::TypeName::new(Name::runtime("bit")).modifiers([7]));
+    assert_eq!(
+        casts(&days, Expr::val(126)),
+        [
+            r#"CAST("c" AS bigint)"#,
+            "CAST(126 AS bit(7))",
+            r#""c""#,
+            "CAST(126 AS bit(7))"
+        ]
+    );
+}
+
 // [spec:pgorm:sem:schema.from-shape/test]    a composite key is named, never serial, and a temporal key writes its period last
 #[test]
 fn composite_and_temporal_keys() -> Result<(), Error> {

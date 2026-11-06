@@ -390,7 +390,10 @@ Here a model differs from a Rust `ActiveEnum` in three ways:
   cast each label to the type, `CAST($1::text AS public.flavor)`.
 - **Only PostgreSQL enums are enums.** Rust's `rs_type` and `db_type` store
   an enum as integers or as text. A JavaScript model declares such a column
-  by its kind, `"i16"` or `"text"`, and the program maps its values itself.
+  by its kind, `"i16"` or `"text"`, and its `decode` and `encode` map the
+  stored values to the program's and back ([Values and
+  types](13-values.md#json)); Rust's `display` is the program's own
+  spelling.
 
 `values` is optional: without it, a label is any string, and a record's type
 says so.
@@ -430,13 +433,12 @@ Here is what each one is in JavaScript:
 | `SqlName`, `StaticName` | a name is a string, quoted wherever it is written ([The query builder](11-query-builder.md)) |
 
 A Rust `ValueType` newtype keeps, say, grams of flour apart from other
-integers at compile time. A field of kind `"i32"` is a `number`, and a
-TypeScript program that wants such a distinction makes it in its own types.
-
-**Not available in JavaScript yet:** a JSON column whose documents decode as
-a type of the program's choosing, checked as they are read, which a Rust
-`JsonValueType` gives. A `"json"` field reads as a JSON value, typed as one,
-whatever shape its documents have.
+integers at compile time, and a `JsonValueType` reads a JSON document as a
+struct, its shape checked as it is read. A column's `decode` and `encode`
+are the JavaScript form of both: `decode` turns each value a record reads
+into the program's own, a throw making the read a `DecodeError`, and the
+record's field is typed as what it returns ([Values and
+types](13-values.md#json)).
 
 Rust's `IntoActiveModel` turns a struct such as a sign-up form into an active
 model with its fields set and the rest left out. A JavaScript form is already

@@ -7,9 +7,8 @@
 // [spec:pgorm:req:bindings.models+6]
 // [spec:pgorm:req:bindings.model-unique-keys+2]
 
-import { arg } from "./builder.js";
 import { ConstructionError } from "./errors.js";
-import { modelColumn, readsText } from "./model-columns.js";
+import { describedColumn, modelColumn, selected } from "./model-columns.js";
 import { native } from "./operations.js";
 
 /**
@@ -109,8 +108,8 @@ export function qualified(field, qualifier) {
  * @param {string} name
  */
 export function projected(field, expr, name) {
-  if (readsText(field.column)) return expr.cast("text", { array: field.column.array }).as(name);
-  return name === field.sql ? expr : expr.as(name);
+  const read = selected(field.column, expr);
+  return read === expr && name === field.sql ? expr : read.as(name);
 }
 
 /**
@@ -135,22 +134,7 @@ export function described(shape) {
   return {
     schema: shape.schema,
     table: shape.name,
-    columns: shape.fields.map(({ sql, column }) => ({
-      name: sql,
-      kind: column.kind,
-      array: column.array,
-      nullable: column.nullable,
-      default: column.default,
-      generated: column.generated,
-      values: column.values,
-      columnType: arg(column.columnType),
-      defaultValue: arg(column.defaultValue),
-      defaultExpr: arg(column.defaultExpr),
-      generatedStored: arg(column.generatedStored),
-      generatedVirtual: arg(column.generatedVirtual),
-      indexed: column.indexed,
-      comment: column.comment,
-    })),
+    columns: shape.fields.map(({ sql, column }) => describedColumn(sql, column)),
     key: shape.primaryKey.map((field) => field.sql),
     autoIncrement: shape.primaryKey.some((field) => field.column.autoIncrement),
     withoutOverlaps: shape.primaryKey.some((field) => field.column.withoutOverlaps),

@@ -5,7 +5,9 @@
 use std::sync::Arc;
 
 use neon::prelude::*;
-use pgorm::pgorm_query::{ArrayType, ColumnType, IntervalSpec, Name, StringLen};
+use pgorm::pgorm_query::{
+    ArrayType, ColumnType, IntervalPrecision, IntervalSpec, Name, PgInterval, StringLen,
+};
 
 use super::{
     Node,
@@ -19,6 +21,7 @@ use crate::{
 pub(super) const EXPORTS: &[(&str, super::Build)] = &[
     ("dataTypeNew", data_type_new),
     ("dataTypeArray", data_type_array),
+    ("dataTypeDomain", data_type_domain),
 ];
 
 /// A size modifier: a whole number from 1 (or from 0 for a scale).
@@ -144,10 +147,91 @@ fn named<'cx>(cx: &mut Cx<'cx>, value: Handle<'cx, JsValue>) -> NeonResult<Colum
     })
 }
 
-/// `dataTypeNew(kind, length, precision, scale)`.
+/// `interval`, `interval(p)` or `interval <fields>`: the fields spelled in
+/// camelCase (`hourToMinute`), a precision of 0 to 6 only where the last field
+/// is seconds.
+// [spec:pgorm:req:bindings.model-casts]
+fn interval(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let length = size(cx, 1, "length", 1.0)?;
+    let scale = size(cx, 3, "scale", 0.0)?;
+    if length.is_some() || scale.is_some() {
+        return refuse(
+            cx,
+            "an interval takes fields and a precision, no length or scale",
+        );
+    }
+    let precision = match size(cx, 2, "precision", 0.0)? {
+        Some(digits) => match u8::try_from(digits).ok().and_then(IntervalPrecision::new) {
+            Some(precision) => Some(precision),
+            None => return refuse(cx, "an interval's precision is 0 to 6"),
+        },
+        None => None,
+    };
+    let fields = arg(cx, 4);
+    if absent(cx, fields) {
+        return Ok(Node::DataType(ColumnType::Interval(IntervalSpec::Any(
+            precision,
+        ))));
+    }
+    let fields = read::string(cx, fields)?;
+    let words: String = fields
+        .chars()
+        .flat_map(|c| match c.is_ascii_uppercase() {
+            true => vec![' ', c],
+            false => vec![c],
+        })
+        .collect();
+    let Ok(named) = PgInterval::try_from(words.as_str()) else {
+        return cx.throw_type_error(
+            "an interval's fields are year, month, day, hour, minute, second, yearToMonth, \
+             dayToHour, dayToMinute, dayToSecond, hourToMinute, hourToSecond or minuteToSecond",
+        );
+    };
+    match named.with_precision(precision) {
+        Some(fields) => Ok(Node::DataType(ColumnType::Interval(IntervalSpec::Fields(
+            fields,
+        )))),
+        None => refuse(cx, "only an interval ending in seconds takes a precision"),
+    }
+}
+
+/// `dataTypeDomain(name, base)`: a domain over `base`, named by a string or
+/// a `TypeName`.
+// [spec:pgorm:req:bindings.model-casts]
+fn data_type_domain(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let name = arg(cx, 0);
+    let (name, schema) = match name.is_a::<JsString, _>(cx) {
+        true => (read::string(cx, name)?, None),
+        false => {
+            let codec = Codec::get(cx)?;
+            match read::kind(cx, codec, name)? {
+                Tag::Enum(named) => (named.name, named.schema),
+                _ => return cx.throw_type_error("a domain is named by a string or a TypeName"),
+            }
+        }
+    };
+    let base = arg(cx, 1);
+    let base = column_type(cx, base)?;
+    Ok(Node::DataType(ColumnType::Domain {
+        name: Name::runtime(name),
+        schema: schema.map(Name::runtime),
+        base: Arc::new(base),
+    }))
+}
+
+/// `dataTypeNew(kind, length, precision, scale, fields)`.
 // [spec:pgorm:req:bindings.sql-json]
 fn data_type_new(cx: &mut FunctionContext) -> NeonResult<Node> {
     let kind = arg(cx, 0);
+    let fields = arg(cx, 4);
+    let interval = !absent(cx, fields)
+        || (kind.is_a::<JsString, _>(cx) && read::string(cx, kind)? == "interval");
+    if interval {
+        if !kind.is_a::<JsString, _>(cx) || read::string(cx, kind)? != "interval" {
+            return refuse(cx, "fields are an interval's");
+        }
+        return self::interval(cx);
+    }
     let length = size(cx, 1, "length", 1.0)?;
     let precision = size(cx, 2, "precision", 1.0)?;
     let scale = size(cx, 3, "scale", 0.0)?;

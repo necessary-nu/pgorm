@@ -5,9 +5,9 @@
 // reads it.
 // [spec:pgorm:req:bindings.model-columns+1]
 
-import { TRUSTED } from "./builder.js";
-import { ConstructionError } from "./errors.js";
-import { Expr, Quantified } from "./expressions.js";
+import { arg, TRUSTED } from "./builder.js";
+import { ConstructionError, DecodeError } from "./errors.js";
+import { bind, Expr, Quantified } from "./expressions.js";
 import { native } from "./operations.js";
 import { Select } from "./select.js";
 import { CreatedMultirange, CreatedRange, TypeName, Value } from "./values.js";
@@ -19,7 +19,21 @@ const OPTIONS = new Set([
   "name", "nullable", "array", "primaryKey", "default", "generated", "values",
   "columnType", "defaultValue", "defaultExpr", "generatedStored", "generatedVirtual",
   "autoIncrement", "indexed", "comment", "withoutOverlaps",
+  "selectAs", "saveAs", "selectWith", "saveWith", "decode", "encode",
 ]);
+
+/**
+ * An option that is a function, or absent.
+ *
+ * @param {unknown} value
+ * @param {string} what
+ * @returns {((value: any) => any) | null}
+ */
+function functionOf(value, what) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "function") throw new TypeError(`a column's ${what} is a function`);
+  return /** @type {(value: any) => any} */ (value);
+}
 
 /** The kinds a serial key is drawn from, as Rust's one-column integer key is. */
 const SERIAL = new Set(["i16", "i32", "i64"]);
@@ -45,6 +59,9 @@ const UNDECODED = new Set(["u64", "char"]);
 
 /** @type {(column: Column) => string} */
 let keyOf;
+
+/** @type {(column: Column) => unknown} */
+let castsOf;
 
 /**
  * @param {unknown} flag
@@ -90,6 +107,8 @@ function labels(values, kind) {
 export class Column {
   /** @type {string} */
   #key;
+  /** @type {unknown} pgorm's casts of the column's type, where it declares one or a cast. */
+  #casts = null;
 
   /**
    * @param {unknown} kind
@@ -184,6 +203,24 @@ export class Column {
           "family (autoIncrement)",
       );
     }
+    /** @readonly @type {unknown} */
+    this.selectAs = declared.selectAs ?? null;
+    /** @readonly @type {unknown} */
+    this.saveAs = declared.saveAs ?? null;
+    /** @readonly */
+    this.selectWith = functionOf(declared.selectWith, "selectWith");
+    /** @readonly */
+    this.saveWith = functionOf(declared.saveWith, "saveWith");
+    /** @readonly */
+    this.decode = functionOf(declared.decode, "decode");
+    /** @readonly */
+    this.encode = functionOf(declared.encode, "encode");
+    if (this.selectAs !== null && this.selectWith !== null) {
+      throw new ConstructionError("a column is read through selectAs or selectWith, not both");
+    }
+    if (this.saveAs !== null && this.saveWith !== null) {
+      throw new ConstructionError("a column is written through saveAs or saveWith, not both");
+    }
     checkDdl(this);
     this.#key = native.modelKindKey(kind, this.array);
     /** @readonly @type {Value | null} */
@@ -191,11 +228,15 @@ export class Column {
     if (this.defaultValue instanceof Value && this.defaultValue.isNull) {
       throw new ConstructionError("a column's defaultValue is a value: NULL is every column's default");
     }
+    if (this.columnType !== null || this.selectAs !== null || this.saveAs !== null) {
+      this.#casts = native.modelCasts(describedColumn("column", this));
+    }
     Object.freeze(this);
   }
 
   static {
     keyOf = (column) => column.#key;
+    castsOf = (column) => column.#casts;
   }
 }
 
@@ -207,8 +248,8 @@ export class Column {
  */
 function checkDdl(column) {
   const kind = column.kind;
-  if (column.columnType !== null && named(kind)) {
-    throw new ConstructionError("an enum or created range column's type is its kind's own: it takes no columnType");
+  if (column.columnType !== null && (kind instanceof CreatedRange || kind instanceof CreatedMultirange)) {
+    throw new ConstructionError("a created range column's type is its kind's own: it takes no columnType");
   }
   if (column.autoIncrement && (!column.primaryKey || column.array || typeof kind !== "string" || !SERIAL.has(kind))) {
     throw new ConstructionError("autoIncrement draws a key column from the serial family: an i16, i32 or i64 primary key");
@@ -274,8 +315,138 @@ export function columnKey(column) {
  * @param {Column} column
  */
 // [spec:pgorm:req:bindings.created-ranges+5]
+// [spec:pgorm:req:bindings.model-casts]
 export function readsText(column) {
-  return column.kind instanceof CreatedMultirange;
+  if (column.kind instanceof CreatedMultirange) return true;
+  return column.kind instanceof TypeName && column.columnType !== null && column.selectAs === null &&
+    column.selectWith === null;
+}
+
+/**
+ * The column as the native table shape and its casts are described from.
+ *
+ * @param {string} name
+ * @param {Column} column
+ */
+export function describedColumn(name, column) {
+  return {
+    name,
+    kind: column.kind,
+    array: column.array,
+    nullable: column.nullable,
+    default: column.default,
+    generated: column.generated,
+    values: column.values,
+    columnType: arg(column.columnType),
+    defaultValue: arg(column.defaultValue),
+    defaultExpr: arg(column.defaultExpr),
+    generatedStored: arg(column.generatedStored),
+    generatedVirtual: arg(column.generatedVirtual),
+    indexed: column.indexed,
+    comment: column.comment,
+    selectAs: arg(column.selectAs),
+    saveAs: arg(column.saveAs),
+  };
+}
+
+// [spec:pgorm:req:bindings.model-casts]
+/**
+ * `expr`, a read of `column`, as a projection reads it: through its
+ * `selectWith`, cast as its `selectAs` or its column type's own read says
+ * (pgorm's `TableColumn::select`), as its text where it is read from its
+ * text, and as it is otherwise.
+ *
+ * @param {Column} column
+ * @param {Expr} expr
+ * @returns {Expr}
+ */
+export function selected(column, expr) {
+  if (column.selectWith !== null) {
+    const read = column.selectWith(expr);
+    if (!(read instanceof Expr)) throw new TypeError("a column's selectWith returns an expression");
+    return read;
+  }
+  const casts = castsOf(column);
+  if (casts !== null && (column.selectAs !== null || column.columnType !== null)) {
+    const read = native.modelCastSelect(casts, arg(expr));
+    return read === null ? expr : new Expr(read, TRUSTED);
+  }
+  if (readsText(column)) return expr.cast("text", { array: column.array });
+  return expr;
+}
+
+/**
+ * `value` as it is written to `column`: through its `saveWith`, cast as its
+ * `saveAs` or its column type's own write says (pgorm's `TableColumn::save`),
+ * and as it is otherwise.
+ *
+ * @param {Column} column
+ * @param {Expr | Value} value
+ * @returns {Expr | Value}
+ */
+export function saved(column, value) {
+  if (value instanceof Expr) return value;
+  if (column.saveWith !== null) {
+    const written = column.saveWith(bind(value));
+    if (!(written instanceof Expr)) throw new TypeError("a column's saveWith returns an expression");
+    return written;
+  }
+  const casts = castsOf(column);
+  if (casts !== null && (column.saveAs !== null || column.columnType !== null)) {
+    return new Expr(native.modelCastSave(casts, arg(value)), TRUSTED);
+  }
+  return value;
+}
+
+/**
+ * `value` as a comparison with `column` takes it: cast to the enum a domain
+ * over one compares as, and otherwise as {@link saved} writes it (pgorm's
+ * `TableColumn::compared_value`).
+ *
+ * @param {Column} column
+ * @param {Expr | Value} value
+ * @returns {Expr | Value}
+ */
+export function compared(column, value) {
+  if (value instanceof Expr) return value;
+  const casts = castsOf(column);
+  if (column.saveWith === null && casts !== null && (column.saveAs !== null || column.columnType !== null)) {
+    return new Expr(native.modelCastComparedValue(casts, arg(value)), TRUSTED);
+  }
+  return saved(column, value);
+}
+
+/**
+ * `expr`, a read of `column`, as a comparison takes it where its type says
+ * otherwise: cast to the enum a domain over one compares as; null where the
+ * column is compared as it stands.
+ *
+ * @param {Column} column
+ * @param {Expr} expr
+ * @returns {Expr | null}
+ */
+export function comparedColumn(column, expr) {
+  const casts = castsOf(column);
+  if (casts === null || !native.modelCastComparesAsEnum(casts)) return null;
+  return new Expr(native.modelCastComparedColumn(casts, arg(expr)), TRUSTED);
+}
+
+// [spec:pgorm:req:bindings.model-conversions]
+/**
+ * A decoded value of `column` as a record holds it: through its `decode`
+ * where it has one, a failure of which is a `DecodeError`.
+ *
+ * @param {Column} column
+ * @param {unknown} value
+ */
+export function readValue(column, value) {
+  if (column.decode === null || value === null) return value;
+  try {
+    return column.decode(value);
+  } catch (error) {
+    if (error instanceof DecodeError) throw error;
+    throw new DecodeError(`the column's decode refused ${JSON.stringify(value)}: ${error}`);
+  }
 }
 
 /**
@@ -291,6 +462,9 @@ export function readsText(column) {
  */
 export function columnValue(column, field, input) {
   if (input instanceof Expr) return input;
+  if (column.encode !== null && !(input instanceof Value) && input !== undefined && input !== null) {
+    input = column.encode(input);
+  }
   if (input === undefined) throw new ConstructionError(`${field} is undefined: leave it out, or pass null`);
   if (input instanceof Value) {
     const key = native.modelValueKey(input);
@@ -363,7 +537,21 @@ export class ModelColumn extends Expr {
     if (value === null) {
       throw new ConstructionError(`${this.#field} compared with null is never true: test it with isNull()`);
     }
-    return columnValue(this.#column, this.#field, value);
+    return compared(this.#column, columnValue(this.#column, this.#field, value));
+  }
+
+  /**
+   * The operator `name` of the column as a comparison takes it, the enum a
+   * domain over one compares as, over `operands`.
+   *
+   * @param {string} name
+   * @param {...unknown} operands
+   * @returns {Expr}
+   */
+  #apply(name, ...operands) {
+    const left = comparedColumn(this.#column, this);
+    const receiver = left ?? this;
+    return /** @type {any} */ (Expr.prototype)[name].call(receiver, ...operands);
   }
 
   /**
@@ -371,7 +559,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   eq(other) {
-    return super.eq(this.#operand(other));
+    return this.#apply("eq", this.#operand(other));
   }
 
   /**
@@ -379,7 +567,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   ne(other) {
-    return super.ne(this.#operand(other));
+    return this.#apply("ne", this.#operand(other));
   }
 
   /**
@@ -387,7 +575,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   lt(other) {
-    return super.lt(this.#operand(other));
+    return this.#apply("lt", this.#operand(other));
   }
 
   /**
@@ -395,7 +583,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   lte(other) {
-    return super.lte(this.#operand(other));
+    return this.#apply("lte", this.#operand(other));
   }
 
   /**
@@ -403,7 +591,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   gt(other) {
-    return super.gt(this.#operand(other));
+    return this.#apply("gt", this.#operand(other));
   }
 
   /**
@@ -411,7 +599,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   gte(other) {
-    return super.gte(this.#operand(other));
+    return this.#apply("gte", this.#operand(other));
   }
 
   /**
@@ -419,7 +607,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   isDistinctFrom(other) {
-    return super.isDistinctFrom(this.#operand(other));
+    return this.#apply("isDistinctFrom", this.#operand(other));
   }
 
   /**
@@ -427,7 +615,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   isNotDistinctFrom(other) {
-    return super.isNotDistinctFrom(this.#operand(other));
+    return this.#apply("isNotDistinctFrom", this.#operand(other));
   }
 
   /**
@@ -435,7 +623,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   contains(other) {
-    return super.contains(this.#operand(other));
+    return this.#apply("contains", this.#operand(other));
   }
 
   /**
@@ -443,7 +631,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   containedBy(other) {
-    return super.containedBy(this.#operand(other));
+    return this.#apply("containedBy", this.#operand(other));
   }
 
   /**
@@ -451,7 +639,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   overlaps(other) {
-    return super.overlaps(this.#operand(other));
+    return this.#apply("overlaps", this.#operand(other));
   }
 
   /**
@@ -459,7 +647,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   strictlyLeftOf(other) {
-    return super.strictlyLeftOf(this.#operand(other));
+    return this.#apply("strictlyLeftOf", this.#operand(other));
   }
 
   /**
@@ -467,7 +655,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   strictlyRightOf(other) {
-    return super.strictlyRightOf(this.#operand(other));
+    return this.#apply("strictlyRightOf", this.#operand(other));
   }
 
   /**
@@ -475,7 +663,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   notExtendRightOf(other) {
-    return super.notExtendRightOf(this.#operand(other));
+    return this.#apply("notExtendRightOf", this.#operand(other));
   }
 
   /**
@@ -483,7 +671,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   notExtendLeftOf(other) {
-    return super.notExtendLeftOf(this.#operand(other));
+    return this.#apply("notExtendLeftOf", this.#operand(other));
   }
 
   /**
@@ -491,7 +679,7 @@ export class ModelColumn extends Expr {
    * @param {unknown} other
    */
   adjacentTo(other) {
-    return super.adjacentTo(this.#operand(other));
+    return this.#apply("adjacentTo", this.#operand(other));
   }
 
   /**
@@ -499,7 +687,7 @@ export class ModelColumn extends Expr {
    * @param {readonly unknown[] | Select} source
    */
   isIn(source) {
-    return super.isIn(source instanceof Select ? source : this.#list(source));
+    return this.#apply("isIn", source instanceof Select ? source : this.#list(source));
   }
 
   /**
@@ -507,7 +695,7 @@ export class ModelColumn extends Expr {
    * @param {readonly unknown[] | Select} source
    */
   isNotIn(source) {
-    return super.isNotIn(source instanceof Select ? source : this.#list(source));
+    return this.#apply("isNotIn", source instanceof Select ? source : this.#list(source));
   }
 
   /** @param {unknown} source */
@@ -523,7 +711,7 @@ export class ModelColumn extends Expr {
    * @param {{ symmetric?: boolean }} [options]
    */
   between(lower, upper, options) {
-    return super.between(this.#operand(lower), this.#operand(upper), options);
+    return this.#apply("between", this.#operand(lower), this.#operand(upper), options);
   }
 
   /**
@@ -533,7 +721,7 @@ export class ModelColumn extends Expr {
    * @param {{ symmetric?: boolean }} [options]
    */
   notBetween(lower, upper, options) {
-    return super.notBetween(this.#operand(lower), this.#operand(upper), options);
+    return this.#apply("notBetween", this.#operand(lower), this.#operand(upper), options);
   }
 }
 

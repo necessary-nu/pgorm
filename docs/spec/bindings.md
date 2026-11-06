@@ -1059,7 +1059,10 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > `generated` (always or by default) and an enum's `values`, and the table's
 > DDL options `bindings.schema-from-model` gives: `column_type`,
 > `default_value`, `default_expr`, `generated_stored`, `generated_virtual`,
-> `auto_increment`, `indexed`, `comment` and `without_overlaps`. A column with
+> `auto_increment`, `indexed`, `comment` and `without_overlaps`; the casts
+> `bindings.model-casts` gives, `select_as`, `save_as`, `select_with` and
+> `save_with`; and the conversions `bindings.model-conversions` gives,
+> `decode` and `encode`. A column with
 > a generation expression is generated always, as no write sets it; an insert
 > may leave out a column that is nullable, generated, drawn from the serial
 > family or filled by a default, stated or not.
@@ -2099,6 +2102,60 @@ placeholders belong to the stage that minted them.
 > keys over a `VIRTUAL` generated column among them. A `default_expr`,
 > `generated_stored` or `generated_virtual` that is no expression, and a
 > `comment` that is no string, are `TypeError`s.
+
+> [spec:pgorm:req:bindings.model-casts]
+> A declared model's column MUST be read, written and compared through
+> pgorm's own casts for the type it declares, as an entity's column is:
+> where it declares a `column_type`, a `select_as` or a `save_as`, the model
+> asks pgorm's `TableColumn` of that type (`[spec:pgorm:sem:schema.shape-casts]`)
+> for each cast, and a column declaring none of them is read, written and
+> compared as it stands, as before. So a `money` column of the `decimal`
+> kind is read cast to `numeric` and each value written and compared cast to
+> `money`; an enum column whose `column_type` is a domain over its enum is
+> read as its text, read back as the enum's label, written cast to the
+> domain, and compared with both sides cast to the enum, which PostgreSQL
+> resolves no operator for otherwise (`42883`); and a domain over any other
+> type is written and read as its base. `select_as` and `save_as` name the
+> type a read and a write cast to — a built-in type's name, a `TypeName`, or
+> a `DataType`, whose length or precision the cast writes as the type's
+> modifiers (`bit(7)`, through pgorm-query's `ColumnType::cast_type`) — and
+> a comparison's value takes the `save_as` cast too. `select_with` and
+> `save_with` are functions of the binding's own from an expression to an
+> expression: the column read through the one, and each written or compared
+> value, bound, through the other. A `column_type` on a created range's
+> column, a `column_type` on an enum's that is no domain over that enum,
+> both `select_as` and `select_with`, both `save_as` and `save_with`, and a
+> type no cast names (an interval restricted to fields, an unlimited `bit`)
+> MUST be `ConstructionError`s as the model is declared, and a `select_with`
+> or `save_with` that is no function, or returns no expression, a
+> `TypeError`. Every projection a model builds — its queries', projections',
+> graphs' and RETURNING lists' — reads a field through the same cast, and a
+> keyset cursor's boundaries compare through it.
+>
+> A `DataType` also names a domain, `DataType.domain(name, base)`, and an
+> interval restricted to fields, `DataType("interval", fields=..)`, the
+> fields spelled in the binding's case (`hour_to_minute`, `hourToMinute`) and
+> read by pgorm-query's `PgInterval`, a `precision` only where the last
+> field is seconds (`PgInterval::with_precision`), any other a
+> `ConstructionError`. A disjoint or one-of model's tables take their
+> columns' type casts natively (`bindings.disjoint`); the four cast options
+> are a declared model's own reads and writes.
+
+> [spec:pgorm:req:bindings.model-conversions]
+> A declared model's column MUST take a `decode` and an `encode`, functions
+> of the program's own, as a Rust field of a `ValueType` or `JsonValueType`
+> is read and written as the program's type: each value a record reads for
+> the field is the field's decoded value passed through `decode`, checked as
+> the row is read — a function that throws or raises makes the read a
+> `DecodeError`, never a record holding the value — and each value a write,
+> a comparison or a cursor boundary takes is passed through `encode` before
+> it is converted through the kind, a `Value` and an expression taken as
+> written. A NULL is never passed to either. An enum stored as numbers or as
+> text, Rust's `rs_type` and `db_type`, is a column of the kind it is stored
+> as with a `decode` and `encode` between the stored value and the program's
+> enum, and Rust's `display` is the program's own spelling of it. A `decode`
+> or `encode` that is no function MUST be a `TypeError` as the column is
+> declared.
 
 > [spec:pgorm:req:bindings.schema-tables]
 > Creating a table MUST build pgorm-query's `TableCreateStatement`: columns,

@@ -10,6 +10,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Callable, cast
 
 from .. import _native as p
+from . import casts
 from .columns import Column, ModelColumn
 from .clauses import Clauses, Recipe
 from .record import Database, decode_all, decode_single, decode_stream
@@ -36,14 +37,10 @@ class Item:
         """``expr`` read under ``name``: aliased when ``aliased`` says so, and
         cast to ``text`` (``text[]``) where the declaration is read from its
         text, as a model's field is."""
-        if declaration._read_as_text:
-            projected: p.Expr | p.Aliased = expr.cast(
-                p.TypeName("text"), array=declaration.array
-            ).as_(name)
-        elif aliased:
-            projected = expr.as_(name)
-        else:
-            projected = expr
+        selected = casts.selected(declaration, expr)
+        projected: p.Expr | p.Aliased = (
+            selected.as_(name) if aliased or selected is not expr else expr
+        )
         return Item(name, projected, declaration)
 
     @staticmethod
@@ -64,8 +61,11 @@ class Item:
 
     def decoded(self, row: p.Record) -> Any:
         """The item's value in ``row``, held to its declaration."""
-        value = self.declaration._decoded(row.tagged(self.name))
-        return value.value if self.declaration._read_as_text else row[self.name]
+        declaration = self.declaration
+        value = declaration._decoded(row.tagged(self.name))
+        if declaration._read_as_text or declaration.decode is not None:
+            return casts.read(declaration, value)
+        return row[self.name]
 
 
 def _expression_declaration(declaration: object) -> Column:

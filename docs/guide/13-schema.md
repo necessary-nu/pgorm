@@ -287,6 +287,14 @@ a `has_many` among them. A column built
 the database fills by a default the description does not state, has no
 `DEFAULT` to write, so `create_table_from_shape` refuses its table.
 
+A `TableColumn` also reads, writes and compares as an entity's column of its
+type does: [`select`](crate::TableColumn::select) reads a `money` column as
+`numeric` and an enum as its text, `save` casts a value to the column's type,
+and `compared_column` and `compared_value` give the two sides of a
+comparison, both cast to the enum where the column is a domain over one.
+`with_select_as` and `with_save_as` replace the read's and the write's cast,
+as an entity column's `select_as` and `save_as` attributes do.
+
 ## The DDL builders
 
 The [query builder](crate::guide::query_builder), pgorm-query, has a builder for each

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 
 from .. import _native as p
 from .._registered.versions import Change, Inserted, Updated
+from . import casts
 from .clauses import predicate_of
 from .queries import ModelRows, written
 from .record import Database, ModelRecord, Source, decode_all, decode_single
@@ -250,7 +251,7 @@ def assignments(
 
 
 def _value(column: Column, value: Any) -> p.Value | p.Expr:
-    return value if isinstance(value, p.Expr) else column._value(value)
+    return value if isinstance(value, p.Expr) else casts.saved(column, column._value(value))
 
 
 def appended(

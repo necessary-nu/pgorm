@@ -145,7 +145,7 @@ class Cursor:
         """The key compared with ``values``, ``(c1, .., cn) > (v1, .., vn)``
         written out as n disjuncts, the k-th holding the first k-1 columns
         equal and comparing the k-th."""
-        columns = [p.col(model._sql(field), table=q) for model, q, field in self._keyset()]
+        columns = [model._column(field, q) for model, q, field in self._keyset()]
         disjuncts = [
             p.Condition.all(
                 *(

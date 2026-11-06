@@ -10,7 +10,7 @@
 import { runStatement } from "./connections.js";
 import { ConstructionError, DecodeError } from "./errors.js";
 import { col } from "./expressions.js";
-import { columnValue, omissible } from "./model-columns.js";
+import { columnValue, omissible, saved } from "./model-columns.js";
 import { decodeAll, decodeOne, decodeOptional } from "./model-decode.js";
 import { fieldOf, projected } from "./model-shape.js";
 import { native } from "./operations.js";
@@ -59,7 +59,7 @@ function assignments(shape, values, write) {
   }
   return shape.fields
     .filter((field) => Object.hasOwn(given, field.field))
-    .map((field) => [field, columnValue(field.column, field.field, given[field.field])]);
+    .map((field) => [field, saved(field.column, columnValue(field.column, field.field, given[field.field]))]);
 }
 
 /**

@@ -9,6 +9,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Callable, TypeAlias
 
 from .. import _native as p
+from . import casts
 
 if TYPE_CHECKING:
     from ..results import RowStream
@@ -39,6 +40,7 @@ class ModelRecord(Mapping[str, Any]):
     selected: tuple[str, ...]
     columns: tuple[str, ...]
     read: Mapping[str, p.Value]
+    _values: Mapping[str, Any]
 
     def __init__(
         self,
@@ -66,20 +68,24 @@ class ModelRecord(Mapping[str, Any]):
                 if name not in native:
                     raise p.DecodeError(f"the result has no column {name!r}")
         read = {}
+        values = {}
         for name, column in zip(fields, names):
             declared = model.columns[name]
             value = declared._decoded(native.tagged(column))
             if declared._read_as_text:
                 read[name] = value
+            if declared._read_as_text or declared.decode is not None:
+                values[name] = casts.read(declared, value)
         object.__setattr__(self, "model", model)
         object.__setattr__(self, "native", native)
         object.__setattr__(self, "selected", fields)
         object.__setattr__(self, "columns", names)
         object.__setattr__(self, "read", MappingProxyType(read))
+        object.__setattr__(self, "_values", MappingProxyType(values))
 
     def __getitem__(self, name: str) -> Any:
-        if name in self.read:
-            return self.read[name].value
+        if name in self._values:
+            return self._values[name]
         return self.native[self._column(name)]
 
     def __iter__(self) -> Iterator[str]:

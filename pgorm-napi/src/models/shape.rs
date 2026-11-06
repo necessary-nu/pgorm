@@ -3,8 +3,8 @@
 
 use std::sync::Arc;
 
-use neon::prelude::*;
-use pgorm::pgorm_query::{ColumnType, GeneratedKind, Name, TableName};
+use neon::{prelude::*, types::Finalize};
+use pgorm::pgorm_query::{ColumnType, Expr, GeneratedKind, Name, TableName, TypeName};
 use pgorm::{
     CaseStyle, ColumnDef, ColumnPairs, ColumnTypeTrait, RelationDef, Schema, TableColumn,
     TableShape,
@@ -14,7 +14,7 @@ use crate::{
     codec::Codec,
     entities::{EntitySchema, schema_parts},
     errors::{Failure, throw},
-    statements::{FOREIGN_KEY_ACTIONS, data_type, expression, operand, pick},
+    statements::{FOREIGN_KEY_ACTIONS, Node, data_type, expression, operand, pick},
     values::{Tag, read},
 };
 
@@ -22,6 +22,12 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("modelSchema", model_schema)?;
     cx.export_function("modelTable", model_table)?;
     cx.export_function("modelRenamed", model_renamed)?;
+    cx.export_function("modelCasts", model_casts)?;
+    cx.export_function("modelCastSelect", cast_select)?;
+    cx.export_function("modelCastSave", cast_save)?;
+    cx.export_function("modelCastComparedColumn", cast_compared_column)?;
+    cx.export_function("modelCastComparedValue", cast_compared_value)?;
+    cx.export_function("modelCastComparesAsEnum", cast_compares_as_enum)?;
     Ok(())
 }
 
@@ -220,6 +226,11 @@ pub(crate) fn column_of<'cx>(
     };
     let declared = property(cx, column, "columnType")?;
     let declared = declared_type(cx, declared)?;
+    if let Some(declared) = &declared
+        && let Err(failure) = refuse_declared(&kind, declared)
+    {
+        return throw(cx, failure);
+    }
     let mut def = match column_type(&kind, &values, declared.as_ref()) {
         Ok(column_type) => column_type.def(),
         Err(failure) => return throw(cx, failure),
@@ -240,6 +251,36 @@ pub(crate) fn column_of<'cx>(
     let default = property(cx, column, "default")?;
     let unstated = flag(cx, default)?;
     Ok((name, def, unstated))
+}
+
+/// Refuse a `columnType` the kind cannot be written as: a created range's
+/// is its own, and an enum's is a domain over that enum alone, which the
+/// column is read and compared as.
+// [spec:pgorm:req:bindings.model-casts]
+fn refuse_declared(tag: &Tag, declared: &ColumnType) -> Result<(), Failure> {
+    let element = match tag {
+        Tag::Array(element) => element,
+        other => other,
+    };
+    match element {
+        Tag::Created(_) => Err(Failure::Construction(
+            "a created range column's type is its kind's own: it takes no columnType".to_owned(),
+        )),
+        Tag::Enum(name) => {
+            let mut enum_type = TypeName::new(Name::runtime(&name.name));
+            if let Some(schema) = &name.schema {
+                enum_type = enum_type.schema(Name::runtime(schema));
+            }
+            let column = TableColumn::new("column", declared.clone().def());
+            match column.compares_as() == Some(enum_type) {
+                true => Ok(()),
+                false => Err(Failure::Construction(
+                    "an enum column's columnType is a domain over its enum".to_owned(),
+                )),
+            }
+        }
+        _ => Ok(()),
+    }
 }
 
 /// A unique key a described table gives: `{ name, columns,
@@ -441,4 +482,121 @@ fn model_renamed(mut cx: FunctionContext) -> JsResult<JsValue> {
         Ok(style) => Ok(cx.string(style.convert(&field)).upcast()),
         Err(error) => cx.throw_type_error(error.to_string()),
     }
+}
+
+/// A model column's casts: pgorm's `TableColumn` for the column's type, its
+/// `selectAs` and `saveAs`, which a model reads, writes and compares a column
+/// declaring one of them through.
+// [spec:pgorm:req:bindings.model-casts]
+pub(crate) struct CastsHandle(TableColumn);
+
+impl Finalize for CastsHandle {}
+
+/// The type a `selectAs` or `saveAs` names, as a cast spells it.
+// [spec:pgorm:req:bindings.model-casts]
+fn cast_type<'cx>(cx: &mut Cx<'cx>, value: Handle<'cx, JsValue>) -> NeonResult<Option<TypeName>> {
+    if missing(cx, value) {
+        return Ok(None);
+    }
+    let declared = data_type(cx, value)?;
+    match declared.cast_type() {
+        Some(type_name) => Ok(Some(type_name)),
+        None => read::refuse(
+            cx,
+            "no cast names this type: an interval restricted to fields, or bit with no length",
+        ),
+    }
+}
+
+/// `modelCasts(column)`: the casts of the column JavaScript describes.
+// [spec:pgorm:req:bindings.model-casts]
+fn model_casts(mut cx: FunctionContext) -> JsResult<JsBox<CastsHandle>> {
+    let described = cx.argument::<JsValue>(0)?;
+    let (name, def, _) = column_of(&mut cx, described)?;
+    let Ok(object) = described.downcast::<JsObject, _>(&mut cx) else {
+        return cx.throw_type_error("a described column is an object");
+    };
+    let mut column = TableColumn::new(name, def);
+    let select_as = property(&mut cx, object, "selectAs")?;
+    if let Some(type_name) = cast_type(&mut cx, select_as)? {
+        column = column.with_select_as(type_name);
+    }
+    let save_as = property(&mut cx, object, "saveAs")?;
+    if let Some(type_name) = cast_type(&mut cx, save_as)? {
+        column = column.with_save_as(type_name);
+    }
+    Ok(cx.boxed(CastsHandle(column)))
+}
+
+/// A value the casts take: an expression as it is, a value as its bare
+/// datum, the cast its kind would bind it under left to the column.
+fn cast_operand<'cx>(cx: &mut Cx<'cx>, value: Handle<'cx, JsValue>) -> NeonResult<Expr> {
+    if let Some(Node::Expr(expr)) = crate::statements::node(cx, value) {
+        return Ok(Expr::expr(expr));
+    }
+    let codec = Codec::get(cx)?;
+    match read::infer(cx, codec, value)? {
+        Some(tagged) => Ok(Expr::val(tagged.datum)),
+        None => Ok(Expr::expr(operand(cx, value)?)),
+    }
+}
+
+fn casts<'cx>(cx: &mut FunctionContext<'cx>) -> NeonResult<Handle<'cx, JsBox<CastsHandle>>> {
+    cx.argument::<JsBox<CastsHandle>>(0)
+}
+
+fn expr_node<'cx>(
+    cx: &mut FunctionContext<'cx>,
+    expr: pgorm::pgorm_query::SimpleExpr,
+) -> JsResult<'cx, JsValue> {
+    Ok(cx.boxed(Node::Expr(expr)).upcast())
+}
+
+/// `modelCastSelect(casts, expr)`: a read of the column as a projection
+/// reads one of its type, `null` where it is read as it stands.
+fn cast_select(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let handle = casts(&mut cx)?;
+    let expr = cx.argument::<JsValue>(1)?;
+    let expr = Expr::expr(expression(&mut cx, expr)?);
+    match handle.0.select(expr) {
+        Some(selected) => expr_node(&mut cx, selected),
+        None => Ok(cx.null().upcast()),
+    }
+}
+
+/// `modelCastSave(casts, value)`: a value as it is written to the column.
+fn cast_save(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let handle = casts(&mut cx)?;
+    let value = cx.argument::<JsValue>(1)?;
+    let value = cast_operand(&mut cx, value)?;
+    let saved = handle.0.save(value);
+    expr_node(&mut cx, saved)
+}
+
+/// `modelCastComparedColumn(casts, expr)`: a read of the column as a
+/// comparison takes it.
+fn cast_compared_column(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let handle = casts(&mut cx)?;
+    let expr = cx.argument::<JsValue>(1)?;
+    let expr = Expr::expr(expression(&mut cx, expr)?);
+    let compared = handle.0.compared_column(expr);
+    expr_node(&mut cx, compared.into())
+}
+
+/// `modelCastComparedValue(casts, value)`: a value as a comparison with the
+/// column takes it.
+fn cast_compared_value(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let handle = casts(&mut cx)?;
+    let value = cx.argument::<JsValue>(1)?;
+    let value = cast_operand(&mut cx, value)?;
+    let compared = handle.0.compared_value(value);
+    expr_node(&mut cx, compared)
+}
+
+/// `modelCastComparesAsEnum(casts)`: whether the column compares as an enum,
+/// its type a domain over one.
+fn cast_compares_as_enum(mut cx: FunctionContext) -> JsResult<JsBoolean> {
+    let handle = casts(&mut cx)?;
+    let compares = handle.0.compares_as().is_some();
+    Ok(cx.boolean(compares))
 }

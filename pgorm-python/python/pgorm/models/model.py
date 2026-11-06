@@ -8,6 +8,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, Required, TypeAlias, TypedDict, cast
 
 from .. import _native as p
+from . import casts
 from .columns import Column, ModelColumn
 
 if TYPE_CHECKING:
@@ -223,10 +224,7 @@ class Model:
         to ``text``, or ``text[]`` for an array, when the field is read as its
         text."""
         name = field if name is None else name
-        declared = self.columns[field]
-        if declared._read_as_text:
-            return column.cast(p.TypeName("text"), array=declared.array).as_(name)
-        return column if name == self._sql(field) else column.as_(name)
+        return casts.projected(self.columns[field], column, name, self._sql(field))
 
     def _selection(self, fields: tuple[str, ...]) -> tuple[str, ...]:
         selected = tuple(self.columns) if not fields else fields

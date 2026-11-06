@@ -14,8 +14,9 @@
 
 import { runStatement } from "./connections.js";
 import { DecodeError } from "./errors.js";
-import { columnKey, readsText } from "./model-columns.js";
+import { columnKey, readsText, readValue } from "./model-columns.js";
 import { native } from "./operations.js";
+import { CreatedMultirange } from "./values.js";
 import { decodedWith } from "./streams.js";
 
 /** The kind a field read from its text is projected as. */
@@ -81,7 +82,7 @@ function checked(field, value) {
     if (!column.nullable) throw new DecodeError(`${field.field} is not nullable, and the row holds NULL`);
     return value;
   }
-  if (readsText(column)) {
+  if (readsText(column) && column.kind instanceof CreatedMultirange) {
     if (!column.array) return native.modelReadText(column.kind, value);
     return /** @type {(string | null)[]} */ (value).map((item) => item === null ? null : native.modelReadText(column.kind, item));
   }
@@ -94,7 +95,7 @@ function checked(field, value) {
       }
     }
   }
-  return value;
+  return readValue(column, value);
 }
 
 /**

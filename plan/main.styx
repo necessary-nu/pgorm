@@ -13542,6 +13542,9 @@ children (
                     {
                         id napi.guide-gaps.json-shape
                         title "A model's json column decodes its documents as a type of the program's choosing, checked as they are read, as a Rust JsonValueType field does (guide 03-entities, 13-values)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.model-conversions])
+                        }
                         deps (napi-models guide.javascript)
                         log (
                             {
@@ -13549,6 +13552,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @status
                                 text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T07:03:49.98035Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built together with guide.python-gaps.model-types (rule bindings.model-conversions). A json column's documents take the program's type through the column's decode option, a function from the document to the program's value run as each row is read (a throw makes the read a DecodeError, NULL never reaches it); the record's field is typed as decode's return type (models.d.ts Decoded/Encoded helpers in FieldValue/FieldInput/FieldOperand). encode is decode's inverse, run before writes and comparisons. Any kind takes the pair, which is also the counterpart of a Rust ValueType newtype and of ActiveEnum rs_type/db_type (an i16 or text column whose decode maps to the program's values)."
                             }
                         )
                     }
@@ -13699,6 +13709,9 @@ children (
                     {
                         id napi.guide-gaps.model-column-casts
                         title "A declared model column reads and writes money (cast to and from numeric), compares a domain over an enum cast to the enum, and takes custom read and write casts, as Rust's ColumnType::Money, its domain-over-enum comparisons and select_as, save_as, select_with and save_with do (guide 13-values)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.model-casts])
+                        }
                         deps (napi-models napi-values guide.javascript)
                         log (
                             {
@@ -13706,6 +13719,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "nplan_start refuses this node (\"dep napi-values is Todo\") though nplan_node reports napi-values done (delivered a54defe5), after nplan_sync; worked on in the guide.python-gaps.model-ddl worktree without the start, as the lane brief directs. Lead: the dep's status reading is the nplan defect gaps-common describes."
+                            }
+
+                            {
+                                at 2026-11-06T07:03:49.579163Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built together with guide.python-gaps.model-types (see its decision note for the full shape). JavaScript specifics: column options columnType (\"money\", DataType.domain(name, base), new DataType(\"interval\", { fields: \"hourToMinute\", precision })), selectAs/saveAs (a built-in type name, TypeName or DataType), selectWith/saveWith ((c: Expr) => Expr; exclusive with the *As form); casts come from the native modelCasts handle (modelCastSelect returns null where the column reads as it stands, so no alias is written), compared values bind the bare datum so an enum's cast is not doubled."
                             }
                         )
                     }
@@ -19539,6 +19559,10 @@ children (
                     {
                         id guide.python-gaps.model-types
                         title "Declared models type their columns as entities do: money (ColumnType::Money read as Decimal), domains (ColumnType::Domain, a domain over an enum compared as the enum), interval fields (IntervalSpec::Fields), the select_as, save_as, select_with, save_with and save_array_with casts (a cast to a type with a modifier such as bit(7) included), ValueType and JsonValueType newtypes, and ActiveEnum's rs_type, db_type and display"
+                        implements {
+                            main ([spec:pgorm:sem:schema.shape-casts])
+                            python ([spec:pgorm:req:bindings.model-casts] [spec:pgorm:req:bindings.model-conversions])
+                        }
                         deps (python.models python.values)
                         log (
                             {
@@ -19546,6 +19570,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @status
                                 text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T07:03:48.580103Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Decided by this lane pending operator override (shared with napi.guide-gaps.model-column-casts and napi.guide-gaps.json-shape; rules bindings.model-casts, bindings.model-conversions, schema.shape-casts, sql.types.type-name+9). One cast source: pgorm's TableColumn (src/entity/table_shape.rs) gained select (Option: None where the column reads as it stands, so a projection needs no alias), save, compared_column, compared_value, compares_as, with_select_as, with_save_as, all built on the crate's select_cast/save_cast/compared_enum/compared_value_as that entity columns use; each binding asks a native per-column casts handle (Python _ModelColumnCasts via _model_casts, JS native.modelCasts + modelCast*) built from the same column lowering the DDL uses. Money: kind decimal + column_type=\"money\" (read numeric, written money). Domains: DataType.domain(name, base); an enum column's column_type may only be a domain over that enum (else ConstructionError), and compares cast to the enum on both sides, reads as text, writes cast to the domain. Interval fields: DataType(\"interval\", fields=\"hour_to_minute\" / JS fields:\"hourToMinute\", precision only with seconds) through PgInterval::try_from + with_precision. Custom casts: select_as/save_as take a type (str, TypeName or DataType with modifiers — TypeName::modifiers added in pgorm-query, ColumnType::cast_type for DataType); select_with/save_with are callables Expr->Expr; *_as and *_with are exclusive. save_array_with has no counterpart: a model's any(..) operand is taken as written (stated in the guides). ValueType/JsonValueType/rs_type/db_type: no newtype system in the bindings; a column's decode (stored->program value, run as each row is read, a raise making the read a DecodeError, NULL skipped) and encode (program->stored, run before every write and comparison converts through the kind) cover all three; ActiveEnum's display is the program's own spelling (str/repr), not a binding feature."
                             }
                         )
                     }

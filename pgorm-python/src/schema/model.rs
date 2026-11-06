@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use pgorm::pgorm_query::{ColumnType, GeneratedKind, Name, TableName};
+use pgorm::pgorm_query::{ColumnType, Expr, GeneratedKind, Name, TableName, TypeName};
 use pgorm::{
     CaseStyle, ColumnDef, ColumnPairs, ColumnTypeTrait, RelationDef, Schema, TableColumn,
     TableShape,
@@ -14,7 +14,11 @@ use super::{
     PyDataType, PyEntitySchema,
     args::{ACTIONS, choice},
 };
-use crate::{errors::ConstructionError, expressions, values::Tag};
+use crate::{
+    errors::ConstructionError,
+    expressions::{self, PyExpr},
+    values::{PyValue, Tag},
+};
 
 /// The column type a model column of `tag` is written with: its
 /// `column_type` where it declares one, made an array where the column is;
@@ -28,6 +32,7 @@ fn column_type(
     declared: Option<&ColumnType>,
 ) -> PyResult<ColumnType> {
     if let Some(declared) = declared {
+        refuse_declared(tag, declared)?;
         return Ok(match tag {
             Tag::Array(_) => ColumnType::Array(Arc::new(declared.clone())),
             _ => declared.clone(),
@@ -70,6 +75,36 @@ fn column_type(
         }
         Tag::Array(element) => ColumnType::Array(Arc::new(column_type(element, values, None)?)),
     })
+}
+
+/// Refuse a `column_type` the kind cannot be written as: a created range's
+/// is its own, and an enum's is a domain over that enum alone, which the
+/// column is read and compared as.
+// [spec:pgorm:req:bindings.model-casts]
+fn refuse_declared(tag: &Tag, declared: &ColumnType) -> PyResult<()> {
+    let element = match tag {
+        Tag::Array(element) => element,
+        other => other,
+    };
+    match element {
+        Tag::Created(_) => Err(ConstructionError::new_err(
+            "a created range column's type is its kind's own: it takes no column_type",
+        )),
+        Tag::Enum(name) => {
+            let mut enum_type = TypeName::new(Name::runtime(&name.name));
+            if let Some(schema) = &name.schema {
+                enum_type = enum_type.schema(Name::runtime(schema));
+            }
+            let column = TableColumn::new("column", declared.clone().def());
+            match column.compares_as() == Some(enum_type) {
+                true => Ok(()),
+                false => Err(ConstructionError::new_err(
+                    "an enum column's column_type is a domain over its enum",
+                )),
+            }
+        }
+        _ => Ok(()),
+    }
 }
 
 pub(crate) fn item<'py>(table: &Bound<'py, PyDict>, key: &str) -> PyResult<Bound<'py, PyAny>> {
@@ -292,4 +327,93 @@ pub(super) fn renamed(field: &str, style: &str) -> PyResult<String> {
         .parse()
         .map_err(|error: pgorm::UnknownCaseStyle| PyTypeError::new_err(error.to_string()))?;
     Ok(style.convert(field))
+}
+
+/// A model column's casts: pgorm's `TableColumn`'s for the column's type,
+/// which a model reads, writes and compares a column declaring a
+/// `column_type` through.
+// [spec:pgorm:req:bindings.model-casts]
+#[derive(Debug)]
+#[pyclass(name = "_ModelColumnCasts", module = "pgorm", frozen)]
+pub struct PyModelColumnCasts {
+    column: TableColumn,
+}
+
+#[pymethods]
+impl PyModelColumnCasts {
+    /// `expr`, a read of the column, as a projection reads one of its type;
+    /// `None` where it is read as it stands.
+    fn select(&self, expr: &Bound<'_, PyAny>) -> PyResult<Option<PyExpr>> {
+        let expr = Expr::expr(expressions::require_expr(expr)?.inner);
+        Ok(self.column.select(expr).map(PyExpr::from_rust))
+    }
+
+    /// `value`, a value or an expression, as it is written to the column.
+    fn save(&self, value: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        Ok(PyExpr::from_rust(self.column.save(operand(value)?)))
+    }
+
+    /// Whether the column compares as an enum, its type a domain over one.
+    #[getter]
+    fn compares_as_enum(&self) -> bool {
+        self.column.compares_as().is_some()
+    }
+
+    /// `expr`, a read of the column, as a comparison takes it.
+    fn compared_column(&self, expr: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        let expr = Expr::expr(expressions::require_expr(expr)?.inner);
+        Ok(PyExpr::from_rust(self.column.compared_column(expr).into()))
+    }
+
+    /// `value` as a comparison with the column takes it.
+    fn compared_value(&self, value: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        Ok(PyExpr::from_rust(
+            self.column.compared_value(operand(value)?),
+        ))
+    }
+}
+
+/// `value` as the column's casts take it: a `Value` as its bare datum, the
+/// cast its kind would bind it under left to the column, and any other
+/// operand as an expression coerces it.
+fn operand(value: &Bound<'_, PyAny>) -> PyResult<Expr> {
+    match value.extract::<PyRef<'_, PyValue>>() {
+        Ok(value) => Ok(Expr::val(value.inner.clone())),
+        Err(_) => Ok(Expr::expr(expressions::coerce(value)?.inner)),
+    }
+}
+
+/// `_model_casts(column)`: the casts of the column Python describes, as
+/// pgorm's `TableColumn` of its type reads, writes and compares it.
+// [spec:pgorm:req:bindings.model-casts]
+#[pyfunction(name = "_model_casts")]
+pub(super) fn model_casts(column: &Bound<'_, PyAny>) -> PyResult<PyModelColumnCasts> {
+    let (name, def, _) = column_of(column)?;
+    let described = column.cast::<PyDict>()?;
+    let mut column = TableColumn::new(name, def);
+    if let Some(type_name) = cast_type(&item(described, "select_as")?)? {
+        column = column.with_select_as(type_name);
+    }
+    if let Some(type_name) = cast_type(&item(described, "save_as")?)? {
+        column = column.with_save_as(type_name);
+    }
+    Ok(PyModelColumnCasts { column })
+}
+
+/// The type a `select_as` or `save_as` names, as a cast spells it: any type
+/// a `ColumnDef` takes that has a name and modifiers.
+// [spec:pgorm:req:bindings.model-casts]
+fn cast_type(value: &Bound<'_, PyAny>) -> PyResult<Option<TypeName>> {
+    if value.is_none() {
+        return Ok(None);
+    }
+    PyDataType::coerce(value)?
+        .inner
+        .cast_type()
+        .map(Some)
+        .ok_or_else(|| {
+            ConstructionError::new_err(
+                "no cast names this type: an interval restricted to fields, or bit with no length",
+            )
+        })
 }

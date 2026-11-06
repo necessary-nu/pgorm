@@ -8,7 +8,7 @@
 import { ConstructionError } from "./errors.js";
 import { Expr } from "./expressions.js";
 import { Clauses, countOf, keyedCursor, pagesOf, recipeOf, selectOf, sourcesOf } from "./model-clauses.js";
-import { Column, ModelColumn, readsText } from "./model-columns.js";
+import { Column, ModelColumn, selected } from "./model-columns.js";
 import { decodeAll, decodeCount, decodeOne, decodeOptional, decodeStream } from "./model-decode.js";
 import { sameTable, shapeOf } from "./model-shape.js";
 import { isIdentifier } from "./values.js";
@@ -31,9 +31,8 @@ function itemName(name) {
 
 /**
  * `expr` read under the result column `result` and the key `key`, decoded
- * as `declaration` says: aliased where `aliased` says so, and cast to
- * `text` (`text[]`) where the declaration is read from its text, as a
- * model's field is.
+ * as `declaration` says: read as the declaration's casts read it, as a
+ * model's field is, and aliased where `aliased` says so or the read casts it.
  *
  * @param {Expr} expr
  * @param {string} key
@@ -43,10 +42,9 @@ function itemName(name) {
  * @returns {Item}
  */
 function itemOf(expr, key, result, declaration, aliased) {
+  const read = selected(declaration, expr);
   /** @type {Expr | import("./expressions.js").Aliased} */
-  let projected = expr;
-  if (readsText(declaration)) projected = expr.cast("text", { array: declaration.array }).as(result);
-  else if (aliased) projected = expr.as(result);
+  const projected = aliased || read !== expr ? read.as(result) : expr;
   return { field: { field: key, sql: result, column: declaration }, projected };
 }
 

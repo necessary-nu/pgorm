@@ -229,7 +229,7 @@ pub trait IntoColumnRef {
 /// This is the *only* thing a cast carries as its type: one node shape, the
 /// quoted-or-verbatim question answered inside the type rather than by
 /// picking a different node.
-// [spec:pgorm:def:sql.types.type-name+8]
+// [spec:pgorm:def:sql.types.type-name+9]
 // [spec:pgorm:req:sql.ast.cast-shape+2]
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeName {
@@ -244,6 +244,10 @@ pub struct TypeName {
     /// and a flag over `name` would render whatever `name` was reassigned to.
     /// Only program text reaches here, through `raw`'s bound.
     verbatim: Option<&'static str>,
+    /// The type's modifiers, written in parentheses after its name — the 7
+    /// of `bit(7)`, the 10 and 2 of `numeric(10, 2)`. Numbers alone, so a
+    /// modified type built from a value reaches no SQL a name could not.
+    modifiers: Vec<u32>,
 }
 
 impl TypeName {
@@ -257,6 +261,7 @@ impl TypeName {
             name: name.into_name(),
             array: false,
             verbatim: None,
+            modifiers: Vec::new(),
         }
     }
 
@@ -292,6 +297,7 @@ impl TypeName {
             name: Name::runtime(type_expr),
             array: false,
             verbatim: Some(type_expr),
+            modifiers: Vec::new(),
         }
     }
 
@@ -316,6 +322,23 @@ impl TypeName {
         self
     }
 
+    /// The type with `modifiers`, written in parentheses after its name and
+    /// before an array's `[]`: `bit(7)`, `numeric(10, 2)`, `varchar(20)[]`.
+    ///
+    /// ```
+    /// use pgorm_query::{Expr, ExprTrait, Name, Query, TypeName};
+    ///
+    /// let bits = TypeName::new(Name::runtime("bit")).modifiers([7]);
+    /// assert_eq!(bits.to_sql_string(), "bit(7)");
+    /// let query = Query::select().expr(Expr::val("0111110").cast_as_type(bits)).to_owned();
+    /// assert_eq!(query.to_string(), "SELECT CAST('0111110' AS bit(7))");
+    /// ```
+    // [spec:pgorm:def:sql.types.type-name+9]
+    pub fn modifiers(mut self, modifiers: impl IntoIterator<Item = u32>) -> Self {
+        self.modifiers = modifiers.into_iter().collect();
+        self
+    }
+
     /// The SQL spelling: parts dot-joined, a structural `[]` suffix for
     /// arrays.
     ///
@@ -330,7 +353,7 @@ impl TypeName {
     /// that is what a caller naming it means. A [`raw`](Self::raw) type
     /// expression is the one exception to all of this and renders as
     /// written — that text alone, the schema qualifying it still a name.
-    // [spec:pgorm:def:sql.types.type-name+8]
+    // [spec:pgorm:def:sql.types.type-name+9]
     pub fn to_sql_string(&self) -> String {
         let mut out = String::new();
         let name = match &self.schema {
@@ -344,6 +367,12 @@ impl TypeName {
         match self.verbatim {
             Some(type_expr) => out.push_str(type_expr),
             None => Self::prepare_part(&self.name, name, &mut out),
+        }
+        if !self.modifiers.is_empty() {
+            let modifiers: Vec<String> = self.modifiers.iter().map(u32::to_string).collect();
+            out.push('(');
+            out.push_str(&modifiers.join(", "));
+            out.push(')');
         }
         if self.array {
             out.push_str("[]");
@@ -362,7 +391,7 @@ impl TypeName {
     /// every name-shaped position, each position saying only which of the
     /// grammar's own forms it reads.
     // [spec:pgorm:req:sql.render.ident-quoting+7]
-    // [spec:pgorm:def:sql.types.type-name+8]
+    // [spec:pgorm:def:sql.types.type-name+9]
     pub(crate) fn prepare_part(part: &Name, position: Position, out: &mut String) {
         let text = part.to_string();
         if keywords::bare(&text, position) {
@@ -1075,7 +1104,7 @@ mod tests {
     pub use Character as CharReexport;
     use pretty_assertions::assert_eq;
 
-    // [spec:pgorm:def:sql.types.type-name+8/test]    only the text `raw` was
+    // [spec:pgorm:def:sql.types.type-name+9/test]    only the text `raw` was
     // given renders verbatim: a schema on a raw type is a name, and
     // reassigning `name` afterwards changes nothing that renders
     #[test]

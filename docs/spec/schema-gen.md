@@ -132,6 +132,27 @@ executes SQL.
 > and refused as `schema.from-entity` refuses a key over a domain over an
 > enum, from the types its `ColumnPairs` records.
 
+> [spec:pgorm:sem:schema.shape-casts]
+> A `TableColumn` MUST read, write and compare as an entity's column of its
+> type does when it declares no cast of its own
+> (`[spec:pgorm:sem:entity.traits.column.enum-cast]`), from its
+> definition's `ColumnType`: `select` is `select_as`'s default — `money`
+> read as `numeric`, an enum, a domain over one and a created multirange as
+> their text, an array of each as the array of it, and none where the column
+is read as it stands — `save` is `save_as`'s —
+> a value cast to `money`, to an enum or a domain, a created range's text
+> cast to its type — and `compared_column` and `compared_value` are the two
+> sides of a value predicate, both cast to the enum where the column's type
+> is a domain over one, which PostgreSQL resolves no comparison operator
+> for, and otherwise the column as it is beside the value as `save` writes
+> it. `with_select_as(type)` and `with_save_as(type)` replace the read's and
+> the write's cast with a cast to that type, as an entity column's
+> `select_as` and `save_as` attributes do, and `compared_value` then writes
+> the value through the `save_as` cast too, unless the column compares as an
+> enum. `compares_as` names the enum a domain-over-enum column compares as.
+> So a table described at run time, a binding's model's, is read, written and
+> compared by pgorm's own casts.
+
 ## Secondary indexes
 
 > [spec:pgorm:sem:schema.from-entity.index+2]

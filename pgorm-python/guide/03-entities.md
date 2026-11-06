@@ -505,11 +505,12 @@ Python like this:
 - `enum_name` and `schema_name` are the `TypeName`'s name and `schema`.
 - `rename_all` and `string_value` have nothing to do, since the labels are
   written as they are.
-- `rs_type` and `db_type`, an enum stored as integers or plain text, have no
-  Python counterpart: declare the column by the kind it is stored as, such as
-  `"i16"`, and map the values in the program.
-- `display` has no counterpart, and the labels are already a list,
-  `Cake.columns["flavor"].values`, where Rust iterates `Flavor::iter()`.
+- `rs_type` and `db_type`, an enum stored as integers or plain text, are a
+  column of the kind it is stored as, such as `"i16"`, whose `decode` and
+  `encode` turn the stored value into a Python `enum.IntEnum` or `StrEnum`
+  member and back ([Values and types](13-values.md#newtypes)).
+- `display` is the Python enum's own `str()`, and the labels are already a
+  list, `Cake.columns["flavor"].values`, where Rust iterates `Flavor::iter()`.
 
 An array of an enum is `array=True` beside the `TypeName`, which names its
 schema there too. [Schema generation](14-schema.md) creates an enum's type,

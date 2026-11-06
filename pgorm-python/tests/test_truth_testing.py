@@ -36,9 +36,11 @@ EXEMPT = {
     _native._Pool, _native._Connection, _native._Transaction, _native._Stream,
     _native._CopyIn, _native._CopyOut, _native._Listener, _native._Disjoint,
     _native._DisjointChange,
-    # Registrations and declarations: they name what a query reads and are
-    # true as any declared object is; the queries they start refuse.
-    p.Entity, p.EntityGraph, Model, Column, Relation, pl.SourceSelection, pl.Binder,
+    # Registrations and declarations, and the native casts a declared column
+    # holds: they name what a query reads and are true as any declared object
+    # is; the queries they start refuse.
+    p.Entity, p.EntityGraph, Model, Column, _native._ModelColumnCasts, Relation,
+    pl.SourceSelection, pl.Binder,
     model.UniqueKey, model._DeclaredKey, p.PartialModel, p.FromExpr, p.Skip,
     views.EntityView, graph_views.GraphView, FieldType,
     # The layout the codegen writes source with: build-time values no query

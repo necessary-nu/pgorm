@@ -137,6 +137,8 @@ pub(crate) fn install(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(model::model_schema, module)?)?;
     module.add_function(wrap_pyfunction!(model::model_table, module)?)?;
     module.add_function(wrap_pyfunction!(model::renamed, module)?)?;
+    module.add_function(wrap_pyfunction!(model::model_casts, module)?)?;
+    module.add_class::<model::PyModelColumnCasts>()?;
     module.add_function(wrap_pyfunction!(table::create_table, module)?)?;
     module.add_function(wrap_pyfunction!(index::create_index, module)?)?;
     module.add_function(wrap_pyfunction!(custom_types::create_type, module)?)?;
