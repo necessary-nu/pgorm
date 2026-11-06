@@ -562,7 +562,7 @@ impl Tx<'_, '_> {
     fn database(&self) -> Database<'_> {
         match self {
             Self::Plain(tx) => Database::Transaction(tx),
-            Self::Metered(tx) => Database::MeteredTransaction(tx),
+            Self::Metered(tx) => Database::InstrumentedTransaction(tx),
         }
     }
 }
@@ -1131,7 +1131,7 @@ fn transaction_copy_out(mut cx: FunctionContext) -> JsResult<JsPromise> {
     copy::opened(&mut cx, shared, state.send(command), receive, CopyOutHandle)
 }
 
-/// `transactionStream(transaction, sql, params, abort, disjoint?)`: a stream
+/// `transactionStream(transaction, sql, params, abort, decoder?)`: a stream
 /// of the statement's rows in the transaction, which holds its lock until the
 /// last row; closed before it, the transaction is discarded.
 // [spec:pgorm:req:bindings.streams+1]
@@ -1139,13 +1139,7 @@ fn transaction_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = state(&mut cx)?;
     let (sql, params) = super::sql_and_params(&mut cx, 1)?;
     let abort = abort_argument(&mut cx, 3)?;
-    let disjoint = match cx.argument_opt(4) {
-        Some(value) => value
-            .downcast::<JsBox<crate::disjoint::DisjointHandle>, _>(&mut cx)
-            .ok()
-            .map(|handle| handle.0.clone()),
-        None => None,
-    };
+    let decode = super::stream::decode_argument(&mut cx, 4);
     let lock = match state.lock() {
         Ok(lock) => lock,
         Err(failure) => return settle::rejected(&mut cx, failure),
@@ -1157,7 +1151,7 @@ fn transaction_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
             rows,
             super::stream::Hold::Transaction(lease),
             state.ended(),
-            disjoint,
+            decode,
         ))
     };
     settle::promise(&mut cx, work, |cx, stream| {

@@ -243,10 +243,10 @@ fn describe_job(mut cx: FunctionContext) -> JsResult<JsValue> {
                 let columns = match db {
                     Database::Connection(connection) => connection.describe(&sql).await,
                     Database::Transaction(transaction) => transaction.describe(&sql).await,
-                    Database::MeteredConnection(connection) => {
+                    Database::InstrumentedConnection(connection) => {
                         connection.inner().describe(&sql).await
                     }
-                    Database::MeteredTransaction(transaction) => {
+                    Database::InstrumentedTransaction(transaction) => {
                         transaction.inner().describe(&sql).await
                     }
                 }

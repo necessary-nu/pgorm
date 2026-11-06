@@ -9,6 +9,9 @@
 
 import { arg, args, Handle, trusted, TRUSTED } from "./builder.js";
 import { registeredColumn } from "./entity-queries.js";
+import { ConstructionError } from "./errors.js";
+import { columnValue } from "./model-columns.js";
+import { fieldOf, isModel, shapeOf } from "./model-shape.js";
 import { native } from "./operations.js";
 
 /** @type {(handle: unknown) => PipelineExpr} */
@@ -160,14 +163,100 @@ export class PipelineExpr extends Handle {
 }
 
 /**
+ * A declared model's column in a pipeline: a value it is compared with, in a
+ * comparison, `coalesce` or `inArray`, converts through the field's
+ * declaration as the model column's own comparisons convert one, and is
+ * bound cast as pgorm's `col_typed` casts a value compared with a column of
+ * that kind. Only the column itself converts: an operator's result is a
+ * plain expression.
+ */
+// [spec:pgorm:req:bindings.pipeline-models]
+class ModelPipelineColumn extends PipelineExpr {
+  /** @type {import("./model-shape.js").Field} */
+  #field;
+
+  /**
+   * @param {unknown} handle
+   * @param {import("./model-shape.js").Field} field
+   */
+  constructor(handle, field) {
+    super(handle, TRUSTED);
+    this.#field = field;
+  }
+
+  /** @param {unknown} value */
+  #operand(value) {
+    if (value instanceof PipelineExpr) return value;
+    if (value === null) {
+      throw new ConstructionError(`${this.#field.field} compared with null is never true: test it with isNull()`);
+    }
+    const converted = columnValue(this.#field.column, this.#field.field, value);
+    return exprOf(native.pipelineDeclaredValue(arg(converted)));
+  }
+
+  /** @override @param {unknown} other */
+  eq(other) {
+    return super.eq(this.#operand(other));
+  }
+
+  /** @override @param {unknown} other */
+  ne(other) {
+    return super.ne(this.#operand(other));
+  }
+
+  /** @override @param {unknown} other */
+  gt(other) {
+    return super.gt(this.#operand(other));
+  }
+
+  /** @override @param {unknown} other */
+  gte(other) {
+    return super.gte(this.#operand(other));
+  }
+
+  /** @override @param {unknown} other */
+  lt(other) {
+    return super.lt(this.#operand(other));
+  }
+
+  /** @override @param {unknown} other */
+  lte(other) {
+    return super.lte(this.#operand(other));
+  }
+
+  /** @override @param {unknown} other */
+  coalesce(other) {
+    return super.coalesce(this.#operand(other));
+  }
+
+  /** @override @param {readonly unknown[]} values */
+  inArray(values) {
+    if (!Array.isArray(values)) throw new TypeError("inArray takes an array");
+    return super.inArray(values.map((value) => this.#operand(value)));
+  }
+}
+
+/**
  * A column of the relation `table` names: prqlc has no catalog, so every
  * column is qualified. A registered entity's column (`entity.col(name)`) is
  * the entity's own, compared as the entity types it; a name only qualifies.
+ * Given a declared model, `column` is its field: the column its declaration
+ * names, qualified by the model's alias or table name, and compared as its
+ * declared kind.
  *
- * @param {string | PipelineExpr} table
+ * @param {string | PipelineExpr | object} table
  * @param {string | PipelineExpr | import("./entity-queries.js").EntityColumn} column
  */
 export function col(table, column) {
+  if (isModel(table)) {
+    const shape = shapeOf(table);
+    const field = fieldOf(shape, column);
+    const { kind, array, values } = field.column;
+    return new ModelPipelineColumn(
+      native.pipelineModelCol(shape.qualifier, field.sql, kind, array, values),
+      field,
+    );
+  }
   const registered = registeredColumn(column);
   if (registered) return exprOf(native.pipelineRegisteredCol(arg(table), ...registered));
   return exprOf(native.pipelineCol(arg(table), arg(column)));

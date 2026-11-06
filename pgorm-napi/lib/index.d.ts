@@ -669,7 +669,7 @@ export declare abstract class Queryable {
    * returned, of a type the field's kind reads, or a {@link DecodeError}
    * naming the field. The statement's values are neither bound nor checked.
    */
-  verify(sql: string, model: Model, options?: OperationOptions): Promise<void>;
+  verify(sql: string, model: Model<any>, options?: OperationOptions): Promise<void>;
 }
 
 /**

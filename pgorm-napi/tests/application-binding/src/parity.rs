@@ -179,8 +179,8 @@ fn pipelines() -> Vec<(&'static str, (String, Values))> {
     ]
 }
 
-// [spec:pgorm:req:bindings.entity-reads+3/test]
-// [spec:pgorm:req:bindings.entity-graphs+3/test]
+// [spec:pgorm:req:bindings.entity-reads+4/test]
+// [spec:pgorm:req:bindings.entity-graphs+4/test]
 // [spec:pgorm:req:bindings.pipeline-sources+3/test]
 #[test]
 fn entity_statements_match_the_golden_file() {

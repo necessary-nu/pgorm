@@ -210,23 +210,28 @@ export async function runStatement(db, terminal, statement, options) {
 }
 
 /**
- * The rows of a disjoint read's `statement`, the native half of a `Select`,
- * as a stream on a pool's connection or a connection, each row read by
- * `disjoint`'s codec.
+ * The rows of `statement`, the native half of a `Select`, as a stream on a
+ * pool's connection of its own, on a connection, or, where `transactions`
+ * says so, in a transaction, each row read by `decoder`: a disjoint read's
+ * codec, or a registered read's selector. `what` names the read in the
+ * refusal of any other database.
  * [spec:pgorm:req:bindings.disjoint+2]
+ * [spec:pgorm:req:bindings.streams+1]
  *
  * @param {unknown} db
  * @param {unknown} statement
- * @param {unknown} disjoint
+ * @param {unknown} decoder
  * @param {unknown} options
+ * @param {string} what
+ * @param {boolean} [transactions]
  * @returns {RowStream}
  */
-export function disjointStream(db, statement, disjoint, options) {
+export function decodedStream(db, statement, decoder, options, what, transactions = false) {
   if (db instanceof Pool) {
     return new RowStream(async (token) => {
       const connection = new Connection(await native.poolAcquire(poolHandle(db), token), TRUSTED);
       try {
-        const handle = await native.connectionStream(connectionHandle(connection), statement, [], token, disjoint);
+        const handle = await native.connectionStream(connectionHandle(connection), statement, [], token, decoder);
         return [handle, () => connection.close()];
       } catch (error) {
         await connection.close();
@@ -236,19 +241,19 @@ export function disjointStream(db, statement, disjoint, options) {
   }
   if (db instanceof Connection) {
     return new RowStream(
-      async (token) => [await native.connectionStream(connectionHandle(db), statement, [], token, disjoint), undefined],
+      async (token) => [await native.connectionStream(connectionHandle(db), statement, [], token, decoder), undefined],
       options ?? {},
       TRUSTED,
     );
   }
-  if (db instanceof Transaction) {
+  if (transactions && db instanceof Transaction) {
     return new RowStream(
-      async (token) => [await native.transactionStream(transactionHandle(db), statement, [], token, disjoint), undefined],
+      async (token) => [await native.transactionStream(transactionHandle(db), statement, [], token, decoder), undefined],
       options ?? {},
       TRUSTED,
     );
   }
-  throw new TypeError("a disjoint read's rows stream from a Pool, a Connection or a Transaction");
+  throw new TypeError(`${what}'s rows stream from a Pool${transactions ? ", a Connection or a Transaction" : " or a Connection"}`);
 }
 
 /**

@@ -83,7 +83,7 @@ class Recipe:
         return query.limit(limit).offset(self.offset)
 
 
-# [spec:pgorm:req:bindings.model-reads]
+# [spec:pgorm:req:bindings.model-reads+1]
 @dataclass(frozen=True, eq=False, slots=True)
 class ModelQuery:
     """A model's SELECT: every method returns a new query, and the terminals
@@ -140,7 +140,9 @@ class ModelQuery:
         alias: str | None = None,
     ) -> ModelQuery:
         """Join the table at the far end of ``relation``, from the query's
-        model or a table it joined, without reading its columns."""
+        model or a table it joined, without reading its columns: the first
+        table of the relation's model the query reads, or the one its
+        ``from_alias`` names."""
         from .relations import Relation, joined_on, same_table
 
         if not isinstance(relation, Relation):
@@ -150,11 +152,22 @@ class ModelQuery:
         recipe = self.recipe
         tables = [(recipe.model, recipe.model.qualifier)]
         tables += [(join.model, join.qualifier) for join in recipe.joins]
-        start = next((q for model, q in tables if same_table(model, relation.from_)), None)
-        if start is None:
-            raise p.ConstructionError(
-                f"the relation starts at {relation.from_.table.name}, which the query does not read"
-            )
+        if relation.start is None:
+            start = next((q for model, q in tables if same_table(model, relation.from_)), None)
+            if start is None:
+                raise p.ConstructionError(
+                    f"the relation starts at {relation.from_.table.name}, which the query does not read"
+                )
+        else:
+            named = next((model for model, q in tables if q == relation.start), None)
+            if named is None:
+                raise p.ConstructionError(f"the query reads no table called {relation.start!r}")
+            if not same_table(named, relation.from_):
+                raise p.ConstructionError(
+                    f"{relation.start!r} is {named.table.name}, where the relation starts at "
+                    f"{relation.from_.table.name}"
+                )
+            start = relation.start
         end = relation.to
         table = end.table if alias is None else end.table.as_(alias)
         qualifier = end.qualifier if alias is None else p._identifier(alias)
@@ -187,8 +200,7 @@ class ModelQuery:
         recipe = self.recipe
         if not fields:
             raise p.ConstructionError("a cursor orders by at least one field")
-        qualifier = recipe.model.qualifier
-        order = tuple((recipe.model, qualifier, recipe.model.col(name).field_name) for name in fields)
+        order = tuple(recipe.model.col(name) for name in fields)
         return Cursor(
             Keyed(
                 lambda orders, wheres, limit: recipe.select(orders, wheres, limit),

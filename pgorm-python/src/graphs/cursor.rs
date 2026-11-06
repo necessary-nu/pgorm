@@ -1,125 +1,76 @@
-use super::backend::{Boundary, CursorPlan, Query};
-use crate::{
-    entities::{metadata::ColumnInfo, query::bound},
-    errors::ConstructionError,
-};
-use pyo3::{exceptions::PyTypeError, prelude::*, types::PyTuple};
+use crate::{entities::reads_py::CursorState, errors::ConstructionError, expressions::Compiled};
+use pyo3::{prelude::*, types::PyTuple};
 
+/// A registered graph's keyset cursor, `SelectGraph::cursor_by` or
+/// `cursor_by_on`, every decoded source's primary key installed after its
+/// order columns as a tiebreak.
 #[derive(Clone, Debug)]
 #[pyclass(name = "EntityGraphCursor", module = "pgorm", frozen, from_py_object)]
 pub struct PyEntityGraphCursor {
-    pub(crate) query: Query,
-    pub(crate) plan: CursorPlan,
+    pub(crate) state: CursorState,
 }
 
-impl PyEntityGraphCursor {
-    fn columns(&self) -> PyResult<Vec<&ColumnInfo>> {
-        let sources = &self.query.info().bindings.sources;
-        let root = &sources[0].entity;
-        let mut columns = vec![root.column(&self.plan.column)?];
-        for (source_index, source) in sources.iter().enumerate() {
-            for key in &source.entity.primary_key {
-                if source_index != 0 || key != &self.plan.column {
-                    columns.push(source.entity.column(key)?);
-                }
-            }
-        }
-        Ok(columns)
-    }
-
-    fn primary(&self, before: bool, value: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let column = self.query.info().bindings.sources[0]
-            .entity
-            .column(&self.plan.column)?;
-        let bound = Boundary {
-            values: vec![column.input.coerce(value)?.inner],
-            full: false,
-        };
-        let mut cursor = self.clone();
-        if before {
-            cursor.plan.before = Some(bound);
-        } else {
-            cursor.plan.after = Some(bound);
-        }
-        Ok(cursor)
-    }
-
-    fn full(&self, before: bool, values: &Bound<'_, PyTuple>) -> PyResult<Self> {
-        let columns = self.columns()?;
-        if columns.len() != values.len() {
-            return Err(ConstructionError::new_err(format!(
-                "full cursor boundary requires {} values",
-                columns.len()
-            )));
-        }
-        let values = columns
-            .into_iter()
-            .zip(values)
-            .map(|(column, value)| Ok(column.input.coerce(&value)?.inner))
-            .collect::<PyResult<_>>()?;
-        let bound = Boundary { values, full: true };
-        let mut cursor = self.clone();
-        if before {
-            cursor.plan.before = Some(bound);
-        } else {
-            cursor.plan.after = Some(bound);
-        }
-        Ok(cursor)
-    }
-
-    fn window(&self, last: bool, count: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let count = bound(Some(count))?
-            .ok_or_else(|| PyTypeError::new_err("cursor window requires a row count"))?;
-        let mut cursor = self.clone();
-        cursor.plan.window = Some((last, count));
-        Ok(cursor)
-    }
-}
-
+// [spec:pgorm:req:bindings.entity-graphs+4]
 #[pymethods]
 impl PyEntityGraphCursor {
-    fn before(&self, value: &Bound<'_, PyAny>) -> PyResult<Self> {
-        self.primary(true, value)
-    }
-    fn after(&self, value: &Bound<'_, PyAny>) -> PyResult<Self> {
-        self.primary(false, value)
+    /// Rows short of the one whose order-column values these are.
+    #[pyo3(signature = (*values))]
+    fn before(&self, values: &Bound<'_, PyTuple>) -> PyResult<Self> {
+        Ok(Self {
+            state: self.state.bound(true, values, false)?,
+        })
     }
     #[pyo3(signature = (*values))]
+    fn after(&self, values: &Bound<'_, PyTuple>) -> PyResult<Self> {
+        Ok(Self {
+            state: self.state.bound(false, values, false)?,
+        })
+    }
+    /// Rows short of the one whose order-column values, or whole key, these
+    /// are: the order columns, the ordered source's other key columns, then
+    /// each other source's.
+    #[pyo3(signature = (*values))]
     fn before_with(&self, values: &Bound<'_, PyTuple>) -> PyResult<Self> {
-        self.full(true, values)
+        Ok(Self {
+            state: self.state.bound(true, values, true)?,
+        })
     }
     #[pyo3(signature = (*values))]
     fn after_with(&self, values: &Bound<'_, PyTuple>) -> PyResult<Self> {
-        self.full(false, values)
+        Ok(Self {
+            state: self.state.bound(false, values, true)?,
+        })
     }
     fn first(&self, count: &Bound<'_, PyAny>) -> PyResult<Self> {
-        self.window(false, count)
+        Ok(Self {
+            state: self.state.window(false, count)?,
+        })
     }
     fn last(&self, count: &Bound<'_, PyAny>) -> PyResult<Self> {
-        self.window(true, count)
+        Ok(Self {
+            state: self.state.window(true, count)?,
+        })
     }
-
     fn asc(&self) -> Self {
-        let mut cursor = self.clone();
-        cursor.plan.descending = false;
-        cursor
+        Self {
+            state: self.state.direction(false),
+        }
     }
     fn desc(&self) -> Self {
-        let mut cursor = self.clone();
-        cursor.plan.descending = true;
-        cursor
+        Self {
+            state: self.state.direction(true),
+        }
+    }
+    /// The statement `all` sends, `Cursor::statement`.
+    fn inspect(&self) -> PyResult<Compiled> {
+        self.state.inspect()
     }
     fn all<'py>(
         &self,
         py: Python<'py>,
         connection: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        super::io::read(
-            py,
-            connection,
-            self.query.clone(),
-            super::io::Read::Cursor(self.plan.clone()),
-        )
+        self.state.all(py, connection)
     }
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(

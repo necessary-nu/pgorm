@@ -173,9 +173,10 @@ past a whole run of one key while `after_with` resumes inside it. A
 JavaScript model cursor's `afterWith` and `beforeWith` take what `after` and
 `before` take.
 
-A [graph](07-relations.md) has cursors too, by its root's fields, and adds
-every decoded source's primary key to the ordering itself; there `afterWith`
-takes the whole ordering.
+A [graph](07-relations.md) has cursors too, `cursor` by its root's fields and
+`cursorOn` by one of its slots', as Rust's `cursor_by` and `cursor_by_on`, and
+adds every decoded source's primary key to the ordering itself; there
+`afterWith` takes the whole ordering.
 
 ## Paginating raw SQL
 

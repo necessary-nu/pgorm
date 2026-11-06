@@ -34,7 +34,7 @@ from pgorm import pipeline as pl
 
 from bakery import Cake
 
-name, price, gluten_free = pl.col("cake", "name"), pl.col("cake", "price"), pl.col("cake", "gluten_free")
+name, price, gluten_free = pl.col(Cake, "name"), pl.col(Cake, "price"), pl.col(Cake, "gluten_free")
 
 dearest = (
     pl.from_(Cake)
@@ -49,14 +49,40 @@ assert compiled.sql == "SELECT name, price FROM cake WHERE gluten_free = true OR
 assert compiled.params == []
 ```
 
-Here Python differs from Rust. Rust's columns are an entity's own `Column`
-variants; a Python pipeline names a column with `pl.col(table, column)`, the
-name of the relation it is read from and the column's name in SQL. The
-compiler drops the qualifier where only one relation is read, as above. A
-model's field names are not translated, so a field whose column has another
-name is read by the column's name. A constant is written into the SQL with
-`pl.literal(value)`; [a plain value is bound](#values-from-the-program)
-instead, where Rust writes a literal.
+A model's column is `pl.col(model, field)`, as Rust's is the entity's own
+`Column` variant: the field's column, qualified by the name the model is read
+under, its alias or its table's, and written under the column's name in SQL,
+which the compiler leaves unqualified where only one relation is read, as
+above. It compares as the field's declared kind does. A value compared with
+it, in a comparison, `coalesce` or `in_array`, converts through the field's
+declaration as the model's own column converts one, so a label the
+declaration does not list, or `None`, is a `ConstructionError` before
+anything is sent, and it is bound cast as Rust casts a value compared with
+an entity column of that kind, an enum's label to its enum:
+
+```python
+from pgorm import ConstructionError
+from pgorm import pipeline as pl
+
+from bakery import Cake
+
+lemon = pl.from_(Cake).filter(pl.col(Cake, "flavor") == "lemon").select(pl.col(Cake, "name"))
+assert lemon.inspect().sql == "SELECT name FROM cake WHERE flavor = CAST($1::text AS public.flavor)"
+assert [value.value for value in lemon.inspect().params] == ["lemon"]
+
+try:
+    pl.col(Cake, "flavor") == "banana"
+except ConstructionError:
+    pass
+else:
+    raise AssertionError("a label the declaration does not list is refused")
+```
+
+A constant is written into the SQL with `pl.literal(value)`; [a plain value
+is bound](#values-from-the-program) instead, where Rust writes a literal.
+`pl.col(table, column)` names a column of a relation no model describes, by
+the relation's name and the column's name in SQL, and carries no type
+([below](#a-table-meeting-itself)).
 
 Python's operators build the expressions: `==`, `!=`, `<`, `<=`, `>`, `>=`,
 or the methods `eq` .. `lte`; `+`, `-`, `*`, `/` and `%`, and unary `-`; and
@@ -81,7 +107,7 @@ from pgorm import pipeline as pl
 
 from bakery import Cake
 
-name, price, gluten_free = pl.col("cake", "name"), pl.col("cake", "price"), pl.col("cake", "gluten_free")
+name, price, gluten_free = pl.col(Cake, "name"), pl.col(Cake, "price"), pl.col(Cake, "gluten_free")
 
 
 async def main() -> None:
@@ -102,15 +128,69 @@ async def main() -> None:
         cheapest = pl.from_(Cake).sort(price).select(name)
         assert (await cheapest.one(pool))["name"] == "Vanilla Sponge"
         assert "LIMIT 1" in cheapest.inspect(terminal="one").sql
-        assert await pl.from_(Cake).filter(price > pl.literal(100)).optional(pool) is None
+        assert await pl.from_(Cake).filter(price > Decimal(100)).optional(pool) is None
 
 
 asyncio.run(main())
 ```
 
-Here Python differs from Rust, whose terminals decode each row into a type
-of the program's choosing, and whose `into_model` and `into_tuple` stage such
-a read. A Python pipeline's rows are records, read by column name.
+Rust's terminals decode each row into a type of the program's choosing, and
+its `into_model` and `into_tuple` stage such a read. A Python pipeline stages
+the same reads. `into_model(model)` reads each row as a model's record, each
+field from the result column of its SQL name, the result's columns exactly
+the model's and each held to its declaration, as the model's own queries
+hold them; given a function instead, such as a dataclass, it calls it with
+each row's columns as keyword arguments. `into_tuple()` reads each row as a
+tuple of its values in column order, by position, so a result with two
+columns of one name is read whole. Each gives a `PipelineSelector`, whose
+`all`, `one` and `optional` run as the pipeline's own do, and whose
+`inspect(terminal=)` shows what each sends. Rust's `all::<M>()` is
+`into_model(M).all(db)`:
+
+```python
+import asyncio
+import os
+from dataclasses import dataclass
+from decimal import Decimal
+
+from pgorm import Pool
+from pgorm import pipeline as pl
+
+from bakery import Cake
+
+
+@dataclass(frozen=True)
+class Priced:
+    name: str
+    price: Decimal
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        gluten_free = (
+            pl.from_(Cake)
+            .filter(pl.col(Cake, "gluten_free") == pl.literal(True))
+            .sort(pl.col(Cake, "price"))
+        )
+
+        cakes = await gluten_free.into_model(Cake).all(pool)
+        assert [(cake["name"], cake["flavor"]) for cake in cakes] == [
+            ("Vanilla Sponge", "vanilla"),
+            ("Lemon Drizzle", "lemon"),
+            ("Chocolate Torte", "chocolate"),
+        ]
+
+        priced = gluten_free.select(pl.col(Cake, "name"), pl.col(Cake, "price"))
+        assert await priced.into_model(Priced).one(pool) == Priced("Vanilla Sponge", Decimal("2.90"))
+        assert await priced.into_tuple().all(pool) == [
+            ("Vanilla Sponge", Decimal("2.90")),
+            ("Lemon Drizzle", Decimal("3.20")),
+            ("Chocolate Torte", Decimal("6.00")),
+        ]
+
+
+asyncio.run(main())
+```
 
 ## The steps
 
@@ -366,8 +446,8 @@ A `take` takes a number, not an expression: PRQL has no bound row count.
 
 `join(source, on, kind=Join.Inner)` takes the relation to join, the
 condition, and which rows to keep: `Join.Inner`, the default, `Left`,
-`Right` or `Full`. A model passed to `join`, `append`, `intersect` or
-`remove` goes through `pl.source(model)`. A column carries the name of its
+`Right` or `Full`. A model is a relation wherever one is taken, `join`,
+`append`, `intersect` and `remove` included. A column carries the name of its
 relation, so a condition across two is qualified as written:
 
 ```python
@@ -385,9 +465,9 @@ async def main() -> None:
         cake_name = pl.alias("cake")
         in_bergen = (
             pl.from_(Cake)
-            .join(pl.source(Bakery), pl.col("cake", "bakery_id") == pl.col("bakery", "id"), kind=Join.Inner)
-            .filter(pl.col("bakery", "city") == pl.literal("Bergen"))
-            .select(pl.col("cake", "name").as_(cake_name), pl.col("bakery", "name"))
+            .join(Bakery, pl.col(Cake, "bakery_id") == pl.col(Bakery, "id"), kind=Join.Inner)
+            .filter(pl.col(Bakery, "city") == pl.literal("Bergen"))
+            .select(pl.col(Cake, "name").as_(cake_name), pl.col(Bakery, "name"))
             .sort(cake_name)
         )
         assert in_bergen.inspect().sql == (
@@ -410,22 +490,74 @@ and both have an `id` and a `name`. A record maps column names to values, so
 a result holding one name twice raises `DecodeError`: select the columns you
 want, each under a name of its own where two would meet.
 
-Rust ends a join with `select_sources` to decode the joined entities
-themselves, each as an optional model. In Python, `select_sources` decodes
-registered Rust entities only, as [Registered source
-tuples](#registered-source-tuples) below describes. A pipeline over Python
-models returns records. One over a single model with no projection, such as
-`pl.from_(Cake).filter(..)`, returns the table's columns in order, which
-`ModelRecord(Cake, row, ())` reads as the model's records. The
-[relational-read graph](07-relations.md) reads related models with types
-that say which side may be missing.
+To decode the models themselves rather than columns of your choosing, end
+with `select_sources(*models)`, listing the relations the pipeline read: a
+model for one read under its table's name, the aliased model for one read
+under its alias. It projects each model's fields the way the model's own
+queries read them, every source under a prefix of its own, `s0_`, `s1_` and
+on, so two sources sharing a column name cannot meet, as Rust's projects each
+entity's. Each row is a tuple with one `ModelRecord` per model listed, or
+`None` where the row has none of that model's columns, as a right or full
+join leaves a side absent; a model listed alone still gives a one-item
+tuple. A step that replaces the sources' own columns, such as `select` or an
+aggregation, leaves nothing to project per model, and is a
+`ConstructionError` before anything is sent:
+
+```python
+import asyncio
+import os
+
+from pgorm import ConstructionError, Join, Pool
+from pgorm import pipeline as pl
+
+from bakery import Bakery, Cake
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        # A third bakery, which sells nothing yet.
+        await Bakery.insert({"name": "Noon", "city": "Tromsø"}).execute(pool)
+
+        menus = (
+            pl.from_(Cake)
+            .join(Bakery, pl.col(Cake, "bakery_id") == pl.col(Bakery, "id"), kind=Join.Right)
+            .filter(pl.col(Bakery, "city") != "Oslo")
+            .sort(pl.col(Bakery, "id"), pl.col(Cake, "id"))
+            .select_sources(Cake, Bakery)
+        )
+        rows = await menus.all(pool)
+        names = [(None if cake is None else cake["name"], None if bakery is None else bakery["name"]) for cake, bakery in rows]
+        assert names == [
+            ("Carrot Cake", "Moonlight"),
+            ("Vanilla Sponge", "Moonlight"),
+            (None, "Noon"),
+        ]
+
+        reshaped = pl.from_(Cake).select(pl.col(Cake, "name")).select_sources(Cake)
+        try:
+            reshaped.inspect()
+        except ConstructionError:
+            pass
+        else:
+            raise AssertionError("select_sources after a select is refused")
+
+
+asyncio.run(main())
+```
+
+The [relational-read graph](07-relations.md) reads related models with
+types that say which side may be missing; `select_sources` is for the reads
+the graph does not make, such as a right join or models beside a computed
+column.
 
 ### A table meeting itself
 
 A relation can be read under a name of your own with
 `pl.source(relation).named(name)`, which is how a table is joined to itself.
 The name is then the relation's only name, and `pl.col(name, column)` writes
-its columns. The pairs of cakes sold by the same bakery:
+its columns. A model read under an alias, `Cake.as_("other")`, is the same
+relation under that name, its columns still typed by its fields, as Rust's
+`named` keeps an entity's. The pairs of cakes sold by the same bakery:
 
 ```python
 import asyncio
@@ -437,19 +569,22 @@ from pgorm import pipeline as pl
 from bakery import Cake
 
 
+Other = Cake.as_("other")
+
+
 def cake(name: str) -> pl.PipelineExpr:
-    return pl.col("cake", name)
+    return pl.col(Cake, name)
 
 
 def other(name: str) -> pl.PipelineExpr:
-    return pl.col("other", name)
+    return pl.col(Other, name)
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
         pairs = (
             pl.from_(Cake)
-            .join(pl.source(Cake).named("other"), cake("bakery_id") == other("bakery_id"))
+            .join(Other, cake("bakery_id") == other("bakery_id"))
             .filter(cake("id") < other("id"))
             .sort(cake("id"), other("id"))
             .select(cake("name").as_("earlier"), other("name").as_("later"))
@@ -486,9 +621,9 @@ query = pl.from_(Table("lines")).filter(mood == "glad")
 assert query.inspect().sql == "SELECT * FROM lines WHERE CAST(mood AS mood) = CAST($1::text AS mood)"
 ```
 
-A registered Rust entity's column, `pl.col(table, entity.col(name))`, knows
-its type and compares as the entity's own column does, so it needs no
-`compares_as`.
+A model's column, `pl.col(model, field)`, and a registered Rust entity's,
+`pl.col(table, entity.col(name))`, know their types and compare as the
+model's or the entity's own column does, so neither needs `compares_as`.
 
 ## Windows
 

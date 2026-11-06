@@ -112,10 +112,11 @@ assert muffin.get("name").state == ActiveState.Set
 
 A model read through a registered entity becomes an active model with
 `into_active()`, each of its columns `Unchanged`, so writing it back changes
-only the columns then set. `reset(column)` turns an `Unchanged` column into a
-`Set` one, to write it although its value is the same. Rust's
-`set_if_not_equals` and `is_changed` are not available in Python yet:
-`set` always sets, even to the value already there.
+only the columns then set. `set_if_not_equals(column, value)` sets a
+column only when the value differs from the one read, as Rust's does, so
+`is_changed()` then says whether there is anything to write; `set` always
+sets, even to the value already there. `reset(column)` turns an `Unchanged`
+column into a `Set` one, to write it although its value is the same.
 `model.with_value(column, value)` gives a copy of a model with one value
 changed, and writes nothing.
 
@@ -264,11 +265,14 @@ its active models must set the same columns too.
 leaves the others as they are. `where(..)` says which rows it changes, and
 `returning(..)` reads them back as they now are.
 
-Here Python differs from Rust. Rust changes a row it has read by turning the
-model into an active model, setting the columns that change, and calling
-`update`, which finds the row by its primary key. A declared model's record
-does not turn into a write: the update names its row with `where`, and
-`key(..)` is the condition that matches one primary key:
+Rust changes a row it has read by turning the model into an active model,
+setting the columns that change, and calling `update`, which finds the row by
+its primary key and runs the entity's hooks. A declared model's counterpart
+is `Model.active(values).update(db)`, which names the row by the primary key
+`values` holds and runs the model's hooks ([Models and
+entities](03-entities.md#hooks)). The statement builder below runs none: its
+`where` names the rows, and `key(..)` is the condition that matches one
+primary key:
 
 ```python
 import asyncio
@@ -321,7 +325,12 @@ async def main() -> None:
         cheaper = fudge.into_active()
         assert cheaper.get("price").state == ActiveState.Unchanged
 
+        # The same name is no change.
+        cheaper = cheaper.set_if_not_equals("name", "Chocolate Fudge")
+        assert not cheaper.is_changed()
+
         cheaper = cheaper.set_price(Decimal("3.99"))
+        assert cheaper.is_changed()
         assert cheaper.get("price").state == ActiveState.Set
         assert cheaper.get("name").state == ActiveState.Unchanged
 
@@ -386,10 +395,43 @@ condition that is always true passes it.
 
 An update that sets nothing is a `ConstructionError` as it is built, as
 Rust's `Error::NothingToSet` is. `UPDATE` takes no `ORDER BY` or `LIMIT` in
-PostgreSQL, so an update has neither; filter on a subquery instead. A
-model's update reads no other table: Rust's `from`, PostgreSQL's
-`UPDATE .. FROM`, is the query builder's `pgorm.update(table).from_(..)`
-([The query builder](11-query-builder.md)).
+PostgreSQL, so an update has neither; filter on a subquery instead.
+
+`from_(source)` names another table the update reads, PostgreSQL's
+`UPDATE .. FROM`, as Rust's `from` does: another model, whose table it reads
+as the model names it, or a table or FROM item of [the query
+builder](11-query-builder.md). Its columns go wherever the update's values
+and conditions go, and a `RETURNING` list then qualifies the model's own
+columns, so the two tables' `id`s cannot be confused. Here every cake sold
+in Bergen becomes gluten-free:
+
+```python
+import asyncio
+import os
+
+from pgorm import Pool
+
+from bakery import Bakery, Cake
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        bergen = (
+            Cake.update({"gluten_free": True})
+            .from_(Bakery)
+            .where(Cake.col("bakery_id") == Bakery.col("id"))
+            .where(Bakery.col("city") == "Bergen")
+        )
+        assert bergen.inspect().sql == (
+            'UPDATE "cake" SET "gluten_free" = $1 FROM "bakery" '
+            'WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2'
+        )
+        changed = await bergen.returning("name").all(pool)
+        assert sorted(cake["name"] for cake in changed) == ["Carrot Cake", "Vanilla Sponge"]
+
+
+asyncio.run(main())
+```
 
 A registered entity's `update_many()` takes `set(column, value)`, a value
 converted to the column's type or an expression as written, and `where(..)`
@@ -452,9 +494,12 @@ it runs, as an update does. `execute` returns the number of rows deleted, and
 `returning(..).all` the rows as they were. A delete that matches nothing
 returns `0`.
 
-Here Python differs from Rust. A declared model's record does not delete
-itself, and there is no `delete_by_id`: a delete by key is `delete()` with
-`where(model.key(..))`. A registered entity's model does:
+Here Python differs from Rust: there is no `delete_by_id`, and a delete by
+key is `delete()` with `where(model.key(..))`, which runs no hook.
+`Model.active(record).delete(db)` deletes the row the record's key names and
+runs the model's `before_delete` and `after_delete` hooks, as Rust's
+`ActiveModelTrait::delete` does. A registered entity's model deletes itself
+too:
 `model.into_active().delete(db)` deletes its row by its key, returns the
 count, and runs the entity's `before_delete` and `after_delete` hooks.
 
@@ -500,9 +545,34 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Each `where` adds a condition, and they all must hold. A model's delete
-reads no other table: Rust's `using`, PostgreSQL's `DELETE .. USING`, is the
-query builder's `pgorm.delete(table).using(..)`.
+Each `where` adds a condition, and they all must hold. `using(source)` names
+another table the delete reads, PostgreSQL's `DELETE .. USING`, as Rust's
+`using` does, from another model or a table or FROM item, as an update's
+`from_` does:
+
+```python
+import asyncio
+import os
+
+from pgorm import Pool
+
+from bakery import Baker, CakeBaker
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        # Bo hands every cake on to the others.
+        handed = CakeBaker.delete().using(Baker).where(CakeBaker.col("baker_id") == Baker.col("id"))
+        handed = handed.where(Baker.col("name") == "Bo")
+        assert handed.inspect().sql == (
+            'DELETE FROM "cake_baker" USING "baker" '
+            'WHERE "cake_baker"."baker_id" = "baker"."id" AND "baker"."name" = $1'
+        )
+        assert await handed.execute(pool) == 2
+
+
+asyncio.run(main())
+```
 
 ## Upserts
 
@@ -574,30 +644,31 @@ shows the statement the terminal runs. The other terminals work under
 `ON CONFLICT` too: `returning("id").one(db)` returns the key of the row
 written, whether it was inserted or updated.
 
-To skip conflicting rows instead, `Conflict.on(..).do_nothing()` adds
-`ON CONFLICT (..) DO NOTHING` for that key, and `Conflict.do_nothing()` adds
-`ON CONFLICT DO NOTHING`, which skips a row that conflicts on any key. Here
-Python differs from Rust. Rust's `on_conflict_do_nothing()` targets the
-primary key and turns the insert into a `TryInsert`, whose terminals answer
-`Inserted`, or `Conflicted` when every row was skipped, and
-`on_empty_do_nothing` answers an empty batch with `Empty`. Python has no
-`TryInsert`: `execute` returns the number of rows written, `0` when every row
-was skipped; `returning(..).optional` gives `None` and `returning_upsert`
-`None`; and a batch of no rows sends nothing and returns `0`.
+To skip conflicting rows instead, `on_conflict_do_nothing()` adds
+`ON CONFLICT (primary key) DO NOTHING`, as Rust's does, and turns the insert
+into a `ModelTryInsert`, or a batch into a `ModelTryInsertMany`, Rust's
+`TryInsert`. Its terminals answer with a `TryInsertResult`:
+`TryInsertResult.Inserted` holding what was written, `TryInsertResult.Conflicted()`
+when every row was skipped, or `TryInsertResult.Empty()` when there was nothing
+to write and nothing was sent. `execute(db)` answers with the count, and
+`returning(*fields)` with the rows, its `one(db)` for one row and `all(db)`
+for a batch. `on_empty_do_nothing()` makes a try-insert too, its statement
+unchanged, answering an empty batch, or a row that sets no field, with
+`Empty`. `Conflict.on(..).do_nothing()` names another key through
+`on_conflict`, and `Conflict.do_nothing()` skips a row that conflicts on any
+key.
 
 ```python
 import asyncio
 import os
 
-from pgorm import Conflict, ModelInsert, Pool
+from pgorm import ModelTryInsert, Pool, TryInsertResult
 
 from bakery import CakeBaker
 
 
-def bakes(cake_id: int, baker_id: int) -> ModelInsert:
-    return CakeBaker.insert({"cake_id": cake_id, "baker_id": baker_id}).on_conflict(
-        Conflict.on("cake_id", "baker_id").do_nothing()
-    )
+def bakes(cake_id: int, baker_id: int) -> ModelTryInsert:
+    return CakeBaker.insert({"cake_id": cake_id, "baker_id": baker_id}).on_conflict_do_nothing()
 
 
 async def main() -> None:
@@ -608,16 +679,26 @@ async def main() -> None:
             'INSERT INTO "cake_baker" ("cake_id", "baker_id") VALUES ($1, $2) '
             'ON CONFLICT ("cake_id", "baker_id") DO NOTHING'
         )
-        assert await again.execute(pool) == 0
+        assert await again.execute(pool) == TryInsertResult.Conflicted()
 
         # Bo starts baking the Chocolate Fudge too.
-        assert await bakes(1, 2).execute(pool) == 1
+        match await bakes(1, 2).execute(pool):
+            case TryInsertResult.Inserted(count):
+                assert count == 1
+            case other:
+                raise AssertionError(f"Bo is new to it: {other!r}")
 
-        assert await CakeBaker.insert_many([]).execute(pool) == 0
+        empty = await CakeBaker.insert_many([]).on_empty_do_nothing().execute(pool)
+        assert empty == TryInsertResult.Empty()
 
 
 asyncio.run(main())
 ```
+
+Here Python differs from Rust: a declared model's try-insert has no
+`returning_pk` or `returning_model`; `returning(*fields)` reads the fields it
+names, as a plain insert's does, and a row the conflict clause skipped is
+`Conflicted` there too.
 
 ## MERGE
 

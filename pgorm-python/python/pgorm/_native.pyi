@@ -52,6 +52,7 @@ from ._pipeline_functions import (
     pipeline_role as pipeline_role, pipeline_function as pipeline_function,
     pipeline_case as pipeline_case, pipeline_sources as pipeline_sources,
     pipeline_source_tuples as pipeline_source_tuples,
+    pipeline_model_col as pipeline_model_col, pipeline_tuples as pipeline_tuples,
 )
 
 __version__: str
@@ -173,7 +174,9 @@ from ._json import (
 )
 from ._results import Record as Record, Field as Field
 from ._entity_raw import EntityRawQuery as EntityRawQuery
-from ._entities import Entity as Entity, EntityColumn as EntityColumn, EntityQuery as EntityQuery, entity as entity, entities as entities
+from ._entities import Entity as Entity, EntityQuery as EntityQuery, entity as entity, entities as entities
+from ._entity_columns import EntityColumn as EntityColumn
+from ._entity_reads import EntityRelation as EntityRelation, EntitySelection as EntitySelection, EntityPaginator as EntityPaginator, EntityCursor as EntityCursor, _RowDecoder as _RowDecoder
 from ._versions import (
     EntityUpdateMany as EntityUpdateMany, EntityInsert as EntityInsert,
     EntityInsertMany as EntityInsertMany,

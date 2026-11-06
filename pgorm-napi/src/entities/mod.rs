@@ -26,10 +26,14 @@ macro_rules! text {
 mod adapter;
 mod convert;
 mod graph;
+mod graph_reads;
 mod graphs;
 mod info;
 mod inserts;
+mod keysets;
+pub(crate) mod reads;
 mod registry;
+mod select_reads;
 mod selected;
 mod sources;
 mod versions;
@@ -88,6 +92,9 @@ pub(crate) fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<
     inserts::export(cx)?;
     graphs::export(cx)?;
     selected::export(cx)?;
+    reads::export(cx)?;
+    select_reads::export(cx)?;
+    graph_reads::export(cx)?;
     let registry = cx.boxed(RegistryHandle(Arc::new(registry)));
     cx.export_value("registry", registry)?;
     Ok(())
@@ -117,6 +124,7 @@ const EXPORTS: &[(&str, Export)] = &[
     ("entityActiveName", active_name),
     ("entityActiveGet", active_get),
     ("entityActiveChange", active_change),
+    ("entityActiveChanged", active_changed),
     ("entityActiveJob", active_job),
 ];
 
@@ -307,7 +315,7 @@ fn comparison_at(cx: &mut FunctionContext, index: usize) -> NeonResult<Compariso
 /// through its `ColumnTrait` method — a comparison, `IS [NOT] DISTINCT
 /// FROM` or a range operator — the value converted to the column's declared
 /// kind and written through its `save_as`.
-// [spec:pgorm:req:bindings.entity-reads+3]
+// [spec:pgorm:req:bindings.entity-reads+4]
 // [spec:pgorm:req:bindings.column-operators+3]
 fn entity_compare(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
@@ -325,7 +333,7 @@ fn entity_compare(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `ColumnTrait::compare_any` / `compare_all`, the values read as one array
 /// of the column's declared kind; `null` for a column of no scalar kind,
 /// whose quantifier is compared as written.
-// [spec:pgorm:req:bindings.entity-reads+3]
+// [spec:pgorm:req:bindings.entity-reads+4]
 fn entity_quantified(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
     let column = text!(cx, 1);
@@ -391,7 +399,7 @@ fn compared_value(
 /// values read as the column's declared kind, `in_subquery` /
 /// `not_in_subquery` over a subquery's rows — so a column whose domain is over
 /// an enum is a member as the enum, and so is what the subquery projects.
-// [spec:pgorm:req:bindings.entity-reads+3]
+// [spec:pgorm:req:bindings.entity-reads+4]
 fn entity_in(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
     let column = text!(cx, 1);
@@ -462,7 +470,7 @@ fn count_at(cx: &mut FunctionContext, index: usize) -> NeonResult<Option<u64>> {
 
 /// `entitySelectChange(select, step, argument)`: the query with one more
 /// step — `where`, `orderBy`, `limit` or `offset` — as `Select<E>` takes it.
-// [spec:pgorm:req:bindings.entity-reads+3]
+// [spec:pgorm:req:bindings.entity-reads+4]
 fn select_change(mut cx: FunctionContext) -> JsResult<JsValue> {
     let select = held!(cx, SelectHandle, 0);
     let change = step(&mut cx)?;
@@ -598,9 +606,18 @@ fn active_get(mut cx: FunctionContext) -> JsResult<JsValue> {
     Ok(pair.upcast())
 }
 
+/// `entityActiveChanged(active)`: `ActiveModelTrait::is_changed`.
+// [spec:pgorm:req:bindings.entity-active-changes]
+fn active_changed(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let active = held!(cx, ActiveHandle, 0);
+    Ok(cx.boolean(active.is_changed()).upcast())
+}
+
 /// `entityActiveChange(active, step, column, value?)`: a new ActiveModel
-/// with one column `set` to a value, `notSet` or `reset`.
+/// with one column `set` to a value, `setIfNotEquals` it, `notSet` or
+/// `reset`.
 // [spec:pgorm:req:bindings.entity-writes+1]
+// [spec:pgorm:req:bindings.entity-active-changes]
 fn active_change(mut cx: FunctionContext) -> JsResult<JsValue> {
     let active = held!(cx, ActiveHandle, 0);
     let step = text!(cx, 1);
@@ -614,6 +631,11 @@ fn active_change(mut cx: FunctionContext) -> JsResult<JsValue> {
             let data = cx.argument::<JsValue>(3)?;
             let value = column_value(&mut cx, &info, data)?;
             active.set(&column, value)
+        }
+        "setIfNotEquals" => {
+            let data = cx.argument::<JsValue>(3)?;
+            let value = column_value(&mut cx, &info, data)?;
+            active.set_if_not_equals(&column, value)
         }
         "notSet" => active.not_set(&column),
         "reset" => active.reset(&column),

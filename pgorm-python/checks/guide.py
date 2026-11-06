@@ -55,8 +55,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--output", type=Path, default=Path("target/python-guide"))
     options = parser.parse_args()
-    if not os.environ.get("PGORM_TEST_DSN"):
-        parser.error("PGORM_TEST_DSN is required; run through tests/with_postgres.py")
+    if examples.test_server() is None:
+        parser.error("PGORM_TEST_DSN or DATABASE_URL names the server; tests/with_postgres.py sets one")
     output = options.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     (output / "summary.json").write_text('{"passed": false, "status": "running"}\n')

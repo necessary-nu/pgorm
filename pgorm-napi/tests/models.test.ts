@@ -281,7 +281,7 @@ test("an insert is typed by its row count, and add or addMany makes a batch of i
   assert.equal(await Account.find().count(pool()), 5);
 });
 
-// [spec:pgorm:req:bindings.model-reads/test]
+// [spec:pgorm:req:bindings.model-reads+1/test]
 test("find, select and findByKey read records, filtered, ordered and windowed", async () => {
   await seed();
   const names = (rows: { name: string }[]) => rows.map((row) => row.name);
@@ -341,7 +341,7 @@ test("a column compares through its declared kind, and refuses what it cannot bi
   );
 });
 
-// [spec:pgorm:req:bindings.model-reads/test]
+// [spec:pgorm:req:bindings.model-reads+1/test]
 // [spec:pgorm:req:bindings.model-columns+2/test]
 test("any and all over values bind the column's declared kind, an enum's array cast to its type", async () => {
   await seed();

@@ -451,6 +451,27 @@ bound parameter is held to.
 > The element test pins its operand — `Expr::val(3).cast_as(alias("int4"))`
 > — and then reaches the element form of the operator.
 
+> [spec:pgorm:def:exec.cursor.erased]
+> A cursor whose selector and key types a caller chooses at run time — a
+> language binding reading an entity or a graph an application registered —
+> MUST be reachable behind one trait object, `ErasedCursor<R>`, whose
+> `statement(plan)` and `all(db, plan)` are `Cursor::statement` and
+> `Cursor::all` under a `CursorPlan`: its `before` and `after` applied as
+> `before_with` and `after_with`, so a boundary of the order columns' arity or
+> the whole key's reaches the cursor and any other is the cursor's to refuse;
+> its direction as `asc` or `desc`; and its `CursorWindow` as `first` or
+> `last`. `KeyedRead` implements it over a cursor made afresh for each plan,
+> its items decoded by a function the caller gives into its own row type `R`,
+> and runs on a `DatabaseRef` (`conn.database-ref`). `graph_cursor` and
+> `graph_cursor_on::<I>` MUST give `SelectGraph::cursor_by` and
+> `cursor_by_on::<I, _>` over a key of one to `MAX_KEY_COLUMNS` (six) columns
+> chosen at run time, writing the SQL the typed cursor writes, no column or
+> more than six an `Error::Type`. `graph_cursor_key` MUST list the whole key
+> such a cursor compares, as `exec.cursor.order` and `query.graph.cursor`
+> install it: the order columns, then the ordered source's primary key less
+> any column already ordered by, then every other source's primary key in
+> source order, the root first, each entry naming its source by index.
+
 ## Offset pagination (`exec.paginator`)
 
 > [spec:pgorm:def:exec.paginator+3]
@@ -623,3 +644,13 @@ bound parameter is held to.
 > for a caller that sends the page or the count itself: `page_statement` and
 > `count_statement` take it, as a language binding's raw statement does
 > (`[spec:pgorm:req:bindings.raw-pages]`).
+
+> [spec:pgorm:def:exec.paginator.erased]
+> A paginator over a read a caller chooses at run time MUST be reachable
+> behind one trait object, `ErasedPages<R>`: `statement(size, page)` is the
+> page statement `exec.paginator.fetch` writes for page `page` of `size`
+> rows, or with no page the count `exec.paginator.count` writes; `fetch` is
+> `Paginator::fetch_page` and `count` `Paginator::num_items_and_pages`, each
+> running on a `DatabaseRef` (`conn.database-ref`). `PagedRead` implements it
+> over any read `PaginatorTrait` pages, its items decoded by a function the
+> caller gives into its own row type `R`.

@@ -104,9 +104,10 @@ class ModelConstruction(unittest.TestCase):
                      "values": None},
         })
         self.assertEqual(
-            set(described), {"schema", "table", "alias", "primary_key", "unique_keys", "fields"}
+            set(described), {"schema", "table", "alias", "primary_key", "unique_keys", "hooks", "fields"}
         )
         self.assertEqual(described["unique_keys"], [])
+        self.assertEqual(described["hooks"], [])
         for name in ("describe", "validate", "value"):
             with self.subTest(method=name):
                 self.assertFalse(hasattr(model.columns["id"], name))
@@ -238,7 +239,7 @@ class ModelConstruction(unittest.TestCase):
         with self.assertRaises(p.ConstructionError):
             model.insert({"mood": p.Value("calm", p.TypeName("Mood", schema="wrong"))})
 
-    # [spec:pgorm:req:bindings.model-reads/test]
+    # [spec:pgorm:req:bindings.model-reads+1/test]
     def test_queries_keep_native_sql_and_parameter_tags(self):
         model = accounts().as_("a")
         query = (
@@ -631,7 +632,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.DecodeError):
             p.ModelRecord(self.model, record, ("id",))
 
-    # [spec:pgorm:req:bindings.model-reads/test]
+    # [spec:pgorm:req:bindings.model-reads+1/test]
     async def test_alias_joins_and_composite_keys(self):
         for name in ("A", "B"):
             await self.model.insert({"display_name": name}).execute(self.pool)

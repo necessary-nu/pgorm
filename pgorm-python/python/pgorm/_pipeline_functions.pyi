@@ -1,5 +1,11 @@
+from collections.abc import Awaitable, Callable
+from typing import Any
 from ._entities import EntityColumn
-from ._pipeline_builder import PipelineSource, SourceInput
+from ._native import TypeName, Value
+from ._ranges import CreatedRange, CreatedMultirange
+from ._pipeline_builder import Pipeline, PipelineSource, SourceInput
+from .runtime import Connection, Pool
+from .transactions import Transaction
 from ._pipeline_expr import PipelineExpr, Operand, LiteralValue, Name
 from ._pipeline_sources import SourceSelection
 
@@ -7,6 +13,17 @@ def pipeline_source(value: SourceInput) -> PipelineSource: ...
 def pipeline_literal(value: LiteralValue) -> PipelineExpr: ...
 def pipeline_alias(name: Name) -> PipelineExpr: ...
 def pipeline_col(table: Name, column: Name | EntityColumn) -> PipelineExpr: ...
+def pipeline_model_col(
+    table: Name,
+    column: Name,
+    kind: str | TypeName | CreatedRange | CreatedMultirange,
+    array: bool,
+    values: list[str] | None,
+    convert: Callable[[object], Value],
+) -> PipelineExpr: ...
+def pipeline_tuples(
+    connection: Pool | Connection | Transaction, statement: Pipeline, terminal: str
+) -> Awaitable[Any]: ...
 def pipeline_role(role: str, name: Name) -> PipelineExpr: ...
 def pipeline_function(name: str, *arguments: Operand) -> PipelineExpr: ...
 def pipeline_case(

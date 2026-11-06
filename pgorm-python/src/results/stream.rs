@@ -167,6 +167,22 @@ impl Drop for NativeStream {
     }
 }
 
+/// What decodes a stream's rows in place of a `Record`: a disjoint read's
+/// codec or a registered read's selector, as `decoder` names one.
+pub(crate) fn row_decoder(decoder: Option<&Bound<'_, PyAny>>) -> PyResult<Option<RowDecode>> {
+    let Some(decoder) = decoder.filter(|decoder| !decoder.is_none()) else {
+        return Ok(None);
+    };
+    if let Ok(disjoint) = decoder.extract::<PyRef<'_, crate::disjoint::NativeDisjoint>>() {
+        return Ok(Some(disjoint.row_decode()));
+    }
+    Ok(Some(
+        decoder
+            .extract::<PyRef<'_, crate::entities::reads::NativeRowDecoder>>()?
+            .row_decode(),
+    ))
+}
+
 /// What a stream reads from.
 pub(crate) enum Source {
     Connection(Arc<ConnectionState>),

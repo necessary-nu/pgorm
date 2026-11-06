@@ -6,13 +6,11 @@ import { pipeline as pl } from "@necessary/pgorm";
 import { Cake } from "../../../guide/bakery.ts";
 
 export default async function example(): Promise<void> {
-  const cake = (column: string) => pl.col("cake", column);
-
-  const { sql, values } = pl.from(Cake.table)
-    .filter(cake("gluten_free").eq(pl.literal(true)))
-    .sort(cake("price").desc())
+  const { sql, values } = pl.from(Cake)
+    .filter(pl.col(Cake, "glutenFree").eq(pl.literal(true)))
+    .sort(pl.col(Cake, "price").desc())
     .take(2)
-    .select(cake("name"), cake("price"))
+    .select(pl.col(Cake, "name"), pl.col(Cake, "price"))
     .inspect();
 
   assert.equal(

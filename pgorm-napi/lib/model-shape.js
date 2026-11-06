@@ -45,6 +45,7 @@ import { native } from "./operations.js";
  * @property {ReadonlyMap<string, Field>} byField
  * @property {readonly Field[]} primaryKey
  * @property {readonly UniqueKey[]} uniqueKeys
+ * @property {Readonly<Record<string, Function>>} hooks The hooks its record writes run, by name.
  */
 
 /** @type {WeakMap<object, Shape>} */
@@ -68,6 +69,15 @@ export function shapeOf(model) {
   const shape = typeof model === "object" && model !== null ? shapes.get(model) : undefined;
   if (!shape) throw new TypeError("expected a model made by model()");
   return shape;
+}
+
+/**
+ * Whether `value` is a model `model()` made.
+ *
+ * @param {unknown} value
+ */
+export function isModel(value) {
+  return typeof value === "object" && value !== null && shapes.has(value);
 }
 
 /**

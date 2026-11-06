@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from typing import Any, Generic, TypeVar
 
 from .. import _native as native_types
+from .raw import RawQueryView
 from .versions import (
     InsertManyView,
     InsertView,
@@ -86,6 +87,12 @@ class ActiveView(Generic[M]):
     def reset(self: A, column) -> A:
         return type(self)(self._active.reset(column))
 
+    def set_if_not_equals(self: A, column, value) -> A:
+        return type(self)(self._active.set_if_not_equals(column, value))
+
+    def is_changed(self) -> bool:
+        return self._active.is_changed()
+
     async def insert(self, connection) -> M:
         return self._model_class(await self._active.insert(connection))
 
@@ -113,6 +120,9 @@ class EntityView(Generic[M, A]):
 
     def col(self, name):
         return self._entity.col(name)
+
+    def relation(self, name):
+        return self._entity.relation(name)
 
     def find(self) -> "QueryView[M]":
         return QueryView(self._entity.find(), self._model_class)
@@ -174,33 +184,27 @@ class QueryView(Generic[M]):
     def from_raw_sql(self, statement) -> "RawQueryView[M]":
         return RawQueryView(self._query.from_raw_sql(statement), self._model_class)
 
-    def __bool__(self) -> bool:
-        return bool(self._query)
+    def join(self, relation, *, kind=native_types.Join.Inner) -> "QueryView[M]":
+        return QueryView(self._query.join(relation, kind=kind), self._model_class)
 
+    def select(self, *columns):
+        return self._query.select(*columns)
 
-class RawQueryView(Generic[M]):
-    """A raw statement whose rows decode into the registration's models, as
-    Rust's ``Select::from_raw_sql`` decodes them."""
+    async def count(self, connection) -> int:
+        return await self._query.count(connection)
 
-    __slots__ = ("_query", "_model_class")
+    async def stream(self, connection):
+        return (await self._query.stream(connection))._decoding(self._model_class)
 
-    def __init__(self, query: native_types.EntityRawQuery, model: type[M]):
-        if query.entity_name != model._entity_name:
-            raise TypeError(f"the query is {query.entity_name}'s, not {model._entity_name}'s")
-        self._query, self._model_class = query, model
+    def paginate(self, page_size):
+        from .reads import PaginatorView
 
-    def inspect(self):
-        return self._query.inspect()
+        return PaginatorView(self._query.paginate(page_size), self._model_class)
 
-    async def all(self, connection) -> list[M]:
-        return [self._model_class(row) for row in await self._query.all(connection)]
+    def cursor(self, *columns):
+        from .reads import CursorView
 
-    async def one(self, connection) -> M:
-        return self._model_class(await self._query.one(connection))
-
-    async def optional(self, connection) -> M | None:
-        row = await self._query.optional(connection)
-        return None if row is None else self._model_class(row)
+        return CursorView(self._query.cursor(*columns), self._model_class)
 
     def __bool__(self) -> bool:
         return bool(self._query)

@@ -149,7 +149,7 @@ pub(crate) async fn described(
     match db {
         Database::Connection(connection) => connection.describe(sql).await,
         Database::Transaction(transaction) => transaction.describe(sql).await,
-        Database::MeteredConnection(connection) => connection.inner().describe(sql).await,
-        Database::MeteredTransaction(transaction) => transaction.inner().describe(sql).await,
+        Database::InstrumentedConnection(connection) => connection.inner().describe(sql).await,
+        Database::InstrumentedTransaction(transaction) => transaction.inner().describe(sql).await,
     }
 }

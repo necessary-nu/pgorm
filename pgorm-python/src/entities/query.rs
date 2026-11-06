@@ -5,12 +5,17 @@ use pyo3::{
     types::{PyInt, PyTuple},
 };
 
-use super::backend::{Change, Select, Terminal};
+use super::{
+    backend::{Change, Select, Terminal},
+    reads::NativeRowDecoder,
+    reads_py::{CursorState, PyEntityCursor, PyEntityPaginator, compiled, counted, stream},
+    selection::{PyEntityRelation, PyEntitySelection},
+};
 use crate::{
     errors::ConstructionError,
     expressions::{Compiled, OrderBy, PyCondition, PyExpr},
-    statements::RawSQL,
-    transactions::work::Work,
+    statements::{Join, RawSQL},
+    transactions::work::{Output, Read, Work},
 };
 
 #[derive(Clone, Debug)]
@@ -85,21 +90,123 @@ impl PyEntityQuery {
         })
     }
 
+    /// The SQL and values a terminal sends: `one` and `optional` with the
+    /// limit Rust's terminals narrow to, `count` the paginator's count.
     #[pyo3(signature = (*, terminal="all"))]
     fn inspect(&self, terminal: &str) -> PyResult<Compiled> {
         let terminal = match terminal {
             "all" => Terminal::All,
             "one" => Terminal::One,
             "optional" => Terminal::Optional,
+            "count" => {
+                return compiled(
+                    self.inner
+                        .pages()
+                        .statement(std::num::NonZeroU64::MIN, None)
+                        .map_err(|error| ConstructionError::new_err(error.to_string()))?
+                        .build(),
+                );
+            }
             _ => return Err(PyTypeError::new_err("unknown entity terminal")),
         };
-        let (sql, values) = self.inner.compile(terminal);
-        if values.0.len() > 65535 {
+        compiled(self.inner.compile(terminal))
+    }
+
+    /// The relation's far end joined, `QuerySelect::join`: its rows stay this
+    /// entity's models, and the joined table's columns go in conditions and
+    /// orderings through its own entity's `col`.
+    #[pyo3(signature = (relation, *, kind=Join::Inner))]
+    fn join(&self, relation: PyRef<'_, PyEntityRelation>, kind: Join) -> PyResult<Self> {
+        relation
+            .entity
+            .relation(&relation.name)
+            .map_err(|error| ConstructionError::new_err(error.to_string()))?;
+        Ok(Self {
+            inner: self.inner.change(Change::Join(
+                kind.rust_join(),
+                relation.entity.clone(),
+                relation.name.clone(),
+            )),
+        })
+    }
+
+    /// The query projected onto `columns`, `select_only` and `columns`, read
+    /// as records of those columns rather than as models.
+    #[pyo3(signature = (*columns))]
+    fn select(&self, columns: &Bound<'_, PyTuple>) -> PyResult<PyEntitySelection> {
+        if columns.is_empty() {
             return Err(ConstructionError::new_err(
-                "PostgreSQL supports at most 65535 query parameters",
+                "a selection names at least one column",
             ));
         }
-        Ok(Compiled { sql, values })
+        let columns = columns
+            .iter()
+            .map(|column| super::column::name(&column, self.inner.info()))
+            .collect::<PyResult<Vec<_>>>()?;
+        let selection = PyEntitySelection {
+            select: self.inner.clone(),
+            columns,
+        };
+        selection.statement(Terminal::All)?;
+        Ok(selection)
+    }
+
+    /// How many rows the query reads, its limit, offset and ordering aside,
+    /// by `PaginatorTrait::count`.
+    fn count<'py>(
+        &self,
+        py: Python<'py>,
+        connection: &Bound<'_, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.inspect("count")?;
+        let pages = self.inner.pages();
+        let read: Read = Box::new(move |db| {
+            Box::pin(async move {
+                let counted = pages.count(db, std::num::NonZeroU64::MIN).await?;
+                Ok(Output::Count(counted.number_of_items))
+            })
+        });
+        counted(py, connection, read)
+    }
+
+    /// Pages of `page_size` rows, by `PaginatorTrait::paginate`.
+    fn paginate(&self, page_size: &Bound<'_, PyAny>) -> PyResult<PyEntityPaginator> {
+        PyEntityPaginator::new(self.inner.pages(), page_size)
+    }
+
+    /// A keyset cursor ordered by `columns`, `Select::cursor_by`; its
+    /// ordering replaces the query's.
+    #[pyo3(signature = (*columns))]
+    fn cursor(&self, columns: &Bound<'_, PyTuple>) -> PyResult<PyEntityCursor> {
+        let columns = columns
+            .iter()
+            .map(|column| super::column::name(&column, self.inner.info()))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(PyEntityCursor {
+            state: CursorState::new(
+                self.inner
+                    .cursor(&columns)
+                    .map_err(|error| ConstructionError::new_err(error.to_string()))?,
+            ),
+        })
+    }
+
+    /// The models one per pull, `Select::stream`'s decode of each row as it
+    /// arrives, over a connection the stream holds until it ends.
+    fn stream<'py>(
+        &self,
+        py: Python<'py>,
+        connection: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let decoder = NativeRowDecoder {
+            decode: self.inner.decode(),
+        };
+        stream(
+            py,
+            connection,
+            compiled(self.inner.compile(Terminal::All))?,
+            Some(decoder),
+        )
     }
 
     fn all<'py>(

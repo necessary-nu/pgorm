@@ -9,6 +9,7 @@ for the i-th slot, by the composition pgorm's graph writer uses."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
 
@@ -24,7 +25,7 @@ from .record import (
     decode_single,
     decode_stream,
 )
-from .relations import Relation, hashable, joined_on, same_table
+from .relations import Related, Relation, answering, condition_of, hashable, joined_on, same_table
 
 if TYPE_CHECKING:
     from ..results import RowStream
@@ -43,6 +44,7 @@ REFUSALS = {
     "all_grouped": "a window of rows can end part-way through a root's rows, and its group would look complete",
     "count": "the count would ignore the window",
     "cursor": "its first and last would replace the window, and an offset would skip rows past each boundary",
+    "cursor_on": "its first and last would replace the window, and an offset would skip rows past each boundary",
     "paginate": "its pages would replace the window",
 }
 
@@ -121,7 +123,7 @@ class State:
         return query.limit(limit).offset(offset)
 
 
-# [spec:pgorm:req:bindings.graphs+1]
+# [spec:pgorm:req:bindings.graphs+2]
 @dataclass(frozen=True, eq=False, slots=True)
 class Graph(Generic[S]):
     """A model's rows with the rows its relations reach. Every method returns
@@ -130,8 +132,8 @@ class Graph(Generic[S]):
 
     ``S`` records whether ``limit`` or ``offset`` has cut the read to a
     window of rows: ``Literal[False]`` until one is called, ``Literal[True]``
-    after, which ``all_grouped``, ``count``, ``cursor`` and ``paginate``
-    refuse, as pgorm's ``Sliced`` graph has none of them."""
+    after, which ``all_grouped``, ``count``, ``cursor``, ``cursor_on`` and
+    ``paginate`` refuse, as pgorm's ``Sliced`` graph has none of them."""
 
     state: State
 
@@ -148,12 +150,27 @@ class Graph(Generic[S]):
         optional: bool,
         alias: str | None,
         from_: int | None,
+        extra: Callable[[Any, Any], Any] | None = None,
+        kind: p.Join | None = None,
     ) -> Graph[S]:
         if not isinstance(relation, Relation):
             raise TypeError("a graph joins along a Relation")
         state = self.state
         start, end = relation.from_, relation.to
-        if from_ is None:
+        if relation.start is not None:
+            if from_ is not None:
+                raise p.ConstructionError(
+                    "a relation from an alias names where it starts: it takes no from_"
+                )
+            left = next((table for table in state.tables if table.qualifier == relation.start), None)
+            if left is None:
+                raise p.ConstructionError(f"the graph reads no table called {relation.start!r}")
+            if not same_table(left.model, start):
+                raise p.ConstructionError(
+                    f"{relation.start!r} is {left.model.table.name}, where the relation starts at "
+                    f"{start.table.name}"
+                )
+        elif from_ is None:
             left = next((table for table in state.tables if same_table(table.model, start)), None)
         else:
             if type(from_) is not int:
@@ -174,12 +191,17 @@ class Graph(Generic[S]):
                 f"the graph already reads a table called {qualifier!r}: give this one an alias"
             )
         table = end.table if alias is None else end.table.as_(alias)
-        kind = p.Join.Inner if role == "slot" and not optional else p.Join.Left
+        if kind is None:
+            kind = p.Join.Inner if role == "slot" and not optional else p.Join.Left
+        on = joined_on(relation, left.qualifier, qualifier)
+        if extra is not None:
+            narrowed = extra(answering(start, left.qualifier), answering(end, qualifier))
+            on = p.Condition.all(on, condition_of(narrowed, "a join's condition"))
         return Graph(
             replace(
                 state,
                 tables=(*state.tables, Table(end, qualifier, role, optional)),
-                joins=(*state.joins, Edge(table, joined_on(relation, left.qualifier, qualifier), kind)),
+                joins=(*state.joins, Edge(table, on, kind)),
             )
         )
 
@@ -197,12 +219,49 @@ class Graph(Generic[S]):
         decoded as its record, or None where the join matched nothing."""
         return self._edge(relation, "slot", True, alias, from_)
 
+    def join_maybe_filtered(
+        self,
+        relation: Relation,
+        condition: Callable[[Model, Model], p.Expr | p.Condition],
+        *,
+        alias: str | None = None,
+        from_: int | None = None,
+    ) -> Graph[S]:
+        """``join_maybe`` with ``condition``, given the two ends as the join
+        names them, ANDed into the join's ``ON``, as pgorm's
+        ``join_maybe_filtered`` adds it: it narrows which rows match, and a
+        root with none keeps its row with the slot None."""
+        if not callable(condition):
+            raise TypeError("a join's condition is a function of the two ends")
+        return self._edge(relation, "slot", True, alias, from_, condition)
+
     def via(
         self, relation: Relation, *, alias: str | None = None, from_: int | None = None
     ) -> Graph[S]:
         """A hop never decoded — a junction table, a step of a chain — LEFT
         JOINed, so a missing middle cannot drop a root row by itself."""
         return self._edge(relation, "hop", True, alias, from_)
+
+    # [spec:pgorm:req:bindings.related]
+    def related_one(self, path: Relation | Related) -> Graph[S]:
+        """A slot that must match, along ``path``: a relation, as ``join_one``
+        joins it, or a related path, its junction INNER JOINed as a hop and
+        its far end as the slot, as pgorm's ``related_one`` folds a
+        ``Related`` path in."""
+        if isinstance(path, Related):
+            return self._edge(path.via, "hop", True, None, None, kind=p.Join.Inner).join_one(
+                path.relation
+            )
+        return self.join_one(path)
+
+    def related_maybe(self, path: Relation | Related) -> Graph[S]:
+        """A slot that may be absent, along ``path``: a relation, as
+        ``join_maybe`` joins it, or a related path, its junction a ``via``
+        hop and its far end the slot, as pgorm's ``related_maybe`` folds a
+        ``Related`` path in."""
+        if isinstance(path, Related):
+            return self.via(path.via).join_maybe(path.relation)
+        return self.join_maybe(path)
 
     def col(self, source: int, field: str) -> ModelColumn:
         """A field of decoded source ``source`` — 0 the root, i the i-th slot
@@ -223,7 +282,7 @@ class Graph(Generic[S]):
         state = self.state
         return Graph(replace(state, orders=(*state.orders, *orderings_of(ordering))))
 
-    # [spec:pgorm:req:bindings.graphs+1]    limit and offset slice the graph whatever their value
+    # [spec:pgorm:req:bindings.graphs+2]    limit and offset slice the graph whatever their value
     def limit(self, value: int | None) -> Graph[Literal[True]]:
         """Read at most ``value`` rows of the join, not roots, or with None
         no limit; either way the graph is sliced."""
@@ -316,23 +375,46 @@ class Graph(Generic[S]):
         """A keyset cursor ordered by ``fields`` of the root, with the root's
         primary key and each slot's as tiebreaks behind them, in declaration
         order, so a join that repeats a root row still has a total order."""
+        self._unsliced("cursor")
+        return self._cursor(0, fields)
+
+    # [spec:pgorm:req:bindings.cursors+1]
+    def cursor_on(self: Graph[Literal[False]], source: int, *fields: str) -> Cursor:
+        """A keyset cursor ordered by ``fields`` of slot ``source``, the
+        first slot ``1``, as pgorm's ``cursor_by_on`` orders: the slot's
+        primary key, then the root's, then every other slot's, in
+        declaration order, are its tiebreaks."""
+        self._unsliced("cursor_on")
+        if type(source) is not int:
+            raise TypeError("a graph's source is its index")
+        if source == 0:
+            raise p.ConstructionError(
+                "cursor_on orders by a slot's fields, the first slot 1; cursor orders by the root's"
+            )
+        return self._cursor(source, fields)
+
+    def _cursor(self, source: int, fields: tuple[str, ...]) -> Cursor:
         from .cursors import Cursor, Keyed
 
-        self._unsliced("cursor")
         if not fields:
             raise p.ConstructionError("a cursor orders by at least one field")
         state = self.state
-        root, *slots = state.decoded()
-        order = tuple(
-            (root.model, root.qualifier, root.model.col(name).field_name) for name in fields
-        )
-        ordered = {field for _, _, field in order}
+        decoded = state.decoded()
+        if not 0 <= source < len(decoded):
+            raise p.ConstructionError(f"the graph has no source {source}")
+        ordered = decoded[source]
+        names = tuple(ordered.model.col(name).field_name for name in fields)
+        others = (decoded[0], *(slot for index, slot in enumerate(decoded) if index not in (0, source)))
         tiebreaks = (
-            *(column for column in self._root_key() if column[2] not in ordered),
             *(
-                (slot.model, slot.qualifier, field)
-                for slot in slots
-                for field in slot.model.primary_key
+                ordered.model._column(field, ordered.qualifier)
+                for field in ordered.model.primary_key
+                if field not in names
+            ),
+            *(
+                table.model._column(field, table.qualifier)
+                for table in (others if source else others[1:])
+                for field in table.model.primary_key
             ),
         )
         return Cursor(
@@ -340,7 +422,7 @@ class Graph(Generic[S]):
                 lambda orders, wheres, limit: state.select(orders, wheres, limit),
                 None,
                 state.sources(),
-                order,
+                tuple(ordered.model._column(field, ordered.qualifier) for field in names),
                 tiebreaks,
             )
         )

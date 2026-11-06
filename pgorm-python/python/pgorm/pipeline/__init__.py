@@ -7,7 +7,7 @@ mints placeholders to reuse within its stage, which cannot escape it.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 from .. import _native
 from .._native import (
@@ -22,24 +22,37 @@ from .._native import (
     Join as Join,
     pipeline_literal as literal,
     pipeline_alias as alias,
-    pipeline_col as col,
     pipeline_case as case,
     pipeline_sources as sources,
     pipeline_source_tuples as source_tuples,
 )
 from ..models import Model
+from ._typed import PipelineSelector as PipelineSelector, model_col
 
 if TYPE_CHECKING:
+    from .._entities import EntityColumn
     from .._pipeline_expr import Operand, Name
-    from .._pipeline_builder import SourceInput
 
 
-def source(value: SourceInput | Model) -> Source:
-    return _native.pipeline_source(value.table if isinstance(value, Model) else value)
+source = _native.pipeline_source
+from_ = Pipeline
 
 
-def from_(value: SourceInput | Model) -> Pipeline:
-    return Pipeline(value.table if isinstance(value, Model) else value)
+@overload
+def col(table: Model, column: str) -> PipelineExpr: ...
+@overload
+def col(table: Name, column: Name | EntityColumn) -> PipelineExpr: ...
+
+
+# [spec:pgorm:req:bindings.pipeline-models]
+def col(table: Name | Model, column: Name | EntityColumn) -> PipelineExpr:
+    """A column of the relation ``table`` names; of a model, its field
+    ``column``, typed by the field's declaration."""
+    if isinstance(table, Model):
+        if not isinstance(column, str):
+            raise TypeError("a model's column is named by its field")
+        return model_col(table, column)
+    return _native.pipeline_col(table, column)
 
 
 # [spec:pgorm:req:python.pipeline+1]
@@ -128,6 +141,7 @@ __all__ = [
     "Join",
     "SourceSelection",
     "SelectedSources",
+    "PipelineSelector",
     "sources",
     "source_tuples",
     "source",

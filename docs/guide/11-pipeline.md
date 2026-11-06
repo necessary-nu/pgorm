@@ -477,6 +477,39 @@ takes such a table as an alias token, or
 [`from_schema`](crate::pipeline::Pipeline::from_schema) as a schema and a
 table.
 
+A program that knows such a table's column types at run time, as a language
+binding knows its declared models', reads it through the same writers an
+entity's columns go through.
+[`col_typed`](crate::pipeline::col_typed) types a column by the
+[`ColumnType`](crate::pgorm_query::ColumnType) given, so it compares as an
+entity column of that type does, and
+[`select_described`](crate::pipeline::Pipeline::select_described) is
+`select_sources` for relations listed column by column, each read under its
+`s{i}_` prefix, with decoding left to the program:
+
+```rust
+use pgorm::pgorm_query::{ColumnType, Name};
+use pgorm::pipeline::{DescribedSource, ExprOps, Pipeline, alias, col_typed};
+
+let flavor = ColumnType::Enum {
+    name: Name::runtime("flavor"),
+    schema: None,
+    variants: vec![Name::runtime("lemon")],
+};
+let cake = alias("cake");
+let (sql, _) = Pipeline::from(cake)
+    .filter(col_typed(cake, alias("flavor"), &flavor).eq("lemon"))
+    .select_described([DescribedSource::new(cake)
+        .column(alias("id"), None)
+        .column(alias("name"), None)])?
+    .into_sql()?;
+assert_eq!(
+    sql,
+    "SELECT id AS s0_id, name AS s0_name FROM cake WHERE flavor = CAST('lemon' AS flavor)"
+);
+# Ok::<(), pgorm::pipeline::PipelineError>(())
+```
+
 ## Windows
 
 [`window`](crate::pipeline::Pipeline::window) adds columns computed over a

@@ -6,7 +6,7 @@
 // [spec:pgorm:req:bindings.disjoint+2]
 
 import { arg, TRUSTED } from "./builder.js";
-import { disjointStream, runJob } from "./connections.js";
+import { decodedStream, runJob } from "./connections.js";
 import { predicateOf } from "./entities.js";
 import { ConstructionError } from "./errors.js";
 import { OrderBy } from "./expressions.js";
@@ -253,7 +253,7 @@ export class DisjointQuery {
    */
   stream(db, options) {
     const owner = this.#owner;
-    const stream = disjointStream(db, arg(this.#select), handleOf(owner), terminalOptions(options));
+    const stream = decodedStream(db, arg(this.#select), handleOf(owner), terminalOptions(options), "a disjoint read", true);
     return decodedWith(stream, (_names, pulled) => viewOf(owner).rows(pulled)[0]);
   }
 

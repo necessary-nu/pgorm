@@ -159,20 +159,20 @@ impl NativeTransaction {
     }
 
     /// A stream of `query`'s rows, each a `Record`, or what `decoder`, a
-    /// disjoint read's, decodes it as, reserving this transaction until its
-    /// last row.
+    /// disjoint read's or a registered read's, decodes it as, reserving this
+    /// transaction until its last row.
     #[pyo3(signature = (query, decoder=None))]
     fn stream<'py>(
         &self,
         py: Python<'py>,
         query: &Bound<'_, PyAny>,
-        decoder: Option<PyRef<'_, crate::disjoint::NativeDisjoint>>,
+        decoder: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         results::open(
             py,
             results::Source::Transaction(self.state.clone()),
             query,
-            decoder.map(|decoder| decoder.row_decode()),
+            results::row_decoder(decoder)?,
         )
     }
 
