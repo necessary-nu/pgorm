@@ -14,7 +14,8 @@ use std::{fmt, future::Future, sync::Arc, time::Duration};
 use futures_util::future::BoxFuture;
 use neon::{prelude::*, types::Finalize};
 use pgorm::{
-    DatabaseTransaction, IsolationLevel, TransactionError, TransactionMode, TransactionTrait,
+    CopyColumn, DatabaseTransaction, IsolationLevel, TransactionError, TransactionMode,
+    TransactionTrait,
 };
 use tokio::sync::{Mutex, OwnedMutexGuard, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
@@ -29,7 +30,7 @@ use super::{
 use crate::{
     errors::{Failure, Redactions, failure},
     settle,
-    statements::{CopyFrom, CopyTo},
+    statements::{CopyFrom, CopyStatement, CopyTo, copy_at},
 };
 
 pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
@@ -43,6 +44,7 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("transactionJob", transaction_job)?;
     cx.export_function("transactionCopyIn", transaction_copy_in)?;
     cx.export_function("transactionCopyOut", transaction_copy_out)?;
+    cx.export_function("transactionCopyColumns", transaction_copy_columns)?;
     Ok(())
 }
 
@@ -56,6 +58,11 @@ enum Command {
     Job {
         job: Job,
         reply: oneshot::Sender<Result<Output, Failure>>,
+    },
+    /// A COPY's columns, described without starting it.
+    Describe {
+        copy: Box<CopyStatement>,
+        reply: oneshot::Sender<Result<Vec<CopyColumn>, Failure>>,
     },
     Finish {
         commit: bool,
@@ -244,38 +251,18 @@ impl State {
             .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))
     }
 
-    /// Run a statement, holding the lock taken as JavaScript started it.
-    async fn run(
+    /// Send the request `command` makes of the reply it is given, and wait
+    /// for that reply, holding the lock taken as JavaScript started it: a
+    /// statement, a registered entity's job, or a COPY's description.
+    async fn request<T>(
         &self,
         _lock: OwnedMutexGuard<()>,
-        statement: Statement,
+        command: impl FnOnce(oneshot::Sender<Result<T, Failure>>) -> Command,
         abort: &Abort,
-    ) -> Result<Outcome, Failure> {
+    ) -> Result<T, Failure> {
         let (reply, receive) = oneshot::channel();
         let mut pending = Pending::new(self.root.aborted.clone());
-        self.send(Command::Run { statement, reply })?;
-        let outcome = abort
-            .guard(async {
-                receive
-                    .await
-                    .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))
-            })
-            .await?;
-        pending.complete();
-        outcome
-    }
-
-    /// Run a registered entity's job, holding the lock taken as JavaScript
-    /// started it, as a statement holds it.
-    async fn run_job(
-        &self,
-        _lock: OwnedMutexGuard<()>,
-        job: Job,
-        abort: &Abort,
-    ) -> Result<Output, Failure> {
-        let (reply, receive) = oneshot::channel();
-        let mut pending = Pending::new(self.root.aborted.clone());
-        self.send(Command::Job { job, reply })?;
+        self.send(command(reply))?;
         let outcome = abort
             .guard(async {
                 receive
@@ -455,20 +442,20 @@ impl Frame {
                 };
                 match command {
                     Command::Run { statement, reply } => {
-                        let outcome = tokio::select! {
-                            () = self.state.abandoned.cancelled() => return self.halt.discard().await,
-                            outcome = statement.run(&*tx, &self.secrets) => outcome,
-                        };
-                        if reply.send(outcome).is_err() {
+                        let run = statement.run(&*tx, &self.secrets);
+                        if !self.answer(run, reply).await {
                             return self.halt.discard().await;
                         }
                     }
                     Command::Job { job, reply } => {
-                        let outcome = tokio::select! {
-                            () = self.state.abandoned.cancelled() => return self.halt.discard().await,
-                            outcome = job(Database::Transaction(&*tx), &self.secrets) => outcome,
-                        };
-                        if reply.send(outcome).is_err() {
+                        let run = job(Database::Transaction(&*tx), &self.secrets);
+                        if !self.answer(run, reply).await {
+                            return self.halt.discard().await;
+                        }
+                    }
+                    Command::Describe { copy, reply } => {
+                        let described = copy::described(&mut *tx, &copy, &self.secrets);
+                        if !self.answer(described, reply).await {
                             return self.halt.discard().await;
                         }
                     }
@@ -547,6 +534,17 @@ impl Frame {
                 }
             }
         })
+    }
+
+    /// Run a request and send its outcome on `reply`: `false` when the frame
+    /// is to be given up, its handle collected while the request ran or its
+    /// caller gone, the request's effect on the transaction then unknown.
+    async fn answer<T>(&self, request: impl Future<Output = T>, reply: oneshot::Sender<T>) -> bool {
+        let outcome = tokio::select! {
+            () = self.state.abandoned.cancelled() => return false,
+            outcome = request => outcome,
+        };
+        reply.send(outcome).is_ok()
     }
 
     /// What the frame's transaction ended in: `None` is a future [`Halt`]
@@ -745,7 +743,10 @@ fn transaction_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
         Ok(lock) => lock,
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
-    let work = async move { state.run(lock, statement, &abort).await };
+    let work = async move {
+        let run = |reply| Command::Run { statement, reply };
+        state.request(lock, run, &abort).await
+    };
     settle::promise(&mut cx, work, move |cx, outcome| {
         outcome.into_js(cx, tagged)
     })
@@ -825,8 +826,30 @@ fn transaction_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
         Ok(lock) => lock,
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
-    let work = async move { state.run_job(lock, job, &abort).await };
+    let work = async move {
+        let run = |reply| Command::Job { job, reply };
+        state.request(lock, run, &abort).await
+    };
     settle::promise(&mut cx, work, |cx, output| output.into_js(cx))
+}
+
+/// `transactionCopyColumns(transaction, copy, abort)`: a COPY's columns,
+/// described in the transaction, holding its lock as a statement does; a
+/// refused description fails the transaction as a refused statement does.
+// [spec:pgorm:req:bindings.copy-rows+2]
+fn transaction_copy_columns(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let state = state(&mut cx)?;
+    let copy = Box::new(copy_at(&mut cx, 1)?);
+    let abort = abort_argument(&mut cx, 2)?;
+    let lock = match state.lock() {
+        Ok(lock) => lock,
+        Err(failure) => return settle::rejected(&mut cx, failure),
+    };
+    let work = async move {
+        let describe = |reply| Command::Describe { copy, reply };
+        state.request(lock, describe, &abort).await
+    };
+    settle::promise(&mut cx, work, copy::columns_to_js)
 }
 
 /// `transactionCopyIn(transaction, copy, abort, rows)`: a COPY FROM in the

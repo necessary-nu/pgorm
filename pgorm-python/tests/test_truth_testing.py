@@ -5,7 +5,7 @@ import pkgutil
 import unittest
 
 import pgorm as p
-from pgorm import _native, pipeline as pl, pool_options, schema as s
+from pgorm import _native, copy_rows, pipeline as pl, pool_options, schema as s
 from pgorm.schema import changes
 from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, versions as version_views
 from pgorm.codegen import source
@@ -35,6 +35,9 @@ EXEMPT = {
     p.Pool, p.Connection, p.Transaction, p.MultiPool, p.HookConnection,
     _native._Pool, _native._Connection, _native._Transaction, _native._Stream,
     _native._HookConnection, _native._PoolShape, pool_options.PoolShape,
+    # A COPY's columns and the binary format's two sides: declarations and
+    # codecs, not SQL. The row sink refuses, as the streams do.
+    p.CopyColumn, p.CopyRowEncoder, p.CopyRowDecoder, p.CopyRowSink, copy_rows.RowCopies,
     _native._CopyIn, _native._CopyOut, _native._Listener, _native._Disjoint,
     _native._DisjointChange,
     # Registrations and declarations: they name what a query reads and are

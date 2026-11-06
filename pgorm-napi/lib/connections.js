@@ -426,12 +426,13 @@ export class Pool extends Queryable {
 
   /**
    * @override
-   * @param {"in" | "out"} direction
+   * @param {"in" | "out" | "columns"} direction
    * @param {unknown} copy
    * @param {unknown} token
    * @param {boolean} rows
    */
   [COPY](direction, copy, token, rows) {
+    if (direction === "columns") return native.poolCopyColumns(this.#native, copy, token);
     return (direction === "in" ? native.poolCopyIn : native.poolCopyOut)(this.#native, copy, token, rows);
   }
 }
@@ -576,12 +577,13 @@ export class Connection extends Queryable {
 
   /**
    * @override
-   * @param {"in" | "out"} direction
+   * @param {"in" | "out" | "columns"} direction
    * @param {unknown} copy
    * @param {unknown} token
    * @param {boolean} rows
    */
   [COPY](direction, copy, token, rows) {
+    if (direction === "columns") return native.connectionCopyColumns(this.#native, copy, token);
     return (direction === "in" ? native.connectionCopyIn : native.connectionCopyOut)(this.#native, copy, token, rows);
   }
 }
@@ -678,12 +680,13 @@ export class Transaction extends Queryable {
 
   /**
    * @override
-   * @param {"in" | "out"} direction
+   * @param {"in" | "out" | "columns"} direction
    * @param {unknown} copy
    * @param {unknown} token
    * @param {boolean} rows
    */
   [COPY](direction, copy, token, rows) {
+    if (direction === "columns") return native.transactionCopyColumns(this.#native, copy, token);
     return (direction === "in" ? native.transactionCopyIn : native.transactionCopyOut)(this.#native, copy, token, rows);
   }
 }

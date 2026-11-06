@@ -611,7 +611,7 @@ closed, and a transaction by the block or callback it was opened for ending.
 > finishes it is abandoned, and when its outcome is unknown its connection or
 > transaction is discarded.
 
-> [spec:pgorm:req:bindings.copy-rows+1]
+> [spec:pgorm:req:bindings.copy-rows+2]
 > `copy_in_rows(statement, rows)` and `copy_out_rows(statement)` MUST run a
 > binary COPY as rows of values through `conn.copy.rows`, on a pool, a
 > connection and a transaction or savepoint, held and released as `copy_in`
@@ -620,6 +620,28 @@ closed, and a transaction by the block or callback it was opened for ending.
 > columns are the ones pgorm describes before the COPY starts. A description
 > the server refuses is its `DatabaseError`, and leaves the connection or
 > transaction as a failed statement does.
+>
+> `copy_in_columns(statement)` and `copy_out_columns(statement)` MUST give
+> that description without starting the COPY, through pgorm's
+> `CopyTrait::copy_in_columns` and `copy_out_columns`, on a pool, a
+> connection and a transaction or savepoint, for a COPY in any format: a list
+> of `CopyColumn`s in the COPY's order. A `CopyColumn` reports its `name`,
+> its `type` as a `TypeName` schema-qualified as the server names it, and,
+> for `money`, the `money_places` its currency is written to. A program
+> builds one of a built-in type by its name, as `pg_type` spells it or an
+> element's followed by `[]`; any other type is a `ConstructionError` that
+> says to describe the COPY instead, and `money` needs `money_places`, which
+> no other type takes.
+>
+> `copy_in_rows(statement)` with no rows MUST give a `CopyRowSink`, pgorm's
+> own, holding the COPY until it ends: `columns` are the described ones;
+> `send(row)` writes one row, and `send_model(record)` a model's record, each
+> of the COPY's columns taken from the record's field whose column it is, a
+> column no field reads being a `ConstructionError`. A row the columns refuse
+> is a `ConstructionError` before anything of it is written, and the sink
+> goes on taking rows. `finish()` completes the COPY and gives the rows
+> written; closing the sink, or leaving its scoped form, without `finish`
+> abandons the COPY, so nothing is written.
 >
 > `rows` is a synchronous or asynchronous iterable of rows. Text, bytes and
 > anything else are refused before anything is sent. Each row is a sequence
@@ -639,7 +661,19 @@ closed, and a transaction by the block or callback it was opened for ending.
 > reads it as, which no query's result column of `money` is. Its `columns`
 > names the columns. A field that does not decode is a `DecodeError` naming
 > the column and closes the stream, discarding its connection. Its end and its closing behave as `copy_out`'s
-> stream does.
+> stream does. `models(model)` MUST read the stream's rows instead as the
+> model's records, each field found by its column among the COPY's and held
+> to its kind as a model's terminals hold it (`bindings.model-records`).
+>
+> `CopyRowEncoder(columns)` and `CopyRowDecoder(columns)` MUST be pgorm's,
+> over `CopyColumn`s, for a program that moves the bytes itself. The
+> encoder gives the format's `header()` and `trailer()` and each row's
+> `encode(row)` as bytes, a row read and checked as `send` reads and checks
+> one. The decoder takes the data with `push(chunk)`, in chunks split
+> anywhere, gives each row with `next_row()` once all of it has arrived,
+> null until then, its fields decoded as `copy_out_rows` decodes them, and
+> `finish()` refuses data that ends part way through a row or without the
+> trailer, each refusal a `DecodeError`.
 
 > [spec:pgorm:req:bindings.listen+3]
 > `listener(capacity)` on a pool MUST open a `Listener` through pgorm's

@@ -669,24 +669,37 @@ fn pool_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let tagged = cx.argument::<JsBoolean>(4)?.value(&mut cx);
     let abort = abort_argument(&mut cx, 5)?;
     let work = async move {
-        let connection = abort.guard(state.get()).await?;
-        let outcome = tokio::select! {
-            biased;
-            () = abort.token().cancelled() => Err(Failure::Cancelled),
-            () = state.closed.cancelled() => {
-                Err(Failure::Lifecycle("the pool closed while the statement ran".to_owned()))
-            }
-            outcome = statement.run(&connection, &state.secrets) => {
-                drop(connection);
-                return outcome;
-            }
-        };
-        connection.discard();
-        outcome
+        on_pool(&state, &abort, async |db| {
+            statement.run(&*db, &state.secrets).await
+        })
+        .await
     };
     settle::promise(&mut cx, work, move |cx, outcome| {
         outcome.into_js(cx, tagged)
     })
+}
+
+/// Run `work` on a connection the pool lends for it alone, returned to the
+/// pool once `work` finishes. Aborted, or cut off by the pool closing, the
+/// connection is discarded rather than returned, its state unknown.
+pub(crate) async fn on_pool<T, W>(pool: &PoolState, abort: &Abort, work: W) -> Result<T, Failure>
+where
+    W: AsyncFnOnce(&mut pgorm::DatabaseConnection) -> Result<T, Failure>,
+{
+    let mut connection = abort.guard(pool.get()).await?;
+    let outcome = tokio::select! {
+        biased;
+        () = abort.token().cancelled() => Err(Failure::Cancelled),
+        () = pool.closed.cancelled() => {
+            Err(Failure::Lifecycle("the pool closed while the statement ran".to_owned()))
+        }
+        outcome = work(&mut connection) => {
+            drop(connection);
+            return outcome;
+        }
+    };
+    connection.discard();
+    outcome
 }
 
 /// Run `work` on the connection `operation` took from its slot — taken on
@@ -695,12 +708,12 @@ fn pool_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
 /// connection or pool closes or the caller aborts, in which case the
 /// connection is discarded.
 pub(crate) async fn on_connection<T, W>(
-    operation: Operation,
+    mut operation: Operation,
     abort: &Abort,
     work: W,
 ) -> Result<T, Failure>
 where
-    W: AsyncFnOnce(&pgorm::DatabaseConnection) -> Result<T, Failure>,
+    W: AsyncFnOnce(&mut pgorm::DatabaseConnection) -> Result<T, Failure>,
 {
     let state = operation.state.clone();
     let outcome = tokio::select! {
@@ -712,7 +725,7 @@ where
         () = state.pool.closed.cancelled() => {
             return Err(Failure::Lifecycle("the pool closed while the statement ran".to_owned()));
         }
-        outcome = work(operation.connection()?) => outcome,
+        outcome = work(operation.connection_mut()?) => outcome,
     };
     operation.restore();
     outcome
@@ -732,7 +745,7 @@ fn connection_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
     };
     let work = async move {
         on_connection(operation, &abort, async |db| {
-            statement.run(db, &secrets).await
+            statement.run(&*db, &secrets).await
         })
         .await
     };

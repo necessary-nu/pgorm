@@ -8,7 +8,8 @@ from typing import Any, Literal, NamedTuple
 
 from . import _native
 from .pool_options import PoolHook, QueueMode, Recycle, TlsMode, _shape, _shared, _tls
-from .copy import CopyOutStream, CopyRows, CopyRowStream, CopySource, copy_in, copy_in_rows
+from .copy import CopyOutStream, CopyRowStream, CopySource, copy_in
+from .copy_rows import RowCopies
 from .listen import Listener
 from .results import Query, Record, RowStream
 from .transactions import IsolationLevel, Transaction, TransactionMode, _scope
@@ -34,7 +35,7 @@ class PoolStatus(NamedTuple):
 # [spec:pgorm:req:bindings.runtime]
 # [spec:pgorm:req:bindings.connections+3]
 # [spec:pgorm:req:python.lifecycle+4]
-class Pool:
+class Pool(RowCopies):
     """A pool owned by the asyncio loop running at construction.
 
     TLS verifies the certificate and hostname by default. Explicit
@@ -206,12 +207,9 @@ class Pool:
             raise
         return CopyOutStream(native, connection)
 
-    async def copy_in_rows(
-        self, statement: "_native.CopyFrom[Literal['binary']]", rows: CopyRows
-    ) -> int:
-        """Run a binary COPY FROM of rows on a connection of its own; see ``Connection.copy_in_rows``."""
-        async with self.connection() as connection:
-            return await connection.copy_in_rows(statement, rows)
+    async def _copy_holder(self) -> tuple[_native._Connection, "Connection"]:
+        connection = await self.acquire()
+        return connection._native, connection
 
     async def copy_out_rows(self, statement: "_native.CopyTo[Literal['binary']]") -> CopyRowStream:
         """Open a binary COPY TO of rows whose stream owns the connection it acquired."""
@@ -264,7 +262,7 @@ class Pool:
         return f"Pool(closed={self.closed})"
 
 
-class Connection:
+class Connection(RowCopies):
     """One checked-out native connection; concurrent operations are errors.
 
     Keep the pool alive until the connection is released. Query cancellation
@@ -327,20 +325,8 @@ class Connection:
         """Open a COPY TO; the stream reserves this connection until it ends."""
         return CopyOutStream(await _native._copy_out(self._native, statement), None)
 
-    async def copy_in_rows(
-        self, statement: "_native.CopyFrom[Literal['binary']]", rows: CopyRows
-    ) -> int:
-        """Run a binary COPY FROM whose rows are sequences of values and return the rows it inserted.
-
-        The columns are the ones the server describes for the statement, before
-        the COPY starts; a description the server refuses raises its database
-        error and leaves this connection usable. Each value is read as a
-        parameter is and written against its column's type as a parameter is
-        bound. A row of another width, or a value its column's type does not
-        take, raises a construction error and aborts the COPY, as anything
-        raised while the data is sent does, so nothing is written.
-        """
-        return await copy_in_rows(self._native, statement, rows)
+    async def _copy_holder(self) -> tuple[_native._Connection, None]:
+        return self._native, None
 
     async def copy_out_rows(self, statement: "_native.CopyTo[Literal['binary']]") -> CopyRowStream:
         """Open a binary COPY TO whose rows arrive as tuples of values, each

@@ -8,11 +8,13 @@
 //! refusal names an option or quotes a choice, [`Dialect`] spells it as the
 //! binding does.
 
+mod copy;
 mod dialect;
 mod hook;
 mod pool;
 mod tls;
 
+pub use copy::{builtin_type, copy_column};
 pub use dialect::{Dialect, Refusal};
 pub use hook::{HookCall, HookEvent, HookJob, HookJobs, hook};
 pub use pool::{

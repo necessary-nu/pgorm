@@ -114,6 +114,9 @@ from ._native import (
     merge,
     CopyFrom,
     CopyTo,
+    CopyColumn,
+    CopyRowEncoder,
+    CopyRowDecoder,
     Notification,
     Entity,
     EntityColumn,
@@ -155,6 +158,7 @@ from .models import (
 )
 from .transactions import Transaction, TransactionMode, IsolationLevel
 from .copy import CopyOutStream, CopyRows, CopyRowStream, CopySource
+from .copy_rows import CopyRowSink
 from .listen import Listener
 
 # [spec:pgorm:req:bindings.surface+2]
@@ -321,6 +325,10 @@ __all__ = [
     "CopyOutStream",
     "CopyRows",
     "CopyRowStream",
+    "CopyRowSink",
+    "CopyColumn",
+    "CopyRowEncoder",
+    "CopyRowDecoder",
     "CopySource",
     "Listener",
     "Notification",

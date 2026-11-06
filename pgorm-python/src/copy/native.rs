@@ -30,7 +30,7 @@ use super::{
 use crate::{
     errors::{ConstructionError, DecodeError, InternalError, LifecycleError, database_error},
     execution::Target,
-    results::{Field, value},
+    results::{Field, PyRecord, value},
     runtime::{ConnectionState, Operation},
     transactions::{Lease, State},
     values::PyValue,
@@ -405,7 +405,7 @@ impl RowsIn {
 }
 
 /// The message a refusal of pgorm's carries, without the variant's prefix.
-fn refusal(error: Error) -> String {
+pub(super) fn refusal(error: Error) -> String {
     match error {
         Error::Type(message) => message,
         other => other.to_string(),
@@ -414,7 +414,7 @@ fn refusal(error: Error) -> String {
 
 /// One COPY row's values, read from a Python sequence as parameters are:
 /// `None` is NULL, anything else a value whose kind is inferred.
-fn row_values(row: &Bound<'_, PyAny>) -> PyResult<Vec<Option<ValueHolder>>> {
+pub(super) fn row_values(row: &Bound<'_, PyAny>) -> PyResult<Vec<Option<ValueHolder>>> {
     if row.is_instance_of::<PyString>()
         || row.is_instance_of::<PyBytes>()
         || row.is_instance_of::<PyByteArray>()
@@ -470,7 +470,7 @@ impl NativeCopyIn {
     /// as `write` queues data. A row of another width, or a value its
     /// column's type does not take, raises a construction error naming the
     /// column, and nothing of the batch is queued.
-    // [spec:pgorm:req:bindings.copy-rows+1]
+    // [spec:pgorm:req:bindings.copy-rows+2]
     fn write_rows<'py>(
         &self,
         py: Python<'py>,
@@ -547,6 +547,21 @@ impl NativeCopyIn {
 
     fn closed(&self) -> PyResult<bool> {
         Ok(lock(&self.settle)?.is_none())
+    }
+
+    /// The columns the server described before the COPY started, for
+    /// `copy_in_rows`.
+    // [spec:pgorm:req:bindings.copy-rows+2]
+    fn described(&self) -> PyResult<Vec<super::columns::PyCopyColumn>> {
+        let state = self.rows.as_ref().ok_or_else(|| {
+            LifecycleError::new_err("described names the columns of copy_in_rows")
+        })?;
+        Ok(described(&state.columns)?
+            .iter()
+            .map(|column| super::columns::PyCopyColumn {
+                inner: column.clone(),
+            })
+            .collect())
     }
 }
 
@@ -664,6 +679,20 @@ impl RowsOut {
     }
 }
 
+/// `rows` as a list of tuples of Python values, or with `records` of
+/// `Record`s named and typed by the COPY's columns.
+fn rows_out(state: &RowsOut, rows: Vec<Vec<PyValue>>, records: bool) -> PyResult<Py<PyList>> {
+    if !records {
+        return rows_to_python(rows);
+    }
+    let columns = described(&state.columns)?;
+    let records = rows
+        .into_iter()
+        .map(|row| PyRecord::from_copy(columns, row))
+        .collect::<PyResult<Vec<_>>>()?;
+    Python::attach(|py| PyList::new(py, records).map(Bound::unbind))
+}
+
 /// `rows` as a list of tuples of Python values.
 fn rows_to_python(rows: Vec<Vec<PyValue>>) -> PyResult<Py<PyList>> {
     Python::attach(|py| {
@@ -763,8 +792,11 @@ impl NativeCopyOut {
     /// The rows that have arrived, at least one, as a list of tuples of
     /// values; `None` at the end. A field that does not decode raises a
     /// decode error and closes the stream, discarding its connection.
-    // [spec:pgorm:req:bindings.copy-rows+1]
-    fn next_rows<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    /// With `records`, each row is a `Record` of the COPY's columns, as a
+    /// model reads its rows from.
+    // [spec:pgorm:req:bindings.copy-rows+2]
+    #[pyo3(signature = (records=false))]
+    fn next_rows<'py>(&self, py: Python<'py>, records: bool) -> PyResult<Bound<'py, PyAny>> {
         self.state.connection.pool.check_owner(py)?;
         if self.state.rows.is_none() {
             return Err(LifecycleError::new_err(
@@ -800,7 +832,7 @@ impl NativeCopyOut {
                         let data = active.gather(first);
                         match rows_state.rows(Some(&data)) {
                             Ok(rows) if rows.is_empty() => {}
-                            Ok(rows) => return rows_to_python(rows).map(Some),
+                            Ok(rows) => return rows_out(rows_state, rows, records).map(Some),
                             Err(error) => {
                                 if let Some(active) = slot.take() {
                                     active.abandon().await;
@@ -826,7 +858,7 @@ impl NativeCopyOut {
                         let rows = rows_state.rows(None)?;
                         return match rows.is_empty() {
                             true => Ok(None),
-                            false => rows_to_python(rows).map(Some),
+                            false => rows_out(rows_state, rows, records).map(Some),
                         };
                     }
                     None => {
@@ -842,7 +874,7 @@ impl NativeCopyOut {
 
     /// The names of the columns each row holds, in order, as the server
     /// describes them.
-    // [spec:pgorm:req:bindings.copy-rows+1]
+    // [spec:pgorm:req:bindings.copy-rows+2]
     fn columns(&self) -> PyResult<Vec<String>> {
         let rows =
             self.state.rows.as_ref().ok_or_else(|| {

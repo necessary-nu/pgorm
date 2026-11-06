@@ -5,7 +5,8 @@
 use super::{State, scope::Command, state::Pending};
 use crate::{
     copy::{
-        Columns, CopyFrom, CopyTo, Message, Piece, Unopened, drive_in, drive_out, open_in, open_out,
+        Columns, CopyFrom, CopyTo, Described, Message, Piece, Unopened, drive_in, drive_out,
+        open_in, open_out,
     },
     errors::{LifecycleError, database_error},
 };
@@ -66,6 +67,30 @@ impl State {
                 ))
             }
         }
+    }
+
+    /// The columns `statement` reads or writes, described by the transaction's
+    /// owner without starting the COPY. A description the server refuses
+    /// aborts the transaction, as any failed statement does.
+    // [spec:pgorm:req:bindings.copy-rows+2]
+    pub(crate) async fn describe(
+        self: &Arc<Self>,
+        statement: Described,
+    ) -> PyResult<Vec<pgorm::CopyColumn>> {
+        self.ensure_open()?;
+        let _busy = self.busy.clone().try_lock_owned().map_err(|_| {
+            LifecycleError::new_err("transaction has an active operation or nested savepoint")
+        })?;
+        let (reply, answer) = oneshot::channel();
+        let mut pending = Pending::new(self.root.aborted.clone());
+        self.commands
+            .send(Command::Describe { statement, reply })
+            .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
+        let described = answer
+            .await
+            .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
+        pending.complete();
+        described.map_err(|error| database_error(error, &self.connection.pool.secrets))
     }
 
     /// Wait until the root transaction's owner has let go of its connection.

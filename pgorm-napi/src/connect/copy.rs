@@ -48,8 +48,11 @@ use crate::{
     statements::{CopyFrom, CopyTo},
 };
 
+mod columns;
+mod framing;
 mod rows;
 
+pub(crate) use columns::{columns_to_js, described};
 use rows::RowsIn;
 pub(crate) use rows::{copy_from_rows_at, copy_to_rows_at};
 
@@ -69,6 +72,8 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("copyRowsEncode", rows::copy_rows_encode)?;
     cx.export_function("copyRowsNext", rows::copy_rows_next)?;
     cx.export_function("copyRowsColumns", rows::copy_rows_columns)?;
+    columns::export(cx)?;
+    framing::export(cx)?;
     Ok(())
 }
 

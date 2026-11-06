@@ -11,7 +11,16 @@ import type { Merge } from "./merge.d.ts";
 import type { Delete, Insert, Update } from "./writes.d.ts";
 import type { DDL } from "./schema.d.ts";
 import type { Pipeline } from "./pipeline.d.ts";
-import type { CopyFrom, CopyOutStream, CopyRows, CopyRowStream, CopySource, CopyTo } from "./copy.d.ts";
+import type {
+  CopyColumn,
+  CopyFrom,
+  CopyOutStream,
+  CopyRows,
+  CopyRowSink,
+  CopyRowStream,
+  CopySource,
+  CopyTo,
+} from "./copy.d.ts";
 import type { Listener, ListenerOptions } from "./listen.d.ts";
 
 export * from "./expressions.d.ts";
@@ -622,7 +631,7 @@ export declare abstract class Queryable {
    * own.
    */
   copyOut(statement: CopyTo, options?: OperationOptions): Promise<CopyOutStream>;
-  // [spec:pgorm:req:bindings.copy-rows+1]
+  // [spec:pgorm:req:bindings.copy-rows+2]
   /**
    * Run a binary `COPY … FROM STDIN` whose rows are arrays of values, one for
    * each column the server describes for the statement, in order, and
@@ -633,6 +642,23 @@ export declare abstract class Queryable {
    * does. The rows are pulled only as the COPY takes them, a batch at a time.
    */
   copyInRows(statement: CopyFrom<"binary">, rows: CopyRows, options?: OperationOptions): Promise<number>;
+  /**
+   * With no rows, resolve once the server accepts the COPY with a
+   * {@link CopyRowSink} the program writes a row at a time, which holds the
+   * connection or transaction until it finishes or closes; a pool's holds a
+   * connection of its own. The signal, if any, abandons the COPY whenever it
+   * fires before the COPY finishes.
+   */
+  copyInRows(statement: CopyFrom<"binary">, rows?: undefined, options?: OperationOptions): Promise<CopyRowSink>;
+  /**
+   * The columns a `COPY … FROM STDIN` in any format takes, in order, as the
+   * server describes them, without starting it. A table or column that does
+   * not exist is the server's {@link DatabaseError}, which leaves the
+   * connection or transaction as a failed statement does.
+   */
+  copyInColumns(statement: CopyFrom, options?: OperationOptions): Promise<readonly CopyColumn[]>;
+  /** The columns a `COPY … TO STDOUT` in any format gives, in order, as the server describes them, without starting it. */
+  copyOutColumns(statement: CopyTo, options?: OperationOptions): Promise<readonly CopyColumn[]>;
   /**
    * Run a binary `COPY … TO STDOUT` and resolve, once the server accepts it,
    * with its rows as a {@link CopyRowStream} of arrays of values, each field

@@ -191,7 +191,10 @@ from ._merge import (
 )
 from ._copy import (
     CopyFrom as CopyFrom, CopyTo as CopyTo, _CopyIn as _CopyIn, _CopyOut as _CopyOut,
-    _copy_in as _copy_in, _copy_out as _copy_out,
+    _copy_in as _copy_in, _copy_out as _copy_out, _copy_columns as _copy_columns,
+)
+from ._copy_rows import (
+    CopyColumn as CopyColumn, CopyRowEncoder as CopyRowEncoder, CopyRowDecoder as CopyRowDecoder,
 )
 from ._listen import (
     Notification as Notification, _Listener as _Listener, _connect_listener as _connect_listener,
