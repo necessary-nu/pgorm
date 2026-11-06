@@ -14,6 +14,7 @@ specs ({
                 pgorm-query/src/**/*.rs
                 pgorm-query/pgorm-query-attr/src/**/*.rs
                 pgorm-query/pgorm-query-derive/src/**/*.rs
+                pgorm-sql-check/src/**/*.rs
                 pgorm-sql-macro/src/**/*.rs
                 pgorm-test-support/src/**/*.rs
                 pgorm-guide-support/src/**/*.rs

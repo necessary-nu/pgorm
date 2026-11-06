@@ -1002,7 +1002,7 @@ prqlc compiler and the same oracle over what it emits, but for queries known who
 compile time, where the pipeline's composability buys nothing and a literal buys
 build-time checking of the finished statement.
 
-> [spec:pgorm:def:macros.prql]
+> [spec:pgorm:def:macros.prql+1]
 > `prql!` takes one PRQL string literal followed by zero or more argument expressions
 > (`prql!("from invoice | filter total > $1 | take 5", min_total)`). While the calling
 > crate compiles, the literal's text is compiled by prqlc — the text path: parse,
@@ -1021,9 +1021,11 @@ build-time checking of the finished statement.
 >
 > The macro lives in `pgorm-sql-macro` beside `sql!` rather than in a third proc-macro
 > crate: both macros end at the libpg_query oracle and share its diagnostic plumbing,
-> and a crate split would buy a second build unit and nothing else. The proc-macro
-> crate carries its own `prqlc` dependency on the fork, `default-features = false` — the
-> same pinned revision as the root crate's runtime pipeline, the one sanctioned exception to the
+> and a crate split would buy a second build unit and nothing else. The compiling,
+> the oracle and the census live in `pgorm-sql-check`, the ordinary library the
+> run-time checks share (`[spec:pgorm:req:macros.runtime]`), which carries its own
+> `prqlc` dependency on the fork, `default-features = false` — the same pinned
+> revision as the root crate's runtime pipeline, the one sanctioned exception to the
 > adapter's confinement rule (`[spec:pgorm:def:pipeline.adapter]`) — and the two
 > pins MUST move in lockstep so the text macro and the typed pipeline emit through one
 > compiler.
@@ -1088,3 +1090,23 @@ build-time checking of the finished statement.
 > `sql!`, every refusal spans the whole literal (`subspan` is nightly-only); the
 > position inside the text rides in the message — prqlc's own source frame for PRQL
 > errors, the caret line for oracle rejections.
+
+## Run-time checks
+
+> [spec:pgorm:req:macros.runtime]
+> The checks `sql!` and `prql!` make MUST also be offered at run time, for text a
+> program has only once it runs and for the language bindings, which have no compile
+> step: `pgorm::sql_check`, a re-export of `pgorm-sql-check`, an ordinary library the
+> proc-macro crate calls too, so a check made either way runs the same code and
+> refuses with the same text. `check_sql(text)` holds the text to the grammar as
+> `sql!` holds a literal, a script statement by statement
+> (`[spec:pgorm:sem:macros.sql.script]`), and refuses with a `Rejection`: the parser's
+> message, the token it quotes when it quotes one, that token's byte offset, and the
+> caret block; its `Display` is the message `sql!` reports. `compile_prql(text)`
+> compiles PRQL as `prql!` does, holds the emitted SQL to the grammar, refuses a gap and
+> `$0` (`[spec:pgorm:req:macros.prql.reject]`), and gives the SQL with the number of
+> distinct placeholders it takes; `check_arity(given)` holds a count of values to them,
+> refusing too few by the placeholders nothing binds and too many by the first
+> placeholder the query lacks. Each refusal is a value, never a panic. The ceilings
+> are the macros' (`[spec:pgorm:req:macros.sql.ceiling]`,
+> `[spec:pgorm:req:macros.prql.ceiling]`): no catalog is consulted.

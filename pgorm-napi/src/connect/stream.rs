@@ -36,10 +36,27 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     Ok(())
 }
 
-/// The open result and the connection it holds out of its slot.
+/// What a stream holds while it reads: its connection, taken out of its
+/// slot, or its transaction, reserved. Released at the last row; dropped
+/// before it, the connection is discarded, and the transaction with it.
+pub(crate) enum Hold {
+    Connection(Box<Operation>),
+    Transaction(super::transaction::Lease),
+}
+
+impl Hold {
+    fn release(self) {
+        match self {
+            Self::Connection(operation) => (*operation).restore(),
+            Self::Transaction(lease) => lease.complete(),
+        }
+    }
+}
+
+/// The open result and what it holds.
 struct Active {
     rows: Pin<Box<RowStream>>,
-    operation: Operation,
+    hold: Hold,
 }
 
 /// What a stream that decodes its own rows makes of each: a disjoint read's
@@ -56,6 +73,8 @@ pub(crate) struct StreamState {
     active: Arc<Mutex<Option<Active>>>,
     cancelled: CancellationToken,
     finished: CancellationToken,
+    /// Fires when the transaction a transaction's stream reads in ends.
+    ended: CancellationToken,
     named: AtomicBool,
 }
 
@@ -79,6 +98,7 @@ impl StreamState {
             () = self.finished.cancelled() => return,
             () = self.cancelled.cancelled() => {}
             () = self.connection.closing() => {}
+            () = self.ended.cancelled() => {}
         }
         drop(self.active.lock().await.take());
         self.finished.cancel();
@@ -89,7 +109,7 @@ impl StreamState {
 /// releases its connection as a backstop; reaching the end, `return` and
 /// `close` are what release it.
 #[derive(Debug)]
-pub(crate) struct StreamHandle(Arc<StreamState>);
+pub(crate) struct StreamHandle(pub(crate) Arc<StreamState>);
 
 impl Finalize for StreamHandle {}
 
@@ -120,50 +140,68 @@ async fn open(
             params.iter().map(|param| param as &(dyn ToSql + Sync)),
         ) => rows.map_err(|error| failure(&error, secrets))?,
     };
+    Ok(held(
+        connection,
+        rows,
+        Hold::Connection(Box::new(operation)),
+        CancellationToken::new(),
+        decode,
+    ))
+}
+
+/// A stream over `rows`, holding `hold` until its last row.
+pub(crate) fn held(
+    connection: Arc<ConnectionState>,
+    rows: RowStream,
+    hold: Hold,
+    ended: CancellationToken,
+    decode: Option<RowDecode>,
+) -> Arc<StreamState> {
     let state = Arc::new(StreamState {
         connection,
         decode,
         active: Arc::new(Mutex::new(Some(Active {
             rows: Box::pin(rows),
-            operation,
+            hold,
         }))),
         cancelled: CancellationToken::new(),
         finished: CancellationToken::new(),
+        ended,
         named: AtomicBool::new(false),
     });
     tokio::spawn(state.clone().watch());
-    Ok(state)
+    state
+}
+
+/// The decode the stream's argument `index` names: a disjoint read's codec,
+/// a registered read's selector, or with neither its rows as values.
+pub(crate) fn decode_argument(cx: &mut FunctionContext, index: usize) -> Option<RowDecode> {
+    let value = cx.argument_opt(index)?;
+    if let Ok(handle) = value.downcast::<JsBox<crate::disjoint::DisjointHandle>, _>(cx) {
+        let core = handle.0.clone();
+        let decode: RowDecode = Arc::new(move |row| {
+            let rows = crate::disjoint::Rows::of(&core, vec![row])?;
+            Ok(Box::new(rows) as crate::connect::job::Output)
+        });
+        return Some(decode);
+    }
+    value
+        .downcast::<JsBox<crate::entities::reads::DecoderHandle>, _>(cx)
+        .ok()
+        .map(|handle| handle.row_decode())
 }
 
 /// `connectionStream(connection, sql, params, abort, decoder?)`: open a
 /// stream, which holds the connection until the last row or `close`, each
 /// row read by `decoder` when one is given, a disjoint read's codec or a
 /// registered read's selector.
-// [spec:pgorm:req:bindings.streams]
+// [spec:pgorm:req:bindings.streams+1]
 // [spec:pgorm:req:bindings.disjoint+2]
 fn connection_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let connection = cx.argument::<JsBox<ConnectionHandle>>(0)?.0.clone();
     let (sql, params) = super::sql_and_params(&mut cx, 1)?;
     let abort = abort_argument(&mut cx, 3)?;
-    let decode = match cx.argument_opt(4) {
-        Some(value) => {
-            if let Ok(handle) = value.downcast::<JsBox<crate::disjoint::DisjointHandle>, _>(&mut cx)
-            {
-                let core = handle.0.clone();
-                let decode: RowDecode = Arc::new(move |row| {
-                    let rows = crate::disjoint::Rows::of(&core, vec![row])?;
-                    Ok(Box::new(rows) as crate::connect::job::Output)
-                });
-                Some(decode)
-            } else {
-                value
-                    .downcast::<JsBox<crate::entities::reads::DecoderHandle>, _>(&mut cx)
-                    .ok()
-                    .map(|handle| handle.row_decode())
-            }
-        }
-        None => None,
-    };
+    let decode = decode_argument(&mut cx, 4);
     let operation = match Operation::begin(connection) {
         Ok(operation) => operation,
         Err(failure) => return settle::rejected(&mut cx, failure),
@@ -207,6 +245,9 @@ async fn next(
         () = state.connection.closing() => {
             return Err(Failure::Lifecycle("the connection closed under the stream".to_owned()));
         }
+        () = state.ended.cancelled() => {
+            return Err(Failure::Lifecycle("the transaction ended under the stream".to_owned()));
+        }
         row = active.rows.try_next() => row,
     };
     match row {
@@ -226,17 +267,27 @@ async fn next(
             Ok(Some((Pulled::Values(values), names)))
         }
         Ok(None) => {
-            active.operation.restore();
+            active.hold.release();
             state.finished.cancel();
             Ok(None)
         }
-        Err(error) => Err(failure(&error.into(), &state.connection.pool.secrets)),
+        Err(error) => {
+            // The server ended the statement with its error, which leaves what
+            // the stream holds in a known state, as its last row does: a
+            // transaction's is aborted, and its commit reports so.
+            // [spec:pgorm:req:bindings.streams+1]
+            if error.as_db_error().is_some() {
+                active.hold.release();
+                state.finished.cancel();
+            }
+            Err(failure(&error.into(), &state.connection.pool.secrets))
+        }
     }
 }
 
 /// `streamNext(stream, tagged, abort)`: `[values, names?, kinds?]`, the
 /// names and kinds on the first row, or `null` at the end. A failure, an abort or a decode error discards the connection.
-// [spec:pgorm:req:bindings.streams]
+// [spec:pgorm:req:bindings.streams+1]
 fn stream_next(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = cx.argument::<JsBox<StreamHandle>>(0)?.0.clone();
     let tagged = cx.argument::<JsBoolean>(1)?.value(&mut cx);
@@ -278,7 +329,7 @@ fn stream_next(mut cx: FunctionContext) -> JsResult<JsPromise> {
 
 /// `streamClose(stream)`: end the stream, discarding its connection if rows
 /// remained, and resolve once it is released.
-// [spec:pgorm:req:bindings.streams]
+// [spec:pgorm:req:bindings.streams+1]
 fn stream_close(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = cx.argument::<JsBox<StreamHandle>>(0)?.0.clone();
     state.cancelled.cancel();

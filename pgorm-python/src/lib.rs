@@ -24,6 +24,7 @@ mod models;
 mod one_of;
 mod panics;
 pub mod pipeline;
+mod raw;
 pub mod results;
 mod runtime;
 pub mod schema;
@@ -83,6 +84,7 @@ pub fn install(module: &Bound<'_, PyModule>, registry: entities::Registry) -> Py
     listen::register(module)?;
     metrics::register(module)?;
     results::register(module)?;
+    raw::register(module)?;
     models::register(module)?;
     entities::install(module, registry)?;
     disjoint::register(module)?;

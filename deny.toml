@@ -45,8 +45,8 @@ multiple-versions = "warn"
 # consults no registry.
 #
 # `allow-wildcard-paths` does not cover them, because the crates holding them
-# are publishable — none of pgorm, pgorm-pool, pgorm-query, pgorm-macros or
-# pgorm-sql-macro sets `publish = false`, and crates.io rejects a path
+# are publishable — none of pgorm, pgorm-pool, pgorm-query, pgorm-macros,
+# pgorm-sql-check or pgorm-sql-macro sets `publish = false`, and crates.io rejects a path
 # dependency carrying no version. That is a real defect, but it is a defect in
 # releasing rather than in supply chain: `cargo publish` would fail on it, and
 # the fix is either a version alongside each path or an explicit

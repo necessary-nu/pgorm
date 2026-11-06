@@ -241,6 +241,15 @@ pub(crate) trait SelectBackend: Debug + Send + Sync {
     fn cursor(&self, columns: &[String]) -> Result<Arc<Keyset>, Error>;
     /// The decode `Select::stream` runs on each row.
     fn decode(&self) -> Decode;
+    /// `sql` and its values in place of the query, decoded into the entity's
+    /// models through `Select::from_raw_sql`.
+    fn run_raw<'a>(
+        &'a self,
+        db: Database<'a>,
+        sql: String,
+        values: Values,
+        terminal: Terminal,
+    ) -> BoxFuture<'a, Result<Vec<Model>, Error>>;
 }
 
 pub(crate) trait ModelBackend: Debug + Send + Sync {

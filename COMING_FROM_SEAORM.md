@@ -308,7 +308,10 @@ async fn rename(db: &DatabaseConnection) -> Result<u64, Error> {
 ```
 
 The `sql!` macro checks a raw SQL literal against PostgreSQL's own grammar at
-compile time, if you want a typo in hand-written SQL to fail the build.
+compile time, if you want a typo in hand-written SQL to fail the build. Text a
+program has only once it runs, such as a statement read from a file, is
+checked the same way by `pgorm::sql_check::check_sql`, and PRQL text compiled
+by `pgorm::sql_check::compile_prql`.
 
 ## Transactions
 

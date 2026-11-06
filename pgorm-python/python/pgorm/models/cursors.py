@@ -7,11 +7,14 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .. import _native as p
 from .columns import ModelColumn
 from .record import Database, Row, Source, decode_all
+
+if TYPE_CHECKING:
+    from ..results import Record
 
 # PostgreSQL reads LIMIT and OFFSET as bigint.
 ROWS_MAX = 2**63 - 1
@@ -166,11 +169,14 @@ class Cursor:
 @dataclass(frozen=True, slots=True)
 class Pageable:
     """What a paginator pages: the statement of one page, the statement whose
-    rows it counts, and the sources each row decodes as."""
+    rows it counts, and the sources each row decodes as, or with ``decode``
+    what decodes each row in their place, a raw statement's by name, and with
+    neither the rows as they are."""
 
     page: Callable[[int, int], p.Select]
     counted: p.Select
     sources: tuple[Source, ...]
+    decode: Callable[[Record], Row] | None = None
 
 
 # [spec:pgorm:req:bindings.pagination]
@@ -203,7 +209,13 @@ class Paginator:
         return self._page(page).inspect()
 
     async def fetch_page(self, db: Database, page: int) -> list[Row]:
-        return await decode_all(db, self._page(page), self.pageable.sources)
+        statement = self._page(page)
+        decode = self.pageable.decode
+        if decode is not None:
+            return [decode(row) for row in await db.query(statement)]
+        if not self.pageable.sources:
+            return list(await db.query(statement))
+        return await decode_all(db, statement, self.pageable.sources)
 
     async def num_items(self, db: Database) -> int:
         """How many rows the pages hold."""

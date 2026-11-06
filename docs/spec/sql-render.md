@@ -1157,6 +1157,21 @@ an ideal Postgres renderer would emit.
 > renders as `CAST(expr AS type)`, with the type name written raw (unquoted) as
 > a verbatim expression.
 
+> [spec:pgorm:req:sql.render.template-pieces]
+> `SqlTemplate::from_pieces(pieces, values)` MUST pair the pieces of a host
+> language's template literal with the expressions written between them:
+> `pieces[0]`, `values[0]`, `pieces[1]` and so on, `n + 1` pieces around `n`
+> values. It is the door the language bindings' `template` uses
+> (`bindings.template`), where Rust's own constructors take `&'static str`. The
+> pieces are SQL text, read with the real-SQL grammar `from_sql` reads
+> (`$$` opens a dollar-quoted body, quoted regions are opaque), and joined with a
+> marker per value. A piece that writes a `$N` marker of its own MUST be refused
+> with `TemplateError::MarkerInText`, since its values are the interpolations, and
+> a value that lands where PostgreSQL reads no parameter, inside a quoted region
+> or an identifier, MUST be refused by the census as a value nothing reads
+> (`UnreferencedValue`). Each value renders as an embedded expression, a bound
+> value as a parameter, never as text.
+
 ## Parameter injection
 
 > [spec:pgorm:sem:sql.render.inject+3]

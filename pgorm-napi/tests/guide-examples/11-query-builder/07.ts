@@ -2,19 +2,24 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { col, ReturningRow, Table, update } from "@necessary/pgorm";
+import { col, select, Table } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const doubled = update(new Table("cake"))
-    .set("price", col("price").mul(2))
-    .where(col("id").eq(1))
-    .returning([ReturningRow.old.col("price").as("was"), ReturningRow.new.col("price").as("now")]);
+  const query = select(col("name"))
+    .from(new Table("cake"))
+    .where(col("id").isIn(select(col("cake_id")).from(new Table("order_line")).where(col("quantity").gt(1))))
+    .where(col("price").cast("integer").lt(10))
+    .orderBy(col("name").collate("C").asc());
 
   assert.equal(
-    doubled.inspect().sql,
-    `UPDATE "cake" SET "price" = "price" * $1::int4 WHERE "id" = $2 RETURNING old."price" AS "was", new."price" AS "now"`,
+    query.inspect().sql,
+    [
+      `SELECT "name" FROM "cake"`,
+      `WHERE "id" IN (SELECT "cake_id" FROM "order_line" WHERE "quantity" > $1)`,
+      `AND CAST("price" AS integer) < $2`,
+      `ORDER BY ("name" COLLATE "C") ASC`,
+    ].join(" "),
   );
-  const [row] = await pool.query(doubled);
-  assert.deepEqual([String(row?.was), String(row?.now)], ["4.50", "9.00"]);
+  assert.deepEqual(await pool.query(query), [{ name: "Chocolate Fudge" }]);
 }

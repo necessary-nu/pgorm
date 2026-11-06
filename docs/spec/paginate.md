@@ -548,7 +548,7 @@ bound parameter is held to.
 > stream ends at the first empty page and yields the error (then ends)
 > if any fetch fails.
 
-> [spec:pgorm:sem:exec.paginator.raw+6]
+> [spec:pgorm:sem:exec.paginator.raw+7]
 > Paginating a `SelectorRaw` MUST decide what the raw statement is by
 > parsing it with libpg_query — the PostgreSQL server's own parser, the
 > same `pg_query` revision, on PostgreSQL 18's grammar, that the render
@@ -638,6 +638,12 @@ bound parameter is held to.
 > pageable cannot reach any of them. Deferring it instead would make a
 > `paginate` that returns no `Result` a claim the type could not keep,
 > and would report one authoring mistake once per reader rather than once.
+>
+> The wrapping is public as `raw_select(sql, values)`, which gives the
+> `SelectStatement` a `SelectorRaw` pages and counts, or the same refusal,
+> for a caller that sends the page or the count itself: `page_statement` and
+> `count_statement` take it, as a language binding's raw statement does
+> (`[spec:pgorm:req:bindings.raw-pages]`).
 
 > [spec:pgorm:def:exec.paginator.erased]
 > A paginator over a read a caller chooses at run time MUST be reachable

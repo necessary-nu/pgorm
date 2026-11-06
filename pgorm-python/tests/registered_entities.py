@@ -518,6 +518,32 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             "error deserializing column 1: "
             "cannot convert between the Rust type `i32` and the Postgres type `text`",
         )
+        # [spec:pgorm:req:bindings.refusal-fields/test]    what the driver was reading and why, as fields
+        self.assertEqual(refused.exception.reading, "error deserializing column 1")
+        self.assertEqual(
+            refused.exception.reason,
+            "cannot convert between the Rust type `i32` and the Postgres type `text`",
+        )
+
+    # [spec:pgorm:req:bindings.raw-models/test]    a registration's models from a raw statement, as Select::from_raw_sql
+    async def test_raw_statements_decode_into_registered_models(self):
+        await self.pool.execute(p.RawSQL(
+            "INSERT INTO python_entities.notes VALUES (1, 7, 'one'), (2, 7, 'two'), (3, 8, 'three')"))
+        query = self.note.find().from_raw_sql(p.RawSQL(
+            "SELECT * FROM python_entities.notes WHERE account_id = $1 ORDER BY id", [7]))
+        self.assertEqual([model["body"] for model in await query.all(self.pool)], ["one", "two"])
+        self.assertEqual(query.inspect().sql, "SELECT * FROM python_entities.notes WHERE account_id = $1 ORDER BY id")
+        one = await self.note.find().from_raw_sql(p.RawSQL(
+            "SELECT * FROM python_entities.notes WHERE id = 3")).one(self.pool)
+        self.assertEqual(one["account_id"], 8)
+        self.assertIsNone(await self.note.find().from_raw_sql(p.RawSQL(
+            "SELECT * FROM python_entities.notes WHERE id = 9")).optional(self.pool))
+        with self.assertRaises(p.DecodeError):
+            await self.note.find().from_raw_sql(p.RawSQL(
+                "SELECT id, body FROM python_entities.notes")).all(self.pool)
+        # [spec:pgorm:req:python.truth-testing+5/test]    a raw read refuses truth testing as a query does
+        with self.assertRaises(p.ConstructionError):
+            bool(query)
 
     # [spec:pgorm:req:bindings.entity-reads+4/test]
     async def test_one_never_widens_a_zero_limit(self):

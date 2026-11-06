@@ -128,7 +128,11 @@ fn manifest() -> Value {
             "uuid_extract_timestamp": [1], "uuid_extract_version": [1],
             "generate_series": [2, 3], "unnest": [1],
             "json_to_record": [1], "jsonb_to_record": [1],
-            "json_to_recordset": [1], "jsonb_to_recordset": [1]
+            "json_to_recordset": [1], "jsonb_to_recordset": [1],
+            "grouping": {"min_args": 1},
+            "to_tsvector": [1], "to_tsquery": [1], "plainto_tsquery": [1],
+            "phraseto_tsquery": [1], "websearch_to_tsquery": [1],
+            "ts_rank": [2], "ts_rank_cd": [2]
         },
         "result_forms": ["pool", "connection", "bool", "expression", "json_input", "pending_merge", "merge", "with", "condition", "compiled", "projection", "ordering", "record", "optional_record", "records", "affected_count", "async_stream", "entity", "entity_query", "entity_model", "active_model", "active_value", "graph", "graph_query", "graph_cursor", "graph_tuple", "model_descriptor", "model_column", "model_query", "model_write", "model_records", "pipeline", "pipeline_expression", "pipeline_binder", "pipeline_source", "pipeline_grouped", "pipeline_window", "source_selection", "selected_sources", "ddl", "create_table", "create_index", "entity_schema", "ddl_column", "ddl_type", "transaction"],
         "result_policy": {
@@ -277,6 +281,17 @@ fn manifest() -> Value {
     manifest["copy_policy"] = crate::copy::policy();
     manifest["listen_policy"] = crate::listen::policy();
     manifest
+}
+
+/// A capability for each `(name, rust_api)` entry, none of them behind a
+/// cargo feature.
+pub(crate) fn plain<'a>(
+    entries: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> serde_json::Map<String, Value> {
+    entries
+        .into_iter()
+        .map(|(name, api)| (name.to_owned(), json!({"rust_api": api, "features": []})))
+        .collect()
 }
 
 /// Return a fresh, versioned description of this native build's public surface.

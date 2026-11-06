@@ -245,7 +245,7 @@ test("a paginator reads pages by limit and offset and counts the rows it pages",
   assert.throws(() => paginator.inspect(-1), refused(/non-negative integer/));
 });
 
-// [spec:pgorm:req:bindings.model-reads/test]
+// [spec:pgorm:req:bindings.model-reads+1/test]
 test("a model query joins a relation to filter on its far end without reading it", async () => {
   const titles = await Post.find().join(author).where(Account.col("name").eq("Bob")).all(pool());
   assert.deepStrictEqual(titles.map((post) => post.title), ["b1"]);

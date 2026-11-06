@@ -1,0 +1,29 @@
+[package]
+name = "pgorm-sql-check"
+version = "0.2.0"
+authors = []
+edition = "2024"
+description = "PostgreSQL grammar checks of raw SQL and PRQL compilation, shared by pgorm's sql!/prql! macros and its run-time checks"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/necessary-nu/pgorm"
+documentation = "https://docs.rs/pgorm-sql-check"
+repository = "https://github.com/necessary-nu/pgorm"
+categories = ["database"]
+keywords = ["postgres", "sql", "prql"]
+rust-version = "1.89"
+
+# An ordinary library rather than part of the proc-macro crate: a proc-macro
+# crate exports only its macros, so pgorm-sql-macro, which checks a literal
+# while its caller compiles, and pgorm, which checks text at run time for the
+# language bindings, share one implementation through this crate.
+[dependencies]
+# The pg_query fork at the root crate's revision, so every check holds SQL to
+# the grammar every other parse in pgorm uses. The root manifest says why it
+# is a git dependency.
+pg_query = { git = "https://github.com/necessary-nu/pg_query.rs.git", rev = "09ebc3a4c7f50f3682e890a8372b4c4c99382ed9" }
+# The same fork, at the same revision, as the root crate's runtime pipeline:
+# the two must move in lockstep so `prql!`, the run-time PRQL check and
+# `pgorm::pipeline` emit through one compiler. The root manifest says why it
+# is a git dependency.
+prqlc = { git = "https://github.com/necessary-nu/prql.git", rev = "2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19", default-features = false }
+serde_json = { version = "1.0.151", default-features = false, features = ["std"] }
