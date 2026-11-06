@@ -118,8 +118,13 @@ type of your choosing or by position, and a JavaScript pipeline stages the
 same reads. `intoModel(model)` reads each row as a model's record, each field
 from the result column of its SQL name, the result's columns exactly the
 model's and each held to its declaration, as the model's own queries hold
-them; given a function instead, it gives what the function makes of each
-row. `intoTuple()` reads each row as an array of its values in column order,
+them. A column the model reads through a cast — a `money` column, a domain
+over an enum, a `selectAs` ([Values](13-values.md)) — is read cast, the
+pipeline ending in a projection of the model's columns, as Rust's ends in one
+for an entity's model; the pipeline's own `all`, `one` and `optional` read
+the columns as the server sends them, so such a model is read through
+`intoModel` or `selectSources`. Given a function instead, `intoModel` gives
+what the function makes of each row. `intoTuple()` reads each row as an array of its values in column order,
 by position, so a result with two columns of one name is read whole. Each
 gives a `PipelineSelector`, whose `all`, `one` and `optional` run as the
 pipeline's own do and whose `inspect(terminal)` shows what each sends;
@@ -323,8 +328,9 @@ A column whose type needs a cast to be compared names that type with
 column over a domain whose base is an enum needs it, since PostgreSQL resolves
 no comparison for the domain, and so does a `money` column compared with a
 `Decimal`. Rust's pipeline takes the cast from the entity's column type, as a
-JavaScript pipeline takes it from a model's column; `pipeline.col(table,
-column)` over a table has no column type to take it from:
+JavaScript pipeline takes it from a model's column, its `columnType` and
+`saveAs` included; `pipeline.col(table, column)` over a table has no column
+type to take it from:
 
 ```ts
 import assert from "node:assert/strict";

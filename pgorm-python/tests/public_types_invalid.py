@@ -86,6 +86,8 @@ async def invalid(connection: p.Connection) -> None:
     accounts = p.Model("accounts", {"id": p.Column("i64", primary_key=True)})
     p.Model("accounts", {"id": p.Column("i64")}, unique_keys=[{"fields": "id", "nulls_distinct": True}])  # expected-error: typeddict-unknown-key
     p.Column("i32", generated="sometimes")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.model-array-casts/test]    save_array_with is a function of an expression
+    p.Column("text", save_with=lambda value: value, save_array_with="upper")  # expected-error: arg-type
     # [spec:pgorm:req:bindings.schema-from-model/test]    the DDL options are typed: expressions, a closed case style, a belongs_to's actions
     p.Column("i32", default_expr=1)  # expected-error: arg-type
     p.Column("i32", generated_stored="price")  # expected-error: arg-type

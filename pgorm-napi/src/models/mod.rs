@@ -14,7 +14,7 @@ mod parity;
 mod shape;
 
 pub(crate) use shape::{
-    column_type, columns, flag, names, property, table_name, text, unique_keys,
+    CastsHandle, column_type, columns, flag, names, property, table_name, text, unique_keys,
 };
 
 use neon::prelude::*;

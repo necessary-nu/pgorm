@@ -1306,14 +1306,20 @@ which reads and writes them with the Rust conversions in between.
 ## Custom reads and writes
 
 Sometimes a column needs SQL around it on its way in or out, because pgorm
-has no kind that reads it directly. A Rust field says so with four
-attributes, and a model's column takes the same four: `select_as` and
+has no kind that reads it directly. A Rust field says so with five
+attributes, and a model's column takes the same five: `select_as` and
 `save_as` read the column cast to a type and write each value cast to one,
 and `select_with` and `save_with` read and write through functions from an
-expression to an expression, the value bound before `save_with` sees it. A
-comparison's value takes the column's write too. A type is a built-in type's
-name, a `TypeName`, or a `DataType`, whose length or precision the cast
-writes: `bit(7)`.
+expression to an expression, the value bound before `save_with` sees it,
+with `save_array_with` beside `save_with` for the array `any_(..)` and
+`all_(..)` compare the column with. As in Rust, `save_with` and
+`save_array_with` come together, and either alone is a `ConstructionError`.
+A comparison's value takes the column's write too, and so does a list
+`any_(..)` or `all_(..)` ranges over, bound as one array: a `save_as`
+column's array is cast to the array of its type, a `money` column's to
+`money[]`, a domain over an enum's to the enum's array, as Rust's
+`save_array_as` casts it. A type is a built-in type's name, a `TypeName`, or
+a `DataType`, whose length or precision the cast writes: `bit(7)`.
 
 The bakery keeps the days of the week it opens as a `bit(7)`, Monday first,
 and the program reads and writes it as an integer. No kind reads `bit`, so
@@ -1324,7 +1330,7 @@ the column is read cast to `bigint`, and each value written cast to
 import asyncio
 import os
 
-from pgorm import Column, Model, Pool
+from pgorm import Column, Model, Pool, any_
 from pgorm import schema as s
 
 DAYS = s.DataType("bit", length=7)
@@ -1350,6 +1356,12 @@ async def main() -> None:
         )
         assert await every_day.all(pool) == []
 
+        some_days = Opening.find().where(Opening.col("days") == any_([0b111_1110, 0b000_0011]))
+        assert some_days.inspect().sql.endswith(
+            'WHERE "opening"."days" = ANY(CAST($1::int8[] AS bit(7)[]))'
+        )
+        assert [row["bakery_id"] for row in await some_days.all(pool)] == [1]
+
 
 asyncio.run(main())
 ```
@@ -1359,9 +1371,8 @@ casts itself: `expr.cast(type)` is `select_as`, `bind(value).cast(type)` is
 `save_as`, and a function of its own that returns an expression is
 `select_with` or `save_with`. A cast there takes a `TypeName`, which has no
 length, so a value bound for `bit(7)` goes through `varbit`, where a model's
-`save_as` names `bit(7)` itself. Rust's `save_array_with` writes the array
-`eq_any` and `ne_all` compare with; a model's `any(..)` operand is taken as
-written, so it is the program's to cast. A type whose name needs quoting is a `TypeName`
+`save_as` names `bit(7)` itself, and an array `any_(..)` compares with is
+the statement's to cast as well. A type whose name needs quoting is a `TypeName`
 like any other, and an array of it is `cast(type, array=True)`. Here is
 Rust's shelf label, read as `text` and compared with a list of labels as one
 array:

@@ -4,9 +4,11 @@ for their types, and converted through the program's own functions."""
 from decimal import Decimal
 import enum
 import os
+from typing import Any
 import unittest
 
 import pgorm as p
+from pgorm import pipeline as pl
 from pgorm import schema as s
 
 FLAVOR = p.TypeName("flavor", schema="model_types")
@@ -126,6 +128,81 @@ class ColumnCastConstruction(unittest.TestCase):
         with self.assertRaises(TypeError):
             p.Column("text", decode=3)  # type: ignore[arg-type]
 
+    # [spec:pgorm:req:bindings.model-array-casts/test]    a list any_ and all_ range over is written as the column writes its array
+    def test_quantified_lists_take_the_columns_array_cast(self):
+        tips, specials = tip_jar(), special()
+        self.assertTrue(
+            tips.find().where(tips.col("amount") == p.any_([Decimal(1), Decimal(2)])).inspect().sql
+            .endswith('WHERE "tip_jar"."amount" = ANY(CAST($1::numeric[] AS money[]))')
+        )
+        self.assertTrue(
+            specials.find().where(specials.col("flavor") != p.all_(["plain"])).inspect().sql
+            .endswith(
+                'WHERE CAST("special"."flavor" AS model_types.flavor) '
+                '<> ALL(CAST($1::text[] AS model_types.flavor[]))'
+            )
+        )
+        coded = p.Model("coded", {"code": p.Column("text", save_as="varchar")})
+        self.assertTrue(
+            coded.find().where(coded.col("code") == p.any_(["a"])).inspect().sql
+            .endswith('WHERE "coded"."code" = ANY(CAST($1::text[] AS varchar[]))')
+        )
+        upper = p.Model("upper", {"code": p.Column(
+            "text",
+            save_with=lambda value: p.call("upper", value),
+            save_array_with=lambda array: array.cast(p.TypeName("citext"), array=True),
+        )})
+        self.assertTrue(
+            upper.find().where(upper.col("code") == p.any_(["a"])).inspect().sql
+            .endswith('WHERE "upper"."code" = ANY(CAST($1::text[] AS citext[]))')
+        )
+        plain = p.Model("plain", {"code": p.Column("text")})
+        self.assertTrue(
+            plain.find().where(plain.col("code") == p.any_(["a"])).inspect().sql
+            .endswith('WHERE "plain"."code" = ANY($1)')
+        )
+        for refused in (
+            lambda: p.Column("text", save_with=lambda value: value),
+            lambda: p.Column("text", save_array_with=lambda array: array),
+            lambda: p.Column("text", save_as="varchar", save_array_with=lambda array: array),
+        ):
+            with self.subTest(refused=refused), self.assertRaises(p.ConstructionError):
+                refused()
+        with self.assertRaises(TypeError):
+            p.Column("text", save_with=lambda v: v, save_array_with="upper")  # type: ignore[arg-type]
+        no_expression: Any = lambda array: "upper"
+        bad = p.Model("bad", {"code": p.Column(
+            "text", save_with=lambda value: value, save_array_with=no_expression,
+        )})
+        with self.assertRaises(TypeError):
+            bad.find().where(bad.col("code") == p.any_(["a"]))
+
+    # [spec:pgorm:req:bindings.pipeline-models+1/test]    a cast column compares in a pipeline as the model's own comparisons do, and its typed reads read it cast
+    def test_pipeline_reads_and_compares_through_casts(self):
+        tips, specials, days = tip_jar(), special(), opening()
+        compared = pl.from_(tips).filter(pl.col(tips, "amount") > Decimal(10))
+        self.assertEqual(
+            compared.inspect().sql,
+            "SELECT * FROM model_types.tip_jar WHERE amount > CAST($1::numeric AS money)",
+        )
+        self.assertEqual(
+            compared.into_model(tips).inspect().sql,
+            "SELECT id, CAST(amount AS numeric) AS amount FROM model_types.tip_jar "
+            "WHERE amount > CAST($1::numeric AS money)",
+        )
+        self.assertEqual(
+            pl.from_(specials).filter(pl.col(specials, "flavor") == "lemon").select_sources(specials)
+            .inspect().sql,
+            "SELECT id AS s0_id, CAST(flavor AS text) AS s0_flavor FROM model_types.special "
+            "WHERE CAST(flavor AS model_types.flavor) = CAST($1::text AS model_types.flavor)",
+        )
+        self.assertEqual(
+            pl.from_(days).into_model(days).inspect().sql,
+            "SELECT bakery_id, CAST(days AS bigint) AS days FROM model_types.opening",
+        )
+        plain = shelving()
+        self.assertEqual(pl.from_(plain).into_model(plain).inspect().sql, "SELECT * FROM model_types.shelving")
+
     # [spec:pgorm:req:bindings.model-conversions/test]    encode converts what a write and a comparison take
     def test_encode(self):
         shelves = shelving()
@@ -160,6 +237,27 @@ class ColumnCastDatabase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(week["days"], 0b1111110)
         cursor = days.find().cursor("days").after(0b0000001)
         self.assertEqual([row["bakery_id"] for row in await cursor.all(self.pool)], [1])
+
+    # [spec:pgorm:req:bindings.model-array-casts/test]    a list compared with a money or domain-over-enum column runs
+    # [spec:pgorm:req:bindings.pipeline-models+1/test]    a pipeline over cast columns compares and reads them as the model does
+    async def test_cast_columns_run_in_lists_and_pipelines(self):
+        tips, specials = tip_jar(), special()
+        await tips.insert_many([{"amount": Decimal("12.50")}, {"amount": Decimal("3")}]).execute(self.pool)
+        await specials.insert_many([{"flavor": "lemon"}, {"flavor": "plain"}]).execute(self.pool)
+        listed = tips.find().where(tips.col("amount") == p.any_([Decimal("3"), Decimal("4")]))
+        self.assertEqual([row["amount"] for row in await listed.all(self.pool)], [Decimal("3.00")])
+        lemons = specials.find().where(specials.col("flavor") == p.any_(["lemon"]))
+        self.assertEqual([row["flavor"] for row in await lemons.all(self.pool)], ["lemon"])
+        big = pl.from_(tips).filter(pl.col(tips, "amount") > Decimal(10))
+        self.assertEqual([row["amount"] for row in await big.into_model(tips).all(self.pool)], [Decimal("12.50")])
+        [(tip,)] = await big.select_sources(tips).all(self.pool)
+        self.assertEqual(tip["amount"], Decimal("12.50"))
+        lemon = pl.from_(specials).filter(pl.col(specials, "flavor") == "lemon")
+        self.assertEqual([row["flavor"] for row in await lemon.into_model(specials).all(self.pool)], ["lemon"])
+        self.assertEqual((await lemon.into_model(specials).one(self.pool))["flavor"], "lemon")
+        # The pipeline's own terminals read the columns as the server sends them.
+        with self.assertRaises(p.DecodeError):
+            await pl.from_(tips).all(self.pool)
 
     # [spec:pgorm:req:bindings.model-conversions/test]    decode reads the program's type and refuses what it cannot read
     async def test_conversions_run(self):

@@ -1,7 +1,7 @@
 from collections.abc import Awaitable, Callable
 from typing import Any
 from ._entities import EntityColumn
-from ._native import TypeName, Value
+from ._native import TypeName, Value, _ModelColumnCasts
 from ._ranges import CreatedRange, CreatedMultirange
 from ._pipeline_builder import Pipeline, PipelineSource, SourceInput
 from .runtime import Connection, Pool
@@ -20,6 +20,7 @@ def pipeline_model_col(
     array: bool,
     values: list[str] | None,
     convert: Callable[[object], Value],
+    casts: _ModelColumnCasts | None = None,
 ) -> PipelineExpr: ...
 def pipeline_tuples(
     connection: Pool | Connection | Transaction, statement: Pipeline, terminal: str

@@ -116,6 +116,7 @@ class Column:
     save_as: DdlType | None = None
     select_with: Callable[[p.Expr], p.Expr] | None = None
     save_with: Callable[[p.Expr], p.Expr] | None = None
+    save_array_with: Callable[[p.Expr], p.Expr] | None = None
     decode: Callable[[Any], Any] | None = None
     encode: Callable[[Any], Any] | None = None
     _null: p.Value = field(init=False, repr=False, compare=False)
@@ -137,12 +138,23 @@ class Column:
                 raise TypeError('a column is generated "always" or "by_default"')
         if self.comment is not None and type(self.comment) is not str:
             raise TypeError("a column's comment is a string")
-        for option in ("select_with", "save_with", "decode", "encode"):
+        for option in ("select_with", "save_with", "save_array_with", "decode", "encode"):
             _callable(getattr(self, option), option)
         if self.select_as is not None and self.select_with is not None:
             raise p.ConstructionError("a column is read through select_as or select_with, not both")
         if self.save_as is not None and self.save_with is not None:
             raise p.ConstructionError("a column is written through save_as or save_with, not both")
+        # [spec:pgorm:req:bindings.model-array-casts]
+        if self.save_with is not None and self.save_array_with is None:
+            raise p.ConstructionError(
+                "a column written through save_with names save_array_with too: the function "
+                "writing an array of its values, which = ANY and <> ALL compare it with"
+            )
+        if self.save_array_with is not None and self.save_with is None:
+            raise p.ConstructionError(
+                "save_array_with writes an array of the values save_with writes one of: "
+                "name save_with beside it"
+            )
         default_expr = _expression(self.default_expr, "default_expr")
         expressions = [
             _expression(self.generated_stored, "generated_stored"),
@@ -384,13 +396,15 @@ class ModelColumn(p._DeclaredColumn):
         return self._expression
 
     # [spec:pgorm:req:bindings.model-columns+2]
+    # [spec:pgorm:req:bindings.model-array-casts]
     def _quantified(self, quantified: p.Quantified) -> p.Quantified:
         """``any_(..)`` or ``all_(..)`` over a list of values, ranging over
         them each converted to the declared kind and bound as one array of it,
-        an enum's cast to its array type, as pgorm's ``eq_any`` binds through
-        the column's cast. One over a ``Select`` or an expression, and one
-        beside an array column, whose elements are arrays, is the quantifier
-        given."""
+        an enum's cast to its array type, then written as the column writes
+        the array its comparisons take, as pgorm's ``eq_any`` binds through
+        the column's ``save_array_as``. One over a ``Select`` or an
+        expression, and one beside an array column, whose elements are
+        arrays, is the quantifier given."""
         listed = quantified._listed
         if listed is None or self.declaration.array:
             return quantified
@@ -402,7 +416,7 @@ class ModelColumn(p._DeclaredColumn):
                     f"{self.field_name} compared with None is never true: test it with is_null()"
                 )
             elements.append(self.declaration._value(value).value)
-        array = p.Value.array(self.declaration.kind, elements)
+        array = casts.compared_array(self.declaration, p.Value.array(self.declaration.kind, elements))
         return p.all_(array) if every else p.any_(array)
 
     def _operand(self, value: Any) -> p.Expr | p.Value | p.Quantified:

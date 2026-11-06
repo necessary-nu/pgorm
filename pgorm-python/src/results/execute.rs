@@ -46,7 +46,7 @@ pub(crate) fn fetch<'py>(
 /// [`fetch`] with each row a tuple of its values in column order, read by
 /// position as Rust's `into_tuple` reads one, so a result naming one column
 /// twice is read rather than refused.
-// [spec:pgorm:req:bindings.pipeline-models]
+// [spec:pgorm:req:bindings.pipeline-models+1]
 pub(crate) fn fetch_tuples<'py>(
     py: Python<'py>,
     executor: Executor,

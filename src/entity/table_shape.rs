@@ -11,7 +11,10 @@ use std::fmt;
 
 use pgorm_query::{Expr, ExprTrait, GeneratedKind, Name, SimpleExpr, SqlName, TableName, TypeName};
 
-use super::{ColumnDefault, compared_enum, compared_value_as, save_cast, select_cast};
+use super::{
+    ColumnDefault, cast_of, compared_enum, compared_value_as, save_array_cast, save_cast,
+    select_cast,
+};
 use crate::{
     ColumnDef, ColumnTrait, DisjointTable, EntityTrait, Error, Iterable, PrimaryKeyToColumn,
     PrimaryKeyTrait, RelationDef, RelationTrait, executor::result_name::derived_name,
@@ -78,7 +81,7 @@ impl TableColumn {
     /// The column, read cast to `type_name` in place of what its type reads
     /// as: an entity column's `select_as = ".."`.
     #[must_use]
-    // [spec:pgorm:sem:schema.shape-casts]
+    // [spec:pgorm:sem:schema.shape-casts+1]
     pub fn with_select_as(mut self, type_name: TypeName) -> Self {
         self.select_as = Some(type_name);
         self
@@ -88,7 +91,7 @@ impl TableColumn {
     /// what its type writes: an entity column's `save_as = ".."`, which a
     /// comparison's value takes too unless the column compares as an enum.
     #[must_use]
-    // [spec:pgorm:sem:schema.shape-casts]
+    // [spec:pgorm:sem:schema.shape-casts+1]
     pub fn with_save_as(mut self, type_name: TypeName) -> Self {
         self.save_as = Some(type_name);
         self
@@ -105,7 +108,7 @@ impl TableColumn {
     /// read as `numeric`, an enum and a domain over one as its text, a
     /// created multirange as its text. `None` where the column is read as it
     /// stands, so a projection can name it with no alias.
-    // [spec:pgorm:sem:schema.shape-casts]
+    // [spec:pgorm:sem:schema.shape-casts+1]
     pub fn select(&self, expr: Expr) -> Option<SimpleExpr> {
         if let Some(type_name) = &self.select_as {
             return Some(expr.cast_as_type(type_name.clone()));
@@ -119,7 +122,7 @@ impl TableColumn {
     /// [`save_as`](crate::ColumnTrait::save_as) does by default, cast to
     /// `money`, to an enum or a domain, or to a created range's type through
     /// its text, and as it is otherwise.
-    // [spec:pgorm:sem:schema.shape-casts]
+    // [spec:pgorm:sem:schema.shape-casts+1]
     pub fn save(&self, value: Expr) -> SimpleExpr {
         match &self.save_as {
             Some(type_name) => value.cast_as_type(type_name.clone()),
@@ -130,7 +133,7 @@ impl TableColumn {
     /// `column`, a read of the column, as a comparison takes it: cast to the
     /// enum when its type is a domain over one, which PostgreSQL resolves no
     /// comparison operator for, and as it is otherwise.
-    // [spec:pgorm:sem:schema.shape-casts]
+    // [spec:pgorm:sem:schema.shape-casts+1]
     pub fn compared_column(&self, column: Expr) -> Expr {
         match compared_enum(self.def.get_column_type()) {
             Some(enum_type) => Expr::expr(column.cast_as_type(enum_type)),
@@ -141,7 +144,7 @@ impl TableColumn {
     /// The enum the column compares as, which
     /// [`compared_column`](Self::compared_column) casts it to: its type's,
     /// where that is a domain over an enum, through further domains.
-    // [spec:pgorm:sem:schema.shape-casts]
+    // [spec:pgorm:sem:schema.shape-casts+1]
     pub fn compares_as(&self) -> Option<TypeName> {
         compared_enum(self.def.get_column_type())
     }
@@ -150,9 +153,47 @@ impl TableColumn {
     /// when the column's domain is over one, so it meets
     /// [`compared_column`](Self::compared_column) as the enum, and written as
     /// [`save`](Self::save) writes it otherwise.
-    // [spec:pgorm:sem:schema.shape-casts]
+    // [spec:pgorm:sem:schema.shape-casts+1]
     pub fn compared_value(&self, value: Expr) -> SimpleExpr {
         compared_value_as(self.def.get_column_type(), value, |value| self.save(value))
+    }
+
+    /// The array of values `= ANY` and `<> ALL` compare the column with, as
+    /// an entity column's `eq_any` and `ne_all` take it: cast to the enum's
+    /// array when the column's domain is over one, to the array of the type
+    /// a `save_as` names, and otherwise as the column's type writes an array
+    /// of its values — the array of its `money` or enum, a created range's
+    /// array through its text — or as it is.
+    // [spec:pgorm:sem:schema.shape-casts+1]
+    pub fn compared_array(&self, array: Expr) -> SimpleExpr {
+        let col_type = self.def.get_column_type();
+        if let Some(enum_type) = compared_enum(col_type) {
+            return array.cast_as_type(enum_type.array());
+        }
+        match &self.save_as {
+            Some(type_name) => array.cast_as_type(type_name.clone().array()),
+            None => save_array_cast(col_type, array),
+        }
+    }
+
+    /// The type [`select`](Self::select) casts the column to, which a reader
+    /// of the column's rows reads it as: `None` where it is read as it
+    /// stands.
+    // [spec:pgorm:sem:schema.shape-casts+1]
+    pub fn read_cast(&self) -> Option<TypeName> {
+        cast_of(|operand| {
+            self.select(operand.clone())
+                .unwrap_or_else(|| operand.into())
+        })
+    }
+
+    /// The type [`compared_value`](Self::compared_value) casts a compared
+    /// value to, where what it writes is a cast of the value itself: `None`
+    /// for a column whose values travel bare, and for a created range's,
+    /// written through its text.
+    // [spec:pgorm:sem:schema.shape-casts+1]
+    pub fn compared_value_cast(&self) -> Option<TypeName> {
+        cast_of(|operand| self.compared_value(operand))
     }
 
     /// What the table writes for the column after its name: its type,

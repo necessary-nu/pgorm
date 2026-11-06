@@ -181,7 +181,7 @@ mod window;
 
 pub use binder::Binder;
 pub use builder::{Grouped, IntoSource, JoinSide, Pipeline, Source};
-pub use described::{DescribedSource, col_typed};
+pub use described::{DescribedSource, col_shaped, col_typed};
 pub use error::PipelineError;
 pub use expr::{Expr, ExprList, ExprOps, col, that, this};
 pub use funcs::{

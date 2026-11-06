@@ -151,8 +151,10 @@ export interface ColumnOptions {
   readonly saveAs?: DdlType;
   /** The expression the column is read through, Rust's `select_with`. */
   readonly selectWith?: (column: Expr) => Expr;
-  /** The expression each value is written through, Rust's `save_with`; a comparison's value too. */
+  /** The expression each value is written through, Rust's `save_with`; a comparison's value too. Needs `saveArrayWith`. */
   readonly saveWith?: (value: Expr) => Expr;
+  /** The expression the array `any(..)` and `all(..)` compare the column with is written through, Rust's `save_array_with`, beside `saveWith`. */
+  readonly saveArrayWith?: (array: Expr) => Expr;
   /**
    * The program's own value of each decoded one, checked as it is read, as a
    * Rust `ValueType` or `JsonValueType` field is read: a throw is a {@link DecodeError}.
@@ -192,6 +194,7 @@ export declare class Column<K extends ColumnKind = ColumnKind, O extends ColumnO
   readonly saveAs: DdlType | null;
   readonly selectWith: ((column: Expr) => Expr) | null;
   readonly saveWith: ((value: Expr) => Expr) | null;
+  readonly saveArrayWith: ((array: Expr) => Expr) | null;
   readonly decode: ((value: any) => unknown) | null;
   readonly encode: ((value: any) => unknown) | null;
   /** The options the column was declared with, as the types know them. */
