@@ -1,19 +1,19 @@
-use super::{
-    backend::{Change, Query},
-    cursor::PyEntityGraphCursor,
-};
+use pgorm_bindings::entity::{GraphChange as Change, GraphQuery as Query};
+
+use super::cursor::PyEntityGraphCursor;
 use crate::panics::future_into_py;
 use crate::{
+    entities::PyEntityModel,
     entities::{
         reads::NativeRowDecoder,
         reads_py::{CursorState, PyEntityPaginator, compiled, counted, stream},
     },
-    errors::{ConstructionError, InternalError},
+    errors::{ConstructionError, InternalError, Raise},
     execution::Executor,
     expressions::{Compiled, OrderBy, PyCondition, PyExpr},
     transactions::work::{Output, Read, Work},
 };
-use pgorm::pgorm_query::{Expr, IntoCondition, Name};
+use pgorm::pgorm_query::IntoCondition;
 use pyo3::types::PyList;
 use pyo3::{
     exceptions::PyTypeError,
@@ -43,24 +43,10 @@ impl PyEntityGraphQuery {
         let source: usize = source
             .extract()
             .map_err(|_| ConstructionError::new_err("invalid graph source index"))?;
-        let descriptor = self
-            .inner
-            .info()
-            .bindings
-            .sources
-            .get(source)
-            .ok_or_else(|| {
-                ConstructionError::new_err("source is outside the registered graph shape")
-            })?;
-        descriptor.entity.column(column)?;
-        let qualifier = if source == 0 {
-            &descriptor.entity.table
-        } else {
-            &self.inner.aliases()[source - 1]
-        };
-        Ok(PyExpr::from_rust(
-            Expr::col((Name::runtime(qualifier), Name::runtime(column))).into(),
-        ))
+        self.inner
+            .column(source, column)
+            .map(PyExpr::from_rust)
+            .py()
     }
 
     fn r#where(&self, predicate: &Bound<'_, PyAny>) -> PyResult<Self> {
@@ -105,6 +91,7 @@ impl PyEntityGraphQuery {
                 return compiled(
                     self.inner
                         .pages()
+                        .pages
                         .statement(std::num::NonZeroU64::MIN, None)
                         .map_err(|error| ConstructionError::new_err(error.to_string()))?
                         .build(),
@@ -127,19 +114,8 @@ impl PyEntityGraphQuery {
     /// own key, then the root's and the other slots', as tiebreaks.
     #[pyo3(signature = (source, *columns))]
     fn cursor_on(&self, source: usize, columns: Vec<String>) -> PyResult<PyEntityGraphCursor> {
-        let entity = &self
-            .inner
-            .info()
-            .bindings
-            .sources
-            .get(source)
-            .ok_or_else(|| ConstructionError::new_err(format!("the graph has no source {source}")))?
-            .entity;
-        for column in &columns {
-            entity.column(column)?;
-        }
         Ok(PyEntityGraphCursor {
-            state: CursorState::new(self.inner.cursor(source, &columns)?),
+            state: CursorState::new(self.inner.keyset(source, &columns).py()?),
         })
     }
 
@@ -153,7 +129,7 @@ impl PyEntityGraphQuery {
         let pages = self.inner.pages();
         let read: Read = Box::new(move |db| {
             Box::pin(async move {
-                let counted = pages.count(db, std::num::NonZeroU64::MIN).await?;
+                let counted = pages.pages.count(db, std::num::NonZeroU64::MIN).await?;
                 Ok(Output::Count(counted.number_of_items))
             })
         });
@@ -171,7 +147,9 @@ impl PyEntityGraphQuery {
         py: Python<'py>,
         connection: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let read = self.inner.grouped()?;
+        let grouped = self.inner.grouped().py()?;
+        let read: Read =
+            Box::new(move |db| Box::pin(async move { Ok(Output::Grouped(grouped(db).await?)) }));
         let target = Executor::extract(py, connection)?;
         future_into_py(py, async move {
             let Output::Grouped(groups) = target.run(Work::Read(read)).await? else {
@@ -181,6 +159,11 @@ impl PyEntityGraphQuery {
                 let groups = groups
                     .into_iter()
                     .map(|(root, slots)| {
+                        let root = PyEntityModel { inner: root };
+                        let slots: Vec<PyEntityModel> = slots
+                            .into_iter()
+                            .map(|inner| PyEntityModel { inner })
+                            .collect();
                         root.validate(py)?;
                         for slot in &slots {
                             slot.validate(py)?;

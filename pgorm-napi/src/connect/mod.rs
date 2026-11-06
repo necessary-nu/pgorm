@@ -13,6 +13,7 @@
 
 mod config;
 mod copy;
+pub(crate) use config::DIALECT;
 mod hooks;
 pub(crate) mod job;
 mod listen;

@@ -1,44 +1,24 @@
-//! The reads a registered `Select<E>` and `SelectGraph<E, S>` have beside
-//! `all` and `one_opt`: their pages and their keyset cursor, pgorm's erased
-//! paginator and cursor, and their rows as a stream, each decoded by the
-//! read's own selector as it arrives.
+//! The rows of a registered `Select<E>`'s and `SelectGraph<E, S>`'s reads as
+//! Python receives them, and the decode their stream runs on each row as it
+//! arrives.
 
 use std::{fmt, num::NonZeroU64, sync::Arc};
 
-use pgorm::{ErasedCursor, ErasedPages, Error, QueryResult};
+use pgorm::QueryResult;
+use pgorm_bindings::entity::{Decode, Row};
 use pyo3::{prelude::*, types::PyTuple};
 
-use super::{PyEntityModel, metadata::EntityInfo};
-use crate::{errors::DecodeError, graphs::backend::Row};
-use pgorm_bindings::Metrics;
-
-/// A read's pages, pgorm's erased paginator over the read's rows.
-pub(crate) type Pages = dyn ErasedPages<Row, Metrics>;
-
-/// A column a cursor's boundary value converts through: its entity, and its
-/// name there.
-#[derive(Clone, Debug)]
-pub(crate) struct KeyColumn {
-    pub(crate) entity: Arc<EntityInfo>,
-    pub(crate) column: String,
-}
-
-/// A registered read's keyset cursor: pgorm's erased cursor, its order
-/// columns, and the whole key a `_with` boundary names.
-#[derive(Debug)]
-pub(crate) struct Keyset {
-    pub(crate) cursor: Arc<dyn ErasedCursor<Row, Metrics>>,
-    pub(crate) order: Vec<KeyColumn>,
-    pub(crate) key: Vec<KeyColumn>,
-}
-
-/// The decode of one row of a registered read's result into its sources'
-/// models, as its selector's `from_raw_query_result` reads it.
-pub(crate) type Decode = Arc<dyn Fn(QueryResult) -> Result<Row, Error> + Send + Sync>;
+use super::PyEntityModel;
+use crate::errors::DecodeError;
 
 /// A row as Python receives it: a read of one source's model alone, `None`
-/// for an absent optional one, and otherwise a tuple of each source's.
+/// for an absent optional one, and otherwise a tuple of each source's, each
+/// model held to its columns' Python values.
 pub(crate) fn row_object(py: Python<'_>, row: Row) -> PyResult<Py<PyAny>> {
+    let row: Vec<Option<PyEntityModel>> = row
+        .into_iter()
+        .map(|model| model.map(|inner| PyEntityModel { inner }))
+        .collect();
     for model in row.iter().flatten() {
         model.validate(py)?;
     }
@@ -74,12 +54,6 @@ impl NativeRowDecoder {
             Python::attach(|py| row_object(py, row))
         })
     }
-}
-
-/// The model a registered entity's row decodes as, in a read of that entity
-/// alone.
-pub(crate) fn one_source(model: PyEntityModel) -> Row {
-    vec![Some(model)]
 }
 
 /// A page size as pgorm's paginator takes one, refused below 1.

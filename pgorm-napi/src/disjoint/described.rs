@@ -3,55 +3,18 @@
 use std::sync::Arc;
 
 use neon::prelude::*;
-use pgorm::pgorm_query::{ColumnType, Name, TableName, TypeName as QueryTypeName};
-use pgorm::{ColumnTypeTrait, DisjointColumn, DisjointShape, DisjointTable};
-use serde_json::json;
-
-use super::{Core, DisjointHandle, RowCodec};
-use crate::{
-    codec::Codec,
-    errors::{Failure, throw},
-    values::{Tag, read},
+use pgorm::{DisjointColumn, DisjointTable};
+use pgorm_bindings::entity::{
+    DescribedColumn, DescribedKey, DescribedTable, DisjointCore, Generated, Kinded,
 };
 
-/// The column type a model column of `tag` is written with: a scalar kind's
-/// own (`ArrayType::column_type`), an enum of the labels `values` lists, a
-/// created range over its subtype's, and an array of its element's.
-pub(crate) fn column_type(tag: &Tag, values: &[String]) -> Result<ColumnType, Failure> {
-    Ok(match tag {
-        Tag::Scalar(kind) => kind.column_type().ok_or_else(|| {
-            Failure::Construction(format!(
-                "no column decodes as `{}`, so a disjoint model's column cannot be one",
-                kind.kind_name()
-            ))
-        })?,
-        Tag::Enum(name) => ColumnType::Enum {
-            name: Name::runtime(&name.name),
-            schema: name.schema.as_ref().map(Name::runtime),
-            variants: values.iter().map(Name::runtime).collect(),
-        },
-        Tag::Created(kind) => {
-            let subtype = Arc::new(column_type(&Tag::Scalar(kind.subtype.clone()), &[])?);
-            let (name, schema) = (
-                Name::runtime(&kind.name.name),
-                kind.name.schema.as_ref().map(Name::runtime),
-            );
-            match kind.multirange {
-                true => ColumnType::CreatedMultirange {
-                    name,
-                    schema,
-                    subtype,
-                },
-                false => ColumnType::CreatedRange {
-                    name,
-                    schema,
-                    subtype,
-                },
-            }
-        }
-        Tag::Array(element) => ColumnType::Array(Arc::new(column_type(element, values)?)),
-    })
-}
+use super::DisjointHandle;
+use crate::{
+    codec::Codec,
+    connect::DIALECT,
+    errors::throw,
+    values::{Tag, read},
+};
 
 fn property<'cx>(
     cx: &mut FunctionContext<'cx>,
@@ -113,27 +76,26 @@ fn column_of<'cx>(
             .collect::<NeonResult<_>>()?,
         Err(_) => Vec::new(),
     };
-    let mut def = match column_type(&kind, &values) {
-        Ok(column_type) => column_type.def(),
-        Err(failure) => return throw(cx, failure),
-    };
     let nullable = property(cx, column, "nullable")?;
-    if flag(cx, nullable)? {
-        def = def.nullable();
-    }
+    let nullable = flag(cx, nullable)?;
     let generated = property(cx, column, "generated")?;
-    def = match optional_text(cx, generated, "generated")?.as_deref() {
-        Some("always") => def.identity(),
-        Some("byDefault") => def.identity_by_default(),
+    let generated = match optional_text(cx, generated, "generated")?.as_deref() {
+        Some("always") => Some(Generated::Always),
+        Some("byDefault") => Some(Generated::ByDefault),
         Some(_) => return cx.throw_type_error(r#"a column is generated "always" or "byDefault""#),
-        None => def,
+        None => None,
     };
-    let column_def = DisjointColumn::new(name, def);
     let default = property(cx, column, "default")?;
-    Ok(match flag(cx, default)? {
-        true => column_def.with_unstated_default(),
-        false => column_def,
-    })
+    let default = flag(cx, default)?;
+    let described = DescribedColumn {
+        name,
+        kind,
+        values,
+        nullable,
+        generated,
+        default,
+    };
+    described.column().or_else(|failure| throw(cx, failure))
 }
 
 /// A list of names a described table gives, each a string.
@@ -151,14 +113,13 @@ fn names<'cx>(
         .collect()
 }
 
-/// `table` with the unique key `key` describes: `{ name, columns,
-/// nullsNotDistinct }`, its name null for PostgreSQL to choose one.
+/// The unique key `key` describes: `{ name, columns, nullsNotDistinct }`,
+/// its name null for PostgreSQL to choose one.
 // [spec:pgorm:req:bindings.model-unique-keys+2]
-fn with_unique_key<'cx>(
+fn unique_key<'cx>(
     cx: &mut FunctionContext<'cx>,
-    table: DisjointTable,
     key: Handle<'cx, JsValue>,
-) -> NeonResult<DisjointTable> {
+) -> NeonResult<DescribedKey> {
     let Ok(key) = key.downcast::<JsObject, _>(cx) else {
         return cx.throw_type_error("a described unique key is an object");
     };
@@ -168,10 +129,11 @@ fn with_unique_key<'cx>(
     let columns = names(cx, columns, "unique key's columns")?;
     let nulls_not_distinct = property(cx, key, "nullsNotDistinct")?;
     let nulls_not_distinct = flag(cx, nulls_not_distinct)?;
-    let columns: Vec<&str> = columns.iter().map(String::as_str).collect();
-    table
-        .with_unique_key(name.as_deref(), &columns, nulls_not_distinct)
-        .or_else(|error| throw(cx, Failure::Construction(error.to_string())))
+    Ok(DescribedKey {
+        name,
+        columns,
+        nulls_not_distinct,
+    })
 }
 
 /// One model's table, as JavaScript describes it: its schema, its name, its
@@ -203,18 +165,19 @@ pub(crate) fn table_of<'cx>(
     let Ok(unique_keys) = unique_keys.downcast::<JsArray, _>(cx) else {
         return cx.throw_type_error("a described table's unique keys are an array");
     };
-    let unique_keys = unique_keys.to_vec(cx)?;
-    let table = match schema {
-        Some(schema) => TableName::SchemaTable(Name::runtime(schema), Name::runtime(name)),
-        None => TableName::Table(Name::runtime(name)),
+    let unique_keys = unique_keys
+        .to_vec(cx)?
+        .into_iter()
+        .map(|key| unique_key(cx, key))
+        .collect::<NeonResult<Vec<_>>>()?;
+    let described = DescribedTable {
+        schema,
+        table: name,
+        columns,
+        key,
+        unique_keys,
     };
-    let key: Vec<&str> = key.iter().map(String::as_str).collect();
-    let mut table = DisjointTable::new(table, columns, &key)
-        .or_else(|error| throw(cx, Failure::Construction(error.to_string())))?;
-    for key in unique_keys {
-        table = with_unique_key(cx, table, key)?;
-    }
-    Ok(table)
+    described.table().or_else(|failure| throw(cx, failure))
 }
 
 /// A model's name beside its described table.
@@ -255,7 +218,11 @@ pub(crate) fn disjoint_model(mut cx: FunctionContext) -> JsResult<JsValue> {
             let Tag::Enum(kind_type) = read::kind(&mut cx, codec, kind_type)? else {
                 return cx.throw_type_error("a disjoint model's kind type is a TypeName");
             };
-            Some((column, field, kind_type))
+            Some(Kinded {
+                column,
+                field,
+                kind_type,
+            })
         }
         Err(_) if kinded.is_a::<JsNull, _>(&mut cx) => None,
         Err(_) => {
@@ -264,7 +231,6 @@ pub(crate) fn disjoint_model(mut cx: FunctionContext) -> JsResult<JsValue> {
         }
     };
     let kinds = cx.argument::<JsArray>(3)?.to_vec(&mut cx)?;
-    let mut descriptions = Vec::with_capacity(kinds.len());
     let mut tables = Vec::with_capacity(kinds.len());
     for kind in kinds {
         let Ok(kind) = kind.downcast::<JsArray, _>(&mut cx) else {
@@ -274,47 +240,13 @@ pub(crate) fn disjoint_model(mut cx: FunctionContext) -> JsResult<JsValue> {
         let value = text(&mut cx, value, "kind value")?;
         let table: Handle<JsValue> = kind.get(&mut cx, 1)?;
         if table.is_a::<JsNull, _>(&mut cx) {
-            descriptions.push(json!({"value": value, "model": null}));
             tables.push((value, None));
         } else {
-            let (model, table) = described(&mut cx, table)?;
-            descriptions.push(json!({"value": value, "model": model}));
-            tables.push((value, Some(table)));
+            tables.push((value, Some(described(&mut cx, table)?)));
         }
     }
-    let (shape, kind_field, kind_type) = match kinded {
-        Some((kind_column, kind_field, kind_type)) => {
-            let mut type_name = QueryTypeName::new(Name::runtime(&kind_type.name));
-            if let Some(schema) = &kind_type.schema {
-                type_name = type_name.schema(Name::runtime(schema));
-            }
-            (
-                DisjointShape::new(base, &kind_column, type_name, tables),
-                Some(kind_field),
-                json!({"schema": kind_type.schema, "name": kind_type.name}),
-            )
-        }
-        None => (
-            DisjointShape::unkinded(base, tables),
-            None,
-            json!({"schema": null, "name": null}),
-        ),
-    };
-    let shape = match shape {
-        Ok(shape) => shape,
-        Err(error) => return throw(&mut cx, Failure::Construction(error.to_string())),
-    };
-    let core = Core {
-        shape,
-        codec: RowCodec::Models,
-        description: json!({
-            "name": name,
-            "base": base_name,
-            "kindField": kind_field,
-            "kindType": kind_type,
-            "kinds": descriptions,
-        }),
-        rust: None,
-    };
-    Ok(cx.boxed(DisjointHandle(Arc::new(core))).upcast())
+    match DisjointCore::model(DIALECT, &name, (base_name, base), kinded, tables) {
+        Ok(core) => Ok(cx.boxed(DisjointHandle(Arc::new(core))).upcast()),
+        Err(failure) => throw(&mut cx, failure),
+    }
 }

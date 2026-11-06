@@ -11,7 +11,7 @@ use crate::{
     errors::{ConstructionError, LifecycleError, database_error},
     execution::Target,
     runtime::{Held, Operation},
-    values::PyTypeName,
+    values::{PyTypeName, TypeName},
 };
 /// One column of a binary COPY: its name, its type and, for `money`, the
 /// places its currency is written to. A described column carries whatever
@@ -69,10 +69,10 @@ impl PyCopyColumn {
     /// The column's type, schema-qualified as the server names it.
     #[getter]
     fn r#type(&self) -> PyTypeName {
-        PyTypeName {
+        PyTypeName(TypeName {
             name: self.inner.type_().name().to_owned(),
             schema: Some(self.inner.type_().schema().to_owned()),
-        }
+        })
     }
 
     #[getter]

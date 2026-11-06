@@ -5,10 +5,10 @@ use crate::errors::FailureJs as _;
 use std::collections::HashMap;
 
 use neon::prelude::*;
-use pgorm::{QueryResult, pgorm_query::ColumnType};
+use pgorm::QueryResult;
+use pgorm_bindings::entity::{DisjointCore, RowCodec};
 use tokio_postgres::Row;
 
-use super::{Core, RowCodec};
 use crate::{
     codec::Codec,
     connect::job::Settled,
@@ -16,7 +16,7 @@ use crate::{
     entities::{Model, record},
     errors::Failure,
     rows,
-    values::{Tag, Tagged, TypeName},
+    values::{Tag, Tagged},
 };
 
 /// One decoded row: a model's values beside the index of its kind and the
@@ -62,7 +62,7 @@ impl Settled for Count {
 impl Rows {
     /// Judge each of `rows` by its kind and read it back.
     // [spec:pgorm:req:bindings.disjoint+2]
-    pub(crate) fn of(core: &Core, rows: Vec<Row>) -> Result<Self, Failure> {
+    pub(crate) fn of(core: &DisjointCore, rows: Vec<Row>) -> Result<Self, Failure> {
         let names = match rows.first() {
             Some(row) => decode::names(row)?,
             None => Vec::new(),
@@ -72,7 +72,11 @@ impl Rows {
             .enumerate()
             .map(|(index, name)| (name.as_str(), index))
             .collect();
-        let enums = enum_columns(core, &at);
+        let enums: Vec<(usize, Tag)> = core
+            .enum_columns()
+            .into_iter()
+            .filter_map(|(name, tag)| at.get(name.as_str()).map(|index| (*index, tag)))
+            .collect();
         let items = rows
             .into_iter()
             .map(|row| item(core, row, &at, &enums))
@@ -85,118 +89,36 @@ impl Rows {
     }
 }
 
-/// Where each enum column of every source is in the result, and its type:
-/// the read projects one as its text, as pgorm's `ColumnTrait::select_as`
-/// reads an entity's, and a model's field is the enum its column names.
-fn enum_columns(core: &Core, at: &HashMap<&str, usize>) -> Vec<(usize, Tag)> {
-    let shape = &core.shape;
-    let tables = std::iter::once((0, shape.base()))
-        .chain(shape.sources().map(|(source, _, table)| (source, table)));
-    let mut found = Vec::new();
-    for (source, table) in tables {
-        let names = shape.result_names(source).unwrap_or_default();
-        for (column, result_name) in table.columns().iter().zip(&names) {
-            let (column_type, array) = match column.def().get_column_type() {
-                ColumnType::Array(element) => (element.as_ref(), true),
-                column_type => (column_type, false),
-            };
-            let ColumnType::Enum { name, schema, .. } = column_type else {
-                continue;
-            };
-            let Some(index) = at.get(result_name.as_str()) else {
-                continue;
-            };
-            let tag = Tag::Enum(TypeName {
-                name: name.to_string(),
-                schema: schema.as_ref().map(|schema| schema.to_string()),
-            });
-            found.push((
-                *index,
-                if array {
-                    Tag::Array(Box::new(tag))
-                } else {
-                    tag
-                },
-            ));
-        }
-    }
-    found
-}
-
 fn item(
-    core: &Core,
+    core: &DisjointCore,
     row: Row,
     at: &HashMap<&str, usize>,
     enums: &[(usize, Tag)],
 ) -> Result<Item, Failure> {
-    let shape = &core.shape;
-    match &core.codec {
-        RowCodec::Models => {
-            let mut values = decode::row(&row)?;
-            for (index, tag) in enums {
-                if let Some(value) = values.get_mut(*index) {
-                    value.tag = tag.clone();
-                }
-            }
-            let key = || {
-                let prefix = pgorm::source_prefix(0);
-                shape
-                    .base()
-                    .key()
-                    .map(|column| {
-                        at.get(
-                            pgorm::result_column_name(&prefix, &column.name().to_string()).as_str(),
-                        )
-                        .and_then(|index| values.get(*index))
-                        .map(|value| value.datum.to_string())
-                        .unwrap_or_default()
-                    })
-                    .collect()
-            };
-            let judged = shape
-                .judge(&QueryResult::from(row), key)
-                .map_err(|error| Failure::Decode(error.to_string()))?;
-            Ok(Item::Record {
-                values,
-                kind: judged.kind,
-                source: judged.source,
-            })
-        }
-        RowCodec::Entities { base, kinds } => {
-            let result = QueryResult::from(row);
-            let model = base
-                .decode(&result, &pgorm::source_prefix(0))
-                .map_err(|error| Failure::Decode(error.to_string()))?;
-            let key = || {
-                shape
-                    .base()
-                    .key()
-                    .map(|column| {
-                        model
-                            .get(&column.name().to_string())
-                            .map(|value| value.to_string())
-                            .unwrap_or_default()
-                    })
-                    .collect()
-            };
-            let judged = shape
-                .judge(&result, key)
-                .map_err(|error| Failure::Decode(error.to_string()))?;
-            let row = match (judged.source, &kinds[judged.kind]) {
-                (Some(source), Some(entity)) => Some(
-                    entity
-                        .decode(&result, &pgorm::source_prefix(source))
-                        .map_err(|error| Failure::Decode(error.to_string()))?,
-                ),
-                _ => None,
-            };
-            Ok(Item::Entity {
-                base: model,
-                kind: shape.kinds()[judged.kind].value().to_owned(),
-                row,
-            })
+    if matches!(core.codec, RowCodec::Entities { .. }) {
+        let row = core.entity_row(&QueryResult::from(row))?;
+        return Ok(Item::Entity {
+            base: row.base,
+            kind: row.kind,
+            row: row.row,
+        });
+    }
+    let mut values = decode::row(&row)?;
+    for (index, tag) in enums {
+        if let Some(value) = values.get_mut(*index) {
+            value.tag = tag.clone();
         }
     }
+    let judged = core.judge(&QueryResult::from(row), |name| {
+        at.get(name)
+            .and_then(|index| values.get(*index))
+            .map(|value| value.datum.to_string())
+    })?;
+    Ok(Item::Record {
+        values,
+        kind: judged.kind,
+        source: judged.source,
+    })
 }
 
 fn index(index: usize) -> u32 {

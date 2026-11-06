@@ -6,17 +6,13 @@
 //! `ActiveModelBehavior` hook runs around them.
 
 use neon::prelude::*;
-use pgorm::pgorm_query::{IntoValueTuple, OnConflict};
-use pgorm::{EntityTrait, Error, Insert, IntoActiveModel};
+use pgorm::pgorm_query::OnConflict;
+use pgorm_bindings::entity::{EntityInfo, InsertAnswer, Insertion, Insertions};
 
-use super::{
-    adapter::{EntityAdapter, InsertAnswer, Insertion, Insertions, concrete, model_of},
-    convert::{Records, VersionRows, count, tagged},
-    info::EntityInfo,
-};
+use super::convert::{Records, VersionRows, count, tagged};
 use crate::{
     codec::Codec,
-    connect::job::{Database, Job, JobHandle, Output, Settled},
+    connect::job::{Job, JobHandle, Output, Settled},
     errors::throw,
     rows,
     statements::{self, Node},
@@ -25,94 +21,6 @@ use crate::{
 pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("entityInsertJob", insert_job)?;
     Ok(())
-}
-
-impl<E> EntityAdapter<E>
-where
-    E: EntityTrait + Send + Sync + 'static,
-    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
-    E::ActiveModel: Send + Sync + 'static,
-{
-    // [spec:pgorm:req:bindings.entity-inserts]
-    pub(super) async fn write_insert(
-        &self,
-        db: Database<'_>,
-        insertion: Insertion,
-    ) -> Result<Insertions, Error> {
-        let Insertion {
-            actives,
-            conflict,
-            one,
-            answer,
-        } = insertion;
-        let models = actives
-            .iter()
-            .map(concrete::<E>)
-            .collect::<Result<Vec<_>, _>>()?;
-        let model = |model| model_of::<E>(model, &self.info);
-        if one {
-            let active = models.into_iter().next().ok_or_else(|| {
-                Error::Custom("an insert of one row needs one ActiveModel".to_owned())
-            })?;
-            let mut insert = Insert::one_in(self.entity, active);
-            if let Some(conflict) = conflict {
-                insert = insert.on_conflict(*conflict);
-            }
-            return Ok(match answer {
-                InsertAnswer::Count => Insertions::Count(insert.exec(&db).await?),
-                InsertAnswer::Keys => Insertions::Keys(vec![
-                    insert
-                        .exec_returning_pk(&db)
-                        .await?
-                        .into_value_tuple()
-                        .into_iter()
-                        .collect(),
-                ]),
-                InsertAnswer::Models => {
-                    Insertions::Models(vec![model(insert.exec_returning_model(&db).await?)])
-                }
-                InsertAnswer::Upserts => Insertions::Upserts(
-                    insert
-                        .exec_returning_upsert(&db)
-                        .await?
-                        .into_iter()
-                        .map(|row| self.upserted(row))
-                        .collect(),
-                ),
-            });
-        }
-        let mut insert = Insert::many_in(self.entity, models);
-        if let Some(conflict) = conflict {
-            insert = insert.on_conflict(*conflict);
-        }
-        Ok(match answer {
-            InsertAnswer::Count => Insertions::Count(insert.exec(&db).await?),
-            InsertAnswer::Keys => Insertions::Keys(
-                insert
-                    .exec_returning_pks(&db)
-                    .await?
-                    .into_iter()
-                    .map(|key| key.into_value_tuple().into_iter().collect())
-                    .collect(),
-            ),
-            InsertAnswer::Models => Insertions::Models(
-                insert
-                    .exec_returning_models(&db)
-                    .await?
-                    .into_iter()
-                    .map(model)
-                    .collect(),
-            ),
-            InsertAnswer::Upserts => Insertions::Upserts(
-                insert
-                    .exec_returning_upserts(&db)
-                    .await?
-                    .into_iter()
-                    .map(|row| self.upserted(row))
-                    .collect(),
-            ),
-        })
-    }
 }
 
 /// What an insert's terminal gave, as `lib/entity-versions.js` reads it: a

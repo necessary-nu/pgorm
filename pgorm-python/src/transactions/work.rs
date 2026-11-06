@@ -1,17 +1,12 @@
 //! Owned commands cross the task boundary; database borrows never do.
 
-use crate::{
-    entities::backend::{
-        Active, Insertion, Insertions, Model, Select, Terminal, VersionWrite, Versions, Write,
-        Written,
-    },
-    execution::Database,
-    expressions::Compiled,
-    graphs::backend::{Query as Graph, Row as GraphRow},
-    pipeline::selected_backend::{Query as Sources, Terminal as SourceTerminal},
-};
+use crate::{execution::Database, expressions::Compiled};
 use futures_util::future::BoxFuture;
 use pgorm::{ConnectionTrait, Error, ValueHolder};
+use pgorm_bindings::entity::{
+    Active, EntityBackend, GraphQuery, Insertion, Insertions, Model, Read as Terminal,
+    Row as GraphRow, Select, Selected, VersionWrite, Versions, Write, Written,
+};
 use tokio_postgres::{Row, types::ToSql};
 
 pub(crate) enum Work {
@@ -21,19 +16,13 @@ pub(crate) enum Work {
     /// A raw statement decoded into a registration's models.
     EntityRaw(Select, Compiled, Terminal),
     Write(Active, Write),
-    Versions(
-        std::sync::Arc<dyn crate::entities::backend::EntityBackend>,
-        Box<VersionWrite>,
-    ),
-    Insert(
-        std::sync::Arc<dyn crate::entities::backend::EntityBackend>,
-        Box<Insertion>,
-    ),
-    Graph(Graph, bool),
+    Versions(std::sync::Arc<dyn EntityBackend>, Box<VersionWrite>),
+    Insert(std::sync::Arc<dyn EntityBackend>, Box<Insertion>),
+    Graph(GraphQuery, bool),
     /// A registered read's page, count, cursor window or grouped rows, run
     /// on whichever database the target holds.
     Read(Read),
-    Sources(Sources, SourceTerminal),
+    Sources(Selected, Terminal),
     /// `pgorm::notify`'s channel and payload.
     Notify(String, String),
     /// A script run through `batch_execute`.
@@ -57,12 +46,7 @@ pub(crate) enum Output {
     Graph(Vec<GraphRow>),
     Described(Vec<pgorm::DescribedColumn>),
     /// Each root of a grouped graph read with its slot's models.
-    Grouped(
-        Vec<(
-            crate::entities::PyEntityModel,
-            Vec<crate::entities::PyEntityModel>,
-        )>,
-    ),
+    Grouped(Vec<(Model, Vec<Model>)>),
     Finished,
 }
 

@@ -74,7 +74,7 @@ fn payload(value: &PyValue) -> PyResult<Json> {
                         .map(|inner| {
                             let tag = match &value.tag {
                                 Tag::Array(element) => (**element).clone(),
-                                _ => super::types::rust_tag(inner),
+                                _ => Tag::of_value(inner),
                             };
                             encode(&PyValue {
                                 inner: inner.clone(),

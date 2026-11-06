@@ -4,14 +4,11 @@
 use std::sync::Arc;
 
 use neon::prelude::*;
-use pgorm::{DisjointTable, OneOfShape};
-use serde_json::json;
+use pgorm::DisjointTable;
+use pgorm_bindings::entity::{DescribedTarget, OneOfCore};
 
-use super::{Core, OneOfHandle};
-use crate::{
-    disjoint::table_of,
-    errors::{Failure, throw},
-};
+use super::OneOfHandle;
+use crate::{disjoint::table_of, errors::throw};
 
 fn text(cx: &mut FunctionContext, value: Handle<JsValue>, what: &str) -> NeonResult<String> {
     match value.downcast::<JsString, _>(cx) {
@@ -45,8 +42,7 @@ pub(crate) fn one_of_model(mut cx: FunctionContext) -> JsResult<JsValue> {
     let (model_name, entity) = described(&mut cx, model)?;
     let targets = cx.argument::<JsArray>(2)?.to_vec(&mut cx)?;
     let optional = cx.argument::<JsBoolean>(3)?.value(&mut cx);
-    let mut descriptions = Vec::with_capacity(targets.len());
-    let mut tables = Vec::with_capacity(targets.len());
+    let mut described_targets = Vec::with_capacity(targets.len());
     for target in targets {
         let Ok(target) = target.downcast::<JsArray, _>(&mut cx) else {
             return cx.throw_type_error("a target is [value, field, column, [model, table]]");
@@ -58,27 +54,17 @@ pub(crate) fn one_of_model(mut cx: FunctionContext) -> JsResult<JsValue> {
         let column: Handle<JsValue> = target.get(&mut cx, 2)?;
         let column = text(&mut cx, column, "column")?;
         let pair: Handle<JsValue> = target.get(&mut cx, 3)?;
-        let (target_name, table) = described(&mut cx, pair)?;
-        descriptions.push(json!({"value": value, "field": field, "target": target_name}));
-        tables.push((value, column, table));
+        let (model, table) = described(&mut cx, pair)?;
+        described_targets.push(DescribedTarget {
+            value,
+            field,
+            column,
+            model,
+            table,
+        });
     }
-    let named: Vec<(&str, &str, &DisjointTable)> = tables
-        .iter()
-        .map(|(value, column, table)| (value.as_str(), column.as_str(), table))
-        .collect();
-    let shape = match OneOfShape::new(&name, &entity, &named, optional) {
-        Ok(shape) => shape,
-        Err(error) => return throw(&mut cx, Failure::Construction(error.to_string())),
-    };
-    let core = Core {
-        shape,
-        description: json!({
-            "name": name,
-            "model": model_name,
-            "targets": descriptions,
-            "optional": optional,
-        }),
-        rust: None,
-    };
-    Ok(cx.boxed(OneOfHandle(Arc::new(core))).upcast())
+    match OneOfCore::model(&name, (model_name, entity), described_targets, optional) {
+        Ok(core) => Ok(cx.boxed(OneOfHandle(Arc::new(core))).upcast()),
+        Err(failure) => throw(&mut cx, failure),
+    }
 }

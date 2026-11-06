@@ -1,10 +1,10 @@
-//! Each adapter below is monomorphized at downstream module build time.
+//! The adapters each registration monomorphizes when the application's
+//! module is built.
 
-use crate::execution::Database;
-use std::sync::Arc;
+use std::{any::Any, fmt, sync::Arc};
 
 use futures_util::future::BoxFuture;
-use pgorm::pgorm_query::{Expr, IntoValueTuple, Name, SimpleExpr, Value, Values};
+use pgorm::pgorm_query::{Expr, IntoValueTuple, Name, SelectStatement, SimpleExpr, Value, Values};
 use pgorm::{
     ActiveModelBehavior, ActiveModelTrait, ActiveValue, Change as RustChange, ColumnTrait,
     EntityTrait, Error, FromQueryResult, Insert, IntoActiveModel, Iterable, ModelTrait,
@@ -13,22 +13,75 @@ use pgorm::{
 };
 
 use super::{
-    backend::*,
-    metadata::EntityInfo,
-    reads::{Decode, Keyset, Pages, one_source},
+    Active, ActiveBackend, Assignment, Between, Change, Comparison, EntityBackend, EntityInfo,
+    EntitySchema, InsertAnswer, Insertion, Insertions, Members, Model, ModelBackend,
+    PipelineColumn, Read, Select, SelectBackend, VersionWrite, Versions, Write, Written,
+    reads::{self, Decode, Keyset, Pages},
 };
+use crate::{Database, Failure};
 
-pub(crate) fn column<E: EntityTrait>(name: &str) -> Result<E::Column, Error> {
-    E::Column::iter()
-        .find(|c| c.as_str() == name)
-        .ok_or_else(|| Error::Type("unknown compiled entity column".to_owned()))
+/// The entity's column of SQL name `name`, refused as one the registration
+/// lacks.
+pub(crate) fn column<E: EntityTrait>(info: &EntityInfo, name: &str) -> Result<E::Column, Failure> {
+    <E::Column as Iterable>::iter()
+        .find(|column| column.as_str() == name)
+        .ok_or_else(|| Failure::Construction(format!("{} has no column {name:?}", info.name)))
 }
 
+/// A registered entity: the entity value whose table every statement names,
+/// and what the binding knows of it.
 #[derive(Debug)]
-pub(crate) struct EntityAdapter<E> {
-    pub(crate) info: Arc<EntityInfo>,
+#[allow(missing_docs)]
+pub struct EntityAdapter<E> {
+    pub info: Arc<EntityInfo>,
     /// The registered entity value, whose table every statement names.
-    pub(crate) entity: E,
+    pub entity: E,
+}
+
+/// `value`, a model of the registration `info` describes, behind its
+/// type-erased handle.
+pub fn model_of<E>(value: E::Model, info: &Arc<EntityInfo>) -> Model
+where
+    E: EntityTrait + Send + Sync + 'static,
+    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+    E::ActiveModel: Send + Sync + 'static,
+{
+    Arc::new(ModelAdapter::<E> {
+        value,
+        info: Arc::clone(info),
+    })
+}
+
+/// The compiled ActiveModel a type-erased handle holds, refused if another
+/// registration made it.
+fn concrete<E>(active: &Active) -> Result<E::ActiveModel, Error>
+where
+    E: EntityTrait + Send + Sync + 'static,
+    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+    E::ActiveModel: Send + Sync + 'static,
+{
+    active
+        .as_any()
+        .downcast_ref::<ActiveAdapter<E>>()
+        .map(|adapter| adapter.value.clone())
+        .ok_or_else(|| Error::Custom("the ActiveModel belongs to another registration".to_owned()))
+}
+
+/// One of `E`'s columns, resolved when the pipeline expression naming it was
+/// built, so lowering it cannot miss.
+struct RegisteredColumn<E: EntityTrait>(E::Column);
+
+impl<E: EntityTrait> fmt::Debug for RegisteredColumn<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("RegisteredColumn").field(&self.0).finish()
+    }
+}
+
+// [spec:pgorm:req:bindings.pipeline-sources+3]
+impl<E: EntityTrait + Send + Sync> PipelineColumn for RegisteredColumn<E> {
+    fn lower<'brand>(&self, qualifier: Name) -> pgorm::pipeline::Expr<'brand> {
+        pgorm::pipeline::named_runtime(E::default(), qualifier).col(self.0)
+    }
 }
 
 // [spec:pgorm:req:bindings.entities+6]
@@ -43,14 +96,18 @@ where
     }
 
     // [spec:pgorm:req:bindings.schema-from-entity]
-    fn schema(&self) -> Result<crate::schema::PyEntitySchema, Error> {
+    fn schema(&self) -> Result<EntitySchema, Error> {
         let schema = pgorm::Schema::new();
-        Ok(crate::schema::PyEntitySchema {
+        Ok(EntitySchema {
             table: schema.create_table_from_entity(self.entity)?,
             enums: schema.create_enum_from_entity(self.entity),
             indexes: schema.create_index_from_entity(self.entity),
             comments: schema.create_comments_from_entity(self.entity),
         })
+    }
+
+    fn source(&self) -> pgorm::pipeline::Source {
+        pgorm::pipeline::IntoSource::into_source(self.entity)
     }
 
     fn select(&self) -> Select {
@@ -67,20 +124,17 @@ where
         })
     }
 
-    fn relation(&self, name: &str) -> Result<RelationDef, Error> {
+    fn relation(&self, name: &str) -> Result<RelationDef, Failure> {
         E::Relation::iter()
             .find(|relation| format!("{relation:?}") == name)
             .map(|relation| relation.def())
-            .ok_or_else(|| Error::Type(format!("{} declares no relation {name}", self.info.name)))
+            .ok_or_else(|| {
+                Failure::Construction(format!("{} declares no relation {name}", self.info.name))
+            })
     }
 
-    fn expression(&self, name: &str) -> Result<SimpleExpr, Error> {
-        Ok(Expr::col(column::<E>(name)?.as_column_ref()).into())
-    }
-
-    // [spec:pgorm:req:bindings.pipeline-sources+3]
-    fn pipeline_column(&self, name: &str) -> Result<Arc<dyn PipelineColumn>, Error> {
-        Ok(Arc::new(RegisteredColumn::<E>(column::<E>(name)?)))
+    fn column(&self, name: &str) -> Result<SimpleExpr, Failure> {
+        Ok(Expr::col(column::<E>(&self.info, name)?.as_column_ref()).into())
     }
 
     fn compare(
@@ -88,8 +142,8 @@ where
         name: &str,
         comparison: Comparison,
         value: Value,
-    ) -> Result<SimpleExpr, Error> {
-        let column = column::<E>(name)?;
+    ) -> Result<SimpleExpr, Failure> {
+        let column = column::<E>(&self.info, name)?;
         Ok(match comparison {
             Comparison::Eq => column.eq(value),
             Comparison::Ne => column.ne(value),
@@ -117,8 +171,8 @@ where
         comparison: Comparison,
         all: bool,
         array: Value,
-    ) -> Result<SimpleExpr, Error> {
-        let column = column::<E>(name)?;
+    ) -> Result<SimpleExpr, Failure> {
+        let column = column::<E>(&self.info, name)?;
         Ok(match all {
             false => column.compare_any(comparison.operator(), array),
             true => column.compare_all(comparison.operator(), array),
@@ -132,8 +186,8 @@ where
         between: Between,
         lower: Value,
         upper: Value,
-    ) -> Result<SimpleExpr, Error> {
-        let column = column::<E>(name)?;
+    ) -> Result<SimpleExpr, Failure> {
+        let column = column::<E>(&self.info, name)?;
         Ok(match (between.negated, between.symmetric) {
             (false, false) => column.between(lower, upper),
             (true, false) => column.not_between(lower, upper),
@@ -143,14 +197,26 @@ where
     }
 
     // [spec:pgorm:req:bindings.entity-reads+4]
-    fn membership(&self, name: &str, negated: bool, members: Members) -> Result<SimpleExpr, Error> {
-        let column = column::<E>(name)?;
+    fn membership(
+        &self,
+        name: &str,
+        negated: bool,
+        members: Members,
+    ) -> Result<SimpleExpr, Failure> {
+        let column = column::<E>(&self.info, name)?;
         Ok(match (members, negated) {
             (Members::Values(values), false) => column.is_in(values),
             (Members::Values(values), true) => column.is_not_in(values),
             (Members::Subquery(select), false) => column.in_subquery(*select),
             (Members::Subquery(select), true) => column.not_in_subquery(*select),
         })
+    }
+
+    // [spec:pgorm:req:bindings.pipeline-sources+3]
+    fn pipeline_column(&self, name: &str) -> Result<Arc<dyn PipelineColumn>, Failure> {
+        Ok(Arc::new(RegisteredColumn::<E>(column::<E>(
+            &self.info, name,
+        )?)))
     }
 
     fn versions<'a>(
@@ -171,40 +237,8 @@ where
 
     // [spec:pgorm:req:bindings.disjoint+2]
     fn decode(&self, row: &pgorm::QueryResult, prefix: &str) -> Result<Model, Error> {
-        E::Model::from_query_result(row, prefix).map(|value| self.model(value))
+        E::Model::from_query_result(row, prefix).map(|value| model_of::<E>(value, &self.info))
     }
-}
-
-/// One of `E`'s columns, resolved when the pipeline expression naming it was
-/// built, so lowering it cannot miss.
-struct RegisteredColumn<E: EntityTrait>(E::Column);
-
-impl<E: EntityTrait> std::fmt::Debug for RegisteredColumn<E> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("RegisteredColumn").field(&self.0).finish()
-    }
-}
-
-// [spec:pgorm:req:bindings.pipeline-sources+3]
-impl<E: EntityTrait + Send + Sync> PipelineColumn for RegisteredColumn<E> {
-    fn lower<'brand>(&self, qualifier: &str) -> pgorm::pipeline::Expr<'brand> {
-        pgorm::pipeline::named_runtime(E::default(), Name::runtime(qualifier)).col(self.0)
-    }
-}
-
-/// The compiled ActiveModel a type-erased handle holds, refused if it was
-/// minted by another registration.
-fn concrete<E>(active: &Active) -> Result<E::ActiveModel, Error>
-where
-    E: EntityTrait + Send + Sync + 'static,
-    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
-    E::ActiveModel: Send + Sync + 'static,
-{
-    active
-        .as_any()
-        .downcast_ref::<ActiveAdapter<E>>()
-        .map(|adapter| adapter.value.clone())
-        .ok_or_else(|| Error::Type("ActiveModel belongs to another entity registration".to_owned()))
 }
 
 impl<E> EntityAdapter<E>
@@ -214,10 +248,7 @@ where
     E::ActiveModel: Send + Sync + 'static,
 {
     fn model(&self, value: E::Model) -> Model {
-        Arc::new(ModelAdapter::<E> {
-            value,
-            info: self.info.clone(),
-        })
+        model_of::<E>(value, &self.info)
     }
 
     fn change(&self, change: RustChange<E::Model>) -> Versions {
@@ -227,7 +258,8 @@ where
         }
     }
 
-    fn upserted(&self, upserted: Upserted<E::Model>) -> Versions {
+    /// A row an upsert wrote, as its versions.
+    pub fn upserted(&self, upserted: Upserted<E::Model>) -> Versions {
         match upserted {
             Upserted::Inserted(model) => Versions {
                 old: None,
@@ -237,6 +269,7 @@ where
         }
     }
 
+    // [spec:pgorm:req:bindings.entity-versions+3]
     async fn write_versions(
         &self,
         db: Database<'_>,
@@ -252,7 +285,8 @@ where
             VersionWrite::Changes(assignments, filter) => {
                 let mut update = Update::many(self.entity);
                 for (name, assignment) in assignments {
-                    let column = column::<E>(&name)?;
+                    let column = column::<E>(&self.info, &name)
+                        .map_err(|failure| Error::Custom(failure.message().to_owned()))?;
                     let expression = match assignment {
                         Assignment::Value(value) => column.save_as(Expr::val(value)),
                         Assignment::Expr(expression) => expression,
@@ -286,7 +320,7 @@ where
             .collect::<Result<Vec<_>, _>>()?;
         if one {
             let model = models.into_iter().next().ok_or_else(|| {
-                Error::Type("an insert of one row needs one ActiveModel".to_owned())
+                Error::Custom("an insert of one row needs one ActiveModel".to_owned())
             })?;
             let mut insert = Insert::one_in(self.entity, model);
             if let Some(conflict) = conflict {
@@ -349,12 +383,14 @@ where
     }
 }
 
+/// A registered entity's query, the real `Select<E>`.
 #[derive(Debug)]
 pub(crate) struct SelectAdapter<E: EntityTrait> {
     pub(crate) query: pgorm::Select<E>,
     pub(crate) info: Arc<EntityInfo>,
 }
 
+// [spec:pgorm:req:bindings.entity-reads+4]
 impl<E> SelectBackend for SelectAdapter<E>
 where
     E: EntityTrait + Send + Sync + 'static,
@@ -386,83 +422,99 @@ where
         })
     }
 
-    fn compile(&self, terminal: Terminal) -> (String, Values) {
+    fn compile(&self, read: Read) -> (String, Values) {
         let mut query = self.query.clone();
-        if !matches!(terminal, Terminal::All) {
+        if read != Read::All {
             QueryTrait::query(&mut query).narrow_limit_to_one();
         }
         query.build()
     }
 
-    fn run<'a>(
-        &'a self,
-        db: Database<'a>,
-        terminal: Terminal,
-    ) -> BoxFuture<'a, Result<Vec<Model>, Error>> {
-        Box::pin(self.read(db, terminal))
+    fn run<'a>(&'a self, db: Database<'a>, read: Read) -> BoxFuture<'a, Result<Vec<Model>, Error>> {
+        Box::pin(async move {
+            let query = self.query.clone();
+            let models = match read {
+                Read::All => query.all(&db).await?,
+                Read::One => vec![query.one(&db).await?],
+                Read::Optional => query.one_opt(&db).await?.into_iter().collect(),
+            };
+            Ok(self.models(models))
+        })
     }
 
-    // [spec:pgorm:req:bindings.entity-reads+4]
-    fn projected(&self, columns: &[String], terminal: Terminal) -> Result<(String, Values), Error> {
+    fn projected(&self, columns: &[String], read: Read) -> Result<SelectStatement, Failure> {
         let columns = columns
             .iter()
-            .map(|name| column::<E>(name))
+            .map(|name| column::<E>(&self.info, name))
             .collect::<Result<Vec<_>, _>>()?;
         let mut query = self.query.clone().select_only().columns(columns);
-        if !matches!(terminal, Terminal::All) {
+        if read != Read::All {
             QueryTrait::query(&mut query).narrow_limit_to_one();
         }
-        Ok(query.build())
+        Ok(QueryTrait::into_query(query))
+    }
+
+    fn statement(&self) -> SelectStatement {
+        QueryTrait::as_query(&self.query).clone()
     }
 
     fn pages(&self) -> Arc<Pages> {
-        super::select_reads::pages(self)
+        reads::pages(self)
     }
 
-    fn cursor(&self, columns: &[String]) -> Result<Arc<Keyset>, Error> {
-        super::select_reads::cursor(self, columns)
+    fn cursor(&self, columns: &[String]) -> Result<Arc<Keyset>, Failure> {
+        reads::cursor(self, columns)
     }
 
     fn decode(&self) -> Decode {
         let info = self.info.clone();
         Arc::new(move |row| {
             let value = SelectModel::<E::Model>::from_raw_query_result(row)?;
-            Ok(one_source(model_of::<E>(value, &info)))
+            Ok(vec![Some(model_of::<E>(value, &info))])
         })
     }
 
+    // [spec:pgorm:req:bindings.raw-models]
     fn run_raw<'a>(
         &'a self,
         db: Database<'a>,
         sql: String,
         values: Values,
-        terminal: Terminal,
+        read: Read,
     ) -> BoxFuture<'a, Result<Vec<Model>, Error>> {
-        Box::pin(self.read_raw(db, sql, values, terminal))
+        Box::pin(async move {
+            let query = self.query.clone().from_raw_sql(&sql, values);
+            let models = match read {
+                Read::All => query.all(&db).await?,
+                Read::One => vec![query.one(&db).await?],
+                Read::Optional => query.one_opt(&db).await?.into_iter().collect(),
+            };
+            Ok(self.models(models))
+        })
     }
 }
 
-/// A registered entity's model as the binding holds one.
-pub(crate) fn model_of<E>(value: E::Model, info: &Arc<EntityInfo>) -> super::PyEntityModel
+impl<E> SelectAdapter<E>
 where
     E: EntityTrait + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
-    super::PyEntityModel {
-        inner: Arc::new(ModelAdapter::<E> {
-            value,
-            info: info.clone(),
-        }),
+    fn models(&self, models: Vec<E::Model>) -> Vec<Model> {
+        models
+            .into_iter()
+            .map(|value| model_of::<E>(value, &self.info))
+            .collect()
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct ModelAdapter<E: EntityTrait> {
-    pub(crate) value: E::Model,
-    pub(crate) info: Arc<EntityInfo>,
+struct ModelAdapter<E: EntityTrait> {
+    value: E::Model,
+    info: Arc<EntityInfo>,
 }
 
+// [spec:pgorm:req:bindings.entity-writes+1]
 impl<E> ModelBackend for ModelAdapter<E>
 where
     E: EntityTrait + Send + Sync + 'static,
@@ -473,17 +525,16 @@ where
         &self.info
     }
 
-    fn get(&self, name: &str) -> Result<Value, Error> {
-        Ok(self.value.get(column::<E>(name)?))
+    fn get(&self, name: &str) -> Result<Value, Failure> {
+        Ok(self.value.get(column::<E>(&self.info, name)?))
     }
 
-    fn set(&self, name: &str, value: Value) -> Result<Model, Error> {
+    fn set(&self, name: &str, value: Value) -> Result<Model, Failure> {
         let mut model = self.value.clone();
-        model.set(column::<E>(name)?, value)?;
-        Ok(Arc::new(Self {
-            value: model,
-            info: self.info.clone(),
-        }))
+        model
+            .set(column::<E>(&self.info, name)?, value)
+            .map_err(|error| Failure::Construction(error.to_string()))?;
+        Ok(model_of::<E>(model, &self.info))
     }
 
     fn active(&self) -> Active {
@@ -500,6 +551,29 @@ struct ActiveAdapter<E: EntityTrait> {
     info: Arc<EntityInfo>,
 }
 
+impl<E> ActiveAdapter<E>
+where
+    E: EntityTrait + Send + Sync + 'static,
+    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+    E::ActiveModel: Send + Sync + 'static,
+{
+    /// A copy of the ActiveModel with `change` made to its column `name`.
+    fn changed(
+        &self,
+        name: &str,
+        change: impl FnOnce(&mut E::ActiveModel, E::Column) -> Result<(), Error>,
+    ) -> Result<Active, Failure> {
+        let column = column::<E>(&self.info, name)?;
+        let mut value = self.value.clone();
+        change(&mut value, column).map_err(|error| Failure::Construction(error.to_string()))?;
+        Ok(Arc::new(Self {
+            value,
+            info: self.info.clone(),
+        }))
+    }
+}
+
+// [spec:pgorm:req:bindings.entity-writes+1]
 impl<E> ActiveBackend for ActiveAdapter<E>
 where
     E: EntityTrait + Send + Sync + 'static,
@@ -510,44 +584,34 @@ where
         &self.info
     }
 
-    fn get(&self, name: &str) -> Result<ActiveValue<Value>, Error> {
-        self.value.get(column::<E>(name)?)
+    fn get(&self, name: &str) -> Result<ActiveValue<Value>, Failure> {
+        self.value
+            .get(column::<E>(&self.info, name)?)
+            .map_err(|error| Failure::Construction(error.to_string()))
     }
 
-    fn set(&self, name: &str, value: Value) -> Result<Active, Error> {
-        let mut active = self.value.clone();
-        active.set(column::<E>(name)?, value)?;
-        Ok(Arc::new(Self {
-            value: active,
-            info: self.info.clone(),
-        }))
+    fn set(&self, name: &str, value: Value) -> Result<Active, Failure> {
+        self.changed(name, |active, column| active.set(column, value))
     }
 
-    fn not_set(&self, name: &str) -> Result<Active, Error> {
-        let mut active = self.value.clone();
-        active.not_set(column::<E>(name)?);
-        Ok(Arc::new(Self {
-            value: active,
-            info: self.info.clone(),
-        }))
+    fn not_set(&self, name: &str) -> Result<Active, Failure> {
+        self.changed(name, |active, column| {
+            active.not_set(column);
+            Ok(())
+        })
     }
 
-    fn reset(&self, name: &str) -> Result<Active, Error> {
-        let mut active = self.value.clone();
-        active.reset(column::<E>(name)?);
-        Ok(Arc::new(Self {
-            value: active,
-            info: self.info.clone(),
-        }))
+    fn reset(&self, name: &str) -> Result<Active, Failure> {
+        self.changed(name, |active, column| {
+            active.reset(column);
+            Ok(())
+        })
     }
 
-    fn set_if_not_equals(&self, name: &str, value: Value) -> Result<Active, Error> {
-        let mut active = self.value.clone();
-        active.set_if_not_equals(column::<E>(name)?, value)?;
-        Ok(Arc::new(Self {
-            value: active,
-            info: self.info.clone(),
-        }))
+    fn set_if_not_equals(&self, name: &str, value: Value) -> Result<Active, Failure> {
+        self.changed(name, |active, column| {
+            active.set_if_not_equals(column, value)
+        })
     }
 
     fn is_changed(&self) -> bool {
@@ -555,76 +619,18 @@ where
     }
 
     fn run<'a>(&'a self, db: Database<'a>, write: Write) -> BoxFuture<'a, Result<Written, Error>> {
-        Box::pin(self.write(db, write))
+        Box::pin(async move {
+            let (entity, active) = (self.info.entity::<E>()?, self.value.clone());
+            let model = match write {
+                Write::Insert => active.insert_in(entity, &db).await?,
+                Write::Update => active.update_in(entity, &db).await?,
+                Write::Delete => return active.delete_in(entity, &db).await.map(Written::Count),
+            };
+            Ok(Written::Model(model_of::<E>(model, &self.info)))
+        })
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
+    fn as_any(&self) -> &dyn Any {
         self
-    }
-}
-
-impl<E> SelectAdapter<E>
-where
-    E: EntityTrait + Send + Sync + 'static,
-    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
-    E::ActiveModel: Send + Sync + 'static,
-{
-    async fn read(&self, db: Database<'_>, terminal: Terminal) -> Result<Vec<Model>, Error> {
-        let query = self.query.clone();
-        let models = match terminal {
-            Terminal::All => query.all(&db).await?,
-            Terminal::One => vec![query.one(&db).await?],
-            Terminal::Optional => query.one_opt(&db).await?.into_iter().collect(),
-        };
-        Ok(self.models(models))
-    }
-
-    // [spec:pgorm:req:bindings.raw-models]
-    async fn read_raw(
-        &self,
-        db: Database<'_>,
-        sql: String,
-        values: Values,
-        terminal: Terminal,
-    ) -> Result<Vec<Model>, Error> {
-        let query = self.query.clone().from_raw_sql(&sql, values);
-        let models = match terminal {
-            Terminal::All => query.all(&db).await?,
-            Terminal::One => vec![query.one(&db).await?],
-            Terminal::Optional => query.one_opt(&db).await?.into_iter().collect(),
-        };
-        Ok(self.models(models))
-    }
-
-    fn models(&self, models: Vec<E::Model>) -> Vec<Model> {
-        models
-            .into_iter()
-            .map(|value| {
-                Arc::new(ModelAdapter::<E> {
-                    value,
-                    info: self.info.clone(),
-                }) as Model
-            })
-            .collect()
-    }
-}
-
-impl<E> ActiveAdapter<E>
-where
-    E: EntityTrait + Send + Sync + 'static,
-    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
-    E::ActiveModel: Send + Sync + 'static,
-{
-    async fn write(&self, db: Database<'_>, write: Write) -> Result<Written, Error> {
-        let (entity, active) = (self.info.entity::<E>()?, self.value.clone());
-        let model = match write {
-            Write::Insert => active.insert_in(entity, &db).await?,
-            Write::Update => active.update_in(entity, &db).await?,
-            Write::Delete => return active.delete_in(entity, &db).await.map(Written::Count),
-        };
-        Ok(Written::Model(Arc::new(ModelAdapter::<E> {
-            value: model,
-            info: self.info.clone(),
-        })))
     }
 }

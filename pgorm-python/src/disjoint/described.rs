@@ -2,59 +2,18 @@
 
 use std::sync::Arc;
 
-use pgorm::pgorm_query::{ColumnType, Name, TableName, TypeName};
-use pgorm::{ColumnTypeTrait, DisjointColumn, DisjointShape, DisjointTable};
-use pyo3::{exceptions::PyTypeError, prelude::*, types::PyDict};
-use serde_json::json;
-
-use super::{Codec, Core, NativeDisjoint};
-use crate::{
-    errors::ConstructionError,
-    values::{PyTypeName, Tag},
+use pgorm::{DisjointColumn, DisjointTable};
+use pgorm_bindings::entity::{
+    DescribedColumn, DescribedKey as SharedKey, DescribedTable, DisjointCore, Generated, Kinded,
 };
+use pyo3::{exceptions::PyTypeError, prelude::*, types::PyDict};
 
-/// The column type a model column of `tag` is written with: a scalar kind's
-/// own (`ArrayType::column_type`), an enum of the labels `values` lists, a
-/// created range over its subtype's, and an array of its element's.
-pub(crate) fn column_type(tag: &Tag, values: Option<&[String]>) -> PyResult<ColumnType> {
-    Ok(match tag {
-        Tag::Scalar(kind) => kind.column_type().ok_or_else(|| {
-            ConstructionError::new_err(format!(
-                "no column decodes as `{}`, so a disjoint model's column cannot be one",
-                kind.kind_name()
-            ))
-        })?,
-        Tag::Enum(name) => ColumnType::Enum {
-            name: Name::runtime(&name.name),
-            schema: name.schema.as_ref().map(Name::runtime),
-            variants: values
-                .unwrap_or_default()
-                .iter()
-                .map(Name::runtime)
-                .collect(),
-        },
-        Tag::Created(kind) => {
-            let subtype = Arc::new(column_type(&Tag::Scalar(kind.subtype.clone()), None)?);
-            let (name, schema) = (
-                Name::runtime(&kind.name.name),
-                kind.name.schema.as_ref().map(Name::runtime),
-            );
-            match kind.multirange {
-                true => ColumnType::CreatedMultirange {
-                    name,
-                    schema,
-                    subtype,
-                },
-                false => ColumnType::CreatedRange {
-                    name,
-                    schema,
-                    subtype,
-                },
-            }
-        }
-        Tag::Array(element) => ColumnType::Array(Arc::new(column_type(element, values)?)),
-    })
-}
+use super::NativeDisjoint;
+use crate::{
+    config::DIALECT,
+    errors::Raise,
+    values::{PyTypeName, Tag, TagPy},
+};
 
 fn item<'py>(table: &Bound<'py, PyDict>, key: &str) -> PyResult<Bound<'py, PyAny>> {
     table
@@ -72,28 +31,29 @@ fn column_of(column: &Bound<'_, PyAny>) -> PyResult<DisjointColumn> {
         false => kind,
     };
     let values: Option<Vec<String>> = item(described, "values")?.extract()?;
-    let mut def = column_type(&kind, values.as_deref())?.def();
-    if item(described, "nullable")?.extract::<bool>()? {
-        def = def.nullable();
-    }
-    def = match item(described, "generated")?
+    let generated = match item(described, "generated")?
         .extract::<Option<String>>()?
         .as_deref()
     {
-        Some("always") => def.identity(),
-        Some("by_default") => def.identity_by_default(),
+        Some("always") => Some(Generated::Always),
+        Some("by_default") => Some(Generated::ByDefault),
         Some(_) => {
             return Err(PyTypeError::new_err(
                 "a column is generated always or by default",
             ));
         }
-        None => def,
+        None => None,
     };
-    let column = DisjointColumn::new(name, def);
-    Ok(match item(described, "default")?.extract::<bool>()? {
-        true => column.with_unstated_default(),
-        false => column,
-    })
+    DescribedColumn {
+        name,
+        kind,
+        values: values.unwrap_or_default(),
+        nullable: item(described, "nullable")?.extract::<bool>()?,
+        generated,
+        default: item(described, "default")?.extract::<bool>()?,
+    }
+    .column()
+    .py()
 }
 
 /// A unique key of a model's table, as Python describes it: the
@@ -114,21 +74,23 @@ pub(crate) fn table_of(table: &Bound<'_, PyAny>) -> PyResult<DisjointTable> {
         .map(column_of)
         .collect::<PyResult<Vec<_>>>()?;
     let key: Vec<String> = item(described, "key")?.extract()?;
-    let table = match schema {
-        Some(schema) => TableName::SchemaTable(Name::runtime(schema), Name::runtime(name)),
-        None => TableName::Table(Name::runtime(name)),
-    };
-    let key: Vec<&str> = key.iter().map(String::as_str).collect();
     let unique_keys: Vec<DescribedKey> = item(described, "unique_keys")?.extract()?;
-    let construction = |error: pgorm::Error| ConstructionError::new_err(error.to_string());
-    let mut table = DisjointTable::new(table, columns, &key).map_err(construction)?;
-    for (name, columns, nulls_not_distinct) in &unique_keys {
-        let columns: Vec<&str> = columns.iter().map(String::as_str).collect();
-        table = table
-            .with_unique_key(name.as_deref(), &columns, *nulls_not_distinct)
-            .map_err(construction)?;
+    DescribedTable {
+        schema,
+        table: name,
+        columns,
+        key,
+        unique_keys: unique_keys
+            .into_iter()
+            .map(|(name, columns, nulls_not_distinct)| SharedKey {
+                name,
+                columns,
+                nulls_not_distinct,
+            })
+            .collect(),
     }
-    Ok(table)
+    .table()
+    .py()
 }
 
 /// A model's name beside the description of its table.
@@ -155,52 +117,24 @@ pub(crate) fn disjoint_model(
     kinds: Vec<(String, Option<Described<'_>>)>,
 ) -> PyResult<NativeDisjoint> {
     let (base_name, base) = base;
-    let mut described = Vec::with_capacity(kinds.len());
     let mut tables = Vec::with_capacity(kinds.len());
     for (value, table) in kinds {
-        match table {
-            Some((model, table)) => {
-                described.push(json!({"value": value, "model": model}));
-                tables.push((value, Some(table_of(&table)?)));
-            }
-            None => {
-                described.push(json!({"value": value, "model": null}));
-                tables.push((value, None));
-            }
-        }
+        tables.push((
+            value,
+            match table {
+                Some((model, table)) => Some((model, table_of(&table)?)),
+                None => None,
+            },
+        ));
     }
-    let base = table_of(&base)?;
-    let (shape, kind_field, kind_type) = match &kinded {
-        Some((kind_column, kind_field, kind_type)) => {
-            let mut type_name = TypeName::new(Name::runtime(&kind_type.name));
-            if let Some(schema) = &kind_type.schema {
-                type_name = type_name.schema(Name::runtime(schema));
-            }
-            (
-                DisjointShape::new(base, kind_column, type_name, tables),
-                Some(kind_field.as_str()),
-                json!({"schema": kind_type.schema, "name": kind_type.name}),
-            )
-        }
-        None => (
-            DisjointShape::unkinded(base, tables),
-            None,
-            json!({"schema": null, "name": null}),
-        ),
-    };
-    let shape = shape.map_err(|error| ConstructionError::new_err(error.to_string()))?;
+    let kinded = kinded.map(|(column, field, kind_type)| Kinded {
+        column,
+        field,
+        kind_type: kind_type.0.clone(),
+    });
+    let core =
+        DisjointCore::model(DIALECT, name, (base_name, table_of(&base)?), kinded, tables).py()?;
     Ok(NativeDisjoint {
-        core: Arc::new(Core {
-            shape,
-            codec: Codec::Models,
-            description: json!({
-                "name": name,
-                "base": base_name,
-                "kind_field": kind_field,
-                "kind_type": kind_type,
-                "kinds": described,
-            }),
-            rust: None,
-        }),
+        core: Arc::new(core),
     })
 }

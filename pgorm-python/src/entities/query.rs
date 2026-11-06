@@ -5,14 +5,15 @@ use pyo3::{
     types::{PyInt, PyTuple},
 };
 
+use pgorm_bindings::entity::{Change, Read as Terminal, Select};
+
 use super::{
-    backend::{Change, Select, Terminal},
     reads::NativeRowDecoder,
     reads_py::{CursorState, PyEntityCursor, PyEntityPaginator, compiled, counted, stream},
     selection::{PyEntityRelation, PyEntitySelection},
 };
 use crate::{
-    errors::ConstructionError,
+    errors::{ConstructionError, Raise},
     expressions::{Compiled, OrderBy, PyCondition, PyExpr},
     statements::{Join, RawSQL},
     transactions::work::{Output, Read, Work},
@@ -102,6 +103,7 @@ impl PyEntityQuery {
                 return compiled(
                     self.inner
                         .pages()
+                        .pages
                         .statement(std::num::NonZeroU64::MIN, None)
                         .map_err(|error| ConstructionError::new_err(error.to_string()))?
                         .build(),
@@ -117,10 +119,7 @@ impl PyEntityQuery {
     /// orderings through its own entity's `col`.
     #[pyo3(signature = (relation, *, kind=Join::Inner))]
     fn join(&self, relation: PyRef<'_, PyEntityRelation>, kind: Join) -> PyResult<Self> {
-        relation
-            .entity
-            .relation(&relation.name)
-            .map_err(|error| ConstructionError::new_err(error.to_string()))?;
+        relation.entity.relation(&relation.name).py()?;
         Ok(Self {
             inner: self.inner.change(Change::Join(
                 kind.rust_join(),
@@ -162,7 +161,7 @@ impl PyEntityQuery {
         let pages = self.inner.pages();
         let read: Read = Box::new(move |db| {
             Box::pin(async move {
-                let counted = pages.count(db, std::num::NonZeroU64::MIN).await?;
+                let counted = pages.pages.count(db, std::num::NonZeroU64::MIN).await?;
                 Ok(Output::Count(counted.number_of_items))
             })
         });
@@ -183,11 +182,7 @@ impl PyEntityQuery {
             .map(|column| super::column::name(&column, self.inner.info()))
             .collect::<PyResult<Vec<_>>>()?;
         Ok(PyEntityCursor {
-            state: CursorState::new(
-                self.inner
-                    .cursor(&columns)
-                    .map_err(|error| ConstructionError::new_err(error.to_string()))?,
-            ),
+            state: CursorState::new(self.inner.cursor(&columns).py()?),
         })
     }
 

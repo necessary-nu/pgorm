@@ -14,8 +14,10 @@
 mod connection;
 mod copy;
 mod dialect;
+pub mod entity;
 mod failure;
 mod hook;
+mod kind;
 mod listen;
 mod metrics;
 mod pool;
@@ -29,6 +31,7 @@ pub use copy::{builtin_type, copy_column};
 pub use dialect::{Dialect, Refusal};
 pub use failure::{Class, Diagnostics, Failure, Redactions, classify};
 pub use hook::{HookCall, HookEvent, HookJob, HookJobs, hook};
+pub use kind::{CreatedKind, Tag, TypeName, labels};
 pub use listen::{ListenRequest, ListenerState, Received};
 pub use metrics::{Database, Hook, Metrics, Report, Reporter};
 pub use pool::{PoolSettings, PoolShape, connect_listener, listener_config, multi_pool};

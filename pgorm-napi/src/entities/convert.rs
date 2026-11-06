@@ -5,18 +5,15 @@
 
 use crate::errors::FailureJs as _;
 use neon::{prelude::*, types::Finalize};
-use pgorm::pgorm_query::{ArrayType, Value};
+use pgorm::pgorm_query::Value;
+use pgorm_bindings::entity::{ColumnInfo, EntityInfo, Model, Versions, Written};
 
-use super::{
-    adapter::{Model, Versions, Written},
-    info::{ColumnInfo, EntityInfo},
-};
 use crate::{
     codec::Codec,
     connect::job::Settled,
     errors::{Failure, throw},
     rows,
-    values::{Tag, Tagged, read, value_tag},
+    values::{Tag, Tagged, read},
 };
 
 /// A model as JavaScript holds it: the real `E::Model` behind a record.
@@ -75,24 +72,12 @@ pub(crate) fn column_array<'cx>(
     Ok(Some(tagged.datum))
 }
 
-/// A column's value with the kind it reads as: the column's own where it
-/// names a type — an enum's, a created range's — that the value, a string,
-/// does not carry, and otherwise the value's.
+/// A column's value with the kind it reads as, `ColumnInfo::tag_of`.
 pub(crate) fn tagged(column: &ColumnInfo, value: Value) -> Result<Tagged, Failure> {
-    let named = match (&column.tag, &value) {
-        (Some(tag @ (Tag::Enum(_) | Tag::Created(_))), Value::String(_)) => Some(tag.clone()),
-        (Some(tag @ Tag::Array(element)), Value::Array(ArrayType::String, _))
-            if matches!(**element, Tag::Enum(_) | Tag::Created(_)) =>
-        {
-            Some(tag.clone())
-        }
-        _ => None,
-    };
-    let tag = match named {
-        Some(tag) => tag,
-        None => value_tag(&value),
-    };
-    Ok(Tagged { tag, datum: value })
+    Ok(Tagged {
+        tag: column.tag_of(&value)?,
+        datum: value,
+    })
 }
 
 /// A model's columns as plain JavaScript values, in column order.

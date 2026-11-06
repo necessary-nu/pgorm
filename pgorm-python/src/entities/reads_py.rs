@@ -21,12 +21,15 @@ use pyo3::{
     types::{PyList, PyTuple},
 };
 
+use pgorm_bindings::entity::{KeyColumn, Keyset, Pages, Row};
+
 use super::{
+    input,
     query::bound,
-    reads::{KeyColumn, Keyset, NativeRowDecoder, Pages, page_size, row_object},
+    reads::{NativeRowDecoder, page_size, row_object},
 };
 use crate::{
-    errors::{ConstructionError, InternalError},
+    errors::{ConstructionError, InternalError, Raise},
     execution::{Executor, listed},
     expressions::Compiled,
     transactions::work::{Output, Read, Work},
@@ -63,7 +66,7 @@ pub(crate) fn rows<'py>(
 }
 
 /// The rows of a read whose output is a graph's.
-pub(crate) fn graph_rows(output: Output) -> Option<Vec<crate::graphs::backend::Row>> {
+pub(crate) fn graph_rows(output: Output) -> Option<Vec<Row>> {
     match output {
         Output::Graph(rows) => Some(rows),
         _ => None,
@@ -134,7 +137,7 @@ impl PyEntityPaginator {
     fn fetch(&self, page: u64) -> Read {
         let (pages, size) = (self.pages.clone(), self.size);
         Box::new(move |db| {
-            Box::pin(async move { pages.fetch(db, size, page).await.map(Output::Graph) })
+            Box::pin(async move { pages.pages.fetch(db, size, page).await.map(Output::Graph) })
         })
     }
 
@@ -151,7 +154,7 @@ impl PyEntityPaginator {
         let (pages, size) = (self.pages.clone(), self.size);
         let read: Read = Box::new(move |db| {
             Box::pin(async move {
-                let counted = pages.count(db, size).await?;
+                let counted = pages.pages.count(db, size).await?;
                 Ok(Output::Counted(
                     counted.number_of_items,
                     counted.number_of_pages,
@@ -182,6 +185,7 @@ impl PyEntityPaginator {
         let page =
             bound(Some(page))?.ok_or_else(|| PyTypeError::new_err("a page number is an int"))?;
         self.pages
+            .pages
             .statement(self.size, Some(page))
             .map_err(|error| ConstructionError::new_err(error.to_string()))?;
         rows(py, connection, self.fetch(page), false)
@@ -238,6 +242,7 @@ impl PyEntityPaginator {
             }
             return compiled(
                 self.pages
+                    .pages
                     .statement(self.size, None)
                     .map_err(|error| ConstructionError::new_err(error.to_string()))?
                     .build(),
@@ -247,6 +252,7 @@ impl PyEntityPaginator {
             bound(Some(page))?.ok_or_else(|| PyTypeError::new_err("a page number is an int"))?;
         compiled(
             self.pages
+                .pages
                 .statement(self.size, Some(page))
                 .map_err(|error| ConstructionError::new_err(error.to_string()))?
                 .build(),
@@ -334,12 +340,7 @@ impl CursorState {
             .iter()
             .zip(values)
             .map(|(column, value)| {
-                Ok(column
-                    .entity
-                    .column(&column.column)?
-                    .input
-                    .coerce(&value)?
-                    .inner)
+                Ok(input::coerce(column.entity.column(&column.column).py()?, &value)?.inner)
             })
             .collect::<PyResult<Vec<_>>>()?
             .into_iter()

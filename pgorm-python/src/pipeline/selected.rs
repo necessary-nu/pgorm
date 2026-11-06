@@ -1,50 +1,31 @@
-use super::{
-    PyPipeline,
-    selected_backend::{Factory, Info, Query, SourceFactory, Terminal},
-    slots::SourceTypes,
-};
+use super::PyPipeline;
 use crate::{
     UnsupportedCapabilityError,
-    entities::{NativeRegistry, Registry},
-    errors::ConstructionError,
+    entities::{NativeRegistry, reads_py::compiled},
+    errors::{ConstructionError, Raise},
     expressions::Compiled,
-    identifiers::validate_name,
 };
-use pgorm::pipeline::SourceList;
+use pgorm_bindings::entity::{Read as Terminal, Selected as Query, SourcesBackend};
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyString};
-use std::{marker::PhantomData, sync::Arc};
+use std::sync::Arc;
 
-impl Registry {
-    /// Register a concrete tuple of one to six entity types for select_sources.
-    /// Register each entity first; Python cannot invent Rust source types.
-    // [spec:pgorm:req:bindings.pipeline-sources+3]
-    pub fn sources<T: SourceTypes>(&mut self, name: &str) -> PyResult<&mut Self>
-    where
-        <T::Selection as SourceList>::Row: Send,
-    {
-        if name.is_empty()
-            || name.len() > 255
-            || name.contains('\0')
-            || self.sources.contains_key(name)
-        {
-            return Err(ConstructionError::new_err(
-                "source registration requires a unique name of 1–255 UTF-8 bytes without NUL",
-            ));
-        }
-        let info = Arc::new(Info {
-            name: name.to_owned(),
-            rust_shape: std::any::type_name::<T>(),
-            bindings: T::bindings(self)?,
-        });
-        self.sources.insert(
-            name.to_owned(),
-            Arc::new(SourceFactory::<T> {
-                info,
-                marker: PhantomData,
-            }),
-        );
-        Ok(self)
+/// The terminal `value` names.
+pub(super) fn parse_terminal(value: &str) -> PyResult<Terminal> {
+    match value {
+        "all" => Ok(Terminal::All),
+        "one" => Ok(Terminal::One),
+        "optional" => Ok(Terminal::Optional),
+        _ => Err(PyTypeError::new_err("unknown pipeline terminal")),
     }
+}
+
+/// The statement `query`'s terminal sends.
+pub(super) fn statement(query: &Query, terminal: Terminal) -> PyResult<Compiled> {
+    compiled(
+        query
+            .compile(terminal)
+            .map_err(|error| ConstructionError::new_err(error.to_string()))?,
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -55,7 +36,7 @@ impl Registry {
     from_py_object
 )]
 pub struct PySourceSelection {
-    pub(crate) factory: Arc<dyn Factory>,
+    pub(crate) factory: Arc<dyn SourcesBackend>,
 }
 
 #[pymethods]
@@ -76,28 +57,20 @@ impl PySourceSelection {
         pipeline: &PyPipeline,
         qualifiers: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PySelectedSources> {
-        let entities = &self.factory.info().bindings.entities;
         let qualifiers = match qualifiers.filter(|v| !v.is_none()) {
             Some(value) if !value.is_instance_of::<PyString>() => {
-                value.extract::<Vec<String>>().map_err(|_| {
+                Some(value.extract::<Vec<String>>().map_err(|_| {
                     PyTypeError::new_err("qualifiers require a sequence of source names")
-                })?
+                })?)
             }
             Some(_) => {
                 return Err(PyTypeError::new_err(
                     "qualifiers require a sequence, not one string",
                 ));
             }
-            None => entities.iter().map(|e| e.table.clone()).collect(),
+            None => None,
         };
-        if qualifiers.len() != entities.len() {
-            return Err(ConstructionError::new_err(
-                "qualifier count must match the registered source count",
-            ));
-        }
-        for qualifier in &qualifiers {
-            validate_name(qualifier)?;
-        }
+        let qualifiers = self.factory.info().qualifiers(qualifiers).py()?;
         Ok(PySelectedSources {
             inner: self.factory.select(pipeline.inner.clone(), qualifiers),
         })
@@ -119,7 +92,7 @@ pub struct PySelectedSources {
 impl PySelectedSources {
     #[pyo3(signature=(*, terminal="all"))]
     fn inspect(&self, terminal: &str) -> PyResult<Compiled> {
-        self.inner.compile(Terminal::parse(terminal)?)
+        statement(&self.inner, parse_terminal(terminal)?)
     }
     fn all<'py>(
         &self,
@@ -158,7 +131,8 @@ pub(crate) fn pipeline_sources(
     let registry = object.extract::<PyRef<'_, NativeRegistry>>()?;
     registry
         .0
-        .sources
+        .0
+        .source_tuples()
         .get(name)
         .cloned()
         .map(|factory| PySourceSelection { factory })

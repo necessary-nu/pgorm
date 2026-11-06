@@ -10,7 +10,6 @@
 //! a registration's as its entities' own models.
 
 mod described;
-pub(crate) use described::column_type;
 mod evolve;
 
 pub(crate) use described::table_of;
@@ -21,54 +20,26 @@ use std::{num::NonZeroU64, sync::Arc};
 
 use neon::{prelude::*, types::Finalize};
 use pgorm::pgorm_query::{IntoCondition, SelectStatement, Value, ValueTuple};
-use pgorm::{ActiveValue, DisjointShape, DisjointTable, DisjointValues, Error};
+use pgorm::{ActiveValue, DisjointTable, DisjointValues, Error};
+
+use pgorm_bindings::entity::{
+    DisjointCore, Entity, KindRow, RowCodec, active_values, foreign_active,
+};
 
 use crate::{
     codec::Codec,
     connect::job::{JobHandle, Output},
-    entities::{ActiveHandle, EntityBackend, column_value, inspected},
+    entities::{ActiveHandle, column_value, inspected},
     errors::{Failure, failure, throw},
     statements::{Node, node, predicate},
     values::read,
 };
 
-pub(crate) use registered::Registered;
 pub(crate) use rows::Rows;
-
-/// A registered entity, as a disjoint registration's base or kind.
-type Entity = Arc<dyn EntityBackend>;
-
-/// How a disjoint read's rows become records: as tagged values a model views
-/// by field, or as the registered entities' own models.
-pub(crate) enum RowCodec {
-    Models,
-    Entities {
-        base: Arc<dyn EntityBackend>,
-        kinds: Vec<Option<Arc<dyn EntityBackend>>>,
-    },
-}
-
-/// One disjoint model or registration: its shape, its codec, and its
-/// description.
-pub(crate) struct Core {
-    pub(crate) shape: DisjointShape,
-    pub(crate) codec: RowCodec,
-    pub(crate) description: serde_json::Value,
-    /// The registered enum's type, which no second registration may name.
-    pub(crate) rust: Option<std::any::TypeId>,
-}
-
-impl std::fmt::Debug for Core {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Core")
-            .field("description", &self.description)
-            .finish_non_exhaustive()
-    }
-}
 
 /// A disjoint model or registration as JavaScript holds it.
 #[derive(Debug)]
-pub(crate) struct DisjointHandle(pub(crate) Arc<Core>);
+pub(crate) struct DisjointHandle(pub(crate) Arc<DisjointCore>);
 
 impl Finalize for DisjointHandle {}
 
@@ -150,31 +121,12 @@ fn string_list(cx: &mut FunctionContext, index: usize) -> NeonResult<Vec<String>
         .collect()
 }
 
-impl Core {
-    /// The kind `kind`'s index, refused as a `ConstructionError`.
-    fn kind_index(&self, kind: &str) -> Result<usize, Failure> {
-        self.shape
-            .kind(kind)
-            .map(|(index, _)| index)
-            .map_err(|error| Failure::Construction(error.to_string()))
-    }
-
-    /// The entity of the base, and of the kind at `index`, of a
-    /// registration.
-    fn entities(&self, index: usize) -> (Option<&Entity>, Option<&Entity>) {
-        match &self.codec {
-            RowCodec::Models => (None, None),
-            RowCodec::Entities { base, kinds } => (Some(base), kinds[index].as_ref()),
-        }
-    }
-}
-
 /// What a write gives `table`'s columns: a model's `[column, Value]` pairs,
 /// each `Set`, or a registration's `ActiveModel` of `entity`.
 fn values_of<'cx>(
     cx: &mut FunctionContext<'cx>,
     table: &DisjointTable,
-    entity: Option<&Arc<dyn EntityBackend>>,
+    entity: Option<&Entity>,
     given: Handle<'cx, JsValue>,
 ) -> NeonResult<DisjointValues> {
     let outcome = match entity {
@@ -203,21 +155,10 @@ fn values_of<'cx>(
                 return cx.throw_type_error("a registered disjoint entity writes an ActiveModel");
             };
             let active = active.0.clone();
-            if active.info().name != entity.info().name {
-                return cx.throw_type_error(format!(
-                    "the ActiveModel is {}'s, not {}'s",
-                    active.info().name,
-                    entity.info().name
-                ));
+            if let Some(refusal) = foreign_active(entity.info(), active.info()) {
+                return cx.throw_type_error(refusal);
             }
-            let mut values = Vec::new();
-            for column in &entity.info().columns {
-                match active.get(&column.name) {
-                    Ok(value) => values.push((column.name.clone(), value)),
-                    Err(failure) => return throw(cx, failure),
-                }
-            }
-            table.values(values)
+            return active_values(table, entity, &active).or_else(|failure| throw(cx, failure));
         }
     };
     outcome.or_else(|error| throw(cx, Failure::Construction(error.to_string())))
@@ -228,7 +169,7 @@ fn values_of<'cx>(
 /// declared kind.
 fn base_values(
     cx: &mut FunctionContext,
-    core: &Core,
+    core: &DisjointCore,
     columns: &[String],
     index: usize,
 ) -> NeonResult<Vec<Value>> {
@@ -266,43 +207,22 @@ fn base_values(
 /// empty for one with a table given none.
 fn kind_row<'cx>(
     cx: &mut FunctionContext<'cx>,
-    core: &Core,
+    core: &DisjointCore,
     kind: &str,
     index: usize,
 ) -> NeonResult<Option<DisjointValues>> {
-    let position = match core.kind_index(kind) {
-        Ok(position) => position,
-        Err(failure) => return throw(cx, failure),
-    };
-    let entry = &core.shape.kinds()[position];
     let given = cx.argument::<JsValue>(index)?;
     let given =
         (!given.is_a::<JsNull, _>(cx) && !given.is_a::<JsUndefined, _>(cx)).then_some(given);
-    match (entry.table(), given) {
-        (Some(table), Some(given)) => {
-            let (_, entity) = core.entities(position);
-            values_of(cx, table, entity, given).map(Some)
-        }
-        (Some(table), None) => table
-            .values(Vec::<(String, _)>::new())
-            .map(Some)
-            .or_else(|error| throw(cx, Failure::Construction(error.to_string()))),
-        (None, Some(_)) => throw(
-            cx,
-            Failure::Construction(format!(
-                "the kind `{kind}` has no table, so a write of it gives no row's values"
-            )),
-        ),
-        (None, None) => Ok(None),
+    match core.kind_row(kind, given.is_some()) {
+        Ok(KindRow::Absent) => Ok(None),
+        Ok(KindRow::Empty(values)) => Ok(Some(values)),
+        Ok(KindRow::Given { table, entity }) => match given {
+            Some(given) => values_of(cx, table, entity, given).map(Some),
+            None => Ok(None),
+        },
+        Err(failure) => throw(cx, failure),
     }
-}
-
-fn key_names(core: &Core) -> Vec<String> {
-    core.shape
-        .base()
-        .key()
-        .map(|column| column.name().to_string())
-        .collect()
 }
 
 /// `disjointDescribe(disjoint)`: the model or registration as JSON.
@@ -315,19 +235,13 @@ fn describe(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `disjointKinds(disjoint)`: the kinds' values, in order.
 fn kinds(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = cx.argument::<JsBox<DisjointHandle>>(0)?.0.clone();
-    let values: Vec<String> = core
-        .shape
-        .kinds()
-        .iter()
-        .map(|kind| kind.value().to_owned())
-        .collect();
-    strings(&mut cx, values.into_iter())
+    strings(&mut cx, core.kinds().into_iter())
 }
 
 /// `disjointKeyColumns(disjoint)`: the base's key columns, in key order.
 fn key_columns(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = cx.argument::<JsBox<DisjointHandle>>(0)?.0.clone();
-    strings(&mut cx, key_names(&core).into_iter())
+    strings(&mut cx, core.key_names().into_iter())
 }
 
 /// `disjointResultNames(disjoint, source)`: the names a read gives the
@@ -356,7 +270,7 @@ fn find(mut cx: FunctionContext) -> JsResult<JsValue> {
 fn narrow_key(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = cx.argument::<JsBox<DisjointHandle>>(0)?.0.clone();
     let mut select = select_at(&mut cx, 1)?;
-    let key = base_values(&mut cx, &core, &key_names(&core), 2)?;
+    let key = base_values(&mut cx, &core, &core.key_names(), 2)?;
     let narrowed = core.shape.key_is(key).map(|condition| {
         select.cond_where(condition);
         select
@@ -477,7 +391,7 @@ fn cursor(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// The base's values and the kind row's for the write at arguments 1–3.
 fn written(
     cx: &mut FunctionContext,
-    core: &Core,
+    core: &DisjointCore,
 ) -> NeonResult<(DisjointValues, String, Option<DisjointValues>)> {
     let kind = cx.argument::<JsString>(2)?.value(cx);
     let position = match core.kind_index(&kind) {
@@ -514,7 +428,7 @@ fn update(mut cx: FunctionContext) -> JsResult<JsValue> {
 // [spec:pgorm:req:bindings.disjoint+2]
 fn change_kind(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = cx.argument::<JsBox<DisjointHandle>>(0)?.0.clone();
-    let key = base_values(&mut cx, &core, &key_names(&core), 1)?;
+    let key = base_values(&mut cx, &core, &core.key_names(), 1)?;
     let kind = cx.argument::<JsString>(2)?.value(&mut cx);
     let row = kind_row(&mut cx, &core, &kind, 3)?;
     built(&mut cx, core.shape.change_kind(key, &kind, row.as_ref()))

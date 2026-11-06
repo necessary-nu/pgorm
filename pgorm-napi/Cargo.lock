@@ -1448,6 +1448,7 @@ dependencies = [
  "pgorm",
  "rustls",
  "rustls-native-certs",
+ "serde_json",
  "tokio",
  "tokio-postgres",
  "tokio-postgres-rustls",

@@ -5,60 +5,18 @@
 //! leave it to the cursor to check; and their rows as a stream, each decoded
 //! by the read's own selector as it arrives.
 
-use pgorm_bindings::Metrics;
 use std::{fmt, num::NonZeroU64, sync::Arc};
 
 use neon::{prelude::*, types::Finalize};
-use pgorm::{
-    CursorPlan, CursorWindow, ErasedCursor, ErasedPages, Error, QueryResult, boundary_columns,
-    pgorm_query::ValueTuple,
-};
+use pgorm::{CursorPlan, CursorWindow, QueryResult, boundary_columns, pgorm_query::ValueTuple};
+use pgorm_bindings::entity::{Decode, EntityInfo, Keyset, Pages};
 
-use super::{
-    adapter::Model,
-    convert::{GraphRows, column_value},
-    info::EntityInfo,
-};
+use super::convert::{GraphRows, column_value};
 use crate::{
     connect::job::{Job, JobHandle, Output},
     errors::Failure,
     values::read,
 };
-
-/// A row of a registered read: each source's model, `None` for an absent
-/// optional slot.
-pub(crate) type Row = Vec<Option<Model>>;
-
-/// A registered read's pages: pgorm's erased paginator, and the entities its
-/// rows' sources decode as.
-#[derive(Debug)]
-pub(crate) struct Pages {
-    pub(crate) pages: Box<dyn ErasedPages<Row, Metrics>>,
-    pub(crate) sources: Vec<Arc<EntityInfo>>,
-}
-
-/// A column a cursor's boundary value converts through: its entity, and its
-/// name there.
-#[derive(Clone, Debug)]
-pub(crate) struct KeyColumn {
-    pub(crate) entity: Arc<EntityInfo>,
-    pub(crate) column: String,
-}
-
-/// A registered read's keyset cursor: pgorm's erased cursor, its order
-/// columns, the whole key a `_with` boundary names, and the entities its
-/// rows' sources decode as.
-#[derive(Debug)]
-pub(crate) struct Keyset {
-    pub(crate) cursor: Arc<dyn ErasedCursor<Row, Metrics>>,
-    pub(crate) order: Vec<KeyColumn>,
-    pub(crate) key: Vec<KeyColumn>,
-    pub(crate) sources: Vec<Arc<EntityInfo>>,
-}
-
-/// The decode of one row of a registered read's result into its sources'
-/// models, as its selector's `from_raw_query_result` reads it.
-pub(crate) type Decode = Arc<dyn Fn(QueryResult) -> Result<Row, Error> + Send + Sync>;
 
 /// The decode a registered read's stream runs on each row, handed to
 /// `connectionStream` beside the read's statement.

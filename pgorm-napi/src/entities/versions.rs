@@ -7,8 +7,9 @@
 use crate::errors::FailureJs as _;
 use neon::prelude::*;
 
+use pgorm_bindings::entity::{Active, Assignment, VersionWrite};
+
 use super::{
-    adapter::{Active, Assignment, VersionWrite},
     condition,
     convert::{VersionRows, column_value},
 };

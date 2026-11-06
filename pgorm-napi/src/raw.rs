@@ -19,7 +19,6 @@ use crate::{
     connect::job::{Database, Job, JobHandle, Output, Settled},
     decode,
     errors::{Failure, failure},
-    models,
     values::read,
 };
 
@@ -228,7 +227,7 @@ impl Settled for Described {
 fn kind(column: &DescribedColumn) -> Option<String> {
     let copy = CopyColumn::new(column.name(), column.type_().clone());
     let null = decode::field(&copy, None).ok()?;
-    models::kind_key(&null.tag).ok()
+    Some(null.tag.key())
 }
 
 /// `describeJob(sql)`: the result columns the server describes for `sql`,

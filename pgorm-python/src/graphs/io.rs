@@ -1,9 +1,9 @@
-use super::backend::Query;
 use crate::{
     errors::ConstructionError,
     execution::{Executor, listed},
     transactions::work::Work,
 };
+use pgorm_bindings::entity::GraphQuery as Query;
 use pyo3::prelude::*;
 
 pub(crate) enum Read {

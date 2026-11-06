@@ -1,6 +1,10 @@
 //! Closed runtime type constructors over pgorm_query::ColumnType.
 
-use crate::{UnsupportedCapabilityError, errors::ConstructionError, values::PyTypeName};
+use crate::{
+    UnsupportedCapabilityError,
+    errors::ConstructionError,
+    values::{CreatedKindPy, PyTypeName},
+};
 use pgorm::pgorm_query::{ColumnType, IntervalSpec, Name, StringLen};
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyInt};
 use std::sync::Arc;

@@ -9,7 +9,7 @@ use std::sync::Arc;
 use pgorm::pgorm_query::{ColumnType, Name, TypeName, Value};
 use pgorm::pipeline::{self as pl, ExprOps};
 
-use crate::entities::backend::PipelineColumn;
+use pgorm_bindings::entity::PipelineColumn;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Binary {
@@ -174,7 +174,7 @@ impl Recipe {
             Self::Typed(table, column, kind) => {
                 pl::col_typed(Name::runtime(table), Name::runtime(column), kind)
             }
-            Self::Registered(table, column) => column.lower(table),
+            Self::Registered(table, column) => column.lower(Name::runtime(table)),
             Self::Alias(name) => Name::runtime(name).into(),
             Self::This(name) => pl::this(Name::runtime(name)),
             Self::That(name) => pl::that(Name::runtime(name)),

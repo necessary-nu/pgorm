@@ -18,7 +18,7 @@ use crate::{
     codec::Codec,
     decode,
     errors::{Failure, Redactions, failure, throw},
-    models, settle,
+    settle,
     statements::{CopyStatement, copy_at},
     values::{
         TypeName,
@@ -235,7 +235,7 @@ fn copy_rows_kinds(mut cx: FunctionContext) -> JsResult<JsArray> {
     };
     let keys = columns
         .iter()
-        .map(|column| decode::field(column, None).and_then(|null| models::kind_key(&null.tag)))
+        .map(|column| decode::field(column, None).map(|null| null.tag.key()))
         .collect::<Result<Vec<_>, _>>();
     let keys = match keys {
         Ok(keys) => keys,

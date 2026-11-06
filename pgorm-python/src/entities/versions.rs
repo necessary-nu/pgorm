@@ -9,12 +9,11 @@ use crate::panics::future_into_py;
 use pgorm::pgorm_query::Condition;
 use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*, types::PyList};
 
-use super::{
-    PyActiveModel, PyEntityModel,
-    backend::{Active, Assignment, EntityBackend, VersionWrite, Versions},
-};
+use pgorm_bindings::entity::{Active, Assignment, EntityBackend, Model, VersionWrite, Versions};
+
+use super::{PyActiveModel, PyEntityModel, input};
 use crate::{
-    errors::{ConstructionError, InternalError},
+    errors::{ConstructionError, InternalError, Raise},
     execution::Executor,
     expressions::PyExpr,
     statements::condition,
@@ -113,7 +112,7 @@ pub(crate) fn make_updated(change: Bound<'_, PyChange>) -> PyUpserted {
     }
 }
 
-pub(super) fn model(py: Python<'_>, inner: super::backend::Model) -> PyResult<PyEntityModel> {
+pub(super) fn model(py: Python<'_>, inner: Model) -> PyResult<PyEntityModel> {
     let model = PyEntityModel { inner };
     model.validate(py)?;
     Ok(model)
@@ -266,7 +265,7 @@ impl PyEntityUpdateMany {
         let assignment = if let Ok(expression) = value.extract::<PyRef<'_, PyExpr>>() {
             Assignment::Expr(expression.inner.clone())
         } else {
-            let value = self.entity.info().column(&name)?.input.coerce(value)?;
+            let value = input::coerce(self.entity.info().column(&name).py()?, value)?;
             Assignment::Value(value.rust_value().clone())
         };
         let mut next = self.clone();

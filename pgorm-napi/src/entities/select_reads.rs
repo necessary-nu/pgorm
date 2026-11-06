@@ -2,71 +2,14 @@
 //! stream, through pgorm's own `PaginatorTrait`, `Select::cursor_by`,
 //! `QuerySelect::join`, `select_only` and `Select::stream`'s decode.
 
-use std::sync::Arc;
-
 use neon::prelude::*;
-use pgorm::{EntityTrait, IntoActiveModel, PagedRead, pgorm_query::Name};
+use pgorm_bindings::entity::Change;
 
 use super::{
-    EntityHandle, SelectHandle,
-    adapter::{Change, SelectAdapter, column, model_of},
-    read_terminal,
-    reads::{CursorHandle, DecoderHandle, KeyColumn, Keyset, Pages, PagesHandle, page_size},
+    EntityHandle, SelectHandle, read_terminal,
+    reads::{CursorHandle, DecoderHandle, PagesHandle, page_size},
 };
 use crate::{errors::throw, statements::Node, values::read};
-
-/// The `Select`'s pages, each item its entity's model, through pgorm's erased
-/// paginator.
-pub(super) fn pages<E>(select: &SelectAdapter<E>) -> Arc<Pages>
-where
-    E: EntityTrait + Send + Sync + 'static,
-    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
-    E::ActiveModel: Send + Sync + 'static,
-{
-    let info = select.info.clone();
-    Arc::new(Pages {
-        pages: Box::new(PagedRead::new(select.query.clone(), move |value| {
-            vec![Some(model_of::<E>(value, &info))]
-        })),
-        sources: vec![select.info.clone()],
-    })
-}
-
-/// `Select::cursor_by` over `columns`, pgorm's `select_cursor`: a plain read
-/// has no tiebreak, so its whole key is its order columns.
-// [spec:pgorm:req:bindings.entity-reads+4]
-pub(super) fn cursor<E>(
-    select: &SelectAdapter<E>,
-    columns: &[String],
-) -> Result<Arc<Keyset>, crate::errors::Failure>
-where
-    E: EntityTrait + Send + Sync + 'static,
-    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
-    E::ActiveModel: Send + Sync + 'static,
-{
-    let names = columns
-        .iter()
-        .map(|name| column::<E>(&select.info, name).map(|_| Name::runtime(name)))
-        .collect::<Result<Vec<_>, _>>()?;
-    let info = select.info.clone();
-    let cursor = pgorm::select_cursor(select.query.clone(), names, move |value| {
-        vec![Some(model_of::<E>(value, &info))]
-    })
-    .map_err(|arity| crate::errors::Failure::Construction(arity.to_string()))?;
-    let order: Vec<_> = columns
-        .iter()
-        .map(|name| KeyColumn {
-            entity: select.info.clone(),
-            column: name.clone(),
-        })
-        .collect();
-    Ok(Arc::new(Keyset {
-        cursor,
-        key: order.clone(),
-        order,
-        sources: vec![select.info.clone()],
-    }))
-}
 
 pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("entityRelation", entity_relation)?;

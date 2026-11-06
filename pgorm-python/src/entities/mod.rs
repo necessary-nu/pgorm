@@ -1,22 +1,16 @@
 //! Concrete Rust entity registrations, owned by one native extension module.
 
 mod active;
-pub(crate) mod backend;
 mod column;
-pub(crate) mod generic;
+pub(crate) mod input;
 mod inserts;
 pub(crate) mod io;
-pub(crate) mod metadata;
 mod model;
 pub(crate) mod query;
 pub(crate) mod reads;
 pub(crate) mod reads_py;
 mod registry;
-mod relations;
-mod select_reads;
 mod selection;
-#[cfg(test)]
-mod variants;
 mod versions;
 
 pub use active::{ActiveState, PyActiveModel, PyActiveValue};
@@ -32,14 +26,15 @@ pub use selection::{PyEntityRelation, PyEntitySelection};
 pub(crate) use versions::TERMINALS as version_terminals;
 pub use versions::{PyChange, PyEntityUpdate, PyEntityUpdateMany, PyUpserted};
 
-use crate::identifiers::Identifier;
+use crate::{config::DIALECT, errors::Raise, identifiers::Identifier};
+use pgorm_bindings::entity::EntityBackend;
 use pyo3::prelude::*;
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 #[pyclass(name = "Entity", module = "pgorm", frozen, from_py_object)]
 pub struct PyEntity {
-    pub(crate) backend: Arc<dyn backend::EntityBackend>,
+    pub(crate) backend: Arc<dyn EntityBackend>,
 }
 
 #[pymethods]
@@ -50,8 +45,10 @@ impl PyEntity {
     }
 
     fn describe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        py.import("json")?
-            .call_method1("loads", (self.backend.info().describe().to_string(),))
+        py.import("json")?.call_method1(
+            "loads",
+            (self.backend.info().describe(DIALECT).to_string(),),
+        )
     }
 
     fn col<'py>(
@@ -60,7 +57,7 @@ impl PyEntity {
         name: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyEntityColumn>> {
         let name = Identifier::new(name)?.name;
-        self.backend.info().column(&name)?;
+        self.backend.info().column(&name).py()?;
         Bound::new(py, PyEntityColumn::new(self.backend.clone(), name)?)
     }
 
@@ -73,9 +70,7 @@ impl PyEntity {
     /// The relation the entity's `Relation` enum declares under `name`, for
     /// a query to join.
     fn relation(&self, name: &str) -> PyResult<PyEntityRelation> {
-        self.backend
-            .relation(name)
-            .map_err(|error| crate::errors::ConstructionError::new_err(error.to_string()))?;
+        self.backend.relation(name).py()?;
         Ok(PyEntityRelation {
             entity: self.backend.clone(),
             name: name.to_owned(),

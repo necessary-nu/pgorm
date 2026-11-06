@@ -1,7 +1,9 @@
 use pyo3::prelude::*;
 
-use super::backend::{Active, Write};
-use crate::values::PyValue;
+use pgorm_bindings::entity::{Active, Write};
+
+use super::input;
+use crate::{errors::Raise, values::PyValue};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[pyclass(module = "pgorm", eq, from_py_object)]
@@ -40,39 +42,29 @@ impl PyActiveModel {
 
     fn get(&self, column: &Bound<'_, PyAny>) -> PyResult<PyActiveValue> {
         let name = super::column::name(column, self.inner.info())?;
-        let (state, value) = match self
-            .inner
-            .get(&name)
-            .map_err(|error| crate::errors::ConstructionError::new_err(error.to_string()))?
-        {
+        let (state, value) = match self.inner.get(&name).py()? {
             pgorm::ActiveValue::NotSet => (ActiveState::NotSet, None),
             pgorm::ActiveValue::Set(value) => (ActiveState::Set, Some(value)),
             pgorm::ActiveValue::Unchanged(value) => (ActiveState::Unchanged, Some(value)),
         };
         let value = value
-            .map(|v| self.inner.info().column(&name)?.input.tagged(v))
+            .map(|v| input::tagged(self.inner.info().column(&name).py()?, v))
             .transpose()?;
         Ok(PyActiveValue { state, value })
     }
 
     fn set(&self, column: &Bound<'_, PyAny>, value: &Bound<'_, PyAny>) -> PyResult<Self> {
         let name = super::column::name(column, self.inner.info())?;
-        let value = self.inner.info().column(&name)?.input.coerce(value)?;
+        let value = input::coerce(self.inner.info().column(&name).py()?, value)?;
         Ok(Self {
-            inner: self
-                .inner
-                .set(&name, value.inner)
-                .map_err(|error| crate::errors::ConstructionError::new_err(error.to_string()))?,
+            inner: self.inner.set(&name, value.inner).py()?,
         })
     }
 
     fn not_set(&self, column: &Bound<'_, PyAny>) -> PyResult<Self> {
         let name = super::column::name(column, self.inner.info())?;
         Ok(Self {
-            inner: self
-                .inner
-                .not_set(&name)
-                .map_err(|error| crate::errors::ConstructionError::new_err(error.to_string()))?,
+            inner: self.inner.not_set(&name).py()?,
         })
     }
 
@@ -83,12 +75,9 @@ impl PyActiveModel {
         value: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let name = super::column::name(column, self.inner.info())?;
-        let value = self.inner.info().column(&name)?.input.coerce(value)?;
+        let value = input::coerce(self.inner.info().column(&name).py()?, value)?;
         Ok(Self {
-            inner: self
-                .inner
-                .set_if_not_equals(&name, value.inner)
-                .map_err(|error| crate::errors::ConstructionError::new_err(error.to_string()))?,
+            inner: self.inner.set_if_not_equals(&name, value.inner).py()?,
         })
     }
 
@@ -100,10 +89,7 @@ impl PyActiveModel {
     fn reset(&self, column: &Bound<'_, PyAny>) -> PyResult<Self> {
         let name = super::column::name(column, self.inner.info())?;
         Ok(Self {
-            inner: self
-                .inner
-                .reset(&name)
-                .map_err(|error| crate::errors::ConstructionError::new_err(error.to_string()))?,
+            inner: self.inner.reset(&name).py()?,
         })
     }
 

@@ -11,10 +11,9 @@ use super::{
 };
 use crate::{
     UnsupportedCapabilityError,
-    disjoint::column_type,
     entities::PyEntityColumn,
-    errors::ConstructionError,
-    values::{PyValue, Tag},
+    errors::{ConstructionError, Raise},
+    values::{PyValue, Tag, TagPy},
 };
 use std::sync::Arc;
 
@@ -119,7 +118,9 @@ pub(super) fn pipeline_model_col(
         true => Tag::Array(Box::new(tag)),
         false => tag,
     };
-    let column_type = column_type(&tag, values.as_deref())?;
+    let column_type = tag
+        .column_type(values.as_deref().unwrap_or_default())
+        .py()?;
     let mut expression = PyPipelineExpr::compose(Recipe::Typed(table, column, column_type), &[])?;
     expression.declared = Some(Arc::new(convert));
     Ok(expression)

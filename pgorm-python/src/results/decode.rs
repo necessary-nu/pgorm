@@ -17,7 +17,7 @@ use super::codecs::{CheckedArray, EnumLabel, Inet, Mac};
 use super::json::ExactJson;
 use crate::{
     errors::DecodeError,
-    values::{PyTypeName, PyValue},
+    values::{PyValue, TypeName},
 };
 use pgorm::ExactDecimal;
 
@@ -128,7 +128,7 @@ pub(crate) fn value(field: Field<'_>) -> PyResult<PyValue> {
         })?;
         return Ok(PyValue::from_enum(
             inner,
-            PyTypeName {
+            TypeName {
                 name: ty.name().to_owned(),
                 schema: Some(ty.schema().to_owned()),
             },

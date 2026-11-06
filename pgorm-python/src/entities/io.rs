@@ -1,10 +1,9 @@
 use crate::panics::future_into_py;
 use pyo3::{IntoPyObjectExt, prelude::*};
 
-use super::{
-    PyEntityModel,
-    backend::{Active, Select, Terminal, Write, Written},
-};
+use pgorm_bindings::entity::{Active, Read as Terminal, Select, Write, Written};
+
+use super::PyEntityModel;
 use crate::{
     errors::{ConstructionError, InternalError},
     execution::{Executor, listed},
