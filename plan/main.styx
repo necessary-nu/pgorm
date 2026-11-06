@@ -14008,6 +14008,14 @@ children (
                         id napi.guide-gaps.models-from-ddl
                         title "JavaScript generates model declarations from DDL, its enums, disjoint and one-of shapes recognised, as pgorm-codegen's entities_from_sql does for Rust entities (guide 23-codegen)"
                         deps (napi-models napi-codegen guide.javascript)
+                        log (
+                            {
+                                at 2026-11-06T12:34:21.999904Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "nplan_start refused this node: \"dep napi-codegen is Todo\", though nplan_node shows napi-codegen done (delivered 2ceef370, evidence napi.codegen-types), and an nplan_sync did not change the answer (its plan entry carries no status field). Worked in the model-codegen lane's worktree (nplan/guide.python-gaps.model-codegen) without a claim, per the lane brief, together with guide.python-gaps.model-codegen."
+                            }
+                        )
                     }
 
                     {
