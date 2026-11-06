@@ -139,7 +139,7 @@ class GrammarTests(unittest.TestCase):
                 self.assertLessEqual(len(output.program.data()["nodes"]), 256)
 
     def test_valid_pipelines_never_draw_refused_identifiers(self):
-        # pipeline.errors+4: a `"` in a pipeline identifier is refused at
+        # pipeline.errors+5: a `"` in a pipeline identifier is refused at
         # into_sql, so a valid program carrying one could never pass.
         for family in ("pipeline", "relational", "sets", "sources"):
             for index in range(120):

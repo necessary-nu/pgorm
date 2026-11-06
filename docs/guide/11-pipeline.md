@@ -735,6 +735,63 @@ assert_eq!(rows, [(1, 6), (2, 4)]);
 # }
 ```
 
+[`intersect`](crate::pipeline::Pipeline::intersect) keeps the rows both
+relations hold, and [`remove`](crate::pipeline::Pipeline::remove) the rows of
+the first that the second does not, each row of the second cancelling one of
+the first. Like `append`, both combine whole rows by position, so neither
+operand needs a projection of its own, the operands may each read different
+columns first, and every step after them reads the combined relation. The
+same holds for a table no entity describes. Sunrise's cakes that are not
+gluten-free, and those under 5.00:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("pipeline_intersect_remove").await;
+# let db = scratch.pool.get().await?;
+use pgorm::pipeline::{ExprOps, Pipeline};
+use pgorm_guide_support::cake::{self, Column as C};
+
+let sunrise = || Pipeline::from(cake::Entity).filter(C::BakeryId.eq(1));
+let gluten_free = || Pipeline::from(cake::Entity).filter(C::GlutenFree.eq(true));
+let under_five = || Pipeline::from(cake::Entity).filter(C::Price.lt(5));
+
+let not_gluten_free = sunrise().remove(gluten_free()).select(C::Name);
+let (sql, _) = not_gluten_free.clone().into_sql()?;
+assert_eq!(
+    sql,
+    "WITH table_1 AS (SELECT * FROM cake WHERE bakery_id = 1 \
+     EXCEPT ALL SELECT * FROM cake WHERE gluten_free = true) \
+     SELECT name FROM table_1"
+);
+let names: Vec<(String,)> = not_gluten_free.into_tuple()?.all(&db).await?;
+assert_eq!(names, [("Chocolate Fudge".to_owned(),)]);
+
+let affordable: Vec<(String,)> = sunrise()
+    .intersect(under_five())
+    .sort(C::Name)
+    .select(C::Name)
+    .into_tuple()?
+    .all(&db)
+    .await?;
+assert_eq!(
+    affordable,
+    [("Chocolate Fudge".to_owned(),), ("Lemon Drizzle".to_owned(),)]
+);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+The operands correspond by position, so where both projections are written
+out a different number of columns is refused when the pipeline compiles,
+for all three operations; where an operand is a table read whole, its `*` is
+the server's to check. A chain reads in the order it is written:
+`a.append(b).intersect(c)` is `(a UNION ALL b) INTERSECT ALL c`, with the
+parentheses written in, since `INTERSECT` otherwise binds tighter, and an
+operand that is itself a combination stays one operand.
+
 ## When a pipeline fails
 
 Building a pipeline cannot fail: every method appends one whole step. What

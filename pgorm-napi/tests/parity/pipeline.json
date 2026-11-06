@@ -68,11 +68,11 @@
     "values": [["i32","1"],["i32","8"]]
   },
   "intersect": {
-    "sql": "WITH table_0 AS (SELECT id, category, amount FROM items WHERE id < $2) SELECT id, category, amount FROM items WHERE id > $1 INTERSECT ALL SELECT * FROM table_0 AS b",
+    "sql": "SELECT id, category, amount FROM items WHERE id > $1 INTERSECT ALL SELECT id, category, amount FROM items WHERE id < $2",
     "values": [["i32","1"],["i32","8"]]
   },
   "remove": {
-    "sql": "WITH table_0 AS (SELECT id, category, amount FROM items WHERE id < $2) SELECT id, category, amount FROM items WHERE id > $1 EXCEPT ALL SELECT * FROM table_0 AS b",
+    "sql": "SELECT id, category, amount FROM items WHERE id > $1 EXCEPT ALL SELECT id, category, amount FROM items WHERE id < $2",
     "values": [["i32","1"],["i32","8"]]
   },
   "embedded": {

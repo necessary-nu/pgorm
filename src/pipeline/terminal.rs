@@ -35,7 +35,7 @@ impl Pipeline {
     /// returns before the compiler is called at all, it does not depend on
     /// which prqlc the build resolved, which no dependency pgorm declares can
     /// guarantee for a downstream consumer that patches it.
-    // [spec:pgorm:req:pipeline.errors+4]
+    // [spec:pgorm:req:pipeline.errors+5]
     // [spec:pgorm:req:pipeline.params+4]
     pub fn into_sql(mut self) -> Result<(String, Values), PipelineError> {
         self.screen(true)?;
@@ -96,7 +96,7 @@ impl Pipeline {
 
     /// The identifier screen, and with `aliases` the reserved-alias screen,
     /// over every stage and binding the pipeline carries.
-    // [spec:pgorm:req:pipeline.errors+4]
+    // [spec:pgorm:req:pipeline.errors+5]
     fn screen(&self, aliases: bool) -> Result<(), PipelineError> {
         let (mut identifiers, mut introduced) = (Vec::new(), Vec::new());
         for stage in self.bindings.iter().flatten().chain(&self.stages) {

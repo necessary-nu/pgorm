@@ -1,0 +1,15 @@
+error: PRQL rejected this query:
+       Error:
+          ╭─[ :1:14 ]
+          │
+        1 │ from album | select {artist_id, title} | intersect (from artist | select {artist_id})
+          │              ────────────┬────────────
+          │                          ╰────────────── cannot combine relations with different numbers of columns
+          │
+          │ Help: `intersect` requires both tables to have matching columns
+       ───╯
+
+ --> tests/compile-fail/prql_set_arity.rs:8:9
+  |
+8 |         "from album | select {artist_id, title} | intersect (from artist | select {artist_id})"
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

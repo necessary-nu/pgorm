@@ -255,10 +255,11 @@ export declare class Pipeline extends Builder {
   takeRange(start: number | bigint, end: number | bigint): Pipeline;
   join(source: SourceInput, on: PipelineOperand, options?: { readonly kind?: JoinKind }): Pipeline;
   joinWith(source: SourceInput, fn: BinderScalar, options?: { readonly kind?: JoinKind }): Pipeline;
-  /** `UNION ALL` with another relation of the same columns. */
+  /** `UNION ALL` with another relation, its columns matched by position. */
   append(source: SourceInput): Pipeline;
+  /** The rows both relations hold, each as many times as both hold it: `INTERSECT ALL`. */
   intersect(source: SourceInput): Pipeline;
-  /** The rows the other relation does not have: `EXCEPT`. */
+  /** The rows the other relation does not cancel, each of its rows cancelling one: `EXCEPT ALL`. */
   remove(source: SourceInput): Pipeline;
   distinct(): Pipeline;
   /**

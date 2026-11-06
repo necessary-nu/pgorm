@@ -596,10 +596,52 @@ A step after a combination reads the whole combined relation, as in Rust:
 the combination is written as a `WITH` query first and the step reads it, so
 `pl.from(Cake.table).append(Cake.table).select(pl.col("cake", "name"))`
 projects the rows of both operands, `WITH table_0 AS (SELECT * FROM cake
-UNION ALL SELECT * FROM cake) SELECT name FROM table_0`, and a column named
-against an operand's table still resolves after `intersect` or `remove`. A
-`distinct` directly after `append` still folds into `UNION DISTINCT`, as
-above.
+UNION ALL SELECT * FROM cake) SELECT name FROM table_0`. A `distinct`
+directly after `append` still folds into `UNION DISTINCT`, as above.
+
+`intersect` keeps the rows both relations hold, and `remove` the rows of the
+first that the second does not, each row of the second cancelling one of the
+first. Like `append`, both combine whole rows by position, so neither operand
+needs a projection of its own, the operands may each read different columns
+first, and every step after them reads the combined relation, a `Table` read
+whole as much as a model. Sunrise's cakes that are not gluten-free, and those
+under 5.00:
+
+```ts
+import assert from "node:assert/strict";
+import { pipeline as pl } from "@necessary/pgorm";
+
+const cake = (column: string) => pl.col("cake", column);
+const sunrise = pl.from(Cake.table).filter(cake("bakery_id").eq(pl.literal(1)));
+
+const notGlutenFree = sunrise
+  .remove(pl.from(Cake.table).filter(cake("gluten_free").eq(pl.literal(true))))
+  .select(cake("name"));
+assert.equal(
+  notGlutenFree.inspect().sql,
+  "WITH table_1 AS (SELECT * FROM cake WHERE bakery_id = 1 " +
+    "EXCEPT ALL SELECT * FROM cake WHERE gluten_free = true) SELECT name FROM table_1",
+);
+assert.deepEqual(await notGlutenFree.all(pool), [{ name: "Chocolate Fudge" }]);
+
+const affordable = sunrise
+  .intersect(pl.from(Cake.table).filter(cake("price").lt(pl.literal(5))))
+  .sort(cake("name"))
+  .select(cake("name"));
+assert.deepEqual(await affordable.all(pool), [
+  { name: "Chocolate Fudge" },
+  { name: "Lemon Drizzle" },
+]);
+```
+
+The operands correspond by position, so where both projections are written
+out a different number of columns is a `ConstructionError` before anything
+is sent, for all three; where an operand is a table read whole, its `*` is
+the server's to check. A column named against an operand's table still
+resolves after any of them. A chain reads in the order it is written:
+`a.append(b).intersect(c)` is `(a UNION ALL b) INTERSECT ALL c`, with the
+parentheses written in, and an operand that is itself a combination stays
+one operand.
 
 ## When a pipeline fails
 

@@ -1004,7 +1004,7 @@ prqlc compiler and the same oracle over what it emits, but for queries known who
 compile time, where the pipeline's composability buys nothing and a literal buys
 build-time checking of the finished statement.
 
-> [spec:pgorm:def:macros.prql+1]
+> [spec:pgorm:def:macros.prql+2]
 > `prql!` takes one PRQL string literal followed by zero or more argument expressions
 > (`prql!("from invoice | filter total > $1 | take 5", min_total)`). While the calling
 > crate compiles, the literal's text is compiled by prqlc — the text path: parse,
@@ -1031,6 +1031,22 @@ build-time checking of the finished statement.
 > adapter's confinement rule (`[spec:pgorm:def:pipeline.adapter]`) — and the two
 > pins MUST move in lockstep so the text macro and the typed pipeline emit through one
 > compiler.
+>
+> The text is compiled in the fork's std, which departs from upstream PRQL in one
+> place on purpose: `intersect` and `remove` are the relation-level set operations the
+> typed pipeline compiles to (`[spec:pgorm:req:pipeline.compose]`), `INTERSECT ALL` and
+> `EXCEPT ALL` of whole rows by column position, as `append` is `UNION ALL`. Upstream
+> defines both as joins over the column pairs the two operands share, so there a
+> column read after either through an operand whose columns are a wildcard is
+> refused, two operands of different arity become an inner join or an anti-join on
+> the positions they share, and a column derived before the operation is dropped.
+> Here the first compiles, the second is refused at build time through channel (1)
+> of `[spec:pgorm:req:macros.prql.reject]` when both projections show the counts,
+> and the third keeps its column. A stage after any of the three set operations
+> reads its whole result, from a query of its own where it would otherwise narrow
+> the operation's: written into the operation's own query, a projection would land
+> on the first operand alone, and narrowing both would change what `INTERSECT` and
+> `EXCEPT` compare.
 
 > [spec:pgorm:req:macros.prql.reject]
 > Five mistakes MUST be refused at compile time, and the macro MUST NOT panic on any
