@@ -172,6 +172,37 @@ pub trait ActiveModelTrait: Clone + Debug {
     /// leaving [ActiveValue::NotSet] untouched.
     fn reset(&mut self, c: <Self::Entity as EntityTrait>::Column);
 
+    /// Set the Value into an ActiveModel unless the column holds it
+    /// [`Unchanged`](ActiveValue::Unchanged), as
+    /// [`ActiveValue::set_if_not_equals`] sets a field, so
+    /// [`is_changed`](Self::is_changed) then says whether there is anything to
+    /// write. A column this model does not carry, or a value of the wrong type
+    /// for it, is [`Error::Type`], as [`Self::set`] reports them.
+    ///
+    /// ```
+    /// use pgorm::{entity::*, tests_cfg::cake};
+    ///
+    /// let mut cake = cake::Model { id: 1, name: "Cheese".to_owned() }.into_active();
+    /// cake.set_if_not_equals(cake::Column::Name, "Cheese".into())?;
+    /// assert!(!cake.is_changed());
+    /// cake.set_if_not_equals(cake::Column::Name, "Apple".into())?;
+    /// assert!(cake.is_changed());
+    /// # Ok::<(), pgorm::Error>(())
+    /// ```
+    // [spec:pgorm:req:entity.active-model.set-if-not-equals]
+    fn set_if_not_equals(
+        &mut self,
+        c: <Self::Entity as EntityTrait>::Column,
+        v: Value,
+    ) -> Result<(), Error> {
+        let mut slot = self.get(c)?;
+        slot.set_if_not_equals(v);
+        match slot {
+            ActiveValue::Set(value) => self.set(c, value),
+            _ => Ok(()),
+        }
+    }
+
     /// Reset all values from [ActiveValue::Unchanged] to [ActiveValue::Set],
     /// leaving [ActiveValue::NotSet] untouched.
     fn reset_all(mut self) -> Self {

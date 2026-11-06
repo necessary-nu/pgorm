@@ -2,15 +2,17 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { ConstructionError, pipeline as pl } from "@necessary/pgorm";
+import { pipeline as pl } from "@necessary/pgorm";
 import { Cake } from "../../../guide/bakery.ts";
 
 export default async function example(): Promise<void> {
-  const cake = (column: string) => pl.col("cake", column);
+  /** The cakes a customer who avoids gluten can eat. */
+  function glutenFree(cakes: pl.Pipeline): pl.Pipeline {
+    return cakes.filter(pl.col("cake", "gluten_free").eq(pl.literal(true)));
+  }
 
-  const dropped = pl.from(Cake.table).select(cake("name")).filter(cake("price").gt(pl.literal(4)));
-  assert.throws(() => dropped.inspect(), /PRQL compilation failed/);
-
-  const quoted = pl.from(Cake.table).select(pl.col("cake", 'na"me'));
-  assert.throws(() => quoted.inspect(), ConstructionError);
+  assert.equal(
+    glutenFree(pl.from(Cake.table)).select(pl.col("cake", "name")).inspect().sql,
+    "SELECT name FROM cake WHERE gluten_free = true",
+  );
 }

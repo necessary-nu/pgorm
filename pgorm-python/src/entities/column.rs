@@ -92,7 +92,7 @@ impl PyEntityColumn {
     /// value converted to the column's declared kind. An expression, and a
     /// quantifier over a `Select`, an expression or a list of a column of no
     /// scalar kind, is compared as written, as `Expr`'s operator compares it.
-    // [spec:pgorm:req:bindings.entity-reads+3]
+    // [spec:pgorm:req:bindings.entity-reads+4]
     // [spec:pgorm:req:bindings.column-operators+3]
     fn comparison(&self, value: &Bound<'_, PyAny>, op: Comparison) -> PyResult<PyExpr> {
         if let Ok(quantified) = value.extract::<PyRef<'_, PyQuantified>>()
@@ -124,7 +124,7 @@ impl PyEntityColumn {
     /// over an enum is a member as the enum, and so is what the subquery
     /// projects. A list holding an expression is a member as written, as
     /// `Expr`'s `is_in` takes one.
-    // [spec:pgorm:req:bindings.entity-reads+3]
+    // [spec:pgorm:req:bindings.entity-reads+4]
     fn membership(&self, values: &Bound<'_, PyAny>, negated: bool) -> PyResult<PyExpr> {
         let listed =
             values.is_exact_instance_of::<PyList>() || values.is_exact_instance_of::<PyTuple>();

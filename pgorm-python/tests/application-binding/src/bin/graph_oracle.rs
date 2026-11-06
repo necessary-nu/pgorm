@@ -69,7 +69,7 @@ async fn compare(db: &DatabaseConnection, report: &Value) -> Result {
     Ok(())
 }
 
-// [spec:pgorm:req:bindings.entity-graphs+3/test]
+// [spec:pgorm:req:bindings.entity-graphs+4/test]
 async fn run() -> Result {
     let report: Value =
         serde_json::from_slice(&std::fs::read(std::env::var("PGORM_GRAPH_REPORT")?)?)?;

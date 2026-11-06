@@ -4,8 +4,8 @@ Every ```python block of a chapter, and of the package's README, is an
 example: a whole program, run in a process of its own with this directory on
 its path, so it can import the ``bakery`` module beside it. An example that reads ``DATABASE_URL`` runs
 against a scratch database of its own, created on the server
-``PGORM_TEST_DSN`` names, filled with the bakery and dropped when the example
-exits. A block fenced ```python registered runs only in an application build
+``PGORM_TEST_DSN`` names (``DATABASE_URL`` when it is unset), filled with the
+bakery and dropped when the example exits. A block fenced ```python registered runs only in an application build
 that registers the bakery's Rust entities (``checks/guide.py``); every other
 block runs against the standalone wheel.
 
@@ -32,7 +32,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 GUIDE = Path(__file__).resolve().parent
 RUST_CHAPTERS = GUIDE.parents[1] / "docs/guide/chapters.json"
@@ -184,6 +184,25 @@ def scoped_name(label: str) -> str:
     return cut + tail
 
 
+def test_server() -> str | None:
+    """The server the examples run against, as the JavaScript suite's
+    ``dsn()`` reads it: ``PGORM_TEST_DSN``, else ``DATABASE_URL``. A URL
+    naming no database names ``postgres``, which the scratch databases are
+    created from, and one that says nothing of TLS gains ``sslmode=disable``:
+    a pgorm pool verifies TLS unless its URL says otherwise, and the suites'
+    servers are reached in plaintext, the TLS tests reading ``PGORM_TEST_CA``
+    instead. A URL that names its sslmode keeps it."""
+    server = os.environ.get("PGORM_TEST_DSN") or os.environ.get("DATABASE_URL")
+    if not server:
+        return None
+    parts = urlsplit(server)
+    path = parts.path if parts.path not in ("", "/") else "/postgres"
+    query = parts.query
+    if "sslmode" not in parse_qs(query):
+        query = f"{query}&sslmode=disable" if query else "sslmode=disable"
+    return urlunsplit((parts.scheme, parts.netloc, path, query, parts.fragment))
+
+
 def _database_url(server: str, name: str) -> str:
     parts = urlsplit(server)
     return urlunsplit((parts.scheme, parts.netloc, "/" + name, parts.query, parts.fragment))
@@ -285,7 +304,7 @@ def _main() -> None:
             print(path)
         return
     selected = all_examples(registered=options.registered, only=set(options.chapters) or None)
-    outcomes = asyncio.run(run_all(selected, os.environ.get("PGORM_TEST_DSN"), python=options.python))
+    outcomes = asyncio.run(run_all(selected, test_server(), python=options.python))
     failed = [outcome for outcome in outcomes if outcome.returncode]
     for outcome in failed:
         example = outcome.example

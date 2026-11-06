@@ -150,15 +150,17 @@ fn manifest() -> Value {
             "one": "Rust Select::one/one_opt use LIMIT 1; all returns every selected model",
             "writes": "real ActiveModel insert/update/delete and before/after hooks on a clone",
             "execution": "acquired Connection or Transaction; native asyncio awaitable",
-            "stream": false
+            "stream": "Select::stream's per-row decode over a Pool's own connection or a Connection",
+            "reads": "PaginatorTrait::count and paginate, Select::cursor_by, QuerySelect::join of a declared Relation, select_only and columns read as records"
         },
         "graph_policy": {
             "source_arities": [1, 2, 3, 4, 5, 6, 7],
             "slots": ["Req", "Opt"], "registration_required": true,
             "decode": "SelectGraph / GraphRow with actual registered models and optional slots",
             "result": "bare model for one source; tuple in source order for joined shapes",
-            "cursor": "one root column plus Rust's declared primary-key tiebreaks",
-            "unsupported": ["unregistered shapes", "source arity beyond seven", "graph.stream", "graph.grouped", "slot-column cursors", "composite order-column cursors", "cursor SQL inspection"]
+            "cursor": "one to six columns of the root (cursor_by) or of one slot (cursor_by_on) plus Rust's declared primary-key tiebreaks",
+            "reads": "SelectGraph::stream, all_grouped of one Opt slot, PaginatorTrait::count and paginate, Cursor::statement",
+            "unsupported": ["unregistered shapes", "source arity beyond seven", "order keys beyond six columns"]
         },
         "codegen_policy": {
             "workflow": ["pgorm.codegen scaffold", "native application build and install", "pgorm.codegen emit", "final wheel build and install"],

@@ -7,17 +7,11 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .. import _native as p
+from .columns import ModelColumn
 from .record import Database, Row, Source, decode_all
-
-if TYPE_CHECKING:
-    from .model import Model
-
-# One column of a cursor's key: its model, the name its table answers to, and
-# the field.
-KeyColumn = tuple["Model", str, str]
 
 # PostgreSQL reads LIMIT and OFFSET as bigint.
 ROWS_MAX = 2**63 - 1
@@ -43,8 +37,8 @@ class Keyed:
     ]
     limit: int | None
     sources: tuple[Source, ...]
-    order: tuple[KeyColumn, ...]
-    tiebreaks: tuple[KeyColumn, ...]
+    order: tuple[ModelColumn, ...]
+    tiebreaks: tuple[ModelColumn, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,7 +50,7 @@ class Position:
     ascending: bool = True
 
 
-# [spec:pgorm:req:bindings.cursors]
+# [spec:pgorm:req:bindings.cursors+1]
 @dataclass(frozen=True, eq=False, slots=True)
 class Cursor:
     """A keyset cursor. Every method returns a new cursor; ``all`` reads the
@@ -65,7 +59,7 @@ class Cursor:
     keyed: Keyed
     position: Position = Position()
 
-    def _keyset(self) -> tuple[KeyColumn, ...]:
+    def _keyset(self) -> tuple[ModelColumn, ...]:
         return (*self.keyed.order, *self.keyed.tiebreaks)
 
     def _boundary(self, values: tuple[Any, ...], extended: bool) -> tuple[p.Value, ...]:
@@ -76,10 +70,7 @@ class Cursor:
             raise p.ConstructionError(
                 f"a cursor boundary of {len(values)} values does not match {expected} key column(s)"
             )
-        return tuple(
-            model.columns[field]._value(value)
-            for (model, _, field), value in zip(keyset, values)
-        )
+        return tuple(column.declaration._value(value) for column, value in zip(keyset, values))
 
     def after(self, *values: Any) -> Cursor:
         """Rows past the one whose order-field values these are."""
@@ -97,6 +88,18 @@ class Cursor:
 
     def before_with(self, *values: Any) -> Cursor:
         return replace(self, position=replace(self.position, before=self._boundary(values, True)))
+
+    # [spec:pgorm:req:bindings.cursor-secondary-order]
+    def add_secondary_order_by(self, column: ModelColumn) -> Cursor:
+        """The cursor with ``column``, a model's column qualified as the
+        query names its table, appended to its ordering after the key, as
+        pgorm's ``add_secondary_order_by`` appends one: ``after_with`` and
+        ``before_with`` then take its value after the others', while
+        ``after`` and ``before`` still take the order fields' alone."""
+        if not isinstance(column, ModelColumn):
+            raise TypeError("a cursor's secondary ordering is a model's column")
+        keyed = self.keyed
+        return replace(self, keyed=replace(keyed, tiebreaks=(*keyed.tiebreaks, column)))
 
     def first(self, rows: int) -> Cursor:
         """The first ``rows`` rows in the cursor's order, replacing any window."""
@@ -116,7 +119,7 @@ class Cursor:
         """The key compared with ``values``, ``(c1, .., cn) > (v1, .., vn)``
         written out as n disjuncts, the k-th holding the first k-1 columns
         equal and comparing the k-th."""
-        columns = [p.col(model._sql(field), table=q) for model, q, field in self._keyset()]
+        columns = [column.expr() for column in self._keyset()]
         disjuncts = [
             p.Condition.all(
                 *(
@@ -137,7 +140,7 @@ class Cursor:
         descending = position.ascending == position.last
         orders = tuple(
             (column.desc() if descending else column.asc())
-            for column in (p.col(model._sql(field), table=q) for model, q, field in self._keyset())
+            for column in (key.expr() for key in self._keyset())
         )
         wheres = []
         if position.after is not None:

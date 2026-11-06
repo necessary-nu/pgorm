@@ -118,7 +118,7 @@ fn read_text(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `modelResultName(prefix, column)`: the result-set name of `column` under
 /// `prefix`, composed by pgorm's own `result_column_name`, so a model graph's
 /// aliases are the ones `SelectGraph` writes.
-// [spec:pgorm:req:bindings.graphs+1]
+// [spec:pgorm:req:bindings.graphs+2]
 fn result_name(mut cx: FunctionContext) -> JsResult<JsString> {
     let prefix = cx.argument::<JsString>(0)?.value(&mut cx);
     let column = cx.argument::<JsString>(1)?.value(&mut cx);

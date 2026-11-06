@@ -7,12 +7,12 @@ import unittest
 import pgorm as p
 from pgorm import _native, pipeline as pl, schema as s
 from pgorm.schema import changes
-from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, versions as version_views
+from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, reads as read_views, versions as version_views
 from pgorm.codegen import source
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
-    Column, Model, ModelRecord, Relation, cursors, disjoint_query, graphs, model, one_of, queries,
-    record, writes,
+    Column, Linked, Model, ModelRecord, Related, Relation, active, cursors, disjoint_query, graphs, model, one_of, queries,
+    record, try_inserts, writes,
 )
 from pgorm.runtime import PoolStatus
 
@@ -26,7 +26,7 @@ EXEMPT = {
     # Rows, models and their write state, and what a write answers: data read
     # after SQL ran. A record or a model is a mapping, false with no fields.
     p.Record, p.Field, p.EntityModel, p.ActiveModel, p.ActiveValue, p.ActiveState,
-    p.Change, p.Upserted, ModelRecord, PoolStatus, views.ModelView, views.ActiveView,
+    p.Change, p.Upserted, p.TryInsertResult, ModelRecord, PoolStatus, views.ModelView, views.ActiveView,
     # A migration's name and status, as a migrator read them from its ledger.
     s.Migration,
     # Pools, connections, transactions and the private native handles under
@@ -36,7 +36,8 @@ EXEMPT = {
     p.Pool, p.InstrumentedPool, p.Connection, p.Transaction,
     _native._Pool, _native._Connection, _native._Transaction, _native._Stream,
     _native._CopyIn, _native._CopyOut, _native._Listener, _native._Disjoint,
-    _native._DisjointChange, _native._MetricsAnswer, _native._Migrations,
+    _native._DisjointChange, _native._RowDecoder, _native._EntityPages, _native._MetricsAnswer,
+    _native._Migrations,
     # The metrics layer's collectors, objects a program writes and hands to a
     # pool, and what a query hook is told about a statement that already ran:
     # `if query.fingerprint:` tests for a fingerprint.
@@ -46,8 +47,9 @@ EXEMPT = {
     s.MigrationTrait,
     # Registrations and declarations: they name what a query reads and are
     # true as any declared object is; the queries they start refuse.
-    p.Entity, p.EntityGraph, Model, Column, Relation, pl.SourceSelection, pl.Binder,
-    model.UniqueKey, model._DeclaredKey,
+    p.Entity, p.EntityGraph, p.EntityRelation, Model, Column, Relation, Related, Linked, pl.SourceSelection,
+    pl.Binder,
+    model.UniqueKey, model._DeclaredKey, active.ModelHooks,
     views.EntityView, graph_views.GraphView, FieldType,
     # The layout the codegen writes source with: build-time values no query
     # reads.
@@ -69,6 +71,7 @@ EXEMPT = {
 BUILT_ELSEWHERE = {
     p.EntityColumn, p.EntityQuery, p.EntityUpdate, p.EntityUpdateMany, p.EntityInsert,
     p.EntityInsertMany, p.EntityGraphQuery, p.EntityGraphCursor, pl.SelectedSources, s.EntitySchema,
+    p.EntityCursor, p.EntityPaginator, p.EntitySelection, read_views.PaginatorView, read_views.CursorView,
     views.QueryView, graph_views.GraphQueryView, graph_views.GraphCursorView,
     version_views.UpdateView, version_views.UpdateManyView, version_views._InsertView,
     version_views.InsertView, version_views.InsertManyView, p.Notification, p.Listener, p.RowStream,
@@ -77,7 +80,7 @@ BUILT_ELSEWHERE = {
 
 # Bases the model writes share and no program builds: every write refuses
 # through the __bool__ they give it, and each is sampled through a write.
-BASES = {writes._Write, writes._Insert, writes._Guarded, changes._Part}
+BASES = {writes._Write, writes._Insert, writes._Guarded, try_inserts._Tried, try_inserts._TriedRows, changes._Part}
 
 
 def defined_classes():
@@ -153,7 +156,11 @@ def other_samples():
         pl.Over(), pl.source(table),
         model.col("id"), model.find(), model.delete(), model.insert({"id": 1}), model.insert_many([]),
         model.update({"id": 2}), model.insert({"id": 1}).returning("id"),
-        model.graph(), model.find().cursor("id"), model.find().paginate(2),
+        model.graph(), model.find().cursor("id"), model.find().paginate(2), pl.from_(model).into_tuple(),
+        model.active({"id": 1}),
+        model.insert({"id": 1}).on_conflict_do_nothing(), model.insert_many([]).on_empty_do_nothing(),
+        model.insert({"id": 1}).on_empty_do_nothing().returning(),
+        model.insert_many([{"id": 1}]).on_conflict_do_nothing().returning("id"),
         *disjoint_samples(),
     ]
 

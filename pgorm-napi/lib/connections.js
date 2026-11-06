@@ -172,23 +172,26 @@ export async function runStatement(db, terminal, statement, options) {
 }
 
 /**
- * The rows of a disjoint read's `statement`, the native half of a `Select`,
- * as a stream on a pool's connection or a connection, each row read by
- * `disjoint`'s codec.
+ * The rows of `statement`, the native half of a `Select`, as a stream on a
+ * pool's connection of its own or on a connection, each row read by
+ * `decoder`: a disjoint read's codec, or a registered read's selector. `what`
+ * names the read in the refusal of any other database.
  * [spec:pgorm:req:bindings.disjoint+2]
+ * [spec:pgorm:req:bindings.streams]
  *
  * @param {unknown} db
  * @param {unknown} statement
- * @param {unknown} disjoint
+ * @param {unknown} decoder
  * @param {unknown} options
+ * @param {string} what
  * @returns {RowStream}
  */
-export function disjointStream(db, statement, disjoint, options) {
+export function decodedStream(db, statement, decoder, options, what) {
   if (db instanceof Pool) {
     return new RowStream(async (token) => {
       const connection = new Connection(await native.poolAcquire(poolHandle(db), token), TRUSTED);
       try {
-        const handle = await native.connectionStream(connectionHandle(connection), statement, [], token, disjoint);
+        const handle = await native.connectionStream(connectionHandle(connection), statement, [], token, decoder);
         return [handle, () => connection.close()];
       } catch (error) {
         await connection.close();
@@ -198,12 +201,12 @@ export function disjointStream(db, statement, disjoint, options) {
   }
   if (db instanceof Connection) {
     return new RowStream(
-      async (token) => [await native.connectionStream(connectionHandle(db), statement, [], token, disjoint), undefined],
+      async (token) => [await native.connectionStream(connectionHandle(db), statement, [], token, decoder), undefined],
       options ?? {},
       TRUSTED,
     );
   }
-  throw new TypeError("a disjoint read's rows stream from a Pool or a Connection");
+  throw new TypeError(`${what}'s rows stream from a Pool or a Connection`);
 }
 
 /**

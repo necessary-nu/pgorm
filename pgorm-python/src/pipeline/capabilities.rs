@@ -8,6 +8,7 @@ pub(crate) fn operations() -> serde_json::Map<String, serde_json::Value> {
         ),
         ("pipeline.compares_as", "ExprOps::compares_as"),
         ("pipeline.registered_column", "Named::col"),
+        ("pipeline.model_column", "col_typed"),
         (
             "pipeline.bind",
             "Binder::bind inside branded Rust stage closures",
@@ -37,6 +38,18 @@ pub(crate) fn operations() -> serde_json::Map<String, serde_json::Value> {
             "Pipeline::select_sources / SelectedSources::{all,one,one_opt}",
         ),
         ("pipeline.source_tuples", "SourceList"),
+        (
+            "pipeline.select_models",
+            "Pipeline::select_described / DescribedSource",
+        ),
+        (
+            "pipeline.into_model",
+            "Pipeline::into_sql / ConnectionTrait::query_all / native Record decode",
+        ),
+        (
+            "pipeline.into_tuple",
+            "Pipeline::into_sql / ConnectionTrait::query_all / positional decode",
+        ),
     ]
     .into_iter()
     .map(|(name, api)| {

@@ -96,6 +96,10 @@ export const cakeBakerBaker = CakeBaker.belongsTo(Baker, { from: "bakerId", to: 
 export const cakeCakeBakers = Cake.hasMany(CakeBaker, { from: "id", to: "cakeId" });
 export const bakerCakeBakers = Baker.hasMany(CakeBaker, { from: "id", to: "bakerId" });
 
+// A cake's bakers through the cake_baker junction, the path the Rust cake's
+// `Related<baker::Entity>` declares.
+export const cakeBakers = Cake.related(cakeBakerBaker, { via: cakeCakeBakers });
+
 export const orderCustomer = Order.belongsTo(Customer, { from: "customerId", to: "id" });
 export const orderBakery = Order.belongsTo(Bakery, { from: "bakeryId", to: "id" });
 export const customerOrders = Customer.hasMany(Order, { from: "id", to: "customerId" });

@@ -15,12 +15,12 @@ impl Registry {
     /// in tuple order, and must use those aliases in the corresponding joins.
     /// Register every source entity first. Python can vary aliases and builder
     /// operations but cannot change this Rust tuple's entity or slot types.
-    // [spec:pgorm:req:bindings.entity-graphs+3]
+    // [spec:pgorm:req:bindings.entity-graphs+4]
     pub fn graph<E, S, Build>(&mut self, name: &str, build: Build) -> PyResult<&mut Self>
     where
         E: EntityTrait + Send + Sync + 'static,
         S: GraphSlots<E>,
-        GraphRow<E, S>: SelectorTrait,
+        GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
         GraphItem<E, S>: Send + 'static,
         Build: Fn(&[String]) -> SelectGraph<E, S> + Send + Sync + 'static,
     {

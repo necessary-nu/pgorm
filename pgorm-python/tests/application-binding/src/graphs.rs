@@ -31,7 +31,7 @@ pub fn stay_rooms(aliases: &[String]) -> SelectGraph<stay::Entity, (Opt<room::En
         .join_maybe_as::<room::Entity>(stay::Relation::Room.def(), Name::runtime(&aliases[0]))
 }
 
-// [spec:pgorm:req:bindings.entity-graphs+3/test]
+// [spec:pgorm:req:bindings.entity-graphs+4/test]
 pub fn register(registry: &mut pgorm_python::entities::Registry) -> PyResult<()> {
     registry.graph::<account::Entity, (), _>("app.AccountOnly", |_| account::Entity::graph())?;
     registry.graph::<membership::Entity, (), _>("app.MembershipOnly", |_| {

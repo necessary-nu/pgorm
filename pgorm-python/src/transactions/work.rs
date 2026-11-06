@@ -7,9 +7,10 @@ use crate::{
     },
     execution::Database,
     expressions::Compiled,
-    graphs::backend::{CursorPlan, Query as Graph, Row as GraphRow},
+    graphs::backend::{Query as Graph, Row as GraphRow},
     pipeline::selected_backend::{Query as Sources, Terminal as SourceTerminal},
 };
+use futures_util::future::BoxFuture;
 use pgorm::{ConnectionTrait, Error, ValueHolder};
 use pgorm_migration::{MigrationStatus, MigratorTrait};
 use tokio_postgres::{Row, types::ToSql};
@@ -28,7 +29,9 @@ pub(crate) enum Work {
         Box<Insertion>,
     ),
     Graph(Graph, bool),
-    Cursor(Graph, CursorPlan),
+    /// A registered read's page, count, cursor window or grouped rows, run
+    /// on whichever database the target holds.
+    Read(Read),
     Sources(Sources, SourceTerminal),
     /// `pgorm::notify`'s channel and payload.
     Notify(String, String),
@@ -43,14 +46,26 @@ pub(crate) enum Ledger {
     Status,
 }
 
+pub(crate) type Read =
+    Box<dyn for<'a> FnOnce(Database<'a>) -> BoxFuture<'a, Result<Output, Error>> + Send>;
+
 pub(crate) enum Output {
     Count(u64),
+    /// A paginator's rows and the pages they fill.
+    Counted(u64, u64),
     Rows(Vec<Row>),
     Models(Vec<Model>),
     Written(Written),
     Versions(Vec<Versions>),
     Inserted(Insertions),
     Graph(Vec<GraphRow>),
+    /// Each root of a grouped graph read with its slot's models.
+    Grouped(
+        Vec<(
+            crate::entities::PyEntityModel,
+            Vec<crate::entities::PyEntityModel>,
+        )>,
+    ),
     /// Each migration's name, and whether the ledger records it applied.
     Migrations(Vec<(String, bool)>),
     Finished,
@@ -78,7 +93,7 @@ impl Work {
                 entity.insert(db, *insertion).await.map(Output::Inserted)
             }
             Self::Graph(query, optional) => query.run(db, optional).await.map(Output::Graph),
-            Self::Cursor(query, cursor) => query.cursor(db, cursor).await.map(Output::Graph),
+            Self::Read(read) => read(db).await,
             Self::Sources(query, terminal) => query.run(db, terminal).await.map(Output::Graph),
             Self::Notify(channel, payload) => pgorm::notify(&db, &channel, &payload)
                 .await

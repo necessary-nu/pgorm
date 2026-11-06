@@ -13,8 +13,11 @@ is the Python dialect of the Rust guide's
 Here Python differs from Rust. A Rust entity declares its relations on its
 `Relation` enum, and `Related<E>` says how to reach entity `E`, through a
 junction table where there is one. A Python relation is a value of its own,
-one hop from one model to another in one direction; a path of more hops, a
-junction's included, is written as its hops.
+one hop from one model to another in one direction, and so is a path of more
+than one: `Model.related` declares a path through a junction, as a Rust
+`Related` with a `via` does, and `Model.linked` a chain of relations, as a
+Rust `Linked` type does. Every read names the relation or the path it
+follows.
 
 pgorm offers three ways to read along a relation, one for each shape of
 question:
@@ -39,7 +42,7 @@ import os
 
 from pgorm import Pool
 
-from bakery import Bakery, Cake, bakery_cakes
+from bakery import Baker, Bakery, Cake, bakery_cakes, cake_related_bakers
 
 
 async def main() -> None:
@@ -48,49 +51,49 @@ async def main() -> None:
         cakes = await bakery_cakes.find(sunrise).order_by(Cake.col("price").asc()).all(pool)
         assert [cake["name"] for cake in cakes] == ["Lemon Drizzle", "Chocolate Fudge", "Chocolate Torte"]
 
+        # A cake's bakers, through the cake_baker junction.
+        lemon_drizzle = cakes[0]
+        bakers = await cake_related_bakers.find(lemon_drizzle).order_by(Baker.col("name").asc()).all(pool)
+        assert [baker["name"] for baker in bakers] == ["Ada", "Bo"]
+
 
 asyncio.run(main())
 ```
 
-Here Python differs from Rust, where a cake's `Related<baker::Entity>` names
-the junction in its `via`, so `find_related` joins through it. A Python
-relation is one hop, and the bakers of a cake are a query of the bakers that
-joins the junction and the cake. `bakery.py` declares the relation from a
-junction row to its baker; the join from the baker's side uses the relation
-declared from that side, here written beside the query:
+`bakery.py` declares the cake's bakers as the path the Rust cake's
+`Related<baker::Entity>` declares: `Cake.related(cake_baker_baker,
+via=cake_bakers)`, `via` the relation from the cake to its junction rows and
+then the relation from a junction row to its baker, which reaches one row.
+Its `find` joins through the junction and keys the cake by its primary key,
+as Rust's `find_related` does:
 
 ```python
-from bakery import Baker, Cake, CakeBaker, cake_baker_cake
+from decimal import Decimal
 
-baker_cake_bakers = Baker.has_many(CakeBaker, from_="id", to="baker_id")
+from bakery import cake_related_bakers
 
-lemon_drizzle_bakers = (
-    Baker.find()
-    .join(baker_cake_bakers)
-    .join(cake_baker_cake)
-    .where(Cake.col("id") == 2)
-    .order_by(Baker.col("name").asc())
-)
-assert lemon_drizzle_bakers.inspect().sql == (
+lemon_drizzle = {
+    "id": 2, "name": "Lemon Drizzle", "flavor": "lemon", "price": Decimal("3.20"),
+    "gluten_free": True, "bakery_id": 1,
+}
+assert cake_related_bakers.find(lemon_drizzle).inspect().sql == (
     'SELECT "baker"."id", "baker"."name", "baker"."hired_on", "baker"."bakery_id" FROM "baker" '
-    'INNER JOIN "cake_baker" ON "baker"."id" = "cake_baker"."baker_id" '
-    'INNER JOIN "cake" ON "cake_baker"."cake_id" = "cake"."id" '
-    'WHERE "cake"."id" = $1 ORDER BY "baker"."name" ASC'
+    'INNER JOIN "cake_baker" ON "cake_baker"."baker_id" = "baker"."id" '
+    'INNER JOIN "cake" ON "cake"."id" = "cake_baker"."cake_id" WHERE "cake"."id" = $1'
 )
 ```
 
-Run, it reads Ada and Bo, the two bakers of the Lemon Drizzle.
+A relation with an `on_condition` ([Models and
+entities](03-entities.md#relations)) is read whole the same way: its `find`
+joins the model it starts at back, so the condition can read both ends.
 
 ## Longer paths
 
-A path of more than one relation is a chain of joins on a model query, each
-joining a relation from a table the query already reads. Here a baker's
-customers are the people who ordered a cake the baker bakes, read from the
-customer's side: from each customer through their orders, the orders' lines
-and the lines' cakes to the cakes' bakers.
-
-Here Python differs from Rust, where the path is a `Linked` type listing the
-relations in order and `find_linked` reads along it from one model:
+A path of more than one relation is a `Linked` chain, which a model's
+`linked(*relations)` makes: the relations from one model to another, in
+order, each starting where the one before it ends. `find(row)` reads along it
+from one record, as Rust's `find_linked` does. Here a baker's customers are
+the people who ordered a cake the baker bakes:
 
 ```python
 import asyncio
@@ -98,70 +101,80 @@ import os
 
 from pgorm import Pool
 
-from bakery import Baker, CakeBaker, Customer, cake_bakers, customer_orders, order_line_cake, order_lines
+from bakery import Baker, baker_cake_bakers, cake_baker_cake, cake_order_lines, order_customer, order_line_order
+
+# From a baker to the customers who ordered what they bake.
+baked_for = Baker.linked(baker_cake_bakers, cake_baker_cake, cake_order_lines, order_line_order, order_customer)
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
         cy = await Baker.find_by_key({"id": 3}).one(pool)
-        baked_for = (
-            Customer.find()
-            .join(customer_orders)
-            .join(order_lines)
-            .join(order_line_cake)
-            .join(cake_bakers)
-            .where(CakeBaker.col("baker_id") == cy["id"])
-        )
-        customers = await baked_for.all(pool)
+        customers = await baked_for.find(cy).all(pool)
         assert [customer["name"] for customer in customers] == ["Lee"]
 
 
 asyncio.run(main())
 ```
 
-A customer who ordered two of the baker's cakes is read once for each, as the
-joins make them. Rust's chain joins each hop under an alias of its own, `r0`,
-`r1` and so on, so it may pass through one table twice. A Python join names
-each table by its own name unless given `alias=`, and a relation starts from
-the first table of its model the query reads, so a chain that continues from
-a second visit to one table is not available in Python yet. Rust's
-`RelatedLink`, the chain a `Related` impl describes, has no counterpart
-either: Python has no `Related`.
+Each hop joins its table under an alias of its own, `r0`, `r1` and so on,
+walking back from the far end, so a chain may pass through one table twice.
+A filter or an ordering on a hop's fields names the hop: `hop(i)` is the model
+read at hop `i` under that alias, as Rust's `LinkedAlias::hop` names it, and
+`last_hop()` the starting model's, as `last_hop_alias` names it.
+`find_linked()` reads every row the chain reaches, from any starting row.
+Here Python differs from Rust, whose `hop` and `last_hop_alias` give the
+alias's name; a Python hop is the model under it, whose `col(field)` is
+qualified by it:
+
+```python
+from bakery import Baker, Cake, baker_cake_bakers, cake_baker_cake
+
+bakes = Baker.linked(baker_cake_bakers, cake_baker_cake)
+assert bakes.last_hop().qualifier == "r1"
+assert bakes.find({"id": 1}).inspect().sql == (
+    'SELECT "cake"."id", "cake"."name", "cake"."flavor", "cake"."price", '
+    '"cake"."gluten_free", "cake"."bakery_id" FROM "cake" '
+    'INNER JOIN "cake_baker" AS "r0" ON "r0"."cake_id" = "cake"."id" '
+    'INNER JOIN "baker" AS "r1" ON "r1"."id" = "r0"."baker_id" WHERE "r1"."id" = $1'
+)
+adas = bakes.find_linked().where(bakes.last_hop().col("name") == "Ada").order_by(Cake.col("id").asc())
+assert adas.inspect().sql.endswith('WHERE "r1"."name" = $1 ORDER BY "cake"."id" ASC')
+```
+
+A path that a related path already describes needs no chain of its own:
+Rust's `RelatedLink` is that chain, and a Python related path has its own
+`find`. A model query's `join` can also go on from a second visit to one
+table: `relation.from_alias(name)`, as Rust's `RelationDef::from_alias`,
+starts the join from the table answering to `name`.
 
 ## Loading related rows for many records
 
 Reading each record's related rows with `find` runs one query per record.
-`relation.load(db, rows)` reads them for a whole list in one query of the
-distinct keys, and returns one entry per input row, in the input's order:
+`relation.load(db, rows)` reads them for a whole list in one query, and
+returns one entry per input row, in the input's order:
 
 - along a `has_many` relation, such as a bakery's cakes, a `list` of records
   per row, an empty one where nothing matched;
 - along a `belongs_to` or `has_one` relation, such as a cake's bakery, one
-  record per row, or `None` where the row's key holds a `None`.
+  record per row, or `None` where nothing matched or the row's key holds a
+  `None`;
+- along a related path, such as a cake's bakers, a `list` of records per row,
+  as Rust's `load_many_via` reads it.
 
-A relation's `cardinality`, `"one"` or `"many"`, says which. Two things are
-errors rather than silent answers, both a `DecodeError`, along a
-`belongs_to` or `has_one` relation: a key that no row at the far end matches,
-and a key that two rows there match, which contradicts a relation to at most
-one row.
-
-Here Python differs from Rust in three places. Rust has a loader for each
-shape, `load_one` and `load_many`, where Python's one `load` follows the
-relation's kind. A Rust loader takes the related entity or a `Select` of it,
-to filter and order what is loaded; `load` takes no query, and reads the far
-end's rows whole in no promised order, so the program filters and sorts each
-list itself. And Rust's `load_many_via` follows a relation through a junction
-in one query, which Python does in two: load the junction rows, then their
-far end.
+A relation's `cardinality`, `"one"` or `"many"`, says which. Here Python
+differs from Rust: Rust has a loader for each shape, `load_one` and
+`load_many`, where Python's one `load` follows the relation's kind. Each
+takes a query of the related model as its third argument, to filter and order
+what is loaded, as Rust's loaders take a `Select`:
 
 ```python
 import asyncio
 import os
-from typing import Any
 
 from pgorm import Pool
 
-from bakery import Bakery, bakery_cakes, cake_baker_baker, cake_bakers, cake_bakery
+from bakery import Baker, Bakery, Cake, bakery_cakes, cake_bakery, cake_related_bakers
 
 
 async def main() -> None:
@@ -169,50 +182,49 @@ async def main() -> None:
         bakeries = await Bakery.find().order_by(Bakery.col("id").asc()).all(pool)
 
         # Each bakery's gluten-free cakes, cheapest first.
-        menus = await bakery_cakes.load(pool, bakeries)
-        gluten_free: list[list[Any]] = [
-            sorted((cake for cake in menu if cake["gluten_free"]), key=lambda cake: cake["price"])
-            for menu in menus
-        ]
-        names = [[cake["name"] for cake in menu] for menu in gluten_free]
+        gluten_free = Cake.find().where(Cake.col("gluten_free").eq(True)).order_by(Cake.col("price").asc())
+        cakes = await bakery_cakes.load(pool, bakeries, gluten_free)
+        names = [[cake["name"] for cake in menu] for menu in cakes]
         assert names == [["Lemon Drizzle", "Chocolate Torte"], ["Vanilla Sponge"]]
 
-        # Each of Sunrise's gluten-free cakes, with its bakery and its bakers.
-        sunrise_cakes = gluten_free[0]
+        # Each of Sunrise's cakes, with its bakery and its bakers.
+        sunrise_cakes = cakes[0]
         their_bakery = await cake_bakery.load(pool, sunrise_cakes)
-        assert all(bakery["name"] == "Sunrise" for bakery in their_bakery)
+        assert all(bakery is not None and bakery["name"] == "Sunrise" for bakery in their_bakery)
 
-        # The junction rows of every cake in one query, then their bakers in another.
-        links = await cake_bakers.load(pool, sunrise_cakes)
-        bakers = iter(await cake_baker_baker.load(pool, [link for row in links for link in row]))
-        per_cake = [sorted(next(bakers)["name"] for _ in row) for row in links]
-        assert per_cake == [["Ada", "Bo"], ["Bo"]]
+        bakers = await cake_related_bakers.load(pool, sunrise_cakes, Baker.find().order_by(Baker.col("name").asc()))
+        assert [[baker["name"] for baker in row] for row in bakers] == [["Ada", "Bo"], ["Bo"]]
 
 
 asyncio.run(main())
 ```
 
+A loader reads the relation whole, its `on_condition` included: it joins the
+model the relation starts at back under `pgorm_loader_src`, as Rust's does,
+and an ordering on its query orders every record's list. Two things are
+errors rather than silent answers, both a `DecodeError`: two different rows
+for one record along a `belongs_to` or `has_one` relation, which contradicts
+a relation to at most one row, and a related row whose key matches in SQL but
+not as a Python value.
+
 ## Reading rows with their related rows
 
 The graph reads rows of one model, the *root*, with rows of related models
 joined beside them, in one query. Start it with `graph()` where you would
-write `find()`, and add each related model as a *slot*, along a relation from
-the root or from a model the graph already reads. A slot is required or
-optional:
+write `find()`, and add each related model as a *slot*, along a relation or a
+path from the root or from a model the graph already reads. A slot is
+required or optional:
 
 | Method | Joins | Decodes as |
 | --- | --- | --- |
-| `join_one(relation)` | `INNER JOIN` | a record of the relation's far end |
-| `join_maybe(relation)` | `LEFT JOIN` | a record, or `None` where the join matched nothing |
-
-Here Python differs from Rust, whose graph also has `related_one::<F>()` and
-`related_maybe::<F>()`, following the path a `Related` impl describes. Python
-has no `Related`, so every slot names its relation, and a path through a
-junction is written with `via`, below.
+| `related_one(path)` | a relation or a related path, `INNER JOIN` | a record of the path's far end |
+| `related_maybe(path)` | the same path, `LEFT JOIN` | a record, or `None` where the join matched nothing |
+| `join_one(relation)` | one relation, `INNER JOIN` | a record of the relation's far end |
+| `join_maybe(relation)` | one relation, `LEFT JOIN` | a record, or `None` where the join matched nothing |
 
 A row is a tuple of the root's record and one item per slot, in the order the
 slots were added; a graph with no slot gives the root's records alone. Here
-Python differs from Rust again: the Rust compiler knows the tuple's type from
+Python differs from Rust: the Rust compiler knows the tuple's type from
 the slots, where a Python graph's terminals are typed for every shape a graph
 can give, `ModelRecord | tuple[ModelRecord | None, ...]`. A program checked
 with mypy states the shape with `cast`, as the examples do, and nothing checks
@@ -233,8 +245,8 @@ async def main() -> None:
         orders = cast(
             list[tuple[ModelRecord, ModelRecord, ModelRecord]],
             await Order.graph()
-            .join_one(order_customer)
-            .join_one(order_bakery)
+            .related_one(order_customer)
+            .related_one(order_bakery)
             .order_by(Order.col("placed_at").asc())
             .all(pool),
         )
@@ -312,14 +324,19 @@ exactly one row, or at most one, and any other count a `DecodeError`.
 ### Junctions and other paths
 
 `via(relation)` joins a table the path runs through without decoding it, such
-as a junction, so a many-to-many read is a `via` and a slot. A `via` is always
-a `LEFT JOIN`, so a missing middle row does not drop a root row by itself:
+as a junction. `related_maybe` and `related_one` add a related path's
+junction themselves, `related_one` by an `INNER JOIN` and `related_maybe` by
+a `LEFT JOIN`; written by hand, the same many-to-many read is a `via` and a
+slot. A `via` is always a `LEFT JOIN`, so a missing middle row does not drop
+a root row by itself:
 
 ```python
-from bakery import Cake, cake_baker_baker, cake_bakers
+from bakery import Cake, cake_baker_baker, cake_bakers, cake_related_bakers
 
-cakes_and_bakers = Cake.graph().via(cake_bakers).join_maybe(cake_baker_baker)
-assert cakes_and_bakers.inspect().sql == (
+by_hand = Cake.graph().via(cake_bakers).join_maybe(cake_baker_baker)
+described = Cake.graph().related_maybe(cake_related_bakers)
+assert by_hand.inspect().sql == described.inspect().sql
+assert described.inspect().sql == (
     'SELECT "cake"."id" AS "s0_id", "cake"."name" AS "s0_name", "cake"."flavor" AS "s0_flavor", '
     '"cake"."price" AS "s0_price", "cake"."gluten_free" AS "s0_gluten_free", '
     '"cake"."bakery_id" AS "s0_bakery_id", "baker"."id" AS "s1_id", "baker"."name" AS "s1_name", '
@@ -338,70 +355,59 @@ hops are not counted. `col(source, field)` gives a field of a decoded source,
 Python differs from Rust, whose graph holds up to six slots; a Python graph
 sets no such limit.
 
-A path that passes through one table twice binds the second visit to an alias:
-`via`, `join_one` and `join_maybe` each take `alias=`, and `from_=` names the
-decoded source a relation starts from, where it would otherwise start from the
-first table of its model the graph reads. Here Python differs from Rust, whose
-`from_alias` lets the next relation start from any aliased table, a `via` hop
-included. Python's `from_` names a decoded source only, so a visit that the
-path goes on from is a slot.
-
-Here each cake reads the other cakes one of its bakers bakes: from the cake
-through `cake_baker` to the junction rows of the same baker, under the alias
-`shared`, decoded so the path can go on from it, and from them to the other
-cakes, under the alias `sibling`. A graph of two slots has no `all_grouped`,
-so the program groups the rows itself:
+A path that passes through one table twice binds the second visit to an
+alias: `via`, `join_one` and `join_maybe` each take `alias=`, and
+`relation.from_alias(name)`, as Rust's `from_alias` does, makes the next
+relation start from the table answering to `name`, a `via` hop included.
+Otherwise a relation starts from the first table of its model the graph
+reads, or from the decoded source `from_=` names by its index. Here each cake
+reads the other cakes one of its bakers bakes: from the cake through
+`cake_baker` to the baker, and back through `cake_baker` a second time, under
+an alias, to the other cakes:
 
 ```python
 import asyncio
 import os
-from typing import cast
 
-from pgorm import ModelRecord, Pool
+from pgorm import Pool
 
-from bakery import Cake, CakeBaker, cake_baker_cake, cake_bakers
-
-same_baker = CakeBaker.has_many(CakeBaker, from_="baker_id", to="baker_id")
+from bakery import Cake, baker_cake_bakers, cake_baker_baker, cake_baker_cake, cake_bakers
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        graph = (
+        sibling = Cake.as_("sibling")
+        siblings = await (
             Cake.graph()
             .via(cake_bakers)
-            .join_maybe(same_baker, alias="shared")
-            .join_maybe(cake_baker_cake, alias="sibling", from_=1)
+            .via(cake_baker_baker)
+            .via(baker_cake_bakers, alias="shared")
+            .join_maybe(cake_baker_cake.from_alias("shared"), alias="sibling")
+            .where(sibling.col("id") != Cake.col("id"))
+            .order_by(sibling.col("name").asc())
+            .all_grouped(pool)
         )
-        graph = graph.where(graph.col(2, "id") != graph.col(0, "id")).order_by(graph.col(2, "name").asc())
-
-        # The WHERE keeps only rows that found a sibling, so neither slot is None.
-        rows = cast(
-            list[tuple[ModelRecord, ModelRecord, ModelRecord]],
-            await graph.all(pool),
-        )
-        siblings: dict[int, list[str]] = {}
-        for cake, _, sibling in rows:
-            siblings.setdefault(cake["id"], []).append(sibling["name"])
-        assert siblings[2] == ["Chocolate Fudge", "Chocolate Torte"]
+        lemon_drizzle = next(others for cake, others in siblings if cake["id"] == 2)
+        assert [cake["name"] for cake in lemon_drizzle] == ["Chocolate Fudge", "Chocolate Torte"]
 
 
 asyncio.run(main())
 ```
 
-A filter or an ordering on an aliased table names it through `col(source,
-field)`, as above, or through the aliased model, `Cake.as_("sibling").col(..)`.
+A filter or an ordering on an aliased table names it through the aliased
+model, `Cake.as_("sibling").col(..)`, as above, or through `col(source,
+field)`.
 
 ### Narrowing a join
 
 A `where` lands in the query's `WHERE`, where it applies to the joined row as
 a whole: under a `LEFT JOIN`, a root whose slot did not match has `NULL`s
-there, fails the condition, and drops out, as if the join were `INNER`.
-
-Here Python differs from Rust: narrowing which rows *match* instead, keeping
-the unmatched roots, is not available in Python yet. Rust's
-`join_maybe_filtered` adds the condition to the join's `ON`; a Python relation
-joins by its paired fields alone. Every bakery with its carrot cakes is read
-with a loader, the lists narrowed in Python:
+there, fails the condition, and drops out, as if the join were `INNER`. To
+narrow which rows *match* instead, keeping the unmatched roots,
+`join_maybe_filtered(relation, condition)` adds the condition to the join's
+`ON`, as Rust's `join_maybe_filtered` does. Its function receives the join's
+two ends, each the model as the join names its table, so it qualifies its
+fields through them:
 
 ```python
 import asyncio
@@ -424,13 +430,12 @@ async def main() -> None:
         assert [(bakery["name"], len(cakes)) for bakery, cakes in filtered] == [("Moonlight", 1)]
 
         # Every bakery, with its carrot cakes if it has any.
-        bakeries = await Bakery.find().order_by(Bakery.col("id").asc()).all(pool)
-        menus = await bakery_cakes.load(pool, bakeries)
-        carrot = [
-            (bakery["name"], len([cake for cake in menu if cake["flavor"] == "carrot"]))
-            for bakery, menu in zip(bakeries, menus)
-        ]
-        assert carrot == [("Sunrise", 0), ("Moonlight", 1)]
+        carrot = await (
+            Bakery.graph()
+            .join_maybe_filtered(bakery_cakes, lambda bakery, cake: cake.col("flavor") == "carrot")
+            .all_grouped(pool)
+        )
+        assert [(bakery["name"], len(cakes)) for bakery, cakes in carrot] == [("Sunrise", 0), ("Moonlight", 1)]
 
 
 asyncio.run(main())
@@ -441,10 +446,10 @@ asyncio.run(main())
 `limit` and `offset` count the rows of the join, not the roots: a bakery with
 three cakes spends three rows of a limit. A limited graph therefore has no
 `all_grouped`, whose last entry could hold only part of its root's rows, and
-no `paginate`, `count` or `cursor`, which set the rows themselves. Rust's
-compiler refuses them, and so does mypy: `limit` and `offset` return a
-`Graph[Literal[True]]`, which those methods do not take. Run anyway, each
-raises `ConstructionError`:
+no `paginate`, `count`, `cursor` or `cursor_on`, which set the rows
+themselves. Rust's compiler refuses them, and so does mypy: `limit` and
+`offset` return a `Graph[Literal[True]]`, which those methods do not take. Run
+anyway, each raises `ConstructionError`:
 
 ```python
 import asyncio
@@ -494,9 +499,10 @@ asyncio.run(main())
 A graph pages as a model query does, by rows of the join, through `paginate`
 and `cursor`. `cursor(*fields)` orders by fields of the root, and then breaks
 ties by the root's primary key and every slot's, in the order the slots were
-added, so rows that share an ordering value still page correctly. Here Python
-differs from Rust, whose `cursor_by_on` orders by the columns of one slot;
-ordering a graph's cursor by a slot's columns is not available in Python yet.
+added, so rows that share an ordering value still page correctly.
+`cursor_on(source, *fields)` orders by fields of slot `source` instead,
+counting the first slot as `1`, as Rust's `cursor_by_on` does, and breaks
+ties by that slot's primary key, then the root's and every other slot's.
 [Pages, cursors and streams](06-pagination.md#ties-and-secondary-keys) shows
 `after` beside `after_with`, which takes the whole ordering.
 
@@ -534,6 +540,17 @@ async def main() -> None:
         following = cast(Rows, await cursor.after(last_price).first(2).all(pool))
         assert [cake["name"] for cake, _ in following] == ["Carrot Cake", "Chocolate Fudge"]
 
+        # By the bakery's name, its id and then the cake's breaking ties.
+        by_bakery = Cake.graph().join_one(cake_bakery).cursor_on(1, "name")
+        assert by_bakery.first(2).inspect().sql.endswith(
+            'ORDER BY "bakery"."name" ASC, "bakery"."id" ASC, "cake"."id" ASC LIMIT $1'
+        )
+        moonlight = cast(Rows, await by_bakery.first(2).all(pool))
+        assert [(cake["name"], bakery["name"]) for cake, bakery in moonlight] == [
+            ("Carrot Cake", "Moonlight"),
+            ("Vanilla Sponge", "Moonlight"),
+        ]
+
 
 asyncio.run(main())
 ```
@@ -558,10 +575,11 @@ decoded source as the query names it. Its `all` is `SelectGraph::all`, and its
 row is the root's `EntityModel` when the graph has no slot, and otherwise a
 tuple of `EntityModel`s, `None` for an optional slot that matched nothing.
 
-`cursor(column)` is `SelectGraph::cursor_by` on one root column, with the
-root's and every slot's primary key added as tiebreaks: `after` and `before`
-take that column's value, and `after_with` and `before_with` the whole key,
-the column first, then the root's other key columns and each slot's, in
-order. Here a registered graph differs from a model's: it has no `stream`,
-`all_grouped`, `paginate` or `count`, and its cursor orders by one root column
-only.
+`cursor(*columns)` is `SelectGraph::cursor_by` on root columns, and
+`cursor_on(source, *columns)` `cursor_by_on` on a slot's, with every decoded
+source's primary key added as tiebreaks: `after` and `before` take the order
+columns' values, and `after_with` and `before_with` those or the whole key,
+the order columns first, then the ordered source's other key columns and
+each other source's, in order. `stream`, `all_grouped`, `paginate` and
+`count` are `SelectGraph`'s own, `all_grouped` on a graph of one `Opt` slot
+only, as in Rust.

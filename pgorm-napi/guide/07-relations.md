@@ -45,33 +45,83 @@ assert.equal(bakery.name, "Sunrise");
 
 A many-to-many relation goes through a junction table. Rust's cake declares a
 `Related<baker::Entity>` whose `via` names the junction, and `find_related`
-joins through it. A JavaScript relation is one hop, so the many-to-many read
-is a query of the far end joined to the junction: a cake's bakers are the
-bakers whose `cake_baker` rows name the cake.
+joins through it. The bakery declares the same path as `cakeBakers`,
+`Cake.related(cakeBakerBaker, { via: cakeCakeBakers })`
+([Entities](03-entities.md#relations)), and its `find` joins through the
+junction, keying the cake by its primary key, as Rust's `find_related`
+writes it:
 
 ```ts
 import assert from "node:assert/strict";
+import { Decimal } from "@necessary/pgorm";
 
 // A cake's bakers, through the cake_baker junction.
-const lemonDrizzlesBakers = Baker.find()
-  .join(bakerCakeBakers)
-  .where(CakeBaker.col("cakeId").eq(2))
-  .orderBy(Baker.col("name").asc());
+const lemonDrizzle = {
+  id: 2,
+  name: "Lemon Drizzle",
+  flavor: "lemon",
+  price: new Decimal("3.20"),
+  glutenFree: true,
+  bakeryId: 1,
+} as const;
+const lemonDrizzlesBakers = cakeBakers.find(lemonDrizzle).orderBy(Baker.col("name").asc());
 assert.equal(
   lemonDrizzlesBakers.inspect().sql,
-  `SELECT "baker"."id", "baker"."name", "baker"."hired_on", "baker"."bakery_id" FROM "baker" INNER JOIN "cake_baker" ON "baker"."id" = "cake_baker"."baker_id" WHERE "cake_baker"."cake_id" = $1 ORDER BY "baker"."name" ASC`,
+  `SELECT "baker"."id", "baker"."name", "baker"."hired_on", "baker"."bakery_id" FROM "baker" INNER JOIN "cake_baker" ON "cake_baker"."baker_id" = "baker"."id" INNER JOIN "cake" ON "cake"."id" = "cake_baker"."cake_id" WHERE "cake"."id" = $1 ORDER BY "baker"."name" ASC`,
 );
 const names = (await lemonDrizzlesBakers.all(pool)).map((baker) => baker.name);
 assert.deepEqual(names, ["Ada", "Bo"]);
 ```
 
+A relation with an `onCondition` ([Entities](03-entities.md#relations)) is
+read whole the same way: its `find` joins the model it starts at back, so the
+condition can read both ends.
+
 ## Longer paths
 
-Rust writes a path of more than one relation as a `Linked` type, listing its
-relations in order, which `find_linked` reads along. In JavaScript a path is
-a chain of joins: `join` takes a relation from the query's model or from any
-table already joined, so each hop starts where the last one ended. Here a
-baker's customers are the people who ordered a cake the baker bakes:
+A path of more than one relation is a `Linked` chain, which a model's
+`linked(...relations)` makes, as a Rust `Linked` type lists its relations:
+each starting where the one before it ends. `find(row)` reads along it from
+one record, as Rust's `find_linked` does. Here a baker's customers are the
+people who ordered a cake the baker bakes:
+
+```ts
+import assert from "node:assert/strict";
+
+// From a baker to the customers who ordered what they bake.
+const bakedFor = Baker.linked(bakerCakeBakers, cakeBakerCake, cakeLines, lineOrder, orderCustomer);
+
+const cy = await Baker.findByKey({ id: 3 }).one(pool);
+assert.deepEqual((await bakedFor.find(cy).all(pool)).map((customer) => customer.name), ["Lee"]);
+```
+
+Each hop joins its table under an alias of its own, `r0`, `r1` and so on,
+walking back from the far end, so a chain may pass through one table twice.
+A filter or an ordering on a hop's fields names the hop: `hop(i)` is the model
+read at hop `i` under that alias, as Rust's `LinkedAlias::hop` names it, and
+`lastHop()` the starting model's, as `last_hop_alias` names it.
+`findLinked()` reads every row the chain reaches, from any starting row.
+Rust's `hop` and `last_hop_alias` give the alias's name; a JavaScript hop is
+the model under it, whose `col(field)` is qualified by it:
+
+```ts
+import assert from "node:assert/strict";
+
+const bakes = Baker.linked(bakerCakeBakers, cakeBakerCake);
+assert.equal(bakes.lastHop().alias, "r1");
+assert.equal(
+  bakes.find({ id: 1 }).inspect().sql,
+  `SELECT "cake"."id", "cake"."name", "cake"."flavor", "cake"."price", "cake"."gluten_free", "cake"."bakery_id" FROM "cake" INNER JOIN "cake_baker" AS "r0" ON "r0"."cake_id" = "cake"."id" INNER JOIN "baker" AS "r1" ON "r1"."id" = "r0"."baker_id" WHERE "r1"."id" = $1`,
+);
+const adas = bakes.findLinked().where(bakes.lastHop().col("name").eq("Ada")).orderBy(Cake.col("id").asc());
+assert.deepEqual((await adas.all(pool)).map((cake) => cake.name), ["Chocolate Fudge", "Lemon Drizzle"]);
+```
+
+A path a related path already describes needs no chain of its own: Rust's
+`RelatedLink` is that chain, and a JavaScript related path has its own
+`find`. A path can also be a chain of joins on a model query: `join` takes a
+relation from the query's model or from any table already joined, so each
+hop starts where the last one ended:
 
 ```ts
 import assert from "node:assert/strict";
@@ -90,12 +140,12 @@ assert.equal(
 assert.deepEqual((await bakedForCy.all(pool)).map((customer) => customer.name), ["Lee"]);
 ```
 
-Each hop joins its table under the table's own name, so a filter on it names
-the far end's model as usual. A chain that passes through one table twice
-joins the second visit with `{ alias }`, and its columns are read through the
-model under that name, `Model.as(alias).col(field)`. Rust's chain joins every
-hop under an alias of its own, `r0`, `r1` and so on, which `LinkedAlias::hop`
-mints.
+Each of these joins its table under the table's own name, so a filter on it
+names the far end's model as usual. A chain that passes through one table
+twice joins the second visit with `{ alias }`, its columns read through the
+model under that name, `Model.as(alias).col(field)`, and goes on from it with
+`relation.fromAlias(alias)`, as Rust's `RelationDef::from_alias` points a
+relation at an aliased table.
 
 ## Loading related rows for many models
 
@@ -104,39 +154,40 @@ Reading each record's related rows with `find` runs one query per record.
 resolves with one entry per input row, in the input's order:
 
 - a relation to at most one row, a `belongsTo` or a `hasOne`, gives a record
-  per row, or `null` where the row's key holds a `NULL`, as Rust's
-  `load_one` does;
-- a `hasMany` gives an array per row, as Rust's `load_many` does.
+  per row, or `null` where nothing matched or the row's key holds a `NULL`,
+  as Rust's `load_one` does;
+- a `hasMany` gives an array per row, as Rust's `load_many` does;
+- a related path gives an array per row, as Rust's `load_many_via` does.
+
+Each takes `{ query }`, a query of the related model, to filter and order
+what is loaded, as Rust's loaders take a `Select`:
 
 ```ts
 import assert from "node:assert/strict";
 
 const bakeries = await Bakery.find().orderBy(Bakery.col("id").asc()).all(pool);
 
-// Each bakery's cakes.
-const cakes = await bakeryCakes.load(pool, bakeries);
-assert.deepEqual(
-  cakes.map((list) => list.map((cake) => cake.name).sort()),
-  [["Chocolate Fudge", "Chocolate Torte", "Lemon Drizzle"], ["Carrot Cake", "Vanilla Sponge"]],
-);
+// Each bakery's gluten-free cakes, cheapest first.
+const glutenFree = Cake.find().where(Cake.col("glutenFree").eq(true)).orderBy(Cake.col("price").asc());
+const cakes = await bakeryCakes.load(pool, bakeries, { query: glutenFree });
+assert.deepEqual(cakes.map((list) => list.map((cake) => cake.name)), [["Lemon Drizzle", "Chocolate Torte"], ["Vanilla Sponge"]]);
 
-// Each of Sunrise's cakes, with its bakery.
-const theirBakery = await cakeBakery.load(pool, cakes[0]!);
+// Each of Sunrise's cakes, with its bakery and its bakers.
+const sunriseCakes = cakes[0]!;
+const theirBakery = await cakeBakery.load(pool, sunriseCakes);
 assert.ok(theirBakery.every((bakery) => bakery?.name === "Sunrise"));
+
+const bakers = await cakeBakers.load(pool, sunriseCakes, { query: Baker.find().orderBy(Baker.col("name").asc()) });
+assert.deepEqual(bakers.map((list) => list.map((baker) => baker.name)), [["Ada", "Bo"], ["Bo"]]);
 ```
 
-Two things are errors rather than silent answers, a `DecodeError` each: a key
-nothing at the far end matches, which a relation to one row says cannot
-happen, and two rows for one key under a `hasOne`. A row in `rows` needs only
-the fields the relation reads, not a whole record.
-
-**Not available in JavaScript yet:** loading a filtered or ordered query of
-the related model, and loading through a junction. Rust's loaders take the
-related entity or a `Select` of it, so `load_many` can load each bakery's
-gluten-free cakes cheapest first, and `load_many_via` loads each cake's
-bakers through `cake_baker`. A JavaScript relation's `load` reads every
-related row, in no promised order. Many-to-many rows are read with a graph's
-`via` instead, [below](#junctions-and-other-paths).
+A loader reads the relation whole, its `onCondition` included: it joins the
+model the relation starts at back under `pgorm_loader_src`, as Rust's does,
+and an ordering on its query orders every record's list. Two things are
+errors rather than silent answers, a `DecodeError` each: two different rows
+for one key of a relation to one row, which contradicts it, and a related row
+whose key matches in SQL but not as a JavaScript value. A row in `rows` needs
+only the fields the relation reads, not a whole record.
 
 ## Reading rows with their related rows
 
@@ -147,21 +198,23 @@ from the root or from a slot before it. A slot is required or optional:
 
 | Method | Joins | Decodes as |
 | --- | --- | --- |
-| `joinOne(relation)` | the relation, `INNER JOIN` | the far end's record |
-| `joinMaybe(relation)` | the relation, `LEFT JOIN` | the far end's record, or `null` |
+| `relatedOne(path)` | a relation or a related path, `INNER JOIN` | the far end's record |
+| `relatedMaybe(path)` | the same path, `LEFT JOIN` | the far end's record, or `null` |
+| `joinOne(relation)` | one relation, `INNER JOIN` | the far end's record |
+| `joinMaybe(relation)` | one relation, `LEFT JOIN` | the far end's record, or `null` |
 
 Each row is a tuple of the root's record and one item per slot, in the order
 the slots were added, and a graph with no slot decodes the root's record
-alone. The TypeScript declarations type the tuple from the slots. Rust also
-has `related_one::<F>()` and `related_maybe::<F>()`, which follow the path
-`Related<F>` describes; a JavaScript slot always names its relation.
+alone. The TypeScript declarations type the tuple from the slots. Rust's
+`related_one::<F>()` and `related_maybe::<F>()` follow the path `Related<F>`
+describes; a JavaScript slot names its relation or its path.
 
 ```ts
 import assert from "node:assert/strict";
 
 const orders = await Order.graph()
-  .joinOne(orderCustomer)
-  .joinOne(orderBakery)
+  .relatedOne(orderCustomer)
+  .relatedOne(orderBakery)
   .orderBy(Order.col("placedAt").asc())
   .all(pool);
 
@@ -212,13 +265,16 @@ streams](06-pagination.md) describes for a model query.
 ### Junctions and other paths
 
 `via(relation)` joins a table the path runs through without decoding it, such
-as a junction: a `LEFT JOIN` no record reads. The many-to-many read is a
+as a junction: a `LEFT JOIN` no record reads. `relatedMaybe` and `relatedOne`
+add a related path's junction themselves, `relatedOne` by an `INNER JOIN` and
+`relatedMaybe` by a `LEFT JOIN`; written by hand, the many-to-many read is a
 `via` to the junction and a slot from it:
 
 ```ts
 import assert from "node:assert/strict";
 
 const withBakers = Cake.graph().via(cakeCakeBakers).joinMaybe(cakeBakerBaker);
+assert.equal(Cake.graph().relatedMaybe(cakeBakers).inspect().sql, withBakers.inspect().sql);
 assert.equal(
   withBakers.inspect().sql,
   `SELECT "cake"."id" AS "s0_id", "cake"."name" AS "s0_name", "cake"."flavor" AS "s0_flavor", "cake"."price" AS "s0_price", "cake"."gluten_free" AS "s0_gluten_free", "cake"."bakery_id" AS "s0_bakery_id", "baker"."id" AS "s1_id", "baker"."name" AS "s1_name", "baker"."hired_on" AS "s1_hired_on", "baker"."bakery_id" AS "s1_bakery_id" FROM "cake" LEFT JOIN "cake_baker" ON "cake"."id" = "cake_baker"."cake_id" LEFT JOIN "baker" ON "cake_baker"."baker_id" = "baker"."id"`,
@@ -240,21 +296,16 @@ for each slot, as Rust's does; `via` hops are not decoded and take no prefix.
 
 A path that passes through one table twice binds the second visit to an
 alias: `{ alias }` on a slot or a `via` joins its table under that name, and
-`{ from }` makes a slot's relation start at a decoded source other than the
-first table of its model, `0` the root and `i` the i-th slot.
-`graph.col(source, field)` and `Model.as(alias).col(field)` name an aliased
-table's columns in a filter or an ordering.
-
-**Not available in JavaScript yet:** a relation that starts from an aliased
-`via` hop. Rust's `via_as` and `from_alias` let a path run on from a junction
-it joined under an alias and decoded nowhere. A JavaScript `from` names a
-decoded source only, so a path that needs to start from the second visit to a
-junction decodes that visit as a slot of its own.
+`relation.fromAlias(alias)`, as Rust's `from_alias` does, makes the next
+relation start from the table answering to it, a `via` hop included.
+Otherwise a relation starts from the first table of its model the graph
+reads, or from the decoded source `{ from }` names, `0` the root and `i` the
+i-th slot. `graph.col(source, field)` and `Model.as(alias).col(field)` name an
+aliased table's columns in a filter or an ordering.
 
 Here each cake reads the other cakes one of its bakers bakes: from the cake
 through `cake_baker` to the baker, and back through `cake_baker` a second
-time, under an alias, to the other cakes. The second `cake_baker` visit is a
-slot, so the sibling's relation can start from it:
+time, under an alias, to the other cakes:
 
 ```ts
 import assert from "node:assert/strict";
@@ -262,14 +313,14 @@ import assert from "node:assert/strict";
 const sibling = Cake.as("sibling");
 const siblings = await Cake.graph()
   .via(cakeCakeBakers)
-  .joinOne(cakeBakerBaker)
-  .joinMaybe(bakerCakeBakers, { alias: "shared", from: 1 })
-  .joinMaybe(cakeBakerCake, { alias: "sibling", from: 2 })
+  .via(cakeBakerBaker)
+  .via(bakerCakeBakers, { alias: "shared" })
+  .joinMaybe(cakeBakerCake.fromAlias("shared"), { alias: "sibling" })
   .where(sibling.col("id").ne(Cake.col("id")))
   .orderBy(sibling.col("name").asc())
-  .all(pool);
+  .allGrouped(pool);
 
-const lemonDrizzle = siblings.filter(([cake]) => cake.id === 2).map(([, , , other]) => other?.name);
+const lemonDrizzle = siblings.find(([cake]) => cake.id === 2)?.[1].map((other) => other.name);
 assert.deepEqual(lemonDrizzle, ["Chocolate Fudge", "Chocolate Torte"]);
 ```
 
@@ -277,23 +328,32 @@ assert.deepEqual(lemonDrizzle, ["Chocolate Fudge", "Chocolate Torte"]);
 
 A `where` lands in the query's `WHERE`, where it applies to the joined row as
 a whole: under a `LEFT JOIN`, a root whose slot did not match has `NULL`s
-there, fails the predicate, and drops out, as if the join were `INNER`.
+there, fails the predicate, and drops out, as if the join were `INNER`. To
+narrow which rows *match* instead, keeping the unmatched roots,
+`joinMaybeFiltered(relation, condition)` adds the condition to the join's
+`ON`, as Rust's `join_maybe_filtered` does. Its function receives the join's
+two ends, each the model as the join names its table, so it qualifies its
+fields through them:
 
-**Not available in JavaScript yet:** narrowing which rows a slot matches.
-Rust's `join_maybe_filtered` adds a predicate to the join's `ON`, so every
-bakery is read with its carrot cakes, if it has any, and the bakeries with
-none keep an empty list. A JavaScript slot joins on its relation's fields
-alone.
+```ts
+import assert from "node:assert/strict";
+
+// Every bakery, with its carrot cakes if it has any.
+const carrot = await Bakery.graph()
+  .joinMaybeFiltered(bakeryCakes, (_bakery, cake) => cake.col("flavor").eq("carrot"))
+  .allGrouped(pool);
+assert.deepEqual(carrot.map(([bakery, cakes]) => [bakery.name, cakes.length]), [["Sunrise", 0], ["Moonlight", 1]]);
+```
 
 ### Limits, pages and cursors
 
 `limit` and `offset` count the rows of the join, not the roots: a bakery with
 three cakes spends three rows of a limit. A limited graph therefore has no
 `allGrouped`, whose last entry could hold only part of its root's rows, and no
-`paginate`, `count` or `cursor`, which set the rows themselves. Rust's
-compiler refuses them, and so does TypeScript's: `limit` and `offset` return a
-graph whose third type parameter is `true`, which those methods do not take.
-Run anyway, each throws a `ConstructionError`:
+`paginate`, `count`, `cursor` or `cursorOn`, which set the rows themselves.
+Rust's compiler refuses them, and so does TypeScript's: `limit` and `offset`
+return a graph whose third type parameter is `true`, which those methods do
+not take. Run anyway, each throws a `ConstructionError`:
 
 ```ts
 import assert from "node:assert/strict";
@@ -322,7 +382,10 @@ An unlimited graph pages as a model query does, by rows of the join, through
 breaks ties by the primary key of every source it decodes, so rows that share
 an ordering value still page correctly; `afterWith` and `beforeWith` take that
 whole ordering, the fields and then each source's key, and resume from
-exactly one row. [Pages, cursors and streams](06-pagination.md) covers both.
+exactly one row. `cursorOn(source, ...fields)` orders by fields of slot
+`source` instead, counting the first slot as `1`, as Rust's `cursor_by_on`
+does, and breaks ties by that slot's primary key, then the root's and every
+other slot's. [Pages, cursors and streams](06-pagination.md) covers both.
 
 ```ts
 import assert from "node:assert/strict";
@@ -338,8 +401,10 @@ assert.deepEqual(
 const lastPrice = page[1]![0].price;
 const next = await cursor.after(lastPrice).first(2).all(pool);
 assert.deepEqual(next.map(([cake]) => cake.name), ["Carrot Cake", "Chocolate Fudge"]);
-```
 
-**Not available in JavaScript yet:** a graph cursor ordered by a slot's
-columns. Rust's `cursor_by_on` orders by the columns of one of the graph's
-related tables; a JavaScript graph's `cursor` takes the root's fields.
+// By the bakery's name, its id and then the cake's breaking ties.
+const byBakery = Cake.graph().joinOne(cakeBakery).cursorOn(1, "name");
+assert.ok(byBakery.first(2).inspect().sql.endsWith(`ORDER BY "bakery"."name" ASC, "bakery"."id" ASC, "cake"."id" ASC LIMIT $1`));
+const moonlight = await byBakery.first(2).all(pool);
+assert.deepEqual(moonlight.map(([cake, bakery]) => [cake.name, bakery.name]), [["Carrot Cake", "Moonlight"], ["Vanilla Sponge", "Moonlight"]]);
+```

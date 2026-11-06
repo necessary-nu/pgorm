@@ -108,7 +108,7 @@ impl Registry {
     /// factory receives one alias per joined slot, in tuple order, and must
     /// join each slot under its alias; every source entity is registered
     /// first.
-    // [spec:pgorm:req:bindings.entity-graphs+3]
+    // [spec:pgorm:req:bindings.entity-graphs+4]
     pub fn graph<E, S, Build>(
         &mut self,
         name: &str,
@@ -117,7 +117,7 @@ impl Registry {
     where
         E: EntityTrait + Send + Sync + 'static,
         S: GraphSlots<E>,
-        GraphRow<E, S>: SelectorTrait,
+        GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
         GraphItem<E, S>: Send + 'static,
         Build: Fn(&[String]) -> SelectGraph<E, S> + Send + Sync + 'static,
     {

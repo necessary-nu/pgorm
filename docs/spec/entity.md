@@ -506,6 +506,14 @@ explicit limitations.
 > MUST return `None` if any key component is `NotSet`.
 > `is_changed` returns `true` when any attribute is in the `Set` state.
 
+> [spec:pgorm:req:entity.active-model.set-if-not-equals]
+> `ActiveModelTrait::set_if_not_equals(column, value)` MUST be `set` unless the
+> column holds that value `Unchanged`, when it does nothing: the column's
+> `ActiveValue::set_if_not_equals` reached by name, as a binding names a column,
+> so `is_changed` then reports whether there is anything to write. A column the
+> model does not carry, and a value of the wrong type for it, MUST be the
+> `Error::Type` `get` and `set` report.
+
 > [spec:pgorm:def:entity.active-model.active-value+1]
 > `ActiveValue<V: Into<Value>>` (`src/entity/active_model.rs`) is a three-state
 > machine over a column value: `Set(V)` (a value actively being written),

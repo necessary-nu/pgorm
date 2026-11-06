@@ -2,16 +2,15 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Decimal, LifecycleError, pipeline as pl } from "@necessary/pgorm";
+import { ConstructionError, pipeline as pl } from "@necessary/pgorm";
 import { Cake } from "../../../guide/bakery.ts";
+import type { GuideContext } from "../../../guide/context.ts";
 
-export default async function example(): Promise<void> {
-  const price = pl.col("cake", "price");
-  let leaked: pl.PipelineExpr | undefined;
-  pl.from(Cake.table).filterWith((binder) => {
-    leaked = binder.bind(new Decimal("3.50"));
-    return price.lte(leaked);
-  });
+export default async function example({ pool }: GuideContext): Promise<void> {
+  const refused = pl.from(Cake.table)
+    .group(pl.col("cake", "bakery_id"))
+    .aggregate(pl.countRows().as(pl.alias("sum")));
 
-  assert.throws(() => pl.from(Cake.table).filter(price.gt(leaked!)), LifecycleError);
+  assert.throws(() => refused.inspect(), ConstructionError);
+  await assert.rejects(refused.all(pool), /alias `sum` collides with a PRQL built-in name/);
 }

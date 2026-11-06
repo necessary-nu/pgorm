@@ -3,6 +3,7 @@ from typing import Any, Literal, Never, overload
 
 from ._listen import _Listener
 from ._disjoint import _Disjoint
+from ._entity_reads import _RowDecoder
 from ._results import Record
 
 STATEMENT_CACHE_CHANNEL: str
@@ -36,7 +37,7 @@ class _Connection:
     def fetch(self, /, query: Any, mode: Literal["one"]) -> Awaitable[Record]: ...
     @overload
     def fetch(self, /, query: Any, mode: Literal["optional"]) -> Awaitable[Record | None]: ...
-    def stream(self, /, query: Any, decoder: _Disjoint | None = ...) -> Awaitable[_Stream]: ...
+    def stream(self, /, query: Any, decoder: _Disjoint | _RowDecoder | None = ...) -> Awaitable[_Stream]: ...
     def notify(self, /, channel: str, payload: str) -> Awaitable[None]: ...
 
 class _Stream:

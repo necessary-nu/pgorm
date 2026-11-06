@@ -104,9 +104,10 @@ class ModelConstruction(unittest.TestCase):
                      "values": None},
         })
         self.assertEqual(
-            set(described), {"schema", "table", "alias", "primary_key", "unique_keys", "fields"}
+            set(described), {"schema", "table", "alias", "primary_key", "unique_keys", "hooks", "fields"}
         )
         self.assertEqual(described["unique_keys"], [])
+        self.assertEqual(described["hooks"], [])
         for name in ("describe", "validate", "value"):
             with self.subTest(method=name):
                 self.assertFalse(hasattr(model.columns["id"], name))
