@@ -227,18 +227,18 @@ impl MigrationName for Noop {
 
 #[async_trait::async_trait]
 impl MigrationTrait for Noop {
-    async fn up(&self, _: &pgorm::DatabaseTransaction<'_>) -> Result<(), pgorm::Error> {
+    async fn up(&self, _: &mut pgorm::DatabaseTransaction<'_>) -> Result<(), pgorm::Error> {
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
 impl MigratorTrait for OracleMigrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(Noop)]
     }
 
-    fn migration_table_name() -> Name {
+    fn migration_table_name(&self) -> Name {
         Name::runtime(LEDGER.lock().map(|name| name.clone()).unwrap_or_default())
     }
 }
@@ -252,7 +252,7 @@ async fn ledger(url: &str, name: &str) -> Reached {
     // The connection checked out here goes back idle, and is the one the
     // migrator is lent, so it does not connect again.
     drop(reach(|| pool.get()).await?);
-    let _ = OracleMigrator::up(pool, None).await;
+    let _ = OracleMigrator.up(pool, None).await;
     Ok(())
 }
 

@@ -139,9 +139,13 @@ class Transaction(RowCopies, RawStatements):
     discards the connection too, and is raised in place of the block's
     exception, which it carries as ``__context__``, unless that exception is a
     cancellation or an interpreter exit, which propagates as itself.
+
+    A migration's ``up`` is given one more: the batch's transaction, which
+    pgorm-migration's runner opened and ends, open while ``up`` runs and with
+    no parent of Python's.
     """
 
-    def __init__(self, native: _native._Transaction, parent: Connection | Transaction) -> None:
+    def __init__(self, native: _native._Transaction, parent: Connection | Transaction | None) -> None:
         if not isinstance(native, _native._Transaction) or not native.owner_matches(getattr(parent, "_native", None)):
             raise TypeError("transactions must be opened on their actual parent")
         self._native = native

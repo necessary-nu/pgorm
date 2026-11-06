@@ -36,6 +36,9 @@ register:
   ],
   "disjoints": [
     {"name": "app.Shipments", "rust": "shipping::shipment::Shipment", "typescript": "Shipments"}
+  ],
+  "one_ofs": [
+    {"name": "app.LabelTarget", "rust": "shipping::label::Target", "typescript": "LabelTarget"}
   ]
 }
 ```
@@ -43,8 +46,9 @@ register:
 `entity_crate` is relative to the file. A Rust path names modules and an item
 of that crate, with no expression, generic or keyword; a graph's `rust` names
 the function that builds it. Registration names are unique per kind, each
-Rust entity and disjoint enum is registered once, a source tuple lists one to
-six of the described entities, and every `typescript` export is a public
+Rust entity, disjoint enum and one-of enum is registered once, a source tuple
+lists one to six of the described entities, a one-of reference is exported as
+its `OneOfEntity`, and every `typescript` export is a public
 JavaScript identifier no other export or the module takes. Anything else is
 a `CodegenError` before a file is written.
 

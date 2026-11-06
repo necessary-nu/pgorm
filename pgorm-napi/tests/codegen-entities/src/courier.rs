@@ -118,3 +118,43 @@ pub mod sale {
     #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {}
 }
+/// A shipping label, on a parcel or on a pallet and never on both: a one-of
+/// reference the application registers beside its entities.
+pub mod label {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "labels", schema_name = "napi_courier")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+        pub parcel_id: Option<i32>,
+        pub pallet_id: Option<i32>,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {
+        #[pgorm(
+            belongs_to = super::parcel::Entity,
+            from = Column::ParcelId,
+            to = super::parcel::Column::DeliveryId
+        )]
+        Parcel,
+        #[pgorm(
+            belongs_to = super::pallet::Entity,
+            from = Column::PalletId,
+            to = super::pallet::Column::Id
+        )]
+        Pallet,
+    }
+
+    /// What a label is on.
+    #[derive(Clone, Copy, Debug, pgorm::OneOf)]
+    #[pgorm(entity = Entity)]
+    pub enum Target {
+        #[pgorm(column = Column::ParcelId)]
+        Parcel(super::parcel::Entity),
+        #[pgorm(column = Column::PalletId)]
+        Pallet(super::pallet::Entity),
+    }
+}

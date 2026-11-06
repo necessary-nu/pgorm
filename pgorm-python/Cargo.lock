@@ -1444,6 +1444,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgorm-migration"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "pgorm",
+ "pgorm-macros",
+ "pgorm-sql-check",
+ "pgorm-sql-macro",
+ "sha2",
+ "tracing",
+]
+
+[[package]]
 name = "pgorm-pool"
 version = "0.2.0"
 dependencies = [
@@ -1467,6 +1481,7 @@ dependencies = [
  "jiff",
  "pgorm",
  "pgorm-bindings",
+ "pgorm-migration",
  "pgorm-query",
  "postgres-protocol",
  "pyo3",

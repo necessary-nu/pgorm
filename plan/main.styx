@@ -13976,6 +13976,9 @@ children (
                     {
                         id napi.guide-gaps.migrations
                         title "JavaScript runs migrations, its frozen migrationFile .sql files and migrations of its own, with pgorm-migration's ledger, advisory lock, commits_after (the -- pgorm: commits-after line), checksums, status and pending/applied queries, and the statement-cache clear and notify after a batch, as MigratorTrait::up does; freezing generated DDL is already there (guide 22-migrations)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.migrations])
+                        }
                         deps (napi-connections napi-schema guide.javascript)
                         log (
                             {
@@ -13983,6 +13986,20 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "Narrowed 2026-11-05 after main 233566c4 gave JavaScript migrationFile, migrationFiles and MigrationFile (name, text, commitsAfter, freeze): what remains is a runner. Running a frozen file needs napi.guide-gaps.batch-execute too, since a file of several statements is a script no JavaScript terminal runs in one call."
+                            }
+
+                            {
+                                at 2026-11-06T09:01:09.081121Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T09:01:58.191948Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built in one shape with guide.python-gaps.migrations (see its decision note): migrations(list, { migrationTableName, migrationTableSchema, statementCacheChannel }) builds pgorm-migration's Migrations; a JS migration is { name, up(tx), checksum?, commitsAfter? }, read once; its up(tx) is sent to the JS thread through lib/migrations.js's dispatch with a Transaction (parent null) lent over the runner's &mut DatabaseTransaction by connect/transaction.rs lend(), closed once up settles; a rejection is rethrown as itself (wrapped in { error } on the way, since neon roots objects only). SqlMigration.read / readDir / sqlMigration are pgorm-migration's. Reads run as jobs on any executor; status logs through logger.info (console by default), as LoggingMetrics takes a logger. pgorm::Error::Custom now maps to ConstructionError in JS, as in Python (it fell through to ConnectionError before), so the runner's refusals are one class in both bindings."
                             }
                         )
                     }
@@ -14172,6 +14189,11 @@ children (
                     {
                         id napi.guide-gaps.copy-rows-round-trip
                         title "A binary COPY's rows read with copyOutRows / copy_out_rows write back through copyInRows / copy_in_rows, in both bindings: a value inference cannot type (a plain range or multirange, an empty array, an array of nulls) is typed by its COPY column's type, which copy_in_columns already holds, and CopyRowStream's rows then type-check as CopyRows"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.copy-rows.typed])
+                            main ([spec:pgorm:req:conn.copy.rows.kind])
+                            python ([spec:pgorm:req:bindings.copy-rows.typed])
+                        }
                         deps (napi.guide-gaps.binding-refusals)
                         log (
                             {
@@ -14179,6 +14201,27 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "Split from napi.guide-gaps.binding-refusals (its CopyRowStream-vs-CopyRows item). The type mismatch is real at run time, and in both bindings: JavaScript's copyInRows(copyFrom(dst, \"binary\"), await pool.copyOutRows(copyTo(src, \"binary\"))) refuses an int4range column's decoded Range (\"a range's kind is not inferred from its bounds\") and an empty int4[] (\"an array with no item but null has no element kind to infer\"); Python's copy_in_rows refuses the same rows (\"ambiguous or unsupported value: supply an explicit kind\"). Both bindings read each COPY row value by inference (pgorm-napi src/connect/copy/rows.rs copy_rows_encode -> params::read -> values::read::infer), though CopyRowEncoder knows every column's Type. Fix through pgorm (a value's kind from a column's tokio_postgres Type, for the bindings to read an un-inferable value by; built-in range and multirange types by name, a created range by its subtype, an array by its element), then in both bindings, then widen lib/copy.d.ts's CopyRows to the PlainValue rows CopyRowStream yields (Float32Array and Range among them) and test the round trip live in both suites. Probes in the reporting lane: tables with int4range, jsonb, int4[], numeric, timestamptz, interval, an empty int4[], bytea and uuid columns."
+                            }
+
+                            {
+                                at 2026-11-06T09:23:35.832397Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "2026-11-06 (migrations lane): not started. The brief makes it wait on the COPY and connections lane's described-columns work (copy_in_columns / copy_out_columns handed to the bindings), which had not landed on main (still d56f0739) when the migrations work was committed (fa2345fd on nplan/guide.python-gaps.migrations)."
+                            }
+
+                            {
+                                at 2026-11-06T10:14:50.302771Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T10:14:51.784671Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built through pgorm: CopyColumn::value_kind() (conn.copy.rows.kind) answers the ArrayType a column's values are and whether an array, from the described Type (pgorm's own decode mapping). Both bindings read a COPY row value as before (inference first, so nothing accepted before is refused or reinterpreted, e.g. a naive datetime for timestamptz stays refused), except: a json or json[] column's value is read as JSON whatever it holds (a JSON number, string or array inferred as int/text/array, which the probe showed refused), and a value inference cannot type (plain Range/Multirange, empty array, array of nulls) is read as its column's kind; if neither reads it the inference refusal stands. lib/copy.d.ts: CopyValue = Param | PlainValue, CopyRows and CopyRowSink.send/CopyRowEncoder.encode take it, so a CopyRowStream passes as CopyRows with no cast. New rule bindings.copy-rows.typed rather than a bump of bindings.copy-rows (which stays true for every value it describes)."
                             }
                         )
                     }
@@ -20281,19 +20324,65 @@ children (
                     {
                         id guide.python-gaps.migrations
                         title "Python runs migrations as pgorm-migration does: MigrationTrait, MigratorTrait, MigrationName, sql_migration!, up, status, get_migration_with_status, get_pending_migrations and get_applied_migrations, commits_after, checksums, the ledger's table name and schema, the statement-cache notification, and adopting a SeaORM ledger"
+                        implements {
+                            main ([spec:pgorm:def:migration.runtime] [spec:pgorm:req:migration.sql-file.read])
+                            python ([spec:pgorm:req:bindings.migrations])
+                        }
                         deps (python.transactions python.schema)
+                        log (
+                            {
+                                at 2026-11-06T08:37:51.841955Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead's decision, built as directed: both bindings run migrations through pgorm-migration's own runner, never a reimplementation. Design: (1) MigratorTrait's methods take &self (Migrator.up(pool, None) for a unit struct), so a migrator can be a value; pgorm-migration gains `Migrations`, a migrator built at run time from Box<dyn MigrationTrait>s plus with_migration_table_name / with_migration_table_schema / with_statement_cache_channel (migration.runtime). (2) MigrationTrait::up takes &mut DatabaseTransaction<'_> (migration.runner+5), so a migration can open a savepoint or run COPY; the bindings then serve their ordinary transaction frame over the runner's borrowed transaction for the length of the host up() call (a 'lent' root frame, closed when up returns). (3) SqlMigration owns or borrows its text, and SqlMigration::read / read_dir read .sql files at run time with the macro's name, CRLF->LF text, checksum and commits-after rules (migration.sql-file.read). The bindings build a pgorm_migration::Migrations per up() call, wrapping each host migration in a MigrationTrait whose up awaits the host object's up(tx); a host exception is stashed and re-raised as itself after the runner rolls back. Reads (install, get_*_migrations) run as executor work on a pool, connection or transaction. status() logs through the language's logging (Python logging 'pgorm.migration'), as Rust's logs through tracing. Runner refusals (duplicate name, missing migration, changed checksum) are Error::Custom, the binding's ConstructionError. Shared rule bindings.migrations; bindings.migration-file+1 drops 'a binding has no migration runner'."
+                            }
+                        )
                     }
 
                     {
                         id guide.python-gaps.model-codegen
                         title "Python generates pgorm.Model declarations from DDL as pgorm-codegen generates entities: entities_from_sql, EntityWriterOptions, parse_schema, EntityTransformer and EntityWriter"
                         deps (python.models)
+                        log (
+                            {
+                                at 2026-11-06T09:23:35.544851Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Diagnosis 2026-11-06 (migrations lane, not built): pgorm-codegen's reader is parse_schema (sql_schema/mod.rs) -> EntityTransformer::transform -> EntityWriter, whose model (Entity, Column, Relation, ActiveEnum, DisjointEnum, OneOfEnum, UniqueKey) is pub(crate) and rendered only as Rust by writer.rs. One reader for three outputs means pgorm-codegen exposing that transformed model (or gaining Python and TypeScript writers beside the Rust one, laid out as bindings.codegen-layout says: black-shaped Python, deno-fmt-shaped TypeScript), and each binding exposing a function over DDL text that returns the files. Neither binding depends on pgorm-codegen yet; it adds syn/prettyplease/quote to each native build (pg_query is already linked through pgorm). Shared with napi.guide-gaps.models-from-ddl."
+                            }
+
+                            {
+                                at 2026-11-06T10:34:13.578866Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "2026-11-06, migrations lane, second pass: NOT built (context budget exhausted after items 1, 3 and 4; commits fa2345fd..0ee5919b on nplan/guide.python-gaps.migrations). Plan per the lead's decision: pgorm-codegen keeps parse_schema -> EntityTransformer::transform -> EntityWriter as the one reader and model, and gains two writers beside writer.rs, entity/python.rs and entity/typescript.rs, over EntityWriter's pub(crate) entities (Column's ColumnType, nullability, defaults/identity, primary keys, unique_keys, relations), enums (ActiveEnum), ranges (CreatedRangeType), disjoint (DisjointEnum) and one_of (OneOfEnum); public entry points next to entities_from_sql, e.g. python_models_from_sql(sql, options) and typescript_models_from_sql(sql, options), returning WriterOutput (one module each: Model/Column/TypeName/Disjoint/OneOf declarations for Python, model()/column()/disjoint()/oneOf() for JavaScript). Each writer must map a ColumnType to the kind names the declared models take (pgorm-python/python/pgorm/models/model.py Column kinds; pgorm-napi lib/models.js column kinds), and lay out as bindings.codegen-layout says (black-shaped Python, deno-fmt-shaped TypeScript; reuse the layout rules the codegen lane wrote, pgorm-python/python/pgorm/codegen/source.py and pgorm-napi/codegen/layout.js describe them). Bindings: add pgorm-codegen as a dependency of pgorm-python and pgorm-napi (pulls syn/quote/prettyplease into both native builds; pg_query is already linked) and expose pgorm.codegen.models_from_sql(ddl) / a codegen function in pgorm-napi's codegen. Tests the lead asked for: the generated declarations import, type-check (mypy --strict, deno check) and round-trip rows for an enum table, a disjoint shape, a one-of shape, and a table with every column type declared models take. Shared with napi.guide-gaps.models-from-ddl; guide chapters 23 (Python) and 23 (JavaScript) keep their \"not available yet\" paragraphs until it lands."
+                            }
+                        )
                     }
 
                     {
                         id guide.python-gaps.codegen-coverage
                         title "pgorm.codegen's application.json describes one-of references and pipeline source tuples beside entities, graphs and disjoint enums, as bindings.codegen says it covers source tuples, so neither needs a registration crate written by hand"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.codegen-coverage])
+                            python ([spec:pgorm:req:bindings.codegen-coverage])
+                        }
                         deps (python.codegen)
+                        log (
+                            {
+                                at 2026-11-06T09:23:23.282189Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Diagnosis 2026-11-06 (migrations lane, not built): pgorm-python/python/pgorm/codegen/config.py validate() and emit.py accept entities, graphs and disjoints only, so application.json can describe neither source tuples nor one-of references; bindings.codegen (v0) claims source tuples, so Python deviates from the rule today. pgorm-napi/codegen/config.js accepts sources and disjoints but no one_ofs, so JavaScript has the one-of half of the gap. Both registries already have the registration calls (Python Registry::sources::<T>() in src/pipeline/selected.rs and one_of::<O>() in src/one_of/registered.rs; JavaScript Registry::sources / one_of in src/entities/sources.rs and src/one_of/registered.rs), so the work is config + scaffold (registry.sources::<(..,)>(name), registry.one_of::<T>(name)) + emit (Python: a typed SourceSelection view and a OneOfEntity export; JS: a one-of export beside the sources one emit.js already writes) + the codegen checks (checks/codegen.py, checks/codegen.js), whose application builds are the slow part."
+                            }
+
+                            {
+                                at 2026-11-06T10:32:38.564681Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
                     }
 
                     {

@@ -1,6 +1,9 @@
 //! Migrations written as `.sql` files.
 
+use std::borrow::Cow;
 use std::fmt::Write;
+use std::io;
+use std::path::Path;
 
 use pgorm::{ConnectionTrait, DatabaseTransaction, MigrationFile};
 use sha2::{Digest, Sha256};
@@ -33,7 +36,7 @@ use crate::{Error, MigrationName, MigrationTrait};
 ///
 /// #[async_trait::async_trait]
 /// impl MigratorTrait for Migrator {
-///     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+///     fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
 ///         vec![
 ///             Box::new(sql_migration!("tests/sql/m20260101_000001_create_note.sql")),
 ///             Box::new(sql_migration!("tests/sql/m20260101_000002_seed_note.sql")),
@@ -74,7 +77,7 @@ use crate::{Error, MigrationName, MigrationTrait};
 /// assert!(added.commits_after());
 /// assert!(!sql_migration!("tests/sql/m20260101_000001_create_note.sql").commits_after());
 /// ```
-// [spec:pgorm:def:migration.sql-file]
+// [spec:pgorm:def:migration.sql-file+1]
 // [spec:pgorm:req:migration.sql-file.compile+1]    a refusal is a compile error
 #[macro_export]
 macro_rules! sql_migration {
@@ -83,13 +86,15 @@ macro_rules! sql_migration {
     };
 }
 
-/// A migration whose whole body is one SQL script, which [`sql_migration!`]
-/// builds from a `.sql` file.
-// [spec:pgorm:def:migration.sql-file]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// A migration whose whole body is one SQL script: what [`sql_migration!`]
+/// builds from a `.sql` file while the crate compiles, and what
+/// [`SqlMigration::read`] and [`SqlMigration::read_dir`] read from files as
+/// the program runs.
+// [spec:pgorm:def:migration.sql-file+1]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SqlMigration {
-    name: &'static str,
-    sql: &'static str,
+    name: Cow<'static, str>,
+    sql: Cow<'static, str>,
     commits_after: bool,
 }
 
@@ -99,31 +104,108 @@ impl SqlMigration {
     /// [`sql_migration!`] is the usual way to build one: it takes both from a
     /// file and checks the text's grammar while the crate compiles. Text given
     /// here is run as it is, unchecked until the server parses it.
-    pub const fn new(name: &'static str, sql: &'static str) -> Self {
+    pub fn new(name: impl Into<Cow<'static, str>>, sql: impl Into<Cow<'static, str>>) -> Self {
+        let sql = sql.into();
         Self {
-            name,
+            name: name.into(),
+            commits_after: opens_with_commits_after(&sql),
             sql,
-            commits_after: opens_with_commits_after(sql),
         }
     }
 
+    /// The migration the `.sql` file at `path` holds, read as the program
+    /// runs: named for the file's stem, as [`sql_migration!`] names one, its
+    /// text the file's with every CRLF line ending read as LF, so it reports
+    /// the checksum the macro would.
+    ///
+    /// The text is held to PostgreSQL's grammar as `sql_migration!` holds a
+    /// file, syntax only, so a file the server would refuse to parse is
+    /// refused here rather than when its batch runs.
+    ///
+    /// A path naming no file stem is [`io::ErrorKind::InvalidInput`], and
+    /// text that is not UTF-8, or that the grammar refuses,
+    /// [`io::ErrorKind::InvalidData`], the grammar's refusal naming the file
+    /// and carrying the parser's diagnostic.
+    // [spec:pgorm:req:migration.sql-file.read]
+    pub fn read(path: impl AsRef<Path>) -> io::Result<Self> {
+        let path = path.as_ref();
+        let name = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("{} names no file stem", path.display()),
+                )
+            })?
+            .to_owned();
+        let text = String::from_utf8(std::fs::read(path)?).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{} is not UTF-8 text", path.display()),
+            )
+        })?;
+        let text = text.replace("\r\n", "\n");
+        if let Err(refused) = pgorm_sql_check::check_sql(&text) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{}: {refused}", path.display()),
+            ));
+        }
+        Ok(Self::new(name, text))
+    }
+
+    /// Every `.sql` file directly inside `directory`, each read as
+    /// [`read`](SqlMigration::read) reads one, in the order of their file
+    /// names: the order a directory of migrations named
+    /// `m<timestamp>_<description>.sql`, as [`MigrationFile`] freezes them,
+    /// was written in.
+    ///
+    /// A file name that is not UTF-8 is [`io::ErrorKind::InvalidData`];
+    /// subdirectories and files with another extension are passed over.
+    // [spec:pgorm:req:migration.sql-file.read]
+    pub fn read_dir(directory: impl AsRef<Path>) -> io::Result<Vec<Self>> {
+        let mut files = Vec::new();
+        for entry in std::fs::read_dir(directory)? {
+            let entry = entry?;
+            let path = entry.path();
+            if !entry.file_type()?.is_file()
+                || path.extension().and_then(|extension| extension.to_str()) != Some("sql")
+            {
+                continue;
+            }
+            let file_name = entry.file_name().into_string().map_err(|name| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("{} is not a UTF-8 file name", name.display()),
+                )
+            })?;
+            files.push((file_name, path));
+        }
+        files.sort();
+        files
+            .into_iter()
+            .map(|(_, path)| Self::read(path))
+            .collect()
+    }
+
     /// The script `up` runs.
-    pub const fn sql(&self) -> &'static str {
-        self.sql
+    pub fn sql(&self) -> &str {
+        &self.sql
     }
 }
 
 impl MigrationName for SqlMigration {
     fn name(&self) -> &str {
-        self.name
+        &self.name
     }
 }
 
 #[async_trait::async_trait]
 impl MigrationTrait for SqlMigration {
-    // [spec:pgorm:def:migration.sql-file]    the script runs whole, in the batch's transaction
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
-        tx.batch_execute(self.sql).await
+    // [spec:pgorm:def:migration.sql-file+1]    the script runs whole, in the batch's transaction
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
+        tx.batch_execute(&self.sql).await
     }
 
     // [spec:pgorm:req:migration.sql-file.commits-after]
@@ -133,26 +215,16 @@ impl MigrationTrait for SqlMigration {
 
     // [spec:pgorm:req:migration.sql-file.checksum]
     fn checksum(&self) -> Option<String> {
-        Some(sha256_hex(self.sql))
+        Some(sha256_hex(&self.sql))
     }
 }
 
 /// Whether `sql`'s first line is [`MigrationFile::COMMITS_AFTER`], ended by
 /// a line break or by the text's end.
 // [spec:pgorm:req:migration.sql-file.commits-after]
-const fn opens_with_commits_after(sql: &str) -> bool {
-    let (text, directive) = (sql.as_bytes(), MigrationFile::COMMITS_AFTER.as_bytes());
-    if text.len() < directive.len() {
-        return false;
-    }
-    let mut at = 0;
-    while at < directive.len() {
-        if text[at] != directive[at] {
-            return false;
-        }
-        at += 1;
-    }
-    text.len() == directive.len() || text[directive.len()] == b'\n'
+fn opens_with_commits_after(sql: &str) -> bool {
+    sql.strip_prefix(MigrationFile::COMMITS_AFTER)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('\n'))
 }
 
 /// The lowercase hexadecimal SHA-256 digest of `text`'s bytes.

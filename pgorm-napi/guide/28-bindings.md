@@ -52,9 +52,9 @@ Values cross between the languages with their PostgreSQL types kept: an
 types](13-values.md)).
 
 What Rust has and this package does not yet, each chapter names where it
-arises: among them the migration runner and entity generation from DDL,
-which are Rust crates of their own ([Migrations](22-migrations.md),
-[Generating entities](23-codegen.md)).
+arises: among them entity generation from DDL, which is a Rust crate of its
+own ([Generating entities](23-codegen.md)). The migration runner, a Rust
+crate too, runs JavaScript's migrations ([Migrations](22-migrations.md)).
 
 ## One statement, three languages
 

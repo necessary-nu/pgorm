@@ -728,6 +728,21 @@ closed, and a transaction by the block or callback it was opened for ending.
 > `finish()` refuses data that ends part way through a row or without the
 > trailer, each refusal a `DecodeError`.
 
+> [spec:pgorm:req:bindings.copy-rows.typed]
+> A row `copy_out_rows` read MUST write back through `copy_in_rows`, a
+> `CopyRowSink` and a `CopyRowEncoder` into columns of the same types, each
+> value as its column's type. Where a value says less than its column, it is
+> read as its column's kind, pgorm's `CopyColumn::value_kind()`
+> (`[spec:pgorm:req:conn.copy.rows.kind]`), rather than refused: a json
+> column's value, or the elements of a json array's, is read as JSON whatever
+> it holds, a number, a string or a list included, which inference reads as
+> numbers, text and arrays; and a value inference cannot type, a range or a
+> multirange of no named type, an array holding no element or only nulls, is
+> read as its column's kind. Every other value is read as
+> `bindings.copy-rows` says, and a value neither reading takes is refused as
+> inference refuses it. Each binding's types MUST take what its row stream
+> yields as rows to write, so a stream is written back with no cast.
+
 > [spec:pgorm:req:bindings.listen+3]
 > `listener(capacity)` on a pool MUST open a `Listener` through pgorm's
 > `DatabasePool::listener` (`conn.listen`): a connection of its own, opened
@@ -2081,6 +2096,24 @@ Rust generic at run time, only use the ones compiled in.
 > native module and every registration it names describe as they did when it
 > was written, and refuse to load otherwise.
 
+> [spec:pgorm:req:bindings.codegen-coverage]
+> Each binding's build description MUST describe, beside its entities, graph
+> shapes and disjoint enums, the downstream crate's one-of references and its
+> source tuples. A one-of reference (`one_ofs`) names its registration, the
+> Rust path of its `#[derive(OneOf)]` enum and its export; the scaffold
+> registers it with the registry's `one_of`, and the generated module exports
+> it as the `OneOfEntity` the binding's `one_of_entity` gives. A source tuple
+> (`sources`) names its registration, the Rust paths of one to six entity
+> types the description registers, and its export; the scaffold registers it
+> with the registry's `sources`, and the generated module exports the
+> `SourceSelection` a pipeline's `select_sources` takes, with the type of
+> the row it selects: each listed entity's record, or nothing where the row
+> lacks it. Each is refused, before anything is written, as `bindings.codegen`
+> refuses an entity: a name that repeats or collides, a Rust path that is no
+> path to an item, a one-of enum registered twice, and a source tuple listing
+> an entity the description does not register. The generated module's load
+> check covers both, as it covers the rest of its registrations.
+
 > [spec:pgorm:req:bindings.codegen-layout]
 > The module each binding's codegen writes (`bindings.codegen`), and its
 > declarations, MUST read as a person writes the language, laid out as the
@@ -2241,7 +2274,7 @@ Rust generic at run time, only use the ones compiled in.
 > regardless is refused with the `ConstructionError` naming the base as
 > read-only (`bindings.disjoint-unkinded`).
 
-> [spec:pgorm:req:bindings.migration-file]
+> [spec:pgorm:req:bindings.migration-file+1]
 > Each binding MUST freeze generated DDL as pgorm freezes it
 > (`[spec:pgorm:def:migration.frozen]`), the text and the file written by
 > pgorm's `MigrationFile` alone: `migration_file(name, statements,
@@ -2256,10 +2289,65 @@ Rust generic at run time, only use the ones compiled in.
 > `commits_after`, and `freeze(directory)` writing `<name>.sql` where no file
 > of that name is and answering whether it did, never rewriting one. A name
 > that is no plain file stem MUST be a `ConstructionError`, and any other
-> failure to write the file the language's own I/O error. A binding has no
-> migration runner: each file is one migration for a tool that runs a
-> directory of SQL files, each in its own transaction, or for
-> pgorm-migration's `sql_migration!`.
+> failure to write the file the language's own I/O error. Each file is one
+> migration, which the binding's own runner reads back as a `SqlMigration`
+> (`bindings.migrations`) and pgorm-migration's `sql_migration!` compiles
+> into a Rust migrator.
+
+> [spec:pgorm:req:bindings.migrations]
+> Each binding MUST run its migrations through pgorm-migration's runner, a
+> `Migrations` (`[spec:pgorm:def:migration.runtime]`) it builds from the
+> program's list, never a runner of its own: the ledger, its placement and
+> the adoption of SeaORM's, the advisory lock, the pending set, checksums,
+> `commits_after`, the name check and the statement-cache clear and
+> notification are that runner's (`migration.runner`, `migration.up`).
+>
+> `SqlMigration(name, sql)` is pgorm-migration's `SqlMigration::new`, and
+> `SqlMigration.read(path)` and `SqlMigration.read_dir(directory)` are its
+> `read` and `read_dir` (`migration.sql-file.read`): a file the binding
+> froze with `migration_file` reads back as the migration
+> `sql_migration!` makes of it, its name, its checksum and its
+> `commits_after` included. Each reads its `name`, its `sql`, its `checksum`
+> and whether it `commits_after`. A path naming no file stem, text that is
+> not UTF-8 and text PostgreSQL's grammar refuses MUST be a
+> `ConstructionError`, the last naming the file and the parser's diagnostic,
+> and any other failure to read the language's own I/O error.
+>
+> A migration written in the language is an object with a `name`, a string,
+> and an `up` method taking one transaction and completing asynchronously,
+> with an optional `checksum`, a string or nothing, and an optional
+> `commits_after`, false unless given; the binding reads the three once, as
+> the migrator is built, and anything else in the list is a `TypeError`. It
+> is a `MigrationTrait` whose `up` calls the object's `up` with a transaction
+> handle on the batch's own transaction, the `&mut DatabaseTransaction` the
+> runner passes (`migration.runner`), and awaits it. The handle is the
+> language's transaction, open for that call alone: every statement,
+> terminal and COPY a transaction takes runs on it, and a savepoint opens on
+> it as on any transaction, while nothing commits or rolls it back but the
+> runner. Once `up` completes the handle is closed, so a command made with it
+> afterwards is the `LifecycleError` a closed transaction's is. An exception
+> `up` raises or a rejection it returns fails the migration, which rolls the
+> batch back as a Rust migration's error does, and `up` then raises it as
+> itself rather than pgorm's account of it.
+>
+> `Migrations(migrations, migration_table_name, migration_table_schema,
+> statement_cache_channel)` builds the migrator, the three options answering
+> `migration_table_name()`, `migration_table_schema()` and
+> `statement_cache_channel()`, `STATEMENT_CACHE_CHANNEL` unless given and
+> none notifying nothing. Its `up(pool, steps)` is the runner's `up` on the
+> pool's `DatabasePool`, every step bound included: it checks connections
+> out of that pool, as Rust's runner checks them out of the `DatabasePool`
+> it is given, so an instrumented pool's collector is not told of them, and
+> it clears that pool's statement caches. `install(executor)`,
+> `get_migration_with_status(executor)`, `get_pending_migrations(executor)`
+> and `get_applied_migrations(executor)` are the runner's on a pool, a
+> connection or a transaction, the last three each giving the migrations'
+> names with their status, pending or applied, in the list's order; they
+> only read (`migration.read-only`). `status(executor)` logs each
+> migration's name and status through the language's logging, as Rust's
+> logs them through `tracing`. The runner's own refusals — a name twice in
+> the list, a ledger row with no migration, a checksum that has changed —
+> are pgorm's `Error::Custom`, the binding's `ConstructionError`.
 
 > [spec:pgorm:req:bindings.one-of+1]
 > Each binding MUST read, set and load a reference to exactly one of several

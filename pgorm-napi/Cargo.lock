@@ -1465,6 +1465,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgorm-migration"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "pgorm",
+ "pgorm-macros",
+ "pgorm-sql-check",
+ "pgorm-sql-macro",
+ "sha2",
+ "tracing",
+]
+
+[[package]]
 name = "pgorm-napi"
 version = "0.2.0"
 dependencies = [
@@ -1475,6 +1489,7 @@ dependencies = [
  "neon",
  "pgorm",
  "pgorm-bindings",
+ "pgorm-migration",
  "pgorm-query",
  "postgres-protocol",
  "rust_decimal",

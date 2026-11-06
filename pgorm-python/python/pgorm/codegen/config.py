@@ -93,6 +93,11 @@ def registration(value: object) -> str:
     return value
 
 
+# The registration families a description holds, in the order they are
+# validated: a source tuple's entities are checked against the entities.
+FAMILIES = ("entities", "graphs", "disjoints", "one_ofs", "sources")
+
+
 def validate(data: object, base: str | PathLike[str]) -> dict[str, Any]:
     if not isinstance(data, dict) or set(data) - {
         "schema_version",
@@ -101,6 +106,8 @@ def validate(data: object, base: str | PathLike[str]) -> dict[str, Any]:
         "entities",
         "graphs",
         "disjoints",
+        "one_ofs",
+        "sources",
     }:
         raise CodegenError("unknown or invalid application configuration")
     if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
@@ -143,8 +150,10 @@ def validate(data: object, base: str | PathLike[str]) -> dict[str, Any]:
         "Literal",
         "Never",
     }
+    entity_types: set[str] = set()
     # [spec:pgorm:req:bindings.codegen-disjoint]
-    for family in ("entities", "graphs", "disjoints"):
+    # [spec:pgorm:req:bindings.codegen-coverage]
+    for family in FAMILIES:
         entries = data.get(family, [])
         if not isinstance(entries, list):
             raise CodegenError(f"{family} must be a list")
@@ -160,7 +169,20 @@ def validate(data: object, base: str | PathLike[str]) -> dict[str, Any]:
             if not isinstance(entry, dict) or set(entry) - allowed:
                 raise CodegenError(f"invalid {family} entry")
             name = registration(entry.get("name"))
-            path = rust_path(entry.get("rust"))
+            if family == "sources":
+                listed = entry.get("rust")
+                if not isinstance(listed, list) or not 1 <= len(listed) <= 6:
+                    raise CodegenError(
+                        "a source tuple's rust lists one to six registered entity types"
+                    )
+                paths = [rust_path(item) for item in listed]
+                if not set(paths) <= entity_types:
+                    raise CodegenError(
+                        "a source tuple lists only entity types the description registers"
+                    )
+                path = ", ".join(paths)
+            else:
+                path = rust_path(entry.get("rust"))
             export = identifier(entry.get("python"), "registration export")
             symbols = (
                 {export, export + "Model", export + "Active"}
@@ -178,7 +200,11 @@ def validate(data: object, base: str | PathLike[str]) -> dict[str, Any]:
             names.add(name)
             types.add(path)
             exports.update(symbols)
-            current: dict[str, Any] = {"name": name, "rust": path, "python": export}
+            current: dict[str, Any] = {
+                "name": name,
+                "rust": paths if family == "sources" else path,
+                "python": export,
+            }
             if family == "entities":
                 fields = entry.get("fields", {})
                 if not isinstance(fields, dict) or not all(
@@ -193,6 +219,8 @@ def validate(data: object, base: str | PathLike[str]) -> dict[str, Any]:
                 }
             normalized.append(current)
         result[family] = normalized
+        if family == "entities":
+            entity_types = {entry["rust"] for entry in normalized}
     if not result["entities"]:
         raise CodegenError("register at least one application entity")
     return result

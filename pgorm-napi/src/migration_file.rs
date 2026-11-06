@@ -37,7 +37,7 @@ pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
 
 /// `migrationFile(name, sql, commitsAfter)`: the statements' SQL frozen as
 /// the migration `name`.
-// [spec:pgorm:req:bindings.migration-file]
+// [spec:pgorm:req:bindings.migration-file+1]
 fn migration_file(mut cx: FunctionContext) -> JsResult<JsValue> {
     let name = cx.argument::<JsString>(0)?.value(&mut cx);
     let statements = cx.argument::<JsArray>(1)?.to_vec(&mut cx)?;
@@ -59,7 +59,7 @@ fn migration_file(mut cx: FunctionContext) -> JsResult<JsValue> {
 }
 
 /// `migrationFileParts(file)`: `[name, text, commitsAfter]`.
-// [spec:pgorm:req:bindings.migration-file]
+// [spec:pgorm:req:bindings.migration-file+1]
 fn parts(mut cx: FunctionContext) -> JsResult<JsValue> {
     let handle = cx.argument::<JsBox<FileHandle>>(0)?;
     let file = &handle.0;
@@ -76,7 +76,7 @@ fn parts(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `migrationFileFreeze(file, directory)`: whether it wrote `<name>.sql`
 /// there, never rewriting one; a name that is no file stem is a
 /// `ConstructionError`, any other failure an `Error` with its message.
-// [spec:pgorm:req:bindings.migration-file]
+// [spec:pgorm:req:bindings.migration-file+1]
 fn freeze(mut cx: FunctionContext) -> JsResult<JsValue> {
     let handle = cx.argument::<JsBox<FileHandle>>(0)?;
     let directory = cx.argument::<JsString>(1)?.value(&mut cx);
@@ -94,7 +94,7 @@ fn freeze(mut cx: FunctionContext) -> JsResult<JsValue> {
 
 /// `disjointMigrationFiles(change, name)`: pgorm's
 /// `DisjointChange::migration_files`, a file per step.
-// [spec:pgorm:req:bindings.migration-file]
+// [spec:pgorm:req:bindings.migration-file+1]
 fn disjoint_files(mut cx: FunctionContext) -> JsResult<JsValue> {
     let files = cx
         .argument::<JsBox<ChangeHandle>>(0)?

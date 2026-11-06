@@ -50,7 +50,7 @@ fn written(
 
 /// A change as pgorm wrote it, which the Python `DisjointChange` keeps so
 /// that `migration_files` freezes it as pgorm does.
-// [spec:pgorm:req:bindings.migration-file]
+// [spec:pgorm:req:bindings.migration-file+1]
 #[derive(Debug)]
 #[pyclass(name = "_DisjointChange", module = "pgorm._native", frozen)]
 pub struct PyDisjointChange {
@@ -60,7 +60,7 @@ pub struct PyDisjointChange {
 #[pymethods]
 impl PyDisjointChange {
     /// pgorm's `DisjointChange::migration_files`: a file per step.
-    // [spec:pgorm:req:bindings.migration-file]
+    // [spec:pgorm:req:bindings.migration-file+1]
     fn migration_files(&self, name: &str) -> Vec<PyMigrationFile> {
         self.change
             .migration_files(name)

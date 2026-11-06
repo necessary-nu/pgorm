@@ -5,7 +5,7 @@ pub struct Migrator;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(m20220118_000001_create_cake_table::Migration),
             Box::new(m20220118_000002_create_fruit_table::Migration),
@@ -15,7 +15,7 @@ impl MigratorTrait for Migrator {
         ]
     }
 
-    fn migration_table_name() -> pgorm::Name {
+    fn migration_table_name(&self) -> pgorm::Name {
         Name::runtime("override_migration_table_name")
     }
 }

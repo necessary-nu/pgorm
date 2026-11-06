@@ -34,6 +34,9 @@ pub(crate) struct State {
     pub(super) root: Arc<Root>,
     pub(super) released: CancellationToken,
     pub(super) parent: Option<Weak<State>>,
+    /// Whether this is a transaction pgorm-migration's runner lent a
+    /// migration's `up`, which no connection of Python's opened.
+    pub(super) lent: bool,
 }
 
 impl State {
@@ -42,7 +45,7 @@ impl State {
         parent: Option<&Arc<Self>>,
     ) -> (Arc<Self>, mpsc::UnboundedReceiver<Command>) {
         let root = parent.map_or_else(Root::new, |parent| parent.root.clone());
-        Self::rooted(connection, parent, root)
+        Self::rooted(connection, parent, root, false)
     }
 
     /// One attempt of a retrying transaction, sharing the root every attempt
@@ -51,13 +54,21 @@ impl State {
         connection: Arc<ConnectionState>,
         root: Arc<Root>,
     ) -> (Arc<Self>, mpsc::UnboundedReceiver<Command>) {
-        Self::rooted(connection, None, root)
+        Self::rooted(connection, None, root, false)
+    }
+
+    /// The root frame of a transaction the runner opened and lends.
+    pub(super) fn lent(
+        connection: Arc<ConnectionState>,
+    ) -> (Arc<Self>, mpsc::UnboundedReceiver<Command>) {
+        Self::rooted(connection, None, Root::new(), true)
     }
 
     fn rooted(
         connection: Arc<ConnectionState>,
         parent: Option<&Arc<Self>>,
         root: Arc<Root>,
+        lent: bool,
     ) -> (Arc<Self>, mpsc::UnboundedReceiver<Command>) {
         let (commands, receiver) = mpsc::unbounded_channel();
         let abandoned = parent.map_or_else(CancellationToken::new, |parent| {
@@ -73,6 +84,7 @@ impl State {
                 root,
                 released: CancellationToken::new(),
                 parent: parent.map(Arc::downgrade),
+                lent,
             }),
             receiver,
         )

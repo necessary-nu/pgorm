@@ -5,6 +5,7 @@ from ._schema import (
     schema_from_entity as schema_from_entity,
     MigrationFile as MigrationFile, migration_file as migration_file,
 )
+from ._migrations import SqlMigration as SqlMigration, _Migrations as _Migrations
 from ._schema_tables import (
     CreateTable as CreateTable, CreateIndex as CreateIndex,
     create_table as create_table, create_index as create_index, drop_table as drop_table,

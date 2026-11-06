@@ -13,10 +13,10 @@ async fn main() -> Result<(), Error> {
             let steps = std::env::args()
                 .nth(2)
                 .map(|s| s.parse().expect("step count must be a number"));
-            Migrator::up(db, steps).await?;
+            Migrator.up(db, steps).await?;
         }
         Some("status") => {
-            Migrator::status(&db.get().await?).await?;
+            Migrator.status(&db.get().await?).await?;
         }
         Some(other) => {
             eprintln!("unknown command '{other}'; expected 'up [n]' or 'status'");

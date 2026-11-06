@@ -120,6 +120,7 @@ export {
   removeDisjointKindTable,
 } from "./disjoint-schema.js";
 export { MigrationFile, migrationFile, migrationFiles } from "./migration-file.js";
+export { Migrations, migrations, SqlMigration, sqlMigration } from "./migrations.js";
 export { createOneOf, OneOf, oneOf, OneOfEntity, oneOfEntities, oneOfEntity } from "./one-of.js";
 export { DisjointCursor, DisjointPaginator, DisjointQuery, DisjointWrite } from "./disjoint-query.js";
 export { ActiveModel, entities, Entity, entity } from "./entities.js";

@@ -45,6 +45,10 @@ from .._native import (
 from .._native import Table, _Disjoint as _NativeDisjoint
 from .._native import MigrationFile as MigrationFile, migration_file as migration_file
 from .changes import DisjointChange, DisjointGap, DisjointStep
+from .migrations import (
+    Migration as Migration, MigrationStatus as MigrationStatus, MigrationTrait as MigrationTrait,
+    Migrations as Migrations, SqlMigration as SqlMigration,
+)
 
 if TYPE_CHECKING:
     from .._registered.disjoints import WritableDisjointView
@@ -105,7 +109,7 @@ def _change(
     )
 
 
-# [spec:pgorm:req:bindings.migration-file]
+# [spec:pgorm:req:bindings.migration-file+1]
 def migration_files(change: DisjointChange, name: str) -> list[MigrationFile]:
     """A kind change frozen as migration files, one per step in order:
     ``DisjointChange::migration_files``. Each is named ``name`` for a change
@@ -176,6 +180,7 @@ __all__ = [
     "add_disjoint_kind", "add_disjoint_kind_recreating", "remove_disjoint_kind",
     "add_disjoint_kind_table", "remove_disjoint_kind_table", "DisjointChange", "DisjointStep",
     "DisjointGap", "MigrationFile", "migration_file", "migration_files",
+    "Migrations", "SqlMigration", "Migration", "MigrationStatus", "MigrationTrait",
     "CreateTable", "create_table", "PendingAlterTable", "AlterTable", "alter_table",
     "drop_table", "rename_table", "rename_column", "rename_constraint", "truncate_table",
     "comment_on_table", "comment_on_column",

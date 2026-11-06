@@ -1111,6 +1111,17 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > `ConstructionError` naming their own `copy_in` and `copy_out`
 > (`bindings.copy`).
 
+> [spec:pgorm:req:conn.copy.rows.kind]
+> `CopyColumn::value_kind()` MUST answer the kind of `Value` the column's
+> values are: the `ArrayType` a scalar column's values decode as and are
+> checked against (`conn.copy.rows`), or for an array column its elements',
+> with `true`, and `None` for a type no `Value` holds. A domain's column is
+> described by the type the domain is over, an enum's and a created range's
+> by `String`, the form they are read and written in. It is how a language
+> binding reads a value whose kind nothing else says — an array holding no
+> element or only nulls, a range or multirange of no named type — as its
+> column's (`bindings.copy-rows.typed`).
+
 > [spec:pgorm:req:conn.copy.rows+5]
 > Binary COPY carries rows of pgorm `Value`s, each field in its value's
 > binary form, the form a parameter is bound in and a result column decoded
