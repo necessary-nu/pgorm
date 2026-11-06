@@ -295,6 +295,9 @@
       "sum": null,
       "that": null,
       "this": null
+    },
+    "codegen": {
+      "models_from_sql": null
     }
   },
   "descriptions": {
@@ -387,9 +390,6 @@
       "name": null,
       "rust_shape": null,
       "entities": null
-    },
-    "codegen": {
-      "models_from_sql": null
     }
   },
   "questions": {},
