@@ -140,7 +140,7 @@ async def main() -> None:
         ]
 
         raise_prices = update(cake).set("price", col("price") + Decimal("0.50")).where(col("bakery_id") == 2)
-        assert raise_prices.inspect().sql == 'UPDATE "cake" SET "price" = "price" + $1 WHERE "bakery_id" = $2'
+        assert raise_prices.inspect().sql == 'UPDATE "cake" SET "price" = "price" + $1::numeric WHERE "bakery_id" = $2'
         assert await pool.execute(raise_prices) == 2
 
         deleted = await pool.query(delete(cake).where(col("id") == 5).returning(col("name")))
@@ -180,14 +180,14 @@ binding it; reach for it for a constant the statement's text should hold:
 from pgorm import TypeName, Value, bind, col, literal
 
 expression = col("price") + 1
-assert expression.inspect().sql == 'SELECT "price" + $1'
+assert expression.inspect().sql == 'SELECT "price" + $1::int4'
 assert [value.kind for value in expression.inspect().params] == ["i64"]
 
 typed = bind(1).cast(TypeName("integer"))
 assert typed.inspect().sql == "SELECT CAST($1::int8 AS integer)"
 
 small = bind(Value(7, "i16")) + literal(3)
-assert small.inspect().sql == "SELECT $1 + 3"
+assert small.inspect().sql == "SELECT $1::int2 + 3"
 assert [value.kind for value in small.inspect().params] == ["i16"]
 ```
 
@@ -516,7 +516,7 @@ async def main() -> None:
             .returning(ReturningRow.Old.col("price").as_("was"), ReturningRow.New.col("price").as_("now"))
         )
         assert doubled.inspect().sql == (
-            'UPDATE "cake" SET "price" = "price" * $1 WHERE "id" = $2 '
+            'UPDATE "cake" SET "price" = "price" * $1::int4 WHERE "id" = $2 '
             'RETURNING old."price" AS "was", new."price" AS "now"'
         )
         row = await pool.one(doubled)
@@ -580,7 +580,7 @@ async def main() -> None:
             .where(bakery.col("city") == "Bergen")
         )
         assert bergen.inspect().sql == (
-            'UPDATE "cake" SET "price" = "cake"."price" + $1 FROM "bakery" '
+            'UPDATE "cake" SET "price" = "cake"."price" + $1::numeric FROM "bakery" '
             'WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2'
         )
         assert await pool.execute(bergen) == 2

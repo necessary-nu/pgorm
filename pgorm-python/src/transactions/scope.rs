@@ -95,6 +95,17 @@ impl Completion {
         }
     }
 
+    /// A frame whose `COMMIT` an aborted transaction answered by rolling it
+    /// back, or whose `RELEASE` it refused and pgorm rolled back to: the
+    /// commit's reply carries the failure, and the connection is in a known
+    /// state.
+    fn aborted(reply: Option<Reply>, error: Error) -> Self {
+        Self {
+            healthy: true,
+            answer: reply.map(|reply| (reply, Err(Failure::Pgorm(error)))),
+        }
+    }
+
     /// A frame whose end left its connection in a state nobody knows.
     fn failed(reply: Option<Reply>, failure: Failure) -> Self {
         Self {
@@ -194,7 +205,7 @@ impl Frame {
     /// Serve the frame's commands inside its transaction, a savepoint's frame
     /// nested inside while it is open: `Ok` once Python commits, an `Exit`
     /// once it rolls back or the handle is abandoned.
-    // [spec:pgorm:req:bindings.transactions]
+    // [spec:pgorm:req:bindings.transactions+1]
     pub(super) fn serve<'a>(
         &'a mut self,
         tx: &'a mut DatabaseTransaction<'_>,
@@ -319,6 +330,15 @@ impl Frame {
         };
         Ended::Ran(match ended {
             Ok(()) => Completion::finished(self.committed.take()),
+            // [spec:pgorm:req:bindings.transactions+1]    an aborted transaction's COMMIT raises, its connection kept
+            Err(TransactionError::Connection(error @ Error::TransactionAborted(_))) => {
+                Completion::aborted(self.committed.take(), error)
+            }
+            // An aborted transaction whose ROLLBACK then failed: the rollback's
+            // failure is what leaves the connection unknown.
+            Err(TransactionError::Connection(Error::RollbackFailed { rollback, .. })) => {
+                Completion::failed(self.committed.take(), Failure::Pgorm(*rollback))
+            }
             Err(TransactionError::Connection(error)) => {
                 if let Some(opened) = self.opened.take() {
                     return Ended::Refused(opened, error);
@@ -349,7 +369,7 @@ mod tests {
     use crate::errors::ConstructionError;
     use pyo3::Python;
 
-    // [spec:pgorm:req:bindings.errors+5/test]    a transaction ending this binding has no arm
+    // [spec:pgorm:req:bindings.errors+6/test]    a transaction ending this binding has no arm
     // for is its own failure, an InternalError, while pgorm's `Error::Custom`, which only an
     // application's hook returns, is the ConstructionError a hook's refusal is
     #[test]

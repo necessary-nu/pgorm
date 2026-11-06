@@ -90,7 +90,7 @@ assert.deepEqual(await pool.query(query), [
 ]);
 
 const raise = update(cake).set("price", col("price").add(new Decimal("0.50"))).where(col("bakery_id").eq(2));
-assert.equal(raise.inspect().sql, `UPDATE "cake" SET "price" = "price" + $1 WHERE "bakery_id" = $2`);
+assert.equal(raise.inspect().sql, `UPDATE "cake" SET "price" = "price" + $1::numeric WHERE "bakery_id" = $2`);
 assert.equal(await pool.execute(raise), 2);
 
 const deleted = await pool.query(deleteFrom(cake).where(col("id").eq(5)).returning([col("name")]));
@@ -317,7 +317,7 @@ const doubled = update(new Table("cake"))
 
 assert.equal(
   doubled.inspect().sql,
-  `UPDATE "cake" SET "price" = "price" * $1 WHERE "id" = $2 RETURNING old."price" AS "was", new."price" AS "now"`,
+  `UPDATE "cake" SET "price" = "price" * $1::int4 WHERE "id" = $2 RETURNING old."price" AS "was", new."price" AS "now"`,
 );
 const [row] = await pool.query(doubled);
 assert.deepEqual([String(row?.was), String(row?.now)], ["4.50", "9.00"]);
@@ -351,7 +351,7 @@ const raise = update(cake)
   .where(bakery.col("city").eq("Bergen"));
 assert.equal(
   raise.inspect().sql,
-  `UPDATE "cake" SET "price" = "cake"."price" + $1 FROM "bakery" WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2`,
+  `UPDATE "cake" SET "price" = "cake"."price" + $1::numeric FROM "bakery" WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2`,
 );
 assert.equal(await pool.execute(raise), 2);
 

@@ -439,36 +439,31 @@ asyncio.run(main())
 ### Limits, pages and cursors
 
 `limit` and `offset` count the rows of the join, not the roots: a bakery with
-three cakes spends three rows of a limit. Rust therefore refuses
-`all_grouped` on a limited graph, whose last entry could hold only part of
-its root's rows, and `paginate`, `count` and a cursor, which set the rows
-themselves; its compiler rejects each.
-
-Here Python differs from Rust: a Python graph refuses none of them. A limited
-graph's `all_grouped` groups the rows the limit let through, so its last root
-can come with part of its rows, as Sunrise does here with two of its three
-cakes; a paginator's pages and a cursor's window replace the limit, and
-`count` drops it. Do not limit a graph you read grouped.
+three cakes spends three rows of a limit. A limited graph therefore has no
+`all_grouped`, whose last entry could hold only part of its root's rows, and
+no `paginate`, `count` or `cursor`, which set the rows themselves. Rust's
+compiler refuses them, and so does mypy: `limit` and `offset` return a
+`Graph[Literal[True]]`, which those methods do not take. Run anyway, each
+raises `ConstructionError`:
 
 ```python
 import asyncio
 import os
 
-from pgorm import Pool
+from pgorm import ConstructionError, Pool
 
 from bakery import Bakery, bakery_cakes
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        limited = (
-            Bakery.graph()
-            .join_maybe(bakery_cakes)
-            .order_by(Bakery.col("id").asc())
-            .limit(2)
-        )
-        partial = await limited.all_grouped(pool)
-        assert [(bakery["name"], len(cakes)) for bakery, cakes in partial] == [("Sunrise", 2)]
+        limited = Bakery.graph().join_maybe(bakery_cakes).limit(2)
+        try:
+            await limited.all_grouped(pool)  # type: ignore[misc]  # mypy refuses it too
+        except ConstructionError as refusal:
+            assert "has no all_grouped" in str(refusal)
+        else:
+            raise AssertionError("a limited graph was read grouped")
 
 
 asyncio.run(main())

@@ -3,11 +3,11 @@
 // A model's columns: each one's declared kind, nullability and key, what a
 // value written to it or compared with it becomes, and the expression that
 // reads it.
-// [spec:pgorm:req:bindings.model-columns+1]
+// [spec:pgorm:req:bindings.model-columns+2]
 
 import { TRUSTED } from "./builder.js";
 import { ConstructionError } from "./errors.js";
-import { Expr, Quantified } from "./expressions.js";
+import { all, any, Expr, listedValues, Quantified } from "./expressions.js";
 import { native } from "./operations.js";
 import { Select } from "./select.js";
 import { CreatedMultirange, CreatedRange, TypeName, Value } from "./values.js";
@@ -247,9 +247,34 @@ export class ModelColumn extends Expr {
     return this.#column;
   }
 
+  /**
+   * `any(..)` or `all(..)` over a list of values, ranging over them each
+   * converted to the declared kind and bound as one array of it, an enum's
+   * cast to its array type, as pgorm's `eq_any` binds through the column's
+   * cast. One over a `Select` or an expression, and one beside an array
+   * column, whose elements are arrays, is the quantifier given.
+   * [spec:pgorm:req:bindings.model-columns+2]
+   *
+   * @param {Quantified} quantified
+   */
+  #quantified(quantified) {
+    const listed = listedValues(quantified);
+    if (listed === undefined || this.#column.array) return quantified;
+    const [quantifier, values] = listed;
+    const elements = values.map((value) => {
+      if (value === null) {
+        throw new ConstructionError(`${this.#field} compared with null is never true: test it with isNull()`);
+      }
+      const converted = columnValue(this.#column, this.#field, value);
+      return converted instanceof Value ? converted.value : value;
+    });
+    const array = Value.array(/** @type {any} */ (this.#column.kind), elements);
+    return quantifier === "all" ? all(array) : any(array);
+  }
+
   /** @param {unknown} value */
   #operand(value) {
-    if (value instanceof Quantified) return value;
+    if (value instanceof Quantified) return this.#quantified(value);
     if (value === null) {
       throw new ConstructionError(`${this.#field} compared with null is never true: test it with isNull()`);
     }

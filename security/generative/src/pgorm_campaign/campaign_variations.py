@@ -389,9 +389,12 @@ def _deferred(e):
                 pending.setdefault(scope, "stay")
             elif entity == "campaign.Room" and pending.get(scope) == "stay":
                 pending[scope] = "room"
-        elif step["op"] == "commit" and pending.get(scope) == "room":
-            if (step.get("observation") or {}).get("kind") != "error":
-                return True
+        elif (
+            step["op"] == "commit"
+            and pending.get(scope) == "room"
+            and (step.get("observation") or {}).get("kind") != "error"
+        ):
+            return True
     return False
 
 

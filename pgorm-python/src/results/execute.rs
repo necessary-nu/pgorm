@@ -1,5 +1,5 @@
+use crate::panics::future_into_py;
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyList};
-use pyo3_async_runtimes::tokio::future_into_py;
 
 use super::PyRecord;
 use crate::{

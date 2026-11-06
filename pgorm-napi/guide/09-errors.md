@@ -147,10 +147,14 @@ shows the retrying.
 Some failures happen on the client, without the server refusing anything. A
 value can be refused on its way in, because the parameter's type cannot hold
 it, or on its way out, because JavaScript has no value that holds the
-column's exactly. Rust reports both as driver errors, each with a classifier:
-`bind_refusal` says which `$N` parameter was refused, and `decode_refusal`
-what was being read. JavaScript reports them as a `ConstructionError` and a
-`DecodeError`, whose messages say the same, with no fields beside the message:
+column's exactly. A statement can be given another number of values than
+its placeholders take, too. Rust reports these as driver errors, each with a
+classifier: `bind_refusal` says which `$N` parameter was refused,
+`parameter_count_refusal` how many parameters the statement takes and how
+many it was given, and `decode_refusal` what was being read. JavaScript
+reports the first two as a `ConstructionError` and the last as a
+`DecodeError`, whose messages say the same, with no fields beside the
+message:
 
 ```ts
 import assert from "node:assert/strict";
@@ -160,6 +164,11 @@ import { ConstructionError, DecodeError } from "@necessary/pgorm";
 const tooWide = await pool.execute("SELECT $1::smallint", [100_000]).catch((error: unknown) => error);
 assert.ok(tooWide instanceof ConstructionError);
 assert.match(tooWide.message, /^parameter \$1 cannot be bound/);
+
+// Two placeholders, and one value.
+const short = await pool.execute("SELECT $1::text, $2::text", ["lemon"]).catch((error: unknown) => error);
+assert.ok(short instanceof ConstructionError);
+assert.equal(short.message, "the statement takes 2 parameters, and 1 was given");
 
 // No Temporal type is a time of day at a fixed offset.
 const unreadable = await pool.one("SELECT '12:00+01'::timetz AS opens").catch((error: unknown) => error);
@@ -203,6 +212,7 @@ state it reports:
 | `Type` | a `DecodeError` for a value a field cannot hold, or a `ConstructionError` for a value a parameter cannot |
 | `Json`, `Conversion`, `UnpackInsertId` | a `ConstructionError` going in, or a `DecodeError` coming out |
 | `RollbackFailed` | a `SuppressedError` from `transaction(fn)`: the rollback's failure as its `error`, and what the callback threw as its `suppressed` ([Transactions](08-transactions.md)) |
+| `TransactionAborted` | a `DatabaseError` whose `sqlstate` is `25P02` from `transaction(fn)`, whose callback returned after catching a failed statement's error, so it was rolled back ([Transactions](08-transactions.md#a-caught-error-still-aborts)) |
 | `Query` | a `DecodeError` for a read that cannot be carried out as asked, such as a relation's key that matches no row |
 | `Pool` | a `ConnectionError` when a connection cannot be opened, a `DatabaseError` when the server refuses to open one, a `TimeoutError` when none comes free in time |
 | `Verify` | none: [Raw SQL](10-raw-sql.md) says what JavaScript lacks there |

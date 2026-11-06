@@ -22,6 +22,7 @@ mod rows;
 
 use std::{fmt, num::NonZeroU64, sync::Arc};
 
+use crate::panics::future_into_py;
 use pgorm::pgorm_query::{IntoCondition, SelectStatement, Value};
 use pgorm::{DisjointShape, DisjointTable, DisjointValues, Error};
 use pyo3::{
@@ -29,7 +30,6 @@ use pyo3::{
     prelude::*,
     types::{PyList, PyTuple},
 };
-use pyo3_async_runtimes::tokio::future_into_py;
 
 use crate::{
     entities::{PyActiveModel, backend::EntityBackend},

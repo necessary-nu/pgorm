@@ -164,7 +164,8 @@ from ._json import (
 from ._results import Record as Record, Field as Field
 from ._entities import Entity as Entity, EntityColumn as EntityColumn, EntityQuery as EntityQuery, entity as entity, entities as entities
 from ._versions import (
-    Change as Change, Upserted as Upserted, EntityUpdate as EntityUpdate,
+    Change as Change, Upserted as Upserted, _change as _change, _inserted as _inserted,
+    _updated as _updated, EntityUpdate as EntityUpdate,
     EntityUpdateMany as EntityUpdateMany, EntityInsert as EntityInsert,
     EntityInsertMany as EntityInsertMany,
 )

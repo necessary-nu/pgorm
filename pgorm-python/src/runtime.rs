@@ -4,9 +4,9 @@ use std::{
     time::Duration,
 };
 
+use crate::panics::future_into_py;
 use pgorm::ConnectionTrait;
 use pyo3::prelude::*;
-use pyo3_async_runtimes::tokio::future_into_py;
 use tokio::sync::{Mutex, OwnedMutexGuard};
 use tokio_util::sync::CancellationToken;
 
@@ -135,7 +135,7 @@ fn running_loop(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
         })
 }
 
-// [spec:pgorm:req:python.runtime+1]
+// [spec:pgorm:req:python.runtime+2]
 // [spec:pgorm:req:bindings.connections+2]
 #[derive(Debug)]
 #[pyclass(name = "_Pool", module = "pgorm._native", frozen)]
