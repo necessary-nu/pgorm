@@ -77,6 +77,32 @@ class RawSQLTests(unittest.IsolatedAsyncioTestCase):
             p.prql("from python_raw_items | take $1", [1])
         self.assertIn("PRQL rejected this query", str(refused.exception))
 
+    # [spec:pgorm:req:bindings.prql-text/test]
+    async def test_prql_set_operations_combine_whole_rows(self):
+        # The operands each read a different column first, and a step after
+        # the operation reads its whole result, as Rust's prql! compiles them.
+        for verb, operator in (("intersect", "INTERSECT ALL"), ("remove", "EXCEPT ALL"), ("append", "UNION ALL")):
+            with self.subTest(verb=verb):
+                query = p.prql(
+                    "from python_raw_items\nfilter price < 3\n"
+                    f"{verb} (from python_raw_items | filter id > 1)\nselect {{id}}"
+                )
+                control = RawSQL(
+                    "SELECT id FROM (SELECT * FROM python_raw_items WHERE price < 3 "
+                    f"{operator} SELECT * FROM python_raw_items WHERE id > 1) c"
+                )
+                ids = sorted(row["id"] for row in await self.pool.query(query))
+                self.assertEqual(ids, sorted(row["id"] for row in await self.pool.query(control)))
+        self.assertEqual(
+            sorted(row["id"] for row in await self.pool.query(p.prql(
+                "from python_raw_items\nfilter price < 3\nremove (from python_raw_items | filter id > 1)\nselect {id}"
+            ))),
+            [1],
+        )
+        with self.assertRaises(p.ConstructionError) as arity:
+            p.prql("from python_raw_items | select {id, name} | intersect (from python_raw_items | select {id})")
+        self.assertIn("different numbers of columns", str(arity.exception))
+
     # [spec:pgorm:req:bindings.streams+1/test]
     async def test_transaction_stream_holds_it_to_last_row(self):
         async with self.pool.transaction() as tx:

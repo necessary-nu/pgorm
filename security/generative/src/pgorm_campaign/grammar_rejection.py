@@ -69,7 +69,7 @@ def _duplicate(state):
 def _unquotable(state):
     """A pipeline alias carrying `"` is refused at `into_sql`, not escaped.
 
-    `pipeline.errors+4` refuses rather than escapes because prqlc does the
+    `pipeline.errors+5` refuses rather than escapes because prqlc does the
     quoting and which prqlc a consumer links decides what the quote becomes.
     Exactly one identifier in the program carries a quote, so the refusal can
     only name that one.

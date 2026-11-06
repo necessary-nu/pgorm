@@ -21,7 +21,7 @@
 //! it rendered itself ([spec:pgorm:req:pipeline.params+4]), which the lexer
 //! reads as a single constant. Nor can a name lex as one: the identifier
 //! screen refuses every name that begins with `$`
-//! ([spec:pgorm:req:pipeline.errors+4]), which the compiler would otherwise
+//! ([spec:pgorm:req:pipeline.errors+5]), which the compiler would otherwise
 //! write bare. So every placeholder in the emitted text is a `Param` node
 //! the binder minted, and the census can only ever find a subset of the
 //! minted numbers — never a foreign `$N` with no value behind it.

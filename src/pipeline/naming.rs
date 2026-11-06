@@ -22,6 +22,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use super::adapter::{self, PlExpr};
+use super::sets::SetOperation;
 
 /// The prefix a minted name carries: distinct from prqlc's own `_expr_N` so
 /// the two sequences cannot collide, and outside the reserved set
@@ -29,7 +30,7 @@ use super::adapter::{self, PlExpr};
 const MINTED: &str = "_col_";
 
 /// What making a projection addressable changed.
-// [spec:pgorm:req:pipeline.compose+1]
+// [spec:pgorm:req:pipeline.compose+2]
 #[derive(Debug, Default)]
 pub(super) struct Naming {
     /// Whether any item gained a name it did not carry before.
@@ -59,7 +60,7 @@ pub(super) struct Naming {
 /// A `join` between the projection and here adds columns that are not read
 /// off any stage, so a collision with the far side is not caught; within what
 /// a projection lists, every collision is.
-// [spec:pgorm:req:pipeline.compose+1]
+// [spec:pgorm:req:pipeline.compose+2]
 pub(super) fn disambiguate(stages: &mut [PlExpr]) -> Naming {
     let projections = projection_stages(stages);
     let mut names: Vec<Option<String>> = Vec::new();
@@ -128,7 +129,7 @@ pub(super) fn disambiguate(stages: &mut [PlExpr]) -> Naming {
 /// because those are the ones prqlc renders as tables of the same query; a
 /// stage appended after the deduplication belongs to a query that has already
 /// read from this one.
-// [spec:pgorm:req:pipeline.compose+1]
+// [spec:pgorm:req:pipeline.compose+2]
 pub(super) fn bare_star_key(stages: &[PlExpr], starred: bool) -> bool {
     starred
         && stages
@@ -154,7 +155,7 @@ pub(super) fn bare_star_key(stages: &[PlExpr], starred: bool) -> bool {
 /// being left bare. It costs nothing — prqlc renders a single input's column
 /// unqualified either way — and it stays unambiguous when a later `join`
 /// brings a second relation alongside, where a bare name could mean either.
-// [spec:pgorm:req:pipeline.compose+1]
+// [spec:pgorm:req:pipeline.compose+2]
 #[derive(Debug, Clone, Default)]
 pub(super) struct Settled {
     /// The binding the relation reads from, or `None` while nothing has been
@@ -175,7 +176,7 @@ impl Settled {
     /// A set operation settles with nothing renamed, so `naming` is that
     /// pipeline's [`Naming::default`]; a deduplication hands over the one it
     /// made the projection addressable with.
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     pub(super) fn absorb(&mut self, stages: &[PlExpr], binding: &str, naming: &Naming) {
         for stage in stages {
             if !matches!(adapter::stage_verb(stage), Some("from" | "join")) {
@@ -193,7 +194,7 @@ impl Settled {
 
     /// A relation read again — the operand of a `join` — answers for itself
     /// once more, whatever an earlier settle did to a source of that name.
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     pub(super) fn rejoined(&mut self, reference: &PlExpr) {
         if let Some(source) = adapter::exposed_name(reference) {
             self.shadowed.remove(source);
@@ -202,7 +203,7 @@ impl Settled {
 
     /// Repoint every reference in `node` that names a shadowed source at the
     /// binding that now exposes its column.
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     pub(super) fn requalify(&self, node: &mut PlExpr) {
         if self.shadowed.is_empty() {
             return;
@@ -239,7 +240,7 @@ impl Settled {
 /// group, which has re-exposed the relation under names of its own, and a key
 /// that cannot follow is dropped rather than rewritten. A key this leaves bare
 /// names no source, so the general repointing passes over it untouched.
-// [spec:pgorm:req:pipeline.compose+1]
+// [spec:pgorm:req:pipeline.compose+2]
 pub(super) fn rebound_sort(mut sort: PlExpr, naming: &Naming) -> Option<PlExpr> {
     let keys = adapter::tuple_items_mut(&mut sort)?;
     for key in keys.iter_mut() {
@@ -304,7 +305,8 @@ fn projection_stages(stages: &[PlExpr]) -> Vec<usize> {
                 break;
             }
             Some("derive") => found.push(index),
-            Some("from" | "group" | "append" | "intersect" | "remove") => break,
+            Some("from" | "group") => break,
+            _ if SetOperation::of_stage(stage).is_some() => break,
             _ => {}
         }
     }

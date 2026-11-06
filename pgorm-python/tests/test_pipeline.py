@@ -184,7 +184,7 @@ class PipelineConstruction(unittest.TestCase):
         self.assertIsInstance(pl.over().by(pl.literal(1), key), pl.Over)
 
     # [spec:pgorm:req:bindings.pipeline+1/test]
-    # [spec:pgorm:req:pipeline.errors+4/test]
+    # [spec:pgorm:req:pipeline.errors+5/test]
     def test_names_the_screen_refuses_fail_at_compile(self):
         # The binding delegates to the Rust screen at `into_sql`, so it refuses
         # exactly the names Rust refuses, at the same boundary: a name that
