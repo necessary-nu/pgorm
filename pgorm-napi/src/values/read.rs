@@ -4,6 +4,7 @@
 //! Nothing here rounds, wraps, truncates or stringifies. A value that does not
 //! fit its kind exactly is refused with a `ConstructionError`.
 
+use crate::errors::FailureJs as _;
 use std::ops::Bound;
 
 use jiff::{

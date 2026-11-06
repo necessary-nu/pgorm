@@ -46,7 +46,7 @@ use pgorm::{ActiveValue, pgorm_query::Condition};
 use adapter::{Active, Between, Change, Comparison, Members, Read, Select, Write};
 pub(crate) use adapter::{EntityBackend, Model, PipelineColumn};
 use convert::column_array;
-use convert::{ModelHandle, Records, Wrote, entity_failure, names};
+use convert::{ModelHandle, Records, Wrote, names};
 pub(crate) use convert::{column_value, record};
 pub use graph::{GraphBindings, GraphModel, GraphSlots, RegisteredSlot, Source};
 pub(crate) use info::registration_name;
@@ -524,7 +524,7 @@ fn select_job(mut cx: FunctionContext) -> JsResult<JsValue> {
             let models = select
                 .run(db, read)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Records(select.info().clone(), models)) as Output)
         })
     });
@@ -663,7 +663,7 @@ fn active_job(mut cx: FunctionContext) -> JsResult<JsValue> {
             let written = active
                 .run(db, write)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Wrote(written)) as Output)
         })
     });

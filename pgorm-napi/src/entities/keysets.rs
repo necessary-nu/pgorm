@@ -61,7 +61,7 @@ fn keyset(
     bindings: &GraphBindings,
     ordered: usize,
     columns: &[String],
-    cursor: Arc<dyn pgorm::ErasedCursor<Row, crate::connect::metrics::Metrics>>,
+    cursor: Arc<dyn pgorm::ErasedCursor<Row, pgorm_bindings::Metrics>>,
 ) -> Arc<Keyset> {
     let (order, key) = key_of(bindings, ordered, columns);
     Arc::new(Keyset {

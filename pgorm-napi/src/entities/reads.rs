@@ -5,6 +5,7 @@
 //! leave it to the cursor to check; and their rows as a stream, each decoded
 //! by the read's own selector as it arrives.
 
+use pgorm_bindings::Metrics;
 use std::{fmt, num::NonZeroU64, sync::Arc};
 
 use neon::{prelude::*, types::Finalize};
@@ -15,14 +16,11 @@ use pgorm::{
 
 use super::{
     adapter::Model,
-    convert::{GraphRows, column_value, entity_failure},
+    convert::{GraphRows, column_value},
     info::EntityInfo,
 };
 use crate::{
-    connect::{
-        job::{Job, JobHandle, Output},
-        metrics::Metrics,
-    },
+    connect::job::{Job, JobHandle, Output},
     errors::Failure,
     values::read,
 };
@@ -210,7 +208,7 @@ fn cursor_job(mut cx: FunctionContext) -> JsResult<JsValue> {
                 .cursor
                 .all(db, plan)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(GraphRows(keyset.sources.clone(), rows)) as Output)
         })
     });
@@ -251,7 +249,7 @@ fn pages_fetch_job(mut cx: FunctionContext) -> JsResult<JsValue> {
                 .pages
                 .fetch(db, size, page)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(GraphRows(pages.sources.clone(), rows)) as Output)
         })
     });
@@ -285,7 +283,7 @@ fn pages_count_job(mut cx: FunctionContext) -> JsResult<JsValue> {
                 .pages
                 .count(db, size)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Counted(counted.number_of_items, counted.number_of_pages)) as Output)
         })
     });

@@ -8,7 +8,7 @@ use neon::{prelude::*, types::Finalize};
 use pgorm::pgorm_query::{Expr, Name};
 
 use super::{
-    convert::{GraphRows, entity_failure},
+    convert::GraphRows,
     graph::{Change, Factory, Query},
     inspected, strings, throw,
 };
@@ -212,7 +212,7 @@ fn query_job(mut cx: FunctionContext) -> JsResult<JsValue> {
             let rows = query
                 .run(db, optional)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(GraphRows(sources(&query), unwrapped(rows))) as Output)
         })
     });

@@ -9,45 +9,35 @@
 //! answer, so the statement it reports on finishes only once its collector
 //! has been told.
 
-use std::{
-    fmt,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{fmt, sync::Mutex};
 
-use pgorm::{
-    Error,
-    metric::{MetricsCollector, QueryContext, QueryFingerprint},
-};
+use futures_util::future::BoxFuture;
+use pgorm::metric::{QueryContext, QueryFingerprint};
+use pgorm_bindings::{Hook, Metrics, Redactions, Report, Reporter};
 use pyo3::{IntoPyObjectExt, prelude::*, types::PyTuple};
 use tokio::sync::oneshot;
 
-use crate::errors::{Redactions, database_error};
+use crate::{config::DIALECT, errors::raised};
 
-/// The seven hooks, in `MetricsCollector`'s order, as Python names them.
-pub(crate) const HOOKS: [&str; 7] = [
-    "record_query_success",
-    "record_query_error",
-    "record_connection_acquired",
-    "record_connection_error",
-    "record_transaction_begin",
-    "record_transaction_commit",
-    "record_transaction_rollback",
-];
-
-const QUERY_SUCCESS: usize = 0;
-const QUERY_ERROR: usize = 1;
-const CONNECTION_ACQUIRED: usize = 2;
-const CONNECTION_ERROR: usize = 3;
-const TRANSACTION_BEGIN: usize = 4;
-const TRANSACTION_COMMIT: usize = 5;
-const TRANSACTION_ROLLBACK: usize = 6;
-
-/// The collector an instrumented Python pool hands pgorm's wrappers: each
-/// hook they call is handed on to the Python object's.
+/// The collector an instrumented Python pool hands pgorm's wrappers, its
+/// hooks run on the pool's event loop.
 // [spec:pgorm:req:bindings.metrics]
-#[derive(Clone)]
-pub(crate) struct Metrics(Arc<Collector>);
+pub(crate) fn metrics(
+    event_loop: Py<PyAny>,
+    dispatch: Py<PyAny>,
+    hooks: [Option<Py<PyAny>>; Hook::ALL.len()],
+    secrets: Redactions,
+) -> Metrics {
+    Metrics::new(
+        Collector {
+            event_loop,
+            dispatch,
+            hooks,
+        },
+        secrets,
+        DIALECT,
+    )
+}
 
 struct Collector {
     /// The loop the pool belongs to, where every hook runs.
@@ -55,144 +45,85 @@ struct Collector {
     /// `pgorm.metrics._dispatch`, which runs one hook and answers once it
     /// has finished.
     dispatch: Py<PyAny>,
-    /// Each hook's callable, or `None` for one the collector left as
-    /// `NoOpMetrics` wrote it, which is never queued.
-    hooks: [Option<Py<PyAny>>; 7],
-    secrets: Redactions,
+    /// Each hook's callable, in `Hook::ALL`'s order, or `None` for one the
+    /// collector left as `NoOpMetrics` wrote it.
+    hooks: [Option<Py<PyAny>>; Hook::ALL.len()],
 }
 
-impl fmt::Debug for Metrics {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let reported: Vec<&str> = HOOKS
-            .iter()
-            .zip(&self.0.hooks)
-            .filter_map(|(name, hook)| hook.as_ref().map(|_| *name))
-            .collect();
-        f.debug_struct("Metrics")
-            .field("reported", &reported)
-            .finish_non_exhaustive()
+impl Collector {
+    fn hook(&self, hook: Hook) -> Option<&Py<PyAny>> {
+        let index = Hook::ALL.iter().position(|each| *each == hook)?;
+        self.hooks[index].as_ref()
     }
 }
 
-impl Metrics {
-    pub(crate) fn new(
-        event_loop: Py<PyAny>,
-        dispatch: Py<PyAny>,
-        hooks: [Option<Py<PyAny>>; 7],
-        secrets: Redactions,
-    ) -> Self {
-        Self(Arc::new(Collector {
-            event_loop,
-            dispatch,
-            hooks,
-            secrets,
-        }))
+/// What a report is as a hook's arguments: a statement's context, its
+/// duration in seconds, and its rows or its exception.
+fn arguments<'py>(py: Python<'py>, report: Report) -> PyResult<Bound<'py, PyTuple>> {
+    let seconds = |duration: std::time::Duration| duration.as_secs_f64().into_bound_py_any(py);
+    match report {
+        Report::Query {
+            operation,
+            sql,
+            duration,
+            outcome,
+        } => {
+            let last = match outcome {
+                Ok(rows) => rows.into_bound_py_any(py)?,
+                Err(failure) => raised(failure).into_value(py).into_bound_py_any(py)?,
+            };
+            PyTuple::new(
+                py,
+                [
+                    Context { operation, sql }.into_bound_py_any(py)?,
+                    seconds(duration)?,
+                    last,
+                ],
+            )
+        }
+        Report::Duration(duration) => PyTuple::new(py, [seconds(duration)?]),
+        Report::Failed(duration, failure) => PyTuple::new(
+            py,
+            [
+                seconds(duration)?,
+                raised(failure).into_value(py).into_bound_py_any(py)?,
+            ],
+        ),
+    }
+}
+
+impl Reporter for Collector {
+    fn reports(&self, hook: Hook) -> bool {
+        self.hook(hook).is_some()
     }
 
-    /// Queue hook `index` on the pool's event loop with what `args` builds,
-    /// and wait for its answer. A hook that cannot be queued — its loop
-    /// closed — is not waited for, and a hook's own failure is the
-    /// dispatcher's to report, so nothing here fails the statement.
-    async fn report<A>(&self, index: usize, args: A)
-    where
-        A: for<'py> FnOnce(Python<'py>) -> PyResult<Bound<'py, PyTuple>> + Send,
-    {
-        let Some(hook) = &self.0.hooks[index] else {
-            return;
-        };
+    /// Queue the hook on the pool's event loop and wait for its answer. A
+    /// hook that cannot be queued, its loop closed, is not waited for.
+    fn report(&self, hook: Hook, report: Report) -> BoxFuture<'static, ()> {
         let (answer, answered) = oneshot::channel();
         let queued = Python::attach(|py| -> PyResult<()> {
-            let args = args(py)?;
+            let Some(callable) = self.hook(hook) else {
+                return Ok(());
+            };
+            let args = arguments(py, report)?;
             let answer = Answer(Mutex::new(Some(answer)));
-            self.0.event_loop.bind(py).call_method1(
+            self.event_loop.bind(py).call_method1(
                 "call_soon_threadsafe",
                 (
-                    self.0.dispatch.bind(py),
-                    HOOKS[index],
-                    hook.bind(py),
+                    self.dispatch.bind(py),
+                    hook.name(DIALECT),
+                    callable.bind(py),
                     args,
                     answer,
                 ),
             )?;
             Ok(())
         });
-        if queued.is_ok() {
-            let _ = answered.await;
-        }
-    }
-
-    async fn duration(&self, index: usize, duration: Duration) {
-        self.report(index, move |py| PyTuple::new(py, [duration.as_secs_f64()]))
-            .await;
-    }
-}
-
-#[pgorm::entity::prelude::async_trait::async_trait]
-impl MetricsCollector for Metrics {
-    async fn record_query_success(
-        &self,
-        query: QueryContext<'_>,
-        duration: Duration,
-        rows: Option<u64>,
-    ) {
-        let context = Context::of(query);
-        self.report(QUERY_SUCCESS, move |py| {
-            PyTuple::new(
-                py,
-                [
-                    context.into_bound_py_any(py)?,
-                    duration.as_secs_f64().into_bound_py_any(py)?,
-                    rows.into_bound_py_any(py)?,
-                ],
-            )
+        Box::pin(async move {
+            if queued.is_ok() {
+                let _ = answered.await;
+            }
         })
-        .await;
-    }
-
-    async fn record_query_error(&self, query: QueryContext<'_>, duration: Duration, error: &Error) {
-        let context = Context::of(query);
-        let error = database_error(error, &self.0.secrets);
-        self.report(QUERY_ERROR, move |py| {
-            PyTuple::new(
-                py,
-                [
-                    context.into_bound_py_any(py)?,
-                    duration.as_secs_f64().into_bound_py_any(py)?,
-                    error.into_value(py).into_bound_py_any(py)?,
-                ],
-            )
-        })
-        .await;
-    }
-
-    async fn record_connection_acquired(&self, duration: Duration) {
-        self.duration(CONNECTION_ACQUIRED, duration).await;
-    }
-
-    async fn record_connection_error(&self, duration: Duration, error: &Error) {
-        let error = database_error(error, &self.0.secrets);
-        self.report(CONNECTION_ERROR, move |py| {
-            PyTuple::new(
-                py,
-                [
-                    duration.as_secs_f64().into_bound_py_any(py)?,
-                    error.into_value(py).into_bound_py_any(py)?,
-                ],
-            )
-        })
-        .await;
-    }
-
-    async fn record_transaction_begin(&self, duration: Duration) {
-        self.duration(TRANSACTION_BEGIN, duration).await;
-    }
-
-    async fn record_transaction_commit(&self, duration: Duration) {
-        self.duration(TRANSACTION_COMMIT, duration).await;
-    }
-
-    async fn record_transaction_rollback(&self, duration: Duration) {
-        self.duration(TRANSACTION_ROLLBACK, duration).await;
     }
 }
 
@@ -224,15 +155,6 @@ impl Answer {
 pub(crate) struct Context {
     operation: String,
     sql: Option<String>,
-}
-
-impl Context {
-    fn of(query: QueryContext<'_>) -> Self {
-        Self {
-            operation: query.operation().to_owned(),
-            sql: query.sql().map(str::to_owned),
-        }
-    }
 }
 
 #[pymethods]
@@ -301,7 +223,10 @@ impl Fingerprint {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add("METRICS_HOOKS", HOOKS)?;
+    module.add(
+        "METRICS_HOOKS",
+        Hook::ALL.map(|hook| hook.name(DIALECT)).to_vec(),
+    )?;
     module.add_class::<Context>()?;
     module.add_class::<Fingerprint>()?;
     module.add_class::<Answer>()?;

@@ -1,6 +1,7 @@
 //! Each row of a disjoint read, judged by pgorm's shape and read back by the
 //! codec, and handed to JavaScript.
 
+use crate::errors::FailureJs as _;
 use std::collections::HashMap;
 
 use neon::prelude::*;

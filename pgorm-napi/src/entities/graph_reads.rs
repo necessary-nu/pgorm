@@ -7,7 +7,7 @@ use std::sync::Arc;
 use neon::prelude::*;
 
 use super::{
-    convert::{entity_failure, list, names, record},
+    convert::{list, names, record},
     graph::Groups,
     info::EntityInfo,
     reads::{CursorHandle, DecoderHandle, PagesHandle, page_size},
@@ -126,7 +126,7 @@ fn query_grouped_job(mut cx: FunctionContext) -> JsResult<JsValue> {
         Box::pin(async move {
             let groups = grouped(db)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Grouped(root, slot, groups)) as Output)
         })
     });

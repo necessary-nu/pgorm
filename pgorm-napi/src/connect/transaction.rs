@@ -9,6 +9,7 @@
 //! the child finishes, and refuses a second request while one runs, rather
 //! than queue or race it.
 
+use pgorm_bindings::Metrics;
 use std::{fmt, future::Future, sync::Arc, time::Duration};
 
 use futures_util::future::BoxFuture;
@@ -26,7 +27,6 @@ use super::{
         self, CopyInHandle, CopyOutHandle, InLink, InState, OutLink, OutState, Release, Settle,
     },
     job::{Database, Job, Output, taken},
-    metrics::Metrics,
 };
 use crate::{
     errors::{Failure, Redactions, failure},

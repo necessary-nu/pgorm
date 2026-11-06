@@ -10,17 +10,18 @@
 
 mod copy;
 mod dialect;
+mod failure;
 mod hook;
+mod metrics;
 mod pool;
 mod tls;
 mod verify;
 
 pub use copy::{builtin_type, copy_column};
 pub use dialect::{Dialect, Refusal};
+pub use failure::{Class, Diagnostics, Failure, Redactions, classify};
 pub use hook::{HookCall, HookEvent, HookJob, HookJobs, hook};
-pub use pool::{
-    PoolFailure, PoolSettings, PoolShape, connect_listener, listener_config, multi_pool,
-    pool_failure,
-};
+pub use metrics::{Database, Hook, Metrics, Report, Reporter};
+pub use pool::{PoolSettings, PoolShape, connect_listener, listener_config, multi_pool};
 pub use tls::{Connector, TlsMode, TlsSettings};
 pub use verify::describe;

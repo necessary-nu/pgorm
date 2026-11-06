@@ -5,7 +5,6 @@ use super::{
     state::{Finished, State},
     work::{Output, Work},
 };
-use crate::metrics::Metrics;
 use crate::{
     copy::{Columns, CopyFrom, CopyTo, Described, Message, Piece, Unopened},
     errors::{InternalError, Redactions, database_error},
@@ -16,6 +15,7 @@ use futures_util::future::BoxFuture;
 use pgorm::{
     DatabaseTransaction, Error, TransactionError, TransactionTrait, metric::InstrumentedTransaction,
 };
+use pgorm_bindings::Metrics;
 use pyo3::{PyErr, PyResult};
 use std::{future::Future, sync::Arc, time::Duration};
 use tokio::sync::{OwnedMutexGuard, mpsc, oneshot};

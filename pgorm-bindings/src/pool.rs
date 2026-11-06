@@ -250,7 +250,7 @@ pub fn multi_pool(
 
 /// What a failed `get` was, when the pool rather than the server refused it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PoolFailure {
+pub(crate) enum PoolFailure {
     /// One of the three timeouts ran out; raised as the binding's
     /// `TimeoutError`.
     Timeout(String),
@@ -262,7 +262,7 @@ pub enum PoolFailure {
 /// driver's refusal is not among these: the binding finds that in the
 /// error's causes first, and reports it with its SQLSTATE.
 // [spec:pgorm:req:bindings.pool-hooks]
-pub fn pool_failure(error: &PoolError, dialect: Dialect) -> PoolFailure {
+pub(crate) fn pool_failure(error: &PoolError, dialect: Dialect) -> PoolFailure {
     match error {
         PoolError::Timeout(TimeoutType::Wait) => PoolFailure::Timeout(format!(
             "no connection came free within the pool's {}",

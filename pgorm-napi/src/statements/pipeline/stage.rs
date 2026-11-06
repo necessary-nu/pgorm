@@ -3,6 +3,7 @@
 //! operand was given, or a `With` function's placeholders — takes them through
 //! the transform's `_with` form, lowering them inside the binder closure.
 
+use crate::errors::FailureJs as _;
 use std::sync::Arc;
 
 use neon::prelude::*;

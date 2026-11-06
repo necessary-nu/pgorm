@@ -3,6 +3,7 @@
 //! each job's outcome — records, a count, row versions, graph rows — as the
 //! arrays `lib/entities.js` makes records of.
 
+use crate::errors::FailureJs as _;
 use neon::{prelude::*, types::Finalize};
 use pgorm::pgorm_query::{ArrayType, Value};
 
@@ -13,7 +14,7 @@ use super::{
 use crate::{
     codec::Codec,
     connect::job::Settled,
-    errors::{Failure, Redactions, failure, throw},
+    errors::{Failure, throw},
     rows,
     values::{Tag, Tagged, read, value_tag},
 };
@@ -145,35 +146,6 @@ pub(crate) fn list<'cx, T>(
         array.set(cx, u32::try_from(index).unwrap_or(u32::MAX), item)?;
     }
     Ok(array)
-}
-
-/// A registered entity's failure. A PostgreSQL error anywhere in its causes
-/// is the error `napi.errors` classifies it as; otherwise a terminal finding
-/// no row where it needs one is a `DecodeError`, and a write its ActiveModel
-/// or its hooks refuse is a `ConstructionError`.
-// [spec:pgorm:req:bindings.entity-writes+1]
-pub(crate) fn entity_failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
-    let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
-    while let Some(cause) = source {
-        if cause.downcast_ref::<tokio_postgres::Error>().is_some() {
-            return failure(error, secrets);
-        }
-        source = cause.source();
-    }
-    let message = error.to_string();
-    match error {
-        pgorm::Error::RecordNotFound
-        | pgorm::Error::RecordNotInserted
-        | pgorm::Error::UnpackInsertId
-        | pgorm::Error::Verify(_) => Failure::Decode(message),
-        pgorm::Error::NothingToSet
-        | pgorm::Error::PrimaryKeyNotSet
-        | pgorm::Error::AttrNotSet(_)
-        | pgorm::Error::QueryBuilder(_)
-        | pgorm::Error::Query(_)
-        | pgorm::Error::Custom(_) => Failure::Construction(message),
-        _ => failure(error, secrets),
-    }
 }
 
 /// The records a read or a write gave: `[columns, [values, model][]]`.

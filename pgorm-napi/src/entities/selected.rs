@@ -9,7 +9,7 @@ use pgorm::pipeline as pl;
 
 use super::{
     adapter::Read,
-    convert::{GraphRows, entity_failure},
+    convert::GraphRows,
     inspected,
     sources::{Selected, SourcesFactory},
     strings, throw,
@@ -164,7 +164,7 @@ fn selected_job(mut cx: FunctionContext) -> JsResult<JsValue> {
             let rows = selected
                 .run(db, read)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             let rows = rows
                 .into_iter()
                 .map(|row| {

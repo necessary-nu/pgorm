@@ -1444,6 +1444,7 @@ dependencies = [
 name = "pgorm-bindings"
 version = "0.2.0"
 dependencies = [
+ "futures-util",
  "pgorm",
  "rustls",
  "rustls-native-certs",

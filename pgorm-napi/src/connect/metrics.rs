@@ -10,166 +10,120 @@
 //! result is settled through, and awaits its answer, so the statement it
 //! reports on settles only once its collector has been told.
 
-use std::{
-    fmt,
-    sync::{Arc, Mutex, PoisonError},
-    time::Duration,
-};
+use std::sync::{Arc, Mutex, PoisonError};
 
+use futures_util::future::BoxFuture;
 use neon::{event::Channel, prelude::*, types::JsBigInt};
-use pgorm::{
-    Error,
-    metric::{MetricsCollector, QueryContext},
-};
+use pgorm::metric::QueryContext;
+use pgorm_bindings::{Dialect, Hook, Metrics, Redactions, Report, Reporter};
 use tokio::sync::oneshot;
 
-use crate::errors::{Failure, Redactions, failure};
+use crate::errors::FailureJs as _;
 
-/// The seven hooks, in `MetricsCollector`'s order, as JavaScript names them.
-pub(crate) const HOOKS: [&str; 7] = [
-    "recordQuerySuccess",
-    "recordQueryError",
-    "recordConnectionAcquired",
-    "recordConnectionError",
-    "recordTransactionBegin",
-    "recordTransactionCommit",
-    "recordTransactionRollback",
-];
-
-const QUERY_SUCCESS: usize = 0;
-const QUERY_ERROR: usize = 1;
-const CONNECTION_ACQUIRED: usize = 2;
-const CONNECTION_ERROR: usize = 3;
-const TRANSACTION_BEGIN: usize = 4;
-const TRANSACTION_COMMIT: usize = 5;
-const TRANSACTION_ROLLBACK: usize = 6;
-
-/// The collector an instrumented JavaScript pool hands pgorm's wrappers:
-/// each hook they call is handed on to the JavaScript object's.
+/// The collector an instrumented JavaScript pool hands pgorm's wrappers: each
+/// hook in `Hook::ALL`'s order, or `None` for one never to run, each run by
+/// `dispatch` on the JavaScript thread.
 // [spec:pgorm:req:bindings.metrics]
-#[derive(Clone)]
-pub(crate) struct Metrics(Arc<Collector>);
+pub(crate) fn metrics<'cx>(
+    cx: &mut impl Context<'cx>,
+    dispatch: Handle<'cx, JsFunction>,
+    hooks: [Option<Handle<'cx, JsFunction>>; Hook::ALL.len()],
+    secrets: Redactions,
+) -> Metrics {
+    let mut channel = cx.channel();
+    channel.unref(cx);
+    let dispatch = dispatch.root(cx);
+    let hooks = hooks.map(|hook| hook.map(|hook| hook.root(cx)));
+    Metrics::new(
+        Collector(Arc::new(Hooks {
+            channel,
+            dispatch,
+            hooks,
+        })),
+        secrets,
+        Dialect::JavaScript,
+    )
+}
 
-struct Collector {
+struct Hooks {
     /// The instance's shared channel, unreferenced, so that a pool holding it
     /// keeps no event loop alive.
     channel: Channel,
     /// `dispatch` in `lib/metrics.js`, which runs one hook and calls back
     /// once it has finished.
     dispatch: Root<JsFunction>,
-    /// Each hook, or `None` for one the collector left as `NoOpMetrics`
-    /// wrote it, which is never sent.
-    hooks: [Option<Root<JsFunction>>; 7],
-    secrets: Redactions,
+    hooks: [Option<Root<JsFunction>>; Hook::ALL.len()],
 }
 
-impl fmt::Debug for Metrics {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let reported: Vec<&str> = HOOKS
-            .iter()
-            .zip(&self.0.hooks)
-            .filter_map(|(name, hook)| hook.as_ref().map(|_| *name))
-            .collect();
-        f.debug_struct("Metrics")
-            .field("reported", &reported)
-            .finish_non_exhaustive()
+impl Hooks {
+    fn hook(&self, hook: Hook) -> Option<&Root<JsFunction>> {
+        let index = Hook::ALL.iter().position(|each| *each == hook)?;
+        self.hooks[index].as_ref()
     }
 }
 
-/// What a hook is told, owned until the JavaScript thread makes it values.
-enum Report {
-    Query {
-        operation: String,
-        sql: Option<String>,
-        duration: Duration,
-        outcome: Result<Option<u64>, Failure>,
-    },
-    Duration(Duration),
-    Failed(Duration, Failure),
-}
+struct Collector(Arc<Hooks>);
 
-fn milliseconds<'cx>(cx: &mut Cx<'cx>, duration: Duration) -> Handle<'cx, JsValue> {
+fn milliseconds<'cx>(cx: &mut Cx<'cx>, duration: std::time::Duration) -> Handle<'cx, JsValue> {
     cx.number(duration.as_secs_f64() * 1000.0).upcast()
 }
 
-impl Report {
-    /// The query a query hook is told of, as `[operation, sql]`, or `null`,
-    /// and the arguments after it.
-    fn into_js<'cx>(
-        self,
-        cx: &mut Cx<'cx>,
-    ) -> NeonResult<(Handle<'cx, JsValue>, Vec<Handle<'cx, JsValue>>)> {
-        Ok(match self {
-            Self::Query {
-                operation,
-                sql,
-                duration,
-                outcome,
-            } => {
-                let query = cx.empty_array();
-                let operation = cx.string(operation);
-                query.set(cx, 0, operation)?;
-                let sql: Handle<JsValue> = match sql {
-                    Some(sql) => cx.string(sql).upcast(),
-                    None => cx.null().upcast(),
-                };
-                query.set(cx, 1, sql)?;
-                let duration = milliseconds(cx, duration);
-                let last = match outcome {
-                    #[allow(clippy::cast_precision_loss)]
-                    Ok(Some(rows)) => cx.number(rows as f64).upcast(),
-                    Ok(None) => cx.null().upcast(),
-                    Err(failure) => failure.into_js(cx)?,
-                };
-                (query.upcast(), vec![duration, last])
-            }
-            Self::Duration(duration) => (cx.null().upcast(), vec![milliseconds(cx, duration)]),
-            Self::Failed(duration, failure) => {
-                let duration = milliseconds(cx, duration);
-                let error = failure.into_js(cx)?;
-                (cx.null().upcast(), vec![duration, error])
-            }
-        })
-    }
+/// The query a query hook is told of, as `[operation, sql]`, or `null`, and
+/// the arguments after it.
+fn arguments<'cx>(
+    cx: &mut Cx<'cx>,
+    report: Report,
+) -> NeonResult<(Handle<'cx, JsValue>, Vec<Handle<'cx, JsValue>>)> {
+    Ok(match report {
+        Report::Query {
+            operation,
+            sql,
+            duration,
+            outcome,
+        } => {
+            let query = cx.empty_array();
+            let operation = cx.string(operation);
+            query.set(cx, 0, operation)?;
+            let sql: Handle<JsValue> = match sql {
+                Some(sql) => cx.string(sql).upcast(),
+                None => cx.null().upcast(),
+            };
+            query.set(cx, 1, sql)?;
+            let duration = milliseconds(cx, duration);
+            let last = match outcome {
+                #[allow(clippy::cast_precision_loss)]
+                Ok(Some(rows)) => cx.number(rows as f64).upcast(),
+                Ok(None) => cx.null().upcast(),
+                Err(failure) => failure.into_js(cx)?,
+            };
+            (query.upcast(), vec![duration, last])
+        }
+        Report::Duration(duration) => (cx.null().upcast(), vec![milliseconds(cx, duration)]),
+        Report::Failed(duration, failure) => {
+            let duration = milliseconds(cx, duration);
+            let error = failure.into_js(cx)?;
+            (cx.null().upcast(), vec![duration, error])
+        }
+    })
 }
 
-impl Metrics {
-    /// A collector over `hooks`, each run by `dispatch`, both rooted here.
-    pub(crate) fn new<'cx>(
-        cx: &mut impl Context<'cx>,
-        dispatch: Handle<'cx, JsFunction>,
-        hooks: [Option<Handle<'cx, JsFunction>>; 7],
-        secrets: Redactions,
-    ) -> Self {
-        let mut channel = cx.channel();
-        channel.unref(cx);
-        let dispatch = dispatch.root(cx);
-        let hooks = hooks.map(|hook| hook.map(|hook| hook.root(cx)));
-        Self(Arc::new(Collector {
-            channel,
-            dispatch,
-            hooks,
-            secrets,
-        }))
+impl Reporter for Collector {
+    fn reports(&self, hook: Hook) -> bool {
+        self.0.hook(hook).is_some()
     }
 
-    /// Send hook `index` to the JavaScript thread with `report`, and wait
-    /// for its answer. A hook that cannot be sent — the instance torn down —
-    /// is not waited for, and a hook's own failure is the dispatcher's to
-    /// report, so nothing here fails the statement.
-    async fn report(&self, index: usize, report: Report) {
-        if self.0.hooks[index].is_none() {
-            return;
-        }
+    /// Send the hook to the JavaScript thread and wait for its answer. A
+    /// hook that cannot be sent, the instance torn down, is not waited for.
+    fn report(&self, hook: Hook, report: Report) -> BoxFuture<'static, ()> {
         let (answer, answered) = oneshot::channel::<()>();
-        let collector = self.0.clone();
+        let hooks = self.0.clone();
         let sent = self.0.channel.try_send(move |mut cx| {
-            let Some(hook) = &collector.hooks[index] else {
+            let Some(callable) = hooks.hook(hook) else {
                 return Ok(());
             };
-            let hook = hook.to_inner(&mut cx);
-            let dispatch = collector.dispatch.to_inner(&mut cx);
-            let (query, args) = report.into_js(&mut cx)?;
+            let callable = callable.to_inner(&mut cx);
+            let dispatch = hooks.dispatch.to_inner(&mut cx);
+            let (query, args) = arguments(&mut cx, report)?;
             let list = cx.empty_array();
             for (at, arg) in (0_u32..).zip(args) {
                 list.set(&mut cx, at, arg)?;
@@ -181,76 +135,22 @@ impl Metrics {
                 }
                 Ok(cx.undefined())
             })?;
-            let name = cx.string(HOOKS[index]);
+            let name = cx.string(hook.name(Dialect::JavaScript));
             dispatch
                 .bind(&mut cx)
                 .arg(name)?
-                .arg(hook)?
+                .arg(callable)?
                 .arg(query)?
                 .arg(list)?
                 .arg(done)?
                 .exec()?;
             Ok(())
         });
-        if sent.is_ok() {
-            let _ = answered.await;
-        }
-    }
-
-    fn query(
-        query: QueryContext<'_>,
-        duration: Duration,
-        outcome: Result<Option<u64>, Failure>,
-    ) -> Report {
-        Report::Query {
-            operation: query.operation().to_owned(),
-            sql: query.sql().map(str::to_owned),
-            duration,
-            outcome,
-        }
-    }
-}
-
-#[pgorm::entity::prelude::async_trait::async_trait]
-impl MetricsCollector for Metrics {
-    async fn record_query_success(
-        &self,
-        query: QueryContext<'_>,
-        duration: Duration,
-        rows: Option<u64>,
-    ) {
-        let report = Self::query(query, duration, Ok(rows));
-        self.report(QUERY_SUCCESS, report).await;
-    }
-
-    async fn record_query_error(&self, query: QueryContext<'_>, duration: Duration, error: &Error) {
-        let report = Self::query(query, duration, Err(failure(error, &self.0.secrets)));
-        self.report(QUERY_ERROR, report).await;
-    }
-
-    async fn record_connection_acquired(&self, duration: Duration) {
-        self.report(CONNECTION_ACQUIRED, Report::Duration(duration))
-            .await;
-    }
-
-    async fn record_connection_error(&self, duration: Duration, error: &Error) {
-        let report = Report::Failed(duration, failure(error, &self.0.secrets));
-        self.report(CONNECTION_ERROR, report).await;
-    }
-
-    async fn record_transaction_begin(&self, duration: Duration) {
-        self.report(TRANSACTION_BEGIN, Report::Duration(duration))
-            .await;
-    }
-
-    async fn record_transaction_commit(&self, duration: Duration) {
-        self.report(TRANSACTION_COMMIT, Report::Duration(duration))
-            .await;
-    }
-
-    async fn record_transaction_rollback(&self, duration: Duration) {
-        self.report(TRANSACTION_ROLLBACK, Report::Duration(duration))
-            .await;
+        Box::pin(async move {
+            if sent.is_ok() {
+                let _ = answered.await;
+            }
+        })
     }
 }
 

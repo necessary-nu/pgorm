@@ -28,7 +28,7 @@ pub(crate) type Groups = Vec<(Model, Vec<Model>)>;
 
 /// `all_grouped` of a graph, pgorm's erased grouped read, run on whichever
 /// database a job holds.
-pub(crate) type GroupedFn = pgorm::GroupedRead<Model, Model, crate::connect::metrics::Metrics>;
+pub(crate) type GroupedFn = pgorm::GroupedRead<Model, Model, pgorm_bindings::Metrics>;
 
 /// A registered graph's keyset cursor, built where the slot tuple's
 /// positions are known.

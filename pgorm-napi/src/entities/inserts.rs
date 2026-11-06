@@ -11,7 +11,7 @@ use pgorm::{EntityTrait, Error, Insert, IntoActiveModel};
 
 use super::{
     adapter::{EntityAdapter, InsertAnswer, Insertion, Insertions, concrete, model_of},
-    convert::{Records, VersionRows, count, entity_failure, tagged},
+    convert::{Records, VersionRows, count, tagged},
     info::EntityInfo,
 };
 use crate::{
@@ -203,7 +203,7 @@ fn insert_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
             let inserted = entity
                 .insert(db, insertion)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Inserted(entity.info().clone(), inserted)) as Output)
         })
     });

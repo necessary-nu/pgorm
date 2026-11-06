@@ -8,6 +8,7 @@
 //! configuration and closed with the listener or its pool; it is never one the
 //! pool lends.
 
+use crate::errors::FailureJs as _;
 use std::{
     fmt,
     num::NonZeroUsize,

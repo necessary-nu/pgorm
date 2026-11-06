@@ -1,5 +1,6 @@
 //! How an operation's outcome crosses from the runtime back to JavaScript.
 
+use crate::errors::FailureJs as _;
 use std::{any::Any, future::Future};
 
 use neon::prelude::*;

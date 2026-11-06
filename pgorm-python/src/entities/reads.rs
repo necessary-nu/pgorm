@@ -9,7 +9,8 @@ use pgorm::{ErasedCursor, ErasedPages, Error, QueryResult};
 use pyo3::{prelude::*, types::PyTuple};
 
 use super::{PyEntityModel, metadata::EntityInfo};
-use crate::{errors::DecodeError, graphs::backend::Row, metrics::Metrics};
+use crate::{errors::DecodeError, graphs::backend::Row};
+use pgorm_bindings::Metrics;
 
 /// A read's pages, pgorm's erased paginator over the read's rows.
 pub(crate) type Pages = dyn ErasedPages<Row, Metrics>;

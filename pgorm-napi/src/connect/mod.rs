@@ -21,6 +21,7 @@ mod pools;
 pub(crate) mod stream;
 mod transaction;
 
+use crate::errors::FailureJs as _;
 use std::{
     fmt,
     future::Future,
@@ -49,7 +50,7 @@ use crate::{
 
 use config::Built;
 use job::Database;
-use metrics::Metrics;
+use pgorm_bindings::Metrics;
 
 pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("abortToken", abort_token)?;

@@ -15,6 +15,7 @@ publish = false
 # raises what comes back as its own errors.
 [dependencies]
 pgorm = { version = "0.2.0", path = ".." }
+futures-util = "0.3.34"
 tokio = { version = "1.53", features = ["sync"] }
 tokio-postgres.workspace = true
 # TLS through rustls, verifying against the platform's trust store or a CA the
@@ -22,6 +23,9 @@ tokio-postgres.workspace = true
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 rustls-native-certs = "0.8.4"
 tokio-postgres-rustls = "0.14.0"
+
+[dev-dependencies]
+tokio = { version = "1.53", features = ["macros", "rt"] }
 
 [lints.rust]
 unsafe_code = "forbid"

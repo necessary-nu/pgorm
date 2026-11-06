@@ -3,6 +3,7 @@
 //! each pgorm's erased form of them; this module resolves the columns by
 //! name and says what each key column converts a boundary value through.
 
+use pgorm_bindings::Metrics;
 use std::sync::Arc;
 
 use pgorm::{
@@ -19,7 +20,6 @@ use crate::{
     },
     errors::ConstructionError,
     graphs::backend::Row,
-    metrics::Metrics,
     transactions::work::{Output, Read},
 };
 

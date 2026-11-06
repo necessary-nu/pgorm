@@ -10,6 +10,7 @@ use pgorm::{
     ConnectionTrait, DatabaseConnection,
     metric::{InstrumentedConnection, InstrumentedPool},
 };
+use pgorm_bindings::Metrics;
 use pyo3::prelude::*;
 use tokio::sync::{Mutex, OwnedMutexGuard};
 use tokio_util::sync::CancellationToken;
@@ -21,7 +22,6 @@ use crate::{
     },
     execution::Database,
     listen::ListenerState,
-    metrics::{HOOKS, Metrics},
 };
 
 /// A connection checked out of a pool: a plain one, or one an instrumented
@@ -421,10 +421,10 @@ impl NativePool {
                 "an InstrumentedPool wraps a pool that is not instrumented",
             ));
         }
-        let hooks: [Option<Py<PyAny>>; HOOKS.len()] = hooks
+        let hooks: [Option<Py<PyAny>>; pgorm_bindings::Hook::ALL.len()] = hooks
             .try_into()
             .map_err(|_| pyo3::exceptions::PyTypeError::new_err("a collector has seven hooks"))?;
-        let metrics = Metrics::new(
+        let metrics = crate::metrics::metrics(
             self.state.owner.clone_ref(py),
             dispatch,
             hooks,

@@ -1,6 +1,5 @@
 use crate::{
     errors::{LifecycleError, database_error},
-    metrics::Metrics,
     runtime::{ConnectionState, NativeConnection, NativePool, Operation, PoolState},
     transactions::{
         NativeTransaction, State,
@@ -8,6 +7,7 @@ use crate::{
     },
 };
 use pgorm::metric::InstrumentedPool;
+use pgorm_bindings::Metrics;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use std::sync::Arc;
 

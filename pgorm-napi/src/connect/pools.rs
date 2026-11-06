@@ -2,14 +2,14 @@
 //! its options, several by tag over shared options, or an instrumented pool
 //! around one; and its tag, status and statement caches.
 
+use crate::errors::FailureJs as _;
 use neon::prelude::*;
 use pgorm::metric::InstrumentedPool;
 
 use super::{
     Lender, PoolHandle,
     config::{self, Shape, Shared},
-    metrics::{self, Metrics},
-    pool,
+    metrics, pool,
 };
 use crate::values::read;
 
@@ -57,7 +57,7 @@ fn pool_instrument(mut cx: FunctionContext) -> JsResult<JsBox<PoolHandle>> {
     }
     let listed = cx.argument::<JsArray>(1)?;
     let dispatch = cx.argument::<JsFunction>(2)?;
-    let mut hooks = [None; metrics::HOOKS.len()];
+    let mut hooks = [None; pgorm_bindings::Hook::ALL.len()];
     if listed.len(&mut cx) as usize != hooks.len() {
         return cx.throw_type_error("a collector has seven hooks");
     }
@@ -67,7 +67,7 @@ fn pool_instrument(mut cx: FunctionContext) -> JsResult<JsBox<PoolHandle>> {
             *hook = Some(value.downcast_or_throw::<JsFunction, _>(&mut cx)?);
         }
     }
-    let metrics = Metrics::new(&mut cx, dispatch, hooks, lender.secrets.clone());
+    let metrics = metrics::metrics(&mut cx, dispatch, hooks, lender.secrets.clone());
     Ok(cx.boxed(PoolHandle(Lender {
         metered: Some(InstrumentedPool::new(lender.pool.clone(), metrics)),
         state: lender.state,

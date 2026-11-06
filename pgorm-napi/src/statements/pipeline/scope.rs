@@ -8,6 +8,7 @@
 //! result goes to. An expression remembers the scope of the placeholders in
 //! it, and each place one could escape to checks that scope.
 
+use crate::errors::FailureJs as _;
 use std::sync::{Arc, Mutex};
 
 use neon::prelude::*;
