@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from .relations import Relation
 
 
-# [spec:pgorm:req:bindings.model-reads]
+# [spec:pgorm:req:bindings.model-reads+1]
 @dataclass(frozen=True, eq=False, slots=True)
 class ModelQuery(Clauses):
     """A model's SELECT: every method returns a new query, and the terminals
@@ -73,9 +73,9 @@ class ModelQuery(Clauses):
     async def optional(self, db: Database) -> ModelRecord | None:
         return cast(ModelRecord | None, await decode_single(db, self.statement, self._sources(), optional=True))
 
-    async def stream(self, db: Connection | Pool) -> RowStream[ModelRecord]:
-        """The rows, one per pull, over a connection the stream holds until
-        it ends."""
+    async def stream(self, db: Database) -> RowStream[ModelRecord]:
+        """The rows, one per pull, over a connection or a transaction the
+        stream holds until it ends."""
         return await decode_stream(db, self.statement, self._sources())
 
     async def count(self, db: Database) -> int:

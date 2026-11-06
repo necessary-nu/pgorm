@@ -18,8 +18,9 @@ if TYPE_CHECKING:
     from .model import Model
 
 Database: TypeAlias = "Connection | Pool | Transaction"
-Row: TypeAlias = "ModelRecord | tuple[ModelRecord | None, ...]"
-# A row's decode: its sources' records, or what a projection reads it as.
+Row: TypeAlias = "ModelRecord | tuple[ModelRecord | None, ...] | p.Record"
+# A row's decode: its sources' records, or what a projection or a raw
+# statement reads it as.
 Decode: TypeAlias = "Sequence[Source] | Callable[[p.Record], Any]"
 
 
@@ -169,12 +170,13 @@ async def decode_single(
 
 
 async def decode_stream(
-    db: Connection | Pool, statement: Any, sources: Decode
+    db: Database, statement: Any, sources: Decode
 ) -> RowStream[Any]:
     from ..runtime import Connection, Pool
+    from ..transactions import Transaction
 
-    if not isinstance(db, (Connection, Pool)):
-        raise TypeError("a model's rows stream from a Pool or a Connection")
+    if not isinstance(db, (Connection, Pool, Transaction)):
+        raise TypeError("a model's rows stream from a Pool, a Connection or a Transaction")
     stream = await db.stream(statement)
     return stream._decoding(decoder(sources))
 

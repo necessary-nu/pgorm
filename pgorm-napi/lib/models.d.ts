@@ -20,10 +20,12 @@ import type {
   JsonValue,
   Multirange,
   OperationOptions,
+  Param,
   Pool,
   Queryable,
   Range,
   RowStream,
+  SelectorRaw,
   ScalarKind,
   TypeName,
   Uuid,
@@ -431,6 +433,13 @@ export declare class Model<C extends Columns = Columns> {
   ): ModelQuery<C, Pick<Row<C>, L[number]>, { -readonly [I in keyof L]: Row<C>[L[I]] }>;
   /** The row whose primary key this is. */
   findByKey(values: KeyOf<Model<C>>): ModelQuery<C, Row<C>>;
+  // [spec:pgorm:req:bindings.raw-models]
+  /**
+   * The rows of `statement` decoded into this model's records, as Rust's
+   * `FromQueryResult::find_by_statement` decodes them: each field read from
+   * the column of its SQL name and held to its declared kind.
+   */
+  findByStatement(sql: string, params?: readonly Param[]): SelectorRaw<Row<C>>;
   /**
    * An INSERT of one row. A field left out takes the table's default; a
    * field the model declares neither nullable, defaulted nor generated must
@@ -659,7 +668,7 @@ export declare class ModelSelector<R, C extends Columns = Columns> {
   all(db: Queryable, options?: OperationOptions): Promise<R[]>;
   one(db: Queryable, options?: OperationOptions): Promise<R>;
   optional(db: Queryable, options?: OperationOptions): Promise<R | null>;
-  stream(db: Pool | Connection, options?: OperationOptions): RowStream<R>;
+  stream(db: Queryable, options?: OperationOptions): RowStream<R>;
   /** How many rows it reads, limit and offset aside. */
   count(db: Queryable, options?: OperationOptions): Promise<number>;
   /** A keyset cursor over the rows, ordered by `fields` of the queried model. */
@@ -764,8 +773,8 @@ export declare class ModelQuery<C extends Columns = Columns, R = Row<C>, T exten
   one(db: Queryable, options?: OperationOptions): Promise<R>;
   /** At most one row, or `null`; more is a {@link DecodeError}. */
   optional(db: Queryable, options?: OperationOptions): Promise<R | null>;
-  /** The rows, one per pull, over a connection the stream holds until it ends. */
-  stream(db: Pool | Connection, options?: OperationOptions): RowStream<R>;
+  /** The rows, one per pull, over a connection, or in a transaction, the stream holds until it ends. */
+  stream(db: Queryable, options?: OperationOptions): RowStream<R>;
   /** How many rows it reads, limit and offset aside. */
   count(db: Queryable, options?: OperationOptions): Promise<number>;
   /** A keyset cursor over the rows, ordered by `fields`. */

@@ -14,7 +14,9 @@ from .columns import Column, ModelColumn
 if TYPE_CHECKING:
     from .active import ModelActive, ModelHooks
     from .graphs import Graph
+    from ..raw import SelectorRaw
     from .queries import ModelQuery
+    from .record import ModelRecord
     from .relations import ConditionType, Linked, OnCondition, ReferentialAction, Related, Relation
     from .writes import ModelDelete, ModelInsert, ModelInsertMany, ModelUpdate
 
@@ -248,6 +250,14 @@ class Model:
 
     def find(self) -> ModelQuery:
         return self.select()
+
+    def find_by_statement(self, statement: p.RawSQL) -> SelectorRaw[ModelRecord]:
+        """``statement``'s rows decoded into this model's records, as Rust's
+        ``FromQueryResult::find_by_statement`` decodes them: each field read
+        from the column of its SQL name and held to its declared kind."""
+        from ..raw import SelectorRaw
+
+        return SelectorRaw(statement, self)
 
     def find_by_key(self, values: Mapping[str, Any]) -> ModelQuery:
         """The row whose primary key ``values`` gives."""

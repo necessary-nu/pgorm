@@ -1,18 +1,32 @@
 """Asyncio ownership and context managers for the native PostgreSQL resources."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from functools import partial
 from pathlib import Path
-from typing import Any, Literal, NamedTuple
+from typing import Any, Literal, NamedTuple, TypeVar
 
 from . import _native
 from .pool_options import PoolHook, QueueMode, Recycle, TlsMode, _shape, _shared, _tls
 from .copy import CopyOutStream, CopyRowStream, CopySource, copy_in
 from .copy_rows import RowCopies
 from .listen import Listener
+from .raw_methods import RawStatements
 from .results import Query, Record, RowStream
-from .transactions import IsolationLevel, Transaction, TransactionMode, _scope
+from .transactions import IsolationLevel, Transaction, TransactionMode, _scope, _with_retry
+
+T = TypeVar("T")
+
+# The most retries a transaction takes, a Rust u32.
+_RETRIES_MAX = 2**32 - 1
+
+
+def _retries(retries: object) -> int:
+    if type(retries) is not int:
+        raise TypeError("retries is an int")
+    if not 0 <= retries <= _RETRIES_MAX:
+        raise _native.ConstructionError("retries is a non-negative int within u32")
+    return retries
 
 
 # The largest listener capacity the native side holds, a Rust usize.
@@ -35,7 +49,7 @@ class PoolStatus(NamedTuple):
 # [spec:pgorm:req:bindings.runtime]
 # [spec:pgorm:req:bindings.connections+3]
 # [spec:pgorm:req:python.lifecycle+4]
-class Pool(RowCopies):
+class Pool(RowCopies, RawStatements):
     """A pool owned by the asyncio loop running at construction.
 
     TLS verifies the certificate and hostname by default. Explicit
@@ -165,6 +179,22 @@ class Pool(RowCopies):
             async with connection.transaction(mode=mode, isolation=isolation) as transaction:
                 yield transaction
 
+    async def transaction_with_retry(
+        self,
+        work: Callable[[Transaction], Awaitable[T]],
+        *,
+        retries: int,
+        mode: TransactionMode = "default",
+        isolation: IsolationLevel | None = None,
+    ) -> T:
+        """Run ``work`` in a transaction on a connection of its own, and again
+        from ``BEGIN`` while it fails retryably; see
+        ``Connection.transaction_with_retry``."""
+        async with self.connection() as connection:
+            return await connection.transaction_with_retry(
+                work, retries=retries, mode=mode, isolation=isolation
+            )
+
     async def execute(self, query: Query) -> int:
         """Execute a native builder or explicit RawSQL and return affected rows."""
         async with self.connection() as connection:
@@ -262,7 +292,7 @@ class Pool(RowCopies):
         return f"Pool(closed={self.closed})"
 
 
-class Connection(RowCopies):
+class Connection(RowCopies, RawStatements):
     """One checked-out native connection; concurrent operations are errors.
 
     Keep the pool alive until the connection is released. Query cancellation
@@ -286,6 +316,28 @@ class Connection(RowCopies):
         connection until the block exits: a clean exit commits, and an
         exception rolls back; see ``Transaction``."""
         return _scope(partial(self._native.begin, mode=mode, isolation=isolation), self)
+
+    async def transaction_with_retry(
+        self,
+        work: Callable[[Transaction], Awaitable[T]],
+        *,
+        retries: int,
+        mode: TransactionMode = "default",
+        isolation: IsolationLevel | None = None,
+    ) -> T:
+        """Run ``work`` in a transaction, and again from ``BEGIN``, up to
+        ``retries`` more times, while it fails with a serialization failure
+        or a deadlock, as Rust's ``transaction_with_retry`` does: an exception
+        from ``work`` whose ``is_retryable`` is true, or a ``COMMIT`` that
+        fails so. ``work`` receives each attempt's ``Transaction`` and its
+        result is returned once an attempt commits. It may run more than once,
+        so whatever it does outside the database happens again each time.
+        Any other failure, or one past the last retry, propagates as a
+        transaction block's does."""
+        retrying = await self._native.begin_retrying(
+            _retries(retries), mode=mode, isolation=isolation
+        )
+        return await _with_retry(retrying, self, work)
 
     async def ping(self) -> bool:
         return await self._native.ping()

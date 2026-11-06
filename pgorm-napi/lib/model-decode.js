@@ -12,7 +12,7 @@
 // read as the value that text spells.
 // [spec:pgorm:req:bindings.model-records+1]
 
-import { runStatement } from "./connections.js";
+import { runStatement } from "./runs.js";
 import { DecodeError } from "./errors.js";
 import { columnKey, readsText, readValue } from "./model-columns.js";
 import { native } from "./operations.js";
@@ -156,14 +156,15 @@ export function decoder(sources, { exhaustive = true, castsText = true } = {}) {
  * Every row of `statement`, decoded.
  *
  * @param {unknown} db
- * @param {import("./builder.js").Handle} statement
+ * @param {unknown} statement A builder's, or SQL text a raw read holds.
  * @param {readonly Source[]} sources
  * @param {unknown} options
+ * @param {Reading} [reading] How the result is read: by default every column a field's, cast as a built statement casts it.
  * @returns {Promise<any[]>}
  */
-export async function decodeAll(db, statement, sources, options) {
+export async function decodeAll(db, statement, sources, options, reading) {
   const [names, rows, kinds] = await runStatement(db, "all", statement, options);
-  const decode = decoder(sources);
+  const decode = decoder(sources, reading);
   return rows.map((/** @type {unknown[]} */ values) => decode(names, values, kinds));
 }
 
@@ -172,43 +173,48 @@ export async function decodeAll(db, statement, sources, options) {
  * `DecodeError`.
  *
  * @param {unknown} db
- * @param {import("./builder.js").Handle} statement
+ * @param {unknown} statement
  * @param {readonly Source[]} sources
  * @param {unknown} options
+ * @param {Reading} [reading]
  */
-export async function decodeOne(db, statement, sources, options) {
+export async function decodeOne(db, statement, sources, options, reading) {
   const [names, rows, kinds] = await runStatement(db, "one", statement, options);
-  return decoder(sources)(names, rows[0], kinds);
+  return decoder(sources, reading)(names, rows[0], kinds);
 }
 
 /**
  * At most one row of `statement`, decoded, or null.
  *
  * @param {unknown} db
- * @param {import("./builder.js").Handle} statement
+ * @param {unknown} statement
  * @param {readonly Source[]} sources
  * @param {unknown} options
+ * @param {Reading} [reading]
  */
-export async function decodeOptional(db, statement, sources, options) {
+export async function decodeOptional(db, statement, sources, options, reading) {
   const [names, rows, kinds] = await runStatement(db, "optional", statement, options);
-  return rows.length === 0 ? null : decoder(sources)(names, rows[0], kinds);
+  return rows.length === 0 ? null : decoder(sources, reading)(names, rows[0], kinds);
 }
 
 /**
  * The rows of `statement` as a stream of decoded items, over a pool's or a
- * connection's connection, each made what `read` makes it where one is given.
+ * connection's connection, or in a transaction, each made what `read` makes it where one is given.
  *
  * @param {unknown} db
- * @param {import("./builder.js").Handle} statement
+ * @param {unknown} statement
  * @param {readonly Source[]} sources
  * @param {{ signal?: AbortSignal }} [options]
+ * @param {Reading} [reading]
  * @param {((record: any) => unknown) | null} [read]
  */
-export function decodeStream(db, statement, sources, options = {}, read = null) {
+export function decodeStream(db, statement, sources, options = {}, reading = undefined, read = null) {
   const stream = /** @type {{ stream?: unknown }} */ (db)?.stream;
-  if (typeof stream !== "function") throw new TypeError("a model's rows stream from a Pool or a Connection");
+  if (typeof stream !== "function") {
+    throw new TypeError("a model's rows stream from a Pool, a Connection or a Transaction");
+  }
   if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
-  const decode = decoder(sources);
+  const decode = decoder(sources, reading);
   const made = read === null ? decode : (/** @type {string[]} */ names, /** @type {unknown[]} */ values, /** @type {string[]} */ kinds) =>
     read(decode(names, values, kinds));
   return decodedWith(stream.call(db, statement, { signal: options.signal }), made);
@@ -218,7 +224,7 @@ export function decodeStream(db, statement, sources, options = {}, read = null) 
  * A count a statement read as `num_items`, as an exact number.
  *
  * @param {unknown} db
- * @param {import("./builder.js").Handle} statement
+ * @param {unknown} statement
  * @param {unknown} options
  */
 export async function decodeCount(db, statement, options) {

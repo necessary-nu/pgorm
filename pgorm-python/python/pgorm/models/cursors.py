@@ -186,7 +186,9 @@ class Cursor:
 @dataclass(frozen=True, slots=True)
 class Pageable:
     """What a paginator pages: the statement of one page, the statement whose
-    rows it counts, and how each row decodes."""
+    rows it counts, and how each row decodes: its sources' records, what a
+    projection or a raw statement reads it as, or with no sources the row as
+    it is."""
 
     page: Callable[[int, int], p.Select]
     counted: p.Select
@@ -223,7 +225,11 @@ class Paginator:
         return self._page(page).inspect()
 
     async def fetch_page(self, db: Database, page: int) -> list[Row]:
-        return await decode_all(db, self._page(page), self.pageable.sources)
+        statement = self._page(page)
+        sources = self.pageable.sources
+        if not callable(sources) and not sources:
+            return list(await db.query(statement))
+        return await decode_all(db, statement, sources)
 
     async def num_items(self, db: Database) -> int:
         """How many rows the pages hold."""

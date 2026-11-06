@@ -208,7 +208,7 @@ class ModelParity(unittest.TestCase):
     def test_the_cases_are_the_golden_files(self):
         self.assertEqual(sorted(CASES), sorted(GOLDEN))
 
-    # [spec:pgorm:req:bindings.model-reads/test]
+    # [spec:pgorm:req:bindings.model-reads+1/test]
     # [spec:pgorm:req:bindings.model-writes+3/test]
     # [spec:pgorm:req:bindings.relations+3/test]
     # [spec:pgorm:req:bindings.graphs+2/test]

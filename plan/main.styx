@@ -13608,6 +13608,22 @@ children (
                         id napi.guide-gaps.transaction-streams
                         title "A transaction streams the rows of SQL text, a statement and a model query, as Rust's stream and query_raw on a DatabaseTransaction do; today Transaction has no stream and ModelQuery.stream refuses one with a TypeError (guide 06-pagination)"
                         deps (napi-connections guide.javascript)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-05T21:41:44.216428Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T23:05:25.995127Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
+                            }
+                        )
                     }
 
                     {
@@ -13794,49 +13810,137 @@ children (
                     {
                         id napi.guide-gaps.transaction-retry
                         title "A transaction runs again from BEGIN while it fails with a serialization failure (40001) or a deadlock (40P01), up to a given number of retries, and an error says whether it is retryable, as Rust's transaction_with_retry, RetryableError and Error::is_retryable do (guide 08-transactions)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.transaction-retry] [spec:pgorm:req:bindings.rollback-failed] [spec:pgorm:req:bindings.refusal-fields])
+                        }
                         deps (napi-connections guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T21:41:50.031602Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.batch-execute
                         title "A script of ;-separated statements with no parameters runs in one call over the simple-query protocol, as Rust's ConnectionTrait::batch_execute does; today every JavaScript terminal prepares one statement and a script fails with 42601 (guide 10-raw-sql)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.batch-execute])
+                        }
                         deps (napi-connections guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T21:41:39.352474Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.raw-into-model
                         title "The rows of SQL text decode into a declared model's records, checked against its declaration, as Rust's DecodeRaw::into_model, Select::from_raw_sql and FromQueryResult::find_by_statement do (guide 10-raw-sql)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.raw-models])
+                        }
                         deps (napi-models napi-connections guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T21:41:40.529145Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.verify
                         title "A statement's result is described by the server without running it and checked against a decode target, every column present and of a type its field decodes, as Rust's VerifyStatement::verify does (guide 10-raw-sql)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.verify])
+                        }
                         deps (napi-models napi-connections guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T21:41:41.686426Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.sql-grammar-check
                         title "SQL text is held to PostgreSQL 18's grammar before it is sent, for example once as a module loads, refusing what libpg_query rejects with the token it stopped at: the run-time counterpart of Rust's compile-time sql! macro (guide 10-raw-sql)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.sql-check])
+                        }
                         deps (napi-connections guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T21:41:45.526557Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.prql-text
                         title "PRQL text compiles to PostgreSQL SQL with its result held to the grammar and its $N placeholders checked against the values given, the run-time counterpart of Rust's prql! macro (guide 10-raw-sql, 12-pipeline)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.prql-text])
+                        }
                         deps (napi-pipeline guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T21:41:46.950782Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.raw-pages
                         title "SQL text pages and counts, wrapped as a subquery and refused unless it is a single SELECT, as Rust's SelectorRaw::paginate and SelectorRaw::count do (guide 06-pagination)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.raw-pages])
+                        }
                         deps (napi-models napi-connections guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T21:41:43.071009Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.expression-functions
                         title "The JavaScript expression builders call any function by name, write a piece of SQL with bound $N values, write GROUPING(..), and write the jsonb operators ->, ->>, #>, #>> and ?, as Rust's Func::named, Expr::template, Func::grouping, get_json_field, cast_json_field and has_json_key do (guide 11-query-builder)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.named-functions] [spec:pgorm:req:bindings.template] [spec:pgorm:req:bindings.json-operators])
+                        }
                         deps (napi-statements guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T21:41:48.438329Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
                     }
 
                     {
@@ -16738,6 +16842,14 @@ children (
                 kind @decision
                 text "Operator 2026-11-01: \"yes to both\", on two more shapes under decision (7), proposed by python-statement-gaps. (D) Conflict targets: Python names an inference target with Conflict.on(*targets) as JavaScript's Conflict.on does, ConflictTarget is no longer constructible (decision C: builders only by their factories), and ConflictUpdate.update takes several columns as JavaScript's does. (E) MERGE actions: Python takes JavaScript's MergeAction factories (update, insert, delete, do_nothing, insert_defaults), MatchedAction and NotMatchedAction are deleted, MergeUpdate and MergeInsert are no longer constructible, and an action on the wrong kind of arm is the ConstructionError bindings.merge already requires, the stubs keeping the update and insert arms' types apart. Search and Cycle (With.recursive's options) stay Python's own, a language difference: JavaScript passes options objects, Python one keyword argument each."
             }
+
+            {
+                at 2026-11-06T09:54:15.265896Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Re-read after bindings.model-reads moved to +1 (guide.python-gaps.raw-sql's merge of f0c3c867, b09065f2): its stream sentence now says a model's rows stream from a pool, a connection or a transaction, agreeing with bindings.streams+1, which already let a model's, a graph's and a disjoint read's stream take a transaction; both bindings already did. Every reference is pinned at +1."
+                after_done true
+            }
         )
     }
 
@@ -16813,6 +16925,22 @@ children (
                 author "brendan@necessary.nu"
                 kind @note
                 text "Filed by binding-spec-consolidation. bindings.models, bindings.model-records, bindings.model-reads, bindings.model-writes, bindings.relations, bindings.graphs, bindings.cursors and bindings.pagination state what JavaScript's declared models do and require it of both bindings. Python's Model (pgorm-python/python/pgorm/models/) lacks: the column options default, generated and an enum's values (so an unlisted label cannot be a DecodeError); find_by_key; count; stream; insert_many; on_conflict on a model insert; returning_change(s) and returning_upsert(s); join(relation) (Python joins another model on an explicit predicate); belongs_to, has_one and has_many relations with find and load; a model graph (join_one, join_maybe, via, all_grouped); keyset cursors; and the paginator. Python's model `Graph` name is taken by the registered graph (see the names question in the operator's list). The missing methods are listed under python.gaps in docs/spec/bindings-surface.json with this node."
+            }
+
+            {
+                at 2026-11-06T09:54:15.488032Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Re-read after bindings.model-reads moved to +1 (guide.python-gaps.raw-sql's merge of f0c3c867, b09065f2): a declared model's stream in a transaction, which bindings.streams+1 already required and Python's ModelQuery.stream does, is now stated in bindings.model-reads too. Every reference is pinned at +1."
+                after_done true
+            }
+
+            {
+                at 2026-11-06T09:54:40.710775Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Re-covered at bindings.model-reads+1 by its own commit; the entry above, committed with binding-spec-consolidation's re-cover, is the re-reading."
+                after_done true
             }
         )
     }
@@ -20258,13 +20386,51 @@ children (
                     {
                         id guide.python-gaps.raw-sql
                         title "Python runs and decodes raw SQL as Rust does: batch_execute (an unprepared multi-statement script), a transaction's stream (query_raw on DatabaseTransaction), from_raw_sql and find_by_statement into a declared model or a registered entity, VerifyStatement::verify, SelectorRaw's paginate and count, and SQL parsed and PRQL compiled before they run (sql!, prql!)"
+                        implements {
+                            main ([spec:pgorm:req:macros.runtime] [spec:pgorm:def:exec.verify.describe])
+                            python (
+                                [spec:pgorm:req:bindings.batch-execute]
+                                [spec:pgorm:req:bindings.sql-check]
+                                [spec:pgorm:req:bindings.prql-text]
+                                [spec:pgorm:req:bindings.raw-models]
+                                [spec:pgorm:req:bindings.verify]
+                                [spec:pgorm:req:bindings.raw-pages]
+                            )
+                        }
                         deps (python.statements python.results python.pipeline)
+                        log (
+                            {
+                                at 2026-11-05T21:44:14.791811Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead's decision, built: sql!/prql! have run-time counterparts as explicit functions in both bindings. The check is pgorm's: a new ordinary crate pgorm-sql-check (check_sql, compile_prql, Rejection, PrqlRejection, ArityRejection) holds the grammar check, caret rendering, PRQL compile, placeholder census/contiguity and arity text; pgorm-sql-macro calls it at compile time (stderr unchanged, trybuild green) and pgorm re-exports it as pgorm::sql_check (rule macros.runtime). Shapes: sql(text) returns the text unchanged in both bindings, as sql! expands to the literal, so a module checks its statements once as it loads; refusal is ConstructionError with the Rejection text (message + caret line). prql(text, values) gives each binding's raw statement: Python a RawSQL, JavaScript a frozen {sql, values} pair that runs as text + array (Rust's (sql, values)). batch_execute takes a str in Python (the method name is the opt-in; a RawSQL is a TypeError) and a string in JS, on pool/connection/transaction (JS as a native Job). Transaction streams hold the transaction's lock until the last row, as COPY does; closed early they abort the transaction, as a connection stream discards its connection (bindings.streams+1). Raw->model: Model.find_by_statement(statement) -> SelectorRaw (all/one/optional/stream/paginate/count) reading fields by SQL column name, extras unread; from_statement(statement) gives a SelectorRaw of plain rows; registered entity find().from_raw_sql(raw) through Rust Select::from_raw_sql (Python). RawSQL stays Python-only per the operator's 2026-10-30 decision: JavaScript keeps text + array and gets no RawSQL class (an internal holder only). verify(statement, model): pgorm gains VerifyStatement::describe (DescribedColumn name+type, rule exec.verify.describe); each binding checks its declared fields against the description with the kind test its row decode applies, DecodeError text mirroring VerifyError. Raw pages: pgorm's wrap_raw_select is public as raw_select (exec.paginator.raw+7); Python wraps to a Select and reuses its Paginator, JS gets page/count SQL from native with stand-in positions mapping values back so JS params (nulls included) never cross."
+                            }
+                        )
                     }
 
                     {
                         id guide.python-gaps.builder-functions
                         title "Python's expressions call any function as Rust's do: Func::named beyond capabilities()[\"expression_functions\"], Expr::template, grouping(), the full-text search functions, any set-returning function as a table function, and the JSON operators get_json_field, cast_json_field and has_json_key (->, ->>, ?)"
+                        implements {
+                            main ([spec:pgorm:req:sql.render.template-pieces])
+                            python ([spec:pgorm:req:bindings.named-functions] [spec:pgorm:req:bindings.template] [spec:pgorm:req:bindings.json-operators])
+                        }
                         deps (python.expressions)
+                        log (
+                            {
+                                at 2026-11-05T21:41:14.655937Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T21:44:17.122245Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "func(name, *args) is Func::named in both bindings (JS cannot use `function`, a reserved word); the name is an identifier, quoted unless bare-safe, so any SRF is a table function source too. call() gains grouping (1+ args, Func::grouping) and the one-argument full-text functions plus ts_rank/ts_rank_cd; the regconfig-OID forms are left to func. template: Expr::template now takes &'static str (template-static-text), so a binding holds its text to its language's template literal: Python's t-string (3.14 floor; mypy rejects a str) and JS's tagged template (TemplateStringsArray, frozen, checked at run time; deno check rejects a string). Interpolations go between the pieces, an expression embedded and any other value bound, through a new pgorm-query constructor SqlTemplate::from_pieces (rule sql.render.template-pieces), which refuses a $N marker written in a piece (TemplateError::MarkerInText) and a value landing in a quoted region (census). JSON ops get_json_field/cast_json_field/get_json_path/cast_json_path/has_json_key/has_any_json_keys/has_all_json_keys on every expression (rule bindings.json-operators)."
+                            }
+                        )
                     }
 
                     {
@@ -20342,7 +20508,33 @@ children (
                     {
                         id guide.python-gaps.transaction-surface
                         title "Python transactions and errors carry Rust's: transaction_with_retry and Error::is_retryable, TransactionError's Transaction, Connection and RollbackFailed, DatabaseConnection::discard, and BindRefusal's parameter and DecodeRefusal's fields as attributes rather than text"
+                        implements {
+                            python ([spec:pgorm:req:bindings.transaction-retry] [spec:pgorm:req:bindings.rollback-failed] [spec:pgorm:req:bindings.refusal-fields])
+                        }
                         deps (python.transactions python.runtime)
+                        log (
+                            {
+                                at 2026-11-05T21:41:16.646322Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T21:44:18.938703Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "transaction_with_retry(work, *, retries, mode, isolation) (Python) / transactionWithRetry(fn, {retries, mode, isolation}) (JS) drive pgorm's DatabaseConnection::transaction_with_retry itself: each closure call is an attempt frame served to the language; the block's rollback request carries whether its exception is retryable (Exit::RolledBack(reply, retryable) as the closure's RetryableError), and each attempt's finish is answered Retrying once pgorm opened the next attempt, or with the transaction's outcome. The shared attempt state sits behind an owned Arc<tokio Mutex> the async closure captures: a capturing AsyncFnMut closure that borrows from the spawned task makes the task's future Send for no nameable lifetime (probe confirmed in pgorm itself). Error::is_retryable is PgormError.is_retryable (bool attribute) / PgormError#isRetryable (getter), set from pgorm's answer. TransactionError mapping in Python: Transaction = the block's own exception, Connection = BEGIN/COMMIT's own error, RollbackFailed = new RollbackFailedError(cause, rollback) chained from the cause (rule bindings.rollback-failed); JS keeps SuppressedError. Connection.discard() in Python (python.discard); JS's discard is the connections lane's node. BindRefusal/DecodeRefusal fields: ConstructionError.parameter/reason and DecodeError.reading/reason in both bindings (bindings.refusal-fields)."
+                            }
+
+                            {
+                                at 2026-11-06T10:07:12.016558Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "python.discard retired in the merge of main 54f21c25: the COPY and connections lane gave both bindings Connection.discard under bindings.connections+3, one native method in each binding; this node's Python-only discard and its rule are folded into that, and the test that held python.discard holds bindings.connections+3."
+                                after_done true
+                            }
+                        )
                     }
 
                     {

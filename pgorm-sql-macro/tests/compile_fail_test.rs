@@ -15,7 +15,7 @@
 // [spec:pgorm:req:macros.sql.ceiling/test]    unknown tables pass; the span is the whole literal
 // [spec:pgorm:req:macros.prql.reject/test]    all five refusals, spanned and named
 // [spec:pgorm:sem:macros.prql.sstring/test]    a broken s-string dies at the oracle
-// [spec:pgorm:def:macros.prql/test]    valid PRQL expands to SQL plus Values
+// [spec:pgorm:def:macros.prql+1/test]    valid PRQL expands to SQL plus Values
 #[test]
 fn compile_fail_tests() {
     let t = trybuild::TestCases::new();

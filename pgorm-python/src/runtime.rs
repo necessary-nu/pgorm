@@ -618,6 +618,28 @@ impl NativeConnection {
         })
     }
 
+    /// Open a transaction pgorm runs again from `BEGIN`, up to `retries`
+    /// times, while an attempt fails with a serialization failure or a
+    /// deadlock.
+    #[pyo3(signature=(retries, *, mode="default", isolation=None))]
+    fn begin_retrying<'py>(
+        &self,
+        py: Python<'py>,
+        retries: u32,
+        mode: &str,
+        isolation: Option<&str>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.state.pool.check_owner(py)?;
+        self.state.ensure_open()?;
+        let mode = crate::transactions::mode(mode, isolation)?;
+        let state = self.state.clone();
+        future_into_py(py, async move {
+            Ok(crate::transactions::NativeRetrying {
+                inner: crate::transactions::begin_retrying(state, mode, retries)?,
+            })
+        })
+    }
+
     fn execute<'py>(
         &self,
         py: Python<'py>,
@@ -655,21 +677,12 @@ impl NativeConnection {
         query: &Bound<'_, PyAny>,
         decoder: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let decoder = match decoder.filter(|decoder| !decoder.is_none()) {
-            None => None,
-            Some(decoder) => Some(
-                if let Ok(disjoint) =
-                    decoder.extract::<PyRef<'_, crate::disjoint::NativeDisjoint>>()
-                {
-                    disjoint.row_decode()
-                } else {
-                    decoder
-                        .extract::<PyRef<'_, crate::entities::reads::NativeRowDecoder>>()?
-                        .row_decode()
-                },
-            ),
-        };
-        crate::results::open(py, self.state.clone(), query, decoder)
+        crate::results::open(
+            py,
+            crate::results::Source::Connection(self.state.clone()),
+            query,
+            crate::results::row_decoder(decoder)?,
+        )
     }
 
     fn notify<'py>(
@@ -753,5 +766,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<crate::hooks::NativeHookConnection>()?;
     module.add_class::<NativeConnection>()?;
     module.add_class::<crate::transactions::NativeTransaction>()?;
+    module.add_class::<crate::transactions::NativeRetrying>()?;
     Ok(())
 }

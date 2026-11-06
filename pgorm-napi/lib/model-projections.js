@@ -288,7 +288,7 @@ export class ModelSelector {
    * @param {{ signal?: AbortSignal }} [options]
    */
   stream(db, options) {
-    return decodeStream(db, this.statement, sourcesOf(this.#recipe), options, this.#read);
+    return decodeStream(db, this.statement, sourcesOf(this.#recipe), options, undefined, this.#read);
   }
 
   /**

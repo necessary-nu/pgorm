@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from ..results import RowStream
 
 
-# [spec:pgorm:req:bindings.streams]
+# [spec:pgorm:req:bindings.streams+1]
 async def open_stream(db: Any, statement: Compiled, decoder: _RowDecoder | None) -> RowStream[Any]:
     """The rows of ``statement`` on a pool's connection of its own, released
     when the stream ends, or on ``db``'s connection, which it holds until

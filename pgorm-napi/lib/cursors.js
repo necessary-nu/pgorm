@@ -253,10 +253,12 @@ export function cursorOver(keyed) {
  * whose rows it counts.
  *
  * @typedef {object} Pageable
- * @property {(limit: number, offset: number) => import("./select.js").Select} page
- * @property {import("./select.js").Select} counted
- * @property {readonly import("./model-decode.js").Source[]} sources
- * @property {((record: any) => unknown) | null} read What a projection makes each decoded row, or null to keep it.
+ * @property {(limit: number, offset: number) => import("./select.js").Select | import("./raw-sql.js").Held} page
+ * @property {import("./select.js").Select | import("./raw-sql.js").Held} counted
+ * @property {readonly import("./model-decode.js").Source[] | null} sources The sources each row
+ *   decodes as, or `null` for rows as plain objects.
+ * @property {import("./model-decode.js").Reading} [reading] How its rows are read, as a built query's are by default.
+ * @property {((record: any) => unknown) | null} [read] What a projection makes each decoded row, or null to keep it.
  */
 
 /**
@@ -311,9 +313,14 @@ export class Paginator {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async fetchPage(db, page, options) {
-    const { sources, read } = this.#pageable;
-    const records = await decodeAll(db, this.#page(page), sources, options);
-    return read === null ? records : records.map(read);
+    const { sources, reading, read } = this.#pageable;
+    if (sources === null) {
+      const query = /** @type {{ query?: unknown }} */ (db)?.query;
+      if (typeof query !== "function") throw new TypeError("a page is read on a Pool, a Connection or a Transaction");
+      return await query.call(db, this.#page(page), options);
+    }
+    const records = await decodeAll(db, this.#page(page), sources, options, reading);
+    return read ? records.map(read) : records;
   }
 
   /**

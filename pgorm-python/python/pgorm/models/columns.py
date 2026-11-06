@@ -259,6 +259,28 @@ class Column:
             "save_as": self.save_as,
         }
 
+    def _accepts(self, value: p.Value) -> bool:
+        """Whether a column whose values read as ``value``'s kind is one this
+        column decodes: of the declared kind, or the text a column read as its
+        text is projected as. The test a row's decode applies, so a statement
+        described without running it is held to the same one
+        (``bindings.verify``)."""
+        if self._read_as_text and (value.kind, value.element_type) in (("text", None), ("array", "text")):
+            return True
+        return (value.kind, value.type_name, value.created_type, value.element_type) == (
+            self._null.kind,
+            self._null.type_name,
+            self._null.created_type,
+            self._null.element_type,
+        )
+
+    @property
+    def _kind_name(self) -> str:
+        """The declared kind as a verification failure names it."""
+        kind = self.kind
+        name = kind if isinstance(kind, str) else f"{kind.schema}.{kind.name}"
+        return f"{name}[]" if self.array else name
+
     def _validate(self, value: p.Value, *, decoding: bool = False) -> p.Value:
         """``value``, refused unless it is of the declared kind, null only
         where the column is nullable and an enum's label one it lists."""

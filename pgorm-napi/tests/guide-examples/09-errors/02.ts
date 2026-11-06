@@ -6,9 +6,9 @@ import { CheckViolationError, Decimal, ExclusionViolationError } from "@necessar
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  await pool.execute("ALTER TABLE cake ADD CONSTRAINT cake_price_positive CHECK (price > 0)");
-  await pool.execute("CREATE EXTENSION IF NOT EXISTS btree_gist");
-  await pool.execute(`
+  await pool.batchExecute(`
+    ALTER TABLE cake ADD CONSTRAINT cake_price_positive CHECK (price > 0);
+    CREATE EXTENSION IF NOT EXISTS btree_gist;
     CREATE TABLE oven_booking (
       oven integer NOT NULL,
       during tstzrange NOT NULL,

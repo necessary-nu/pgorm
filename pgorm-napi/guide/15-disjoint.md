@@ -553,8 +553,9 @@ assert.equal(readFileSync(`${migrations}/m20260301_000001_add_voucher_1.sql`, "u
 A file is one migration for a tool that runs a directory of SQL files, each in
 its transaction, such as Rust's pgorm-migration, which lists each with
 `sql_migration!` ([Migrations](22-migrations.md#generated-ddl-in-a-migration)).
-JavaScript cannot run such a file itself: a file of several statements is a
-script, which no JavaScript terminal runs in one call ([Raw SQL](10-raw-sql.md)).
+A file of several statements is a script, which `batchExecute` runs in one
+call ([Raw SQL](10-raw-sql.md)); what JavaScript lacks is the runner around
+it, which records the files that have run ([Migrations](22-migrations.md)).
 
 ## Tables pgorm did not write
 

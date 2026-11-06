@@ -75,7 +75,7 @@ what it rejects with:
 | --- | --- |
 | what the callback threw | the callback, and the transaction was rolled back |
 | the failure itself, a [`DatabaseError`](../lib/index.d.ts) or [`ConnectionError`](../lib/index.d.ts) | the transaction itself: its `BEGIN` or its `COMMIT`, the `COMMIT` of a transaction a caught failure aborted among them ([A caught error still aborts](#a-caught-error-still-aborts)) |
-| a `SuppressedError` | the callback threw, and then the `ROLLBACK` failed: `error` is the rollback's failure and `suppressed` what the callback threw |
+| a `SuppressedError` | the callback threw, and then the `ROLLBACK` failed: `error` is the rollback's failure and `suppressed` what the callback threw; or the `ROLLBACK` of a transaction a caught failure aborted failed, its `suppressed` the `25P02` `DatabaseError` |
 
 Here the second line names a cake that does not exist, so its insert fails,
 and the order written before it is rolled back with it:
@@ -258,52 +258,50 @@ Under `SERIALIZABLE` and `REPEATABLE READ`, PostgreSQL refuses a transaction
 whose result another concurrent transaction has made inconsistent, with a
 serialization failure (SQLSTATE `40001`), and expects the client to run it
 again. It does the same to one side of a deadlock (`40P01`).
+`transactionWithRetry(fn, options)` on a pool or a connection does that for
+you, through Rust's `transaction_with_retry`: it runs the whole transaction
+again, from `BEGIN`, while it fails with one of those two errors, up to the
+number of `retries` the options give. Its options are `transaction`'s, a
+`mode` and an `isolation`, with `retries` beside them.
 
-**Not available in JavaScript yet:** running a transaction again while it
-fails with one of those two errors, which Rust's `transaction_with_retry`
-does: from `BEGIN`, up to a number of retries the program gives, asking the
-error whether it is worth a retry (`RetryableError`, `Error::is_retryable`).
-
-Until it is, the program writes the loop itself, reading each failure's
-`sqlstate`. The callback may then run more than once, so anything it does
-outside the database happens again on each attempt. Here another connection
-changes the cake's price after the first attempt has read it, and the first
-attempt's update is refused; the second attempt reads the new price and
-succeeds:
+The callback may run more than once, each time on a `Transaction` of its own,
+and anything it does outside the database happens again on each attempt.
+Here another connection changes the cake's price after the first attempt has
+read it, and the first attempt's update is refused; the second attempt reads
+the new price and succeeds:
 
 ```ts
 import assert from "node:assert/strict";
-import { DatabaseError, Decimal } from "@necessary/pgorm";
-
-const retryable = (error: unknown) =>
-  error instanceof DatabaseError && (error.sqlstate === "40001" || error.sqlstate === "40P01");
+import { Decimal } from "@necessary/pgorm";
 
 await using other = await pool.acquire();
 let attempts = 0;
-let doubled: Decimal | undefined;
-for (let retries = 3; doubled === undefined; retries--) {
-  try {
-    doubled = await pool.transaction(async (tx) => {
-      attempts += 1;
-      const fudge = await Cake.findByKey({ id: 1 }).one(tx);
-      if (attempts === 1) {
-        // Someone else's change commits after this transaction read the row.
-        await other.execute("UPDATE cake SET price = price + 1 WHERE id = 1");
-      }
-      const price = new Decimal(String(Number(fudge.price.toString()) * 2));
-      const changed = await Cake.update({ price }).where(Cake.key({ id: 1 })).returning("price").one(tx);
-      return changed.price;
-    }, { mode: "readWrite", isolation: "serializable" });
-  } catch (error) {
-    if (!retryable(error) || retries === 0) throw error;
+const doubled = await pool.transactionWithRetry(async (tx) => {
+  attempts += 1;
+  const fudge = await Cake.findByKey({ id: 1 }).one(tx);
+  if (attempts === 1) {
+    // Someone else's change commits after this transaction read the row.
+    await other.execute("UPDATE cake SET price = price + 1 WHERE id = 1");
   }
-}
+  const price = new Decimal(String(Number(fudge.price.toString()) * 2));
+  const changed = await Cake.update({ price }).where(Cake.key({ id: 1 })).returning("price").one(tx);
+  return changed.price;
+}, { retries: 3, mode: "readWrite", isolation: "serializable" });
 assert.deepEqual([attempts, String(doubled)], [2, "11.00"]);
 ```
 
 `Number(..)` is safe here only because the prices have two places and are
 small; [Values and types](13-values.md) says why a `Decimal` never becomes a
 number by itself.
+
+Which failures are worth a retry is pgorm's to say, as Rust's
+`RetryableError` says it: an error's `isRetryable` is true for a serialization
+failure or a deadlock, and false for every other ([Errors](09-errors.md)). A
+callback that throws anything else, or fails past the last retry, ends the
+transaction as `transaction(fn)` does, rejecting with what it threw. A failed
+`COMMIT` that is retryable runs the callback again too, and an attempt whose
+`ROLLBACK` fails rejects with a `SuppressedError`, as Rust's ends the
+retrying with `RollbackFailed`.
 
 ## An aborted transaction rolls back
 

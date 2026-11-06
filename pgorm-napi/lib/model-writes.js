@@ -7,7 +7,7 @@
 // and `exec_returning_upsert(s)` read them.
 // [spec:pgorm:req:bindings.model-writes+3]
 
-import { runStatement } from "./connections.js";
+import { runStatement } from "./runs.js";
 import { ConstructionError, DecodeError } from "./errors.js";
 import { columnValue, omissible, saved } from "./model-columns.js";
 import { decodeAll, decodeOne, decodeOptional } from "./model-decode.js";

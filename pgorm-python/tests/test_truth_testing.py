@@ -5,7 +5,7 @@ import pkgutil
 import unittest
 
 import pgorm as p
-from pgorm import _native, copy_rows, pipeline as pl, pool_options, schema as s
+from pgorm import _native, copy_rows, pipeline as pl, pool_options, raw_methods, schema as s
 from pgorm.schema import changes
 from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, reads as read_views, versions as version_views
 from pgorm.codegen import source
@@ -32,7 +32,8 @@ EXEMPT = {
     # open resource is. The streams themselves refuse, since a stream's truth
     # would say nothing of whether rows remain.
     p.Pool, p.InstrumentedPool, p.Connection, p.Transaction, p.MultiPool, p.HookConnection,
-    _native._Pool, _native._Connection, _native._Transaction, _native._Stream,
+    raw_methods.RawStatements,
+    _native._Pool, _native._Connection, _native._Transaction, _native._Retrying, _native._Stream,
     _native._HookConnection, _native._PoolShape, pool_options.PoolShape,
     # A COPY's columns and the binary format's two sides: declarations and
     # codecs, not SQL. The row sink refuses, as the streams do.
@@ -75,7 +76,7 @@ BUILT_ELSEWHERE = {
     views.QueryView, graph_views.GraphQueryView, graph_views.GraphCursorView,
     version_views.UpdateView, version_views.UpdateManyView, version_views._InsertView,
     version_views.InsertView, version_views.InsertManyView, p.Notification, p.Listener, p.RowStream,
-    p.CopyOutStream, p.CopyRowStream,
+    p.CopyOutStream, p.CopyRowStream, p.EntityRawQuery, views.RawQueryView,
 }
 
 # Bases the model writes share and no program builds: every write refuses
@@ -159,6 +160,7 @@ def other_samples():
         model.update({"id": 2}), model.insert({"id": 1}).returning("id"),
         model.graph(), model.find().cursor("id"), model.find().paginate(2), pl.from_(model).into_tuple(),
         model.find().select_only(), model.find().into_tuple(),
+        model.find_by_statement(p.RawSQL("SELECT 1")), p.from_statement(p.RawSQL("SELECT 1")),
         model.active({"id": 1}),
         model.insert({"id": 1}).on_conflict_do_nothing(), model.insert_many([]).on_empty_do_nothing(),
         model.insert({"id": 1}).on_empty_do_nothing().returning(),

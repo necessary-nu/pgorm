@@ -17,7 +17,6 @@ from .record import Database, decode_all, decode_single, decode_stream
 
 if TYPE_CHECKING:
     from ..results import RowStream
-    from ..runtime import Connection, Pool
     from .cursors import Cursor, Paginator
     from .model import Model
 
@@ -221,7 +220,7 @@ class ModelSelector[T]:
     async def optional(self, db: Database) -> T | None:
         return cast(T | None, await decode_single(db, self.statement, self._decode, optional=True))
 
-    async def stream(self, db: Connection | Pool) -> RowStream[T]:
+    async def stream(self, db: Database) -> RowStream[T]:
         return await decode_stream(db, self.statement, self._decode)
 
     async def count(self, db: Database) -> int:

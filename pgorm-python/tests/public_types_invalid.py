@@ -182,3 +182,13 @@ async def invalid(connection: p.Connection) -> None:
     accounts.find().cursor("id").add_secondary_order_by("accounts", "id")  # expected-error: arg-type
     # [spec:pgorm:req:bindings.model-clauses/test]    a model query's lock takes a LockStrength
     accounts.find().lock("update")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.template/test]    a template is a t-string, never a str built at run time
+    p.template("char_length(name) < 40")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.batch-execute/test]    a script is text, never a RawSQL
+    await connection.batch_execute(p.RawSQL("SELECT 1"))  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.raw-models/test]    a raw read takes a RawSQL, never bare text
+    p.from_statement("SELECT 1")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.json-operators/test]    a JSON path is a list of keys
+    p.col("meta").get_json_path("size")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.transaction-retry/test]    retries is a keyword-only int
+    await connection.transaction_with_retry(lambda tx: tx.one(p.RawSQL("SELECT 1")), retries="3")  # expected-error: arg-type

@@ -628,7 +628,8 @@ A name no step introduced and no source describes is not caught here: the
 compiler has no catalog, so it takes the name as a column of the source, and
 the server answers for it when the statement runs, with a `DatabaseError`.
 
-**Not available in JavaScript yet:** compiling PRQL text. Rust's `prql!`
-macro compiles a PRQL query written out as text when the program is built
-([Raw SQL](10-raw-sql.md)); JavaScript composes PRQL only through this
-namespace's steps.
+A PRQL query written out whole as text compiles through the same compiler
+with `prql(text, values)`, the run-time counterpart of Rust's `prql!` macro,
+which holds its SQL to the grammar and its values to its placeholders
+([Raw SQL](10-raw-sql.md)). The pipeline is for a query assembled from parts;
+text is for one known whole.

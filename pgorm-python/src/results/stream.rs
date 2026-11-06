@@ -13,11 +13,29 @@ use crate::{
     errors::{LifecycleError, database_error},
     runtime::{ConnectionState, Operation},
     statements,
+    transactions::{Lease, State},
 };
+
+/// What a stream holds while it reads: its connection, taken out of its slot,
+/// or its transaction, reserved. Released at the last row; dropped before it,
+/// the connection is discarded, and the transaction with it.
+enum Hold {
+    Connection(Box<Operation>),
+    Transaction(Lease),
+}
+
+impl Hold {
+    fn release(self) {
+        match self {
+            Self::Connection(operation) => (*operation).restore(),
+            Self::Transaction(lease) => lease.complete(),
+        }
+    }
+}
 
 struct Active {
     rows: Pin<Box<RowStream>>,
-    operation: Operation,
+    hold: Hold,
 }
 
 /// What a stream makes of each row: a `Record`, or what a read that decodes
@@ -30,23 +48,27 @@ struct StreamState {
     active: Arc<Mutex<Option<Active>>>,
     cancelled: CancellationToken,
     finished: CancellationToken,
+    /// Fires when the transaction a transaction's stream reads in ends.
+    ended: CancellationToken,
 }
 
 impl StreamState {
-    /// Also release idle streams when their connection or pool is closed.
+    /// Also release idle streams when their connection, pool or transaction
+    /// is closed.
     async fn watch(self: Arc<Self>) {
         tokio::select! {
             _ = self.finished.cancelled() => return,
             _ = self.cancelled.cancelled() => (),
             _ = self.connection.cancelled.cancelled() => (),
             _ = self.connection.pool.cancelled.cancelled() => (),
+            _ = self.ended.cancelled() => (),
         }
         drop(self.active.lock().await.take());
         self.finished.cancel();
     }
 }
 
-// [spec:pgorm:req:bindings.streams]
+// [spec:pgorm:req:bindings.streams+1]
 // [spec:pgorm:req:bindings.cancellation]
 #[pyclass(name = "_Stream", module = "pgorm._native", frozen)]
 pub(crate) struct NativeStream {
@@ -82,6 +104,7 @@ impl NativeStream {
                 _ = state.cancelled.cancelled() => return Err(LifecycleError::new_err("stream is closed")),
                 _ = state.connection.cancelled.cancelled() => return Err(LifecycleError::new_err("connection is closed")),
                 _ = state.connection.pool.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
+                _ = state.ended.cancelled() => return Err(LifecycleError::new_err("transaction is closed")),
                 row = active.rows.try_next() => row,
             };
             match row {
@@ -97,14 +120,24 @@ impl NativeStream {
                     Ok(Some(item))
                 }
                 Ok(None) => {
-                    active.operation.restore();
+                    active.hold.release();
                     state.finished.cancel();
                     Ok(None)
                 }
-                Err(error) => Err(database_error(
-                    pgorm::Error::from(error),
-                    &state.connection.pool.secrets,
-                )),
+                Err(error) => {
+                    // The server ended the statement with its error, which
+                    // leaves what the stream holds in a known state, as its
+                    // last row does: a transaction's is aborted, and its
+                    // commit reports so.
+                    if error.as_db_error().is_some() {
+                        active.hold.release();
+                        state.finished.cancel();
+                    }
+                    Err(database_error(
+                        pgorm::Error::from(error),
+                        &state.connection.pool.secrets,
+                    ))
+                }
             }
         })
     }
@@ -134,33 +167,83 @@ impl Drop for NativeStream {
     }
 }
 
+/// What decodes a stream's rows in place of a `Record`: a disjoint read's
+/// codec or a registered read's selector, as `decoder` names one.
+pub(crate) fn row_decoder(decoder: Option<&Bound<'_, PyAny>>) -> PyResult<Option<RowDecode>> {
+    let Some(decoder) = decoder.filter(|decoder| !decoder.is_none()) else {
+        return Ok(None);
+    };
+    if let Ok(disjoint) = decoder.extract::<PyRef<'_, crate::disjoint::NativeDisjoint>>() {
+        return Ok(Some(disjoint.row_decode()));
+    }
+    Ok(Some(
+        decoder
+            .extract::<PyRef<'_, crate::entities::reads::NativeRowDecoder>>()?
+            .row_decode(),
+    ))
+}
+
+/// What a stream reads from.
+pub(crate) enum Source {
+    Connection(Arc<ConnectionState>),
+    Transaction(Arc<State>),
+}
+
+impl Source {
+    fn connection(&self) -> &Arc<ConnectionState> {
+        match self {
+            Self::Connection(connection) => connection,
+            Self::Transaction(state) => &state.connection,
+        }
+    }
+}
+
+// [spec:pgorm:req:bindings.streams+1]
 pub(crate) fn open<'py>(
     py: Python<'py>,
-    connection: Arc<ConnectionState>,
+    source: Source,
     query: &Bound<'_, PyAny>,
     decode: Option<RowDecode>,
 ) -> PyResult<Bound<'py, PyAny>> {
+    let connection = source.connection().clone();
     connection.pool.check_owner(py)?;
-    connection.ensure_open()?;
+    match &source {
+        Source::Connection(connection) => connection.ensure_open()?,
+        Source::Transaction(state) => state.check(py)?,
+    }
     let compiled = statements::compile(query)?;
     future_into_py(py, async move {
-        let operation = Operation::begin(connection.clone())?;
-        let values: Vec<_> = compiled.values.0.into_iter().map(ValueHolder).collect();
-        let db = operation.connection()?;
-        let rows = tokio::select! {
-            _ = connection.cancelled.cancelled() => return Err(LifecycleError::new_err("connection is closed")),
-            _ = connection.pool.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
-            rows = db.query_raw(&compiled.sql, values.iter().map(|v| v as &(dyn ToSql + Sync))) => rows,
-        }.map_err(|error| database_error(error, &connection.pool.secrets))?;
+        let (rows, hold, ended) = match source {
+            Source::Connection(connection) => {
+                let operation = Operation::begin(connection.clone())?;
+                let values: Vec<_> = compiled.values.0.into_iter().map(ValueHolder).collect();
+                let db = operation.connection()?;
+                let rows = tokio::select! {
+                    _ = connection.cancelled.cancelled() => return Err(LifecycleError::new_err("connection is closed")),
+                    _ = connection.pool.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
+                    rows = db.query_raw(&compiled.sql, values.iter().map(|v| v as &(dyn ToSql + Sync))) => rows,
+                }.map_err(|error| database_error(error, &connection.pool.secrets))?;
+                (
+                    rows,
+                    Hold::Connection(Box::new(operation)),
+                    CancellationToken::new(),
+                )
+            }
+            Source::Transaction(state) => {
+                let (lease, rows) = state.stream(compiled).await?;
+                (rows, Hold::Transaction(lease), state.ended())
+            }
+        };
         let state = Arc::new(StreamState {
             connection,
             decode,
             active: Arc::new(Mutex::new(Some(Active {
                 rows: Box::pin(rows),
-                operation,
+                hold,
             }))),
             cancelled: CancellationToken::new(),
             finished: CancellationToken::new(),
+            ended,
         });
         tokio::spawn(state.clone().watch());
         Ok(NativeStream { state })

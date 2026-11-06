@@ -4,7 +4,7 @@
 // is built from — fields or items, joins, conditions, grouping, DISTINCT,
 // ordering, window and lock — the clauses that change it, and the cursor and
 // pages over it.
-// [spec:pgorm:req:bindings.model-reads]
+// [spec:pgorm:req:bindings.model-reads+1]
 // [spec:pgorm:req:bindings.model-clauses]
 
 import { arg, TRUSTED } from "./builder.js";

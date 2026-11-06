@@ -7,7 +7,8 @@
 // [spec:pgorm:req:bindings.pipeline-models]
 
 import { arg, trusted, TRUSTED } from "./builder.js";
-import { Queryable, runStatement } from "./connections.js";
+import { Queryable } from "./connections.js";
+import { runStatement } from "./runs.js";
 import { ConstructionError, DecodeError } from "./errors.js";
 import { readsText } from "./model-columns.js";
 import { decodeAll, decodeOne, decodeOptional } from "./model-decode.js";

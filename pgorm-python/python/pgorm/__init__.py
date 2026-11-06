@@ -17,6 +17,7 @@ from ._native import (
     LifecycleError,
     TimeoutError,
     UnsupportedCapabilityError,
+    RollbackFailedError,
     TypeName,
     DataType,
     Value,
@@ -37,6 +38,8 @@ from ._native import (
     bind,
     literal,
     call,
+    func,
+    template,
     tuple_expr,
     domain_value,
     JsonInput,
@@ -100,6 +103,8 @@ from ._native import (
     ConflictTarget,
     ConflictUpdate,
     RawSQL,
+    sql,
+    prql,
     MergeAction,
     Overriding,
     MergeUpdate,
@@ -121,6 +126,7 @@ from ._native import (
     Entity,
     EntityColumn,
     EntityQuery,
+    EntityRawQuery,
     EntityRelation,
     EntitySelection,
     EntityPaginator,
@@ -175,6 +181,7 @@ from .transactions import Transaction, TransactionMode, IsolationLevel
 from .copy import CopyOutStream, CopyRows, CopyRowStream, CopySource
 from .copy_rows import CopyRowSink
 from .listen import Listener
+from .raw import SelectorRaw, from_statement
 
 # [spec:pgorm:req:bindings.surface+2]
 # [spec:pgorm:req:python.naming+4]
@@ -196,6 +203,7 @@ __all__ = [
     "ExclusionViolationError",
     "DecodeError",
     "InternalError",
+    "RollbackFailedError",
     "LifecycleError",
     "TimeoutError",
     "Connection",
@@ -279,6 +287,8 @@ __all__ = [
     "bind",
     "literal",
     "call",
+    "func",
+    "template",
     "tuple_expr",
     "domain_value",
     "JsonInput",
@@ -342,6 +352,10 @@ __all__ = [
     "ConflictTarget",
     "ConflictUpdate",
     "RawSQL",
+    "sql",
+    "prql",
+    "SelectorRaw",
+    "from_statement",
     "MergeAction",
     "Overriding",
     "MergeUpdate",
@@ -369,6 +383,7 @@ __all__ = [
     "Entity",
     "EntityColumn",
     "EntityQuery",
+    "EntityRawQuery",
     "EntityModel",
     "ActiveModel",
     "ActiveValue",

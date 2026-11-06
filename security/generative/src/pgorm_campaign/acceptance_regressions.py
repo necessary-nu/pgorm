@@ -32,7 +32,7 @@ REMOVALS = {
     },
     "a_joined_deduplicated_relation_compiles_once": {
         "kind": "swap-dependency",
-        "paths": ["Cargo.toml", "pgorm-sql-macro/Cargo.toml"],
+        "paths": ["Cargo.toml", "pgorm-sql-check/Cargo.toml"],
         "dependency": "prqlc",
         "declaration": '{ version = "=0.13.14", default-features = false }',
         "detail": "depend on registry prqlc 0.13.14 in place of the pinned fork",

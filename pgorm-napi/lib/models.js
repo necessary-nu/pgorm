@@ -15,6 +15,7 @@ import { graphOf } from "./graphs.js";
 import { Column, columnKey } from "./model-columns.js";
 import { query } from "./model-queries.js";
 import { described, fieldOf, qualified, register, shapeOf } from "./model-shape.js";
+import { findByStatement } from "./raw.js";
 import { picked } from "./model-rows.js";
 import { active, hooksOf } from "./model-active.js";
 import { deleteRows, insertMany, insertOne, updateSet } from "./model-writes.js";
@@ -262,6 +263,21 @@ export class Model {
    */
   findByKey(values) {
     return this.find().where(this.key(values));
+  }
+
+  /**
+   * The rows of `statement`, SQL text, and its `params` decoded into this
+   * model's records, as Rust's
+   * `FromQueryResult::find_by_statement` decodes them: each field read from
+   * the column of its SQL name and held to its declared kind, other columns
+   * left unread.
+   * [spec:pgorm:req:bindings.raw-models]
+   *
+   * @param {unknown} statement
+   * @param {readonly unknown[]} [params]
+   */
+  findByStatement(statement, params) {
+    return findByStatement(this, statement, params);
   }
 
   /**

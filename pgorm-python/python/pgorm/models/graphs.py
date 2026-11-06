@@ -335,7 +335,7 @@ class Graph(Generic[S]):
         row: Row | None = await decode_single(db, self.statement, self.state.sources(), optional=True)
         return row
 
-    async def stream(self, db: Connection | Pool) -> RowStream[Row]:
+    async def stream(self, db: Database) -> RowStream[Row]:
         return await decode_stream(db, self.statement, self.state.sources())
 
     def _root_key(self) -> tuple[tuple[Model, str, str], ...]:

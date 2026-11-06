@@ -4,7 +4,7 @@
 // grouped, locked and joined along its relations, run through terminals that
 // decode each row into a record of the model's fields, or chosen into a
 // projection.
-// [spec:pgorm:req:bindings.model-reads]
+// [spec:pgorm:req:bindings.model-reads+1]
 
 import { Clauses, countOf, keyedCursor, pagesOf, recipeOf, selectOf, sourcesOf } from "./model-clauses.js";
 import { decodeAll, decodeCount, decodeOne, decodeOptional, decodeStream } from "./model-decode.js";

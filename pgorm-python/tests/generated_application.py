@@ -118,6 +118,14 @@ class GeneratedApplication(unittest.IsolatedAsyncioTestCase):
             for view in (app.Account.insert(active(9, "Nine")), app.Account.insert_many([])):
                 with self.subTest(view=type(view).__name__), self.assertRaises(p.ConstructionError):
                     bool(view)
+            # [spec:pgorm:req:bindings.raw-models/test]    a generated view reads a raw statement into its own models
+            raw = app.Account.find().from_raw_sql(p.RawSQL(
+                'SELECT id, "display name", note, version, mood::text AS mood FROM python_entities.accounts WHERE id = $1',
+                [3],
+            ))
+            self.assertEqual([type(model) for model in await raw.all(connection)], [app.AccountModel])
+            with self.assertRaises(p.ConstructionError):
+                bool(raw)
 
     # [spec:pgorm:req:bindings.codegen/test]
     async def test_graph_views_keep_optional_models(self):

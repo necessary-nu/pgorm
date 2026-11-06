@@ -201,6 +201,14 @@ pub(crate) fn require_expr(value: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
 #[pyo3(signature = (name, *arguments))]
 pub(crate) fn call(name: &str, arguments: &Bound<'_, PyTuple>) -> PyResult<PyExpr> {
     let args = sequence(arguments.as_any())?;
+    if let ("grouping", [first, rest @ ..]) = (name, args.as_slice()) {
+        let grouping = rest
+            .iter()
+            .fold(Func::grouping(first.clone()), |grouping, arg| {
+                grouping.arg(arg.clone())
+            });
+        return Ok(PyExpr::from_rust(grouping.into()));
+    }
     let expr = match (name, args.as_slice()) {
         ("lower", [value]) => Func::lower(value.clone()),
         ("upper", [value]) => Func::upper(value.clone()),
@@ -233,6 +241,13 @@ pub(crate) fn call(name: &str, arguments: &Bound<'_, PyTuple>) -> PyResult<PyExp
         ("jsonb_to_record", [jsonb]) => Func::jsonb_to_record(jsonb.clone()),
         ("json_to_recordset", [json]) => Func::json_to_recordset(json.clone()),
         ("jsonb_to_recordset", [jsonb]) => Func::jsonb_to_recordset(jsonb.clone()),
+        ("to_tsvector", [text]) => Func::to_tsvector(text.clone(), None),
+        ("to_tsquery", [text]) => Func::to_tsquery(text.clone(), None),
+        ("plainto_tsquery", [text]) => Func::plainto_tsquery(text.clone(), None),
+        ("phraseto_tsquery", [text]) => Func::phraseto_tsquery(text.clone(), None),
+        ("websearch_to_tsquery", [text]) => Func::websearch_to_tsquery(text.clone(), None),
+        ("ts_rank", [vector, query]) => Func::ts_rank(vector.clone(), query.clone()),
+        ("ts_rank_cd", [vector, query]) => Func::ts_rank_cd(vector.clone(), query.clone()),
         _ => {
             return Err(crate::UnsupportedCapabilityError::new_err(
                 "unsupported function or argument count",
@@ -240,4 +255,55 @@ pub(crate) fn call(name: &str, arguments: &Bound<'_, PyTuple>) -> PyResult<PyExp
         }
     };
     Ok(PyExpr::from_rust(expr.into()))
+}
+
+/// A call of the function `name`, any function the server has, with each
+/// argument bound unless it is an expression: Rust's `Func::named`. The name
+/// is an identifier, written bare when it is a lowercase name PostgreSQL
+/// does not restrict and quoted otherwise, so it names a function and is
+/// never read as syntax.
+// [spec:pgorm:req:bindings.named-functions]
+#[pyfunction]
+#[pyo3(signature = (name, *arguments))]
+pub(crate) fn func(name: &Bound<'_, PyAny>, arguments: &Bound<'_, PyTuple>) -> PyResult<PyExpr> {
+    let name = Identifier::new(name)?.name();
+    let args = sequence(arguments.as_any())?;
+    Ok(PyExpr::from_rust(Func::named(name).args(args).into()))
+}
+
+/// A piece of SQL the builder has no method for, written as a t-string:
+/// its text is SQL, and each interpolation goes between the pieces, an
+/// expression embedded as it is and any other value bound, as Rust's
+/// `Expr::template` binds its values. A `str` is refused, so text built at
+/// run time cannot become a template by accident: the text is the
+/// program's, as Rust's `&'static str` holds it to be.
+// [spec:pgorm:req:bindings.template]
+#[pyfunction]
+pub(crate) fn template(text: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+    let py = text.py();
+    let templatelib = py.import("string.templatelib")?;
+    if !text.is_instance(&templatelib.getattr("Template")?)? {
+        return Err(PyTypeError::new_err(
+            "a template is a t-string, t\"..\", whose text is the program's own",
+        ));
+    }
+    let pieces: Vec<String> = text.getattr("strings")?.extract()?;
+    let mut values = Vec::new();
+    for interpolation in text.getattr("interpolations")?.try_iter()? {
+        let interpolation = interpolation?;
+        if !interpolation.getattr("conversion")?.is_none()
+            || !interpolation
+                .getattr("format_spec")?
+                .extract::<String>()?
+                .is_empty()
+        {
+            return Err(ConstructionError::new_err(
+                "a template's interpolation is a value bound as it is: it takes no conversion or format",
+            ));
+        }
+        values.push(coerce(&interpolation.getattr("value")?)?.inner);
+    }
+    let template = pgorm::pgorm_query::SqlTemplate::from_pieces(&pieces, values)
+        .map_err(|error| ConstructionError::new_err(error.to_string()))?;
+    Ok(PyExpr::from_rust(SimpleExpr::Template(template)))
 }

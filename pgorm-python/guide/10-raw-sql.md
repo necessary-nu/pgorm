@@ -6,8 +6,9 @@ the statement is text, its values travel beside it as parameters, and the
 rows come back as the same records a built query returns.
 
 This chapter runs SQL text with `RawSQL`, reads its rows, decodes them into
-models, and says what Python has in place of the Rust guide's compile-time
-checks, the `sql!` and `prql!` macros.
+models, checks a model against a statement before it runs, and checks SQL
+and PRQL text where the Rust guide's `sql!` and `prql!` macros check it at
+compile time.
 
 ## Running a statement
 
@@ -22,7 +23,8 @@ run it with the same methods:
 | `one` | its one row, and a `DecodeError` for any other number |
 | `optional` | its row, or `None` for none, and a `DecodeError` for more than one |
 | `query` | all of its rows, as a list |
-| `stream` | a stream of its rows, read as they arrive (on a pool or a connection) |
+| `stream` | a stream of its rows, read as they arrive |
+| `batch_execute` | nothing: it runs a whole script of `;`-separated statements, with no parameters |
 
 Here Python differs from Rust. Rust's methods take the SQL and a slice of
 parameters as two arguments; Python puts the two in one `RawSQL`, so a
@@ -77,11 +79,13 @@ the same text runs there, so a statement written once and run often is parsed
 and planned once per connection. [Statement caches and
 DDL](19-statement-caches.md) covers what that means after a schema change.
 
-Here Python differs from Rust, which also has `batch_execute` for a script of
-`;`-separated statements sent as it is. Python has no such method yet: every
-statement it sends is prepared, and PostgreSQL refuses to prepare more than
-one command at a time, so a script is refused as it runs. Run each statement
-as a `RawSQL` of its own:
+Every method but `batch_execute` prepares its statement. `batch_execute`
+takes a `str`, not a `RawSQL`: a script of `;`-separated statements, sent as
+it is through PostgreSQL's simple-query protocol, preparing nothing, as
+Rust's `batch_execute` sends one. It takes no parameters, so it is for DDL
+and fixed scripts, never for values a user supplied. A script given to the
+other methods is refused by the server, which prepares one command at a
+time:
 
 ```python
 import asyncio
@@ -93,17 +97,16 @@ from pgorm import DatabaseError, Pool, RawSQL
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
         script = "CREATE TABLE oven (id integer PRIMARY KEY); CREATE TABLE tray (id integer PRIMARY KEY)"
+        await pool.batch_execute(script)
+        row = await pool.one(RawSQL("SELECT count(*) AS tables FROM pg_tables WHERE tablename IN ('oven', 'tray')"))
+        assert row["tables"] == 2
+
         try:
-            await pool.execute(RawSQL(script))
+            await pool.execute(RawSQL("DROP TABLE oven; DROP TABLE tray"))
         except DatabaseError as error:
             assert error.sqlstate == "42601"
         else:
-            raise AssertionError("a script of two statements is refused")
-
-        for statement in script.split("; "):
-            await pool.execute(RawSQL(statement))
-        row = await pool.one(RawSQL("SELECT count(*) AS tables FROM pg_tables WHERE tablename IN ('oven', 'tray')"))
-        assert row["tables"] == 2
+            raise AssertionError("a prepared statement holds one command")
 
 
 asyncio.run(main())
@@ -139,11 +142,11 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-A transaction runs `execute`, `query`, `one` and `optional`. Here Python
-differs from Rust, whose `query_raw` streams inside a transaction too: a
-Python transaction has no `stream` yet, and its connection is held by the
-transaction until the block ends, so inside one, read the rows with
-`query`.
+A transaction streams too, as Rust's `query_raw` does inside one. Its stream
+reserves the transaction until the last row, so the transaction refuses other
+statements meanwhile, and a stream closed before its last row discards the
+transaction with its connection, nothing committed; [Pages, cursors and
+streams](06-pagination.md#who-holds-the-connection) says more.
 
 ## Decoding rows into models
 
@@ -216,24 +219,93 @@ column from its text, so SQL written for it casts the column,
 `flavor::text AS flavor`. A Python model reads the column as it is, so
 `SELECT *` decodes into `Cake` with no cast.
 
-Rust starts the same decode from other places too: `Select::from_raw_sql` on
-an entity's `find()`, `FromQueryResult::find_by_statement` and the
-`SelectorRaw` constructors, each taking the SQL text and its values in the
-one shape its connection methods take them. Python has
-neither yet: a model's queries are built, not written, and `ModelRecord` is
-how a written statement's row becomes a model's record. A registered Rust
-entity's model, an `EntityModel`, cannot be decoded from a raw statement's
-row in Python yet.
+A model's `find_by_statement(statement)` decodes every row of a statement
+field read from the column of its SQL name and held to the kind it declares,
+the columns no field reads left unread, and a field whose column is missing a
+`DecodeError`. It gives a `SelectorRaw`, which runs the statement as written
+with `all`, `one`, `optional` and `stream`, and pages and counts it
+([Pages, cursors and streams](06-pagination.md#paginating-raw-sql)):
+
+```python
+import asyncio
+import os
+from decimal import Decimal
+
+from pgorm import DecodeError, Pool, RawSQL
+
+from bakery import Cake
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        cheap = Cake.find_by_statement(RawSQL(
+            "SELECT *, price * 100 AS cents FROM cake WHERE price < $1 ORDER BY price", [Decimal("4.00")]
+        ))
+        names = [cake["name"] for cake in await cheap.all(pool)]
+        assert names == ["Vanilla Sponge", "Lemon Drizzle", "Carrot Cake"]
+
+        fudge = await Cake.find_by_statement(RawSQL("SELECT * FROM cake WHERE id = $1", [1])).one(pool)
+        assert (fudge["name"], fudge["flavor"]) == ("Chocolate Fudge", "chocolate")
+
+        try:
+            await Cake.find_by_statement(RawSQL("SELECT id, name FROM cake")).all(pool)
+        except DecodeError:
+            pass
+        else:
+            raise AssertionError("a cake has a price")
+
+
+asyncio.run(main())
+```
+
+`from_statement(statement)` gives the same `SelectorRaw` over records, for a
+statement no model describes, which pages and counts as a model's does. A
+registered Rust entity's query reads a statement through Rust's
+`Select::from_raw_sql` with `from_raw_sql(statement)`, its rows the entity's
+own `EntityModel`s ([Registering Rust entities](24-registrations.md)).
 
 ## Checking a decode target against a statement
 
-Rust's `verify` asks PostgreSQL to describe a statement's result without
-running it, and checks a decode target's columns against that description,
-so a struct naming a column the statement does not return fails before any
-row arrives. That is not available in Python yet. A model's record is checked
-as each row is decoded, so a mismatch surfaces with the first row, and a
-statement that happens to return no rows does not show it. A test that runs
-the statement over data it returns rows for is the check Python has.
+A model that names a column the statement does not return fails only when a
+row arrives, so a query that happens to return nothing hides the mistake.
+`verify(statement, model)`, on a pool, a connection or a transaction, asks
+PostgreSQL to describe the statement's result without running it, as Rust's
+`verify` does, and checks every field of the model against that description:
+its column present, and of a type its declared kind reads, the test a row's
+decode applies. A field that fails raises `DecodeError` naming it. The
+statement's values are neither bound nor checked:
+
+```python
+import asyncio
+import os
+
+from pgorm import Column, DecodeError, Model, Pool, RawSQL
+
+PriceList = Model("price_list", {
+    "name": Column("text"),
+    "price_in_cents": Column("i64"),
+})
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        try:
+            await pool.verify(RawSQL("SELECT name, price FROM cake WHERE bakery_id = $1", [1]), PriceList)
+        except DecodeError as error:
+            assert str(error) == (
+                "`price_list` reads column `price_in_cents`, which the statement does not return; "
+                "it returns: name, price"
+            )
+        else:
+            raise AssertionError("the statement has no price_in_cents")
+
+        fixed = RawSQL("SELECT name, (price * 100)::bigint AS price_in_cents FROM cake WHERE bakery_id = $1", [1])
+        await pool.verify(fixed, PriceList)
+        assert len(await PriceList.find_by_statement(fixed).all(pool)) == 3
+
+
+asyncio.run(main())
+```
 
 ## Statements the query builder built
 
@@ -305,87 +377,89 @@ statement your program chose to write.
 ## SQL checked before it runs
 
 Rust's `sql!` holds a SQL literal to PostgreSQL's grammar while the crate
-compiles, so a typo is a compile error. Python has no compile step, and the
-package parses no SQL before sending it: constructing a `RawSQL` refuses a
-NUL byte in its text and reads no further, and the server reports a syntax
-error when the statement runs, as a `DatabaseError` whose `sqlstate` is
-`42601`. The connection stays usable afterwards:
+compiles, so a typo is a compile error. Python has no compile step; `sql(text)`
+makes the same check when it is called, through the code `sql!` runs, and
+returns the text unchanged. Called where a module defines its statements, it
+checks them once, as the module loads, rather than each at its first run. A
+script is checked statement by statement, for `batch_execute`. SQL the grammar
+rejects raises `ConstructionError`, its message reprinting the line with a
+caret under the token the parser stopped at:
 
 ```python
 import asyncio
 import os
 
-from pgorm import DatabaseError, Pool, RawSQL
+from pgorm import ConstructionError, Pool, RawSQL, sql
+
+BAKERS_AT = sql("SELECT name FROM baker WHERE bakery_id = $1 ORDER BY name")
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        typo = RawSQL("SELEC name FROM baker WHERE bakery_id = $1", [1])
-        try:
-            await pool.query(typo)
-        except DatabaseError as error:
-            assert error.sqlstate == "42601"
-            assert error.message == 'syntax error at or near "SELEC"'
-        else:
-            raise AssertionError("the server refuses the typo")
+        rows = await pool.query(RawSQL(BAKERS_AT, [1]))
+        assert [row["name"] for row in rows] == ["Ada", "Bo"]
 
-        fixed = RawSQL("SELECT name FROM baker WHERE bakery_id = $1 ORDER BY name", [1])
-        assert [row["name"] for row in await pool.query(fixed)] == ["Ada", "Bo"]
+    try:
+        sql("SELEC name FROM baker WHERE bakery_id = $1")
+    except ConstructionError as error:
+        assert str(error) == (
+            'PostgreSQL rejected this SQL: syntax error at or near "SELEC"\n\n'
+            "  SELEC name FROM baker WHERE bakery_id = $1\n"
+            "  ^"
+        )
+    else:
+        raise AssertionError("SELEC is no keyword")
 
 
 asyncio.run(main())
 ```
 
-`sql!` is not available in Python, nor is any check of SQL text before it
-is sent. `sql!` checks the grammar alone and knows nothing of the schema;
-the server checks both when the statement runs. So in Python a test that runs
-each statement once is what moves a typo, and a missing table or column,
-earlier than production.
+The check is of the grammar alone. `sql` knows nothing of the schema, so a
+table or column that does not exist passes, and is the server's to refuse,
+as a `DatabaseError` when the statement runs. It takes no values: write `$1`
+placeholders in the SQL and pass the values in the `RawSQL` that runs it.
 
 ## PRQL
 
 Rust's `prql!` compiles a [PRQL](https://prql-lang.org) literal to SQL while
-the crate compiles. Python cannot compile PRQL text: no function in the
-package takes it. What it has is [the pipeline](12-pipeline.md), the same
-PRQL compiler with a builder in front of it, whose steps are Python calls.
-Rust's `from cake | filter price < $1 | sort name | select {name, price}` is
-this pipeline, whose `filter_with` step binds the price as `$1`:
+the crate compiles. `prql(text, values)` compiles PRQL text when it is
+called, through the same compiler, holds the SQL to PostgreSQL's grammar as
+`sql` does, and gives a `RawSQL` of the SQL and the values, in the order of
+their `$N` placeholders. It raises `ConstructionError` for PRQL the compiler
+rejects, SQL the grammar rejects, a number of values that does not match the
+placeholders, and placeholders numbered with a gap:
 
 ```python
 import asyncio
 import os
 from decimal import Decimal
 
-from pgorm import Pool
-from pgorm import pipeline as pl
-
-from bakery import Cake
-
-price, name = pl.col("cake", "price"), pl.col("cake", "name")
+from pgorm import ConstructionError, Pool, prql
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
         under = Decimal("4.00")
-        cheap = (
-            pl.from_(Cake)
-            .filter_with(lambda binder: price < binder.bind(under))
-            .sort(name)
-            .select(name, price)
-        )
-
+        cheap = prql("from cake | filter price < $1 | sort name | select {name, price}", [under])
         compiled = cheap.inspect()
         assert compiled.sql == "SELECT name, price FROM cake WHERE price < $1 ORDER BY name"
         assert [value.value for value in compiled.params] == [under]
 
-        rows = await cheap.all(pool)
+        rows = await pool.query(cheap)
         assert [row["name"] for row in rows] == ["Carrot Cake", "Lemon Drizzle", "Vanilla Sponge"]
+
+    try:
+        prql("from cake | filter price < $1")
+    except ConstructionError as error:
+        assert str(error) == "the query has 1 placeholder(s) but 0 argument(s) were given: nothing binds $1"
+    else:
+        raise AssertionError("nothing binds $1")
 
 
 asyncio.run(main())
 ```
 
-The pipeline is compiled when it is inspected or run, before anything is
-sent, and a pipeline the compiler refuses raises `ConstructionError` there.
-That checks the pipeline, not SQL text, and like `prql!` it does not know the
-schema: a column that does not exist is the server's to refuse.
+Like `prql!`, it does not know the schema. For a query assembled from parts
+at run time, such as a filter a user chose, [the pipeline](12-pipeline.md) is
+the same compiler with a builder in front of it, whose steps are Python
+calls.

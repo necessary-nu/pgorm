@@ -164,13 +164,19 @@ pub(crate) fn capabilities() -> Map<String, Value> {
             "copy_from",
             "pgorm_query::CopyFromStatement::new with CopyText, CopyCsv or CopyBinary",
         ),
-        ("copy_from.columns", "pgorm_query::CopyFromStatement::columns"),
+        (
+            "copy_from.columns",
+            "pgorm_query::CopyFromStatement::columns",
+        ),
         (
             "copy_from.where",
             "pgorm_query::ConditionalStatement::cond_where for CopyFromStatement",
         ),
         ("copy_from.freeze", "pgorm_query::CopyFromStatement::freeze"),
-        ("copy_from.delimiter", "pgorm_query::CopyFromStatement::delimiter"),
+        (
+            "copy_from.delimiter",
+            "pgorm_query::CopyFromStatement::delimiter",
+        ),
         (
             "copy_from.null_string",
             "pgorm_query::CopyFromStatement::null_string",
@@ -184,7 +190,10 @@ pub(crate) fn capabilities() -> Map<String, Value> {
             "copy_from.header_match",
             "pgorm_query::CopyFromStatement::header_match",
         ),
-        ("copy_from.encoding", "pgorm_query::CopyFromStatement::encoding"),
+        (
+            "copy_from.encoding",
+            "pgorm_query::CopyFromStatement::encoding",
+        ),
         (
             "copy_from.on_error_ignore",
             "pgorm_query::CopyFromStatement::on_error_ignore, CopyIgnore, CopyLogVerbosity",
@@ -207,7 +216,10 @@ pub(crate) fn capabilities() -> Map<String, Value> {
             "copy_to",
             "pgorm_query::CopyToStatement::new with IntoCopySource or CopySource::try_from, and CopyText, CopyCsv or CopyBinary",
         ),
-        ("copy_to.delimiter", "pgorm_query::CopyToStatement::delimiter"),
+        (
+            "copy_to.delimiter",
+            "pgorm_query::CopyToStatement::delimiter",
+        ),
         (
             "copy_to.null_string",
             "pgorm_query::CopyToStatement::null_string",
@@ -221,9 +233,7 @@ pub(crate) fn capabilities() -> Map<String, Value> {
             "pgorm_query::CopyToStatement::{force_quote, force_quote_all}",
         ),
         ("copy_to.inspect", "pgorm_query::CopyToStatement as Display"),
-    ]
-    .into_iter()
-    .map(|(name, api)| (name.to_owned(), json!({"rust_api": api, "features": []})));
+    ];
     let execution = [
         (
             "connection.copy_in",
@@ -277,7 +287,10 @@ pub(crate) fn capabilities() -> Map<String, Value> {
             "copy_row_sink",
             "pgorm::CopyRowEncoder over the described columns, per row, as CopyRowSink::send and send_model",
         ),
-        ("copy_row_stream.models", "pgorm::CopyRowStream::models, read as a model's records"),
+        (
+            "copy_row_stream.models",
+            "pgorm::CopyRowStream::models, read as a model's records",
+        ),
         (
             "copy_row_encoder",
             "pgorm::CopyRowEncoder::{new, header, encode, trailer}",
@@ -290,15 +303,8 @@ pub(crate) fn capabilities() -> Map<String, Value> {
             "copy_column",
             "pgorm::CopyColumn::{new, with_money_places}, a built-in type by name",
         ),
-    ]
-    .into_iter()
-    .map(|(name, api)| {
-        (
-            name.to_owned(),
-            json!({"rust_api": api, "features": []}),
-        )
-    });
-    builders.chain(execution).collect()
+    ];
+    crate::capabilities::plain(builders.into_iter().chain(execution))
 }
 
 pub(crate) fn policy() -> Value {

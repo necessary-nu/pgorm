@@ -6,7 +6,7 @@
 // [spec:pgorm:req:bindings.entity-reads+4]
 
 import { TRUSTED } from "./builder.js";
-import { runJob } from "./connections.js";
+import { runJob } from "./runs.js";
 import { rowsOf } from "./entities.js";
 import { native } from "./operations.js";
 import { Select } from "./select.js";

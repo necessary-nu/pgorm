@@ -1425,6 +1425,7 @@ dependencies = [
  "pgorm-macros",
  "pgorm-pool",
  "pgorm-query",
+ "pgorm-sql-check",
  "pgorm-sql-macro",
  "postgres-protocol",
  "prqlc",
@@ -1555,14 +1556,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "pgorm-sql-macro"
+name = "pgorm-sql-check"
 version = "0.2.0"
 dependencies = [
  "pg_query",
- "proc-macro2",
  "prqlc",
- "quote",
  "serde_json",
+]
+
+[[package]]
+name = "pgorm-sql-macro"
+version = "0.2.0"
+dependencies = [
+ "pgorm-sql-check",
+ "proc-macro2",
+ "quote",
  "syn 3.0.6",
 ]
 

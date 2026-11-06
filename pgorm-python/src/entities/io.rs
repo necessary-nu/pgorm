@@ -1,5 +1,5 @@
 use crate::panics::future_into_py;
-use pyo3::{IntoPyObjectExt, prelude::*, types::PyList};
+use pyo3::{IntoPyObjectExt, prelude::*};
 
 use super::{
     PyEntityModel,
@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     errors::{ConstructionError, InternalError},
-    execution::Executor,
+    execution::{Executor, listed},
     transactions::work::{Output, Work},
 };
 
@@ -17,34 +17,39 @@ pub(crate) fn select<'py>(
     query: Select,
     terminal: Terminal,
 ) -> PyResult<Bound<'py, PyAny>> {
-    let target = Executor::extract(py, connection)?;
     if query.compile(terminal).1.0.len() > 65535 {
         return Err(ConstructionError::new_err(
             "PostgreSQL supports at most 65535 query parameters",
         ));
     }
-    future_into_py(py, async move {
-        let Output::Models(models) = target.run(Work::Entity(query, terminal)).await? else {
-            return Err(InternalError::new_err("unexpected entity result"));
-        };
-        Python::attach(|py| {
-            let models: Vec<_> = models
-                .into_iter()
-                .map(|inner| PyEntityModel { inner })
-                .collect();
-            for model in &models {
-                model.validate(py)?;
-            }
-            if matches!(terminal, Terminal::All) {
-                Ok(PyList::new(py, models)?.into_any().unbind())
-            } else {
-                match models.into_iter().next() {
-                    Some(model) => model.into_py_any(py),
-                    None => Ok(py.None()),
-                }
-            }
-        })
-    })
+    models(py, connection, Work::Entity(query, terminal), terminal)
+}
+
+/// The models `work`, a read of a registration's, gives on `connection`: a
+/// list for `all`, and one or `None` otherwise.
+pub(crate) fn models<'py>(
+    py: Python<'py>,
+    connection: &Bound<'_, PyAny>,
+    work: Work,
+    terminal: Terminal,
+) -> PyResult<Bound<'py, PyAny>> {
+    let target = Executor::extract(py, connection)?;
+    listed(
+        py,
+        target,
+        work,
+        !matches!(terminal, Terminal::All),
+        "entity",
+        |output| match output {
+            Output::Models(models) => Some(models),
+            _ => None,
+        },
+        |py, inner| {
+            let model = PyEntityModel { inner };
+            model.validate(py)?;
+            model.into_py_any(py)
+        },
+    )
 }
 
 pub(crate) fn write<'py>(
