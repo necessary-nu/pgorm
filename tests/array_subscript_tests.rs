@@ -227,13 +227,10 @@ async fn a_bound_index_is_an_int4_parameter(db: &DatabaseConnection) -> Result<(
         .build();
     assert_eq!(sql, r#"SELECT "a"[$1], "a"[$2:$3] FROM "sample""#);
 
-    let rows: Vec<(Option<i32>, Vec<i32>)> = SelectorRaw::<
-        SelectGetableTuple<(Option<i32>, Vec<i32>)>,
-    >::into_tuple::<(Option<i32>, Vec<i32>)>(
-        sql, values
-    )
-    .all(db)
-    .await?;
+    let rows: Vec<(Option<i32>, Vec<i32>)> =
+        SelectorRaw::<SelectGetableTuple<(Option<i32>, Vec<i32>)>>::into_tuple(&sql, values)
+            .all(db)
+            .await?;
     assert_eq!(rows, [(Some(30), vec![10, 20])]);
 
     // A bound *array* has no type until the caller gives it one: the server
@@ -242,11 +239,10 @@ async fn a_bound_index_is_an_int4_parameter(db: &DatabaseConnection) -> Result<(
         .expr(Expr::expr(Expr::value(vec![1, 2, 3])).index(1))
         .build();
     assert_eq!(sql, r#"SELECT ($1)[$2]"#);
-    let untyped =
-        SelectorRaw::<SelectGetableTuple<Option<i32>>>::into_tuple::<Option<i32>>(sql, values)
-            .all(db)
-            .await
-            .expect_err("an untyped placeholder cannot be subscripted");
+    let untyped = SelectorRaw::<SelectGetableTuple<Option<i32>>>::into_tuple(&sql, values)
+        .all(db)
+        .await
+        .expect_err("an untyped placeholder cannot be subscripted");
     match &untyped {
         Error::Postgres(e) => assert_eq!(e.code(), Some(&SqlState::DATATYPE_MISMATCH)),
         other => panic!("expected Error::Postgres, got {other:?}"),
@@ -255,7 +251,7 @@ async fn a_bound_index_is_an_int4_parameter(db: &DatabaseConnection) -> Result<(
     let typed = Expr::val(vec![1, 2, 3]).cast_as_type(TypeName::new(Name::runtime("int4")).array());
     let (sql, values) = Query::select().expr(Expr::expr(typed).index(3)).build();
     let answer: Vec<Option<i32>> =
-        SelectorRaw::<SelectGetableTuple<Option<i32>>>::into_tuple::<Option<i32>>(sql, values)
+        SelectorRaw::<SelectGetableTuple<Option<i32>>>::into_tuple(&sql, values)
             .all(db)
             .await?;
     assert_eq!(

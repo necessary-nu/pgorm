@@ -323,7 +323,7 @@ class Model:
 
         return Relation("has_many", self, target, from_, to)
 
-    def graph(self) -> Graph:
+    def graph(self) -> Graph[Literal[False]]:
         """A graph rooted at this model, decoding its records alone until a
         slot is joined."""
         from .graphs import Graph, State, Table

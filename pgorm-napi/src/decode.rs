@@ -312,14 +312,14 @@ fn value(ty: &Type, kind: &ArrayType, raw: &[u8]) -> Result<Value, CodecError> {
 
 /// A range, each bound decoded as a value of `element` by the codec of
 /// `subtype`, through pgorm's one range reader.
-// [spec:pgorm:def:exec.decode.range+4]
+// [spec:pgorm:def:exec.decode.range+5]
 fn read_range(subtype: &Type, raw: &[u8], element: &ArrayType) -> Result<Range<Value>, CodecError> {
     let subtype = base_type(subtype);
     pgorm::range_from_sql_with(raw, |raw| value(subtype, element, raw))
 }
 
 /// A multirange, each range's bounds read as [`read_range`] reads them.
-// [spec:pgorm:def:exec.decode.range+4]
+// [spec:pgorm:def:exec.decode.range+5]
 fn read_multirange(
     subtype: &Type,
     raw: &[u8],

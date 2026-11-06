@@ -1,9 +1,9 @@
 use std::{fmt, pin::Pin, sync::Arc};
 
+use crate::panics::future_into_py;
 use futures_util::TryStreamExt;
 use pgorm::{ConnectionTrait, ValueHolder};
 use pyo3::prelude::*;
-use pyo3_async_runtimes::tokio::future_into_py;
 use tokio::sync::Mutex;
 use tokio_postgres::{RowStream, types::ToSql};
 use tokio_util::sync::CancellationToken;
@@ -101,7 +101,10 @@ impl NativeStream {
                     state.finished.cancel();
                     Ok(None)
                 }
-                Err(error) => Err(database_error(error.into(), &state.connection.pool.secrets)),
+                Err(error) => Err(database_error(
+                    pgorm::Error::from(error),
+                    &state.connection.pool.secrets,
+                )),
             }
         })
     }
@@ -143,10 +146,11 @@ pub(crate) fn open<'py>(
     future_into_py(py, async move {
         let operation = Operation::begin(connection.clone())?;
         let values: Vec<_> = compiled.values.0.into_iter().map(ValueHolder).collect();
+        let db = operation.connection()?;
         let rows = tokio::select! {
             _ = connection.cancelled.cancelled() => return Err(LifecycleError::new_err("connection is closed")),
             _ = connection.pool.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
-            rows = operation.connection()?.query_raw(&compiled.sql, values.iter().map(|v| v as &(dyn ToSql + Sync))) => rows,
+            rows = db.query_raw(&compiled.sql, values.iter().map(|v| v as &(dyn ToSql + Sync))) => rows,
         }.map_err(|error| database_error(error, &connection.pool.secrets))?;
         let state = Arc::new(StreamState {
             connection,

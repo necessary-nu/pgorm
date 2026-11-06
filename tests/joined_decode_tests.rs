@@ -14,7 +14,7 @@ use futures::StreamExt;
 use pgorm::tests_cfg::{cake, cake_filling, filling, fruit, vendor};
 use pgorm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Error, FromQueryResult,
-    QueryFilter, QueryResult, QuerySelect, RelationTrait, Value, alias,
+    QueryFilter, QueryResult, QuerySelect, RelationTrait, Value, Values, alias,
 };
 use pretty_assertions::assert_eq;
 
@@ -165,7 +165,7 @@ async fn projected_decode_errors() -> Result<(), Error> {
                       "fruit"."id" AS "s1_id", "fruit"."name" AS "s1_name"
                FROM "cake" LEFT JOIN "fruit" ON "cake"."id" = "fruit"."cake_id"
                WHERE "cake"."id" = $1"#,
-            vec![Value::Int(Some(cake_id))],
+            Values(vec![Value::Int(Some(cake_id))]),
         )
     };
 
@@ -190,7 +190,7 @@ async fn projected_decode_errors() -> Result<(), Error> {
                       "fruit"."id" AS "s1_id"
                FROM "cake" LEFT JOIN "fruit" ON "cake"."id" = "fruit"."cake_id"
                WHERE "cake"."id" = $1"#,
-            vec![Value::Int(Some(cake_id))],
+            Values(vec![Value::Int(Some(cake_id))]),
         )
     };
 
@@ -404,8 +404,8 @@ async fn all_null_nullable_projection_is_absent() -> Result<(), Error> {
 
     let row = |name_a: &str, name_b: &str| {
         MaybeNullable::find_by_statement(
-            format!(r#"SELECT {name_a}::text AS "s0_name", {name_b}::text AS "s1_name""#),
-            vec![],
+            &format!(r#"SELECT {name_a}::text AS "s0_name", {name_b}::text AS "s1_name""#),
+            Values(vec![]),
         )
     };
 
@@ -453,7 +453,7 @@ async fn present_invalid_column_still_errors() -> Result<(), Error> {
 
     let result = MaybeNullable::find_by_statement(
         r#"SELECT 123::int AS "s0_name", NULL::text AS "s1_name""#,
-        vec![],
+        Values(vec![]),
     )
     .one(&db)
     .await;

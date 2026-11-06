@@ -324,7 +324,7 @@ class Column:
         return self._validate(value, decoding=True)
 
 
-# [spec:pgorm:req:bindings.model-columns+1]
+# [spec:pgorm:req:bindings.model-columns+2]
 # [spec:pgorm:req:bindings.column-operators+3]
 class ModelColumn(p._DeclaredColumn):
     """A model field's column, itself the column's expression.
@@ -361,8 +361,32 @@ class ModelColumn(p._DeclaredColumn):
         """The plain expression, whose operators bind as an ``Expr``'s do."""
         return self._expression
 
+    # [spec:pgorm:req:bindings.model-columns+2]
+    def _quantified(self, quantified: p.Quantified) -> p.Quantified:
+        """``any_(..)`` or ``all_(..)`` over a list of values, ranging over
+        them each converted to the declared kind and bound as one array of it,
+        an enum's cast to its array type, as pgorm's ``eq_any`` binds through
+        the column's cast. One over a ``Select`` or an expression, and one
+        beside an array column, whose elements are arrays, is the quantifier
+        given."""
+        listed = quantified._listed
+        if listed is None or self.declaration.array:
+            return quantified
+        every, values = listed
+        elements = []
+        for value in values:
+            if value is None:
+                raise p.ConstructionError(
+                    f"{self.field_name} compared with None is never true: test it with is_null()"
+                )
+            elements.append(self.declaration._value(value).value)
+        array = p.Value.array(self.declaration.kind, elements)
+        return p.all_(array) if every else p.any_(array)
+
     def _operand(self, value: Any) -> p.Expr | p.Value | p.Quantified:
-        if isinstance(value, (p.Quantified, p.Expr)):
+        if isinstance(value, p.Quantified):
+            return self._quantified(value)
+        if isinstance(value, p.Expr):
             return value
         if value is None:
             raise p.ConstructionError(

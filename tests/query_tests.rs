@@ -406,7 +406,7 @@ pub async fn raw_selector_one_semantics() -> Result<(), Error> {
     // Zero rows: `one` fails, `one_opt` reports `None`.
     let missing = || {
         Bakery::find().from_raw_sql(
-            format!(r#"{ALL} OFFSET $1"#),
+            &format!(r#"{ALL} OFFSET $1"#),
             Values(vec![Value::BigInt(Some(99))]),
         )
     };
@@ -419,7 +419,7 @@ pub async fn raw_selector_one_semantics() -> Result<(), Error> {
     // No `LIMIT` is injected, so a raw statement matching two rows reaches
     // `query_opt` with both of them and the driver rejects the row count...
     let unlimited = Bakery::find()
-        .from_raw_sql(ALL.to_owned(), Values(Vec::new()))
+        .from_raw_sql(ALL, Values(Vec::new()))
         .one(&db)
         .await;
     match unlimited {
@@ -441,7 +441,7 @@ pub async fn raw_selector_one_semantics() -> Result<(), Error> {
     // A raw statement is otherwise run exactly as written.
     assert_eq!(
         Bakery::find()
-            .from_raw_sql(format!("{ALL} LIMIT 1"), Values(Vec::new()))
+            .from_raw_sql(&format!("{ALL} LIMIT 1"), Values(Vec::new()))
             .one(&db)
             .await?
             .name,
@@ -449,7 +449,7 @@ pub async fn raw_selector_one_semantics() -> Result<(), Error> {
     );
     assert_eq!(
         Bakery::find()
-            .from_raw_sql(format!("{ALL} LIMIT 2"), Values(Vec::new()))
+            .from_raw_sql(&format!("{ALL} LIMIT 2"), Values(Vec::new()))
             .all(&db)
             .await?
             .len(),
@@ -464,7 +464,7 @@ pub async fn raw_selector_one_semantics() -> Result<(), Error> {
 
     assert_eq!(
         Bakery::find()
-            .from_raw_sql(format!("{ALL} LIMIT 1"), Values(Vec::new()))
+            .from_raw_sql(&format!("{ALL} LIMIT 1"), Values(Vec::new()))
             .into_model::<BakeryName>()
             .one(&db)
             .await?,

@@ -2,21 +2,27 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { ConstructionError, copyFrom, copyTo, Decimal } from "@necessary/pgorm";
-import { OrderLine } from "../../../guide/bakery.ts";
+import { copyFrom } from "@necessary/pgorm";
+import { Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const bakeries = copyFrom("bakery", "binary").columns(["name", "city"]);
-  await assert.rejects(pool.copyInRows(bakeries, [["Daybreak", "Trondheim"], ["Dusk"]]), ConstructionError);
-  assert.equal(await pool.copyInRows(bakeries, [["Daybreak", "Trondheim"]]), 1);
+  const copy = copyFrom("cake", "csv")
+    .columns(["name", "flavor", "price", "gluten_free", "bakery_id"])
+    .header()
+    .quote("'")
+    .onErrorIgnore();
+  assert.equal(
+    copy.inspect().sql,
+    `COPY "cake" ("name", "flavor", "price", "gluten_free", "bakery_id") FROM STDIN WITH (FORMAT csv, HEADER true, QUOTE E'\\'', ON_ERROR ignore)`,
+  );
 
-  const rows = [];
-  for await (const row of await pool.copyOutRows(copyTo("bakery", "binary"))) rows.push(row);
-  assert.deepEqual(rows[2], [3, "Daybreak", "Trondheim"]);
+  const data = "name,flavor,price,gluten_free,bakery_id\n" +
+    "'Vanilla Slice, iced',vanilla,3.40,false,2\n" +
+    "Lemon Bun,lemon,ask,false,1\n";
+  // The second line's price did not convert, so it was skipped.
+  assert.equal(await pool.copyIn(copy, new TextEncoder().encode(data)), 1);
 
-  const prices = [];
-  const lines = copyTo(OrderLine.select("price").where(OrderLine.col("orderId").eq(1)).statement, "binary");
-  for await (const [price] of await pool.copyOutRows(lines)) prices.push(String(price as Decimal));
-  assert.deepEqual(prices.sort(), ["3.20", "4.50"]);
+  const slice = await Cake.find().where(Cake.col("name").eq("Vanilla Slice, iced")).one(pool);
+  assert.equal(slice.price.toString(), "3.40");
 }

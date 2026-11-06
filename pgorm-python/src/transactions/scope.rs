@@ -5,13 +5,16 @@ use super::{
     state::{Finished, State},
     work::{Output, Work},
 };
+use crate::metrics::Metrics;
 use crate::{
     copy::{Columns, CopyFrom, CopyTo, Message, Piece, Unopened},
     errors::{InternalError, Redactions, database_error},
     execution::Database,
 };
 use futures_util::future::BoxFuture;
-use pgorm::{DatabaseTransaction, Error, TransactionError, TransactionTrait};
+use pgorm::{
+    DatabaseTransaction, Error, TransactionError, TransactionTrait, metric::InstrumentedTransaction,
+};
 use pyo3::{PyErr, PyResult};
 use std::{future::Future, sync::Arc, time::Duration};
 use tokio::sync::{OwnedMutexGuard, mpsc, oneshot};
@@ -95,6 +98,17 @@ impl Completion {
         }
     }
 
+    /// A frame whose `COMMIT` an aborted transaction answered by rolling it
+    /// back, or whose `RELEASE` it refused and pgorm rolled back to: the
+    /// commit's reply carries the failure, and the connection is in a known
+    /// state.
+    fn aborted(reply: Option<Reply>, error: Error) -> Self {
+        Self {
+            healthy: true,
+            answer: reply.map(|reply| (reply, Err(Failure::Pgorm(error)))),
+        }
+    }
+
     /// A frame whose end left its connection in a state nobody knows.
     fn failed(reply: Option<Reply>, failure: Failure) -> Self {
         Self {
@@ -159,6 +173,24 @@ pub(super) enum Ended {
     Ran(Completion),
 }
 
+/// The transaction a frame serves: a plain one, or pgorm's metrics wrapper
+/// around one on an instrumented pool's connection, whose savepoints are
+/// instrumented too.
+// [spec:pgorm:req:bindings.metrics]
+pub(super) enum Tx<'a, 't> {
+    Plain(&'a mut DatabaseTransaction<'t>),
+    Metered(&'a mut InstrumentedTransaction<'t, Metrics>),
+}
+
+impl Tx<'_, '_> {
+    fn database(&self) -> Database<'_> {
+        match self {
+            Self::Plain(tx) => Database::Transaction(tx),
+            Self::Metered(tx) => Database::MeteredTransaction(tx),
+        }
+    }
+}
+
 /// One frame: its commands, and what outlives the closure serving them.
 pub(super) struct Frame {
     state: Arc<State>,
@@ -194,11 +226,8 @@ impl Frame {
     /// Serve the frame's commands inside its transaction, a savepoint's frame
     /// nested inside while it is open: `Ok` once Python commits, an `Exit`
     /// once it rolls back or the handle is abandoned.
-    // [spec:pgorm:req:bindings.transactions]
-    pub(super) fn serve<'a>(
-        &'a mut self,
-        tx: &'a mut DatabaseTransaction<'_>,
-    ) -> BoxFuture<'a, Result<(), Exit>> {
+    // [spec:pgorm:req:bindings.transactions+1]
+    pub(super) fn serve<'a>(&'a mut self, mut tx: Tx<'a, '_>) -> BoxFuture<'a, Result<(), Exit>> {
         Box::pin(async move {
             self.finished = Some(Finished(self.state.finished.clone()));
             if self
@@ -221,7 +250,7 @@ impl Frame {
                     Command::Run { work, reply } => {
                         let result = tokio::select! {
                             _ = self.state.abandoned.cancelled() => return self.halt.discard().await,
-                            result = work.run(Database::Transaction(&*tx)) => result,
+                            result = work.run(tx.database()) => result,
                         };
                         if reply.send(result.map_err(Failure::Pgorm)).is_err() {
                             return self.halt.discard().await;
@@ -237,7 +266,7 @@ impl Frame {
                     } => {
                         let ran = tokio::select! {
                             _ = self.state.abandoned.cancelled() => return self.halt.discard().await,
-                            ran = super::copy::run_in(&mut *tx, &statement, rows.as_ref(), &mut messages, opened) => ran,
+                            ran = super::copy::run_in(&mut tx, &statement, rows.as_ref(), &mut messages, opened) => ran,
                         };
                         match ran {
                             super::copy::RanIn::Lost => return self.halt.discard().await,
@@ -257,7 +286,7 @@ impl Frame {
                     } => {
                         let known = tokio::select! {
                             _ = self.state.abandoned.cancelled() => return self.halt.discard().await,
-                            known = super::copy::run_out(&mut *tx, &statement, rows.as_ref(), &pieces, opened) => known,
+                            known = super::copy::run_out(&mut tx, &statement, rows.as_ref(), &pieces, opened) => known,
                         };
                         if !known {
                             return self.halt.discard().await;
@@ -282,9 +311,20 @@ impl Frame {
                     } => {
                         let mut frame = Frame::new(child.clone(), receiver, opened);
                         let halt = frame.halt.clone();
-                        let ended = halt
-                            .run(tx.transaction(async |savepoint| frame.serve(savepoint).await))
-                            .await;
+                        let ended = match &mut tx {
+                            Tx::Plain(tx) => {
+                                halt.run(tx.transaction(async |savepoint| {
+                                    frame.serve(Tx::Plain(savepoint)).await
+                                }))
+                                .await
+                            }
+                            Tx::Metered(tx) => {
+                                halt.run(tx.transaction(async |savepoint| {
+                                    frame.serve(Tx::Metered(savepoint)).await
+                                }))
+                                .await
+                            }
+                        };
                         let completion = match frame.end(ended) {
                             Ended::Ran(completion) => completion,
                             Ended::Refused(opened, error) => {
@@ -319,6 +359,15 @@ impl Frame {
         };
         Ended::Ran(match ended {
             Ok(()) => Completion::finished(self.committed.take()),
+            // [spec:pgorm:req:bindings.transactions+1]    an aborted transaction's COMMIT raises, its connection kept
+            Err(TransactionError::Connection(error @ Error::TransactionAborted(_))) => {
+                Completion::aborted(self.committed.take(), error)
+            }
+            // An aborted transaction whose ROLLBACK then failed: the rollback's
+            // failure is what leaves the connection unknown.
+            Err(TransactionError::Connection(Error::RollbackFailed { rollback, .. })) => {
+                Completion::failed(self.committed.take(), Failure::Pgorm(*rollback))
+            }
             Err(TransactionError::Connection(error)) => {
                 if let Some(opened) = self.opened.take() {
                     return Ended::Refused(opened, error);
@@ -349,7 +398,7 @@ mod tests {
     use crate::errors::ConstructionError;
     use pyo3::Python;
 
-    // [spec:pgorm:req:bindings.errors+5/test]    a transaction ending this binding has no arm
+    // [spec:pgorm:req:bindings.errors+6/test]    a transaction ending this binding has no arm
     // for is its own failure, an InternalError, while pgorm's `Error::Custom`, which only an
     // application's hook returns, is the ConstructionError a hook's refusal is
     #[test]

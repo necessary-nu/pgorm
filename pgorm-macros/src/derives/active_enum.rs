@@ -1,7 +1,8 @@
 use super::case_style::{CaseStyle, case_style_of, convert_case_str};
 use super::iterable::impl_iterable;
 use super::util::{
-    bare_code, camel_case_with_escaped_non_uax31, trim_starting_raw_identifier, unknown_pgorm_key,
+    bare_code, camel_case_with_escaped_non_uax31, into_active_value, trim_starting_raw_identifier,
+    unknown_pgorm_key,
 };
 use heck::ToSnakeCase;
 use proc_macro2::{Span, TokenStream};
@@ -155,7 +156,7 @@ impl ActiveEnum {
     /// what its variants write, falling back to their discriminants.
     // [spec:pgorm:syn:macros.derive.active-enum+6]
     // [spec:pgorm:sem:macros.derive.boilerplate]
-    // [spec:pgorm:req:macros.derive.code-values+3]
+    // [spec:pgorm:req:macros.derive.code-values+4]
     fn new(input: syn::DeriveInput) -> Result<Self, Error> {
         let ident_span = input.ident.span();
         let ident = input.ident;
@@ -453,6 +454,7 @@ impl ActiveEnum {
             quote!()
         };
 
+        let into_active_value = into_active_value(ident);
         let impl_not_u8 = quote!(
             #[automatically_derived]
             impl pgorm::pgorm_query::value::with_array::NotU8 for #ident {}
@@ -566,6 +568,8 @@ impl ActiveEnum {
             }
 
             #impl_not_u8
+
+            #into_active_value
         )
     }
 }

@@ -115,7 +115,7 @@ class OperatorTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(ids, await self.written(written))
                 self.assertEqual(ids, expected)
 
-    # [spec:pgorm:req:bindings.quantifiers+3/test]    EXISTS, a scalar subquery, IN a Select, and
+    # [spec:pgorm:req:bindings.quantifiers+4/test]    EXISTS, a scalar subquery, IN a Select, and
     # any_ and all_ after each comparison over an array or a subquery's rows answer as the SQL
     # written by hand, an empty array false under ANY and true under ALL
     async def test_subqueries_and_quantifiers_answer_as_postgres_does(self):
@@ -154,7 +154,7 @@ class OperatorTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.ConstructionError):
                 refused()
 
-    # [spec:pgorm:req:bindings.quantifiers+3/test]    any_ and all_ after LIKE's and ILIKE's
+    # [spec:pgorm:req:bindings.quantifiers+4/test]    any_ and all_ after LIKE's and ILIKE's
     # family, the regular-expression matches, containment, the range positions, @@ and @?, over a
     # bound array or a subquery's rows, answer as the SQL written by hand
     async def test_quantifiers_beyond_comparisons_answer_as_postgres_does(self):

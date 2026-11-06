@@ -98,7 +98,7 @@ struct SkipsAField {
     cached: String,
 }
 
-// [spec:pgorm:sem:macros.derive.partial-model+6/test]    a skipped field selects nothing and decodes as its default
+// [spec:pgorm:sem:macros.derive.partial-model+7/test]    a skipped field selects nothing and decodes as its default
 #[pgorm_macros::test]
 async fn partial_model_skip_selects_nothing() -> Result<(), Error> {
     use pgorm::{PartialModelTrait, QuerySelect, QueryTrait};

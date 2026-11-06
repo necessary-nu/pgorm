@@ -5,9 +5,9 @@
 
 use std::sync::Arc;
 
+use crate::panics::future_into_py;
 use pgorm::pgorm_query::Condition;
 use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*, types::PyList};
-use pyo3_async_runtimes::tokio::future_into_py;
 
 use super::{
     PyActiveModel, PyEntityModel,
@@ -34,42 +34,82 @@ pub(crate) const TERMINALS: [(&str, &str); 2] = [
 ];
 
 // [spec:pgorm:req:bindings.entity-versions+3]
-// [spec:pgorm:req:python.records]
-/// A row as it was before a write and as the write left it.
-#[pyclass(name = "Change", module = "pgorm", frozen, get_all, from_py_object)]
-#[derive(Clone, Debug)]
+// [spec:pgorm:req:python.records+1]
+/// A row as it was before a write and as the write left it: a registered
+/// entity's two `EntityModel`s, a declared model's two `ModelRecord`s, or a
+/// generated view's two models, each the record its write reads rows as.
+#[pyclass(name = "Change", module = "pgorm", frozen, get_all, generic)]
+#[derive(Debug)]
 pub struct PyChange {
-    old: PyEntityModel,
-    new: PyEntityModel,
+    old: Py<PyAny>,
+    new: Py<PyAny>,
 }
 
 #[pymethods]
 impl PyChange {
-    fn __repr__(&self) -> String {
-        format!("Change({:?})", self.new.inner.info().name)
+    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+        Ok(format!("Change({})", self.new.bind(py).repr()?))
     }
 }
 
 // [spec:pgorm:req:bindings.entity-versions+3]
-// [spec:pgorm:req:python.records]
+// [spec:pgorm:req:python.records+1]
 /// What an upsert did with a row it wrote: `Inserted(model)`, or
-/// `Updated(change)` for the row its `ON CONFLICT DO UPDATE` updated.
-#[pyclass(name = "Upserted", module = "pgorm", frozen, from_py_object)]
-#[derive(Clone, Debug)]
+/// `Updated(change)` for the row its `ON CONFLICT DO UPDATE` updated, the
+/// rows the record its write reads rows as.
+#[pyclass(name = "Upserted", module = "pgorm", frozen)]
+#[derive(Debug)]
 pub enum PyUpserted {
-    Inserted { model: PyEntityModel },
-    Updated { change: PyChange },
+    Inserted { model: Py<PyAny> },
+    Updated { change: Py<PyChange> },
 }
 
 #[pymethods]
 impl PyUpserted {
     /// The row as the statement left it, whichever it did.
     #[pyo3(name = "into_model")]
-    fn left(&self) -> PyEntityModel {
+    fn left(&self, py: Python<'_>) -> Py<PyAny> {
         match self {
-            Self::Inserted { model } => model.clone(),
-            Self::Updated { change } => change.new.clone(),
+            Self::Inserted { model } => model.clone_ref(py),
+            Self::Updated { change } => change.get().new.clone_ref(py),
         }
+    }
+
+    /// `Upserted[M]` at run time, a `types.GenericAlias` as `Change[M]` is:
+    /// PyO3 makes no enum generic itself.
+    #[classmethod]
+    fn __class_getitem__<'py>(
+        cls: &Bound<'py, pyo3::types::PyType>,
+        rows: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        cls.py()
+            .import("types")?
+            .getattr("GenericAlias")?
+            .call1((cls, rows))
+    }
+}
+
+/// `_change(old, new)`: the `Change` a declared model's or a generated
+/// view's write answers, of the records it reads rows as.
+// [spec:pgorm:req:python.records+1]
+#[pyfunction(name = "_change")]
+pub(crate) fn make_change(old: Py<PyAny>, new: Py<PyAny>) -> PyChange {
+    PyChange { old, new }
+}
+
+/// `_inserted(model)`: the `Upserted.Inserted` such a write answers.
+// [spec:pgorm:req:python.records+1]
+#[pyfunction(name = "_inserted")]
+pub(crate) fn make_inserted(model: Py<PyAny>) -> PyUpserted {
+    PyUpserted::Inserted { model }
+}
+
+/// `_updated(change)`: the `Upserted.Updated` such a write answers.
+// [spec:pgorm:req:python.records+1]
+#[pyfunction(name = "_updated")]
+pub(crate) fn make_updated(change: Bound<'_, PyChange>) -> PyUpserted {
+    PyUpserted::Updated {
+        change: change.unbind(),
     }
 }
 
@@ -84,21 +124,24 @@ fn change(py: Python<'_>, versions: Versions) -> PyResult<PyChange> {
         .old
         .ok_or_else(|| InternalError::new_err("an updated row returned no old row"))?;
     Ok(PyChange {
-        old: model(py, old)?,
-        new: model(py, versions.new)?,
+        old: model(py, old)?.into_py_any(py)?,
+        new: model(py, versions.new)?.into_py_any(py)?,
     })
 }
 
 pub(super) fn upserted(py: Python<'_>, versions: Versions) -> PyResult<PyUpserted> {
     Ok(match versions.old {
         None => PyUpserted::Inserted {
-            model: model(py, versions.new)?,
+            model: model(py, versions.new)?.into_py_any(py)?,
         },
         Some(old) => PyUpserted::Updated {
-            change: PyChange {
-                old: model(py, old)?,
-                new: model(py, versions.new)?,
-            },
+            change: Py::new(
+                py,
+                PyChange {
+                    old: model(py, old)?.into_py_any(py)?,
+                    new: model(py, versions.new)?.into_py_any(py)?,
+                },
+            )?,
         },
     })
 }
@@ -183,7 +226,7 @@ impl PyEntityUpdate {
         run(py, connection, self.entity.clone(), write, Answer::Change)
     }
 
-    // [spec:pgorm:req:python.truth-testing+4]
+    // [spec:pgorm:req:python.truth-testing+5]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "entity writes cannot be tested as Python booleans",

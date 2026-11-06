@@ -2,7 +2,7 @@
 
 use pgorm_sql_macro::sql;
 
-// [spec:pgorm:def:macros.sql+5/test]    the expansion is the literal, in const position
+// [spec:pgorm:def:macros.sql+6/test]    the expansion is the literal, in const position
 #[test]
 fn expansion_is_the_literal_unchanged() {
     const QUERY: &str = sql!("SELECT id, name FROM cake WHERE id = $1");
@@ -14,7 +14,7 @@ fn expansion_is_the_literal_unchanged() {
     );
 }
 
-// [spec:pgorm:def:macros.sql+5/test]    a `&'static str`, so it outlives any frame
+// [spec:pgorm:def:macros.sql+6/test]    a `&'static str`, so it outlives any frame
 #[test]
 fn expansion_is_a_static_str() {
     fn keep(query: &'static str) -> &'static str {
@@ -63,7 +63,7 @@ fn misapplied_type_modifiers_pass() {
     );
 }
 
-// [spec:pgorm:def:macros.sql+5/test]    the grammar is PostgreSQL 18's: statements
+// [spec:pgorm:def:macros.sql+6/test]    the grammar is PostgreSQL 18's: statements
 // only 18 parses compile, where PostgreSQL 17's grammar refused every one
 #[test]
 fn postgres_18_grammar_is_accepted() {

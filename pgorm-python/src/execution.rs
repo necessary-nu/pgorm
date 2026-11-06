@@ -3,16 +3,24 @@
 mod target;
 pub(crate) use target::{Executor, Target};
 
-use pgorm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, SqlText};
+use crate::metrics::Metrics;
+use pgorm::{
+    ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, SqlText,
+    metric::{InstrumentedConnection, InstrumentedTransaction},
+};
 use tokio_postgres::{
     Row, RowStream,
     types::{BorrowToSql, ToSql},
 };
 
+/// What an operation runs on: a connection or a transaction, plain or, from
+/// an instrumented pool, pgorm's metrics wrapper around one.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Database<'a> {
     Connection(&'a DatabaseConnection),
     Transaction(&'a DatabaseTransaction<'a>),
+    MeteredConnection(&'a InstrumentedConnection<Metrics>),
+    MeteredTransaction(&'a InstrumentedTransaction<'a, Metrics>),
 }
 
 macro_rules! native {
@@ -20,11 +28,13 @@ macro_rules! native {
         match $db {
             Database::Connection(connection) => connection.$method($($arg),*).await,
             Database::Transaction(transaction) => transaction.$method($($arg),*).await,
+            Database::MeteredConnection(connection) => connection.$method($($arg),*).await,
+            Database::MeteredTransaction(transaction) => transaction.$method($($arg),*).await,
         }
     };
 }
 
-// [spec:pgorm:req:bindings.transactions]
+// [spec:pgorm:req:bindings.transactions+1]
 #[pgorm::entity::prelude::async_trait::async_trait]
 impl ConnectionTrait for Database<'_> {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>

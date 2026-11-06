@@ -19,15 +19,17 @@ chapter is stated twice anywhere else.
 
 ## Declaration
 
-> [spec:pgorm:def:query.graph+1]
+> [spec:pgorm:def:query.graph+2]
 > `SelectGraph<E: EntityTrait, S = (), R = Unsliced>` is a relational read
 > declared as a root entity plus a typed tuple `S` of joined, decoded
 > sources — *slots* — in join order, and a marker `R` recording whether
 > `limit` or `offset` has cut the read to a window of rows
 > (`[spec:pgorm:sem:query.graph.slice]`). `EntityTrait::graph()` constructs it, as `find()` constructs
 > a `Select<E>`; `SelectGraph::<E>::new()` and `Default` are the same
-> construction. Construction initialises the statement with
-> `FROM E::default().table_ref()` and immediately projects `E`'s columns
+> construction; `EntityTrait::graph_in(entity)` roots
+> it at the table the entity instance names instead (`entity.traits.entity-name`).
+> Construction initialises the statement with
+> `FROM E::default().table_ref()`, or the instance's table, and immediately projects `E`'s columns
 > under the `s0_` prefix through the one writer
 > (`[spec:pgorm:sem:query.graph.writer]`), so a graph's select list is
 > non-empty from the moment the value exists and the empty-projection guard

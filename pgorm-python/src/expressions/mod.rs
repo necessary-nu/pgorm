@@ -65,7 +65,7 @@ impl PyExpr {
 /// result is a boolean, as the server requires of one (`42809`). `SIMILAR
 /// TO`, `IS DISTINCT FROM`, `BETWEEN` and `IN` are read by the grammar with
 /// no quantifier at all.
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.quantifiers+4]
 fn takes_quantifier(operator: BinOper) -> bool {
     matches!(
         operator,

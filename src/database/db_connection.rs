@@ -1,8 +1,9 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use super::{
+    copy::refuse_copy_statement,
     drive, rolled_back,
-    sealed::{Close, TOKEN},
+    sealed::{Close, Handle, TOKEN},
 };
 use crate::{ConnectionTrait, RetryableError, SqlText, TransactionError, error::*};
 use deadpool::Status;
@@ -30,6 +31,7 @@ macro_rules! cached_retry {
     ($owner:expr, $statement:expr, |$prepared:ident| $call:expr) => {{
         let owner = $owner;
         let sql = $statement.sql_text();
+        refuse_copy_statement(sql)?;
         let cached = owner.prepare_cached(sql).await?;
         let outcome = {
             let $prepared = &cached;
@@ -69,6 +71,7 @@ macro_rules! cached_evict {
     ($owner:expr, $statement:expr, |$prepared:ident| $call:expr) => {{
         let owner = $owner;
         let sql = $statement.sql_text();
+        refuse_copy_statement(sql)?;
         let cached = owner.prepare_cached(sql).await?;
         let outcome = {
             let $prepared = &cached;
@@ -199,7 +202,21 @@ pub enum TransactionMode {
     DeferrableSnapshot,
 }
 
-impl DatabaseConnection {
+/// A parent a configured transaction opens on: a [`DatabaseConnection`], and
+/// the metrics layer's [`InstrumentedConnection`](crate::metric::InstrumentedConnection)
+/// around one, whose handle reports its statements and its ending. A
+/// savepoint takes no mode, so no transaction is one.
+///
+/// Opening is generic over the borrow alone, as [`Open`](super::sealed::Open)'s
+/// is, so the configured forms stay `Send` on a concrete receiver.
+pub(crate) trait OpenWith: Handle {
+    fn open_with(
+        &mut self,
+        mode: TransactionMode,
+    ) -> impl Future<Output = Result<Self::Transaction<'_>, Error>> + Send;
+}
+
+impl OpenWith for DatabaseConnection {
     // [spec:pgorm:req:conn.tx+3]    configured START TRANSACTION on the pooled client
     async fn open_with(&mut self, mode: TransactionMode) -> Result<DatabaseTransaction<'_>, Error> {
         let mut builder = self.0.build_transaction();
@@ -228,7 +245,77 @@ impl DatabaseConnection {
 
         Ok(DatabaseTransaction(Some(builder.start().await?)))
     }
+}
 
+/// `transaction_with`'s body, for every parent [`OpenWith`] covers.
+// [spec:pgorm:sem:conn.tx.closure+6]    configured BEGIN
+pub(crate) async fn with_mode<C, T, E, F>(
+    parent: &mut C,
+    mode: TransactionMode,
+    f: F,
+) -> Result<T, TransactionError<E>>
+where
+    C: OpenWith,
+    F: AsyncFnOnce(&mut C::Transaction<'_>) -> Result<T, E>,
+{
+    let txn = parent
+        .open_with(mode)
+        .await
+        .map_err(TransactionError::Connection)?;
+
+    drive(txn, f).await
+}
+
+/// `transaction_with_retry`'s body, for every parent [`OpenWith`] covers.
+// [spec:pgorm:sem:conn.tx.retry+3]
+pub(crate) async fn with_retry<C, T, E, F>(
+    parent: &mut C,
+    mode: TransactionMode,
+    max_retries: u32,
+    mut f: F,
+) -> Result<T, TransactionError<E>>
+where
+    C: OpenWith,
+    F: AsyncFnMut(&mut C::Transaction<'_>) -> Result<T, E>,
+    E: RetryableError,
+{
+    let mut retries = 0;
+
+    loop {
+        let mut txn = parent
+            .open_with(mode)
+            .await
+            .map_err(TransactionError::Connection)?;
+
+        let outcome = match f(&mut txn).await {
+            Ok(value) => match txn.commit(TOKEN).await {
+                Ok(()) => return Ok(value),
+                Err(error) => Retryable::Connection(error),
+            },
+            Err(cause) => match rolled_back(txn, cause).await {
+                TransactionError::Transaction(error) => Retryable::Transaction(error),
+                unfinished => return Err(unfinished),
+            },
+        };
+
+        let (retryable, raised_by) = match &outcome {
+            Retryable::Connection(error) => (error.is_retryable(), "commit"),
+            Retryable::Transaction(error) => (error.is_retryable(), "closure"),
+        };
+
+        if !retryable || retries == max_retries {
+            return Err(match outcome {
+                Retryable::Connection(error) => TransactionError::Connection(error),
+                Retryable::Transaction(error) => TransactionError::Transaction(error),
+            });
+        }
+
+        retries += 1;
+        tracing::debug!(retries, max_retries, raised_by, "retrying transaction");
+    }
+}
+
+impl DatabaseConnection {
     /// [`TransactionTrait::transaction`] over a transaction configured by
     /// `mode`.
     ///
@@ -238,7 +325,7 @@ impl DatabaseConnection {
     ///
     /// [`TransactionTrait`]: crate::TransactionTrait
     /// [`TransactionTrait::transaction`]: crate::TransactionTrait::transaction
-    // [spec:pgorm:sem:conn.tx.closure+5]    configured BEGIN
+    // [spec:pgorm:sem:conn.tx.closure+6]    configured BEGIN
     #[doc(alias("transaction_with_config", "begin_with_config"))]
     pub async fn transaction_with<T, E, F>(
         &mut self,
@@ -248,12 +335,7 @@ impl DatabaseConnection {
     where
         F: AsyncFnOnce(&mut DatabaseTransaction<'_>) -> Result<T, E>,
     {
-        let txn = self
-            .open_with(mode)
-            .await
-            .map_err(TransactionError::Connection)?;
-
-        drive(txn, f).await
+        with_mode(self, mode, f).await
     }
 
     /// Run `f` inside a transaction configured by `mode`, retrying the whole
@@ -270,46 +352,13 @@ impl DatabaseConnection {
         &mut self,
         mode: TransactionMode,
         max_retries: u32,
-        mut f: F,
+        f: F,
     ) -> Result<T, TransactionError<E>>
     where
         F: AsyncFnMut(&mut DatabaseTransaction<'_>) -> Result<T, E>,
         E: RetryableError,
     {
-        let mut retries = 0;
-
-        loop {
-            let mut txn = self
-                .open_with(mode)
-                .await
-                .map_err(TransactionError::Connection)?;
-
-            let outcome = match f(&mut txn).await {
-                Ok(value) => match txn.commit(TOKEN).await {
-                    Ok(()) => return Ok(value),
-                    Err(error) => Retryable::Connection(error),
-                },
-                Err(cause) => match rolled_back(txn, cause).await {
-                    TransactionError::Transaction(error) => Retryable::Transaction(error),
-                    unfinished => return Err(unfinished),
-                },
-            };
-
-            let (retryable, raised_by) = match &outcome {
-                Retryable::Connection(error) => (error.is_retryable(), "commit"),
-                Retryable::Transaction(error) => (error.is_retryable(), "closure"),
-            };
-
-            if !retryable || retries == max_retries {
-                return Err(match outcome {
-                    Retryable::Connection(error) => TransactionError::Connection(error),
-                    Retryable::Transaction(error) => TransactionError::Transaction(error),
-                });
-            }
-
-            retries += 1;
-            tracing::debug!(retries, max_retries, raised_by, "retrying transaction");
-        }
+        with_retry(self, mode, max_retries, f).await
     }
 }
 
@@ -324,7 +373,7 @@ enum Retryable<E> {
 /// What the closure returns ends it. A closure whose future is dropped before
 /// it finishes leaves this handle to roll back as it drops, which queues the
 /// `ROLLBACK` without awaiting the server's answer.
-// [spec:pgorm:sem:conn.tx.guard+3]
+// [spec:pgorm:sem:conn.tx.guard+4]
 #[derive(Debug)]
 pub struct DatabaseTransaction<'a>(pub(crate) Option<Transaction<'a>>);
 
@@ -351,7 +400,7 @@ impl<'a> DatabaseTransaction<'a> {
     }
 }
 
-// [spec:pgorm:sem:conn.tx.guard+3]    rollback-on-drop warning
+// [spec:pgorm:sem:conn.tx.guard+4]    rollback-on-drop warning
 impl Drop for DatabaseTransaction<'_> {
     fn drop(&mut self) {
         if self.0.is_some() {
@@ -443,6 +492,7 @@ impl ConnectionTrait for &DatabaseConnection {
     }
 
     async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+        refuse_copy_statement(sql)?;
         Ok(pgorm_pool::GenericClient::batch_execute(&self.0, sql).await?)
     }
 }
@@ -532,6 +582,7 @@ impl ConnectionTrait for DatabaseConnection {
     }
 
     async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+        refuse_copy_statement(sql)?;
         Ok(pgorm_pool::GenericClient::batch_execute(&self.0, sql).await?)
     }
 }
@@ -620,6 +671,7 @@ impl ConnectionTrait for DatabaseTransaction<'_> {
     }
 
     async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+        refuse_copy_statement(sql)?;
         Ok(pgorm_pool::GenericClient::batch_execute(self.tx(), sql).await?)
     }
 }

@@ -217,3 +217,94 @@ async fn an_entity_stores_zero_at_its_declared_scale() -> Result<(), Error> {
     ctx.delete().await;
     Ok(())
 }
+
+/// `numeric` values no `Decimal` holds exactly, each of which rust_decimal's
+/// own `FromSql` reads rounded: one with 29 fractional digits, and one whose
+/// coefficient at its scale needs more than 96 bits.
+const INEXACT: [&str; 2] = [
+    "1.00000000000000000000000000001",
+    "7922816251426433759354395033.55",
+];
+
+/// Whether `error` is `ExactDecimal`'s refusal, reached through the driver.
+fn refused_as_inexact(error: &Error) -> bool {
+    let text = format!("{error:?}");
+    matches!(error, Error::Postgres(_))
+        && (text.contains("28 fractional digits") || text.contains("96 bits"))
+}
+
+// [spec:pgorm:req:exec.decode.decimal-exact/test]    every path that decodes a
+// `Decimal` refuses a `numeric` it cannot hold exactly, where rust_decimal's own
+// `FromSql` would round it: a model's field, a tuple, an array, a range's bounds
+#[pgorm_macros::test]
+async fn an_inexact_numeric_is_refused_not_rounded() -> Result<(), Error> {
+    let ctx = TestContext::new("decimal_exact_reads").await;
+    let db = ctx.db.get().await?;
+
+    let schema = Schema::new();
+    create_table_without_asserts(
+        &db,
+        &schema.create_table_from_entity(decimal_probe::Entity)?,
+    )
+    .await?;
+
+    for (id, text) in (1..).zip(INEXACT) {
+        db.execute(
+            "INSERT INTO decimal_probe VALUES ($1, $2::text::numeric)",
+            &[&id, &text],
+        )
+        .await?;
+        let model = decimal_probe::Entity::find_by_id(id).one(&db).await;
+        assert!(
+            model.as_ref().is_err_and(refused_as_inexact),
+            "{text}: {model:?}"
+        );
+        let scalar = (
+            "SELECT $1::text::numeric",
+            Values(vec![Value::from(text.to_owned())]),
+        )
+            .into_tuple::<Decimal>()
+            .one(&db)
+            .await;
+        assert!(
+            scalar.as_ref().is_err_and(refused_as_inexact),
+            "{text}: {scalar:?}"
+        );
+        let array = (
+            "SELECT ARRAY[1.5, $1::text::numeric]",
+            Values(vec![Value::from(text.to_owned())]),
+        )
+            .into_tuple::<Vec<Decimal>>()
+            .one(&db)
+            .await;
+        assert!(
+            array.as_ref().is_err_and(refused_as_inexact),
+            "{text}: {array:?}"
+        );
+        let range = (
+            "SELECT numrange(0, $1::text::numeric)",
+            Values(vec![Value::from(text.to_owned())]),
+        )
+            .into_tuple::<Range<Decimal>>()
+            .one(&db)
+            .await;
+        assert!(
+            range.as_ref().is_err_and(refused_as_inexact),
+            "{text}: {range:?}"
+        );
+    }
+
+    // A value a `Decimal` does hold reads back exactly, scale and all.
+    let held = (
+        "SELECT 0.1000000000000000000000000001::numeric",
+        Values(vec![]),
+    )
+        .into_tuple::<Decimal>()
+        .one(&db)
+        .await?;
+    assert_eq!(held.to_string(), "0.1000000000000000000000000001");
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}

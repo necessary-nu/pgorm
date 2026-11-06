@@ -1,3 +1,4 @@
+use super::util::into_active_value;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{GenericArgument, LitStr, PathArguments, Type, spanned::Spanned};
@@ -135,6 +136,7 @@ fn expand(parsed: &CreatedRange) -> TokenStream {
         type_name,
         schema_name,
     } = parsed;
+    let into_active_value = into_active_value(ident);
     let (schema, qualified) = match schema_name {
         Some(schema) => (
             quote! { Some(pgorm::pgorm_query::Name::runtime(#schema)) },
@@ -241,6 +243,8 @@ fn expand(parsed: &CreatedRange) -> TokenStream {
 
         #[automatically_derived]
         impl pgorm::pgorm_query::value::with_array::NotU8 for #ident {}
+
+        #into_active_value
 
         #[automatically_derived]
         impl pgorm::pgorm_query::ValueType for #ident {

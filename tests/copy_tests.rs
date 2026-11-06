@@ -19,7 +19,7 @@ use pgorm::{
     pgorm_query::{
         CopyBinary, CopyCsv, CopyFormat, CopyFromStatement, CopyIgnore, CopyLogVerbosity,
         CopySource, CopyText, CopyToStatement, Expr, Func, MergeUpdate, Name, Order, Query,
-        error::Error as QueryError,
+        WindowStatement, error::Error as QueryError,
     },
 };
 use pretty_assertions::assert_eq;
@@ -526,7 +526,7 @@ async fn copy_out_refuses_silent_write() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy+2/test]    a SELECT source's refused tie limit or window is refused before anything is sent
+// [spec:pgorm:req:conn.copy+2/test]    a SELECT source's refused tie limit or window is refused before anything is sent, and an ordered tie limit or a declared window copies
 #[pgorm_macros::test]
 async fn copy_out_checks_select_source() -> Result<(), Error> {
     let ctx = TestContext::new("copy_out_checks_select_source").await;
@@ -562,7 +562,7 @@ async fn copy_out_checks_select_source() -> Result<(), Error> {
         .to_owned();
     db.transaction(async |tx| {
         let refused = tx
-            .copy_out(&CopyToStatement::new(windowed, CopyCsv))
+            .copy_out(&CopyToStatement::new(windowed.clone(), CopyCsv))
             .await
             .map(drop);
         assert!(
@@ -585,6 +585,14 @@ async fn copy_out_checks_select_source() -> Result<(), Error> {
     let mut ids: Vec<&[u8]> = out.split(|&byte| byte == b'\n').collect();
     ids.sort_unstable();
     assert_eq!(ids, [&b""[..], b"1", b"2"]);
+
+    // A WINDOW clause the grammar takes copies as the SELECT would run.
+    let declared = windowed
+        .clone()
+        .window(n("w"), WindowStatement::new())
+        .to_owned();
+    let out = copy_out_all(&mut db, &CopyToStatement::new(declared, CopyCsv)).await?;
+    assert_eq!(out, b"3\n3\n3\n");
 
     drop(db);
     ctx.delete().await;
@@ -620,6 +628,49 @@ async fn answers_in_step(db: &DatabaseConnection) -> Result<(), Error> {
         let row = db.query_one("SELECT $1::int4 + 0", &[&value]).await?;
         assert_eq!(row.get::<_, i32>(0), value);
     }
+    Ok(())
+}
+
+// [spec:pgorm:req:conn.copy.statement/test]    a COPY given to a statement method is refused before anything is sent, a copy that is no COPY statement runs
+#[pgorm_macros::test]
+async fn copy_through_a_statement_is_refused() -> Result<(), Error> {
+    let ctx = TestContext::new("copy_through_a_statement").await;
+    let db = ctx.db.get().await?;
+    db.execute(ITEMS, &[]).await?;
+
+    let refused = [
+        db.execute("COPY item TO STDOUT", &[]).await.map(drop),
+        db.query_all(" /* rows */ copy (SELECT 1) TO STDOUT", &[])
+            .await
+            .map(drop),
+        db.query_one("-- data\nCopy item FROM STDIN", &[])
+            .await
+            .map(drop),
+        db.batch_execute("INSERT INTO item VALUES (1, 'a', 1); COPY item FROM STDIN")
+            .await,
+    ];
+    for outcome in refused {
+        assert!(matches!(outcome, Err(Error::CopyStatement)), "{outcome:?}");
+    }
+    assert_eq!(items(&db, "item").await?, vec![]);
+    answers_in_step(&db).await?;
+
+    let row = db
+        .query_one(
+            "SELECT 'COPY item TO STDOUT' AS \"copy\" /* copy */ -- COPY",
+            &[],
+        )
+        .await?;
+    assert_eq!(row.get::<_, String>("copy"), "COPY item TO STDOUT");
+    db.batch_execute("CREATE TABLE copy (id int); DROP TABLE copy")
+        .await?;
+    assert_eq!(
+        Error::CopyStatement.to_string(),
+        "a COPY runs through CopyTrait's copy_in or copy_out, which carry its data, not as a statement"
+    );
+
+    drop(db);
+    ctx.delete().await;
     Ok(())
 }
 

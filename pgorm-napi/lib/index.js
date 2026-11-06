@@ -32,6 +32,7 @@ installConnections(native);
 export { connect, Connection, Pool, Queryable, Transaction } from "./connections.js";
 export { RowStream } from "./streams.js";
 export { Listener } from "./listen.js";
+export { InstrumentedPool, LoggingMetrics, NoOpMetrics, QueryContext, QueryFingerprint } from "./metrics.js";
 export { CopyFrom, copyFrom, CopyOutStream, CopyTo, copyTo } from "./copy.js";
 export { CopyRowStream } from "./copy-rows.js";
 export { CaseOperand, caseOf, caseWhen, Condition, SearchedCase, SimpleCase } from "./conditions.js";

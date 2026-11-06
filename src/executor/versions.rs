@@ -141,7 +141,7 @@ where
         C: ConnectionTrait,
     {
         if self.query.get_values().is_empty() {
-            let model = find_unchanged_model::<A, C>(&self.query, db).await?;
+            let model = find_unchanged_model::<A, C>(self.entity, &self.query, db).await?;
             return Ok(Change {
                 old: model.clone(),
                 new: model,

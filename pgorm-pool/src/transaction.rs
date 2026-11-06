@@ -8,10 +8,12 @@ use std::{
 };
 
 use bytes::Buf;
+use futures_util::StreamExt;
 use tokio::task::AbortHandle;
 use tokio_postgres::{
-    CopyInSink, CopyOutStream, Error, IsolationLevel, Row, RowStream, Statement, ToStatement,
-    Transaction as PgTransaction, TransactionBuilder as PgTransactionBuilder,
+    CopyInSink, CopyOutStream, Error, IsolationLevel, Row, RowStream, SimpleQueryMessage,
+    Statement, ToStatement, Transaction as PgTransaction,
+    TransactionBuilder as PgTransactionBuilder,
     types::{BorrowToSql, ToSql, Type},
 };
 
@@ -42,6 +44,10 @@ pub struct Transaction<'a> {
     /// The task driving the connection, which [`copy_in`](Self::copy_in)
     /// aborts when a COPY's refusal leaves the connection unusable.
     pub(crate) connection: AbortHandle,
+
+    /// Whether this is a savepoint inside another transaction, which
+    /// [`commit`](Self::commit) ends with `RELEASE`, not `COMMIT`.
+    pub(crate) savepoint: bool,
 }
 
 impl Transaction<'_> {
@@ -164,9 +170,63 @@ impl Transaction<'_> {
         self.txn.copy_out(statement).await
     }
 
-    /// Like [`tokio_postgres::Transaction::commit()`].
-    pub async fn commit(self) -> Result<(), Error> {
-        self.txn.commit().await
+    /// Like [`tokio_postgres::Transaction::commit()`], but a transaction a
+    /// failed statement has aborted is rolled back and reported as
+    /// [`CommitError::Aborted`].
+    ///
+    /// PostgreSQL answers the `COMMIT` of an aborted transaction with a
+    /// `ROLLBACK` command tag and no error, and tokio-postgres reads no tag.
+    /// So the `COMMIT` is sent behind a statement that asks first: an empty
+    /// `SELECT`, which an aborted transaction refuses with SQLSTATE `25P02`
+    /// (`in_failed_sql_transaction`), and whose refusal skips the `COMMIT`
+    /// sent with it in the same simple query. A savepoint is asked the same
+    /// way, a round trip ahead of its `RELEASE`: an aborted savepoint refuses
+    /// the `RELEASE` too, but the `RELEASE` consumes the handle the
+    /// `ROLLBACK TO` would be sent through.
+    // [spec:pgorm:sem:conn.tx.aborted]
+    pub async fn commit(self) -> Result<(), CommitError> {
+        if self.savepoint {
+            if let Err(refusal) = self.txn.batch_execute("SELECT").await {
+                return Err(self.aborted(refusal).await);
+            }
+            return self.txn.commit().await.map_err(CommitError::Failed);
+        }
+        match committed(&self.txn).await {
+            Ok(()) => {
+                self.ended();
+                Ok(())
+            }
+            Err(Ending::Asking(refusal)) => Err(self.aborted(refusal).await),
+            Err(Ending::Committing(error)) => {
+                self.ended();
+                Err(CommitError::Failed(error))
+            }
+        }
+    }
+
+    /// Roll back a transaction the server refused the asking statement in:
+    /// aborted, so nothing in it can commit. A refusal that is not the
+    /// server's is the connection breaking, which leaves nothing to send a
+    /// `ROLLBACK` through.
+    async fn aborted(self, refusal: Error) -> CommitError {
+        if refusal.as_db_error().is_none() {
+            return CommitError::Failed(refusal);
+        }
+        CommitError::Aborted {
+            rollback: self.txn.rollback().await.err(),
+            refusal,
+        }
+    }
+
+    /// Give the transaction up once the server has ended it. Dropping the
+    /// inner transaction would queue a `ROLLBACK` behind the `COMMIT` that
+    /// ended it, which the server would answer with a warning that no
+    /// transaction is in progress. A transaction opened on a client holds
+    /// nothing but its borrow of the client, so forgetting it frees nothing
+    /// and leaves the borrow to end as this handle does.
+    fn ended(self) {
+        let Self { txn, .. } = self;
+        std::mem::forget(txn);
     }
 
     /// Like [`tokio_postgres::Transaction::rollback()`].
@@ -182,6 +242,7 @@ impl Transaction<'_> {
             txn: PgTransaction::transaction(&mut self.txn).await?,
             statement_cache: self.statement_cache.clone(),
             connection: self.connection.clone(),
+            savepoint: true,
         })
     }
 
@@ -216,6 +277,7 @@ impl Transaction<'_> {
             txn: PgTransaction::savepoint(&mut self.txn, quote_identifier(&name.into())).await?,
             statement_cache: self.statement_cache.clone(),
             connection: self.connection.clone(),
+            savepoint: true,
         })
     }
 }
@@ -239,6 +301,86 @@ fn quote_identifier(name: &str) -> String {
     }
     quoted.push('"');
     quoted
+}
+
+/// Where a transaction's `SELECT; COMMIT` failed: in the `SELECT` that asks
+/// whether the transaction is aborted, the `COMMIT` then skipped, or in the
+/// `COMMIT`, which ends the transaction whether or not it fails.
+enum Ending {
+    Asking(Error),
+    Committing(Error),
+}
+
+/// Send `SELECT; COMMIT` as one simple query, and say which statement failed
+/// by whether the `SELECT` had completed.
+// [spec:pgorm:sem:conn.tx.aborted]
+async fn committed(txn: &PgTransaction<'_>) -> Result<(), Ending> {
+    let answers = txn
+        .client()
+        .simple_query_raw("SELECT; COMMIT")
+        .await
+        .map_err(Ending::Asking)?;
+    let mut answers = std::pin::pin!(answers);
+    let mut asked = false;
+    while let Some(answer) = answers.next().await {
+        match answer {
+            Ok(SimpleQueryMessage::CommandComplete(_)) => asked = true,
+            Ok(_) => {}
+            Err(error) if asked => return Err(Ending::Committing(error)),
+            Err(error) => return Err(Ending::Asking(error)),
+        }
+    }
+    Ok(())
+}
+
+/// Why [`Transaction::commit`] committed nothing.
+///
+/// Exhaustive, so that pgorm, which turns each kind into an error of its
+/// own, is told by the compiler when a kind is added.
+// [spec:pgorm:sem:conn.tx.aborted]
+#[derive(Debug)]
+pub enum CommitError {
+    /// The `COMMIT` or `RELEASE` failed, or the connection broke before the
+    /// server answered. PostgreSQL ends a transaction whose `COMMIT` fails,
+    /// so nothing is left to roll back.
+    Failed(Error),
+    /// A statement that failed inside the transaction had aborted it, so it
+    /// could only roll back, and was rolled back (a savepoint rolled back
+    /// to): nothing in it committed.
+    Aborted {
+        /// The server's refusal of the statement that asked, SQLSTATE
+        /// `25P02` (`in_failed_sql_transaction`).
+        refusal: Error,
+        /// What the `ROLLBACK` or `ROLLBACK TO` that followed failed with,
+        /// if it failed.
+        rollback: Option<Error>,
+    },
+}
+
+impl fmt::Display for CommitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Failed(error) => write!(f, "{error}"),
+            Self::Aborted { rollback: None, .. } => f.write_str(
+                "a statement that failed inside the transaction had aborted it, so it was rolled back",
+            ),
+            Self::Aborted {
+                rollback: Some(rollback),
+                ..
+            } => write!(
+                f,
+                "a statement that failed inside the transaction had aborted it, and its ROLLBACK failed: {rollback}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for CommitError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Failed(error) | Self::Aborted { refusal: error, .. } => Some(error),
+        }
+    }
 }
 
 impl fmt::Debug for Transaction<'_> {
@@ -311,6 +453,7 @@ impl<'a> TransactionBuilder<'a> {
             txn: self.builder.start().await?,
             statement_cache: self.statement_cache,
             connection: self.connection,
+            savepoint: false,
         })
     }
 }

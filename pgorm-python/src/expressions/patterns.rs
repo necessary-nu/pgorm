@@ -21,7 +21,7 @@ impl PyExpr {
 }
 
 // [spec:pgorm:req:bindings.expressions+4]
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.quantifiers+4]
 #[pymethods]
 impl PyExpr {
     fn starts_with(&self, text: &Bound<'_, PyAny>) -> PyResult<Self> {

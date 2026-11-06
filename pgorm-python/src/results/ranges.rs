@@ -57,7 +57,7 @@ fn built_in(ty: &Type) -> bool {
 /// `None` for a column of any other type. A range type a schema created reads
 /// as its own kind, named as the column's type is, whatever its subtype.
 // [spec:pgorm:req:bindings.values]
-// [spec:pgorm:def:exec.decode.range+4]
+// [spec:pgorm:def:exec.decode.range+5]
 pub(super) fn value(field: Field<'_>, ty: &Type, array: bool) -> PyResult<Option<PyValue>> {
     let index = field.index();
     let (subtype, multi) = match ty.kind() {

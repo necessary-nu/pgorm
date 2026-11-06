@@ -362,7 +362,7 @@ test("inserts and reads", async () => {
   assert.deepStrictEqual(await ordered.limit(1).offset(1).all(pool()), [lorry]);
   assert.equal(await ordered.count(pool()), 3);
   const pages = ordered.paginate(2);
-  assert.deepStrictEqual(await pages.numItemsAndPages(pool()), [3, 2]);
+  assert.deepStrictEqual(await pages.numItemsAndPages(pool()), { items: 3, pages: 2 });
   const read = [];
   for await (const page of pages.pages(pool())) read.push(page);
   assert.deepStrictEqual(read, [[mini, lorry], [bmx]]);

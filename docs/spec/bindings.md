@@ -104,7 +104,7 @@ option.
 > the runtime: an operation that does I/O is awaited in the language's own
 > asynchronous form (`python.runtime`, `napi.promises`).
 
-> [spec:pgorm:req:bindings.errors+5]
+> [spec:pgorm:req:bindings.errors+6]
 > Each binding MUST report a failure as an instance of its own error classes,
 > all derived from one base class of the binding and from the language's own
 > base error:
@@ -126,7 +126,9 @@ option.
 >   sends; one its parameter's type refuses as the driver encodes it is
 >   reported with pgorm's `BindRefusal` text (`error.model.bind-refusal`),
 >   `parameter $1 cannot be bound:` followed by pgorm's reason, the same text
->   in each binding;
+>   in each binding, and a statement given another number of values than its
+>   placeholders take with pgorm's `ParameterCountRefusal` text
+>   (`error.model.parameter-count`), the same text in each binding;
 > - `DecodeError` for a result that cannot become the native value asked for,
 >   a wrong row count among them (`bindings.row-count`); one the driver cannot
 >   read is reported with pgorm's `DecodeRefusal` text
@@ -137,7 +139,7 @@ option.
 > - `TimeoutError` when no connection becomes free within a pool's acquire
 >   timeout;
 > - `InternalError` when pgorm or the binding fails in a way no input should
->   cause, a panic above all.
+>   cause, a panic in its work on the runtime above all.
 >
 > An argument a call cannot use is refused before anything is sent, with the
 > class `bindings.argument-errors` names. A cancelled operation is reported in
@@ -147,7 +149,10 @@ option.
 > Credentials MUST NOT appear in an error, a nested cause, a representation
 > or a default diagnostic log. Invalid input MUST NOT end the process, be
 > swallowed, or become an ordinary result.
-> A caught panic MUST stay an identifiable `InternalError`: it MUST NOT leave
+> A panic the binding catches, every one in work on the runtime, MUST stay an
+> identifiable `InternalError`. One the language's own boundary catches
+> before the binding can, PyO3's in a synchronous Python call
+> (`python.runtime`), keeps that boundary's exception. Either way it MUST NOT leave
 > an operation pending, and MUST NOT be classified as an expected rejection of
 > input.
 
@@ -423,7 +428,7 @@ closed, and a transaction by the block or callback it was opened for ending.
 > stream as an error, never as its end, and a database error keeps its
 > SQLSTATE and the rows before it. A transaction offers no stream.
 
-> [spec:pgorm:req:bindings.transactions]
+> [spec:pgorm:req:bindings.transactions+1]
 > Transactions MUST open only through the language's scoped form on a pool or
 > a connection, and savepoints only through the same form on a transaction
 > (`python.transactions`, `napi.transactions`), as Rust's open only around a
@@ -439,7 +444,13 @@ closed, and a transaction by the block or callback it was opened for ending.
 > `COMMIT` or `ROLLBACK`, and a connection given up mid-command drops the
 > closure's future rather than await a rollback on it. A `COMMIT` that fails
 > ends the transaction, discards its connection and is reported with its
-> database error. A `ROLLBACK` that fails, which pgorm reports as
+> database error. A scope that ends normally after a statement in it failed,
+> its error caught inside the scope, cannot commit: PostgreSQL has aborted
+> the transaction, and pgorm rolls it back, or rolls a savepoint back to,
+> and reports `Error::TransactionAborted` (`conn.tx.aborted`). The scope's
+> end then raises a `DatabaseError` whose `sqlstate` is `25P02` and whose
+> message is pgorm's account of the rollback, the same text in each binding,
+> and keeps its connection, which is in a known state. A `ROLLBACK` that fails, which pgorm reports as
 > `TransactionError::RollbackFailed`, discards the connection and is reported
 > with both errors, as each binding's rule describes. An abandoned scope whose
 > `ROLLBACK` fails discards the connection too.
@@ -582,6 +593,69 @@ closed, and a transaction by the block or callback it was opened for ending.
 > refused. The server's bounds — a payload of 8000 bytes or more, an
 > empty channel, one longer than 63 bytes — are its `DatabaseError`, SQLSTATE
 > `22023`.
+
+> [spec:pgorm:req:bindings.metrics]
+> `InstrumentedPool(pool, metrics)` MUST wrap `pool` in pgorm's
+> `InstrumentedPool` (`metric.layer`), reporting to `metrics`, a collector the
+> program writes: an object with the seven hooks of `metric.layer.collector`,
+> `record_query_success(query, duration, rows)`,
+> `record_query_error(query, duration, error)`,
+> `record_connection_acquired(duration)`,
+> `record_connection_error(duration, error)`,
+> `record_transaction_begin(duration)`, `record_transaction_commit(duration)`
+> and `record_transaction_rollback(duration)`. A collector lacking one, a pool
+> that is no `Pool` and a pool already instrumented are each a `TypeError`.
+> The instrumented pool is a `Pool` over the same connections: it shares the
+> wrapped pool's size, its status and its closing, so closing either closes
+> both, and dropping it closes neither. `inner` is the wrapped pool, whose work
+> is not reported, and `metrics` the collector.
+>
+> What runs through an instrumented pool — on it, on a connection it lends, or
+> in a transaction or savepoint on one; a model's, a registered entity's and a
+> pipeline's terminals, a stream, a COPY's start and a notification included —
+> MUST run on pgorm's `InstrumentedConnection` and `InstrumentedTransaction`, a
+> transaction in a mode through `InstrumentedConnection::transaction_with`, so
+> that what is timed and which hook hears it are `metric.layer.delegate`'s,
+> `metric.layer.copy`'s and `metric.layer.tx`'s and never the binding's own.
+> Each acquisition is reported by pgorm's `InstrumentedPool::get`; one the
+> pool's acquire timeout cuts short is reported to nobody, as in Rust a `get`
+> a caller's timeout drops is not. A listener is not reported
+> (`bindings.listen`). A pool that is not instrumented runs on pgorm's plain
+> types and calls no collector code at all.
+>
+> A query hook's `query` is a `QueryContext` carrying the `operation`, `sql`
+> and `fingerprint` of `metric.fingerprint`, JavaScript spelling an operation
+> as it spells a closed choice; `QueryContext(operation, sql)` makes one. Its
+> `fingerprint` is a `QueryFingerprint` — its string the 16 hex digits, its
+> `value` the same number — or null, computed by pgorm's
+> `QueryContext::fingerprint` when it is read. Both bindings build pgorm with
+> `metrics-fingerprint`, so only a context with no statement text, or text
+> libpg_query refuses, has none. `duration` is a number in the unit the
+> binding's timeouts take, seconds in Python and milliseconds in JavaScript;
+> `rows` a whole number or null; and `error` the error the caller is given, not
+> raised.
+>
+> A hook MUST NOT run on pgorm's runtime. The runtime hands it to the
+> language's thread as it hands over an operation's result — through the
+> pool's event loop in Python, the addon's channel in JavaScript — and awaits
+> it: a plain hook until it returns, one that returns an awaitable or a promise
+> until that settles. So, as in Rust, the statement a hook reports on finishes
+> only once its collector has been told, and one connection's reports arrive in
+> order. A hook that cannot be handed over, the language's thread gone, is
+> skipped. A hook that raises or rejects MUST NOT change the outcome of the
+> statement it reports on: its error goes where the language reports an error
+> nothing awaits — the event loop's exception handler in Python, a process
+> warning named `MetricsWarning`, the error its `cause`, in JavaScript — and
+> the statement goes on.
+>
+> `NoOpMetrics` is a collector whose every hook does nothing. A collector
+> extending it overrides the hooks it wants, and a hook left as `NoOpMetrics`
+> wrote it is never handed over. `LoggingMetrics` is the counterpart of
+> pgorm's: it writes each report in its words and at its levels — `debug` for
+> a successful query, an acquisition, a begin and a commit; a warning for a
+> failed query and a rollback; an error for a failed acquisition — to a
+> logger, Python's `logging.getLogger("pgorm.metrics")` or JavaScript's
+> `console` unless the program gives another.
 
 ## Statements
 
@@ -951,7 +1025,7 @@ the same terminals that run raw SQL.
 > absent value (`None`, `null` or `undefined`), so a search whose fields are
 > optional adds each without a branch around the builder.
 
-> [spec:pgorm:req:bindings.quantifiers+3]
+> [spec:pgorm:req:bindings.quantifiers+4]
 > `any(source)` and `all(source)` MUST be `ANY (..)` and `ALL (..)`:
 > pgorm-query's `Expr::any` / `Expr::all` over a `Select`'s rows, and
 > `Func::any` / `Func::all` over an array, an expression or a value bound as
@@ -977,11 +1051,13 @@ the same terminals that run raw SQL.
 > A list no element of which names the list's kind — an empty one, or one of
 > ranges, whose kind no bound names — is typed by the registered column it is
 > compared with, as that column's `compare_any` / `compare_all`
-> (`bindings.entity-reads`): `= ANY` of an empty list is false and `<> ALL`
-> true. Nothing else can type it, so beside an expression, a column no
-> registration types, or anything but a registered column it MUST be
-> refused with the `ConstructionError` its kind's inference met, as the
-> quantifier is used rather than as it is built.
+> (`bindings.entity-reads`), or by the declared model column, as its
+> declared kind (`bindings.model-columns`): `= ANY` of an empty list is
+> false and `<> ALL` true. Nothing else can type it, so beside an
+> expression, a column neither a registration nor a declaration types, or
+> anything but such a column it MUST be refused with the
+> `ConstructionError` its kind's inference met, as the quantifier is used
+> rather than as it is built.
 >
 > Each is the pgorm-query operator of its meaning with the quantifier as its
 > right operand. The grammar reads none after `similar_to`, `not_similar_to`,
@@ -1134,14 +1210,20 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > another table's unique key in its schema (`42P07`). A relation of the
 > schema outside the shape is the server's to refuse.
 
-> [spec:pgorm:req:bindings.model-columns+1]
+> [spec:pgorm:req:bindings.model-columns+2]
 > `col(field)` MUST be a model field's column, qualified as the model's
 > columns are. Its comparisons `eq`, `ne`, `lt`, `lte`, `gt` and `gte`, and
 > `is_in` and `is_not_in` over a list, MUST convert each value through the
 > field's declared kind, an enum's label bound cast to its type as pgorm's
-> column comparisons cast through `save_as`. An expression, or `any(..)` /
-> `all(..)` beside a comparison, is taken as written; a `Value` only of the
-> field's own kind; and null never, which `is_null()` tests.
+> column comparisons cast through `save_as`. `any(..)` / `all(..)` over a
+> list of values MUST range over the values each converted the same way,
+> bound as one array of the declared kind, an enum's cast to its array type,
+> as pgorm's `eq_any` binds through `save_as`, so an empty list is typed by
+> the column too. An expression is taken as written, and so is `any(..)` /
+> `all(..)` over a `Select`, over an expression, or beside an array column,
+> whose elements are arrays; a `Value` only of the field's own kind; and null
+> never, which `is_null()` tests, in a quantifier's list as beside a
+> comparison.
 
 > [spec:pgorm:req:bindings.column-operators+3]
 > A model's column and a registered entity's column MUST each be an
@@ -1206,7 +1288,7 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > model's rows stream from a pool or a connection as records, through the
 > same decode.
 
-> [spec:pgorm:req:bindings.model-writes+2]
+> [spec:pgorm:req:bindings.model-writes+3]
 > `insert(values)` MUST give a `ModelInsert` and `insert_many(rows)` a
 > `ModelInsertMany`, an insert typed by its row count as Rust's
 > `Insert<A, OneRow>` and `Insert<A, ManyRows>` are; `update(values)` a
@@ -1237,7 +1319,9 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > insert of no rows sends nothing: `execute` gives 0 and the returning
 > terminals no rows. An UPDATE or DELETE MUST have a `where` or `all_rows()`
 > before it runs, as `bindings.writes` requires. An insert takes
-> `on_conflict` as an INSERT does.
+> `on_conflict` as an INSERT does, an insert of no rows included, as Rust's
+> `Insert::many` of none takes it: it still sends nothing, and the rows
+> `add` and `add_many` give it later are written under the clause.
 >
 > `returning(fields)` reads the fields written as records.
 > `returning_change` and `returning_changes` on an update, and
@@ -1270,7 +1354,7 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > NULL. A key nothing at the far end matches, or that a `has_one` relation
 > matches twice, MUST be a `DecodeError`, never a missing row.
 
-> [spec:pgorm:req:bindings.graphs]
+> [spec:pgorm:req:bindings.graphs+1]
 > A model's `graph()` MUST read its rows with the rows its relations reach,
 > as pgorm's `SelectGraph` does, its SQL the SQL `SelectGraph` writes for the
 > same tables, relations and aliases. The slot kind MUST be the join type and
@@ -1294,6 +1378,19 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > of one slot as each root with its slot's records, ordering by the root's
 > primary key behind the graph's ordering and grouping by the decoded root's
 > key, as pgorm's `all_grouped` does.
+>
+> `limit` and `offset` cut a graph's read to a window of rows of the join,
+> not roots, and leave the graph sliced whatever value they were given, as
+> pgorm's `SelectGraph<E, S, Sliced>` is (`query.graph.slice`). A sliced
+> graph MUST refuse the four reads that decide the row range themselves,
+> `all_grouped`, `count`, `cursor` and `paginate`, and `inspect` of the
+> `count` or `all_grouped` terminal, with a `ConstructionError` naming the
+> read and why, the same text in each binding: a window can end part-way
+> through a root's rows, a count would ignore it, and a page or a cursor's
+> window would replace it. Each binding's type checker refuses them too: the
+> graph carries whether it is sliced as a boolean type parameter, `false`
+> until `limit` or `offset` returns it `true`, and the four methods take only
+> an unsliced graph.
 
 > [spec:pgorm:req:bindings.cursors]
 > `cursor(fields)` on a model query or a graph MUST page by keyset as pgorm's
@@ -1409,7 +1506,7 @@ registrations. The program reaches each registration by name, and every
 operation on one is the entity's own Rust API. A binding cannot instantiate a
 Rust generic at run time, only use the ones compiled in.
 
-> [spec:pgorm:req:bindings.entities+5]
+> [spec:pgorm:req:bindings.entities+6]
 > Each binding MUST let a downstream application crate register its own
 > entities, `SelectGraph` shapes and pipeline source tuples, for any entity
 > whose model converts into its ActiveModel, and build one native module from
@@ -1418,6 +1515,19 @@ Rust generic at run time, only use the ones compiled in.
 > registered twice, and a graph or source tuple whose entities are not
 > registered, MUST be refused as they are registered. A binding MUST NOT
 > fabricate a generic instantiation at run time.
+>
+> An entity whose names are computed at run time is registered by instance
+> too: `Registry::entity_in(name, entity)` registers that entity value, and
+> every statement the registration builds — its reads, writes, version
+> writes, schema and pipeline source — names the instance's table, as Rust's
+> `_in` constructors do (`[spec:pgorm:req:entity.traits.entity-name]`), where
+> `entity::<E>(name)` registers `E::default()`. A binding cannot construct a
+> Rust value at run time, so an application registers each instance it
+> serves, a tenant's under a name of its own, and a program picks the tenant
+> by the name it reads. One Rust type may therefore be registered more than
+> once, once for each table its instances name; the same type and table twice
+> is the duplicate refused above. A graph or source tuple over the type reads
+> the metadata of its first registration.
 >
 > `entity(name)` and `graph(name)` give one registration, and a name the
 > module does not register is a `ConstructionError`; `entities()`, `graphs()`

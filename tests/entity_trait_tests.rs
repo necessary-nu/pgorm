@@ -5,7 +5,7 @@ pub mod common;
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use pgorm::{
     Error, PartialModelTrait, PrimaryKeyTrait, QueryResult, Related, RelationDef, RelationTrait,
-    Schema, Select, Value, entity::prelude::*,
+    Schema, Select, Value, Values, entity::prelude::*,
 };
 use pgorm_query::{
     BinOper, Expr, IntoName, IntoValueTuple, QueryBuilder, TableName, TryFromValueTuple,
@@ -391,7 +391,7 @@ fn entity_trait_family() {
     assert_eq!(entity.as_str(), copied.as_str());
 }
 
-// [spec:pgorm:req:entity.traits.entity-name+5/test]    `table_name` is the only
+// [spec:pgorm:req:entity.traits.entity-name+6/test]    `table_name` is the only
 // required method; `schema_name` and `comment` default to `None` and
 // `module_name` to `table_name()`; `table_ref` yields a bare `TableName::Table`
 // without a schema and a `SchemaTable` with one, and every statement that names
@@ -459,7 +459,7 @@ fn entity_name_defaults_and_table_ref() {
 // entity.traits.crud
 // ---------------------------------------------------------------------------
 
-// [spec:pgorm:req:entity.traits.crud+4/test]    the static CRUD surface: `find`
+// [spec:pgorm:req:entity.traits.crud+5/test]    the static CRUD surface: `find`
 // returns a fresh `Select`, `find_by_id` adds one equality filter per key column
 // in primary-key iteration order, and `insert` / `insert_many` / `update` /
 // `update_many` / `delete` / `delete_many` / `delete_by_id` build their
@@ -601,7 +601,7 @@ fn entity_crud_surface() {
     );
 }
 
-// [spec:pgorm:req:entity.traits.crud+4/test]    `find_by_id` panics with
+// [spec:pgorm:req:entity.traits.crud+5/test]    `find_by_id` panics with
 // `primary key arity mismatch` when more values arrive than the key has columns
 #[test]
 #[should_panic(expected = "primary key arity mismatch")]
@@ -609,7 +609,7 @@ fn find_by_id_panics_when_values_outnumber_key() {
     let _ = too_many_values::Entity::find_by_id((1, 2));
 }
 
-// [spec:pgorm:req:entity.traits.crud+4/test]    ...and in the other direction too,
+// [spec:pgorm:req:entity.traits.crud+5/test]    ...and in the other direction too,
 // when the key has more columns than values were supplied
 #[test]
 #[should_panic(expected = "primary key arity mismatch")]
@@ -617,7 +617,7 @@ fn find_by_id_panics_when_key_outnumbers_values() {
     let _ = too_few_values::Entity::find_by_id(1);
 }
 
-// [spec:pgorm:req:entity.traits.crud+4/test]    `delete_by_id` carries the same
+// [spec:pgorm:req:entity.traits.crud+5/test]    `delete_by_id` carries the same
 // guard as `find_by_id`, in both directions
 #[test]
 #[should_panic(expected = "primary key arity mismatch")]
@@ -625,7 +625,7 @@ fn delete_by_id_panics_when_values_outnumber_key() {
     let _ = too_many_values::Entity::delete_by_id((1, 2));
 }
 
-// [spec:pgorm:req:entity.traits.crud+4/test]
+// [spec:pgorm:req:entity.traits.crud+5/test]
 #[test]
 #[should_panic(expected = "primary key arity mismatch")]
 fn delete_by_id_panics_when_key_outnumbers_values() {
@@ -1376,10 +1376,12 @@ async fn from_query_result_surface() -> Result<(), Error> {
     .await?;
 
     // `find_by_statement` builds a SelectorRaw that decodes raw SQL into `Self`.
-    let rows: Vec<ItemRow> =
-        ItemRow::find_by_statement(r#"SELECT "id", "name" FROM "item" ORDER BY "id""#, vec![])
-            .all(&db)
-            .await?;
+    let rows: Vec<ItemRow> = ItemRow::find_by_statement(
+        r#"SELECT "id", "name" FROM "item" ORDER BY "id""#,
+        Values(vec![]),
+    )
+    .all(&db)
+    .await?;
     assert_eq!(
         rows,
         [
@@ -1405,7 +1407,7 @@ async fn from_query_result_surface() -> Result<(), Error> {
         r#"SELECT "id" AS "s0_id", "name" AS "s0_name",
                   NULL::int AS "s1_id", NULL::text AS "s1_name"
            FROM "item" WHERE "id" = 1"#,
-        vec![],
+        Values(vec![]),
     )
     .one(&db)
     .await?;

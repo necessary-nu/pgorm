@@ -36,14 +36,14 @@ fn built_filter_matches_text_compilation() {
     assert_eq!(built, text);
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3/test]
+// [spec:pgorm:sem:pipeline.qualify+4/test]
 #[test]
 fn schema_qualified_from_renders_both_parts() {
     let built = sql_of(Pipeline::from_schema(alias("archive"), INVOICE));
     assert_eq!(built, "SELECT * FROM archive.invoice");
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3/test]
+// [spec:pgorm:sem:pipeline.qualify+4/test]
 #[test]
 fn quoted_identifiers_survive_rendering() {
     let table = alias("User Order");
@@ -51,21 +51,21 @@ fn quoted_identifiers_survive_rendering() {
     assert_eq!(built, r#"SELECT "Total Price" FROM "User Order""#);
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3/test]
+// [spec:pgorm:sem:pipeline.qualify+4/test]
 #[test]
 fn entity_source_uses_table_metadata() {
     let built = sql_of(Pipeline::from(cake::Entity));
     assert_eq!(built, "SELECT * FROM cake");
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3/test]
+// [spec:pgorm:sem:pipeline.qualify+4/test]
 #[test]
 fn entity_source_honours_schema_name() {
     let built = sql_of(Pipeline::from(cake_filling_price::Entity));
     assert_eq!(built, "SELECT * FROM public.cake_filling_price");
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3/test]    a column carries its own table
+// [spec:pgorm:sem:pipeline.qualify+4/test]    a column carries its own table
 #[test]
 fn entity_columns_are_qualified_by_construction() {
     let built = sql_of(
@@ -963,7 +963,7 @@ fn parsed_select(sql: &str) -> pg_query::protobuf::SelectStmt {
     }
 }
 
-// [spec:pgorm:sem:pipeline.qualify+3/test]
+// [spec:pgorm:sem:pipeline.qualify+4/test]
 #[test]
 fn reserved_word_table_is_quoted() {
     let order = alias("order");
@@ -971,7 +971,7 @@ fn reserved_word_table_is_quoted() {
     assert_eq!(built, r#"SELECT id, total FROM "order""#);
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    a pipeline is a from-source; its
+// [spec:pgorm:req:pipeline.compose+1/test]    a pipeline is a from-source; its
 // params keep their positions and the consumer's continue after them
 #[test]
 fn from_pipeline_binds_as_cte() {
@@ -996,7 +996,7 @@ fn from_pipeline_binds_as_cte() {
     assert_eq!(values.0.len(), 2);
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    joining an aggregated pipeline:
+// [spec:pgorm:req:pipeline.compose+1/test]    joining an aggregated pipeline:
 // the consumer binds first, the embedded params renumber after it
 #[test]
 fn join_pipeline_renumbers_embedded_params() {
@@ -1023,7 +1023,7 @@ fn join_pipeline_renumbers_embedded_params() {
     assert_eq!(values.0.len(), 2);
 }
 
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+1/test]
 #[test]
 fn append_renders_union_all() {
     let (sql, values) = Pipeline::from(INVOICE)
@@ -1043,7 +1043,7 @@ fn append_renders_union_all() {
     assert_eq!(values.0.len(), 2);
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    distinct directly after append
+// [spec:pgorm:req:pipeline.compose+1/test]    distinct directly after append
 // folds to UNION DISTINCT
 #[test]
 fn append_then_distinct_renders_union_distinct() {
@@ -1059,7 +1059,7 @@ fn append_then_distinct_renders_union_distinct() {
     );
 }
 
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+1/test]
 #[test]
 fn intersect_renders_intersect_all() {
     let built = sql_of(
@@ -1074,7 +1074,7 @@ fn intersect_renders_intersect_all() {
     );
 }
 
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+1/test]
 #[test]
 fn remove_renders_except_all() {
     let built = sql_of(
@@ -1089,14 +1089,14 @@ fn remove_renders_except_all() {
     );
 }
 
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+1/test]
 #[test]
 fn distinct_alone_renders_select_distinct() {
     let built = sql_of(Pipeline::from(INVOICE).distinct());
     assert_eq!(built, "SELECT DISTINCT * FROM invoice");
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    a set operation takes a plain
+// [spec:pgorm:req:pipeline.compose+1/test]    a set operation takes a plain
 // table too
 #[test]
 fn append_accepts_a_table_source() {
@@ -1107,7 +1107,7 @@ fn append_accepts_a_table_source() {
     );
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    sort and take inside an embedded
+// [spec:pgorm:req:pipeline.compose+1/test]    sort and take inside an embedded
 // pipeline stay inside its CTE; PRQL's sticky sort carries outward
 #[test]
 fn take_and_sort_survive_embedding() {
@@ -1129,7 +1129,7 @@ fn take_and_sort_survive_embedding() {
     assert_eq!(values.0.len(), 1);
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    embedding an embedder: bindings
+// [spec:pgorm:req:pipeline.compose+1/test]    embedding an embedder: bindings
 // renumber past the consumer's and three params stay aligned
 #[test]
 fn nested_embedding_renumbers_bindings_and_params() {
@@ -1156,7 +1156,7 @@ fn nested_embedding_renumbers_bindings_and_params() {
     assert_eq!(values.0.len(), 3);
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    the same alias declared in two
+// [spec:pgorm:req:pipeline.compose+1/test]    the same alias declared in two
 // composed pipelines lives in two scopes; neither collides
 #[test]
 fn duplicate_aliases_across_pipelines_coexist() {
@@ -1176,7 +1176,7 @@ fn duplicate_aliases_across_pipelines_coexist() {
     );
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    an unqualified name both sides
+// [spec:pgorm:req:pipeline.compose+1/test]    an unqualified name both sides
 // export is refused by prqlc, by name
 #[test]
 fn ambiguous_embedded_column_is_a_compile_error() {
@@ -1190,7 +1190,7 @@ fn ambiguous_embedded_column_is_a_compile_error() {
     assert!(matches!(err, PipelineError::Compile(ref text) if text.contains("Ambiguous")));
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    this() and that() name the two
+// [spec:pgorm:req:pipeline.compose+1/test]    this() and that() name the two
 // sides of the join when neither relation has a writable name
 #[test]
 fn that_qualifies_the_joined_relation() {
@@ -1206,7 +1206,7 @@ fn that_qualifies_the_joined_relation() {
     );
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    mismatched column counts are
+// [spec:pgorm:req:pipeline.compose+1/test]    mismatched column counts are
 // refused at compile time when prqlc can see both projections
 #[test]
 fn append_column_count_mismatch_is_refused() {
@@ -1220,7 +1220,7 @@ fn append_column_count_mismatch_is_refused() {
     assert!(matches!(err, PipelineError::Compile(_)));
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    a reserved alias inside an
+// [spec:pgorm:req:pipeline.compose+1/test]    a reserved alias inside an
 // embedded pipeline is still screened
 #[test]
 fn reserved_alias_inside_embedded_pipeline_is_refused() {
@@ -1248,10 +1248,10 @@ fn built_composition_matches_text_compilation() {
     assert_eq!(built, text);
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    after remove or intersect the
-// relation is renamed, so later stages refer to columns by bare name
+// [spec:pgorm:req:pipeline.compose+1/test]    after remove the relation is
+// read from a binding, by bare name or by the source qualification repointed
 #[test]
-fn stages_after_remove_use_bare_names() {
+fn stages_after_remove_read_the_binding() {
     let refund = Pipeline::from(alias("refund")).select(col(alias("refund"), CUSTOMER_ID));
     let built = sql_of(
         Pipeline::from(INVOICE)
@@ -1267,13 +1267,15 @@ fn stages_after_remove_use_bare_names() {
          SELECT customer_id FROM table_1 ORDER BY customer_id"
     );
 
-    let err = Pipeline::from(INVOICE)
-        .select(col(INVOICE, CUSTOMER_ID))
-        .remove(refund)
-        .sort(col(INVOICE, CUSTOMER_ID))
-        .into_sql()
-        .expect_err("the source qualification is gone after a set op");
-    assert!(matches!(err, PipelineError::Compile(_)));
+    // The source qualification is repointed at the binding the operation is
+    // settled into, so it reads the same column.
+    let requalified = sql_of(
+        Pipeline::from(INVOICE)
+            .select(col(INVOICE, CUSTOMER_ID))
+            .remove(refund)
+            .sort(col(INVOICE, CUSTOMER_ID)),
+    );
+    assert_eq!(requalified, built);
 }
 
 const EMPLOYEE: AliasName = alias("employee");
@@ -1668,7 +1670,7 @@ fn nested_embedding_prunes_through_two_levels() {
 
 /// Like [`sql_of`], for the source-select terminal: golden output plus the
 /// grammar oracle.
-// [spec:pgorm:sem:pipeline.select-sources+4/test]
+// [spec:pgorm:sem:pipeline.select-sources+5/test]
 fn sources_sql_of<T: SourceList>(selected: SelectedSources<T>) -> String {
     let (sql, _) = selected.into_sql().expect("select_sources compiles");
     if let Err(err) = pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT) {
@@ -1677,7 +1679,7 @@ fn sources_sql_of<T: SourceList>(selected: SelectedSources<T>) -> String {
     sql
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    two sources with a
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    two sources with a
 // colliding column name land under different prefixes by construction, so
 // prqlc never mints an _expr_N the decode could not predict
 #[test]
@@ -1700,7 +1702,7 @@ fn select_sources_prefixes_dissolve_expr_n() {
     assert!(!built.contains("_expr_"), "{built}");
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    a single source needs no
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    a single source needs no
 // tuple and projects one block under s0_
 #[test]
 fn select_sources_takes_a_single_source() {
@@ -1708,7 +1710,7 @@ fn select_sources_takes_a_single_source() {
     assert_eq!(built, "SELECT id AS s0_id, name AS s0_name FROM cake");
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    a named restatement
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    a named restatement
 // qualifies its block by the name, exactly as the join told the two
 // occurrences apart
 #[test]
@@ -1731,7 +1733,7 @@ fn select_sources_named_self_join_qualifies_by_name() {
     );
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    the widest list the
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    the widest list the
 // terminal takes — six sources — projects the i-th listed source's columns
 // under s{i}_, qualified by that source's own name, and types one
 // Option<Model> per position in listing order
@@ -1809,7 +1811,7 @@ fn select_sources_projects_six_sources_in_listing_order() {
     );
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    the writer's cast
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    the writer's cast
 // discipline reaches the PRQL side: an enum column reads back as text
 // [spec:pgorm:sem:query.graph.writer+4/test]
 #[test]
@@ -1846,7 +1848,7 @@ mod read_casts {
     pub enum Relation {}
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    the read cast's type
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    the read cast's type
 // is written by pgorm-query's TypeName policy, never handed to prqlc as text:
 // a name that needs quoting is quoted, a raw type expression stays verbatim,
 // and both spell the cast exactly as the SelectStatement writer does
@@ -1870,7 +1872,7 @@ fn select_sources_writes_read_casts_by_type_policy() {
     }
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    reshaping before the
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    reshaping before the
 // terminal is refused by the stage's own name, before prqlc compiles
 #[test]
 fn select_sources_refuses_a_reshaped_pipeline() {
@@ -1904,7 +1906,7 @@ fn select_sources_refuses_a_reshaped_pipeline() {
     assert_eq!(err, PipelineError::ReshapedSources("remove"));
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    the refusal names the
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    the refusal names the
 // stage that did the replacing: the first offender, not the last
 #[test]
 fn select_sources_refusal_names_the_first_offender() {
@@ -1917,7 +1919,7 @@ fn select_sources_refusal_names_the_first_offender() {
     assert_eq!(err, PipelineError::ReshapedSources("select"));
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    the whole allowed set
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    the whole allowed set
 // ahead of the terminal: filter, derive, sort, take, join, window, distinct
 // and append leave every source addressable
 #[test]
@@ -1943,7 +1945,7 @@ fn select_sources_composes_after_the_allowed_stages() {
     );
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    append is in the allowed
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    append is in the allowed
 // set because the left side's naming survives it
 #[test]
 fn select_sources_composes_after_append() {
@@ -1958,7 +1960,7 @@ fn select_sources_composes_after_append() {
     );
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    an embedded pipeline's
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    an embedded pipeline's
 // reshaping stays its own: the CTE boundary re-exposes its projection as a
 // table-like namespace, and the consumer's sources are untouched
 #[test]
@@ -1981,7 +1983,7 @@ fn select_sources_ignores_an_embedded_reshape() {
     );
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    the catalog-less ceiling:
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    the catalog-less ceiling:
 // a listed source the pipeline never read reaches prqlc, which refuses the
 // unresolvable columns as Compile diagnostics
 #[test]
@@ -1993,7 +1995,7 @@ fn select_sources_unread_source_fails_in_prqlc() {
     assert!(matches!(err, PipelineError::Compile(_)), "{err:?}");
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    a deduplicated relation stays
+// [spec:pgorm:req:pipeline.compose+1/test]    a deduplicated relation stays
 // combinable: prqlc cannot take a set operation off a grouped relation, so the
 // grouped stages are hoisted into their own binding first
 #[test]
@@ -2048,7 +2050,7 @@ SELECT id FROM table_0 UNION ALL SELECT id FROM fixture.accounts"
     );
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    compilation is deterministic: a
+// [spec:pgorm:req:pipeline.compose+1/test]    compilation is deterministic: a
 // star expanded over a join and then deduplicated used to come out in hash
 // order, so the same pipeline emitted two different projections
 #[test]
@@ -2086,7 +2088,7 @@ fn accounts() -> Pipeline {
     Pipeline::from_schema(FIXTURE, ACCOUNTS)
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    a renamed column keeps the position
+// [spec:pgorm:req:pipeline.compose+1/test]    a renamed column keeps the position
 // it was declared in through a deduplication. prqlc files a column still
 // qualified by its source under that source's submodule and a renamed one at
 // the top level, then orders the two by different keys — the source's position
@@ -2130,7 +2132,7 @@ fn a_renamed_column_keeps_its_declared_position() {
     );
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    the same misordering, reached the
+// [spec:pgorm:req:pipeline.compose+1/test]    the same misordering, reached the
 // other way: two sources interleaved in one projection, which `this` regroups
 // by source however the projection ordered them.
 #[test]
@@ -2153,7 +2155,7 @@ fn a_two_source_projection_keeps_its_declared_order() {
     );
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    a row range in front of a
+// [spec:pgorm:req:pipeline.compose+1/test]    a row range in front of a
 // deduplication is taken first. prqlc renders the group's own `take 1` and the
 // range take as one query, which applied the LIMIT/OFFSET after the
 // deduplication and so returned a different set of rows.
@@ -2178,7 +2180,7 @@ fn a_row_range_is_taken_before_deduplication() {
     );
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    the whole three-stage shape the
+// [spec:pgorm:req:pipeline.compose+1/test]    the whole three-stage shape the
 // campaign filed (item runtime-947): deduplicate, sort, take a range, project,
 // deduplicate again. The range must be taken from the *sorted* relation, and
 // before the second deduplication — the emitted SQL used to carry no ORDER BY
@@ -2240,7 +2242,7 @@ fn a_deduplicated_sorted_range_keeps_its_rows() {
     assert!(!deduplicated.contains("LIMIT"), "{built}");
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    the shapes a deduplication composes
+// [spec:pgorm:req:pipeline.compose+1/test]    the shapes a deduplication composes
 // with untouched keep their rendering: nothing is settled that did not need it.
 #[test]
 fn a_composable_deduplication_mints_no_binding() {
@@ -2298,7 +2300,7 @@ fn a_composable_deduplication_mints_no_binding() {
 /// runtime-3287, whose own shape reaches this through `distinct`; an aggregate
 /// is used here because `distinct` settles into its own binding first
 /// (`a_deduplicated_sorted_range_keeps_its_rows`) and would mask it.
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+1/test]
 #[test]
 fn a_dropped_sort_key_still_reaches_order_by() {
     let sql = Pipeline::from_schema(alias("fixture"), alias("accounts"))
@@ -2328,7 +2330,7 @@ fn a_dropped_sort_key_still_reaches_order_by() {
     }
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    a projected expression with no name
+// [spec:pgorm:req:pipeline.compose+1/test]    a projected expression with no name
 // of its own survives the deduplication. prqlc resolves the group's `this` over
 // a namespace keyed by name, and an unnamed expression is filed in it nowhere,
 // so the column used to be absent from the key — and so from the result, which
@@ -2386,7 +2388,7 @@ fn an_unnamed_computed_column_survives_deduplication() {
     );
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    two columns drawn from different
+// [spec:pgorm:req:pipeline.compose+1/test]    two columns drawn from different
 // sources under one bare name both survive. Only one of them can be filed under
 // that name in the namespace `this` expands, so the loser used to be dropped
 // from the key and from the result — and `id` and `name` collide between almost
@@ -2431,7 +2433,7 @@ fn a_collided_column_name_survives_deduplication() {
     );
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    a source name written after a
+// [spec:pgorm:req:pipeline.compose+1/test]    a source name written after a
 // deduplication still resolves. Settling moves the stages behind a binding,
 // which exposes their columns under the binding's name alone, so every
 // reference a later stage writes against the source it read — `col(source,
@@ -2484,7 +2486,7 @@ fn a_settled_source_name_still_resolves() {
 /// renumbers an embedded pipeline's bindings past the consumer's. Both
 /// spellings have to move together, or the reference lands on whichever
 /// relation the consumer happened to bind at that index.
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+1/test]
 #[test]
 fn a_settled_reference_survives_embedding() {
     let settled = || {
@@ -2524,7 +2526,7 @@ fn a_settled_reference_survives_embedding() {
     );
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    a relation joined after a settle
+// [spec:pgorm:req:pipeline.compose+1/test]    a relation joined after a settle
 // answers for itself: its own name is in scope again, and the settled side
 // stays qualified by its binding, so the two never compete for a bare name.
 #[test]
@@ -2575,7 +2577,7 @@ fn a_join_after_a_settle_keeps_both_sides() {
     );
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    a settle replaces the
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    a settle replaces the
 // sources' namespaces exactly as `select` does, so the terminal that projects
 // *by* those names is refused by the same gate rather than reaching prqlc with
 // qualifiers nothing can resolve. The refusal names the deduplication that
@@ -2601,7 +2603,7 @@ fn select_sources_refuses_a_settled_pipeline() {
     assert_eq!(err, PipelineError::ReshapedSources("distinct"));
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    a sort standing in front of a
+// [spec:pgorm:req:pipeline.compose+1/test]    a sort standing in front of a
 // deduplication still orders the result. PRQL's `group` resets the order and
 // prqlc's flattener deletes the standalone `sort` a group follows, so the
 // ordering was undone rather than applied and the rows came back deduplicated
@@ -2673,7 +2675,7 @@ fn a_sort_before_a_deduplication_still_orders() {
 /// falls through to `DISTINCT ON (<key>)` — with the wildcard still in the
 /// key, spelled `*`, which is not an expression PostgreSQL's grammar has.
 /// Reduced from campaign item `distinct-star-projection`.
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+1/test]
 #[test]
 fn a_star_deduplication_hoists_before_the_next_stage() {
     let one = alias("one");
@@ -2775,7 +2777,7 @@ fn a_star_deduplication_hoists_before_the_next_stage() {
 
 /// The renderings a star deduplication already had, which the hoist must not
 /// disturb: prqlc can spell the key in both, so nothing is owed.
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+1/test]
 #[test]
 fn a_spellable_star_key_hoists_nothing() {
     // Nothing follows, so the key is the frame and `SELECT DISTINCT *` stands.
@@ -2821,7 +2823,7 @@ fn a_spellable_star_key_hoists_nothing() {
 /// (`select_sources_refuses_a_settled_pipeline`): behind the binding the
 /// relation answers under that binding alone, which is the one thing a
 /// per-source projection cannot do without.
-// [spec:pgorm:sem:pipeline.select-sources+4/test]
+// [spec:pgorm:sem:pipeline.select-sources+5/test]
 #[test]
 fn select_sources_refuses_a_star_deduplication() {
     let err = Pipeline::from(cake::Entity)
@@ -2855,7 +2857,7 @@ fn projected_id() -> Pipeline {
 /// the server evaluates, whatever the rendering made of it. A relation reached
 /// through a binding is a leaf, because a CTE is exactly the bracket that ends
 /// the chain.
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+1/test]
 fn set_association(sql: &str) -> String {
     fn walk(select: Option<&pg_query::protobuf::SelectStmt>) -> String {
         let Some(select) = select else {
@@ -2890,7 +2892,7 @@ fn set_association(sql: &str) -> String {
 /// runtime-3267 and runtime-4317, which all shrank to the same
 /// `from t | append t | intersect t` and all returned exactly twice the
 /// reference's rows.
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+1/test]
 #[test]
 fn a_tighter_set_operation_brackets_the_looser_chain() {
     let t = projected_id;
@@ -2973,7 +2975,7 @@ fn a_tighter_set_operation_brackets_the_looser_chain() {
 /// hoisted into its own binding (prqlc cannot take a set operation off a
 /// grouped relation), while directly after an `append` it is the
 /// `UNION DISTINCT` fold. Both are held here against every verb.
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+1/test]
 #[test]
 fn deduplicated_branches_compose_with_every_set_operation() {
     let branch = |deduplicated: bool| match deduplicated {
@@ -3385,4 +3387,172 @@ fn compared_values_cast_as_their_column_writes_them() {
          CAST(10 AS money)) AND COALESCE(takings, CAST(0 AS money)) < 2.5 \
          AND state = CAST('open' AS till_state) AND takings IS NOT NULL"
     );
+}
+
+/// What a model terminal compiles for `M`, held to the grammar oracle as
+/// `sql_of` holds `into_sql`.
+fn model_sql_of<M: crate::FromQueryResult>(pipeline: Pipeline) -> String {
+    let (sql, _) = pipeline
+        .into_sql_for::<M>()
+        .expect("pipeline compiles for the model");
+    if let Err(err) = pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT) {
+        panic!("PostgreSQL grammar rejected the emitted SQL: {err}\n  {sql}");
+    }
+    sql
+}
+
+// [spec:pgorm:sem:pipeline.terminal+1/test]    a model reading an enum column
+// ends the pipeline in its projection, the enum cast to text under its own name
+#[test]
+fn model_terminal_casts_what_the_model_reads() {
+    let built = model_sql_of::<lunch_set::Model>(
+        Pipeline::from(lunch_set::Entity)
+            .filter(lunch_set::Column::Id.gt(1))
+            .sort(lunch_set::Column::Name)
+            .take(1),
+    );
+    assert_eq!(
+        built,
+        "SELECT id, name, CAST(tea AS text) AS tea FROM lunch_set WHERE id > 1 \
+         ORDER BY name LIMIT 1"
+    );
+}
+
+// [spec:pgorm:sem:pipeline.terminal+1/test]    a model reading no column
+// through a cast decodes the relation as the pipeline wrote it
+#[test]
+fn model_terminal_leaves_an_uncast_model_alone() {
+    let pipeline = Pipeline::from(cake::Entity).filter(cake::Column::Id.gt(1));
+    assert_eq!(
+        model_sql_of::<cake::Model>(pipeline.clone()),
+        sql_of(pipeline)
+    );
+}
+
+// [spec:pgorm:sem:pipeline.terminal+1/test]    the projection reads through
+// `this`, so a column named like one of PRQL's own resolves to the column, and
+// its alias ends the pipeline, so the reserved-alias screen does not apply to it
+#[test]
+fn model_terminal_reads_columns_named_like_prql() {
+    assert_eq!(
+        model_sql_of::<ledger::Model>(Pipeline::from(ledger::Entity)),
+        "SELECT id, date, CAST(rank AS text) AS rank FROM ledger"
+    );
+}
+
+/// An entity whose columns share their names with PRQL's own.
+mod ledger {
+    use crate as pgorm;
+    use crate::entity::prelude::*;
+    use crate::tests_cfg::active_enums::Tea;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "ledger")]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        pub date: String,
+        pub rank: Tea,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+// [spec:pgorm:sem:pipeline.terminal+1/test]    the projection lists the
+// model's columns bare, so a join of two relations sharing a name is refused
+// as ambiguous rather than decoding one relation's column as the other's
+#[test]
+fn model_terminal_refuses_an_ambiguous_join() {
+    let err = Pipeline::from(lunch_set::Entity)
+        .join(
+            JoinSide::Inner,
+            cake::Entity,
+            lunch_set::Column::Id.eq(cake::Column::Id),
+        )
+        .into_sql_for::<lunch_set::Model>()
+        .expect_err("id and name are ambiguous");
+    assert!(
+        matches!(err, PipelineError::Compile(ref text) if text.contains("Ambiguous")),
+        "{err}"
+    );
+}
+
+// [spec:pgorm:req:pipeline.compose+1/test]    a projection after a set
+// operation reads the whole combined relation, never one operand's SELECT
+#[test]
+fn set_operation_results_are_read_whole() {
+    let a = alias("a");
+    let b = alias("b");
+    let id = alias("id");
+    let n = alias("n");
+    let union = "SELECT * FROM a UNION ALL SELECT * FROM b";
+    assert_eq!(
+        sql_of(Pipeline::from(a).append(b).select(id)),
+        format!("WITH table_0 AS ({union}) SELECT id FROM table_0")
+    );
+    assert_eq!(
+        sql_of(
+            Pipeline::from(a)
+                .append(b)
+                .group(id)
+                .aggregate(count_rows().as_(n))
+        ),
+        format!("WITH table_0 AS ({union}) SELECT id, COUNT(*) AS n FROM table_0 GROUP BY id")
+    );
+    // Nothing reads the result, so nothing is settled.
+    assert_eq!(sql_of(Pipeline::from(a).append(b)), union);
+    // A deduplication folds into the operation and owes the settle onward.
+    assert_eq!(
+        sql_of(Pipeline::from(a).append(b).distinct()),
+        "SELECT * FROM a UNION DISTINCT SELECT * FROM b"
+    );
+    assert_eq!(
+        sql_of(Pipeline::from(a).append(b).distinct().select(id)),
+        "WITH table_0 AS (SELECT * FROM a UNION DISTINCT SELECT * FROM b) SELECT id FROM table_0"
+    );
+
+    // Under INTERSECT the projection stays outside: pushed into the operands
+    // it would intersect on fewer columns.
+    let operand = |table| Pipeline::from(table).select((col(table, id), col(table, n)));
+    let narrowed = sql_of(operand(a).intersect(operand(b)).select(id));
+    assert!(
+        narrowed.ends_with("SELECT id FROM table_1")
+            && narrowed.contains("SELECT id, n FROM a INTERSECT ALL"),
+        "{narrowed}"
+    );
+
+    // Over wildcard operands prqlc expands neither side of an INTERSECT.
+    assert!(matches!(
+        Pipeline::from(a).intersect(b).select(id).into_sql(),
+        Err(PipelineError::Compile(_))
+    ));
+}
+
+// [spec:pgorm:sem:pipeline.select-sources+5/test]    one source after append
+// is projected from the binding the union is settled into; more than one is
+// refused, since the combined relation does not keep them apart
+#[test]
+fn select_sources_after_append_reads_the_union() {
+    let built = sources_sql_of(
+        Pipeline::from(cake::Entity)
+            .append(alias("archived_cake"))
+            .select_sources(cake::Entity),
+    );
+    assert_eq!(
+        built,
+        "WITH table_0 AS (SELECT * FROM cake UNION ALL SELECT * FROM archived_cake) \
+         SELECT id AS s0_id, name AS s0_name FROM table_0"
+    );
+    let err = Pipeline::from(cake::Entity)
+        .join(
+            JoinSide::Left,
+            fruit::Entity,
+            cake::Column::Id.eq(fruit::Column::CakeId),
+        )
+        .append(alias("archived"))
+        .select_sources((cake::Entity, fruit::Entity))
+        .into_sql()
+        .expect_err("two sources cannot be told apart in the union");
+    assert!(matches!(err, PipelineError::ReshapedSources("append")));
 }

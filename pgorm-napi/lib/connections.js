@@ -7,7 +7,7 @@
 // [spec:pgorm:req:napi.lifecycle+2]
 // [spec:pgorm:req:bindings.results+2]
 // [spec:pgorm:req:napi.raw]
-// [spec:pgorm:req:bindings.transactions]
+// [spec:pgorm:req:bindings.transactions+1]
 // [spec:pgorm:req:napi.transactions+3]
 // [spec:pgorm:req:bindings.copy]
 // [spec:pgorm:req:bindings.listen+2]
@@ -15,7 +15,19 @@
 import { statementArgs } from "./builder.js";
 import { COPY, CopyRunner } from "./copy.js";
 import { Listener, LISTENER, listenerOptions, notifyJob } from "./listen.js";
-import { abortable, LATE, native, queryOptions, row, scoped, signalOf, TRUSTED } from "./operations.js";
+import { abortable, knownOptions, LATE, native, queryOptions, row, scoped, signalOf, TRUSTED } from "./operations.js";
+
+/** The options a pool takes, as `PoolOptions` declares them. */
+const POOL_OPTIONS = [
+  "tls",
+  "ca",
+  "maxSize",
+  "connectTimeout",
+  "acquireTimeout",
+  "statementCacheSize",
+  "recycle",
+  "statementCacheChannel",
+];
 import { RowStream } from "./streams.js";
 
 /** The statement runner each class implements, keyed privately. */
@@ -154,7 +166,7 @@ export async function runStatement(db, terminal, statement, options) {
   if (!(db instanceof Queryable)) {
     throw new TypeError("a model's statement runs on a Pool, a Connection or a Transaction");
   }
-  const [handle, , rest] = statementArgs(statement, undefined, options);
+  const [handle, , rest] = statementArgs(statement, options, undefined);
   const { signal } = queryOptions(rest);
   return await abortable(signal, (token) => db[RUN](terminal, handle, [], false, token), () => db[LATE]());
 }
@@ -199,7 +211,7 @@ export function disjointStream(db, statement, disjoint, options) {
  * addon — on a pool's connection, a connection or a transaction, with the
  * operation a statement gets around it: the busy refusal, the abort, the
  * discard of a connection an abort left in an unknown state.
- * [spec:pgorm:req:bindings.entities+5]
+ * [spec:pgorm:req:bindings.entities+6]
  * [spec:pgorm:req:bindings.registered-pools]
  *
  * @param {unknown} db
@@ -222,6 +234,17 @@ let connectionHandle;
 let poolHandle;
 
 /**
+ * The native handle of `pool`, which an {@link InstrumentedPool} is built
+ * around.
+ *
+ * @param {Pool} pool
+ * @returns {unknown}
+ */
+export function nativePool(pool) {
+  return poolHandle(pool);
+}
+
+/**
  * A pool of connections to one server, opened as they are first needed. TLS
  * verifies the server's certificate and host name unless the connection
  * string says `sslmode=disable` or `tls` is `"disable"`.
@@ -235,13 +258,21 @@ export class Pool extends Queryable {
   }
 
   /**
-   * @param {string} dsn
-   * @param {import("./index.d.ts").PoolOptions} [options]
+   * A pool built from a connection string and its options, or, for
+   * {@link InstrumentedPool} alone, around the native handle the addon made.
+   *
+   * @param {string | symbol} dsn
+   * @param {import("./index.d.ts").PoolOptions | unknown} [options]
    */
   constructor(dsn, options = {}) {
     super();
+    if (dsn === TRUSTED) {
+      this.#native = options;
+      return;
+    }
     if (typeof dsn !== "string") throw new TypeError("dsn is a connection string");
     if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
+    knownOptions(options, POOL_OPTIONS);
     this.#native = native.poolNew(dsn, options);
   }
 
@@ -458,6 +489,8 @@ export class Connection extends Queryable {
    * @returns {Promise<T>}
    */
   async transaction(use, options = {}) {
+    if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
+    knownOptions(options, ["mode", "isolation", "signal"]);
     const { mode = "default", isolation = null, signal } = options;
     const handle = await abortable(
       signalOf(signal),

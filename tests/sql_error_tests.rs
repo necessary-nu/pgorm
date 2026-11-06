@@ -170,6 +170,56 @@ async fn bind_refusal_names_the_parameter_and_reason() {
     ctx.delete().await;
 }
 
+// [spec:pgorm:sem:error.model.parameter-count/test]    a statement given another number of parameters
+// than it takes is a ParameterCountRefusal holding both counts, its Display the text the bindings
+// report, and no other failure is one
+#[pgorm_macros::test]
+async fn parameter_count_refusal_names_both_counts() {
+    use pgorm::{ConnectionTrait, DecodeRaw, ParameterCountRefusal, pgorm_query::Values};
+
+    let ctx = TestContext::new("parameter_count_refusal").await;
+    let db = ctx.db.get().await.unwrap();
+
+    let error = (
+        "SELECT $1::int4 AS x, $2::int4 AS y",
+        Values(vec![Value::from(1i32)]),
+    )
+        .into_tuple::<(i32, i32)>()
+        .one(&db)
+        .await
+        .expect_err("one value for two placeholders");
+    let refusal: ParameterCountRefusal = error.parameter_count_refusal().expect("a count refusal");
+    assert_eq!((refusal.expected, refusal.given), (2, 1));
+    assert_eq!(
+        refusal.to_string(),
+        "the statement takes 2 parameters, and 1 was given"
+    );
+    assert_eq!(error.bind_refusal(), None);
+
+    let many = db
+        .execute("SELECT $1::int4", &[&1i32, &2i32])
+        .await
+        .expect_err("two values for one placeholder");
+    assert_eq!(
+        many.parameter_count_refusal()
+            .map(|refusal| refusal.to_string()),
+        Some("the statement takes 1 parameter, and 2 were given".to_owned())
+    );
+    let none = db
+        .execute("SELECT 1", &[&1i32])
+        .await
+        .expect_err("a value for no placeholder");
+    assert_eq!(
+        none.parameter_count_refusal()
+            .map(|refusal| refusal.to_string()),
+        Some("the statement takes 0 parameters, and 1 was given".to_owned())
+    );
+    assert_eq!(Error::RecordNotFound.parameter_count_refusal(), None);
+
+    drop(db);
+    ctx.delete().await;
+}
+
 // [spec:pgorm:sem:error.model.decode-refusal/test]    a column the driver cannot read as what was
 // asked is a DecodeRefusal naming what it was reading and carrying the decoder's reason, its Display
 // the text the bindings report, and a refusal the server makes or a bind refusal is none

@@ -287,9 +287,10 @@ async fn by_name(db: &DatabaseConnection) -> Result<Vec<cake::Model>, Error> {
 }
 ```
 
-`cake::Entity::find().from_raw_sql(sql, values)` and
-`Model::find_by_statement(sql, values)` likewise take the SQL text and its
-values where SeaORM took a `Statement`. A statement built with pgorm-query
+`cake::Entity::find().from_raw_sql(sql, values)`,
+`Model::find_by_statement(sql, values)` and the `SelectorRaw` constructors
+likewise take the SQL text, a `&str` or `&String` as `ConnectionTrait`'s
+methods take it, and its `Values`, where SeaORM took a `Statement`. A statement built with pgorm-query
 gives the pair from `build()`; to execute one directly, wrap each value in
 `ValueHolder`:
 
@@ -318,7 +319,7 @@ compile time, if you want a typo in hand-written SQL to fail the build.
 | `db.transaction::<_, _, E>(\|txn\| Box::pin(async move { .. }))` | `conn.transaction(async \|txn\| { .. })` |
 | `begin_with_config(isolation, access_mode)` | `transaction_with(TransactionMode::.., async \|txn\| { .. })` |
 | `transaction_with_config` | `transaction_with` |
-| `TransactionError<E>` | the same name and variants, and `RollbackFailed { cause, rollback }` for a `ROLLBACK` that failed after the closure's error; it converts into `Error` for `?` (where `E` does), a failed rollback becoming `Error::RollbackFailed`, so a savepoint's failure passes to the closure around it |
+| `TransactionError<E>` | the same name and variants, and `RollbackFailed { cause, rollback }` for a `ROLLBACK` that failed after the closure's error; it converts into `Error` for `?` (where `E` does), a failed rollback becoming `Error::RollbackFailed`, so a savepoint's failure passes to the closure around it. A closure that returns `Ok` after catching a failed statement's error, which SeaORM reports as committed though PostgreSQL rolled it back, is `Connection(Error::TransactionAborted)` |
 
 A transaction exists only inside a closure. There is no `begin` returning a
 handle, and no `commit` or `rollback` to call: what the closure returns ends
@@ -406,15 +407,25 @@ expanded entity said in a trait method, an attribute says:
 - An entity whose table or schema name is computed at run time keeps a
   hand-written part: its own `Entity` struct holding what the name is computed
   from, an `EntityName` impl, and the `EntityTrait` derive on the struct,
-  beside an `Entity` derive given no `table_name`.
+  beside an `Entity` derive given no `table_name`. `find()` and the other
+  static constructors read `Entity::default()`'s names; the `_in` forms,
+  `find_in(entity)`, `Insert::one_in(entity, model)` and the rest, read the
+  names of the instance they are given, where SeaORM's dynamic table name was
+  read through `Default` alone.
 
 ```rust
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::SimpleExpr;
 
-#[derive(Copy, Clone, Default, Debug, EntityTrait)]
+#[derive(Copy, Clone, Debug, EntityTrait)]
 pub struct Entity {
     pub tenant: &'static str,
+}
+
+impl Default for Entity {
+    fn default() -> Self {
+        Self { tenant: "public" }
+    }
 }
 
 impl EntityName for Entity {
@@ -441,6 +452,10 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
+
+fn tenant_cakes(tenant: &'static str) -> Select<Entity> {
+    Entity::find_in(Entity { tenant })
+}
 ```
 
 Some details differ besides:

@@ -5,7 +5,7 @@
 // one set to NULL; RETURNING the fields as records; and the terminals that
 // read a written row's two versions, as pgorm's `exec_returning_change(s)`
 // and `exec_returning_upsert(s)` read them.
-// [spec:pgorm:req:bindings.model-writes+2]
+// [spec:pgorm:req:bindings.model-writes+3]
 
 import { runStatement } from "./connections.js";
 import { ConstructionError, DecodeError } from "./errors.js";
@@ -189,6 +189,7 @@ function written(statement) {
  *   shape: import("./model-shape.js").Shape,
  *   statement: import("./writes.js").Insert | null,
  *   columns: readonly string[] | null,
+ *   conflict: Conflict | ConflictUpdate | null,
  * }} InsertState
  */
 
@@ -198,7 +199,9 @@ let stateOf;
 /**
  * What a model's INSERT of one row and of a batch share: its rows' statement,
  * the SQL names of the fields they set — `null` for an insert of no rows, an
- * empty list for a row of defaults — and the methods both kinds have.
+ * empty list for a row of defaults — its conflict clause, kept apart from the
+ * statement so that an insert of no rows, which has none, keeps it for the
+ * rows added after, and the methods both kinds have.
  */
 class Inserting {
   /** @type {InsertState} */
@@ -208,11 +211,12 @@ class Inserting {
    * @param {import("./model-shape.js").Shape} shape
    * @param {import("./writes.js").Insert | null} statement
    * @param {readonly string[] | null} columns
+   * @param {Conflict | ConflictUpdate | null} conflict
    * @param {symbol} token
    */
-  constructor(shape, statement, columns, token) {
+  constructor(shape, statement, columns, conflict, token) {
     if (token !== MADE) throw new TypeError(`a ${new.target.name} comes from a model's insert() or insertMany()`);
-    this.#state = { shape, statement, columns };
+    this.#state = { shape, statement, columns, conflict };
   }
 
   static {
@@ -225,7 +229,8 @@ class Inserting {
 
   /**
    * What a conflict does: the statement builders' `Conflict`, naming SQL
-   * columns.
+   * columns. An insert of no rows takes one too, still sending nothing.
+   * [spec:pgorm:req:bindings.model-writes+3]
    *
    * @param {unknown} action
    * @returns {this}
@@ -236,7 +241,7 @@ class Inserting {
     }
     const { shape, statement, columns } = this.#state;
     const Kind = /** @type {new (...args: unknown[]) => this} */ (this.constructor);
-    return new Kind(shape, written(statement).onConflict(action), columns, MADE);
+    return new Kind(shape, statement && statement.onConflict(action), columns, action, MADE);
   }
 
   /**
@@ -257,8 +262,8 @@ class Inserting {
    */
   addMany(rows) {
     if (!Array.isArray(rows)) throw new TypeError("addMany takes an array of rows");
-    const { shape, statement, columns } = this.#state;
-    return new ModelInsertMany(shape, ...appended(shape, statement, columns, rows), MADE);
+    const { shape, statement, columns, conflict } = this.#state;
+    return new ModelInsertMany(shape, ...appended(shape, statement, columns, rows, conflict), conflict, MADE);
   }
 
   /** @param {...string} fields */
@@ -504,26 +509,28 @@ function unaliased(shape) {
 /**
  * `statement`, the INSERT of rows setting `columns`, with `rows` after them,
  * each setting the same fields; the first row of an insert of none names
- * them.
+ * them, and the statement it starts takes `conflict`.
  *
  * @param {import("./model-shape.js").Shape} shape
  * @param {import("./writes.js").Insert | null} statement
  * @param {readonly string[] | null} columns
  * @param {readonly unknown[]} rows
+ * @param {Conflict | ConflictUpdate | null} [conflict]
  * @returns {[import("./writes.js").Insert | null, readonly string[] | null]}
  */
-function appended(shape, statement, columns, rows) {
+function appended(shape, statement, columns, rows, conflict = null) {
   unaliased(shape);
   let [current, names] = [statement, columns];
   for (const row of rows) {
     const set = assignments(shape, row, "insert");
     const sql = set.map(([field]) => field.sql);
     if (current === null || names === null) {
+      const started = conflict === null ? insert(shape.table) : insert(shape.table).onConflict(conflict);
       if (sql.length === 0) {
-        [current, names] = [insert(shape.table).defaultValues(), []];
+        [current, names] = [started.defaultValues(), []];
         continue;
       }
-      [current, names] = [insert(shape.table).columns(...sql), sql];
+      [current, names] = [started.columns(...sql), sql];
     } else if (names.length === 0) {
       throw new ConstructionError("rows that set no field are inserted one at a time");
     } else if (sql.length !== names.length || sql.some((name, index) => name !== names?.[index])) {
@@ -541,7 +548,7 @@ function appended(shape, statement, columns, rows) {
  * @param {unknown} values
  */
 export function insertOne(shape, values) {
-  return new ModelInsert(shape, ...appended(shape, null, null, [values]), MADE);
+  return new ModelInsert(shape, ...appended(shape, null, null, [values]), null, MADE);
 }
 
 /**
@@ -553,7 +560,7 @@ export function insertOne(shape, values) {
  */
 export function insertMany(shape, rows) {
   if (!Array.isArray(rows)) throw new TypeError("insertMany takes an array of rows");
-  return new ModelInsertMany(shape, ...appended(shape, null, null, rows), MADE);
+  return new ModelInsertMany(shape, ...appended(shape, null, null, rows), null, MADE);
 }
 
 /**

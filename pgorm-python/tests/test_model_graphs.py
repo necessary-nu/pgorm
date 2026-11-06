@@ -7,7 +7,6 @@ import os
 import unittest
 
 import pgorm as p
-from pgorm._registered.versions import Change, Inserted, Updated
 
 SCHEMA = "python_graphs"
 mood = p.TypeName("mood", schema=SCHEMA)
@@ -155,7 +154,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             posts.find(["id"])
 
-    # [spec:pgorm:req:bindings.graphs/test]
+    # [spec:pgorm:req:bindings.graphs+1/test]
     async def test_slot_kinds_decode_as_their_join(self):
         required = await Post.graph().join_one(editor).order_by(by_post).all(self.pool)
         self.assertEqual([(post["title"], account["name"]) for post, account in required], [("a1", "Bob")])
@@ -172,7 +171,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         async with await Post.graph().join_one(author).order_by(by_post).stream(self.pool) as rows:
             self.assertEqual([account["name"] async for _, account in rows], ["Ann", "Ann", "Bob"])
 
-    # [spec:pgorm:req:bindings.graphs/test]
+    # [spec:pgorm:req:bindings.graphs+1/test]
     async def test_graph_reads_hops_and_aliased_tables(self):
         tagged = await Post.graph().via(post_tags).join_one(tag_of).order_by(
             by_post, Tag.col("id").asc()
@@ -199,7 +198,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             bool(Post.graph())
 
-    # [spec:pgorm:req:bindings.graphs/test]
+    # [spec:pgorm:req:bindings.graphs+1/test]
     # [spec:pgorm:req:bindings.model-records+1/test]
     async def test_undecodable_present_slot_is_decode_error(self):
         await self.pool.execute(p.RawSQL(f"UPDATE {SCHEMA}.account SET mood = 'wild' WHERE id = 1"))
@@ -208,7 +207,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.DecodeError):
             await Account.find().all(self.pool)
 
-    # [spec:pgorm:req:bindings.graphs/test]
+    # [spec:pgorm:req:bindings.graphs+1/test]
     async def test_all_grouped_gathers_each_roots_slot_records(self):
         grouped = await Account.graph().join_maybe(posts).order_by(Account.col("name").desc()).all_grouped(self.pool)
         self.assertEqual(
@@ -220,6 +219,24 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         keyless = p.Model("account", {"name": p.Column("text")}, schema=SCHEMA)
         with self.assertRaisesRegex(p.ConstructionError, "none of"):
             await keyless.graph().join_maybe(keyless.has_many(Post, from_="name", to="title")).all_grouped(self.pool)
+
+    # [spec:pgorm:req:bindings.graphs+1/test]
+    async def test_a_sliced_graph_refuses_row_range_reads(self):
+        graph = Account.graph().join_maybe(posts).order_by(by_account, by_post)
+        for sliced in (graph.limit(2), graph.offset(1), graph.limit(None), graph.limit(2).where(Account.col("id") > 0)):
+            with self.assertRaisesRegex(p.ConstructionError, "a graph cut by limit or offset has no all_grouped"):
+                await sliced.all_grouped(self.pool)
+            with self.assertRaisesRegex(p.ConstructionError, "has no count"):
+                await sliced.count(self.pool)
+            with self.assertRaisesRegex(p.ConstructionError, "has no cursor"):
+                sliced.cursor("name")
+            with self.assertRaisesRegex(p.ConstructionError, "has no paginate"):
+                sliced.paginate(2)
+            for terminal in ("count", "all_grouped"):
+                with self.assertRaisesRegex(p.ConstructionError, f"has no {terminal}"):
+                    sliced.inspect(terminal=terminal)
+        rows = await graph.limit(2).all(self.pool)
+        self.assertEqual([(account["name"], post and post["title"]) for account, post in rows], [("Ann", "a1"), ("Ann", "a2")])
 
     # [spec:pgorm:req:bindings.cursors/test]
     async def test_a_cursor_walks_rows_by_keyset(self):
@@ -311,19 +328,23 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(TypeError):
                 await Account.find().stream(transaction)
 
-    # [spec:pgorm:req:bindings.model-writes+2/test]
+    # [spec:pgorm:req:bindings.model-writes+3/test]
+    # [spec:pgorm:req:python.records+1/test]    a model's writes answer pgorm's own Change and Upserted
     async def test_writes_read_each_rows_two_versions(self):
         changes = await Account.update({"visits": 4}).where(Account.col("id").gte(2)).returning_changes(self.pool)
         self.assertEqual([(c.old["visits"], c.new["visits"], c.new["seq"]) for c in changes], [(0, 4, 5), (0, 4, 5)])
-        self.assertTrue(all(isinstance(change, Change) for change in changes))
+        self.assertTrue(all(isinstance(change, p.Change) for change in changes))
         one = await Account.update({"name": "Ann2"}).where(Account.col("id").eq(1)).returning_change(self.pool)
         self.assertEqual((one.old["name"], one.new["name"]), ("Ann", "Ann2"))
         upsert = Account.insert({"id": 1, "name": "Zed"}).on_conflict(p.Conflict.on("id").update("name"))
         updated = await upsert.returning_upsert(self.pool)
-        self.assertIsInstance(updated, Updated)
+        self.assertIsInstance(updated, p.Upserted.Updated)
+        self.assertIsInstance(updated, p.Upserted)
+        self.assertIsInstance(updated.change, p.Change)
+        self.assertIs(updated.into_model(), updated.change.new)
         self.assertEqual((updated.change.old["name"], updated.change.new["name"]), ("Ann2", "Zed"))
         inserted = await Account.insert({"id": 7, "name": "New"}).returning_upsert(self.pool)
-        self.assertIsInstance(inserted, Inserted)
+        self.assertIsInstance(inserted, p.Upserted.Inserted)
         self.assertEqual(inserted.model["name"], "New")
         held = Account.insert({"id": 7, "name": "Again"}).on_conflict(p.Conflict.on("id").do_nothing())
         self.assertIsNone(await held.returning_upsert(self.pool))
@@ -339,8 +360,10 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         )
         with self.assertRaises(p.ConstructionError):
             empty.inspect()
-        with self.assertRaises(p.ConstructionError):
-            empty.on_conflict(p.Conflict.do_nothing())
+        # [spec:pgorm:req:bindings.model-writes+3/test]    an empty batch takes a conflict clause, sends nothing, and keeps it for rows added later
+        guarded = empty.on_conflict(p.Conflict.on("id").do_nothing())
+        self.assertEqual((await guarded.execute(self.pool), await guarded.returning_upserts(self.pool)), (0, []))
+        self.assertTrue(guarded.add({"name": "Dee"}).inspect().sql.endswith('ON CONFLICT ("id") DO NOTHING'))
         with self.assertRaises(p.ConstructionError):
             Account.update({"seq": 1})
         with self.assertRaises(TypeError):
@@ -353,7 +376,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
             with self.subTest(terminal=terminal), self.assertRaises(TypeError):
                 write.inspect(terminal=terminal)
 
-    # [spec:pgorm:req:bindings.model-writes+2/test]
+    # [spec:pgorm:req:bindings.model-writes+3/test]
     def test_each_write_has_only_its_own_methods(self):
         insert = Account.insert({"name": "x"})
         batch = Account.insert_many([])
