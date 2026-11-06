@@ -16667,6 +16667,14 @@ children (
                 kind @decision
                 text "Operator 2026-11-01: \"yes to both\", on two more shapes under decision (7), proposed by python-statement-gaps. (D) Conflict targets: Python names an inference target with Conflict.on(*targets) as JavaScript's Conflict.on does, ConflictTarget is no longer constructible (decision C: builders only by their factories), and ConflictUpdate.update takes several columns as JavaScript's does. (E) MERGE actions: Python takes JavaScript's MergeAction factories (update, insert, delete, do_nothing, insert_defaults), MatchedAction and NotMatchedAction are deleted, MergeUpdate and MergeInsert are no longer constructible, and an action on the wrong kind of arm is the ConstructionError bindings.merge already requires, the stubs keeping the update and insert arms' types apart. Search and Cycle (With.recursive's options) stay Python's own, a language difference: JavaScript passes options objects, Python one keyword argument each."
             }
+
+            {
+                at 2026-11-06T09:54:15.265896Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Re-read after bindings.model-reads moved to +1 (guide.python-gaps.raw-sql's merge of f0c3c867, b09065f2): its stream sentence now says a model's rows stream from a pool, a connection or a transaction, agreeing with bindings.streams+1, which already let a model's, a graph's and a disjoint read's stream take a transaction; both bindings already did. Every reference is pinned at +1."
+                after_done true
+            }
         )
     }
 
@@ -16742,6 +16750,14 @@ children (
                 author "brendan@necessary.nu"
                 kind @note
                 text "Filed by binding-spec-consolidation. bindings.models, bindings.model-records, bindings.model-reads, bindings.model-writes, bindings.relations, bindings.graphs, bindings.cursors and bindings.pagination state what JavaScript's declared models do and require it of both bindings. Python's Model (pgorm-python/python/pgorm/models/) lacks: the column options default, generated and an enum's values (so an unlisted label cannot be a DecodeError); find_by_key; count; stream; insert_many; on_conflict on a model insert; returning_change(s) and returning_upsert(s); join(relation) (Python joins another model on an explicit predicate); belongs_to, has_one and has_many relations with find and load; a model graph (join_one, join_maybe, via, all_grouped); keyset cursors; and the paginator. Python's model `Graph` name is taken by the registered graph (see the names question in the operator's list). The missing methods are listed under python.gaps in docs/spec/bindings-surface.json with this node."
+            }
+
+            {
+                at 2026-11-06T09:54:15.488032Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Re-read after bindings.model-reads moved to +1 (guide.python-gaps.raw-sql's merge of f0c3c867, b09065f2): a declared model's stream in a transaction, which bindings.streams+1 already required and Python's ModelQuery.stream does, is now stated in bindings.model-reads too. Every reference is pinned at +1."
+                after_done true
             }
         )
     }
