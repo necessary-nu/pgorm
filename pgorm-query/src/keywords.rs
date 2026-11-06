@@ -336,7 +336,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:def:sql.types.type-name+8/test]    the list is the linked
+    // [spec:pgorm:def:sql.types.type-name+9/test]    the list is the linked
     // parser's, both ways: every entry scans as its category, and every
     // keyword the scanner restricts is an entry
     #[test]

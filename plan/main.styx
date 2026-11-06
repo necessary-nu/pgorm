@@ -13518,13 +13518,51 @@ children (
                     {
                         id napi.guide-gaps.model-query-clauses
                         title "A model query takes DISTINCT and DISTINCT ON, GROUP BY with HAVING and aggregate projections (count, sum, min, max, column_as/expr_as), and FOR UPDATE / FOR SHARE locks with NOWAIT or SKIP LOCKED, still decoding typed rows, as Rust's Select::distinct, distinct_on, group_by, having and lock_with_behavior do (guide 05-reading)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.model-clauses] [spec:pgorm:req:bindings.distinct-on])
+                            python ([spec:pgorm:req:bindings.model-clauses] [spec:pgorm:req:bindings.distinct-on])
+                        }
                         deps (napi-models guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T18:49:32.257721Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:46:24.853212Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built with guide.python-gaps.model-select in one shape (see its decision note). JS: distinct(), distinctOn(...columns), groupBy(...), having(..), lock(strength, { wait, of }) (the statement builder's lock), join(rel, { kind: \"inner\"|\"left\"|\"right\"|\"full\" }), joinRev(rel, ..), on ModelQuery and ModelProjection through one shared Clauses base (lib/model-clauses.js); aggregates project through exprAs(call(\"count\", ..), name, column(\"i64\")). To let the query modules build on Clauses without an import cycle, a relation's parts moved to lib/relation-parts.js (relations.js re-exports relationOn and shapesOf)."
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.model-expression-shape
                         title "A declared read shape holds expressions and skipped fields beside a model's columns, selected and decoded together, as Rust's PartialModel from_expr, from_col and skip do (guide 05-reading)"
-                        deps (napi-models guide.javascript)
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.partial-models])
+                            python ([spec:pgorm:req:bindings.partial-models])
+                        }
+                        deps (napi-models guide.javascript guide.python-gaps.partial-model-skip)
+                        log (
+                            {
+                                at 2026-11-05T18:49:33.31256Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:46:23.412325Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "PartialModel(model, {field: ModelColumn | FromExpr(expr, Column) | Skip(value)}) in Python; partialModel(model, {..}) with fromExpr(expr, column(..)) and skip(value) in JavaScript; ModelQuery.into_partial_model(shape) / intoPartialModel(shape) gives a ModelSelector whose rows are a read-only mapping (Python) or a plain object (JS) of the shape's fields in declaration order. A model column is Rust's from_col (a field named for its column being Rust's plain field), aliased where the field is not the column's name, as Rust's select_cols writes it. Skip holds the program's value, Rust's skip taking the type's Default. Found and fixed in Rust on the way: the PartialModel derive accepted `skip` but still projected the same-named column (compile error when the entity has none, a wasted column otherwise); macros.derive.partial-model bumped to +6 (skip selects nothing, and needs no entity). Filed as guide.python-gaps.partial-model-skip."
+                            }
+                        )
                     }
 
                     {
@@ -13536,10 +13574,32 @@ children (
                         deps (napi-models guide.javascript)
                         log (
                             {
+                                at 2026-11-05T18:49:33.973141Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:46:24.258743Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Cursor.addSecondaryOrderBy(model, field) (Python add_secondary_order_by), Rust's add_secondary_order_by(table, column): the model names the table as the query names it, its alias included, and must be the queried model or one the query joined (ConstructionError otherwise); the field's declared kind converts its boundary value. It appends a tiebreak after the key and the entries before it, so after()/before() take the key alone and afterWith()/beforeWith() the whole ordering (the bindings' existing keyset logic). Graph cursors take it too, appended after the graph's own key tiebreaks. A selector's cursor (a projection read into tuples or objects) takes it the same way. This also gives a cursor ordered by a joined table's column, as a secondary entry."
+                            }
+
+                            {
                                 at 2026-11-05T19:50:31.221284Z
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "From the guide.python-gaps.model-relations lane: Python's Cursor.add_secondary_order_by(column) is built and its shape held in docs/spec/bindings.md as bindings.cursor-secondary-order (a model's column, qualified as the query names its table, appended after the key and the tiebreaks; after/before take the key alone, after_with/before_with the whole ordering). This node was given that rule's javascript claim, and bindings-surface.json lists pgorm.Cursor.add_secondary_order_by as a javascript gap naming this node, so JavaScript's cursor takes it in the same shape (addSecondaryOrderBy(column)) and closes the gap."
+                            }
+
+                            {
+                                at 2026-11-06T09:30:10.477268Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "On merging main f0c3c867 (whose model-relations lane built Python's add_secondary_order_by(column) under the same rule id), the two-argument form stands in both bindings; see guide.python-gaps.model-relations' decision note. This node keeps the javascript claim and the model-relations node the python one; bindings-surface.json's javascript gap for Cursor.add_secondary_order_by is closed, since addSecondaryOrderBy exists."
+                                after_done true
                             }
                         )
                     }
@@ -13695,13 +13755,56 @@ children (
                     {
                         id napi.guide-gaps.model-schema
                         title "A declared model generates its CREATE TABLE with its keys and foreign keys, its enum types, indexes and comments, as Rust's Schema::create_table_from_entity, create_enum_from_entity, create_index_from_entity and create_comments_from_entity do and fromEntity does for a registered entity (guide 03-entities, 14-schema)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.schema-from-model])
+                        }
                         deps (napi-models napi-schema guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T19:49:41.609273Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:49:41.609273Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "single-flight overridden: started while guide.python-gaps.model-ddl had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T20:22:05.640009Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built together with guide.python-gaps.model-ddl in one shape (see its decision note): fromModel(model, { relations }) → EntitySchema through pgorm's TableShape writer; column options columnType, defaultValue, defaultExpr, generatedStored, generatedVirtual, autoIncrement, indexed, comment, withoutOverlaps; model({ comment, renameAll }); belongsTo keys onDelete/onUpdate/fkName (hasOne/hasMany refuse them with TypeError, as an unknown relation option now is). Native side pgorm-napi/src/models/shape.rs (modelSchema, modelTable, modelRenamed), sharing the column lowering with the disjoint description. guide/bakery.ts writes its tables with fromModel and names its columns with renameAll: \"snake_case\"."
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.json-shape
                         title "A model's json column decodes its documents as a type of the program's choosing, checked as they are read, as a Rust JsonValueType field does (guide 03-entities, 13-values)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.model-conversions])
+                        }
                         deps (napi-models guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T22:13:21.198647Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T07:03:49.98035Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built together with guide.python-gaps.model-types (rule bindings.model-conversions). A json column's documents take the program's type through the column's decode option, a function from the document to the program's value run as each row is read (a throw makes the read a DecodeError, NULL never reaches it); the record's field is typed as decode's return type (models.d.ts Decoded/Encoded helpers in FieldValue/FieldInput/FieldOperand). encode is decode's inverse, run before writes and comparisons. Any kind takes the pair, which is also the counterpart of a Rust ValueType newtype and of ActiveEnum rs_type/db_type (an i16 or text column whose decode maps to the program's values)."
+                            }
+                        )
                     }
 
                     {
@@ -13976,6 +14079,9 @@ children (
                     {
                         id napi.guide-gaps.migrations
                         title "JavaScript runs migrations, its frozen migrationFile .sql files and migrations of its own, with pgorm-migration's ledger, advisory lock, commits_after (the -- pgorm: commits-after line), checksums, status and pending/applied queries, and the statement-cache clear and notify after a batch, as MigratorTrait::up does; freezing generated DDL is already there (guide 22-migrations)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.migrations])
+                        }
                         deps (napi-connections napi-schema guide.javascript)
                         log (
                             {
@@ -13983,6 +14089,20 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "Narrowed 2026-11-05 after main 233566c4 gave JavaScript migrationFile, migrationFiles and MigrationFile (name, text, commitsAfter, freeze): what remains is a runner. Running a frozen file needs napi.guide-gaps.batch-execute too, since a file of several statements is a script no JavaScript terminal runs in one call."
+                            }
+
+                            {
+                                at 2026-11-06T09:01:09.081121Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T09:01:58.191948Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built in one shape with guide.python-gaps.migrations (see its decision note): migrations(list, { migrationTableName, migrationTableSchema, statementCacheChannel }) builds pgorm-migration's Migrations; a JS migration is { name, up(tx), checksum?, commitsAfter? }, read once; its up(tx) is sent to the JS thread through lib/migrations.js's dispatch with a Transaction (parent null) lent over the runner's &mut DatabaseTransaction by connect/transaction.rs lend(), closed once up settles; a rejection is rethrown as itself (wrapped in { error } on the way, since neon roots objects only). SqlMigration.read / readDir / sqlMigration are pgorm-migration's. Reads run as jobs on any executor; status logs through logger.info (console by default), as LoggingMetrics takes a logger. pgorm::Error::Custom now maps to ConstructionError in JS, as in Python (it fell through to ConnectionError before), so the runner's refusals are one class in both bindings."
                             }
                         )
                     }
@@ -14073,7 +14193,25 @@ children (
                     {
                         id napi.guide-gaps.model-column-casts
                         title "A declared model column reads and writes money (cast to and from numeric), compares a domain over an enum cast to the enum, and takes custom read and write casts, as Rust's ColumnType::Money, its domain-over-enum comparisons and select_as, save_as, select_with and save_with do (guide 13-values)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.model-casts])
+                        }
                         deps (napi-models napi-values guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T22:13:54.84877Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "nplan_start refuses this node (\"dep napi-values is Todo\") though nplan_node reports napi-values done (delivered a54defe5), after nplan_sync; worked on in the guide.python-gaps.model-ddl worktree without the start, as the lane brief directs. Lead: the dep's status reading is the nplan defect gaps-common describes."
+                            }
+
+                            {
+                                at 2026-11-06T07:03:49.579163Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built together with guide.python-gaps.model-types (see its decision note for the full shape). JavaScript specifics: column options columnType (\"money\", DataType.domain(name, base), new DataType(\"interval\", { fields: \"hourToMinute\", precision })), selectAs/saveAs (a built-in type name, TypeName or DataType), selectWith/saveWith ((c: Expr) => Expr; exclusive with the *As form); casts come from the native modelCasts handle (modelCastSelect returns null where the column reads as it stands, so no alias is written), compared values bind the bare datum so an enum's cast is not doubled."
+                            }
+                        )
                     }
 
                     {
@@ -14172,6 +14310,11 @@ children (
                     {
                         id napi.guide-gaps.copy-rows-round-trip
                         title "A binary COPY's rows read with copyOutRows / copy_out_rows write back through copyInRows / copy_in_rows, in both bindings: a value inference cannot type (a plain range or multirange, an empty array, an array of nulls) is typed by its COPY column's type, which copy_in_columns already holds, and CopyRowStream's rows then type-check as CopyRows"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.copy-rows.typed])
+                            main ([spec:pgorm:req:conn.copy.rows.kind])
+                            python ([spec:pgorm:req:bindings.copy-rows.typed])
+                        }
                         deps (napi.guide-gaps.binding-refusals)
                         log (
                             {
@@ -14180,7 +14323,42 @@ children (
                                 kind @note
                                 text "Split from napi.guide-gaps.binding-refusals (its CopyRowStream-vs-CopyRows item). The type mismatch is real at run time, and in both bindings: JavaScript's copyInRows(copyFrom(dst, \"binary\"), await pool.copyOutRows(copyTo(src, \"binary\"))) refuses an int4range column's decoded Range (\"a range's kind is not inferred from its bounds\") and an empty int4[] (\"an array with no item but null has no element kind to infer\"); Python's copy_in_rows refuses the same rows (\"ambiguous or unsupported value: supply an explicit kind\"). Both bindings read each COPY row value by inference (pgorm-napi src/connect/copy/rows.rs copy_rows_encode -> params::read -> values::read::infer), though CopyRowEncoder knows every column's Type. Fix through pgorm (a value's kind from a column's tokio_postgres Type, for the bindings to read an un-inferable value by; built-in range and multirange types by name, a created range by its subtype, an array by its element), then in both bindings, then widen lib/copy.d.ts's CopyRows to the PlainValue rows CopyRowStream yields (Float32Array and Range among them) and test the round trip live in both suites. Probes in the reporting lane: tables with int4range, jsonb, int4[], numeric, timestamptz, interval, an empty int4[], bytea and uuid columns."
                             }
+
+                            {
+                                at 2026-11-06T09:23:35.832397Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "2026-11-06 (migrations lane): not started. The brief makes it wait on the COPY and connections lane's described-columns work (copy_in_columns / copy_out_columns handed to the bindings), which had not landed on main (still d56f0739) when the migrations work was committed (fa2345fd on nplan/guide.python-gaps.migrations)."
+                            }
+
+                            {
+                                at 2026-11-06T10:14:50.302771Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T10:14:51.784671Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built through pgorm: CopyColumn::value_kind() (conn.copy.rows.kind) answers the ArrayType a column's values are and whether an array, from the described Type (pgorm's own decode mapping). Both bindings read a COPY row value as before (inference first, so nothing accepted before is refused or reinterpreted, e.g. a naive datetime for timestamptz stays refused), except: a json or json[] column's value is read as JSON whatever it holds (a JSON number, string or array inferred as int/text/array, which the probe showed refused), and a value inference cannot type (plain Range/Multirange, empty array, array of nulls) is read as its column's kind; if neither reads it the inference refusal stands. lib/copy.d.ts: CopyValue = Param | PlainValue, CopyRows and CopyRowSink.send/CopyRowEncoder.encode take it, so a CopyRowStream passes as CopyRows with no cast. New rule bindings.copy-rows.typed rather than a bump of bindings.copy-rows (which stays true for every value it describes)."
+                            }
                         )
+                    }
+                )
+            }
+
+            {
+                id napi.lib-imports-checked
+                title "A broken import or export in pgorm-napi's lib/*.js fails nplan check, not only the live suites"
+                kind @test
+                log (
+                    {
+                        at 2026-11-06T12:35:20.709514Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by the migrations lane, 2026-11-06. Main renamed the accessor nativePool to poolHandle and moved runJob into lib/runs.js. lib/migrations.js still imported the old names, and both deno check and nplan check passed; only the node and deno live suites and checks/codegen.js failed on it. deno check type-checks the .d.ts files and the tests, but not the plain-JavaScript lib modules' imports against each other's exports. Make the fast check catch it: run deno check with checkJs over lib/*.js (JSDoc types already exist there), or add a module-graph check that imports every lib module under node --check / deno, wired into the napi-types or napi-native platform within the commit budget."
                     }
                 )
             }
@@ -20133,13 +20311,45 @@ children (
                     {
                         id guide.python-gaps.model-ddl
                         title "A declared Python model writes its own DDL as an entity does: CREATE TABLE (Schema::create_table_from_entity), column types with length and precision (column_type), default_value and default_expr, generated_stored and generated_virtual expressions, indexed (create_index_from_entity), comment (create_comments_from_entity), rename_all, and a key's without_overlaps"
+                        implements {
+                            main ([spec:pgorm:sem:schema.from-shape])
+                            python ([spec:pgorm:req:bindings.schema-from-model])
+                        }
                         deps (python.models python.schema)
+                        log (
+                            {
+                                at 2026-11-05T20:22:04.233505Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built both bindings' model DDL through one Rust writer. pgorm gains TableShape/TableColumn (src/entity/table_shape.rs), a table as data, and Schema::create_{table,enum,index,comments}_from_shape; the four entity methods now describe E with TableShape::of::<E>() and write through the same functions, and a disjoint model's column-described tables (DisjointTable::shape()) too, so there is one DDL writer. RelationDef::belongs_to(from, to, pairs) builds a run-time model's foreign key. Binding shape (rule bindings.schema-from-model, shared): schema.from_model(model, relations=[belongs_to..]) / fromModel(model, { relations }) returns the existing EntitySchema; Column takes Rust's field attributes by name (column_type, default_value converted through the kind, default_expr, generated_stored, generated_virtual, auto_increment, indexed, comment, without_overlaps; camelCase in JS), Model takes comment and rename_all; belongs_to takes on_delete/on_update/fk_name (has_one/has_many refuse them with TypeError). Choices: (1) default=True keeps meaning 'filled by a default the declaration does not state', so from_model refuses its table (as create_disjoint already did); auto_increment is the explicit serial, since a Python/JS model assumes nothing about a key. (2) column_type is the element type for an array column, refused on enum/created-range columns (their type is the kind's) and when it names an array. (3) A generation expression makes the column generated \"always\" (describe() reports that); describe() gains no DDL keys — the DDL is read back as from_model's statements. (4) rename_all converts with the derive's own code: new leaf crate pgorm-case-style (CaseStyle, re-exported as pgorm::CaseStyle), used by pgorm-macros and both bindings, so no second case conversion exists. (5) The model is checked as declared by building its TableShape natively (_model_table / modelTable), so DDL refusals are ConstructionErrors at declaration. (6) bakery.py/bakery.ts now write their tables with from_model/fromModel; the only text difference from Rust's is the schema-qualified flavor type (public.flavor), which a model's enum column must name. Bumped bindings.models+6, bindings.relations+2, bindings.schema-api+3; new schema.from-shape (schema-gen.md) and bindings.schema-from-model."
+                            }
+
+                            {
+                                at 2026-11-05T22:06:52.421182Z
+                                author "brendan@necessary.nu"
+                                kind @errata
+                                text "The disjoint path's conversion is TableShape::of_disjoint(&DisjointTable) (src/entity/table_shape.rs), not DisjointTable::shape(): moved there by the function-density gate. Entity paths describe the passed entity value with TableShape::of_entity(entity), so an EntityName whose names are computed keeps its own table; TableShape::of::<E>() is of_entity(E::default()). DisjointTable::auto_increment() lets a disjoint model's base key be serial (check() still refuses it on a kind's table)."
+                                after_done true
+                            }
+                        )
                     }
 
                     {
                         id guide.python-gaps.model-select
                         title "A declared model's query has the entity Select's projections and clauses: select_only with columns, column_as and expr_as decoded through into_tuple, into_model and into_values; PartialModel's from_expr; distinct and distinct_on (DISTINCT ON in the statement builder too); group_by, having and aggregates; lock_exclusive, lock_shared and lock_with_behavior; right and reverse joins and a joined table's columns; Condition::add_option"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.model-projections] [spec:pgorm:req:bindings.condition-option])
+                            python ([spec:pgorm:req:bindings.model-projections] [spec:pgorm:req:bindings.condition-option])
+                        }
                         deps (python.models)
+                        log (
+                            {
+                                at 2026-11-05T19:46:22.233293Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Shape, shared by both bindings (built in one worktree, the queries fork of the model-ddl lane). (1) Clauses on a model query and its projection: distinct, distinct_on(columns), group_by, having, lock(strength, wait=, of=) — the statement builder's lock spelling stands for Rust's lock/lock_shared/lock_exclusive/lock_with_behavior, no second vocabulary; join(kind=Inner|Left|Right|Full) and join_rev(relation) = Rust join_rev (relation's condition as it stands). (2) Projections: select_only() -> ModelProjection; column/columns/column_as/expr_as(expr, name, Column decl) -> into_tuple/into_values(*names)/into_model(target) -> ModelSelector (Rust Selector) with all/one/optional/stream/count/cursor/paginate; ModelQuery has the item and into_* methods directly, seeded with its fields. An expression's type is stated by its Column declaration, where Rust states it in into_tuple's tuple type; no column aggregate methods (call(\"count\", ..) is the aggregate; Expr-level count/sum belongs to the expressions area). Python into_model(target) calls target(**row) (a dataclass, dict); JS intoModel(make?) gives the row object or make(row). Item key = field name; result column follows each binding's ModelQuery (Python field name, JS SQL name). (3) Condition.add_option built in both bindings as Rust's add_option, not left as a stated difference: it is Rust's API and costs one method. (4) Python's cursor secondary ordering has no node of its own and is built under this node, mirroring napi.guide-gaps.cursor-secondary-order: Cursor.add_secondary_order_by(model, field), Rust's (table, column), the model naming the table (alias included). Statement builder Select.distinct_on(*columns) added in both (columns only, as Rust's IntoColumnRef). Every new SQL shape is held to a Rust oracle: pgorm-napi/src/models/parity.rs builds it with pgorm's entity Select/PartialModel/Cursor into tests/parity/models.json, which both bindings' parity suites read."
+                            }
+                        )
                     }
 
                     {
@@ -20162,6 +20372,14 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @errata
                                 text "The decision above names bindings.relations+2, bindings.graphs+2 and bindings.cursors+2; an unversioned rule is version 0, so the bumps are +1, which 05bb459b pins everywhere."
+                                after_done true
+                            }
+
+                            {
+                                at 2026-11-06T09:30:10.014436Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Merged with the declared-models lane (nplan/guide.python-gaps.model-ddl), which had built the same cursor ordering in both bindings under the same rule id as add_secondary_order_by(model, field) / addSecondaryOrderBy(model, field). One API was kept, decided by that lane pending operator override: the two-argument form, Rust's add_secondary_order_by(table, column) spelled with the model for the table, which also refuses a model the query reads under no such name (ConstructionError) before anything is sent. It is built on this lane's representation (Keyed.order and tiebreaks are ModelColumns; the method appends model._column(field, model.qualifier)), so graph cursors and cursor_on are unchanged, and comparisons now go through the ModelColumn, taking the column's casts. bindings.cursor-secondary-order is +1 with the merged text (graph sources named); this node's tests moved to the two-argument form, and public_types_invalid keeps one arg-type case."
                                 after_done true
                             }
                         )
@@ -20210,7 +20428,26 @@ children (
                     {
                         id guide.python-gaps.model-types
                         title "Declared models type their columns as entities do: money (ColumnType::Money read as Decimal), domains (ColumnType::Domain, a domain over an enum compared as the enum), interval fields (IntervalSpec::Fields), the select_as, save_as, select_with, save_with and save_array_with casts (a cast to a type with a modifier such as bit(7) included), ValueType and JsonValueType newtypes, and ActiveEnum's rs_type, db_type and display"
+                        implements {
+                            main ([spec:pgorm:sem:schema.shape-casts])
+                            python ([spec:pgorm:req:bindings.model-casts] [spec:pgorm:req:bindings.model-conversions])
+                        }
                         deps (python.models python.values)
+                        log (
+                            {
+                                at 2026-11-05T22:13:17.603505Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T07:03:48.580103Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Decided by this lane pending operator override (shared with napi.guide-gaps.model-column-casts and napi.guide-gaps.json-shape; rules bindings.model-casts, bindings.model-conversions, schema.shape-casts, sql.types.type-name+9). One cast source: pgorm's TableColumn (src/entity/table_shape.rs) gained select (Option: None where the column reads as it stands, so a projection needs no alias), save, compared_column, compared_value, compares_as, with_select_as, with_save_as, all built on the crate's select_cast/save_cast/compared_enum/compared_value_as that entity columns use; each binding asks a native per-column casts handle (Python _ModelColumnCasts via _model_casts, JS native.modelCasts + modelCast*) built from the same column lowering the DDL uses. Money: kind decimal + column_type=\"money\" (read numeric, written money). Domains: DataType.domain(name, base); an enum column's column_type may only be a domain over that enum (else ConstructionError), and compares cast to the enum on both sides, reads as text, writes cast to the domain. Interval fields: DataType(\"interval\", fields=\"hour_to_minute\" / JS fields:\"hourToMinute\", precision only with seconds) through PgInterval::try_from + with_precision. Custom casts: select_as/save_as take a type (str, TypeName or DataType with modifiers — TypeName::modifiers added in pgorm-query, ColumnType::cast_type for DataType); select_with/save_with are callables Expr->Expr; *_as and *_with are exclusive. save_array_with has no counterpart: a model's any(..) operand is taken as written (stated in the guides). ValueType/JsonValueType/rs_type/db_type: no newtype system in the bindings; a column's decode (stored->program value, run as each row is read, a raise making the read a DecodeError, NULL skipped) and encode (program->stored, run before every write and comparison converts through the kind) cover all three; ActiveEnum's display is the program's own spelling (str/repr), not a binding feature."
+                            }
+                        )
                     }
 
                     {
@@ -20291,19 +20528,65 @@ children (
                     {
                         id guide.python-gaps.migrations
                         title "Python runs migrations as pgorm-migration does: MigrationTrait, MigratorTrait, MigrationName, sql_migration!, up, status, get_migration_with_status, get_pending_migrations and get_applied_migrations, commits_after, checksums, the ledger's table name and schema, the statement-cache notification, and adopting a SeaORM ledger"
+                        implements {
+                            main ([spec:pgorm:def:migration.runtime] [spec:pgorm:req:migration.sql-file.read])
+                            python ([spec:pgorm:req:bindings.migrations])
+                        }
                         deps (python.transactions python.schema)
+                        log (
+                            {
+                                at 2026-11-06T08:37:51.841955Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead's decision, built as directed: both bindings run migrations through pgorm-migration's own runner, never a reimplementation. Design: (1) MigratorTrait's methods take &self (Migrator.up(pool, None) for a unit struct), so a migrator can be a value; pgorm-migration gains `Migrations`, a migrator built at run time from Box<dyn MigrationTrait>s plus with_migration_table_name / with_migration_table_schema / with_statement_cache_channel (migration.runtime). (2) MigrationTrait::up takes &mut DatabaseTransaction<'_> (migration.runner+5), so a migration can open a savepoint or run COPY; the bindings then serve their ordinary transaction frame over the runner's borrowed transaction for the length of the host up() call (a 'lent' root frame, closed when up returns). (3) SqlMigration owns or borrows its text, and SqlMigration::read / read_dir read .sql files at run time with the macro's name, CRLF->LF text, checksum and commits-after rules (migration.sql-file.read). The bindings build a pgorm_migration::Migrations per up() call, wrapping each host migration in a MigrationTrait whose up awaits the host object's up(tx); a host exception is stashed and re-raised as itself after the runner rolls back. Reads (install, get_*_migrations) run as executor work on a pool, connection or transaction. status() logs through the language's logging (Python logging 'pgorm.migration'), as Rust's logs through tracing. Runner refusals (duplicate name, missing migration, changed checksum) are Error::Custom, the binding's ConstructionError. Shared rule bindings.migrations; bindings.migration-file+1 drops 'a binding has no migration runner'."
+                            }
+                        )
                     }
 
                     {
                         id guide.python-gaps.model-codegen
                         title "Python generates pgorm.Model declarations from DDL as pgorm-codegen generates entities: entities_from_sql, EntityWriterOptions, parse_schema, EntityTransformer and EntityWriter"
                         deps (python.models)
+                        log (
+                            {
+                                at 2026-11-06T09:23:35.544851Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Diagnosis 2026-11-06 (migrations lane, not built): pgorm-codegen's reader is parse_schema (sql_schema/mod.rs) -> EntityTransformer::transform -> EntityWriter, whose model (Entity, Column, Relation, ActiveEnum, DisjointEnum, OneOfEnum, UniqueKey) is pub(crate) and rendered only as Rust by writer.rs. One reader for three outputs means pgorm-codegen exposing that transformed model (or gaining Python and TypeScript writers beside the Rust one, laid out as bindings.codegen-layout says: black-shaped Python, deno-fmt-shaped TypeScript), and each binding exposing a function over DDL text that returns the files. Neither binding depends on pgorm-codegen yet; it adds syn/prettyplease/quote to each native build (pg_query is already linked through pgorm). Shared with napi.guide-gaps.models-from-ddl."
+                            }
+
+                            {
+                                at 2026-11-06T10:34:13.578866Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "2026-11-06, migrations lane, second pass: NOT built (context budget exhausted after items 1, 3 and 4; commits fa2345fd..0ee5919b on nplan/guide.python-gaps.migrations). Plan per the lead's decision: pgorm-codegen keeps parse_schema -> EntityTransformer::transform -> EntityWriter as the one reader and model, and gains two writers beside writer.rs, entity/python.rs and entity/typescript.rs, over EntityWriter's pub(crate) entities (Column's ColumnType, nullability, defaults/identity, primary keys, unique_keys, relations), enums (ActiveEnum), ranges (CreatedRangeType), disjoint (DisjointEnum) and one_of (OneOfEnum); public entry points next to entities_from_sql, e.g. python_models_from_sql(sql, options) and typescript_models_from_sql(sql, options), returning WriterOutput (one module each: Model/Column/TypeName/Disjoint/OneOf declarations for Python, model()/column()/disjoint()/oneOf() for JavaScript). Each writer must map a ColumnType to the kind names the declared models take (pgorm-python/python/pgorm/models/model.py Column kinds; pgorm-napi lib/models.js column kinds), and lay out as bindings.codegen-layout says (black-shaped Python, deno-fmt-shaped TypeScript; reuse the layout rules the codegen lane wrote, pgorm-python/python/pgorm/codegen/source.py and pgorm-napi/codegen/layout.js describe them). Bindings: add pgorm-codegen as a dependency of pgorm-python and pgorm-napi (pulls syn/quote/prettyplease into both native builds; pg_query is already linked) and expose pgorm.codegen.models_from_sql(ddl) / a codegen function in pgorm-napi's codegen. Tests the lead asked for: the generated declarations import, type-check (mypy --strict, deno check) and round-trip rows for an enum table, a disjoint shape, a one-of shape, and a table with every column type declared models take. Shared with napi.guide-gaps.models-from-ddl; guide chapters 23 (Python) and 23 (JavaScript) keep their \"not available yet\" paragraphs until it lands."
+                            }
+                        )
                     }
 
                     {
                         id guide.python-gaps.codegen-coverage
                         title "pgorm.codegen's application.json describes one-of references and pipeline source tuples beside entities, graphs and disjoint enums, as bindings.codegen says it covers source tuples, so neither needs a registration crate written by hand"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.codegen-coverage])
+                            python ([spec:pgorm:req:bindings.codegen-coverage])
+                        }
                         deps (python.codegen)
+                        log (
+                            {
+                                at 2026-11-06T09:23:23.282189Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Diagnosis 2026-11-06 (migrations lane, not built): pgorm-python/python/pgorm/codegen/config.py validate() and emit.py accept entities, graphs and disjoints only, so application.json can describe neither source tuples nor one-of references; bindings.codegen (v0) claims source tuples, so Python deviates from the rule today. pgorm-napi/codegen/config.js accepts sources and disjoints but no one_ofs, so JavaScript has the one-of half of the gap. Both registries already have the registration calls (Python Registry::sources::<T>() in src/pipeline/selected.rs and one_of::<O>() in src/one_of/registered.rs; JavaScript Registry::sources / one_of in src/entities/sources.rs and src/one_of/registered.rs), so the work is config + scaffold (registry.sources::<(..,)>(name), registry.one_of::<T>(name)) + emit (Python: a typed SourceSelection view and a OneOfEntity export; JS: a one-of export beside the sources one emit.js already writes) + the codegen checks (checks/codegen.py, checks/codegen.js), whose application builds are the slow part."
+                            }
+
+                            {
+                                at 2026-11-06T10:32:38.564681Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
                     }
 
                     {
@@ -20683,6 +20966,57 @@ children (
                     }
 
                     {
+                        id guide.python-gaps.partial-model-skip
+                        title "A PartialModel field marked skip selects nothing, as the guide says: the derive accepted `skip` but still projected the same-named column, a compile error where the entity has none and a wasted column otherwise (found building the bindings' partial models)"
+                        kind @fix
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-05T19:47:03.809046Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:47:03.809046Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "single-flight overridden: started while guide.python-gaps.model-select had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T21:33:51.667821Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.annotated-operand-goldens
+                        title "The Python and JavaScript guides' writing and query-builder examples hold the SQL pgorm writes since an arithmetic operand carries its type: main's Rust guide renders \"price\" + $1::numeric, while the binding guides still assert \"price\" + $1 and fail (Python writing 7, query-builder 2, 3, 8, 9; JavaScript writing 7, query-builder 2, 7, 8)"
+                        kind @fix
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-06T09:08:21.5978Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Delivered on main by guide.binding-typed-placeholders (e0dee66b, completed in cd128b7a), filed before that landed. After this lane merged main 5bd21bb6 (f34c38ba) every named example passes: pgorm-python test_guide (all chapters, in the 448-test suite) and pgorm-napi tests/guide.test.ts in Node.js and Deno, with no guide module rewritten. Completed as owning no rule and needing no change of its own."
+                            }
+
+                            {
+                                at 2026-11-06T09:08:21.835809Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Done (nplan complete)"
+                            }
+                        )
+                    }
+
+                    {
                         id guide.python-gaps.model-hooks
                         title "A declared Python model takes write hooks as callables, the dialect of ActiveModelBehavior: before_save(record, insert), after_save(record, insert), before_delete(record), after_delete(record), possibly async, given as Model(..., hooks=...), run around the model's own record writes with Rust's refusal semantics, statement-builder writes over many rows (where/all_rows, update from, delete using) running none (lead decision pending operator override; guide 03-entities Hooks)"
                         kind @feat
@@ -20718,7 +21052,27 @@ children (
                         id guide.python-gaps.entity-try-inserts
                         title "A registered entity's insert becomes Rust's TryInsert in both bindings: entity.insert(active).on_conflict_do_nothing() / on_empty_do_nothing() (and insert_many's) give EntityTryInsert / EntityTryInsertMany whose execute, returning_pk(s) and returning_model(s) answer TryInsertResult (Inserted, Conflicted, Empty) through pgorm's TryInsert, in the shape bindings.model-try-inserts gives declared models"
                         kind @feat
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.entity-try-inserts])
+                            main ([spec:pgorm:req:bindings.entity-try-inserts])
+                            python ([spec:pgorm:req:bindings.entity-try-inserts])
+                        }
                         deps (python.entities guide.python-gaps.model-writes)
+                        log (
+                            {
+                                at 2026-11-06T11:33:47.097294Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T11:33:58.116613Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Shape: on_conflict_do_nothing() / on_empty_do_nothing() on EntityInsert(Many) give EntityTryInsert / EntityTryInsertMany (on_conflict, add, add_many, execute, returning_pk/returning_model or returning_pks/returning_models; no upsert terminal since Rust's TryInsert has none; no inspect since EntityInsert has none). Both bindings answer with the TryInsertResult declared models already use (Python's pgorm.TryInsertResult dataclasses, imported by the native classes at call time; JavaScript's frozen { kind } objects from model-try-inserts.js). The statement and terminal are run once, in a new pgorm-bindings module (insert.rs: Insertion/InsertWrite/InsertConflict/InsertTerminal/TryInsertTerminal/Inserted + insert()), which both bindings' write_insert now call; this also removes the two near-identical copies of the plain-insert terminal dispatch each binding carried. on_conflict_do_nothing is held as InsertConflict::PrimaryKey and written by Rust's own Insert::on_conflict_do_nothing at run time (JS passes \"primaryKey\" to the addon), so neither binding recomputes the key clause. Spec: new shared rule bindings.entity-try-inserts."
+                            }
+                        )
                     }
 
                     {
@@ -20766,6 +21120,20 @@ children (
                                 text "Doing → Done (nplan complete)"
                             }
                         )
+                    }
+
+                    {
+                        id guide.python-gaps.model-array-save-cast
+                        title "A declared model column's quantified operand list binds through the column's save cast in both bindings, the counterpart of Rust's save_array_with: col.eq(any_(values)) / ne(all_(values)) (eq(any(..)) in JavaScript) on a model column with save_as (or a money or domain column) casts the bound array as the column's scalar comparisons cast each value, where today the operand is taken as written and the guides tell the program to cast it itself"
+                        kind @feat
+                        deps (guide.python-gaps.model-types)
+                    }
+
+                    {
+                        id guide.python-gaps.pipeline-model-column-types
+                        title "A declared model used as a pipeline source reads its columns through their declared column types and casts in both bindings: today pipeline_typed / pipelineTyped lower a model column from its kind alone (column_type(tag, values, None)), so a column declared column_type=\"money\" (or a domain over an enum, or select_as) reaches the pipeline as its kind's type and `pl.from_(model).all(pool)` fails with DecodeError \"column 1 has an unsupported PostgreSQL type\", where the model's own find() reads it as numeric"
+                        kind @fix
+                        deps (guide.python-gaps.model-types guide.python-gaps.model-relations)
                     }
                 )
             }

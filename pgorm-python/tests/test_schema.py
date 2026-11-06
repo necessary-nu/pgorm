@@ -16,7 +16,7 @@ PG_19 = "pg-19" in p.capabilities()["features"]
 
 class SchemaConstruction(unittest.TestCase):
     # [spec:pgorm:req:bindings.schema/test]
-    # [spec:pgorm:req:bindings.schema-api+2/test]
+    # [spec:pgorm:req:bindings.schema-api+3/test]
     def test_capabilities_and_detached_builders(self):
         manifest = p.capabilities()
         self.assertFalse(manifest["schema_policy"]["automatic_ddl"])
@@ -110,6 +110,8 @@ class SchemaConstruction(unittest.TestCase):
             s.alter_sequence("ticket").restart(), s.DisjointGap("bike", table),
             s.DisjointStep((), None), s.DisjointChange(()),
             s.migration_file("m20260101_000001_create_test", [s.create_table(table)]),
+            s.SqlMigration("m20260101_000001_create_test", "CREATE TABLE test (id integer)"),
+            s.Migrations([]), s.MigrationStatus.Pending,
         ]
         for sample in [*samples, s.create_table(table).inspect()]:
             with self.subTest(sample=sample), self.assertRaises(p.ConstructionError):
@@ -117,11 +119,13 @@ class SchemaConstruction(unittest.TestCase):
         # Every class the native schema module defines or the package exports
         # needs a sample above, so a new one fails here until it refuses too.
         # EntitySchema needs a registered entity: registered_schema.py tests it.
+        # A migrator's status row and the protocol a program's migration
+        # satisfies keep Python's truth, as test_truth_testing.py exempts them.
         native = {kind for kind in vars(_native).values()
                   if isinstance(kind, type) and kind.__module__ == "pgorm.schema"}
         exported = {kind for kind in map(vars(s).get, s.__all__) if isinstance(kind, type)}
         unsampled = (native | exported) - {type(sample) for sample in samples}
-        self.assertEqual(unsampled, {s.EntitySchema})
+        self.assertEqual(unsampled, {s.EntitySchema, s.Migration, s.MigrationTrait})
         self.assertIn("__bool__", vars(s.EntitySchema))
 
     # [spec:pgorm:req:bindings.schema-indexes/test]    an access method is any identifier,

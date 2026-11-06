@@ -1,4 +1,4 @@
-use super::case_style::{CaseStyle, convert_case_str};
+use super::case_style::{CaseStyle, case_style_of, convert_case_str};
 use super::iterable::impl_iterable;
 use super::util::{
     bare_code, camel_case_with_escaped_non_uax31, into_active_value, trim_starting_raw_identifier,
@@ -82,7 +82,7 @@ impl VariantKeys {
                     }
                     keys.display_value = Some(value);
                 } else if meta.path.is_ident("rename") {
-                    keys.rename = Some((&meta).try_into()?);
+                    keys.rename = Some(case_style_of(&meta)?);
                 } else {
                     return Err(unknown_pgorm_key(&meta));
                 }
@@ -186,7 +186,7 @@ impl ActiveEnum {
                         let litstr: LitStr = meta.value()?.parse()?;
                         enum_name = Some(litstr.value());
                     } else if meta.path.is_ident("rename_all") {
-                        rename_all = Some((&meta).try_into()?);
+                        rename_all = Some(case_style_of(&meta)?);
                     } else if meta.path.is_ident("display") {
                         // [spec:pgorm:req:macros.derive.names+2]
                         display = true;

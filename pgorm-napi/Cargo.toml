@@ -34,6 +34,8 @@ pg-19 = ["pgorm/pg-19"]
 # libpg_query is linked into every pgorm build, and a fingerprint is parsed
 # only when a hook asks for one.
 pgorm = { version = "0.2.0", path = "..", features = ["metrics-fingerprint"] }
+# The migration runner JavaScript's migrations run through ([spec:pgorm:req:bindings.migrations]).
+pgorm-migration = { version = "0.2.0", path = "../pgorm-migration" }
 # What pgorm-python needs too: a pool and its TLS built from the binding's
 # options, and its hooks' statements served.
 pgorm-bindings = { version = "0.2.0", path = "../pgorm-bindings" }

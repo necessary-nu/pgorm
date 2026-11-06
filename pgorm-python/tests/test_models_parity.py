@@ -65,6 +65,17 @@ posts = Account.has_many(Post, from_="id", to="author_id")
 post_tags = Post.has_many(PostTag, from_="id", to="post_id")
 tag_of = PostTag.belongs_to(Tag, from_="tag_id", to="id")
 
+post_count = p.call("count", Post.col("id"))
+AccountLine = p.PartialModel(
+    Account,
+    {
+        "id": Account.col("id"),
+        "shout": p.FromExpr(p.call("upper", Account.col("name")), p.Column("text")),
+        "display": Account.col("display_name"),
+        "note": p.Skip(""),
+    },
+)
+
 CASES = {
     "find": lambda: Account.find().inspect(),
     "find-filtered": lambda: Account.find()
@@ -125,6 +136,58 @@ CASES = {
     .order_by(Account.col("id").asc())
     .limit(5)
     .inspect(terminal="count"),
+    "find-distinct": lambda: Account.find().distinct().inspect(),
+    "find-distinct-on": lambda: Account.find()
+    .distinct_on(Account.col("name"))
+    .order_by(Account.col("name").asc(), Account.col("id").asc())
+    .inspect(),
+    "find-grouped": lambda: Account.find()
+    .group_by(Account.col("id"))
+    .having(Account.col("name").ne("x"))
+    .inspect(),
+    "find-locked": lambda: Account.find()
+    .lock(p.LockStrength.Update, wait=p.LockWait.SkipLocked)
+    .inspect(),
+    "find-lock-shared": lambda: Account.find().lock(p.LockStrength.Share).inspect(),
+    "find-right-joined": lambda: Post.find().join(author, kind=p.Join.Right).inspect(),
+    "find-joined-rev": lambda: Account.find().join_rev(author).where(Post.col("title").eq("x")).inspect(),
+    "projection-columns": lambda: Account.find()
+    .select_only()
+    .column(Account.col("id"))
+    .column_as(Account.col("name"), "label")
+    .into_tuple()
+    .inspect(),
+    "projection-grouped": lambda: Post.find()
+    .select_only()
+    .column(Post.col("author_id"))
+    .expr_as(post_count, "posts", p.Column("i64"))
+    .group_by(Post.col("author_id"))
+    .having(post_count > p.Value(1, "i64"))
+    .into_tuple()
+    .inspect(),
+    "projection-joined": lambda: Post.find()
+    .join(author)
+    .select_only()
+    .column(Post.col("title"))
+    .column_as(Account.col("name"), "author")
+    .into_tuple()
+    .inspect(),
+    "partial-model": lambda: Account.find()
+    .where(Account.col("id").eq(1))
+    .into_partial_model(AccountLine)
+    .inspect(),
+    "cursor-secondary-after": lambda: Account.find()
+    .cursor("name")
+    .add_secondary_order_by(Account, "id")
+    .after("m")
+    .first(3)
+    .inspect(),
+    "cursor-secondary-after-with": lambda: Account.find()
+    .cursor("name")
+    .add_secondary_order_by(Account, "id")
+    .after_with("m", 4)
+    .first(3)
+    .inspect(),
 }
 
 
@@ -141,16 +204,20 @@ def canonical(value):
 
 
 class ModelParity(unittest.TestCase):
-    # [spec:pgorm:req:bindings.models+5/test]
+    # [spec:pgorm:req:bindings.models+6/test]
     def test_the_cases_are_the_golden_files(self):
         self.assertEqual(sorted(CASES), sorted(GOLDEN))
 
     # [spec:pgorm:req:bindings.model-reads+1/test]
     # [spec:pgorm:req:bindings.model-writes+3/test]
-    # [spec:pgorm:req:bindings.relations+1/test]
+    # [spec:pgorm:req:bindings.relations+3/test]
     # [spec:pgorm:req:bindings.graphs+2/test]
     # [spec:pgorm:req:bindings.cursors+1/test]
     # [spec:pgorm:req:bindings.pagination/test]
+    # [spec:pgorm:req:bindings.model-clauses/test]
+    # [spec:pgorm:req:bindings.model-projections/test]
+    # [spec:pgorm:req:bindings.partial-models/test]
+    # [spec:pgorm:req:bindings.cursor-secondary-order+1/test]
     def test_each_case_builds_what_pgorm_builds(self):
         for name, build in CASES.items():
             with self.subTest(case=name):

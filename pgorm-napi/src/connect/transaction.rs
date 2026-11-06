@@ -51,7 +51,7 @@ pub(crate) type State = pgorm_bindings::transaction::State;
 /// The JavaScript `Transaction`'s native half. Collected unfinished, it rolls
 /// back as a backstop; `commit`, `rollback` and `close` are what end it.
 #[derive(Debug)]
-pub(crate) struct TransactionHandle(Arc<State>);
+pub(crate) struct TransactionHandle(pub(crate) Arc<State>);
 
 impl Finalize for TransactionHandle {}
 

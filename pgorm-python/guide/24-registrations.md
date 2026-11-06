@@ -481,6 +481,9 @@ Rust statements of [Writing rows](04-writing.md), with Rust's terminals:
 | `entity.insert_many(actives).returning_models(db)` | `Insert::many(actives).exec_returning_models` |
 | `entity.insert_many(actives).on_conflict(..).returning_upserts(db)` | `Insert::many(actives).on_conflict(..).exec_returning_upserts` |
 | `insert.add(active)`, `insert.add_many(actives)` | `Insert::add`, `Insert::add_many` |
+| `entity.insert(active).on_conflict_do_nothing().execute(db)` | `Insert::one(active).on_conflict_do_nothing().exec` |
+| `entity.insert(active).on_empty_do_nothing().returning_model(db)` | `Insert::one(active).on_empty_do_nothing().exec_returning_model` |
+| `entity.insert_many(actives).on_conflict_do_nothing().returning_pks(db)` | `Insert::many(actives).on_conflict_do_nothing().exec_returning_pks` |
 
 An insert is typed by its row count, as Rust's is: `insert` gives an
 `EntityInsert`, and `insert_many`, `add` and `add_many` an
@@ -502,6 +505,52 @@ UPDATE` whose `WHERE` held it back); `returning_pk` and `returning_model`
 raise `DecodeError` for such a row, and `returning_pks` and
 `returning_models` leave it out. The conflict clause is the statement
 builders' `Conflict` ([Writing rows](04-writing.md)).
+
+`on_conflict_do_nothing()` adds `ON CONFLICT (primary key) DO NOTHING`, as
+Rust's does, and turns an `EntityInsert` into an `EntityTryInsert`, or an
+`EntityInsertMany` into an `EntityTryInsertMany`: Rust's `TryInsert`.
+`on_empty_do_nothing()` makes one too, keeping the insert's own conflict
+clause. A try-insert has `on_conflict`, which replaces its clause, `add` and
+`add_many`, and Rust's `TryInsert` terminals: `execute`, `returning_pk` and
+`returning_model` for one row, `execute`, `returning_pks` and
+`returning_models` for a batch, and no upsert terminal. Each answers with the
+`TryInsertResult` a declared model's try-insert answers with
+([Writing rows](04-writing.md)): `TryInsertResult.Inserted` holding what the
+terminal wrote, `TryInsertResult.Conflicted()` when the conflict clause held
+every row back, or `TryInsertResult.Empty()` when there was nothing to write,
+a batch of no `ActiveModel`s or one that sets no column, and nothing was
+sent. An entity view's try-insert reads the rows it wrote as the view's
+models:
+
+```python registered
+import asyncio
+import os
+
+from pgorm import Pool, TryInsertResult
+from pgorm.rust_bakery import CakeBaker
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        # Ada already bakes the Chocolate Fudge.
+        ada = CakeBaker.active().set_cake_id(1).set_baker_id(1)
+        again = CakeBaker.insert(ada).on_conflict_do_nothing()
+        assert await again.execute(pool) == TryInsertResult.Conflicted()
+
+        # Bo starts baking it too.
+        bo = CakeBaker.active().set_cake_id(1).set_baker_id(2)
+        match await CakeBaker.insert(bo).on_conflict_do_nothing().returning_model(pool):
+            case TryInsertResult.Inserted(row):
+                assert (row.cake_id, row.baker_id) == (1, 2)
+            case other:
+                raise AssertionError(f"Bo is new to it: {other!r}")
+
+        nothing = await CakeBaker.insert_many([]).on_empty_do_nothing().returning_pks(pool)
+        assert nothing == TryInsertResult.Empty()
+
+
+asyncio.run(main())
+```
 
 These are statement terminals, as they are in Rust, so they run no hooks:
 an update returning its change does not do what a `before_save` would.
@@ -665,7 +714,8 @@ seven entities from `pgorm-guide-support`:
   module exports it under. An entry may add `fields`, a map from a column's
   SQL name to the attribute its typed model reads it as, such as
   `{"display name": "display_name"}`.
-- `graphs` and `disjoints` list graph shapes and disjoint enums the same way,
+- `graphs`, `disjoints`, `one_ofs` and `sources` list graph shapes,
+  disjoint enums, one-of references and pipeline source tuples the same way,
   as the sections on them show.
 
 The description is checked before anything is written. A Rust path names
@@ -1105,8 +1155,13 @@ records are the entities' own models; `set(active, value, key)` returns the
 `ActiveModel` with the reference set to that target's key and every other
 target's column NULL, and `set(active, None)` sets them all NULL where the
 reference is optional. `load(db, records)` reads the record each reference
-names, as a one-of model's does. `pgorm.codegen` does not describe one-of
-enums yet: a wheel that registers one is built by hand.
+names, as a one-of model's does. In `pgorm.codegen`, an enum is described
+under `one_ofs` by its registration, its Rust path and its export, and the
+generated module exports it as that `OneOfEntity`:
+
+```json
+"one_ofs": [{"name": "app.CommentTarget", "rust": "comment::Target", "python": "CommentTarget"}]
+```
 
 ### Pipeline source tuples
 
@@ -1124,8 +1179,14 @@ from the source its qualifier names, and its `all`, `one` and `optional` give
 tuples of the registered models, with `None` for a source a right or full
 join left absent. `(None,)` is a row whose one source is absent, not the
 absence of a row. A tuple holds one to six entities, each registered before
-it. `pgorm.codegen` does not describe source tuples yet: a wheel that
-registers one is built by hand.
+it. In `pgorm.codegen`, a tuple is described under `sources`, its `rust` the
+paths of the entities it lists, each one the description registers, and the
+generated module exports its `SourceSelection` beside a `<Name>Row` alias
+for the rows it selects, each source's model or `None`:
+
+```json
+"sources": [{"name": "app.BakeryAndCake", "rust": ["bakery::Entity", "cake::Entity"], "python": "BakeryAndCake"}]
+```
 
 ## Checks at import
 

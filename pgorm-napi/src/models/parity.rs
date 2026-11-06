@@ -450,15 +450,156 @@ fn cursors() -> Vec<(&'static str, (String, Values))> {
     ]
 }
 
-// [spec:pgorm:req:bindings.models+5/test]
+/// An account read as a line of a list, the shape a binding's `PartialModel`
+/// declares: a column under its own name, an expression, a column under
+/// another name, and a field read from no column.
+#[derive(Debug, PartialModel)]
+#[pgorm(entity = account::Entity)]
+#[allow(dead_code)]
+struct AccountLine {
+    id: i64,
+    #[pgorm(from_expr = Func::upper(Expr::col((account::Entity, account::Column::Name))))]
+    shout: String,
+    #[pgorm(from_col = account::Column::DisplayName)]
+    display: Option<String>,
+    #[pgorm(skip)]
+    note: String,
+}
+
+/// A model query's clauses and projections, as an entity's `Select` writes
+/// them: DISTINCT and DISTINCT ON, GROUP BY and HAVING, a row lock, a right
+/// join and a reverse one, a projection of columns and expressions, and a
+/// partial model's.
+fn clauses() -> Vec<(&'static str, (String, Values))> {
+    use pgorm::pgorm_query::{JoinType, LockBehavior, LockType};
+    use pgorm::{PartialModelTrait, RelationTrait};
+    let post_count = || Func::count(col("post", "id"));
+    vec![
+        ("find-distinct", built(&account::Entity::find().distinct())),
+        (
+            "find-distinct-on",
+            built(
+                &account::Entity::find()
+                    .distinct_on([(account::Entity, account::Column::Name)])
+                    .order_by_asc(account::Column::Name)
+                    .order_by_asc(account::Column::Id),
+            ),
+        ),
+        (
+            "find-grouped",
+            built(
+                &account::Entity::find()
+                    .group_by(account::Column::Id)
+                    .having(account::Column::Name.ne("x")),
+            ),
+        ),
+        (
+            "find-locked",
+            built(
+                &account::Entity::find()
+                    .lock_with_behavior(LockType::Update, LockBehavior::SkipLocked),
+            ),
+        ),
+        (
+            "find-lock-shared",
+            built(&account::Entity::find().lock_shared()),
+        ),
+        (
+            "find-right-joined",
+            built(&post::Entity::find().join(JoinType::RightJoin, post::Relation::Author.def())),
+        ),
+        (
+            "find-joined-rev",
+            built(
+                &account::Entity::find()
+                    .join_rev(JoinType::InnerJoin, post::Relation::Author.def())
+                    .filter(post::Column::Title.eq("x")),
+            ),
+        ),
+        (
+            "projection-columns",
+            built(
+                &account::Entity::find()
+                    .select_only()
+                    .column(account::Column::Id)
+                    .column_as(account::Column::Name, n("label")),
+            ),
+        ),
+        (
+            "projection-grouped",
+            built(
+                &post::Entity::find()
+                    .select_only()
+                    .column(post::Column::AuthorId)
+                    .expr_as(post_count(), n("posts"))
+                    .group_by(post::Column::AuthorId)
+                    .having(Expr::expr(post_count()).gt(1i64)),
+            ),
+        ),
+        (
+            "projection-joined",
+            built(
+                &post::Entity::find()
+                    .select_only()
+                    .column(post::Column::Title)
+                    .column_as(account::Column::Name, n("author"))
+                    .join(JoinType::InnerJoin, post::Relation::Author.def()),
+            ),
+        ),
+        (
+            "partial-model",
+            built(&AccountLine::select_cols(
+                account::Entity::find()
+                    .filter(account::Column::Id.eq(1i64))
+                    .select_only(),
+            )),
+        ),
+    ]
+}
+
+/// A cursor with a secondary ordering after its key, as pgorm's `Cursor`
+/// writes it: `after` takes the key alone, `after_with` the whole ordering.
+fn secondary_cursors() -> Vec<(&'static str, (String, Values))> {
+    let statement = |with: bool| {
+        let mut cursor = account::Entity::find().cursor_by(account::Column::Name);
+        cursor.add_secondary_order_by(account::Entity, account::Column::Id);
+        match with {
+            true => cursor.after_with(("m", 4i64)),
+            false => cursor.after("m"),
+        };
+        cursor
+            .first(3)
+            .statement()
+            .expect("the cursor's statement is composed")
+            .build()
+    };
+    vec![
+        ("cursor-secondary-after", statement(false)),
+        ("cursor-secondary-after-with", statement(true)),
+    ]
+}
+
+// [spec:pgorm:req:bindings.models+6/test]
 // [spec:pgorm:req:bindings.model-reads+1/test]
 // [spec:pgorm:req:bindings.model-writes+3/test]
-// [spec:pgorm:req:bindings.relations+1/test]
+// [spec:pgorm:req:bindings.relations+3/test]
 // [spec:pgorm:req:bindings.graphs+2/test]
 // [spec:pgorm:req:bindings.cursors+1/test]
 // [spec:pgorm:req:bindings.pagination/test]
+// [spec:pgorm:req:bindings.model-clauses/test]
+// [spec:pgorm:req:bindings.model-projections/test]
+// [spec:pgorm:req:bindings.partial-models/test]
+// [spec:pgorm:req:bindings.cursor-secondary-order+1/test]
 #[test]
 fn model_family_matches_its_golden_file() {
-    let cases = [queries(), writes(), graphs(), cursors()].concat();
+    let cases = [
+        queries(),
+        writes(),
+        graphs(),
+        cursors(),
+        clauses(),
+        secondary_cursors(),
+    ]
+    .concat();
     check(include_str!("../../tests/parity/models.json"), cases);
 }

@@ -64,6 +64,9 @@ impl NativeTransaction {
     }
 
     fn owner_matches(&self, parent: &Bound<'_, PyAny>) -> bool {
+        if self.state.is_lent() {
+            return parent.is_none();
+        }
         if let Ok(parent) = parent.extract::<PyRef<'_, NativeTransaction>>() {
             return self.state.is_child_of(&parent.state);
         }

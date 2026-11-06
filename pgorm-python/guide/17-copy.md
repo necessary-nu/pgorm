@@ -499,6 +499,32 @@ exactly is refused rather than rounded. A `money` column reads and writes as
 a `Decimal` in its currency's units. A query cannot read a `money` column at
 all, and raises `DecodeError` for one: cast it to `numeric` there.
 
+A row read out writes back in as it is. A value that says less than its
+column is written as the column's type: a JSON number or list into a `jsonb`
+column, an empty list into an array column, a `Range` into a range column.
+Here every cake is copied into a table of the same columns:
+
+```python
+import asyncio
+import os
+
+from pgorm import CopyFrom, CopyTo, Pool, RawSQL, Table
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        await pool.execute(RawSQL("CREATE TABLE cake_copy (LIKE cake)"))
+        cakes = [row async for row in await pool.copy_out_rows(CopyTo(Table("cake"), "binary"))]
+        assert await pool.copy_in_rows(CopyFrom(Table("cake_copy"), "binary"), cakes) == len(cakes)
+        row = await pool.one(RawSQL(
+            "SELECT count(*) AS n FROM (SELECT * FROM cake EXCEPT ALL SELECT * FROM cake_copy) AS differ"
+        ))
+        assert row["n"] == 0
+
+
+asyncio.run(main())
+```
+
 ## Encoding rows yourself
 
 `CopyRowEncoder` and `CopyRowDecoder` are the binary format's two sides,

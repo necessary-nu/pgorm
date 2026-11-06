@@ -286,7 +286,8 @@ struct PriceTag {
     euros: Decimal,
 }
 
-/// A cake on the menu board, its name shouted.
+/// A cake on the menu board, its name shouted, and whether the board
+/// features it, which no column holds.
 #[derive(Debug, PartialEq, PartialModel)]
 #[pgorm(entity = cake::Entity)]
 struct MenuLine {
@@ -294,6 +295,8 @@ struct MenuLine {
     shout: String,
     #[pgorm(from_col = cake::Column::GlutenFree)]
     free_from_gluten: bool,
+    #[pgorm(skip)]
+    featured: bool,
 }
 
 # #[tokio::main(flavor = "current_thread")]
@@ -327,6 +330,7 @@ assert_eq!(
     MenuLine {
         shout: "LEMON DRIZZLE".to_owned(),
         free_from_gluten: true,
+        featured: false,
     }
 );
 # drop(db);
@@ -335,8 +339,9 @@ assert_eq!(
 # }
 ```
 
-A field marked `#[pgorm(skip)]` reads no column and takes its type's
-default. An `Option` field reads `NULL` as `None`.
+A field marked `#[pgorm(skip)]`, as `featured` is, selects and reads no
+column and takes its type's default. An `Option` field reads `NULL` as
+`None`.
 
 ## Joins
 

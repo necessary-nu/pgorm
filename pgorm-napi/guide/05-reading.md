@@ -130,9 +130,9 @@ conditions as arguments or through `add`, nests inside the other, and goes to
 `where` like a single condition. `Condition.all()` of nothing is true, and
 `Condition.any()` of nothing false.
 
-Rust's `add_option` adds a condition that may be absent. A JavaScript query
-is an immutable value, so a condition that may be absent is added where it is
-present, the query reassigned:
+`addOption` adds a condition that may be absent, as Rust's `add_option`
+does: given `null` or `undefined` it leaves the condition as it is, which
+suits a search form whose fields are optional:
 
 ```ts
 import assert from "node:assert/strict";
@@ -148,9 +148,9 @@ assert.equal(
 
 // A search with an optional upper price: no condition at all when it is absent.
 function search(maxPrice: Decimal | null) {
-  let query = Cake.select("name").where(Cake.col("bakeryId").eq(1));
-  if (maxPrice !== null) query = query.where(Cake.col("price").lte(maxPrice));
-  return query;
+  return Cake.select("name").where(
+    Condition.all(Cake.col("bakeryId").eq(1)).addOption(maxPrice === null ? null : Cake.col("price").lte(maxPrice)),
+  );
 }
 assert.equal(search(null).inspect().sql, `SELECT "cake"."name" FROM "cake" WHERE "cake"."bakery_id" = $1`);
 assert.equal(
@@ -167,7 +167,7 @@ so one base query can be extended in two directions.
 `orderBy(..)` orders by columns or expressions, each made with `asc()` or
 `desc()`, in the order given; `{ nulls: "first" }` or `{ nulls: "last" }`
 says where `NULL`s go. `limit` and `offset` cut the result, and `null`
-removes either.
+removes either. `distinct()` and `distinctOn(...columns)` drop repeated rows.
 
 ```ts
 import assert from "node:assert/strict";
@@ -185,11 +185,27 @@ assert.equal(third.name, "Carrot Cake");
 The `limit(1)` is what makes the third cake one row: without it the query
 returns three, and `one` refuses them.
 
-**Not available in JavaScript yet:** `distinct` and `distinct_on` on a model
-query. Rust's `Select` drops repeated rows and still decodes into its models.
-In JavaScript, the statement builder's `distinct()` does it over the query's
-`statement`, whose rows are plain objects rather than checked records, as
-[Joins](#joins) shows.
+`distinctOn` keeps the first row of each run of rows equal on its columns,
+so the ordering decides which: here the dearest cake of each flavor. Its
+columns are the queried model's or a joined table's, and the rows are still
+the model's records. The statement builder's [`select(..)`](../lib/select.d.ts)
+has the same `distinct()` and `distinctOn`:
+
+```ts
+import assert from "node:assert/strict";
+
+const dearest = Cake.select("flavor", "name")
+  .distinctOn(Cake.col("flavor"))
+  .orderBy(Cake.col("flavor").asc(), Cake.col("price").desc());
+assert.equal(
+  dearest.inspect().sql,
+  `SELECT DISTINCT ON ("cake"."flavor") "cake"."flavor", "cake"."name" FROM "cake" ORDER BY "cake"."flavor" ASC, "cake"."price" DESC`,
+);
+assert.deepEqual(
+  (await dearest.all(pool)).map((cake) => cake.name),
+  ["Chocolate Torte", "Vanilla Sponge", "Lemon Drizzle", "Carrot Cake"],
+);
+```
 
 A query read in pages is better served by [Pages, cursors and
 streams](06-pagination.md) than by `offset`.
@@ -214,49 +230,124 @@ assert.equal(priced[0]!.name, "Vanilla Sponge");
 assert.equal(priced[0]!.price.toString(), "2.90");
 ```
 
-Rust's `select` also takes a column of another table or an expression, and
-its `column_as` and `expr_as` name an item, with the rows then decoded by
-`into_tuple` or `into_model`. A model query's projection is its own fields
-only. A query whose rows hold anything else is the statement builder's
-[`select(..)`](../lib/select.d.ts), which takes a model's columns, the
-functions [`call`](../lib/expressions.d.ts) makes, and an `as(name)` on any
-item. A pool, connection or transaction runs it with `query`, `one` and
-`optional`, and each row is a plain object keyed by column name, its values
-decoded by their PostgreSQL types ([Raw SQL](10-raw-sql.md)):
+A query also becomes a *projection* of items the program chooses, as Rust's
+`select` and `select_only` make one. `selectOnly()` clears the fields, and
+`column`, `columns`, `columnAs` and `exprAs` add items: a column of the
+queried model or of a table the query joins, decoded as its field declares,
+keyed by its field and projected under its column's name, or under the name
+`columnAs` gives it; or an expression under a name, decoded as the `column()`
+given beside it declares. A model query takes the item methods directly too,
+its fields staying the first items. A projection reads rows once one of three
+methods says what each row becomes, as in Rust:
+
+- `intoTuple()` reads the items' values in order into an array.
+- `intoValues(...names)` reads the named items' values, in the order named.
+- `intoModel()` reads each row into an object keyed by item name, as a
+  `FromQueryResult` struct reads by name, and `intoModel(make)` gives what
+  `make` makes of that object.
+
+Each gives a [`ModelSelector`](../lib/models.d.ts), Rust's `Selector`, whose
+`all`, `one`, `optional`, `stream`, `count`, `cursor` and `paginate` read as
+a model query's do, and whose rows the TypeScript declarations type from the
+items. A model query takes `intoTuple`, `intoValues` and `intoModel`
+directly, reading its fields.
+
+Here JavaScript differs from Rust in where an expression's type is stated.
+Rust states it in the type the rows decode into, `Vec<(Flavor, i64)>`;
+JavaScript states it beside the expression, `column("i64")` for a `COUNT`,
+which PostgreSQL types `bigint`. A row is held to its items as a record is to
+its model: a column of another type, a `NULL` an item does not declare
+`nullable`, or a label it does not list, is a `DecodeError`. A Rust column's
+`count()` is [`call("count", column)`](../lib/expressions.d.ts) here, and
+`"sum"`, `"min"`, `"max"` and `"avg"` are called the same way.
 
 ```ts
 import assert from "node:assert/strict";
-import { call, select } from "@necessary/pgorm";
+import { call, column } from "@necessary/pgorm";
 
-const flavors = select(Cake.col("flavor"), call("count", Cake.col("id")).as("cakes"))
-  .from(Cake.table)
+const names: [string][] = await Cake.select("name").orderBy(Cake.col("id").asc()).intoTuple().all(pool);
+assert.deepEqual(names[0], ["Chocolate Fudge"]);
+
+const flavors = Cake.select("flavor")
+  .exprAs(call("count", Cake.col("id")), "cakes", column("i64"))
   .groupBy(Cake.col("flavor"))
   .orderBy(Cake.col("flavor").asc());
 assert.equal(
   flavors.inspect().sql,
   `SELECT "cake"."flavor", COUNT("cake"."id") AS "cakes" FROM "cake" GROUP BY "cake"."flavor" ORDER BY "cake"."flavor" ASC`,
 );
-
-const counted = await pool.query(flavors);
-assert.deepEqual(counted[0], { flavor: "chocolate", cakes: 2n });
+const counted = await flavors.intoTuple().all(pool);
+assert.deepEqual(counted[0], ["chocolate", 2n]);
+const byName: [bigint, string][] = await flavors.intoValues("cakes", "flavor").all(pool);
+assert.deepEqual(byName[0], [2n, "chocolate"]);
 ```
 
 An enum sorts in the order of its labels, so chocolate comes first. A count is
-an `int8`, a `bigint` in JavaScript. `Cake.table` is the model's table as the
-statement builder names it.
+an `int8`, a `bigint` in JavaScript. `selectOnly()` with `column` and
+`columns` builds a list computed at run time, as Rust's does. The statement
+builder's [`select(..)`](../lib/select.d.ts) takes a model's `table` and its
+columns too, for what a projection does not cover; a pool, connection or
+transaction runs it with `query`, `one` and `optional`, and each row is a
+plain object keyed by column name, its values decoded by their PostgreSQL
+types ([Raw SQL](10-raw-sql.md)).
 
 ## Decoding into your own types
 
 Rust decodes a row into a struct of your own, by deriving `FromQueryResult`
 for any query's rows or `PartialModel` for a struct that also says which
 columns and expressions to select. JavaScript has no struct to derive onto,
-and the two cases go two ways.
+and its counterparts are a projection's `intoModel` and a partial model:
 
-A shape made of some of a table's columns is a model of its own: declare a
-second model over the same table with the columns it reads, under the field
-names it wants. Its `find` selects those columns and decodes each row into its
-records, checked as any model's are. A field of a nullable column reads
-`NULL` as `null`.
+- `intoModel()` reads each row by name into an object of the items, as a
+  `FromQueryResult` struct reads, and `intoModel(make)` makes a value of your
+  own of it.
+- [`partialModel(model, fields)`](../lib/models.d.ts) declares what to select
+  and how to read it. Each field is one of the model's columns,
+  `Cake.col("glutenFree")`, which is Rust's `from_col`, a field named for its
+  column being Rust's plain field; an expression,
+  `fromExpr(expr, column(kind))`, Rust's `from_expr`, decoded as the
+  `column()` declares; or nothing, `skip(value)`, Rust's `skip`. A model
+  query's `intoPartialModel(shape)` selects what the shape declares, the
+  query's conditions and ordering kept, and decodes each row into an object
+  of the shape's fields, in declaration order.
+
+Here JavaScript differs from Rust in what a skipped field holds. Rust takes
+the type's `Default`; JavaScript has no default of a type to take, so `skip`
+holds the value it is given in every row.
+
+```ts
+import assert from "node:assert/strict";
+import { call, column, fromExpr, partialModel, skip } from "@necessary/pgorm";
+
+// A line of the price list.
+const tags = await Cake.select("name")
+  .columnAs(Cake.col("price"), "euros")
+  .where(Cake.col("bakeryId").eq(2))
+  .orderBy(Cake.col("name").asc())
+  .intoModel()
+  .all(pool);
+assert.equal(tags[0]!.name, "Carrot Cake");
+assert.equal(tags[0]!.euros.toString(), "3.80");
+
+/** A cake on the menu board, its name shouted. */
+const MenuLine = partialModel(Cake, {
+  shout: fromExpr(call("upper", Cake.col("name")), column("text")),
+  freeFromGluten: Cake.col("glutenFree"),
+  featured: skip(false),
+});
+
+const lemon = Cake.find().where(Cake.col("id").eq(2)).intoPartialModel(MenuLine);
+assert.equal(
+  lemon.inspect().sql,
+  `SELECT UPPER("cake"."name") AS "shout", "cake"."gluten_free" AS "freeFromGluten" FROM "cake" WHERE "cake"."id" = $1`,
+);
+assert.deepEqual(await lemon.one(pool), { shout: "LEMON DRIZZLE", freeFromGluten: true, featured: false });
+```
+
+A shape made of some of a table's columns is also a model of its own: declare
+a second model over the same table with the columns it reads, under the
+field names it wants. Its `find` selects those columns and decodes each row
+into its records, checked as any model's are, and it writes as well:
 
 ```ts
 import assert from "node:assert/strict";
@@ -275,54 +366,25 @@ const lemon = await MenuLine.find().where(MenuLine.col("id").eq(2)).one(pool);
 assert.deepEqual(lemon, { id: 2, name: "Lemon Drizzle", freeFromGluten: true });
 ```
 
-A shape holding an expression, or a column renamed in the SQL, is a
-statement builder query whose items carry the names the program reads. Its
-rows are plain objects, and nothing checks them against a declaration of
-yours; TypeScript sees each value as any value a row can hold:
-
-```ts
-import assert from "node:assert/strict";
-import { call, select } from "@necessary/pgorm";
-
-// A line of the price list.
-const tags = await pool.query(
-  select(Cake.col("name"), Cake.col("price").as("euros"))
-    .from(Cake.table)
-    .where(Cake.col("bakeryId").eq(2))
-    .orderBy(Cake.col("name").asc()),
-);
-assert.equal(tags[0]!.name, "Carrot Cake");
-assert.equal(String(tags[0]!.euros), "3.80");
-
-// A cake on the menu board, its name shouted.
-const shout = select(call("upper", Cake.col("name")).as("shout"), Cake.col("glutenFree").as("free_from_gluten"))
-  .from(Cake.table)
-  .where(Cake.col("id").eq(2));
-assert.equal(
-  shout.inspect().sql,
-  `SELECT UPPER("cake"."name") AS "shout", "cake"."gluten_free" AS "free_from_gluten" FROM "cake" WHERE "cake"."id" = $1`,
-);
-assert.deepEqual(await pool.one(shout), { shout: "LEMON DRIZZLE", free_from_gluten: true });
-```
-
-**Not available in JavaScript yet:** a declared shape that holds an
-expression and is checked as it decodes. Rust's `PartialModel` selects
-`from_expr` items and decodes them into typed fields, and its `skip` fields
-read no column; a JavaScript model's fields are columns only.
-
 ## Joins
 
 A join follows a relation the models declare. `join(relation)` joins the
 table at a relation's far end, from the query's model or from a table it
-joined already, as an `INNER JOIN`; `{ kind: "left" }` makes it a
-`LEFT JOIN`, and `{ alias }` joins the table under another name, for a table
-joined twice. A JavaScript relation is a value with a direction, made from the
-model it starts at ([Entities](03-entities.md)), so a join from the other
-side is the other side's relation, `bakeryCakes` rather than `cakeBakery`,
-where Rust names the reverse with the `_rev` joins.
+joined already, as an `INNER JOIN`; `{ kind: "left" }`, `"right"` or
+`"full"` makes it another, as Rust's `left_join_rel` and `right_join_rel`
+do, and `{ alias }` joins the table under another name, for a table joined
+twice. A JavaScript relation is a value with a direction, made from the model
+it starts at ([Entities](03-entities.md)); `joinRev(relation)` follows one
+from its far end, as Rust's `_rev` joins do, so from the bakery
+`joinRev(cakeBakery)` joins the cakes along the cake's `belongsTo`.
 
 A join adds rows to the query, not columns: the records stay the queried
-model's. It is how a query filters on a related row:
+model's until a projection chooses columns of the joined table too. It is how
+a query filters on a related row. A row a right or full join reads with no
+match holds `NULL` in the queried model's columns, which its records refuse
+where a field is not nullable, so such a join usually goes with a
+projection. To read each row together with its related record, use the graph
+in [Relations](07-relations.md) instead.
 
 ```ts
 import assert from "node:assert/strict";
@@ -333,61 +395,58 @@ assert.equal(
   `SELECT "cake"."id", "cake"."name", "cake"."flavor", "cake"."price", "cake"."gluten_free", "cake"."bakery_id" FROM "cake" INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" WHERE "bakery"."city" = $1`,
 );
 assert.equal((await inOslo.all(pool)).length, 3);
-```
-
-To read columns of the joined table too, take the query's `statement`, the
-[`Select`](../lib/select.d.ts) it runs, and choose the columns with the
-statement builder; its rows are plain objects. To read each row together with
-its related record, use the graph in [Relations](07-relations.md) instead.
-
-```ts
-import assert from "node:assert/strict";
 
 const menu = Cake.find()
   .join(cakeBakery)
+  .selectOnly()
+  .columns(Bakery.col("city"), Cake.col("name"))
   .where(Cake.col("glutenFree").eq(true))
-  .statement.select(Bakery.col("city"), Cake.col("name"))
   .orderBy(Bakery.col("city").asc(), Cake.col("name").asc());
 assert.equal(
   menu.inspect().sql,
   `SELECT "bakery"."city", "cake"."name" FROM "cake" INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" WHERE "cake"."gluten_free" = $1 ORDER BY "bakery"."city" ASC, "cake"."name" ASC`,
 );
-assert.deepEqual(await pool.query(menu), [
-  { city: "Bergen", name: "Vanilla Sponge" },
-  { city: "Oslo", name: "Chocolate Torte" },
-  { city: "Oslo", name: "Lemon Drizzle" },
+const rows: [string, string][] = await menu.intoTuple().all(pool);
+assert.deepEqual(rows, [
+  ["Bergen", "Vanilla Sponge"],
+  ["Oslo", "Chocolate Torte"],
+  ["Oslo", "Lemon Drizzle"],
 ]);
 
 // The bakeries that sell a chocolate cake, read from the bakery's side.
-const chocolateShops = Bakery.find().join(bakeryCakes).where(Cake.col("name").startsWith("Chocolate"));
-// Sunrise sells two, so the join reads it twice.
-assert.deepEqual((await chocolateShops.all(pool)).map((bakery) => bakery.name), ["Sunrise", "Sunrise"]);
-assert.deepEqual(await pool.query(chocolateShops.statement.distinct()), [{ id: 1, name: "Sunrise", city: "Oslo" }]);
+const chocolateShops = Bakery.find()
+  .joinRev(cakeBakery)
+  .where(Cake.col("name").startsWith("Chocolate"))
+  .distinct();
+assert.deepEqual((await chocolateShops.all(pool)).map((bakery) => bakery.name), ["Sunrise"]);
 ```
 
 ## Grouping and counting
 
 `count(db)` on any model query counts its rows, limit and offset aside, and
-resolves with a `number`. Grouping is the statement builder's: `groupBy`
-groups the rows, the aggregates `call("count", ..)`, `"sum"`, `"min"`,
-`"max"` and `"avg"` summarize each group, and `having` filters the groups.
-
-**Not available in JavaScript yet:** `group_by` and `having` on a model
-query, with a column's aggregate methods (`count`, `sum`, `min`, `max`).
-Rust's `Select` groups and decodes the groups with `into_tuple`; a
-JavaScript model query does not group, and the statement builder does.
+resolves with a `number`. `groupBy` groups the rows and `having` filters the
+groups, as Rust's do, and an aggregate, `call("count", ..)`, `"sum"`,
+`"min"`, `"max"` or `"avg"`, summarizes each group as an item `exprAs` names
+and declares ([Choosing columns](#choosing-columns)). A grouped model query's
+records stay the model's, which suits a query grouped by its primary key.
 
 ```ts
 import assert from "node:assert/strict";
-import { call, select } from "@necessary/pgorm";
+import { call, column } from "@necessary/pgorm";
 
 const cakes = call("count", Cake.col("id"));
-const busy = select(Bakery.col("name"), cakes.as("cakes"))
-  .from(Cake.table)
-  .join(Bakery.table, Cake.col("bakeryId").eq(Bakery.col("id")))
+const busy = Cake.find()
+  .join(cakeBakery)
+  .selectOnly()
+  .column(Bakery.col("name"))
+  .exprAs(cakes, "cakes", column("i64"))
   .groupBy(Bakery.col("name"))
   .having(cakes.gt(2));
-assert.deepEqual(await pool.query(busy), [{ name: "Sunrise", cakes: 3n }]);
+assert.equal(
+  busy.inspect().sql,
+  `SELECT "bakery"."name", COUNT("cake"."id") AS "cakes" FROM "cake" INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" GROUP BY "bakery"."name" HAVING COUNT("cake"."id") > $1`,
+);
+assert.deepEqual(await busy.intoTuple().all(pool), [["Sunrise", 3n]]);
 
 const glutenFree = await Cake.find().where(Cake.col("glutenFree").eq(true)).count(pool);
 assert.equal(glutenFree, 3);
@@ -401,12 +460,13 @@ rows so that no other transaction can change them until this one ends, and
 `SKIP LOCKED` say what to do about a row another transaction holds, the
 second of which suits a queue of work that several workers take from.
 
-A model query does not lock. The statement builder's
-[`lock`](../lib/select.d.ts) does, over the query's `statement`: its strength
-is `"update"`, `"noKeyUpdate"`, `"share"` or `"keyShare"`, and `{ wait }`
-takes `"nowait"` or `"skipLocked"`. Rust's `Select` locks with
-`lock_exclusive`, `lock_shared` and `lock_with_behavior`, and still decodes
-into models; in JavaScript the locked rows are plain objects.
+A model query's `lock(strength, { wait, of })` is the statement builder's
+[`lock`](../lib/select.d.ts): its strength is `"update"`, `"noKeyUpdate"`,
+`"share"` or `"keyShare"`, and `{ wait }` takes `"nowait"` or
+`"skipLocked"`. Here JavaScript differs from Rust only in spelling: Rust's
+`lock_exclusive()` is `lock("update")`, its `lock_shared()` is
+`lock("share")`, and its `lock_with_behavior` is `lock` with `wait`. The
+locked rows still decode as the model's records.
 
 ```ts
 import assert from "node:assert/strict";
@@ -414,13 +474,13 @@ import assert from "node:assert/strict";
 const next = Order.select("id")
   .orderBy(Order.col("placedAt").asc())
   .limit(1)
-  .statement.lock("update", { wait: "skipLocked" });
+  .lock("update", { wait: "skipLocked" });
 assert.equal(
   next.inspect().sql,
   `SELECT "order"."id" FROM "order" ORDER BY "order"."placed_at" ASC LIMIT $1 FOR UPDATE SKIP LOCKED`,
 );
 
-const taken = await pool.transaction(async (tx) => tx.one(next));
+const taken = await pool.transaction(async (tx) => next.one(tx));
 assert.deepEqual(taken, { id: 1 });
 ```
 

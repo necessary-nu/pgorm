@@ -2,39 +2,34 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { any, column, model } from "@necessary/pgorm";
-import { flavor } from "../../../guide/bakery.ts";
+import { column, DecodeError, fromModel, model } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  await pool.execute(
-    "CREATE TABLE menu (id serial PRIMARY KEY, name varchar NOT NULL, tags varchar[] NOT NULL, flavors flavor[] NOT NULL)",
-  );
-  const Menu = model("menu", {
+  interface Contact {
+    readonly name: string;
+    readonly phone: string;
+  }
+
+  function contact(document: any): Contact {
+    if (typeof document?.name !== "string" || typeof document?.phone !== "string") {
+      throw new TypeError("a contact has a name and a phone");
+    }
+    return { name: document.name, phone: document.phone };
+  }
+
+  const Supplier = model("supplier", {
     columns: {
-      id: column("i32", { primaryKey: true, default: true }),
-      name: column("text"),
-      tags: column("text", { array: true }),
-      flavors: column(flavor, { array: true, values: ["chocolate", "vanilla", "lemon", "carrot"] }),
+      id: column("i32", { primaryKey: true }),
+      contact: column("json", { decode: contact }),
     },
   });
+  await pool.execute(fromModel(Supplier).table);
 
-  await Menu.insertMany([
-    { name: "Breakfast", tags: ["morning", "coffee"], flavors: ["lemon", "vanilla"] },
-    { name: "Party", tags: ["evening"], flavors: ["chocolate"] },
-  ]).execute(pool);
+  const flour = await Supplier.insert({ id: 1, contact: { name: "Flour & Co", phone: "555-0100" } }).returning().one(pool);
+  const phone: string = flour.contact.phone;
+  assert.equal(phone, "555-0100");
 
-  const withCoffee = await Menu.select("name").where(Menu.col("tags").contains(["coffee"])).all(pool);
-  assert.deepEqual(withCoffee, [{ name: "Breakfast" }]);
-
-  const chocolate = Menu.select("name").where(Menu.col("flavors").overlaps(["chocolate", "carrot"]));
-  assert.equal(
-    chocolate.inspect().sql,
-    `SELECT "menu"."name" FROM "menu" WHERE "menu"."flavors" && CAST($1::text[] AS public.flavor[])`,
-  );
-  assert.deepEqual(await chocolate.all(pool), [{ name: "Party" }]);
-
-  const named = Menu.select("name").where(Menu.col("name").eq(any(["Party", "Picnic"])));
-  assert.equal(named.inspect().sql, `SELECT "menu"."name" FROM "menu" WHERE "menu"."name" = ANY($1)`);
-  assert.deepEqual(await named.all(pool), [{ name: "Party" }]);
+  await pool.execute(`INSERT INTO supplier (id, contact) VALUES (2, '{"name": "Nobody"}')`);
+  await assert.rejects(Supplier.findByKey({ id: 2 }).one(pool), DecodeError);
 }

@@ -5,7 +5,9 @@ use crate::{
     errors::ConstructionError,
     values::{CreatedKindPy, PyTypeName},
 };
-use pgorm::pgorm_query::{ColumnType, IntervalSpec, Name, StringLen};
+use pgorm::pgorm_query::{
+    ColumnType, IntervalPrecision, IntervalSpec, Name, PgInterval, StringLen,
+};
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyInt};
 use std::sync::Arc;
 
@@ -35,7 +37,7 @@ impl PyDataType {
         if let Ok(kind) = value.extract::<PyRef<'_, Self>>() {
             return Ok(kind.clone());
         }
-        Self::new(value, None, None, None)
+        Self::new(value, None, None, None, None)
     }
 }
 
@@ -43,16 +45,27 @@ impl PyDataType {
 impl PyDataType {
     // [spec:pgorm:req:bindings.schema]
     #[new]
-    #[pyo3(signature=(kind, *, length=None, precision=None, scale=None))]
+    #[pyo3(signature=(kind, *, length=None, precision=None, scale=None, fields=None))]
     fn new(
         kind: &Bound<'_, PyAny>,
         length: Option<&Bound<'_, PyAny>>,
         precision: Option<&Bound<'_, PyAny>>,
         scale: Option<&Bound<'_, PyAny>>,
+        fields: Option<&str>,
     ) -> PyResult<Self> {
         let length = integer(length, "length")?;
         let precision = integer(precision, "precision")?;
         let scale = integer(scale, "scale")?;
+        if fields.is_some() || kind.extract::<&str>().ok() == Some("interval") {
+            if length.is_some() || scale.is_some() {
+                return Err(ConstructionError::new_err(
+                    "an interval takes fields and a precision, no length or scale",
+                ));
+            }
+            return Ok(Self {
+                inner: ColumnType::Interval(interval(kind, fields, precision)?),
+            });
+        }
         if length == Some(0) {
             return Err(ConstructionError::new_err("type length must be positive"));
         }
@@ -121,7 +134,6 @@ impl PyDataType {
             "time" => ColumnType::Time,
             "timestamp" => ColumnType::Timestamp,
             "timestamptz" => ColumnType::TimestampWithTimeZone,
-            "interval" => ColumnType::Interval(IntervalSpec::Any(None)),
             "bytea" => ColumnType::Bytea,
             // SQL's `bit` without a length is `bit(1)`; `Bit(None)` is the
             // bit type with no length limit.
@@ -145,6 +157,29 @@ impl PyDataType {
         Ok(Self { inner })
     }
 
+    /// A domain over `base`: a column of it is written as the domain, read
+    /// as its base and, a domain over an enum, compared as the enum.
+    // [spec:pgorm:req:bindings.model-casts]
+    #[staticmethod]
+    fn domain(name: &Bound<'_, PyAny>, base: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let (name, schema) = match name.extract::<PyRef<'_, PyTypeName>>() {
+            Ok(named) => (named.name.clone(), named.schema.clone()),
+            Err(_) => (
+                name.extract::<String>().map_err(|_| {
+                    PyTypeError::new_err("a domain is named by a string or a TypeName")
+                })?,
+                None,
+            ),
+        };
+        Ok(Self {
+            inner: ColumnType::Domain {
+                name: Name::runtime(name),
+                schema: schema.map(Name::runtime),
+                base: Arc::new(Self::coerce(base)?.inner),
+            },
+        })
+    }
+
     fn array(&self) -> Self {
         Self {
             inner: ColumnType::Array(Arc::new(self.inner.clone())),
@@ -159,4 +194,41 @@ impl PyDataType {
     fn __repr__(&self) -> String {
         format!("DataType({:?})", self.inner)
     }
+}
+
+/// `interval`, `interval(p)` or `interval <fields>`: the fields spelled in
+/// snake_case, a precision only where the last field is seconds.
+// [spec:pgorm:req:bindings.model-casts]
+fn interval(
+    kind: &Bound<'_, PyAny>,
+    fields: Option<&str>,
+    precision: Option<u32>,
+) -> PyResult<IntervalSpec> {
+    if kind.extract::<&str>().ok() != Some("interval") {
+        return Err(ConstructionError::new_err("fields are an interval's"));
+    }
+    let precision = precision
+        .map(|digits| {
+            u8::try_from(digits)
+                .ok()
+                .and_then(IntervalPrecision::new)
+                .ok_or_else(|| ConstructionError::new_err("an interval's precision is 0 to 6"))
+        })
+        .transpose()?;
+    let Some(fields) = fields else {
+        return Ok(IntervalSpec::Any(precision));
+    };
+    let Ok(named) = PgInterval::try_from(fields.replace('_', " ").as_str()) else {
+        return Err(PyTypeError::new_err(
+            "an interval's fields are year, month, day, hour, minute, second, year_to_month, \
+             day_to_hour, day_to_minute, day_to_second, hour_to_minute, hour_to_second or \
+             minute_to_second",
+        ));
+    };
+    named
+        .with_precision(precision)
+        .map(IntervalSpec::Fields)
+        .ok_or_else(|| {
+            ConstructionError::new_err("only an interval ending in seconds takes a precision")
+        })
 }

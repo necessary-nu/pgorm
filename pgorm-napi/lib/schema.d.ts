@@ -15,13 +15,14 @@
 
 // [spec:pgorm:req:napi.typing+1]
 // [spec:pgorm:req:bindings.schema]
-// [spec:pgorm:req:bindings.schema-api+2]
+// [spec:pgorm:req:bindings.schema-api+3]
 
 import type { CreatedMultirange, CreatedRange, TypeName } from "./index.d.ts";
 import type { Builder, Expr, Operand, Predicate } from "./expressions.d.ts";
 import type { BuiltinType, DataType } from "./json.d.ts";
 import type { Select, Table } from "./select.d.ts";
 import type { Entity } from "./entities.d.ts";
+import type { Model, Relation } from "./models.d.ts";
 
 /**
  * A table or sequence a statement names: a name, or a {@link Table} without
@@ -289,6 +290,18 @@ export declare class EntitySchema {
  * build, is a `ConstructionError` carrying the Rust message.
  */
 export declare function fromEntity(entity: Entity<any>): EntitySchema;
+
+/**
+ * The schema of a declared model's table, written by pgorm's own `Schema`
+ * from the `TableShape` the model describes: its `CREATE TABLE` with its
+ * primary key, unique keys and a foreign key for each `belongsTo` relation
+ * in `relations`, the `CREATE TYPE` of each enum its columns use, an index
+ * for each `indexed` column, and its comments. A relation of another kind, or
+ * one starting at another table, and a column filled by a `default` the
+ * declaration does not state, are a `ConstructionError`.
+ */
+// [spec:pgorm:req:bindings.schema-from-model]
+export declare function fromModel(model: Model<any>, options?: { readonly relations?: readonly Relation<any, any, any>[] }): EntitySchema;
 
 /**
  * `CREATE TYPE`: a shell type until a kind is chosen. What a type is, is one

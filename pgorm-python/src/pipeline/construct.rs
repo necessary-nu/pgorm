@@ -119,7 +119,7 @@ pub(super) fn pipeline_model_col(
         false => tag,
     };
     let column_type = tag
-        .column_type(values.as_deref().unwrap_or_default())
+        .column_type(values.as_deref().unwrap_or_default(), None)
         .py()?;
     let mut expression = PyPipelineExpr::compose(Recipe::Typed(table, column, column_type), &[])?;
     expression.declared = Some(Arc::new(convert));

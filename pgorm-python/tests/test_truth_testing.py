@@ -11,8 +11,8 @@ from pgorm._registered import disjoints as disjoint_views, entities as views, gr
 from pgorm.codegen import source
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
-    Column, Linked, Model, ModelRecord, Related, Relation, active, cursors, disjoint_query, graphs, model, one_of, queries,
-    record, try_inserts, writes,
+    Column, Linked, Model, ModelRecord, Related, Relation, active, clauses, cursors, disjoint_query,
+    graphs, model, one_of, projections, record, try_inserts, writes,
 )
 from pgorm.runtime import PoolStatus
 
@@ -27,6 +27,8 @@ EXEMPT = {
     # after SQL ran. A record or a model is a mapping, false with no fields.
     p.Record, p.Field, p.EntityModel, p.ActiveModel, p.ActiveValue, p.ActiveState,
     p.Change, p.Upserted, p.TryInsertResult, ModelRecord, PoolStatus, views.ModelView, views.ActiveView,
+    # A migration's name and status, as a migrator read them from its ledger.
+    s.Migration,
     # Pools, connections, transactions and the private native handles under
     # them and under the streams: live resources, not SQL, and true as any
     # open resource is. The streams themselves refuse, since a stream's truth
@@ -40,15 +42,20 @@ EXEMPT = {
     p.CopyColumn, p.CopyRowEncoder, p.CopyRowDecoder, p.CopyRowSink, copy_rows.RowCopies,
     _native._CopyIn, _native._CopyOut, _native._Listener, _native._Disjoint,
     _native._DisjointChange, _native._RowDecoder, _native._EntityPages, _native._MetricsAnswer,
+    _native._Migrations,
     # The metrics layer's collectors, objects a program writes and hands to a
     # pool, and what a query hook is told about a statement that already ran:
     # `if query.fingerprint:` tests for a fingerprint.
     p.MetricsCollector, p.NoOpMetrics, p.LoggingMetrics, p.QueryContext, p.QueryFingerprint,
-    # Registrations and declarations: they name what a query reads and are
-    # true as any declared object is; the queries they start refuse.
-    p.Entity, p.EntityGraph, p.EntityRelation, Model, Column, Relation, Related, Linked, pl.SourceSelection,
-    pl.Binder,
-    model.UniqueKey, model._DeclaredKey, active.ModelHooks,
+    # The protocol a migration a program writes satisfies, as a collector
+    # satisfies MetricsCollector, handed to a migrator.
+    s.MigrationTrait,
+    # Registrations and declarations, and the native casts a declared column
+    # holds: they name what a query reads and are true as any declared object
+    # is; the queries they start refuse.
+    p.Entity, p.EntityGraph, p.EntityRelation, Model, Column, _native._ModelColumnCasts, Relation,
+    Related, Linked, pl.SourceSelection, pl.Binder,
+    model.UniqueKey, model._DeclaredKey, active.ModelHooks, p.PartialModel, p.FromExpr, p.Skip,
     views.EntityView, graph_views.GraphView, FieldType,
     # The layout the codegen writes source with: build-time values no query
     # reads.
@@ -59,7 +66,8 @@ EXEMPT = {
     # The private state a model query, graph, cursor or paginator holds and
     # builds its statements from: data the application never handles, held by
     # a query that refuses.
-    queries.Recipe, queries.Joined, graphs.State, graphs.Table, graphs.Edge,
+    clauses.Recipe, clauses.Joined, clauses.Lock, projections.Item, graphs.State, graphs.Table,
+    graphs.Edge,
     cursors.Keyed, cursors.Position, cursors.Pageable, record.Source,
 }
 
@@ -69,17 +77,22 @@ EXEMPT = {
 # truth-test their instances.
 BUILT_ELSEWHERE = {
     p.EntityColumn, p.EntityQuery, p.EntityUpdate, p.EntityUpdateMany, p.EntityInsert,
-    p.EntityInsertMany, p.EntityGraphQuery, p.EntityGraphCursor, pl.SelectedSources, s.EntitySchema,
+    p.EntityInsertMany, p.EntityTryInsert, p.EntityTryInsertMany, p.EntityGraphQuery,
+    p.EntityGraphCursor, pl.SelectedSources, s.EntitySchema,
     p.EntityCursor, p.EntityPaginator, p.EntitySelection, read_views.PaginatorView, read_views.CursorView,
     views.QueryView, graph_views.GraphQueryView, graph_views.GraphCursorView,
     version_views.UpdateView, version_views.UpdateManyView, version_views._InsertView,
-    version_views.InsertView, version_views.InsertManyView, p.Notification, p.Listener, p.RowStream,
+    version_views.InsertView, version_views.InsertManyView, version_views._TryInsertView,
+    version_views.TryInsertView, version_views.TryInsertManyView, p.Notification, p.Listener, p.RowStream,
     p.CopyOutStream, p.CopyRowStream, p.EntityRawQuery, views.RawQueryView,
 }
 
 # Bases the model writes share and no program builds: every write refuses
 # through the __bool__ they give it, and each is sampled through a write.
-BASES = {writes._Write, writes._Insert, writes._Guarded, try_inserts._Tried, try_inserts._TriedRows, changes._Part}
+BASES = {
+    writes._Write, writes._Insert, writes._Guarded, try_inserts._Tried, try_inserts._TriedRows,
+    changes._Part, clauses.Clauses,
+}
 
 
 def defined_classes():
@@ -140,6 +153,8 @@ def other_samples():
     return [
         s.DataType("integer"), s.ColumnDef("id", "integer"), s.create_table(table),
         s.migration_file("m20260101_000001_create_items", [s.create_table(table)]),
+        s.SqlMigration("m20260101_000001_create_items", "CREATE TABLE items (id integer)"),
+        s.Migrations([]), s.MigrationStatus.Pending,
         s.create_index(table, "id"), s.drop_table(table), s.create_domain("d", "integer"),
         s.alter_table(table), s.alter_table(table).drop_column("id"), s.create_type("t"),
         s.alter_type("t"), s.alter_type("t").drop_attribute("a"),
@@ -154,6 +169,7 @@ def other_samples():
         model.col("id"), model.find(), model.delete(), model.insert({"id": 1}), model.insert_many([]),
         model.update({"id": 2}), model.insert({"id": 1}).returning("id"),
         model.graph(), model.find().cursor("id"), model.find().paginate(2), pl.from_(model).into_tuple(),
+        model.find().select_only(), model.find().into_tuple(),
         model.find_by_statement(p.RawSQL("SELECT 1")), p.from_statement(p.RawSQL("SELECT 1")),
         model.active({"id": 1}),
         model.insert({"id": 1}).on_conflict_do_nothing(), model.insert_many([]).on_empty_do_nothing(),

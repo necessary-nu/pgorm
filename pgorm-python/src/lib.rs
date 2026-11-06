@@ -20,6 +20,7 @@ pub mod identifiers;
 pub mod json;
 mod listen;
 mod metrics;
+mod migrations;
 mod models;
 mod one_of;
 mod panics;
@@ -83,6 +84,7 @@ pub fn install(module: &Bound<'_, PyModule>, registry: entities::Registry) -> Py
     copy::register(module)?;
     listen::register(module)?;
     metrics::register(module)?;
+    migrations::register(module)?;
     results::register(module)?;
     raw::register(module)?;
     models::register(module)?;

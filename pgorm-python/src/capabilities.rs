@@ -107,7 +107,11 @@ fn manifest() -> Value {
             "model.relation": {"rust_api": "pgorm::RelationDef, join_condition", "features": [], "python_convenience": true},
             "model.graph": {"rust_api": "pgorm::SelectGraph, result_column_name", "features": [], "python_convenience": true},
             "model.cursor": {"rust_api": "pgorm::Cursor", "features": [], "python_convenience": true},
-            "model.paginate": {"rust_api": "pgorm::Paginator", "features": [], "python_convenience": true}
+            "model.paginate": {"rust_api": "pgorm::Paginator", "features": [], "python_convenience": true},
+            "model.clauses": {"rust_api": "pgorm::QuerySelect::{distinct, distinct_on, group_by, having, lock_with_tables_behavior, join, join_rev}", "features": [], "python_convenience": true},
+            "model.projection": {"rust_api": "pgorm::QuerySelect::{select_only, column, column_as, expr_as}, pgorm::Select::{into_tuple, into_values, into_model}", "features": [], "python_convenience": true},
+            "model.partial_model": {"rust_api": "pgorm::PartialModelTrait::select_cols, pgorm::Select::into_partial_model", "features": [], "python_convenience": true},
+            "model.cursor_secondary_order": {"rust_api": "pgorm::Cursor::{add_secondary_order_by, after_with, before_with}", "features": [], "python_convenience": true}
         },
         "value_types": ArrayType::kinds().map(|kind| kind.kind_name()).chain(["enum", "created_range", "created_multirange", "array"]).collect::<Vec<_>>(),
         "value_policy": {
@@ -242,6 +246,7 @@ fn manifest() -> Value {
         operations.extend(crate::json::capabilities());
         operations.extend(crate::statements::capabilities());
         operations.extend(crate::results::capabilities());
+        operations.extend(crate::migrations::capabilities());
         operations.extend(crate::entities::capabilities());
         for (name, api) in crate::entities::version_terminals
             .into_iter()

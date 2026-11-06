@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "pgorm-macros", "pgorm-codegen", "pgorm-migration", "pgorm-pool", "pgorm-query", "pgorm-query/pgorm-query-attr", "pgorm-query/pgorm-query-derive", "pgorm-query/pgorm-query-derive-internals", "pgorm-sql-check", "pgorm-sql-macro", "pgorm-test-support", "pgorm-guide-support", "pgorm-bindings"]
+members = [".", "pgorm-case-style", "pgorm-macros", "pgorm-codegen", "pgorm-migration", "pgorm-pool", "pgorm-query", "pgorm-query/pgorm-query-attr", "pgorm-query/pgorm-query-derive", "pgorm-query/pgorm-query-derive-internals", "pgorm-sql-check", "pgorm-sql-macro", "pgorm-test-support", "pgorm-guide-support", "pgorm-bindings"]
 
 [package]
 name = "pgorm"
@@ -33,6 +33,9 @@ pgorm-query = { path = "./pgorm-query", default-features = false, features = ["d
 
 [dependencies]
 pgorm-pool = { path = "./pgorm-pool" }
+# The case styles a run-time model's `rename_all` renames its columns by, the
+# ones the derives rename an entity's by.
+pgorm-case-style = { version = "0.2.0", path = "./pgorm-case-style" }
 async-stream = { version = "0.3.6", default-features = false }
 async-trait.workspace = true
 deadpool.workspace = true

@@ -1400,6 +1400,7 @@ dependencies = [
  "jiff",
  "log",
  "pg_query",
+ "pgorm-case-style",
  "pgorm-macros",
  "pgorm-pool",
  "pgorm-query",
@@ -1435,6 +1436,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgorm-case-style"
+version = "0.2.0"
+dependencies = [
+ "heck",
+]
+
+[[package]]
 name = "pgorm-generative-bridge"
 version = "0.2.0"
 dependencies = [
@@ -1451,11 +1459,26 @@ name = "pgorm-macros"
 version = "0.2.0"
 dependencies = [
  "heck",
+ "pgorm-case-style",
  "pgorm-query-derive-internals",
  "proc-macro2",
  "quote",
  "syn 3.0.6",
  "unicode-ident",
+]
+
+[[package]]
+name = "pgorm-migration"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "pgorm",
+ "pgorm-macros",
+ "pgorm-sql-check",
+ "pgorm-sql-macro",
+ "sha2",
+ "tracing",
 ]
 
 [[package]]
@@ -1482,6 +1505,7 @@ dependencies = [
  "jiff",
  "pgorm",
  "pgorm-bindings",
+ "pgorm-migration",
  "postgres-protocol",
  "pyo3",
  "pyo3-async-runtimes",

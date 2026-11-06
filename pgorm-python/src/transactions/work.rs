@@ -7,6 +7,7 @@ use pgorm_bindings::entity::{
     Active, EntityBackend, GraphQuery, Insertion, Insertions, Model, Read as Terminal,
     Row as GraphRow, Select, Selected, VersionWrite, Versions, Write, Written,
 };
+use pgorm_migration::{MigrationStatus, MigratorTrait};
 use tokio_postgres::{Row, types::ToSql};
 
 pub(crate) enum Work {
@@ -29,6 +30,15 @@ pub(crate) enum Work {
     Batch(String),
     /// A statement described through `VerifyStatement::describe`.
     Describe(String),
+    /// pgorm-migration's `install`, or its reading of every migration's
+    /// status, on what the caller holds.
+    Ledger(Box<pgorm_migration::Migrations>, Ledger),
+}
+
+/// What [`Work::Ledger`] does with a migrator's ledger.
+pub(crate) enum Ledger {
+    Install,
+    Status,
 }
 
 pub(crate) type Read =
@@ -47,6 +57,8 @@ pub(crate) enum Output {
     Described(Vec<pgorm::DescribedColumn>),
     /// Each root of a grouped graph read with its slot's models.
     Grouped(Vec<(Model, Vec<Model>)>),
+    /// Each migration's name, and whether the ledger records it applied.
+    Migrations(Vec<(String, bool)>),
     Finished,
 }
 
@@ -85,6 +97,26 @@ impl Work {
             Self::Describe(sql) => pgorm_bindings::describe(db, &sql)
                 .await
                 .map(Output::Described),
+            // [spec:pgorm:req:bindings.migrations]    the runner's own install and reads
+            Self::Ledger(migrations, Ledger::Install) => {
+                migrations.install(&db).await.map(|()| Output::Finished)
+            }
+            Self::Ledger(migrations, Ledger::Status) => migrations
+                .get_migration_with_status(&db)
+                .await
+                .map(|migrations| {
+                    Output::Migrations(
+                        migrations
+                            .iter()
+                            .map(|migration| {
+                                (
+                                    migration.name().to_owned(),
+                                    migration.status() == MigrationStatus::Applied,
+                                )
+                            })
+                            .collect(),
+                    )
+                }),
         }
     }
 }

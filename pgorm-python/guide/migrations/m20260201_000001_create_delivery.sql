@@ -1,0 +1,1 @@
+CREATE TABLE "delivery" ( "id" serial NOT NULL, "order_id" integer NOT NULL, "address" text NOT NULL, PRIMARY KEY ("id"), CONSTRAINT "fk-delivery-order_id" FOREIGN KEY ("order_id") REFERENCES "order" ("id") );

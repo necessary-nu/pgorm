@@ -138,7 +138,7 @@ fn model_col(cx: &mut FunctionContext) -> NeonResult<Node> {
             .collect::<NeonResult<Vec<_>>>()?,
     };
     let kind = tag
-        .column_type(&values)
+        .column_type(&values, None)
         .or_else(|failure| throw(cx, failure))?;
     compose(cx, Recipe::Typed(table, column, kind), &[])
 }

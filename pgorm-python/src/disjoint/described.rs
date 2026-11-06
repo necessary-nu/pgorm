@@ -3,94 +3,51 @@
 use std::sync::Arc;
 
 use pgorm::{DisjointColumn, DisjointTable};
-use pgorm_bindings::entity::{
-    DescribedColumn, DescribedKey as SharedKey, DescribedTable, DisjointCore, Generated, Kinded,
-};
-use pyo3::{exceptions::PyTypeError, prelude::*, types::PyDict};
+use pgorm_bindings::entity::{DisjointCore, Kinded};
+use pyo3::{prelude::*, types::PyDict};
 
 use super::NativeDisjoint;
 use crate::{
     config::DIALECT,
-    errors::Raise,
-    values::{PyTypeName, Tag, TagPy},
+    errors::{ConstructionError, Raise},
+    schema::{DescribedKey, column_of, item, table_name},
+    values::PyTypeName,
 };
 
-fn item<'py>(table: &Bound<'py, PyDict>, key: &str) -> PyResult<Bound<'py, PyAny>> {
-    table
-        .get_item(key)?
-        .ok_or_else(|| PyTypeError::new_err(format!("a described table has a `{key}`")))
-}
-
-/// One model column, as Python describes it.
-fn column_of(column: &Bound<'_, PyAny>) -> PyResult<DisjointColumn> {
-    let described = column.cast::<PyDict>()?;
-    let name: String = item(described, "name")?.extract()?;
-    let kind = Tag::parse(&item(described, "kind")?)?;
-    let kind = match item(described, "array")?.extract::<bool>()? {
-        true => Tag::Array(Box::new(kind)),
-        false => kind,
-    };
-    let values: Option<Vec<String>> = item(described, "values")?.extract()?;
-    let generated = match item(described, "generated")?
-        .extract::<Option<String>>()?
-        .as_deref()
-    {
-        Some("always") => Some(Generated::Always),
-        Some("by_default") => Some(Generated::ByDefault),
-        Some(_) => {
-            return Err(PyTypeError::new_err(
-                "a column is generated always or by default",
-            ));
-        }
-        None => None,
-    };
-    DescribedColumn {
-        name,
-        kind,
-        values: values.unwrap_or_default(),
-        nullable: item(described, "nullable")?.extract::<bool>()?,
-        generated,
-        default: item(described, "default")?.extract::<bool>()?,
-    }
-    .column()
-    .py()
-}
-
-/// A unique key of a model's table, as Python describes it: the
-/// constraint's name or `None`, its columns' names in key order, and whether
-/// nulls are equal under it.
-type DescribedKey = (Option<String>, Vec<String>, bool);
-
 /// One model's table, as Python describes it: its schema, its name, its
-/// columns in field order, its key's columns and its unique keys.
+/// columns in field order, its key's columns and its unique keys, each column
+/// lowered as a model's schema lowers it.
 // [spec:pgorm:req:bindings.model-unique-keys+2]
 pub(crate) fn table_of(table: &Bound<'_, PyAny>) -> PyResult<DisjointTable> {
     let described = table.cast::<PyDict>()?;
-    let schema: Option<String> = item(described, "schema")?.extract()?;
-    let name: String = item(described, "table")?.extract()?;
     let columns = item(described, "columns")?
         .extract::<Vec<Bound<'_, PyAny>>>()?
         .iter()
-        .map(column_of)
+        .map(|column| {
+            let (name, def, unstated) = column_of(column)?;
+            let column = DisjointColumn::new(name, def);
+            Ok(match unstated {
+                true => column.with_unstated_default(),
+                false => column,
+            })
+        })
         .collect::<PyResult<Vec<_>>>()?;
     let key: Vec<String> = item(described, "key")?.extract()?;
+    let key: Vec<&str> = key.iter().map(String::as_str).collect();
     let unique_keys: Vec<DescribedKey> = item(described, "unique_keys")?.extract()?;
-    DescribedTable {
-        schema,
-        table: name,
-        columns,
-        key,
-        unique_keys: unique_keys
-            .into_iter()
-            .map(|(name, columns, nulls_not_distinct)| SharedKey {
-                name,
-                columns,
-                nulls_not_distinct,
-            })
-            .collect(),
+    let construction = |error: pgorm::Error| ConstructionError::new_err(error.to_string());
+    let mut table =
+        DisjointTable::new(table_name(described)?, columns, &key).map_err(construction)?;
+    if item(described, "auto_increment")?.extract::<bool>()? {
+        table = table.auto_increment();
     }
-    .table()
-    .py()
+    for (name, columns, nulls_not_distinct) in &unique_keys {
+        let columns: Vec<&str> = columns.iter().map(String::as_str).collect();
+        table = table
+            .with_unique_key(name.as_deref(), &columns, *nulls_not_distinct)
+            .map_err(construction)?;
+    }
+    Ok(table)
 }
 
 /// A model's name beside the description of its table.

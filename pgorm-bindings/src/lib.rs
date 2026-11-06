@@ -17,6 +17,7 @@ mod dialect;
 pub mod entity;
 mod failure;
 mod hook;
+mod insert;
 mod kind;
 mod listen;
 mod metrics;
@@ -31,6 +32,9 @@ pub use copy::{builtin_type, copy_column};
 pub use dialect::{Dialect, Refusal};
 pub use failure::{Class, Diagnostics, Failure, Redactions, classify};
 pub use hook::{HookCall, HookEvent, HookJob, HookJobs, hook};
+pub use insert::{
+    InsertConflict, InsertTerminal, InsertWrite, Inserted, Insertion, TryInsertTerminal, insert,
+};
 pub use kind::{CreatedKind, Tag, TypeName, labels};
 pub use listen::{ListenRequest, ListenerState, Received};
 pub use metrics::{Database, Hook, Metrics, Report, Reporter};

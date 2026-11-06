@@ -3,7 +3,7 @@
 // Generated DDL frozen as a migration written as a `.sql` file, pgorm's
 // `MigrationFile`: its text and the writing of its file are the addon's, so
 // they are pgorm's exactly, and a file once written is never written again.
-// [spec:pgorm:req:bindings.migration-file]
+// [spec:pgorm:req:bindings.migration-file+1]
 
 import { fileURLToPath } from "node:url";
 

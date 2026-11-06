@@ -21,15 +21,15 @@ use std::{any::Any, fmt::Debug, sync::Arc};
 use futures_util::future::BoxFuture;
 use pgorm::pgorm_query::{
     BinOper, CommentStatement, Condition, IndexCreateStatement, JoinType, Name, NullOrdering,
-    OnConflict, Order, SelectStatement, SimpleExpr, TableCreateStatement, Value, Values,
+    Order, SelectStatement, SimpleExpr, TableCreateStatement, Value, Values,
     extension::TypeCreateStatement,
 };
 use pgorm::{ActiveValue, Error, RelationDef};
 
 pub use adapter::{EntityAdapter, model_of};
 pub use disjoint::{
-    DescribedColumn, DescribedKey, DescribedTable, DisjointCore, Entity, EntityRow, Generated,
-    Judged, KindRow, Kinded, RowCodec, active_values, foreign_active,
+    DisjointCore, Entity, EntityRow, Judged, KindRow, Kinded, RowCodec, active_values,
+    foreign_active,
 };
 pub use graph::{
     GraphBackend, GraphBindings, GraphChange, GraphInfo, GraphQuery, GraphQueryBackend, GraphSlots,
@@ -182,42 +182,13 @@ pub enum VersionWrite {
     Changes(Vec<(String, Assignment)>, Condition),
 }
 
-/// An insert of a registration's ActiveModels: `Insert::one` of one when
-/// `one`, `Insert::many` of a batch otherwise, its conflict clause, and the
-/// terminal that runs it.
-#[derive(Clone, Debug)]
-#[allow(missing_docs)]
-pub struct Insertion {
-    /// The ActiveModels, each of the registration's own.
-    pub actives: Vec<Active>,
-    pub conflict: Option<Box<OnConflict>>,
-    /// `Insert::one` rather than `Insert::many`.
-    pub one: bool,
-    pub answer: InsertAnswer,
-}
+/// An insert of a registration's ActiveModels, the statement and terminal
+/// [`crate::insert`] runs.
+pub type Insertion = crate::Insertion<Active>;
 
-/// Which of Rust's insert terminals runs, each the row count's own: `exec`,
-/// `exec_returning_pk(s)`, `exec_returning_model(s)` or
-/// `exec_returning_upsert(s)`.
-#[derive(Clone, Copy, Debug)]
-#[allow(missing_docs)]
-pub enum InsertAnswer {
-    Count,
-    Keys,
-    Models,
-    Upserts,
-}
-
-/// What an insert's terminal gave.
-#[derive(Debug)]
-#[allow(missing_docs)]
-pub enum Insertions {
-    Count(u64),
-    /// Each written row's key, its values in the primary key's column order.
-    Keys(Vec<Vec<Value>>),
-    Models(Vec<Model>),
-    Upserts(Vec<Versions>),
-}
+/// What an insert's terminal gave, as a `TryInsertResult` says: a plain
+/// insert's always `Inserted`.
+pub type Insertions = pgorm::TryInsertResult<crate::Inserted<Model, Versions>>;
 
 /// A written row's two versions, `old` absent for a row an upsert inserted.
 #[derive(Debug)]

@@ -11,6 +11,7 @@
 //! second request while one runs, rather than queue or race it.
 
 mod frame;
+mod lend;
 mod retry;
 
 use std::{
@@ -24,6 +25,7 @@ use tokio::sync::{Mutex, OwnedMutexGuard, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
 pub use frame::begin;
+pub use lend::{Lent, lend};
 pub use retry::Retrying;
 
 use crate::{Database, Failure, Metrics, connection::ConnectionState};
@@ -108,6 +110,9 @@ pub struct State<O = ()> {
     root: Arc<Root>,
     released: CancellationToken,
     parent: Option<Weak<State<O>>>,
+    /// Whether pgorm-migration's runner opened this transaction and lends
+    /// it, so no connection of the binding's holds it.
+    lent: bool,
 }
 
 impl<O> fmt::Debug for State<O> {
@@ -182,13 +187,14 @@ impl<O: Send + Sync + 'static> State<O> {
         parent: Option<&Arc<Self>>,
     ) -> (Arc<Self>, mpsc::UnboundedReceiver<Command<O>>) {
         let root = parent.map_or_else(Arc::default, |parent| parent.root.clone());
-        Self::rooted(connection, parent, root)
+        Self::rooted(connection, parent, root, false)
     }
 
     fn rooted(
         connection: Arc<ConnectionState<O>>,
         parent: Option<&Arc<Self>>,
         root: Arc<Root>,
+        lent: bool,
     ) -> (Arc<Self>, mpsc::UnboundedReceiver<Command<O>>) {
         let (commands, receiver) = mpsc::unbounded_channel();
         let abandoned = parent.map_or_else(CancellationToken::new, |parent| {
@@ -204,6 +210,7 @@ impl<O: Send + Sync + 'static> State<O> {
                 root,
                 released: CancellationToken::new(),
                 parent: parent.map(Arc::downgrade),
+                lent,
             }),
             receiver,
         )
@@ -217,6 +224,12 @@ impl<O: Send + Sync + 'static> State<O> {
     /// The transaction a savepoint is of, or `None` for a transaction.
     pub fn parent(&self) -> Option<Arc<Self>> {
         self.parent.as_ref().and_then(Weak::upgrade)
+    }
+
+    /// Whether this is a transaction pgorm-migration's runner lent, which no
+    /// connection of the binding's opened.
+    pub fn is_lent(&self) -> bool {
+        self.lent
     }
 
     /// Whether this frame is a savepoint's rather than a transaction's.

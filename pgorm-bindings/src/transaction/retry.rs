@@ -64,7 +64,8 @@ impl<O: Send + Sync + 'static> Attempts<O> {
                 return Err(Again(false));
             }
         }
-        let (state, receiver) = State::rooted(self.connection.clone(), None, self.root.clone());
+        let (state, receiver) =
+            State::rooted(self.connection.clone(), None, self.root.clone(), false);
         let (opened, _open) = oneshot::channel();
         if self.sender.send(Ok(state.clone())).is_err() {
             return Err(Again(false));

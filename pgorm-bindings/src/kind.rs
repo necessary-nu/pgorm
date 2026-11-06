@@ -5,11 +5,11 @@
 use std::sync::Arc;
 
 use pgorm::{
-    CreatedRangeCodec,
+    ColumnTypeTrait, CreatedRangeCodec, TableColumn,
     pgorm_query::{ArrayType, ColumnType, Name, SqlName, TypeName as QueryTypeName, Value},
 };
 
-use crate::Failure;
+use crate::{Dialect, Failure};
 
 /// A PostgreSQL type named by identifier: an enum, or a range type a schema
 /// created.
@@ -149,7 +149,7 @@ impl Tag {
     /// it, as a decoded column's is compared: a scalar's name, an enum's
     /// quoted type, a created range's type and subtype, and an array's
     /// element followed by `[]`.
-    // [spec:pgorm:req:bindings.models+5]
+    // [spec:pgorm:req:bindings.models+6]
     // [spec:pgorm:req:bindings.model-records+1]
     pub fn key(&self) -> String {
         match self {
@@ -169,15 +169,27 @@ impl Tag {
         }
     }
 
-    /// The column type a model column of the kind is written with: a
-    /// scalar kind's own (`ArrayType::column_type`), an enum of the labels
-    /// `values` lists, a created range over its subtype's, and an array of
-    /// its element's.
-    pub fn column_type(&self, values: &[String]) -> Result<ColumnType, Failure> {
+    /// The column type a model column of the kind is written with: the
+    /// type it declares where it declares one, made an array where the
+    /// column is; otherwise a scalar kind's own (`ArrayType::column_type`),
+    /// an enum of the labels `values` lists, a created range over its
+    /// subtype's, and an array of its element's.
+    // [spec:pgorm:req:bindings.schema-from-model]
+    pub fn column_type(
+        &self,
+        values: &[String],
+        declared: Option<&ColumnType>,
+    ) -> Result<ColumnType, Failure> {
+        if let Some(declared) = declared {
+            return Ok(match self {
+                Self::Array(_) => ColumnType::Array(Arc::new(declared.clone())),
+                _ => declared.clone(),
+            });
+        }
         Ok(match self {
             Self::Scalar(kind) => kind.column_type().ok_or_else(|| {
                 Failure::Construction(format!(
-                    "no column decodes as `{}`, so a disjoint model's column cannot be one",
+                    "no column decodes as `{}`, so a model's column cannot be one",
                     kind.kind_name()
                 ))
             })?,
@@ -187,7 +199,7 @@ impl Tag {
                 variants: values.iter().map(Name::runtime).collect(),
             },
             Self::Created(kind) => {
-                let subtype = Arc::new(Self::Scalar(kind.subtype.clone()).column_type(&[])?);
+                let subtype = Arc::new(Self::Scalar(kind.subtype.clone()).column_type(&[], None)?);
                 let (name, schema) = (
                     Name::runtime(&kind.name.name),
                     kind.name.schema.as_ref().map(Name::runtime),
@@ -205,8 +217,35 @@ impl Tag {
                     },
                 }
             }
-            Self::Array(element) => ColumnType::Array(Arc::new(element.column_type(values)?)),
+            Self::Array(element) => ColumnType::Array(Arc::new(element.column_type(values, None)?)),
         })
+    }
+
+    /// Refuse a `column_type` the kind cannot be written as: a created
+    /// range's is its own, and an enum's is a domain over that enum alone,
+    /// which the column is read and compared as.
+    // [spec:pgorm:req:bindings.model-casts]
+    pub fn refuse_declared(&self, declared: &ColumnType, dialect: Dialect) -> Result<(), Failure> {
+        let element = match self {
+            Self::Array(element) => element,
+            other => other,
+        };
+        let option = dialect.option("column_type");
+        match element {
+            Self::Created(_) => Err(Failure::Construction(format!(
+                "a created range column's type is its kind's own: it takes no {option}"
+            ))),
+            Self::Enum(name) => {
+                let column = TableColumn::new("column", declared.clone().def());
+                match column.compares_as() == Some(name.rust_type()) {
+                    true => Ok(()),
+                    false => Err(Failure::Construction(format!(
+                        "an enum column's {option} is a domain over its enum"
+                    ))),
+                }
+            }
+            _ => Ok(()),
+        }
     }
 
     /// SQL NULL of the kind.
@@ -285,7 +324,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:req:bindings.models+5/test]    a kind is spelled as a decoded column's is
+    // [spec:pgorm:req:bindings.models+6/test]    a kind is spelled as a decoded column's is
     // compared: a scalar's name, an enum's quoted type, a created range's type and subtype,
     // and an array's element followed by `[]`
     #[test]

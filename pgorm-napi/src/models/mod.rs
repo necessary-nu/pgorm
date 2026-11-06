@@ -11,6 +11,7 @@
 
 #[cfg(test)]
 mod parity;
+mod shape;
 
 use neon::prelude::*;
 use pgorm::pgorm_query::{Asterisk, Expr, Func, Name, Query, SelectStatement, Value};
@@ -21,13 +22,15 @@ use crate::{
     values::{Tag, Tagged, read, write},
 };
 
+pub(crate) use shape::{columns, flag, names, property, table_name, text, unique_keys};
+
 pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("modelKindKey", kind_key_of_kind)?;
     cx.export_function("modelValueKey", kind_key_of_value)?;
     cx.export_function("modelReadText", read_text)?;
     cx.export_function("modelResultName", result_name)?;
     cx.export_function("modelCount", count)?;
-    Ok(())
+    shape::export(cx)
 }
 
 /// `modelKindKey(kind, array)`: the key of a declared column's kind, an

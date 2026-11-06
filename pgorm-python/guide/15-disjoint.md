@@ -205,20 +205,20 @@ deletes its kind's row with it.
 The generated columns and the kind tables' kind columns are bookkeeping: no
 model has a field for them, and no read or write names them.
 
-Here Python differs from Rust in the columns. A model's column has a kind
-and no length or precision, so its table's columns are written as the kind
-names them: `"decimal"` is `decimal` where Rust's entity says
-`decimal(10, 2)`, and `"text"` is `text` where Rust's `String` is
-`varchar`. Giving a model's column a length or a precision is not available
-in Python yet; to store the amount as `numeric(10, 2)`, change the column
-once the tables exist, with `alter_table("payment").modify_column(..)`
-([Schema generation](14-schema.md)). A key the database fills is declared
-`generated="by_default"`,
-an identity, where Rust's entity has a `serial`: a column declared
-`default=True` does not say what its default is, so `create_disjoint`
-cannot write it and refuses the table. A unique key a model declares with
-`unique_keys` is written into its table. The types the tables' other columns
-use, such as another enum, are not among the statements; create them first.
+Each table's columns are written as `from_model` writes a model's: of the
+type the kind names unless the column's `column_type` names another, so
+`"decimal"` is `decimal` here where Rust's entity says `decimal(10, 2)`, which
+`column_type=s.DataType("numeric", precision=10, scale=2)` writes, and with
+the default, generation expression or identity the column states
+([Schema generation](14-schema.md)). The base's key may be an identity,
+`generated="by_default"`, or a `serial`, `auto_increment=True`; a kind's key
+comes from its base row, so neither is allowed there. A column declared
+`default=True` does not say what its default is, so `create_disjoint` cannot
+write it and refuses the table; `default_value` or `default_expr` states one.
+A unique key a model declares with `unique_keys` is written into its table.
+The types the tables' other columns use, such as another enum, are not among
+the statements, and neither are a model's indexes and comments: `from_model`
+of the model gives those.
 
 ## Writing
 
@@ -667,10 +667,11 @@ with tempfile.TemporaryDirectory() as migrations:
     ]
 ```
 
-Each file is one migration, to run whole in a transaction of its own:
-pgorm's Rust runner lists them with `sql_migration!`, and any tool that runs
-a directory of SQL files in order runs them as well. Python has no migration
-runner of its own yet ([Migrations](22-migrations.md)).
+Each file is one migration, run whole in the batch's transaction:
+`pgorm.schema.SqlMigration.read_dir` reads the directory back for
+`Migrations` to run, its first step committing the batch before the next
+runs ([Migrations](22-migrations.md#a-migrator-built-at-run-time)), and a
+Rust migration crate lists the same files with `sql_migration!`.
 
 ## Tables pgorm did not write
 

@@ -11,7 +11,8 @@
     {"name": "app.Pallet", "rust": "courier::pallet::Entity", "typescript": "Pallet"},
     {"name": "app.Offer", "rust": "courier::offer::Entity", "typescript": "Offer"},
     {"name": "app.Auction", "rust": "courier::auction::Entity", "typescript": "Auction"},
-    {"name": "app.Sale", "rust": "courier::sale::Entity", "typescript": "Sale"}
+    {"name": "app.Sale", "rust": "courier::sale::Entity", "typescript": "Sale"},
+    {"name": "app.Label", "rust": "courier::label::Entity", "typescript": "Label"}
   ],
   "graphs": [
     {"name": "app.AccountOnly", "rust": "account_only", "typescript": "AccountOnly"},
@@ -24,5 +25,8 @@
   "disjoints": [
     {"name": "app.Deliveries", "rust": "courier::delivery::Delivery", "typescript": "Deliveries"},
     {"name": "app.Offers", "rust": "courier::offer::Offer", "typescript": "Offers"}
+  ],
+  "one_ofs": [
+    {"name": "app.LabelTarget", "rust": "courier::label::Target", "typescript": "LabelTarget"}
   ]
 }

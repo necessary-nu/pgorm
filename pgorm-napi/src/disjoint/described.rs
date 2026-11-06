@@ -4,180 +4,57 @@ use std::sync::Arc;
 
 use neon::prelude::*;
 use pgorm::{DisjointColumn, DisjointTable};
-use pgorm_bindings::entity::{
-    DescribedColumn, DescribedKey, DescribedTable, DisjointCore, Generated, Kinded,
-};
+use pgorm_bindings::entity::{DisjointCore, Kinded};
 
 use super::DisjointHandle;
 use crate::{
     codec::Codec,
     connect::DIALECT,
-    errors::throw,
+    errors::{Failure, throw},
+    models::{columns, flag, names, property, table_name, text, unique_keys},
     values::{Tag, read},
 };
 
-fn property<'cx>(
-    cx: &mut FunctionContext<'cx>,
-    object: Handle<'cx, JsObject>,
-    key: &str,
-) -> NeonResult<Handle<'cx, JsValue>> {
-    object.get_value(cx, key)
-}
-
-fn text(cx: &mut FunctionContext, value: Handle<JsValue>, what: &str) -> NeonResult<String> {
-    match value.downcast::<JsString, _>(cx) {
-        Ok(text) => Ok(text.value(cx)),
-        Err(_) => cx.throw_type_error(format!("a described table's {what} is a string")),
-    }
-}
-
-fn optional_text(
-    cx: &mut FunctionContext,
-    value: Handle<JsValue>,
-    what: &str,
-) -> NeonResult<Option<String>> {
-    if value.is_a::<JsNull, _>(cx) || value.is_a::<JsUndefined, _>(cx) {
-        return Ok(None);
-    }
-    text(cx, value, what).map(Some)
-}
-
-fn flag(cx: &mut FunctionContext, value: Handle<JsValue>) -> NeonResult<bool> {
-    match value.downcast::<JsBoolean, _>(cx) {
-        Ok(flag) => Ok(flag.value(cx)),
-        Err(_) => cx.throw_type_error("a described column's flags are booleans"),
-    }
-}
-
-/// One model column, as JavaScript describes it.
-fn column_of<'cx>(
-    cx: &mut FunctionContext<'cx>,
-    column: Handle<'cx, JsValue>,
-) -> NeonResult<DisjointColumn> {
-    let Ok(column) = column.downcast::<JsObject, _>(cx) else {
-        return cx.throw_type_error("a described column is an object");
-    };
-    let name = property(cx, column, "name")?;
-    let name = text(cx, name, "column name")?;
-    let codec = Codec::get(cx)?;
-    let kind = property(cx, column, "kind")?;
-    let kind = read::kind(cx, codec, kind)?;
-    let array = property(cx, column, "array")?;
-    let kind = match flag(cx, array)? {
-        true => Tag::Array(Box::new(kind)),
-        false => kind,
-    };
-    let values = property(cx, column, "values")?;
-    let values: Vec<String> = match values.downcast::<JsArray, _>(cx) {
-        Ok(values) => values
-            .to_vec(cx)?
-            .into_iter()
-            .map(|value| text(cx, value, "enum value"))
-            .collect::<NeonResult<_>>()?,
-        Err(_) => Vec::new(),
-    };
-    let nullable = property(cx, column, "nullable")?;
-    let nullable = flag(cx, nullable)?;
-    let generated = property(cx, column, "generated")?;
-    let generated = match optional_text(cx, generated, "generated")?.as_deref() {
-        Some("always") => Some(Generated::Always),
-        Some("byDefault") => Some(Generated::ByDefault),
-        Some(_) => return cx.throw_type_error(r#"a column is generated "always" or "byDefault""#),
-        None => None,
-    };
-    let default = property(cx, column, "default")?;
-    let default = flag(cx, default)?;
-    let described = DescribedColumn {
-        name,
-        kind,
-        values,
-        nullable,
-        generated,
-        default,
-    };
-    described.column().or_else(|failure| throw(cx, failure))
-}
-
-/// A list of names a described table gives, each a string.
-fn names<'cx>(
-    cx: &mut FunctionContext<'cx>,
-    list: Handle<'cx, JsValue>,
-    what: &str,
-) -> NeonResult<Vec<String>> {
-    let Ok(list) = list.downcast::<JsArray, _>(cx) else {
-        return cx.throw_type_error(format!("a described table's {what} is an array"));
-    };
-    list.to_vec(cx)?
-        .into_iter()
-        .map(|name| text(cx, name, what))
-        .collect()
-}
-
-/// The unique key `key` describes: `{ name, columns, nullsNotDistinct }`,
-/// its name null for PostgreSQL to choose one.
-// [spec:pgorm:req:bindings.model-unique-keys+2]
-fn unique_key<'cx>(
-    cx: &mut FunctionContext<'cx>,
-    key: Handle<'cx, JsValue>,
-) -> NeonResult<DescribedKey> {
-    let Ok(key) = key.downcast::<JsObject, _>(cx) else {
-        return cx.throw_type_error("a described unique key is an object");
-    };
-    let name = property(cx, key, "name")?;
-    let name = optional_text(cx, name, "unique key's name")?;
-    let columns = property(cx, key, "columns")?;
-    let columns = names(cx, columns, "unique key's columns")?;
-    let nulls_not_distinct = property(cx, key, "nullsNotDistinct")?;
-    let nulls_not_distinct = flag(cx, nulls_not_distinct)?;
-    Ok(DescribedKey {
-        name,
-        columns,
-        nulls_not_distinct,
-    })
-}
-
 /// One model's table, as JavaScript describes it: its schema, its name, its
-/// columns in field order, its key's columns and its unique keys.
+/// columns in field order, its key's columns and its unique keys, each column
+/// lowered as a model's schema lowers it.
 // [spec:pgorm:req:bindings.model-unique-keys+2]
 pub(crate) fn table_of<'cx>(
     cx: &mut FunctionContext<'cx>,
     table: Handle<'cx, JsValue>,
 ) -> NeonResult<DisjointTable> {
-    let Ok(table) = table.downcast::<JsObject, _>(cx) else {
+    let Ok(table_object) = table.downcast::<JsObject, _>(cx) else {
         return cx.throw_type_error("a described table is an object");
     };
-    let schema = property(cx, table, "schema")?;
-    let schema = optional_text(cx, schema, "schema")?;
-    let name = property(cx, table, "table")?;
-    let name = text(cx, name, "table")?;
-    let columns = property(cx, table, "columns")?;
-    let Ok(columns) = columns.downcast::<JsArray, _>(cx) else {
-        return cx.throw_type_error("a described table's columns are an array");
-    };
-    let columns = columns
-        .to_vec(cx)?
+    let table = table_object;
+    let columns = columns(cx, table)?
         .into_iter()
-        .map(|column| column_of(cx, column))
-        .collect::<NeonResult<Vec<_>>>()?;
+        .map(|(name, def, unstated)| {
+            let column = DisjointColumn::new(name, def);
+            match unstated {
+                true => column.with_unstated_default(),
+                false => column,
+            }
+        })
+        .collect();
     let key = property(cx, table, "key")?;
     let key = names(cx, key, "key")?;
-    let unique_keys = property(cx, table, "uniqueKeys")?;
-    let Ok(unique_keys) = unique_keys.downcast::<JsArray, _>(cx) else {
-        return cx.throw_type_error("a described table's unique keys are an array");
-    };
-    let unique_keys = unique_keys
-        .to_vec(cx)?
-        .into_iter()
-        .map(|key| unique_key(cx, key))
-        .collect::<NeonResult<Vec<_>>>()?;
-    let described = DescribedTable {
-        schema,
-        table: name,
-        columns,
-        key,
-        unique_keys,
-    };
-    described.table().or_else(|failure| throw(cx, failure))
+    let unique_keys = unique_keys(cx, table)?;
+    let name = table_name(cx, table)?;
+    let key: Vec<&str> = key.iter().map(String::as_str).collect();
+    let mut table = DisjointTable::new(name, columns, &key)
+        .or_else(|error| throw(cx, Failure::Construction(error.to_string())))?;
+    let auto_increment = property(cx, table_object, "autoIncrement")?;
+    if flag(cx, auto_increment)? {
+        table = table.auto_increment();
+    }
+    for (name, columns, nulls_not_distinct) in unique_keys {
+        let columns: Vec<&str> = columns.iter().map(String::as_str).collect();
+        table = table
+            .with_unique_key(name.as_deref(), &columns, nulls_not_distinct)
+            .or_else(|error| throw(cx, Failure::Construction(error.to_string())))?;
+    }
+    Ok(table)
 }
 
 /// A model's name beside its described table.

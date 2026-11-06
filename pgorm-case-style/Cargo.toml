@@ -1,0 +1,18 @@
+[package]
+name = "pgorm-case-style"
+version = "0.2.0"
+authors = []
+edition = "2024"
+description = "The case styles pgorm renames columns and enum values by, shared by its derives and its run-time models"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/pgorm-case-style"
+repository = "https://github.com/necessary-nu/pgorm"
+categories = ["database"]
+keywords = ["orm", "postgres"]
+rust-version = "1.89"
+
+# An ordinary library with no proc-macro dependency, so pgorm-macros renames
+# a derive's columns at compile time and pgorm renames a model's described at
+# run time by one conversion.
+[dependencies]
+heck = { version = "0.5", default-features = false }

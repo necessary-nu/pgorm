@@ -315,6 +315,17 @@ impl<O> fmt::Debug for ConnectionState<O> {
 }
 
 impl<O: Send + Sync + 'static> ConnectionState<O> {
+    /// The state of no connection the pool lent: what a transaction
+    /// pgorm-migration's runner holds and lends is served over, the runner
+    /// keeping the connection.
+    pub fn unheld(pool: Arc<PoolState<O>>) -> Arc<Self> {
+        Arc::new(Self {
+            pool,
+            closed: CancellationToken::new(),
+            slot: Arc::new(Mutex::new(None)),
+        })
+    }
+
     /// Close, returning an idle connection to the pool; one an operation
     /// holds is discarded when that operation sees the close.
     pub fn close_now(&self) {

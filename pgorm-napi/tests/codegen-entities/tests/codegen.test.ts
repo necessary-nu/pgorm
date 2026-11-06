@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
-import { createDisjoint, Decimal, pipeline as pl, Pool, Uuid } from "../lib/index.js";
+import { createDisjoint, Decimal, OneOfEntity, pipeline as pl, Pool, Uuid } from "../lib/index.js";
 import {
   Account,
   AccountNotes,
@@ -22,6 +22,7 @@ import {
   Pallet,
   Parcel,
   Sample,
+  LabelTarget,
 } from "../lib/app.js";
 import { typed } from "./consumer.ts";
 import { scratchDatabase } from "./support.ts";
@@ -127,4 +128,12 @@ test("a generated disjoint enum's rows read and write as its declarations type t
   const offered = await Offers.find().orderBy(Offer.col("id").asc()).all(pool());
   assert.deepStrictEqual(offered, [[{ id: 1, title: "lamp" }, "auction", { offer_id: 1, reserve: 50 }], [{ id: 2, title: "desk" }, "draft", null]]);
   assert.throws(() => createDisjoint(Offers as never), /read-only/);
+});
+
+// [spec:pgorm:req:bindings.codegen-coverage/test]    a generated one-of reference is the registered enum's, its targets as the enum declares them
+test("a generated one-of reference is the registered enum", () => {
+  assert.ok(LabelTarget instanceof OneOfEntity);
+  const described = LabelTarget.describe();
+  assert.equal(described.name, "app.LabelTarget");
+  assert.deepStrictEqual(described.targets.map((target) => target.field), ["parcel_id", "pallet_id"]);
 });

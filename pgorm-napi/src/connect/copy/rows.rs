@@ -10,7 +10,7 @@ use std::sync::{
 
 use bytes::BytesMut;
 use neon::{prelude::*, types::JsUint8Array};
-use pgorm::{CopyColumn, CopyRowDecoder, CopyRowEncoder, CopyTrait};
+use pgorm::{CopyColumn, CopyRowDecoder, CopyRowEncoder, CopyTrait, pgorm_query::ArrayType};
 use tokio::sync::oneshot;
 
 use super::{OutState, Pull, abort_argument, in_state, out_state};
@@ -20,7 +20,7 @@ use crate::{
     errors::{Failure, throw},
     params, settle,
     statements::{CopyFrom, CopyTo, copy_from_at, copy_to_at},
-    values::{Tagged, read::refuse, write},
+    values::{Tag, Tagged, read::refuse, write},
 };
 
 /// A COPY of rows' writing side: the encoder over the columns its session
@@ -168,11 +168,63 @@ pub(super) fn encode_row<'cx>(
     let Ok(row) = row.downcast::<JsArray, _>(cx) else {
         return cx.throw_type_error("a COPY row is an array of its columns' values");
     };
-    let params = params::read(cx, codec, row)?;
+    let params = row_params(cx, codec, row, encoder.columns())?;
     match encoder.encode(&params, out) {
         Ok(()) => Ok(()),
         Err(error) => refuse(cx, refusal(error)),
     }
+}
+
+/// One COPY row's values, read as parameters are — null as NULL, a plain
+/// value by its inferred kind, a `Value` by its own — except where its
+/// column's kind says more: a json column's value, or a json array's, is
+/// read as JSON whatever it holds, and a value inference cannot type, an
+/// array holding no element or only nulls, a `Range` or a `Multirange`, as
+/// its column's kind. So a row `copyOutRows` read writes back. Where neither
+/// reads it, inference's refusal is the one thrown.
+// [spec:pgorm:req:bindings.copy-rows.typed]
+fn row_params<'cx>(
+    cx: &mut FunctionContext<'cx>,
+    codec: Codec<'cx>,
+    row: Handle<'cx, JsArray>,
+    columns: &[CopyColumn],
+) -> NeonResult<Vec<params::Param>> {
+    let items = row.to_vec(cx)?;
+    let mut read = Vec::with_capacity(items.len());
+    for (at, item) in items.into_iter().enumerate() {
+        let tag =
+            columns
+                .get(at)
+                .and_then(CopyColumn::value_kind)
+                .map(|(kind, array)| match array {
+                    true => Tag::Array(Box::new(Tag::Scalar(kind))),
+                    false => Tag::Scalar(kind),
+                });
+        // Any JSON value is a json column's, a number or an array included,
+        // which inference would read as numbers and arrays.
+        let json = matches!(&tag, Some(Tag::Scalar(ArrayType::Json)))
+            || matches!(&tag, Some(Tag::Array(element)) if **element == Tag::Scalar(ArrayType::Json));
+        let datum = match (json, &tag) {
+            (true, Some(tag)) => Some(crate::values::read::tagged(cx, codec, item, tag)?.datum),
+            _ => match cx.try_catch(|cx| crate::values::read::infer(cx, codec, item)) {
+                Ok(inferred) => inferred.map(|value| value.datum),
+                Err(refusal) => {
+                    let Some(tag) = &tag else {
+                        return cx.throw(refusal);
+                    };
+                    match cx.try_catch(|cx| crate::values::read::tagged(cx, codec, item, tag)) {
+                        Ok(value) => Some(value.datum),
+                        Err(_) => return cx.throw(refusal),
+                    }
+                }
+            },
+        };
+        read.push(match datum {
+            None => params::Param::Null,
+            Some(value) => params::Param::Value(pgorm::ValueHolder(value)),
+        });
+    }
+    Ok(read)
 }
 
 /// The data a decoder was given refused as not the binary format, or as

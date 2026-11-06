@@ -8,7 +8,9 @@ import unittest
 import pgorm as p
 from pgorm import pipeline as pl
 from pgorm import schema as s
-from pgorm._registered.versions import InsertManyView, InsertView, UpdateManyView, UpdateView
+from pgorm._registered.versions import (
+    InsertManyView, InsertView, TryInsertManyView, TryInsertView, UpdateManyView, UpdateView,
+)
 
 
 class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
@@ -76,6 +78,8 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             "insert.execute", "insert.returning_pk", "insert.returning_model", "insert.returning_upsert",
             "insert_many.execute", "insert_many.returning_pks", "insert_many.returning_models",
             "insert_many.returning_upserts",
+            "try_insert.execute", "try_insert.returning_pk", "try_insert.returning_model",
+            "try_insert_many.execute", "try_insert_many.returning_pks", "try_insert_many.returning_models",
         ]
         operations = p.capabilities()["operations"]
         self.assertEqual([t for t in terminals if "entity." + t not in operations], [])
@@ -84,6 +88,8 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             "": self.account.find(), "active": active, "update": self.account.update(active),
             "update_many": self.account.update_many(), "insert": self.account.insert(active),
             "insert_many": self.account.insert_many([active]),
+            "try_insert": self.account.insert(active).on_conflict_do_nothing(),
+            "try_insert_many": self.account.insert_many([active]).on_empty_do_nothing(),
         }
         for terminal in terminals:
             owner, _, method = terminal.rpartition(".")
@@ -94,9 +100,11 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
     async def test_write_terminals_refuse_truth_testing(self):
         active = self.active(1)
         writes = [self.account.update(active), self.account.update_many(),
-                  self.account.insert(active), self.account.insert_many([active])]
+                  self.account.insert(active), self.account.insert_many([active]),
+                  self.account.insert(active).on_conflict_do_nothing(),
+                  self.account.insert_many([active]).on_empty_do_nothing()]
         typed = [view(write, dict) for view, write in zip(
-            (UpdateView, UpdateManyView, InsertView, InsertManyView), writes)]
+            (UpdateView, UpdateManyView, InsertView, InsertManyView, TryInsertView, TryInsertManyView), writes)]
         for write in writes + typed:
             with self.subTest(write=type(write).__name__), self.assertRaises(p.ConstructionError):
                 bool(write)

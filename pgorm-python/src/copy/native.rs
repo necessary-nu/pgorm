@@ -35,8 +35,9 @@ use crate::{
     results::{Field, PyRecord, value},
     runtime::{ConnectionState, Held, Operation},
     transactions::{Lease, State},
-    values::PyValue,
+    values::{PyValue, Tag},
 };
+use pgorm::pgorm_query::ArrayType;
 
 /// A hook's connection runs statements only, and `Target::extract` never
 /// gives one: a COPY's target is a connection or a transaction.
@@ -429,9 +430,18 @@ pub(super) fn refusal(error: Error) -> String {
     }
 }
 
-/// One COPY row's values, read from a Python sequence as parameters are:
-/// `None` is NULL, anything else a value whose kind is inferred.
-pub(super) fn row_values(row: &Bound<'_, PyAny>) -> PyResult<Vec<Option<ValueHolder>>> {
+/// One COPY row's values, read from a Python sequence as parameters are —
+/// `None` is NULL, anything else a value whose kind is inferred — except
+/// where its column's kind says more: a json column's value, or a json
+/// array's, is read as JSON whatever it holds, and a value inference cannot
+/// type, an empty list, a list of `None`s, a `Range` or a `Multirange`, as
+/// its column's kind. So a row `copy_out_rows` read writes back. Where
+/// neither reads it, inference's refusal is the one raised.
+// [spec:pgorm:req:bindings.copy-rows.typed]
+pub(super) fn row_values(
+    row: &Bound<'_, PyAny>,
+    columns: &[pgorm::CopyColumn],
+) -> PyResult<Vec<Option<ValueHolder>>> {
     if row.is_instance_of::<PyString>()
         || row.is_instance_of::<PyBytes>()
         || row.is_instance_of::<PyByteArray>()
@@ -447,13 +457,32 @@ pub(super) fn row_values(row: &Bound<'_, PyAny>) -> PyResult<Vec<Option<ValueHol
         .map_err(|_| PyTypeError::new_err("a COPY row is a sequence of its columns' values"))?
         .try_iter()?;
     items
-        .map(|item| {
+        .enumerate()
+        .map(|(at, item)| {
             let item = item?;
             if item.is_none() {
-                Ok(None)
-            } else {
-                PyValue::coerce(&item).map(|value| Some(ValueHolder(value.inner)))
+                return Ok(None);
             }
+            let kind = columns.get(at).and_then(pgorm::CopyColumn::value_kind);
+            let as_column = |(kind, array): &(ArrayType, bool)| match array {
+                true => PyValue::array_of(Tag::Scalar(kind.clone()), &item),
+                false => PyValue::convert(&item, Tag::Scalar(kind.clone())),
+            };
+            // Any JSON value is a json column's, a number or a list
+            // included, which inference would read as numbers and arrays.
+            if let Some(json @ (ArrayType::Json, _)) = &kind {
+                return as_column(json).map(|value| Some(ValueHolder(value.inner)));
+            }
+            let inferred = match PyValue::coerce(&item) {
+                Ok(value) => return Ok(Some(ValueHolder(value.inner))),
+                Err(refused) => refused,
+            };
+            let Some(kind) = &kind else {
+                return Err(inferred);
+            };
+            as_column(kind)
+                .map(|value| Some(ValueHolder(value.inner)))
+                .map_err(|_| inferred)
         })
         .collect()
 }
@@ -501,7 +530,7 @@ impl NativeCopyIn {
         let encoder = CopyRowEncoder::new(described(&state.columns)?.to_vec());
         let mut out = BytesMut::new();
         for row in rows.try_iter()? {
-            let values = row_values(&row?)?;
+            let values = row_values(&row?, encoder.columns())?;
             let mut encoded = BytesMut::new();
             encoder
                 .encode(&values, &mut encoded)

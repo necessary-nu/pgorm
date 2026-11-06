@@ -56,32 +56,6 @@ def _model(value: object, what: str) -> Model:
     return value
 
 
-# [spec:pgorm:req:bindings.model-unique-keys+2]
-def _table(model: Model) -> dict[str, Any]:
-    """A model's table as the native shape is described from."""
-    return {
-        "schema": model.table.schema,
-        "table": model.table.name,
-        "columns": [
-            {
-                "name": column.name,
-                "kind": column.kind,
-                "array": column.array,
-                "nullable": column.nullable,
-                "default": column.default,
-                "generated": column.generated,
-                "values": None if column.values is None else list(column.values),
-            }
-            for column in model.columns.values()
-        ],
-        "key": [model._sql(field) for field in model.primary_key],
-        "unique_keys": [
-            (key.name, [model._sql(field) for field in key.fields], key.nulls_not_distinct)
-            for key in model._unique_keys
-        ],
-    }
-
-
 def _pairs(model: Model, values: Mapping[str, Any] | None) -> list[tuple[str, p.Value]] | None:
     """``values`` as the ``(column, Value)`` pairs a write gives the model's
     table, each converted through its field's declared kind."""
@@ -184,7 +158,7 @@ class Disjoint(_Disjoint[ModelRow], Generic[W]):
             if model is not None:
                 model = _model(model, f"the kind {value!r}'s model")
             held[value] = model
-            described.append((value, None if model is None else (model.table.name, _table(model))))
+            described.append((value, None if model is None else (model.table.name, model._described())))
         kinded: tuple[str, str, p.TypeName] | None = None
         if not unkinded:
             if kind not in base.columns:
@@ -198,7 +172,7 @@ class Disjoint(_Disjoint[ModelRow], Generic[W]):
                 p.TypeName(f"{name}_kind" if enum_name is None else enum_name, schema=schema_name),
             )
         object.__setattr__(self, "_native", p._disjoint_model(
-            name, (base.table.name, _table(base)), kinded, described,
+            name, (base.table.name, base._described()), kinded, described,
         ))
         object.__setattr__(self, "base", base)
         object.__setattr__(self, "kinds", held)
