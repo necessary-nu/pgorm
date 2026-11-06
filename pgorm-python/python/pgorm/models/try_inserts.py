@@ -85,7 +85,7 @@ class _Tried[I: (ModelInsert, ModelInsertMany)]:
         if self._empty():
             return TryInsertResult.Empty()
         count = await db.execute(written(self.insert.statement))
-        if count == 0 and self.insert.conflict:
+        if count == 0 and self.insert.conflict is not None:
             return TryInsertResult.Conflicted()
         return TryInsertResult.Inserted(count)
 
@@ -104,7 +104,7 @@ class ModelTryInsert(_Tried[ModelInsert]):
         """A RETURNING list of ``fields``, every field when it names none,
         whose ``one`` answers with the row written, as pgorm's
         ``exec_returning_model`` does."""
-        return ModelTryRow(self.insert.returning(*fields), self._empty(), self.insert.conflict)
+        return ModelTryRow(self.insert.returning(*fields), self._empty(), self.insert.conflict is not None)
 
 
 # [spec:pgorm:req:bindings.model-try-inserts]
@@ -118,7 +118,7 @@ class ModelTryInsertMany(_Tried[ModelInsertMany]):
         """A RETURNING list of ``fields``, every field when it names none,
         whose ``all`` answers with the rows written, as pgorm's
         ``exec_returning_models`` does."""
-        return ModelTryRows(self.insert.returning(*fields), self._empty(), self.insert.conflict)
+        return ModelTryRows(self.insert.returning(*fields), self._empty(), self.insert.conflict is not None)
 
 
 @dataclass(frozen=True, eq=False, slots=True)

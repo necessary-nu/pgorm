@@ -1,4 +1,5 @@
 use super::selected_backend::{Query, Terminal};
+use crate::panics::future_into_py;
 use crate::{
     errors::InternalError,
     execution::Executor,
@@ -8,7 +9,6 @@ use pyo3::{
     prelude::*,
     types::{PyList, PyTuple},
 };
-use pyo3_async_runtimes::tokio::future_into_py;
 
 // [spec:pgorm:req:bindings.pipeline-sources+3]
 pub(super) fn read<'py>(

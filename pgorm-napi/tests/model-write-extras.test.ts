@@ -125,7 +125,7 @@ test("an update reads another table through from, a delete through using", async
     .where(Shop.col("city").eq("Oslo"));
   assert.equal(
     raised.inspect().sql,
-    `UPDATE "wx"."item" SET "price" = "item"."price" + $1 FROM "wx"."shop" WHERE "item"."shop_id" = "shop"."id" AND "shop"."city" = $2`,
+    `UPDATE "wx"."item" SET "price" = "item"."price" + $1::int4 FROM "wx"."shop" WHERE "item"."shop_id" = "shop"."id" AND "shop"."city" = $2`,
   );
   assert.equal(await raised.execute(pool()), 2);
   assert.deepEqual((await Item.select("price").orderBy(Item.col("id").asc()).all(pool())).map((row) => row.price), [11, 21, 30]);

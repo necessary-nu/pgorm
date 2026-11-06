@@ -4,7 +4,7 @@
 // whose terminals decode each returned row into a record, and the list of a
 // written row's two versions, as pgorm's `exec_returning_change(s)` and
 // `exec_returning_upsert(s)` read them.
-// [spec:pgorm:req:bindings.model-writes+2]
+// [spec:pgorm:req:bindings.model-writes+3]
 
 import { ConstructionError, DecodeError } from "./errors.js";
 import { col } from "./expressions.js";

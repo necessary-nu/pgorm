@@ -1,11 +1,11 @@
 use super::backend::Query;
+use crate::panics::future_into_py;
 use crate::{
     errors::{ConstructionError, InternalError},
     execution::Executor,
     transactions::work::{Output, Work},
 };
 use pyo3::{prelude::*, types::PyList};
-use pyo3_async_runtimes::tokio::future_into_py;
 
 pub(crate) enum Read {
     All,

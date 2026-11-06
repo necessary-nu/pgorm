@@ -2,6 +2,7 @@ use super::{
     backend::{Change, Query},
     cursor::PyEntityGraphCursor,
 };
+use crate::panics::future_into_py;
 use crate::{
     entities::{
         reads::NativeRowDecoder,
@@ -19,7 +20,6 @@ use pyo3::{
     prelude::*,
     types::{PyInt, PyTuple},
 };
-use pyo3_async_runtimes::tokio::future_into_py;
 
 #[derive(Clone, Debug)]
 #[pyclass(name = "EntityGraphQuery", module = "pgorm", frozen, from_py_object)]

@@ -61,7 +61,7 @@ class ResultTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(field.column_id, 1)
 
     # [spec:pgorm:req:bindings.rows/test]
-    # [spec:pgorm:req:python.records/test]
+    # [spec:pgorm:req:python.records+1/test]
     async def test_records_are_detached_and_keep_unique_names(self):
         row = await self.pool.one(p.Select(p.bind(7).cast(p.TypeName("int8", schema="pg_catalog")).as_("num"), p.bind("text").as_("name")))
         await self.pool.close()
@@ -246,6 +246,27 @@ class ResultTests(unittest.IsolatedAsyncioTestCase):
             await self.pool.query("SELECT 1")
         row = await self.pool.one(p.Select(p.literal("O'Brien").as_("value")).inspect())
         self.assertEqual(row["value"], "O'Brien")
+
+    # [spec:pgorm:sem:error.model.parameter-count/test]    another number of values than the placeholders take is the caller's ConstructionError
+    async def test_raw_parameter_count_is_refused(self):
+        with self.assertRaises(p.ConstructionError) as caught:
+            await self.pool.one(p.RawSQL("SELECT $1 AS x, $2 AS y", [1]))
+        self.assertEqual(str(caught.exception), "the statement takes 2 parameters, and 1 was given")
+        with self.assertRaises(p.ConstructionError) as caught:
+            await self.pool.execute(p.RawSQL("SELECT 1", [1, 2]))
+        self.assertEqual(str(caught.exception), "the statement takes 0 parameters, and 2 were given")
+        self.assertEqual((await self.pool.one(p.RawSQL("SELECT 1 AS n")))["n"], 1)
+
+    # [spec:pgorm:req:conn.copy.statement/test]    a COPY given as a statement is the caller's ConstructionError, nothing sent
+    async def test_copy_as_statement_is_refused(self):
+        for run in (
+            lambda: self.pool.query(p.RawSQL("COPY (SELECT 1) TO STDOUT")),
+            lambda: self.pool.execute(p.RawSQL("/* rows */ copy pg_class FROM STDIN")),
+        ):
+            with self.assertRaises(p.ConstructionError) as caught:
+                await run()
+            self.assertIn("copy_in or copy_out", str(caught.exception))
+        self.assertEqual((await self.pool.one(p.RawSQL("SELECT 'COPY' AS copy")))["copy"], "COPY")
 
     # [spec:pgorm:req:bindings.value-tags+1/test]
     async def test_absent_join_keeps_typed_null_fields(self):

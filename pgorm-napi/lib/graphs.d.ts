@@ -43,16 +43,28 @@ export interface GraphJoinOptions {
  * decoded as a record or `null` where it matched nothing, and `via` a LEFT
  * JOIN of a table no record reads. A present slot whose record does not
  * decode is a {@link DecodeError}, never an absent one.
+ *
+ * `Sliced` records whether `limit` or `offset` has cut the read to a window
+ * of rows: `false` until one is called, `true` after, whatever value it was
+ * given. A sliced graph has no `count`, `allGrouped`, `cursor`, `cursorOn`
+ * or `paginate`, the reads that decide the row range themselves, as pgorm's
+ * `Sliced` graph has none of them: calling one is a type error, and a
+ * {@link ConstructionError} where the types are not checked.
  */
-export declare class Graph<S extends readonly Model<any>[], I extends readonly unknown[]> {
+export declare class Graph<S extends readonly Model<any>[], I extends readonly unknown[], Sliced extends boolean = false> {
   private constructor();
+  /** Whether `limit` or `offset` has sliced it, for the type checker alone. */
+  private readonly sliced: Sliced;
   /** A slot that must match. */
-  joinOne<T extends Model<any>>(relation: Relation<any, T, any>, options?: GraphJoinOptions): Graph<[...S, T], [...I, RowOf<T>]>;
+  joinOne<T extends Model<any>>(
+    relation: Relation<any, T, any>,
+    options?: GraphJoinOptions,
+  ): Graph<[...S, T], [...I, RowOf<T>], Sliced>;
   /** A slot that may be absent. */
   joinMaybe<T extends Model<any>>(
     relation: Relation<any, T, any>,
     options?: GraphJoinOptions,
-  ): Graph<[...S, T], [...I, RowOf<T> | null]>;
+  ): Graph<[...S, T], [...I, RowOf<T> | null], Sliced>;
   /**
    * A slot that may be absent, `condition` — given the two ends as the join
    * names them — ANDed into the join's ON, as pgorm's `join_maybe_filtered`
@@ -63,33 +75,37 @@ export declare class Graph<S extends readonly Model<any>[], I extends readonly u
     relation: Relation<F, T, any>,
     condition: (from: F, to: T) => Predicate,
     options?: GraphJoinOptions,
-  ): Graph<[...S, T], [...I, RowOf<T> | null]>;
+  ): Graph<[...S, T], [...I, RowOf<T> | null], Sliced>;
   /** A hop no record reads: a junction table, a step of a chain. */
-  via(relation: Relation<any, any, any>, options?: GraphJoinOptions): Graph<S, I>;
+  via(relation: Relation<any, any, any>, options?: GraphJoinOptions): Graph<S, I, Sliced>;
   /**
    * A slot that must match along `path`: a relation, as `joinOne` joins it,
    * or a related path, its junction INNER JOINed and its far end the slot,
    * as pgorm's `related_one` folds a `Related` path in.
    */
-  relatedOne<T extends Model<any>>(path: Relation<any, T, any> | Related<any, T>): Graph<[...S, T], [...I, RowOf<T>]>;
+  relatedOne<T extends Model<any>>(path: Relation<any, T, any> | Related<any, T>): Graph<[...S, T], [...I, RowOf<T>], Sliced>;
   /**
    * A slot that may be absent along `path`: a relation, as `joinMaybe` joins
    * it, or a related path, its junction a `via` hop and its far end the
    * slot, as pgorm's `related_maybe` folds a `Related` path in.
    */
-  relatedMaybe<T extends Model<any>>(path: Relation<any, T, any> | Related<any, T>): Graph<[...S, T], [...I, RowOf<T> | null]>;
+  relatedMaybe<T extends Model<any>>(
+    path: Relation<any, T, any> | Related<any, T>,
+  ): Graph<[...S, T], [...I, RowOf<T> | null], Sliced>;
   /** A column of decoded source `source` — 0 the root, i the i-th slot — qualified as it is named. */
   col<N extends Indexes<S>, F extends FieldOf<ColumnsOf<S[N]>>>(source: N, field: F): ColumnOf<ColumnsOf<S[N]>, F>;
-  where(predicate: Predicate): Graph<S, I>;
-  orderBy(...orderings: OrderBy[]): Graph<S, I>;
-  limit(count: number | bigint | null): Graph<S, I>;
-  offset(count: number | bigint | null): Graph<S, I>;
+  where(predicate: Predicate): Graph<S, I, Sliced>;
+  orderBy(...orderings: OrderBy[]): Graph<S, I, Sliced>;
+  /** At most `count` rows of the join, not roots, or with `null` no limit; either way sliced. */
+  limit(count: number | bigint | null): Graph<S, I, true>;
+  /** The rows of the join after the first `count`, or with `null` all; either way sliced. */
+  offset(count: number | bigint | null): Graph<S, I, true>;
   /** The SELECT it runs, every source projected under its prefix: `s0_` the root, `s{i}_` the i-th slot. */
   readonly statement: Select;
-  /** The SQL and values it runs, or the ones `count` or `allGrouped` runs. */
+  /** The SQL and values it runs, or the ones `count` or `allGrouped` runs, which a sliced graph refuses. */
   inspect(terminal?: "count" | "allGrouped"): Compiled;
-  /** How many rows it reads, limit and offset aside. */
-  count(db: Queryable, options?: OperationOptions): Promise<number>;
+  /** How many rows it reads. */
+  count(this: Graph<S, I, false>, db: Queryable, options?: OperationOptions): Promise<number>;
   all(db: Queryable, options?: OperationOptions): Promise<GraphItem<I>[]>;
   one(db: Queryable, options?: OperationOptions): Promise<GraphItem<I>>;
   optional(db: Queryable, options?: OperationOptions): Promise<GraphItem<I> | null>;
@@ -100,6 +116,7 @@ export declare class Graph<S extends readonly Model<any>[], I extends readonly u
    * the decoded root's key.
    */
   allGrouped(
+    this: Graph<S, I, false>,
     db: Queryable,
     options?: OperationOptions,
   ): Promise<I extends readonly [infer R, infer T] ? [R, Exclude<T, null>[]][] : never>;
@@ -108,6 +125,7 @@ export declare class Graph<S extends readonly Model<any>[], I extends readonly u
    * and each slot's following as tiebreaks.
    */
   cursor<const F extends readonly [FieldOf<ColumnsOf<S[0]>>, ...FieldOf<ColumnsOf<S[0]>>[]]>(
+    this: Graph<S, I, false>,
     ...fields: F
   ): Cursor<GraphItem<I>, KeyInputs<ColumnsOf<S[0]>, F>>;
   /**
@@ -118,9 +136,9 @@ export declare class Graph<S extends readonly Model<any>[], I extends readonly u
   cursorOn<
     N extends Exclude<Indexes<S>, 0>,
     const F extends readonly [FieldOf<ColumnsOf<S[N]>>, ...FieldOf<ColumnsOf<S[N]>>[]],
-  >(source: N, ...fields: F): Cursor<GraphItem<I>, KeyInputs<ColumnsOf<S[N]>, F>>;
+  >(this: Graph<S, I, false>, source: N, ...fields: F): Cursor<GraphItem<I>, KeyInputs<ColumnsOf<S[N]>, F>>;
   /** Pages of `pageSize` rows, a boundary falling between rows rather than roots. */
-  paginate(pageSize: number): Paginator<GraphItem<I>>;
+  paginate(this: Graph<S, I, false>, pageSize: number): Paginator<GraphItem<I>>;
 }
 
 /**

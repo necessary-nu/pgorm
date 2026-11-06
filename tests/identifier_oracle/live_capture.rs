@@ -431,7 +431,7 @@ async fn capture(run: Pin<Box<dyn Future<Output = Reached> + '_>>) -> Result<Vec
                 *lines = theirs;
                 mine.into_iter()
                     .map(|(_, sql)| sql)
-                    .filter(|sql| !is_catalogue(sql))
+                    .filter(|sql| !is_catalogue(sql) && !is_commit(sql))
                     .collect::<Vec<_>>()
             },
         )
@@ -601,4 +601,11 @@ async fn hold_site(live: &LiveSite, url: &str) -> Vec<String> {
 /// site.
 fn is_catalogue(sql: &str) -> bool {
     sql.contains("pg_catalog.pg_type") || sql.contains("FROM pg_catalog.pg_enum")
+}
+
+/// pgorm-pool's commit of a transaction, `SELECT; COMMIT` in one simple
+/// query (`conn.tx.aborted`): fixed text naming nothing, and two statements,
+/// which no site's statement is.
+fn is_commit(sql: &str) -> bool {
+    sql == "SELECT; COMMIT"
 }

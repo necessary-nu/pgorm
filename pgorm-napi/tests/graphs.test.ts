@@ -84,6 +84,8 @@ test("load reads every row's far end in one query, a list for hasMany and a reco
   // A key nothing at the far end matches reads as null, as pgorm's load_one reads it.
   assert.deepStrictEqual((await editor.load(pool(), authored)).map((account) => account?.name ?? null), ["Bob", null, null]);
   assert.deepStrictEqual(await posts.load(pool(), []), []);
+  // [spec:pgorm:req:bindings.argument-errors+1/test]    an option load does not know is refused, not left out
+  await assert.rejects(posts.load(pool(), accounts, { sginal: undefined } as never), TypeError);
   const twice = Account.hasOne(Post, { from: "id", to: "authorId" });
   await assert.rejects(
     twice.load(pool(), accounts),
@@ -161,6 +163,27 @@ test("allGrouped gathers each root's slot records, ordered by the graph and then
     keyless.graph().joinMaybe(keyless.hasMany(Post, { from: "name", to: "title" })).allGrouped(pool()),
     refused(/no.* primary key|none of/),
   );
+});
+
+// [spec:pgorm:req:bindings.graphs+1/test]
+test("a sliced graph refuses the reads that decide its rows themselves", async () => {
+  const graph = Account.graph().joinMaybe(posts).orderBy(byAccount, byPost);
+  for (const sliced of [graph.limit(2), graph.offset(1), graph.limit(null), graph.limit(2).where(Account.col("id").gt(0))]) {
+    // @ts-expect-error a sliced graph has no allGrouped
+    await assert.rejects(sliced.allGrouped(pool()), refused(/a graph cut by limit or offset has no allGrouped/));
+    // @ts-expect-error a sliced graph has no count
+    await assert.rejects(sliced.count(pool()), refused(/has no count/));
+    // @ts-expect-error a sliced graph has no cursor
+    assert.throws(() => sliced.cursor("name"), refused(/has no cursor/));
+    // @ts-expect-error a sliced graph has no cursorOn
+    assert.throws(() => sliced.cursorOn(1, "title"), refused(/has no cursorOn/));
+    // @ts-expect-error a sliced graph has no paginate
+    assert.throws(() => sliced.paginate(2), refused(/has no paginate/));
+    assert.throws(() => sliced.inspect("count"), refused(/has no count/));
+    assert.throws(() => sliced.inspect("allGrouped"), refused(/has no allGrouped/));
+  }
+  const rows = await graph.limit(2).all(pool());
+  assert.deepStrictEqual(rows.map(([account, post]) => [account.name, post?.title]), [["Ann", "a1"], ["Ann", "a2"]]);
 });
 
 // [spec:pgorm:req:bindings.cursors+1/test]

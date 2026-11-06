@@ -85,7 +85,7 @@ class Construction(unittest.TestCase):
         )
         self.assertEqual(
             raised.inspect().sql,
-            f'UPDATE "{SCHEMA}"."item" SET "price" = "item"."price" + $1 FROM "{SCHEMA}"."shop" '
+            f'UPDATE "{SCHEMA}"."item" SET "price" = "item"."price" + $1::int4 FROM "{SCHEMA}"."shop" '
             'WHERE "item"."shop_id" = "shop"."id" AND "shop"."city" = $2',
         )
         gone = Item.delete().using(Shop.as_("s")).where(Item.col("shop_id") == Shop.as_("s").col("id"))

@@ -91,6 +91,10 @@ async def invalid(connection: p.Connection) -> None:
     accounts.find().join(accounts.col("id"))  # expected-error: arg-type
     accounts.col("id").between(1, 2, symmetric="yes")  # expected-error: arg-type
     rows: list[p.ModelRecord] = await accounts.graph().all_grouped(connection)  # expected-error: assignment
+    await accounts.graph().limit(2).all_grouped(connection)  # expected-error: misc
+    await accounts.graph().offset(None).count(connection)  # expected-error: misc
+    accounts.graph().limit(2).cursor("id")  # expected-error: misc
+    accounts.graph().where(accounts.col("id") == 1).offset(1).paginate(10)  # expected-error: misc
     # [spec:pgorm:req:bindings.relations+1/test]    a relation's condition type is a closed choice, and a load's query a model query
     selves = accounts.has_many(accounts, from_="id", to="id")
     accounts.has_many(accounts, from_="id", to="id", condition_type="either")  # expected-error: arg-type
@@ -102,6 +106,7 @@ async def invalid(connection: p.Connection) -> None:
     accounts.linked(selves).hop("r0")  # expected-error: arg-type
     # [spec:pgorm:req:bindings.cursors+1/test]    a slot cursor's source is its index
     accounts.graph().join_one(selves).cursor_on("1", "id")  # expected-error: arg-type
+    accounts.graph().join_one(selves).limit(2).cursor_on(1, "id")  # expected-error: misc
     # [spec:pgorm:req:bindings.model-hooks/test]    a model's hooks are the four named functions, and a record write takes its database
     p.Model("accounts", {"id": p.Column("i64", primary_key=True)}, hooks={"before_insert": lambda values, insert: values})  # expected-error: arg-type
     await accounts.active({"id": 1}).insert()  # expected-error: call-arg
@@ -126,7 +131,7 @@ async def invalid(connection: p.Connection) -> None:
     delete.on_conflict(p.Conflict.do_nothing())  # expected-error: attr-defined
     await delete.all_rows().returning_changes(connection)  # expected-error: attr-defined
     delete.inspect(terminal="returning_change")  # expected-error: call-arg
-    # [spec:pgorm:req:bindings.model-writes+2/test]    a model's insert is typed by its row count, each with its own upsert terminal alone
+    # [spec:pgorm:req:bindings.model-writes+3/test]    a model's insert is typed by its row count, each with its own upsert terminal alone
     await insert.returning_upserts(connection)  # expected-error: attr-defined
     insert.inspect(terminal="returning_upserts")  # expected-error: arg-type
     batch = accounts.insert_many([{"id": 1}])

@@ -3,7 +3,6 @@ from typing import Any, Generic, Self, TypeVar
 from .. import _native as native_types
 from ..runtime import Connection, Pool
 from ..transactions import Transaction
-from .versions import Change as Change, Inserted as Inserted, Updated as Updated
 from .versions import InsertManyView, InsertView, UpdateManyView, UpdateView
 from .reads import CursorView, PaginatorView
 from ..results import RowStream

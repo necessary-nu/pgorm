@@ -5,13 +5,10 @@ from typing import Any, Generic, TypeVar
 
 from .. import _native as native_types
 from .versions import (
-    Change,
     InsertManyView,
     InsertView,
-    Inserted,
     UpdateManyView,
     UpdateView,
-    Updated,
 )
 
 M = TypeVar("M", bound="ModelView")

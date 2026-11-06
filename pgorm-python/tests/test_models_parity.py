@@ -146,7 +146,7 @@ class ModelParity(unittest.TestCase):
         self.assertEqual(sorted(CASES), sorted(GOLDEN))
 
     # [spec:pgorm:req:bindings.model-reads/test]
-    # [spec:pgorm:req:bindings.model-writes+2/test]
+    # [spec:pgorm:req:bindings.model-writes+3/test]
     # [spec:pgorm:req:bindings.relations+1/test]
     # [spec:pgorm:req:bindings.graphs+1/test]
     # [spec:pgorm:req:bindings.cursors+1/test]

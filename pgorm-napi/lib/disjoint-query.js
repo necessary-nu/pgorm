@@ -427,17 +427,20 @@ export class DisjointPaginator {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async numPages(db, options) {
-    return (await this.numItemsAndPages(db, options))[1];
+    return (await this.numItemsAndPages(db, options)).pages;
   }
 
   /**
+   * The rows the pages hold and the pages, the last one rounded up, as a
+   * model query's paginator gives them.
+   *
    * @param {unknown} db
    * @param {{ signal?: AbortSignal }} [options]
-   * @returns {Promise<[number, number]>}
+   * @returns {Promise<{ readonly items: number, readonly pages: number }>}
    */
   async numItemsAndPages(db, options) {
     const items = await this.numItems(db, options);
-    return [items, Math.ceil(items / this.#pageSize)];
+    return Object.freeze({ items, pages: Math.ceil(items / this.#pageSize) });
   }
 
   /**

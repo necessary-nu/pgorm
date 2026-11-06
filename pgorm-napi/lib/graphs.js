@@ -40,7 +40,34 @@ const MADE = Symbol("pgorm-napi graph");
  * @property {readonly import("./expressions.js").OrderBy[]} orders
  * @property {number | bigint | null} limit
  * @property {number | bigint | null} offset
+ * @property {boolean} sliced Set by `limit` or `offset`, whatever their value:
+ *   the caller has taken charge of the row range.
  */
+
+/** Why each read that decides the row range itself refuses a sliced graph. */
+const REFUSALS = {
+  allGrouped: "a window of rows can end part-way through a root's rows, and its group would look complete",
+  count: "the count would ignore the window",
+  cursor: "its first and last would replace the window, and an offset would skip rows past each boundary",
+  cursorOn: "its first and last would replace the window, and an offset would skip rows past each boundary",
+  paginate: "its pages would replace the window",
+};
+
+/**
+ * Refuse a read that decides the row range itself on a graph whose limit or
+ * offset already decided it.
+ *
+ * @param {State} state
+ * @param {keyof typeof REFUSALS} terminal
+ */
+function unsliced(state, terminal) {
+  if (state.sliced) {
+    throw new ConstructionError(
+      `a graph cut by limit or offset has no ${terminal}: ${REFUSALS[terminal]}; ` +
+        "read the first roots with find().limit(..) and load their related rows",
+    );
+  }
+}
 
 /**
  * The decoded sources: the root, then each slot.
@@ -262,14 +289,24 @@ export class Graph {
     return this.#with({ orders: [...this.#state.orders, ...orderingsOf(orderings)] });
   }
 
-  /** @param {number | bigint | null} count */
+  /**
+   * Read at most `count` rows of the join, not roots, or with null no limit;
+   * either way the graph is sliced.
+   *
+   * @param {number | bigint | null} count
+   */
   limit(count) {
-    return this.#with({ limit: count });
+    return this.#with({ limit: count, sliced: true });
   }
 
-  /** @param {number | bigint | null} count */
+  /**
+   * Skip the first `count` rows of the join, or with null none; either way
+   * the graph is sliced.
+   *
+   * @param {number | bigint | null} count
+   */
   offset(count) {
-    return this.#with({ offset: count });
+    return this.#with({ offset: count, sliced: true });
   }
 
   get statement() {
@@ -283,18 +320,22 @@ export class Graph {
    */
   inspect(terminal) {
     if (terminal === undefined) return this.statement.inspect();
-    if (terminal === "count") return countOf(this.statement).inspect();
+    if (terminal === "count") {
+      unsliced(this.#state, "count");
+      return countOf(this.statement).inspect();
+    }
     if (terminal === "allGrouped") return this.#grouped().inspect();
     throw new TypeError('a graph inspects itself, its "count" or its "allGrouped"');
   }
 
   /**
-   * How many rows it reads, limit and offset aside.
+   * How many rows it reads.
    *
    * @param {unknown} db
    * @param {{ signal?: AbortSignal }} [options]
    */
   async count(db, options) {
+    unsliced(this.#state, "count");
     return await decodeCount(db, countOf(this.statement), options);
   }
 
@@ -332,6 +373,7 @@ export class Graph {
 
   /** The SELECT `allGrouped` runs: the root's key ordered behind the graph's ordering. */
   #grouped() {
+    unsliced(this.#state, "allGrouped");
     if (decoded(this.#state).length !== 2) throw new ConstructionError("allGrouped reads a graph of exactly one slot");
     const key = this.#rootKey();
     if (key.length === 0) throw new ConstructionError("allGrouped groups by the root's primary key, which it has none of");
@@ -355,8 +397,9 @@ export class Graph {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async allGrouped(db, options) {
+    const grouped = this.#grouped();
     const key = this.#rootKey();
-    const rows = await decodeAll(db, this.#grouped(), sourcesOf(this.#state), options);
+    const rows = await decodeAll(db, grouped, sourcesOf(this.#state), options);
     /** @type {Map<string, [Record<string, unknown>, Record<string, unknown>[]]>} */
     const groups = new Map();
     for (const [root, slot] of rows) {
@@ -379,6 +422,7 @@ export class Graph {
    * @param {...string} fields
    */
   cursor(...fields) {
+    unsliced(this.#state, "cursor");
     return this.#cursor(0, fields);
   }
 
@@ -394,6 +438,7 @@ export class Graph {
    */
   cursorOn(source, ...fields) {
     if (!Number.isInteger(source)) throw new TypeError("a graph's source is its index");
+    unsliced(this.#state, "cursorOn");
     if (source === 0) throw new ConstructionError("cursorOn orders by a slot's fields, the first slot 1; cursor orders by the root's");
     return this.#cursor(source, fields);
   }
@@ -418,7 +463,7 @@ export class Graph {
     ];
     return cursorOver({
       build: (orders, wheres, limit) => selectOf(state, orders, [...state.wheres, ...wheres], limit),
-      limit: state.limit,
+      limit: null,
       sources: sourcesOf(state),
       order,
       tiebreaks,
@@ -432,6 +477,7 @@ export class Graph {
    * @param {number} pageSize
    */
   paginate(pageSize) {
+    unsliced(this.#state, "paginate");
     const state = this.#state;
     return paginatorOver({
       page: (limit, offset) => selectOf(state, state.orders, state.wheres, limit, offset),
@@ -454,5 +500,6 @@ export function graphOf(shape) {
     orders: [],
     limit: null,
     offset: null,
+    sliced: false,
   }, MADE);
 }

@@ -7,7 +7,7 @@
 // [spec:pgorm:req:napi.lifecycle+2]
 // [spec:pgorm:req:bindings.results+2]
 // [spec:pgorm:req:napi.raw]
-// [spec:pgorm:req:bindings.transactions]
+// [spec:pgorm:req:bindings.transactions+1]
 // [spec:pgorm:req:napi.transactions+3]
 // [spec:pgorm:req:bindings.copy]
 // [spec:pgorm:req:bindings.listen+2]
@@ -15,7 +15,19 @@
 import { statementArgs } from "./builder.js";
 import { COPY, CopyRunner } from "./copy.js";
 import { Listener, LISTENER, listenerOptions, notifyJob } from "./listen.js";
-import { abortable, LATE, native, queryOptions, row, scoped, signalOf, TRUSTED } from "./operations.js";
+import { abortable, knownOptions, LATE, native, queryOptions, row, scoped, signalOf, TRUSTED } from "./operations.js";
+
+/** The options a pool takes, as `PoolOptions` declares them. */
+const POOL_OPTIONS = [
+  "tls",
+  "ca",
+  "maxSize",
+  "connectTimeout",
+  "acquireTimeout",
+  "statementCacheSize",
+  "recycle",
+  "statementCacheChannel",
+];
 import { RowStream } from "./streams.js";
 
 /** The statement runner each class implements, keyed privately. */
@@ -154,7 +166,7 @@ export async function runStatement(db, terminal, statement, options) {
   if (!(db instanceof Queryable)) {
     throw new TypeError("a model's statement runs on a Pool, a Connection or a Transaction");
   }
-  const [handle, , rest] = statementArgs(statement, undefined, options);
+  const [handle, , rest] = statementArgs(statement, options, undefined);
   const { signal } = queryOptions(rest);
   return await abortable(signal, (token) => db[RUN](terminal, handle, [], false, token), () => db[LATE]());
 }
@@ -263,6 +275,7 @@ export class Pool extends Queryable {
     }
     if (typeof dsn !== "string") throw new TypeError("dsn is a connection string");
     if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
+    knownOptions(options, POOL_OPTIONS);
     this.#native = native.poolNew(dsn, options);
   }
 
@@ -479,6 +492,8 @@ export class Connection extends Queryable {
    * @returns {Promise<T>}
    */
   async transaction(use, options = {}) {
+    if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
+    knownOptions(options, ["mode", "isolation", "signal"]);
     const { mode = "default", isolation = null, signal } = options;
     const handle = await abortable(
       signalOf(signal),

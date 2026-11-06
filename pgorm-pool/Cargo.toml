@@ -22,6 +22,9 @@ async-trait.workspace = true # = "0.1.80"
 # which the transaction wrapper's forwarding `copy_in` has to name.
 bytes = "1.12"
 deadpool.workspace = true
+# `StreamExt`, to read a commit's simple-query answers one by one and tell
+# whether the statement asking ahead of the `COMMIT` had completed.
+futures-util = { version = "0.3.34", default-features = false }
 serde.workspace = true
 # = { package = "serde", version = "1.0", features = [
 #     "derive",
@@ -34,7 +37,6 @@ tokio-postgres.workspace = true
 config = { version = "0.15", features = ["json"] }
 dotenvy = "0.15.7"
 futures = "0.3.34"
-futures-util = "0.3.34"
 serde_json = "1.0"
 tokio = { version = "1.53", features = ["macros", "rt-multi-thread"] }
 # The statement-cache listener's tests wait for its clears through the

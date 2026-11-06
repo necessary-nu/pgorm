@@ -433,7 +433,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
     # [spec:pgorm:req:bindings.entity-reads+4/test]    any_(..) / all_(..) over a list compares through the
     # column's ColumnTrait, the list one array of its declared kind cast as eq_any's is: money as money[],
     # a column whose domain is over an enum as the enum, where the plain expression is refused
-    # [spec:pgorm:req:bindings.quantifiers+3/test]    an empty list is typed by the registered column, = ANY
+    # [spec:pgorm:req:bindings.quantifiers+4/test]    an empty list is typed by the registered column, = ANY
     # of it false and <> ALL true, and refused as it is used where no registered column types it
     async def test_quantified_lists_take_the_column_casts(self):
         await self.pool.execute(p.RawSQL(
@@ -505,7 +505,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             span.contains(1.7)
 
-    # [spec:pgorm:req:bindings.errors+5/test]    a column the entity cannot read as its field's type is a
+    # [spec:pgorm:req:bindings.errors+6/test]    a column the entity cannot read as its field's type is a
     # DecodeError naming what the driver was reading and the decoder's reason, as JavaScript reports it
     async def test_decode_refusal_names_column_and_reason(self):
         await self.pool.execute(p.RawSQL(
@@ -631,7 +631,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(await self.account.find().where(self.account.col("id") == 98).optional(connection))
 
     # [spec:pgorm:req:bindings.entity-reads+4/test]
-    # [spec:pgorm:req:bindings.errors+5/test]
+    # [spec:pgorm:req:bindings.errors+6/test]
     async def test_decode_failure_does_not_become_absence(self):
         async with self.pool.connection() as connection:
             await self.active(1).insert(connection)
@@ -639,7 +639,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.DecodeError):
                 await self.account.find().optional(connection)
 
-    # [spec:pgorm:req:bindings.errors+5/test]
+    # [spec:pgorm:req:bindings.errors+6/test]
     async def test_parameter_failure_preserves_connection(self):
         async with self.pool.connection() as connection:
             with self.assertRaises(p.ConstructionError):

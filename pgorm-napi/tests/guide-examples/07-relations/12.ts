@@ -2,11 +2,14 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
+import { ConstructionError } from "@necessary/pgorm";
 import { Bakery, bakeryCakes } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  // Sunrise has three cakes, and the limit cut its list short.
-  const cut = await Bakery.graph().joinMaybe(bakeryCakes).limit(2).allGrouped(pool);
-  assert.deepEqual(cut.map(([bakery, cakes]) => [bakery.name, cakes.length]), [["Sunrise", 2]]);
+  const limited = Bakery.graph().joinMaybe(bakeryCakes).limit(2);
+  // @ts-expect-error a limited graph has no allGrouped
+  await assert.rejects(limited.allGrouped(pool), ConstructionError);
+  // @ts-expect-error nor a count, which would ignore the limit
+  await assert.rejects(limited.count(pool), ConstructionError);
 }

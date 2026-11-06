@@ -1,9 +1,9 @@
+use crate::panics::future_into_py;
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,
     types::{PyList, PyTuple},
 };
-use pyo3_async_runtimes::tokio::future_into_py;
 use tokio_postgres::Row;
 
 use super::PyRecord;

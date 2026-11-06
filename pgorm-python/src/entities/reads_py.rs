@@ -9,6 +9,7 @@ use std::{
     },
 };
 
+use crate::panics::future_into_py;
 use pgorm::{
     CursorPlan, CursorWindow, boundary_columns,
     pgorm_query::{ValueTuple, Values},
@@ -19,7 +20,6 @@ use pyo3::{
     prelude::*,
     types::{PyList, PyTuple},
 };
-use pyo3_async_runtimes::tokio::future_into_py;
 
 use super::{
     query::bound,
