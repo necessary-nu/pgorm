@@ -178,7 +178,7 @@ fn subquery(cx: &mut FunctionContext) -> NeonResult<Node> {
 /// or over an array, `Func::any` / `Func::all` with the array bound unless it
 /// is an expression. It is no expression: only an operator PostgreSQL reads
 /// one after takes it, as its right operand.
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.quantifiers+4]
 fn quantified(cx: &mut FunctionContext) -> NeonResult<Node> {
     let all = choice(cx, 0, "a quantifier", &["any", "all"])? == "all";
     let source = arg(cx, 1);
@@ -203,7 +203,7 @@ fn quantified(cx: &mut FunctionContext) -> NeonResult<Node> {
 /// The operators of `BINARY` PostgreSQL's grammar takes before `ANY` or `ALL`
 /// whose result is a boolean, as the server requires of one (`42809`). LIKE's
 /// family and `@?` read theirs in `like` and `path_exists`.
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.quantifiers+4]
 const QUANTIFIABLE: [&str; 19] = [
     "eq",
     "ne",
@@ -297,7 +297,7 @@ fn binary(cx: &mut FunctionContext) -> NeonResult<Node> {
 /// to `jsonpath` by pgorm-query's `json_path_exists`, or `ANY (..)` or
 /// `ALL (..)` over `jsonpath` values.
 // [spec:pgorm:req:bindings.expressions+4]
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.quantifiers+4]
 fn path_exists(cx: &mut FunctionContext) -> NeonResult<Node> {
     let expr = receiver(cx, 0)?;
     let path = arg(cx, 1);
@@ -381,7 +381,7 @@ fn between(cx: &mut FunctionContext) -> NeonResult<Node> {
 /// or `ALL (..)` over patterns, which carry no escape, as the grammar reads
 /// none after one.
 // [spec:pgorm:req:bindings.expressions+4]
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.quantifiers+4]
 fn like(cx: &mut FunctionContext) -> NeonResult<Node> {
     let left = receiver(cx, 0)?;
     let operator = choice(

@@ -8,7 +8,7 @@ use super::PyExpr;
 use crate::statements::PyQuantified;
 
 // [spec:pgorm:req:bindings.expressions+4]
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.quantifiers+4]
 #[pymethods]
 impl PyExpr {
     /// `@?`: whether a `jsonpath` returns any item for this `jsonb`. The path
