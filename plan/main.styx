@@ -19864,6 +19864,13 @@ children (
                         kind @note
                         text "Filed 2026-11-06. The raw-sql lane reported that the retry serve functions and Frame::serve are near-identical between pgorm-napi and pgorm-python, like the rest of both bindings' transaction code. They are below the duplication gate's threshold, but the duplication is real. The relations lane reported the same for the type-erased cursor and paginator (Paged, Keyed), which it is moving into pgorm now. The operator does not accept the same logic in two crates: read both crates side by side and move every shared piece into one place both depend on, either pgorm or an unpublished binding-runtime crate that depends on neither language framework. Leave in each crate only the language glue (PyO3 / Neon conversion and settlement)."
                     }
+
+                    {
+                        at 2026-11-06T08:53:12.300199Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The type-erased reads part is done by guide.python-gaps.shared-erased-reads (6f5d86e8, branch nplan/guide.python-gaps.model-relations). It moved into pgorm: DatabaseRef<'a, M> (src/database/database_ref.rs, rule conn.database-ref), now both bindings' executor enum (each binding keeps only `type Database<'a> = pgorm::DatabaseRef<'a, Metrics>`); ErasedPages + PagedRead (was each binding's Paged/Pages), ErasedCursor + KeyedRead under CursorPlan/CursorWindow (was Keyed/Keyset and each binding's Plan), select_cursor, graph_cursor / graph_cursor_on over a key chosen at run time (was each binding's by-arity macro), graph_cursor_key (was key_of's ordering logic), boundary_columns + KeyArity (was each binding's boundary-arity check), grouped_read / GroupedRead (was grouped_by), all in src/executor/erased.rs (rules exec.cursor.erased, exec.paginator.erased). What stays in each binding is glue: mapping keys to its own EntityInfo and PyO3 / Neon conversion. Still to do under this node: the transaction frame and retry serve functions, and the capability and refusal plumbing."
+                    }
                 )
             }
         )
