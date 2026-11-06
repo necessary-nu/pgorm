@@ -107,6 +107,16 @@ export {
 export { Column, column, ModelColumn } from "./model-columns.js";
 export { Model, model } from "./models.js";
 export { ModelQuery } from "./model-queries.js";
+export {
+  FromExpr,
+  fromExpr,
+  ModelProjection,
+  ModelSelector,
+  PartialModel,
+  partialModel,
+  Skip,
+  skip,
+} from "./model-projections.js";
 export { ModelRows } from "./model-rows.js";
 export { ModelDelete, ModelInsert, ModelInsertMany, ModelUpdate } from "./model-writes.js";
 export { ModelTryInsert, ModelTryInsertMany, ModelTryRow, ModelTryRows } from "./model-try-inserts.js";
@@ -128,7 +138,7 @@ export { modelsFromSql } from "./codegen.js";
 export { createOneOf, OneOf, oneOf, OneOfEntity, oneOfEntities, oneOfEntity } from "./one-of.js";
 export { DisjointCursor, DisjointPaginator, DisjointQuery, DisjointWrite } from "./disjoint-query.js";
 export { ActiveModel, entities, Entity, entity } from "./entities.js";
-export { EntitySchema, fromEntity } from "./entity-schema.js";
+export { EntitySchema, fromEntity, fromModel } from "./entity-schema.js";
 export { EntityColumn, EntityQuery } from "./entity-queries.js";
 export { EntityCursor, EntityPaginator, EntityRelation, EntitySelection } from "./entity-reads.js";
 export { EntityInsert, EntityInsertMany } from "./entity-inserts.js";

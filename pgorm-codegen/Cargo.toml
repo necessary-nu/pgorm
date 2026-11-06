@@ -42,6 +42,9 @@ syn = { version = "3", default-features = false, features = ["parsing", "proc-ma
 prettyplease = { version = "0.3", default-features = false, optional = true }
 quote = { version = "1.0.47", default-features = false, optional = true }
 heck = { version = "0.5", default-features = false }
+# A TypeScript model's `renameAll: "snake_case"` names its columns by the
+# conversion the bindings' models and the derives rename by.
+pgorm-case-style = { version = "0.2.0", path = "../pgorm-case-style" }
 # A declared model's names are held to Python's and JavaScript's identifier
 # rules, which are Unicode's identifier properties.
 unicode-ident = { version = "1", default-features = false }

@@ -14,7 +14,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
 
 from .. import _native as p
-from .queries import orderings_of, predicate_of
+from .clauses import orderings_of, predicate_of
 from .record import (
     Database,
     ModelRecord,
@@ -424,6 +424,7 @@ class Graph(Generic[S]):
                 state.sources(),
                 tuple(ordered.model._column(field, ordered.qualifier) for field in names),
                 tiebreaks,
+                tuple((table.model, table.qualifier) for table in state.tables),
             )
         )
 

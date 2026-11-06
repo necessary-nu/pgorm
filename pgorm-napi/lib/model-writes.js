@@ -9,10 +9,10 @@
 
 import { runStatement } from "./runs.js";
 import { ConstructionError, DecodeError } from "./errors.js";
-import { columnValue } from "./model-columns.js";
+import { columnValue, omissible, saved } from "./model-columns.js";
 import { decodeAll, decodeOne, decodeOptional } from "./model-decode.js";
 import { fieldOf, isModel, shapeOf } from "./model-shape.js";
-import { predicateOf } from "./model-queries.js";
+import { predicateOf } from "./model-clauses.js";
 import { Conflict, ConflictUpdate } from "./conflicts.js";
 import { change, NEW, OLD, picked, returned, rowsOf, upserted, versions, written } from "./model-rows.js";
 import { tryMany, tryOne } from "./model-try-inserts.js";
@@ -44,15 +44,14 @@ function assignments(shape, values, write) {
   if (write === "insert") {
     for (const field of shape.fields) {
       const { column } = field;
-      const optional = column.nullable || column.default || column.generated !== null;
-      if (!optional && !Object.hasOwn(given, field.field)) {
+      if (!omissible(column) && !Object.hasOwn(given, field.field)) {
         throw new ConstructionError(`${field.field} is required: it is not nullable and has no default`);
       }
     }
   }
   return shape.fields
     .filter((field) => Object.hasOwn(given, field.field))
-    .map((field) => [field, columnValue(field.column, field.field, given[field.field])]);
+    .map((field) => [field, saved(field.column, columnValue(field.column, field.field, given[field.field]))]);
 }
 
 /**

@@ -12,7 +12,7 @@ import { native } from "./operations.js";
 export class DataType extends Handle {
   /**
    * @param {string | import("./values.js").TypeName | import("./values.js").CreatedRange | import("./values.js").CreatedMultirange} kind
-   * @param {{ length?: number, precision?: number, scale?: number }} [options]
+   * @param {{ length?: number, precision?: number, scale?: number, fields?: string }} [options]
    * @param {symbol} [token]
    */
   constructor(kind, options = {}, token) {
@@ -20,8 +20,20 @@ export class DataType extends Handle {
       super(kind);
       return;
     }
-    const { length, precision, scale } = options;
-    super(native.dataTypeNew(kind, length, precision, scale));
+    const { length, precision, scale, fields } = options;
+    super(native.dataTypeNew(kind, length, precision, scale, fields));
+  }
+
+  /**
+   * A domain over `base`: a column of it is written as the domain, read as
+   * its base and, a domain over an enum, compared as the enum.
+   *
+   * @param {string | import("./values.js").TypeName} name
+   * @param {unknown} base
+   */
+  // [spec:pgorm:req:bindings.model-casts]
+  static domain(name, base) {
+    return new DataType(/** @type {any} */ (native.dataTypeDomain(name, arg(base))), {}, TRUSTED);
   }
 
   /** The array of this type. */

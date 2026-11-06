@@ -14,8 +14,9 @@
 
 import { runStatement } from "./runs.js";
 import { DecodeError } from "./errors.js";
-import { columnKey, readsText } from "./model-columns.js";
+import { columnKey, readsText, readValue } from "./model-columns.js";
 import { native } from "./operations.js";
+import { CreatedMultirange } from "./values.js";
 import { decodedWith } from "./streams.js";
 
 /** The kind a field read from its text is projected as. */
@@ -92,7 +93,7 @@ function checked(field, value, castsText) {
     if (!column.nullable) throw new DecodeError(`${field.field} is not nullable, and the row holds NULL`);
     return value;
   }
-  if (castsText && readsText(column)) {
+  if (castsText && readsText(column) && column.kind instanceof CreatedMultirange) {
     if (!column.array) return native.modelReadText(column.kind, value);
     return /** @type {(string | null)[]} */ (value).map((item) => item === null ? null : native.modelReadText(column.kind, item));
   }
@@ -105,7 +106,7 @@ function checked(field, value, castsText) {
       }
     }
   }
-  return value;
+  return readValue(column, value);
 }
 
 /**
@@ -198,21 +199,25 @@ export async function decodeOptional(db, statement, sources, options, reading) {
 
 /**
  * The rows of `statement` as a stream of decoded items, over a pool's or a
- * connection's connection, or in a transaction.
+ * connection's connection, or in a transaction, each made what `read` makes it where one is given.
  *
  * @param {unknown} db
  * @param {unknown} statement
  * @param {readonly Source[]} sources
  * @param {{ signal?: AbortSignal }} [options]
  * @param {Reading} [reading]
+ * @param {((record: any) => unknown) | null} [read]
  */
-export function decodeStream(db, statement, sources, options = {}, reading) {
+export function decodeStream(db, statement, sources, options = {}, reading = undefined, read = null) {
   const stream = /** @type {{ stream?: unknown }} */ (db)?.stream;
   if (typeof stream !== "function") {
     throw new TypeError("a model's rows stream from a Pool, a Connection or a Transaction");
   }
   if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
-  return decodedWith(stream.call(db, statement, { signal: options.signal }), decoder(sources, reading));
+  const decode = decoder(sources, reading);
+  const made = read === null ? decode : (/** @type {string[]} */ names, /** @type {unknown[]} */ values, /** @type {string[]} */ kinds) =>
+    read(decode(names, values, kinds));
+  return decodedWith(stream.call(db, statement, { signal: options.signal }), made);
 }
 
 /**

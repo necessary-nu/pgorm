@@ -59,7 +59,7 @@ function refused(pattern: RegExp): (error: unknown) => true {
   };
 }
 
-// [spec:pgorm:req:bindings.relations+1/test]
+// [spec:pgorm:req:bindings.relations+3/test]
 test("a relation finds the rows at its far end, and none for a NULL key", async () => {
   const [ann] = await Account.find().orderBy(byAccount).limit(1).all(pool());
   assert.ok(ann);
@@ -74,7 +74,7 @@ test("a relation finds the rows at its far end, and none for a NULL key", async 
   assert.equal(author.to, Account);
 });
 
-// [spec:pgorm:req:bindings.relations+1/test]
+// [spec:pgorm:req:bindings.relations+3/test]
 test("load reads every row's far end in one query, a list for hasMany and a record or null otherwise", async () => {
   const accounts = await Account.find().orderBy(byAccount).all(pool());
   const loaded = await posts.load(pool(), accounts);
@@ -93,7 +93,7 @@ test("load reads every row's far end in one query, a list for hasMany and a reco
   );
 });
 
-// [spec:pgorm:req:bindings.relations+1/test]
+// [spec:pgorm:req:bindings.relations+3/test]
 test("a relation pairs as many fields at each end, each a field of its model", () => {
   assert.throws(() => Post.belongsTo(Account, { from: ["authorId", "id"], to: "id" } as never), refused(/as many fields/));
   assert.throws(() => Post.belongsTo(Account, { from: "author", to: "id" } as never), refused(/no field "author"/));

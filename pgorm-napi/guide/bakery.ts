@@ -14,85 +14,98 @@
 // | `order` | 1 Kim at Sunrise, 2 Lee at Moonlight |
 // | `order_line` | order 1: two Chocolate Fudge, one Lemon Drizzle; order 2: one Carrot Cake |
 
-import { column, model, type Pool, TypeName } from "@necessary/pgorm";
+import { column, DataType, fromModel, model, type Pool, TypeName } from "@necessary/pgorm";
 
 /** The PostgreSQL enum a cake's flavor is. */
 export const flavor = new TypeName("flavor", { schema: "public" });
 
+/** The bakery's money: `decimal(10, 2)`, as the Rust entities' `column_type` says. */
+const money = new DataType("numeric", { precision: 10, scale: 2 });
+
+// Each field is named in camelCase and its column in snake_case, which
+// `renameAll` writes for every field that names no column of its own.
 export const Bakery = model("bakery", {
+  renameAll: "snake_case",
   columns: {
-    id: column("i32", { primaryKey: true, default: true }),
-    name: column("text"),
-    city: column("text"),
+    id: column("i32", { primaryKey: true, autoIncrement: true }),
+    name: column("text", { columnType: "varchar" }),
+    city: column("text", { columnType: "varchar" }),
   },
 });
 
 export const Baker = model("baker", {
+  renameAll: "snake_case",
   columns: {
-    id: column("i32", { primaryKey: true, default: true }),
-    name: column("text"),
-    hiredOn: column("date", { name: "hired_on" }),
-    bakeryId: column("i32", { name: "bakery_id" }),
+    id: column("i32", { primaryKey: true, autoIncrement: true }),
+    name: column("text", { columnType: "varchar" }),
+    hiredOn: column("date"),
+    bakeryId: column("i32"),
   },
 });
 
 export const Cake = model("cake", {
+  renameAll: "snake_case",
   columns: {
-    id: column("i32", { primaryKey: true, default: true }),
-    name: column("text"),
+    id: column("i32", { primaryKey: true, autoIncrement: true }),
+    name: column("text", { columnType: "varchar" }),
     flavor: column(flavor, { values: ["chocolate", "vanilla", "lemon", "carrot"] }),
-    price: column("decimal"),
-    glutenFree: column("bool", { name: "gluten_free" }),
-    bakeryId: column("i32", { name: "bakery_id" }),
+    price: column("decimal", { columnType: money }),
+    glutenFree: column("bool"),
+    bakeryId: column("i32"),
   },
 });
 
 export const CakeBaker = model("cake_baker", {
+  renameAll: "snake_case",
   columns: {
-    cakeId: column("i32", { name: "cake_id", primaryKey: true }),
-    bakerId: column("i32", { name: "baker_id", primaryKey: true }),
+    cakeId: column("i32", { primaryKey: true }),
+    bakerId: column("i32", { primaryKey: true }),
   },
 });
 
 export const Customer = model("customer", {
+  renameAll: "snake_case",
   columns: {
-    id: column("i32", { primaryKey: true, default: true }),
-    name: column("text"),
-    email: column("text"),
-    notes: column("text", { nullable: true }),
+    id: column("i32", { primaryKey: true, autoIncrement: true }),
+    name: column("text", { columnType: "varchar" }),
+    email: column("text", { columnType: "varchar" }),
+    notes: column("text", { nullable: true, columnType: "varchar" }),
   },
   uniqueKeys: [{ fields: "email" }],
 });
 
 export const Order = model("order", {
+  renameAll: "snake_case",
   columns: {
-    id: column("i32", { primaryKey: true, default: true }),
-    customerId: column("i32", { name: "customer_id" }),
-    bakeryId: column("i32", { name: "bakery_id" }),
-    placedAt: column("datetime_utc", { name: "placed_at" }),
+    id: column("i32", { primaryKey: true, autoIncrement: true }),
+    customerId: column("i32"),
+    bakeryId: column("i32"),
+    placedAt: column("datetime_utc"),
   },
 });
 
 export const OrderLine = model("order_line", {
+  renameAll: "snake_case",
   columns: {
-    id: column("i32", { primaryKey: true, default: true }),
-    orderId: column("i32", { name: "order_id" }),
-    cakeId: column("i32", { name: "cake_id" }),
+    id: column("i32", { primaryKey: true, autoIncrement: true }),
+    orderId: column("i32"),
+    cakeId: column("i32"),
     quantity: column("i32"),
-    price: column("decimal"),
+    price: column("decimal", { columnType: money }),
   },
 });
 
 // Each relation is named for the model it starts at and then what it reaches:
-// `cakeBakery` is a cake's bakery, `bakeryCakes` a bakery's cakes.
+// `cakeBakery` is a cake's bakery, `bakeryCakes` a bakery's cakes. A
+// `belongsTo` relation is a foreign key of the table it starts at.
 export const bakerBakery = Baker.belongsTo(Bakery, { from: "bakeryId", to: "id" });
 export const bakeryBakers = Bakery.hasMany(Baker, { from: "id", to: "bakeryId" });
 
 export const cakeBakery = Cake.belongsTo(Bakery, { from: "bakeryId", to: "id" });
 export const bakeryCakes = Bakery.hasMany(Cake, { from: "id", to: "bakeryId" });
 
-export const cakeBakerCake = CakeBaker.belongsTo(Cake, { from: "cakeId", to: "id" });
-export const cakeBakerBaker = CakeBaker.belongsTo(Baker, { from: "bakerId", to: "id" });
+export const cakeBakerCake = CakeBaker.belongsTo(Cake, { from: "cakeId", to: "id", onDelete: "cascade" });
+export const cakeBakerBaker = CakeBaker.belongsTo(Baker, { from: "bakerId", to: "id", onDelete: "cascade" });
 export const cakeCakeBakers = Cake.hasMany(CakeBaker, { from: "id", to: "cakeId" });
 export const bakerCakeBakers = Baker.hasMany(CakeBaker, { from: "id", to: "bakerId" });
 
@@ -106,25 +119,28 @@ export const customerOrders = Customer.hasMany(Order, { from: "id", to: "custome
 export const bakeryOrders = Bakery.hasMany(Order, { from: "id", to: "bakeryId" });
 
 export const orderLines = Order.hasMany(OrderLine, { from: "id", to: "orderId" });
-export const lineOrder = OrderLine.belongsTo(Order, { from: "orderId", to: "id" });
+export const lineOrder = OrderLine.belongsTo(Order, { from: "orderId", to: "id", onDelete: "cascade" });
 export const lineCake = OrderLine.belongsTo(Cake, { from: "cakeId", to: "id" });
 export const cakeLines = Cake.hasMany(OrderLine, { from: "id", to: "cakeId" });
 
 /**
- * The bakery's schema, as pgorm's `Schema` writes it from the Rust guide's
- * entities: the enum, then each table after the tables its foreign keys
- * reference.
+ * The bakery's schema, as pgorm's `Schema` writes it from the models: the
+ * enum, then each table, with the foreign keys of its `belongsTo` relations,
+ * after the tables those reference.
  */
-const SCHEMA = [
-  `CREATE TYPE "flavor" AS ENUM ('chocolate', 'vanilla', 'lemon', 'carrot')`,
-  `CREATE TABLE "bakery" ( "id" serial NOT NULL, "name" varchar NOT NULL, "city" varchar NOT NULL, PRIMARY KEY ("id") )`,
-  `CREATE TABLE "baker" ( "id" serial NOT NULL, "name" varchar NOT NULL, "hired_on" date NOT NULL, "bakery_id" integer NOT NULL, PRIMARY KEY ("id"), CONSTRAINT "fk-baker-bakery_id" FOREIGN KEY ("bakery_id") REFERENCES "bakery" ("id") )`,
-  `CREATE TABLE "cake" ( "id" serial NOT NULL, "name" varchar NOT NULL, "flavor" flavor NOT NULL, "price" decimal(10, 2) NOT NULL, "gluten_free" bool NOT NULL, "bakery_id" integer NOT NULL, PRIMARY KEY ("id"), CONSTRAINT "fk-cake-bakery_id" FOREIGN KEY ("bakery_id") REFERENCES "bakery" ("id") )`,
-  `CREATE TABLE "cake_baker" ( "cake_id" integer NOT NULL, "baker_id" integer NOT NULL, CONSTRAINT "pk-cake_baker" PRIMARY KEY ("cake_id", "baker_id"), CONSTRAINT "fk-cake_baker-cake_id" FOREIGN KEY ("cake_id") REFERENCES "cake" ("id") ON DELETE CASCADE, CONSTRAINT "fk-cake_baker-baker_id" FOREIGN KEY ("baker_id") REFERENCES "baker" ("id") ON DELETE CASCADE )`,
-  `CREATE TABLE "customer" ( "id" serial NOT NULL, "name" varchar NOT NULL, "email" varchar NOT NULL, "notes" varchar, PRIMARY KEY ("id"), UNIQUE ("email") )`,
-  `CREATE TABLE "order" ( "id" serial NOT NULL, "customer_id" integer NOT NULL, "bakery_id" integer NOT NULL, "placed_at" timestamp with time zone NOT NULL, PRIMARY KEY ("id"), CONSTRAINT "fk-order-customer_id" FOREIGN KEY ("customer_id") REFERENCES "customer" ("id"), CONSTRAINT "fk-order-bakery_id" FOREIGN KEY ("bakery_id") REFERENCES "bakery" ("id") )`,
-  `CREATE TABLE "order_line" ( "id" serial NOT NULL, "order_id" integer NOT NULL, "cake_id" integer NOT NULL, "quantity" integer NOT NULL, "price" decimal(10, 2) NOT NULL, PRIMARY KEY ("id"), CONSTRAINT "fk-order_line-order_id" FOREIGN KEY ("order_id") REFERENCES "order" ("id") ON DELETE CASCADE, CONSTRAINT "fk-order_line-cake_id" FOREIGN KEY ("cake_id") REFERENCES "cake" ("id") )`,
-];
+function schema() {
+  const cake = fromModel(Cake, { relations: [cakeBakery] });
+  return [
+    ...cake.enums,
+    fromModel(Bakery).table,
+    fromModel(Baker, { relations: [bakerBakery] }).table,
+    cake.table,
+    fromModel(CakeBaker, { relations: [cakeBakerCake, cakeBakerBaker] }).table,
+    fromModel(Customer).table,
+    fromModel(Order, { relations: [orderCustomer, orderBakery] }).table,
+    fromModel(OrderLine, { relations: [lineOrder, lineCake] }).table,
+  ];
+}
 
 /** The bakery's rows, their ids assigned by the database in this order. */
 const ROWS = [
@@ -142,5 +158,6 @@ const ROWS = [
 
 /** Create the bakery's tables and fill them, on the database `pool` reaches. */
 export async function createBakery(pool: Pool): Promise<void> {
-  for (const statement of [...SCHEMA, ...ROWS]) await pool.execute(statement);
+  for (const statement of schema()) await pool.execute(statement);
+  for (const statement of ROWS) await pool.execute(statement);
 }

@@ -167,6 +167,7 @@ pub(crate) fn operations() -> Map<String, Value> {
         ("condition.all", "pgorm_query::Condition::all"),
         ("condition.any", "pgorm_query::Condition::any"),
         ("condition.add", "pgorm_query::Condition::add"),
+        ("condition.add_option", "pgorm_query::Condition::add_option"),
         ("condition.not", "pgorm_query::Condition::not"),
         (
             "condition.inspect",

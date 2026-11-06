@@ -21,6 +21,9 @@ proc-macro = true
 syn = { version = "3", default-features = false, features = ["parsing", "proc-macro", "derive", "printing", "clone-impls", "extra-traits", "full"] }
 quote = { version = "1.0.47", default-features = false }
 heck = { version = "0.5", default-features = false }
+# The case styles `rename_all` converts by, which pgorm renames run-time
+# models by too.
+pgorm-case-style = { version = "0.2.0", path = "../pgorm-case-style" }
 proc-macro2 = { version = "1.0.107", default-features = false }
 unicode-ident = { version = "1.0.26" }
 # The expansion of `SqlName` and `StaticName`, which pgorm-query-derive's

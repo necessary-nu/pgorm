@@ -1400,6 +1400,7 @@ dependencies = [
  "jiff",
  "log",
  "pg_query",
+ "pgorm-case-style",
  "pgorm-macros",
  "pgorm-pool",
  "pgorm-query",
@@ -1432,11 +1433,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgorm-case-style"
+version = "0.2.0"
+dependencies = [
+ "heck",
+]
+
+[[package]]
 name = "pgorm-codegen"
 version = "0.2.0"
 dependencies = [
  "heck",
  "pg_query",
+ "pgorm-case-style",
  "pgorm-query",
  "rust_decimal",
  "tracing",
@@ -1448,6 +1457,7 @@ name = "pgorm-macros"
 version = "0.2.0"
 dependencies = [
  "heck",
+ "pgorm-case-style",
  "pgorm-query-derive-internals",
  "proc-macro2",
  "quote",

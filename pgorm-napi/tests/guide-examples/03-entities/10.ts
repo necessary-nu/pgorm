@@ -2,28 +2,28 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { column, ConstructionError, model } from "@necessary/pgorm";
+import { ConstructionError, Decimal } from "@necessary/pgorm";
+import { Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const Special = model("special", {
-    columns: {
-      id: column("i32", { primaryKey: true, default: true }),
-      name: column("text"),
-      note: column("text"),
-    },
-    hooks: {
-      beforeSave(values) {
-        if (!values.name) throw new ConstructionError("a special needs a name");
-        return { note: "Ask at the counter", ...values };
-      },
-    },
-  });
+  assert.equal(Cake.columns.flavor.kind.toString(), `"public"."flavor"`);
+  assert.deepEqual(Cake.columns.flavor.values, ["chocolate", "vanilla", "lemon", "carrot"]);
 
-  await pool.execute("CREATE TABLE special (id serial PRIMARY KEY, name text NOT NULL, note text NOT NULL)");
-  const saved = await Special.active({ name: "Saturday cinnamon buns" }).insert(pool);
-  assert.equal(saved.note, "Ask at the counter");
+  const carrot = await Cake.find().where(Cake.col("flavor").eq("carrot")).one(pool);
+  assert.equal(carrot.name, "Carrot Cake");
 
-  await assert.rejects(Special.active({ name: "" }).insert(pool), /a special needs a name/);
-  assert.deepEqual(Special.describe().hooks, ["beforeSave"]);
+  // A label the declaration does not list is refused before anything is sent.
+  assert.throws(
+    () =>
+      Cake.insert({
+        name: "Banana Bread",
+        // @ts-expect-error: "banana" is not one of the flavor's labels
+        flavor: "banana",
+        price: new Decimal("3.00"),
+        glutenFree: false,
+        bakeryId: 1,
+      }),
+    ConstructionError,
+  );
 }

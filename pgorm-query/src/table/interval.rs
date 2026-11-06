@@ -93,3 +93,29 @@ pub enum PgInterval {
     HourToSecond(Option<IntervalPrecision>),
     MinuteToSecond(Option<IntervalPrecision>),
 }
+
+impl PgInterval {
+    /// The fields with the fractional-seconds `precision`, or `None` when the
+    /// fields end before seconds, where PostgreSQL takes no precision:
+    /// `HOUR TO SECOND` takes one, `HOUR TO MINUTE` only none.
+    ///
+    /// ```
+    /// use pgorm_query::{IntervalPrecision, PgInterval};
+    ///
+    /// let three = IntervalPrecision::new(3);
+    /// assert_eq!(PgInterval::HourToSecond(None).with_precision(three), Some(PgInterval::HourToSecond(three)));
+    /// assert_eq!(PgInterval::HourToMinute.with_precision(three), None);
+    /// assert_eq!(PgInterval::HourToMinute.with_precision(None), Some(PgInterval::HourToMinute));
+    /// ```
+    // [spec:pgorm:def:sql.types.column-type+11]
+    pub fn with_precision(self, precision: Option<IntervalPrecision>) -> Option<Self> {
+        Some(match self {
+            Self::Second(_) => Self::Second(precision),
+            Self::DayToSecond(_) => Self::DayToSecond(precision),
+            Self::HourToSecond(_) => Self::HourToSecond(precision),
+            Self::MinuteToSecond(_) => Self::MinuteToSecond(precision),
+            fields if precision.is_none() => fields,
+            _ => return None,
+        })
+    }
+}

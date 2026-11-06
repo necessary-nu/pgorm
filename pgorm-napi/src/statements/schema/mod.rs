@@ -25,7 +25,7 @@ mod table;
 mod types;
 mod view;
 
-pub(crate) use options::relation;
+pub(crate) use options::{ACTIONS as FOREIGN_KEY_ACTIONS, relation};
 pub(super) use options::{get, integer, names, object, pick, text};
 
 use pgorm::pgorm_query::{

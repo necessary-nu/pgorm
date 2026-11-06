@@ -14,7 +14,8 @@ use crate::{
     CaseExpr, ColumnExpr, CurrentKeyword, Entities, EntityTransformer, Error, Operator, OutputFile,
     RelationType, WriterOutput, parse_schema,
 };
-use heck::{ToLowerCamelCase, ToSnakeCase};
+use heck::ToLowerCamelCase;
+use pgorm_case_style::CaseStyle;
 use pgorm_query::{GeneratedKind, IdentityGeneration};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -183,9 +184,9 @@ impl Fields {
             }
             by_column.insert(column.name.clone(), field);
         }
-        let snake_case = by_column
-            .iter()
-            .any(|(column, field)| field != column && field.to_snake_case() == *column);
+        let snake_case = by_column.iter().any(|(column, field)| {
+            field != column && CaseStyle::SnakeCase.convert(field) == *column
+        });
         Ok(Self {
             by_column,
             snake_case,
@@ -199,10 +200,9 @@ impl Fields {
     /// Whether `column`'s field names it without saying so.
     fn names(&self, column: &str) -> bool {
         let field = self.field(column);
-        let named = if self.snake_case {
-            field.to_snake_case()
-        } else {
-            field
+        let named = match self.snake_case {
+            true => CaseStyle::SnakeCase.convert(&field),
+            false => field,
         };
         named == column
     }

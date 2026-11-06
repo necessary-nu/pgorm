@@ -1,4 +1,6 @@
-use pgorm::pgorm_query::{ColumnRef, Condition, Expr, Func, Query, SimpleExpr};
+use pgorm::pgorm_query::{
+    ColumnRef, Condition, ConditionExpression, Expr, Func, Query, SimpleExpr,
+};
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyTuple};
 
 use super::{PyExpr, compiled::Compiled};
@@ -153,6 +155,22 @@ impl PyCondition {
             self.inner.clone().add(require_expr(other)?.inner)
         };
         Ok(Self { inner })
+    }
+
+    // [spec:pgorm:req:bindings.condition-option]
+    /// The condition with `other` added, or as it is when `other` is `None`,
+    /// as Rust's `Condition::add_option` adds an optional condition.
+    fn add_option(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let other: Option<ConditionExpression> = if other.is_none() {
+            None
+        } else if let Ok(other) = other.extract::<PyRef<'_, Self>>() {
+            Some(other.inner.clone().into())
+        } else {
+            Some(require_expr(other)?.inner.into())
+        };
+        Ok(Self {
+            inner: self.inner.clone().add_option(other),
+        })
     }
 
     fn __invert__(&self) -> Self {

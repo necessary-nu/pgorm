@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Locked Cargo graph, including build and platform-conditional dependencies; a superset of any one platform's addon",
-  "cargo_lock_sha256": "6286bbe5e675c3fdecfc7ef35c7e29777383cd2852ccb33a370de6d1d1fbb7ca",
+  "cargo_lock_sha256": "62cd0a21ea2a74931a7c2da647bd7b11e32dd367ef3529600bc37b8399bdde60",
   "javascript_runtime_dependencies": [],
   "packages": [
     {
@@ -2630,6 +2630,27 @@
         {
           "source": "LICENSE-MIT",
           "sha256": "105fba85b65585b4f8ff4d405f8cfbd297f3a4cdab21643e117bc5dc9baa9072"
+        }
+      ]
+    },
+    {
+      "name": "pgorm-case-style",
+      "version": "0.2.0",
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/necessary-nu/pgorm",
+      "source": "pgorm workspace",
+      "notices": [
+        {
+          "source": "LICENSE-APACHE",
+          "sha256": "769f80b5bcb42ed0af4e4d2fd74e1ac9bf843cb80c5a29219d1ef3544428a6bb"
+        },
+        {
+          "source": "LICENSE-MIT",
+          "sha256": "105fba85b65585b4f8ff4d405f8cfbd297f3a4cdab21643e117bc5dc9baa9072"
+        },
+        {
+          "source": "LICENSE-STRUM",
+          "sha256": "6191f4b088d0b4458f774320722f4b5adf98bd59bd8337ad5245a061a4284de4"
         }
       ]
     },

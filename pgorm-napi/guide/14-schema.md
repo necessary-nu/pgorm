@@ -1,9 +1,10 @@
 # Schema generation
 
 A program's tables have to exist before it can use them. pgorm writes the DDL
-that creates them through the DDL builders: tables, indexes, foreign keys,
-types, domains, sequences, views, schemas, extensions and comments, and
-changes to all of them. They only build statements. You run each one
+that creates them in two ways: from the models you declared, and from DDL
+builders for everything a model does not describe — views, sequences,
+schemas, extensions and changes to an existing table among them. Both only
+build statements. You run each one
 yourself, with `execute`, usually frozen into a migration when the change is
 made, since a statement built from a declaration follows the declaration as
 it changes ([Generated DDL in a
@@ -14,63 +15,42 @@ chapter](../../docs/guide/13-schema.md).
 Schema generation writes; it does not read. pgorm never inspects a database
 to compare it with the models.
 
-## Tables from entities
+## Tables from models
 
 Rust's `Schema` turns an entity into the statements that create its table:
 the `CREATE TABLE` with its primary key, its unique keys and a foreign key for
 each `belongs_to` relation, the `CREATE TYPE` of each enum its columns use,
-an index for each `indexed` column, and its comments. A JavaScript model says
-less than an entity: a column's kind is what its values read as, not its
-column type, so a `text` field may be a `varchar`, a `text` or a domain over
-either, and a model declares no foreign keys, defaults or indexes for DDL.
+an index for each `indexed` column, and its comments. `fromModel(model, {
+relations })` hands a declared model to the same Rust code, which describes
+it as a `TableShape` and writes its statements as it writes an entity's, and
+returns an `EntitySchema`:
 
-**Not available in JavaScript yet:** generating a table from a declared model.
-Rust's `Schema::create_table_from_entity`, `create_enum_from_entity`,
-`create_index_from_entity` and `create_comments_from_entity` write an entity's
-DDL; JavaScript writes a declared model's with the DDL builders below. A
-[registered Rust entity](24-registered-entities.md) has its DDL written by
-pgorm's own `Schema`, through `fromEntity`.
+- `table`, the `CREATE TABLE`, with a foreign key for each `belongsTo`
+  relation in `relations`, which must start at the model;
+- `enums`, a `CREATE TYPE .. AS ENUM` for each enum its columns use;
+- `indexes`, a `CREATE INDEX` for each `indexed` column;
+- `comments`, a `COMMENT ON` for the model's `comment` and each column's.
 
-A model still names what the builders need. Its `table` names the table,
-schema included, and an enum column's declaration holds the enum's type and
-its labels, so the type and the table are written from the model rather than
-spelled twice. Types come before the tables that use them, and a table before
-the tables whose foreign keys point at it. This creates the bakery's first two
+A [registered Rust entity](24-registered-entities.md)'s `fromEntity` returns
+the same. Types come before the tables that use them, and a table before the
+tables whose foreign keys point at it. This creates the bakery's first two
 tables on an empty database:
 
 <!-- example: empty -->
 ```ts
 import assert from "node:assert/strict";
-import { ColumnDef, createTable, createType, DataType, Decimal, ForeignKeyViolationError } from "@necessary/pgorm";
+import { Decimal, ForeignKeyViolationError, fromModel } from "@necessary/pgorm";
 
-const flavors = Cake.columns.flavor;
-const createFlavor = createType(flavors.kind).values(flavors.values!);
-assert.equal(
-  createFlavor.inspect().sql,
+const cake = fromModel(Cake, { relations: [cakeBakery] });
+assert.deepEqual(cake.enums.map((statement) => statement.inspect().sql), [
   `CREATE TYPE "public"."flavor" AS ENUM ('chocolate', 'vanilla', 'lemon', 'carrot')`,
-);
-
-const bakeries = createTable(Bakery.table)
-  .column(new ColumnDef("id", "integer").notNull().autoIncrement())
-  .column(new ColumnDef("name", "varchar").notNull())
-  .column(new ColumnDef("city", "varchar").notNull())
-  .primaryKey("id");
-
-const cakes = createTable(Cake.table)
-  .column(new ColumnDef("id", "integer").notNull().autoIncrement())
-  .column(new ColumnDef("name", "varchar").notNull())
-  .column(new ColumnDef("flavor", flavors.kind).notNull())
-  .column(new ColumnDef("price", new DataType("numeric", { precision: 10, scale: 2 })).notNull())
-  .column(new ColumnDef("gluten_free", "boolean").notNull())
-  .column(new ColumnDef("bakery_id", "integer").notNull())
-  .primaryKey("id")
-  .foreignKey("bakery_id", Bakery.table, "id", { name: "fk-cake-bakery_id" });
+]);
 assert.equal(
-  cakes.inspect().sql,
+  cake.table.inspect().sql,
   `CREATE TABLE "cake" ( "id" serial NOT NULL, "name" varchar NOT NULL, "flavor" public.flavor NOT NULL, "price" decimal(10, 2) NOT NULL, "gluten_free" bool NOT NULL, "bakery_id" integer NOT NULL, PRIMARY KEY ("id"), CONSTRAINT "fk-cake-bakery_id" FOREIGN KEY ("bakery_id") REFERENCES "bakery" ("id") )`,
 );
 
-for (const statement of [createFlavor, bakeries, cakes]) await pool.execute(statement);
+for (const statement of [...cake.enums, fromModel(Bakery).table, cake.table]) await pool.execute(statement);
 
 // The foreign key holds: a cake needs its bakery.
 await assert.rejects(
@@ -79,6 +59,14 @@ await assert.rejects(
   ForeignKeyViolationError,
 );
 ```
+
+The cake's table is the one Rust writes for the Rust guide's cake entity,
+but for the flavor's type: a model's enum column names its type with its
+schema, `public.flavor`, where the Rust enum names none. `fromModel` refuses,
+with a `ConstructionError` carrying Rust's message, a relation that is no
+`belongsTo` or starts at another table, a model read under an alias, and a
+column declared `default: true`, whose default the declaration does not
+state, since its table has no `DEFAULT` to write.
 
 Rust's generation names what it writes: a composite primary key
 `pk-{table}`, a foreign key `fk-{table}-{columns}`, an index
@@ -90,8 +78,9 @@ foreign key above does; otherwise PostgreSQL chooses the name.
 
 Rust writes an entity's enums from its columns, and one enum's type with
 `create_enum_from_active_enum`, which refuses an enum stored some other way.
-In JavaScript, `createType(name).values(labels)` writes an enum's type, and,
-as above, a model's enum column holds both. PostgreSQL has no
+A model's `enums` are its columns' the same way, each written once however
+many columns use it, and `createType(name).values(labels)` writes an enum's
+type directly: a model's enum column holds both. PostgreSQL has no
 `CREATE TYPE IF NOT EXISTS`, so creating a type twice is the server's error;
 run each enum's statement once. Adding a value later is `ALTER TYPE .. ADD
 VALUE`, which the [types](#types) builder writes.
@@ -99,35 +88,42 @@ VALUE`, which the [types](#types) builder writes.
 ## Indexes and comments
 
 An index or a comment is a statement apart from the `CREATE TABLE`, and runs
-after it. Rust writes one for each `indexed` column and each `comment` an
-entity declares; JavaScript writes each with its builder:
+after it. A model's column marked `indexed` gets an index of its own, and a
+`comment` on the model or on a column becomes a `COMMENT ON`, as an entity's
+do:
 
+<!-- example: empty -->
 ```ts
 import assert from "node:assert/strict";
-import { ColumnDef, commentOnColumn, commentOnTable, createIndex, createTable } from "@necessary/pgorm";
+import { column, fromModel, model } from "@necessary/pgorm";
 
-const recipe = createTable("recipe")
-  .column(new ColumnDef("id", "integer").notNull().autoIncrement())
-  .column(new ColumnDef("cake_id", "integer").notNull())
-  .column(new ColumnDef("bake_minutes", "integer").notNull())
-  .primaryKey("id");
+const Recipe = model("recipe", {
+  renameAll: "snake_case",
+  comment: "How each cake is made",
+  columns: {
+    id: column("i32", { primaryKey: true, autoIncrement: true }),
+    cakeId: column("i32", { indexed: true }),
+    bakeMinutes: column("i32", { comment: "Minutes in the oven" }),
+  },
+});
 
-const index = createIndex("recipe", "cake_id", { name: "idx-recipe-cake_id" });
-assert.equal(index.inspect().sql, `CREATE INDEX "idx-recipe-cake_id" ON "recipe" ("cake_id")`);
-
-const comments = [
-  commentOnTable("recipe", "How each cake is made"),
-  commentOnColumn("recipe", "bake_minutes", "Minutes in the oven"),
-];
-assert.deepEqual(comments.map((comment) => comment.inspect().sql), [
+const recipe = fromModel(Recipe);
+assert.deepEqual(recipe.indexes.map((index) => index.inspect().sql), [
+  `CREATE INDEX "idx-recipe-cake_id" ON "recipe" ("cake_id")`,
+]);
+assert.deepEqual(recipe.comments.map((comment) => comment.inspect().sql), [
   `COMMENT ON TABLE "recipe" IS 'How each cake is made'`,
   `COMMENT ON COLUMN "recipe"."bake_minutes" IS 'Minutes in the oven'`,
 ]);
 
-for (const statement of [recipe, index, ...comments]) await pool.execute(statement);
+for (const statement of [recipe.table, ...recipe.indexes, ...recipe.comments]) await pool.execute(statement);
 const comment = await pool.one("SELECT obj_description('recipe'::regclass, 'pg_class') AS comment");
 assert.equal(comment.comment, "How each cake is made");
 ```
+
+`createIndex`, `commentOnTable` and `commentOnColumn` write the same
+statements for a table no model describes, and an index can take the name
+generation would give it.
 
 An index over several columns, a unique index, a partial index or one of
 another method is the [index builder](#indexes)'s too. A unique key over

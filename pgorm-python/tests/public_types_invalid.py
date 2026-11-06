@@ -86,6 +86,14 @@ async def invalid(connection: p.Connection) -> None:
     accounts = p.Model("accounts", {"id": p.Column("i64", primary_key=True)})
     p.Model("accounts", {"id": p.Column("i64")}, unique_keys=[{"fields": "id", "nulls_distinct": True}])  # expected-error: typeddict-unknown-key
     p.Column("i32", generated="sometimes")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.schema-from-model/test]    the DDL options are typed: expressions, a closed case style, a belongs_to's actions
+    p.Column("i32", default_expr=1)  # expected-error: arg-type
+    p.Column("i32", generated_stored="price")  # expected-error: arg-type
+    p.Column("i32", column_type="not_a_type")  # expected-error: arg-type
+    p.Model("accounts", {"id": p.Column("i64")}, rename_all="Camel")  # expected-error: arg-type
+    accounts.belongs_to(accounts, from_="id", to="id", on_delete="drop")  # expected-error: arg-type
+    accounts.has_many(accounts, from_="id", to="id", on_delete="cascade")  # expected-error: call-arg
+    s.from_model(p.entity("accounts"))  # expected-error: arg-type
     accounts.graph().join_one(accounts.col("id"))  # expected-error: arg-type
     accounts.find().cursor("id").first("2")  # expected-error: arg-type
     accounts.find().join(accounts.col("id"))  # expected-error: arg-type
@@ -95,7 +103,7 @@ async def invalid(connection: p.Connection) -> None:
     await accounts.graph().offset(None).count(connection)  # expected-error: misc
     accounts.graph().limit(2).cursor("id")  # expected-error: misc
     accounts.graph().where(accounts.col("id") == 1).offset(1).paginate(10)  # expected-error: misc
-    # [spec:pgorm:req:bindings.relations+1/test]    a relation's condition type is a closed choice, and a load's query a model query
+    # [spec:pgorm:req:bindings.relations+3/test]    a relation's condition type is a closed choice, and a load's query a model query
     selves = accounts.has_many(accounts, from_="id", to="id")
     accounts.has_many(accounts, from_="id", to="id", condition_type="either")  # expected-error: arg-type
     await selves.load(connection, [], accounts)  # expected-error: arg-type
@@ -110,8 +118,6 @@ async def invalid(connection: p.Connection) -> None:
     # [spec:pgorm:req:bindings.model-hooks/test]    a model's hooks are the four named functions, and a record write takes its database
     p.Model("accounts", {"id": p.Column("i64", primary_key=True)}, hooks={"before_insert": lambda values, insert: values})  # expected-error: arg-type
     await accounts.active({"id": 1}).insert()  # expected-error: call-arg
-    # [spec:pgorm:req:bindings.cursor-secondary-order/test]    a secondary ordering is a model's column
-    accounts.find().cursor("id").add_secondary_order_by("id")  # expected-error: arg-type
     insert, update, delete = accounts.insert({"id": 1}), accounts.update({"id": 2}), accounts.delete()
     # [spec:pgorm:req:bindings.model-try-inserts/test]    a try-insert's RETURNING reads one row or a batch by its row count
     await insert.on_conflict_do_nothing().returning().all(connection)  # expected-error: attr-defined
@@ -176,6 +182,19 @@ async def invalid(connection: p.Connection) -> None:
     await s.Migrations([]).up(p.Pool("postgres://"), "1")  # expected-error: arg-type
     s.SqlMigration.read_dir(1)  # expected-error: arg-type
     waiting: list[str] = await s.Migrations([]).get_pending_migrations(connection)  # expected-error: assignment
+    # [spec:pgorm:req:bindings.model-projections/test]    a projection reads no rows until into_tuple, into_values or into_model says what each becomes
+    projection = accounts.find().select_only().column(accounts.col("id"))
+    await projection.all(connection)  # expected-error: attr-defined
+    ids: list[int] = await projection.into_tuple().all(connection)  # expected-error: assignment
+    projection.expr_as(p.call("count", accounts.col("id")), "n", "i64")  # expected-error: arg-type
+    projection.column(p.col("id"))  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.partial-models/test]    a partial model's field is a model column, a FromExpr or a Skip
+    p.PartialModel(accounts, {"id": "id"})  # expected-error: dict-item
+    # [spec:pgorm:req:bindings.cursor-secondary-order+1/test]    a secondary ordering names a model, not a table's name
+    accounts.find().cursor("id").add_secondary_order_by("accounts", "id")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.model-clauses/test]    a model query's lock takes a LockStrength
+    accounts.find().lock("update")  # expected-error: arg-type
+
     # [spec:pgorm:req:bindings.template/test]    a template is a t-string, never a str built at run time
     p.template("char_length(name) < 40")  # expected-error: arg-type
     # [spec:pgorm:req:bindings.batch-execute/test]    a script is text, never a RawSQL

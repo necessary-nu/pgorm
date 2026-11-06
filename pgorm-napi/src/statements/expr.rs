@@ -43,6 +43,7 @@ pub(super) const EXPORTS: &[(&str, super::Build)] = &[
     ("exprOrder", order),
     ("conditionNew", condition_new),
     ("conditionAdd", condition_add),
+    ("conditionAddOption", condition_add_option),
     ("conditionNot", condition_not),
     ("caseWhen", case_when),
     ("caseElse", case_else),
@@ -677,6 +678,20 @@ fn condition_add(cx: &mut FunctionContext) -> NeonResult<Node> {
     let item = predicate_at(cx, 1)?;
     let condition = condition.add(item);
     Ok(Node::Condition(condition))
+}
+
+/// `conditionAddOption(condition, item)`: a new condition with `item`
+/// added, or the condition as it is where `item` is null or undefined, as
+/// Rust's `Condition::add_option` adds an optional condition.
+// [spec:pgorm:req:bindings.condition-option]
+fn condition_add_option(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let condition = condition_receiver(cx)?;
+    let item = arg(cx, 1);
+    let item = match args::absent(cx, item) {
+        true => None,
+        false => Some(predicate_at(cx, 1)?),
+    };
+    Ok(Node::Condition(condition.add_option(item)))
 }
 
 /// `conditionNot(condition)`: the condition negated.

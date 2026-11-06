@@ -1,9 +1,9 @@
 # Schema generation
 
 A program's tables have to exist before it can use them. pgorm writes the
-DDL that creates them in two ways: from entities a Rust crate declared, and
-from DDL builders for everything else, such as a model's table, a view, a
-sequence or a change to an existing table. Both live in `pgorm.schema`, and
+DDL that creates them in two ways: from the models and entities you
+declared, and from DDL builders for everything a declaration does not
+describe, such as a view, a sequence or a change to an existing table. Both live in `pgorm.schema`, and
 both only build statements. Building one sends nothing, and neither does
 importing a module or declaring a model. You run each statement yourself,
 usually in a [migration](22-migrations.md), with `execute`.
@@ -16,12 +16,13 @@ the statement itself, on a pool, a connection or a transaction, and
 Schema generation writes; it does not read. pgorm never inspects a database
 to compare it with your models or entities.
 
-## Tables from entities
+## Tables from models and entities
 
 Rust's `Schema` turns an entity into the statements that create its table.
-Python reaches it for a [registered Rust entity](24-registrations.md) through
-`pgorm.schema.from_entity`, which calls those Rust methods for the entity and
-returns an `EntitySchema`:
+Python reaches it for a declared model through `pgorm.schema.from_model`,
+which describes the model's table to Rust as data, and for a [registered
+Rust entity](24-registrations.md) through `pgorm.schema.from_entity`. Both
+call the same Rust methods and return an `EntitySchema`:
 
 - `table`, the `CREATE TABLE`, with its primary key, its unique keys and a
   foreign key for each `belongs_to` relation;
@@ -39,7 +40,7 @@ entities that use one enum each list it, so create it once.
 `pgorm.entities()` lists the names of the entities the installed wheel
 registers. The guide's registration build registers the bakery's Rust
 entities as `rust_bakery.Bakery`, `rust_bakery.Cake` and the rest. This is
-what Rust writes for the cake:
+what Rust writes for the registered cake:
 
 ```python registered
 import pgorm
@@ -60,8 +61,10 @@ assert cake.table.inspect().sql == (
 )
 assert len(cake.indexes) == 0 and len(cake.comments) == 0
 
-# bakery.py writes the same table with the DDL builders.
-assert cake.table.inspect().sql == statements()[3].inspect().sql
+# bakery.py's model writes the same table, its flavor type named with its schema.
+assert cake.table.inspect().sql.replace('"flavor" flavor', '"flavor" public.flavor') == (
+    statements()[3].inspect().sql
+)
 ```
 
 The names generation gives are fixed: a composite primary key is
@@ -76,44 +79,38 @@ which only a hand-written `EntityName` can describe, and a `belongs_to`
 relation with a column typed as a domain over an enum on either side, a
 foreign key PostgreSQL cannot build. Rust's refusal is `Error::Type`.
 
-Generating a table from a model declared in Python is not available in
-Python yet. `from_entity` takes only a registered entity, and refuses a
-`pgorm.Model` with a `TypeError`. A model's table is written with the [DDL
-builders](#the-ddl-builders) instead, column by column, as
-[`bakery.py`](bakery.py)'s `statements()` writes the bakery's. The one
-exception is a [disjoint model](15-disjoint.md), whose tables
-`create_disjoint` writes from its models. Here is the cake's table, written
-to match what Rust generates. `bakery.create` ran the same statement on the
-database every example starts from, so its foreign key already holds there:
+A declared model's table is the same, from its declaration: each field's
+column of its kind's type or its `column_type`, its key, unique keys and
+comment, and a foreign key for each `belongs_to` relation `relations`
+gives, with the actions and name the relation carries ([Models and
+entities](03-entities.md) goes through each option). [`bakery.py`](bakery.py)'s
+`statements()` writes the bakery's tables this way. A model's enum column
+names its type with its schema, so the cake's table writes `public.flavor`
+where Rust's entity, which names no schema, writes `flavor`: the same type.
+`bakery.create` ran these statements on the database every example starts
+from, so the cake's foreign key already holds there:
 
 ```python
 import asyncio
 import os
 from decimal import Decimal
 
-from pgorm import ForeignKeyViolationError, Pool, TypeName
+from pgorm import ForeignKeyViolationError, Pool
 from pgorm import schema as s
 
-from bakery import Cake, statements
+from bakery import Cake, cake_bakery, statements
 
-cake = (
-    s.create_table("cake")
-    .column(s.ColumnDef("id", "integer").not_null().auto_increment())
-    .column(s.ColumnDef("name", "varchar").not_null())
-    .column(s.ColumnDef("flavor", TypeName("flavor")).not_null())
-    .column(s.ColumnDef("price", s.DataType("numeric", precision=10, scale=2)).not_null())
-    .column(s.ColumnDef("gluten_free", "boolean").not_null())
-    .column(s.ColumnDef("bakery_id", "integer").not_null())
-    .primary_key("id")
-    .foreign_key("bakery_id", "bakery", "id", name="fk-cake-bakery_id")
-)
-assert cake.inspect().sql == (
+cake = s.from_model(Cake, relations=[cake_bakery])
+assert [statement.inspect().sql for statement in cake.enums] == [
+    """CREATE TYPE "public"."flavor" AS ENUM ('chocolate', 'vanilla', 'lemon', 'carrot')"""
+]
+assert cake.table.inspect().sql == (
     'CREATE TABLE "cake" ( "id" serial NOT NULL, "name" varchar NOT NULL, '
-    '"flavor" flavor NOT NULL, "price" decimal(10, 2) NOT NULL, "gluten_free" bool NOT NULL, '
+    '"flavor" public.flavor NOT NULL, "price" decimal(10, 2) NOT NULL, "gluten_free" bool NOT NULL, '
     '"bakery_id" integer NOT NULL, PRIMARY KEY ("id"), '
     'CONSTRAINT "fk-cake-bakery_id" FOREIGN KEY ("bakery_id") REFERENCES "bakery" ("id") )'
 )
-assert cake.inspect().sql == statements()[3].inspect().sql
+assert cake.table.inspect().sql == statements()[3].inspect().sql
 
 
 async def main() -> None:
@@ -135,6 +132,13 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
+
+`from_model` refuses, with a `ConstructionError`, a relation that is no
+`belongs_to` or starts at another table, a model read under an alias, and a
+column declared `default=True`, whose default the declaration does not
+state, since its table has no `DEFAULT` to write. A [disjoint
+model](15-disjoint.md)'s tables are `create_disjoint`'s, which writes their
+columns the same way.
 
 Generated statements describe a table as it is when they are generated, so a
 migration history freezes them into migration files when a change is made,
@@ -191,33 +195,28 @@ A Rust entity's column marked `indexed` gets an index of its own, and a
 entity's `indexes` and `comments` hold them. Both are statements apart from
 the `CREATE TABLE`, and run after it.
 
-A model declared in Python has no `indexed` or `comment` option, so it
-generates neither; that is not available in Python yet. `create_index`,
-`comment_on_table` and `comment_on_column` write the same statements, and an
-index can take the name generation would give it. Here the bakery records how
-each cake is made:
+A declared model says the same with `indexed=True` on a `Column` and
+`comment="..."` on a `Column` or on the `Model`, and its `indexes` and
+`comments` hold them. Here the bakery records how each cake is made:
 
 ```python
 import asyncio
 import os
 
-from pgorm import Pool, RawSQL
+from pgorm import Column, Model, Pool, RawSQL
 from pgorm import schema as s
 
-recipe = (
-    s.create_table("recipe")
-    .column(s.ColumnDef("id", "integer").not_null().auto_increment())
-    .column(s.ColumnDef("cake_id", "integer").not_null())
-    .column(s.ColumnDef("bake_minutes", "integer").not_null())
-    .primary_key("id")
-)
-index = s.create_index("recipe", "cake_id", name="idx-recipe-cake_id")
-comments = [
-    s.comment_on_table("recipe", "How each cake is made"),
-    s.comment_on_column("recipe", "bake_minutes", "Minutes in the oven"),
+Recipe = Model("recipe", {
+    "id": Column("i32", primary_key=True, auto_increment=True),
+    "cake_id": Column("i32", indexed=True),
+    "bake_minutes": Column("i32", comment="Minutes in the oven"),
+}, comment="How each cake is made")
+
+recipe = s.from_model(Recipe)
+assert [index.inspect().sql for index in recipe.indexes] == [
+    'CREATE INDEX "idx-recipe-cake_id" ON "recipe" ("cake_id")'
 ]
-assert index.inspect().sql == 'CREATE INDEX "idx-recipe-cake_id" ON "recipe" ("cake_id")'
-assert [comment.inspect().sql for comment in comments] == [
+assert [comment.inspect().sql for comment in recipe.comments] == [
     """COMMENT ON TABLE "recipe" IS 'How each cake is made'""",
     """COMMENT ON COLUMN "recipe"."bake_minutes" IS 'Minutes in the oven'""",
 ]
@@ -225,7 +224,7 @@ assert [comment.inspect().sql for comment in comments] == [
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        for statement in [recipe, index, *comments]:
+        for statement in [recipe.table, *recipe.indexes, *recipe.comments]:
             await pool.execute(statement)
         row = await pool.one(RawSQL(
             "SELECT obj_description('recipe'::regclass, 'pg_class') AS comment"
@@ -235,6 +234,10 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
+
+`create_index`, `comment_on_table` and `comment_on_column` write the same
+statements for a table no model describes, and an index can take the name
+generation would give it.
 
 An index over several columns, a unique index, a partial index or one of
 another method is the [index builder](#indexes)'s. A unique key over several
@@ -308,7 +311,8 @@ migrations, raw column options and concurrent indexes.
 
 Rust has two `Schema`s: `pgorm::Schema` generates DDL from entities, and
 `pgorm_query::Schema` builds `CREATE SCHEMA`. In Python they are
-`from_entity` and `create_schema`, side by side in `pgorm.schema`.
+`from_model` and `from_entity`, and `create_schema`, side by side in
+`pgorm.schema`.
 
 ### Tables
 
