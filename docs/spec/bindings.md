@@ -518,7 +518,7 @@ closed, and a transaction by the block or callback it was opened for ending.
 > entity's write that reads back no row, pgorm's `RecordNotFound`, is a
 > `DecodeError` too.
 
-> [spec:pgorm:req:bindings.streams]
+> [spec:pgorm:req:bindings.streams+1]
 > `stream` on a pool or a connection MUST give an async iterator over a
 > statement's rows through pgorm's `query_raw`, each pull giving one row, so
 > that the driver's bounded buffer and the socket hold the server back while
@@ -528,9 +528,18 @@ closed, and a transaction by the block or callback it was opened for ending.
 > stream holds a connection of its own; a connection's stream reserves that
 > connection, which refuses other work meanwhile. A decode error ends the
 > stream as an error, never as its end, and a database error keeps its
-> SQLSTATE and the rows before it. A transaction offers no stream.
+> SQLSTATE and the rows before it.
+>
+> `stream` on a transaction or a savepoint MUST give the same iterator through
+> pgorm's `query_raw` on the `DatabaseTransaction`, opened by the closure
+> transaction's task (`bindings.transactions`) and reserving the transaction
+> until its last row: the transaction refuses other work meanwhile with a
+> `LifecycleError`, and its scope ending while the stream is open, or the
+> stream closed or abandoned with rows remaining, discards the transaction
+> with its connection, nothing committed. A model's, a graph's and a disjoint
+> read's `stream` take a transaction as they take a connection.
 
-> [spec:pgorm:req:bindings.transactions+1]
+> [spec:pgorm:req:bindings.transactions+2]
 > Transactions MUST open only through the language's scoped form on a pool or
 > a connection, and savepoints only through the same form on a transaction
 > (`python.transactions`, `napi.transactions`), as Rust's open only around a
@@ -552,18 +561,50 @@ closed, and a transaction by the block or callback it was opened for ending.
 > and reports `Error::TransactionAborted` (`conn.tx.aborted`). The scope's
 > end then raises a `DatabaseError` whose `sqlstate` is `25P02` and whose
 > message is pgorm's account of the rollback, the same text in each binding,
-> and keeps its connection, which is in a known state. A `ROLLBACK` that fails, which pgorm reports as
-> `TransactionError::RollbackFailed`, discards the connection and is reported
-> with both errors, as each binding's rule describes. An abandoned scope whose
-> `ROLLBACK` fails discards the connection too.
+> and keeps its connection, which is in a known state. A `ROLLBACK` that
+> fails, which pgorm reports as `TransactionError::RollbackFailed`, discards
+> the connection and is reported with both errors (`bindings.rollback-failed`).
+> An abandoned scope whose `ROLLBACK` fails discards the connection too.
 >
 > pgorm's rule that a transaction borrows its parent exclusively MUST hold:
 > while a transaction is open its connection refuses other work; while a
 > savepoint is open its transaction refuses statements and other savepoints;
 > and a statement started while another runs on the same transaction is
 > refused. Each refusal is a `LifecycleError`, never queued or raced. A closed
-> or foreign transaction handle fails explicitly. Nothing is retried: neither
-> a write nor a failed transaction.
+> or foreign transaction handle fails explicitly. Nothing is retried but what
+> `transaction_with_retry` runs again (`bindings.transaction-retry`): neither a
+> write nor any other failed transaction.
+
+> [spec:pgorm:req:bindings.transaction-retry]
+> `transaction_with_retry(work, retries, mode, isolation)` on a pool and a
+> connection MUST run `work`, a function given each attempt's `Transaction`,
+> through pgorm's `DatabaseConnection::transaction_with_retry`, each attempt a
+> frame of the closure transaction (`bindings.transactions`) on one connection,
+> a pool's lent for the whole. An attempt whose `work` fails with an error
+> pgorm calls retryable, or whose `COMMIT` fails so, is rolled back and run
+> again from `BEGIN`, up to `retries` more times, a whole number of a `u32`;
+> past the last, or for any other failure, the transaction ends as a scope
+> does, its failure reported as the scoped form reports it. The binding
+> decides nothing itself: whether an attempt runs again is pgorm's answer,
+> given whether the error `work` raised is retryable. `retries` of another type
+> is a `TypeError`, and one out of range a `ConstructionError`.
+>
+> Every error of the binding MUST say whether it is retryable, as pgorm's
+> `Error::is_retryable` answers for the error it came from: a serialization
+> failure (`40001`) or a deadlock (`40P01`). Python spells it `is_retryable`, a
+> `bool` attribute, and JavaScript `isRetryable`, a getter; an error the
+> binding or the program made is not retryable.
+
+> [spec:pgorm:req:bindings.rollback-failed]
+> A transaction whose scope failed and whose `ROLLBACK` then failed MUST be
+> reported with both errors, as Rust's `TransactionError::RollbackFailed` and
+> `Error::RollbackFailed` carry them: Python raises `RollbackFailedError`, a
+> `PgormError` whose `cause` is the block's exception and `rollback` the
+> rollback's error, chained from the cause; JavaScript rejects with a
+> `SuppressedError` whose `error` is the rollback's and `suppressed` what the
+> callback threw (`napi.transactions`). A cancellation is never replaced this
+> way. An error pgorm itself reports as `Error::RollbackFailed` is reported
+> the same way.
 
 > [spec:pgorm:req:bindings.cancellation]
 > Acquiring a connection, running a statement, opening a transaction or a
@@ -811,6 +852,82 @@ closed, and a transaction by the block or callback it was opened for ending.
 > failed query and a rollback; an error for a failed acquisition — to a
 > logger, Python's `logging.getLogger("pgorm.metrics")` or JavaScript's
 > `console` unless the program gives another.
+
+## Raw SQL
+
+> [spec:pgorm:req:bindings.batch-execute]
+> `batch_execute(script)` on a pool, a connection and a transaction MUST run
+> `script`, `;`-separated statements and no parameters, through pgorm's
+> `ConnectionTrait::batch_execute`, the simple-query protocol, preparing
+> nothing; a pool's on a connection of its own. A script is text, a `TypeError`
+> otherwise, and what the server refuses is its `DatabaseError`.
+
+> [spec:pgorm:req:bindings.sql-check]
+> `sql(text)` MUST hold `text` to PostgreSQL 18's grammar through
+> `pgorm::sql_check::check_sql` (`macros.runtime`), a script statement by
+> statement, and return it unchanged: the run-time counterpart of Rust's
+> compile-time `sql!`, called where a module defines its statements. A
+> rejection is a `ConstructionError` whose message is the rejection's text:
+> the parser's message and the line it stopped on with a caret under the token.
+> The check is the grammar's alone. Text that is not a string is a `TypeError`.
+
+> [spec:pgorm:req:bindings.prql-text]
+> `prql(text, values)` MUST compile `text`, PRQL, through
+> `pgorm::sql_check::compile_prql`, hold the SQL to the grammar, refuse a gap
+> in its placeholders or `$0`, and hold the number of `values` to its distinct
+> placeholders, giving the SQL and the values in placeholder order as the
+> binding's raw statement holds them, Python's `RawSQL` and JavaScript's pair
+> of `sql` and `values` (`python.raw`, `napi.raw`): the counterpart of Rust's
+> `prql!`. Each refusal is a
+> `ConstructionError` with the text pgorm's refusal has, prqlc's own diagnostic
+> for PRQL it rejects, `take $1` among it.
+
+> [spec:pgorm:req:bindings.raw-models]
+> A declared model's `find_by_statement(statement)` MUST read a raw
+> statement's rows into the model's records as Rust's
+> `FromQueryResult::find_by_statement` reads them: each field from the result
+> column of its SQL name, held to its declared kind as the model's own reads
+> hold it (`bindings.model-records`), columns no field reads left unread, and a
+> field whose column is absent a `DecodeError`. It gives a `SelectorRaw` whose
+> `all`, `one`, `optional` and `stream` run the statement as written, adding no
+> `LIMIT`, with `paginate` and `count` (`bindings.raw-pages`).
+> `from_statement(statement)` gives a `SelectorRaw` whose rows are the
+> binding's plain rows, as Rust's `SelectorRaw::from_statement` holds a
+> statement. A registered entity's query's `from_raw_sql(statement)` reads them
+> through Rust's `Select::from_raw_sql`, the entity's own `FromQueryResult`.
+> Python takes the statement as a `RawSQL` and JavaScript as SQL text and its
+> parameters, each binding's raw statement (`python.raw`, `napi.raw`).
+
+> [spec:pgorm:req:bindings.verify]
+> `verify(statement, model)` on a pool, a connection and a transaction MUST
+> check a declared model against the result columns the server describes for
+> the statement through `VerifyStatement::describe`, without running it: each
+> field's column, by its SQL name, MUST be among them, and of a type whose
+> values decode as the field's declared kind, the test a row's decode applies.
+> A field that fails is a `DecodeError` naming the model's table, the column
+> and either the columns the statement returns or the kind and the PostgreSQL
+> type, as Rust's `VerifyError` names them; a statement the server refuses to
+> prepare is its `DatabaseError`. The statement's values are neither bound nor
+> checked.
+
+> [spec:pgorm:req:bindings.raw-pages]
+> `paginate(page_size)` and `count(db)` on a `SelectorRaw` MUST page and
+> count the statement as Rust's `SelectorRaw::paginate` and
+> `count` do, through `pgorm::raw_select`: the statement read as a subquery,
+> its values renumbered into the page's or the count's, and refused with a
+> `ConstructionError` as `paginate` is called, or as `count` runs, unless it is
+> one row-returning `SELECT` whose markers and values pair
+> (`exec.paginator.raw`). The pages hold what the selector's rows are, plain
+> rows or the model's records; the `Paginator` is the one a model's query
+> gives (`bindings.pagination`).
+
+> [spec:pgorm:req:bindings.refusal-fields]
+> A value the driver refused as it encoded a parameter MUST be reported as a
+> `ConstructionError` carrying pgorm's `BindRefusal` as fields, `parameter`,
+> the one-based `$N`, and `reason`, the codec's refusal or null; and a result
+> the driver could not read as a `DecodeError` carrying `DecodeRefusal`'s
+> `reading` and `reason`. Any other `ConstructionError` or `DecodeError` holds
+> null in each. The message is the refusal's text (`bindings.errors`).
 
 ## Statements
 
@@ -1253,6 +1370,44 @@ the same terminals that run raw SQL.
 > `DatabaseError`: a collation that does not exist (`42704`) and a collation
 > on a type without one (`42804`).
 
+> [spec:pgorm:req:bindings.named-functions]
+> `func(name, ...arguments)` MUST call any function by name through
+> pgorm-query's `Func::named`, each argument bound unless it is an expression.
+> The name is an identifier (`bindings.identifiers`), written bare when it is a
+> lowercase name PostgreSQL does not restrict and quoted otherwise, so it names
+> a function and never reaches SQL as syntax; a function that does not exist
+> is the server's `42883`. A call `func` makes is a function call a table
+> function reads, so any set-returning function is a source. `call` reaches,
+> beside the functions `bindings.expressions` names, `grouping` with one
+> argument or more, pgorm-query's `Func::grouping`, and the full-text search
+> functions `to_tsvector`, `to_tsquery`, `plainto_tsquery`, `phraseto_tsquery`
+> and `websearch_to_tsquery` of one argument and `ts_rank` and `ts_rank_cd` of
+> two.
+
+> [spec:pgorm:req:bindings.template]
+> `template` MUST write a piece of SQL the builders have no method for, as
+> Rust's `Expr::template` does, its text held to program text as far as the
+> language holds it: Python takes a t-string, `template(t"..")`, and
+> JavaScript a tagged template literal, `` template`..` ``, the text of either
+> written in the program and each interpolation a value. The pieces are SQL,
+> and each interpolation goes between them through pgorm-query's
+> `SqlTemplate::from_pieces` (`sql.render.template-pieces`): an expression
+> embedded as it is, any other value bound. A plain string is a `TypeError`, so
+> text built at run time becomes a template only by being written into the
+> language's own template construct. A piece that writes a `$N` marker, a value
+> that lands in a quoted region, and in Python an interpolation with a
+> conversion or a format, are `ConstructionError`s.
+
+> [spec:pgorm:req:bindings.json-operators]
+> Every expression MUST have the `jsonb` accessors and key tests through
+> pgorm-query's methods of those meanings: `get_json_field` (`->`) and
+> `cast_json_field` (`->>`), whose key or index is bound unless it is an
+> expression; `get_json_path` (`#>`) and `cast_json_path` (`#>>`), whose path is
+> a list of keys bound as one `text[]`; `has_json_key` (`?`) of one key; and
+> `has_any_json_keys` (`?|`) and `has_all_json_keys` (`?&`) of a list of keys.
+> A key that is not text, and a path or list that is not a list of text, are
+> `TypeError`s.
+
 ## Models
 
 A model is data the application declares: a table and its columns, lowered
@@ -1402,7 +1557,7 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > `text`, and its text MUST be read as a `Multirange` of the declared
 > subtype, text that subtype does not read being a `DecodeError`.
 
-> [spec:pgorm:req:bindings.model-reads]
+> [spec:pgorm:req:bindings.model-reads+1]
 > `find()` MUST select every field, `select(fields)` the fields it names, and
 > `find_by_key(key)` the row of a primary key, through pgorm-query's
 > `SelectStatement`. `where` ANDs a condition; `order_by`, `limit` and
@@ -1412,8 +1567,8 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > terminals `all`, `one`, `optional` and `count` run on a pool, a connection
 > or a transaction — `one` exactly one row and `optional` at most one, any
 > other count an error — and `count` counts as `bindings.pagination` does. A
-> model's rows stream from a pool or a connection as records, through the
-> same decode.
+> model's rows stream from a pool, a connection or a transaction as records,
+> through the same decode (`bindings.streams`).
 
 > [spec:pgorm:req:bindings.model-writes+3]
 > `insert(values)` MUST give a `ModelInsert` and `insert_many(rows)` a

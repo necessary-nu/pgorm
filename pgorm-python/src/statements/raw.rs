@@ -22,7 +22,7 @@ pub struct RawSQL {
 impl RawSQL {
     #[new]
     #[pyo3(signature = (template, values=None))]
-    fn new(template: String, values: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
+    pub(crate) fn new(template: String, values: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
         if template.contains('\0') {
             return Err(ConstructionError::new_err("SQL text cannot contain NUL"));
         }

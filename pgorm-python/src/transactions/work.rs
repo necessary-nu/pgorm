@@ -19,6 +19,8 @@ pub(crate) enum Work {
     Execute(Compiled),
     Fetch(Compiled),
     Entity(Select, Terminal),
+    /// A raw statement decoded into a registration's models.
+    EntityRaw(Select, Compiled, Terminal),
     Write(Active, Write),
     Versions(
         std::sync::Arc<dyn crate::entities::backend::EntityBackend>,
@@ -35,6 +37,10 @@ pub(crate) enum Work {
     Sources(Sources, SourceTerminal),
     /// `pgorm::notify`'s channel and payload.
     Notify(String, String),
+    /// A script run through `batch_execute`.
+    Batch(String),
+    /// A statement described through `VerifyStatement::describe`.
+    Describe(String),
     /// pgorm-migration's `install`, or its reading of every migration's
     /// status, on what the caller holds.
     Ledger(Box<pgorm_migration::Migrations>, Ledger),
@@ -59,6 +65,7 @@ pub(crate) enum Output {
     Versions(Vec<Versions>),
     Inserted(Insertions),
     Graph(Vec<GraphRow>),
+    Described(Vec<pgorm::DescribedColumn>),
     /// Each root of a grouped graph read with its slot's models.
     Grouped(
         Vec<(
@@ -69,6 +76,8 @@ pub(crate) enum Output {
     /// Each migration's name, and whether the ledger records it applied.
     Migrations(Vec<(String, bool)>),
     Finished,
+    /// A retrying transaction's attempt ended, and pgorm opened the next.
+    Retrying,
 }
 
 impl Work {
@@ -85,6 +94,10 @@ impl Work {
                 db.query_all(&compiled.sql, &params).await.map(Output::Rows)
             }
             Self::Entity(query, terminal) => query.run(db, terminal).await.map(Output::Models),
+            Self::EntityRaw(query, compiled, terminal) => query
+                .run_raw(db, compiled.sql, compiled.values, terminal)
+                .await
+                .map(Output::Models),
             Self::Write(active, write) => active.run(db, write).await.map(Output::Written),
             Self::Versions(entity, write) => {
                 entity.versions(db, *write).await.map(Output::Versions)
@@ -98,6 +111,10 @@ impl Work {
             Self::Notify(channel, payload) => pgorm::notify(&db, &channel, &payload)
                 .await
                 .map(|()| Output::Finished),
+            Self::Batch(script) => db.batch_execute(&script).await.map(|()| Output::Finished),
+            Self::Describe(sql) => pgorm_bindings::describe(db, &sql)
+                .await
+                .map(Output::Described),
             // [spec:pgorm:req:bindings.migrations]    the runner's own install and reads
             Self::Ledger(migrations, Ledger::Install) => {
                 migrations.install(&db).await.map(|()| Output::Finished)

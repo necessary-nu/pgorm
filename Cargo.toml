@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "pgorm-macros", "pgorm-codegen", "pgorm-migration", "pgorm-pool", "pgorm-query", "pgorm-query/pgorm-query-attr", "pgorm-query/pgorm-query-derive", "pgorm-query/pgorm-query-derive-internals", "pgorm-sql-macro", "pgorm-test-support", "pgorm-guide-support", "pgorm-bindings"]
+members = [".", "pgorm-macros", "pgorm-codegen", "pgorm-migration", "pgorm-pool", "pgorm-query", "pgorm-query/pgorm-query-attr", "pgorm-query/pgorm-query-derive", "pgorm-query/pgorm-query-derive-internals", "pgorm-sql-check", "pgorm-sql-macro", "pgorm-test-support", "pgorm-guide-support", "pgorm-bindings"]
 
 [package]
 name = "pgorm"
@@ -73,12 +73,13 @@ rust_decimal = { version = "1.43", features = ["db-tokio-postgres"], default-fea
 # Upstream's own 18 release replaces the fork when it ships.
 #
 # The cost is the one prqlc's states — `cargo publish` refuses a git
-# dependency — and the revision is held the same way: pgorm-sql-macro,
+# dependency — and the revision is held the same way: pgorm-sql-check,
 # pgorm-codegen and pgorm-query's oracle name the same commit, and
 # tests/fork_pin_tests.rs holds every declaration and every committed lockfile
 # to it.
 pg_query = { git = "https://github.com/necessary-nu/pg_query.rs.git", rev = "09ebc3a4c7f50f3682e890a8372b4c4c99382ed9" }
 pgorm-macros = { version = "0.2.0", path = "pgorm-macros", default-features = false }
+pgorm-sql-check = { version = "0.2.0", path = "pgorm-sql-check" }
 pgorm-sql-macro = { version = "0.2.0", path = "pgorm-sql-macro" }
 # The PRQL compiler behind pgorm::pipeline. Pure Rust but a heavyweight
 # compile; a permanent dependency by decision, like pg_query above. The pin
@@ -113,7 +114,7 @@ pgorm-sql-macro = { version = "0.2.0", path = "pgorm-sql-macro" }
 # The cost is publication: `cargo publish` refuses a git dependency with no
 # registry version, and giving it one would hand every crates.io consumer the
 # stock compiler this exists to avoid, so pgorm is not publishable to
-# crates.io while this stands. pgorm-sql-macro names the same revision, and
+# crates.io while this stands. pgorm-sql-check names the same revision, and
 # tests/fork_pin_tests.rs holds every declaration and every committed
 # lockfile to it.
 prqlc = { git = "https://github.com/necessary-nu/prql.git", rev = "2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19", default-features = false }

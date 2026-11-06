@@ -6,7 +6,7 @@
 // [spec:pgorm:req:bindings.entity-reads+4]
 
 import { arg, Handle, TRUSTED } from "./builder.js";
-import { decodedStream, runJob } from "./connections.js";
+import { decodedStream, runJob } from "./runs.js";
 import { predicateOf, recordsOf, rowsOf } from "./entities.js";
 import { EntityCursor, EntityPaginator, EntitySelection, READS, relationOf } from "./entity-reads.js";
 import { Expr, listedValues, OrderBy, Quantified } from "./expressions.js";

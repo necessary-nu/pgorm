@@ -60,8 +60,11 @@ __version__: str
 __pgorm_version__: str
 POSTGRES_TARGET: Literal[18, 19]
 
-class PgormError(Exception): ...
-class ConstructionError(PgormError): ...
+class PgormError(Exception):
+    is_retryable: bool
+class ConstructionError(PgormError):
+    parameter: int | None
+    reason: str | None
 class UnsupportedCapabilityError(ConstructionError): ...
 class ConnectionError(PgormError): ...
 class DatabaseError(PgormError):
@@ -80,12 +83,18 @@ class ForeignKeyViolationError(DatabaseError): ...
 class CheckViolationError(DatabaseError): ...
 class NotNullViolationError(DatabaseError): ...
 class ExclusionViolationError(DatabaseError): ...
-class DecodeError(PgormError): ...
+class DecodeError(PgormError):
+    reading: str | None
+    reason: str | None
+class RollbackFailedError(PgormError):
+    cause: BaseException | None
+    rollback: PgormError | None
 class TimeoutError(PgormError): ...
 class LifecycleError(PgormError): ...
 class InternalError(PgormError): ...
 
 def capabilities() -> dict[str, Any]: ...
+def _rollback_failed(cause: BaseException, rollback: BaseException) -> RollbackFailedError: ...
 def require_capability(operation: str) -> None: ...
 
 class TypeName:
@@ -132,7 +141,8 @@ from ._query_types import (
 from ._models import _model_result_names as _model_result_names, _model_count as _model_count
 from ._expressions import (
     Expr as Expr, _DeclaredColumn as _DeclaredColumn, Condition as Condition, col as col, bind as bind,
-    literal as literal, call as call, tuple_expr as tuple_expr, domain_value as domain_value,
+    literal as literal, call as call, func as func, template as template,
+    tuple_expr as tuple_expr, domain_value as domain_value,
 )
 from ._statements import (
     GroupingElement as GroupingElement,
@@ -165,6 +175,7 @@ from ._json import (
     is_json as is_json, is_not_json as is_not_json,
 )
 from ._results import Record as Record, Field as Field
+from ._entity_raw import EntityRawQuery as EntityRawQuery
 from ._entities import Entity as Entity, EntityQuery as EntityQuery, entity as entity, entities as entities
 from ._entity_columns import EntityColumn as EntityColumn
 from ._entity_reads import EntityRelation as EntityRelation, EntitySelection as EntitySelection, EntityPaginator as EntityPaginator, EntityCursor as EntityCursor, _RowDecoder as _RowDecoder
@@ -186,6 +197,8 @@ from ._one_of import (
 )
 from ._writes import (
     Insert as Insert, Update as Update, Delete as Delete, RawSQL as RawSQL,
+    sql as sql, prql as prql, _raw_select as _raw_select, _batch_execute as _batch_execute,
+    _describe as _describe,
     Conflict as Conflict, ConflictTarget as ConflictTarget, ConflictUpdate as ConflictUpdate,
 )
 from ._merge import (
@@ -204,10 +217,12 @@ from ._copy_rows import (
 from ._listen import (
     Notification as Notification, _Listener as _Listener, _connect_listener as _connect_listener,
 )
+from ._retrying import _Retrying as _Retrying
 from ._runtime import (
     _Pool as _Pool, _PoolShape as _PoolShape, _HookConnection as _HookConnection,
     _Connection as _Connection, _Stream as _Stream,
-    _Transaction as _Transaction, STATEMENT_CACHE_CHANNEL as STATEMENT_CACHE_CHANNEL,
+    _Transaction as _Transaction,
+    STATEMENT_CACHE_CHANNEL as STATEMENT_CACHE_CHANNEL,
 )
 from ._from_items import (
     Table as Table, FromItem as FromItem, SampleMethod as SampleMethod,

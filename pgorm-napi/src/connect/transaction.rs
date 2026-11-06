@@ -46,10 +46,21 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("transactionCopyIn", transaction_copy_in)?;
     cx.export_function("transactionCopyOut", transaction_copy_out)?;
     cx.export_function("transactionCopyColumns", transaction_copy_columns)?;
+    cx.export_function("transactionStream", stream::transaction_stream)?;
+    cx.export_function("transactionFinishAttempt", transaction_finish_attempt)?;
+    retry::export(cx)?;
     Ok(())
 }
 
+mod retry;
+mod stream;
+
 type Finish = oneshot::Sender<Result<(), Failure>>;
+
+/// What a frame's end is answered with: `true` once pgorm has opened the
+/// next attempt of a retrying transaction, `false` once the transaction has
+/// ended.
+type Attempted = oneshot::Sender<Result<bool, Failure>>;
 
 enum Command {
     Run {
@@ -67,7 +78,17 @@ enum Command {
     },
     Finish {
         commit: bool,
-        reply: Finish,
+        /// For a rollback: whether the callback's failure is one a retrying
+        /// transaction runs again after.
+        retryable: bool,
+        reply: Attempted,
+    },
+    /// A statement's rows, read by a stream that holds the frame's lock
+    /// until its last row.
+    Stream {
+        sql: String,
+        params: Vec<crate::params::Param>,
+        opened: oneshot::Sender<Result<tokio_postgres::RowStream, Failure>>,
     },
     Begin {
         child: Arc<State>,
@@ -160,9 +181,23 @@ impl Drop for Pending {
     }
 }
 
+/// A transaction a stream in progress holds: its frame's lock, and the
+/// request whose outcome is unknown until the stream's last row. Dropped
+/// without `complete`, the whole transaction is discarded.
+pub(crate) struct Lease {
+    _lock: OwnedMutexGuard<()>,
+    pending: Pending,
+}
+
+impl Lease {
+    pub(crate) fn complete(mut self) {
+        self.pending.complete();
+    }
+}
+
 struct Completion {
     healthy: bool,
-    reply: Option<Finish>,
+    reply: Option<Attempted>,
     result: Result<(), Failure>,
 }
 
@@ -179,7 +214,7 @@ impl Completion {
 
     fn respond(self) {
         if let Some(reply) = self.reply {
-            let _ = reply.send(self.result);
+            let _ = reply.send(self.result.map(|()| false));
         }
     }
 }
@@ -189,7 +224,6 @@ impl State {
         connection: Arc<ConnectionState>,
         parent: Option<&Arc<Self>>,
     ) -> (Arc<Self>, mpsc::UnboundedReceiver<Command>) {
-        let (commands, receiver) = mpsc::unbounded_channel();
         let root = parent.map_or_else(
             || {
                 Arc::new(Root {
@@ -199,6 +233,24 @@ impl State {
             },
             |parent| parent.root.clone(),
         );
+        Self::rooted(connection, parent, root)
+    }
+
+    /// One attempt of a retrying transaction, sharing the root every attempt
+    /// on its connection shares.
+    fn attempt(
+        connection: Arc<ConnectionState>,
+        root: Arc<Root>,
+    ) -> (Arc<Self>, mpsc::UnboundedReceiver<Command>) {
+        Self::rooted(connection, None, root)
+    }
+
+    fn rooted(
+        connection: Arc<ConnectionState>,
+        parent: Option<&Arc<Self>>,
+        root: Arc<Root>,
+    ) -> (Arc<Self>, mpsc::UnboundedReceiver<Command>) {
+        let (commands, receiver) = mpsc::unbounded_channel();
         let abandoned = parent.map_or_else(CancellationToken::new, |parent| {
             parent.abandoned.child_token()
         });
@@ -235,7 +287,7 @@ impl State {
     /// The frame's lock, refusing rather than waiting when a request or an
     /// open savepoint holds it. Taken on the JavaScript thread as each request
     /// is made, so requests are refused in the order JavaScript made them.
-    // [spec:pgorm:req:bindings.transactions+1]
+    // [spec:pgorm:req:bindings.transactions+2]
     fn lock(&self) -> Result<OwnedMutexGuard<()>, Failure> {
         self.ensure_open()?;
         self.busy.clone().try_lock_owned().map_err(|_| {
@@ -261,8 +313,21 @@ impl State {
         command: impl FnOnce(oneshot::Sender<Result<T, Failure>>) -> Command,
         abort: &Abort,
     ) -> Result<T, Failure> {
+        let (outcome, mut pending) = self.exchange(command, abort).await?;
+        pending.complete();
+        outcome
+    }
+
+    /// Send the request `command` makes and wait for its reply, which comes
+    /// with the request still pending: until the caller completes it, the
+    /// transaction is discarded if the caller is dropped, its state unknown.
+    async fn exchange<T>(
+        &self,
+        command: impl FnOnce(oneshot::Sender<Result<T, Failure>>) -> Command,
+        abort: &Abort,
+    ) -> Result<(Result<T, Failure>, Pending), Failure> {
         let (reply, receive) = oneshot::channel();
-        let mut pending = Pending::new(self.root.aborted.clone());
+        let pending = Pending::new(self.root.aborted.clone());
         self.send(command(reply))?;
         let outcome = abort
             .guard(async {
@@ -271,21 +336,39 @@ impl State {
                     .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))
             })
             .await?;
-        pending.complete();
-        outcome
+        Ok((outcome, pending))
     }
 
-    async fn finish(&self, _lock: OwnedMutexGuard<()>, commit: bool) -> Result<(), Failure> {
+    /// Commit or roll back the frame, once its end has released it.
+    async fn finish(&self, lock: OwnedMutexGuard<()>, commit: bool) -> Result<(), Failure> {
+        self.finish_attempt(lock, commit, false).await.map(|_| ())
+    }
+
+    /// End one attempt of a retrying transaction: whether pgorm opened the
+    /// next attempt.
+    // [spec:pgorm:req:bindings.transaction-retry]
+    async fn finish_attempt(
+        &self,
+        _lock: OwnedMutexGuard<()>,
+        commit: bool,
+        retryable: bool,
+    ) -> Result<bool, Failure> {
         let (reply, receive) = oneshot::channel();
         let mut pending = Pending::new(self.root.aborted.clone());
-        self.send(Command::Finish { commit, reply })?;
+        self.send(Command::Finish {
+            commit,
+            retryable,
+            reply,
+        })?;
         let outcome = receive
             .await
             .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))?;
         pending.complete();
-        outcome?;
-        self.released.cancelled().await;
-        Ok(())
+        let again = outcome?;
+        if !again {
+            self.released.cancelled().await;
+        }
+        Ok(again)
     }
 
     /// What ends a COPY in this frame from outside it.
@@ -338,8 +421,9 @@ impl State {
 /// How a frame's command loop ended short of discarding it: the error its
 /// closure returns, so that pgorm rolls the frame back.
 enum Exit {
-    /// JavaScript rolled the frame back; the reply goes once the rollback has.
-    RolledBack(Finish),
+    /// JavaScript rolled the frame back, saying whether its failure is one to
+    /// retry; the reply goes once the rollback has.
+    RolledBack(Attempted, bool),
     /// The frame's handle was collected unfinished.
     Abandoned,
 }
@@ -356,14 +440,20 @@ struct Halt {
 }
 
 impl Halt {
-    async fn run<T>(&self, transaction: impl Future<Output = T>) -> Option<T> {
-        tokio::select! {
-            () = self.discard.cancelled() => None,
-            () = async {
-                self.ending.cancelled().await;
-                tokio::time::sleep(Duration::from_secs(5)).await;
-            } => None,
-            ended = transaction => Some(ended),
+    /// The future holds owned tokens rather than a borrow of the halt, so a
+    /// transaction future whose closure is called for any lifetime stays
+    /// `Send` around it.
+    fn run<T>(&self, transaction: impl Future<Output = T>) -> impl Future<Output = Option<T>> {
+        let (discard, ending) = (self.discard.clone(), self.ending.clone());
+        async move {
+            tokio::select! {
+                () = discard.cancelled_owned() => None,
+                () = async move {
+                    ending.cancelled_owned().await;
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                } => None,
+                ended = transaction => Some(ended),
+            }
         }
     }
 
@@ -424,7 +514,7 @@ struct Frame {
     opened: Option<Finish>,
     /// A commit's reply, held outside the closure because the `COMMIT` runs
     /// once the closure has returned and the reply carries its failure.
-    committed: Option<Finish>,
+    committed: Option<Attempted>,
     /// Set as the frame opens and dropped with the frame, once its `COMMIT`
     /// or `ROLLBACK` has finished too.
     finished: Option<Finished>,
@@ -433,6 +523,17 @@ struct Frame {
 
 impl Frame {
     fn new(state: Arc<State>, commands: mpsc::UnboundedReceiver<Command>, opened: Finish) -> Self {
+        Self::halted_by(state, commands, opened, Halt::default())
+    }
+
+    /// A frame given up through `halt`, which every attempt of a retrying
+    /// transaction shares.
+    fn halted_by(
+        state: Arc<State>,
+        commands: mpsc::UnboundedReceiver<Command>,
+        opened: Finish,
+        halt: Halt,
+    ) -> Self {
         let secrets = state.connection.pool.secrets.clone();
         Self {
             state,
@@ -441,14 +542,14 @@ impl Frame {
             opened: Some(opened),
             committed: None,
             finished: None,
-            halt: Halt::default(),
+            halt,
         }
     }
 
     /// Serve the frame's commands inside its transaction, a savepoint's frame
     /// nested inside while it is open: `Ok` once JavaScript commits, an `Exit`
     /// once it rolls back or the handle is collected unfinished.
-    // [spec:pgorm:req:bindings.transactions+1]
+    // [spec:pgorm:req:bindings.transactions+2]
     fn serve<'a>(&'a mut self, mut tx: Tx<'a, '_>) -> BoxFuture<'a, Result<(), Exit>> {
         Box::pin(async move {
             self.finished = Some(Finished(self.state.finished.clone()));
@@ -491,14 +592,38 @@ impl Frame {
                     Command::Finish {
                         commit: true,
                         reply,
+                        ..
                     } => {
                         self.committed = Some(reply);
                         return Ok(());
                     }
                     Command::Finish {
                         commit: false,
+                        retryable,
                         reply,
-                    } => return Err(Exit::RolledBack(reply)),
+                    } => return Err(Exit::RolledBack(reply, retryable)),
+                    // [spec:pgorm:req:bindings.streams+1]
+                    Command::Stream {
+                        sql,
+                        params,
+                        opened,
+                    } => {
+                        let db = tx.database();
+                        let rows = async {
+                            pgorm::ConnectionTrait::query_raw(
+                                &db,
+                                &sql,
+                                params.iter().map(|param| {
+                                    param as &(dyn tokio_postgres::types::ToSql + Sync)
+                                }),
+                            )
+                            .await
+                            .map_err(|error| failure(&error, &self.secrets))
+                        };
+                        if !self.answer(rows, opened).await {
+                            return self.halt.discard().await;
+                        }
+                    }
                     Command::CopyIn {
                         copy,
                         link,
@@ -618,7 +743,7 @@ impl Frame {
             // A `COMMIT` an aborted transaction answered by rolling back, or a
             // `RELEASE` it refused and pgorm rolled back to: the commit fails,
             // and the connection is in a known state.
-            // [spec:pgorm:req:bindings.transactions+1]
+            // [spec:pgorm:req:bindings.transactions+2]
             Err(TransactionError::Connection(error @ pgorm::Error::TransactionAborted(_))) => {
                 Completion {
                     healthy: true,
@@ -626,15 +751,17 @@ impl Frame {
                     result: Err(failure(&error, &self.secrets)),
                 }
             }
-            // An aborted transaction whose ROLLBACK then failed: the rollback's
-            // failure is what leaves the connection unknown.
-            Err(TransactionError::Connection(pgorm::Error::RollbackFailed {
-                rollback, ..
-            })) => Completion {
-                healthy: false,
-                reply: self.committed.take(),
-                result: Err(failure(&rollback, &self.secrets)),
-            },
+            // An aborted transaction whose ROLLBACK then failed leaves the
+            // connection unknown, and rejects with both errors as a
+            // callback's failed rollback does.
+            // [spec:pgorm:req:bindings.rollback-failed]
+            Err(TransactionError::Connection(error @ pgorm::Error::RollbackFailed { .. })) => {
+                Completion {
+                    healthy: false,
+                    reply: self.committed.take(),
+                    result: Err(failure(&error, &self.secrets)),
+                }
+            }
             Err(TransactionError::Connection(error)) => {
                 if let Some(opened) = self.opened.take() {
                     return Ended::Refused(opened, error);
@@ -645,7 +772,7 @@ impl Frame {
                     result: Err(failure(&error, &self.secrets)),
                 }
             }
-            Err(TransactionError::Transaction(Exit::RolledBack(reply))) => Completion {
+            Err(TransactionError::Transaction(Exit::RolledBack(reply, _))) => Completion {
                 healthy: true,
                 reply: Some(reply),
                 result: Ok(()),
@@ -658,7 +785,7 @@ impl Frame {
             Err(TransactionError::RollbackFailed { cause, rollback }) => Completion {
                 healthy: false,
                 reply: match cause {
-                    Exit::RolledBack(reply) => Some(reply),
+                    Exit::RolledBack(reply, _) => Some(reply),
                     Exit::Abandoned => None,
                 },
                 result: Err(failure(&rollback, &self.secrets)),
@@ -679,7 +806,7 @@ impl Frame {
 /// Open a transaction on `connection`, which it holds until it finishes: a
 /// task takes the connection out of its slot and serves the transaction from
 /// inside the closure pgorm opens it around.
-// [spec:pgorm:req:bindings.transactions+1]
+// [spec:pgorm:req:bindings.transactions+2]
 async fn begin(
     mut operation: Operation,
     mode: TransactionMode,
@@ -1034,4 +1161,20 @@ fn transaction_copy_out(mut cx: FunctionContext) -> JsResult<JsPromise> {
         lock,
     };
     copy::opened(&mut cx, shared, state.send(command), receive, CopyOutHandle)
+}
+
+/// `transactionFinishAttempt(transaction, commit, retryable)`: end one
+/// attempt of a retrying transaction, resolving `true` once pgorm has opened
+/// the next attempt and `false` once the transaction has ended.
+// [spec:pgorm:req:bindings.transaction-retry]
+fn transaction_finish_attempt(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let state = state(&mut cx)?;
+    let commit = cx.argument::<JsBoolean>(1)?.value(&mut cx);
+    let retryable = cx.argument::<JsBoolean>(2)?.value(&mut cx);
+    let lock = match state.lock() {
+        Ok(lock) => lock,
+        Err(failure) => return settle::rejected(&mut cx, failure),
+    };
+    let work = async move { state.finish_attempt(lock, commit, retryable).await };
+    settle::promise(&mut cx, work, |cx, again| Ok(cx.boolean(again).upcast()))
 }

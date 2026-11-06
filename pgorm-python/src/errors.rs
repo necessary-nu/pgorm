@@ -14,6 +14,7 @@ pyo3::create_exception!(pgorm, ForeignKeyViolationError, DatabaseError);
 pyo3::create_exception!(pgorm, CheckViolationError, DatabaseError);
 pyo3::create_exception!(pgorm, NotNullViolationError, DatabaseError);
 pyo3::create_exception!(pgorm, ExclusionViolationError, DatabaseError);
+pyo3::create_exception!(pgorm, RollbackFailedError, PgormError);
 
 /// Connection secrets must never enter diagnostics, including nested causes.
 #[derive(Clone, Default)]
@@ -45,9 +46,69 @@ pub(crate) fn database_error(
     secrets: &Redactions,
 ) -> PyErr {
     let error = error.borrow();
+    if let pgorm::Error::RollbackFailed { cause, rollback } = error {
+        return rollback_failed(
+            database_error(&**cause, secrets),
+            database_error(&**rollback, secrets),
+        );
+    }
+    let retryable = error.is_retryable();
+    let raised = classified(error, secrets);
+    if retryable {
+        let marked = Python::attach(|py| raised.value(py).setattr("is_retryable", true));
+        if marked.is_err() {
+            return InternalError::new_err("could not mark a retryable error");
+        }
+    }
+    raised
+}
+
+/// A transaction whose block failed with `cause`, and whose `ROLLBACK` then
+/// failed with `rollback`: Rust's `Error::RollbackFailed`, its two errors as
+/// `cause` and `rollback`.
+// [spec:pgorm:req:bindings.rollback-failed]
+pub(crate) fn rollback_failed(cause: PyErr, rollback: PyErr) -> PyErr {
+    Python::attach(|py| {
+        let raised = RollbackFailedError::new_err(format!(
+            "{}; its ROLLBACK failed: {}",
+            cause.value(py),
+            rollback.value(py)
+        ));
+        let decorated = (|| -> PyResult<()> {
+            let value = raised.value(py);
+            value.setattr("rollback", rollback.value(py))?;
+            value.setattr("cause", cause.value(py))?;
+            value.setattr("__cause__", cause.value(py))?;
+            Ok(())
+        })();
+        match decorated {
+            Ok(()) => raised,
+            Err(_) => InternalError::new_err("could not attach a failed rollback's errors"),
+        }
+    })
+}
+
+/// The `RollbackFailedError` a block's exception `cause` and its rollback's
+/// failure `rollback` make, for the transaction scopes Python ends.
+// [spec:pgorm:req:bindings.rollback-failed]
+#[pyfunction(name = "_rollback_failed")]
+fn rollback_failed_error<'py>(
+    py: Python<'py>,
+    cause: Bound<'py, pyo3::exceptions::PyBaseException>,
+    rollback: Bound<'py, pyo3::exceptions::PyBaseException>,
+) -> Bound<'py, pyo3::exceptions::PyBaseException> {
+    rollback_failed(
+        PyErr::from_value(cause.into_any()),
+        PyErr::from_value(rollback.into_any()),
+    )
+    .into_value(py)
+    .into_bound(py)
+}
+
+fn classified(error: &pgorm::Error, secrets: &Redactions) -> PyErr {
     // The server's 25P02 refused the statement pgorm asked with, not the
     // block's work, so pgorm's account of the rollback is the message.
-    // [spec:pgorm:req:bindings.transactions+1]
+    // [spec:pgorm:req:bindings.transactions+2]
     if let pgorm::Error::TransactionAborted(refusal) = error {
         return postgres_error(refusal, Some(&error.to_string()), secrets);
     }
@@ -153,10 +214,47 @@ fn postgres_error(
 fn client_error(error: &tokio_postgres::Error, secrets: &Redactions) -> PyErr {
     // Keep the original Rust error intact until this Python boundary so
     // application hooks can still match pgorm::Error::Postgres.
+    // [spec:pgorm:req:bindings.refusal-fields]
+    let decorated = |raised: PyErr, fields: [(&str, Option<Py<PyAny>>); 2]| {
+        Python::attach(|py| {
+            let value = raised.value(py);
+            for (field, content) in fields {
+                if value.setattr(field, content).is_err() {
+                    return InternalError::new_err("could not attach a refusal's fields");
+                }
+            }
+            raised
+        })
+    };
+    let text = |content: &Option<String>| {
+        content.as_deref().map(|text| {
+            Python::attach(|py| {
+                pyo3::types::PyString::new(py, &secrets.apply(text))
+                    .into_any()
+                    .unbind()
+            })
+        })
+    };
     if let Some(refusal) = pgorm::DecodeRefusal::of(error) {
-        DecodeError::new_err(secrets.apply(&refusal.to_string()))
+        let reading = Python::attach(|py| {
+            pyo3::types::PyString::new(py, &secrets.apply(&refusal.reading))
+                .into_any()
+                .unbind()
+        });
+        decorated(
+            DecodeError::new_err(secrets.apply(&refusal.to_string())),
+            [
+                ("reading", Some(reading)),
+                ("reason", text(&refusal.reason)),
+            ],
+        )
     } else if let Some(refusal) = pgorm::BindRefusal::of(error) {
-        ConstructionError::new_err(secrets.apply(&refusal.to_string()))
+        let parameter =
+            Python::attach(|py| pyo3::IntoPyObjectExt::into_py_any(refusal.parameter, py).ok());
+        decorated(
+            ConstructionError::new_err(secrets.apply(&refusal.to_string())),
+            [("parameter", parameter), ("reason", text(&refusal.reason))],
+        )
     } else if let Some(refusal) = pgorm::ParameterCountRefusal::of(error) {
         // [spec:pgorm:sem:error.model.parameter-count]
         ConstructionError::new_err(refusal.to_string())
@@ -184,6 +282,22 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     ] {
         database_error.setattr(field, py.None())?;
     }
+    // [spec:pgorm:req:bindings.transaction-retry]    a failure is retryable only when pgorm says so
+    py.get_type::<crate::PgormError>()
+        .setattr("is_retryable", false)?;
+    // [spec:pgorm:req:bindings.refusal-fields]
+    for field in ["parameter", "reason"] {
+        py.get_type::<ConstructionError>()
+            .setattr(field, py.None())?;
+    }
+    for field in ["reading", "reason"] {
+        py.get_type::<DecodeError>().setattr(field, py.None())?;
+    }
+    let rollback_failed = py.get_type::<RollbackFailedError>();
+    rollback_failed.setattr("cause", py.None())?;
+    rollback_failed.setattr("rollback", py.None())?;
+    module.add("RollbackFailedError", rollback_failed)?;
+    module.add_function(wrap_pyfunction!(rollback_failed_error, module)?)?;
     module.add("ConstructionError", py.get_type::<ConstructionError>())?;
     module.add("ConnectionError", py.get_type::<ConnectionError>())?;
     module.add("DatabaseError", database_error)?;

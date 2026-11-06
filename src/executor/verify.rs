@@ -137,6 +137,51 @@ pub trait VerifyStatement {
     fn verify<M>(&self, sql: &str) -> impl Future<Output = Result<(), Error>> + Send
     where
         M: FromQueryResult + 'static;
+
+    /// Prepare `sql` and give the result columns PostgreSQL says it returns,
+    /// in order, without running it.
+    ///
+    /// This is the description [`verify`](VerifyStatement::verify) checks a
+    /// target against, for a decode target whose columns are known only at
+    /// run time, such as a model a language binding declares.
+    // [spec:pgorm:def:exec.verify.describe]
+    fn describe(
+        &self,
+        sql: &str,
+    ) -> impl Future<Output = Result<Vec<DescribedColumn>, Error>> + Send;
+}
+
+/// One result column of a statement, as the server describes it before the
+/// statement runs.
+// [spec:pgorm:def:exec.verify.describe]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DescribedColumn {
+    name: String,
+    type_: Type,
+}
+
+impl DescribedColumn {
+    /// The column's name, as a row reads it by.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The column's PostgreSQL type.
+    pub fn type_(&self) -> &Type {
+        &self.type_
+    }
+}
+
+/// The result columns `statement` describes.
+fn described(statement: &Statement) -> Vec<DescribedColumn> {
+    statement
+        .columns()
+        .iter()
+        .map(|column| DescribedColumn {
+            name: column.name().to_owned(),
+            type_: column.type_().clone(),
+        })
+        .collect()
 }
 
 /// Compare `M`'s reported columns against a prepared statement's result columns.
@@ -199,6 +244,11 @@ impl VerifyStatement for DatabaseConnection {
         let statement = GenericClient::prepare(&self.0, sql).await?;
         check::<M>(&statement)
     }
+
+    async fn describe(&self, sql: &str) -> Result<Vec<DescribedColumn>, Error> {
+        let statement = GenericClient::prepare(&self.0, sql).await?;
+        Ok(described(&statement))
+    }
 }
 
 // [spec:pgorm:def:exec.verify+1]    open transaction
@@ -214,6 +264,15 @@ impl VerifyStatement for DatabaseTransaction<'_> {
         let statement = GenericClient::prepare(transaction, sql).await?;
         check::<M>(&statement)
     }
+
+    async fn describe(&self, sql: &str) -> Result<Vec<DescribedColumn>, Error> {
+        let Some(transaction) = self.0.as_ref() else {
+            return Err(query_err("transaction already consumed"));
+        };
+
+        let statement = GenericClient::prepare(transaction, sql).await?;
+        Ok(described(&statement))
+    }
 }
 
 // [spec:pgorm:def:exec.verify+1]    borrowed connections and wrappers
@@ -226,5 +285,12 @@ where
         M: FromQueryResult + 'static,
     {
         T::verify::<M>(self, sql)
+    }
+
+    fn describe(
+        &self,
+        sql: &str,
+    ) -> impl Future<Output = Result<Vec<DescribedColumn>, Error>> + Send {
+        T::describe(self, sql)
     }
 }

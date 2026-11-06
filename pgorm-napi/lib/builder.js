@@ -8,6 +8,7 @@
 // [spec:pgorm:req:bindings.statements]
 
 import { native } from "./operations.js";
+import { Held } from "./raw-sql.js";
 
 /** Marks a construction from a native half the addon made. */
 export const TRUSTED = Symbol("pgorm-napi builder state");
@@ -108,6 +109,7 @@ export function trusted(trusted, name, madeBy) {
  * @returns {[unknown, readonly unknown[], unknown]}
  */
 export function statementArgs(statement, params, options) {
+  if (statement instanceof Held) return [statement.sql, statement.values, params ?? {}];
   if (statement instanceof Handle) {
     if (Array.isArray(params)) {
       // [spec:pgorm:req:bindings.argument-errors+1]

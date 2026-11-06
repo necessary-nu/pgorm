@@ -3,8 +3,10 @@ mod capabilities;
 mod copy;
 mod lend;
 mod native;
+mod retry;
 mod scope;
 mod state;
+mod stream;
 pub(crate) mod work;
 
 use crate::{
@@ -14,16 +16,17 @@ use crate::{
 pub(crate) use capabilities::operations as capabilities;
 pub(crate) use copy::Lease;
 pub(crate) use lend::{Lent, lend};
-pub(crate) use native::{NativeTransaction, mode};
+pub(crate) use native::{NativeRetrying, NativeTransaction, mode};
 use pgorm::TransactionMode;
 use pyo3::prelude::*;
+pub(crate) use retry::begin as begin_retrying;
 use scope::Tx;
 pub(crate) use state::State;
 use state::{Finished, Pending};
 use std::sync::Arc;
 use tokio::sync::oneshot;
 
-// [spec:pgorm:req:bindings.transactions+1]
+// [spec:pgorm:req:bindings.transactions+2]
 pub(crate) async fn begin(
     connection: Arc<ConnectionState>,
     mode: TransactionMode,

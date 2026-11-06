@@ -430,6 +430,16 @@ where
             Ok(one_source(model_of::<E>(value, &info)))
         })
     }
+
+    fn run_raw<'a>(
+        &'a self,
+        db: Database<'a>,
+        sql: String,
+        values: Values,
+        terminal: Terminal,
+    ) -> BoxFuture<'a, Result<Vec<Model>, Error>> {
+        Box::pin(self.read_raw(db, sql, values, terminal))
+    }
 }
 
 /// A registered entity's model as the binding holds one.
@@ -566,7 +576,28 @@ where
             Terminal::One => vec![query.one(&db).await?],
             Terminal::Optional => query.one_opt(&db).await?.into_iter().collect(),
         };
-        Ok(models
+        Ok(self.models(models))
+    }
+
+    // [spec:pgorm:req:bindings.raw-models]
+    async fn read_raw(
+        &self,
+        db: Database<'_>,
+        sql: String,
+        values: Values,
+        terminal: Terminal,
+    ) -> Result<Vec<Model>, Error> {
+        let query = self.query.clone().from_raw_sql(&sql, values);
+        let models = match terminal {
+            Terminal::All => query.all(&db).await?,
+            Terminal::One => vec![query.one(&db).await?],
+            Terminal::Optional => query.one_opt(&db).await?.into_iter().collect(),
+        };
+        Ok(self.models(models))
+    }
+
+    fn models(&self, models: Vec<E::Model>) -> Vec<Model> {
+        models
             .into_iter()
             .map(|value| {
                 Arc::new(ModelAdapter::<E> {
@@ -574,7 +605,7 @@ where
                     info: self.info.clone(),
                 }) as Model
             })
-            .collect())
+            .collect()
     }
 }
 

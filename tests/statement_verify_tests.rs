@@ -145,6 +145,7 @@ async fn main() -> Result<(), Error> {
     parameters_are_left_to_bind(&db).await?;
     invalid_sql_reports_the_server_error(&db).await?;
     verify_inside_transaction(&mut db).await?;
+    describe_gives_the_result_columns(&mut db).await?;
 
     drop(db);
     ctx.delete().await;
@@ -352,6 +353,34 @@ async fn verify_inside_transaction(db: &mut DatabaseConnection) -> Result<(), Er
         })
         .await;
     assert_rolled_back(outcome);
+
+    Ok(())
+}
+
+// [spec:pgorm:def:exec.verify.describe/test]    the result columns in order, by name and type,
+// on a connection and in a transaction, without running the statement
+async fn describe_gives_the_result_columns(db: &mut DatabaseConnection) -> Result<(), Error> {
+    use pgorm::TransactionTrait;
+    use pgorm::types::Type;
+
+    let described = db.describe(NO_ROWS).await?;
+    let columns: Vec<(&str, &Type)> = described
+        .iter()
+        .map(|column| (column.name(), column.type_()))
+        .collect();
+    assert_eq!(columns, [("id", &Type::INT4), ("name", &Type::TEXT)]);
+
+    assert!(db.describe("SELECT 1; SELECT 2").await.is_err());
+    assert!(db.describe("SELECT * FROM no_such_table").await.is_err());
+    assert_eq!(db.describe("DO $$ BEGIN END $$").await?, []);
+
+    db.transaction(async |tx| {
+        let described = tx.describe("SELECT 1::bigint AS n").await?;
+        assert_eq!(described.len(), 1);
+        assert_eq!(described[0].type_(), &Type::INT8);
+        Ok::<_, Error>(())
+    })
+    .await?;
 
     Ok(())
 }

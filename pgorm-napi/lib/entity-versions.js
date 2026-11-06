@@ -8,7 +8,7 @@
 import { arg } from "./builder.js";
 import { Condition } from "./conditions.js";
 import { Conflict, ConflictUpdate } from "./conflicts.js";
-import { runJob } from "./connections.js";
+import { runJob } from "./runs.js";
 import { ownActive, predicateOf, recordOf } from "./entities.js";
 import { ConstructionError } from "./errors.js";
 import { Expr } from "./expressions.js";

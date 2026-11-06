@@ -21,12 +21,12 @@ SQL text up there, and is prepared on a miss: a model's queries and writes,
 built statements, schema statements and `RawSQL` alike. A COPY is the
 exception: it is prepared afresh each time ([COPY](17-copy.md)).
 
-Here Python differs from Rust: Rust's `batch_execute` runs a script of
-several statements through the simple-query protocol, preparing nothing. It
-is not available in Python yet. Every statement a Python program sends is
-prepared, DDL included, and so a `RawSQL` holds one statement: the server
-refuses one holding several, with SQLSTATE `42601`, *cannot insert multiple
-commands into a prepared statement*. Send a script statement by statement.
+`batch_execute` is the other exception, as Rust's is: it runs a script of
+several statements through the simple-query protocol, preparing nothing, so
+nothing it sends is cached. Every other statement is prepared, DDL included,
+and so a `RawSQL` holds one statement: the server refuses one holding
+several, with SQLSTATE `42601`, *cannot insert multiple commands into a
+prepared statement* ([Raw SQL](10-raw-sql.md)).
 
 The cache is bounded. One query can be many texts, such as an `IN` list
 rendered at every length it is used with, and each cached statement is a live

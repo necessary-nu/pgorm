@@ -262,6 +262,7 @@ class ResultTests(unittest.IsolatedAsyncioTestCase):
         for run in (
             lambda: self.pool.query(p.RawSQL("COPY (SELECT 1) TO STDOUT")),
             lambda: self.pool.execute(p.RawSQL("/* rows */ copy pg_class FROM STDIN")),
+            lambda: self.pool.batch_execute("SELECT 1; COPY pg_class FROM STDIN"),
         ):
             with self.assertRaises(p.ConstructionError) as caught:
                 await run()

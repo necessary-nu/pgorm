@@ -58,6 +58,9 @@ pub(crate) struct Diagnostics {
     pub(crate) column: Option<String>,
     pub(crate) datatype: Option<String>,
     pub(crate) constraint: Option<String>,
+    /// Whether pgorm's `Error::is_retryable` says the transaction is worth
+    /// running again: a serialization failure or a deadlock.
+    pub(crate) retryable: bool,
 }
 
 /// Why an operation failed, in the terms the JavaScript error classes carry.
@@ -76,6 +79,20 @@ pub(crate) enum Failure {
     /// A value could not be sent as the parameter its placeholder declares;
     /// becomes a `ConstructionError`.
     Construction(String),
+    /// The driver refused a parameter's value as it encoded it, pgorm's
+    /// `BindRefusal`; becomes a `ConstructionError` carrying its fields.
+    Bind {
+        message: String,
+        parameter: usize,
+        reason: Option<String>,
+    },
+    /// The driver could not read a result, pgorm's `DecodeRefusal`; becomes
+    /// a `DecodeError` carrying its fields.
+    Unreadable {
+        message: String,
+        reading: String,
+        reason: Option<String>,
+    },
     /// pgorm or the binding failed in a way no input should cause — a panic
     /// on the runtime; becomes an `InternalError`.
     Internal(String),
@@ -87,6 +104,14 @@ pub(crate) enum Failure {
     /// The caller's `AbortSignal` fired. `lib/index.js` rejects with the
     /// signal's reason instead.
     Cancelled,
+    /// pgorm's `Error::RollbackFailed`: a transaction that failed with
+    /// `cause`, whose `ROLLBACK` then failed with `rollback`; becomes a
+    /// `SuppressedError` over the two, as a callback's failed rollback does.
+    RollbackFailed {
+        message: String,
+        cause: Box<Failure>,
+        rollback: Box<Failure>,
+    },
 }
 
 impl Failure {
@@ -103,12 +128,13 @@ impl Failure {
                 _ => "DatabaseError",
             },
             Self::Connection(_) => "ConnectionError",
-            Self::Decode(_) => "DecodeError",
-            Self::Construction(_) => "ConstructionError",
+            Self::Decode(_) | Self::Unreadable { .. } => "DecodeError",
+            Self::Construction(_) | Self::Bind { .. } => "ConstructionError",
             Self::Internal(_) => "InternalError",
             Self::Lifecycle(_) => "LifecycleError",
             Self::Timeout(_) => "TimeoutError",
             Self::Cancelled => "CancelledError",
+            Self::RollbackFailed { .. } => "SuppressedError",
         }
     }
 
@@ -120,13 +146,33 @@ impl Failure {
             | Self::Construction(message)
             | Self::Internal(message)
             | Self::Lifecycle(message)
-            | Self::Timeout(message) => message,
+            | Self::Timeout(message)
+            | Self::Bind { message, .. }
+            | Self::Unreadable { message, .. }
+            | Self::RollbackFailed { message, .. } => message,
             Self::Cancelled => "the operation was aborted",
         }
     }
 
     /// The error object a promise rejects with.
     pub(crate) fn into_js<'cx>(self, cx: &mut Cx<'cx>) -> JsResult<'cx, JsValue> {
+        // [spec:pgorm:req:bindings.rollback-failed]
+        if let Self::RollbackFailed {
+            message,
+            cause,
+            rollback,
+        } = self
+        {
+            let rollback = rollback.into_js(cx)?;
+            let cause = cause.into_js(cx)?;
+            let constructor: Handle<JsFunction> = cx.global("SuppressedError")?;
+            return constructor
+                .bind(cx)
+                .arg(rollback)?
+                .arg(cause)?
+                .arg(message)?
+                .construct();
+        }
         let details = cx.empty_object();
         if let Self::Database(diagnostics) = &self {
             let fields = [
@@ -147,6 +193,34 @@ impl Failure {
                 };
                 details.prop(cx, name).set(value)?;
             }
+            // [spec:pgorm:req:bindings.transaction-retry]
+            details.prop(cx, "isRetryable").set(diagnostics.retryable)?;
+        }
+        // [spec:pgorm:req:bindings.refusal-fields]
+        let text = |cx: &mut Cx<'cx>, value: &Option<String>| -> Handle<'cx, JsValue> {
+            match value {
+                Some(text) => cx.string(text).upcast(),
+                None => cx.null().upcast(),
+            }
+        };
+        if let Self::Bind {
+            parameter, reason, ..
+        } = &self
+        {
+            #[allow(clippy::cast_precision_loss)]
+            let parameter = cx.number(*parameter as f64);
+            details.prop(cx, "parameter").set(parameter)?;
+            let reason = text(cx, reason);
+            details.prop(cx, "reason").set(reason)?;
+        }
+        if let Self::Unreadable {
+            reading, reason, ..
+        } = &self
+        {
+            let reading = cx.string(reading);
+            details.prop(cx, "reading").set(reading)?;
+            let reason = text(cx, reason);
+            details.prop(cx, "reason").set(reason)?;
         }
         let factory = ERROR_FACTORY.get(cx).and_then(|slot| {
             slot.lock()
@@ -196,16 +270,30 @@ impl std::error::Error for Failure {}
 /// a missing database) carries its SQLSTATE like any other.
 // [spec:pgorm:req:bindings.errors+6]
 pub(crate) fn failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
+    let marked = |failure: Failure| match failure {
+        Failure::Database(mut diagnostics) => {
+            diagnostics.retryable = error.is_retryable();
+            Failure::Database(diagnostics)
+        }
+        other => other,
+    };
+    if let pgorm::Error::RollbackFailed { cause, rollback } = error {
+        return Failure::RollbackFailed {
+            message: secrets.apply(&error.to_string()),
+            cause: Box::new(failure(cause, secrets)),
+            rollback: Box::new(failure(rollback, secrets)),
+        };
+    }
     // The server's 25P02 refused the statement pgorm asked with, not the
     // callback's work, so pgorm's account of the rollback is the message.
-    // [spec:pgorm:req:bindings.transactions+1]
+    // [spec:pgorm:req:bindings.transactions+2]
     if let pgorm::Error::TransactionAborted(refusal) = error {
-        return postgres_failure(refusal, Some(&error.to_string()), secrets);
+        return marked(postgres_failure(refusal, Some(&error.to_string()), secrets));
     }
     let mut source: &(dyn std::error::Error + 'static) = error;
     loop {
         if let Some(postgres) = source.downcast_ref::<tokio_postgres::Error>() {
-            return postgres_failure(postgres, None, secrets);
+            return marked(postgres_failure(postgres, None, secrets));
         }
         match source.source() {
             Some(next) => source = next,
@@ -255,10 +343,19 @@ fn postgres_failure(
     secrets: &Redactions,
 ) -> Failure {
     let Some(db) = error.as_db_error() else {
+        let reason = |reason: &Option<String>| reason.as_deref().map(|text| secrets.apply(text));
         return if let Some(refusal) = pgorm::DecodeRefusal::of(error) {
-            Failure::Decode(secrets.apply(&refusal.to_string()))
+            Failure::Unreadable {
+                message: secrets.apply(&refusal.to_string()),
+                reading: secrets.apply(&refusal.reading),
+                reason: reason(&refusal.reason),
+            }
         } else if let Some(refusal) = pgorm::BindRefusal::of(error) {
-            Failure::Construction(secrets.apply(&refusal.to_string()))
+            Failure::Bind {
+                message: secrets.apply(&refusal.to_string()),
+                parameter: refusal.parameter,
+                reason: reason(&refusal.reason),
+            }
         } else if let Some(refusal) = pgorm::ParameterCountRefusal::of(error) {
             // [spec:pgorm:sem:error.model.parameter-count]
             Failure::Construction(refusal.to_string())
@@ -281,6 +378,7 @@ fn postgres_failure(
         column: optional(db.column()),
         datatype: optional(db.datatype()),
         constraint: optional(db.constraint()),
+        retryable: false,
     }))
 }
 
@@ -316,6 +414,27 @@ mod tests {
         );
     }
 
+    // [spec:pgorm:req:bindings.rollback-failed/test]    pgorm's own RollbackFailed keeps both errors
+    #[test]
+    fn a_failed_rollback_keeps_both_failures() {
+        let error = pgorm::Error::RollbackFailed {
+            cause: Box::new(pgorm::Error::Custom("aborted".into())),
+            rollback: Box::new(pgorm::Error::Custom("connection lost".into())),
+        };
+        assert_eq!(
+            failure(&error, &Redactions::default()),
+            Failure::RollbackFailed {
+                message:
+                    "Custom Error: aborted; its ROLLBACK failed: Custom Error: connection lost"
+                        .into(),
+                cause: Box::new(Failure::Construction("Custom Error: aborted".into())),
+                rollback: Box::new(Failure::Construction(
+                    "Custom Error: connection lost".into()
+                )),
+            }
+        );
+    }
+
     #[test]
     fn a_failure_names_the_class_it_becomes() {
         let database = Failure::Database(Box::new(Diagnostics {
@@ -329,6 +448,7 @@ mod tests {
             column: None,
             datatype: None,
             constraint: None,
+            retryable: false,
         }));
         assert_eq!(database.kind(), "DatabaseError");
         assert_eq!(database.message(), "integer out of range");
@@ -356,6 +476,7 @@ mod tests {
                 column: None,
                 datatype: None,
                 constraint: None,
+                retryable: false,
             }))
         };
         for (sqlstate, kind) in [

@@ -40,7 +40,26 @@ export { CopyColumn, CopyRowDecoder, CopyRowEncoder } from "./copy-columns.js";
 export { CopyRowStream } from "./copy-rows.js";
 export { CopyRowSink } from "./copy-sink.js";
 export { CaseOperand, caseOf, caseWhen, Condition, SearchedCase, SimpleCase } from "./conditions.js";
-export { Aliased, all, any, array, bind, call, col, exists, Expr, literal, OrderBy, Quantified, scalar, tuple } from "./expressions.js";
+export {
+  Aliased,
+  all,
+  any,
+  array,
+  bind,
+  call,
+  col,
+  exists,
+  Expr,
+  func,
+  literal,
+  OrderBy,
+  Quantified,
+  scalar,
+  template,
+  tuple,
+} from "./expressions.js";
+export { prql, sql } from "./raw-sql.js";
+export { fromStatement, SelectorRaw } from "./raw.js";
 export { Builder } from "./builder.js";
 export { LikeExpr, likeExpr } from "./predicates.js";
 export { FromItem, Select, select, Table, With } from "./select.js";
