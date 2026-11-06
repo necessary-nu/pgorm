@@ -12,7 +12,7 @@ use super::adapter::{self, PlExpr, Projected};
 use super::binder::Binder;
 use super::expr::{Expr, ExprList, nodes_of};
 use super::naming;
-use super::sets;
+use super::sets::SetOperation;
 use super::window::{self, Over};
 
 /// The window prqlc gives an aggregate used outside a grouping: the whole
@@ -33,7 +33,7 @@ const IMPLICIT_WINDOW: &str = " OVER ()";
 /// level ordered by its *column index*. The order that falls out is the
 /// declared one only while the columns all answer to the same key, so the
 /// pipeline tracks which of those shapes it is in.
-// [spec:pgorm:req:pipeline.compose+1]
+// [spec:pgorm:req:pipeline.compose+2]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Columns {
     /// The sources' own columns, in source order, optionally followed by
@@ -141,15 +141,15 @@ pub struct Pipeline {
     pub(super) stages: Vec<PlExpr>,
     pub(super) values: Vec<Value>,
     /// The first stage of *this* pipeline that replaced its sources' own
-    /// column namespaces — `select`, `group().aggregate()`, `intersect` or
-    /// `remove` — or `None` while every source is still addressable.
+    /// column namespaces — `select` or `group().aggregate()` — or `None`
+    /// while every source is still addressable.
     ///
     /// [`select_sources`](Pipeline::select_sources) refuses a reshaped
     /// pipeline by this name. The flag is deliberately per-pipeline: an
     /// embedded pipeline that reshaped itself is a table-like relation whose
     /// resulting columns the CTE boundary re-exposes, so embedding does not
     /// propagate it.
-    // [spec:pgorm:sem:pipeline.select-sources+5]
+    // [spec:pgorm:sem:pipeline.select-sources+6]
     pub(super) reshaped: Option<&'static str>,
     /// Whether the stages accumulated so far end in a deduplicating `group`
     /// ([`distinct`](Pipeline::distinct)) that no binding has absorbed yet.
@@ -160,10 +160,10 @@ pub struct Pipeline {
     /// column-count mismatch that is not there. Hoisting the grouped stages
     /// into their own binding first settles the arity at the CTE boundary,
     /// so the flag records only whether that hoist is still owed.
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     pub(super) deduped: bool,
     /// How prqlc would expand `this` over the columns accumulated so far.
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     pub(super) columns: Columns,
     /// Whether the relation still projects a wildcard — a column prqlc carries
     /// as `*` because the source's schema is not something it can see.
@@ -172,7 +172,7 @@ pub struct Pipeline {
     /// this is true until a `select` or an `aggregate` says what the columns
     /// are. A deduplication over such a relation keys on the wildcard too,
     /// which is what [`bare_star_key`](naming::bare_star_key) then weighs.
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     pub(super) starred: bool,
     /// Whether the stages end in a deduplication that keyed on a star prqlc
     /// has no legal spelling for, and that no binding has absorbed yet.
@@ -187,7 +187,7 @@ pub struct Pipeline {
     ///
     /// The hoist is owed rather than performed so that a deduplication nothing
     /// follows still renders as the one query it always was.
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     pub(super) bare_star_key: bool,
     /// Whether a row range is waiting in front of a
     /// [`distinct`](Pipeline::distinct).
@@ -198,7 +198,7 @@ pub struct Pipeline {
     /// rather than before it — a different set of rows, not a different
     /// order. Settling the range at a CTE boundary first keeps the two takes
     /// in separate queries, in the order the stages were written.
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     pub(super) ranged: bool,
     /// The source names a settle took out of scope, and the binding their
     /// columns answer under now.
@@ -206,7 +206,7 @@ pub struct Pipeline {
     /// Every stage appended from here is repointed through it, which is what
     /// keeps a `col(source, column)` reference written after a
     /// [`distinct`](Pipeline::distinct) resolving.
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     pub(super) settled: naming::Settled,
     /// The `sort` stage that still describes the relation's order, or `None`
     /// while nothing has ordered it since the columns were last replaced.
@@ -218,7 +218,7 @@ pub struct Pipeline {
     /// `sort` shape, which renders the `DISTINCT` in a binding with the
     /// `ORDER BY` outside it, where PostgreSQL's rule that an ordering under
     /// `DISTINCT` must be projected cannot bite.
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     pub(super) ordering: Option<PlExpr>,
     /// The set operation the stages end in, while no binding has absorbed
     /// its result yet.
@@ -233,10 +233,11 @@ pub struct Pipeline {
     /// bracket prqlc keeps: the next stage that reads the combined relation
     /// settles the stages into one first, so it reads the whole result.
     /// Another set operation and a deduplication do not read it that way —
-    /// the first is a chain [`sets`] brackets where it must, the second folds
-    /// into `UNION DISTINCT` — and leave the settle owed.
-    // [spec:pgorm:req:pipeline.compose+1]
-    pub(super) combined: bool,
+    /// the first is a chain the compiler brackets as SQL's precedence needs,
+    /// the second folds into the operation's `DISTINCT` form — and leave the
+    /// settle owed.
+    // [spec:pgorm:req:pipeline.compose+2]
+    pub(super) combined: Option<SetOperation>,
 }
 
 /// Which rows a [`join`](Pipeline::join) keeps.
@@ -306,7 +307,7 @@ pub trait IntoSource {
     /// # Ok::<_, pgorm::pipeline::PipelineError>(())
     /// ```
     // [spec:pgorm:sem:pipeline.self-join+1]
-    // [spec:pgorm:sem:pipeline.select-sources+5]
+    // [spec:pgorm:sem:pipeline.select-sources+6]
     fn named(self, name: impl Into<AliasName>) -> Named<Self>
     where
         Self: Sized,
@@ -324,7 +325,7 @@ pub trait IntoSource {
 /// bindings and bound values — and is `let`-bound by the consumer. The
 /// contents are not constructible outside the pipeline module, so the set of
 /// relation shapes is closed.
-// [spec:pgorm:req:pipeline.compose+1]
+// [spec:pgorm:req:pipeline.compose+2]
 #[derive(Debug)]
 pub struct Source {
     kind: SourceKind,
@@ -387,7 +388,7 @@ impl IntoSource for Name {
 /// bound values travel with its placeholders and the pair stays aligned; an
 /// expression cannot make the same crossing alone
 /// (`[spec:pgorm:req:pipeline.params+4]`).
-// [spec:pgorm:req:pipeline.compose+1]
+// [spec:pgorm:req:pipeline.compose+2]
 impl IntoSource for Pipeline {
     fn into_source(self) -> Source {
         Source {
@@ -476,7 +477,7 @@ impl Pipeline {
             ranged: false,
             settled: naming::Settled::default(),
             ordering: None,
-            combined: false,
+            combined: None,
         };
         let reference = pipeline.embed(source.into_source());
         pipeline.stages.push(adapter::call("from", vec![reference]));
@@ -502,7 +503,7 @@ impl Pipeline {
             ranged: false,
             settled: naming::Settled::default(),
             ordering: None,
-            combined: false,
+            combined: None,
         }
     }
 
@@ -518,7 +519,7 @@ impl Pipeline {
     ///
     /// A [`named`](IntoSource::named) relation carries its alias onto the
     /// reference, which is what lets the same table appear twice.
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     // [spec:pgorm:sem:pipeline.self-join+1]
     fn embed(&mut self, source: Source) -> PlExpr {
         let Source { kind, alias } = source;
@@ -573,12 +574,12 @@ impl Pipeline {
     /// ([`bare_star_key`](Pipeline::bare_star_key)) learns that something is
     /// following it after all. The hoist happens before the stage is
     /// repointed, so the repointing lands on the binding it just made.
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     fn stage(mut self, mut node: PlExpr) -> Self {
         if self.bare_star_key {
             self.settle(&naming::Naming::default(), Some("distinct"));
         }
-        if self.combined {
+        if self.combined.is_some() {
             self.settle(&naming::Naming::default(), None);
         }
         self.settled.requalify(&mut node);
@@ -588,7 +589,7 @@ impl Pipeline {
 
     /// Record that `stage` replaced this pipeline's source namespaces,
     /// keeping the *first* offender — the one that did the replacing.
-    // [spec:pgorm:sem:pipeline.select-sources+5]
+    // [spec:pgorm:sem:pipeline.select-sources+6]
     fn reshaping(mut self, stage: &'static str) -> Self {
         self.reshaped.get_or_insert(stage);
         self
@@ -605,7 +606,7 @@ impl Pipeline {
     /// The ordering is read back off the appended stage rather than the
     /// argument, so it is the repointed spelling — the one that still resolves
     /// against whatever binding the relation reads from now.
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     fn ordered_by(self, sort: PlExpr) -> Self {
         let mut ordered = self.stage(sort);
         ordered.ordering = ordered.stages.last().cloned();
@@ -627,17 +628,16 @@ impl Pipeline {
     /// [`select_sources`](Pipeline::select_sources) — which projects *by*
     /// those names and so has nothing to repoint to — is refused by the same
     /// `reshaped` gate the other namespace-replacing stages trip, naming
-    /// `owed_to`: the stage the hoist was performed for, which is a
-    /// [`distinct`](Pipeline::distinct) that could not compose or a set
-    /// operation that would otherwise have reassociated.
+    /// `owed_to`: the stage the hoist was performed for, a
+    /// [`distinct`](Pipeline::distinct) that could not compose.
     ///
     /// A set operation's own result is settled with no `owed_to`: a set
     /// operation renames nothing, so its sources' references are repointed
     /// at the binding rather than refused.
-    // [spec:pgorm:req:pipeline.compose+1]
-    // [spec:pgorm:sem:pipeline.select-sources+5]
+    // [spec:pgorm:req:pipeline.compose+2]
+    // [spec:pgorm:sem:pipeline.select-sources+6]
     pub(super) fn settle(&mut self, naming: &naming::Naming, owed_to: Option<&'static str>) {
-        self.combined = false;
+        self.combined = None;
         if self.stages.len() <= 1 {
             return;
         }
@@ -938,7 +938,8 @@ impl Pipeline {
     ///
     /// Columns correspond by position, and prqlc refuses the append at
     /// [`into_sql`](Pipeline::into_sql) when it can see the two column
-    /// counts differ. Follow with [`distinct`](Pipeline::distinct) for
+    /// counts differ; an operand whose columns are a table's wildcard is the
+    /// server's to check. Follow with [`distinct`](Pipeline::distinct) for
     /// `UNION DISTINCT`.
     ///
     /// A stage after a set operation reads the whole combined relation: the
@@ -959,78 +960,94 @@ impl Pipeline {
     /// );
     /// # Ok::<_, pgorm::pipeline::PipelineError>(())
     /// ```
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     pub fn append(self, other: impl IntoSource) -> Self {
-        self.set_op("append", other)
+        self.set_op(SetOperation::Append, other)
     }
 
-    /// Keep only rows that also appear in `other`: PRQL's `intersect`,
-    /// SQL's `INTERSECT ALL`.
+    /// Keep only rows that also appear in `other`: SQL's `INTERSECT ALL`,
+    /// each row kept as many times as both relations hold it.
     ///
-    /// The stages after it read the result as they do after
-    /// [`remove`](Self::remove).
+    /// The operands are combined whole and by position, as
+    /// [`append`](Self::append)'s are, so they need no known columns, and
+    /// the stages after it read the result the same way: from a binding, a
+    /// column named bare or against the source it came from.
     ///
-    /// This is the one set operation SQL binds tightly, so written after an
-    /// [`append`](Self::append) or a [`remove`](Self::remove) it takes the
-    /// relation so far as a binding rather than as another operator in the
-    /// same chain — `(a UNION ALL b) INTERSECT ALL c`, which is what the
-    /// pipeline says, and not the `a UNION ALL (b INTERSECT ALL c)` that
-    /// precedence would otherwise make of it.
-    // [spec:pgorm:req:pipeline.compose+1]
+    /// ```
+    /// use pgorm::pipeline::{ExprOps, Pipeline, alias};
+    ///
+    /// let (sql, _) = Pipeline::from(alias("cake"))
+    ///     .intersect(alias("archived_cake"))
+    ///     .filter(alias("price").gt(3))
+    ///     .select(alias("name"))
+    ///     .into_sql()?;
+    /// assert_eq!(
+    ///     sql,
+    ///     "WITH table_0 AS (SELECT * FROM cake INTERSECT ALL SELECT * FROM archived_cake) \
+    ///      SELECT name FROM table_0 WHERE price > 3"
+    /// );
+    /// # Ok::<_, pgorm::pipeline::PipelineError>(())
+    /// ```
+    ///
+    /// SQL binds `INTERSECT` tighter than `UNION` and `EXCEPT`, so written
+    /// after an [`append`](Self::append) or a [`remove`](Self::remove) the
+    /// relation so far is bracketed: `(a UNION ALL b) INTERSECT ALL c`, which
+    /// is what the pipeline says, and not the `a UNION ALL (b INTERSECT ALL
+    /// c)` the flat chain would mean.
+    // [spec:pgorm:req:pipeline.compose+2]
     pub fn intersect(self, other: impl IntoSource) -> Self {
-        self.set_op("intersect", other).reshaping("intersect")
+        self.set_op(SetOperation::Intersect, other)
     }
 
-    /// Drop rows that appear in `other`: PRQL's `remove`, SQL's
-    /// `EXCEPT ALL` — each row in `other` cancels one matching row here,
-    /// not all of them.
+    /// Drop rows that appear in `other`: SQL's `EXCEPT ALL` — each row in
+    /// `other` cancels one matching row here, not all of them.
     ///
-    /// The stages after it read the result from a binding, as after
-    /// [`append`](Self::append): a column is named bare (an alias token) or
-    /// against the source it came from, `col(INVOICE, ..)` or an entity
-    /// column, which is repointed at the binding. Over operands whose
-    /// columns are wildcards prqlc expands neither, so only a stage that
-    /// reads no column composes there (`take`, `distinct`); a pipeline that
-    /// reads the result projects its operands first.
-    // [spec:pgorm:req:pipeline.compose+1]
+    /// The operands are combined whole and by position, and the stages after
+    /// it read the result, as after [`intersect`](Self::intersect).
+    ///
+    /// ```
+    /// use pgorm::pipeline::{ExprOps, Pipeline, alias, count_rows};
+    ///
+    /// let n = alias("n");
+    /// let (sql, _) = Pipeline::from(alias("invoice"))
+    ///     .remove(alias("refund"))
+    ///     .group(alias("customer_id"))
+    ///     .aggregate(count_rows().as_(n))
+    ///     .into_sql()?;
+    /// assert_eq!(
+    ///     sql,
+    ///     "WITH table_0 AS (SELECT * FROM invoice EXCEPT ALL SELECT * FROM refund) \
+    ///      SELECT customer_id, COUNT(*) AS n FROM table_0 GROUP BY customer_id"
+    /// );
+    /// # Ok::<_, pgorm::pipeline::PipelineError>(())
+    /// ```
+    // [spec:pgorm:req:pipeline.compose+2]
     pub fn remove(self, other: impl IntoSource) -> Self {
-        self.set_op("remove", other).reshaping("remove")
+        self.set_op(SetOperation::Remove, other)
     }
 
-    fn set_op(mut self, op: &'static str, other: impl IntoSource) -> Self {
-        // Two things force the pending stages into a binding of their own. A
-        // deduplicating `group` the set operation would otherwise be taken off
-        // directly has to move, so the arity settles at the CTE boundary; and
-        // a set operation already pending that SQL binds *looser* than this
-        // one has to move too, because a flat chain of the two is reassociated
-        // by precedence into a relation the pipeline never wrote (`sets`).
-        // Either way the binding is the bracket, and nothing was renamed on
-        // the way: a deduplication that owes the hoist made the projection
-        // addressable already, and a set operation renames nothing.
-        let owed_to = if self.deduped {
-            Some("distinct")
-        } else if sets::reassociates(&self.stages, op) {
-            Some(op)
-        } else {
-            None
-        };
-        if let Some(stage) = owed_to {
-            self.settle(&naming::Naming::default(), Some(stage));
+    fn set_op(mut self, operation: SetOperation, other: impl IntoSource) -> Self {
+        // prqlc reads a grouped relation's arity as the tuple it keys on
+        // rather than the columns it projects, so a deduplicating `group`
+        // directly in front is hoisted into a binding, where the arity
+        // settles. The hoist renames nothing: the deduplication made the
+        // projection addressable already.
+        if self.deduped {
+            self.settle(&naming::Naming::default(), Some("distinct"));
         }
-        // The combined relation is not the one the ordering described, and
-        // for `intersect` and `remove` it does not even answer to the same
-        // names.
+        // The combined relation is not the one the ordering described.
         self.ordering = None;
         let reference = self.embed(other.into_source());
-        self.combined = false;
-        let mut combined = self.stage(adapter::call(op, vec![reference]));
-        combined.combined = true;
+        self.combined = None;
+        let mut combined = self.stage(adapter::call(operation.transform(), vec![reference]));
+        combined.combined = Some(operation);
         combined
     }
 
     /// Keep one copy of each distinct row: PRQL's `group this (take 1)`,
-    /// rendered `SELECT DISTINCT` — or folded into `UNION DISTINCT` when it
-    /// directly follows [`append`](Pipeline::append).
+    /// rendered `SELECT DISTINCT` — or folded into `UNION DISTINCT` or
+    /// `INTERSECT DISTINCT` when it directly follows
+    /// [`append`](Pipeline::append) or [`intersect`](Pipeline::intersect).
     ///
     /// The deduplicating group does not compose with every stage that can
     /// stand in front of it, so the pipeline is settled into its own binding
@@ -1108,7 +1125,7 @@ impl Pipeline {
     /// );
     /// # Ok::<_, pgorm::pipeline::PipelineError>(())
     /// ```
-    // [spec:pgorm:req:pipeline.compose+1]
+    // [spec:pgorm:req:pipeline.compose+2]
     pub fn distinct(mut self) -> Self {
         let naming = naming::disambiguate(&mut self.stages);
         let ordering = self.ordering.take();

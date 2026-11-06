@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Locked Cargo graph, including build and platform-conditional dependencies; a superset of any one wheel",
-  "cargo_lock_sha256": "eea83d81f21025e2d176039f5c2c035f7861d8421cba496ca3313ca81083e079",
+  "cargo_lock_sha256": "8db42fe7bcd66d29c4d0c4e580155bfebfcc1e45261fead46c3534c985ed402a",
   "python_runtime_dependencies": [],
   "packages": [
     {
@@ -3043,7 +3043,7 @@
       "version": "0.13.14",
       "license": "Apache-2.0",
       "repository": "https://github.com/PRQL/prql",
-      "source": "git+https://github.com/necessary-nu/prql.git?rev=2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19#2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19",
+      "source": "git+https://github.com/necessary-nu/prql.git?rev=170872b395dd35efb38c566b4e1cae44c9e82bab#170872b395dd35efb38c566b4e1cae44c9e82bab",
       "notices": [
         {
           "source": "https://raw.githubusercontent.com/PRQL/prql/029b9c4bc7852db180e49c26db3768a5d9244c45/LICENSE",
@@ -3056,7 +3056,7 @@
       "version": "0.13.14",
       "license": "Apache-2.0",
       "repository": "https://github.com/PRQL/prql",
-      "source": "git+https://github.com/necessary-nu/prql.git?rev=2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19#2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19",
+      "source": "git+https://github.com/necessary-nu/prql.git?rev=170872b395dd35efb38c566b4e1cae44c9e82bab#170872b395dd35efb38c566b4e1cae44c9e82bab",
       "notices": [
         {
           "source": "https://raw.githubusercontent.com/PRQL/prql/029b9c4bc7852db180e49c26db3768a5d9244c45/LICENSE",

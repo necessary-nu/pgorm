@@ -25,6 +25,7 @@ use super::builder::{IntoSource, Pipeline, Source};
 use super::error::PipelineError;
 use super::expr::{Expr, entity_column};
 use super::naming::Naming;
+use super::sets::SetOperation;
 
 mod sealed {
     use super::PlExpr;
@@ -53,7 +54,7 @@ mod sealed {
 ///
 /// The trait is sealed: only an entity carries the `Model` a source decodes
 /// into, so the two spellings above are the whole set.
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 pub trait SelectableSource: sealed::SealedSource {
     /// The entity whose columns are projected and whose model is decoded.
     type Entity: EntityTrait;
@@ -64,12 +65,12 @@ pub trait SelectableSource: sealed::SealedSource {
     fn qualifier(&self) -> String;
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 impl<E: EntityTrait> sealed::SealedSource for E {}
 
 /// A relation read bare: qualified by the entity's own name, exactly as its
 /// columns are everywhere else in the pipeline.
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 impl<E: EntityTrait> SelectableSource for E {
     type Entity = E;
 
@@ -78,12 +79,12 @@ impl<E: EntityTrait> SelectableSource for E {
     }
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 impl<S: SelectableSource> sealed::SealedSource for Named<S> {}
 
 /// A relation read under a name: the name is the qualifier, because after
 /// [`named`](super::IntoSource::named) it is the relation's only name.
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 impl<S: SelectableSource> SelectableSource for Named<S> {
     type Entity = S::Entity;
 
@@ -98,7 +99,7 @@ impl<S: SelectableSource> SelectableSource for Named<S> {
 /// `s{index}_{col}` ([`source_prefix`]) — the same prefix scheme and
 /// cast discipline as [`project_source`](crate::query::graph::project_source),
 /// emitted as PL nodes instead of a `SelectStatement`.
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 // [spec:pgorm:sem:query.graph.writer+4]
 fn project_into<E: EntityTrait>(nodes: &mut Vec<PlExpr>, qualifier: &str, index: usize) {
     let prefix = source_prefix(index);
@@ -130,7 +131,7 @@ fn project_into<E: EntityTrait>(nodes: &mut Vec<PlExpr>, qualifier: &str, index:
 /// `TypeName::raw` type expression is program text here as on every other
 /// writer. A comparison casts a column whose domain is over an enum to the
 /// enum through the same writer, for the same reason.
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 // [spec:pgorm:sem:query.graph.writer+4]
 pub(super) fn typed_cast(column: PlExpr, cast: &pgorm_query::TypeName) -> PlExpr {
     pinned_cast(column, None, cast)
@@ -167,7 +168,7 @@ pub(super) fn pinned_cast(
 /// listing order — every position optional, the first included, because the
 /// pipeline's joins carry no missability in their types and under a right or
 /// full join the *left* side is the absent one.
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 pub trait SourceList: sealed::SealedList {
     /// What one row decodes into: `Option<Model>` per source, a bare
     /// `Option<Model>` for a single source rather than a one-tuple.
@@ -179,7 +180,7 @@ pub trait SourceList: sealed::SealedList {
     fn decode(res: &QueryResult) -> Result<Self::Row, Error>;
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 impl<S: SelectableSource> sealed::SealedList for S {
     const LEN: usize = 1;
 
@@ -192,7 +193,7 @@ impl<S: SelectableSource> sealed::SealedList for S {
 
 /// A source listed alone still decodes as `Option<Model>`: listing it does
 /// not prove a right-joined pipeline matched it.
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 impl<S: SelectableSource> SourceList for S {
     type Row = Option<<S::Entity as EntityTrait>::Model>;
 
@@ -205,7 +206,7 @@ impl<S: SelectableSource> SourceList for S {
 /// sources in listing order, the decode reads the same prefixes back.
 macro_rules! source_tuple {
     ( $( $s:ident . $idx:tt @ $pre:literal ),+ ) => {
-        // [spec:pgorm:sem:pipeline.select-sources+5]
+        // [spec:pgorm:sem:pipeline.select-sources+6]
         impl<$( $s: SelectableSource ),+> sealed::SealedList for ( $( $s, )+ ) {
             const LEN: usize = [$( $idx ),+].len();
 
@@ -216,7 +217,7 @@ macro_rules! source_tuple {
             }
         }
 
-        // [spec:pgorm:sem:pipeline.select-sources+5]
+        // [spec:pgorm:sem:pipeline.select-sources+6]
         impl<$( $s: SelectableSource ),+> SourceList for ( $( $s, )+ ) {
             type Row = ( $( Option<<$s::Entity as EntityTrait>::Model>, )+ );
 
@@ -239,7 +240,7 @@ source_tuple!(S1.0 @ "s0_", S2.1 @ "s1_", S3.2 @ "s2_", S4.3 @ "s3_", S5.4 @ "s4
 /// [`SelectorRaw`] so execution lands on the ordinary raw-read path.
 struct SourcesRow<T>(PhantomData<T>);
 
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 impl<T: SourceList> SelectorTrait for SourcesRow<T> {
     type Item = T::Row;
 
@@ -267,7 +268,7 @@ impl<T: SourceList> SelectorTrait for SourcesRow<T> {
 /// Reshaping *before* the selection is refused at
 /// [`into_sql`](SelectedSources::into_sql) with
 /// [`PipelineError::ReshapedSources`] naming the offending stage.
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 pub struct SelectedSources<T> {
     pipeline: Pipeline,
     projection: Vec<PlExpr>,
@@ -338,14 +339,15 @@ impl Pipeline {
     /// ```
     ///
     /// Construction is infallible; a pipeline that already reshaped away its
-    /// sources' namespaces (`select`, `group().aggregate()`, `intersect`,
-    /// `remove`) is refused at [`into_sql`](SelectedSources::into_sql) with
+    /// sources' namespaces (`select`, `group().aggregate()`) is refused at
+    /// [`into_sql`](SelectedSources::into_sql) with
     /// [`PipelineError::ReshapedSources`] naming the stage. `filter`,
     /// `derive`, `sort`, `take` / `take_range`, `join` and `window` leave
-    /// every source addressable and compose freely ahead. After
-    /// [`append`](Pipeline::append) the union is read whole from a binding,
-    /// and one listed source is projected from it; more than one is refused,
-    /// naming `append`.
+    /// every source addressable and compose freely ahead. After a set
+    /// operation ([`append`](Pipeline::append),
+    /// [`intersect`](Pipeline::intersect), [`remove`](Pipeline::remove)) the
+    /// combined relation is read whole from a binding, and one listed source
+    /// is projected from it; more than one is refused, naming the operation.
     ///
     /// [`distinct`](Pipeline::distinct) composes ahead too, except where it
     /// has to settle the pipeline into a binding — behind one, the relation
@@ -363,7 +365,7 @@ impl Pipeline {
     /// A listed source the pipeline never read compiles up to prqlc, which
     /// refuses the unresolvable columns as [`PipelineError::Compile`] — the
     /// terminal checks stage shape, not membership.
-    // [spec:pgorm:sem:pipeline.select-sources+5]
+    // [spec:pgorm:sem:pipeline.select-sources+6]
     pub fn select_sources<T: SourceList>(self, sources: T) -> SelectedSources<T> {
         SelectedSources {
             projection: sources.projection(),
@@ -383,7 +385,7 @@ impl<T: SourceList> SelectedSources<T> {
     /// hoist would be discharged for, and behind the binding it makes, the
     /// per-source qualifiers it is written in have nothing left to resolve
     /// against.
-    // [spec:pgorm:sem:pipeline.select-sources+5]
+    // [spec:pgorm:sem:pipeline.select-sources+6]
     fn into_pipeline(self) -> Result<Pipeline, PipelineError> {
         appended_projection(self.pipeline, self.projection, T::LEN)
     }
@@ -394,14 +396,14 @@ impl<T: SourceList> SelectedSources<T> {
     /// Everything [`Pipeline::into_sql`] does still happens here — the
     /// reserved-alias screen, prqlc's resolution, the placeholder census —
     /// preceded by the reshaped-pipeline refusal.
-    // [spec:pgorm:sem:pipeline.select-sources+5]
+    // [spec:pgorm:sem:pipeline.select-sources+6]
     pub fn into_sql(self) -> Result<(String, Values), PipelineError> {
         self.into_pipeline()?.into_sql()
     }
 
     /// Compile, execute and decode every row as one `Option<Model>` per
     /// listed source.
-    // [spec:pgorm:sem:pipeline.select-sources+5]
+    // [spec:pgorm:sem:pipeline.select-sources+6]
     pub async fn all<C>(self, db: &C) -> Result<Vec<T::Row>, Error>
     where
         C: ConnectionTrait,
@@ -421,7 +423,7 @@ impl<T: SourceList> SelectedSources<T> {
     ///
     /// A `take 1` stage is appended to the pipeline before the projection,
     /// as on [`Pipeline::one`], so at most one row leaves the server.
-    // [spec:pgorm:sem:pipeline.select-sources+5]
+    // [spec:pgorm:sem:pipeline.select-sources+6]
     pub async fn one<C>(mut self, db: &C) -> Result<T::Row, Error>
     where
         C: ConnectionTrait,
@@ -439,7 +441,7 @@ impl<T: SourceList> SelectedSources<T> {
 
     /// Compile, execute and decode the first row, or `None` when there is
     /// none. Appends `take 1` like [`one`](SelectedSources::one).
-    // [spec:pgorm:sem:pipeline.select-sources+5]
+    // [spec:pgorm:sem:pipeline.select-sources+6]
     pub async fn one_opt<C>(mut self, db: &C) -> Result<Option<T::Row>, Error>
     where
         C: ConnectionTrait,
@@ -461,7 +463,7 @@ impl<T: SourceList> SelectedSources<T> {
 /// reshaped the sources away, a deduplication still owing its hoist named as
 /// one that has performed it, and a set operation over more than one source,
 /// whose result no longer answers to each source's name.
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 // [spec:pgorm:sem:pipeline.described]
 pub(super) fn appended_projection(
     mut pipeline: Pipeline,
@@ -471,13 +473,18 @@ pub(super) fn appended_projection(
     let reshaped = pipeline
         .reshaped
         .or_else(|| pipeline.bare_star_key.then_some("distinct"))
-        .or_else(|| (pipeline.combined && sources > 1).then_some("append"));
+        .or_else(|| {
+            pipeline
+                .combined
+                .filter(|_| sources > 1)
+                .map(SetOperation::verb)
+        });
     if let Some(stage) = reshaped {
         return Err(PipelineError::ReshapedSources(stage));
     }
     // A set operation's result is read whole, from a binding, and the one
     // source it combined answers there under the binding's name.
-    if pipeline.combined {
+    if pipeline.combined.is_some() {
         pipeline.settle(&Naming::default(), None);
         for node in &mut projection {
             pipeline.settled.requalify(node);
@@ -499,7 +506,7 @@ pub(super) fn appended_projection(
 /// [`select_sources`](Pipeline::select_sources), where the entity supplies
 /// the columns and the name qualifies them.
 // [spec:pgorm:sem:pipeline.self-join+1]
-// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 #[derive(Debug, Clone)]
 pub struct Named<R> {
     pub(super) relation: R,

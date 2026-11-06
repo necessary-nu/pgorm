@@ -1605,7 +1605,7 @@ dependencies = [
 [[package]]
 name = "prqlc"
 version = "0.13.14"
-source = "git+https://github.com/necessary-nu/prql.git?rev=2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19#2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19"
+source = "git+https://github.com/necessary-nu/prql.git?rev=170872b395dd35efb38c566b4e1cae44c9e82bab#170872b395dd35efb38c566b4e1cae44c9e82bab"
 dependencies = [
  "anstream",
  "ariadne",
@@ -1630,7 +1630,7 @@ dependencies = [
 [[package]]
 name = "prqlc-parser"
 version = "0.13.14"
-source = "git+https://github.com/necessary-nu/prql.git?rev=2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19#2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19"
+source = "git+https://github.com/necessary-nu/prql.git?rev=170872b395dd35efb38c566b4e1cae44c9e82bab#170872b395dd35efb38c566b4e1cae44c9e82bab"
 dependencies = [
  "chumsky",
  "enum-as-inner",
