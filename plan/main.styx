@@ -14227,6 +14227,20 @@ children (
                     }
                 )
             }
+
+            {
+                id napi.lib-imports-checked
+                title "A broken import or export in pgorm-napi's lib/*.js fails nplan check, not only the live suites"
+                kind @test
+                log (
+                    {
+                        at 2026-11-06T12:35:20.709514Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found by the migrations lane, 2026-11-06. Main renamed the accessor nativePool to poolHandle and moved runJob into lib/runs.js. lib/migrations.js still imported the old names, and both deno check and nplan check passed; only the node and deno live suites and checks/codegen.js failed on it. deno check type-checks the .d.ts files and the tests, but not the plain-JavaScript lib modules' imports against each other's exports. Make the fast check catch it: run deno check with checkJs over lib/*.js (JSDoc types already exist there), or add a module-graph check that imports every lib module under node --check / deno, wired into the napi-types or napi-native platform within the commit budget."
+                    }
+                )
+            }
         )
         log (
             {
