@@ -1284,19 +1284,21 @@ only.
 
 | sea-orm-migration | pgorm-migration |
 | --- | --- |
-| `async fn up(&self, manager: &SchemaManager)` | `async fn up(&self, tx: &DatabaseTransaction<'_>)` |
+| `async fn up(&self, manager: &SchemaManager)` | `async fn up(&self, tx: &mut DatabaseTransaction<'_>)` |
 | `async fn down(..)` | gone |
 | `manager.create_table(stmt)` | `tx.batch_execute(&stmt.to_string())` |
 | `manager.has_table(..)`, `has_column(..)` | query `information_schema` yourself |
-| `Migrator::up(&db, None)` | `Migrator::up(pool, None)` with the `DatabasePool` |
+| `Migrator::up(&db, None)` | `Migrator.up(pool, None)` with the `DatabasePool`: `MigratorTrait`'s methods take `&self` |
+| a `MigratorTrait` type per list | also `Migrations::new(list)`, a migrator built at run time |
 | `Migrator::down`, `fresh`, `refresh`, `reset` | gone |
 | `cli::run_cli(Migrator)` | a small `main` of your own; the template has one |
 | `seaql_migrations` table | `pgorm_migrations`, adopted automatically |
 | `#[derive(DeriveMigrationName)]` | `#[derive(MigrationName)]` |
 | `#[derive(DeriveIden)]` | `#[derive(SqlName)]` |
 
-A migration gets the transaction the whole batch runs in and builds its SQL
-with pgorm-query:
+A migration gets the transaction the whole batch runs in, borrowed
+exclusively so that it can open a savepoint or run a COPY too, and builds its
+SQL with pgorm-query:
 
 ```rust
 use pgorm_migration::prelude::*;
@@ -1306,7 +1308,7 @@ pub struct Migration;
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         let table = Table::create(Post::Table)
             .if_not_exists()
             .col(ColumnDef::new(Post::Id).integer().not_null().auto_increment())
@@ -1328,13 +1330,13 @@ pub struct Migrator;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(Migration)]
     }
 }
 
 async fn migrate(pool: DatabasePool) -> Result<(), Error> {
-    Migrator::up(pool, None).await
+    Migrator.up(pool, None).await
 }
 ```
 

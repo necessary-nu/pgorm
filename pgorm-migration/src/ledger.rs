@@ -1,6 +1,6 @@
 use pgorm::entity::prelude::*;
 
-// [spec:pgorm:def:migration.runner+4]    ledger schema and default name
+// [spec:pgorm:def:migration.runner+5]    ledger schema and default name
 // [spec:pgorm:req:migration.checksum+1]    the nullable third column
 #[derive(Clone, Debug, PartialEq, Eq, Entity)]
 // The default name only: a migrator places its ledger through

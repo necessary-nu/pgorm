@@ -737,6 +737,61 @@ async fn begin(
     Ok(state)
 }
 
+/// How a transaction lent to JavaScript ended for the work it was lent to.
+pub(crate) enum Lent<T> {
+    /// The work finished, as it answered; the transaction is as its last
+    /// command left it.
+    Ran(T),
+    /// A command's outcome was lost, so nobody knows the transaction's state.
+    Discarded,
+}
+
+/// Serve `tx`, a transaction pgorm-migration's runner holds, to the handle
+/// `work` is given, for as long as the future it returns runs. The handle
+/// closes once that future finishes, so a command JavaScript sends with it
+/// afterwards is refused rather than run in a transaction the runner has
+/// moved on from.
+// [spec:pgorm:req:bindings.migrations]    a migration's `up` runs in the batch's transaction
+pub(crate) async fn lend<F>(
+    pool: Arc<super::PoolState>,
+    tx: &mut DatabaseTransaction<'_>,
+    work: impl FnOnce(TransactionHandle) -> F,
+) -> Lent<F::Output>
+where
+    F: Future,
+{
+    let connection = Arc::new(ConnectionState {
+        pool,
+        closed: CancellationToken::new(),
+        slot: Arc::new(Mutex::new(None)),
+    });
+    let (state, receiver) = State::channel(connection, None);
+    // Held until the frame has answered it, as an opening transaction's
+    // caller holds its own.
+    let (opened, _opening) = oneshot::channel();
+    let mut frame = Frame::new(state.clone(), receiver, opened);
+    let running = work(TransactionHandle(state.clone()));
+    let halt = frame.halt.clone();
+    let served = halt.run(frame.serve(Tx::Plain(tx)));
+    tokio::pin!(running, served);
+    let finished = tokio::select! {
+        biased;
+        finished = &mut running => Some(finished),
+        served = &mut served => match served {
+            // The handle was collected while the work still runs, and can
+            // send nothing more.
+            Some(_) => None,
+            None => return Lent::Discarded,
+        },
+    };
+    let finished = match finished {
+        Some(finished) => finished,
+        None => running.await,
+    };
+    state.finished.cancel();
+    Lent::Ran(finished)
+}
+
 /// The JavaScript `Transaction`'s native half. Collected unfinished, it rolls
 /// back as a backstop; `commit`, `rollback` and `close` are what end it.
 #[derive(Debug)]

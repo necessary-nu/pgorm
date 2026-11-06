@@ -223,6 +223,11 @@ pub(crate) fn failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
         pgorm::Error::Conversion { .. } | pgorm::Error::Type(_) | pgorm::Error::Json(_) => {
             Failure::Decode(secrets.apply(&error.to_string()))
         }
+        // A refusal pgorm-migration's runner makes of the program's
+        // migrations — a name twice, a migration missing, a checksum that has
+        // changed — as pgorm-python makes it.
+        // [spec:pgorm:req:bindings.migrations]
+        pgorm::Error::Custom(_) => Failure::Construction(secrets.apply(&error.to_string())),
         // [spec:pgorm:req:conn.copy.statement]
         pgorm::Error::CopyStatement => Failure::Construction(
             "a COPY runs through copyIn or copyOut, which carry its data, not as a statement: \

@@ -27,6 +27,8 @@ EXEMPT = {
     # after SQL ran. A record or a model is a mapping, false with no fields.
     p.Record, p.Field, p.EntityModel, p.ActiveModel, p.ActiveValue, p.ActiveState,
     p.Change, p.Upserted, ModelRecord, PoolStatus, views.ModelView, views.ActiveView,
+    # A migration's name and status, as a migrator read them from its ledger.
+    s.Migration,
     # Pools, connections, transactions and the private native handles under
     # them and under the streams: live resources, not SQL, and true as any
     # open resource is. The streams themselves refuse, since a stream's truth
@@ -34,11 +36,14 @@ EXEMPT = {
     p.Pool, p.InstrumentedPool, p.Connection, p.Transaction,
     _native._Pool, _native._Connection, _native._Transaction, _native._Stream,
     _native._CopyIn, _native._CopyOut, _native._Listener, _native._Disjoint,
-    _native._DisjointChange, _native._MetricsAnswer,
+    _native._DisjointChange, _native._MetricsAnswer, _native._Migrations,
     # The metrics layer's collectors, objects a program writes and hands to a
     # pool, and what a query hook is told about a statement that already ran:
     # `if query.fingerprint:` tests for a fingerprint.
     p.MetricsCollector, p.NoOpMetrics, p.LoggingMetrics, p.QueryContext, p.QueryFingerprint,
+    # The protocol a migration a program writes satisfies, as a collector
+    # satisfies MetricsCollector, handed to a migrator.
+    s.MigrationTrait,
     # Registrations and declarations: they name what a query reads and are
     # true as any declared object is; the queries they start refuse.
     p.Entity, p.EntityGraph, Model, Column, Relation, pl.SourceSelection, pl.Binder,
@@ -133,6 +138,8 @@ def other_samples():
     return [
         s.DataType("integer"), s.ColumnDef("id", "integer"), s.create_table(table),
         s.migration_file("m20260101_000001_create_items", [s.create_table(table)]),
+        s.SqlMigration("m20260101_000001_create_items", "CREATE TABLE items (id integer)"),
+        s.Migrations([]), s.MigrationStatus.Pending,
         s.create_index(table, "id"), s.drop_table(table), s.create_domain("d", "integer"),
         s.alter_table(table), s.alter_table(table).drop_column("id"), s.create_type("t"),
         s.alter_type("t"), s.alter_type("t").drop_attribute("a"),

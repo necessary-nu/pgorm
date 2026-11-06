@@ -130,3 +130,10 @@ async def invalid(connection: p.Connection) -> None:
     p.OneOf("ref", accounts, {"self": accounts})  # expected-error: dict-item
     p.Disjoint("shops", accounts, {"dormant": None}, unkinded=True, kind="state")  # expected-error: call-overload
     kinded: p.Disjoint = shops  # expected-error: assignment
+    # [spec:pgorm:req:bindings.migrations/test]    a migrator takes migrations, runs on a pool, and reads on an executor
+    s.Migrations([object()])  # expected-error: list-item
+    s.Migrations([s.SqlMigration("m1", "SELECT 1")], migration_table_name=1)  # expected-error: arg-type
+    await s.Migrations([]).up(connection)  # expected-error: arg-type
+    await s.Migrations([]).up(p.Pool("postgres://"), "1")  # expected-error: arg-type
+    s.SqlMigration.read_dir(1)  # expected-error: arg-type
+    waiting: list[str] = await s.Migrations([]).get_pending_migrations(connection)  # expected-error: assignment

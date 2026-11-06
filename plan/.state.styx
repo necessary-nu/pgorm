@@ -3419,6 +3419,20 @@ impl_evidence (
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
     )}
+    {id guide.python-gaps.migrations, covered_rules (
+        bindings.migrations
+        migration.runtime
+        migration.sql-file.read
+    ), covered_claims (
+        {impl_name main, rule migration.runtime}
+        {impl_name main, rule migration.sql-file.read}
+        {impl_name python, rule bindings.migrations}
+    )}
+    {id napi.guide-gaps.migrations, covered_rules (
+        bindings.migrations
+    ), covered_claims (
+        {impl_name javascript, rule bindings.migrations}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

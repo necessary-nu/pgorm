@@ -30,13 +30,17 @@ builder](crate::guide::query_builder).
 
 A migration is a type implementing `MigrationTrait`. Its `up` receives the
 transaction the migration runs in, a
-[`DatabaseTransaction`](crate::DatabaseTransaction), and changes the schema
-through it. The statements can come from the query builder's DDL, from
-[schema generation](crate::guide::schema), or from SQL text.
+[`DatabaseTransaction`](crate::DatabaseTransaction) borrowed for the migration
+alone, and changes the schema through it. The statements can come from the
+query builder's DDL, from [schema generation](crate::guide::schema), or from
+SQL text. Since the borrow is exclusive, a migration can also open a
+[savepoint](crate::guide::transactions) or run a [COPY](crate::guide::copy)
+inside it.
 
-A *migrator* is a type implementing `MigratorTrait`, whose `migrations` lists
-every migration the program owns, in the order they apply. `up` applies the
-ones the database has not had yet:
+A *migrator* implements `MigratorTrait`, whose `migrations` lists every
+migration the program owns, in the order they apply. It is usually a unit
+struct, so the migrator is its one value, `Migrator`. Its `up` applies the
+migrations the database has not had yet:
 
 ```rust
 use pgorm_migration::prelude::*;
@@ -52,7 +56,7 @@ impl MigrationName for CreateBakery {
 
 #[async_trait::async_trait]
 impl MigrationTrait for CreateBakery {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         let table = Table::create(Bakery::Table)
             .col(ColumnDef::new(Bakery::Id).integer().not_null().auto_increment())
             .primary_key(Bakery::Id)
@@ -74,7 +78,7 @@ enum Bakery {
 pub struct Migrator;
 
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(CreateBakery)]
     }
 }
@@ -83,15 +87,15 @@ impl MigratorTrait for Migrator {
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::empty("migrations_first").await;
 # let pool = scratch.pool.clone();
-Migrator::up(pool.clone(), None).await?;
+Migrator.up(pool.clone(), None).await?;
 
 let db = pool.get().await?;
 db.execute("INSERT INTO bakery (name, city) VALUES ($1, $2)", &[&"Sunrise", &"Oslo"])
     .await?;
 
 // Running it again applies nothing: the ledger says the table exists.
-Migrator::up(pool.clone(), None).await?;
-let applied = Migrator::get_applied_migrations(&db).await?;
+Migrator.up(pool.clone(), None).await?;
+let applied = Migrator.get_applied_migrations(&db).await?;
 let names: Vec<&str> = applied.iter().map(|migration| migration.name()).collect();
 assert_eq!(names, ["m20260101_000001_create_bakery"]);
 # drop(db);
@@ -156,7 +160,7 @@ runs.
 #     }
 #     #[async_trait::async_trait]
 #     impl MigrationTrait for Migration {
-#         async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+#         async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
 #             tx.batch_execute("CREATE TABLE cake (id serial PRIMARY KEY, name varchar NOT NULL)").await
 #         }
 #     }
@@ -166,7 +170,7 @@ use pgorm_migration::prelude::*;
 pub struct Migrator;
 
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(create_bakery::Migration),
             Box::new(sql_migration!("docs/guide/migrations/m20260102_000001_index_cake_name.sql")),
@@ -182,7 +186,7 @@ let index = sql_migration!("docs/guide/migrations/m20260102_000001_index_cake_na
 assert_eq!(index.name(), "m20260102_000001_index_cake_name");
 assert!(index.sql().contains("CREATE INDEX cake_name_index ON cake (name);"));
 
-Migrator::up(pool.clone(), None).await?;
+Migrator.up(pool.clone(), None).await?;
 let db = pool.get().await?;
 let found = db
     .query_one("SELECT count(*) FROM pg_indexes WHERE indexname = 'cake_name_index'", &[])
@@ -221,7 +225,7 @@ impl MigrationName for CreateCustomer {
 
 #[async_trait::async_trait]
 impl MigrationTrait for CreateCustomer {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE customer (id serial PRIMARY KEY, email text UNIQUE NOT NULL)")
             .await
     }
@@ -238,7 +242,7 @@ impl MigrationName for CreateCustomerAgain {
 
 #[async_trait::async_trait]
 impl MigrationTrait for CreateCustomerAgain {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE customer (id serial PRIMARY KEY)").await
     }
 }
@@ -246,7 +250,7 @@ impl MigrationTrait for CreateCustomerAgain {
 pub struct Migrator;
 
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(CreateCustomer)]
     }
 }
@@ -254,7 +258,7 @@ impl MigratorTrait for Migrator {
 pub struct BrokenMigrator;
 
 impl MigratorTrait for BrokenMigrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(CreateCustomer), Box::new(CreateCustomerAgain)]
     }
 }
@@ -264,7 +268,7 @@ impl MigratorTrait for BrokenMigrator {
 # let scratch = pgorm_guide_support::Scratch::empty("migrations_transaction").await;
 # let pool = scratch.pool.clone();
 // The second migration fails, so the first is rolled back with it.
-assert!(BrokenMigrator::up(pool.clone(), None).await.is_err());
+assert!(BrokenMigrator.up(pool.clone(), None).await.is_err());
 let db = pool.get().await?;
 let tables = db
     .query_one("SELECT count(*) FROM pg_tables WHERE tablename = 'customer'", &[])
@@ -274,12 +278,12 @@ assert_eq!(tables.get::<_, i64>(0), 0);
 // Two runners at once: one applies the migration, the other waits and finds
 // nothing to do.
 let (first, second) = tokio::join!(
-    Migrator::up(pool.clone(), None),
-    Migrator::up(pool.clone(), None),
+    Migrator.up(pool.clone(), None),
+    Migrator.up(pool.clone(), None),
 );
 first?;
 second?;
-assert_eq!(Migrator::get_applied_migrations(&db).await?.len(), 1);
+assert_eq!(Migrator.get_applied_migrations(&db).await?.len(), 1);
 # drop(db);
 # scratch.finish().await;
 # Ok(())
@@ -314,7 +318,7 @@ macro_rules! migration {
 
         #[async_trait::async_trait]
         impl MigrationTrait for $type {
-            async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+            async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
                 tx.batch_execute($sql).await
             }
 
@@ -348,7 +352,7 @@ migration!(
 pub struct Migrator;
 
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(CreateCake), Box::new(AddCarrot), Box::new(AddCarrotCake)]
     }
 }
@@ -357,7 +361,7 @@ impl MigratorTrait for Migrator {
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::empty("migrations_commits_after").await;
 # let pool = scratch.pool.clone();
-Migrator::up(pool.clone(), None).await?;
+Migrator.up(pool.clone(), None).await?;
 
 let db = pool.get().await?;
 let row = db.query_one("SELECT flavor::text FROM cake", &[]).await?;
@@ -401,7 +405,7 @@ impl MigrationName for CreateBakery {
 
 #[async_trait::async_trait]
 impl MigrationTrait for CreateBakery {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE bakery (id serial PRIMARY KEY, name text NOT NULL)")
             .await
     }
@@ -410,15 +414,15 @@ impl MigrationTrait for CreateBakery {
 pub struct Migrator;
 
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(CreateBakery)]
     }
 
-    fn migration_table_schema() -> Option<Name> {
+    fn migration_table_schema(&self) -> Option<Name> {
         Some(Name::runtime("ops"))
     }
 
-    fn migration_table_name() -> Name {
+    fn migration_table_name(&self) -> Name {
         Name::runtime("bakery_migrations")
     }
 }
@@ -427,7 +431,7 @@ impl MigratorTrait for Migrator {
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::empty("migrations_ledger").await;
 # let pool = scratch.pool.clone();
-Migrator::up(pool.clone(), None).await?;
+Migrator.up(pool.clone(), None).await?;
 
 let db = pool.get().await?;
 let row = db
@@ -469,7 +473,7 @@ impl MigrationName for CreateCake {
 
 #[async_trait::async_trait]
 impl MigrationTrait for CreateCake {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE cake (id serial PRIMARY KEY)").await
     }
 }
@@ -477,7 +481,7 @@ impl MigrationTrait for CreateCake {
 pub struct Migrator;
 
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(CreateCake)]
     }
 }
@@ -496,7 +500,7 @@ db.batch_execute(
 .await?;
 
 // The migration is not run again, which would fail: the table exists.
-Migrator::up(pool.clone(), None).await?;
+Migrator.up(pool.clone(), None).await?;
 let row = db.query_one("SELECT applied_at FROM pgorm_migrations", &[]).await?;
 assert_eq!(row.get::<_, i64>(0), 1640995200);
 # drop(db);
@@ -528,7 +532,7 @@ impl MigrationName for CreateBakery {
 
 #[async_trait::async_trait]
 impl MigrationTrait for CreateBakery {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE bakery (id serial PRIMARY KEY)").await
     }
 }
@@ -543,7 +547,7 @@ impl MigrationName for CreateCake {
 
 #[async_trait::async_trait]
 impl MigrationTrait for CreateCake {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE cake (id serial PRIMARY KEY)").await
     }
 }
@@ -551,7 +555,7 @@ impl MigrationTrait for CreateCake {
 pub struct Migrator;
 
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(CreateBakery), Box::new(CreateCake)]
     }
 }
@@ -561,12 +565,12 @@ impl MigratorTrait for Migrator {
 # let scratch = pgorm_guide_support::Scratch::empty("migrations_status").await;
 # let pool = scratch.pool.clone();
 let db = pool.get().await?;
-assert_eq!(Migrator::get_pending_migrations(&db).await?.len(), 2);
+assert_eq!(Migrator.get_pending_migrations(&db).await?.len(), 2);
 
 // Apply one migration of the two.
-Migrator::up(pool.clone(), Some(1)).await?;
+Migrator.up(pool.clone(), Some(1)).await?;
 
-let status: Vec<(String, MigrationStatus)> = Migrator::get_migration_with_status(&db)
+let status: Vec<(String, MigrationStatus)> = Migrator.get_migration_with_status(&db)
     .await?
     .iter()
     .map(|migration| (migration.name().to_owned(), migration.status()))
@@ -578,7 +582,7 @@ assert_eq!(
         ("m20260101_000002_create_cake".to_owned(), MigrationStatus::Pending),
     ]
 );
-Migrator::status(&db).await?;
+Migrator.status(&db).await?;
 # drop(db);
 # scratch.finish().await;
 # Ok(())
@@ -615,7 +619,7 @@ impl MigrationName for CreateBakery {
 
 #[async_trait::async_trait]
 impl MigrationTrait for CreateBakery {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE bakery (id serial PRIMARY KEY)").await
     }
 
@@ -627,7 +631,7 @@ impl MigrationTrait for CreateBakery {
 pub struct Migrator;
 
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(CreateBakery { revision: "1" })]
     }
 }
@@ -636,7 +640,7 @@ impl MigratorTrait for Migrator {
 pub struct EditedMigrator;
 
 impl MigratorTrait for EditedMigrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(CreateBakery { revision: "2" })]
     }
 }
@@ -645,9 +649,9 @@ impl MigratorTrait for EditedMigrator {
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::empty("migrations_checksum").await;
 # let pool = scratch.pool.clone();
-Migrator::up(pool.clone(), None).await?;
+Migrator.up(pool.clone(), None).await?;
 
-let refused = EditedMigrator::up(pool.clone(), None).await;
+let refused = EditedMigrator.up(pool.clone(), None).await;
 match refused {
     Err(Error::Custom(message)) => {
         assert!(message.contains("'m20260101_000001_create_bakery' was applied with checksum '1'"));
@@ -690,7 +694,7 @@ use pgorm_migration::prelude::*;
 pub struct Migrator;
 
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(sql_migration!(
             "docs/guide/migrations/m20260101_000001_create_bakery.sql"
         ))]
@@ -712,7 +716,7 @@ assert!(!file.freeze(concat!(env!("CARGO_MANIFEST_DIR"), "/docs/guide/migrations
 # let pool = scratch.pool.clone();
 use pgorm::entity::prelude::*;
 
-Migrator::up(pool.clone(), None).await?;
+Migrator.up(pool.clone(), None).await?;
 let db = pool.get().await?;
 let sunrise = bakery::ActiveModel {
     name: set("Sunrise"),
@@ -734,6 +738,96 @@ per step. A file whose first line is `-- pgorm: commits-after`, as
 [`committing_after`](crate::MigrationFile::committing_after) writes it,
 answers `true` from `commits_after`, so its batch commits once it has run, as
 [Committing partway](#committing-partway) describes.
+
+## A migrator built at run time
+
+A migrator need not be a type of the program's own. `Migrations` is one built
+as the program runs, from a list of migrations it is given, and it runs them
+with the same runner: the ledger, the lock, the checksums and everything else
+this chapter describes. `SqlMigration::read_dir` reads every `.sql` file in a
+directory, in the order of their names, each as `sql_migration!` would have
+read it: named for its file, its checksum the digest of its text, and a file
+opening with `-- pgorm: commits-after` committing its batch. So a program can
+replay the files it has frozen without listing each in its source. The files
+are read when the program runs rather than when it compiles, so their grammar
+is checked by the server as each migration runs, not by the compiler.
+
+Here the frozen history of this guide's migrations directory is replayed on
+an empty database, after a migration written in Rust that creates the cakes
+the second file indexes. `with_migration_table_schema` and
+`with_migration_table_name` place the ledger, as `migration_table_schema` and
+`migration_table_name` do for a migrator declared as a type:
+
+```rust
+use pgorm_migration::prelude::*;
+
+pub struct CreateCake;
+
+impl MigrationName for CreateCake {
+    fn name(&self) -> &str {
+        "m20251231_000001_create_cake"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for CreateCake {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
+        tx.batch_execute("CREATE TABLE cake (id serial PRIMARY KEY, name text NOT NULL)")
+            .await
+    }
+}
+
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::empty("migrations_runtime").await;
+# let pool = scratch.pool.clone();
+let mut migrations: Vec<Box<dyn MigrationTrait>> = vec![Box::new(CreateCake)];
+for file in SqlMigration::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/docs/guide/migrations"))? {
+    migrations.push(Box::new(file));
+}
+let migrator = Migrations::new(migrations)
+    .with_migration_table_schema(Name::runtime("ops"))
+    .with_migration_table_name(Name::runtime("bakery_migrations"));
+
+migrator.up(pool.clone(), None).await?;
+
+let db = pool.get().await?;
+let applied: Vec<String> = migrator
+    .get_applied_migrations(&db)
+    .await?
+    .iter()
+    .map(|migration| migration.name().to_owned())
+    .collect();
+assert_eq!(
+    applied,
+    [
+        "m20251231_000001_create_cake",
+        "m20260101_000001_create_bakery",
+        "m20260102_000001_index_cake_name",
+        "m20260201_000001_create_payment",
+        "m20260301_000001_add_voucher_1",
+        "m20260301_000001_add_voucher_2",
+    ]
+);
+// The file read now reports the checksum the compiled one does.
+let compiled = sql_migration!("docs/guide/migrations/m20260102_000001_index_cake_name.sql");
+let recorded: Option<String> = db
+    .query_one(
+        "SELECT checksum FROM ops.bakery_migrations WHERE version = $1",
+        &[&compiled.name()],
+    )
+    .await?
+    .get(0);
+assert_eq!(recorded, compiled.checksum());
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+pgorm's [language bindings](crate::guide::bindings) run their migrations this
+way: a list of the language's own migrations and of files read from a
+directory, run by this runner.
 
 ## Statement caches
 
@@ -763,5 +857,5 @@ DATABASE_URL=postgres://localhost/bakery cargo run -p migration -- status
 
 Copy it into the project, add each new migration's module to `migrations`, and
 run the binary as part of each deploy. A program can equally call
-`Migrator::up(pool, None)` itself at startup; the advisory lock makes that safe
+`Migrator.up(pool, None)` itself at startup; the advisory lock makes that safe
 when several replicas start at once.

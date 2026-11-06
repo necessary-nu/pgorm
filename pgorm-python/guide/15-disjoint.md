@@ -667,10 +667,11 @@ with tempfile.TemporaryDirectory() as migrations:
     ]
 ```
 
-Each file is one migration, to run whole in a transaction of its own:
-pgorm's Rust runner lists them with `sql_migration!`, and any tool that runs
-a directory of SQL files in order runs them as well. Python has no migration
-runner of its own yet ([Migrations](22-migrations.md)).
+Each file is one migration, run whole in the batch's transaction:
+`pgorm.schema.SqlMigration.read_dir` reads the directory back for
+`Migrations` to run, its first step committing the batch before the next
+runs ([Migrations](22-migrations.md#a-migrator-built-at-run-time)), and a
+Rust migration crate lists the same files with `sql_migration!`.
 
 ## Tables pgorm did not write
 

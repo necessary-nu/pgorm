@@ -2,13 +2,28 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { alterType, migrationFile } from "@necessary/pgorm";
+import { alterType, type MigrationTrait, migrations } from "@necessary/pgorm";
 import { flavor } from "../../../guide/bakery.ts";
+import type { GuideContext } from "../../../guide/context.ts";
 
-export default async function example(): Promise<void> {
-  const almond = migrationFile("m20260401_000001_add_almond", [alterType(flavor).addValue("almond")], {
+export default async function example({ pool }: GuideContext): Promise<void> {
+  const addAlmond: MigrationTrait = {
+    name: "m20260401_000001_add_almond",
     commitsAfter: true,
-  });
-  assert.equal(almond.commitsAfter, true);
-  assert.equal(almond.text, `-- pgorm: commits-after\nALTER TYPE "public"."flavor" ADD VALUE 'almond';\n`);
+    async up(tx) {
+      await tx.execute(alterType(flavor).addValue("almond"));
+    },
+  };
+  const addAlmondCake: MigrationTrait = {
+    name: "m20260401_000002_add_almond_cake",
+    async up(tx) {
+      await tx.execute(
+        "INSERT INTO cake (name, flavor, price, gluten_free, bakery_id) VALUES ('Almond Cake', 'almond', 3.60, true, 2)",
+      );
+    },
+  };
+
+  await migrations([addAlmond, addAlmondCake]).up(pool);
+  const { added } = await pool.one("SELECT flavor::text AS added FROM cake WHERE name = 'Almond Cake'");
+  assert.equal(added, "almond");
 }

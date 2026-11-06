@@ -11,6 +11,7 @@ use crate::{
     pipeline::selected_backend::{Query as Sources, Terminal as SourceTerminal},
 };
 use pgorm::{ConnectionTrait, Error, ValueHolder};
+use pgorm_migration::{MigrationStatus, MigratorTrait};
 use tokio_postgres::{Row, types::ToSql};
 
 pub(crate) enum Work {
@@ -31,6 +32,15 @@ pub(crate) enum Work {
     Sources(Sources, SourceTerminal),
     /// `pgorm::notify`'s channel and payload.
     Notify(String, String),
+    /// pgorm-migration's `install`, or its reading of every migration's
+    /// status, on what the caller holds.
+    Ledger(Box<pgorm_migration::Migrations>, Ledger),
+}
+
+/// What [`Work::Ledger`] does with a migrator's ledger.
+pub(crate) enum Ledger {
+    Install,
+    Status,
 }
 
 pub(crate) enum Output {
@@ -41,6 +51,8 @@ pub(crate) enum Output {
     Versions(Vec<Versions>),
     Inserted(Insertions),
     Graph(Vec<GraphRow>),
+    /// Each migration's name, and whether the ledger records it applied.
+    Migrations(Vec<(String, bool)>),
     Finished,
 }
 
@@ -71,6 +83,26 @@ impl Work {
             Self::Notify(channel, payload) => pgorm::notify(&db, &channel, &payload)
                 .await
                 .map(|()| Output::Finished),
+            // [spec:pgorm:req:bindings.migrations]    the runner's own install and reads
+            Self::Ledger(migrations, Ledger::Install) => {
+                migrations.install(&db).await.map(|()| Output::Finished)
+            }
+            Self::Ledger(migrations, Ledger::Status) => migrations
+                .get_migration_with_status(&db)
+                .await
+                .map(|migrations| {
+                    Output::Migrations(
+                        migrations
+                            .iter()
+                            .map(|migration| {
+                                (
+                                    migration.name().to_owned(),
+                                    migration.status() == MigrationStatus::Applied,
+                                )
+                            })
+                            .collect(),
+                    )
+                }),
         }
     }
 }

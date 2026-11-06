@@ -15,7 +15,7 @@ pub struct Written;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Written {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(m20220118_000001_create_cake_table::Migration),
             Box::new(sql_migration!("tests/sql/m20260101_000001_create_note.sql")),
@@ -30,7 +30,7 @@ pub struct Edited;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Edited {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(m20220118_000001_create_cake_table::Migration),
             Box::new(sql_migration!(

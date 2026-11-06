@@ -44,7 +44,7 @@ pub(crate) struct Script {
 
 /// The file's name and checked text as literals, with the file itself included
 /// so that editing it rebuilds the calling crate.
-// [spec:pgorm:def:migration.sql-file]
+// [spec:pgorm:def:migration.sql-file+1]
 // [spec:pgorm:req:migration.sql-file.compile+1]    the file is an input of the calling crate's build
 pub(crate) fn expand(input: &MigrationInput) -> Result<TokenStream, Error> {
     let literal = &input.path;
@@ -161,7 +161,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:def:migration.sql-file/test]    the name is the file stem
+    // [spec:pgorm:def:migration.sql-file+1/test]    the name is the file stem
     // [spec:pgorm:req:migration.sql-file.checksum/test]    CRLF line endings are read as LF
     #[test]
     fn crlf_line_endings_are_read_as_lf() -> Result<(), Box<dyn std::error::Error>> {

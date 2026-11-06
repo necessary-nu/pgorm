@@ -6,7 +6,7 @@ pub struct Migrator;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![
             // A migration written in Rust, with the query builders.
             Box::new(m20220101_000001_create_table::Migration),

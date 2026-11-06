@@ -188,12 +188,11 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-In Rust, pgorm-migration's runner calls the same clear on the pool it was
-given once a batch that applied a migration commits, so a program that
-migrates through its own pool needs nothing more. The runner is not available
-in Python ([Migrations](22-migrations.md)): a Python program that changes its
-schema with its own DDL calls `clear_statement_caches` itself once that DDL
-has committed.
+pgorm-migration's runner calls the same clear on the pool it was given once
+a batch that applied a migration commits, so a program that migrates through
+`Migrations.up` needs nothing more ([Migrations](22-migrations.md#statement-caches)).
+A Python program that changes its schema with DDL of its own outside the
+runner calls `clear_statement_caches` itself once that DDL has committed.
 
 ## Clearing other processes' caches
 

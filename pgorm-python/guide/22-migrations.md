@@ -2,206 +2,232 @@
 
 A database's schema changes as the program does. A *migration* is one such
 change, written once and applied to every database the program runs against:
-a developer's, a test server's, production's. In Rust, `pgorm-migration`
-runs them. It records each migration it applies in a table of its own, the
-*ledger*, so that each database receives each migration exactly once, in the
-order the program lists them. Migrations run forward only: a migration has
-an `up` and nothing else, and a mistake is corrected by the next migration.
+a developer's, a test server's, production's. The migration runner,
+pgorm-migration's, records each migration it applies in a table of its own,
+the *ledger*, so that each database receives each migration exactly once, in
+the order the program lists them. A Python program runs its migrations with
+that runner: `pgorm.schema.Migrations` is pgorm-migration's migrator built at
+run time, and the ledger, the lock, the checksums and everything else this
+chapter describes are the Rust runner's own.
 
-Here Python differs from Rust: the migration runner is not available in
-Python yet. pgorm-migration is a Rust crate, and the Python package has no
-counterpart of its `MigrationTrait`, its `MigratorTrait`, its ledger, its
-`up` and `status`, or its checksums. A Python application has two ways to
-change its schema today. It can keep a Rust migration crate beside it and
-run it as a step of each deploy, so that the runner's ledger, lock and
-checksums keep the Python application's database too. Or it can run its own
-DDL, built with `pgorm.schema` ([Schema generation](14-schema.md)), in a
-transaction. This
-chapter follows the Rust chapter's sections, and at each says what the
-runner does and what a Python program can do.
+Migrations run forward only. A migration has an `up` and nothing else: there
+is no `down`, and no call that rolls back, refreshes or resets a database. A
+mistake is corrected by the next migration.
 
 ## Adding the crate
 
-pgorm-migration lives in pgorm's repository beside pgorm, and a Rust crate
-depends on it the same way:
-
-```toml
-[dependencies]
-pgorm-migration = { git = "https://github.com/necessary-nu/pgorm" }
-```
-
-There is nothing to add on the Python side. The migration crate is a Rust
-program of its own, built and run by Cargo, and the Python application talks
-to the tables it creates. [A migration crate](#a-migration-crate) at the end
-of this chapter sets one up.
+In Rust, pgorm-migration is a crate of its own. The Python package carries
+it: `pgorm.schema` exports `Migrations`, `SqlMigration` and the rest, and
+there is nothing more to install.
 
 ## Writing a migration
 
-A Rust migration is a type whose `up` receives the transaction it runs in
-and changes the schema through it, and a migrator lists the migrations in the
-order they apply. A Python program has no such types, but it has the part
-that does the work: DDL statements run in one transaction. `pgorm.schema`
-builds each statement, as [Schema generation](14-schema.md) describes, and a
-transaction runs them all or none ([Transactions](08-transactions.md)). Here
-a program adds a table for the bakery's deliveries:
+A migration written in Python is an object with a `name` and an `up`. The
+runner awaits `up(tx)` with the transaction the migration runs in, an
+ordinary `Transaction`: statements, the query terminals, a savepoint
+([Transactions](08-transactions.md)) and a COPY ([COPY](17-copy.md)) all run
+on it. Only the runner commits or rolls it back, and once `up` returns the
+handle is closed.
+
+A *migrator* lists every migration the program owns, in the order they
+apply. `Migrations(migrations)` builds one, and its `up(pool)` applies the
+migrations the database has not had yet:
 
 ```python
 import asyncio
 import os
 
-from pgorm import Column, Model, Pool
+from pgorm import Pool, RawSQL, Transaction
 from pgorm import schema as s
 
-Delivery = Model("delivery", {
-    "id": Column("i32", primary_key=True, default=True),
-    "order_id": Column("i32"),
-    "address": Column("text"),
-})
+
+class CreateDelivery:
+    """Creates the bakery's deliveries."""
+
+    name = "m20260201_000001_create_delivery"
+
+    async def up(self, tx: Transaction) -> None:
+        await tx.execute(
+            s.create_table("delivery")
+            .column(s.ColumnDef("id", "integer").not_null().auto_increment())
+            .column(s.ColumnDef("order_id", "integer").not_null())
+            .column(s.ColumnDef("address", "text").not_null())
+            .primary_key("id")
+            .foreign_key("order_id", "order", "id", name="fk-delivery-order_id")
+        )
+
+
+migrator = s.Migrations([CreateDelivery()])
 
 
 async def main() -> None:
-    create = (
-        s.create_table("delivery")
-        .column(s.ColumnDef("id", "integer").not_null().auto_increment())
-        .column(s.ColumnDef("order_id", "integer").not_null())
-        .column(s.ColumnDef("address", "text").not_null())
-        .primary_key("id")
-        .foreign_key("order_id", "order", "id", name="fk-delivery-order_id")
-    )
-    assert create.inspect().sql == (
-        'CREATE TABLE "delivery" ( "id" serial NOT NULL, "order_id" integer NOT NULL, '
-        '"address" text NOT NULL, PRIMARY KEY ("id"), '
-        'CONSTRAINT "fk-delivery-order_id" FOREIGN KEY ("order_id") REFERENCES "order" ("id") )'
-    )
-
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        async with pool.transaction() as tx:
-            await tx.execute(create)
-            await tx.execute(s.create_index("delivery", "order_id", name="delivery_order_id"))
+        await migrator.up(pool)
+        await pool.execute(RawSQL("INSERT INTO delivery (order_id, address) VALUES (1, 'Storgata 1, Oslo')"))
 
-        delivery = await Delivery.insert({"order_id": 1, "address": "Storgata 1, Oslo"}).returning().one(pool)
-        assert delivery["id"] == 1
+        # Running it again applies nothing: the ledger says the table exists.
+        await migrator.up(pool)
+        applied = await migrator.get_applied_migrations(pool)
+        assert [migration.name for migration in applied] == ["m20260201_000001_create_delivery"]
 
 
 asyncio.run(main())
 ```
 
-A statement built this way is one command. Here Python differs from Rust:
-Rust's `batch_execute` runs a script of several statements through the
-simple-query protocol, and Python has no counterpart yet. Every statement a
-Python program sends is prepared, and PostgreSQL refuses to prepare two
-commands at once, so SQL text of several statements runs one statement at a
-time, each a `RawSQL` of its own ([Raw SQL](10-raw-sql.md)).
+`up` takes the pool, and checks connections out of it as the run needs
+them. Its second argument bounds the run: `None`, the default, applies
+everything pending, and a number `n` at most `n` migrations.
 
 ## Naming migrations
 
-The runner knows a migration by its name, which its ledger row records, so
-the name must be unique and must never change. In a Rust migration crate
-each migration is a file named for when it was written and what it does,
-such as `m20260101_000001_create_bakery.rs`, and `#[derive(MigrationName)]`
-names it for the file. The runner refuses a list that names one migration
-twice, and reports a name in the ledger with no migration to match as
-missing. None of this has a Python counterpart: the names are the Rust
-crate's.
-
-## Migrations written as SQL
-
-In Rust, `sql_migration!` makes a migration of a `.sql` file, checks the
-file against PostgreSQL's grammar while the crate compiles, and reports the
-file's SHA-256 digest as its checksum. The macro is Rust's alone. A Python
-program can read a `.sql` file and run its statements in a transaction, one
-`RawSQL` each, but nothing checks the file before it runs: a syntax error is
-the server's to report when the statement is sent.
-
-## One transaction, one runner at a time
-
-The runner applies every pending migration in one transaction, with each
-migration's ledger row, and commits once at the end, so a run that fails
-leaves the schema and the ledger as they were. A Python program's DDL gets
-the same all or nothing from a transaction, with no ledger to keep: when one
-statement fails, the ones before it roll back with it. Here the second statement cannot succeed,
-since the bakery already has a `customer` table:
+A migration's name is its identity in the ledger, so it must be unique and
+must never change. Name each one for when it was written and what it does,
+such as `m20260201_000001_create_delivery`; a migration written as SQL takes
+the name of its file. The runner refuses a list that names one migration
+twice, before it touches the database, with a `ConstructionError`. Renaming
+a migration renames it: the old name is still in the ledger with no
+migration to match, and the runner reports it as missing rather than
+applying the new name a second time.
 
 ```python
 import asyncio
 import os
 
-from pgorm import DatabaseError, Pool, RawSQL
+from pgorm import ConstructionError, Pool, Transaction
 from pgorm import schema as s
 
 
-async def main() -> None:
-    notes = (
-        s.create_table("customer_note")
-        .column(s.ColumnDef("id", "integer").not_null().auto_increment())
-        .column(s.ColumnDef("note", "text").not_null())
-        .primary_key("id")
-    )
-    customer_again = s.create_table("customer").column(s.ColumnDef("id", "integer").not_null())
+class Noop:
+    def __init__(self, name: str) -> None:
+        self.name = name
 
+    async def up(self, tx: Transaction) -> None:
+        pass
+
+
+async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
+        twice = s.Migrations([Noop("m20260201_000001_noop"), Noop("m20260201_000001_noop")])
         try:
-            async with pool.transaction() as tx:
-                await tx.execute(notes)
-                await tx.execute(customer_again)
+            await twice.up(pool)
+        except ConstructionError as error:
+            assert "Duplicate migration name(s): 'm20260201_000001_noop'" in str(error)
+        else:
+            raise AssertionError("one name twice is refused")
+
+        await s.Migrations([Noop("m20260201_000001_noop")]).up(pool)
+        renamed = s.Migrations([Noop("m20260201_000001_renamed")])
+        try:
+            await renamed.get_migration_with_status(pool)
+        except ConstructionError as error:
+            assert "'m20260201_000001_noop' is missing" in str(error)
+        else:
+            raise AssertionError("a renamed migration is reported missing")
+
+
+asyncio.run(main())
+```
+
+## Migrations written as SQL
+
+A migration can be a `.sql` file instead. `SqlMigration.read(path)` reads
+one as Rust's `sql_migration!` does: named for the file's stem, its text run
+whole in the batch's transaction, and its checksum the SHA-256 digest of
+that text, so an edit made after it ran is caught, as the next sections
+show. `SqlMigration(name, sql)` makes one from text the program holds. The
+file is read when the program runs, so its grammar is checked by the server
+as the migration runs, where `sql_migration!` checks it as the crate
+compiles.
+
+The guide keeps its frozen migrations in [`migrations/`](migrations), beside
+[`bakery.py`](bakery.py):
+
+```python
+import asyncio
+import os
+from pathlib import Path
+
+import bakery
+from pgorm import Pool, RawSQL
+from pgorm import schema as s
+
+MIGRATIONS = Path(bakery.__file__).parent / "migrations"
+
+
+async def main() -> None:
+    delivery = s.SqlMigration.read(MIGRATIONS / "m20260201_000001_create_delivery.sql")
+    assert delivery.name == "m20260201_000001_create_delivery"
+    assert delivery.sql.startswith('CREATE TABLE "delivery" (')
+    assert len(delivery.checksum) == 64
+
+    index = s.SqlMigration(
+        "m20260202_000001_index_delivery_order",
+        "CREATE INDEX delivery_order_index ON delivery (order_id);",
+    )
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        await s.Migrations([delivery, index]).up(pool)
+        found = await pool.one(RawSQL(
+            "SELECT count(*) AS n FROM pg_indexes WHERE indexname = 'delivery_order_index'"
+        ))
+        assert found["n"] == 1
+
+
+asyncio.run(main())
+```
+
+## One transaction, one runner at a time
+
+`up` runs every pending migration in one transaction, with each migration's
+ledger row, and commits once at the end. If any migration fails, the whole
+run rolls back: the schema and the ledger are as they were before it
+started. An exception a Python migration raises is raised by `up` as itself.
+
+Before it reads the ledger, the run takes a PostgreSQL advisory lock keyed
+by the ledger's name. Two deploys that start together therefore queue
+rather than collide: the second waits until the first commits, then finds
+nothing left to apply.
+
+```python
+import asyncio
+import os
+
+from pgorm import DatabaseError, Pool, RawSQL, Transaction
+from pgorm import schema as s
+
+
+class CreateNote:
+    name = "m20260201_000001_create_customer_note"
+
+    async def up(self, tx: Transaction) -> None:
+        await tx.execute(RawSQL("CREATE TABLE customer_note (id serial PRIMARY KEY, note text NOT NULL)"))
+
+
+class CreateCustomerAgain:
+    """A migration that cannot succeed: the bakery has a customer table."""
+
+    name = "m20260201_000002_create_customer_again"
+
+    async def up(self, tx: Transaction) -> None:
+        await tx.execute(RawSQL("CREATE TABLE customer (id serial PRIMARY KEY)"))
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        # The second migration fails, so the first is rolled back with it.
+        try:
+            await s.Migrations([CreateNote(), CreateCustomerAgain()]).up(pool)
         except DatabaseError as error:
             assert error.sqlstate == "42P07"  # duplicate_table
         else:
             raise AssertionError("the bakery already has a customer table")
-
-        # The first table was rolled back with the second.
         row = await pool.one(RawSQL("SELECT count(*) AS n FROM pg_tables WHERE tablename = 'customer_note'"))
         assert row["n"] == 0
 
-
-asyncio.run(main())
-```
-
-Before it reads the ledger, the runner takes a PostgreSQL advisory lock
-keyed by the ledger's name, so two deploys that start together queue rather
-than collide: the second waits until the first commits, then finds nothing
-left to apply. A Python program that changes its schema as it starts, in
-several replicas at once, can take a lock of its own the same way, as the
-first statement of its transaction. `pg_advisory_xact_lock` waits for the
-lock and holds it until the transaction ends. Deciding what is left to do
-once it holds the lock is the program's own work, since there is no ledger
-to ask; here each statement says `IF NOT EXISTS`:
-
-```python
-import asyncio
-import os
-
-from pgorm import Pool, RawSQL
-from pgorm import schema as s
-
-# Any key every replica of the program agrees on.
-SCHEMA_LOCK = 20260101
-
-NOTES = (
-    s.create_table("customer_note")
-    .if_not_exists()
-    .column(s.ColumnDef("id", "integer").not_null().auto_increment())
-    .column(s.ColumnDef("note", "text").not_null())
-    .primary_key("id")
-)
-
-
-async def change_schema(pool: Pool) -> None:
-    async with pool.transaction() as tx:
-        await tx.execute(RawSQL("SELECT pg_advisory_xact_lock($1)", [SCHEMA_LOCK]))
-        await tx.execute(NOTES)
-
-
-async def main() -> None:
-    assert NOTES.inspect().sql == (
-        'CREATE TABLE IF NOT EXISTS "customer_note" ( "id" serial NOT NULL, '
-        '"note" text NOT NULL, PRIMARY KEY ("id") )'
-    )
-    async with Pool(os.environ["DATABASE_URL"]) as pool:
-        # Two replicas starting at once: the second waits for the first.
-        await asyncio.gather(change_schema(pool), change_schema(pool))
-        row = await pool.one(RawSQL("SELECT count(*) AS n FROM pg_tables WHERE tablename = 'customer_note'"))
-        assert row["n"] == 1
+        # Two runners at once: one applies the migration, the other waits and
+        # finds nothing to do.
+        migrator = s.Migrations([CreateNote()])
+        await asyncio.gather(migrator.up(pool), migrator.up(pool))
+        assert len(await migrator.get_applied_migrations(pool)) == 1
 
 
 asyncio.run(main())
@@ -211,45 +237,45 @@ asyncio.run(main())
 
 Some changes PostgreSQL will not let one transaction finish. A value that
 `ALTER TYPE .. ADD VALUE` adds to an enum cannot be used until the
-transaction that added it has committed. A Rust migration making such a
-change answers `true` from `commits_after`, and the runner commits after it
-and runs the rest in a new transaction. A Python program does the same with
-two transactions:
+transaction that added it has committed. A migration making such a change
+answers `True` from `commits_after`, an attribute beside its `name`. `up`
+then commits the run so far once that migration and its ledger row are
+written, and runs the rest in a new transaction, which takes the lock again.
+A SQL file answers `True` when its first line is `-- pgorm: commits-after`,
+as the guide's frozen `m20260301_000001_add_strawberry.sql` is.
+
+Such a run is no longer all or nothing. A failure after the commit rolls
+back only the transaction it happens in; the migrations committed before it
+stay applied, and the next `up` resumes after them.
 
 ```python
 import asyncio
 import os
+from pathlib import Path
 
-from pgorm import DatabaseError, Pool, RawSQL
+import bakery
+from pgorm import Pool, RawSQL, Transaction
 from pgorm import schema as s
 
-STRAWBERRY_TART = RawSQL(
-    "INSERT INTO cake (name, flavor, price, gluten_free, bakery_id) "
-    "VALUES ('Strawberry Tart', 'strawberry', 5.20, false, 1)"
-)
+MIGRATIONS = Path(bakery.__file__).parent / "migrations"
+
+
+class AddStrawberryTart:
+    name = "m20260301_000002_add_strawberry_tart"
+
+    async def up(self, tx: Transaction) -> None:
+        await tx.execute(RawSQL(
+            "INSERT INTO cake (name, flavor, price, gluten_free, bakery_id) "
+            "VALUES ('Strawberry Tart', 'strawberry', 5.20, false, 1)"
+        ))
 
 
 async def main() -> None:
-    add = s.alter_type("flavor").add_value("strawberry")
-    assert add.inspect().sql == "ALTER TYPE \"flavor\" ADD VALUE 'strawberry'"
+    strawberry = s.SqlMigration.read(MIGRATIONS / "m20260301_000001_add_strawberry.sql")
+    assert strawberry.commits_after
 
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        # In one transaction the new value cannot be used yet.
-        try:
-            async with pool.transaction() as tx:
-                await tx.execute(add)
-                await tx.execute(STRAWBERRY_TART)
-        except DatabaseError as error:
-            assert error.sqlstate == "55P04"  # unsafe_new_enum_value_usage
-        else:
-            raise AssertionError("a new enum value waits for its commit")
-
-        # Committed first, it can.
-        async with pool.transaction() as tx:
-            await tx.execute(add)
-        async with pool.transaction() as tx:
-            await tx.execute(STRAWBERRY_TART)
-
+        await s.Migrations([strawberry, AddStrawberryTart()]).up(pool)
         row = await pool.one(RawSQL("SELECT name FROM cake WHERE flavor = 'strawberry'"))
         assert row["name"] == "Strawberry Tart"
 
@@ -257,92 +283,214 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Such a change is no longer all or nothing: a failure in the second
-transaction leaves the first committed. [Disjoint enums](15-disjoint.md)
-produces changes of this kind, a list of steps, each but the last to be
-committed before the next runs.
+[Disjoint enums](15-disjoint.md) produces changes of this kind: a change to
+the kinds is a list of steps, one migration each, every step but the last
+answering `True`. Frozen into migration files, each such step opens with the
+line `-- pgorm: commits-after` ([Generated DDL in a
+migration](#generated-ddl-in-a-migration)).
 
 ## The ledger
 
-The runner's ledger is a table named `pgorm_migrations`, with one row per
-applied migration: its `version`, the migration's name; `applied_at`, the
-Unix time in seconds it was applied; and `checksum`, what the migration
-reported as its checksum, or `NULL`. A migrator can rename it with
-`migration_table_name` and place it in a schema of its own with
-`migration_table_schema`; the runner creates the table, and the schema, the
-first time it runs, and never moves one that exists. A database last
-migrated by SeaORM keeps its ledger as `seaql_migrations`, which the first
-`up` renames to `pgorm_migrations` in place.
+The ledger is a table named `pgorm_migrations`. It has one row per applied
+migration: its `version`, the migration's name; `applied_at`, the Unix time
+in seconds it was applied; and `checksum`, what the migration reported as
+its checksum, or `NULL`. `up` creates the table the first time it runs.
+Nothing in pgorm-migration deletes a row.
 
-Python has no ledger of its own, and nothing in the package writes this one.
-It is an ordinary table, though, so a Python program can read it.
-
-## Asking what has run
-
-The runner's `status` and `get_migration_with_status` report each
-migration as `Pending` or `Applied`, reading the ledger and nothing else, so
-that a readiness probe or a CI step can ask with a role that may not change
-the schema. They are not available in Python yet, but the question they
-answer is a read of the ledger, which a Python program can make itself.
-Declare the ledger as a model, read the names it holds, and compare them
-with the migrations the deploy is meant to have applied. Here the example
-creates the ledger and writes its rows as the runner would have, then asks:
+By default the ledger sits wherever `search_path` puts an unqualified name,
+usually beside the application's tables in `public`. A migrator can place it
+in a schema of its own with `migration_table_schema`, which keeps it apart
+from triggers, policies and grants that apply to every application table,
+and rename it with `migration_table_name`:
 
 ```python
 import asyncio
 import os
 
-from pgorm import Column, Model, Pool
+from pgorm import Pool, RawSQL, Transaction
 from pgorm import schema as s
 
-Ledger = Model("pgorm_migrations", {
-    "version": Column("text", primary_key=True),
-    "applied_at": Column("i64"),
-    "checksum": Column("text", nullable=True),
-})
 
-# The migrations this release of the program expects, in order.
-EXPECTED = [
-    "m20260101_000001_create_bakery",
-    "m20260102_000001_index_cake_name",
-    "m20260103_000001_create_delivery",
-]
+class CreateDelivery:
+    name = "m20260201_000001_create_delivery"
+
+    async def up(self, tx: Transaction) -> None:
+        await tx.execute(RawSQL("CREATE TABLE delivery (id serial PRIMARY KEY, address text NOT NULL)"))
+
+
+migrator = s.Migrations(
+    [CreateDelivery()], migration_table_schema="ops", migration_table_name="bakery_migrations"
+)
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        # What the runner leaves behind after applying the first two.
-        await pool.execute(
-            s.create_table("pgorm_migrations")
-            .column(s.ColumnDef("version", "text").not_null())
-            .column(s.ColumnDef("applied_at", "bigint").not_null())
-            .column(s.ColumnDef("checksum", "text").null())
-            .primary_key("version")
-        )
-        await Ledger.insert_many([
-            {"version": EXPECTED[0], "applied_at": 1767225600, "checksum": None},
-            {"version": EXPECTED[1], "applied_at": 1767312000, "checksum": "3f1a"},
-        ]).execute(pool)
-
-        applied = {row["version"] for row in await Ledger.find().all(pool)}
-        pending = [name for name in EXPECTED if name not in applied]
-        assert pending == ["m20260103_000001_create_delivery"]
+        await migrator.up(pool)
+        row = await pool.one(RawSQL("SELECT version, checksum FROM ops.bakery_migrations"))
+        assert row["version"] == "m20260201_000001_create_delivery"
+        assert row["checksum"] is None
 
 
 asyncio.run(main())
 ```
 
-A program that starts only once its schema is current can make this check
-at startup and refuse to serve while anything is pending.
+`up` creates the schema if it is missing, and names the table in it
+everywhere, so a table of the same name elsewhere on `search_path` is never
+taken for it. The runner does not move a ledger that already exists: a
+ledger left in its old place reads as absent from the new one, and every
+migration would run again. Move it with `ALTER TABLE .. SET SCHEMA` before
+deploying a release that names a new place.
+
+### A ledger from SeaORM
+
+A database last migrated by SeaORM keeps its ledger under the name
+`seaql_migrations`, with the same `version` and `applied_at` columns. The
+first `up` renames that table to `pgorm_migrations` in place, so nothing
+runs twice. This applies to the default name with no schema; a migrator that
+names or places its own ledger takes the old table over by hand.
+
+```python
+import asyncio
+import os
+
+from pgorm import Pool, RawSQL, Transaction
+from pgorm import schema as s
+
+
+class CreateDelivery:
+    name = "m20220101_000001_create_delivery"
+
+    async def up(self, tx: Transaction) -> None:
+        await tx.execute(RawSQL("CREATE TABLE delivery (id serial PRIMARY KEY)"))
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        # What SeaORM left behind: the table, and the ledger row saying it exists.
+        async with pool.transaction() as tx:
+            await tx.execute(RawSQL("CREATE TABLE delivery (id serial PRIMARY KEY)"))
+            await tx.execute(RawSQL(
+                "CREATE TABLE seaql_migrations (version varchar PRIMARY KEY, applied_at bigint NOT NULL)"
+            ))
+            await tx.execute(RawSQL(
+                "INSERT INTO seaql_migrations VALUES ('m20220101_000001_create_delivery', 1640995200)"
+            ))
+
+        # The migration is not run again, which would fail: the table exists.
+        await s.Migrations([CreateDelivery()]).up(pool)
+        row = await pool.one(RawSQL("SELECT applied_at FROM pgorm_migrations"))
+        assert row["applied_at"] == 1640995200
+
+
+asyncio.run(main())
+```
+
+## Asking what has run
+
+`status` logs each migration's name and whether it is `Pending` or
+`Applied`, at `INFO` through the `pgorm.migration` logger, or the
+`logging.Logger` it is given. `get_migration_with_status`,
+`get_pending_migrations` and `get_applied_migrations` answer the same
+question as values: each a list of `Migration`s, a migration's `name` and
+its `status`, `MigrationStatus.Pending` or `MigrationStatus.Applied`, in the
+migrator's order. Each takes a pool, a connection or a transaction and only
+reads: against a database never migrated, every migration is pending and no
+ledger is created to say so. A readiness probe or a CI step can ask with a
+role that has no right to change the schema.
+
+```python
+import asyncio
+import logging
+import os
+
+from pgorm import Pool, RawSQL, Transaction
+from pgorm import schema as s
+
+
+class Create:
+    def __init__(self, name: str, table: str) -> None:
+        self.name = name
+        self.table = table
+
+    async def up(self, tx: Transaction) -> None:
+        await tx.execute(RawSQL(f"CREATE TABLE {self.table} (id serial PRIMARY KEY)"))
+
+
+migrator = s.Migrations([
+    Create("m20260201_000001_create_delivery", "delivery"),
+    Create("m20260201_000002_create_voucher", "voucher"),
+])
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        assert len(await migrator.get_pending_migrations(pool)) == 2
+
+        # Apply one migration of the two.
+        await migrator.up(pool, 1)
+
+        status = await migrator.get_migration_with_status(pool)
+        assert status == [
+            s.Migration("m20260201_000001_create_delivery", s.MigrationStatus.Applied),
+            s.Migration("m20260201_000002_create_voucher", s.MigrationStatus.Pending),
+        ]
+
+        logging.basicConfig(level=logging.INFO)
+        await migrator.status(pool)
+
+
+asyncio.run(main())
+```
 
 ## Catching an edited migration
 
-A Rust migration that reports a `checksum` has it stored in its ledger row,
-and every later `status` and `up` compares the two, failing with an error
-that names the migration when it was edited after it ran. The check is the
-runner's, so it is not available in Python yet. The checksums are in the
-ledger's `checksum` column for a Python program to read, but what a
-migration reports now is known only to the Rust crate.
+The ledger matches migrations by name, so a migration edited after it ran
+would go unnoticed: its name still matches, and a database built afresh
+would quietly differ from the ones built before. A migration that reports a
+`checksum` closes that gap. `up` stores the checksum in the migration's
+ledger row, and every later `status` and `up` compares it with what the
+migration reports now, failing with a `ConstructionError` that names the
+migration when the two differ.
+
+The checksum is any text the author controls, such as a hash of the
+migration's SQL or a version bumped by hand, given as a `checksum`
+attribute. It is off by default: a migration that reports none is never
+checked, nor is a row written before it reported one. A `SqlMigration`
+always reports one.
+
+```python
+import asyncio
+import os
+
+from pgorm import ConstructionError, Pool, RawSQL, Transaction
+from pgorm import schema as s
+
+
+class CreateDelivery:
+    name = "m20260201_000001_create_delivery"
+
+    def __init__(self, revision: str) -> None:
+        self.checksum = revision
+
+    async def up(self, tx: Transaction) -> None:
+        await tx.execute(RawSQL("CREATE TABLE delivery (id serial PRIMARY KEY)"))
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        await s.Migrations([CreateDelivery("1")]).up(pool)
+
+        # The same migration, edited after it ran.
+        try:
+            await s.Migrations([CreateDelivery("2")]).up(pool)
+        except ConstructionError as error:
+            assert "'m20260201_000001_create_delivery' was applied with checksum '1'" in str(error)
+        else:
+            raise AssertionError("the edit is caught")
+
+
+asyncio.run(main())
+```
 
 ## Generated DDL in a migration
 
@@ -370,42 +518,107 @@ already there is never rewritten: it is the migration databases have run,
 its checksum in their ledgers. So the code that freezes each change can live
 beside the migrations and run again whenever a change is added, writing the
 new file and keeping the old ones, however far the tables have moved on. A
-name that is not a plain file name is a `ConstructionError`.
+name that is not a plain file name is a `ConstructionError`. Here the guide's
+own migrations directory already holds the delivery table, frozen when it
+was added, so freezing it again writes nothing:
 
 ```python
-import tempfile
 from pathlib import Path
 
+import bakery
 from pgorm import schema as s
 
-import bakery
+MIGRATIONS = Path(bakery.__file__).parent / "migrations"
 
-# The bakery table, as bakery.py writes it.
-create = bakery.statements()[1]
-file = s.migration_file("m20260101_000001_create_bakery", [create])
+create = (
+    s.create_table("delivery")
+    .column(s.ColumnDef("id", "integer").not_null().auto_increment())
+    .column(s.ColumnDef("order_id", "integer").not_null())
+    .column(s.ColumnDef("address", "text").not_null())
+    .primary_key("id")
+    .foreign_key("order_id", "order", "id", name="fk-delivery-order_id")
+)
+file = s.migration_file("m20260201_000001_create_delivery", [create])
 
-assert file.name == "m20260101_000001_create_bakery"
+assert file.name == "m20260201_000001_create_delivery"
 assert file.text == (
-    'CREATE TABLE "bakery" ( "id" serial NOT NULL, "name" varchar NOT NULL, '
-    '"city" varchar NOT NULL, PRIMARY KEY ("id") );\n'
+    'CREATE TABLE "delivery" ( "id" serial NOT NULL, "order_id" integer NOT NULL, '
+    '"address" text NOT NULL, PRIMARY KEY ("id"), '
+    'CONSTRAINT "fk-delivery-order_id" FOREIGN KEY ("order_id") REFERENCES "order" ("id") );\n'
 )
 assert not file.commits_after
+assert not file.freeze(MIGRATIONS)
 
-with tempfile.TemporaryDirectory() as migrations:
-    assert file.freeze(migrations)
-    # Freezing again writes nothing: the file has shipped.
-    assert not file.freeze(migrations)
-    assert (Path(migrations) / "m20260101_000001_create_bakery.sql").read_text() == file.text
+# The file reads back as the migration the runner applies.
+assert s.SqlMigration.read(MIGRATIONS / f"{file.name}.sql").sql == file.text
 ```
 
-The text is exactly what pgorm writes for the same statements, so a Python
-program can freeze the migrations a Rust runner applies. A change PostgreSQL
-will not let one transaction finish is frozen into several files, a
+The text is exactly what pgorm writes for the same statements, so a Rust
+migration crate can equally compile the files a Python program freezes with
+`sql_migration!`. A change PostgreSQL will not let one transaction finish is
+frozen into several files, a
 [disjoint enum](15-disjoint.md#freezing-a-change-into-migrations)'s new kind
 into one per step. `migration_file(.., commits_after=True)` opens a file with
 the line `-- pgorm: commits-after`, and `commits_after` answers whether it
-does: pgorm's Rust runner commits the batch once such a file has run, as
+does, so its batch commits once it has run, as
 [Committing partway](#committing-partway) describes.
+
+## A migrator built at run time
+
+Every migrator in Python is built as the program runs, so a migrator's list
+can be read from disk. `SqlMigration.read_dir(directory)` reads every `.sql`
+file in a directory, in the order of their names, each as `read` reads one.
+So a program replays the files it has frozen without naming each, with its
+own Python migrations listed among them where they belong. Here the guide's
+frozen history, the delivery table and the strawberry flavor, is replayed
+on the bakery, then a migration written in Python uses the new flavor:
+
+```python
+import asyncio
+import os
+from pathlib import Path
+
+import bakery
+from pgorm import Pool, RawSQL, Transaction
+from pgorm import schema as s
+
+MIGRATIONS = Path(bakery.__file__).parent / "migrations"
+
+
+class AddStrawberryTart:
+    name = "m20260301_000002_add_strawberry_tart"
+
+    async def up(self, tx: Transaction) -> None:
+        await tx.execute(RawSQL(
+            "INSERT INTO cake (name, flavor, price, gluten_free, bakery_id) "
+            "VALUES ('Strawberry Tart', 'strawberry', 5.20, false, 1)"
+        ))
+
+
+async def main() -> None:
+    frozen = s.SqlMigration.read_dir(MIGRATIONS)
+    assert [file.name for file in frozen] == [
+        "m20260201_000001_create_delivery",
+        "m20260301_000001_add_strawberry",
+    ]
+    migrator = s.Migrations([*frozen, AddStrawberryTart()])
+
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        await migrator.up(pool)
+        applied = await migrator.get_applied_migrations(pool)
+        assert [migration.name for migration in applied] == [
+            "m20260201_000001_create_delivery",
+            "m20260301_000001_add_strawberry",
+            "m20260301_000002_add_strawberry_tart",
+        ]
+        recorded = await pool.one(RawSQL(
+            "SELECT checksum FROM pgorm_migrations WHERE version = 'm20260201_000001_create_delivery'"
+        ))
+        assert recorded["checksum"] == frozen[0].checksum
+
+
+asyncio.run(main())
+```
 
 ## Statement caches
 
@@ -413,18 +626,24 @@ pgorm prepares each statement once per pooled connection and reuses it. Most
 schema changes make PostgreSQL plan the statement again, but some do not: an
 insert prepared before a domain's default changed keeps writing the old
 default ([Statement caches and DDL](19-statement-caches.md)). So once a run
-that applied a migration commits, the Rust runner clears the statement
-caches of the pool it was given, and a Python program that changes the
-schema through its own pool does the same with `clear_statement_caches()`:
+that applied a migration commits, `up` clears the statement caches of the
+pool it was given:
 
 ```python
 import asyncio
 import os
 
-from pgorm import Pool, RawSQL, TypeName
+from pgorm import Pool, RawSQL, Transaction, TypeName
 from pgorm import schema as s
 
 PACK = RawSQL("INSERT INTO box (contents) VALUES ($1) RETURNING ribbon", ["truffles"])
+
+
+class GoldRibbon:
+    name = "m20260201_000001_gold_ribbon"
+
+    async def up(self, tx: Transaction) -> None:
+        await tx.execute(s.alter_domain("ribbon").set_default("gold"))
 
 
 async def main() -> None:
@@ -441,35 +660,38 @@ async def main() -> None:
             )
         assert (await pool.one(PACK))["ribbon"] == "red"
 
-        async with pool.transaction() as tx:
-            await tx.execute(s.alter_domain("ribbon").set_default("gold"))
-        # The insert prepared before the change still writes the old default.
-        assert (await pool.one(PACK))["ribbon"] == "red"
-
-        pool.clear_statement_caches()
+        # The insert prepared before the change would still write the old
+        # default, but the run clears the pool's caches as it commits.
+        await s.Migrations([GoldRibbon()]).up(pool)
         assert (await pool.one(PACK))["ribbon"] == "gold"
 
 
 asyncio.run(main())
 ```
 
-The runner also sends a notification on the channel
-`pgorm.STATEMENT_CACHE_CHANNEL`, `pgorm_statement_caches`, from inside the
-run's transaction, so it is delivered exactly when the run commits. A pool
-built with `statement_cache_channel=pgorm.STATEMENT_CACHE_CHANNEL` listens
-there and clears its caches on every notification, so a Python process's
-pool hears the Rust runner of another process migrate the database. Here
-the second pool stands in for the runner, sending the notification as it
-does:
+`up` also sends a notification on `statement_cache_channel`,
+`pgorm.STATEMENT_CACHE_CHANNEL` (`pgorm_statement_caches`) unless the
+migrator is given another, from inside the run's transaction, so it is
+delivered exactly when the run commits. A pool built with
+`statement_cache_channel=pgorm.STATEMENT_CACHE_CHANNEL` listens there and
+clears its caches on every notification, so another process's pool, a Rust
+program's or a Python one's, hears this one migrate the database:
 
 ```python
 import asyncio
 import os
 
-from pgorm import STATEMENT_CACHE_CHANNEL, Pool, RawSQL, TypeName
+from pgorm import STATEMENT_CACHE_CHANNEL, Pool, RawSQL, Transaction, TypeName
 from pgorm import schema as s
 
 PACK = RawSQL("INSERT INTO box (contents) VALUES ($1) RETURNING ribbon", ["fudge"])
+
+
+class GoldRibbon:
+    name = "m20260201_000001_gold_ribbon"
+
+    async def up(self, tx: Transaction) -> None:
+        await tx.execute(s.alter_domain("ribbon").set_default("gold"))
 
 
 async def main() -> None:
@@ -486,10 +708,7 @@ async def main() -> None:
             )
         assert (await shop.one(PACK))["ribbon"] == "red"
 
-        # What the runner does: change the schema and notify, in one transaction.
-        async with runner.transaction() as tx:
-            await tx.execute(s.alter_domain("ribbon").set_default("gold"))
-            await tx.notify(STATEMENT_CACHE_CHANNEL, "")
+        await s.Migrations([GoldRibbon()]).up(runner)
 
         # The clear arrives as a notification, so the shop sees it a moment later.
         async def gold() -> str:
@@ -503,15 +722,20 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-A Rust migrator whose `statement_cache_channel` answers `None` sends
-nothing, and a pool built without the option does not listen.
+A migrator built with `statement_cache_channel=None` sends nothing, and a
+pool built without the option does not listen.
 [Statement caches and DDL](19-statement-caches.md) covers both in full.
 
 ## A migration crate
 
-There is no command-line tool: a program's migrations are a Rust crate of
-their own with a small binary that runs them. A starter crate lives in
-pgorm's repository at `pgorm-migration/template/migration/`. Its
+There is no command-line tool. A Python program runs its migrations itself:
+as a step of each deploy, a small script that builds the migrator and calls
+`up`, or at startup, before it serves. The advisory lock makes that safe when
+several replicas start at once.
+
+A program whose migrations are written in Rust keeps them in a crate of
+their own instead, with a small binary that runs them. A starter crate lives
+in pgorm's repository at `pgorm-migration/template/migration/`. Its
 `src/lib.rs` holds the migrator, one file per migration beside it, and its
 `src/main.rs` reads `DATABASE_URL` and runs `up`, `up <n>` or `status`:
 
@@ -520,9 +744,6 @@ DATABASE_URL=postgres://localhost/bakery cargo run -p migration -- up
 DATABASE_URL=postgres://localhost/bakery cargo run -p migration -- status
 ```
 
-Copy it into the project, write the migrations in Rust as [the Rust
-guide's Migrations](../../docs/guide/21-migrations.md) teaches, and run the
-binary as a step of each deploy, before the Python application starts. A
-Rust program can instead call `Migrator::up(pool, None)` itself at startup;
-a Python program cannot, so for a Python application the binary is the way
-to run them.
+Both runners keep the same ledger, so a database can be migrated by either,
+and a migration a Python program froze into a file runs in the Rust crate
+through `sql_migration!` with the checksum it has here.

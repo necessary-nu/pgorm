@@ -29,7 +29,7 @@ pub struct MoodCreated;
 
 #[async_trait::async_trait]
 impl MigratorTrait for MoodCreated {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(MOOD_CREATED)]
     }
 }
@@ -40,7 +40,7 @@ pub struct Moods;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Moods {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(MOOD_CREATED),
             Box::new(MOOD_ADDED),
@@ -55,7 +55,7 @@ pub struct Unsplit;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Unsplit {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(MOOD_CREATED),
             Box::new(Script {
@@ -72,7 +72,7 @@ pub struct FailingAfterCommit;
 
 #[async_trait::async_trait]
 impl MigratorTrait for FailingAfterCommit {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(MOOD_CREATED),
             Box::new(MOOD_ADDED),
@@ -98,7 +98,7 @@ impl MigrationName for Written {
 
 #[async_trait::async_trait]
 impl MigrationTrait for Written {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         let qty: i32 = tx.query_one(INSERT, &[&10]).await?.get(0);
         if qty == 3 {
             Ok(())
@@ -117,7 +117,7 @@ pub struct Redefaulted;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Redefaulted {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(CREATED),
             Box::new(DEFAULTED),

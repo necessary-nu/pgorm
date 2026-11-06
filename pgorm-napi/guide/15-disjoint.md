@@ -455,9 +455,10 @@ assert.deepEqual(voucher, { paymentId: 1, code: "XMAS-2026" });
 A step that recreates the kind type changes the type prepared statements were
 planned with, so a program running steps itself clears its pool's statement
 caches after each, as above ([Statement caches and
-DDL](19-statement-caches.md)). Rust's pgorm-migration runs each step as one
-migration and clears the caches itself; JavaScript has no migration runner
-([Migrations](22-migrations.md)), so the program runs the steps.
+DDL](19-statement-caches.md)). pgorm-migration's runner runs each step as
+one migration and clears the caches itself, so a program that freezes the
+steps into files and runs them with `migrations(..).up` needs nothing more
+([Migrations](22-migrations.md)).
 
 ### Freezing a change into migrations
 
@@ -546,11 +547,11 @@ for (const file of [opened, ...added]) {
 assert.equal(readFileSync(`${migrations}/m20260301_000001_add_voucher_1.sql`, "utf8"), added[0]!.text);
 ```
 
-A file is one migration for a tool that runs a directory of SQL files, each in
-its transaction, such as Rust's pgorm-migration, which lists each with
-`sql_migration!` ([Migrations](22-migrations.md#generated-ddl-in-a-migration)).
-JavaScript cannot run such a file itself: a file of several statements is a
-script, which no JavaScript terminal runs in one call ([Raw SQL](10-raw-sql.md)).
+A file is one migration, run whole in the batch's transaction:
+`SqlMigration.readDir` reads the directory back for `migrations(..)` to run,
+its first step committing the batch before the next runs
+([Migrations](22-migrations.md#a-migrator-built-at-run-time)), and a Rust
+migration crate lists the same files with `sql_migration!`.
 
 ## Tables pgorm did not write
 

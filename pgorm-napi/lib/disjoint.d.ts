@@ -278,7 +278,7 @@ export interface DisjointChange {
  * Statements frozen as the text of a migration written as a `.sql` file,
  * made by {@link migrationFile} and {@link migrationFiles} alone.
  */
-// [spec:pgorm:req:bindings.migration-file]
+// [spec:pgorm:req:bindings.migration-file+1]
 export declare class MigrationFile {
   private constructor();
   /** The file's stem, and the migration's name. */

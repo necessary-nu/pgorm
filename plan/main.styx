@@ -13740,6 +13740,9 @@ children (
                     {
                         id napi.guide-gaps.migrations
                         title "JavaScript runs migrations, its frozen migrationFile .sql files and migrations of its own, with pgorm-migration's ledger, advisory lock, commits_after (the -- pgorm: commits-after line), checksums, status and pending/applied queries, and the statement-cache clear and notify after a batch, as MigratorTrait::up does; freezing generated DDL is already there (guide 22-migrations)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.migrations])
+                        }
                         deps (napi-connections napi-schema guide.javascript)
                         log (
                             {
@@ -13747,6 +13750,20 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "Narrowed 2026-11-05 after main 233566c4 gave JavaScript migrationFile, migrationFiles and MigrationFile (name, text, commitsAfter, freeze): what remains is a runner. Running a frozen file needs napi.guide-gaps.batch-execute too, since a file of several statements is a script no JavaScript terminal runs in one call."
+                            }
+
+                            {
+                                at 2026-11-06T09:01:09.081121Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T09:01:58.191948Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built in one shape with guide.python-gaps.migrations (see its decision note): migrations(list, { migrationTableName, migrationTableSchema, statementCacheChannel }) builds pgorm-migration's Migrations; a JS migration is { name, up(tx), checksum?, commitsAfter? }, read once; its up(tx) is sent to the JS thread through lib/migrations.js's dispatch with a Transaction (parent null) lent over the runner's &mut DatabaseTransaction by connect/transaction.rs lend(), closed once up settles; a rejection is rethrown as itself (wrapped in { error } on the way, since neon roots objects only). SqlMigration.read / readDir / sqlMigration are pgorm-migration's. Reads run as jobs on any executor; status logs through logger.info (console by default), as LoggingMetrics takes a logger. pgorm::Error::Custom now maps to ConstructionError in JS, as in Python (it fell through to ConnectionError before), so the runner's refusals are one class in both bindings."
                             }
                         )
                     }
@@ -19782,7 +19799,19 @@ children (
                     {
                         id guide.python-gaps.migrations
                         title "Python runs migrations as pgorm-migration does: MigrationTrait, MigratorTrait, MigrationName, sql_migration!, up, status, get_migration_with_status, get_pending_migrations and get_applied_migrations, commits_after, checksums, the ledger's table name and schema, the statement-cache notification, and adopting a SeaORM ledger"
+                        implements {
+                            main ([spec:pgorm:def:migration.runtime] [spec:pgorm:req:migration.sql-file.read])
+                            python ([spec:pgorm:req:bindings.migrations])
+                        }
                         deps (python.transactions python.schema)
+                        log (
+                            {
+                                at 2026-11-06T08:37:51.841955Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead's decision, built as directed: both bindings run migrations through pgorm-migration's own runner, never a reimplementation. Design: (1) MigratorTrait's methods take &self (Migrator.up(pool, None) for a unit struct), so a migrator can be a value; pgorm-migration gains `Migrations`, a migrator built at run time from Box<dyn MigrationTrait>s plus with_migration_table_name / with_migration_table_schema / with_statement_cache_channel (migration.runtime). (2) MigrationTrait::up takes &mut DatabaseTransaction<'_> (migration.runner+5), so a migration can open a savepoint or run COPY; the bindings then serve their ordinary transaction frame over the runner's borrowed transaction for the length of the host up() call (a 'lent' root frame, closed when up returns). (3) SqlMigration owns or borrows its text, and SqlMigration::read / read_dir read .sql files at run time with the macro's name, CRLF->LF text, checksum and commits-after rules (migration.sql-file.read). The bindings build a pgorm_migration::Migrations per up() call, wrapping each host migration in a MigrationTrait whose up awaits the host object's up(tx); a host exception is stashed and re-raised as itself after the runner rolls back. Reads (install, get_*_migrations) run as executor work on a pool, connection or transaction. status() logs through the language's logging (Python logging 'pgorm.migration'), as Rust's logs through tracing. Runner refusals (duplicate name, missing migration, changed checksum) are Error::Custom, the binding's ConstructionError. Shared rule bindings.migrations; bindings.migration-file+1 drops 'a binding has no migration runner'."
+                            }
+                        )
                     }
 
                     {

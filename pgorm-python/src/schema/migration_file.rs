@@ -11,7 +11,7 @@ use crate::errors::ConstructionError;
 
 /// Statements frozen as the text of a migration written as a `.sql` file,
 /// written once by `freeze` and never again.
-// [spec:pgorm:req:bindings.migration-file]
+// [spec:pgorm:req:bindings.migration-file+1]
 #[derive(Debug)]
 #[pyclass(name = "MigrationFile", module = "pgorm.schema", frozen)]
 pub struct PyMigrationFile {
@@ -48,7 +48,7 @@ impl PyMigrationFile {
     /// answering whether it wrote one: a file already there is never
     /// rewritten. A name that is no plain file stem is a `ConstructionError`,
     /// and any other failure the `OSError` it is.
-    // [spec:pgorm:req:bindings.migration-file]
+    // [spec:pgorm:req:bindings.migration-file+1]
     fn freeze(&self, directory: PathBuf) -> PyResult<bool> {
         self.inner
             .freeze(directory)
@@ -72,7 +72,7 @@ impl PyMigrationFile {
 
 /// `statements` frozen as the migration `name`, each ending `;` on a line of
 /// its own, opening with `-- pgorm: commits-after` where `commits_after`.
-// [spec:pgorm:req:bindings.migration-file]
+// [spec:pgorm:req:bindings.migration-file+1]
 #[pyfunction]
 #[pyo3(signature = (name, statements, *, commits_after = false))]
 pub(super) fn migration_file(

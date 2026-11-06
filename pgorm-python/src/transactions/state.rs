@@ -25,12 +25,30 @@ pub(crate) struct State {
     pub(super) root: Arc<Root>,
     pub(super) released: CancellationToken,
     pub(super) parent: Option<Weak<State>>,
+    /// Whether this is a transaction pgorm-migration's runner lent a
+    /// migration's `up`, which no connection of Python's opened.
+    pub(super) lent: bool,
 }
 
 impl State {
     pub(super) fn channel(
         connection: Arc<ConnectionState>,
         parent: Option<&Arc<Self>>,
+    ) -> (Arc<Self>, mpsc::UnboundedReceiver<Command>) {
+        Self::open(connection, parent, false)
+    }
+
+    /// The root frame of a transaction the runner opened and lends.
+    pub(super) fn lent(
+        connection: Arc<ConnectionState>,
+    ) -> (Arc<Self>, mpsc::UnboundedReceiver<Command>) {
+        Self::open(connection, None, true)
+    }
+
+    fn open(
+        connection: Arc<ConnectionState>,
+        parent: Option<&Arc<Self>>,
+        lent: bool,
     ) -> (Arc<Self>, mpsc::UnboundedReceiver<Command>) {
         let (commands, receiver) = mpsc::unbounded_channel();
         let root = parent.map_or_else(
@@ -55,6 +73,7 @@ impl State {
                 root,
                 released: CancellationToken::new(),
                 parent: parent.map(Arc::downgrade),
+                lent,
             }),
             receiver,
         )

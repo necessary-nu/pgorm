@@ -20,7 +20,6 @@ pgorm-sql-macro = { version = "0.2.0", path = "../pgorm-sql-macro" }
 sha2 = { version = "0.11.0", default-features = false }
 # pgorm-cli = { path = "../pgorm/pgorm-cli", default-features = false, optional = true }
 tracing = { version = "0.1.44", default-features = false, features = ["log"] }
-tracing-subscriber = { version = "0.3.23", default-features = false, features = ["env-filter", "fmt"] }
 futures = { version = "0.3.34", default-features = false, features = ["std"] }
 
 [dev-dependencies]

@@ -586,15 +586,17 @@ export class Transaction extends Queryable {
   #native;
   /**
    * The connection or transaction this one borrows, kept reachable so that
-   * collecting a parent nobody else holds never ends it under its child.
+   * collecting a parent nobody else holds never ends it under its child;
+   * `null` for the batch's transaction pgorm-migration's runner lends a
+   * migration's `up`, which no connection of JavaScript's opened.
    *
-   * @type {Connection | Transaction}
+   * @type {Connection | Transaction | null}
    */
   #parent;
 
   /**
    * @param {unknown} handle
-   * @param {Connection | Transaction} parent
+   * @param {Connection | Transaction | null} parent
    * @param {symbol} trusted
    */
   constructor(handle, parent, trusted) {
@@ -604,7 +606,7 @@ export class Transaction extends Queryable {
     this.#parent = parent;
   }
 
-  /** @returns {Connection | Transaction} */
+  /** @returns {Connection | Transaction | null} */
   get parent() {
     return this.#parent;
   }

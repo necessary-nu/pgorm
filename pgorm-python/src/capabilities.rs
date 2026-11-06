@@ -236,6 +236,7 @@ fn manifest() -> Value {
         operations.extend(crate::json::capabilities());
         operations.extend(crate::statements::capabilities());
         operations.extend(crate::results::capabilities());
+        operations.extend(crate::migrations::capabilities());
         operations.extend(crate::entities::capabilities());
         for (name, api) in crate::entities::version_terminals
             .into_iter()

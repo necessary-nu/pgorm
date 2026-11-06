@@ -2,20 +2,20 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { alterType } from "@necessary/pgorm";
-import { flavor } from "../../../guide/bakery.ts";
+import { ConstructionError, type MigrationTrait, migrations } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  await pool.transaction(async (tx) => {
-    await tx.execute(alterType(flavor).addValue("almond"));
-  });
-  await pool.transaction(async (tx) => {
-    await tx.execute(
-      "INSERT INTO cake (name, flavor, price, gluten_free, bakery_id) VALUES ('Almond Cake', 'almond', 3.60, true, 2)",
-    );
-  });
+  const noop = (name: string): MigrationTrait => ({ name, async up() {} });
 
-  const { flavor: added } = await pool.one("SELECT flavor::text AS flavor FROM cake WHERE name = 'Almond Cake'");
-  assert.equal(added, "almond");
+  await assert.rejects(
+    migrations([noop("m20260201_000001_noop"), noop("m20260201_000001_noop")]).up(pool),
+    (error) => error instanceof ConstructionError && /Duplicate migration name\(s\): 'm20260201_000001_noop'/.test(error.message),
+  );
+
+  await migrations([noop("m20260201_000001_noop")]).up(pool);
+  await assert.rejects(
+    migrations([noop("m20260201_000001_renamed")]).getMigrationWithStatus(pool),
+    (error) => error instanceof ConstructionError && /'m20260201_000001_noop' is missing/.test(error.message),
+  );
 }

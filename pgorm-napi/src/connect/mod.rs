@@ -16,6 +16,7 @@ mod copy;
 pub(crate) mod job;
 mod listen;
 mod metrics;
+mod migrations;
 mod stream;
 mod transaction;
 
@@ -70,6 +71,7 @@ pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     copy::export(cx)?;
     listen::export(cx)?;
     job::export(cx)?;
+    migrations::export(cx)?;
     Ok(())
 }
 

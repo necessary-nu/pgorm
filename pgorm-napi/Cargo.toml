@@ -31,6 +31,8 @@ standalone-module = []
 # libpg_query is linked into every pgorm build, and a fingerprint is parsed
 # only when a hook asks for one.
 pgorm = { version = "0.2.0", path = "..", features = ["metrics-fingerprint"] }
+# The migration runner JavaScript's migrations run through ([spec:pgorm:req:bindings.migrations]).
+pgorm-migration = { version = "0.2.0", path = "../pgorm-migration" }
 neon = { version = "1.1.2", default-features = false, features = ["napi-6"] }
 tokio = { version = "1.53.2", features = ["rt-multi-thread"] }
 tokio-postgres = "0.7.18"

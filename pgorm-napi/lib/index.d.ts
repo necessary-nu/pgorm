@@ -18,6 +18,7 @@ export * from "./expressions.d.ts";
 export * from "./json.d.ts";
 export * from "./merge.d.ts";
 export * from "./schema.d.ts";
+export * from "./migrations.d.ts";
 export * as pipeline from "./pipeline.d.ts";
 export * from "./windows.d.ts";
 export * from "./select.d.ts";
@@ -655,8 +656,12 @@ export declare class Connection extends Queryable implements AsyncDisposable {
 export declare class Transaction extends Queryable {
   private constructor();
   readonly closed: boolean;
-  /** The connection, or for a savepoint the transaction, this one borrows. */
-  readonly parent: Connection | Transaction;
+  /**
+   * The connection, or for a savepoint the transaction, this one borrows;
+   * `null` for the transaction a migration's `up` is lent, which
+   * pgorm-migration's runner opened.
+   */
+  readonly parent: Connection | Transaction | null;
   /**
    * Run `use` in a savepoint, which holds this transaction until `use`
    * settles: released when it resolves, rolled back to when it throws.

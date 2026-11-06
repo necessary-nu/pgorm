@@ -141,7 +141,7 @@ pub fn prql(input: TokenStream) -> TokenStream {
 /// holding that text to the grammar [`sql!`] uses. The path is resolved
 /// against `CARGO_MANIFEST_DIR`.
 // [spec:pgorm:def:macros.sql+6]    the hidden third macro
-// [spec:pgorm:def:migration.sql-file]
+// [spec:pgorm:def:migration.sql-file+1]
 #[doc(hidden)]
 #[proc_macro]
 pub fn sql_migration(input: TokenStream) -> TokenStream {
