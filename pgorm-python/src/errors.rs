@@ -18,6 +18,17 @@ pyo3::create_exception!(pgorm, RollbackFailedError, PgormError);
 
 pub(crate) use pgorm_bindings::{Failure, Redactions};
 
+/// What pgorm-bindings refuses, raised as the exception its class names.
+pub(crate) trait Raise<T> {
+    fn py(self) -> PyResult<T>;
+}
+
+impl<T> Raise<T> for Result<T, Failure> {
+    fn py(self) -> PyResult<T> {
+        self.map_err(raised)
+    }
+}
+
 // [spec:pgorm:req:bindings.errors+6]
 pub(crate) fn database_error(
     error: impl std::borrow::Borrow<pgorm::Error>,
@@ -225,4 +236,47 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
         py.import("asyncio")?.getattr("CancelledError")?,
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // [spec:pgorm:req:bindings.rollback-failed/test]    pgorm's own RollbackFailed raises both
+    // errors, each as the class its own failure names
+    #[test]
+    fn a_failed_rollback_raises_both_errors() {
+        Python::initialize();
+        Python::attach(|py| {
+            let failed = database_error(
+                pgorm::Error::RollbackFailed {
+                    cause: Box::new(pgorm::Error::Custom("aborted".into())),
+                    rollback: Box::new(pgorm::Error::Custom("connection lost".into())),
+                },
+                &Redactions::default(),
+            );
+            assert!(failed.is_instance_of::<RollbackFailedError>(py));
+            let value = failed.value(py).as_any();
+            for field in ["cause", "rollback"] {
+                let carried = value.getattr(field).ok();
+                assert!(carried.is_some_and(|error| error.is_instance_of::<ConstructionError>()));
+            }
+        });
+    }
+
+    // [spec:pgorm:req:bindings.errors+6/test]    a failure the binding does not represent is an
+    // InternalError, and an application hook's refusal the ConstructionError it is in both
+    // bindings
+    #[test]
+    fn failures_raise_their_own_class() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert!(raised(Failure::Internal("x".into())).is_instance_of::<InternalError>(py));
+            let refusal = database_error(
+                pgorm::Error::Custom("before_save refused".into()),
+                &Redactions::default(),
+            );
+            assert!(refusal.is_instance_of::<ConstructionError>(py));
+        });
+    }
 }

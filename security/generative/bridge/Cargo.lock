@@ -1430,6 +1430,7 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tokio-postgres-rustls",
+ "tokio-util",
 ]
 
 [[package]]

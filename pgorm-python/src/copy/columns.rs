@@ -1,6 +1,7 @@
 //! A binary COPY's columns: `CopyColumn`, pgorm's own under a Python class,
 //! and the description of a COPY's columns before it starts.
 
+use crate::errors::Raise as _;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use pyo3_async_runtimes::tokio::future_into_py;
 
@@ -136,16 +137,18 @@ pub(crate) fn copy_columns<'py>(
     future_into_py(py, async move {
         let columns = match target {
             Target::Connection(state) => {
-                let mut operation = Operation::begin(state.clone())?;
+                let mut operation = Operation::begin(state.clone()).py()?;
                 let described = tokio::select! {
-                    _ = state.cancelled.cancelled() => return Err(LifecycleError::new_err("connection is closed")),
-                    _ = state.pool.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
-                    described = describe_held(operation.connection_mut()?, &statement) => described,
+                    _ = state.closed.cancelled() => return Err(LifecycleError::new_err("connection is closed")),
+                    _ = state.pool.closed.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
+                    described = describe_held(operation.connection_mut().py()?, &statement) => described,
                 };
                 operation.restore();
                 described.map_err(|error| database_error(error, &state.pool.secrets))?
             }
-            Target::Transaction(state) => state.describe(statement).await?,
+            Target::Transaction(state) => {
+                crate::transactions::describe_in(&state, statement).await?
+            }
             Target::Hook(_) => {
                 return Err(PyTypeError::new_err(
                     "a COPY runs on a Connection or a Transaction",

@@ -3,6 +3,8 @@
 //! pump for a Connection, the scope task for a Transaction — and the handle
 //! talks to that task through bounded channels.
 
+use crate::errors::Raise as _;
+use crate::runtime::Owned as _;
 use std::{
     fmt,
     sync::{
@@ -131,7 +133,7 @@ impl Settle {
                     result
                 }
                 Err(_) => {
-                    connection.ensure_open()?;
+                    connection.ensure_open().py()?;
                     return Err(LifecycleError::new_err("COPY ended without completing"));
                 }
             },
@@ -160,8 +162,8 @@ async fn pump_in(
 ) {
     let mut opened = Some(opened);
     let outcome = tokio::select! {
-        _ = state.cancelled.cancelled() => return,
-        _ = state.pool.cancelled.cancelled() => return,
+        _ = state.closed.cancelled() => return,
+        _ = state.pool.closed.cancelled() => return,
         outcome = async {
             let Ok(connection) = operation.connection_mut() else {
                 return Outcome::Abandoned;
@@ -215,8 +217,8 @@ async fn pump_out(
 ) {
     let mut opened = Some(opened);
     let outcome = tokio::select! {
-        _ = state.cancelled.cancelled() => return,
-        _ = state.pool.cancelled.cancelled() => return,
+        _ = state.closed.cancelled() => return,
+        _ = state.pool.closed.cancelled() => return,
         outcome = async {
             let Ok(connection) = operation.connection_mut() else {
                 return Outcome::Abandoned;
@@ -273,7 +275,7 @@ pub(crate) fn copy_in<'py>(
         let (connection, settle) = match target {
             Target::Hook(_) => return Err(PyTypeError::new_err(HOOKS_COPY_NOTHING)),
             Target::Connection(state) => {
-                let operation = Operation::begin(state.clone())?;
+                let operation = Operation::begin(state.clone()).py()?;
                 let (opened, open) = oneshot::channel();
                 let (settled, settle) = oneshot::channel();
                 tokio::spawn(pump_in(
@@ -289,14 +291,19 @@ pub(crate) fn copy_in<'py>(
                     Ok(Ok(())) => (state, Settle::Connection(settle)),
                     Ok(Err(error)) => return Err(database_error(error, &state.pool.secrets)),
                     Err(_) => {
-                        state.ensure_open()?;
+                        state.ensure_open().py()?;
                         return Err(LifecycleError::new_err("COPY ended before it started"));
                     }
                 }
             }
             Target::Transaction(state) => {
-                let (lease, settle) = state.copy_in(statement, columns.clone(), receiver).await?;
-                (state.connection.clone(), Settle::Transaction(lease, settle))
+                let (lease, settle) =
+                    crate::transactions::copy_in(&state, statement, columns.clone(), receiver)
+                        .await?;
+                (
+                    state.connection().clone(),
+                    Settle::Transaction(lease, settle),
+                )
             }
         };
         Ok(NativeCopyIn {
@@ -330,7 +337,7 @@ pub(crate) fn copy_out<'py>(
         let (connection, transaction, holder) = match target {
             Target::Hook(_) => return Err(PyTypeError::new_err(HOOKS_COPY_NOTHING)),
             Target::Connection(state) => {
-                let operation = Operation::begin(state.clone())?;
+                let operation = Operation::begin(state.clone()).py()?;
                 let (opened, open) = oneshot::channel();
                 let stopped = CancellationToken::new();
                 let pump = pump_out(
@@ -350,15 +357,17 @@ pub(crate) fn copy_out<'py>(
                     Ok(Ok(())) => (state, None, Holder::Connection(stopped)),
                     Ok(Err(error)) => return Err(database_error(error, &state.pool.secrets)),
                     Err(_) => {
-                        state.ensure_open()?;
+                        state.ensure_open().py()?;
                         return Err(LifecycleError::new_err("COPY ended before it started"));
                     }
                 }
             }
             Target::Transaction(state) => {
-                let lease = state.copy_out(statement, columns.clone(), pieces).await?;
+                let lease =
+                    crate::transactions::copy_out(&state, statement, columns.clone(), pieces)
+                        .await?;
                 (
-                    state.connection.clone(),
+                    state.connection().clone(),
                     Some(state.clone()),
                     Holder::Transaction(lease, state),
                 )
@@ -602,7 +611,7 @@ impl Active {
             Holder::Connection(stopped) => stopped.cancelled().await,
             Holder::Transaction(lease, state) => {
                 drop(lease);
-                state.released().await;
+                state.finished().await;
             }
         }
     }
@@ -724,7 +733,7 @@ impl OutState {
             Some(transaction) if transaction.closed() => {
                 Err(LifecycleError::new_err("transaction is closed"))
             }
-            _ => self.connection.ensure_open(),
+            _ => self.connection.ensure_open().py(),
         }
     }
 }

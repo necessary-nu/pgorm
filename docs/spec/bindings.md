@@ -114,6 +114,25 @@ option.
 > the runtime: an operation that does I/O is awaited in the language's own
 > asynchronous form (`python.runtime`, `napi.promises`).
 
+> [spec:pgorm:req:bindings.shared-runtime]
+> What both bindings do alike MUST be written once, in the unpublished
+> workspace crate pgorm-bindings, which both depend on and which names
+> neither language: how a pgorm error is classified and redacted
+> (`bindings.errors`), what a metrics hook is told (`bindings.metrics`), how a
+> pool lends, runs on and closes its connections (`bindings.connections`), how
+> a transaction's frames, savepoints and retried attempts are served
+> (`bindings.transactions`, `bindings.transaction-retry`), how a stream and a
+> listener hold their connections (`bindings.streams`, `bindings.listen`),
+> and the type-erased backends a registration is reached through
+> (`bindings.entities`). Each binding keeps only its language's glue: reading
+> its language's values into pgorm-bindings' types, settling its awaitables or
+> promises, and raising what pgorm-bindings refuses as its own error classes.
+> A refusal's text is pgorm-bindings' own in both bindings, an option or a
+> choice it names spelled as the binding spells it (`python.naming`,
+> `napi.naming`). A test over both bindings' production sources MUST fail
+> when they share a run of identical tokens longer than a fixed bound, so that
+> logic copied from one binding into the other is found rather than kept.
+
 > [spec:pgorm:req:bindings.errors+6]
 > Each binding MUST report a failure as an instance of its own error classes,
 > all derived from one base class of the binding and from the language's own

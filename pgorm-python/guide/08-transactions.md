@@ -80,7 +80,7 @@ async def main() -> None:
                 try:
                     await connection.one(RawSQL("SELECT count(*) AS cakes FROM cake"))
                 except pgorm.LifecycleError as error:
-                    assert str(error) == "connection already has an active operation"
+                    assert str(error) == "the connection is busy: an operation, a transaction or a stream holds it"
                 else:
                     raise AssertionError("the transaction holds the connection")
                 row = await tx.one(RawSQL("SELECT count(*) AS cakes FROM cake"))

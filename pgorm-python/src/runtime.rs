@@ -1,69 +1,33 @@
-use std::{
-    collections::BTreeMap,
-    fmt,
-    sync::{Arc, Mutex as RegistryMutex, Weak},
-    time::Duration,
-};
+use crate::errors::Raise as _;
+use std::{collections::BTreeMap, sync::Arc};
 
 use crate::panics::future_into_py;
-use pgorm::{
-    ConnectionTrait, DatabaseConnection,
-    metric::{InstrumentedConnection, InstrumentedPool},
-};
+use pgorm::{ConnectionTrait, metric::InstrumentedPool};
 use pgorm_bindings::Metrics;
 use pyo3::prelude::*;
-use tokio::sync::{Mutex, OwnedMutexGuard};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     config::{self, DIALECT, NativePoolShape, Owner, seconds},
-    errors::{
-        ConstructionError, InternalError, LifecycleError, Redactions, TimeoutError, database_error,
-    },
-    execution::Database,
-    listen::ListenerState,
+    errors::{ConstructionError, InternalError, LifecycleError, Redactions},
 };
 
-/// A connection checked out of a pool: a plain one, or one an instrumented
-/// pool lent, which reports what runs on it.
-// [spec:pgorm:req:bindings.metrics]
-#[derive(Debug)]
-pub(crate) enum Held {
-    Plain(DatabaseConnection),
-    Metered(InstrumentedConnection<Metrics>),
+/// The event loop a pool, and everything it lends, belongs to.
+pub(crate) type Loop = Arc<Py<PyAny>>;
+pub(crate) type PoolState = pgorm_bindings::PoolState<Loop>;
+pub(crate) type ConnectionState = pgorm_bindings::ConnectionState<Loop>;
+pub(crate) type Operation = pgorm_bindings::Operation<Loop>;
+pub(crate) use pgorm_bindings::Held;
+
+/// What is used from its pool's event loop alone.
+pub(crate) trait Owned {
+    /// Refuse to run from any event loop but the pool's.
+    fn check_owner(&self, py: Python<'_>) -> PyResult<()>;
 }
 
-impl Held {
-    pub(crate) fn database(&self) -> Database<'_> {
-        match self {
-            Self::Plain(connection) => Database::Connection(connection),
-            Self::Metered(connection) => Database::InstrumentedConnection(connection),
-        }
-    }
-
-    fn discard(self) {
-        match self {
-            Self::Plain(connection) => connection.discard(),
-            Self::Metered(connection) => connection.into_inner().discard(),
-        }
-    }
-}
-
-pub(crate) struct PoolState {
-    pub(crate) pool: pgorm::DatabasePool,
-    pub(crate) secrets: Redactions,
-    pub(crate) cancelled: CancellationToken,
-    pub(crate) owner: Arc<Py<PyAny>>,
-    acquire_timeout: Duration,
-    connections: RegistryMutex<Vec<Weak<ConnectionState>>>,
-    listeners: RegistryMutex<Vec<Weak<ListenerState>>>,
-}
-
-impl fmt::Debug for PoolState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PoolState")
-            .field("closed", &self.cancelled.is_cancelled())
-            .finish_non_exhaustive()
+impl Owned for PoolState {
+    fn check_owner(&self, py: Python<'_>) -> PyResult<()> {
+        check_loop(py, &self.owner, "pool")
     }
 }
 
@@ -77,121 +41,6 @@ pub(crate) fn check_loop(py: Python<'_>, owner: &Py<PyAny>, what: &str) -> PyRes
         )));
     }
     Ok(())
-}
-
-impl PoolState {
-    fn new(
-        pool: pgorm::DatabasePool,
-        secrets: Redactions,
-        owner: Arc<Py<PyAny>>,
-        acquire_timeout: Duration,
-    ) -> Arc<Self> {
-        Arc::new(Self {
-            pool,
-            secrets,
-            owner,
-            acquire_timeout,
-            cancelled: CancellationToken::new(),
-            connections: RegistryMutex::new(Vec::new()),
-            listeners: RegistryMutex::new(Vec::new()),
-        })
-    }
-
-    pub(crate) fn check_owner(&self, py: Python<'_>) -> PyResult<()> {
-        check_loop(py, &self.owner, "pool")
-    }
-
-    pub(crate) fn ensure_open(&self) -> PyResult<()> {
-        if self.cancelled.is_cancelled() {
-            Err(LifecycleError::new_err("pool is closed"))
-        } else {
-            Ok(())
-        }
-    }
-
-    /// Record `listener` so that closing the pool closes it; a listener
-    /// opened while the pool closed is closed here instead.
-    // [spec:pgorm:req:bindings.listen+3]
-    pub(crate) fn register_listener(&self, listener: &Arc<ListenerState>) -> PyResult<()> {
-        let mut registry = self
-            .listeners
-            .lock()
-            .map_err(|_| InternalError::new_err("listener registry lock failed"))?;
-        if self.cancelled.is_cancelled() {
-            listener.close_now();
-            return Err(LifecycleError::new_err("pool is closed"));
-        }
-        registry.retain(|item| item.strong_count() > 0);
-        registry.push(Arc::downgrade(listener));
-        Ok(())
-    }
-
-    fn close_listeners(&self) {
-        if let Ok(mut registry) = self.listeners.lock() {
-            crate::listen::close_all(&registry);
-            registry.clear();
-        }
-    }
-
-    /// Check a connection out within the acquire timeout, for its borrower
-    /// alone, and record it so that closing the pool closes it. Through
-    /// `metered`, an instrumented pool's, the acquisition is reported and the
-    /// connection reports what runs on it.
-    pub(crate) async fn lend(
-        self: Arc<Self>,
-        metered: Option<InstrumentedPool<Metrics>>,
-    ) -> PyResult<Arc<ConnectionState>> {
-        let acquire = async {
-            match &metered {
-                Some(metered) => metered.get().await.map(Held::Metered),
-                None => self.pool.get().await.map(Held::Plain),
-            }
-        };
-        let connection = tokio::select! {
-            _ = self.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
-            result = tokio::time::timeout(self.acquire_timeout, acquire) => {
-                self.ensure_open()?;
-                result.map_err(|_| TimeoutError::new_err("pool acquisition timed out"))?
-                    .map_err(|error| database_error(error, &self.secrets))?
-            }
-        };
-        if self.cancelled.is_cancelled() {
-            connection.discard();
-            return Err(LifecycleError::new_err("pool is closed"));
-        }
-        let state = Arc::new(ConnectionState {
-            pool: self.clone(),
-            cancelled: CancellationToken::new(),
-            slot: Arc::new(Mutex::new(Some(connection))),
-        });
-        let mut registry = self
-            .connections
-            .lock()
-            .map_err(|_| InternalError::new_err("connection registry lock failed"))?;
-        if self.cancelled.is_cancelled() {
-            state.close_now();
-            return Err(LifecycleError::new_err("pool is closed"));
-        }
-        registry.retain(|item| item.strong_count() > 0);
-        registry.push(Arc::downgrade(&state));
-        Ok(state)
-    }
-
-    fn close_now(&self) -> PyResult<Vec<Arc<ConnectionState>>> {
-        self.cancelled.cancel();
-        self.pool.close();
-        self.close_listeners();
-        let mut registry = self
-            .connections
-            .lock()
-            .map_err(|_| InternalError::new_err("connection registry lock failed"))?;
-        let connections: Vec<_> = registry.iter().filter_map(Weak::upgrade).collect();
-        registry.clear();
-        for connection in &connections {
-            connection.close_now();
-        }
-        Ok(connections)
-    }
 }
 
 pub(crate) fn running_loop(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
@@ -210,15 +59,7 @@ struct Closer(Arc<PoolState>);
 impl Drop for Closer {
     fn drop(&mut self) {
         // Cleanup may run after the Python event loop has stopped.
-        let state = &self.0;
-        state.cancelled.cancel();
-        state.pool.close();
-        state.close_listeners();
-        if let Ok(registry) = state.connections.lock() {
-            for state in registry.iter().filter_map(Weak::upgrade) {
-                state.close_now();
-            }
-        }
+        drop(self.0.close_now());
     }
 }
 
@@ -326,6 +167,7 @@ impl NativePool {
             secrets,
             owner.owner,
             shape.acquire_timeout(),
+            DIALECT,
         )))
     }
 
@@ -393,6 +235,7 @@ impl NativePool {
                         secrets.clone(),
                         owner.owner.clone(),
                         shape.acquire_timeout(),
+                        DIALECT,
                     )),
                 ))
             })
@@ -439,29 +282,27 @@ impl NativePool {
 
     fn acquire<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.state.check_owner(py)?;
-        self.state.ensure_open()?;
+        self.state.ensure_open().py()?;
         let pool = self.state.clone();
         let metered = self.metered.clone();
         future_into_py(py, async move {
             Ok(NativeConnection {
-                state: pool.lend(metered).await?,
+                state: pool.lend(metered.as_ref()).await.py()?,
             })
         })
     }
 
     fn close<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.state.check_owner(py)?;
-        let connections = self.state.close_now()?;
+        let closed = self.state.close_now();
         future_into_py(py, async move {
-            for connection in connections {
-                drop(connection.slot.lock().await.take());
-            }
+            closed.released().await;
             Ok(())
         })
     }
 
     fn closed(&self) -> bool {
-        self.state.cancelled.is_cancelled()
+        self.state.closed.is_cancelled()
     }
 
     /// Open a dedicated listening connection with this pool's configuration.
@@ -495,103 +336,6 @@ impl NativePool {
     }
 }
 
-pub(crate) struct ConnectionState {
-    pub(crate) pool: Arc<PoolState>,
-    pub(crate) cancelled: CancellationToken,
-    pub(crate) slot: Arc<Mutex<Option<Held>>>,
-}
-
-impl fmt::Debug for ConnectionState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ConnectionState")
-            .field("closed", &self.cancelled.is_cancelled())
-            .finish_non_exhaustive()
-    }
-}
-
-impl ConnectionState {
-    fn close_now(&self) {
-        self.cancelled.cancel();
-        if let Ok(mut slot) = self.slot.try_lock() {
-            drop(slot.take());
-        }
-    }
-
-    /// Close, discarding the connection rather than returning it: one an
-    /// operation holds is discarded by that operation once it sees the close.
-    // [spec:pgorm:req:bindings.connections+3]
-    fn discard_now(&self) {
-        self.cancelled.cancel();
-        if let Ok(mut slot) = self.slot.try_lock()
-            && let Some(connection) = slot.take()
-        {
-            connection.discard();
-        }
-    }
-
-    pub(crate) fn ensure_open(&self) -> PyResult<()> {
-        self.pool.ensure_open()?;
-        if self.cancelled.is_cancelled() {
-            Err(LifecycleError::new_err("connection is closed"))
-        } else {
-            Ok(())
-        }
-    }
-}
-
-/// Cancellation drops the active connection instead of returning unknown state.
-pub(crate) struct Operation {
-    slot: OwnedMutexGuard<Option<Held>>,
-    connection: Option<Held>,
-    state: Arc<ConnectionState>,
-}
-
-impl Operation {
-    pub(crate) fn begin(state: Arc<ConnectionState>) -> PyResult<Self> {
-        state.ensure_open()?;
-        let mut slot =
-            state.slot.clone().try_lock_owned().map_err(|_| {
-                LifecycleError::new_err("connection already has an active operation")
-            })?;
-        let connection = slot
-            .take()
-            .ok_or_else(|| LifecycleError::new_err("connection is closed"))?;
-        Ok(Self {
-            slot,
-            connection: Some(connection),
-            state,
-        })
-    }
-
-    pub(crate) fn connection(&self) -> PyResult<Database<'_>> {
-        self.connection
-            .as_ref()
-            .map(Held::database)
-            .ok_or_else(|| InternalError::new_err("operation has no connection"))
-    }
-
-    pub(crate) fn connection_mut(&mut self) -> PyResult<&mut Held> {
-        self.connection
-            .as_mut()
-            .ok_or_else(|| InternalError::new_err("operation has no connection"))
-    }
-
-    pub(crate) fn restore(mut self) {
-        if self.state.ensure_open().is_ok() {
-            *self.slot = self.connection.take();
-        }
-    }
-}
-
-impl Drop for Operation {
-    fn drop(&mut self) {
-        if let Some(connection) = self.connection.take() {
-            self.state.cancelled.cancel();
-            connection.discard();
-        }
-    }
-}
-
 #[derive(Debug)]
 #[pyclass(name = "_Connection", module = "pgorm._native", frozen)]
 pub(crate) struct NativeConnection {
@@ -608,7 +352,7 @@ impl NativeConnection {
         isolation: Option<&str>,
     ) -> PyResult<Bound<'py, PyAny>> {
         self.state.pool.check_owner(py)?;
-        self.state.ensure_open()?;
+        self.state.ensure_open().py()?;
         let mode = crate::transactions::mode(mode, isolation)?;
         let state = self.state.clone();
         future_into_py(py, async move {
@@ -630,7 +374,7 @@ impl NativeConnection {
         isolation: Option<&str>,
     ) -> PyResult<Bound<'py, PyAny>> {
         self.state.pool.check_owner(py)?;
-        self.state.ensure_open()?;
+        self.state.ensure_open().py()?;
         let mode = crate::transactions::mode(mode, isolation)?;
         let state = self.state.clone();
         future_into_py(py, async move {
@@ -703,17 +447,18 @@ impl NativeConnection {
         self.state.pool.check_owner(py)?;
         let state = self.state.clone();
         future_into_py(py, async move {
-            let operation = Operation::begin(state.clone())?;
-            let db = operation.connection()?;
-            let result = tokio::select! {
-                _ = state.cancelled.cancelled() => return Err(LifecycleError::new_err("connection is closed")),
-                _ = state.pool.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
-                result = db.query_one("SELECT TRUE", &[]) => result,
-            };
-            operation.restore();
-            let row = result.map_err(|error| database_error(error, &state.pool.secrets))?;
-            row.try_get::<_, bool>(0)
-                .map_err(|error| database_error(pgorm::Error::from(error), &state.pool.secrets))
+            let operation = Operation::begin(state.clone()).py()?;
+            ConnectionState::run(operation, &CancellationToken::new(), async |db| {
+                let row = db
+                    .database()
+                    .query_one("SELECT TRUE", &[])
+                    .await
+                    .map_err(|error| state.pool.failure(&error))?;
+                row.try_get::<_, bool>(0)
+                    .map_err(|error| state.pool.failure(&pgorm::Error::from(error)))
+            })
+            .await
+            .py()
         })
     }
 
@@ -722,7 +467,7 @@ impl NativeConnection {
         self.state.close_now();
         let state = self.state.clone();
         future_into_py(py, async move {
-            drop(state.slot.lock().await.take());
+            state.released().await;
             Ok(())
         })
     }
@@ -736,15 +481,13 @@ impl NativeConnection {
         self.state.discard_now();
         let state = self.state.clone();
         future_into_py(py, async move {
-            if let Some(connection) = state.slot.lock().await.take() {
-                connection.discard();
-            }
+            state.discarded().await;
             Ok(())
         })
     }
 
     fn closed(&self) -> bool {
-        self.state.cancelled.is_cancelled() || self.state.pool.cancelled.is_cancelled()
+        self.state.is_closed()
     }
 
     fn __repr__(&self) -> String {

@@ -16,7 +16,8 @@ publish = false
 [dependencies]
 pgorm = { version = "0.2.0", path = ".." }
 futures-util = "0.3.34"
-tokio = { version = "1.53", features = ["sync"] }
+tokio = { version = "1.53", features = ["sync", "time", "rt", "macros"] }
+tokio-util = "0.7.20"
 tokio-postgres.workspace = true
 # TLS through rustls, verifying against the platform's trust store or a CA the
 # caller supplies; PEM is read through rustls' own pki-types.

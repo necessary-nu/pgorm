@@ -5,96 +5,27 @@
 //! through `Operation`. Closing the listener drops the stream, which closes
 //! its connection.
 
-use std::{
-    fmt,
-    num::NonZeroUsize,
-    sync::{Arc, Weak},
-};
+use crate::errors::Raise as _;
+use crate::runtime::Owned as _;
+use std::{fmt, num::NonZeroUsize, sync::Arc};
 
 use crate::panics::future_into_py;
-use futures_util::StreamExt;
 use pyo3::{
     exceptions::{PyTypeError, PyValueError},
     prelude::*,
 };
 use serde_json::{Value, json};
-use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
+
+use pgorm_bindings::{ListenRequest, ListenerState};
 
 use crate::{
     config::{self, DIALECT, seconds},
-    errors::{ConstructionError, InternalError, LifecycleError, Redactions, database_error},
+    errors::{ConstructionError, InternalError},
     execution::Target,
-    runtime::{PoolState, check_loop, running_loop},
+    runtime::{Loop, PoolState, check_loop, running_loop},
     transactions::work::{Output, Work},
 };
-
-pub(crate) struct ListenerState {
-    /// The event loop the listener belongs to: its pool's, or the one
-    /// `connect_listener` ran on.
-    owner: Arc<Py<PyAny>>,
-    /// Its pool's closing, which closes it; one that never fires for a
-    /// listener of no pool.
-    pool_closed: CancellationToken,
-    secrets: Redactions,
-    listener: pgorm::Listener,
-    /// `None` once the listener is closed or its stream has ended.
-    notifications: Arc<Mutex<Option<pgorm::Notifications>>>,
-    closed: CancellationToken,
-}
-
-impl fmt::Debug for ListenerState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ListenerState")
-            .field("closed", &self.closed.is_cancelled())
-            .finish_non_exhaustive()
-    }
-}
-
-impl ListenerState {
-    /// Close without waiting: a stream no pull holds is dropped here, and one
-    /// a pending pull holds is dropped by that pull when it sees the close.
-    pub(crate) fn close_now(&self) {
-        self.closed.cancel();
-        if let Ok(mut notifications) = self.notifications.try_lock() {
-            drop(notifications.take());
-        }
-    }
-
-    fn ensure_pool_open(&self) -> PyResult<()> {
-        if self.pool_closed.is_cancelled() {
-            Err(LifecycleError::new_err("pool is closed"))
-        } else {
-            Ok(())
-        }
-    }
-
-    fn check_owner(&self, py: Python<'_>) -> PyResult<()> {
-        check_loop(py, &self.owner, "listener")
-    }
-
-    fn ensure_open(&self) -> PyResult<()> {
-        self.ensure_pool_open()?;
-        if self.closed.is_cancelled() {
-            Err(LifecycleError::new_err("listener is closed"))
-        } else {
-            Ok(())
-        }
-    }
-}
-
-/// Closes the listener if the request it guards is abandoned before its
-/// reply: the server may have acted on a `LISTEN` or `UNLISTEN` whose answer
-/// never arrived, so which channels the connection listens on is unknown.
-struct CloseUnlessAnswered(Option<Arc<ListenerState>>);
-
-impl Drop for CloseUnlessAnswered {
-    fn drop(&mut self) {
-        if let Some(state) = self.0.take() {
-            state.close_now();
-        }
-    }
-}
 
 /// Open a listener on `pool`'s configuration and register it, so closing the
 /// pool closes it.
@@ -105,27 +36,17 @@ pub(crate) fn open<'py>(
     capacity: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
     pool.check_owner(py)?;
-    pool.ensure_open()?;
+    pool.ensure_open().py()?;
     let capacity = NonZeroUsize::new(capacity)
         .ok_or_else(|| PyValueError::new_err("capacity must be a positive integer"))?;
     future_into_py(py, async move {
-        let (listener, notifications) = tokio::select! {
-            biased;
-            _ = pool.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
-            opened = pool.pool.listener(capacity) => {
-                opened.map_err(|error| database_error(error, &pool.secrets))?
-            }
-        };
-        let state = Arc::new(ListenerState {
+        let state = ListenerState::on_pool(&pool, capacity, &CancellationToken::new())
+            .await
+            .py()?;
+        Ok(NativeListener {
+            state,
             owner: pool.owner.clone(),
-            pool_closed: pool.cancelled.clone(),
-            secrets: pool.secrets.clone(),
-            listener,
-            notifications: Arc::new(Mutex::new(Some(notifications))),
-            closed: CancellationToken::new(),
-        });
-        pool.register_listener(&state)?;
-        Ok(NativeListener { state })
+        })
     })
 }
 
@@ -158,30 +79,18 @@ fn connect_listener<'py>(
         DIALECT,
     )
     .map_err(|refusal| ConstructionError::new_err(refusal.into_message()))?;
-    let secrets = Redactions::from_config(&configured);
     future_into_py(py, async move {
-        let (listener, notifications) =
-            pgorm_bindings::connect_listener(configured, connector, capacity)
-                .await
-                .map_err(|error| database_error(error, &secrets))?;
-        Ok(NativeListener {
-            state: Arc::new(ListenerState {
-                owner,
-                pool_closed: CancellationToken::new(),
-                secrets,
-                listener,
-                notifications: Arc::new(Mutex::new(Some(notifications))),
-                closed: CancellationToken::new(),
-            }),
-        })
+        let state = ListenerState::connect(
+            configured,
+            connector,
+            capacity,
+            DIALECT,
+            &CancellationToken::new(),
+        )
+        .await
+        .py()?;
+        Ok(NativeListener { state, owner })
     })
-}
-
-/// What a request on the listener asks for.
-enum Request {
-    Listen(String),
-    Unlisten(String),
-    UnlistenAll,
 }
 
 // [spec:pgorm:req:bindings.argument-errors+1]
@@ -197,6 +106,9 @@ fn channel(value: &Bound<'_, PyAny>) -> PyResult<String> {
 #[pyclass(name = "_Listener", module = "pgorm._native", frozen)]
 pub(crate) struct NativeListener {
     state: Arc<ListenerState>,
+    /// The event loop the listener belongs to: its pool's, or the one
+    /// `connect_listener` ran on.
+    owner: Loop,
 }
 
 impl fmt::Debug for NativeListener {
@@ -208,29 +120,16 @@ impl fmt::Debug for NativeListener {
 }
 
 impl NativeListener {
-    fn request<'py>(&self, py: Python<'py>, request: Request) -> PyResult<Bound<'py, PyAny>> {
-        self.state.check_owner(py)?;
-        self.state.ensure_open()?;
+    fn check_owner(&self, py: Python<'_>) -> PyResult<()> {
+        check_loop(py, &self.owner, "listener")
+    }
+
+    fn request<'py>(&self, py: Python<'py>, request: ListenRequest) -> PyResult<Bound<'py, PyAny>> {
+        self.check_owner(py)?;
+        self.state.ensure_open().py()?;
         let state = self.state.clone();
         future_into_py(py, async move {
-            state.ensure_open()?;
-            let mut guard = CloseUnlessAnswered(Some(state.clone()));
-            let listener = &state.listener;
-            let sent = async {
-                match &request {
-                    Request::Listen(channel) => listener.listen(channel).await,
-                    Request::Unlisten(channel) => listener.unlisten(channel).await,
-                    Request::UnlistenAll => listener.unlisten_all().await,
-                }
-            };
-            let result = tokio::select! {
-                biased;
-                _ = state.pool_closed.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
-                _ = state.closed.cancelled() => return Err(LifecycleError::new_err("listener is closed")),
-                result = sent => result,
-            };
-            guard.0 = None;
-            result.map_err(|error| database_error(error, &state.secrets))
+            state.send(request, &CancellationToken::new()).await.py()
         })
     }
 }
@@ -239,7 +138,7 @@ impl NativeListener {
 impl NativeListener {
     fn listen<'py>(&self, py: Python<'py>, name: &Bound<'_, PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let name = channel(name)?;
-        self.request(py, Request::Listen(name))
+        self.request(py, ListenRequest::Listen(name))
     }
 
     fn unlisten<'py>(
@@ -248,75 +147,41 @@ impl NativeListener {
         name: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let name = channel(name)?;
-        self.request(py, Request::Unlisten(name))
+        self.request(py, ListenRequest::Unlisten(name))
     }
 
     fn unlisten_all<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        self.request(py, Request::UnlistenAll)
+        self.request(py, ListenRequest::UnlistenAll)
     }
 
     /// The next notification, or `None` once the listener is closed. An
     /// error ends the stream and closes the listener; a cancelled pull loses
     /// nothing, the notification it awaited staying queued.
     fn next<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        self.state.check_owner(py)?;
+        self.check_owner(py)?;
         let state = self.state.clone();
         future_into_py(py, async move {
-            state.ensure_pool_open()?;
-            let mut slot = state.notifications.clone().try_lock_owned().map_err(|_| {
-                LifecycleError::new_err("listener already has a pending next operation")
-            })?;
-            if state.closed.is_cancelled() {
-                drop(slot.take());
-                return Ok(None);
-            }
-            let Some(notifications) = slot.as_mut() else {
-                return Ok(None);
-            };
-            let item = tokio::select! {
-                biased;
-                _ = state.pool_closed.cancelled() => {
-                    drop(slot.take());
-                    return Err(LifecycleError::new_err("pool is closed"));
-                }
-                _ = state.closed.cancelled() => {
-                    drop(slot.take());
-                    return Ok(None);
-                }
-                item = notifications.next() => item,
-            };
-            match item {
-                Some(Ok(notification)) => Ok(Some(PyNotification {
-                    channel: notification.channel().to_owned(),
-                    payload: notification.payload().to_owned(),
-                    process_id: notification.process_id(),
-                })),
-                Some(Err(error)) => {
-                    state.closed.cancel();
-                    drop(slot.take());
-                    Err(database_error(error, &state.secrets))
-                }
-                None => {
-                    state.closed.cancel();
-                    drop(slot.take());
-                    Ok(None)
-                }
-            }
+            let received = state.next(&CancellationToken::new()).await.py()?;
+            Ok(received.map(|received| PyNotification {
+                channel: received.channel,
+                payload: received.payload,
+                process_id: received.process_id,
+            }))
         })
     }
 
     fn close<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        self.state.check_owner(py)?;
+        self.check_owner(py)?;
         self.state.close_now();
         let state = self.state.clone();
         future_into_py(py, async move {
-            drop(state.notifications.lock().await.take());
+            state.release().await;
             Ok(())
         })
     }
 
     fn closed(&self) -> bool {
-        self.state.closed.is_cancelled() || self.state.pool_closed.is_cancelled()
+        self.state.is_closed()
     }
 
     fn __repr__(&self) -> String {
@@ -401,13 +266,6 @@ pub(crate) fn notify<'py>(
             _ => Err(InternalError::new_err("unexpected notify result")),
         }
     })
-}
-
-/// Drop every listener `registry` still holds a handle to.
-pub(crate) fn close_all(registry: &[Weak<ListenerState>]) {
-    for state in registry.iter().filter_map(Weak::upgrade) {
-        state.close_now();
-    }
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

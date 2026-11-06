@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Locked Cargo graph, including build and platform-conditional dependencies; a superset of any one wheel",
-  "cargo_lock_sha256": "e181fb1026192126a1ddbc517c1d3d966200f6a42e672d4e75fbb22af03fd116",
+  "cargo_lock_sha256": "460bc424971ca6857474b7081bead856e0f6d6f9d7b23302bbbcd598e4c8d914",
   "python_runtime_dependencies": [],
   "packages": [
     {

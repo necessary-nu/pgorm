@@ -1,5 +1,6 @@
+use crate::errors::Raise as _;
+use crate::runtime::Owned as _;
 use crate::{
-    errors::{LifecycleError, database_error},
     runtime::{ConnectionState, NativeConnection, NativePool, Operation, PoolState},
     transactions::{
         NativeTransaction, State,
@@ -10,6 +11,7 @@ use pgorm::metric::InstrumentedPool;
 use pgorm_bindings::Metrics;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 pub(crate) enum Target {
     Connection(Arc<ConnectionState>),
@@ -48,26 +50,27 @@ impl Target {
         match self {
             Self::Connection(state) => {
                 state.pool.check_owner(py)?;
-                state.ensure_open()
+                state.ensure_open().py()
             }
-            Self::Transaction(state) => state.check(py),
+            Self::Transaction(state) => state.check_owner(py),
             Self::Hook(state) => state.check(py),
         }
     }
 
     pub(crate) async fn run(self, work: Work) -> PyResult<Output> {
         match self {
-            Self::Transaction(state) => state.run(work).await,
+            Self::Transaction(state) => crate::transactions::run(&state, work).await,
             Self::Hook(state) => state.run(work).await,
             Self::Connection(state) => {
-                let operation = Operation::begin(state.clone())?;
-                let result = tokio::select! {
-                    _ = state.cancelled.cancelled() => return Err(LifecycleError::new_err("connection is closed")),
-                    _ = state.pool.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
-                    result = work.run(operation.connection()?) => result,
-                };
-                operation.restore();
-                result.map_err(|error| database_error(error, &state.pool.secrets))
+                let operation = Operation::begin(state.clone()).py()?;
+                let pool = state.pool.clone();
+                ConnectionState::run(operation, &CancellationToken::new(), async |db| {
+                    work.run(db.database())
+                        .await
+                        .map_err(|error| pool.failure(&error))
+                })
+                .await
+                .py()
             }
         }
     }
@@ -102,7 +105,7 @@ impl Executor {
         match self {
             Self::Pool(pool, _) => {
                 pool.check_owner(py)?;
-                pool.ensure_open()
+                pool.ensure_open().py()
             }
             Self::Held(target) => target.check(py),
         }
@@ -114,7 +117,7 @@ impl Executor {
         match self {
             Self::Held(target) => target.run(work).await,
             Self::Pool(pool, metered) => {
-                Target::Connection(pool.lend(metered).await?)
+                Target::Connection(pool.lend(metered.as_ref()).await.py()?)
                     .run(work)
                     .await
             }

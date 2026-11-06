@@ -22,21 +22,10 @@ pub(crate) mod stream;
 mod transaction;
 
 use crate::errors::FailureJs as _;
-use std::{
-    fmt,
-    future::Future,
-    ops::Deref,
-    sync::{Arc, Mutex as SyncMutex, PoisonError, Weak},
-    time::Duration,
-};
+use std::{future::Future, ops::Deref, sync::Arc};
 
 use neon::{prelude::*, types::Finalize};
-use pgorm::{
-    ConnectionTrait, DatabaseConnection,
-    metric::{InstrumentedConnection, InstrumentedPool},
-    types::ToSql,
-};
-use tokio::sync::{Mutex, OwnedMutexGuard};
+use pgorm::{ConnectionTrait, metric::InstrumentedPool, types::ToSql};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -49,7 +38,6 @@ use crate::{
 };
 
 use config::Built;
-use job::Database;
 use pgorm_bindings::Metrics;
 
 pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
@@ -262,61 +250,12 @@ impl Outcome {
 }
 
 /// A pool, shared by the JavaScript `Pool` and every connection it lent.
-pub(crate) struct PoolState {
-    pool: pgorm::DatabasePool,
-    pub(crate) secrets: Redactions,
-    pub(crate) closed: CancellationToken,
-    acquire_timeout: Duration,
-    connections: SyncMutex<Vec<Weak<ConnectionState>>>,
-    /// The listeners opened with this pool's configuration, which close
-    /// with it though their connections are not the pool's.
-    listeners: SyncMutex<Vec<Weak<listen::ListenerState>>>,
-}
-
-impl fmt::Debug for PoolState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PoolState")
-            .field("closed", &self.closed.is_cancelled())
-            .finish_non_exhaustive()
-    }
-}
-
-impl PoolState {
-    pub(crate) fn ensure_open(&self) -> Result<(), Failure> {
-        if self.closed.is_cancelled() {
-            Err(Failure::Lifecycle("the pool is closed".to_owned()))
-        } else {
-            Ok(())
-        }
-    }
-
-    /// Refuse new work, close idle connections, and hand back every lent
-    /// connection for release. Every lent connection, its operations,
-    /// transactions and streams watch this pool's token, so cancelling it
-    /// closes them all and cuts short what runs.
-    fn close_now(&self) -> Vec<Arc<ConnectionState>> {
-        self.closed.cancel();
-        self.pool.close();
-        let mut registry = self
-            .connections
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        let connections = registry.iter().filter_map(Weak::upgrade).collect();
-        registry.clear();
-        connections
-    }
-
-    /// The listeners still open, for release once the pool has closed.
-    fn take_listeners(&self) -> Vec<Arc<listen::ListenerState>> {
-        let mut registry = self
-            .listeners
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        let listeners = registry.iter().filter_map(Weak::upgrade).collect();
-        registry.clear();
-        listeners
-    }
-}
+pub(crate) type PoolState = pgorm_bindings::PoolState;
+/// One connection a pool lent.
+pub(crate) type ConnectionState = pgorm_bindings::ConnectionState;
+/// A connection taken out of its slot for one operation.
+pub(crate) type Operation = pgorm_bindings::Operation;
+pub(crate) use pgorm_bindings::Held;
 
 /// A pool as a JavaScript `Pool` holds it: its state, which every
 /// instrumented pool wrapping it shares, and for an instrumented pool,
@@ -340,70 +279,21 @@ impl Lender {
     /// The pool `built` holds, lending its connections plain.
     fn new(built: Built) -> Self {
         Self {
-            state: Arc::new(PoolState {
-                pool: built.pool,
-                secrets: built.secrets,
-                closed: CancellationToken::new(),
-                acquire_timeout: built.acquire_timeout,
-                connections: SyncMutex::new(Vec::new()),
-                listeners: SyncMutex::new(Vec::new()),
-            }),
+            state: PoolState::new(
+                built.pool,
+                built.secrets,
+                (),
+                built.acquire_timeout,
+                config::DIALECT,
+            ),
             metered: None,
         }
     }
 
     /// A connection, within the acquire budget, unless the pool closes
-    /// first. Through an instrumented pool the acquisition is reported, and
-    /// the connection reports what runs on it.
+    /// first.
     async fn get(&self) -> Result<Held, Failure> {
-        self.ensure_open()?;
-        let acquire = async {
-            match &self.metered {
-                Some(metered) => metered.get().await.map(Held::Metered),
-                None => self.pool.get().await.map(Held::Plain),
-            }
-        };
-        let connection = tokio::select! {
-            () = self.closed.cancelled() => {
-                return Err(Failure::Lifecycle("the pool is closed".to_owned()));
-            }
-            acquired = tokio::time::timeout(self.acquire_timeout, acquire) => acquired
-                .map_err(|_| Failure::Timeout(format!(
-                    "no connection became free within {} ms",
-                    self.acquire_timeout.as_millis()
-                )))?
-                .map_err(|error| failure(&error, &self.secrets))?,
-        };
-        if self.closed.is_cancelled() {
-            connection.discard();
-            return Err(Failure::Lifecycle("the pool is closed".to_owned()));
-        }
-        Ok(connection)
-    }
-}
-
-/// A connection checked out of a pool: a plain one, or one an instrumented
-/// pool lent, which reports what runs on it.
-// [spec:pgorm:req:bindings.metrics]
-#[derive(Debug)]
-pub(crate) enum Held {
-    Plain(DatabaseConnection),
-    Metered(InstrumentedConnection<Metrics>),
-}
-
-impl Held {
-    pub(crate) fn database(&self) -> Database<'_> {
-        match self {
-            Self::Plain(connection) => Database::Connection(connection),
-            Self::Metered(connection) => Database::InstrumentedConnection(connection),
-        }
-    }
-
-    pub(crate) fn discard(self) {
-        match self {
-            Self::Plain(connection) => connection.discard(),
-            Self::Metered(connection) => connection.into_inner().discard(),
-        }
+        self.state.acquire(self.metered.as_ref()).await
     }
 }
 
@@ -412,62 +302,6 @@ impl Held {
 pub(crate) struct PoolHandle(Lender);
 
 impl Finalize for PoolHandle {}
-
-/// One connection checked out of a pool, in its slot while no operation
-/// holds it.
-pub(crate) struct ConnectionState {
-    pub(crate) pool: Arc<PoolState>,
-    pub(crate) closed: CancellationToken,
-    slot: Arc<Mutex<Option<Held>>>,
-}
-
-impl fmt::Debug for ConnectionState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ConnectionState")
-            .field("closed", &self.closed.is_cancelled())
-            .finish_non_exhaustive()
-    }
-}
-
-impl ConnectionState {
-    /// Close, returning an idle connection to the pool; one an operation
-    /// holds is discarded when that operation sees the close.
-    fn close_now(&self) {
-        self.closed.cancel();
-        if let Ok(mut slot) = self.slot.try_lock() {
-            drop(slot.take());
-        }
-    }
-
-    /// Close, discarding the connection rather than returning it: one an
-    /// operation holds is discarded by that operation once it sees the close.
-    // [spec:pgorm:req:bindings.connections+3]
-    fn discard_now(&self) {
-        self.closed.cancel();
-        if let Ok(mut slot) = self.slot.try_lock()
-            && let Some(connection) = slot.take()
-        {
-            connection.discard();
-        }
-    }
-
-    pub(crate) fn ensure_open(&self) -> Result<(), Failure> {
-        self.pool.ensure_open()?;
-        if self.closed.is_cancelled() {
-            Err(Failure::Lifecycle("the connection is closed".to_owned()))
-        } else {
-            Ok(())
-        }
-    }
-
-    /// Resolves once the connection or its pool closes.
-    pub(crate) async fn closing(&self) {
-        tokio::select! {
-            () = self.closed.cancelled() => {}
-            () = self.pool.closed.cancelled() => {}
-        }
-    }
-}
 
 /// The JavaScript `Connection`'s native half. Collected unclosed, it
 /// returns its connection to the pool if the connection is idle, and leaves
@@ -480,80 +314,7 @@ impl Finalize for ConnectionHandle {}
 
 impl Drop for ConnectionHandle {
     fn drop(&mut self) {
-        if let Ok(mut slot) = self.0.slot.try_lock()
-            && let Some(connection) = slot.take()
-        {
-            self.0.closed.cancel();
-            drop(connection);
-        }
-    }
-}
-
-/// A connection taken out of its slot for one operation. Restored, it goes
-/// back; dropped unrestored — the operation aborted or cut off — it is
-/// discarded and its JavaScript connection closed, because its state is
-/// unknown.
-// [spec:pgorm:req:bindings.connections+3]
-// [spec:pgorm:req:bindings.cancellation]
-pub(crate) struct Operation {
-    slot: OwnedMutexGuard<Option<Held>>,
-    connection: Option<Held>,
-    pub(crate) state: Arc<ConnectionState>,
-}
-
-impl fmt::Debug for Operation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Operation").finish_non_exhaustive()
-    }
-}
-
-impl Operation {
-    pub(crate) fn begin(state: Arc<ConnectionState>) -> Result<Self, Failure> {
-        state.ensure_open()?;
-        let mut slot = state.slot.clone().try_lock_owned().map_err(|_| {
-            Failure::Lifecycle(
-                "the connection is busy: an operation, a transaction or a stream holds it"
-                    .to_owned(),
-            )
-        })?;
-        let connection = slot
-            .take()
-            .ok_or_else(|| Failure::Lifecycle("the connection is closed".to_owned()))?;
-        Ok(Self {
-            slot,
-            connection: Some(connection),
-            state,
-        })
-    }
-
-    pub(crate) fn connection(&self) -> Result<Database<'_>, Failure> {
-        self.connection
-            .as_ref()
-            .map(Held::database)
-            .ok_or_else(|| Failure::Internal("the operation has no connection".to_owned()))
-    }
-
-    pub(crate) fn connection_mut(&mut self) -> Result<&mut Held, Failure> {
-        self.connection
-            .as_mut()
-            .ok_or_else(|| Failure::Internal("the operation has no connection".to_owned()))
-    }
-
-    /// Put the connection back for the next operation, or return it to the
-    /// pool if its JavaScript connection closed meanwhile.
-    pub(crate) fn restore(mut self) {
-        if self.state.ensure_open().is_ok() {
-            *self.slot = self.connection.take();
-        }
-    }
-}
-
-impl Drop for Operation {
-    fn drop(&mut self) {
-        if let Some(connection) = self.connection.take() {
-            self.state.closed.cancel();
-            connection.discard();
-        }
+        self.0.abandon();
     }
 }
 
@@ -569,18 +330,11 @@ fn connection<'cx>(cx: &mut FunctionContext<'cx>) -> NeonResult<Arc<ConnectionSt
 /// every lent connection is released.
 // [spec:pgorm:req:bindings.connections+3]
 fn pool_close(mut cx: FunctionContext) -> JsResult<JsPromise> {
-    let state = pool(&mut cx)?;
-    let connections = state.close_now();
-    let listeners = state.take_listeners();
+    let closed = pool(&mut cx)?.close_now();
     settle::promise(
         &mut cx,
         async move {
-            for connection in connections {
-                drop(connection.slot.lock().await.take());
-            }
-            for listener in listeners {
-                listener.release().await;
-            }
+            closed.released().await;
             Ok(())
         },
         |cx, ()| Ok(cx.undefined().upcast()),
@@ -598,26 +352,7 @@ fn pool_closed(mut cx: FunctionContext) -> JsResult<JsBoolean> {
 fn pool_acquire(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = pool(&mut cx)?;
     let abort = abort_argument(&mut cx, 1)?;
-    let work = async move {
-        let connection = abort.guard(state.get()).await?;
-        let lent = Arc::new(ConnectionState {
-            pool: state.state.clone(),
-            closed: CancellationToken::new(),
-            slot: Arc::new(Mutex::new(Some(connection))),
-        });
-        let mut registry = state
-            .connections
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        if state.closed.is_cancelled() {
-            drop(registry);
-            lent.close_now();
-            return Err(Failure::Lifecycle("the pool is closed".to_owned()));
-        }
-        registry.retain(|item| item.strong_count() > 0);
-        registry.push(Arc::downgrade(&lent));
-        Ok(lent)
-    };
+    let work = async move { abort.guard(state.state.lend(state.metered.as_ref())).await };
     settle::promise(&mut cx, work, |cx, lent| {
         Ok(cx.boxed(ConnectionHandle(lent)).upcast())
     })
@@ -650,20 +385,9 @@ pub(crate) async fn on_pool<T, W>(pool: &Lender, abort: &Abort, work: W) -> Resu
 where
     W: AsyncFnOnce(&mut Held) -> Result<T, Failure>,
 {
-    let mut connection = abort.guard(pool.get()).await?;
-    let outcome = tokio::select! {
-        biased;
-        () = abort.token().cancelled() => Err(Failure::Cancelled),
-        () = pool.closed.cancelled() => {
-            Err(Failure::Lifecycle("the pool closed while the statement ran".to_owned()))
-        }
-        outcome = work(&mut connection) => {
-            drop(connection);
-            return outcome;
-        }
-    };
-    connection.discard();
-    outcome
+    pool.state
+        .run(pool.metered.as_ref(), abort.token(), work)
+        .await
 }
 
 /// Run `work` on the connection `operation` took from its slot — taken on
@@ -672,27 +396,14 @@ where
 /// connection or pool closes or the caller aborts, in which case the
 /// connection is discarded.
 pub(crate) async fn on_connection<T, W>(
-    mut operation: Operation,
+    operation: Operation,
     abort: &Abort,
     work: W,
 ) -> Result<T, Failure>
 where
     W: AsyncFnOnce(&mut Held) -> Result<T, Failure>,
 {
-    let state = operation.state.clone();
-    let outcome = tokio::select! {
-        biased;
-        () = abort.token().cancelled() => return Err(Failure::Cancelled),
-        () = state.closed.cancelled() => {
-            return Err(Failure::Lifecycle("the connection closed while the statement ran".to_owned()));
-        }
-        () = state.pool.closed.cancelled() => {
-            return Err(Failure::Lifecycle("the pool closed while the statement ran".to_owned()));
-        }
-        outcome = work(operation.connection_mut()?) => outcome,
-    };
-    operation.restore();
-    outcome
+    ConnectionState::run(operation, abort.token(), work).await
 }
 
 /// `connectionRun(connection, terminal, sql, params, tagged, abort)`.
@@ -753,7 +464,7 @@ fn connection_close(mut cx: FunctionContext) -> JsResult<JsPromise> {
     settle::promise(
         &mut cx,
         async move {
-            drop(state.slot.lock().await.take());
+            state.released().await;
             Ok(())
         },
         |cx, ()| Ok(cx.undefined().upcast()),
@@ -770,9 +481,7 @@ fn connection_discard(mut cx: FunctionContext) -> JsResult<JsPromise> {
     settle::promise(
         &mut cx,
         async move {
-            if let Some(connection) = state.slot.lock().await.take() {
-                connection.discard();
-            }
+            state.discarded().await;
             Ok(())
         },
         |cx, ()| Ok(cx.undefined().upcast()),
@@ -781,6 +490,6 @@ fn connection_discard(mut cx: FunctionContext) -> JsResult<JsPromise> {
 
 fn connection_closed(mut cx: FunctionContext) -> JsResult<JsBoolean> {
     let state = connection(&mut cx)?;
-    let closed = state.ensure_open().is_err();
+    let closed = state.is_closed();
     Ok(cx.boolean(closed))
 }

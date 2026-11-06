@@ -64,8 +64,6 @@ pub(crate) enum Output {
         )>,
     ),
     Finished,
-    /// A retrying transaction's attempt ended, and pgorm opened the next.
-    Retrying,
 }
 
 impl Work {

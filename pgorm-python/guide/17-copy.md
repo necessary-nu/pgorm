@@ -147,7 +147,7 @@ async def main() -> None:
                 yield b"Dusk\tBodo\n"
 
             assert await connection.copy_in(copy, bakeries()) == 2
-            assert refused == ["connection already has an active operation"]
+            assert refused == ["the connection is busy: an operation, a transaction or a stream holds it"]
 
             # Once the COPY ends, the connection runs statements again.
             row = await connection.one(RawSQL("SELECT count(*) AS bakeries FROM bakery"))

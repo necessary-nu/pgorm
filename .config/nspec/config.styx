@@ -42,6 +42,7 @@ specs ({
                 pgorm-sql-macro/tests/**/*.rs
                 pgorm-test-support/tests/**/*.rs
                 pgorm-guide-support/tests/**/*.rs
+                pgorm-bindings/tests/**/*.rs
                 security/sqlmap/adapter/tests/**/*.rs
                 security/generative/tests/**/*.py
                 security/generative/bridge/tests/**/*.rs

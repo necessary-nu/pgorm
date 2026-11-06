@@ -173,7 +173,7 @@ async def main() -> None:
         try:
             await pool.acquire()
         except pgorm.TimeoutError as error:
-            assert str(error) == "pool acquisition timed out"
+            assert str(error) == "no connection became free within the pool's acquire_timeout"
         else:
             raise AssertionError("every connection is lent")
 

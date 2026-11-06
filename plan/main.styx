@@ -20038,6 +20038,9 @@ children (
                 id binding-parity.shared-runtime
                 title "The logic both binding crates hold alike (serving a transaction's frame and its retries, the type-erased cursors and paginators, the capability and refusal plumbing) lives once, in a binding-runtime crate both call"
                 kind @refactor
+                implements {
+                    main (bindings.shared-runtime)
+                }
                 deps (guide.python-gaps.raw-sql)
                 log (
                     {
@@ -20052,6 +20055,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "The type-erased reads part is done by guide.python-gaps.shared-erased-reads (6f5d86e8, branch nplan/guide.python-gaps.model-relations). It moved into pgorm: DatabaseRef<'a, M> (src/database/database_ref.rs, rule conn.database-ref), now both bindings' executor enum (each binding keeps only `type Database<'a> = pgorm::DatabaseRef<'a, Metrics>`); ErasedPages + PagedRead (was each binding's Paged/Pages), ErasedCursor + KeyedRead under CursorPlan/CursorWindow (was Keyed/Keyset and each binding's Plan), select_cursor, graph_cursor / graph_cursor_on over a key chosen at run time (was each binding's by-arity macro), graph_cursor_key (was key_of's ordering logic), boundary_columns + KeyArity (was each binding's boundary-arity check), grouped_read / GroupedRead (was grouped_by), all in src/executor/erased.rs (rules exec.cursor.erased, exec.paginator.erased). What stays in each binding is glue: mapping keys to its own EntityInfo and PyO3 / Neon conversion. Still to do under this node: the transaction frame and retry serve functions, and the capability and refusal plumbing."
+                    }
+
+                    {
+                        at 2026-11-06T12:25:35.272103Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Shared failure classification (pgorm-bindings failure.rs, 1d6e5d5e): the two bindings classified pgorm errors differently (napi's default arm ConnectionError, Python's DatabaseError; napi classified RecordNotFound/Custom/NothingToSet only on entity paths). The one classification takes Python's arms everywhere, with Error::Query (pgorm's own refusal of a query as written: an empty select list, a tie limit under a paginator, a PipelineError) a ConstructionError rather than Python's DatabaseError default, and pgorm errors nothing names a ConnectionError. A failed rollback's message joins its two classified failures' messages. The driver's protocol-failure text keeps the driver's redacted account after 'PostgreSQL connection or protocol failure: ' in both bindings (Python's guide 09-errors asserts the prefix). Lifecycle messages the Python guide pins keep Python's wording in both bindings ('pool is closed', 'connection is closed', 'connection already has an active operation', 'transaction is closed'); the acquire timeout reads 'no connection became free within the pool's acquire_timeout' (dialect-spelled). Shared state types are generic over O, the binding's own data about its pool (Python's event loop, () for napi), which shared code never reads."
                     }
                 )
             }
