@@ -338,6 +338,7 @@ pub async fn connect_multi_with_shares_the_manager() -> Result<(), Error> {
     Ok(())
 }
 
+// [spec:pgorm:def:conn.database-ref+1/test]    a DatabaseRef over a hook's connection
 // [spec:pgorm:def:conn.pool.hook-connection/test]    a hook runs pgorm statements on its
 // connection, through that connection's statement cache
 #[pgorm_macros::test]
@@ -359,6 +360,14 @@ pub async fn a_hook_runs_statements_through_its_connection() -> Result<(), Error
                 .await
                 .map_err(fail)?;
             assert_eq!(row.get::<_, String>(0), "pgorm-hooked");
+            // The erased executor a binding holds runs on the hook's connection too.
+            let erased: pgorm::DatabaseRef<'_> = db.into();
+            let one: i32 = erased
+                .query_one("SELECT 1", &[])
+                .await
+                .map_err(fail)?
+                .get(0);
+            assert_eq!(one, 1);
             Ok(())
         })
     });

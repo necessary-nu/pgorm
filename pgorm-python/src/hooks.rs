@@ -58,7 +58,7 @@ impl HookState {
             || LifecycleError::new_err("the hook has returned, so its connection is the pool's");
         if !self.jobs.submit(move |db| {
             Box::pin(async move {
-                drop(reply.send(work.run(Database::Hook(db)).await));
+                drop(reply.send(work.run(Database::Hook(*db)).await));
             })
         }) {
             return Err(closed());

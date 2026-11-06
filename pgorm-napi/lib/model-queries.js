@@ -13,11 +13,14 @@ import { cursorOver, paginatorOver } from "./cursors.js";
 import { decodeAll, decodeCount, decodeOne, decodeOptional, decodeStream } from "./model-decode.js";
 import { fieldOf, projected, qualified, sameTable } from "./model-shape.js";
 import { native } from "./operations.js";
-import { relationOn, shapesOf } from "./relations.js";
+import { relationOn, shapesOf, startOf } from "./relations.js";
 import { Select, select } from "./select.js";
 
 /** Marks a construction from within the module. */
 const MADE = Symbol("pgorm-napi model query");
+
+/** @type {(query: ModelQuery) => Recipe} */
+let recipeOfQuery;
 
 /**
  * What a model query reads and how: the fields it selects, the tables it
@@ -106,6 +109,10 @@ export class ModelQuery {
     this.#statement = selectOf(recipe);
   }
 
+  static {
+    recipeOfQuery = (query) => query.#recipe;
+  }
+
   /** @param {Partial<Recipe>} change */
   #with(change) {
     return new ModelQuery({ ...this.#recipe, ...change }, MADE);
@@ -154,7 +161,8 @@ export class ModelQuery {
   /**
    * Join the table at the other end of `relation`, from the query's model or
    * a table it joined, without reading its columns: what a condition on a
-   * related row needs.
+   * related row needs. The join starts from the first table of the
+   * relation's model the query reads, or the one its `fromAlias` names.
    *
    * @param {import("./relations.js").Relation} relation
    * @param {{ kind?: "inner" | "left", alias?: string }} [options]
@@ -163,10 +171,21 @@ export class ModelQuery {
     if (kind !== "inner" && kind !== "left") throw new TypeError('a model join is "inner" or "left"');
     const [from, to] = shapesOf(relation);
     const recipe = this.#recipe;
-    const left = [recipe.shape, ...recipe.joins.map((join) => join.shape)];
-    const index = left.findIndex((shape) => sameTable(shape, from));
-    if (index < 0) throw new ConstructionError(`the relation starts at ${from.name}, which the query does not read`);
-    const leftQualifier = index === 0 ? recipe.shape.qualifier : /** @type {any} */ (recipe.joins[index - 1]).qualifier;
+    const tables = [{ shape: recipe.shape, qualifier: recipe.shape.qualifier }, ...recipe.joins];
+    const start = startOf(relation);
+    let leftQualifier;
+    if (start === null) {
+      const found = tables.find((table) => sameTable(table.shape, from));
+      if (found === undefined) throw new ConstructionError(`the relation starts at ${from.name}, which the query does not read`);
+      leftQualifier = found.qualifier;
+    } else {
+      const named = tables.find((table) => table.qualifier === start);
+      if (named === undefined) throw new ConstructionError(`the query reads no table called ${JSON.stringify(start)}`);
+      if (!sameTable(named.shape, from)) {
+        throw new ConstructionError(`${JSON.stringify(start)} is ${named.shape.name}, where the relation starts at ${from.name}`);
+      }
+      leftQualifier = start;
+    }
     const qualifier = alias ?? to.qualifier;
     const table = alias === undefined ? to.table : to.table.as(alias);
     const on = relationOn(relation, leftQualifier, qualifier);
@@ -264,6 +283,24 @@ export class ModelQuery {
  */
 export function countOf(statement) {
   return new Select(native.modelCount(arg(statement)), TRUSTED);
+}
+
+/**
+ * What `query` reads, which a relation's loader re-roots.
+ *
+ * @param {ModelQuery} query
+ */
+export function recipeOf(query) {
+  return recipeOfQuery(query);
+}
+
+/**
+ * The query reading `recipe`.
+ *
+ * @param {Recipe} recipe
+ */
+export function queryOf(recipe) {
+  return new ModelQuery(recipe, MADE);
 }
 
 /**

@@ -16,9 +16,9 @@ mod copy;
 mod hooks;
 pub(crate) mod job;
 mod listen;
-mod metrics;
+pub(crate) mod metrics;
 mod pools;
-mod stream;
+pub(crate) mod stream;
 mod transaction;
 
 use std::{
@@ -394,7 +394,7 @@ impl Held {
     pub(crate) fn database(&self) -> Database<'_> {
         match self {
             Self::Plain(connection) => Database::Connection(connection),
-            Self::Metered(connection) => Database::MeteredConnection(connection),
+            Self::Metered(connection) => Database::InstrumentedConnection(connection),
         }
     }
 

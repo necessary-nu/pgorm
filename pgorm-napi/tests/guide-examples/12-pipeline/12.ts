@@ -2,23 +2,26 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { pipeline as pl } from "@necessary/pgorm";
-import { Cake } from "../../../guide/bakery.ts";
+import { ConstructionError, pipeline as pl } from "@necessary/pgorm";
+import { Bakery, Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const cake = (column: string) => pl.col("cake", column);
-  const running = pl.alias("running");
+  // A third bakery, which sells nothing yet.
+  await Bakery.insert({ name: "Noon", city: "Tromsø" }).execute(pool);
 
-  const rows = await pl.from(Cake.table)
-    .filter(cake("bakery_id").eq(pl.literal(1)))
-    .window(pl.over().by(cake("bakery_id")).sortBy(cake("price")).rows(null, 0), pl.sum(cake("price")).as(running))
-    .sort(cake("price"))
-    .select(cake("name"), running)
-    .all(pool);
+  const menus = pl.from(Cake)
+    .join(Bakery, pl.col(Cake, "bakeryId").eq(pl.col(Bakery, "id")), { kind: "right" })
+    .filter(pl.col(Bakery, "city").ne("Oslo"))
+    .sort(pl.col(Bakery, "id"), pl.col(Cake, "id"))
+    .selectSources(Cake, Bakery);
+  const rows = await menus.all(pool);
+  assert.deepEqual(rows.map(([cake, bakery]) => [cake?.name ?? null, bakery?.name ?? null]), [
+    ["Carrot Cake", "Moonlight"],
+    ["Vanilla Sponge", "Moonlight"],
+    [null, "Noon"],
+  ]);
 
-  assert.deepEqual(
-    rows.map((row) => [row.name, String(row.running)]),
-    [["Lemon Drizzle", "3.20"], ["Chocolate Fudge", "7.70"], ["Chocolate Torte", "13.70"]],
-  );
+  const reshaped = pl.from(Cake).select(pl.col(Cake, "name")).selectSources(Cake);
+  assert.throws(() => reshaped.inspect(), ConstructionError);
 }

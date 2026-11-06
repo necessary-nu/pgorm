@@ -15,11 +15,18 @@ use super::{
     recipe::{BINARY, FUNCTIONS, Function, Literal, Recipe, UNARY},
     scope::bindable,
 };
-use crate::values::read;
+use crate::{
+    codec::Codec,
+    disjoint::column_type,
+    errors::throw,
+    values::{Tag, read},
+};
 
 pub(super) const EXPORTS: &[(&str, super::super::Build)] = &[
     ("pipelineCol", col),
     ("pipelineRegisteredCol", registered_col),
+    ("pipelineModelCol", model_col),
+    ("pipelineDeclaredValue", declared_value),
     ("pipelineComparesAs", compares_as),
     ("pipelineAlias", alias),
     ("pipelineRole", role),
@@ -107,6 +114,48 @@ fn registered_col(cx: &mut FunctionContext) -> NeonResult<Node> {
     let table = pipeline_name_at(cx, 0)?;
     let column = crate::entities::pipeline_column(cx, 1, 2)?;
     compose(cx, Recipe::Registered(table, column), &[])
+}
+
+/// `pipelineModelCol(table, column, kind, array, values)`: a declared model's
+/// field, the column its declaration names under the name its relation is
+/// read by, typed by the declaration through pgorm's `col_typed`.
+// [spec:pgorm:req:bindings.pipeline-models]
+fn model_col(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let table = pipeline_name_at(cx, 0)?;
+    let column = pipeline_name_at(cx, 1)?;
+    let kind = arg(cx, 2);
+    let codec = Codec::get(cx)?;
+    let tag = read::kind(cx, codec, kind)?;
+    let tag = match cx.argument::<JsBoolean>(3)?.value(cx) {
+        true => Tag::Array(Box::new(tag)),
+        false => tag,
+    };
+    let values = arg(cx, 4);
+    let values = match values.is_a::<JsNull, _>(cx) {
+        true => Vec::new(),
+        false => items(cx, values)?
+            .into_iter()
+            .map(|label| read::string(cx, label))
+            .collect::<NeonResult<Vec<_>>>()?,
+    };
+    let kind = column_type(&tag, &values).or_else(|failure| throw(cx, failure))?;
+    compose(cx, Recipe::Typed(table, column, kind), &[])
+}
+
+/// `pipelineDeclaredValue(value)`: a value a declared model's column has
+/// converted through its declaration, bound as the payload it holds, the
+/// column's own cast typing it as `col_typed` casts a compared value.
+// [spec:pgorm:req:bindings.pipeline-models]
+fn declared_value(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let value = arg(cx, 0);
+    let codec = Codec::get(cx)?;
+    let Some(tagged) = read::infer(cx, codec, value)? else {
+        return refuse(
+            cx,
+            "a model column's value is never null: test it with isNull()",
+        );
+    };
+    compose(cx, Recipe::Value(tagged.datum), &[])
 }
 
 /// `pipelineComparesAs(expr, type)`: the expression compared as the type

@@ -2,11 +2,20 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Bakery, bakeryCakes } from "../../../guide/bakery.ts";
+import { Cake, bakerCakeBakers, cakeBakerBaker, cakeBakerCake, cakeCakeBakers } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const first = await Bakery.find().orderBy(Bakery.col("id").asc()).limit(1).all(pool);
-  const cakes = await bakeryCakes.load(pool, first);
-  assert.deepEqual([first.length, cakes[0]!.length], [1, 3]);
+  const sibling = Cake.as("sibling");
+  const siblings = await Cake.graph()
+    .via(cakeCakeBakers)
+    .via(cakeBakerBaker)
+    .via(bakerCakeBakers, { alias: "shared" })
+    .joinMaybe(cakeBakerCake.fromAlias("shared"), { alias: "sibling" })
+    .where(sibling.col("id").ne(Cake.col("id")))
+    .orderBy(sibling.col("name").asc())
+    .allGrouped(pool);
+
+  const lemonDrizzle = siblings.find(([cake]) => cake.id === 2)?.[1].map((other) => other.name);
+  assert.deepEqual(lemonDrizzle, ["Chocolate Fudge", "Chocolate Torte"]);
 }

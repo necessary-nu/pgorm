@@ -4,6 +4,7 @@ pub(crate) mod backend;
 mod cursor;
 mod generic;
 mod io;
+mod keysets;
 mod query;
 mod registration;
 mod slots;
@@ -101,10 +102,25 @@ pub(crate) fn capabilities() -> serde_json::Map<String, serde_json::Value> {
         ("graph.optional", "pgorm::SelectGraph<E, S>::one_opt"),
         ("graph.cursor", "pgorm::SelectGraph<E, S>::cursor_by"),
         (
+            "graph.cursor_by_on",
+            "pgorm::SelectGraph<E, S>::cursor_by_on",
+        ),
+        (
             "graph.cursor.bounds",
             "pgorm::Cursor::{before,after,before_with,after_with,first,last,asc,desc}",
         ),
         ("graph.cursor.all", "pgorm::Cursor::all"),
+        ("graph.cursor.inspect", "pgorm::Cursor::statement"),
+        ("graph.stream", "pgorm::SelectGraph<E, S>::stream"),
+        (
+            "graph.all_grouped",
+            "pgorm::SelectGraph<E, (Opt<F>,)>::all_grouped",
+        ),
+        ("graph.count", "pgorm::PaginatorTrait::count"),
+        (
+            "graph.paginate",
+            "pgorm::PaginatorTrait::paginate, Paginator::{fetch_page,num_items_and_pages}",
+        ),
     ]
     .into_iter()
     .map(|(name, api)| {

@@ -37,7 +37,7 @@ impl Held {
     pub(crate) fn database(&self) -> Database<'_> {
         match self {
             Self::Plain(connection) => Database::Connection(connection),
-            Self::Metered(connection) => Database::MeteredConnection(connection),
+            Self::Metered(connection) => Database::InstrumentedConnection(connection),
         }
     }
 
@@ -647,20 +647,29 @@ impl NativeConnection {
     }
 
     /// A stream of `query`'s rows, each a `Record`, or what `decoder`, a
-    /// disjoint read's, decodes it as.
+    /// disjoint read's or a registered read's, decodes it as.
     #[pyo3(signature = (query, decoder=None))]
     fn stream<'py>(
         &self,
         py: Python<'py>,
         query: &Bound<'_, PyAny>,
-        decoder: Option<PyRef<'_, crate::disjoint::NativeDisjoint>>,
+        decoder: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        crate::results::open(
-            py,
-            self.state.clone(),
-            query,
-            decoder.map(|decoder| decoder.row_decode()),
-        )
+        let decoder = match decoder.filter(|decoder| !decoder.is_none()) {
+            None => None,
+            Some(decoder) => Some(
+                if let Ok(disjoint) =
+                    decoder.extract::<PyRef<'_, crate::disjoint::NativeDisjoint>>()
+                {
+                    disjoint.row_decode()
+                } else {
+                    decoder
+                        .extract::<PyRef<'_, crate::entities::reads::NativeRowDecoder>>()?
+                        .row_decode()
+                },
+            ),
+        };
+        crate::results::open(py, self.state.clone(), query, decoder)
     }
 
     fn notify<'py>(

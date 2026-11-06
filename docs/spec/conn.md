@@ -557,8 +557,8 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > own tokio-postgres methods stay what a hook calls when it names none of
 > pgorm's: the type is a wrapper, and implementing the trait on the client
 > itself would turn the hook's `client.query_one` into pgorm's, changing the
-> error it returns. It is how the bindings run a hook's statements
-> (`bindings.pool-hooks`).
+> error it returns. A `DatabaseRef` holds one (`conn.database-ref`), which is
+> how the bindings run a hook's statements (`bindings.pool-hooks`).
 
 > [spec:pgorm:def:conn.pool.conn-trait+10]
 > `ConnectionTrait` is the uniform statement-execution surface over
@@ -641,6 +641,21 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > (`ClientWrapper`, pgorm-pool's `Transaction`) so both levels share the
 > per-connection `StatementCache` (`conn.pool.statement-cache`) and nested
 > transactions go through the wrapper's savepoint logic.
+
+> [spec:pgorm:def:conn.database-ref+1]
+> `DatabaseRef<'a, M>` is a borrowed executor of any kind: a
+> `&DatabaseConnection` or a `&DatabaseTransaction` (a transaction or a
+> savepoint), the metrics layer's `&InstrumentedConnection<M>` or
+> `&InstrumentedTransaction<M>` around one, or a `HookConnection`, the
+> connection a pool hook is about while it runs
+> (`conn.pool.hook-connection`); `M` is the collector, `NoOpMetrics` by
+> default, and each converts into it by `From`. It MUST
+> implement `ConnectionTrait`, every method delegating to the borrowed
+> executor's own, so code that picks at run time where a statement runs — a
+> language binding holding whichever handle its caller passed — reaches
+> pgorm's generic terminals through one type, and the bindings hold no
+> executor enum of their own. The erased reads of `exec.paginator.erased` and
+> `exec.cursor.erased` run on it, over the same `M`.
 
 > [spec:pgorm:req:conn.pool.savepoint-name+3]
 > `pgorm_pool::Transaction::savepoint(name)` MUST quote `name` as a
