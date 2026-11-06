@@ -203,7 +203,8 @@ first rule: a value reaches JavaScript exactly or not at all.
 > `maxSize` to the hooks, and shared the rest but `tag`
 > (`bindings.multi-pool`); `connectListener(connectionString, options)`
 > takes the connection and TLS options and a listener's `capacity`. An option
-> is read by name, and one a pool does not know is left unread. Each pool,
+> a pool, a multi-pool or a pool's shape does not take is a `TypeError`
+> naming it (`bindings.argument-errors`). Each pool,
 > multi-pool, connection, stream and listener MUST be closable by `close()`
 > and by `await using`. A stream is an async iterator
 > whose `next()` pulls one row and whose `return()`, which a `for await` loop

@@ -129,8 +129,8 @@ assert.throws(() => new Pool(url, { maxSize: "2" as unknown as number }), TypeEr
 (`available`), and how many callers are `waiting`. It is worth exporting as a
 gauge.
 
-A pool's options are read by name, and an option it does not know is left
-unread rather than refused, so check the spelling of each.
+A pool's options are read by name, and one it does not take, such as a
+misspelt one, is a `TypeError` naming it.
 
 A hook runs code of yours on a connection the pool holds, as Rust's
 `post_create`, `pre_recycle` and `post_recycle` do: `postCreate` on each new
