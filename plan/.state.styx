@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-06T10:47:54.953431Z
+last_sync_at 2026-11-06T12:37:56.922232Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -339,10 +339,10 @@ rule_versions (
     {id napi.transactions, version 3}
     {id napi.typing, version 1}
     {id napi.values, version 1}
-    {id pipeline.compose, version 1}
+    {id pipeline.compose, version 2}
     {id pipeline.described, version 0}
     {id pipeline.qualify, version 4}
-    {id pipeline.select-sources, version 5}
+    {id pipeline.select-sources, version 6}
     {id pipeline.terminal, version 1}
     {id python.acceptance, version 1}
     {id python.api, version 1}
@@ -536,7 +536,9 @@ derived_priorities (
     {id annotation-verbs-match, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id api-doc-honesty, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id api-honesty.pipeline-select-after-append, priority 0, derived_at 2026-11-05T22:13:24.839676Z}
+    {id api-honesty.pipeline-set-operation-arity, priority 1, derived_at 2026-11-06T12:37:56.922232Z}
     {id api-honesty.pipeline-wildcard-intersect-reads, priority 1, derived_at 2026-11-05T22:13:24.839676Z}
+    {id api-honesty.prql-text-set-operations, priority 2, derived_at 2026-11-06T12:37:56.922232Z}
     {id between-render-parens, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id big-unsigned-binding, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id binding-coverage-per-impl, priority 1, derived_at 2026-10-30T13:42:29.080898Z}
@@ -1752,7 +1754,8 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
-    {id api-honesty.pipeline-wildcard-intersect-reads, kind @doing, author "brendan@necessary.nu", at 2026-11-06T10:36:28.579728Z}
+    {id api-honesty.pipeline-wildcard-intersect-reads, kind @complete, author "brendan@necessary.nu", at 2026-11-06T12:37:39.492055Z}
+    {id api-honesty.pipeline-set-operation-arity, kind @complete, author "brendan@necessary.nu", at 2026-11-06T12:37:39.664374Z}
 )
 
 impl_evidence (
@@ -1760,8 +1763,6 @@ impl_evidence (
         pipeline.compose
     ), covered_claims (
         {impl_name main, rule pipeline.compose}
-    ), rule_versions_seen (
-        {id pipeline.compose, version 1}
     )}
     {id binding-parity.foreign-active-error, covered_rules (
         bindings.entity-writes
@@ -2499,6 +2500,11 @@ impl_evidence (
         {impl_name python, rule bindings.json-operators}
         {impl_name python, rule bindings.named-functions}
         {impl_name python, rule bindings.template}
+    ), rule_versions_seen (
+        {id bindings.json-operators, version 0}
+        {id bindings.named-functions, version 0}
+        {id bindings.template, version 0}
+        {id sql.render.template-pieces, version 0}
     )}
     {id guide.python-gaps.copy-through-query, covered_rules (
         conn.copy.statement
@@ -2613,6 +2619,15 @@ impl_evidence (
         {impl_name python, rule bindings.raw-pages}
         {impl_name python, rule bindings.sql-check}
         {impl_name python, rule bindings.verify}
+    ), rule_versions_seen (
+        {id bindings.batch-execute, version 0}
+        {id bindings.prql-text, version 0}
+        {id bindings.raw-models, version 0}
+        {id bindings.raw-pages, version 0}
+        {id bindings.sql-check, version 0}
+        {id bindings.verify, version 0}
+        {id exec.verify.describe, version 0}
+        {id macros.runtime, version 0}
     )}
     {id guide.python-gaps.shared-erased-reads, covered_rules (
         conn.database-ref
@@ -2635,6 +2650,10 @@ impl_evidence (
         {impl_name python, rule bindings.refusal-fields}
         {impl_name python, rule bindings.rollback-failed}
         {impl_name python, rule bindings.transaction-retry}
+    ), rule_versions_seen (
+        {id bindings.refusal-fields, version 0}
+        {id bindings.rollback-failed, version 0}
+        {id bindings.transaction-retry, version 0}
     )}
     {id guide.rust, covered_rules (
         guide.chapters
@@ -2818,6 +2837,8 @@ impl_evidence (
         bindings.batch-execute
     ), covered_claims (
         {impl_name javascript, rule bindings.batch-execute}
+    ), rule_versions_seen (
+        {id bindings.batch-execute, version 0}
     )}
     {id napi.guide-gaps.expression-functions, covered_rules (
         bindings.json-operators
@@ -2827,6 +2848,10 @@ impl_evidence (
         {impl_name javascript, rule bindings.json-operators}
         {impl_name javascript, rule bindings.named-functions}
         {impl_name javascript, rule bindings.template}
+    ), rule_versions_seen (
+        {id bindings.json-operators, version 0}
+        {id bindings.named-functions, version 0}
+        {id bindings.template, version 0}
     )}
     {id napi.guide-gaps.metrics}
     {id napi.guide-gaps.model-hooks, covered_rules (
@@ -2881,16 +2906,22 @@ impl_evidence (
         bindings.prql-text
     ), covered_claims (
         {impl_name javascript, rule bindings.prql-text}
+    ), rule_versions_seen (
+        {id bindings.prql-text, version 0}
     )}
     {id napi.guide-gaps.raw-into-model, covered_rules (
         bindings.raw-models
     ), covered_claims (
         {impl_name javascript, rule bindings.raw-models}
+    ), rule_versions_seen (
+        {id bindings.raw-models, version 0}
     )}
     {id napi.guide-gaps.raw-pages, covered_rules (
         bindings.raw-pages
     ), covered_claims (
         {impl_name javascript, rule bindings.raw-pages}
+    ), rule_versions_seen (
+        {id bindings.raw-pages, version 0}
     )}
     {id napi.guide-gaps.relation-conditions, covered_rules (
         bindings.linked
@@ -2906,6 +2937,8 @@ impl_evidence (
         bindings.sql-check
     ), covered_claims (
         {impl_name javascript, rule bindings.sql-check}
+    ), rule_versions_seen (
+        {id bindings.sql-check, version 0}
     )}
     {id napi.guide-gaps.tls-configuration, covered_rules (
         bindings.tls
@@ -2922,11 +2955,17 @@ impl_evidence (
         {impl_name javascript, rule bindings.refusal-fields}
         {impl_name javascript, rule bindings.rollback-failed}
         {impl_name javascript, rule bindings.transaction-retry}
+    ), rule_versions_seen (
+        {id bindings.refusal-fields, version 0}
+        {id bindings.rollback-failed, version 0}
+        {id bindings.transaction-retry, version 0}
     )}
     {id napi.guide-gaps.verify, covered_rules (
         bindings.verify
     ), covered_claims (
         {impl_name javascript, rule bindings.verify}
+    ), rule_versions_seen (
+        {id bindings.verify, version 0}
     )}
     {id orm.binding-types, covered_rules (
         exec.cursor.binding-coerce
@@ -3166,6 +3205,14 @@ impl_evidence (
         {impl_name python, rule bindings.models}
         {impl_name python, rule bindings.pagination}
         {impl_name python, rule bindings.relations}
+    ), rule_versions_seen (
+        {id bindings.cursors, version 1}
+        {id bindings.graphs, version 2}
+        {id bindings.model-reads, version 1}
+        {id bindings.model-records, version 1}
+        {id bindings.models, version 5}
+        {id bindings.pagination, version 0}
+        {id bindings.relations, version 1}
     )}
     {id python-registered-pools, covered_rules (
         bindings.registered-pools

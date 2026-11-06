@@ -10960,6 +10960,7 @@ children (
                 title "A stage reading a column after intersect or remove over wildcard operands compiles, as it does after append"
                 kind @fix
                 deps (api-honesty.pipeline-select-after-append)
+                sealed true
                 log (
                     {
                         at 2026-11-05T18:20:47.738629Z
@@ -10981,6 +10982,13 @@ children (
                         kind @decision
                         text "Fixed in the necessary-nu/prql fork (option a), not by expanding wildcards in pgorm (option b). Diagnosis: std's `intersect`/`remove` are joins over `tuple_zip t.* b.*`; a column a later stage reads is inferred into the top table, so lowering re-expands `t.*` to [col, *] and refuses. Expanding an entity's wildcard to its column list in pgorm would have fixed entity operands only: a plain table (and every binding's declared model, which reaches pgorm as a plain table name) has no column list to expand, and the same join form is also silently wrong where both lists are known (zip truncates: mismatched projections became an INNER JOIN / anti-join, a derive before the operation was dropped — filed as api-honesty.pipeline-set-operation-arity). The fork fix covers every case with no pgorm special-casing: fork commit 170872b395dd35efb38c566b4e1cae44c9e82bab on local branch pgorm/relational-set-operations (parent 2ce6a242, NOT pushed) adds relation-level std transforms `_intersect_all` / `_except_all` (PL TransformKind::Intersect/Except, RQ Transform::Intersect/Except, mapped by preprocess straight to SqlTransform::Intersect/Except, DISTINCT folding as before: trailing for intersect, distinct top for both, never trailing for except), sharing append's positional lineage/type (count mismatch refused when both frames are known; with a wildcard on either side the top frame is kept and the server checks — which also fixes appending operands that each inferred a different column, the note's 'top has 2 columns, but bottom has 1'), and brackets a nested set operand (always on the right, a UNION/EXCEPT left of an INTERSECT). std's `intersect`/`remove` are left unchanged (additive; PRQL text semantics are a separate decision, filed as api-honesty.prql-text-set-operations). pgorm side: the pipeline calls the new transforms (sets::SetOperation holds verb/transform), its precedence settle (sets::reassociates) is deleted because the fork now brackets, intersect/remove no longer mark the pipeline reshaped — they rename nothing, so select_sources after them behaves as after append. No refusal for 'unknowable' columns was needed: nothing needs the columns. Rev re-pinned in every manifest and lockfile; the lead must push the fork branch (same SHA) before this merges, or cargo cannot fetch the rev. Rules: pipeline.compose+2, pipeline.select-sources+6, pipeline.errors+5 (ReshapedSources stage list; RESERVED gains `_intersect_all`/`_except_all`)."
                     }
+
+                    {
+                        at 2026-11-06T12:37:39.492055Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
                 )
             }
 
@@ -10989,12 +10997,20 @@ children (
                 title "A pipeline set operation over operands of different arity is refused, keeps a derived column, and keeps a nested set operation one operand"
                 kind @fix
                 deps (api-honesty.pipeline-select-after-append)
+                sealed true
                 log (
                     {
                         at 2026-11-06T11:55:14.23646Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Found by api-honesty.pipeline-wildcard-intersect-reads while probing the fork; silent wrong answers on main before the fix. prqlc's std `intersect`/`remove` are joins over `tuple_zip t.* b.*`, which truncates, and preprocess only recognises INTERSECT/EXCEPT when the join covers every column, so: (1) `Pipeline::from(a).select((x, y)).intersect(Pipeline::from(b).select(x))` rendered `SELECT a.x, a.y FROM a INNER JOIN table_0 ON a.x = table_0.x` (and `remove` an anti-join), not a refusal; (2) `select((x, y)).intersect(b)` with a wildcard bottom rendered `INNER JOIN b ON a.x = b.*`; (3) `derive(k).intersect(b)` rendered `SELECT * FROM a INTERSECT ALL SELECT * FROM b`, dropping `k`. Separately, (4) a set-operation operand that is itself a set operation was rendered flat: `append(Pipeline::from(b).remove(c))` came out as `a UNION ALL b EXCEPT ALL c`, i.e. `(a UNION ALL b) EXCEPT ALL c`. All four are fixed by the same fork commit 170872b3 (relation-level `_intersect_all`/`_except_all`, shared positional arity check, nested set operands bracketed) and held by src/pipeline/tests.rs set_operations_refuse_operands_of_different_arity, set_operations_keep_a_derived_column and a_tighter_set_operation_brackets_the_looser_chain. Delivered with api-honesty.pipeline-wildcard-intersect-reads; the rules it touches (pipeline.compose) are that node's."
+                    }
+
+                    {
+                        at 2026-11-06T12:37:39.664374Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Done (nplan complete)"
                     }
                 )
             }
