@@ -29,11 +29,13 @@ the data-loader API (`loader.rs`). Rules are grouped under
 Construction of a plain selector happens in `Select::new` (`select.rs`), which
 is what `EntityTrait::find()` produces.
 
-> [spec:pgorm:sem:query.build.select-defaults]
+> [spec:pgorm:sem:query.build.select-defaults+1]
 > `Select<E>::new` initialises the statement with exactly two clauses: a select
 > list containing every variant of `E::Column` in iteration order, each mapped
 > through `col.select_as(col.into_expr())` (so enum-typed columns are cast to
-> text on selection), and a FROM clause of `E::default().table_ref()`.
+> text on selection), and a FROM clause of `E::default().table_ref()`. `EntityTrait::find_in`
+> writes the same select list over the instance's table instead, under the
+> default's table name where the two differ (`entity.traits.entity-name`).
 >
 > No default WHERE, ORDER BY, GROUP BY, LIMIT or OFFSET is applied; a freshly
 > constructed `Select<E>` renders as `SELECT <all columns> FROM <table>`.
@@ -376,13 +378,15 @@ builder is or what its rows decode into.
 INSERT building lives in `insert.rs`; the ActiveModel column rules below are
 what makes it total over partially-set models.
 
-> [spec:pgorm:sem:query.build.insert+5]
+> [spec:pgorm:sem:query.build.insert+6]
 > `Insert::new` targets `A::Entity`'s table and applies
 > `or_default_values()`, so the statement stays renderable: `as_query()` on a
 > builder holding no model is valid SQL rather than a column-less
 > `INSERT INTO "t" ()`. `Insert::one` and `Insert::many` (and `add`/`add_many`)
 > accept anything implementing `IntoActiveModel<A>`, converting Models to
-> ActiveModels first.
+> ActiveModels first. `Insert::one_in(entity, model)` and
+> `Insert::many_in(entity, models)`, and `TryInsert`'s of the same names, target the
+> table the entity instance names instead (`entity.traits.entity-name`).
 >
 > `Insert<A, R>` and `TryInsert<A, R>` carry the number of rows they are built
 > for as `R`: `OneRow` from `Insert::one`, `ManyRows` from `Insert::many`, from
@@ -481,7 +485,7 @@ what makes it total over partially-set models.
 > `TryInsertResult::Conflicted`; success wraps the result in
 > `TryInsertResult::Inserted`.
 
-> [spec:pgorm:sem:query.build.update+4]
+> [spec:pgorm:sem:query.build.update+5]
 > `Update::one(model)` builds an `UpdateOne<A>` in two passes over the
 > ActiveModel and returns `Result<UpdateOne<A>, Error>`. Filters: every
 > primary-key column contributes a `WHERE pk = value` equality from a `Set`
@@ -491,10 +495,12 @@ what makes it total over partially-set models.
 > `Set`, non-primary-key columns are written into the SET clause (through
 > `col.save_as`); `Unchanged` and `NotSet` columns are omitted, so only
 > changed values are updated and primary keys are never SET by `UpdateOne`.
-> `EntityTrait::update` forwards both the success and the error.
+> `Update::one_in(entity, model)` builds the same update of the table the entity
+> instance names (`entity.traits.entity-name`), and the `UpdateOne` keeps the instance,
+> so an update with nothing to set reads its row back from that table too.
 >
-> `Update::many(entity)` builds a bare `UPDATE <table>` with no implicit
-> filter; `set(model)` applies the same `Set`-only rule but does not exclude
+> `Update::many(entity)` builds a bare `UPDATE <table>` of the table the instance
+> names, with no implicit filter; `set(model)` applies the same `Set`-only rule but does not exclude
 > primary-key columns, and `col_expr(col, expr)` sets a raw expression. Both
 > forms implement `QueryFilter` for WHERE clauses.
 >
@@ -511,7 +517,7 @@ what makes it total over partially-set models.
 > exists to write one identified row, and a relation list is meaningless
 > against a full primary-key filter.
 
-> [spec:pgorm:sem:query.build.delete+3]
+> [spec:pgorm:sem:query.build.delete+4]
 > `Delete::one(model)` converts through `IntoActiveModel`, targets the
 > entity's table and returns `Result<DeleteOne<A>, Error>`: every primary-key
 > column contributes a `WHERE pk = value` equality from a `Set` or
@@ -519,9 +525,10 @@ what makes it total over partially-set models.
 > `Err(Error::PrimaryKeyNotSet)` rather than panicking, so a `DeleteOne` can
 > never exist without a filter on every primary-key column and this path
 > cannot render an unfiltered `DELETE`. Non-key attribute values do not
-> participate in the filter. `EntityTrait::delete` forwards both the success
-> and the error. `Delete::many(entity)` builds a bare `DELETE FROM <table>`;
-> constraining it is the caller's job via `QueryFilter`.
+> participate in the filter. `Delete::one_in(entity, model)` deletes from the table
+> the entity instance names (`entity.traits.entity-name`). `Delete::many(entity)`
+> builds a bare `DELETE FROM <table>` of the table the instance names; constraining it
+> is the caller's job via `QueryFilter`.
 >
 > `DeleteMany::using(rel)` exposes the statement's USING relation list
 > (`sql.ast.delete`) as a consuming-`self` pass-through taking any

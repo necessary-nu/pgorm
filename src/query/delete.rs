@@ -1,3 +1,4 @@
+use crate::entity::entity_table;
 use crate::{
     ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Error, IntoActiveModel, Iterable,
     PrimaryKeyToColumn, QueryFilter, QueryTrait,
@@ -29,7 +30,7 @@ where
     pub(crate) entity: PhantomData<E>,
 }
 
-// [spec:pgorm:sem:query.build.delete+3]
+// [spec:pgorm:sem:query.build.delete+4]
 impl Delete {
     /// Delete one Model or ActiveModel
     ///
@@ -86,9 +87,41 @@ impl Delete {
         A: ActiveModelTrait<Entity = E>,
         M: IntoActiveModel<A>,
     {
+        Self::one_in(E::default(), model)
+    }
+
+    /// [`one`](Delete::one) from the table `entity` names: the instance's
+    /// schema and table rather than [`Default`]'s, for an entity whose names
+    /// are computed at run time.
+    ///
+    /// ```
+    /// use pgorm::{entity::*, query::*, tests_cfg::tenant_cake};
+    ///
+    /// let acme = tenant_cake::Entity { tenant: "acme" };
+    /// assert_eq!(
+    ///     Delete::one_in(
+    ///         acme,
+    ///         tenant_cake::ActiveModel {
+    ///             id: set(1),
+    ///             ..Default::default()
+    ///         },
+    ///     )
+    ///     .expect("the primary key is set")
+    ///     .as_query()
+    ///     .to_string(),
+    ///     r#"DELETE FROM "acme"."cake" WHERE "cake"."id" = 1"#,
+    /// );
+    /// ```
+    // [spec:pgorm:sem:query.build.delete+4]
+    pub fn one_in<E, A, M>(entity: E, model: M) -> Result<DeleteOne<A>, Error>
+    where
+        E: EntityTrait,
+        A: ActiveModelTrait<Entity = E>,
+        M: IntoActiveModel<A>,
+    {
         let myself = DeleteOne {
             query: DeleteStatement::new()
-                .from_table(A::Entity::default().table_ref())
+                .from_table(entity_table(&entity))
                 .to_owned(),
             model: model.into_active_model(),
         };
@@ -115,14 +148,14 @@ impl Delete {
     {
         DeleteMany {
             query: DeleteStatement::new()
-                .from_table(entity.table_ref())
+                .from_table(entity_table(&entity))
                 .to_owned(),
             entity: PhantomData,
         }
     }
 }
 
-// [spec:pgorm:sem:query.build.delete+3]
+// [spec:pgorm:sem:query.build.delete+4]
 impl<A> DeleteOne<A>
 where
     A: ActiveModelTrait,
@@ -201,7 +234,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:query.build.delete+3]
+// [spec:pgorm:sem:query.build.delete+4]
 impl<E> DeleteMany<E>
 where
     E: EntityTrait,

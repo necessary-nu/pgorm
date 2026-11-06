@@ -11,13 +11,16 @@ use std::sync::{Mutex as SyncMutex, PoisonError};
 
 use futures_util::future::BoxFuture;
 use neon::{prelude::*, types::Finalize};
-use pgorm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, SqlText};
+use pgorm::{
+    ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, SqlText,
+    metric::{InstrumentedConnection, InstrumentedTransaction},
+};
 use tokio_postgres::{
     Row, RowStream,
     types::{BorrowToSql, ToSql},
 };
 
-use super::{Operation, abort_argument, connection, on_connection, pool};
+use super::{Operation, abort_argument, connection, metrics::Metrics, on_connection, pool};
 use crate::{
     errors::{Failure, Redactions},
     settle,
@@ -29,11 +32,14 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     Ok(())
 }
 
-/// The executor a job runs on: a connection, or a transaction on one.
+/// The executor a job runs on: a connection, or a transaction on one,
+/// plain or, from an instrumented pool, pgorm's metrics wrapper around one.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Database<'a> {
     Connection(&'a DatabaseConnection),
     Transaction(&'a DatabaseTransaction<'a>),
+    MeteredConnection(&'a InstrumentedConnection<Metrics>),
+    MeteredTransaction(&'a InstrumentedTransaction<'a, Metrics>),
 }
 
 macro_rules! delegate {
@@ -41,6 +47,8 @@ macro_rules! delegate {
         match $db {
             Database::Connection(connection) => connection.$method($($arg),*).await,
             Database::Transaction(transaction) => transaction.$method($($arg),*).await,
+            Database::MeteredConnection(connection) => connection.$method($($arg),*).await,
+            Database::MeteredTransaction(transaction) => transaction.$method($($arg),*).await,
         }
     };
 }
@@ -171,7 +179,7 @@ fn pool_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
             () = state.closed.cancelled() => {
                 Err(Failure::Lifecycle("the pool closed while the statement ran".to_owned()))
             }
-            outcome = job(Database::Connection(&connection), &state.secrets) => {
+            outcome = job(connection.database(), &state.secrets) => {
                 drop(connection);
                 return outcome;
             }
@@ -195,11 +203,7 @@ fn connection_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
         Ok(operation) => operation,
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
-    let work = async move {
-        on_connection(operation, &abort, async |db| {
-            job(Database::Connection(db), &secrets).await
-        })
-        .await
-    };
+    let work =
+        async move { on_connection(operation, &abort, async |db| job(db, &secrets).await).await };
     settle::promise(&mut cx, work, |cx, output| output.into_js(cx))
 }

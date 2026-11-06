@@ -21,7 +21,7 @@ use super::adapter::{self, PlExpr};
 /// those two alone already evaluates the way it was written; `INTERSECT` sits
 /// above both. Anything that is not a set operation has no binding power and
 /// cannot reassociate a chain.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 fn binding_power(verb: &str) -> Option<u8> {
     match verb {
         "append" | "remove" => Some(1),
@@ -40,7 +40,7 @@ fn binding_power(verb: &str) -> Option<u8> {
 /// back into the set operation's own arms, leaving the operators as adjacent
 /// as they were. Reading the run costs a settle in the cases where prqlc
 /// would have wrapped anyway — one binding, the same rows.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub(super) fn reassociates(stages: &[PlExpr], op: &str) -> bool {
     let Some(power) = binding_power(op) else {
         return false;

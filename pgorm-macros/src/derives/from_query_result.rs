@@ -9,6 +9,9 @@ pub struct FromQueryResultItem {
     pub skip: bool,
     pub ident: Ident,
     pub ty: Type,
+    /// The entity column a `PartialModel` field reads, whose read cast its
+    /// reported column carries.
+    pub column: Option<TokenStream>,
 }
 impl ToTokens for FromQueryResultItem {
     fn to_tokens(&self, tokens: &mut TokenStream) {
@@ -35,23 +38,28 @@ impl FromQueryResultItem {
             return None;
         }
 
-        let Self { ident, ty, .. } = self;
+        let Self {
+            ident, ty, column, ..
+        } = self;
         let name = ident.unraw().to_string();
         let rust_type = spell_type(ty);
+        let selected_as = column.as_ref().map(|column| quote!(.selected_as(&#column)));
 
         Some(quote! {
             pgorm::ExpectedColumn::new(#name, #rust_type, <#ty as pgorm::TryGetable>::accepts)
+                #selected_as
         })
     }
 }
 
 /// Which derive is writing `FromQueryResult`: its own, or `PartialModel`,
 /// which writes it beside the projection and reads the keys that say what
-/// is projected.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Decoder {
+/// is projected, handing over the entity column each field reads, in field
+/// order, or `None` for a field projecting an expression.
+#[derive(Clone, Copy)]
+pub(crate) enum Decoder<'a> {
     FromQueryResult,
-    PartialModel,
+    PartialModel(&'a [Option<TokenStream>]),
 }
 
 /// The refusal for a key `FromQueryResult` does not read: one `PartialModel`
@@ -99,7 +107,7 @@ pub(crate) fn expand_from_query_result(
     ident: Ident,
     data: Data,
     generics: Generics,
-    decoder: Decoder,
+    decoder: Decoder<'_>,
 ) -> syn::Result<TokenStream> {
     let fields = match data {
         Data::Struct(DataStruct {
@@ -126,7 +134,7 @@ pub(crate) fn expand_from_query_result(
                 if meta.path.is_ident("skip") {
                     skip = true;
                     Ok(())
-                } else if decoder == Decoder::PartialModel {
+                } else if matches!(decoder, Decoder::PartialModel(_)) {
                     skip_known_key(&meta, &PROJECTION_FIELD_KEYS)
                 } else {
                     Err(unread_key(&meta))
@@ -135,7 +143,16 @@ pub(crate) fn expand_from_query_result(
         }
         let ty = parsed_field.ty;
         let ident = format_ident!("{}", parsed_field.ident.unwrap().to_string());
-        field.push(FromQueryResultItem { skip, ident, ty });
+        let column = match decoder {
+            Decoder::PartialModel(columns) => columns.get(field.len()).cloned().flatten(),
+            Decoder::FromQueryResult => None,
+        };
+        field.push(FromQueryResultItem {
+            skip,
+            ident,
+            ty,
+            column,
+        });
     }
     let expected: Vec<TokenStream> = field
         .iter()

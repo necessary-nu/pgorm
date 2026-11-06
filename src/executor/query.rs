@@ -1,4 +1,4 @@
-use crate::{SelectGetableValue, SelectorRaw, error::*};
+use crate::{SelectGetableValue, SelectorRaw, SqlText, error::*};
 use std::error::Error as _;
 
 #[cfg(feature = "postgres-array")]
@@ -6,12 +6,12 @@ use std::error::Error as _;
 mod domain;
 #[path = "query_range.rs"]
 mod range;
+#[doc(hidden)]
+pub use range::{BoundSql, try_get_created_ranges, try_get_texts};
 pub use range::{
     MultirangeSql, RangeSql, multirange_from_sql, multirange_from_sql_with, range_from_sql,
     range_from_sql_with,
 };
-#[doc(hidden)]
-pub use range::{try_get_created_ranges, try_get_texts};
 
 /// Defines the result of a query operation on a Model
 // [spec:pgorm:def:exec.decode+3]
@@ -90,7 +90,7 @@ pub enum TryGetError {
 
 // [spec:pgorm:sem:exec.decode.null+1]
 impl TryGetError {
-    fn postgres(value: tokio_postgres::Error) -> Self {
+    pub(crate) fn postgres(value: tokio_postgres::Error) -> Self {
         let Some(source) = value.source() else {
             return TryGetError::Db(Error::Postgres(value));
         };
@@ -319,24 +319,6 @@ try_getable_all!(jiff::civil::DateTime);
 #[cfg(feature = "with-jiff")]
 try_getable_all!(jiff::Timestamp);
 
-use rust_decimal::Decimal;
-
-impl TryGetable for Decimal {
-    #[allow(unused_variables)]
-    fn try_get_by<I: RowIndex + std::fmt::Display>(
-        res: &QueryResult,
-        idx: I,
-    ) -> Result<Self, TryGetError> {
-        let result: Decimal = res.row.try_get(idx).map_err(TryGetError::postgres)?;
-        Ok(result)
-    }
-
-    // [spec:pgorm:sem:exec.verify.accepts+1]
-    fn accepts(ty: &Type) -> bool {
-        <Decimal as FromSql>::accepts(ty)
-    }
-}
-
 use pgorm_query::{Interval, IpNetwork, MacAddress, Values, Vector};
 #[cfg(feature = "with-json")]
 use tokio_postgres::types::Json;
@@ -505,6 +487,8 @@ fn err_null_idx_col<I: RowIndex + std::fmt::Display>(_idx: I) -> TryGetError {
 mod postgres_array {
     use super::domain::Transparent;
     use super::*;
+    use crate::ExactDecimal;
+    use rust_decimal::Decimal;
 
     #[allow(unused_macros)]
     macro_rules! try_getable_postgres_array {
@@ -552,7 +536,23 @@ mod postgres_array {
     #[cfg(feature = "with-jiff")]
     try_getable_postgres_array!(jiff::Timestamp);
 
-    try_getable_postgres_array!(rust_decimal::Decimal);
+    /// An array of `numeric`, each element read exactly as a scalar is.
+    // [spec:pgorm:req:exec.decode.decimal-exact]
+    impl TryGetable for Vec<Decimal> {
+        fn try_get_by<I: RowIndex + std::fmt::Display>(
+            res: &QueryResult,
+            idx: I,
+        ) -> Result<Self, TryGetError> {
+            let result: Transparent<Vec<ExactDecimal>> =
+                res.row.try_get(idx).map_err(TryGetError::postgres)?;
+            Ok(result.0.into_iter().map(Decimal::from).collect())
+        }
+
+        // [spec:pgorm:sem:exec.verify.accepts+1]
+        fn accepts(ty: &Type) -> bool {
+            <Transparent<Vec<ExactDecimal>> as FromSql>::accepts(ty)
+        }
+    }
 
     // [spec:pgorm:req:exec.decode.interval+1]
     try_getable_postgres_array!(Interval);
@@ -647,9 +647,8 @@ pub trait TryGetableMany: Sized {
     ///
     /// let db = pool.get().await?;
     ///
-    /// let res: Vec<(String, i64)> = <(String, i64)>::find_by_statement::<ResultCol>(
-    ///     r#"SELECT "cake"."name", count("cake"."id") AS "num_of_cakes" FROM "cake" GROUP BY "cake"."name""#
-    ///         .to_owned(),
+    /// let res: Vec<(String, i64)> = <(String, i64)>::find_by_statement::<ResultCol, _>(
+    ///     r#"SELECT "cake"."name", count("cake"."id") AS "num_of_cakes" FROM "cake" GROUP BY "cake"."name""#,
     ///     Values(vec![]),
     /// )
     /// .all(&db)
@@ -658,14 +657,13 @@ pub trait TryGetableMany: Sized {
     /// # }
     /// # }
     /// ```
-    fn find_by_statement<C>(
-        stmt: String,
-        values: Values,
-    ) -> SelectorRaw<SelectGetableValue<Self, C>>
+    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    fn find_by_statement<C, T>(sql: &T, values: Values) -> SelectorRaw<SelectGetableValue<Self, C>>
     where
         C: strum::IntoEnumIterator + pgorm_query::SqlName,
+        T: ?Sized + SqlText,
     {
-        SelectorRaw::<SelectGetableValue<Self, C>>::with_columns(stmt, values)
+        SelectorRaw::with_columns(sql, values)
     }
 }
 

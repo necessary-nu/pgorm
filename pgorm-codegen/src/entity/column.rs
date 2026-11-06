@@ -165,7 +165,7 @@ impl Column {
     /// bare, `default_expr = ..`, `generated_stored = ..` or
     /// `generated_virtual = ..`.
     // [spec:pgorm:sem:codegen.entity.expressions+3]
-    // [spec:pgorm:req:macros.derive.code-values+3]
+    // [spec:pgorm:req:macros.derive.code-values+4]
     pub fn get_expression_attr(&self) -> Option<TokenStream> {
         if let Some(default) = &self.default {
             if let Some(value) = default.to_value() {

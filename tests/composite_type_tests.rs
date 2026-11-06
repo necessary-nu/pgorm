@@ -158,8 +158,8 @@ async fn a_column_of_the_type_reads_its_attributes(db: &DatabaseConnection) -> R
 /// reads.
 // [spec:pgorm:req:sql.ddl.type-composite+2/test]
 async fn a_composite_value_does_not_decode(db: &DatabaseConnection) -> Result<(), Error> {
-    let whole = SelectorRaw::<SelectGetableTuple<String>>::into_tuple::<String>(
-        "SELECT addr FROM home WHERE id = 1".to_owned(),
+    let whole = SelectorRaw::<SelectGetableTuple<String>>::into_tuple(
+        "SELECT addr FROM home WHERE id = 1",
         Values(vec![]),
     )
     .one(db)
@@ -177,8 +177,8 @@ async fn a_composite_value_does_not_decode(db: &DatabaseConnection) -> Result<()
         "the refusal is not the driver's type check: {whole:?}"
     );
 
-    let text = SelectorRaw::<SelectGetableTuple<String>>::into_tuple::<String>(
-        "SELECT addr::text FROM home WHERE id = 1".to_owned(),
+    let text = SelectorRaw::<SelectGetableTuple<String>>::into_tuple(
+        "SELECT addr::text FROM home WHERE id = 1",
         Values(vec![]),
     )
     .one(db)

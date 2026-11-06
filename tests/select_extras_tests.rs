@@ -110,7 +110,7 @@ async fn rows<T>(db: &DatabaseConnection, query: SelectStatement) -> Result<Vec<
 where
     T: pgorm::TryGetableMany,
 {
-    Selector::<SelectGetableTuple<T>>::into_tuple::<T>(query)
+    Selector::<SelectGetableTuple<T>>::into_tuple(query)
         .all(db)
         .await
 }

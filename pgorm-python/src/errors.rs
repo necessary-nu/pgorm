@@ -40,14 +40,18 @@ impl Redactions {
 }
 
 // [spec:pgorm:req:bindings.errors+6]
-pub(crate) fn database_error(error: pgorm::Error, secrets: &Redactions) -> PyErr {
+pub(crate) fn database_error(
+    error: impl std::borrow::Borrow<pgorm::Error>,
+    secrets: &Redactions,
+) -> PyErr {
+    let error = error.borrow();
     // The server's 25P02 refused the statement pgorm asked with, not the
     // block's work, so pgorm's account of the rollback is the message.
     // [spec:pgorm:req:bindings.transactions+1]
-    if let pgorm::Error::TransactionAborted(refusal) = &error {
+    if let pgorm::Error::TransactionAborted(refusal) = error {
         return postgres_error(refusal, Some(&error.to_string()), secrets);
     }
-    let mut source: &(dyn std::error::Error + 'static) = &error;
+    let mut source: &(dyn std::error::Error + 'static) = error;
     loop {
         if let Some(postgres) = source.downcast_ref::<tokio_postgres::Error>() {
             return postgres_error(postgres, None, secrets);

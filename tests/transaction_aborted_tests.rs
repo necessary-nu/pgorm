@@ -132,6 +132,50 @@ pub async fn an_aborted_configured_transaction_reports_its_rollback() -> Result<
     Ok(())
 }
 
+// [spec:pgorm:sem:conn.tx.aborted/test]    an instrumented connection's transactions, configured and retried ones included, report the same rollback
+#[pgorm_macros::test]
+pub async fn an_aborted_instrumented_transaction_reports_its_rollback() -> Result<(), Error> {
+    use pgorm::{
+        TransactionTrait,
+        metric::{InstrumentedPool, NoOpMetrics},
+    };
+
+    let ctx = TestContext::new("aborted_instrumented_transaction").await;
+    create_tables(&ctx.db).await?;
+    let pool = InstrumentedPool::new(ctx.db.clone(), NoOpMetrics);
+    let mut db = pool.get().await?;
+
+    let outcome = db
+        .transaction(async |txn| {
+            insert_bakery(&txn, "Lost Bakery").await?;
+            fail_and_catch(&txn).await;
+            Ok::<_, Error>(())
+        })
+        .await;
+    assert_aborted(outcome);
+    let outcome = db
+        .transaction_with(TransactionMode::Default, async |txn| {
+            insert_bakery(&txn, "Lost Bakery").await?;
+            fail_and_catch(&txn).await;
+            Ok::<_, Error>(())
+        })
+        .await;
+    assert_aborted(outcome);
+    let outcome = db
+        .transaction_with_retry(TransactionMode::Default, 2, async |txn| {
+            insert_bakery(&txn, "Lost Bakery").await?;
+            fail_and_catch(&txn).await;
+            Ok::<_, Error>(())
+        })
+        .await;
+    assert_aborted(outcome);
+    assert_eq!(bakeries(&db).await?, Vec::<String>::new());
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
 // [spec:pgorm:sem:conn.tx.aborted/test]    an aborted savepoint is rolled back to, and the transaction around it commits
 #[pgorm_macros::test]
 pub async fn an_aborted_savepoint_rolls_back_alone() -> Result<(), Error> {

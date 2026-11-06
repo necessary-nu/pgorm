@@ -120,7 +120,7 @@ async fn the_same_values_sort_by_the_collation_named(
     for (collation, expected) in [("C", false), (linguistic, true)] {
         let (sql, values) = less(collation);
         assert!(sql.starts_with("SELECT ($1 COLLATE "), "{sql}");
-        let answer = SelectorRaw::<SelectGetableTuple<bool>>::into_tuple::<bool>(sql, values)
+        let answer = SelectorRaw::<SelectGetableTuple<bool>>::into_tuple(&sql, values)
             .one(db)
             .await?;
         assert_eq!(answer, expected, "{collation}");

@@ -211,7 +211,7 @@ export function disjointStream(db, statement, disjoint, options) {
  * addon — on a pool's connection, a connection or a transaction, with the
  * operation a statement gets around it: the busy refusal, the abort, the
  * discard of a connection an abort left in an unknown state.
- * [spec:pgorm:req:bindings.entities+5]
+ * [spec:pgorm:req:bindings.entities+6]
  * [spec:pgorm:req:bindings.registered-pools]
  *
  * @param {unknown} db
@@ -234,6 +234,17 @@ let connectionHandle;
 let poolHandle;
 
 /**
+ * The native handle of `pool`, which an {@link InstrumentedPool} is built
+ * around.
+ *
+ * @param {Pool} pool
+ * @returns {unknown}
+ */
+export function nativePool(pool) {
+  return poolHandle(pool);
+}
+
+/**
  * A pool of connections to one server, opened as they are first needed. TLS
  * verifies the server's certificate and host name unless the connection
  * string says `sslmode=disable` or `tls` is `"disable"`.
@@ -247,11 +258,18 @@ export class Pool extends Queryable {
   }
 
   /**
-   * @param {string} dsn
-   * @param {import("./index.d.ts").PoolOptions} [options]
+   * A pool built from a connection string and its options, or, for
+   * {@link InstrumentedPool} alone, around the native handle the addon made.
+   *
+   * @param {string | symbol} dsn
+   * @param {import("./index.d.ts").PoolOptions | unknown} [options]
    */
   constructor(dsn, options = {}) {
     super();
+    if (dsn === TRUSTED) {
+      this.#native = options;
+      return;
+    }
     if (typeof dsn !== "string") throw new TypeError("dsn is a connection string");
     if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
     knownOptions(options, POOL_OPTIONS);

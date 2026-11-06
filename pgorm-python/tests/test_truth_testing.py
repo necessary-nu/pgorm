@@ -31,10 +31,14 @@ EXEMPT = {
     # them and under the streams: live resources, not SQL, and true as any
     # open resource is. The streams themselves refuse, since a stream's truth
     # would say nothing of whether rows remain.
-    p.Pool, p.Connection, p.Transaction,
+    p.Pool, p.InstrumentedPool, p.Connection, p.Transaction,
     _native._Pool, _native._Connection, _native._Transaction, _native._Stream,
     _native._CopyIn, _native._CopyOut, _native._Listener, _native._Disjoint,
-    _native._DisjointChange,
+    _native._DisjointChange, _native._MetricsAnswer,
+    # The metrics layer's collectors, objects a program writes and hands to a
+    # pool, and what a query hook is told about a statement that already ran:
+    # `if query.fingerprint:` tests for a fingerprint.
+    p.MetricsCollector, p.NoOpMetrics, p.LoggingMetrics, p.QueryContext, p.QueryFingerprint,
     # Registrations and declarations: they name what a query reads and are
     # true as any declared object is; the queries they start refuse.
     p.Entity, p.EntityGraph, Model, Column, Relation, pl.SourceSelection, pl.Binder,
@@ -164,7 +168,7 @@ def disjoint_samples():
 
 
 class TruthTesting(unittest.TestCase):
-    # [spec:pgorm:req:python.truth-testing+4/test]
+    # [spec:pgorm:req:python.truth-testing+5/test]
     def test_every_query_class_refuses_truth_testing(self):
         samples = statement_samples() + expression_samples() + other_samples()
         for sample in samples:
@@ -187,7 +191,7 @@ class TruthTesting(unittest.TestCase):
                     any("__bool__" in vars(own) for own in kind.__mro__ if own.__module__.startswith("pgorm"))
                 )
 
-    # [spec:pgorm:req:python.truth-testing+4/test]
+    # [spec:pgorm:req:python.truth-testing+5/test]
     def test_exempt_values_keep_python_truth(self):
         self.assertTrue(p.Value(0))
         self.assertFalse(p.Multirange([]))

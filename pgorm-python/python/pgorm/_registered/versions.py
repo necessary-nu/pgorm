@@ -25,7 +25,7 @@ class UpdateView(Generic[M]):
         change = await self._update.returning_change(connection)
         return native_types._change(self._model_class(change.old), self._model_class(change.new))
 
-    # [spec:pgorm:req:python.truth-testing+4]
+    # [spec:pgorm:req:python.truth-testing+5]
     def __bool__(self) -> bool:
         return bool(self._update)
 

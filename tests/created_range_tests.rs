@@ -326,7 +326,7 @@ fn measure(id: i32) -> measures::Model {
 /// name, and read back from the range's binary form by its select; a NULL of
 /// a created range type round-trips too.
 // [spec:pgorm:def:sql.value.created-range+9/test]
-// [spec:pgorm:def:exec.decode.range+4/test]
+// [spec:pgorm:def:exec.decode.range+5/test]
 async fn every_subtype_round_trips_through_an_entity(db: &DatabaseConnection) -> Result<(), Error> {
     let written = measure(1);
     written.clone().into_active_model().insert(db).await?;
@@ -803,7 +803,7 @@ async fn a_created_range_over_int4_is_continuous(db: &DatabaseConnection) -> Res
 /// A row decodes by the subtype the server reports: a `floatrange` column
 /// read as a range over `int4` is refused, and so is a built-in `int4range`
 /// read as `floatrange`'s newtype.
-// [spec:pgorm:def:exec.decode.range+4/test]
+// [spec:pgorm:def:exec.decode.range+5/test]
 async fn a_column_reads_only_its_own_subtype(db: &DatabaseConnection) -> Result<(), Error> {
     let query = select(FloatRange(Range::from(1.0..2.0)).into_expr());
     let (sql, values) = query.build();
