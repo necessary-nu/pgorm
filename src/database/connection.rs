@@ -68,7 +68,7 @@ impl SqlText for String {
 /// ```
 ///
 /// [`batch_execute`]: ConnectionTrait::batch_execute
-// [spec:pgorm:def:conn.pool.conn-trait+9]
+// [spec:pgorm:def:conn.pool.conn-trait+10]
 #[async_trait::async_trait]
 pub trait ConnectionTrait: Sync {
     /// Execute a SQL statement with its bound parameters, returning the number
@@ -158,7 +158,7 @@ pub trait ConnectionTrait: Sync {
 /// variable `C`. Forwarding through the exclusive borrow, for every
 /// implementor at once, makes each closure's handle spell a connection the way
 /// the transaction it borrows does.
-// [spec:pgorm:def:conn.pool.conn-trait+9]    the closure's handle is itself a connection
+// [spec:pgorm:def:conn.pool.conn-trait+10]    the closure's handle is itself a connection
 #[async_trait::async_trait]
 impl<C: ConnectionTrait> ConnectionTrait for &mut C {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>

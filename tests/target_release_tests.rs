@@ -17,11 +17,13 @@ use toml::{Table, Value};
 
 /// The crates that carry `pg-19`, relative to the checkout root, each with what
 /// the feature turns on: pgorm-query declares it, pgorm forwards it to
-/// pgorm-query, and pgorm-python, a workspace of its own, forwards it to pgorm.
-const CARRIERS: [(&str, &[&str]); 3] = [
+/// pgorm-query, and the two bindings, pgorm-python and pgorm-napi, each a
+/// workspace of its own, forward it to pgorm.
+const CARRIERS: [(&str, &[&str]); 4] = [
     ("pgorm-query", &[]),
     (".", &["pgorm-query/pg-19"]),
     ("pgorm-python", &["pgorm/pg-19"]),
+    ("pgorm-napi", &["pgorm/pg-19"]),
 ];
 
 fn manifest(directory: &str) -> Table {
@@ -35,7 +37,7 @@ fn manifest(directory: &str) -> Table {
 }
 
 /// Every crate built from this checkout as part of pgorm: the workspace's
-/// members and pgorm-python, keyed by directory.
+/// members and the two bindings, keyed by directory.
 fn crates() -> BTreeMap<String, Table> {
     let root = manifest(".");
     let members = root["workspace"]["members"]
@@ -44,7 +46,7 @@ fn crates() -> BTreeMap<String, Table> {
     members
         .iter()
         .map(|member| member.as_str().expect("a member is a path").to_owned())
-        .chain(["pgorm-python".to_owned()])
+        .chain(["pgorm-python".to_owned(), "pgorm-napi".to_owned()])
         .map(|directory| {
             let table = manifest(&directory);
             (directory, table)
@@ -58,7 +60,7 @@ fn feature<'a>(manifest: &'a Table, name: &str) -> Option<&'a Value> {
 
 /// The build's constant names the release pgorm's own feature asks for, so
 /// pgorm's `pg-19` reached pgorm-query in this build.
-// [spec:pgorm:req:sql.target+1/test]    the constant follows the feature through
+// [spec:pgorm:req:sql.target+2/test]    the constant follows the feature through
 // pgorm into pgorm-query
 #[test]
 fn the_target_follows_the_feature() {
@@ -66,10 +68,11 @@ fn the_target_follows_the_feature() {
     assert_eq!(pgorm::pgorm_query::POSTGRES_TARGET, expected);
 }
 
-/// pgorm-query declares `pg-19`, pgorm and pgorm-python forward it to the crate
+/// pgorm-query declares `pg-19`, pgorm and the bindings forward it to the crate
 /// beneath them and to nothing else, no other crate carries it, and none
 /// declares a feature for 18, the default.
-// [spec:pgorm:req:sql.target+1/test]    the feature's declarations and forwarding
+// [spec:pgorm:req:bindings.postgres-target/test]    each binding forwards it to pgorm
+// [spec:pgorm:req:sql.target+2/test]    the feature's declarations and forwarding
 // edges, and the absence of a pg-18 feature
 #[test]
 fn pg_19_is_declared_once_and_forwarded() {

@@ -3,10 +3,12 @@
 // Binary COPY as rows of values: the rows `copyInRows` writes, encoded by the
 // addon a batch at a time against the column types the server describes, and
 // the `CopyRowStream` `copyOutRows` reads them back through.
-// [spec:pgorm:req:bindings.copy-rows+1]
+// [spec:pgorm:req:bindings.copy-rows+2]
 
 import { close, describe, step, watching, write } from "./copy-feed.js";
 import { LifecycleError } from "./errors.js";
+import { decoder } from "./model-decode.js";
+import { shapeOf } from "./model-shape.js";
 import { abortable, native, TRUSTED as HANDLE } from "./operations.js";
 
 /**
@@ -95,12 +97,36 @@ export async function pumpRows(handle, open, signal) {
 }
 
 /**
+ * Each row `rows` yields, as a record of the model `shape` is: each field found by its
+ * column among the COPY's, which may hold columns no field reads, and held to
+ * its kind as a model's terminals hold it. A row that does not decode closes
+ * `rows`, as leaving the iteration early does.
+ *
+ * @param {CopyRowStream} rows
+ * @param {import("./model-shape.js").Shape} shape
+ * @param {unknown} handle
+ */
+async function* recordsOf(rows, shape, handle) {
+  const decode = decoder(
+    [{ fields: shape.fields, names: shape.fields.map((field) => field.sql), optional: false }],
+    { exhaustive: false, castsText: false },
+  );
+  /** @type {string[] | undefined} */
+  let kinds;
+  for await (const row of rows) {
+    kinds ??= native.copyRowsKinds(handle);
+    yield decode(rows.columns, row, /** @type {string[]} */ (kinds));
+  }
+}
+
+/**
  * A binary COPY TO's rows as an async iterator of arrays, one row per pull,
  * each value decoded by its column's type as a result column of that type is.
  * Rows are fetched from the addon as they arrive, a batch at a time, so the
  * server is held back while nothing asks. `columns` names the columns each
- * row holds. The connection it holds is released at the end, or by
- * `close()`, `return()` or a failed pull, which discard it if data remained.
+ * row holds, and `models(model)` reads the rows as a model's records
+ * instead. The connection it holds is released at the end, or by `close()`,
+ * `return()` or a failed pull, which discard it if data remained.
  *
  * @implements {AsyncIterableIterator<unknown[]>}
  */
@@ -141,6 +167,16 @@ export class CopyRowStream {
   /** @returns {boolean} */
   get closed() {
     return this.#done || native.copyOutClosed(this.#native);
+  }
+
+  /**
+   * The rows still to come as records of `model`, pulled from this stream.
+   *
+   * @param {unknown} model
+   * @returns {AsyncGenerator<Record<string, unknown>, void, undefined>}
+   */
+  models(model) {
+    return recordsOf(this, shapeOf(model), this.#native);
   }
 
   /** @returns {Promise<IteratorResult<unknown[], undefined>>} */

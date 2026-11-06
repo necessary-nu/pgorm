@@ -165,7 +165,7 @@ platforms (
     }
     {
         platform "python-application"
-        files (pgorm-python/**/*.rs pgorm-python/Cargo.toml pgorm-python/Cargo.lock pgorm-python/tests/application-binding/Cargo.toml pgorm-python/tests/application-binding/Cargo.lock)
+        files (pgorm-python/**/*.rs pgorm-python/Cargo.toml pgorm-python/Cargo.lock pgorm-python/tests/application-binding/Cargo.toml pgorm-python/tests/application-binding/Cargo.lock pgorm-bindings/**/*.rs pgorm-bindings/Cargo.toml)
         checks {
             format {
                 cmd "cargo fmt --manifest-path pgorm-python/tests/application-binding/Cargo.toml --all -- --check"
@@ -178,7 +178,7 @@ platforms (
     }
     {
         platform "python-native"
-        files (pgorm-python/**/*.rs pgorm-python/Cargo.toml pgorm-python/Cargo.lock pgorm-python/checks/unit.py)
+        files (pgorm-python/**/*.rs pgorm-python/Cargo.toml pgorm-python/Cargo.lock pgorm-python/checks/unit.py pgorm-bindings/**/*.rs pgorm-bindings/Cargo.toml)
         checks {
             format {
                 cmd "cargo fmt --manifest-path pgorm-python/Cargo.toml --all -- --check"
@@ -206,7 +206,7 @@ platforms (
     }
     {
         platform "napi-application"
-        files (pgorm-napi/**/*.rs pgorm-napi/Cargo.toml pgorm-napi/Cargo.lock pgorm-napi/tests/application-binding/Cargo.toml pgorm-napi/tests/application-binding/Cargo.lock)
+        files (pgorm-napi/**/*.rs pgorm-napi/Cargo.toml pgorm-napi/Cargo.lock pgorm-napi/tests/application-binding/Cargo.toml pgorm-napi/tests/application-binding/Cargo.lock pgorm-bindings/**/*.rs pgorm-bindings/Cargo.toml)
         checks {
             format {
                 cmd "cargo fmt --manifest-path pgorm-napi/tests/application-binding/Cargo.toml --all -- --check"
@@ -232,7 +232,7 @@ platforms (
     }
     {
         platform "napi-native"
-        files (pgorm-napi/**/*.rs pgorm-napi/Cargo.toml pgorm-napi/Cargo.lock)
+        files (pgorm-napi/**/*.rs pgorm-napi/Cargo.toml pgorm-napi/Cargo.lock pgorm-bindings/**/*.rs pgorm-bindings/Cargo.toml)
         checks {
             format {
                 cmd "cargo fmt --manifest-path pgorm-napi/Cargo.toml --all -- --check"
@@ -240,6 +240,10 @@ platforms (
             }
             check {
                 cmd "cargo check --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target"
+            }
+            // The build that targets PostgreSQL 19, whose module reports it.
+            check-pg-19 {
+                cmd "cargo check --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --features pg-19"
             }
             clippy {
                 cmd "cargo clippy --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --all-targets -- -D warnings"
@@ -282,7 +286,7 @@ platforms (
     }
     {
         platform "rust"
-        files (src/**/*.rs pgorm-case-style/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs pgorm-guide-support/**/*.rs tests/**/*.rs)
+        files (src/**/*.rs pgorm-case-style/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs pgorm-guide-support/**/*.rs pgorm-bindings/**/*.rs tests/**/*.rs)
         checks {
             format {
                 cmd "cargo fmt --all -- --check"

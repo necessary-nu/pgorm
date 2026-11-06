@@ -16,5 +16,5 @@
 ///     "pgorm has to be built with its pg-19 feature",
 /// );
 /// ```
-// [spec:pgorm:req:sql.target+1]
+// [spec:pgorm:req:sql.target+2]
 pub const POSTGRES_TARGET: u32 = if cfg!(feature = "pg-19") { 19 } else { 18 };

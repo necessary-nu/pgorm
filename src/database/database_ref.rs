@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::{
-    ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, SqlText,
+    ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, HookConnection, SqlText,
     metric::{InstrumentedConnection, InstrumentedTransaction, MetricsCollector, NoOpMetrics},
 };
 use tokio_postgres::{
@@ -10,7 +10,8 @@ use tokio_postgres::{
 };
 
 /// A borrowed executor of any kind: a connection, or a transaction or
-/// savepoint on one, plain or wrapped by the metrics layer's collector `M`.
+/// savepoint on one, plain or wrapped by the metrics layer's collector `M`,
+/// or the connection a pool hook is about while the hook runs.
 ///
 /// Code that chooses at run time where a statement runs — a language binding
 /// holding whichever handle its caller passed — reaches pgorm's generic
@@ -26,7 +27,7 @@ use tokio_postgres::{
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:conn.database-ref]
+// [spec:pgorm:def:conn.database-ref+1]
 pub enum DatabaseRef<'a, M: MetricsCollector = NoOpMetrics> {
     /// A connection, statements running on it outside any transaction.
     Connection(&'a DatabaseConnection),
@@ -36,6 +37,9 @@ pub enum DatabaseRef<'a, M: MetricsCollector = NoOpMetrics> {
     InstrumentedConnection(&'a InstrumentedConnection<M>),
     /// A transaction or savepoint the metrics layer records through `M`.
     InstrumentedTransaction(&'a InstrumentedTransaction<'a, M>),
+    /// The connection a pool [`Hook`](crate::Hook) is about, while the hook
+    /// runs (`conn.pool.hook-connection`).
+    Hook(HookConnection<'a>),
 }
 
 impl<M: MetricsCollector> Clone for DatabaseRef<'_, M> {
@@ -53,6 +57,7 @@ impl<M: MetricsCollector> fmt::Debug for DatabaseRef<'_, M> {
             Self::Transaction(_) => "DatabaseRef::Transaction",
             Self::InstrumentedConnection(_) => "DatabaseRef::InstrumentedConnection",
             Self::InstrumentedTransaction(_) => "DatabaseRef::InstrumentedTransaction",
+            Self::Hook(_) => "DatabaseRef::Hook",
         })
     }
 }
@@ -81,6 +86,12 @@ impl<'a, M: MetricsCollector> From<&'a InstrumentedTransaction<'a, M>> for Datab
     }
 }
 
+impl<'a, M: MetricsCollector> From<HookConnection<'a>> for DatabaseRef<'a, M> {
+    fn from(connection: HookConnection<'a>) -> Self {
+        Self::Hook(connection)
+    }
+}
+
 macro_rules! delegate {
     ($db:expr, $method:ident $(, $arg:expr)*) => {
         match $db {
@@ -88,11 +99,12 @@ macro_rules! delegate {
             DatabaseRef::Transaction(transaction) => transaction.$method($($arg),*).await,
             DatabaseRef::InstrumentedConnection(connection) => connection.$method($($arg),*).await,
             DatabaseRef::InstrumentedTransaction(transaction) => transaction.$method($($arg),*).await,
+            DatabaseRef::Hook(connection) => connection.$method($($arg),*).await,
         }
     };
 }
 
-// [spec:pgorm:def:conn.database-ref]
+// [spec:pgorm:def:conn.database-ref+1]
 #[async_trait::async_trait]
 impl<M: MetricsCollector> ConnectionTrait for DatabaseRef<'_, M> {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>

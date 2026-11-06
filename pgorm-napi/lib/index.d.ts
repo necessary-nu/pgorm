@@ -11,7 +11,16 @@ import type { Merge } from "./merge.d.ts";
 import type { Delete, Insert, Update } from "./writes.d.ts";
 import type { DDL } from "./schema.d.ts";
 import type { Pipeline } from "./pipeline.d.ts";
-import type { CopyFrom, CopyOutStream, CopyRows, CopyRowStream, CopySource, CopyTo } from "./copy.d.ts";
+import type {
+  CopyColumn,
+  CopyFrom,
+  CopyOutStream,
+  CopyRows,
+  CopyRowSink,
+  CopyRowStream,
+  CopySource,
+  CopyTo,
+} from "./copy.d.ts";
 import type { Listener, ListenerOptions } from "./listen.d.ts";
 
 export * from "./expressions.d.ts";
@@ -34,13 +43,21 @@ export * from "./metrics.d.ts";
 /** The addon's version, which is the pgorm release it is built from. */
 export declare const version: string;
 
-// [spec:pgorm:req:bindings.connections+2]
+// [spec:pgorm:req:bindings.connections+3]
 /**
  * The channel pgorm-migration's runner notifies once a batch that applied a
  * migration commits: give it as {@link PoolOptions.statementCacheChannel} for
  * a pool to clear its cached statements after a migration run elsewhere.
  */
 export declare const STATEMENT_CACHE_CHANNEL: string;
+
+// [spec:pgorm:req:bindings.postgres-target]
+/**
+ * The PostgreSQL release this build targets: 18, unless the addon was built
+ * with its `pg-19` feature, which forwards pgorm's and makes it 19. It is
+ * Rust's `pgorm_query::POSTGRES_TARGET`.
+ */
+export declare const POSTGRES_TARGET: 18 | 19;
 
 /** The base class of every error pgorm-napi rejects with. */
 export declare class PgormError extends Error {}
@@ -422,27 +439,89 @@ export declare class Value {
   toString(): string;
 }
 
-// [spec:pgorm:req:napi.lifecycle+2]
+// [spec:pgorm:req:napi.lifecycle+3]
 /** How a {@link Pool} connects. Durations are in milliseconds. */
-export interface PoolOptions {
+// [spec:pgorm:req:bindings.tls]
+/**
+ * How a connection uses TLS, named as libpq's `sslmode` names it:
+ * `"verify-full"` verifies the server's certificate chain and host name;
+ * `"verify-ca"` its chain to a `ca` the program gives, whatever host it names;
+ * `"require"` is TLS with no certificate verified; `"prefer"` TLS when the
+ * server offers it and plaintext when it does not, nothing verified; and
+ * `"disable"` plaintext. libpq's `allow` is not offered.
+ */
+export type TlsMode = "disable" | "prefer" | "require" | "verify-ca" | "verify-full";
+
+// [spec:pgorm:req:bindings.tls]
+/** How a pool or a listener of its own reaches its server, and over what TLS. */
+export interface ConnectionOptions {
   /**
-   * `"verify-full"`, the default unless the connection string says
-   * `sslmode=disable`, verifies the server's certificate and host name and
-   * never falls back to plaintext; `"disable"` connects in plaintext.
+   * The TLS mode. Without it the connection string's `sslmode` decides:
+   * `disable` is plaintext, and `prefer`, `require` or none is
+   * `"verify-full"`, which never falls back to plaintext. A mode that verifies
+   * less is only ever this option's.
    */
-  readonly tls?: "verify-full" | "disable";
-  /** PEM certificates to trust instead of the platform's trust store. */
+  readonly tls?: TlsMode;
+  /** PEM certificates a verifying mode trusts, in place of the platform's trust store; `"verify-ca"` needs it. */
   readonly ca?: string | Uint8Array;
+  /** A PEM client certificate chain, shown to a server that asks for one; given with its {@link key}. */
+  readonly cert?: string | Uint8Array;
+  /** The {@link cert}'s PEM private key: PKCS #8, PKCS #1 or SEC1, unencrypted. */
+  readonly key?: string | Uint8Array;
+  /** How long opening a connection may take, in milliseconds; 10 000 by default. */
+  readonly connectTimeout?: number;
+}
+
+// [spec:pgorm:req:bindings.pool-hooks]
+/**
+ * A pool's hook: called on this thread with the connection it is about, it
+ * may return a promise, which the hook waits for. One that throws or rejects
+ * refuses the connection.
+ */
+export type PoolHook = (connection: HookConnection) => void | Promise<void>;
+
+// [spec:pgorm:req:bindings.connections+3]
+/** What one pool takes of its own: the options Rust's `PoolBuilder` closure sets, and how long acquiring waits. */
+export interface PoolShapeOptions {
   /** Connections the pool keeps at most; 10 by default. */
   readonly maxSize?: number;
-  /** How long opening a connection may take; 10 000 by default. */
-  readonly connectTimeout?: number;
-  /** How long `acquire` waits for a free connection before a {@link TimeoutError}; 30 000 by default. */
+  /**
+   * How long acquiring a connection may take in all, in milliseconds, before a
+   * {@link TimeoutError}; 30 000 by default.
+   */
   readonly acquireTimeout?: number;
+  /** How long acquiring waits for a free connection, in milliseconds; unbounded unless given. */
+  readonly waitTimeout?: number;
+  /** How long opening a new connection may take, in milliseconds; unbounded unless given. */
+  readonly createTimeout?: number;
+  /** How long checking a returned connection may take, in milliseconds; unbounded unless given. */
+  readonly recycleTimeout?: number;
+  /** Lend the idle connection returned first (`"fifo"`, the default) or last (`"lifo"`). */
+  readonly queueMode?: "fifo" | "lifo";
+  /** Run on each connection as it opens, before the pool lends it. */
+  readonly postCreate?: PoolHook;
+  /** Run on a returned connection before the pool checks it for reuse. */
+  readonly preRecycle?: PoolHook;
+  /** Run on a returned connection once it passed its check, before the pool lends it again. */
+  readonly postRecycle?: PoolHook;
+}
+
+// [spec:pgorm:req:bindings.connections+3]
+/** What every pool built from one connection string shares. */
+export interface SharedPoolOptions extends ConnectionOptions {
   /** Prepared statements each connection caches; 0 disables the cache; 128 by default. */
   readonly statementCacheSize?: number;
-  /** How a returned connection is checked before reuse: `"verified"` (the default) or `"fast"`. */
-  readonly recycle?: "verified" | "fast";
+  /**
+   * How a returned connection is checked before reuse: `"verified"` (the
+   * default) runs an empty query, `"fast"` sends nothing, and `"clean"` also
+   * resets the session — Rust's `RecyclingMethod::Clean`.
+   */
+  readonly recycle?: "verified" | "fast" | "clean";
+  /**
+   * SQL of the program's own, run on each returned connection before reuse:
+   * Rust's `RecyclingMethod::Custom`. A `TypeError` beside {@link recycle}.
+   */
+  readonly recycleSql?: string;
   /**
    * A channel of 1 to 63 bytes the pool listens on, through a connection of
    * its own opened by its first acquisition and closed with the pool. Every
@@ -453,6 +532,12 @@ export interface PoolOptions {
    * pgorm-migration's runner notifies.
    */
   readonly statementCacheChannel?: string;
+}
+
+/** How a {@link Pool} is built. */
+export interface PoolOptions extends SharedPoolOptions, PoolShapeOptions {
+  /** The pool's name, which {@link Pool.tag} reports; pgorm names an untagged pool `default-N`. */
+  readonly tag?: string;
 }
 
 /** A snapshot of a pool's capacity and use. */
@@ -547,7 +632,7 @@ export declare abstract class Queryable {
    * own.
    */
   copyOut(statement: CopyTo, options?: OperationOptions): Promise<CopyOutStream>;
-  // [spec:pgorm:req:bindings.copy-rows+1]
+  // [spec:pgorm:req:bindings.copy-rows+2]
   /**
    * Run a binary `COPY … FROM STDIN` whose rows are arrays of values, one for
    * each column the server describes for the statement, in order, and
@@ -559,12 +644,29 @@ export declare abstract class Queryable {
    */
   copyInRows(statement: CopyFrom<"binary">, rows: CopyRows, options?: OperationOptions): Promise<number>;
   /**
+   * With no rows, resolve once the server accepts the COPY with a
+   * {@link CopyRowSink} the program writes a row at a time, which holds the
+   * connection or transaction until it finishes or closes; a pool's holds a
+   * connection of its own. The signal, if any, abandons the COPY whenever it
+   * fires before the COPY finishes.
+   */
+  copyInRows(statement: CopyFrom<"binary">, rows?: undefined, options?: OperationOptions): Promise<CopyRowSink>;
+  /**
+   * The columns a `COPY … FROM STDIN` in any format takes, in order, as the
+   * server describes them, without starting it. A table or column that does
+   * not exist is the server's {@link DatabaseError}, which leaves the
+   * connection or transaction as a failed statement does.
+   */
+  copyInColumns(statement: CopyFrom, options?: OperationOptions): Promise<readonly CopyColumn[]>;
+  /** The columns a `COPY … TO STDOUT` in any format gives, in order, as the server describes them, without starting it. */
+  copyOutColumns(statement: CopyTo, options?: OperationOptions): Promise<readonly CopyColumn[]>;
+  /**
    * Run a binary `COPY … TO STDOUT` and resolve, once the server accepts it,
    * with its rows as a {@link CopyRowStream} of arrays of values, each field
    * decoded by its column's type as a result column of that type is.
    */
   copyOutRows(statement: CopyTo<"binary">, options?: OperationOptions): Promise<CopyRowStream>;
-  // [spec:pgorm:req:bindings.listen+2]
+  // [spec:pgorm:req:bindings.listen+3]
   /**
    * Send `payload` on `channel` through `SELECT pg_notify($1, $2)`, both
    * bound; the channel is exact, as {@link Listener.listen} names it. In a
@@ -586,6 +688,8 @@ export declare abstract class Queryable {
 export declare class Pool extends Queryable implements AsyncDisposable {
   constructor(dsn: string, options?: PoolOptions);
   readonly closed: boolean;
+  /** The pool's {@link PoolOptions.tag}, or the `default-N` pgorm named it. */
+  readonly tag: string;
   status(): PoolStatus;
   /**
    * Drop every connection's cached prepared statements, so each statement is
@@ -641,6 +745,68 @@ export declare class Connection extends Queryable implements AsyncDisposable {
   stream<O extends QueryOptions = QueryOptions>(sql: string, params?: readonly Param[], options?: O): RowStream<RowFor<O>>;
   ping(options?: OperationOptions): Promise<boolean>;
   /** Return the connection to its pool, ending a transaction or stream that holds it; resolves once released. */
+  close(): Promise<void>;
+  // [spec:pgorm:req:bindings.connections+3]
+  /**
+   * Close the connection and discard it rather than return it to its pool, as
+   * Rust's `DatabaseConnection::discard` does: for one whose session state the
+   * next borrower should not find. The pool opens a fresh one in its place.
+   */
+  discard(): Promise<void>;
+  [Symbol.asyncDispose](): Promise<void>;
+}
+
+// [spec:pgorm:req:bindings.pool-hooks]
+/**
+ * The connection a pool's hook is about, while the hook runs. Its statements
+ * run on that connection, through pgorm's statement cache, as a
+ * {@link Connection}'s do; once the hook has returned they reject with a
+ * {@link LifecycleError}.
+ */
+export declare class HookConnection {
+  private constructor();
+  /** Milliseconds since the connection opened. */
+  readonly age: number;
+  /** How many times the pool has recycled the connection. */
+  readonly recycleCount: number;
+  /** Whether the hook has returned. */
+  readonly closed: boolean;
+  /** Run a statement and resolve with the number of rows it affected. */
+  execute(statement: Statement): Promise<number>;
+  execute(sql: string, params?: readonly Param[]): Promise<number>;
+  /** Every row. */
+  query<O extends { readonly tagged?: boolean } = {}>(statement: Statement, options?: O): Promise<RowFor<O>[]>;
+  query<O extends { readonly tagged?: boolean } = {}>(sql: string, params?: readonly Param[], options?: O): Promise<RowFor<O>[]>;
+  /** Exactly one row; any other count is a {@link DecodeError}. */
+  one<O extends { readonly tagged?: boolean } = {}>(statement: Statement, options?: O): Promise<RowFor<O>>;
+  one<O extends { readonly tagged?: boolean } = {}>(sql: string, params?: readonly Param[], options?: O): Promise<RowFor<O>>;
+  /** At most one row, or `null`; more is a {@link DecodeError}. */
+  optional<O extends { readonly tagged?: boolean } = {}>(statement: Statement, options?: O): Promise<RowFor<O> | null>;
+  optional<O extends { readonly tagged?: boolean } = {}>(
+    sql: string,
+    params?: readonly Param[],
+    options?: O,
+  ): Promise<RowFor<O> | null>;
+}
+
+// [spec:pgorm:req:bindings.multi-pool]
+/**
+ * Several pools against one server, one per property of `pools`, each tagged
+ * with its key and shaped by its options, every one sharing `options`, as
+ * Rust's `connect_multi_with` builds them. Building one sends nothing; which
+ * pool a statement runs on is the program's choice.
+ */
+export declare class MultiPool implements AsyncDisposable {
+  constructor(dsn: string, pools: Readonly<Record<string, PoolShapeOptions>>, options?: SharedPoolOptions);
+  /** Whether every pool is closed. */
+  readonly closed: boolean;
+  /** The pool tagged `tag`, or `null`. */
+  get(tag: string): Pool | null;
+  /** Every pool with its tag, in the tags' order. */
+  entries(): [string, Pool][];
+  /** Each pool's status, by tag. */
+  status(): Record<string, PoolStatus>;
+  /** Close every pool. */
   close(): Promise<void>;
   [Symbol.asyncDispose](): Promise<void>;
 }

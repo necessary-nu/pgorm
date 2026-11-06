@@ -47,7 +47,7 @@ use crate::{codec::Codec, rows, values::Tagged};
 use args::refuse;
 pub(crate) use args::select as embedded_select;
 pub(crate) use args::{expression, node, operand, pick, predicate};
-pub(crate) use copy::{CopyFrom, CopyTo, copy_from_at, copy_to_at};
+pub(crate) use copy::{CopyFrom, CopyStatement, CopyTo, copy_at, copy_from_at, copy_to_at};
 pub(crate) use data_type::column_type as data_type;
 pub(crate) use schema::{Ddl, FOREIGN_KEY_ACTIONS, relation};
 

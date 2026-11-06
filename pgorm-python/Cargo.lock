@@ -1420,6 +1420,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgorm-bindings"
+version = "0.2.0"
+dependencies = [
+ "pgorm",
+ "rustls",
+ "rustls-native-certs",
+ "tokio",
+ "tokio-postgres",
+ "tokio-postgres-rustls",
+]
+
+[[package]]
 name = "pgorm-case-style"
 version = "0.2.0"
 dependencies = [
@@ -1462,17 +1474,15 @@ dependencies = [
  "futures-util",
  "jiff",
  "pgorm",
+ "pgorm-bindings",
  "pgorm-query",
  "postgres-protocol",
  "pyo3",
  "pyo3-async-runtimes",
  "rust_decimal",
- "rustls",
- "rustls-native-certs",
  "serde_json",
  "tokio",
  "tokio-postgres",
- "tokio-postgres-rustls",
  "tokio-util",
  "toml",
  "uuid",

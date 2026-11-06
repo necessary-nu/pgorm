@@ -92,7 +92,7 @@ pub(crate) fn value(field: Field<'_>) -> PyResult<PyValue> {
     // which pgorm reads as a `Decimal` at the places the COPY's description
     // learned; a query's `money` column has no places beside it and is
     // refused below, as a query reads it cast to `numeric`.
-    // [spec:pgorm:req:bindings.copy-rows+1]
+    // [spec:pgorm:req:bindings.copy-rows+2]
     if let Field::Copy { column, raw, .. } = field
         && column.money_places().is_some()
     {

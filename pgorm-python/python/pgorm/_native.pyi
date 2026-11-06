@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 from asyncio import CancelledError as CancelledError
 from ._schema import (
     DataType as DataType, ColumnDef as ColumnDef, DDL as DDL, EntitySchema as EntitySchema,
@@ -59,6 +59,7 @@ from ._pipeline_functions import (
 
 __version__: str
 __pgorm_version__: str
+POSTGRES_TARGET: Literal[18, 19]
 
 class PgormError(Exception): ...
 class ConstructionError(PgormError): ...
@@ -196,11 +197,17 @@ from ._merge import (
 )
 from ._copy import (
     CopyFrom as CopyFrom, CopyTo as CopyTo, _CopyIn as _CopyIn, _CopyOut as _CopyOut,
-    _copy_in as _copy_in, _copy_out as _copy_out,
+    _copy_in as _copy_in, _copy_out as _copy_out, _copy_columns as _copy_columns,
 )
-from ._listen import Notification as Notification, _Listener as _Listener
+from ._copy_rows import (
+    CopyColumn as CopyColumn, CopyRowEncoder as CopyRowEncoder, CopyRowDecoder as CopyRowDecoder,
+)
+from ._listen import (
+    Notification as Notification, _Listener as _Listener, _connect_listener as _connect_listener,
+)
 from ._runtime import (
-    _Pool as _Pool, _Connection as _Connection, _Stream as _Stream,
+    _Pool as _Pool, _PoolShape as _PoolShape, _HookConnection as _HookConnection,
+    _Connection as _Connection, _Stream as _Stream,
     _Transaction as _Transaction, STATEMENT_CACHE_CHANNEL as STATEMENT_CACHE_CHANNEL,
 )
 from ._from_items import (
