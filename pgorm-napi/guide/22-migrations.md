@@ -28,8 +28,10 @@ A migration written in JavaScript is an object with a `name` and an
 `up(tx)` returning a promise. The runner awaits it with the transaction the
 migration runs in, an ordinary `Transaction`: statements, the query
 terminals, a savepoint ([Transactions](08-transactions.md)) and a COPY
-([COPY](17-copy.md)) all run on it. Only the runner commits or rolls it back,
-and once `up` settles the handle is closed. Its `parent` is `null`, since no
+([COPY](17-copy.md)) all run on it, and `batchExecute(script)` runs SQL text of
+several statements as one script, as a SQL file's migration runs ([Raw
+SQL](10-raw-sql.md)). Only the runner commits or rolls it back, and once `up`
+settles the handle is closed. Its `parent` is `null`, since no
 connection of the program's opened it.
 
 A *migrator* lists every migration the program owns, in the order they
@@ -49,6 +51,10 @@ const createDelivery: MigrationTrait = {
         .column(new ColumnDef("order_id", "integer").notNull())
         .column(new ColumnDef("address", "text").notNull())
         .primaryKey("id"),
+    );
+    // SQL text of several statements runs as one script.
+    await tx.batchExecute(
+      "CREATE INDEX delivery_order_index ON delivery (order_id); COMMENT ON TABLE delivery IS 'What the bakery sends out'",
     );
   },
 };
@@ -103,9 +109,11 @@ one as Rust's `sql_migration!` does: named for the file's stem, its text run
 whole in the batch's transaction, and its checksum the SHA-256 digest of
 that text, so an edit made after it ran is caught, as the next sections
 show. `sqlMigration(name, sql)` makes one from text the program holds. The
-file is read when the program runs, so its grammar is checked by the server
-as the migration runs, where `sql_migration!` checks it as the crate
-compiles. The guide keeps its frozen migrations in
+file is read when the program runs, and checked against PostgreSQL's grammar
+as it is read, as `sql_migration!` checks one as the crate compiles: a file
+with a syntax error is a `ConstructionError` naming it, before any migration
+runs. Text given to `sqlMigration(name, sql)` is checked by the server when
+it runs. The guide keeps its frozen migrations in
 [`guide/migrations/`](migrations):
 
 <!-- example: empty -->

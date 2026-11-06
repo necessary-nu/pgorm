@@ -26,8 +26,9 @@ A migration written in Python is an object with a `name` and an `up`. The
 runner awaits `up(tx)` with the transaction the migration runs in, an
 ordinary `Transaction`: statements, the query terminals, a savepoint
 ([Transactions](08-transactions.md)) and a COPY ([COPY](17-copy.md)) all run
-on it. Only the runner commits or rolls it back, and once `up` returns the
-handle is closed.
+on it, and `batch_execute(script)` runs SQL text of several statements as one
+script, as a SQL file's migration runs ([Raw SQL](10-raw-sql.md)). Only the
+runner commits or rolls it back, and once `up` returns the handle is closed.
 
 A *migrator* lists every migration the program owns, in the order they
 apply. `Migrations(migrations)` builds one, and its `up(pool)` applies the
@@ -54,6 +55,11 @@ class CreateDelivery:
             .column(s.ColumnDef("address", "text").not_null())
             .primary_key("id")
             .foreign_key("order_id", "order", "id", name="fk-delivery-order_id")
+        )
+        # SQL text of several statements runs as one script.
+        await tx.batch_execute(
+            "CREATE INDEX delivery_order_index ON delivery (order_id);"
+            "COMMENT ON TABLE delivery IS 'What the bakery sends out'"
         )
 
 
@@ -135,9 +141,11 @@ one as Rust's `sql_migration!` does: named for the file's stem, its text run
 whole in the batch's transaction, and its checksum the SHA-256 digest of
 that text, so an edit made after it ran is caught, as the next sections
 show. `SqlMigration(name, sql)` makes one from text the program holds. The
-file is read when the program runs, so its grammar is checked by the server
-as the migration runs, where `sql_migration!` checks it as the crate
-compiles.
+file is read when the program runs, and checked against PostgreSQL's grammar
+as it is read, as `sql_migration!` checks one as the crate compiles: a file
+with a syntax error is a `ConstructionError` naming it, before any migration
+runs. Text given to `SqlMigration(name, sql)` is checked by the server when
+it runs.
 
 The guide keeps its frozen migrations in [`migrations/`](migrations), beside
 [`bakery.py`](bakery.py):

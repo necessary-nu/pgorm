@@ -15,6 +15,9 @@ pgorm-macros = { version = "0.2.0", path = "../pgorm-macros", default-features =
 # The compile-time half of `sql_migration!`: it reads and checks the file
 # through the same libpg_query oracle as `pgorm::sql!`.
 pgorm-sql-macro = { version = "0.2.0", path = "../pgorm-sql-macro" }
+# The grammar check `sql_migration!` makes while a crate compiles, made of a
+# file `SqlMigration::read` reads as the program runs.
+pgorm-sql-check = { version = "0.2.0", path = "../pgorm-sql-check" }
 # The digest a SQL-file migration reports as its checksum; already in the
 # dependency graph through tokio-postgres's SCRAM support.
 sha2 = { version = "0.11.0", default-features = false }

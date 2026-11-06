@@ -386,14 +386,17 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > reports, and a ledger written by either verifies against the other. A path
 > naming no file stem MUST be `io::ErrorKind::InvalidInput` and text that is
 > not UTF-8 `io::ErrorKind::InvalidData`, and a file that cannot be read is
-> the I/O error it is. `SqlMigration::read_dir(directory)` MUST read every
+> the I/O error it is. The text MUST be held to PostgreSQL's grammar through
+> `pgorm-sql-check`'s `check_sql`, the check `sql_migration!` makes
+> (`migration.sql-file.compile`), syntax only, so a file the server would
+> refuse to parse is refused as it is read, before any batch runs, as
+> `io::ErrorKind::InvalidData` naming the file and carrying the parser's
+> diagnostic. `SqlMigration::read_dir(directory)` MUST read every
 > regular file directly inside `directory` whose extension is `sql`, in the
 > order of their file names compared as text, which is the order the
 > `m<timestamp>_<description>` names `MigrationFile` freezes are written in
 > (`migration.frozen`); other entries are passed over, and a file name that
-> is not UTF-8 is `io::ErrorKind::InvalidData`. Text read here is not held to
-> the grammar before it runs: it has no compile step to refuse it in, and the
-> server's refusal rolls the batch back as any failing migration does.
+> is not UTF-8 is `io::ErrorKind::InvalidData`.
 
 ## A migrator built at run time
 

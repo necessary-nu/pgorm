@@ -2308,9 +2308,10 @@ Rust generic at run time, only use the ones compiled in.
 > froze with `migration_file` reads back as the migration
 > `sql_migration!` makes of it, its name, its checksum and its
 > `commits_after` included. Each reads its `name`, its `sql`, its `checksum`
-> and whether it `commits_after`. A path naming no file stem MUST be a
-> `ConstructionError` and any other failure to read the language's own I/O
-> error.
+> and whether it `commits_after`. A path naming no file stem, text that is
+> not UTF-8 and text PostgreSQL's grammar refuses MUST be a
+> `ConstructionError`, the last naming the file and the parser's diagnostic,
+> and any other failure to read the language's own I/O error.
 >
 > A migration written in the language is an object with a `name`, a string,
 > and an `up` method taking one transaction and completing asynchronously,

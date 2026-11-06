@@ -1529,6 +1529,23 @@ fn runtime_sql_file_matches_the_macro() -> std::io::Result<()> {
         refused.map_err(|error| error.kind()),
         Err(std::io::ErrorKind::InvalidInput)
     );
+
+    // The file the compile_fail doctest refuses is refused as it is read.
+    let broken = format!("{manifest}/tests/sql/broken/m20260101_000001_create_note.sql");
+    let refused = SqlMigration::read(&broken).map(|_| ());
+    let Err(refused) = refused else {
+        panic!("a file the grammar refuses is refused");
+    };
+    assert_eq!(refused.kind(), std::io::ErrorKind::InvalidData);
+    let message = refused.to_string();
+    assert!(
+        message.contains("m20260101_000001_create_note.sql"),
+        "{message}"
+    );
+    assert!(
+        message.contains("PostgreSQL rejected this SQL: syntax error"),
+        "{message}"
+    );
     Ok(())
 }
 

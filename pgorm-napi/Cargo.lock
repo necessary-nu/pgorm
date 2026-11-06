@@ -1472,6 +1472,7 @@ dependencies = [
  "futures",
  "pgorm",
  "pgorm-macros",
+ "pgorm-sql-check",
  "pgorm-sql-macro",
  "sha2",
  "tracing",

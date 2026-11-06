@@ -51,12 +51,15 @@ fn sql_migration(mut cx: FunctionContext) -> JsResult<JsBox<SqlMigrationHandle>>
     Ok(cx.boxed(SqlMigrationHandle(SqlMigration::new(name, sql))))
 }
 
-/// A failure to read as JavaScript throws it: a path naming no file a
-/// `ConstructionError`, as a migration file's name that is no file stem is,
-/// and anything else an `Error` with its message.
+/// A failure to read as JavaScript throws it: a path naming no file, text
+/// that is not UTF-8 and text the grammar refuses a `ConstructionError`, as a
+/// migration file's name that is no file stem is, and anything else an
+/// `Error` with its message.
 fn read_failure<'cx, T>(cx: &mut FunctionContext<'cx>, error: std::io::Error) -> NeonResult<T> {
     match error.kind() {
-        std::io::ErrorKind::InvalidInput => throw(cx, Failure::Construction(error.to_string())),
+        std::io::ErrorKind::InvalidInput | std::io::ErrorKind::InvalidData => {
+            throw(cx, Failure::Construction(error.to_string()))
+        }
         _ => cx.throw_error(error.to_string()),
     }
 }

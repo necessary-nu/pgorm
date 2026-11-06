@@ -749,8 +749,10 @@ directory, in the order of their names, each as `sql_migration!` would have
 read it: named for its file, its checksum the digest of its text, and a file
 opening with `-- pgorm: commits-after` committing its batch. So a program can
 replay the files it has frozen without listing each in its source. The files
-are read when the program runs rather than when it compiles, so their grammar
-is checked by the server as each migration runs, not by the compiler.
+are read when the program runs rather than when it compiles, and each is
+checked against PostgreSQL's grammar as it is read, as `sql_migration!`
+checks one as the crate compiles: a file with a syntax error is refused
+before any migration runs.
 
 Here the frozen history of this guide's migrations directory is replayed on
 an empty database, after a migration written in Rust that creates the cakes

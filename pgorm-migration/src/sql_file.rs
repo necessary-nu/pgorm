@@ -118,9 +118,14 @@ impl SqlMigration {
     /// text the file's with every CRLF line ending read as LF, so it reports
     /// the checksum the macro would.
     ///
+    /// The text is held to PostgreSQL's grammar as `sql_migration!` holds a
+    /// file, syntax only, so a file the server would refuse to parse is
+    /// refused here rather than when its batch runs.
+    ///
     /// A path naming no file stem is [`io::ErrorKind::InvalidInput`], and
-    /// text that is not UTF-8 [`io::ErrorKind::InvalidData`]. Nothing checks
-    /// the text's grammar before the server runs it.
+    /// text that is not UTF-8, or that the grammar refuses,
+    /// [`io::ErrorKind::InvalidData`], the grammar's refusal naming the file
+    /// and carrying the parser's diagnostic.
     // [spec:pgorm:req:migration.sql-file.read]
     pub fn read(path: impl AsRef<Path>) -> io::Result<Self> {
         let path = path.as_ref();
@@ -140,7 +145,14 @@ impl SqlMigration {
                 format!("{} is not UTF-8 text", path.display()),
             )
         })?;
-        Ok(Self::new(name, text.replace("\r\n", "\n")))
+        let text = text.replace("\r\n", "\n");
+        if let Err(refused) = pgorm_sql_check::check_sql(&text) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{}: {refused}", path.display()),
+            ));
+        }
+        Ok(Self::new(name, text))
     }
 
     /// Every `.sql` file directly inside `directory`, each read as

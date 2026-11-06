@@ -38,12 +38,15 @@ pub(crate) struct PySqlMigration {
     inner: SqlMigration,
 }
 
-/// An I/O failure as Python raises it: a path naming no file a
-/// `ConstructionError`, as a migration file's name that is no file stem is,
-/// and anything else the `OSError` it is.
+/// An I/O failure as Python raises it: a path naming no file, text that is
+/// not UTF-8 and text the grammar refuses a `ConstructionError`, as a
+/// migration file's name that is no file stem is, and anything else the
+/// `OSError` it is.
 fn io_error(error: std::io::Error) -> PyErr {
     match error.kind() {
-        std::io::ErrorKind::InvalidInput => ConstructionError::new_err(error.to_string()),
+        std::io::ErrorKind::InvalidInput | std::io::ErrorKind::InvalidData => {
+            ConstructionError::new_err(error.to_string())
+        }
         _ => error.into(),
     }
 }

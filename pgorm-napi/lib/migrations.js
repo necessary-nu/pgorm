@@ -9,7 +9,8 @@
 
 import { fileURLToPath } from "node:url";
 
-import { nativePool, Pool, runJob, Transaction } from "./connections.js";
+import { Pool, poolHandle, Transaction } from "./connections.js";
+import { runJob } from "./runs.js";
 import { knownOptions, native, TRUSTED } from "./operations.js";
 
 /**
@@ -145,7 +146,7 @@ export class Migrations {
    */
   async up(pool, steps = null) {
     if (!(pool instanceof Pool)) throw new TypeError("migrations run on a Pool");
-    await native.migrationsUp(this.#handle, nativePool(pool), steps, dispatch);
+    await native.migrationsUp(this.#handle, poolHandle(pool), steps, dispatch);
   }
 
   /**

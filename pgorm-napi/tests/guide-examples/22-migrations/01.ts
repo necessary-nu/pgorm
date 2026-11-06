@@ -16,6 +16,10 @@ export default async function example({ pool }: GuideContext): Promise<void> {
           .column(new ColumnDef("address", "text").notNull())
           .primaryKey("id"),
       );
+      // SQL text of several statements runs as one script.
+      await tx.batchExecute(
+        "CREATE INDEX delivery_order_index ON delivery (order_id); COMMENT ON TABLE delivery IS 'What the bakery sends out'",
+      );
     },
   };
   const migrator = migrations([createDelivery]);

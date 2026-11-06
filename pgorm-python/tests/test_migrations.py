@@ -29,8 +29,8 @@ class Written:
 
     async def up(self, tx):
         self.runs += 1
-        for statement in self.sql:
-            await tx.execute(p.RawSQL(statement))
+        # Several statements run as one script, as a SQL file's migration runs.
+        await tx.batch_execute(";\n".join(self.sql))
 
 
 class SqlMigrations(unittest.TestCase):
@@ -61,6 +61,8 @@ class SqlMigrations(unittest.TestCase):
                 s.SqlMigration.read(Path(directory) / "missing.sql")
         with self.assertRaises(p.ConstructionError):
             s.SqlMigration.read("/")
+        with self.assertRaisesRegex(p.ConstructionError, "PostgreSQL rejected this SQL: syntax error"):
+            s.SqlMigration.read(SQL / "broken" / "m20260101_000001_create_note.sql")
 
     # [spec:pgorm:req:bindings.migrations/test]    a migration is a SqlMigration or an object with a name and an up
     # [spec:pgorm:req:python.truth-testing+5/test]    a migrator, a SQL migration and a status are no booleans

@@ -71,7 +71,8 @@ class Written implements MigrationTrait {
 
   async up(tx: Transaction): Promise<void> {
     this.runs += 1;
-    for (const statement of this.sql) await tx.execute(statement);
+    // Several statements run as one script, as a SQL file's migration runs.
+    if (this.sql.length > 0) await tx.batchExecute(this.sql.join(";\n"));
   }
 }
 
@@ -96,6 +97,10 @@ test("a SQL file reads as the runner reads it", () => {
   assert.deepEqual(frozen.map((file) => file.commitsAfter), [false, true, false]);
   assert.equal(sqlMigration(note.name, note.sql).checksum, NOTE_DIGEST);
   assert.throws(() => SqlMigration.read("/"), ConstructionError);
+  assert.throws(
+    () => SqlMigration.read(new URL("broken/m20260101_000001_create_note.sql", SQL)),
+    (error) => error instanceof ConstructionError && /PostgreSQL rejected this SQL: syntax error/.test(error.message),
+  );
 });
 
 // [spec:pgorm:req:bindings.migrations/test]    a directory reads its .sql files alone, CRLF read as LF
