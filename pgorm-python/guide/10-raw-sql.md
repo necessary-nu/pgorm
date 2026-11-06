@@ -459,6 +459,39 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+PRQL's `append`, `intersect` and `remove` are `UNION ALL`, `INTERSECT ALL`
+and `EXCEPT ALL`, combining whole rows by position as the
+[pipeline](12-pipeline.md)'s do, so neither relation needs its columns
+listed, and a step after one reads the whole result. pgorm's PRQL compiler
+departs from upstream PRQL there on purpose, which joins on the columns the
+two relations share. Two relations whose columns differ in number are a
+`ConstructionError`. Sunrise's cakes that are not gluten-free:
+
+```python
+import asyncio
+import os
+
+from pgorm import Pool, prql
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        not_gluten_free = prql(
+            "from cake\n"
+            "filter bakery_id == 1\n"
+            "remove (from cake | filter gluten_free)\n"
+            "select {name}"
+        )
+        assert not_gluten_free.inspect().sql == (
+            "WITH table_1 AS (SELECT * FROM cake WHERE bakery_id = 1 "
+            "EXCEPT ALL SELECT * FROM cake WHERE gluten_free) SELECT name FROM table_1"
+        )
+        assert [row["name"] for row in await pool.query(not_gluten_free)] == ["Chocolate Fudge"]
+
+
+asyncio.run(main())
+```
+
 Like `prql!`, it does not know the schema. For a query assembled from parts
 at run time, such as a filter a user chose, [the pipeline](12-pipeline.md) is
 the same compiler with a builder in front of it, whose steps are Python

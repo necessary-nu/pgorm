@@ -123,14 +123,11 @@ pub(super) fn unquotable(name: &str) -> bool {
 }
 
 /// The closed set of names an alias must not take: every top-level binding of
-/// the fork's `std` module — prqlc 0.13's, and the two set operations it adds
-/// — its submodule names, and the PRQL keywords.
+/// prqlc 0.13's `std` module, its submodule names, and the PRQL keywords.
 // [spec:pgorm:req:pipeline.errors+5]
 pub(super) const RESERVED: &[&str] = &[
     "_append_by_name",
     "_eq",
-    "_except_all",
-    "_intersect_all",
     "_is_null",
     "_param",
     "add",

@@ -259,14 +259,15 @@ of the crate, compiled in every build. Rules are grouped under
 > `append` is `UNION ALL`, `intersect` is `INTERSECT ALL`, `remove` is
 > `EXCEPT ALL` (each row of the operand cancels one matching row, not all).
 > All three compile to relation-level transforms that combine the operands
-> whole: `append`, and the fork's `_intersect_all` and `_except_all`. PRQL's
-> own `intersect` and `remove` are joins over the pairs `tuple_zip` makes of
-> the two operands' columns, which can neither expand a wildcard a later
-> stage reads a column through (refused: "This wildcard usage is not yet
-> supported") nor tell a shorter operand from a matching one (a two-column
-> relation intersected with a one-column one became an inner join on the
-> first column, and a `derive` before the operation lost its column), so the
-> pipeline does not compile to them. `distinct` is PRQL's
+> whole, the fork's std `append`, `intersect` and `remove`, which PRQL text
+> reaches by the same names (`[spec:pgorm:def:macros.prql]`). The fork departs
+> from upstream PRQL there on purpose: upstream defines `intersect` and
+> `remove` as joins over the pairs `tuple_zip` makes of the two operands'
+> columns, which can neither expand a wildcard a later stage reads a column
+> through (refused: "This wildcard usage is not yet supported") nor tell a
+> shorter operand from a matching one (a two-column relation intersected with
+> a one-column one became an inner join on the first column, and a `derive`
+> before the operation lost its column). `distinct` is PRQL's
 > `group this (take 1)`, rendered `SELECT DISTINCT`, and folded into
 > `UNION DISTINCT` or `INTERSECT DISTINCT` when it directly follows `append`
 > or `intersect`; after `remove` it deduplicates the result, which is not
@@ -457,10 +458,8 @@ of the crate, compiled in every build. Rules are grouped under
 > identifier carries a `"` or a NUL byte, begins with `$`, or is `*`,
 > refused rather than escaped (see below); `ReservedAlias(name)` — a name
 > given to `as_` collides with the closed reserved set (the top-level
-> bindings of the fork's `std` module — prqlc 0.13's, and the
-> `_intersect_all` / `_except_all` transforms the set operations compile to —
-> its submodule names `math` / `text` / `date`, and the PRQL keywords),
-> screened before compilation so
+> bindings of prqlc 0.13's `std` module, its submodule names `math` /
+> `text` / `date`, and the PRQL keywords), screened before compilation so
 > the collision is named instead of surfacing as an opaque resolution
 > failure; `Compile(diagnostics)`, carrying prqlc's own rendered
 > diagnostics for everything its resolver rejects (a `std` name used as a

@@ -120,7 +120,7 @@ pgorm-sql-macro = { version = "0.2.0", path = "pgorm-sql-macro" }
 # crates.io while this stands. pgorm-sql-check names the same revision, and
 # tests/fork_pin_tests.rs holds every declaration and every committed
 # lockfile to it.
-prqlc = { git = "https://github.com/necessary-nu/prql.git", rev = "170872b395dd35efb38c566b4e1cae44c9e82bab", default-features = false }
+prqlc = { git = "https://github.com/necessary-nu/prql.git", rev = "f25bf16dbd3ee6af1312fde39b6637aca32acc49", default-features = false }
 pgorm-query.workspace = true
 strum = { version = "0.28", default-features = false }
 serde_json = { version = "1.0.151", default-features = false, optional = true }

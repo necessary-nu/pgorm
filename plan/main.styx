@@ -10989,6 +10989,14 @@ children (
                         kind @status
                         text "Doing → Done (nplan complete)"
                     }
+
+                    {
+                        at 2026-11-06T13:42:11.827016Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Amendment to the decision above, after the operator's decision recorded on api-honesty.prql-text-set-operations: the fork's std `intersect` and `remove` are now themselves the relation-level transforms, and the `_intersect_all` / `_except_all` names are gone. The pipeline calls `intersect`/`remove` again. sets::SetOperation keeps only the verb, which is also the std transform's name. The reserved alias list loses the two underscore names, and pipeline.errors+5 drops its mention of them. The fork's PRQL deliberately differs from upstream for these two operations, and pipeline.compose+2 and macros.prql+2 both say so. The final pin is f25bf16dbd3ee6af1312fde39b6637aca32acc49 on branch pgorm/relational-set-operations: three commits on 2ce6a242, which are 170872b3, 656ce4ce and f25bf16d. The lead pushes it."
+                        after_done true
+                    }
                 )
             }
 
@@ -11033,6 +11041,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @status
                         text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-06T13:42:11.492139Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Operator decision (relayed by the lead, 2026-11-06): PRQL text's `intersect` and `remove` use the relation-level transforms, so `prql!` and the bindings' `prql()` are correct too, and the fork's PRQL deliberately differs from upstream for these two. Built in fork commit 656ce4cecd7c691358f7d6bd843009bc82ccab45 (on branch pgorm/relational-set-operations, after 170872b3). It does more than point the names at the new transforms. std's `intersect`/`remove` are now the transforms themselves (`internal intersect` / `internal remove`), and the interim `_intersect_all` / `_except_all` names are deleted, so there is one std name per operation and errors name the operation the user wrote. The preprocess passes that recognised the old join shapes are deleted. A group whose body does not aggregate (the book's `distinct` = `group {t.*} (take 1)`) is now typed as its input's columns after its keys; it was typed with every key counted twice, which made `distinct | remove ...` fail as a column-count mismatch. Upstream's test_remove_03 (anti-join on mismatched operands) becomes a refusal. Making std's operations relational exposed one more upstream bug to PRQL text: a stage after a set operation was rendered into the operation's own query. So `from a | intersect b | select {id}` became `SELECT id FROM a INTERSECT ALL SELECT * FROM b`, and a projection after two projected operands narrowed both. The join form had refused these. Fixed in fork commit f25bf16dbd3ee6af1312fde39b6637aca32acc49, the final pin: lowering states the columns an INTERSECT/EXCEPT, or a UNION with a wildcard operand, combines as a Select in front of it; the anchor splits the operation off when the next query wants other columns, and keeps every stated column. A UNION of two known projections is still pruned arm by arm, as upstream does, which is sound. pgorm's own pipeline settle is unchanged and still correct; it is now redundant with the fork's split for stages after set operations, but removing it would be a separate simplification. Rules: macros.prql+2 states the departure from upstream."
                     }
                 )
             }

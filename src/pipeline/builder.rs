@@ -1039,7 +1039,7 @@ impl Pipeline {
         self.ordering = None;
         let reference = self.embed(other.into_source());
         self.combined = None;
-        let mut combined = self.stage(adapter::call(operation.transform(), vec![reference]));
+        let mut combined = self.stage(adapter::call(operation.verb(), vec![reference]));
         combined.combined = Some(operation);
         combined
     }
