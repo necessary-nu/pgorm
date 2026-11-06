@@ -238,6 +238,17 @@ impl PySelect {
         next
     }
 
+    // [spec:pgorm:req:bindings.distinct-on]
+    /// `DISTINCT ON (..)`: the first row of each run of rows equal on the
+    /// columns, replacing `distinct()` or an earlier list.
+    #[pyo3(signature = (*columns))]
+    fn distinct_on(&self, columns: &Bound<'_, PyTuple>) -> PyResult<Self> {
+        let columns = common::columns(columns, "distinct_on")?;
+        let mut next = self.clone();
+        next.inner.distinct_on(columns);
+        Ok(next)
+    }
+
     // [spec:pgorm:req:bindings.windows]
     /// Append a named window to the WINDOW clause, `name AS (..)`, which an
     /// item's `over(name)` reads: a `Window`, or an `ExtendedWindow` built on

@@ -54,6 +54,27 @@ class CodegenTests(unittest.TestCase):
         with self.assertRaises(CodegenError):
             validate(data, self.base)
 
+    # [spec:pgorm:req:bindings.codegen-coverage/test]    one-of references and source tuples are described, a tuple listing only described entities
+    def test_one_ofs_and_source_tuples_are_described(self):
+        data = copy.deepcopy(self.config)
+        data["entities"].append({"name": "app.Other", "rust": "other::Entity", "python": "Other"})
+        data["one_ofs"] = [{"name": "app.Target", "rust": "thing::Target", "python": "Target"}]
+        data["sources"] = [
+            {"name": "app.Pair", "rust": ["thing::Entity", "other::Entity"], "python": "Pair"}
+        ]
+        validated = validate(data, self.base)
+        self.assertEqual(validated["one_ofs"], data["one_ofs"])
+        self.assertEqual(validated["sources"], data["sources"])
+        for rust in ([], ["missing::Entity"], "thing::Entity", ["thing::Entity"] * 7):
+            refused = copy.deepcopy(data)
+            refused["sources"][0]["rust"] = rust
+            with self.subTest(rust=rust), self.assertRaises(CodegenError):
+                validate(refused, self.base)
+        refused = copy.deepcopy(data)
+        refused["one_ofs"][0]["python"] = "Thing"
+        with self.assertRaises(CodegenError):
+            validate(refused, self.base)
+
     # [spec:pgorm:req:bindings.codegen-disjoint/test]    a description's disjoint enums are named by Rust path, registration and export, each unique and none colliding with another export, or refused before anything is written
     def test_disjoint_enums_are_described_uniquely(self):
         data = copy.deepcopy(self.config)

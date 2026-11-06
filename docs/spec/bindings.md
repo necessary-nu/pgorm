@@ -728,6 +728,21 @@ closed, and a transaction by the block or callback it was opened for ending.
 > `finish()` refuses data that ends part way through a row or without the
 > trailer, each refusal a `DecodeError`.
 
+> [spec:pgorm:req:bindings.copy-rows.typed]
+> A row `copy_out_rows` read MUST write back through `copy_in_rows`, a
+> `CopyRowSink` and a `CopyRowEncoder` into columns of the same types, each
+> value as its column's type. Where a value says less than its column, it is
+> read as its column's kind, pgorm's `CopyColumn::value_kind()`
+> (`[spec:pgorm:req:conn.copy.rows.kind]`), rather than refused: a json
+> column's value, or the elements of a json array's, is read as JSON whatever
+> it holds, a number, a string or a list included, which inference reads as
+> numbers, text and arrays; and a value inference cannot type, a range or a
+> multirange of no named type, an array holding no element or only nulls, is
+> read as its column's kind. Every other value is read as
+> `bindings.copy-rows` says, and a value neither reading takes is refused as
+> inference refuses it. Each binding's types MUST take what its row stream
+> yields as rows to write, so a stream is written back with no cast.
+
 > [spec:pgorm:req:bindings.listen+3]
 > `listener(capacity)` on a pool MUST open a `Listener` through pgorm's
 > `DatabasePool::listener` (`conn.listen`): a connection of its own, opened
@@ -1033,6 +1048,13 @@ the same terminals that run raw SQL.
 > by the name it answers to in the statement, and with NOWAIT or SKIP LOCKED,
 > through pgorm-query's own lock builder.
 
+> [spec:pgorm:req:bindings.distinct-on]
+> A `Select` MUST take `distinct_on(columns..)`, `SELECT DISTINCT ON (..)`,
+> through pgorm-query's `distinct_on`, which takes columns: each argument is a
+> column expression, and another expression, or no column at all, is a
+> `ConstructionError`. `distinct()` and `distinct_on` replace each other, the
+> later call winning, as pgorm-query's do.
+
 > [spec:pgorm:req:bindings.with+1]
 > A WITH clause MUST hold common table expressions in call order, each named.
 > A body is a `Select`, or a MERGE with a RETURNING list. A SELECT and a MERGE
@@ -1268,6 +1290,13 @@ the same terminals that run raw SQL.
 > CHECK tests. `asc()` and `desc()` give an ordering, with NULLS FIRST or
 > LAST, and `as(alias)` an aliased projection item.
 
+> [spec:pgorm:req:bindings.condition-option]
+> A `Condition` MUST take `add_option(condition)`, pgorm-query's
+> `Condition::add_option`: the condition with the expression or `Condition`
+> added, or the condition as it is when the argument is the language's
+> absent value (`None`, `null` or `undefined`), so a search whose fields are
+> optional adds each without a branch around the builder.
+
 > [spec:pgorm:req:bindings.quantifiers+4]
 > `any(source)` and `all(source)` MUST be `ANY (..)` and `ALL (..)`:
 > pgorm-query's `Expr::any` / `Expr::all` over a `Select`'s rows, and
@@ -1401,22 +1430,36 @@ decode into records of its fields, and its relations, graphs, cursors and
 pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 `Paginator`.
 
-> [spec:pgorm:req:bindings.models+5]
-> `model(name, columns, schema, unique_keys)` MUST declare a model of a
-> table, schema-qualified when a schema is given, from a mapping of fields,
-> each a `Column(kind, options)`, and the table's unique keys
-> (`bindings.model-unique-keys`). The kind is one every result decodes as — any
-> value kind but `u64` and `char`, which no column decodes as — or a
-> schema-qualified `TypeName`, `CreatedRange` or `CreatedMultirange`, as a
-> decoded row names each type. The options are `name` (the SQL column, the
-> field's own name by default), `nullable`, `array`, `primary_key`, `default`,
-> `generated` (always or by default) and an enum's `values`.
+> [spec:pgorm:req:bindings.models+6]
+> `model(name, columns, schema, unique_keys, comment, rename_all)` MUST
+> declare a model of a table, schema-qualified when a schema is given, from a
+> mapping of fields, each a `Column(kind, options)`, the table's unique keys
+> (`bindings.model-unique-keys`), its comment and the case style its columns
+> are named in (`bindings.schema-from-model`). The kind is one every result
+> decodes as — any value kind but `u64` and `char`, which no column decodes
+> as — or a schema-qualified `TypeName`, `CreatedRange` or
+> `CreatedMultirange`, as a decoded row names each type. The options are
+> `name` (the SQL column, the field's own name, or the field written in the
+> `rename_all` style, by default), `nullable`, `array`, `primary_key`,
+> `default` (filled by a default the declaration does not state),
+> `generated` (always or by default) and an enum's `values`, and the table's
+> DDL options `bindings.schema-from-model` gives: `column_type`,
+> `default_value`, `default_expr`, `generated_stored`, `generated_virtual`,
+> `auto_increment`, `indexed`, `comment` and `without_overlaps`; the casts
+> `bindings.model-casts` gives, `select_as`, `save_as`, `select_with` and
+> `save_with`; and the conversions `bindings.model-conversions` gives,
+> `decode` and `encode`. A column with
+> a generation expression is generated always, as no write sets it; an insert
+> may leave out a column that is nullable, generated, drawn from the serial
+> family or filled by a default, stated or not.
 >
 > Any other value MUST be a `ConstructionError` raised as the model is
-> declared: a key column that is nullable, a generated
-> column with a default, labels on a column that is no enum, two fields of
+> declared: a key column that is nullable, a column filled two ways (a
+> default, stated or not, an identity, a generation expression, the serial
+> family), labels on a column that is no enum, two fields of
 > one column, a field named twice, an enum or created range without its
-> schema, and an identifier pgorm would not take. Declaring a model MUST send
+> schema, an identifier pgorm would not take, and what
+> `bindings.schema-from-model` refuses of the DDL options. Declaring a model MUST send
 > nothing, run no DDL and claim no Rust entity: no derive, `EntityTrait`,
 > implementation or ActiveModel hook is behind it. A model and its columns
 > never change; `as(alias)` gives another model reading the table under an
@@ -1664,14 +1707,20 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > terminals, an update `FROM` and a delete `USING` — run no hook, as Rust's
 > `Insert`, `Update` and `Delete` run none.
 
-> [spec:pgorm:req:bindings.relations+1]
+> [spec:pgorm:req:bindings.relations+3]
 > A model's `belongs_to`, `has_one` and `has_many` MUST make a relation to
 > another model, pairing fields of each — one, or non-empty lists of equal
 > length — in order, and taking pgorm's `on_condition` and `condition_type`:
 > `on_condition` a function given the two ends, each the model answering to
 > the name the join gives its table (aliased where that is not its own),
 > returning a condition; `condition_type` `"all"`, the default, or `"any"`. A
-> join along it MUST be the condition pgorm's `join_condition` writes for a
+> `belongs_to` relation is the side holding the foreign key, and takes its
+> `on_delete` and `on_update` actions — `no_action`, `restrict`, `cascade`,
+> `set_null` or `set_default`, spelled in the binding's case — and its
+> `fk_name`, as an entity's `belongs_to` does, which
+> `bindings.schema-from-model` writes; the relation reports each, null when
+> none was given. `has_one` and `has_many` take neither, one given being a
+> `TypeError`, as an action outside the set is. A join along it MUST be the condition pgorm's `join_condition` writes for a
 > relation: each pair of fields equal and the pairs ANDed, then the
 > `on_condition`'s condition, the two composed by AND under `"all"` and by OR
 > under `"any"`, between the tables as the join names them. A join starts
@@ -1799,16 +1848,6 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > reversed order and given in the cursor's own, and each replaces the other;
 > `asc()` and `desc()` choose the direction.
 
-> [spec:pgorm:req:bindings.cursor-secondary-order]
-> A cursor's `add_secondary_order_by(column)` MUST give the cursor with a
-> model's column, qualified as the query names its table — the queried
-> model's, a joined table's or a graph source's — appended to its ordering
-> after the key and the tiebreaks, as pgorm's `add_secondary_order_by`
-> appends one. A whole-key boundary (`after_with`, `before_with`) then takes
-> its value after the others', converted through its field's declared kind,
-> while `after` and `before` still take the order fields' values alone. A
-> column that is not a model's is refused as an argument of the wrong type.
-
 > [spec:pgorm:req:bindings.pagination]
 > `paginate(page_size)` on a model query or a graph MUST read page `n` as
 > the query with a limit of `page_size` and an offset of `page_size × n`,
@@ -1818,6 +1857,88 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > ordering dropped, `SELECT COUNT(*) AS "num_items" FROM (..) AS
 > "sub_query"`, and give an exact integer; `num_pages` rounds the pages up;
 > and `pages` yields each page from the first until one is empty.
+
+> [spec:pgorm:req:bindings.model-clauses]
+> A model query, and a projection of one (`bindings.model-projections`), MUST
+> take the clauses of pgorm's entity `Select` beside `where`, `order_by`,
+> `limit` and `offset`, each a new query decoding as the one it was called on:
+> `distinct()`; `distinct_on(columns..)`, of the queried model or a table it
+> joined (`bindings.distinct-on`); `group_by(items..)`, expressions and
+> grouping elements as the statement builder's `group_by` takes them, and
+> `having(condition)`, ANDed as `where` is; and `lock(strength, wait, of)`,
+> the statement builder's row lock (`bindings.row-locks`), which is Rust's
+> `lock`, `lock_shared`, `lock_exclusive` and `lock_with_behavior`. A model
+> query's records stay the model's: a grouped or distinct query decodes each
+> row as its model declares it.
+>
+> `join(relation)` MUST take an inner, left, right or full join, Rust's
+> `join(JoinType, RelationDef)`; a row a right or full join reads with no
+> match holds NULL in the queried model's columns, which a field not
+> nullable refuses as `bindings.model-records` says. `join_rev(relation)`
+> MUST join the table the relation starts at from its far end, which the
+> query's model or a table it joined is, on the relation's condition as it
+> stands: Rust's `join_rev`, so a relation declared on one model joins from
+> the other. A relation whose start (for `join`) or end (for `join_rev`) is
+> no table the query reads is a `ConstructionError`.
+
+> [spec:pgorm:req:bindings.model-projections]
+> A model query MUST become a projection, Rust's `select_only` and the
+> projections the entity `Select` takes: `select_only()` with no items;
+> `column(column)`, `columns(columns..)`, `column_as(column, name)` and
+> `expr_as(expr, name, declaration)` each add items, called on a model query
+> after its fields. A column is a model's column, the queried one's or a
+> joined table's, and its item is read under its field's name and decoded as
+> its field declares; `column_as` names it, aliased as Rust's `column_as`
+> aliases. An expression's item is decoded as its declaration, a `Column` of
+> a kind, nullability, array and values and nothing else, says — the type an
+> aggregate or a function returns, which Rust states in the type it decodes
+> into — and any other option is a `ConstructionError`. Each item is
+> projected as a model's field is, a created multirange's cast to `text`
+> (`bindings.model-records`). Two items of one name, or of one result
+> column, and a projection of no items are `ConstructionError`s.
+>
+> A projection reads rows once `into_tuple()`, `into_values(names..)` or
+> `into_model(..)` says what each becomes — the items' values in order, the
+> named items' values in the order named (Rust's `into_values`), or an
+> object keyed by item name, made by the binding's own form of a
+> `FromQueryResult` target — and a model query takes the three directly, as
+> a projection of its fields. Each is a selector, Rust's `Selector`, with
+> `all`, `one`, `optional`, `stream`, `count`, `cursor` (by the queried
+> model's fields) and `paginate`, as `bindings.model-reads`,
+> `bindings.cursors` and `bindings.pagination` state them. A selector MUST
+> decode each row as a model's terminals do: the result's columns exactly
+> the items', each of its item's declared kind, and a NULL an item is not
+> declared nullable for, or a label an enum item does not list, a
+> `DecodeError`.
+
+> [spec:pgorm:req:bindings.partial-models]
+> A partial model MUST declare a read shape over a model, as Rust's
+> `PartialModel` derive does: each field one of the model's columns (Rust's
+> `from_col`, a field named for its column being Rust's plain field), a
+> `FromExpr` of an expression and the declaration it decodes by (Rust's
+> `from_expr`, its declaration as an `expr_as` item's), or a `Skip` holding a
+> value (Rust's `skip`), and at least one field not skipped.
+> `into_partial_model(shape)` on a model query MUST select what the shape
+> declares as Rust's `PartialModelTrait::select_cols` does, the query's other
+> clauses kept — a column under the field's name, aliased where that is not
+> the column's own; an expression aliased to its field; a skipped field
+> nothing — and decode each row into the shape's fields in declaration
+> order, a skipped field holding its value, as a selector decodes. A shape
+> over another table than the query's is a `ConstructionError`.
+
+> [spec:pgorm:req:bindings.cursor-secondary-order+1]
+> A cursor MUST take `add_secondary_order_by(model, field)`, Rust's
+> `Cursor::add_secondary_order_by(table, column)`: an ordering by the field of
+> the queried model, a table the query joined or a graph's source, the model
+> named as the query names its table, its alias included, appended after the
+> cursor's key and the entries before it, its boundary values converted
+> through the field's declared kind and compared through its column's casts.
+> A first argument that is not a model is one of the wrong type, and a model
+> the query reads under no such name a `ConstructionError`. `after` and
+> `before` still take the key alone, so
+> they resume past every row sharing the boundary's key; `after_with` and
+> `before_with` take the key or the whole ordering, so a window that ended
+> inside a run of one key resumes inside it (`bindings.cursors`).
 
 ## Registered entities
 
@@ -2003,6 +2124,30 @@ Rust generic at run time, only use the ones compiled in.
 > whose ActiveModels set different ones is a `ConstructionError` as it is
 > given, where Rust's `Insert` refuses it before anything is sent.
 
+> [spec:pgorm:req:bindings.entity-try-inserts]
+> An entity's insert's `on_conflict_do_nothing()` MUST give the try-insert
+> pgorm's `Insert::on_conflict_do_nothing` makes, `ON CONFLICT` on the
+> primary key's columns `DO NOTHING`, and `on_empty_do_nothing()` the one
+> `Insert::on_empty_do_nothing` makes, its conflict clause kept: an
+> `EntityTryInsert` from an `EntityInsert`, an `EntityTryInsertMany` from an
+> `EntityInsertMany`, typed by row count as `TryInsert<A, OneRow>` and
+> `TryInsert<A, ManyRows>` are, and run through them, statement terminals
+> that run no hook. Each has `on_conflict`, which sets the clause in place of
+> the one it had, as `TryInsert::on_conflict` does, and `add(active)` and
+> `add_many(actives)`, which give the `EntityTryInsertMany` of its
+> ActiveModels and then theirs as `bindings.entity-inserts` says. Both kinds
+> have `execute`, `TryInsert::exec`; an `EntityTryInsert` has `returning_pk`
+> and `returning_model`, and an `EntityTryInsertMany` `returning_pks` and
+> `returning_models`, `TryInsert`'s terminals of the same names; neither has
+> an upsert terminal, as `TryInsert` has none. Each answers as pgorm's
+> `TryInsertResult` does, in the `TryInsertResult` a declared model's
+> try-insert answers with (`bindings.model-try-inserts`): `inserted` with
+> what the terminal wrote, a key and a row as `bindings.entity-inserts`
+> reads them; `conflicted` where the conflict clause held every row back;
+> and `empty`, nothing sent, for a batch of none and for an ActiveModel that
+> sets no column. With no conflict clause, a row that conflicts is the
+> server's refusal.
+
 > [spec:pgorm:req:bindings.entity-graphs+4]
 > `graph(name).find(aliases)` MUST build the registered `SelectGraph` with the
 > application's factory, its declared entity tuple, join slot kinds and
@@ -2080,6 +2225,24 @@ Rust generic at run time, only use the ones compiled in.
 > installed types. The generated module MUST check, as it loads, that the
 > native module and every registration it names describe as they did when it
 > was written, and refuse to load otherwise.
+
+> [spec:pgorm:req:bindings.codegen-coverage]
+> Each binding's build description MUST describe, beside its entities, graph
+> shapes and disjoint enums, the downstream crate's one-of references and its
+> source tuples. A one-of reference (`one_ofs`) names its registration, the
+> Rust path of its `#[derive(OneOf)]` enum and its export; the scaffold
+> registers it with the registry's `one_of`, and the generated module exports
+> it as the `OneOfEntity` the binding's `one_of_entity` gives. A source tuple
+> (`sources`) names its registration, the Rust paths of one to six entity
+> types the description registers, and its export; the scaffold registers it
+> with the registry's `sources`, and the generated module exports the
+> `SourceSelection` a pipeline's `select_sources` takes, with the type of
+> the row it selects: each listed entity's record, or nothing where the row
+> lacks it. Each is refused, before anything is written, as `bindings.codegen`
+> refuses an entity: a name that repeats or collides, a Rust path that is no
+> path to an item, a one-of enum registered twice, and a source tuple listing
+> an entity the description does not register. The generated module's load
+> check covers both, as it covers the rest of its registrations.
 
 > [spec:pgorm:req:bindings.codegen-layout]
 > The module each binding's codegen writes (`bindings.codegen`), and its
@@ -2241,7 +2404,7 @@ Rust generic at run time, only use the ones compiled in.
 > regardless is refused with the `ConstructionError` naming the base as
 > read-only (`bindings.disjoint-unkinded`).
 
-> [spec:pgorm:req:bindings.migration-file]
+> [spec:pgorm:req:bindings.migration-file+1]
 > Each binding MUST freeze generated DDL as pgorm freezes it
 > (`[spec:pgorm:def:migration.frozen]`), the text and the file written by
 > pgorm's `MigrationFile` alone: `migration_file(name, statements,
@@ -2256,10 +2419,65 @@ Rust generic at run time, only use the ones compiled in.
 > `commits_after`, and `freeze(directory)` writing `<name>.sql` where no file
 > of that name is and answering whether it did, never rewriting one. A name
 > that is no plain file stem MUST be a `ConstructionError`, and any other
-> failure to write the file the language's own I/O error. A binding has no
-> migration runner: each file is one migration for a tool that runs a
-> directory of SQL files, each in its own transaction, or for
-> pgorm-migration's `sql_migration!`.
+> failure to write the file the language's own I/O error. Each file is one
+> migration, which the binding's own runner reads back as a `SqlMigration`
+> (`bindings.migrations`) and pgorm-migration's `sql_migration!` compiles
+> into a Rust migrator.
+
+> [spec:pgorm:req:bindings.migrations]
+> Each binding MUST run its migrations through pgorm-migration's runner, a
+> `Migrations` (`[spec:pgorm:def:migration.runtime]`) it builds from the
+> program's list, never a runner of its own: the ledger, its placement and
+> the adoption of SeaORM's, the advisory lock, the pending set, checksums,
+> `commits_after`, the name check and the statement-cache clear and
+> notification are that runner's (`migration.runner`, `migration.up`).
+>
+> `SqlMigration(name, sql)` is pgorm-migration's `SqlMigration::new`, and
+> `SqlMigration.read(path)` and `SqlMigration.read_dir(directory)` are its
+> `read` and `read_dir` (`migration.sql-file.read`): a file the binding
+> froze with `migration_file` reads back as the migration
+> `sql_migration!` makes of it, its name, its checksum and its
+> `commits_after` included. Each reads its `name`, its `sql`, its `checksum`
+> and whether it `commits_after`. A path naming no file stem, text that is
+> not UTF-8 and text PostgreSQL's grammar refuses MUST be a
+> `ConstructionError`, the last naming the file and the parser's diagnostic,
+> and any other failure to read the language's own I/O error.
+>
+> A migration written in the language is an object with a `name`, a string,
+> and an `up` method taking one transaction and completing asynchronously,
+> with an optional `checksum`, a string or nothing, and an optional
+> `commits_after`, false unless given; the binding reads the three once, as
+> the migrator is built, and anything else in the list is a `TypeError`. It
+> is a `MigrationTrait` whose `up` calls the object's `up` with a transaction
+> handle on the batch's own transaction, the `&mut DatabaseTransaction` the
+> runner passes (`migration.runner`), and awaits it. The handle is the
+> language's transaction, open for that call alone: every statement,
+> terminal and COPY a transaction takes runs on it, and a savepoint opens on
+> it as on any transaction, while nothing commits or rolls it back but the
+> runner. Once `up` completes the handle is closed, so a command made with it
+> afterwards is the `LifecycleError` a closed transaction's is. An exception
+> `up` raises or a rejection it returns fails the migration, which rolls the
+> batch back as a Rust migration's error does, and `up` then raises it as
+> itself rather than pgorm's account of it.
+>
+> `Migrations(migrations, migration_table_name, migration_table_schema,
+> statement_cache_channel)` builds the migrator, the three options answering
+> `migration_table_name()`, `migration_table_schema()` and
+> `statement_cache_channel()`, `STATEMENT_CACHE_CHANNEL` unless given and
+> none notifying nothing. Its `up(pool, steps)` is the runner's `up` on the
+> pool's `DatabasePool`, every step bound included: it checks connections
+> out of that pool, as Rust's runner checks them out of the `DatabasePool`
+> it is given, so an instrumented pool's collector is not told of them, and
+> it clears that pool's statement caches. `install(executor)`,
+> `get_migration_with_status(executor)`, `get_pending_migrations(executor)`
+> and `get_applied_migrations(executor)` are the runner's on a pool, a
+> connection or a transaction, the last three each giving the migrations'
+> names with their status, pending or applied, in the list's order; they
+> only read (`migration.read-only`). `status(executor)` logs each
+> migration's name and status through the language's logging, as Rust's
+> logs them through `tracing`. The runner's own refusals — a name twice in
+> the list, a ledger row with no migration, a checksum that has changed —
+> are pgorm's `Error::Custom`, the binding's `ConstructionError`.
 
 > [spec:pgorm:req:bindings.one-of+1]
 > Each binding MUST read, set and load a reference to exactly one of several
@@ -2480,7 +2698,7 @@ placeholders belong to the stage that minted them.
 > `ConstructionError`, and its first action gives the statement. A
 > `ColumnDef` is no statement, and a terminal refuses it likewise.
 
-> [spec:pgorm:req:bindings.schema-api+2]
+> [spec:pgorm:req:bindings.schema-api+3]
 > Each binding MUST spell the DDL `bindings.schema` describes as these
 > functions and the builders they give, every complete statement of the `DDL`
 > class or a class extending it, so a statement the terminals take; no class
@@ -2537,7 +2755,8 @@ placeholders belong to the stage that minted them.
 >   statement; and `drop_domain(names)`;
 > - `from_entity(entity)` gives an `EntitySchema` of the table, enum, index
 >   and comment statements (`bindings.schema-from-entity`), its enums each a
->   `CreateType`.
+>   `CreateType`, and `from_model(model, relations)` one of a declared
+>   model's (`bindings.schema-from-model`).
 >
 > Each statement's further options are those the rules below give it, as
 > options. A list of names is one name or a non-empty list, an empty list a
@@ -2546,7 +2765,7 @@ placeholders belong to the stage that minted them.
 > spelled in the binding's case, `"not_enforced"` in Python and
 > `"notEnforced"` in JavaScript. Python's capability manifest lists each
 > function and constructor as a `schema.` operation needing no registration
-> but `from_entity`'s (`python.capabilities`).
+> but `from_entity`'s (`python.capabilities`), `from_model` among them.
 
 > [spec:pgorm:req:bindings.schema-from-entity]
 > The schema of a registered entity MUST be generated by pgorm's own entity
@@ -2556,6 +2775,120 @@ placeholders belong to the stage that minted them.
 > (`schema.from-entity`), the binding MUST raise a `ConstructionError`
 > carrying the Rust message, and MUST NOT give a schema that leaves the key
 > out.
+
+> [spec:pgorm:req:bindings.schema-from-model]
+> The schema of a declared model MUST be written by pgorm's own `Schema`
+> from the `TableShape` the model describes
+> (`[spec:pgorm:sem:schema.from-shape]`), the statements
+> `create_table_from_entity` and its siblings write for an entity of the same
+> declaration, and offered as an `EntitySchema`: its `CREATE TABLE`, the
+> `CREATE TYPE` of each enum its columns hold, an index for each `indexed`
+> column and its comments. The table is the model's, unaliased (an aliased
+> model is a `ConstructionError`), with a column per field in declaration
+> order under its SQL name, of the kind's own type
+> (`ArrayType::column_type`, an enum of the labels it lists, a created range
+> over its subtype), `NOT NULL` unless it is nullable; its primary key, of
+> its key fields in declaration order; each unique key the model declares;
+> its comment; and a foreign key for each `belongs_to` relation in
+> `relations`, starting at the model's table, with the actions and name the
+> relation gives (`bindings.relations`), written as `RelationDef` converts
+> (`[spec:pgorm:req:entity.relation.fk]`). A relation of another kind, one
+> starting at another table, and a column filled by a `default` the
+> declaration does not state, which has no `DEFAULT` to write, MUST be a
+> `ConstructionError` carrying the Rust message.
+>
+> A column's DDL options are Rust's field attributes of the same names:
+> `column_type` its type instead of the kind's, any type a `ColumnDef` takes
+> but an array, since an array column's is its elements' (Rust's
+> `column_type`); `default_value` a value converted through the kind,
+> written as pgorm-query's escaped literal, and `default_expr` an
+> expression, its `DEFAULT`; `generated_stored` and `generated_virtual` an
+> expression it is `GENERATED ALWAYS AS (..)`, `STORED` or `VIRTUAL`;
+> `generated` without one an identity, always or by default; `auto_increment`
+> a one-column `i16`, `i32` or `i64` key drawn from the serial family, as a
+> Rust entity's one-column integer key is unless it says otherwise; `indexed`
+> an index of its own, `idx-{table}-{column}`; `comment` its `COMMENT ON
+> COLUMN`; and `without_overlaps` a range or multirange key column that is
+> the key's period, written `WITHOUT OVERLAPS` after the rest. A model's
+> `comment` is its `COMMENT ON TABLE`, and `rename_all` names each field's
+> column, where the column names none, by the case style Rust's
+> `rename_all` takes (`camelCase`, `PascalCase`, `kebab-case`,
+> `snake_case`, `SCREAMING_SNAKE_CASE`, `SCREAMING-KEBAB-CASE`,
+> `lowercase`, `UPPERCASE`, `title_case`, `mixed_case`), converted by the
+> derive's own conversion, pgorm's `CaseStyle`; any other style is a
+> `TypeError`. The tables of a disjoint model (`bindings.disjoint`) and a
+> one-of model (`bindings.one-of`) are described from their models' columns
+> by the same lowering, so a column's `column_type` replaces the type its
+> kind is written with there too, and `create_disjoint` writes its stated
+> default, generation expression or identity; that schema writes no index or
+> comment, which `from_model` of the kind's model gives.
+>
+> What the options cannot say MUST be a `ConstructionError` raised as the
+> model is declared, before anything is sent: a `column_type` on an enum or
+> created range column, whose type is its kind's, or naming an array; a
+> `default_value` of NULL or not of the column's kind; a generation
+> expression on a column generated by default; `auto_increment` on a column
+> that is no `i16`, `i32` or `i64` primary key, or in a key of more than one
+> column; `without_overlaps` on a column that is no range or multirange key
+> column, on a key field but the last, or in a key of one column, which
+> PostgreSQL refuses; and whatever pgorm's `TableShape` refuses, its unique
+> keys over a `VIRTUAL` generated column among them. A `default_expr`,
+> `generated_stored` or `generated_virtual` that is no expression, and a
+> `comment` that is no string, are `TypeError`s.
+
+> [spec:pgorm:req:bindings.model-casts]
+> A declared model's column MUST be read, written and compared through
+> pgorm's own casts for the type it declares, as an entity's column is:
+> where it declares a `column_type`, a `select_as` or a `save_as`, the model
+> asks pgorm's `TableColumn` of that type (`[spec:pgorm:sem:schema.shape-casts]`)
+> for each cast, and a column declaring none of them is read, written and
+> compared as it stands, as before. So a `money` column of the `decimal`
+> kind is read cast to `numeric` and each value written and compared cast to
+> `money`; an enum column whose `column_type` is a domain over its enum is
+> read as its text, read back as the enum's label, written cast to the
+> domain, and compared with both sides cast to the enum, which PostgreSQL
+> resolves no operator for otherwise (`42883`); and a domain over any other
+> type is written and read as its base. `select_as` and `save_as` name the
+> type a read and a write cast to — a built-in type's name, a `TypeName`, or
+> a `DataType`, whose length or precision the cast writes as the type's
+> modifiers (`bit(7)`, through pgorm-query's `ColumnType::cast_type`) — and
+> a comparison's value takes the `save_as` cast too. `select_with` and
+> `save_with` are functions of the binding's own from an expression to an
+> expression: the column read through the one, and each written or compared
+> value, bound, through the other. A `column_type` on a created range's
+> column, a `column_type` on an enum's that is no domain over that enum,
+> both `select_as` and `select_with`, both `save_as` and `save_with`, and a
+> type no cast names (an interval restricted to fields, an unlimited `bit`)
+> MUST be `ConstructionError`s as the model is declared, and a `select_with`
+> or `save_with` that is no function, or returns no expression, a
+> `TypeError`. Every projection a model builds — its queries', projections',
+> graphs' and RETURNING lists' — reads a field through the same cast, and a
+> keyset cursor's boundaries compare through it.
+>
+> A `DataType` also names a domain, `DataType.domain(name, base)`, and an
+> interval restricted to fields, `DataType("interval", fields=..)`, the
+> fields spelled in the binding's case (`hour_to_minute`, `hourToMinute`) and
+> read by pgorm-query's `PgInterval`, a `precision` only where the last
+> field is seconds (`PgInterval::with_precision`), any other a
+> `ConstructionError`. A disjoint or one-of model's tables take their
+> columns' type casts natively (`bindings.disjoint`); the four cast options
+> are a declared model's own reads and writes.
+
+> [spec:pgorm:req:bindings.model-conversions]
+> A declared model's column MUST take a `decode` and an `encode`, functions
+> of the program's own, as a Rust field of a `ValueType` or `JsonValueType`
+> is read and written as the program's type: each value a record reads for
+> the field is the field's decoded value passed through `decode`, checked as
+> the row is read — a function that throws or raises makes the read a
+> `DecodeError`, never a record holding the value — and each value a write,
+> a comparison or a cursor boundary takes is passed through `encode` before
+> it is converted through the kind, a `Value` and an expression taken as
+> written. A NULL is never passed to either. An enum stored as numbers or as
+> text, Rust's `rs_type` and `db_type`, is a column of the kind it is stored
+> as with a `decode` and `encode` between the stored value and the program's
+> enum, and Rust's `display` is the program's own spelling of it. A `decode`
+> or `encode` that is no function MUST be a `TypeError` as the column is
+> declared.
 
 > [spec:pgorm:req:bindings.schema-tables]
 > Creating a table MUST build pgorm-query's `TableCreateStatement`: columns,

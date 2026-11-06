@@ -31,7 +31,7 @@ def accounts():
 
 
 class ModelConstruction(unittest.TestCase):
-    # [spec:pgorm:req:bindings.models+5/test]
+    # [spec:pgorm:req:bindings.models+6/test]
     def test_descriptor_names_and_values_are_owned(self):
         from pgorm.models.columns import MODEL_KINDS
 
@@ -70,7 +70,7 @@ class ModelConstruction(unittest.TestCase):
         self.assertEqual(write.inspect().params[-1].value, ["a"])
         self.assertEqual(write.inspect().params[0].kind, "i32")
 
-    # [spec:pgorm:req:bindings.models+5/test]
+    # [spec:pgorm:req:bindings.models+6/test]
     def test_describe_reports_each_fields_declaration(self):
         model = p.Model(
             "accounts",
@@ -166,7 +166,7 @@ class ModelConstruction(unittest.TestCase):
             with self.assertRaises(TypeError):
                 operation()
 
-    # [spec:pgorm:req:bindings.models+5/test]
+    # [spec:pgorm:req:bindings.models+6/test]
     def test_unknown_fields_and_collisions_fail_early(self):
         model = accounts()
         for operation in (
@@ -769,7 +769,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             shelves.insert({"id": 4, "spans": [p.Range(1, 2)]})
 
-    # [spec:pgorm:req:bindings.models+5/test]
+    # [spec:pgorm:req:bindings.models+6/test]
     # [spec:pgorm:req:bindings.model-records+1/test]
     # [spec:pgorm:req:bindings.created-ranges+5/test]
     async def test_created_multirange_columns_read_and_write(self):

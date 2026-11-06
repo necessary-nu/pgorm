@@ -128,7 +128,7 @@ test("each change refuses what the shape refuses", () => {
 
 let database: { pool: Pool; drop(): Promise<void> } | undefined;
 
-// [spec:pgorm:req:bindings.migration-file/test]    a change frozen as pgorm freezes it, a file per step, the first committing after, and statements frozen as one file; a change built by hand has nothing to freeze
+// [spec:pgorm:req:bindings.migration-file+1/test]    a change frozen as pgorm freezes it, a file per step, the first committing after, and statements frozen as one file; a change built by hand has nothing to freeze
 test("a change freezes into migration files", () => {
   const before = vehicles({ car: CAR, bike: null });
   const afterVan = vehicles({ car: CAR, van: VAN, bike: null });
@@ -154,7 +154,7 @@ test("a change freezes into migration files", () => {
   assert.throws(() => migrationFile("m6", ["SELECT 1" as unknown as DDL]), TypeError);
 });
 
-// [spec:pgorm:req:bindings.migration-file/test]    freeze writes a file once and never again, a file frozen later from the declaration as it is then leaving the first as it was, and refuses a name that is no file stem
+// [spec:pgorm:req:bindings.migration-file+1/test]    freeze writes a file once and never again, a file frozen later from the declaration as it is then leaving the first as it was, and refuses a name that is no file stem
 test("a frozen file is written once and never again", {
   skip: deno && "the suite runs under Deno without --allow-write, so Node holds the writing",
 }, () => {

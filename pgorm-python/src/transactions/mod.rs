@@ -1,6 +1,7 @@
 //! Transaction handles communicate with a Rust task owning the borrowed scope.
 mod capabilities;
 mod copy;
+mod lend;
 mod native;
 mod retry;
 mod scope;
@@ -14,6 +15,7 @@ use crate::{
 };
 pub(crate) use capabilities::operations as capabilities;
 pub(crate) use copy::Lease;
+pub(crate) use lend::{Lent, lend};
 pub(crate) use native::{NativeRetrying, NativeTransaction, mode};
 use pgorm::TransactionMode;
 use pyo3::prelude::*;

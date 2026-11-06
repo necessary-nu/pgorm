@@ -13,7 +13,7 @@ import { cursorOver, paginatorOver } from "./cursors.js";
 import { Condition } from "./conditions.js";
 import { ConstructionError } from "./errors.js";
 import { decodeAll, decodeCount, decodeOne, decodeOptional, decodeStream } from "./model-decode.js";
-import { countOf, orderingsOf, predicateOf } from "./model-queries.js";
+import { countOf, orderingsOf, predicateOf } from "./model-clauses.js";
 import { fieldOf, projected, qualified, sameTable } from "./model-shape.js";
 import { native } from "./operations.js";
 import { answering, conditionOf, keyText, Related, relationOn, shapesOf, startOf } from "./relations.js";
@@ -465,8 +465,10 @@ export class Graph {
       build: (orders, wheres, limit) => selectOf(state, orders, [...state.wheres, ...wheres], limit),
       limit: null,
       sources: sourcesOf(state),
+      read: null,
       order,
       tiebreaks,
+      tables: state.tables,
     });
   }
 
@@ -483,6 +485,7 @@ export class Graph {
       page: (limit, offset) => selectOf(state, state.orders, state.wheres, limit, offset),
       counted: countOf(selectOf(state)),
       sources: sourcesOf(state),
+      read: null,
     }, pageSize);
   }
 }

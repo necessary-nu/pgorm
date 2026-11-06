@@ -5,11 +5,11 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.models+5]
+// [spec:pgorm:req:bindings.models+6]
 // [spec:pgorm:req:bindings.model-unique-keys+2]
 
 import type { ComparisonOperand, Compiled, Condition, Expr, Operand, OrderBy, Predicate } from "./expressions.d.ts";
-import type { Select, Source, Table } from "./select.d.ts";
+import type { GroupingElement, Select, Source, Table } from "./select.d.ts";
 import type { Conflict, ConflictUpdate, Delete, Insert, Update } from "./writes.d.ts";
 import type {
   Connection,
@@ -32,6 +32,7 @@ import type {
   Value,
 } from "./index.d.ts";
 import type { Cursor, Graph, KeyInputs, Paginator } from "./graphs.d.ts";
+import type { ColumnType as DdlType, ReferentialAction } from "./schema.d.ts";
 
 /**
  * The kinds a model column declares: every kind a result decodes as. `u64`
@@ -121,6 +122,44 @@ export interface ColumnOptions {
   readonly generated?: "always" | "byDefault";
   /** An enum column's labels, which every value it reads or writes is one of. */
   readonly values?: readonly string[];
+  /**
+   * The column's type in the table {@link fromModel} writes, Rust's
+   * `column_type`: `"varchar"`, `new DataType("numeric", { precision: 10, scale: 2 })`.
+   * An array column's is its elements'. The kind's own type when absent; an
+   * enum or created range column's is always its kind's.
+   */
+  readonly columnType?: DdlType;
+  /** A value the table fills the column with, `DEFAULT`, converted through its kind. */
+  readonly defaultValue?: unknown;
+  /** An expression the table fills the column with, `DEFAULT`, such as `currentTimestamp()`. */
+  readonly defaultExpr?: Expr;
+  /** The column computed from the row's others and stored, `GENERATED ALWAYS AS (..) STORED`; no write sets it. */
+  readonly generatedStored?: Expr;
+  /** The column computed from the row's others as it is read, `GENERATED ALWAYS AS (..) VIRTUAL`; no write sets it. */
+  readonly generatedVirtual?: Expr;
+  /** A one-column `i16`, `i32` or `i64` key drawn from the serial family, Rust's default for such a key. */
+  readonly autoIncrement?: boolean;
+  /** Whether the table's schema creates an index on the column, `idx-{table}-{column}`. */
+  readonly indexed?: boolean;
+  /** The column's `COMMENT ON COLUMN`. */
+  readonly comment?: string;
+  /** Whether a range or multirange key column is the key's period, `WITHOUT OVERLAPS`: the key's last field. */
+  readonly withoutOverlaps?: boolean;
+  /** The type the column is read cast to, Rust's `select_as`: `"bigint"`, or a `DataType` with modifiers. */
+  readonly selectAs?: DdlType;
+  /** The type each value is written cast to, Rust's `save_as`: `new DataType("bit", { length: 7 })`. */
+  readonly saveAs?: DdlType;
+  /** The expression the column is read through, Rust's `select_with`. */
+  readonly selectWith?: (column: Expr) => Expr;
+  /** The expression each value is written through, Rust's `save_with`; a comparison's value too. */
+  readonly saveWith?: (value: Expr) => Expr;
+  /**
+   * The program's own value of each decoded one, checked as it is read, as a
+   * Rust `ValueType` or `JsonValueType` field is read: a throw is a {@link DecodeError}.
+   */
+  readonly decode?: (value: any) => unknown;
+  /** The column's value of the program's, before it is converted through the kind: `decode`'s inverse. */
+  readonly encode?: (value: any) => unknown;
 }
 
 declare const declared: unique symbol;
@@ -139,6 +178,22 @@ export declare class Column<K extends ColumnKind = ColumnKind, O extends ColumnO
   readonly default: boolean;
   readonly generated: "always" | "byDefault" | null;
   readonly values: readonly string[] | null;
+  readonly columnType: DdlType | null;
+  /** The `defaultValue`, converted through the column's kind. */
+  readonly defaultValue: Value | null;
+  readonly defaultExpr: Expr | null;
+  readonly generatedStored: Expr | null;
+  readonly generatedVirtual: Expr | null;
+  readonly autoIncrement: boolean;
+  readonly indexed: boolean;
+  readonly comment: string | null;
+  readonly withoutOverlaps: boolean;
+  readonly selectAs: DdlType | null;
+  readonly saveAs: DdlType | null;
+  readonly selectWith: ((column: Expr) => Expr) | null;
+  readonly saveWith: ((value: Expr) => Expr) | null;
+  readonly decode: ((value: any) => unknown) | null;
+  readonly encode: ((value: any) => unknown) | null;
   /** The options the column was declared with, as the types know them. */
   readonly [declared]?: O;
 }
@@ -172,8 +227,16 @@ export type KindInput<K, O = {}> = K extends keyof KindInputs ? KindInputs[K] : 
 type Arrayed<T, O> = O extends { readonly array: true } ? (T | null)[] : T;
 type Nulled<T, O> = O extends { readonly nullable: true } ? T | null : T;
 
+/** What a field declared with a `decode` reads as: what the function returns. */
+type Decoded<T, O> = O extends { readonly decode: (value: any) => infer D } ? D : T;
+
+/** What a field declared with an `encode` is written as: what the function takes. */
+type Encoded<T, O> = O extends { readonly encode: (value: infer E) => any } ? E : T;
+
 /** What a column's field reads as in a record. */
-export type FieldValue<C> = C extends Column<infer K, infer O> ? Nulled<Arrayed<KindValue<K, O>, O>, O> : never;
+export type FieldValue<C> = C extends Column<infer K, infer O>
+  ? Nulled<Decoded<Arrayed<KindValue<K, O>, O>, O>, O>
+  : never;
 
 /**
  * What a column's field is written as: a value of its kind, `null` where it
@@ -181,7 +244,7 @@ export type FieldValue<C> = C extends Column<infer K, infer O> ? Nulled<Arrayed<
  * it stands.
  */
 export type FieldInput<C> = C extends Column<infer K, infer O>
-  ? Nulled<Arrayed<KindInput<K, O>, O>, O> | Value | Expr
+  ? Nulled<Encoded<Arrayed<KindInput<K, O>, O>, O>, O> | Value | Expr
   : never;
 
 /**
@@ -191,7 +254,7 @@ export type FieldInput<C> = C extends Column<infer K, infer O>
  * expression. Never `null`, which `isNull()` tests.
  */
 export type FieldOperand<C> = C extends Column<infer K, infer O>
-  ? Exclude<Arrayed<KindInput<K, O>, O>, null> | Value | Expr
+  ? Exclude<Encoded<Arrayed<KindInput<K, O>, O>, O>, null> | Value | Expr
   : never;
 
 /** A model's columns by field. */
@@ -213,10 +276,16 @@ export type RowOf<M> = Row<ColumnsOf<M>>;
 
 type Optioned<C, Test> = { [F in keyof C]: C[F] extends Column<any, infer O> ? (O extends Test ? F : never) : never }[keyof C];
 
-type GeneratedAlways<C> = Optioned<C, { readonly generated: "always" }>;
+type GeneratedAlways<C> =
+  | Optioned<C, { readonly generated: "always" }>
+  | Optioned<C, { readonly generatedStored: Expr }>
+  | Optioned<C, { readonly generatedVirtual: Expr }>;
 type Omissible<C> =
   | Optioned<C, { readonly nullable: true }>
   | Optioned<C, { readonly default: true }>
+  | Optioned<C, { readonly defaultValue: unknown }>
+  | Optioned<C, { readonly defaultExpr: Expr }>
+  | Optioned<C, { readonly autoIncrement: true }>
   | Optioned<C, { readonly generated: "byDefault" }>;
 type PrimaryKey<C> = Optioned<C, { readonly primaryKey: true }>;
 
@@ -250,10 +319,10 @@ declare const operands: unique symbol;
  * `null` is a {@link ConstructionError}, because it is never true: test with
  * `isNull()`.
  */
-export declare class ModelColumn<V = unknown, I = Operand> extends Expr {
+export declare class ModelColumn<V = unknown, I = Operand, F extends string = string> extends Expr {
   #private;
   /** The field, in the model's records. */
-  readonly field: string;
+  readonly field: F;
   readonly column: Column;
   /** The type its field reads as, for the types alone. */
   readonly [declared]?: V;
@@ -262,7 +331,7 @@ export declare class ModelColumn<V = unknown, I = Operand> extends Expr {
 }
 
 /** The column expression of field `F` of columns `C`. */
-export type ColumnOf<C extends Columns, F extends keyof C> = ModelColumn<FieldValue<C[F]>, FieldOperand<C[F]>>;
+export type ColumnOf<C extends Columns, F extends keyof C> = ModelColumn<FieldValue<C[F]>, FieldOperand<C[F]>, F & string>;
 
 /** The fields of a relation's end: one, or a non-empty list paired in order. */
 export type KeyFields<C> = FieldOf<C> | readonly [FieldOf<C>, ...FieldOf<C>[]];
@@ -279,6 +348,17 @@ export interface RelationKeys<From extends Model<any>, To extends Model<any>> {
   readonly to: KeyFields<ColumnsOf<To>>;
   readonly onCondition?: (from: From, to: To) => Predicate;
   readonly conditionType?: "all" | "any";
+}
+
+/**
+ * A `belongsTo` relation's fields, and the foreign key it holds as
+ * {@link fromModel} writes it: its `ON DELETE` and `ON UPDATE` actions and
+ * its name, Rust's `on_delete`, `on_update` and `fk_name`.
+ */
+export interface BelongsToKeys<From extends Model<any>, To extends Model<any>> extends RelationKeys<From, To> {
+  readonly onDelete?: ReferentialAction;
+  readonly onUpdate?: ReferentialAction;
+  readonly fkName?: string;
 }
 
 /**
@@ -333,6 +413,8 @@ export declare class Model<C extends Columns = Columns> {
   readonly alias: string | null;
   /** The table, schema-qualified and aliased as the model is. */
   readonly table: Table;
+  /** The table's `COMMENT ON TABLE`, which {@link fromModel} writes. */
+  readonly comment: string | null;
   /** Each field's column declaration. */
   readonly columns: C;
   /** The primary key's fields, in declaration order. */
@@ -346,7 +428,9 @@ export declare class Model<C extends Columns = Columns> {
   /** Every field of every row. */
   find(): ModelQuery<C, Row<C>>;
   /** The fields named, of every row. */
-  select<const F extends FieldOf<C>>(...fields: [F, ...F[]]): ModelQuery<C, Pick<Row<C>, F>>;
+  select<const L extends readonly [FieldOf<C>, ...FieldOf<C>[]]>(
+    ...fields: L
+  ): ModelQuery<C, Pick<Row<C>, L[number]>, { -readonly [I in keyof L]: Row<C>[L[I]] }>;
   /** The row whose primary key this is. */
   findByKey(values: KeyOf<Model<C>>): ModelQuery<C, Row<C>>;
   // [spec:pgorm:req:bindings.raw-models]
@@ -371,7 +455,7 @@ export declare class Model<C extends Columns = Columns> {
   /** The fields one record write sets, whose writes run the model's hooks. */
   active(values?: ActiveValues<C>): ModelActive<C>;
   /** A relation from this model's foreign key to the key of `target`, which reads at most one row. */
-  belongsTo<T extends Model<any>>(target: T, keys: RelationKeys<Model<C>, T>): Relation<Model<C>, T, "one">;
+  belongsTo<T extends Model<any>>(target: T, keys: BelongsToKeys<Model<C>, T>): Relation<Model<C>, T, "one">;
   /** A relation from this model's key to at most one row of `target`. */
   hasOne<T extends Model<any>>(target: T, keys: RelationKeys<Model<C>, T>): Relation<Model<C>, T, "one">;
   /** A relation from this model's key to any number of rows of `target`. */
@@ -398,21 +482,40 @@ export declare class Model<C extends Columns = Columns> {
   describe(): ModelDescription;
 }
 
+/** The case styles a model's `renameAll` names its columns in, as Rust's `rename_all` spells them. */
+export type CaseStyle =
+  | "camelCase"
+  | "PascalCase"
+  | "kebab-case"
+  | "snake_case"
+  | "SCREAMING_SNAKE_CASE"
+  | "SCREAMING-KEBAB-CASE"
+  | "lowercase"
+  | "UPPERCASE"
+  | "title_case"
+  | "mixed_case";
+
+/** What a model declares beside its table's name. */
+export interface ModelDeclaration<C extends Columns> {
+  readonly schema?: string;
+  readonly columns: C;
+  readonly uniqueKeys?: readonly UniqueKey<C>[];
+  /** The table's `COMMENT ON TABLE`. */
+  readonly comment?: string;
+  /** The case style each field's column is named in where the column names none, Rust's `rename_all`. */
+  readonly renameAll?: CaseStyle;
+  /** The functions the model's record writes run around themselves, Rust's `ActiveModelBehavior`. */
+  readonly hooks?: ModelHooks<C>;
+}
+
 /**
  * Declare a model of the table `name`, schema-qualified when `schema` is
  * given, with the table's `uniqueKeys`. A field is a key of `columns`, and
- * its SQL column the column's `name` or else the field; two fields of one
- * column are a {@link ConstructionError}.
+ * its SQL column the column's `name`, or else the field written in the case
+ * style `renameAll` names, or else the field; two fields of one column are a
+ * {@link ConstructionError}.
  */
-export declare function model<const C extends Columns>(
-  name: string,
-  declaration: {
-    readonly schema?: string;
-    readonly columns: C;
-    readonly uniqueKeys?: readonly UniqueKey<C>[];
-    readonly hooks?: ModelHooks<C>;
-  },
-): Model<C>;
+export declare function model<const C extends Columns>(name: string, declaration: ModelDeclaration<C>): Model<C>;
 
 /** The fields a record write sets: any of the model's, as an update names them. */
 export type ActiveValues<C extends Columns> = { readonly [F in keyof C]?: FieldInput<C[F]> };
@@ -458,11 +561,172 @@ export declare class ModelActive<C extends Columns = Columns> {
  * the relation's model the query reads, or the one its `fromAlias` names.
  */
 export interface ModelJoinOptions {
-  /** `"inner"`, the default, or `"left"`. */
-  readonly kind?: "inner" | "left";
+  /** An inner join when absent. */
+  readonly kind?: "inner" | "left" | "right" | "full";
   /** The name the joined table answers to. */
   readonly alias?: string;
 }
+
+/** How a model query locks the rows it reads, as the statement builder's `lock` takes it. */
+export interface ModelLockOptions {
+  /** The tables locked, every one the query reads when absent. */
+  readonly of?: readonly Source[];
+  /** What to do about a row another transaction holds: fail at once, or leave it out. */
+  readonly wait?: "nowait" | "skipLocked";
+}
+
+/** The clauses a model query and its projection share, each returning a new one of the same kind. */
+declare class ModelClauses {
+  /** Rows that also satisfy `predicate`. */
+  where(predicate: Predicate): this;
+  orderBy(...orderings: OrderBy[]): this;
+  limit(count: number | bigint | null): this;
+  offset(count: number | bigint | null): this;
+  /** `SELECT DISTINCT`, replacing a `distinctOn`. */
+  distinct(): this;
+  /** `SELECT DISTINCT ON (..)` the columns, replacing `distinct`; an expression that is no column is a {@link ConstructionError}. */
+  distinctOn(...columns: [Expr, ...Expr[]]): this;
+  /** Appended to the GROUP BY list, after the items added before them. */
+  groupBy(...items: (Expr | GroupingElement)[]): this;
+  having(predicate: Predicate): this;
+  /**
+   * Lock the rows read, replacing any lock set before: Rust's `lock`,
+   * `lock_shared`, `lock_exclusive` and `lock_with_behavior`.
+   */
+  lock(strength: "update" | "noKeyUpdate" | "share" | "keyShare", options?: ModelLockOptions): this;
+  /**
+   * Join the table at the far end of `relation` — from the query's model or
+   * a table it joined — without reading its columns, as a condition on a
+   * related row needs.
+   */
+  join(relation: Relation<any, any, any>, options?: ModelJoinOptions): this;
+  /**
+   * Join the table `relation` starts at, from its far end, which the query's
+   * model or a table it joined is: Rust's `join_rev`.
+   */
+  joinRev(relation: Relation<any, any, any>, options?: ModelJoinOptions): this;
+}
+
+/** Each column's value, in order. */
+type ColumnValues<L extends readonly unknown[]> = { -readonly [I in keyof L]: L[I] extends ModelColumn<infer V, any, any> ? V : never };
+/** Each column's value, keyed by its field. */
+type ColumnRecord<L extends readonly unknown[]> = {
+  [E in L[number] as E extends ModelColumn<any, any, infer F> ? F : never]: E extends ModelColumn<infer V, any, any> ? V : never;
+};
+
+/**
+ * A model query's projection: items the program chooses, read once
+ * `intoTuple`, `intoValues` or `intoModel` says what each row becomes. `T`
+ * is the items' values in order, `R` the same keyed by name.
+ */
+export declare class ModelProjection<C extends Columns = Columns, T extends readonly unknown[] = [], R = {}>
+  extends ModelClauses {
+  private constructor();
+  /** The SELECT it runs; one of no items is a {@link ConstructionError}. */
+  readonly statement: Select;
+  inspect(): Compiled;
+  /** A model's column, the queried one's or a joined table's, read under its field's name. */
+  column<V, F extends string>(column: ModelColumn<V, any, F>): ModelProjection<C, [...T, V], R & { [K in F]: V }>;
+  columns<const L extends readonly ModelColumn<any, any, any>[]>(
+    ...columns: L
+  ): ModelProjection<C, [...T, ...ColumnValues<L>], R & ColumnRecord<L>>;
+  /** A model's column under `name`. */
+  columnAs<V, const N extends string>(
+    column: ModelColumn<V, any, any>,
+    name: N,
+  ): ModelProjection<C, [...T, V], R & { [K in N]: V }>;
+  /**
+   * An expression under `name`, decoded as `column` declares: its kind,
+   * nullable, array and values, any other option a {@link ConstructionError}.
+   */
+  exprAs<const N extends string, D extends Column<any, any>>(
+    expr: Expr,
+    name: N,
+    column: D,
+  ): ModelProjection<C, [...T, FieldValue<D>], R & { [K in N]: FieldValue<D> }>;
+  /** Each row as an array of the items' values, in projection order. */
+  intoTuple(): ModelSelector<T, C>;
+  /** Each row as an array of the named items' values, in the order named: Rust's `into_values`. */
+  intoValues<const N extends readonly [keyof R & string, ...(keyof R & string)[]]>(
+    ...names: N
+  ): ModelSelector<{ -readonly [I in keyof N]: R[N[I]] }, C>;
+  /** Each row as an object of the items' values keyed by name, or what `make` makes of it: Rust's `into_model`. */
+  intoModel(): ModelSelector<Flat<R>, C>;
+  intoModel<U>(make: (row: Flat<R>) => U): ModelSelector<U, C>;
+}
+
+/**
+ * A projection whose rows are read, each `R`: Rust's `Selector`. A row whose
+ * columns are not the projection's, of another kind than an item declares,
+ * or breaking a declaration is a {@link DecodeError}.
+ */
+export declare class ModelSelector<R, C extends Columns = Columns> {
+  private constructor();
+  readonly statement: Select;
+  /** The SQL and values it runs, or with `"count"` the ones `count` runs. */
+  inspect(terminal?: "count"): Compiled;
+  all(db: Queryable, options?: OperationOptions): Promise<R[]>;
+  one(db: Queryable, options?: OperationOptions): Promise<R>;
+  optional(db: Queryable, options?: OperationOptions): Promise<R | null>;
+  stream(db: Queryable, options?: OperationOptions): RowStream<R>;
+  /** How many rows it reads, limit and offset aside. */
+  count(db: Queryable, options?: OperationOptions): Promise<number>;
+  /** A keyset cursor over the rows, ordered by `fields` of the queried model. */
+  cursor<const F extends readonly [FieldOf<C>, ...FieldOf<C>[]]>(...fields: F): Cursor<R, KeyInputs<C, F>>;
+  paginate(pageSize: number): Paginator<R>;
+}
+
+/** A partial model's field read from an expression, decoded as `column` declares: Rust's `from_expr`. */
+export declare class FromExpr<D extends Column<any, any> = Column> {
+  private constructor();
+  readonly expr: Expr;
+  readonly column: D;
+}
+
+/**
+ * A partial model's field read from `expr`, decoded as `column` declares: its
+ * kind, nullable, array and values, any other option a
+ * {@link ConstructionError}.
+ */
+export declare function fromExpr<D extends Column<any, any>>(expr: Expr, column: D): FromExpr<D>;
+
+/** A partial model's field read from no column, holding `default` in every row: Rust's `skip`. */
+export declare class Skip<T = unknown> {
+  private constructor();
+  readonly default: T;
+}
+
+/** A partial model's field read from no column, `value` in every row. */
+export declare function skip<T>(value: T): Skip<T>;
+
+/** A partial model's field: a model column (Rust's `from_col`), a {@link FromExpr} or a {@link Skip}. */
+export type PartialField = ModelColumn<any, any, any> | FromExpr<any> | Skip<any>;
+
+/** What a partial model's field reads as. */
+export type PartialValue<P> = P extends ModelColumn<infer V, any, any> ? V
+  : P extends FromExpr<infer D> ? FieldValue<D>
+  : P extends Skip<infer T> ? T
+  : never;
+
+/** A partial model's row: each field's value, keyed by field. */
+export type PartialRow<P> = { -readonly [K in keyof P]: PartialValue<P[K]> };
+
+/** A read shape over a model, Rust's `PartialModel`, made by {@link partialModel}. */
+export declare class PartialModel<P extends { readonly [field: string]: PartialField } = { readonly [field: string]: PartialField }> {
+  private constructor();
+  readonly model: Model<any>;
+  readonly fields: P;
+}
+
+/**
+ * Declare a read shape over `model`: each field one of its columns, an
+ * expression or nothing. A model query's `intoPartialModel` selects what it
+ * declares and decodes each row into an object of its fields.
+ */
+export declare function partialModel<const P extends { readonly [field: string]: PartialField }>(
+  model: Model<any>,
+  fields: P,
+): PartialModel<P>;
 
 /**
  * A model's SELECT, made by its `find()`, `select(..)` or `findByKey(..)`.
@@ -470,26 +734,40 @@ export interface ModelJoinOptions {
  * record `R`: a result whose columns are not the ones selected, whose kinds
  * are not the declared ones, or whose values break a declaration — a NULL
  * in a column not nullable, a label an enum column does not list — is a
- * {@link DecodeError}.
+ * {@link DecodeError}. `T` is a selected field list's values in order.
  */
-export declare class ModelQuery<C extends Columns = Columns, R = Row<C>> {
+export declare class ModelQuery<C extends Columns = Columns, R = Row<C>, T extends readonly unknown[] = unknown[]>
+  extends ModelClauses {
   private constructor();
   /** The SELECT it runs. */
   readonly statement: Select;
   /** The SQL and values it runs, or with `"count"` the ones `count` runs. */
   inspect(terminal?: "count"): Compiled;
-  /** Rows that also satisfy `predicate`. */
-  where(predicate: Predicate): ModelQuery<C, R>;
-  orderBy(...orderings: OrderBy[]): ModelQuery<C, R>;
-  /** `null` removes it. */
-  limit(count: number | bigint | null): ModelQuery<C, R>;
-  offset(count: number | bigint | null): ModelQuery<C, R>;
-  /**
-   * Join the table at the far end of `relation` — from the query's model or
-   * a table it joined — without reading its columns, as a condition on a
-   * related row needs.
-   */
-  join(relation: Relation<any, any, any>, options?: ModelJoinOptions): ModelQuery<C, R>;
+  /** A projection of no items yet, the query's clauses kept: Rust's `select_only`. */
+  selectOnly(): ModelProjection<C, [], {}>;
+  /** A projection of the query's fields and `column`. */
+  column<V, F extends string>(column: ModelColumn<V, any, F>): ModelProjection<C, [...T, V], R & { [K in F]: V }>;
+  columns<const L extends readonly ModelColumn<any, any, any>[]>(
+    ...columns: L
+  ): ModelProjection<C, [...T, ...ColumnValues<L>], R & ColumnRecord<L>>;
+  columnAs<V, const N extends string>(
+    column: ModelColumn<V, any, any>,
+    name: N,
+  ): ModelProjection<C, [...T, V], R & { [K in N]: V }>;
+  exprAs<const N extends string, D extends Column<any, any>>(
+    expr: Expr,
+    name: N,
+    column: D,
+  ): ModelProjection<C, [...T, FieldValue<D>], R & { [K in N]: FieldValue<D> }>;
+  /** The rows as arrays of the fields' values, in the order selected. */
+  intoTuple(): ModelSelector<T, C>;
+  intoValues<const N extends readonly [keyof R & string, ...(keyof R & string)[]]>(
+    ...names: N
+  ): ModelSelector<{ -readonly [I in keyof N]: R[N[I]] }, C>;
+  intoModel(): ModelSelector<Flat<R>, C>;
+  intoModel<U>(make: (row: Flat<R>) => U): ModelSelector<U, C>;
+  /** The rows read as `shape` declares them, the query's clauses kept: Rust's `into_partial_model`. */
+  intoPartialModel<P extends { readonly [field: string]: PartialField }>(shape: PartialModel<P>): ModelSelector<PartialRow<P>, C>;
   all(db: Queryable, options?: OperationOptions): Promise<R[]>;
   /** Exactly one row; any other count is a {@link DecodeError}. */
   one(db: Queryable, options?: OperationOptions): Promise<R>;
@@ -707,6 +985,12 @@ export declare class Relation<
   readonly to: To;
   readonly fromFields: readonly string[];
   readonly toFields: readonly string[];
+  /** The `ON DELETE` action of the foreign key a `belongsTo` relation holds. */
+  readonly onDelete: ReferentialAction | null;
+  /** The `ON UPDATE` action of the foreign key a `belongsTo` relation holds. */
+  readonly onUpdate: ReferentialAction | null;
+  /** The name of the foreign key a `belongsTo` relation holds, or null for pgorm's `fk-{table}-{columns}`. */
+  readonly fkName: string | null;
   /** The condition of its own the relation adds, or `null`. */
   readonly onCondition: ((from: From, to: To) => Predicate) | null;
   readonly conditionType: "all" | "any";

@@ -10,11 +10,11 @@ pub struct Separate;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Separate {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        default::Migrator::migrations()
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+        default::Migrator.migrations()
     }
 
-    fn migration_table_schema() -> Option<Name> {
+    fn migration_table_schema(&self) -> Option<Name> {
         Some(Name::runtime(LEDGER_SCHEMA))
     }
 }

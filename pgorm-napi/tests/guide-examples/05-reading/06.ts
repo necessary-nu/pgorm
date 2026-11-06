@@ -6,13 +6,15 @@ import { Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const names = await Cake.select("name").orderBy(Cake.col("id").asc()).all(pool);
-  assert.deepEqual(names[0], { name: "Chocolate Fudge" });
-
-  const priced = await Cake.select("name", "price")
-    .where(Cake.col("glutenFree").eq(true))
-    .orderBy(Cake.col("price").asc())
-    .all(pool);
-  assert.equal(priced[0]!.name, "Vanilla Sponge");
-  assert.equal(priced[0]!.price.toString(), "2.90");
+  const dearest = Cake.select("flavor", "name")
+    .distinctOn(Cake.col("flavor"))
+    .orderBy(Cake.col("flavor").asc(), Cake.col("price").desc());
+  assert.equal(
+    dearest.inspect().sql,
+    `SELECT DISTINCT ON ("cake"."flavor") "cake"."flavor", "cake"."name" FROM "cake" ORDER BY "cake"."flavor" ASC, "cake"."price" DESC`,
+  );
+  assert.deepEqual(
+    (await dearest.all(pool)).map((cake) => cake.name),
+    ["Chocolate Torte", "Vanilla Sponge", "Lemon Drizzle", "Carrot Cake"],
+  );
 }

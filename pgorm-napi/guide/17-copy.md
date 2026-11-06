@@ -381,9 +381,12 @@ scale included, and one a `Decimal` cannot hold exactly is a `DecodeError`
 rather than rounded. A `money` column reads and writes as a `Decimal` in its
 currency's units, the places of which the description asks the server for,
 and which a `CopyColumn` gives as its `moneyPlaces`. A field is typed as any
-value a result may hold, so TypeScript asks for each one's type before a row
-read out is written back in. Through `copyInRows(statement, rows)`, a row of
-the wrong width is refused before any of the COPY is written:
+value a result may hold, and a row read out writes back in as it is: a
+`CopyRowStream`'s rows are `CopyRows`, and a value that says less than its
+column is written as the column's type, a JSON number or array into a
+`jsonb` column, an empty array into an array column, a `Range` into a range
+column. Through `copyInRows(statement, rows)`, a row of the wrong width is
+refused before any of the COPY is written:
 
 ```ts
 import assert from "node:assert/strict";
@@ -397,6 +400,15 @@ const prices = [];
 const lines = copyTo(OrderLine.select("price").where(OrderLine.col("orderId").eq(1)).statement, "binary");
 for await (const [price] of await pool.copyOutRows(lines)) prices.push(String(price as Decimal));
 assert.deepEqual(prices.sort(), ["3.20", "4.50"]);
+
+// Every cake, copied into a table of the same columns as it is read.
+await pool.execute("CREATE TABLE cake_copy (LIKE cake)");
+const copied = await pool.copyInRows(copyFrom("cake_copy", "binary"), await pool.copyOutRows(copyTo("cake", "binary")));
+const { differ } = await pool.one(
+  "SELECT count(*)::int AS differ FROM (SELECT * FROM cake EXCEPT ALL SELECT * FROM cake_copy) AS d",
+);
+assert.equal(differ, 0);
+assert.ok(copied > 0);
 ```
 
 ## Encoding rows yourself

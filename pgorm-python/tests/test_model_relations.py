@@ -72,7 +72,7 @@ def names(rows, field="title"):
 
 
 class Construction(unittest.TestCase):
-    # [spec:pgorm:req:bindings.relations+1/test]    on_condition joins with the fields' equality, ANDed or ORed
+    # [spec:pgorm:req:bindings.relations+3/test]    on_condition joins with the fields' equality, ANDed or ORed
     def test_on_condition_is_part_of_every_join(self):
         self.assertEqual(
             Account.find().join(published).inspect().sql,
@@ -154,7 +154,7 @@ class Construction(unittest.TestCase):
         with self.assertRaises(p.ConstructionError):
             Account.linked()
 
-    # [spec:pgorm:req:bindings.relations+1/test]    from_alias starts a join from the table answering to the alias
+    # [spec:pgorm:req:bindings.relations+3/test]    from_alias starts a join from the table answering to the alias
     def test_from_alias_names_where_a_join_starts(self):
         shared = (
             Post.find()
@@ -199,9 +199,9 @@ class Construction(unittest.TestCase):
         with self.assertRaisesRegex(p.ConstructionError, "no source 2"):
             Post.graph().join_one(author).cursor_on(2, "name")
 
-    # [spec:pgorm:req:bindings.cursor-secondary-order/test]    the column after the key, in the SQL and the boundary
+    # [spec:pgorm:req:bindings.cursor-secondary-order+1/test]    the column after the key, in the SQL and the boundary
     def test_secondary_ordering_follows_the_key(self):
-        secondary = Post.find().cursor("author_id").add_secondary_order_by(Post.col("id"))
+        secondary = Post.find().cursor("author_id").add_secondary_order_by(Post, "id")
         self.assertEqual(
             secondary.after_with(1, 10).first(2).inspect().sql,
             f'SELECT "post"."id", "post"."author_id", "post"."editor_id", "post"."title", "post"."published" '
@@ -211,7 +211,7 @@ class Construction(unittest.TestCase):
         with self.assertRaisesRegex(p.ConstructionError, "does not match 1 key column"):
             secondary.after(1, 10)
         with self.assertRaises(TypeError):
-            secondary.add_secondary_order_by("id")  # type: ignore[arg-type]
+            secondary.add_secondary_order_by("post", "id")  # type: ignore[arg-type]
 
 
 class Reads(unittest.IsolatedAsyncioTestCase):
@@ -245,7 +245,7 @@ class Reads(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute(p.RawSQL(f"DROP SCHEMA {SCHEMA} CASCADE"))
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.relations+1/test]    find and load read a relation whole, its on_condition included
+    # [spec:pgorm:req:bindings.relations+3/test]    find and load read a relation whole, its on_condition included
     async def test_relation_condition_reads_both_ends(self):
         ann = self.accounts[0]
         self.assertEqual(names(await published.find(ann).order_by(by_post).all(self.pool)), ["a1", "a3"])
@@ -261,7 +261,7 @@ class Reads(unittest.IsolatedAsyncioTestCase):
         files = await either.load(self.pool, self.accounts, Post.find().order_by(by_post))
         self.assertEqual([names(rows) for rows in files], [["a1", "a2", "b1", "a3"], ["b1"], ["b1"]])
 
-    # [spec:pgorm:req:bindings.relations+1/test]    a load takes a query of the far end, filtered and ordered
+    # [spec:pgorm:req:bindings.relations+3/test]    a load takes a query of the far end, filtered and ordered
     async def test_load_reads_a_far_end_query(self):
         newest = Post.find().where(Post.col("published") == True).order_by(Post.col("id").desc())  # noqa: E712
         loaded = await posts.load(self.pool, self.accounts, newest)
@@ -338,7 +338,7 @@ class Reads(unittest.IsolatedAsyncioTestCase):
         ])
 
     # [spec:pgorm:req:bindings.cursors+1/test]    a cursor pages by a slot's field, and resumes inside a key's run
-    # [spec:pgorm:req:bindings.cursor-secondary-order/test]    a whole-key boundary resumes inside the key's run
+    # [spec:pgorm:req:bindings.cursor-secondary-order+1/test]    a whole-key boundary resumes inside the key's run
     async def test_cursors_by_slot_and_secondary_ordering(self):
         cursor = Post.graph().join_one(author).cursor_on(1, "name")
         first = await cursor.first(2).all(self.pool)
@@ -347,10 +347,10 @@ class Reads(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([post["title"] for post, _ in past_ann], ["b1"])
         inside = await cursor.after_with("Ann", 1, 11).all(self.pool)
         self.assertEqual([post["title"] for post, _ in inside], ["a3", "b1"])
-        secondary = Post.find().cursor("author_id").add_secondary_order_by(Post.col("id"))
+        secondary = Post.find().cursor("author_id").add_secondary_order_by(Post, "id")
         self.assertEqual(names(await secondary.after_with(1, 10).first(2).all(self.pool)), ["a2", "a3"])
         self.assertEqual(names(await secondary.after(1).all(self.pool)), ["b1"])
-        on_graph = Account.graph().join_maybe(posts).cursor("id").add_secondary_order_by(Post.col("title"))
+        on_graph = Account.graph().join_maybe(posts).cursor("id").add_secondary_order_by(Post, "title")
         rows = await on_graph.after_with(1, 10, "a1").first(3).all(self.pool)
         self.assertEqual([(account["name"], post and post["title"]) for account, post in rows], [
             ("Ann", "a2"), ("Ann", "a3"), ("Bob", "b1"),

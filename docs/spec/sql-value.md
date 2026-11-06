@@ -913,12 +913,21 @@ including panic semantics and quirks inherited from sea-query.
 
 ## Column type vocabulary
 
-> [spec:pgorm:def:sql.types.type-name+8]
+> [spec:pgorm:def:sql.types.type-name+9]
 > `TypeName` (`pgorm-query/src/types.rs`) is the structured spelling of a
 > type in cast or column-type position: `schema: Option<Name>`,
-> `name: Name`, `array: bool`, and a private `verbatim`. Rendering
-> (`to_sql_string`) joins the parts with `.` and appends a structural `[]`
-> for arrays. Each part is written bare or quoted by one policy
+> `name: Name`, `array: bool`, a private `verbatim`, and private
+> `modifiers`, the numbers `modifiers(..)` gives it. Rendering
+> (`to_sql_string`) joins the parts with `.`, writes the modifiers in
+> parentheses after the name, comma-separated (`bit(7)`, `numeric(10, 2)`),
+> and appends a structural `[]` for arrays; a modifier is a number, so a
+> modified type built from a value reaches no SQL a name could not.
+> `ColumnType::cast_type` is a column type as a cast names it: each
+> built-in type by its one-word spelling with its length or precision as
+> modifiers (`varchar(20)`, `float8`, `timestamptz`), a named type by its
+> qualified name and an array as the array of its element's, and `None`
+> for an interval restricted to fields and the unlimited `bit`, which no
+> name and modifiers spell. Each part is written bare or quoted by one policy
 > (`pgorm-query/src/keywords.rs`), which knows where the part stands.
 >
 > A part renders bare when it is a lowercase identifier

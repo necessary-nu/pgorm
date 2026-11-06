@@ -15,7 +15,8 @@ import { runJob } from "./runs.js";
 import { Expr } from "./expressions.js";
 import { EntityColumn, EntityQuery, QUERIES } from "./entity-queries.js";
 import { EntityRelation, READS } from "./entity-reads.js";
-import { EntityInsert, EntityInsertMany, EntityUpdate, EntityUpdateMany, inserted, VERSIONS } from "./entity-versions.js";
+import { EntityInsert, EntityInsertMany, inserted } from "./entity-inserts.js";
+import { EntityUpdate, EntityUpdateMany, VERSIONS } from "./entity-versions.js";
 import { native } from "./operations.js";
 
 /** Marks a construction from within the module. */

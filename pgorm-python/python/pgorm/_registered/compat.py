@@ -20,7 +20,8 @@ def check(expected: dict[str, Any]) -> None:
             "generated registrations require another pgorm feature set"
         )
     # [spec:pgorm:req:bindings.codegen-disjoint]
-    for family in ("entities", "graphs", "disjoints"):
+    # [spec:pgorm:req:bindings.codegen-coverage]
+    for family in ("entities", "graphs", "disjoints", "one_ofs", "sources"):
         installed = {entry["name"]: entry for entry in actual["registrations"][family]}
         for entry in expected.get(family, ()):
             if installed.get(entry["name"]) != entry:

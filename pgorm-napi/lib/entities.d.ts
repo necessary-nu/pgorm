@@ -10,7 +10,7 @@
 
 import type { Compiled, ComparisonOperand, Expr, Operand, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Conflict, ConflictUpdate } from "./writes.d.ts";
-import type { Change, Upserted } from "./models.d.ts";
+import type { Change, TryInsertResult, Upserted } from "./models.d.ts";
 import type { Connection, Multirange, OperationOptions, PlainValue, Pool, Queryable, Range, Row, RowStream, Value } from "./index.d.ts";
 
 /** A registered entity's record when no generated module types it: its values by SQL column name. */
@@ -343,6 +343,10 @@ export type EntityKey = PlainValue | readonly PlainValue[];
 export declare class EntityInsert<T extends EntityTypes<any, any> = EntityTypes> {
   private constructor();
   onConflict(action: Conflict | ConflictUpdate): EntityInsert<T>;
+  /** `DO NOTHING` on the primary key's columns, or on any key for an entity with none; the try-insert answers `conflicted` where it wrote no row. */
+  onConflictDoNothing(): EntityTryInsert<T>;
+  /** A try-insert keeping this insert's conflict clause, answering `empty`, nothing sent, for an ActiveModel that sets no column. */
+  onEmptyDoNothing(): EntityTryInsert<T>;
   /** A batch of its ActiveModel and `active`, as `Insert::add` makes one. */
   add(active: ActiveModel<T>): EntityInsertMany<T>;
   /** A batch of its ActiveModel and `actives`, as `Insert::add_many` makes one. */
@@ -361,6 +365,10 @@ export declare class EntityInsert<T extends EntityTypes<any, any> = EntityTypes>
 export declare class EntityInsertMany<T extends EntityTypes<any, any> = EntityTypes> {
   private constructor();
   onConflict(action: Conflict | ConflictUpdate): EntityInsertMany<T>;
+  /** `DO NOTHING` on the primary key's columns, or on any key for an entity with none; the try-insert answers `conflicted` where it wrote no row. */
+  onConflictDoNothing(): EntityTryInsertMany<T>;
+  /** A try-insert keeping this batch's conflict clause, answering `empty`, nothing sent, for a batch of none. */
+  onEmptyDoNothing(): EntityTryInsertMany<T>;
   /** The batch with `active` after its own, as `Insert::add` adds one. */
   add(active: ActiveModel<T>): EntityInsertMany<T>;
   /** The batch with `actives` after its own, as `Insert::add_many` adds them. */
@@ -373,6 +381,40 @@ export declare class EntityInsertMany<T extends EntityTypes<any, any> = EntityTy
   returningModels(db: Queryable, options?: OperationOptions): Promise<EntityRecordOf<T>[]>;
   /** What the insert did with each row it wrote, by `exec_returning_upserts`; a row its conflict clause held back is left out. */
   returningUpserts(db: Queryable, options?: OperationOptions): Promise<Upserted<EntityRecordOf<T>>[]>;
+}
+
+/** An insert of one ActiveModel that may write nothing, `TryInsert<A, OneRow>`, answering as `TryInsertResult` does. */
+export declare class EntityTryInsert<T extends EntityTypes<any, any> = EntityTypes> {
+  private constructor();
+  /** The conflict clause in place of the one it had, as `TryInsert::on_conflict` sets it. */
+  onConflict(action: Conflict | ConflictUpdate): EntityTryInsert<T>;
+  /** The try-insert of its ActiveModel and then `active`, its conflict clause kept, as `TryInsert::add` makes it. */
+  add(active: ActiveModel<T>): EntityTryInsertMany<T>;
+  /** The try-insert of its ActiveModel and then `actives`, its conflict clause kept, as `TryInsert::add_many` makes it. */
+  addMany(actives: readonly ActiveModel<T>[]): EntityTryInsertMany<T>;
+  /** The rows written, by `TryInsert::exec`: `conflicted` when its conflict clause wrote none, `empty` when its ActiveModel sets nothing. */
+  execute(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<number>>;
+  /** The written row's key, by `TryInsert::exec_returning_pk`. */
+  returningPk(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<EntityKey>>;
+  /** The written row's record, by `TryInsert::exec_returning_model`. */
+  returningModel(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<EntityRecordOf<T>>>;
+}
+
+/** An insert of ActiveModels that may write nothing, `TryInsert<A, ManyRows>`, answering as `TryInsertResult` does. */
+export declare class EntityTryInsertMany<T extends EntityTypes<any, any> = EntityTypes> {
+  private constructor();
+  /** The conflict clause in place of the one it had, as `TryInsert::on_conflict` sets it. */
+  onConflict(action: Conflict | ConflictUpdate): EntityTryInsertMany<T>;
+  /** The try-insert with `active` after its own rows, its conflict clause kept, as `TryInsert::add` adds it. */
+  add(active: ActiveModel<T>): EntityTryInsertMany<T>;
+  /** The try-insert with `actives` after its own rows, its conflict clause kept, as `TryInsert::add_many` adds them. */
+  addMany(actives: readonly ActiveModel<T>[]): EntityTryInsertMany<T>;
+  /** The rows written, by `TryInsert::exec`: `conflicted` when its conflict clause wrote none, `empty` for a batch of none. */
+  execute(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<number>>;
+  /** Each written row's key in the order written, by `TryInsert::exec_returning_pks`. */
+  returningPks(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<EntityKey[]>>;
+  /** Each written row's record in the order written, by `TryInsert::exec_returning_models`. */
+  returningModels(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<EntityRecordOf<T>[]>>;
 }
 
 /** The names of the graph shapes this module registers. */

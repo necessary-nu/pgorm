@@ -147,6 +147,13 @@ export declare class Graph<S extends readonly Model<any>[], I extends readonly u
  */
 export declare class Cursor<R, K extends readonly unknown[] = readonly unknown[]> {
   private constructor();
+  /**
+   * The cursor ordered by `field` of `model` after its key and the entries
+   * before it: a column of the queried model or a table it joined, `model`
+   * named as the query names it. `after` and `before` still take the key
+   * alone; `afterWith` and `beforeWith` take the whole ordering.
+   */
+  addSecondaryOrderBy<M extends Model<any>>(model: M, field: FieldOf<ColumnsOf<M>>): Cursor<R, K>;
   /** Rows past the one whose order-field values these are. */
   after(...values: K): Cursor<R, K>;
   /** Rows short of the one whose order-field values these are. */

@@ -81,7 +81,7 @@ impl PyCopyRowEncoder {
         py: Python<'py>,
         row: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyBytes>> {
-        let values = row_values(row)?;
+        let values = row_values(row, self.encoder.columns())?;
         let mut out = BytesMut::new();
         self.encoder
             .encode(&values, &mut out)

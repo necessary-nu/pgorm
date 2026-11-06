@@ -105,6 +105,7 @@ function only(entry, keys, what) {
  * @property {{ name: string, rust: string, typescript: string }[]} graphs
  * @property {{ name: string, rust: string[], typescript: string }[]} sources
  * @property {{ name: string, rust: string, typescript: string }[]} disjoints
+ * @property {{ name: string, rust: string, typescript: string }[]} oneOfs
  */
 
 /**
@@ -121,7 +122,7 @@ export function validate(config, base) {
     throw new CodegenError("the build description is an object");
   }
   const raw = /** @type {Record<string, unknown>} */ (config);
-  only(raw, ["schema_version", "module", "entity_crate", "entities", "graphs", "sources", "disjoints"], "the build description");
+  only(raw, ["schema_version", "module", "entity_crate", "entities", "graphs", "sources", "disjoints", "one_ofs"], "the build description");
   if (raw.schema_version !== 1) throw new CodegenError("schema_version is 1");
   const module = identifier(raw.module, "module");
   if (typeof raw.entity_crate !== "string") throw new CodegenError("entity_crate is a path");
@@ -170,6 +171,11 @@ export function validate(config, base) {
   if (new Set(disjoints.map((entry) => entry.rust)).size !== disjoints.length) {
     throw new CodegenError("each Rust disjoint enum is registered once");
   }
+  // [spec:pgorm:req:bindings.codegen-coverage]
+  const oneOfs = kind(raw.one_ofs, "one_ofs", (entry) => rustPath(entry.rust));
+  if (new Set(oneOfs.map((entry) => entry.rust)).size !== oneOfs.length) {
+    throw new CodegenError("each Rust one-of enum is registered once");
+  }
   return {
     schema_version: 1,
     module,
@@ -178,6 +184,7 @@ export function validate(config, base) {
     graphs: /** @type {Description["graphs"]} */ (graphs),
     sources: /** @type {Description["sources"]} */ (sources),
     disjoints: /** @type {Description["disjoints"]} */ (disjoints),
+    oneOfs: /** @type {Description["oneOfs"]} */ (oneOfs),
   };
 }
 

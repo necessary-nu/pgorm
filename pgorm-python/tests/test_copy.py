@@ -585,6 +585,33 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
         await self.drop()
         await asyncio.wait_for(self.pool.close(), 2)
 
+    # [spec:pgorm:req:bindings.copy-rows.typed/test]    rows copy_out_rows read write back, each value as its column's type
+    async def test_rows_read_out_write_back_in(self):
+        columns = (
+            "r int4range, m int4multirange, j jsonb, ja jsonb, jn jsonb, js jsonb, a int4[], e int4[], "
+            "n int4[], jl jsonb[], d numeric, t timestamptz, i interval, b bytea, u uuid"
+        )
+        await self.pool.execute(p.RawSQL(f"CREATE TABLE python_round_from ({columns})"))
+        await self.pool.execute(p.RawSQL(f"CREATE TABLE python_round_to ({columns})"))
+        try:
+            await self.pool.execute(p.RawSQL(
+                "INSERT INTO python_round_from VALUES ('[1,5)', '{[1,2),[4,6)}', '{\"a\":1}', '[1,2]', '3', "
+                "'\"s\"', '{1,2}', '{}', '{NULL}', ARRAY['[1]'::jsonb, '2'], 1.50, '2026-01-01T00:00:00Z', "
+                "'1 day', '\\x0102', '00000000-0000-0000-0000-000000000001')"
+            ))
+            rows = [row async for row in await self.pool.copy_out_rows(
+                p.CopyTo(p.Table("python_round_from"), "binary")
+            )]
+            written = await self.pool.copy_in_rows(p.CopyFrom(p.Table("python_round_to"), "binary"), rows)
+            self.assertEqual(written, 1)
+            differ = await self.pool.one(p.RawSQL(
+                "SELECT count(*) AS n FROM (SELECT * FROM python_round_from "
+                "EXCEPT ALL SELECT * FROM python_round_to) AS d"
+            ))
+            self.assertEqual(differ["n"], 0)
+        finally:
+            await self.pool.execute(p.RawSQL("DROP TABLE IF EXISTS python_round_from, python_round_to"))
+
     # [spec:pgorm:req:bindings.copy-rows+2/test]    each value kind is written as a parameter binds and read back as a result decodes
     async def test_rows_round_trip_every_kind(self):
         operations = p.capabilities()["operations"]

@@ -24,7 +24,7 @@ that added it commits. The migration adding it answers `commits_after()`:
 ```rust,ignore
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("ALTER TYPE mood ADD VALUE 'meh'").await
     }
 
@@ -47,7 +47,7 @@ migration each, every step but the last answering `true`.
 A migration can also be a `.sql` file, listed beside the Rust ones:
 
 ```rust,ignore
-fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
     vec![
         Box::new(m20260101_000001_create_post::Migration),
         Box::new(sql_migration!("src/m20260101_000002_index_post_title.sql")),
@@ -77,11 +77,11 @@ reach it:
 ```rust,ignore
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(m20220101_000001_create_table::Migration)]
     }
 
-    fn migration_table_schema() -> Option<Name> {
+    fn migration_table_schema(&self) -> Option<Name> {
         Some(Name::runtime("pgorm"))
     }
 }
@@ -115,7 +115,7 @@ schema has to exist first, and a migration creates it with the same builders
 as the rest — the prelude brings in pgorm-query's `Schema`:
 
 ```rust,ignore
-async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
     tx.batch_execute(&Schema::create(Name::runtime("billing")).if_not_exists().to_string())
         .await?;
     let invoice = Table::create((Name::runtime("billing"), Name::runtime("invoice")))
@@ -139,7 +139,7 @@ creates it with `Domain`, checks written over `Expr::domain_value()`, the
 `VALUE` a check tests:
 
 ```rust,ignore
-async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
     let quantity = Domain::create(Name::runtime("quantity"), ColumnType::Integer)
         .default(1)
         .not_null()

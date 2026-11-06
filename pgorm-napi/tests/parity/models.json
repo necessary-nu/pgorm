@@ -106,5 +106,57 @@
   "count": {
     "sql": "SELECT COUNT(*) AS \"num_items\" FROM (SELECT \"account\".\"id\", \"account\".\"name\", \"account\".\"display_name\" FROM \"app\".\"account\" WHERE \"account\".\"name\" <> $1) AS \"sub_query\"",
     "values": [["text","x"]]
+  },
+  "find-distinct": {
+    "sql": "SELECT DISTINCT \"account\".\"id\", \"account\".\"name\", \"account\".\"display_name\" FROM \"app\".\"account\"",
+    "values": []
+  },
+  "find-distinct-on": {
+    "sql": "SELECT DISTINCT ON (\"account\".\"name\") \"account\".\"id\", \"account\".\"name\", \"account\".\"display_name\" FROM \"app\".\"account\" ORDER BY \"account\".\"name\" ASC, \"account\".\"id\" ASC",
+    "values": []
+  },
+  "find-grouped": {
+    "sql": "SELECT \"account\".\"id\", \"account\".\"name\", \"account\".\"display_name\" FROM \"app\".\"account\" GROUP BY \"account\".\"id\" HAVING \"account\".\"name\" <> $1",
+    "values": [["text","x"]]
+  },
+  "find-locked": {
+    "sql": "SELECT \"account\".\"id\", \"account\".\"name\", \"account\".\"display_name\" FROM \"app\".\"account\" FOR UPDATE SKIP LOCKED",
+    "values": []
+  },
+  "find-lock-shared": {
+    "sql": "SELECT \"account\".\"id\", \"account\".\"name\", \"account\".\"display_name\" FROM \"app\".\"account\" FOR SHARE",
+    "values": []
+  },
+  "find-right-joined": {
+    "sql": "SELECT \"post\".\"id\", \"post\".\"author_id\", \"post\".\"title\" FROM \"app\".\"post\" RIGHT JOIN \"app\".\"account\" ON \"post\".\"author_id\" = \"account\".\"id\"",
+    "values": []
+  },
+  "find-joined-rev": {
+    "sql": "SELECT \"account\".\"id\", \"account\".\"name\", \"account\".\"display_name\" FROM \"app\".\"account\" INNER JOIN \"app\".\"post\" ON \"post\".\"author_id\" = \"account\".\"id\" WHERE \"post\".\"title\" = $1",
+    "values": [["text","x"]]
+  },
+  "projection-columns": {
+    "sql": "SELECT \"account\".\"id\", \"account\".\"name\" AS \"label\" FROM \"app\".\"account\"",
+    "values": []
+  },
+  "projection-grouped": {
+    "sql": "SELECT \"post\".\"author_id\", COUNT(\"post\".\"id\") AS \"posts\" FROM \"app\".\"post\" GROUP BY \"post\".\"author_id\" HAVING COUNT(\"post\".\"id\") > $1",
+    "values": [["i64","1"]]
+  },
+  "projection-joined": {
+    "sql": "SELECT \"post\".\"title\", \"account\".\"name\" AS \"author\" FROM \"app\".\"post\" INNER JOIN \"app\".\"account\" ON \"post\".\"author_id\" = \"account\".\"id\"",
+    "values": []
+  },
+  "partial-model": {
+    "sql": "SELECT \"account\".\"id\", UPPER(\"account\".\"name\") AS \"shout\", \"account\".\"display_name\" AS \"display\" FROM \"app\".\"account\" WHERE \"account\".\"id\" = $1",
+    "values": [["i64","1"]]
+  },
+  "cursor-secondary-after": {
+    "sql": "SELECT \"account\".\"id\", \"account\".\"name\", \"account\".\"display_name\" FROM \"app\".\"account\" WHERE \"account\".\"name\" > $1 ORDER BY \"account\".\"name\" ASC, \"account\".\"id\" ASC LIMIT $2",
+    "values": [["text","m"], ["u64","3"]]
+  },
+  "cursor-secondary-after-with": {
+    "sql": "SELECT \"account\".\"id\", \"account\".\"name\", \"account\".\"display_name\" FROM \"app\".\"account\" WHERE (\"account\".\"name\" = $1 AND \"account\".\"id\" > $2) OR \"account\".\"name\" > $3 ORDER BY \"account\".\"name\" ASC, \"account\".\"id\" ASC LIMIT $4",
+    "values": [["text","m"], ["i64","4"], ["text","m"], ["u64","3"]]
   }
 }

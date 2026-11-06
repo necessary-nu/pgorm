@@ -112,7 +112,7 @@ class KindChangeDeclaration(unittest.TestCase):
 
 
 class KindChangeFrozen(unittest.TestCase):
-    # [spec:pgorm:req:bindings.migration-file/test]    a change frozen as pgorm freezes it, a file per step, the first committing after, and statements frozen as one file; freeze writes a file once and never again, refuses a name that is no file stem, and a change built by hand has nothing to freeze
+    # [spec:pgorm:req:bindings.migration-file+1/test]    a change frozen as pgorm freezes it, a file per step, the first committing after, and statements frozen as one file; freeze writes a file once and never again, refuses a name that is no file stem, and a change built by hand has nothing to freeze
     def test_changes_freeze_into_migration_files(self):
         before = vehicles(car=CAR, bike=None)
         after = vehicles(car=CAR, van=VAN, bike=None)

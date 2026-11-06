@@ -154,9 +154,10 @@ await db.close();
 ```
 
 pgorm-migration's runner clears the caches of the pool it was given once a
-batch that applied a migration commits. JavaScript has no migration runner
-([Migrations](22-migrations.md)), so a program that changes such things
-itself calls `clearStatementCaches()` after.
+batch that applied a migration commits, so a program that migrates through
+`migrations(..).up` needs nothing more ([Migrations](22-migrations.md#statement-caches)).
+A program that changes such things with DDL of its own outside the runner
+calls `clearStatementCaches()` after.
 
 ## Clearing other processes' caches
 

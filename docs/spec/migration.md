@@ -12,13 +12,19 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 
 ## The runner and its ledger
 
-> [spec:pgorm:def:migration.runner+4]
+> [spec:pgorm:def:migration.runner+5]
 > A migration is a `MigrationTrait` implementor: `MigrationName + Send + Sync`
-> plus a single `async fn up(&self, tx: &DatabaseTransaction<'_>)`, and an
-> optional `fn checksum(&self) -> Option<String>` defaulting to `None`. A
-> migrator is a `MigratorTrait` implementor whose only required method is
-> `migrations() -> Vec<Box<dyn MigrationTrait>>`, the ordered list of every
-> migration the project owns.
+> plus a single `async fn up(&self, tx: &mut DatabaseTransaction<'_>)`, and an
+> optional `fn checksum(&self) -> Option<String>` defaulting to `None`. The
+> transaction is borrowed exclusively, as a transaction closure's is
+> (`conn.tx.closure`), so a migration can open a savepoint inside the batch or
+> run a COPY through it as well as run statements. A
+> migrator is a `MigratorTrait` implementor (`Send + Sync`) whose only required
+> method is `migrations(&self) -> Vec<Box<dyn MigrationTrait>>`, the ordered
+> list of every migration the project owns. Every method of the trait takes
+> `&self`, so a migrator is a value: a unit struct declared for a project's
+> fixed list, called as `Migrator.up(pool, None)`, or a `Migrations` built at
+> run time (`migration.runtime`).
 >
 > `MigratorTrait` provides, on top of that list: `migration_table_name() ->
 > Name` (defaulting to the `ledger` entity's name) and `migration_table_schema()
@@ -78,7 +84,7 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > told. The old table name survives in exactly one place — as
 > `LEGACY_LEDGER_TABLE`, the name adoption looks for.
 
-> [spec:pgorm:sem:migration.up+5]
+> [spec:pgorm:sem:migration.up+6]
 > `up(db, steps)` acquires one pooled connection, opens one transaction, and
 > runs the entire batch inside it before committing, unless a migration of
 > the batch asks to be committed before the next one runs
@@ -94,7 +100,7 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > happens under the lock and no batch can begin against a ledger another runner
 > is midway through moving — compute the pending set, and apply migrations in
 > `migrations()` declaration order — not sorted by name — passing each the
-> shared `&DatabaseTransaction`. After each successful `up` it inserts a ledger row
+> batch's `&mut DatabaseTransaction`. After each successful `up` it inserts a ledger row
 > whose `version` is the migration's name, whose `applied_at` is the current
 > Unix time in seconds, and whose `checksum` is that migration's `checksum()`.
 >
@@ -279,11 +285,11 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 
 ## A migration written as a SQL file
 
-> [spec:pgorm:def:migration.sql-file]
+> [spec:pgorm:def:migration.sql-file+1]
 > `sql_migration!("path/m20260101_000001_name.sql")` is a migration written as a
 > `.sql` file. It expands to a `SqlMigration`, a `MigrationTrait` implementor
-> holding the migration's name and the file's text as `&'static str`s, so it is
-> usable in const position and boxes into `migrations()` beside migrations
+> holding the migration's name and the file's text, each borrowed for the
+> program's life or owned, which boxes into `migrations()` beside migrations
 > written in Rust. Its `name()` is the file stem of the path the macro was
 > given: the identity `migration.name` gives a Rust migration through `file!()`,
 > read from the SQL file instead, so `m20260101_000001_name.sql` and
@@ -294,8 +300,10 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > any migration's error does.
 >
 > `SqlMigration::new(name, sql)` builds the same value from a name and text the
-> caller supplies, without the macro's file or its compile-time check, and
-> `sql()` returns the text a value runs.
+> caller supplies, either of them a `&'static str` or an owned `String`, without
+> the macro's file or its compile-time check, and `sql()` returns the text a
+> value runs. `SqlMigration::read` and `SqlMigration::read_dir` read files as
+> the program runs (`migration.sql-file.read`).
 >
 > The macro is `pgorm-migration`'s, and its prelude exports it. It forwards
 > `$crate` and the caller's tokens to a hidden proc macro in `pgorm-sql-macro`,
@@ -367,6 +375,47 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > in an applied file reads as the edit it is. It is how a change PostgreSQL
 > will not let one transaction finish runs from the files it was frozen into
 > (`migration.frozen`).
+
+> [spec:pgorm:req:migration.sql-file.read]
+> `SqlMigration::read(path)` MUST read the `.sql` file at `path` as the
+> program runs into the migration `sql_migration!` would make of it: named for
+> the path's file stem, its text the file's bytes as UTF-8 with every CRLF line
+> ending written as LF, so it reports the checksum
+> (`migration.sql-file.checksum`) and the `commits_after()`
+> (`migration.sql-file.commits-after`) the macro's value of the same file
+> reports, and a ledger written by either verifies against the other. A path
+> naming no file stem MUST be `io::ErrorKind::InvalidInput` and text that is
+> not UTF-8 `io::ErrorKind::InvalidData`, and a file that cannot be read is
+> the I/O error it is. The text MUST be held to PostgreSQL's grammar through
+> `pgorm-sql-check`'s `check_sql`, the check `sql_migration!` makes
+> (`migration.sql-file.compile`), syntax only, so a file the server would
+> refuse to parse is refused as it is read, before any batch runs, as
+> `io::ErrorKind::InvalidData` naming the file and carrying the parser's
+> diagnostic. `SqlMigration::read_dir(directory)` MUST read every
+> regular file directly inside `directory` whose extension is `sql`, in the
+> order of their file names compared as text, which is the order the
+> `m<timestamp>_<description>` names `MigrationFile` freezes are written in
+> (`migration.frozen`); other entries are passed over, and a file name that
+> is not UTF-8 is `io::ErrorKind::InvalidData`.
+
+## A migrator built at run time
+
+> [spec:pgorm:def:migration.runtime]
+> `Migrations` is a migrator built as the program runs: `Migrations::new`
+> takes the migrations, `Box<dyn MigrationTrait>`s in the order they apply,
+> and `with_migration_table_name(name)`, `with_migration_table_schema(schema)`
+> and `with_statement_cache_channel(channel)` set what
+> `migration_table_name()`, `migration_table_schema()` and
+> `statement_cache_channel()` answer, each answering as a migrator
+> overriding nothing does unless set. It implements `MigratorTrait`, so `up`,
+> `status`, `install` and every accessor are the one runner's
+> (`migration.runner`, `migration.up`), with every rule of this document
+> holding for it as for a migrator declared as a type: the name check, the
+> lock, the ledger and its placement, checksums, `commits_after`, legacy
+> adoption and the statement-cache clear and notification. It is what a
+> program reading its migrations at run time, `SqlMigration::read_dir`'s among
+> them, runs them with, and what pgorm's language bindings run theirs with
+> (`bindings.migrations`).
 
 ## Generated DDL frozen into a migration file
 

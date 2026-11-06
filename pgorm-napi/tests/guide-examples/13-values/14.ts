@@ -2,28 +2,31 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { CheckViolationError, column, createDomain, domainValue, model } from "@necessary/pgorm";
+import { column, CreatedRange, createType, model, Range } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const grams = createDomain("grams", "integer").check(domainValue().gt(0));
-  assert.equal(grams.inspect().sql, `CREATE DOMAIN "grams" AS integer CHECK (VALUE > 0)`);
-  await pool.execute(grams);
-  await pool.execute("CREATE TABLE ingredient (id serial PRIMARY KEY, name varchar NOT NULL, per_batch grams NOT NULL)");
+  const createTemperature = createType("temperature").asRange("double");
+  assert.equal(createTemperature.inspect().sql, `CREATE TYPE "temperature" AS RANGE (SUBTYPE = double precision)`);
+  await pool.execute(createTemperature);
+  await pool.execute("CREATE TABLE oven (id serial PRIMARY KEY, name varchar NOT NULL, heat temperature NOT NULL)");
 
-  const Ingredient = model("ingredient", {
+  const temperature = new CreatedRange("temperature", "f64", { schema: "public" });
+  const Oven = model("oven", {
     columns: {
       id: column("i32", { primaryKey: true, default: true }),
       name: column("text"),
-      perBatch: column("i32", { name: "per_batch" }),
+      heat: column(temperature),
     },
   });
 
-  const flour = await Ingredient.insert({ name: "Flour", perBatch: 500 }).returning().one(pool);
-  assert.equal(flour.perBatch, 500);
-
-  await assert.rejects(
-    Ingredient.insert({ name: "Air", perBatch: 0 }).execute(pool),
-    (error: unknown) => error instanceof CheckViolationError && error.datatype === "grams",
+  const deck = await Oven.insert({ name: "Deck oven", heat: new Range(180, 250.5) }).returning().one(pool);
+  assert.equal(deck.heat.toString(), "[180,250.5)");
+  assert.equal(
+    Oven.insert({ name: "Deck oven", heat: new Range(180, 250.5) }).inspect().sql,
+    `INSERT INTO "oven" ("name", "heat") VALUES ($1, CAST($2::text AS public.temperature))`,
   );
+
+  const hotEnough = await Oven.find().where(Oven.col("heat").overlaps(new Range(240, 260))).count(pool);
+  assert.equal(hotEnough, 1);
 }

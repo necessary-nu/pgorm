@@ -704,16 +704,18 @@ known limitations.
 
 ## Projection and value derives
 
-> [spec:pgorm:sem:macros.derive.partial-model+6]
+> [spec:pgorm:sem:macros.derive.partial-model+7]
 > The `PartialModel` derive accepts only non-generic named-field structs (generics and other
 > shapes are compile errors). The container attribute `entity = Type` names the source
-> entity, written as a type; it is required unless every field carries `from_col` or
-> `from_expr`, and its absence otherwise produces "you need specific which entity you
-> are using". Per field: no attribute selects
+> entity, written as a type; it is required unless every field carries `from_col`,
+> `from_expr` or `skip`, and its absence otherwise produces "you need specific which entity
+> you are using". Per field: no attribute selects
 > `<entity as EntityTrait>::Column::{UpperCamelCase(field)}`; `from_col = path` selects
 > the column the path names, taken as written (`from_col = cake::Column::Name`), under
 > the column's own `select_as` and aliased to the field name; `from_expr = <expr>`
-> selects the expression aliased to the field name. The expansion implements `PartialModelTrait::select_cols` by chaining
+> selects the expression aliased to the field name; and `skip` selects nothing, whatever
+> else the field names, since the field reads no column and decodes as its type's
+> `Default`. The expansion implements `PartialModelTrait::select_cols` by chaining
 > `QuerySelect::column` / `column_as` calls; the chain's type is `S::Projected`, so a
 > struct with no fields — whose chain is empty and whose body is therefore the
 > unprojected `S` — does not compile. It also implements `FromQueryResult` for the

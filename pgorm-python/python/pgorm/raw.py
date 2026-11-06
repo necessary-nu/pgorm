@@ -44,8 +44,7 @@ def _pageable(statement: p.RawSQL, decode: Any) -> Pageable:
     return Pageable(
         page=lambda size, offset: wrapped.limit(size).offset(offset),
         counted=p._model_count(wrapped),
-        sources=(),
-        decode=decode,
+        sources=() if decode is None else decode,
     )
 
 

@@ -2,14 +2,19 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Bakery, Cake, cakeBakery } from "../../../guide/bakery.ts";
+import { column, model } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const inOslo = Cake.find().join(cakeBakery).where(Bakery.col("city").eq("Oslo"));
-  assert.equal(
-    inOslo.inspect().sql,
-    `SELECT "cake"."id", "cake"."name", "cake"."flavor", "cake"."price", "cake"."gluten_free", "cake"."bakery_id" FROM "cake" INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" WHERE "bakery"."city" = $1`,
-  );
-  assert.equal((await inOslo.all(pool)).length, 3);
+  /** A cake on the menu board: two of the cake table's columns. */
+  const MenuLine = model("cake", {
+    columns: {
+      id: column("i32", { primaryKey: true }),
+      name: column("text"),
+      freeFromGluten: column("bool", { name: "gluten_free" }),
+    },
+  });
+
+  const lemon = await MenuLine.find().where(MenuLine.col("id").eq(2)).one(pool);
+  assert.deepEqual(lemon, { id: 2, name: "Lemon Drizzle", freeFromGluten: true });
 }

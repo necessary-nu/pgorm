@@ -17,8 +17,8 @@ use super::{
 };
 use crate::{
     codec::Codec,
-    disjoint::column_type,
     errors::throw,
+    models::column_type,
     values::{Tag, read},
 };
 
@@ -138,7 +138,7 @@ fn model_col(cx: &mut FunctionContext) -> NeonResult<Node> {
             .map(|label| read::string(cx, label))
             .collect::<NeonResult<Vec<_>>>()?,
     };
-    let kind = column_type(&tag, &values).or_else(|failure| throw(cx, failure))?;
+    let kind = column_type(&tag, &values, None).or_else(|failure| throw(cx, failure))?;
     compose(cx, Recipe::Typed(table, column, kind), &[])
 }
 

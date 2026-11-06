@@ -1,11 +1,12 @@
 use crate::{
     ActiveEnum, ColumnTrait, ColumnType, EntityTrait, Error, Iterable, PrimaryKeyArity,
-    PrimaryKeyToColumn, PrimaryKeyTrait, RelationDef, RelationTrait, Schema, entity::ColumnDefault,
+    PrimaryKeyToColumn, PrimaryKeyTrait, RelationDef, Schema, TableShape,
+    entity::{ColumnDefault, foreign_key_of},
     executor::result_name::derived_name,
 };
 use pgorm_query::{
-    ColumnDef, Comment, CommentStatement, ForeignKeyCreateStatement, IdentityGeneration, Index,
-    IndexCreateStatement, Name, SqlName, TableCreateStatement, TableKey, Unique,
+    ColumnDef, Comment, CommentStatement, IdentityGeneration, Index, IndexCreateStatement, Name,
+    SqlName, TableCreateStatement, TableKey, Unique,
     extension::{IntoTypeRef, Type, TypeCreateStatement},
 };
 use std::collections::HashSet;
@@ -101,6 +102,73 @@ impl Schema {
         create_comments_from_entity(entity)
     }
 
+    /// The `CREATE TABLE` of `shape`, written as
+    /// [`create_table_from_entity`](Self::create_table_from_entity) writes an
+    /// entity's: its columns in order, its primary key, its unique keys and a
+    /// foreign key for each of its relations, refused with [`Error::Type`]
+    /// where that refuses an entity's and where a column has a default its
+    /// description does not state
+    /// ([`TableColumn::with_unstated_default`](crate::TableColumn::with_unstated_default)).
+    ///
+    /// ```
+    /// use pgorm::{ColumnTypeTrait, Schema, TableColumn, TableShape};
+    /// use pgorm::pgorm_query::{ColumnType, Expr, Name, TableName};
+    ///
+    /// let shape = TableShape::new(
+    ///     TableName::Table(Name::runtime("shelf")),
+    ///     vec![
+    ///         TableColumn::new("id", ColumnType::Integer.def()),
+    ///         TableColumn::new("label", ColumnType::Text.def().comment("as printed")),
+    ///         TableColumn::new("stocked_at", ColumnType::TimestampWithTimeZone.def()
+    ///             .default(Expr::current_timestamp())),
+    ///     ],
+    /// )?
+    /// .with_primary_key(&["id"])?
+    /// .auto_increment();
+    ///
+    /// let schema = Schema::new();
+    /// assert_eq!(
+    ///     schema.create_table_from_shape(&shape)?.to_string(),
+    ///     r#"CREATE TABLE "shelf" ( "id" serial NOT NULL, "label" text NOT NULL, "stocked_at" timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY ("id") )"#
+    /// );
+    /// assert_eq!(
+    ///     schema.create_comments_from_shape(&shape)[0].to_string(),
+    ///     r#"COMMENT ON COLUMN "shelf"."label" IS 'as printed'"#
+    /// );
+    /// # Ok::<(), pgorm::Error>(())
+    /// ```
+    // [spec:pgorm:sem:schema.from-shape]
+    pub fn create_table_from_shape(
+        &self,
+        shape: &TableShape,
+    ) -> Result<TableCreateStatement, Error> {
+        table_from_shape(shape, |_| true)
+    }
+
+    /// The `CREATE TYPE .. AS ENUM` of each enum `shape`'s columns hold, as
+    /// [`create_enum_from_entity`](Self::create_enum_from_entity) writes an
+    /// entity's.
+    // [spec:pgorm:sem:schema.from-shape]
+    pub fn create_enum_from_shape(&self, shape: &TableShape) -> Vec<TypeCreateStatement> {
+        create_enum_from_shape(shape)
+    }
+
+    /// The index of each of `shape`'s `indexed` columns, as
+    /// [`create_index_from_entity`](Self::create_index_from_entity) writes an
+    /// entity's.
+    // [spec:pgorm:sem:schema.from-shape]
+    pub fn create_index_from_shape(&self, shape: &TableShape) -> Vec<IndexCreateStatement> {
+        create_index_from_shape(shape)
+    }
+
+    /// The comments of `shape` and its columns, as
+    /// [`create_comments_from_entity`](Self::create_comments_from_entity)
+    /// writes an entity's.
+    // [spec:pgorm:sem:schema.from-shape]
+    pub fn create_comments_from_shape(&self, shape: &TableShape) -> Vec<CommentStatement> {
+        create_comments_from_shape(shape)
+    }
+
     /// Creates a column definition for example to update a table.
     ///
     /// ```
@@ -182,15 +250,22 @@ pub(crate) fn create_enum_from_column_type(col_type: &ColumnType) -> Option<Type
 }
 
 // [spec:pgorm:sem:schema.from-entity.enum+3]
-pub(crate) fn create_enum_from_entity<E>(_: E) -> Vec<TypeCreateStatement>
+pub(crate) fn create_enum_from_entity<E>(entity: E) -> Vec<TypeCreateStatement>
 where
     E: EntityTrait,
 {
+    create_enum_from_shape(&TableShape::of_entity(entity))
+}
+
+/// One `CREATE TYPE .. AS ENUM` for each enum `shape`'s columns hold, an
+/// array of one included, each written once, first occurrence winning.
+// [spec:pgorm:sem:schema.from-entity.enum+3]
+// [spec:pgorm:sem:schema.from-shape]
+pub(crate) fn create_enum_from_shape(shape: &TableShape) -> Vec<TypeCreateStatement> {
     let mut seen = HashSet::new();
     let mut vec = Vec::new();
-    for col in E::Column::iter() {
-        let col_def = col.def();
-        let col_type = enum_element_type(col_def.get_column_type());
+    for column in &shape.columns {
+        let col_type = enum_element_type(column.def.get_column_type());
         let ColumnType::Enum { name, schema, .. } = col_type else {
             continue;
         };
@@ -210,19 +285,26 @@ pub(crate) fn create_index_from_entity<E>(entity: E) -> Vec<IndexCreateStatement
 where
     E: EntityTrait,
 {
-    let mut vec = Vec::new();
-    for column in E::Column::iter() {
-        let column_def = column.def();
-        if !column_def.indexed {
-            continue;
-        }
-        let name = derived_name("idx", &entity.to_string(), [column.to_string().as_str()]);
-        let stmt = Index::create(entity.table_ref(), column)
-            .name(Name::runtime(name))
-            .to_owned();
-        vec.push(stmt)
-    }
-    vec
+    create_index_from_shape(&TableShape::of_entity(entity))
+}
+
+/// One `CREATE INDEX "idx-{table}-{column}"` for each of `shape`'s columns
+/// marked `indexed`, on the table as it is named.
+// [spec:pgorm:sem:schema.from-entity.index+2]
+// [spec:pgorm:sem:schema.from-shape]
+pub(crate) fn create_index_from_shape(shape: &TableShape) -> Vec<IndexCreateStatement> {
+    let table = shape.table.table().to_string();
+    shape
+        .columns
+        .iter()
+        .filter(|column| column.def.indexed)
+        .map(|column| {
+            let name = derived_name("idx", &table, [column.name.to_string().as_str()]);
+            Index::create(shape.table.clone(), Name::clone(&column.name))
+                .name(Name::runtime(name))
+                .to_owned()
+        })
+        .collect()
 }
 
 // [spec:pgorm:sem:schema.from-entity+12]    the comment statements, one stream per entity
@@ -230,15 +312,26 @@ pub(crate) fn create_comments_from_entity<E>(entity: E) -> Vec<CommentStatement>
 where
     E: EntityTrait,
 {
-    let table = entity.table_ref();
+    create_comments_from_shape(&TableShape::of_entity(entity))
+}
 
+/// The `COMMENT ON` statements of `shape`: its table's comment first, then
+/// each column's, in column order.
+// [spec:pgorm:sem:schema.from-entity+12]
+// [spec:pgorm:sem:schema.from-shape]
+pub(crate) fn create_comments_from_shape(shape: &TableShape) -> Vec<CommentStatement> {
+    let table = &shape.table;
     let mut vec = Vec::new();
-    if let Some(comment) = entity.comment() {
+    if let Some(comment) = &shape.comment {
         vec.push(Comment::on_table(table.clone(), comment));
     }
-    for column in E::Column::iter() {
-        if let Some(comment) = column.def().comment {
-            vec.push(Comment::on_column(table.clone(), column, comment));
+    for column in &shape.columns {
+        if let Some(comment) = &column.def.comment {
+            vec.push(Comment::on_column(
+                table.clone(),
+                Name::clone(&column.name),
+                comment,
+            ));
         }
     }
     vec
@@ -265,46 +358,87 @@ where
     E: EntityTrait,
     K: Fn(&RelationDef) -> bool,
 {
-    let mut stmt = TableCreateStatement::new(entity.table_ref());
+    table_from_shape(&TableShape::of_entity(entity), writes_key)
+}
 
-    if let Some(comment) = entity.comment() {
+/// `shape`'s `CREATE TABLE`, with a foreign key for each of its relations
+/// `writes_key` keeps.
+// [spec:pgorm:sem:schema.from-entity+12]
+// [spec:pgorm:sem:schema.from-shape]
+pub(crate) fn table_from_shape<K>(
+    shape: &TableShape,
+    writes_key: K,
+) -> Result<TableCreateStatement, Error>
+where
+    K: Fn(&RelationDef) -> bool,
+{
+    let mut stmt = TableCreateStatement::new(shape.table.clone());
+
+    if let Some(comment) = &shape.comment {
         stmt.comment(comment);
     }
 
-    for column in E::Column::iter() {
-        let mut column_def = column_def_from_entity_column::<E>(column);
-        stmt.col(&mut column_def);
+    // Only a one-column key is drawn from the serial family, and only when the
+    // column names no fill of its own: PostgreSQL refuses `serial` beside a
+    // `DEFAULT`, an identity or a generation expression (42601). A composite
+    // key's generated part is its column's identity.
+    let serial = match shape.key.as_slice() {
+        [only] if shape.auto_increment => Some(*only),
+        _ => None,
+    };
+    for (index, column) in shape.columns.iter().enumerate() {
+        if column.unstated_default {
+            return Err(Error::Type(format!(
+                "`{}`.`{}` has a default its description does not state, so its \
+                 table cannot be written",
+                shape.label,
+                column.name.to_string()
+            )));
+        }
+        stmt.col(column_ddl(
+            Name::clone(&column.name),
+            column.def.clone(),
+            serial == Some(index),
+        ));
     }
 
-    let mut primary_keys: Vec<Name> = E::PrimaryKey::iter().map(Name::new).collect();
+    let mut primary_keys: Vec<Name> = shape
+        .key()
+        .map(|column| Name::clone(&column.name))
+        .collect();
     // A temporal key's period is its last column, which the key writes
     // `WITHOUT OVERLAPS` after the rest.
-    let period = match E::PrimaryKey::without_overlaps() {
+    let period = match shape.without_overlaps {
         true => primary_keys.pop(),
         false => None,
     };
-    write_primary_key(&mut stmt, &entity.to_string(), primary_keys, period);
-    for column in E::Column::iter() {
-        if column.def().unique {
-            stmt.unique(column);
+    write_primary_key(
+        &mut stmt,
+        &shape.table.table().to_string(),
+        primary_keys,
+        period,
+    );
+    for column in &shape.columns {
+        if column.def.unique {
+            stmt.unique(Name::clone(&column.name));
         }
     }
-    for key in entity.unique_keys() {
+    for key in &shape.unique_keys {
+        let columns: Vec<&str> = key.columns.iter().map(String::as_str).collect();
         stmt.unique(unique_key(
-            &entity.to_string(),
-            key.name,
-            key.columns,
+            &shape.label,
+            key.name.as_deref(),
+            &columns,
             key.nulls_not_distinct,
         )?);
     }
 
-    for relation in E::Relation::iter() {
-        let def = relation.def();
-        if def.is_owner || !writes_key(&def) {
+    for relation in &shape.relations {
+        if !writes_key(&relation.def) {
             continue;
         }
-        refuse_unkeyable(&entity, &relation, &def)?;
-        stmt.foreign_key(ForeignKeyCreateStatement::from(def));
+        refuse_unkeyable(&shape.label, &relation.label, &relation.def)?;
+        stmt.foreign_key(foreign_key_of(&relation.def));
     }
 
     Ok(stmt.take())
@@ -347,11 +481,7 @@ pub(crate) fn unique_key(
 /// recorded when the pair was named by entity columns; a pair named by bare
 /// names recorded none and passes unchecked.
 // [spec:pgorm:sem:schema.from-entity+12]
-fn refuse_unkeyable<E: EntityTrait>(
-    entity: &E,
-    relation: &E::Relation,
-    def: &RelationDef,
-) -> Result<(), Error> {
+fn refuse_unkeyable(table: &str, relation: &str, def: &RelationDef) -> Result<(), Error> {
     let unkeyable = def
         .columns
         .compared_pairs()
@@ -360,10 +490,9 @@ fn refuse_unkeyable<E: EntityTrait>(
         return Ok(());
     };
     Err(Error::Type(format!(
-        "relation `{relation:?}` of `{entity}` cannot be a foreign key: `{from_tbl}`.`{from}` \
+        "relation `{relation}` of `{table}` cannot be a foreign key: `{from_tbl}`.`{from}` \
          references `{to_tbl}`.`{to}`, and PostgreSQL implements no foreign key with a column \
          typed as a domain over an enum on either side (42804)",
-        entity = entity.to_string(),
         from_tbl = def.from_tbl.qualifier().to_string(),
         from = from.to_string(),
         to_tbl = def.to_tbl.qualifier().to_string(),

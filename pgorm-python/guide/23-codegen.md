@@ -90,19 +90,22 @@ are written, so nothing needs to run over them once they are written.
 ## Writing the DDL from Python
 
 pgorm-codegen reads `CREATE` statements, each table's keys inside it. A
-Python program that keeps its schema as `pgorm.schema` builders, as
-[`bakery.py`](bakery.py) does, already writes DDL of that shape: render each
-statement and write them, in order, to the file the Rust tool reads.
+Python program whose models write their own tables, as
+[`bakery.py`](bakery.py)'s do through `pgorm.schema.from_model`, already
+writes DDL of that shape: render each statement and write them, in order, to
+the file the Rust tool reads.
 
 ```python
 import bakery
 
 ddl = "".join(statement.inspect().sql + ";\n" for statement in bakery.statements())
 
-assert ddl.startswith("CREATE TYPE \"flavor\" AS ENUM ('chocolate', 'vanilla', 'lemon', 'carrot');\n")
+assert ddl.startswith(
+    "CREATE TYPE \"public\".\"flavor\" AS ENUM ('chocolate', 'vanilla', 'lemon', 'carrot');\n"
+)
 assert (
     'CREATE TABLE "cake" ( "id" serial NOT NULL, "name" varchar NOT NULL, '
-    '"flavor" flavor NOT NULL, "price" decimal(10, 2) NOT NULL, "gluten_free" bool NOT NULL, '
+    '"flavor" public.flavor NOT NULL, "price" decimal(10, 2) NOT NULL, "gluten_free" bool NOT NULL, '
     '"bakery_id" integer NOT NULL, PRIMARY KEY ("id"), '
     'CONSTRAINT "fk-cake-bakery_id" FOREIGN KEY ("bakery_id") REFERENCES "bakery" ("id") );\n'
 ) in ddl
@@ -110,8 +113,9 @@ assert ddl.count("CREATE TABLE") == 7
 ```
 
 The cake's statement is the one Rust's schema generation writes for the Rust
-guide's cake entity, character for character, which is the DDL the Rust
-chapter's round trip reads back as that entity.
+guide's cake entity, but for the flavor's type, which a Python model names
+with its schema: read back, it is an entity whose enum says
+`schema_name = "public"`.
 
 The output of `pg_dump --schema-only` is not that shape: it opens with
 `SET`s, changes owners, and adds its keys with `ALTER TABLE` after the

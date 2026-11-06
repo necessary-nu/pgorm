@@ -3,8 +3,11 @@ from asyncio import CancelledError as CancelledError
 from ._schema import (
     DataType as DataType, ColumnDef as ColumnDef, DDL as DDL, EntitySchema as EntitySchema,
     schema_from_entity as schema_from_entity,
+    _model_schema as _model_schema, _model_table as _model_table, _renamed as _renamed,
+    _ModelColumnCasts as _ModelColumnCasts, _model_casts as _model_casts,
     MigrationFile as MigrationFile, migration_file as migration_file,
 )
+from ._migrations import SqlMigration as SqlMigration, _Migrations as _Migrations
 from ._schema_tables import (
     CreateTable as CreateTable, CreateIndex as CreateIndex,
     create_table as create_table, create_index as create_index, drop_table as drop_table,
@@ -180,10 +183,11 @@ from ._entity_columns import EntityColumn as EntityColumn
 from ._entity_reads import EntityRelation as EntityRelation, EntitySelection as EntitySelection, EntityPaginator as EntityPaginator, EntityCursor as EntityCursor, _RowDecoder as _RowDecoder
 from ._versions import (
     EntityUpdateMany as EntityUpdateMany, EntityInsert as EntityInsert,
-    EntityInsertMany as EntityInsertMany,
     Change as Change, Upserted as Upserted, _change as _change, _inserted as _inserted,
     _updated as _updated, EntityUpdate as EntityUpdate,
+    EntityInsertMany as EntityInsertMany,
 )
+from ._entity_try_inserts import EntityTryInsert as EntityTryInsert, EntityTryInsertMany as EntityTryInsertMany
 from ._graphs import EntityGraph as EntityGraph, EntityGraphQuery as EntityGraphQuery, EntityGraphCursor as EntityGraphCursor, graph as graph, graphs as graphs
 from ._entity_models import EntityModel as EntityModel, ActiveModel as ActiveModel, ActiveValue as ActiveValue, ActiveState as ActiveState
 from ._disjoint import (

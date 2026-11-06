@@ -60,11 +60,35 @@ export type BuiltinType =
  * `precision` (1–1000) and `scale` (0–1000) for numeric — an enum by
  * `TypeName`, or a range type a schema created.
  */
+/** The field qualifiers an `interval` takes, `hourToMinute` for `HOUR TO MINUTE`. */
+export type IntervalFields =
+  | "year"
+  | "month"
+  | "day"
+  | "hour"
+  | "minute"
+  | "second"
+  | "yearToMonth"
+  | "dayToHour"
+  | "dayToMinute"
+  | "dayToSecond"
+  | "hourToMinute"
+  | "hourToSecond"
+  | "minuteToSecond";
+
 export declare class DataType {
   constructor(
     kind: BuiltinType | TypeName | CreatedRange | CreatedMultirange,
-    options?: { readonly length?: number; readonly precision?: number; readonly scale?: number },
+    options?: {
+      readonly length?: number;
+      readonly precision?: number;
+      readonly scale?: number;
+      /** An interval's fields; its precision then belongs to a last field of seconds. */
+      readonly fields?: IntervalFields;
+    },
   );
+  /** A domain over `base`, which a model column reads as its base and, over an enum, compares as the enum. */
+  static domain(name: string | TypeName, base: DataType | BuiltinType | TypeName | CreatedRange | CreatedMultirange): DataType;
   array(): DataType;
 }
 

@@ -141,37 +141,30 @@ fields, as the query it came from does; Rust's needs `into_model` or
 
 ### Ties and secondary keys
 
-In Rust, `add_secondary_order_by` appends a column to a cursor's ordering
-after its key, which is how a cursor over a join is made total. `after` and
-`before` still take the key alone, and so resume past every row sharing the
-boundary's key, while `after_with` and `before_with` take the whole ordering
-and resume from exactly one row.
-
-A JavaScript model query's cursor orders by its key and nothing else, so its
-key is the whole ordering: a cursor by bakery that should be total names the
-id in its key, and its boundary, the bakery and the id, resumes from exactly
-one row, as Rust's `after_with` does.
+`addSecondaryOrderBy(model, field)` appends a column of the queried model or
+a joined one to the cursor's ordering, after its key, which is how a cursor
+over a join is made total; the model names the table as the query names it,
+an aliased model its alias, as Rust's `add_secondary_order_by(table,
+column)` names it. `after` and `before` still take the key alone, and so
+resume past every row sharing the boundary's key, while `afterWith` and
+`beforeWith` take the whole ordering, the appended columns included, and
+resume from exactly one row:
 
 ```ts
 import assert from "node:assert/strict";
 
 // By bakery, then by id within each bakery.
-const byBakery = Cake.find().cursor("bakeryId", "id");
+const byBakery = Cake.find().cursor("bakeryId").addSecondaryOrderBy(Cake, "id");
 
 const first = await byBakery.first(2).all(pool);
 assert.deepEqual(first.map((cake) => cake.id), [1, 2]);
 
-// Bakery 1 has a third cake, which comes next.
-const rest = await byBakery.after(1, 2).first(2).all(pool);
+// Bakery 1 has a third cake, which `after(1)` would skip.
+const rest = await byBakery.afterWith(1, 2).first(2).all(pool);
 assert.deepEqual(rest.map((cake) => cake.id), [5, 3]);
+const skipped = await byBakery.after(1).first(2).all(pool);
+assert.deepEqual(skipped.map((cake) => cake.id), [3, 4]);
 ```
-
-**Not available in JavaScript yet:** a secondary ordering on a model query's
-cursor. Rust's `add_secondary_order_by` breaks ties by a column of the
-queried table or a joined one, apart from the key, so that `after` can resume
-past a whole run of one key while `after_with` resumes inside it. A
-JavaScript model cursor's `afterWith` and `beforeWith` take what `after` and
-`before` take.
 
 A [graph](07-relations.md) has cursors too, `cursor` by its root's fields and
 `cursorOn` by one of its slots', as Rust's `cursor_by` and `cursor_by_on`, and

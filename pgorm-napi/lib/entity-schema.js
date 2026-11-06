@@ -10,6 +10,10 @@
 
 import { arg, TRUSTED } from "./builder.js";
 import { Entity } from "./entities.js";
+import { ConstructionError } from "./errors.js";
+import { described, sameTable, shapeOf } from "./model-shape.js";
+import { Model } from "./models.js";
+import { foreignKeyOf, Relation, shapesOf } from "./relations.js";
 import { native } from "./operations.js";
 import { CreateTable, DDL, statement } from "./schema.js";
 import { CreateIndex } from "./schema-objects.js";
@@ -37,7 +41,7 @@ export class EntitySchema {
    * @param {symbol} token
    */
   constructor([table, enums, indexes, comments], token) {
-    if (token !== MADE) throw new TypeError("an EntitySchema comes from fromEntity(entity)");
+    if (token !== MADE) throw new TypeError("an EntitySchema comes from fromEntity(entity) or fromModel(model)");
     this.table = new CreateTable(table, TRUSTED);
     this.enums = Object.freeze(enums.map((handle) => new CreateType(handle, TRUSTED)));
     this.indexes = Object.freeze(indexes.map((handle) => new CreateIndex(handle, TRUSTED)));
@@ -53,7 +57,49 @@ export class EntitySchema {
  */
 export function fromEntity(entity) {
   if (!(entity instanceof Entity)) {
-    throw new TypeError("fromEntity takes a registered Entity, from entity(name); a model's table is built with createTable");
+    throw new TypeError("fromEntity takes a registered Entity, from entity(name); a declared model's is fromModel(model)");
   }
   return new EntitySchema(native.entitySchema(arg(entity)), MADE);
+}
+
+// [spec:pgorm:req:bindings.schema-from-model]
+/**
+ * The schema of a declared model's table, written by pgorm's `Schema` from
+ * the `TableShape` the model describes, as `fromEntity` writes a registered
+ * entity's: its `CREATE TABLE` with its primary key, unique keys and a
+ * foreign key for each `belongsTo` relation in `relations`, the `CREATE
+ * TYPE` of each enum its columns use, an index for each `indexed` column,
+ * and its comments.
+ *
+ * @param {unknown} model
+ * @param {{ relations?: unknown }} [options]
+ */
+export function fromModel(model, options = {}) {
+  if (!(model instanceof Model)) {
+    throw new TypeError("fromModel takes a declared Model, from model(name, ..); a registered entity's is fromEntity(entity)");
+  }
+  if (typeof options !== "object" || options === null) throw new TypeError("fromModel's options are { relations }");
+  for (const option of Object.keys(options)) {
+    if (option !== "relations") throw new TypeError(`${JSON.stringify(option)} is no fromModel option`);
+  }
+  const shape = shapeOf(model);
+  if (shape.alias !== null) {
+    throw new ConstructionError("a model's table is created under its name: pass the model, not an alias of it");
+  }
+  const { relations = [] } = options;
+  if (!Array.isArray(relations)) throw new TypeError("fromModel's relations are an array of relations");
+  const keys = relations.map((relation) => {
+    if (!(relation instanceof Relation)) throw new TypeError("fromModel's relations are the model's belongsTo relations");
+    if (relation.kind !== "belongsTo") {
+      throw new ConstructionError(
+        `a ${relation.kind} relation holds no foreign key of its model's table: pass the belongsTo relation of the table that holds it`,
+      );
+    }
+    const [from] = shapesOf(relation);
+    if (!sameTable(from, shape)) {
+      throw new ConstructionError(`the relation starts at ${from.name}, not at ${shape.name}`);
+    }
+    return foreignKeyOf(relation);
+  });
+  return new EntitySchema(native.modelSchema(described(shape), keys), MADE);
 }

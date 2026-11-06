@@ -2,18 +2,24 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { call, select } from "@necessary/pgorm";
-import { Bakery, Cake } from "../../../guide/bakery.ts";
+import { call, column } from "@necessary/pgorm";
+import { Bakery, Cake, cakeBakery } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
   const cakes = call("count", Cake.col("id"));
-  const busy = select(Bakery.col("name"), cakes.as("cakes"))
-    .from(Cake.table)
-    .join(Bakery.table, Cake.col("bakeryId").eq(Bakery.col("id")))
+  const busy = Cake.find()
+    .join(cakeBakery)
+    .selectOnly()
+    .column(Bakery.col("name"))
+    .exprAs(cakes, "cakes", column("i64"))
     .groupBy(Bakery.col("name"))
     .having(cakes.gt(2));
-  assert.deepEqual(await pool.query(busy), [{ name: "Sunrise", cakes: 3n }]);
+  assert.equal(
+    busy.inspect().sql,
+    `SELECT "bakery"."name", COUNT("cake"."id") AS "cakes" FROM "cake" INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" GROUP BY "bakery"."name" HAVING COUNT("cake"."id") > $1`,
+  );
+  assert.deepEqual(await busy.intoTuple().all(pool), [["Sunrise", 3n]]);
 
   const glutenFree = await Cake.find().where(Cake.col("glutenFree").eq(true)).count(pool);
   assert.equal(glutenFree, 3);

@@ -497,6 +497,18 @@ class GeneratedContract(unittest.TestCase):
             stub,
         )
         self.assertIn("Offers: DisjointView[OffersRow]", stub)
+        # [spec:pgorm:req:bindings.codegen-coverage/test]    a one-of reference and a source tuple are generated beside the entities
+        self.assertIn("LabelTarget: p.OneOfEntity", stub)
+        self.assertIn(
+            "AccountWithNoteRow: TypeAlias = tuple[AccountModel | None, NoteModel | None]", stub
+        )
+        self.assertIn("AccountWithNote: pl.SourceSelection", stub)
+        self.assertIsInstance(app.LabelTarget, p.OneOfEntity)
+        self.assertEqual(app.AccountWithNote.name, "app.AccountWithNote")
+        self.assertEqual(
+            [target["field"] for target in app.LabelTarget.describe()["targets"]],
+            ["parcel_id", "pallet_id"],
+        )
         described = app.Account.describe()
         columns = {column["name"]: column for column in described["columns"]}
         self.assertEqual(columns["id"]["rust_type"], "i32")

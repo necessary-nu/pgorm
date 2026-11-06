@@ -46,9 +46,10 @@ use pgorm::pgorm_query::{
 use crate::{codec::Codec, rows, values::Tagged};
 use args::refuse;
 pub(crate) use args::select as embedded_select;
-pub(crate) use args::{node, pick, predicate};
+pub(crate) use args::{expression, node, operand, pick, predicate};
 pub(crate) use copy::{CopyFrom, CopyStatement, CopyTo, copy_at, copy_from_at, copy_to_at};
-pub(crate) use schema::{Ddl, relation};
+pub(crate) use data_type::column_type as data_type;
+pub(crate) use schema::{Ddl, FOREIGN_KEY_ACTIONS, relation};
 
 /// A projection: an expression with the name its output column takes.
 #[derive(Debug, Clone)]

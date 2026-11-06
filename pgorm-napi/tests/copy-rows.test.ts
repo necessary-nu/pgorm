@@ -373,3 +373,28 @@ test("a multirange type a schema created reads out of a binary COPY and writes b
   same(read.slice(1), [[[new Multirange([new Range(4, 6)]), null]], [[new Multirange([new Range(8, 9)])]]]);
   await pool().execute("DROP SCHEMA geo CASCADE");
 });
+
+// [spec:pgorm:req:bindings.copy-rows.typed/test]    rows copyOutRows read write back through copyInRows, each value as its column's type
+test("rows read by copyOutRows write back through copyInRows", async () => {
+  const columns =
+    "r int4range, m int4multirange, j jsonb, ja jsonb, jn jsonb, js jsonb, a int4[], e int4[], n int4[], " +
+    "jl jsonb[], d numeric, t timestamptz, i interval, b bytea, u uuid";
+  await pool().execute(`CREATE TABLE round_from (${columns})`);
+  await pool().execute(`CREATE TABLE round_to (${columns})`);
+  await pool().execute(
+    `INSERT INTO round_from VALUES ('[1,5)', '{[1,2),[4,6)}', '{"a":1}', '[1,2]', '3', '"s"', '{1,2}', '{}', ` +
+      `'{NULL}', ARRAY['[1]'::jsonb, '2'], 1.50, '2026-01-01T00:00:00Z', '1 day', '\\x0102', ` +
+      `'00000000-0000-0000-0000-000000000001')`,
+  );
+  // The stream's rows are CopyRows as they come, with no cast.
+  const written = await pool().copyInRows(
+    copyFrom(new Table("round_to"), "binary"),
+    await pool().copyOutRows(copyTo(new Table("round_from"), "binary")),
+  );
+  assert.equal(written, 1);
+  const { differ } = await pool().one(
+    "SELECT count(*)::int AS differ FROM (SELECT * FROM round_from EXCEPT ALL SELECT * FROM round_to) AS d",
+  );
+  assert.equal(differ, 0);
+  await pool().execute("DROP TABLE round_from, round_to");
+});

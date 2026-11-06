@@ -11,10 +11,10 @@ from typing import TYPE_CHECKING, Any
 
 from .. import _native as p
 from .columns import ModelColumn
-from .record import Database, Row, Source, decode_all
+from .record import Database, Decode, Row, decode_all
 
 if TYPE_CHECKING:
-    from ..results import Record
+    from .model import Model
 
 # PostgreSQL reads LIMIT and OFFSET as bigint.
 ROWS_MAX = 2**63 - 1
@@ -32,16 +32,18 @@ def _rows(value: object, what: str) -> int:
 class Keyed:
     """What a cursor pages over: the statement it composes with an ordering,
     further conditions and a limit; the query's own limit, which a window
-    replaces; the sources its rows decode as; its order columns; and the
-    tiebreaks after them."""
+    replaces; how its rows decode; its order columns; the tiebreaks after
+    them; and each model the query reads, with the name its table answers
+    to, which a secondary ordering may name."""
 
     build: Callable[
         [tuple[p.OrderBy, ...], tuple[p.Expr | p.Condition, ...], int | None], p.Select
     ]
     limit: int | None
-    sources: tuple[Source, ...]
+    sources: Decode
     order: tuple[ModelColumn, ...]
     tiebreaks: tuple[ModelColumn, ...]
+    tables: tuple[tuple[Model, str], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,16 +94,31 @@ class Cursor:
     def before_with(self, *values: Any) -> Cursor:
         return replace(self, position=replace(self.position, before=self._boundary(values, True)))
 
-    # [spec:pgorm:req:bindings.cursor-secondary-order]
-    def add_secondary_order_by(self, column: ModelColumn) -> Cursor:
-        """The cursor with ``column``, a model's column qualified as the
-        query names its table, appended to its ordering after the key, as
-        pgorm's ``add_secondary_order_by`` appends one: ``after_with`` and
-        ``before_with`` then take its value after the others', while
-        ``after`` and ``before`` still take the order fields' alone."""
-        if not isinstance(column, ModelColumn):
-            raise TypeError("a cursor's secondary ordering is a model's column")
+    # [spec:pgorm:req:bindings.cursor-secondary-order+1]
+    def add_secondary_order_by(self, model: Model, field: str) -> Cursor:
+        """The cursor ordered by ``field`` of ``model`` after its key and the
+        entries before it: a column of the queried model, a table it joined
+        or a graph's source, ``model`` named as the query names it, its alias
+        included, as Rust's ``add_secondary_order_by(table, column)``.
+        ``after`` and ``before`` still take the key alone, so they skip every
+        row sharing the boundary's key; ``after_with`` and ``before_with``
+        take the whole ordering and resume from exactly one row."""
+        from .model import Model
+        from .relations import same_table
+
+        if not isinstance(model, Model):
+            raise TypeError("a secondary ordering names a Model and one of its fields")
+        name = model.col(field).field_name
+        read = any(
+            same_table(table, model) and qualifier == model.qualifier
+            for table, qualifier in self.keyed.tables
+        )
+        if not read:
+            raise p.ConstructionError(
+                f"the cursor's query reads no table named {model.qualifier}"
+            )
         keyed = self.keyed
+        column = model._column(name, model.qualifier)
         return replace(self, keyed=replace(keyed, tiebreaks=(*keyed.tiebreaks, column)))
 
     def first(self, rows: int) -> Cursor:
@@ -122,7 +139,7 @@ class Cursor:
         """The key compared with ``values``, ``(c1, .., cn) > (v1, .., vn)``
         written out as n disjuncts, the k-th holding the first k-1 columns
         equal and comparing the k-th."""
-        columns = [column.expr() for column in self._keyset()]
+        columns = self._keyset()
         disjuncts = [
             p.Condition.all(
                 *(
@@ -169,14 +186,13 @@ class Cursor:
 @dataclass(frozen=True, slots=True)
 class Pageable:
     """What a paginator pages: the statement of one page, the statement whose
-    rows it counts, and the sources each row decodes as, or with ``decode``
-    what decodes each row in their place, a raw statement's by name, and with
-    neither the rows as they are."""
+    rows it counts, and how each row decodes: its sources' records, what a
+    projection or a raw statement reads it as, or with no sources the row as
+    it is."""
 
     page: Callable[[int, int], p.Select]
     counted: p.Select
-    sources: tuple[Source, ...]
-    decode: Callable[[Record], Row] | None = None
+    sources: Decode
 
 
 # [spec:pgorm:req:bindings.pagination]
@@ -210,12 +226,10 @@ class Paginator:
 
     async def fetch_page(self, db: Database, page: int) -> list[Row]:
         statement = self._page(page)
-        decode = self.pageable.decode
-        if decode is not None:
-            return [decode(row) for row in await db.query(statement)]
-        if not self.pageable.sources:
+        sources = self.pageable.sources
+        if not callable(sources) and not sources:
             return list(await db.query(statement))
-        return await decode_all(db, statement, self.pageable.sources)
+        return await decode_all(db, statement, sources)
 
     async def num_items(self, db: Database) -> int:
         """How many rows the pages hold."""

@@ -24,6 +24,7 @@ pgorm is a fork of SeaORM focused entirely on PostgreSQL support. It uses tokio-
 
 ### Workspace Structure
 - `pgorm` (root) - Main ORM crate
+- `pgorm-case-style` - The case styles a `rename_all` renames by (`CaseStyle`, re-exported as `pgorm::CaseStyle`), one conversion shared by the derives and by the models the bindings declare at run time
 - `pgorm-macros` - Derive macros for entities and models
 - `pgorm-codegen` - Entity source generation from a described schema
 - `pgorm-migration` - Migration runner
@@ -50,7 +51,7 @@ There is no CLI crate: the inherited `pgorm-cli` was retired (it targeted sqlx/s
 - **Query System**: `src/query/` - Query builders
 - **Executor**: `src/executor/` - Query execution and result handling
 - **Database**: `src/database/` - Connection management and pooling
-- **Schema**: `src/schema/` - DDL statement generation from entity definitions (`Schema::create_table_from_entity`, `create_enum_from_entity`, `create_index_from_entity`, `create_comments_from_entity`). This is generation only, not introspection. Generated DDL reaches a migration frozen, never recomputed as the migration runs: `MigrationFile::new(name, statements).freeze(dir)` writes `<name>.sql` once and never rewrites it, `DisjointChange::migration_files(name)` freezes a disjoint kind change a file per step, and a file opening with `-- pgorm: commits-after` answers `commits_after()` in pgorm-migration's `sql_migration!`
+- **Schema**: `src/schema/` - DDL statement generation from entity definitions (`Schema::create_table_from_entity`, `create_enum_from_entity`, `create_index_from_entity`, `create_comments_from_entity`). Each goes through a `TableShape` (`src/entity/table_shape.rs`), a table as data: `TableShape::of::<E>()` describes an entity and `TableShape::new` a table known at run time, and `Schema::create_*_from_shape` write either, so the Python and JavaScript bindings' `from_model` / `fromModel` write a declared model's DDL with the entity path's code. This is generation only, not introspection. Generated DDL reaches a migration frozen, never recomputed as the migration runs: `MigrationFile::new(name, statements).freeze(dir)` writes `<name>.sql` once and never rewrites it, `DisjointChange::migration_files(name)` freezes a disjoint kind change a file per step, and a file opening with `-- pgorm: commits-after` answers `commits_after()` in pgorm-migration's `sql_migration!`
 - **Metrics**: `src/metric.rs` - Opt-in instrumentation wrappers
 
 Row streaming is reachable through the public crate: `ConnectionTrait::query_raw` returns a tokio-postgres `RowStream`, and `src/executor/select.rs` decodes it into models — `stream` on `Select`, `SelectGraph`, `Selector`, and `SelectorRaw`, plus `stream_partial_model`, each yielding a `PinBoxSendStream`. pgorm no longer carries its own `Statement`/`StatementBuilder`: `src/database/statement.rs` was deleted, leaving `src/database/` as just `connection.rs` and `db_connection.rs`, and SQL now travels as text (`&str` or `&String`, the sealed `SqlText` bound) alongside its parameters.
@@ -84,6 +85,7 @@ Row streaming is reachable through the public crate: `ConnectionTrait::query_raw
 - Enum types can be schema-qualified end to end: `ColumnType::Enum` carries `schema`, the `ActiveEnum` derive takes `schema_name = "..."`, and codegen keys enums by full identity with no cross-schema fallback
 - `Schema::create_table_from_entity` returns `Result<TableCreateStatement, Error>`: a belongs-to relation with a column typed as a domain over an enum on either side, which PostgreSQL cannot key (`42804`), is refused with `Error::Type` naming it rather than written
 - Prefixed result-column names (the graph's `s{i}_` aliases and every prefixed decode) are bounded to PostgreSQL's 63-byte identifier limit through one shared composition
+- A migrator is a value: `MigratorTrait`'s methods take `&self` (`Migrator.up(pool, None)` for a unit struct), a migration's `up` takes `&mut DatabaseTransaction<'_>` (savepoints and COPY work inside it), and `pgorm_migration::Migrations` is a migrator built at run time from boxed migrations, `SqlMigration::read` / `read_dir` reading `.sql` files as the program runs. Python's and JavaScript's migrators are a `Migrations` the bindings build, their migrations' `up` served the runner's transaction
 
 ### Connections
 `pgorm::connect(config: tokio_postgres::Config) -> DatabasePool` is infallible in its signature: pool construction failure panics rather than returning an `Error`. `connect_with_builder` takes a closure over the `PoolBuilder` for sizing and timeouts, and returns `Result` — the closure is caller input, so an unbuildable pool is an `Error`, not a panic.
