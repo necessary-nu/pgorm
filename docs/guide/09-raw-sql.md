@@ -409,6 +409,43 @@ assert_eq!(names, ["Carrot Cake", "Lemon Drizzle", "Vanilla Sponge"]);
 # }
 ```
 
+PRQL's `append`, `intersect` and `remove` are `UNION ALL`, `INTERSECT ALL`
+and `EXCEPT ALL`: they combine whole rows by position, as [the
+pipeline](crate::guide::pipeline)'s do, so neither relation needs its
+columns listed, and a step after one reads the whole result. Here pgorm's PRQL
+compiler departs from upstream PRQL on purpose, which defines `intersect` and
+`remove` as joins on the columns the two relations share. Sunrise's cakes that
+are not gluten-free:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("raw_sql_prql_remove").await;
+# let db = scratch.pool.get().await?;
+use pgorm::{entity::prelude::*, prql};
+
+let (sql, values) = prql!(
+    "from cake
+     filter bakery_id == 1
+     remove (from cake | filter gluten_free)
+     select {name}"
+);
+assert_eq!(
+    sql,
+    "WITH table_1 AS (SELECT * FROM cake WHERE bakery_id = 1 \
+     EXCEPT ALL SELECT * FROM cake WHERE gluten_free) SELECT name FROM table_1"
+);
+let names: Vec<(String,)> = (sql, values).into_tuple().all(&db).await?;
+assert_eq!(names, [("Chocolate Fudge".to_owned(),)]);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+Two relations whose columns PRQL can see and that differ in number are
+refused at compile time, as a pipeline refuses them when it compiles.
+
 `prql!` refuses at compile time PRQL the compiler rejects, SQL the grammar
 rejects, a number of arguments that does not match the placeholders, and
 placeholders numbered with a gap:

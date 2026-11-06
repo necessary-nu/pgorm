@@ -36,7 +36,7 @@ impl Parse for PrqlInput {
 /// `Into<::pgorm::Value>`, in placeholder order. No runtime helper, no new
 /// types — a failed conversion or a missing `pgorm` dependency is an
 /// ordinary type error at the call site.
-// [spec:pgorm:def:macros.prql+1]
+// [spec:pgorm:def:macros.prql+2]
 pub(crate) fn expand(input: &PrqlInput) -> Result<TokenStream, Error> {
     let compiled = pgorm_sql_check::compile_prql(&input.literal.value())
         .map_err(|rejection| Error::new(input.literal.span(), rejection))?;

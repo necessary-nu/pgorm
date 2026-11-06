@@ -210,7 +210,7 @@ pub use pgorm_sql_macro::sql;
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:macros.prql+1]
+// [spec:pgorm:def:macros.prql+2]
 pub use pgorm_sql_macro::prql;
 
 /// The checks behind [`sql!`](crate::sql) and [`prql!`](crate::prql), run on

@@ -129,7 +129,7 @@ fn token_offset(sql: &str, message: &str) -> Option<usize> {
 
 /// PRQL compiled to PostgreSQL SQL, and the number of distinct `$N`
 /// placeholders the SQL asks values for.
-// [spec:pgorm:def:macros.prql+1]
+// [spec:pgorm:def:macros.prql+2]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompiledPrql {
     sql: String,
@@ -291,7 +291,7 @@ impl std::error::Error for ArityRejection {}
 /// server will ask for is the parser's own view of the finished statement.
 /// S-strings splice through unscreened; their boundary is the grammar, over
 /// the finished statement.
-// [spec:pgorm:def:macros.prql+1]
+// [spec:pgorm:def:macros.prql+2]
 // [spec:pgorm:req:macros.prql.reject]    PRQL rejections carry prqlc's message
 // [spec:pgorm:sem:macros.prql.sstring]    pass-through; the oracle is the gate
 pub fn compile_prql(prql: &str) -> Result<CompiledPrql, PrqlRejection> {

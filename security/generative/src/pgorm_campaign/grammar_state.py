@@ -96,7 +96,7 @@ def name_pools(names):
     """Identifier inputs split on the one character the pipeline refuses.
 
     `Pipeline::into_sql` refuses an identifier carrying a double quote rather
-    than escaping it (`pipeline.errors+4`), so a valid pipeline program can only
+    than escaping it (`pipeline.errors+5`), so a valid pipeline program can only
     draw from the names without one. The names that do carry one are what the
     rejection family draws to check that refusal. The screen's other shapes, a
     leading `$` and a lone `*`, never arise here: every drawn name is appended

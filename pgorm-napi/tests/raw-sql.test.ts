@@ -113,6 +113,28 @@ test("prql compiles to SQL whose placeholders take the values", async () => {
   assert.throws(() => prql("from raw_items | take $1", [1]), (error) => error instanceof ConstructionError);
 });
 
+// [spec:pgorm:req:bindings.prql-text/test]
+test("prql's set operations combine whole rows, read whole by the step after them", async () => {
+  await fresh();
+  // The operands each read a different column first, as Rust's prql! compiles them.
+  const ids = async (text: string, values: ReturnType<typeof prql>["values"] = []) =>
+    (await pool().query(text, values)).map((row) => row.id as number).sort((a, b) => a - b);
+  for (const [verb, operator] of [["intersect", "INTERSECT ALL"], ["remove", "EXCEPT ALL"], ["append", "UNION ALL"]]) {
+    const { sql: text, values } = prql(
+      `from raw_items\nfilter price < 3\n${verb} (from raw_items | filter id > 1)\nselect {id}`,
+    );
+    const control = "SELECT id FROM (SELECT * FROM raw_items WHERE price < 3 " +
+      `${operator} SELECT * FROM raw_items WHERE id > 1) c`;
+    assert.deepEqual(await ids(text, values), await ids(control), verb);
+  }
+  const { sql: removed } = prql("from raw_items\nfilter price < 3\nremove (from raw_items | filter id > 1)\nselect {id}");
+  assert.deepEqual(await ids(removed), [1]);
+  assert.throws(
+    () => prql("from raw_items | select {id, name} | intersect (from raw_items | select {id})"),
+    (error) => error instanceof ConstructionError && /different numbers of columns/.test(error.message),
+  );
+});
+
 // [spec:pgorm:req:bindings.streams+1/test]
 test("a transaction streams, reserved until its last row", async () => {
   await fresh();

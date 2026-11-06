@@ -112,7 +112,7 @@ pub fn sql(input: TokenStream) -> TokenStream {
 /// The check ends where the catalog begins: whether `total` is a column and
 /// whether `$1` accepts an `i64` are the server's questions, answered at
 /// prepare time and by `VerifyTrait::verify` at runtime.
-// [spec:pgorm:def:macros.prql+1]
+// [spec:pgorm:def:macros.prql+2]
 // [spec:pgorm:req:macros.prql.reject]    non-literal input is `syn`'s own refusal
 // [spec:pgorm:req:macros.prql.ceiling]    the limits are stated on the macro
 #[proc_macro]
