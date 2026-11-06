@@ -13390,12 +13390,30 @@ children (
                         id napi.guide-gaps.copy-described-rows
                         title "A binary COPY describes its columns' names and types before it starts, takes rows one at a time, writes a model's records and reads its rows as a model's records, as Rust's copy_in_columns, copy_out_columns, CopyRowSink::send, send_model and CopyRowStream::models do (guide 17-copy)"
                         deps (copy-binary-rows napi-models guide.javascript)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-06T07:03:19.330377Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Done (nplan complete)"
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.copy-row-codec
                         title "A program frames the binary COPY format itself, encoding rows of values into bytes and decoding bytes split anywhere into rows, as Rust's CopyRowEncoder and CopyRowDecoder do (guide 17-copy)"
                         deps (copy-binary-rows guide.javascript)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-06T07:03:19.610441Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Done (nplan complete)"
+                            }
+                        )
                     }
 
                     {
@@ -19351,6 +19369,7 @@ children (
                         id guide.python-gaps.copy-rows-surface
                         title "Python's row COPY has Rust's surface: CopyRowEncoder and CopyRowDecoder, copy_in_columns and copy_out_columns (column types, not only names), CopyRowSink::send_model and CopyRowStream::models"
                         deps (python.statements)
+                        sealed true
                         log (
                             {
                                 at 2026-11-05T20:23:53.630034Z
@@ -19364,6 +19383,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @decision
                                 text "COPY rows surface (lane decision, pending operator override; shared with napi.guide-gaps.copy-described-rows and .copy-row-codec, rule bindings.copy-rows+2). copy_in_rows(statement) with no rows gives a CopyRowSink (Rust's name; with rows it keeps today's pull-and-abort behaviour, a stated difference) with columns, send (a refused row raises and the sink goes on), send_model (each COPY column from the record's field of that column), finish, close/scoped form aborting an unfinished COPY. copy_in_columns/copy_out_columns describe through CopyTrait (&mut) on a pool, connection or transaction (the transaction's owner task gained a Describe command). CopyColumn: described columns carry any server type; a program builds one of a built-in type by its pg_type name or name[] (pgorm-bindings::copy_column, so both bindings resolve names alike), money needing money_places. CopyRowStream.models(model) reads rows as the model's records through the binding's own model decode (Python: a native Record built from the COPY row, wrapped as ModelRecord). CopyRowEncoder (static header/trailer, encode(row) -> bytes) and CopyRowDecoder (push, next_row, finish) wrap pgorm's. Python's COPY methods moved into a RowCopies mixin shared by Pool, Connection and Transaction (pgorm/copy_rows.py) to keep runtime.py under the function-density gate."
+                            }
+
+                            {
+                                at 2026-11-06T07:03:19.059409Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Done (nplan complete)"
                             }
                         )
                     }

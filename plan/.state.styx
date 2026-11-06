@@ -1671,6 +1671,9 @@ assertions (
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id napi.guide-gaps.connection-discard, kind @complete, author "brendan@necessary.nu", at 2026-11-05T22:36:59.752438Z}
+    {id guide.python-gaps.copy-rows-surface, kind @complete, author "brendan@necessary.nu", at 2026-11-06T07:03:19.059409Z}
+    {id napi.guide-gaps.copy-described-rows, kind @complete, author "brendan@necessary.nu", at 2026-11-06T07:03:19.330377Z}
+    {id napi.guide-gaps.copy-row-codec, kind @complete, author "brendan@necessary.nu", at 2026-11-06T07:03:19.610441Z}
 )
 
 impl_evidence (
