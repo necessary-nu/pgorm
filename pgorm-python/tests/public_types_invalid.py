@@ -3,7 +3,7 @@
 from contextlib import AbstractAsyncContextManager
 
 import pgorm as p
-from pgorm import pipeline as pl, schema as s
+from pgorm import codegen, pipeline as pl, schema as s
 
 
 async def invalid(connection: p.Connection) -> None:
@@ -205,3 +205,6 @@ async def invalid(connection: p.Connection) -> None:
     p.col("meta").get_json_path("size")  # expected-error: arg-type
     # [spec:pgorm:req:bindings.transaction-retry/test]    retries is a keyword-only int
     await connection.transaction_with_retry(lambda tx: tx.one(p.RawSQL("SELECT 1")), retries="3")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.models-from-sql/test]    models_from_sql reads DDL text, and an unkinded set's tables are names or (schema, name) pairs
+    codegen.models_from_sql(b"CREATE TABLE a (id int)")  # expected-error: arg-type
+    codegen.models_from_sql("", unkinded_disjoint=[{"base": 1, "kinds": []}])  # expected-error: typeddict-item

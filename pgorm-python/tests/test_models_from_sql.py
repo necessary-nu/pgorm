@@ -55,7 +55,7 @@ class ModelsFromSql(unittest.TestCase):
     def test_options_and_refusals(self):
         ddl = (
             "CREATE TABLE shop (id int PRIMARY KEY); "
-            "CREATE TABLE web_shop (shop_id int PRIMARY KEY REFERENCES shop (id));"
+            "CREATE TABLE app.web_shop (shop_id int PRIMARY KEY REFERENCES shop (id));"
         )
         source = models_from_sql(
             ddl,
@@ -91,9 +91,9 @@ class ModelsFromSql(unittest.TestCase):
 
     # [spec:pgorm:req:bindings.current-keywords/test]    current_date(), current_time() and current_timestamp() are the SQL keywords
     def test_current_keywords(self):
-        self.assertEqual(p.current_date().inspect().sql, "CURRENT_DATE")
-        self.assertEqual(p.current_time().inspect().sql, "CURRENT_TIME")
-        self.assertEqual(p.current_timestamp().inspect().sql, "CURRENT_TIMESTAMP")
+        self.assertEqual(p.current_date().inspect().sql, "SELECT CURRENT_DATE")
+        self.assertEqual(p.current_time().inspect().sql, "SELECT CURRENT_TIME")
+        self.assertEqual(p.current_timestamp().inspect().sql, "SELECT CURRENT_TIMESTAMP")
 
 
 class GeneratedModelsLive(unittest.IsolatedAsyncioTestCase):

@@ -2290,9 +2290,10 @@ Rust generic at run time, only use the ones compiled in.
 > its one reader and transformed model (`codegen.models`): Python's
 > `pgorm.codegen.models_from_sql(ddl, *, schema_name=None,
 > unkinded_disjoint=())` and JavaScript's `modelsFromSql(ddl, { schemaName,
-> unkindedDisjoint })`, exported from the package as `schema`'s functions
-> are, each returning the module pgorm-codegen's Python or TypeScript writer
-> writes for the text, as a string. An unkinded set is its `base`, its
+> unkindedDisjoint })`, the one in the package's `codegen` module and the
+> other exported from the package as its `schema` functions are, each
+> returning the module pgorm-codegen's Python or TypeScript writer writes for
+> the text, as a string. An unkinded set is its `base`, its
 > `kinds` and its `unit`, each table a name or a `(schema, name)` pair; a
 > refusal of the text or of what it declares is a `ConstructionError`
 > carrying pgorm-codegen's message, and an argument of the wrong type a
