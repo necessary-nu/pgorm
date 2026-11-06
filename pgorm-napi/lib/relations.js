@@ -4,18 +4,22 @@
 // of another's, which a query joins by, a graph decodes along, and `find`
 // and `load` read the far end of; and the paths of more than one relation,
 // a junction's (`Related`) and a chain's (`Linked`).
-// [spec:pgorm:req:bindings.relations+1]
+// [spec:pgorm:req:bindings.relations+3]
 
 import { Condition } from "./conditions.js";
 import { ConstructionError, DecodeError } from "./errors.js";
 import { Expr, tuple } from "./expressions.js";
 import { columnValue } from "./model-columns.js";
 import { decodeAll } from "./model-decode.js";
-import { ModelQuery, query, queryOf, recipeOf } from "./model-queries.js";
+import { recipeOf } from "./model-clauses.js";
+import { ModelQuery, query, queryOf } from "./model-queries.js";
 import { fieldOf, projected, qualified, sameTable, shapeOf } from "./model-shape.js";
 import { native } from "./operations.js";
+import { partsOf, registerRelation, relationOn } from "./relation-parts.js";
 import { select } from "./select.js";
 import { Decimal, Interval, isIdentifier, Uuid } from "./values.js";
+
+export { answering, conditionOf, relationOn, shapesOf, startOf } from "./relation-parts.js";
 
 /** Marks a construction from a model's relation methods. */
 const MADE = Symbol("pgorm-napi relation");
@@ -29,23 +33,26 @@ const SOURCE = "pgorm_loader_src";
 /**
  * @typedef {import("./model-shape.js").Shape} Shape
  * @typedef {import("./model-shape.js").Field} Field
- * @typedef {(left: object, right: object) => unknown} OnCondition
+ * @typedef {import("./relation-parts.js").OnCondition} OnCondition
+ * @typedef {import("./relation-parts.js").Parts} Parts
  * @typedef {import("./model-queries.js").Recipe["joins"][number]} Joined
  */
 
-/**
- * @typedef {object} Parts
- * @property {Shape} from
- * @property {Shape} to
- * @property {Field[]} fromFields
- * @property {Field[]} toFields
- * @property {OnCondition | null} onCondition
- * @property {"all" | "any"} conditionType
- * @property {string | null} start
- */
+/** A foreign key's referential actions, as the schema builders spell them. */
+const ACTIONS = new Set(["noAction", "restrict", "cascade", "setNull", "setDefault"]);
 
-/** @type {(relation: Relation) => Parts} */
-let partsOf;
+/**
+ * @param {unknown} action
+ * @param {string} what
+ * @returns {string | null}
+ */
+function actionOf(action, what) {
+  if (action === undefined || action === null) return null;
+  if (typeof action !== "string" || !ACTIONS.has(action)) {
+    throw new TypeError(`a relation's ${what} is one of ${[...ACTIONS].join(", ")}`);
+  }
+  return action;
+}
 
 /**
  * @param {Shape} shape
@@ -61,7 +68,7 @@ function keyFields(shape, names, side) {
   return fields;
 }
 
-const KEY_OPTIONS = new Set(["from", "to", "onCondition", "conditionType"]);
+const KEY_OPTIONS = new Set(["from", "to", "onCondition", "conditionType", "onDelete", "onUpdate", "fkName"]);
 
 /**
  * A relation from one model to another: its kind, the fields of each end
@@ -85,11 +92,8 @@ export class Relation {
     if (token !== MADE) throw new TypeError("a Relation comes from a model's belongsTo(), hasOne() or hasMany()");
     this.#kind = kind;
     this.#parts = Object.freeze(parts);
+    registerRelation(this, this.#parts);
     Object.freeze(this);
-  }
-
-  static {
-    partsOf = (relation) => relation.#parts;
   }
 
   get kind() {
@@ -122,6 +126,21 @@ export class Relation {
   /** How the fields' equality and the `onCondition` compose: `"all"` ANDs them, `"any"` ORs them. */
   get conditionType() {
     return this.#parts.conditionType;
+  }
+
+  /** The action of the foreign key a `belongsTo` relation holds, `ON DELETE`. */
+  get onDelete() {
+    return this.#parts.onDelete;
+  }
+
+  /** The action of the foreign key a `belongsTo` relation holds, `ON UPDATE`. */
+  get onUpdate() {
+    return this.#parts.onUpdate;
+  }
+
+  /** The name of the foreign key a `belongsTo` relation holds, or null for pgorm's `fk-{table}-{columns}`. */
+  get fkName() {
+    return this.#parts.fkName;
   }
 
   /** Whether a row reads at most one row at the far end, or any number. */
@@ -392,75 +411,6 @@ export function keyText(key) {
 }
 
 /**
- * `shape`'s model answering to `qualifier`: itself when that is its name,
- * otherwise aliased to it.
- *
- * @param {Shape} shape
- * @param {string} qualifier
- * @returns {object}
- */
-export function answering(shape, qualifier) {
-  return shape.qualifier === qualifier ? shape.model : /** @type {{ as(alias: string): object }} */ (shape.model).as(qualifier);
-}
-
-/**
- * `value`, a condition a function gave, which is an expression or a
- * `Condition`.
- *
- * @param {unknown} value
- * @param {string} what
- * @returns {Expr | Condition}
- */
-export function conditionOf(value, what) {
-  if (!(value instanceof Expr) && !(value instanceof Condition)) throw new TypeError(`${what} gives an expression or a Condition`);
-  return value;
-}
-
-/**
- * The join condition of `relation` between the tables answering to `left`
- * and `right`, as pgorm's `join_condition` writes it: each pair of its
- * fields equal, the pairs ANDed, then its `onCondition` given the two ends
- * as they are named, the two composed by its `conditionType`.
- *
- * @param {Relation} relation
- * @param {string} left
- * @param {string} right
- */
-export function relationOn(relation, left, right) {
-  const { from, to, fromFields, toFields, onCondition, conditionType } = partsOf(relation);
-  /** @type {(Expr | Condition)[]} */
-  const parts = [Condition.all(...fromFields.map((field, index) =>
-    qualified(field, left).eq(qualified(/** @type {Field} */ (toFields[index]), right))
-  ))];
-  if (onCondition !== null) {
-    parts.push(conditionOf(onCondition(answering(from, left), answering(to, right)), "a relation's onCondition"));
-  }
-  return conditionType === "any" ? Condition.any(...parts) : Condition.all(...parts);
-}
-
-/**
- * The shapes at a relation's two ends.
- *
- * @param {unknown} relation
- * @returns {[Shape, Shape]}
- */
-export function shapesOf(relation) {
-  if (!(relation instanceof Relation)) throw new TypeError("expected a Relation");
-  const { from, to } = partsOf(relation);
-  return [from, to];
-}
-
-/**
- * The name of the table a relation starts from, when `fromAlias` gave it
- * one, or null.
- *
- * @param {Relation} relation
- */
-export function startOf(relation) {
-  return partsOf(relation).start;
-}
-
-/**
  * `qualifier`, or `SOURCE` where a table the read has answers to it.
  *
  * @param {string} qualifier
@@ -649,23 +599,40 @@ function single(bucket, key, far) {
 }
 
 /**
- * The relation options `keys` gives: `from` and `to`, and the relation's
- * `onCondition` and `conditionType`.
+ * The relation options `keys` gives: `from` and `to`; the relation's
+ * `onCondition` and `conditionType`; and the actions and name of the foreign
+ * key a `belongsTo` relation holds, which only it takes.
  *
+ * @param {"belongsTo" | "hasOne" | "hasMany"} kind
  * @param {unknown} keys
  */
-function optionsOf(keys) {
+function optionsOf(kind, keys) {
   if (typeof keys !== "object" || keys === null) throw new TypeError("a relation's keys are { from, to }");
   for (const option of Object.keys(keys)) {
     if (!KEY_OPTIONS.has(option)) throw new TypeError(`${JSON.stringify(option)} is no relation option`);
   }
-  const { from, to, onCondition = null, conditionType = "all" } =
-    /** @type {{ from?: unknown, to?: unknown, onCondition?: unknown, conditionType?: unknown }} */ (keys);
+  const { from, to, onCondition = null, conditionType = "all", onDelete, onUpdate, fkName = null } =
+    /** @type {{ from?: unknown, to?: unknown, onCondition?: unknown, conditionType?: unknown, onDelete?: unknown, onUpdate?: unknown, fkName?: unknown }} */ (keys);
   if (onCondition !== null && typeof onCondition !== "function") {
     throw new TypeError("a relation's onCondition is a function of the two ends, giving a condition");
   }
   if (conditionType !== "all" && conditionType !== "any") throw new TypeError('a relation\'s conditionType is "all" or "any"');
-  return { from, to, onCondition: /** @type {OnCondition | null} */ (onCondition), conditionType: /** @type {"all" | "any"} */ (conditionType) };
+  if (fkName !== null) {
+    if (typeof fkName !== "string") throw new TypeError("a relation's fkName is a string");
+    if (!isIdentifier(fkName)) throw new ConstructionError("an identifier is 1–63 UTF-8 bytes without NUL");
+  }
+  if (kind !== "belongsTo" && (onDelete !== undefined || onUpdate !== undefined || fkName !== null)) {
+    throw new TypeError("a foreign key is the belongsTo side's: only it takes onDelete, onUpdate and fkName");
+  }
+  return {
+    from,
+    to,
+    onCondition: /** @type {OnCondition | null} */ (onCondition),
+    conditionType: /** @type {"all" | "any"} */ (conditionType),
+    onDelete: actionOf(onDelete, "onDelete"),
+    onUpdate: actionOf(onUpdate, "onUpdate"),
+    fkName: /** @type {string | null} */ (fkName),
+  };
 }
 
 /**
@@ -677,7 +644,7 @@ function optionsOf(keys) {
  * @param {unknown} keys
  */
 export function relation(kind, from, to, keys) {
-  const options = optionsOf(keys);
+  const options = optionsOf(kind, keys);
   const origin = shapeOf(from);
   const target = shapeOf(to);
   const fromFields = keyFields(origin, options.from, "from");
@@ -691,6 +658,9 @@ export function relation(kind, from, to, keys) {
     onCondition: options.onCondition,
     conditionType: options.conditionType,
     start: null,
+    onDelete: options.onDelete,
+    onUpdate: options.onUpdate,
+    fkName: options.fkName,
   }, MADE);
 }
 
@@ -750,4 +720,25 @@ export function linked(origin, relations) {
     }
   });
   return new Linked(chain, MADE);
+}
+
+// [spec:pgorm:req:bindings.schema-from-model]
+/**
+ * The foreign key a `belongsTo` relation holds, as the native table shape
+ * takes it: the table it reaches, the columns it pairs at each end, its
+ * actions and its name.
+ *
+ * @param {Relation} relation
+ */
+export function foreignKeyOf(relation) {
+  const { to, fromFields, toFields } = partsOf(relation);
+  return {
+    schema: to.schema,
+    table: to.name,
+    from: fromFields.map((field) => field.sql),
+    to: toFields.map((field) => field.sql),
+    onDelete: relation.onDelete,
+    onUpdate: relation.onUpdate,
+    fkName: relation.fkName,
+  };
 }

@@ -38,6 +38,17 @@ export class Condition extends Builder {
     return new Condition(native.conditionAdd(arg(this), arg(item)), TRUSTED);
   }
 
+  /**
+   * The condition with `item` added, or as it is when `item` is null or
+   * undefined, as Rust's `Condition::add_option` adds an optional condition.
+   *
+   * @param {Expr | Condition | null | undefined} item
+   */
+  // [spec:pgorm:req:bindings.condition-option]
+  addOption(item) {
+    return new Condition(native.conditionAddOption(arg(this), item == null ? null : arg(item)), TRUSTED);
+  }
+
   not() {
     return new Condition(native.conditionNot(arg(this)), TRUSTED);
   }

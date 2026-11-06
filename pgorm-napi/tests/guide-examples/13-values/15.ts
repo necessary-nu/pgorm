@@ -2,29 +2,28 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { column, model } from "@necessary/pgorm";
+import { CheckViolationError, column, createDomain, domainValue, model } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  await pool.execute(
-    "CREATE TABLE till (id serial PRIMARY KEY, address inet NOT NULL, hardware macaddr NOT NULL, receipt_logo bytea NOT NULL)",
-  );
-  const Till = model("till", {
+  const grams = createDomain("grams", "integer").check(domainValue().gt(0));
+  assert.equal(grams.inspect().sql, `CREATE DOMAIN "grams" AS integer CHECK (VALUE > 0)`);
+  await pool.execute(grams);
+  await pool.execute("CREATE TABLE ingredient (id serial PRIMARY KEY, name varchar NOT NULL, per_batch grams NOT NULL)");
+
+  const Ingredient = model("ingredient", {
     columns: {
       id: column("i32", { primaryKey: true, default: true }),
-      address: column("ipnetwork"),
-      hardware: column("mac_address"),
-      receiptLogo: column("bytes", { name: "receipt_logo" }),
+      name: column("text"),
+      perBatch: column("i32", { name: "per_batch" }),
     },
   });
 
-  const front = await Till.insert({
-    address: "10.0.4.17/24",
-    hardware: new Uint8Array([0x02, 0x00, 0x5e, 0x10, 0x00, 0x01]),
-    receiptLogo: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
-  }).returning().one(pool);
+  const flour = await Ingredient.insert({ name: "Flour", perBatch: 500 }).returning().one(pool);
+  assert.equal(flour.perBatch, 500);
 
-  assert.equal(front.address, "10.0.4.17/24");
-  assert.deepEqual([...front.hardware], [0x02, 0x00, 0x5e, 0x10, 0x00, 0x01]);
-  assert.deepEqual([...front.receiptLogo], [0x89, 0x50, 0x4e, 0x47]);
+  await assert.rejects(
+    Ingredient.insert({ name: "Air", perBatch: 0 }).execute(pool),
+    (error: unknown) => error instanceof CheckViolationError && error.datatype === "grams",
+  );
 }

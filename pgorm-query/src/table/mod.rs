@@ -18,6 +18,7 @@ use crate::types::{IntoName, IntoTableName};
 mod alter;
 mod check;
 mod column;
+mod column_cast;
 mod column_collation;
 mod column_generated;
 mod column_identity;

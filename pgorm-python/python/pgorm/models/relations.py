@@ -8,17 +8,31 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
 from .. import _native as p
 from .record import Source, decode_all
 
 if TYPE_CHECKING:
     from .model import Model
-    from .queries import Joined, ModelQuery, Recipe
+    from .clauses import Joined, Recipe
+    from .queries import ModelQuery
     from .record import Database, ModelRecord
 
 KINDS = ("belongs_to", "has_one", "has_many")
+
+# A foreign key's referential actions, as the schema builders spell them.
+ACTIONS = ("no_action", "restrict", "cascade", "set_null", "set_default")
+
+ReferentialAction = Literal["no_action", "restrict", "cascade", "set_null", "set_default"]
+
+
+def _action(value: object, option: str) -> ReferentialAction | None:
+    if value is None:
+        return None
+    if type(value) is not str or value not in ACTIONS:
+        raise TypeError(f"a relation's {option} is one of {', '.join(ACTIONS)}")
+    return cast(ReferentialAction, value)
 
 ConditionType: TypeAlias = Literal["all", "any"]
 OnCondition: TypeAlias = "Callable[[Model, Model], p.Expr | p.Condition]"
@@ -40,20 +54,25 @@ def _fields(model: Model, names: object, side: str) -> tuple[str, ...]:
     return fields
 
 
-# [spec:pgorm:req:bindings.relations+1]
+# [spec:pgorm:req:bindings.relations+3]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
 class Relation:
     """A relation from one model to another: the fields of each that are
     equal in a related pair of rows, matched in order, and a condition of
     its own it adds, as pgorm's ``on_condition`` does. A ``belongs_to`` or
     ``has_one`` relation reads at most one row at its far end, a
-    ``has_many`` any number."""
+    ``has_many`` any number. A ``belongs_to`` relation is the side holding
+    the foreign key, whose actions and name it carries for the schema its
+    model writes."""
 
     kind: Literal["belongs_to", "has_one", "has_many"]
     from_: Model
     to: Model
     from_fields: tuple[str, ...]
     to_fields: tuple[str, ...]
+    on_delete: ReferentialAction | None
+    on_update: ReferentialAction | None
+    fk_name: str | None
     on_condition: OnCondition | None
     condition_type: ConditionType
     start: str | None
@@ -65,6 +84,9 @@ class Relation:
         target: Model,
         from_: str | Sequence[str],
         to: str | Sequence[str],
+        on_delete: ReferentialAction | None = None,
+        on_update: ReferentialAction | None = None,
+        fk_name: str | None = None,
         on_condition: OnCondition | None = None,
         condition_type: ConditionType = "all",
     ) -> None:
@@ -84,17 +106,41 @@ class Relation:
         to_fields = _fields(target, to, "to")
         if len(from_fields) != len(to_fields):
             raise p.ConstructionError("a relation pairs as many fields at each end")
+        keyed = (_action(on_delete, "on_delete"), _action(on_update, "on_update"))
+        if fk_name is not None:
+            fk_name = p._identifier(fk_name)
+        if kind != "belongs_to" and (keyed != (None, None) or fk_name is not None):
+            raise TypeError(
+                "a foreign key is the belongs_to side's: only it takes on_delete, on_update "
+                "and fk_name"
+            )
         for name, value in (
             ("kind", kind),
             ("from_", origin),
             ("to", target),
             ("from_fields", from_fields),
             ("to_fields", to_fields),
+            ("on_delete", keyed[0]),
+            ("on_update", keyed[1]),
+            ("fk_name", fk_name),
             ("on_condition", on_condition),
             ("condition_type", condition_type),
             ("start", None),
         ):
             object.__setattr__(self, name, value)
+
+    # [spec:pgorm:req:bindings.schema-from-model]
+    def _described(self) -> dict[str, Any]:
+        """The relation's foreign key as the native table shape takes it."""
+        return {
+            "schema": self.to.table.schema,
+            "table": self.to.table.name,
+            "from": [self.from_._sql(field) for field in self.from_fields],
+            "to": [self.to._sql(field) for field in self.to_fields],
+            "on_delete": self.on_delete,
+            "on_update": self.on_update,
+            "fk_name": self.fk_name,
+        }
 
     @property
     def cardinality(self) -> Literal["one", "many"]:
@@ -106,7 +152,18 @@ class Relation:
         under ``alias``, as pgorm's ``RelationDef::from_alias`` points it:
         how a path goes on from a second visit to one table."""
         moved = object.__new__(Relation)
-        for name in ("kind", "from_", "to", "from_fields", "to_fields", "on_condition", "condition_type"):
+        for name in (
+            "kind",
+            "from_",
+            "to",
+            "from_fields",
+            "to_fields",
+            "on_delete",
+            "on_update",
+            "fk_name",
+            "on_condition",
+            "condition_type",
+        ):
             object.__setattr__(moved, name, getattr(self, name))
         object.__setattr__(moved, "start", p._identifier(alias))
         return moved
@@ -117,7 +174,8 @@ class Relation:
         relation with an ``on_condition`` joins the model it starts at back,
         so the condition reads both ends, keyed by its primary key, as
         pgorm's ``find_related`` does."""
-        from .queries import ModelQuery, Recipe
+        from .clauses import Recipe
+        from .queries import ModelQuery
 
         to = self.to
         if self.on_condition is None:
@@ -208,7 +266,8 @@ class Related:
         starts at, keyed by that model's primary key, as pgorm's
         ``find_related`` writes it; none when one of the row's key fields is
         None."""
-        from .queries import ModelQuery, Recipe
+        from .clauses import Recipe
+        from .queries import ModelQuery
 
         to = self.to
         junction = _free(self.relation.from_.qualifier, {to.qualifier})
@@ -305,7 +364,8 @@ class Linked:
         """Every row at the chain's far end that a chain of rows reaches, read
         along each hop by an INNER JOIN, as pgorm's ``Linked::find_linked``
         writes it."""
-        from .queries import ModelQuery, Recipe
+        from .clauses import Recipe
+        from .queries import ModelQuery
 
         to = self.to
         joins: list[Joined] = []
@@ -360,7 +420,7 @@ def same_table(left: Model, right: Model) -> bool:
     return (left.table.name, left.table.schema) == (right.table.name, right.table.schema)
 
 
-# [spec:pgorm:req:bindings.relations+1]
+# [spec:pgorm:req:bindings.relations+3]
 def joined_on(relation: Relation, left: str, right: str) -> p.Condition:
     """The condition joining ``relation`` between the tables answering to
     ``left`` and ``right``, as pgorm's ``join_condition`` writes it: each
@@ -409,7 +469,7 @@ def _back(relation: Relation, left: str, right: str, kind: p.Join) -> Joined:
     """The relation's starting table joined under ``left`` from the table
     answering to ``right``, its far end: the relation walked backwards, its
     condition written in the roles it was declared with."""
-    from .queries import Joined
+    from .clauses import Joined
 
     model = relation.from_
     table = model.table if left == model.qualifier else model.table.as_(left)
@@ -460,7 +520,7 @@ def _loader(
     query re-rooted, each hop walked backwards from it, and the model the path
     starts at joined back under ``SOURCE`` as the one required source, whose
     key fields carry each row's key out of the join."""
-    from .queries import Joined
+    from .clauses import Joined
 
     root = recipe.model
     joins: list[Joined] = list(recipe.joins)

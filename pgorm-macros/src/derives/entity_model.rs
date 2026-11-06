@@ -1,4 +1,4 @@
-use super::case_style::{CaseStyle, CaseStyleHelpers, convert_case_str};
+use super::case_style::{CaseStyle, CaseStyleHelpers, case_style_of, convert_case_str};
 use super::column::{ColumnVariant, column_impls};
 use super::iterable::impl_iterable;
 use super::primary_key::expand_primary_key;
@@ -456,7 +456,7 @@ fn serde_rename_all(attrs: &[Attribute]) -> syn::Result<Option<CaseStyle>> {
             if meta.path.is_ident("rename_all") {
                 if let Some(literal) = serde_rename_literal(&meta)? {
                     let value = literal.value();
-                    rule = Some(CaseStyle::from_str(&value).map_err(|()| {
+                    rule = Some(CaseStyle::from_str(&value).map_err(|_| {
                         syn::Error::new_spanned(
                             &literal,
                             format!("unsupported `serde(rename_all)` case style: `{value}`"),
@@ -696,7 +696,7 @@ pub fn expand_derive_entity_model(
                 } else if meta.path.is_ident("table_iden") {
                     table_iden = true;
                 } else if meta.path.is_ident("rename_all") {
-                    rename_all = Some((&meta).try_into()?);
+                    rename_all = Some(case_style_of(&meta)?);
                 } else if meta.path.is_ident("hooks") {
                     // Read by `declares_hooks`, for the `ActiveModel`.
                 } else if meta.path.is_ident("unique") {

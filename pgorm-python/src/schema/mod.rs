@@ -20,6 +20,7 @@ mod entity;
 mod index;
 mod keys;
 mod migration_file;
+mod model;
 mod namespace;
 mod sequence;
 mod statement;
@@ -39,6 +40,7 @@ pub use table::PyCreateTable;
 pub use types::PyDataType;
 
 pub(crate) use args::relation;
+pub(crate) use model::{DescribedKey, column_of, column_type, item, table_name};
 
 /// `statement`, one of a list pgorm's `Schema` built, as Python's class of
 /// its kind: `CreateType`, `CreateTable` and `AlterTable` for the builders
@@ -106,7 +108,7 @@ pub(crate) fn refusal(value: &Bound<'_, PyAny>) -> Option<&'static str> {
 
 /// A statement is made by its factory, never by its class: no `DDL` class
 /// has a `#[new]`.
-// [spec:pgorm:req:bindings.schema-api+2]
+// [spec:pgorm:req:bindings.schema-api+3]
 pub(crate) fn install(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDataType>()?;
     module.add_class::<PyColumnDef>()?;
@@ -132,6 +134,11 @@ pub(crate) fn install(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyMigrationFile>()?;
     module.add_function(wrap_pyfunction!(migration_file::migration_file, module)?)?;
     module.add_function(wrap_pyfunction!(entity::schema_from_entity, module)?)?;
+    module.add_function(wrap_pyfunction!(model::model_schema, module)?)?;
+    module.add_function(wrap_pyfunction!(model::model_table, module)?)?;
+    module.add_function(wrap_pyfunction!(model::renamed, module)?)?;
+    module.add_function(wrap_pyfunction!(model::model_casts, module)?)?;
+    module.add_class::<model::PyModelColumnCasts>()?;
     module.add_function(wrap_pyfunction!(table::create_table, module)?)?;
     module.add_function(wrap_pyfunction!(index::create_index, module)?)?;
     module.add_function(wrap_pyfunction!(custom_types::create_type, module)?)?;

@@ -27,6 +27,7 @@ Here is the bakery's `cake` table, as [`bakery.py`](bakery.py) declares it:
 
 ```python
 from pgorm import Column, Model, TypeName
+from pgorm import schema as s
 
 from bakery import Bakery, CakeBaker, OrderLine
 
@@ -34,10 +35,10 @@ FLAVOR = TypeName("flavor", schema="public")
 FLAVORS = ["chocolate", "vanilla", "lemon", "carrot"]
 
 Cake = Model("cake", {
-    "id": Column("i32", primary_key=True, default=True),
-    "name": Column("text"),
+    "id": Column("i32", primary_key=True, auto_increment=True),
+    "name": Column("text", column_type="varchar"),
     "flavor": Column(FLAVOR, values=FLAVORS),
-    "price": Column("decimal"),
+    "price": Column("decimal", column_type=s.DataType("numeric", precision=10, scale=2)),
     "gluten_free": Column("bool"),
     "bakery_id": Column("i32"),
 })
@@ -128,48 +129,50 @@ declared `nullable`: a row that does not match its declaration is an error,
 never a row read as missing. A `timestamptz` is `"datetime_utc"` and reads as
 a UTC `datetime`. A kind the decoder never produces, such as
 `"u64"` or `"char"`, is refused with `UnsupportedCapabilityError` as the
-column is declared. And since a model creates no table, it does not say the
-column's exact type: a `varchar` and a `text` column are both `"text"`, and
-the cake's `decimal(10, 2)` price is `"decimal"`. There is no `column_type`.
+column is declared. A kind is not a column type: a `varchar` and a `text`
+column are both `"text"`, and the cake's `decimal(10, 2)` price is
+`"decimal"`. The type matters only to the table the model writes
+([below](#creating-the-table)), which uses the kind's own type unless
+`column_type` names another, as Rust's `column_type` does:
+`column_type="varchar"`, or a `pgorm.schema.DataType` with a length or a
+precision. An array column's `column_type` is its elements' type.
 
 A column is named for its field. `name="..."` names it otherwise, so a
 field can stand for a column whose name is not a Python identifier:
 `Column("text", name="display name")`. Table, schema and column names, and
 the fields' own, may hold any character but NUL, from 1 to 63 bytes, and the
-SQL quotes them as pgorm quotes every identifier. The mapping is ordinary
-Python, so a program that wants every column renamed by a case style, as
-Rust's `rename_all` does, builds the mapping with that rename; there is no
-option for it.
+SQL quotes them as pgorm quotes every identifier. `rename_all="..."` on the
+`Model` names every column a field does not name itself by a case style, as
+Rust's `rename_all` does and by the same conversion: `"camelCase"`,
+`"PascalCase"`, `"kebab-case"`, `"snake_case"`, `"SCREAMING_SNAKE_CASE"`,
+`"SCREAMING-KEBAB-CASE"`, `"lowercase"`, `"UPPERCASE"`, `"title_case"` or
+`"mixed_case"`; any other is a `TypeError`. The record keeps the field's own
+name.
 
-A Rust entity's declaration also says how its table is created, and Rust's
-schema generation turns it into `CREATE TABLE`. A declared model does not
-write its own `CREATE TABLE`: that is not available in Python yet. Its table
-is made by the schema builders, as `bakery.py` makes the bakery's, or by a
-migration. [Schema generation](14-schema.md) covers the builders, and also
-generating a registered entity's table. These examples use the builders to
-show the table a declaration describes. The bakery's customers are unique by
-email:
+## Creating the table
+
+A model also says how its table is created, as a Rust entity does.
+`pgorm.schema.from_model(model)` hands the declaration to Rust's schema
+generation, which writes the table from it exactly as it writes an
+entity's, and returns the same `EntitySchema` a [registered
+entity](14-schema.md#tables-from-models-and-entities)'s has: the `CREATE TABLE`, the
+`CREATE TYPE` of each enum its columns use, an index for each `indexed`
+column and its comments. [Schema generation](14-schema.md) covers it, and
+these examples use it to show what a declaration means. The bakery's
+customers are unique by email:
 
 ```python
 from pgorm import Column, Model
 from pgorm import schema as s
 
 Customer = Model("customer", {
-    "id": Column("i32", primary_key=True, default=True),
-    "name": Column("text"),
-    "email": Column("text"),
+    "id": Column("i32", primary_key=True, auto_increment=True),
+    "name": Column("text", column_type="varchar"),
+    "email": Column("text", column_type="varchar"),
     "notes": Column("text", nullable=True),
 }, unique_keys=[{"fields": ("email",)}])
 
-create = (
-    s.create_table("customer")
-    .column(s.ColumnDef("id", "integer").not_null().auto_increment())
-    .column(s.ColumnDef("name", "varchar").not_null())
-    .column(s.ColumnDef("email", "varchar").not_null())
-    .column(s.ColumnDef("notes", "text"))
-    .primary_key("id")
-    .unique("email")
-)
+create = s.from_model(Customer).table
 assert create.inspect().sql == (
     'CREATE TABLE "customer" ( "id" serial NOT NULL, "name" varchar NOT NULL, '
     '"email" varchar NOT NULL, "notes" text, PRIMARY KEY ("id"), UNIQUE ("email") )'
@@ -178,6 +181,10 @@ assert Customer.describe()["unique_keys"] == [
     {"name": None, "fields": ["email"], "nulls_not_distinct": False}
 ]
 ```
+
+The statement is the one the Rust guide's `customer` entity writes. Declaring
+a model still sends nothing: `from_model` only builds statements, which the
+program runs with `execute`.
 
 ## Primary keys
 
@@ -190,9 +197,11 @@ key of one integer column is generated by the database unless it says
 `auto_increment = false`. A Python model may declare no key, as a model of a
 view might, though then its `key` and `find_by_key` are refused. And nothing
 about a key is assumed: the declaration says how the database fills it.
-`default=True` says the table has a default for it, as the bakery's `serial`
-ids do, so an insert may leave it out. Without that, or one of the
-`generated` options below, an insert must give the key.
+`auto_increment=True` draws a one-column `"i16"`, `"i32"` or `"i64"` key from
+the serial family, as Rust's one-column integer key is by default, so its
+table writes it `serial` and an insert leaves it out; the bakery's ids are
+declared so. Without it, or one of the `generated` options below, or a
+default, an insert must give the key, and the table writes a plain column.
 
 The bakery's `cake_baker` table records which baker bakes which cake, keyed
 by the pair:
@@ -249,19 +258,13 @@ from pgorm import schema as s
 Note = Model("note", {
     "tenant_id": Column("i32", primary_key=True),
     "id": Column("i64", primary_key=True, generated="always"),
-    "body": Column("text"),
+    "body": Column("text", column_type="varchar"),
 })
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        create = (
-            s.create_table("note")
-            .column(s.ColumnDef("tenant_id", "integer").not_null())
-            .column(s.ColumnDef("id", "bigint").not_null().identity("always"))
-            .column(s.ColumnDef("body", "varchar").not_null())
-            .primary_key(["tenant_id", "id"], name="pk-note")
-        )
+        create = s.from_model(Note).table
         assert create.inspect().sql == (
             'CREATE TABLE "note" ( "tenant_id" integer NOT NULL, '
             '"id" bigint NOT NULL GENERATED ALWAYS AS IDENTITY, "body" varchar NOT NULL, '
@@ -285,47 +288,45 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-A Rust key whose last column is a range can be a PostgreSQL 18 temporal key,
-marked `without_overlaps`. A Python model has no option for it: declare the
-range field `primary_key=True` like the rest of the key, and create the
-table with the schema builders' `primary_key(..., without_overlaps=...)`.
-A lookup by the whole key compares the range for equality, as Rust's does,
-so it finds exactly one version of the row.
+A key whose last field is a range or multirange can be a PostgreSQL 18
+temporal key: mark that field `primary_key=True, without_overlaps=True`, as
+Rust marks it `primary_key, without_overlaps`, and no two rows with equal
+other key fields may hold overlapping ranges. Its table writes the field
+last, `WITHOUT OVERLAPS`. A period on any field but the key's last, or in a
+key of one field, which PostgreSQL refuses, is a `ConstructionError`. A
+lookup by the whole key compares the range for equality, as Rust's does, so
+it finds exactly one version of the row.
 
 ## Defaults, generated columns and keys
 
-A column can take a default, be computed from the others, or be part of a
-unique key:
+A column can take a default, be computed from the others, carry a comment,
+be indexed, or be part of a unique key, each said as Rust's attribute of the
+same name says it:
 
-- `default=True` says the table has a default for the column, so an insert
-  may leave it out and the database fills it. The model does not know what
-  the default is: the table holds it. Rust's `default_value` and
-  `default_expr` write the default into the table; in Python, the schema
-  builders' `ColumnDef.default(...)` does.
-- `generated="always"` also marks a generated column, computed from the
-  row's other columns, which the database stores or computes on read. No
-  write sets one, and every read returns it. Rust's `generated_stored` and
-  `generated_virtual` write the expression; in Python, `ColumnDef.generated`
-  does.
+- `default_value=1` gives a constant default, converted through the
+  column's kind, and `default_expr=...` an expression, such as
+  `call("uuidv7")`. `default=True` says the table has a default the
+  declaration does not state, so an insert may leave the column out; a model
+  that says so has no `DEFAULT` to write, so `from_model` refuses its table.
+- `generated_stored=...` and `generated_virtual=...` make a generated column,
+  computed from an expression over the row's other columns, which the
+  database stores or computes on read. No write sets one, and every read
+  returns it: the model reports it `generated="always"`.
 - `unique_keys` on the `Model` lists the table's unique keys, as Rust's
   `unique` and `unique(columns = (..))` do. Each is a mapping: its `fields`,
   one field or several in key order, and an optional `name` and
   `nulls_not_distinct`. A key naming no field, a field the model lacks, or
   one field twice is a `ConstructionError`, and an option it does not have a
   `TypeError`.
+- `indexed=True` asks for an index on the column, and `comment="..."` on a
+  `Column` or on the `Model` becomes a `COMMENT ON`, both statements of
+  their own in the model's schema ([Schema generation](14-schema.md)).
 
-A declared model writes no schema, so its unique keys are a description of
-the table: `describe()` reports them, and a [disjoint
-enum](15-disjoint.md)'s schema writes them. Nothing in a declaration asks
-for an index or a comment, as Rust's `indexed` and `comment` do: the schema
-builders' `create_index`, `comment_on_table` and `comment_on_column` make
-them.
-
-A column declared both `default=True` and `generated` is a
-`ConstructionError`, since a generated column has no default of its own. An
-insert must set every field that is neither nullable, defaulted nor
-generated, and one that does not is refused with a `ConstructionError`
-before anything is sent.
+PostgreSQL fills a column one way, so a column given two of a default,
+stated or not, an identity, a generation expression and `auto_increment` is
+a `ConstructionError`. An insert must set every field that is neither
+nullable, defaulted, drawn from the serial family nor generated, and one
+that does not is refused with a `ConstructionError` before anything is sent.
 
 The bakery's order lines could carry their total as a stored generated
 column, and allow each cake once per order. This example makes the table in
@@ -339,33 +340,21 @@ from decimal import Decimal
 from pgorm import Column, Model, Pool, col
 from pgorm import schema as s
 
+MONEY = s.DataType("numeric", precision=10, scale=2)
+
 OrderLine = Model("order_line", {
-    "id": Column("i32", primary_key=True, default=True),
+    "id": Column("i32", primary_key=True, auto_increment=True),
     "order_id": Column("i32"),
     "cake_id": Column("i32"),
-    "quantity": Column("i32", default=True),
-    "price": Column("decimal"),
-    "total": Column("decimal", generated="always"),
+    "quantity": Column("i32", default_value=1),
+    "price": Column("decimal", column_type=MONEY),
+    "total": Column("decimal", column_type=MONEY, generated_stored=col("price") * col("quantity")),
 }, schema="draft", unique_keys=[{"fields": ("order_id", "cake_id"), "name": "one_line_per_cake"}])
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        money = s.DataType("numeric", precision=10, scale=2)
-        create = (
-            s.create_table(OrderLine.table)
-            .column(s.ColumnDef("id", "integer").not_null().auto_increment())
-            .column(s.ColumnDef("order_id", "integer").not_null())
-            .column(s.ColumnDef("cake_id", "integer").not_null())
-            .column(s.ColumnDef("quantity", "integer").not_null().default(1))
-            .column(s.ColumnDef("price", money).not_null())
-            .column(
-                s.ColumnDef("total", money).not_null()
-                .generated(col("price") * col("quantity"), "stored")
-            )
-            .primary_key("id")
-            .unique(["order_id", "cake_id"], name="one_line_per_cake")
-        )
+        create = s.from_model(OrderLine).table
         assert create.inspect().sql == (
             'CREATE TABLE "draft"."order_line" ( "id" serial NOT NULL, '
             '"order_id" integer NOT NULL, "cake_id" integer NOT NULL, '
@@ -415,9 +404,13 @@ relations, one for each direction. Rust's `rev` turns a relation around; in
 Python, declare the other direction. And Rust's `on_condition` closure is
 given the two tables' names; a Python one is given the two models answering
 to them, so `bakery.col("city")` is qualified as the join names the bakery.
-`on_delete`, `on_update` and `fk_name` belong to the table's foreign key,
-which the schema builders' `foreign_key(..., on_delete=..., name=...)`
-writes, as `bakery.py` does.
+A `belongs_to` relation is also the table's foreign key:
+`from_model(model, relations=[...])` writes one for each `belongs_to`
+relation it is given, and the relation takes the key's `on_delete` and
+`on_update` actions (`"no_action"`, `"restrict"`, `"cascade"`, `"set_null"`,
+`"set_default"`) and its `fk_name`, as Rust's does, as `bakery.py`'s
+`cake_baker_cake` deletes a cake's `cake_baker` rows with it. `has_one` and
+`has_many` take none of them.
 
 ```python
 from bakery import Bakery, Cake
@@ -535,11 +528,12 @@ Python like this:
 - `enum_name` and `schema_name` are the `TypeName`'s name and `schema`.
 - `rename_all` and `string_value` have nothing to do, since the labels are
   written as they are.
-- `rs_type` and `db_type`, an enum stored as integers or plain text, have no
-  Python counterpart: declare the column by the kind it is stored as, such as
-  `"i16"`, and map the values in the program.
-- `display` has no counterpart, and the labels are already a list,
-  `Cake.columns["flavor"].values`, where Rust iterates `Flavor::iter()`.
+- `rs_type` and `db_type`, an enum stored as integers or plain text, are a
+  column of the kind it is stored as, such as `"i16"`, whose `decode` and
+  `encode` turn the stored value into a Python `enum.IntEnum` or `StrEnum`
+  member and back ([Values and types](13-values.md#newtypes)).
+- `display` is the Python enum's own `str()`, and the labels are already a
+  list, `Cake.columns["flavor"].values`, where Rust iterates `Flavor::iter()`.
 
 An array of an enum is `array=True` beside the `TypeName`, which names its
 schema there too. [Schema generation](14-schema.md) creates an enum's type,
@@ -569,7 +563,8 @@ assert described["fields"]["notes"] == {
     "column": "notes", "kind": "text", "nullable": True, "primary_key": False,
     "default": False, "generated": None, "values": None,
 }
-assert described["fields"]["id"]["default"] is True
+assert described["fields"]["id"]["default"] is False
+assert Customer.columns["id"].auto_increment
 ```
 
 A registered entity has `describe()` too, reporting what its Rust

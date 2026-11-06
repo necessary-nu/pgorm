@@ -11,7 +11,7 @@ import { Condition } from "./conditions.js";
 import { ConstructionError } from "./errors.js";
 import { columnValue } from "./model-columns.js";
 import { decodeAll, decodeCount } from "./model-decode.js";
-import { qualified } from "./model-shape.js";
+import { fieldOf, qualified, sameTable, shapeOf } from "./model-shape.js";
 
 /** Marks a construction from within the module. */
 const MADE = Symbol("pgorm-napi cursor");
@@ -31,8 +31,10 @@ const MADE = Symbol("pgorm-napi cursor");
  * @property {(orders: readonly import("./expressions.js").OrderBy[], wheres: readonly (import("./expressions.js").Expr | Condition)[], limit: number | bigint | null) => import("./select.js").Select} build
  * @property {number | bigint | null} limit The query's own limit, which a window replaces.
  * @property {readonly import("./model-decode.js").Source[]} sources
+ * @property {((record: any) => unknown) | null} read What a projection makes each decoded row, or null to keep it.
  * @property {readonly KeyColumn[]} order
  * @property {readonly KeyColumn[]} tiebreaks
+ * @property {readonly { shape: import("./model-shape.js").Shape, qualifier: string }[]} tables Each model the query reads, which a secondary ordering may name.
  */
 
 /**
@@ -102,6 +104,29 @@ export class Cursor {
       const { field } = /** @type {KeyColumn} */ (keyset[index]);
       return columnValue(field.column, field.field, value);
     });
+  }
+
+  /**
+   * The cursor ordered by `field` of `model` after its key and the entries
+   * before it: a column of the queried model or a table it joined, `model`
+   * named as the query names it, its alias included, as Rust's
+   * `add_secondary_order_by(table, column)`. `after` and `before` still take
+   * the key alone, so they skip every row sharing the boundary's key;
+   * `afterWith` and `beforeWith` take the whole ordering and resume from
+   * exactly one row.
+   *
+   * @param {unknown} model
+   * @param {unknown} field
+   */
+  // [spec:pgorm:req:bindings.cursor-secondary-order+1]
+  addSecondaryOrderBy(model, field) {
+    const shape = shapeOf(model);
+    const column = fieldOf(shape, field);
+    const { keyed } = this.#state;
+    const read = keyed.tables.some((table) => sameTable(table.shape, shape) && table.qualifier === shape.qualifier);
+    if (!read) throw new ConstructionError(`the cursor's query reads no table named ${shape.qualifier}`);
+    const tiebreaks = [...keyed.tiebreaks, { field: column, qualifier: shape.qualifier }];
+    return this.#with({ keyed: { ...keyed, tiebreaks } });
   }
 
   /**
@@ -207,7 +232,9 @@ export class Cursor {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async all(db, options) {
-    const rows = await decodeAll(db, this.statement, this.#state.keyed.sources, options);
+    const { sources, read } = this.#state.keyed;
+    const records = await decodeAll(db, this.statement, sources, options);
+    const rows = read === null ? records : records.map(read);
     return this.#state.window?.last ? rows.reverse() : rows;
   }
 }
@@ -231,6 +258,7 @@ export function cursorOver(keyed) {
  * @property {readonly import("./model-decode.js").Source[] | null} sources The sources each row
  *   decodes as, or `null` for rows as plain objects.
  * @property {import("./model-decode.js").Reading} [reading] How its rows are read, as a built query's are by default.
+ * @property {((record: any) => unknown) | null} [read] What a projection makes each decoded row, or null to keep it.
  */
 
 /**
@@ -285,13 +313,14 @@ export class Paginator {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async fetchPage(db, page, options) {
-    const { sources, reading } = this.#pageable;
+    const { sources, reading, read } = this.#pageable;
     if (sources === null) {
       const query = /** @type {{ query?: unknown }} */ (db)?.query;
       if (typeof query !== "function") throw new TypeError("a page is read on a Pool, a Connection or a Transaction");
       return await query.call(db, this.#page(page), options);
     }
-    return await decodeAll(db, this.#page(page), sources, options, reading);
+    const records = await decodeAll(db, this.#page(page), sources, options, reading);
+    return read ? records.map(read) : records;
   }
 
   /**

@@ -11,8 +11,8 @@ from pgorm._registered import disjoints as disjoint_views, entities as views, gr
 from pgorm.codegen import source
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
-    Column, Linked, Model, ModelRecord, Related, Relation, active, cursors, disjoint_query, graphs, model, one_of, queries,
-    record, try_inserts, writes,
+    Column, Linked, Model, ModelRecord, Related, Relation, active, clauses, cursors, disjoint_query,
+    graphs, model, one_of, projections, record, try_inserts, writes,
 )
 from pgorm.runtime import PoolStatus
 
@@ -50,11 +50,12 @@ EXEMPT = {
     # The protocol a migration a program writes satisfies, as a collector
     # satisfies MetricsCollector, handed to a migrator.
     s.MigrationTrait,
-    # Registrations and declarations: they name what a query reads and are
-    # true as any declared object is; the queries they start refuse.
-    p.Entity, p.EntityGraph, p.EntityRelation, Model, Column, Relation, Related, Linked, pl.SourceSelection,
-    pl.Binder,
-    model.UniqueKey, model._DeclaredKey, active.ModelHooks,
+    # Registrations and declarations, and the native casts a declared column
+    # holds: they name what a query reads and are true as any declared object
+    # is; the queries they start refuse.
+    p.Entity, p.EntityGraph, p.EntityRelation, Model, Column, _native._ModelColumnCasts, Relation,
+    Related, Linked, pl.SourceSelection, pl.Binder,
+    model.UniqueKey, model._DeclaredKey, active.ModelHooks, p.PartialModel, p.FromExpr, p.Skip,
     views.EntityView, graph_views.GraphView, FieldType,
     # The layout the codegen writes source with: build-time values no query
     # reads.
@@ -65,7 +66,8 @@ EXEMPT = {
     # The private state a model query, graph, cursor or paginator holds and
     # builds its statements from: data the application never handles, held by
     # a query that refuses.
-    queries.Recipe, queries.Joined, graphs.State, graphs.Table, graphs.Edge,
+    clauses.Recipe, clauses.Joined, clauses.Lock, projections.Item, graphs.State, graphs.Table,
+    graphs.Edge,
     cursors.Keyed, cursors.Position, cursors.Pageable, record.Source,
 }
 
@@ -87,7 +89,10 @@ BUILT_ELSEWHERE = {
 
 # Bases the model writes share and no program builds: every write refuses
 # through the __bool__ they give it, and each is sampled through a write.
-BASES = {writes._Write, writes._Insert, writes._Guarded, try_inserts._Tried, try_inserts._TriedRows, changes._Part}
+BASES = {
+    writes._Write, writes._Insert, writes._Guarded, try_inserts._Tried, try_inserts._TriedRows,
+    changes._Part, clauses.Clauses,
+}
 
 
 def defined_classes():
@@ -164,6 +169,7 @@ def other_samples():
         model.col("id"), model.find(), model.delete(), model.insert({"id": 1}), model.insert_many([]),
         model.update({"id": 2}), model.insert({"id": 1}).returning("id"),
         model.graph(), model.find().cursor("id"), model.find().paginate(2), pl.from_(model).into_tuple(),
+        model.find().select_only(), model.find().into_tuple(),
         model.find_by_statement(p.RawSQL("SELECT 1")), p.from_statement(p.RawSQL("SELECT 1")),
         model.active({"id": 1}),
         model.insert({"id": 1}).on_conflict_do_nothing(), model.insert_many([]).on_empty_do_nothing(),

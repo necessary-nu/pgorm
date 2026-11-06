@@ -3,6 +3,8 @@ from asyncio import CancelledError as CancelledError
 from ._schema import (
     DataType as DataType, ColumnDef as ColumnDef, DDL as DDL, EntitySchema as EntitySchema,
     schema_from_entity as schema_from_entity,
+    _model_schema as _model_schema, _model_table as _model_table, _renamed as _renamed,
+    _ModelColumnCasts as _ModelColumnCasts, _model_casts as _model_casts,
     MigrationFile as MigrationFile, migration_file as migration_file,
 )
 from ._migrations import SqlMigration as SqlMigration, _Migrations as _Migrations

@@ -168,7 +168,7 @@ fn offsets_after_a_name_are_set_aside() {
 /// held for the whole keyword list, not only the words the corpus happens to
 /// hold, and a keyword whose bare spelling means something else can only
 /// render quoted.
-// [spec:pgorm:def:sql.types.type-name+8/test]
+// [spec:pgorm:def:sql.types.type-name+9/test]
 // [spec:pgorm:req:security.ident-oracle+17/test]
 #[test]
 fn type_name_sites_hold_every_keyword() {

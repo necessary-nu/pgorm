@@ -40,6 +40,7 @@ pub(crate) fn operations() -> serde_json::Map<String, serde_json::Value> {
         ("schema.drop_schema", "pgorm_query::SchemaDropStatement"),
         ("schema.rename_schema", "pgorm_query::SchemaRenameStatement"),
         ("schema.from_entity", "Schema::{create_table_from_entity,create_enum_from_entity,create_index_from_entity,create_comments_from_entity}"),
+        ("schema.from_model", "Schema::{create_table_from_shape,create_enum_from_shape,create_index_from_shape,create_comments_from_shape}"),
     ].into_iter().map(|(name, api)| (name.to_owned(), serde_json::json!({
         "rust_api": format!("pgorm::{api}"), "features": [],
         "registration_required": name == "schema.from_entity"

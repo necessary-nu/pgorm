@@ -44,7 +44,7 @@ use neon::{prelude::*, types::Finalize};
 use pgorm::{ActiveValue, pgorm_query::Condition};
 
 use adapter::{Active, Between, Change, Comparison, Members, Read, Select, Write};
-pub(crate) use adapter::{EntityBackend, Model, PipelineColumn};
+pub(crate) use adapter::{EntityBackend, EntitySchema, Model, PipelineColumn};
 use convert::column_array;
 use convert::{ModelHandle, Records, Wrote, entity_failure, names};
 pub(crate) use convert::{column_value, record};
@@ -247,16 +247,23 @@ fn entity_schema(mut cx: FunctionContext) -> JsResult<JsValue> {
         Ok(schema) => schema,
         Err(error) => return throw(&mut cx, Failure::Construction(error.to_string())),
     };
+    Ok(schema_parts(&mut cx, schema)?.upcast())
+}
+
+/// `[table, enums, indexes, comments]`, the statements of `schema` as the
+/// nodes JavaScript builders own, which `EntitySchema` reads.
+// [spec:pgorm:req:bindings.schema-from-entity]
+pub(crate) fn schema_parts<'cx>(cx: &mut Cx<'cx>, schema: EntitySchema) -> JsResult<'cx, JsArray> {
     let table = cx.boxed(Node::from(Ddl::CreateTable(schema.table)));
-    let enums = ddl_list(&mut cx, schema.enums.into_iter().map(Ddl::CreateType))?;
-    let indexes = ddl_list(&mut cx, schema.indexes.into_iter().map(Ddl::CreateIndex))?;
-    let comments = ddl_list(&mut cx, schema.comments.into_iter().map(Ddl::Comment))?;
-    let parts = JsArray::new(&mut cx, 4);
-    parts.set(&mut cx, 0, table)?;
-    parts.set(&mut cx, 1, enums)?;
-    parts.set(&mut cx, 2, indexes)?;
-    parts.set(&mut cx, 3, comments)?;
-    Ok(parts.upcast())
+    let enums = ddl_list(cx, schema.enums.into_iter().map(Ddl::CreateType))?;
+    let indexes = ddl_list(cx, schema.indexes.into_iter().map(Ddl::CreateIndex))?;
+    let comments = ddl_list(cx, schema.comments.into_iter().map(Ddl::Comment))?;
+    let parts = JsArray::new(cx, 4);
+    parts.set(cx, 0, table)?;
+    parts.set(cx, 1, enums)?;
+    parts.set(cx, 2, indexes)?;
+    parts.set(cx, 3, comments)?;
+    Ok(parts)
 }
 
 /// DDL statements as an array of the nodes JavaScript builders own.

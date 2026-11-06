@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError, dataclass, field
-from collections.abc import Sequence
-from typing import Any, Literal
+from dataclasses import KW_ONLY, FrozenInstanceError, dataclass, field
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from .. import _native as p
+from . import casts
 
 # These tags are produced by the native Record decoder without reinterpretation.
 MODEL_KINDS = frozenset(
@@ -50,6 +51,12 @@ MODEL_KINDS = frozenset(
 
 GENERATED = ("always", "by_default")
 
+# The kinds a serial key is drawn from, as Rust's one-column integer key is.
+SERIAL_KINDS = frozenset({"i16", "i32", "i64"})
+
+if TYPE_CHECKING:
+    from .._schema import ColumnType as DdlType
+
 
 def _flag(value: object, option: str) -> bool:
     if type(value) is not bool:
@@ -70,7 +77,21 @@ def _labels(values: object) -> tuple[str, ...]:
     return labels
 
 
-# [spec:pgorm:req:bindings.models+5]
+def _callable(value: object, option: str) -> None:
+    if value is not None and not callable(value):
+        raise TypeError(f"a column's {option} is a function")
+
+
+def _expression(value: object, option: str) -> p.Expr | None:
+    if value is not None and not isinstance(value, p.Expr):
+        raise TypeError(f"a column's {option} is an expression")
+    return value
+
+
+# [spec:pgorm:req:bindings.models+6]
+# [spec:pgorm:req:bindings.schema-from-model]
+# [spec:pgorm:req:bindings.model-casts]
+# [spec:pgorm:req:bindings.model-conversions]
 @dataclass(frozen=True, slots=True)
 class Column:
     kind: str | p.TypeName | p.CreatedRange | p.CreatedMultirange
@@ -81,10 +102,31 @@ class Column:
     default: bool = False
     generated: Literal["always", "by_default"] | None = None
     values: Sequence[str] | None = None
+    _: KW_ONLY
+    column_type: DdlType | None = None
+    default_value: Any = None
+    default_expr: p.Expr | None = None
+    generated_stored: p.Expr | None = None
+    generated_virtual: p.Expr | None = None
+    auto_increment: bool = False
+    indexed: bool = False
+    comment: str | None = None
+    without_overlaps: bool = False
+    select_as: DdlType | None = None
+    save_as: DdlType | None = None
+    select_with: Callable[[p.Expr], p.Expr] | None = None
+    save_with: Callable[[p.Expr], p.Expr] | None = None
+    decode: Callable[[Any], Any] | None = None
+    encode: Callable[[Any], Any] | None = None
     _null: p.Value = field(init=False, repr=False, compare=False)
+    _default: p.Value | None = field(init=False, repr=False, compare=False)
+    _casts: p._ModelColumnCasts | None = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        for option in ("nullable", "primary_key", "array", "default"):
+        for option in (
+            "nullable", "primary_key", "array", "default", "auto_increment", "indexed",
+            "without_overlaps",
+        ):
             _flag(getattr(self, option), option)
         if self.primary_key and self.nullable:
             raise p.ConstructionError("primary-key columns cannot be nullable")
@@ -93,10 +135,43 @@ class Column:
                 raise TypeError('a column is generated "always" or "by_default"')
             if self.generated not in GENERATED:
                 raise TypeError('a column is generated "always" or "by_default"')
-            if self.default:
+        if self.comment is not None and type(self.comment) is not str:
+            raise TypeError("a column's comment is a string")
+        for option in ("select_with", "save_with", "decode", "encode"):
+            _callable(getattr(self, option), option)
+        if self.select_as is not None and self.select_with is not None:
+            raise p.ConstructionError("a column is read through select_as or select_with, not both")
+        if self.save_as is not None and self.save_with is not None:
+            raise p.ConstructionError("a column is written through save_as or save_with, not both")
+        default_expr = _expression(self.default_expr, "default_expr")
+        expressions = [
+            _expression(self.generated_stored, "generated_stored"),
+            _expression(self.generated_virtual, "generated_virtual"),
+        ]
+        computed = any(expression is not None for expression in expressions)
+        if computed:
+            if self.generated == "by_default":
                 raise p.ConstructionError(
-                    "a generated column has no default of its own: declare one or the other"
+                    "a generated column is generated always: no write sets it"
                 )
+            object.__setattr__(self, "generated", "always")
+        # PostgreSQL holds a column to one fill: a default, an identity, a
+        # generation expression or the serial family (42601).
+        fills = [
+            self.default,
+            self.default_value is not None,
+            default_expr is not None,
+            self.generated is not None and not computed,
+            *(expression is not None for expression in expressions),
+            self.auto_increment,
+        ]
+        if sum(fills) > 1:
+            raise p.ConstructionError(
+                "a column is filled one way: a default (default, default_value or "
+                "default_expr), an identity (generated), a generation expression "
+                "(generated_stored or generated_virtual) or the serial family "
+                "(auto_increment)"
+            )
         if self.name is not None:
             object.__setattr__(self, "name", p._identifier(self.name))
         if isinstance(self.kind, (p.TypeName, p.CreatedRange, p.CreatedMultirange)):
@@ -120,11 +195,69 @@ class Column:
         kind = self.kind
         null = p.Value.array(kind, None) if self.array else p.Value.null(kind)
         object.__setattr__(self, "_null", null)
+        self._check_ddl()
+        default = None if self.default_value is None else self._value(self.default_value)
+        if default is not None and default.is_null:
+            raise p.ConstructionError("a column's default_value is a value: NULL is every column's default")
+        object.__setattr__(self, "_default", default)
+        casted = (self.column_type, self.select_as, self.save_as) != (None, None, None)
+        handle = p._model_casts(self._described("column")) if casted else None
+        object.__setattr__(self, "_casts", handle)
+
+    def _check_ddl(self) -> None:
+        """Refuse what the column's DDL options cannot say of its kind."""
+        created = isinstance(self.kind, (p.CreatedRange, p.CreatedMultirange))
+        if self.column_type is not None and created:
+            raise p.ConstructionError(
+                "a created range column's type is its kind's own: it takes no column_type"
+            )
+        if self.auto_increment and (
+            not self.primary_key or self.array or self.kind not in SERIAL_KINDS
+        ):
+            raise p.ConstructionError(
+                "auto_increment draws a key column from the serial family: an i16, i32 or i64 "
+                "primary key"
+            )
+        ranged = isinstance(self.kind, (p.CreatedRange, p.CreatedMultirange)) or (
+            isinstance(self.kind, str) and self.kind.endswith("range")
+        )
+        if self.without_overlaps and (not self.primary_key or self.array or not ranged):
+            raise p.ConstructionError(
+                "without_overlaps makes a range or multirange key column the key's period"
+            )
 
     @property
     def omissible(self) -> bool:
         """Whether an insert may leave the column out."""
-        return self.nullable or self.default or self.generated is not None
+        return (
+            self.nullable
+            or self.default
+            or self.generated is not None
+            or self._default is not None
+            or self.default_expr is not None
+            or self.auto_increment
+        )
+
+    def _described(self, name: str) -> dict[str, Any]:
+        """The column as the native table shape is described from."""
+        return {
+            "name": name,
+            "kind": self.kind,
+            "array": self.array,
+            "nullable": self.nullable,
+            "default": self.default,
+            "generated": self.generated,
+            "values": None if self.values is None else list(self.values),
+            "column_type": self.column_type,
+            "default_value": self._default,
+            "default_expr": self.default_expr,
+            "generated_stored": self.generated_stored,
+            "generated_virtual": self.generated_virtual,
+            "indexed": self.indexed,
+            "comment": self.comment,
+            "select_as": self.select_as,
+            "save_as": self.save_as,
+        }
 
     def _accepts(self, value: p.Value) -> bool:
         """Whether a column whose values read as ``value``'s kind is one this
@@ -169,8 +302,12 @@ class Column:
         return value
 
     def _value(self, data: Any) -> p.Value:
-        """``data`` converted to the declared kind, and validated."""
+        """``data`` converted to the declared kind, and validated: through the
+        column's ``encode`` first, where it has one and ``data`` is no
+        ``Value``."""
         kind = self.kind
+        if self.encode is not None and data is not None and not isinstance(data, p.Value):
+            data = self.encode(data)
         if isinstance(data, p.Value):
             result = data
         elif self.array:
@@ -184,8 +321,13 @@ class Column:
         """Whether the column is projected as its text: a created multirange
         is, and an array of one as ``text[]``, since the driver reports one
         with no subtype to read its binary form by, so it is read cast to
-        text as pgorm's ``ColumnTrait::select_as`` reads an entity's."""
-        return isinstance(self.kind, p.CreatedMultirange)
+        text as pgorm's ``ColumnTrait::select_as`` reads an entity's; and so
+        is an enum column typed as a domain over its enum, which pgorm reads
+        as its text, unless the column reads itself another way."""
+        if isinstance(self.kind, p.CreatedMultirange):
+            return True
+        declared = self.column_type is not None and isinstance(self.kind, p.TypeName)
+        return declared and self.select_as is None and self.select_with is None
 
     def _decoded(self, value: p.Value) -> p.Value:
         """``value``, the column as its projection read it, as the declared
@@ -272,25 +414,32 @@ class ModelColumn(p._DeclaredColumn):
             raise p.ConstructionError(
                 f"{self.field_name} compared with None is never true: test it with is_null()"
             )
-        return self.declaration._value(value)
+        return casts.compared(self.declaration, self.declaration._value(value))
+
+    def _apply(self, method: str, *operands: Any, **options: Any) -> p.Expr:
+        """The operator ``method`` of the column as a comparison takes it, the
+        enum a domain over one compares as, over ``operands``."""
+        left = casts.compared_column(self.declaration, self._expression)
+        receiver: Any = super() if left is None else left
+        return cast(p.Expr, getattr(receiver, method)(*operands, **options))
 
     def eq(self, other: Any) -> p.Expr:
-        return super().eq(self._operand(other))
+        return self._apply("eq", self._operand(other))
 
     def ne(self, other: Any) -> p.Expr:
-        return super().ne(self._operand(other))
+        return self._apply("ne", self._operand(other))
 
     def gt(self, other: Any) -> p.Expr:
-        return super().gt(self._operand(other))
+        return self._apply("gt", self._operand(other))
 
     def gte(self, other: Any) -> p.Expr:
-        return super().gte(self._operand(other))
+        return self._apply("gte", self._operand(other))
 
     def lt(self, other: Any) -> p.Expr:
-        return super().lt(self._operand(other))
+        return self._apply("lt", self._operand(other))
 
     def lte(self, other: Any) -> p.Expr:
-        return super().lte(self._operand(other))
+        return self._apply("lte", self._operand(other))
 
     def __eq__(self, other: object) -> p.Expr:  # type: ignore[override]
         return self.eq(other)
@@ -311,52 +460,52 @@ class ModelColumn(p._DeclaredColumn):
         return self.lte(other)
 
     def is_distinct_from(self, other: Any) -> p.Expr:
-        return super().is_distinct_from(self._operand(other))
+        return self._apply("is_distinct_from", self._operand(other))
 
     def is_not_distinct_from(self, other: Any) -> p.Expr:
-        return super().is_not_distinct_from(self._operand(other))
+        return self._apply("is_not_distinct_from", self._operand(other))
 
     def between(self, lower: Any, upper: Any, *, symmetric: bool = False) -> p.Expr:
-        return super().between(
+        return self._apply("between", 
             self._operand(lower), self._operand(upper), symmetric=symmetric
         )
 
     def not_between(
         self, lower: Any, upper: Any, *, symmetric: bool = False
     ) -> p.Expr:
-        return super().not_between(
+        return self._apply("not_between", 
             self._operand(lower), self._operand(upper), symmetric=symmetric
         )
 
     def contains(self, other: Any) -> p.Expr:
-        return super().contains(self._operand(other))
+        return self._apply("contains", self._operand(other))
 
     def contained_by(self, other: Any) -> p.Expr:
-        return super().contained_by(self._operand(other))
+        return self._apply("contained_by", self._operand(other))
 
     def overlaps(self, other: Any) -> p.Expr:
-        return super().overlaps(self._operand(other))
+        return self._apply("overlaps", self._operand(other))
 
     def strictly_left_of(self, other: Any) -> p.Expr:
-        return super().strictly_left_of(self._operand(other))
+        return self._apply("strictly_left_of", self._operand(other))
 
     def strictly_right_of(self, other: Any) -> p.Expr:
-        return super().strictly_right_of(self._operand(other))
+        return self._apply("strictly_right_of", self._operand(other))
 
     def not_extend_right_of(self, other: Any) -> p.Expr:
-        return super().not_extend_right_of(self._operand(other))
+        return self._apply("not_extend_right_of", self._operand(other))
 
     def not_extend_left_of(self, other: Any) -> p.Expr:
-        return super().not_extend_left_of(self._operand(other))
+        return self._apply("not_extend_left_of", self._operand(other))
 
     def adjacent_to(self, other: Any) -> p.Expr:
-        return super().adjacent_to(self._operand(other))
+        return self._apply("adjacent_to", self._operand(other))
 
     def is_in(self, values: list[Any] | tuple[Any, ...] | p.Select) -> p.Expr:
-        return super().is_in(self._members(values))
+        return self._apply("is_in", self._members(values))
 
     def is_not_in(self, values: list[Any] | tuple[Any, ...] | p.Select) -> p.Expr:
-        return super().is_not_in(self._members(values))
+        return self._apply("is_not_in", self._members(values))
 
     def _members(
         self, values: Any

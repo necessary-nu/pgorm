@@ -31,7 +31,7 @@ enum ColumnAs {
 impl ColumnAs {
     /// The entity column the field reads, whose read cast the field's
     /// reported column carries, or `None` for an expression.
-    // [spec:pgorm:sem:macros.derive.partial-model+6]
+    // [spec:pgorm:sem:macros.derive.partial-model+7]
     fn column(&self) -> Option<TokenStream> {
         match self {
             ColumnAs::Col { entity, col } => {
@@ -100,6 +100,7 @@ impl PartialModel {
             // one key is a duplicate, and one of each is the conflict guarded below.
             let mut from_col: Option<syn::ExprPath> = None;
             let mut from_expr: Option<Expr> = None;
+            let mut skip = false;
 
             for attr in field.attrs.iter() {
                 if !attr.path().is_ident("pgorm") {
@@ -120,6 +121,7 @@ impl PartialModel {
                         from_expr = Some(bare_code(&meta, "from_expr")?);
                         Ok(())
                     } else if meta.path.is_ident("skip") {
+                        skip = true;
                         Ok(())
                     } else {
                         Err(unknown_pgorm_key(&meta))
@@ -128,6 +130,11 @@ impl PartialModel {
                 .map_err(Error::Syn)?;
             }
 
+            // A skipped field reads no column, so the projection selects
+            // nothing for it, whatever else it names.
+            if skip {
+                continue;
+            }
             let col_as = match (from_col, from_expr) {
                 (None, None) => ColumnAs::Col {
                     entity: entity.clone().ok_or(Error::EntityNotSpecific)?,
@@ -201,7 +208,7 @@ impl PartialModel {
     }
 }
 
-// [spec:pgorm:sem:macros.derive.partial-model+6]
+// [spec:pgorm:sem:macros.derive.partial-model+7]
 // [spec:pgorm:req:macros.derive.code-values+4]
 pub fn expand_derive_partial_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
@@ -247,7 +254,7 @@ struct PartialModel{
     expr_field : i32
 }
 "#;
-    // [spec:pgorm:sem:macros.derive.partial-model+6/test]
+    // [spec:pgorm:sem:macros.derive.partial-model+7/test]
     #[test]
     fn test_load_macro_input() -> StdResult<()> {
         let input = parse_str::<DeriveInput>(CODE_SNIPPET)?;

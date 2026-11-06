@@ -24,6 +24,7 @@ pgorm is a fork of SeaORM focused entirely on PostgreSQL support. It uses tokio-
 
 ### Workspace Structure
 - `pgorm` (root) - Main ORM crate
+- `pgorm-case-style` - The case styles a `rename_all` renames by (`CaseStyle`, re-exported as `pgorm::CaseStyle`), one conversion shared by the derives and by the models the bindings declare at run time
 - `pgorm-macros` - Derive macros for entities and models
 - `pgorm-codegen` - Entity source generation from a described schema
 - `pgorm-migration` - Migration runner
@@ -50,7 +51,7 @@ There is no CLI crate: the inherited `pgorm-cli` was retired (it targeted sqlx/s
 - **Query System**: `src/query/` - Query builders
 - **Executor**: `src/executor/` - Query execution and result handling
 - **Database**: `src/database/` - Connection management and pooling
-- **Schema**: `src/schema/` - DDL statement generation from entity definitions (`Schema::create_table_from_entity`, `create_enum_from_entity`, `create_index_from_entity`, `create_comments_from_entity`). This is generation only, not introspection. Generated DDL reaches a migration frozen, never recomputed as the migration runs: `MigrationFile::new(name, statements).freeze(dir)` writes `<name>.sql` once and never rewrites it, `DisjointChange::migration_files(name)` freezes a disjoint kind change a file per step, and a file opening with `-- pgorm: commits-after` answers `commits_after()` in pgorm-migration's `sql_migration!`
+- **Schema**: `src/schema/` - DDL statement generation from entity definitions (`Schema::create_table_from_entity`, `create_enum_from_entity`, `create_index_from_entity`, `create_comments_from_entity`). Each goes through a `TableShape` (`src/entity/table_shape.rs`), a table as data: `TableShape::of::<E>()` describes an entity and `TableShape::new` a table known at run time, and `Schema::create_*_from_shape` write either, so the Python and JavaScript bindings' `from_model` / `fromModel` write a declared model's DDL with the entity path's code. This is generation only, not introspection. Generated DDL reaches a migration frozen, never recomputed as the migration runs: `MigrationFile::new(name, statements).freeze(dir)` writes `<name>.sql` once and never rewrites it, `DisjointChange::migration_files(name)` freezes a disjoint kind change a file per step, and a file opening with `-- pgorm: commits-after` answers `commits_after()` in pgorm-migration's `sql_migration!`
 - **Metrics**: `src/metric.rs` - Opt-in instrumentation wrappers
 
 Row streaming is reachable through the public crate: `ConnectionTrait::query_raw` returns a tokio-postgres `RowStream`, and `src/executor/select.rs` decodes it into models — `stream` on `Select`, `SelectGraph`, `Selector`, and `SelectorRaw`, plus `stream_partial_model`, each yielding a `PinBoxSendStream`. pgorm no longer carries its own `Statement`/`StatementBuilder`: `src/database/statement.rs` was deleted, leaving `src/database/` as just `connection.rs` and `db_connection.rs`, and SQL now travels as text (`&str` or `&String`, the sealed `SqlText` bound) alongside its parameters.
