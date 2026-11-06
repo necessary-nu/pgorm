@@ -1432,6 +1432,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgorm-codegen"
+version = "0.2.0"
+dependencies = [
+ "heck",
+ "pg_query",
+ "pgorm-query",
+ "rust_decimal",
+ "tracing",
+ "unicode-ident",
+]
+
+[[package]]
 name = "pgorm-generative-bridge"
 version = "0.2.0"
 dependencies = [
@@ -1493,6 +1505,7 @@ dependencies = [
  "jiff",
  "pgorm",
  "pgorm-bindings",
+ "pgorm-codegen",
  "pgorm-migration",
  "postgres-protocol",
  "pyo3",

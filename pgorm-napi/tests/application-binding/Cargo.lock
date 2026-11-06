@@ -1453,6 +1453,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgorm-codegen"
+version = "0.2.0"
+dependencies = [
+ "heck",
+ "pg_query",
+ "pgorm-query",
+ "rust_decimal",
+ "tracing",
+ "unicode-ident",
+]
+
+[[package]]
 name = "pgorm-macros"
 version = "0.2.0"
 dependencies = [
@@ -1489,6 +1501,7 @@ dependencies = [
  "neon",
  "pgorm",
  "pgorm-bindings",
+ "pgorm-codegen",
  "pgorm-migration",
  "postgres-protocol",
  "rust_decimal",

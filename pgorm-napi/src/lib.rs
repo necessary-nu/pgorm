@@ -7,6 +7,7 @@
 //! settling a promise on the instance's JavaScript thread.
 
 mod codec;
+mod codegen;
 mod connect;
 mod decode;
 mod disjoint;
@@ -58,6 +59,7 @@ pub fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<()> {
     entities::install(cx, registry)?;
     disjoint::export(cx)?;
     migration_file::export(cx)?;
+    codegen::export(cx)?;
     one_of::export(cx)?;
     raw::export(cx)?;
     #[cfg(debug_assertions)]

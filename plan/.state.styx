@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-06T12:32:24.116807Z
+last_sync_at 2026-11-06T13:17:06.285162Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -21,6 +21,7 @@ rule_versions (
     {id bindings.copy-rows.typed, version 0}
     {id bindings.created-ranges, version 5}
     {id bindings.cte-options, version 0}
+    {id bindings.current-keywords, version 0}
     {id bindings.cursor-secondary-order, version 0}
     {id bindings.cursors, version 1}
     {id bindings.delegation, version 0}
@@ -57,6 +58,7 @@ rule_versions (
     {id bindings.model-write-sources, version 0}
     {id bindings.model-writes, version 3}
     {id bindings.models, version 5}
+    {id bindings.models-from-sql, version 0}
     {id bindings.multi-pool, version 0}
     {id bindings.named-functions, version 0}
     {id bindings.one-of, version 1}
@@ -140,6 +142,15 @@ rule_versions (
     {id codegen.entity.types, version 13}
     {id codegen.entity.types.datetime, version 2}
     {id codegen.entity.types.unsupported, version 12}
+    {id codegen.features, version 0}
+    {id codegen.models, version 0}
+    {id codegen.models.columns, version 0}
+    {id codegen.models.disjoint, version 0}
+    {id codegen.models.layout, version 0}
+    {id codegen.models.names, version 0}
+    {id codegen.models.one-of, version 0}
+    {id codegen.models.refused, version 0}
+    {id codegen.models.relations, version 0}
     {id conn.copy, version 2}
     {id conn.copy.rows, version 5}
     {id conn.copy.rows.kind, version 0}
@@ -902,6 +913,7 @@ derived_priorities (
     {id napi.guide-gaps.transaction-retry, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.transaction-streams, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.verify, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
+    {id napi.lib-imports-checked, priority 0, derived_at 2026-11-06T13:17:06.285162Z}
     {id nested-source-from-entry, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id nopanic.codegen-gate, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
     {id nopanic.connect-builders, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
@@ -2535,6 +2547,8 @@ impl_evidence (
         {impl_name javascript, rule bindings.entity-try-inserts}
         {impl_name main, rule bindings.entity-try-inserts}
         {impl_name python, rule bindings.entity-try-inserts}
+    ), rule_versions_seen (
+        {id bindings.entity-try-inserts, version 0}
     )}
     {id guide.python-gaps.failed-commit, covered_rules (
         conn.tx.aborted
@@ -2556,6 +2570,31 @@ impl_evidence (
         {id bindings.migrations, version 0}
         {id migration.runtime, version 0}
         {id migration.sql-file.read, version 0}
+    )}
+    {id guide.python-gaps.model-codegen, covered_rules (
+        bindings.current-keywords
+        bindings.models-from-sql
+        codegen.features
+        codegen.models
+        codegen.models.columns
+        codegen.models.disjoint
+        codegen.models.layout
+        codegen.models.names
+        codegen.models.one-of
+        codegen.models.refused
+        codegen.models.relations
+    ), covered_claims (
+        {impl_name main, rule codegen.features}
+        {impl_name main, rule codegen.models}
+        {impl_name main, rule codegen.models.columns}
+        {impl_name main, rule codegen.models.disjoint}
+        {impl_name main, rule codegen.models.layout}
+        {impl_name main, rule codegen.models.names}
+        {impl_name main, rule codegen.models.one-of}
+        {impl_name main, rule codegen.models.refused}
+        {impl_name main, rule codegen.models.relations}
+        {impl_name python, rule bindings.current-keywords}
+        {impl_name python, rule bindings.models-from-sql}
     )}
     {id guide.python-gaps.model-hooks, covered_rules (
         bindings.model-hooks
@@ -3805,6 +3844,13 @@ impl_evidence (
         {impl_name main, rule exec.decode.decimal-exact}
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
+    )}
+    {id napi.guide-gaps.models-from-ddl, covered_rules (
+        bindings.current-keywords
+        bindings.models-from-sql
+    ), covered_claims (
+        {impl_name javascript, rule bindings.current-keywords}
+        {impl_name javascript, rule bindings.models-from-sql}
     )}
 )
 

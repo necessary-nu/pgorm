@@ -73,6 +73,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+The same reading writes the declared models of pgorm's Python and
+JavaScript bindings: `python_models_from_sql` and `typescript_models_from_sql`
+return one module each, `models.py` or `models.ts`, of `pgorm.Model` or
+`model(..)` declarations, their relations, junction paths, disjoint models and
+one-of references, laid out as black and deno fmt lay their languages out.
+`ModelWriterOptions` names the schema an unqualified table and type are in and
+the unkinded disjoint sets. The bindings call them as
+`pgorm.codegen.models_from_sql` and `modelsFromSql`. The Rust writer, and the
+syn, quote and prettyplease it is built with, are the default `rust` feature;
+with `default-features = false` the crate holds the reader and the two
+declared-model writers alone, which is how the bindings depend on it.
+
 The stages are public too: `parse_schema` reads the text into the
 `TableCreateStatement`s `EntityTransformer::transform` takes beside the
 `EntityWriterContext`, and `EntityWriter::generate` writes the entities, so

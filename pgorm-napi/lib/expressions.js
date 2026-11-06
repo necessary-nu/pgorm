@@ -170,6 +170,22 @@ export function func(name, ...operands) {
   return new Expr(native.exprFunc(name, args(operands)), TRUSTED);
 }
 
+// [spec:pgorm:req:bindings.current-keywords]
+/** `CURRENT_DATE`, the date the transaction started. */
+export function currentDate() {
+  return new Expr(native.exprCurrent("date"), TRUSTED);
+}
+
+/** `CURRENT_TIME`, the time of day the transaction started. */
+export function currentTime() {
+  return new Expr(native.exprCurrent("time"), TRUSTED);
+}
+
+/** `CURRENT_TIMESTAMP`, the instant the transaction started. */
+export function currentTimestamp() {
+  return new Expr(native.exprCurrent("timestamp"), TRUSTED);
+}
+
 /**
  * A piece of SQL the builders have no method for, written as a tagged
  * template: its text is SQL, and each interpolation goes between the

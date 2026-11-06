@@ -2,9 +2,11 @@
 //!
 //! [`parse_schema`] reads a `schema.sql` with libpg_query — the PostgreSQL
 //! server's own parser — and bridges the parse tree into the
-//! [`TableCreateStatement`]s [`EntityTransformer::transform`] consumes;
-//! [`entities_from_sql`] runs the whole pipeline and hands back the generated
-//! files.
+//! [`TableCreateStatement`]s
+//! [`EntityTransformer::entities`](crate::EntityTransformer::entities)
+//! consumes;
+//! `entities_from_sql` runs the whole pipeline through the Rust writer and
+//! hands back the generated files.
 //!
 //! The bridge understands the DDL the entity model has a place for — tables,
 //! columns, primary keys, unique constraints, foreign keys, enum and range
@@ -25,10 +27,9 @@ mod objects;
 mod table;
 mod types;
 
-use crate::{
-    EntityTransformer, EntityWriterContext, EntityWriterOptions, Error, TableIdent, WriterOutput,
-    resolve_reference,
-};
+#[cfg(feature = "rust")]
+use crate::{EntityTransformer, EntityWriterContext, EntityWriterOptions, WriterOutput};
+use crate::{Error, TableIdent, resolve_reference};
 use pg_query::NodeEnum;
 use pg_query::protobuf::{AlterTableStmt, CommentStmt, CreateStmt, IndexStmt};
 use pgorm_query::{ColumnType, TableCreateStatement};
@@ -75,6 +76,7 @@ pub fn parse_schema(sql: &str) -> Result<Vec<TableCreateStatement>, Error> {
 /// [`crate::EntityWriter::generate`]. Options are validated first, so an
 /// unusable option is reported before the schema is read.
 // [spec:pgorm:def:codegen.ddl+4]
+#[cfg(feature = "rust")]
 pub fn entities_from_sql(sql: &str, options: EntityWriterOptions) -> Result<WriterOutput, Error> {
     let context = EntityWriterContext::new(options)?;
     let writer = EntityTransformer::transform(parse_schema(sql)?, &context)?;

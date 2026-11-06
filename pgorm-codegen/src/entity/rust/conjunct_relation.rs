@@ -1,0 +1,74 @@
+use heck::{ToSnakeCase, ToUpperCamelCase};
+use proc_macro2::Ident;
+use quote::format_ident;
+
+use super::ident::safe_ident;
+use crate::{ConjunctRelation, Error, util::escape_rust_keyword};
+
+impl ConjunctRelation {
+    // [spec:pgorm:sem:codegen.entity.keywords+2]
+    pub(crate) fn validate(&self) -> Result<(), Error> {
+        let context = format!("conjunct relation via `{}` to `{}`", self.via, self.to);
+        safe_ident(&context, &escape_rust_keyword(self.via.to_snake_case()))?;
+        safe_ident(&context, &escape_rust_keyword(self.to.to_snake_case()))?;
+        safe_ident(&context, &self.to.to_upper_camel_case())?;
+        Ok(())
+    }
+
+    pub fn get_via_snake_case(&self) -> Ident {
+        format_ident!("{}", escape_rust_keyword(self.via.to_snake_case()))
+    }
+
+    pub fn get_to_snake_case(&self) -> Ident {
+        format_ident!("{}", escape_rust_keyword(self.to.to_snake_case()))
+    }
+
+    pub fn get_to_upper_camel_case(&self) -> Ident {
+        format_ident!("{}", self.to.to_upper_camel_case())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ConjunctRelation;
+
+    fn setup() -> Vec<ConjunctRelation> {
+        vec![
+            ConjunctRelation {
+                via: "cake_filling".to_owned(),
+                to: "cake".to_owned(),
+            },
+            ConjunctRelation {
+                via: "cake_filling".to_owned(),
+                to: "filling".to_owned(),
+            },
+        ]
+    }
+
+    #[test]
+    fn test_get_via_snake_case() {
+        let conjunct_relations = setup();
+        let via_vec = vec!["cake_filling", "cake_filling"];
+        for (con_rel, via) in conjunct_relations.into_iter().zip(via_vec) {
+            assert_eq!(con_rel.get_via_snake_case(), via);
+        }
+    }
+
+    #[test]
+    fn test_get_to_snake_case() {
+        let conjunct_relations = setup();
+        let to_vec = vec!["cake", "filling"];
+        for (con_rel, to) in conjunct_relations.into_iter().zip(to_vec) {
+            assert_eq!(con_rel.get_to_snake_case(), to);
+        }
+    }
+
+    #[test]
+    fn test_get_to_upper_camel_case() {
+        let conjunct_relations = setup();
+        let to_vec = vec!["Cake", "Filling"];
+        for (con_rel, to) in conjunct_relations.into_iter().zip(to_vec) {
+            assert_eq!(con_rel.get_to_upper_camel_case(), to);
+        }
+    }
+}

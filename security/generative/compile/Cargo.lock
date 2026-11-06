@@ -600,6 +600,7 @@ dependencies = [
  "rust_decimal",
  "syn 3.0.6",
  "tracing",
+ "unicode-ident",
 ]
 
 [[package]]

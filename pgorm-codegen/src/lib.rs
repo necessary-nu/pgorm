@@ -10,7 +10,10 @@ mod util;
 
 pub use entity::*;
 pub use error::*;
-pub use sql_schema::{entities_from_sql, parse_schema};
+// [spec:pgorm:req:codegen.features]
+#[cfg(feature = "rust")]
+pub use sql_schema::entities_from_sql;
+pub use sql_schema::parse_schema;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "rust"))]
 mod tests_cfg;

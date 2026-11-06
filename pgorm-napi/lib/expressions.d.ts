@@ -340,6 +340,13 @@ export declare function call(name: FunctionName, ...operands: Operand[]): Expr;
  * read as syntax.
  */
 export declare function func(name: string, ...operands: Operand[]): Expr;
+// [spec:pgorm:req:bindings.current-keywords]
+/** `CURRENT_DATE`, the date the transaction started. */
+export declare function currentDate(): Expr;
+/** `CURRENT_TIME`, the time of day the transaction started. */
+export declare function currentTime(): Expr;
+/** `CURRENT_TIMESTAMP`, the instant the transaction started. */
+export declare function currentTimestamp(): Expr;
 // [spec:pgorm:req:bindings.template]
 /**
  * A piece of SQL the builders have no method for, written as a tagged

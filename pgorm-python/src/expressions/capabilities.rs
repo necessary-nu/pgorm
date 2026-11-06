@@ -18,6 +18,9 @@ pub(crate) fn operations() -> Map<String, Value> {
         ("expr.has_any_json_keys", "pgorm_query::Expr::has_any_json_keys"),
         ("expr.has_all_json_keys", "pgorm_query::Expr::has_all_json_keys"),
         ("domain_value", "pgorm_query::Expr::domain_value"),
+        ("current_date", "pgorm_query::Expr::current_date"),
+        ("current_time", "pgorm_query::Expr::current_time"),
+        ("current_timestamp", "pgorm_query::Expr::current_timestamp"),
         ("expr.eq", "pgorm_query::SimpleExpr::binary(BinOper::Equal)"),
         (
             "expr.ne",

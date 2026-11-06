@@ -22,6 +22,7 @@ pub(super) const EXPORTS: &[(&str, super::Build)] = &[
     ("exprLiteral", literal),
     ("exprCall", call),
     ("exprFunc", func),
+    ("exprCurrent", current),
     ("exprTemplate", template),
     ("exprJson", json),
     ("exprTuple", tuple),
@@ -178,6 +179,20 @@ fn func(cx: &mut FunctionContext) -> NeonResult<Node> {
     let name = name_at(cx, 0)?;
     let args = operands_at(cx, 1)?;
     Ok(Node::Expr(Func::named(name).args(args).into()))
+}
+
+/// `exprCurrent(keyword)`: `CURRENT_DATE`, `CURRENT_TIME` or
+/// `CURRENT_TIMESTAMP`, by `"date"`, `"time"` or `"timestamp"`.
+// [spec:pgorm:req:bindings.current-keywords]
+fn current(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let keyword = cx.argument::<JsString>(0)?.value(cx);
+    let expr = match keyword.as_str() {
+        "date" => Expr::current_date(),
+        "time" => Expr::current_time(),
+        "timestamp" => Expr::current_timestamp(),
+        _ => return cx.throw_type_error("a current keyword is date, time or timestamp"),
+    };
+    Ok(Node::Expr(expr.into()))
 }
 
 /// `exprTemplate(strings, values)`: a tagged template's pieces, its SQL,
