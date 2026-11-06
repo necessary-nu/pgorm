@@ -111,10 +111,17 @@ test("a pool sends nothing until used, and refuses an unusable option at constru
       { connectTimeout: "1s" },
       { recycle: "never" },
       { statementCacheChannel: 7 },
+      { maxsize: 2 },
+      { signal: AbortSignal.timeout(1000) },
     ]
   ) {
     assert.throws(() => new Pool(dsn(), options as never), TypeError, JSON.stringify(options));
   }
+  await assert.rejects(pool().query("SELECT 1", [], { sginal: undefined } as never), /"sginal" is no option here/);
+  await assert.rejects(pool().transaction(async () => {}, { isolationLevel: "serializable" } as never), TypeError);
+  await pool().transaction(async (tx) => {
+    await assert.rejects(tx.transaction(async () => {}, { mode: "readOnly" } as never), TypeError);
+  });
   assert.throws(() => new Pool("postgres://["), ConstructionError);
 });
 
@@ -248,7 +255,7 @@ test("a pool listening on statementCacheChannel clears when notified, and only t
 });
 
 // [spec:pgorm:req:bindings.connections+2/test]
-// [spec:pgorm:req:bindings.errors+5/test]
+// [spec:pgorm:req:bindings.errors+6/test]
 test("acquiring waits for a free connection within acquireTimeout, then fails with a TimeoutError", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 200 });
   await using held = await single.acquire();
@@ -388,7 +395,7 @@ test("every row terminal can give its columns tagged", async () => {
   assert.equal(all?.n?.isNull, true);
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+1/test]
 test("a callback transaction commits when it resolves and rolls back when it throws", async () => {
   await reset();
   const result = await pool().transaction(async (tx) => {
@@ -410,7 +417,7 @@ test("a callback transaction commits when it resolves and rolls back when it thr
   assert.deepEqual(await ids(), [1]);
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+1/test]
 test("a transaction holds its connection until its callback settles, and is closed after", async () => {
   await reset();
   await using connection = await pool().acquire();
@@ -449,7 +456,7 @@ test("a transaction opens only around a callback, which alone ends it", async ()
   });
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+1/test]
 test("a savepoint rolls back alone inside a transaction that commits", async () => {
   await reset();
   await pool().transaction(async (tx) => {
@@ -466,6 +473,40 @@ test("a savepoint rolls back alone inside a transaction that commits", async () 
     });
   });
   assert.deepEqual(await ids(), [1, 4]);
+});
+
+// [spec:pgorm:req:bindings.transactions+1/test]
+test("a callback that catches a failed statement's error cannot commit, and its connection is kept", async () => {
+  await reset();
+  const aborted =
+    "the transaction was rolled back, not committed: a statement that failed inside it had aborted it";
+  await using connection = await pool().acquire();
+  await assert.rejects(
+    connection.transaction(async (tx) => {
+      await tx.execute("INSERT INTO items VALUES (1, 'lost')");
+      await assert.rejects(tx.execute("INSERT INTO items VALUES (1, 'again')"), DatabaseError);
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof DatabaseError, `${error}`);
+      assert.equal(error.sqlstate, "25P02");
+      assert.equal(error.message, aborted);
+      return true;
+    },
+  );
+  assert.equal(connection.closed, false);
+  assert.deepEqual(await connection.query("SELECT id FROM items"), []);
+  await connection.transaction(async (tx) => {
+    await tx.execute("INSERT INTO items VALUES (2, 'kept')");
+    await assert.rejects(
+      tx.transaction(async (savepoint) => {
+        await savepoint.execute("INSERT INTO items VALUES (3, 'lost')");
+        await assert.rejects(savepoint.execute("INSERT INTO items VALUES (2, 'again')"), DatabaseError);
+      }),
+      (error: unknown) => error instanceof DatabaseError && error.sqlstate === "25P02",
+    );
+    await tx.execute("INSERT INTO items VALUES (4, 'kept')");
+  });
+  assert.deepEqual(await ids(), [2, 4]);
 });
 
 // [spec:pgorm:req:napi.transactions+3/test]
@@ -495,7 +536,7 @@ test("a rollback the server cannot answer rejects with its failure and discards 
   assert.deepEqual(await ids(), []);
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+1/test]
 test("a transaction is refused while its savepoint is open, not raced", async () => {
   await reset();
   await using connection = await pool().acquire();
@@ -511,7 +552,7 @@ test("a transaction is refused while its savepoint is open, not raced", async ()
   assert.deepEqual(await ids(), [1, 2]);
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+1/test]
 test("a second statement on a transaction already running one is refused, not queued", async () => {
   await using connection = await pool().acquire();
   await connection.transaction(async (tx) => {
@@ -549,7 +590,7 @@ test("a callback that returns with its savepoint open fails, and nothing it wrot
   assert.deepEqual(await ids(), []);
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+1/test]
 test("a failed statement aborts the transaction, and a savepoint recovers from one", async () => {
   await reset();
   await pool().transaction(async (tx) => {
@@ -574,7 +615,7 @@ test("a failed statement aborts the transaction, and a savepoint recovers from o
   assert.deepEqual(await ids(), [1, 2]);
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+1/test]
 test("a transaction's mode and isolation level reach the server", async () => {
   const settings =
     "SELECT current_setting('transaction_isolation') AS isolation, current_setting('transaction_read_only') AS read_only, current_setting('transaction_deferrable') AS deferrable";

@@ -288,22 +288,22 @@ alone.
 ### Limits, pages and cursors
 
 `limit` and `offset` count the rows of the join, not the roots: a bakery with
-three cakes spends three rows of a limit. A limited graph's `allGrouped`
-could therefore end with only part of its last root's rows, and a count, a
-page or a cursor sets the rows itself.
-
-**Not available in JavaScript yet:** refusing those reads of a limited graph.
-Rust's compiler refuses `all_grouped`, `paginate`, `count` and a cursor on a
-graph that has a `limit`. JavaScript runs them: `allGrouped` reads the limited
-rows, `count` counts every row as if there were no limit, and a page or a
-cursor replaces the limit with its own.
+three cakes spends three rows of a limit. A limited graph therefore has no
+`allGrouped`, whose last entry could hold only part of its root's rows, and no
+`paginate`, `count` or `cursor`, which set the rows themselves. Rust's
+compiler refuses them, and so does TypeScript's: `limit` and `offset` return a
+graph whose third type parameter is `true`, which those methods do not take.
+Run anyway, each throws a `ConstructionError`:
 
 ```ts
 import assert from "node:assert/strict";
+import { ConstructionError } from "@necessary/pgorm";
 
-// Sunrise has three cakes, and the limit cut its list short.
-const cut = await Bakery.graph().joinMaybe(bakeryCakes).limit(2).allGrouped(pool);
-assert.deepEqual(cut.map(([bakery, cakes]) => [bakery.name, cakes.length]), [["Sunrise", 2]]);
+const limited = Bakery.graph().joinMaybe(bakeryCakes).limit(2);
+// @ts-expect-error a limited graph has no allGrouped
+await assert.rejects(limited.allGrouped(pool), ConstructionError);
+// @ts-expect-error nor a count, which would ignore the limit
+await assert.rejects(limited.count(pool), ConstructionError);
 ```
 
 To read the first `n` roots with all of their related rows, limit the roots

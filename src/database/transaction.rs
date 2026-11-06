@@ -4,6 +4,8 @@
 
 use std::future::Future;
 
+use pgorm_pool::CommitError;
+
 use crate::{DatabaseConnection, DatabaseTransaction, Error};
 
 /// The means the closure form is built on — opening a transaction on a parent
@@ -97,14 +99,17 @@ pub trait TransactionTrait: sealed::Open {
     /// rolling back when it returns `Err`.
     ///
     /// The rollback is awaited, so the transaction is over by the time this
-    /// returns. `Ok` is returned only once `COMMIT` succeeded; a failing
-    /// `BEGIN` or `COMMIT` is [`TransactionError::Connection`], the
+    /// returns. `Ok` is returned only once `COMMIT` succeeded and committed;
+    /// a failing `BEGIN` or `COMMIT` is [`TransactionError::Connection`], a
+    /// transaction a statement failing inside it had aborted among them,
+    /// though the closure caught that statement's error
+    /// ([`Error::TransactionAborted`]), the
     /// closure's own error is [`TransactionError::Transaction`], and the
     /// closure's error followed by a failed `ROLLBACK` is
     /// [`TransactionError::RollbackFailed`]. Dropping the
     /// returned future before it finishes rolls the transaction back without
     /// awaiting the server.
-    // [spec:pgorm:sem:conn.tx.closure+5]    one body for every implementor
+    // [spec:pgorm:sem:conn.tx.closure+6]    one body for every implementor
     #[doc(alias = "begin")]
     fn transaction<T, E, F>(&mut self, f: F) -> impl Future<Output = Result<T, TransactionError<E>>>
     where
@@ -120,7 +125,7 @@ pub trait TransactionTrait: sealed::Open {
     }
 }
 
-// [spec:pgorm:sem:conn.tx.closure+5]    commit on Ok, awaited rollback on Err
+// [spec:pgorm:sem:conn.tx.closure+6]    commit on Ok, awaited rollback on Err
 pub(crate) async fn drive<H, T, E, F>(mut txn: H, f: F) -> Result<T, TransactionError<E>>
 where
     H: sealed::Close,
@@ -138,7 +143,7 @@ where
 
 /// Roll back a transaction whose closure failed with `cause`, and say how it
 /// ended.
-// [spec:pgorm:sem:conn.tx.closure+5]    a failed ROLLBACK travels beside the closure's error
+// [spec:pgorm:sem:conn.tx.closure+6]    a failed ROLLBACK travels beside the closure's error
 pub(crate) async fn rolled_back<E>(txn: impl sealed::Close, cause: E) -> TransactionError<E> {
     match txn.rollback(sealed::TOKEN).await {
         Ok(()) => TransactionError::Transaction(cause),
@@ -155,11 +160,15 @@ pub(crate) async fn rolled_back<E>(txn: impl sealed::Close, cause: E) -> Transac
 /// other direction exists: a `TransactionError<E>` whose `E` is an [`Error`],
 /// or converts into one, converts into an `Error`, so `?` passes a savepoint's
 /// failure to the closure around it.
-// [spec:pgorm:sem:conn.tx.closure+5]    error wrapper
+// [spec:pgorm:sem:conn.tx.closure+6]    error wrapper
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum TransactionError<E> {
     /// `BEGIN`, `COMMIT`, or acquiring the transaction failed.
+    ///
+    /// [`Error::TransactionAborted`] is the `COMMIT` of a transaction that a
+    /// failed statement had aborted, its error caught by the closure: rolled
+    /// back, nothing in it committed, its connection in a known state.
     Connection(Error),
     /// The closure returned an error; the transaction was rolled back.
     Transaction(E),
@@ -258,10 +267,24 @@ impl sealed::Open for DatabaseTransaction<'_> {
     }
 }
 
-// [spec:pgorm:sem:conn.tx.guard+3]    the awaited ends a closure's outcome selects
+// [spec:pgorm:sem:conn.tx.guard+4]    the awaited ends a closure's outcome selects
 impl sealed::Close for DatabaseTransaction<'_> {
+    // [spec:pgorm:sem:conn.tx.aborted]    a COMMIT or RELEASE an aborted transaction answers is an error
     async fn commit(mut self, _: sealed::Token) -> Result<(), Error> {
-        Ok(self.take().commit().await?)
+        self.take().commit().await.map_err(|error| match error {
+            CommitError::Aborted {
+                refusal,
+                rollback: None,
+            } => Error::TransactionAborted(refusal),
+            CommitError::Aborted {
+                refusal,
+                rollback: Some(rollback),
+            } => Error::RollbackFailed {
+                cause: Box::new(Error::TransactionAborted(refusal)),
+                rollback: Box::new(Error::Postgres(rollback)),
+            },
+            CommitError::Failed(error) => Error::Postgres(error),
+        })
     }
 
     async fn rollback(mut self, _: sealed::Token) -> Result<(), Error> {

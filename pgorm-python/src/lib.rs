@@ -21,6 +21,7 @@ mod listen;
 mod metrics;
 mod models;
 mod one_of;
+mod panics;
 pub mod pipeline;
 pub mod results;
 mod runtime;
@@ -68,6 +69,7 @@ pub fn install(module: &Bound<'_, PyModule>, registry: entities::Registry) -> Py
     module.add_function(wrap_pyfunction!(capabilities::capabilities, module)?)?;
     module.add_function(wrap_pyfunction!(capabilities::require_capability, module)?)?;
     errors::register(module)?;
+    panics::register(module)?;
     runtime::register(module)?;
     values::register(module)?;
     expressions::register(module)?;

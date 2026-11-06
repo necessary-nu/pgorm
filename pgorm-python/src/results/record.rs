@@ -21,7 +21,7 @@ pub struct PyField {
 }
 
 // [spec:pgorm:req:bindings.rows]
-// [spec:pgorm:req:python.records]
+// [spec:pgorm:req:python.records+1]
 /// A detached row whose unique output names index exact, tagged Rust values.
 #[derive(Clone, Debug)]
 #[pyclass(name = "Record", module = "pgorm", frozen, from_py_object)]

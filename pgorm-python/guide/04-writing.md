@@ -517,16 +517,16 @@ names SQL columns, not a model's fields;
 
 The bakery's customers are unique by email. A sign-up from an address already
 known updates the name instead of failing. `returning_upsert(db)` says which
-happened: an `Inserted` holding the new row as its `model`, or an `Updated`
-holding the row before and after as its `change`. It answers `None` when the
-conflict clause wrote nothing.
+happened, as a `pgorm.Upserted`: an `Upserted.Inserted` holding the new row
+as its `model`, or an `Upserted.Updated` holding the row before and after as
+its `change`, a `pgorm.Change`. It answers `None` when the conflict clause
+wrote nothing.
 
 ```python
 import asyncio
 import os
 
-from pgorm import Conflict, ModelInsert, Pool
-from pgorm._registered.entities import Inserted, Updated
+from pgorm import Conflict, ModelInsert, Pool, Upserted
 
 from bakery import Customer
 
@@ -540,14 +540,14 @@ def sign_up(name: str, email: str) -> ModelInsert:
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
         match await sign_up("Kimberly", "kim@example.com").returning_upsert(pool):
-            case Updated(change):
+            case Upserted.Updated(change):
                 assert (change.old["name"], change.new["name"]) == ("Kim", "Kimberly")
             case other:
                 raise AssertionError(f"Kim signed up before: {other!r}")
 
         match await sign_up("Mo", "mo@example.com").returning_upsert(pool):
             # Kim's upsert drew id 3 before it conflicted, so Mo gets 4.
-            case Inserted(mo):
+            case Upserted.Inserted(mo):
                 assert mo["id"] == 4
             case other:
                 raise AssertionError(f"Mo is new: {other!r}")
@@ -556,15 +556,14 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Here Python differs from Rust in where the three classes live. `Inserted`,
-`Updated` and `Change` are not exported from `pgorm` itself yet; import them
-from `pgorm._registered.entities`, where the generated typed views take
-them from. They are generic over the record, so `Updated[ModelRecord]`
-annotates a declared model's answer. A registered entity reached through
-`pgorm.entity(name)` answers `returning_upsert` with
-`pgorm.Upserted.Inserted` or `pgorm.Upserted.Updated`, whose `into_model()`
-is the row as the statement left it either way; a generated typed view
-answers with the generic classes, holding its typed models.
+Rust's `Upserted` and `Change` are generic over the model they hold, and so
+are Python's for the type checker: a declared model answers
+`Upserted.Inserted[ModelRecord]` or `Upserted.Updated[ModelRecord]`, a
+registered entity reached through `pgorm.entity(name)` the same holding
+`EntityModel`s, and a generated typed view the same holding its typed models.
+They are one `Upserted` and one `Change` all the same, so `pgorm.Change`
+annotates any change and `isinstance(row, pgorm.Upserted)` holds for every
+upsert. `into_model()` is the row as the statement left it either way.
 
 An insert draws its generated key before it finds the conflict, so a
 conflicting row uses up a number of the sequence, as Kim's did.

@@ -319,7 +319,7 @@ compile time, if you want a typo in hand-written SQL to fail the build.
 | `db.transaction::<_, _, E>(\|txn\| Box::pin(async move { .. }))` | `conn.transaction(async \|txn\| { .. })` |
 | `begin_with_config(isolation, access_mode)` | `transaction_with(TransactionMode::.., async \|txn\| { .. })` |
 | `transaction_with_config` | `transaction_with` |
-| `TransactionError<E>` | the same name and variants, and `RollbackFailed { cause, rollback }` for a `ROLLBACK` that failed after the closure's error; it converts into `Error` for `?` (where `E` does), a failed rollback becoming `Error::RollbackFailed`, so a savepoint's failure passes to the closure around it |
+| `TransactionError<E>` | the same name and variants, and `RollbackFailed { cause, rollback }` for a `ROLLBACK` that failed after the closure's error; it converts into `Error` for `?` (where `E` does), a failed rollback becoming `Error::RollbackFailed`, so a savepoint's failure passes to the closure around it. A closure that returns `Ok` after catching a failed statement's error, which SeaORM reports as committed though PostgreSQL rolled it back, is `Connection(Error::TransactionAborted)` |
 
 A transaction exists only inside a closure. There is no `begin` returning a
 handle, and no `commit` or `rollback` to call: what the closure returns ends

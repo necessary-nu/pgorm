@@ -2,26 +2,17 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { copyFrom, copyTo, type Decimal } from "@necessary/pgorm";
-import { Cake, flavor } from "../../../guide/bakery.ts";
+import { ConstructionError, copyTo, select, Table } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const sunrise = copyTo(
-    Cake.select("name", "flavor", "price", "glutenFree").where(Cake.col("bakeryId").eq(1)).statement,
-    "binary",
-  );
-  const out = await pool.copyOutRows(sunrise);
-  assert.deepEqual(out.columns, ["name", "flavor", "price", "gluten_free"]);
+  const cake = new Table("cake");
+  const sunrise = select(cake.col("name")).from(cake).where(cake.col("bakery_id").eq(1));
+  assert.throws(() => copyTo(sunrise.limitWithTies(1), "csv"), ConstructionError);
 
-  const into = copyFrom("cake", "binary").columns(["name", "flavor", "price", "gluten_free", "bakery_id"]);
-  async function* atMoonlight() {
-    for await (const [name, flavor, price, glutenFree] of out) {
-      yield [name as string, flavor as string, price as Decimal, glutenFree as boolean, 2];
-    }
-  }
-  // The binary COPY TO reads on a connection of its own, while the COPY FROM writes on another.
-  assert.equal(await pool.copyInRows(into, atMoonlight()), 3);
-
-  assert.equal(await Cake.find().where(Cake.col("bakeryId").eq(2)).count(pool), 5);
+  const cheapest = copyTo(sunrise.orderBy(cake.col("price").asc()).limitWithTies(1), "csv");
+  const decoder = new TextDecoder();
+  let csv = "";
+  for await (const chunk of await pool.copyOut(cheapest)) csv += decoder.decode(chunk, { stream: true });
+  assert.equal(csv, "Lemon Drizzle\n");
 }

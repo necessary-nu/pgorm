@@ -1,9 +1,9 @@
 use std::{fmt, pin::Pin, sync::Arc};
 
+use crate::panics::future_into_py;
 use futures_util::TryStreamExt;
 use pgorm::{ConnectionTrait, ValueHolder};
 use pyo3::prelude::*;
-use pyo3_async_runtimes::tokio::future_into_py;
 use tokio::sync::Mutex;
 use tokio_postgres::{RowStream, types::ToSql};
 use tokio_util::sync::CancellationToken;

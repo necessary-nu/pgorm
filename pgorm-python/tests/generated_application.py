@@ -11,7 +11,6 @@ from unittest.mock import patch
 import pgorm as p
 from pgorm import app, pipeline as pl, schema as s
 from pgorm._registered.compat import check
-from pgorm._registered.entities import Change, Inserted, Updated
 import registered_entities as fixture
 
 
@@ -73,12 +72,12 @@ class GeneratedApplication(unittest.IsolatedAsyncioTestCase):
         renamed = p.Conflict.on("id").update("display name")
         async with self.pool.connection() as connection:
             first = await app.Account.insert(active(1, "One")).returning_upsert(connection)
-            self.assertIsInstance(first, Inserted)
+            self.assertIsInstance(first, p.Upserted.Inserted)
             self.assertIsInstance(first.model, app.AccountModel)
             change = await app.Account.update(
                 first.model.into_active().set_note("noted")
             ).returning_change(connection)
-            self.assertIsInstance(change, Change)
+            self.assertIsInstance(change, p.Change)
             self.assertIsInstance(change.new, app.AccountModel)
             self.assertEqual((change.old.note, change.new.note), (None, "noted"))
             changes = await (
@@ -94,7 +93,7 @@ class GeneratedApplication(unittest.IsolatedAsyncioTestCase):
                 .returning_upserts(connection)
             )
             match rows:
-                case [Updated(change), Inserted(model)]:
+                case [p.Upserted.Updated(change), p.Upserted.Inserted(model)]:
                     self.assertIsInstance(change.old, app.AccountModel)
                     self.assertEqual((change.old.display_name, change.new.display_name), ("One", "Again"))
                     self.assertEqual(model.display_name, "Two")

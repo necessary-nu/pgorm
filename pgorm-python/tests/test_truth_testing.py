@@ -27,7 +27,6 @@ EXEMPT = {
     # after SQL ran. A record or a model is a mapping, false with no fields.
     p.Record, p.Field, p.EntityModel, p.ActiveModel, p.ActiveValue, p.ActiveState,
     p.Change, p.Upserted, ModelRecord, PoolStatus, views.ModelView, views.ActiveView,
-    version_views.Change, version_views.Inserted, version_views.Updated,
     # Pools, connections, transactions and the private native handles under
     # them and under the streams: live resources, not SQL, and true as any
     # open resource is. The streams themselves refuse, since a stream's truth

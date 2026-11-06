@@ -1,5 +1,5 @@
+use crate::panics::future_into_py;
 use pyo3::{IntoPyObjectExt, prelude::*, types::PyList};
-use pyo3_async_runtimes::tokio::future_into_py;
 
 use super::{
     PyEntityModel,

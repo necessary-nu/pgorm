@@ -2,16 +2,26 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { copyFrom, copyTo } from "@necessary/pgorm";
-import { Bakery } from "../../../guide/bakery.ts";
+import { copyFrom, copyTo, type Decimal } from "@necessary/pgorm";
+import { Cake, flavor } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const chunks: Uint8Array[] = [];
-  for await (const chunk of await pool.copyOut(copyTo(Bakery.select("name", "city").statement, "binary"))) {
-    chunks.push(chunk);
+  const sunrise = copyTo(
+    Cake.select("name", "flavor", "price", "glutenFree").where(Cake.col("bakeryId").eq(1)).statement,
+    "binary",
+  );
+  const out = await pool.copyOutRows(sunrise);
+  assert.deepEqual(out.columns, ["name", "flavor", "price", "gluten_free"]);
+
+  const into = copyFrom("cake", "binary").columns(["name", "flavor", "price", "gluten_free", "bakery_id"]);
+  async function* atMoonlight() {
+    for await (const [name, flavor, price, glutenFree] of out) {
+      yield [name as string, flavor as string, price as Decimal, glutenFree as boolean, 2];
+    }
   }
-  const written = await pool.copyIn(copyFrom("bakery", "binary").columns(["name", "city"]), chunks);
-  assert.equal(written, 2);
-  assert.equal(await Bakery.find().count(pool), 4);
+  // The binary COPY TO reads on a connection of its own, while the COPY FROM writes on another.
+  assert.equal(await pool.copyInRows(into, atMoonlight()), 3);
+
+  assert.equal(await Cake.find().where(Cake.col("bakeryId").eq(2)).count(pool), 5);
 }
