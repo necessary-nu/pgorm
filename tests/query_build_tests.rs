@@ -11,9 +11,9 @@
 
 use pgorm::alias;
 use pgorm::pgorm_query::{
-    Asterisk, ConditionType, DeleteStatement, Expr, Func, GroupingElement, InsertStatement,
-    IntoCondition, IntoName, LockBehavior, LockType, Name, NullOrdering, OnConflict, QueryBuilder,
-    SelectStatement, SimpleExpr, UpdateStatement, Value, Values,
+    Asterisk, ConditionType, DeleteStatement, Expr, ExprTrait, Func, GroupingElement,
+    InsertStatement, IntoCondition, IntoName, LockBehavior, LockType, Name, NullOrdering,
+    OnConflict, QueryBuilder, SelectStatement, SimpleExpr, UpdateStatement, Value, Values,
 };
 use pgorm::set;
 use pgorm::tests_cfg::{
@@ -114,7 +114,7 @@ fn every_builder_wraps_one_statement() {
     );
 }
 
-// [spec:pgorm:sem:query.build.select-defaults/test]    the select list is every
+// [spec:pgorm:sem:query.build.select-defaults+1/test]    the select list is every
 // column in `Column::iter()` order through `select_as`, the FROM is the
 // entity's table ref, and nothing else is applied
 #[test]
@@ -157,7 +157,7 @@ fn select_new_has_only_columns_and_from() {
     }
 }
 
-// [spec:pgorm:def:query.build.query-trait/test]    `query`, `as_query`,
+// [spec:pgorm:def:query.build.query-trait+2/test]    `query`, `as_query`,
 // `into_query` and `build` — the last rendering PostgreSQL text with `$n`
 // placeholders and a parallel `Values`, taking no backend argument
 #[test]
@@ -192,7 +192,7 @@ fn query_trait_exposes_the_statement_four_ways() {
     );
 }
 
-// [spec:pgorm:def:query.build.query-trait/test]    `apply_if` runs the closure
+// [spec:pgorm:def:query.build.query-trait+2/test]    `apply_if` runs the closure
 // only for `Some`, leaving the fluent chain unbroken for `None`
 #[test]
 fn apply_if_runs_only_on_some() {
@@ -208,7 +208,7 @@ fn apply_if_runs_only_on_some() {
     );
 }
 
-// [spec:pgorm:def:query.build.query-trait/test]    `IntoSimpleExpr` accepts a
+// [spec:pgorm:def:query.build.query-trait+2/test]    `IntoSimpleExpr` accepts a
 // `ColumnTrait` (yielding a table-qualified column reference), an `Expr` and a
 // `SimpleExpr` (identity)
 #[test]
@@ -236,6 +236,52 @@ fn into_simple_expr_accepts_three_shapes() {
             .as_query()
             .to_string(),
         r#"SELECT "cake"."id", "cake"."name" FROM "cake" GROUP BY COUNT("cake"."id")"#
+    );
+}
+
+// [spec:pgorm:def:query.build.query-trait+2/test]    a function call, a cast
+// and an aggregate are expressions in their own right: each stands in
+// `column_as`, `group_by`, `order_by` and `select` with no `Expr::expr`, and
+// compares in `having` and `filter`
+// [spec:pgorm:req:sql.ast.expr.operators+6/test]
+// [spec:pgorm:sem:query.build.modifiers+11/test]
+#[test]
+fn function_calls_and_aggregates_are_expressions() {
+    let shout = Func::upper(Expr::col((cake::Entity, cake::Column::Name)));
+    let query = cake::Entity::find()
+        .select_only()
+        .column_as(shout.clone(), alias("shout"))
+        .group_by(shout.clone())
+        .having(cake::Column::Id.count().gt(2))
+        .filter(Func::lower(Expr::col((cake::Entity, cake::Column::Name))).ne("plain"))
+        .filter(
+            Expr::col((cake::Entity, cake::Column::Id))
+                .cast_as(Name::runtime("text"))
+                .like("1%"),
+        )
+        .order_by_desc(shout);
+    assert_eq!(
+        query.build().0,
+        [
+            r#"SELECT UPPER("cake"."name") AS "shout" FROM "cake""#,
+            r#"WHERE LOWER("cake"."name") <> $1 AND CAST("cake"."id" AS text) LIKE $2"#,
+            r#"GROUP BY UPPER("cake"."name") HAVING COUNT("cake"."id") > $3"#,
+            r#"ORDER BY UPPER("cake"."name") DESC"#,
+        ]
+        .join(" ")
+    );
+
+    // A call that answers a boolean is a condition as it stands.
+    assert_eq!(
+        cake::Entity::find()
+            .select((
+                cake::Column::Id,
+                Func::char_length(Expr::col(cake::Column::Name))
+            ))
+            .filter(Func::starts_with(Expr::col(cake::Column::Name), "Ch"))
+            .build()
+            .0,
+        r#"SELECT "cake"."id", CHAR_LENGTH("name") FROM "cake" WHERE STARTS_WITH("name", $1)"#
     );
 }
 
@@ -437,7 +483,7 @@ fn belongs_to_filters_every_primary_key_column() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+10/test]    `select_only` clears the list;
+// [spec:pgorm:sem:query.build.modifiers+11/test]    `select_only` clears the list;
 // `column`/`columns` re-add through `select_as`; `column_as`, `expr_as`,
 // `tbl_col_as`, `expr` and `exprs` append explicit expressions
 #[test]
@@ -489,7 +535,7 @@ fn select_list_modifiers_rewrite_the_list() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+10/test]    `select` clears the list and
+// [spec:pgorm:sem:query.build.modifiers+11/test]    `select` clears the list and
 // projects in one call, rendering exactly what `select_only` plus `columns`
 // does, and casting an enum column the same way
 #[test]
@@ -534,7 +580,7 @@ fn select_clears_and_projects_in_one_call() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+10/test]    a tuple is the mixed list: two
+// [spec:pgorm:sem:query.build.modifiers+11/test]    a tuple is the mixed list: two
 // entities' columns, a raw expression and an alias token have no common array
 // element type
 #[test]
@@ -581,7 +627,7 @@ fn select_tuple_mixes_columns_and_expressions() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+10/test]    rendering a cleared select
+// [spec:pgorm:sem:query.build.modifiers+11/test]    rendering a cleared select
 // list still emits the text as written — `to_string` and `build` have no
 // `Result` channel, so the empty projection is refused at execution instead
 // (see `empty_select_tests.rs`)
@@ -593,7 +639,7 @@ fn cleared_select_list_renders_verbatim() {
     assert_eq!(query.build().0, r#"SELECT  FROM "cake""#);
 }
 
-// [spec:pgorm:sem:query.build.modifiers+10/test]    `limit`/`offset` take
+// [spec:pgorm:sem:query.build.modifiers+11/test]    `limit`/`offset` take
 // `Into<Option<u64>>`: the last `Some` wins and `None` removes the clause
 #[test]
 fn limit_and_offset_last_call_wins() {
@@ -629,7 +675,7 @@ fn limit_and_offset_last_call_wins() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+10/test]    `group_by` adds GROUP BY,
+// [spec:pgorm:sem:query.build.modifiers+11/test]    `group_by` adds GROUP BY,
 // `having` accumulates AND-ed conditions, `distinct` / `distinct_on` and the
 // four locking helpers each add their clause
 #[test]
@@ -674,7 +720,7 @@ fn grouping_distinct_and_locking_clauses() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+10/test]    `group_by_element` passes a grouping
+// [spec:pgorm:sem:query.build.modifiers+11/test]    `group_by_element` passes a grouping
 // element through to the same GROUP BY list `group_by` fills
 #[test]
 fn group_by_element_joins_the_group_by_list() {
@@ -696,7 +742,7 @@ fn group_by_element_joins_the_group_by_list() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+10/test]    ORDER BY expressions append in
+// [spec:pgorm:sem:query.build.modifiers+11/test]    ORDER BY expressions append in
 // call order and are never deduplicated
 #[test]
 fn order_by_appends_and_never_dedups() {
@@ -936,7 +982,7 @@ fn relation_named_joins_match_the_long_spelling() {
     );
 }
 
-// [spec:pgorm:sem:query.build.insert+5/test]    `Insert::new` renders a valid
+// [spec:pgorm:sem:query.build.insert+6/test]    `Insert::new` renders a valid
 // DEFAULT VALUES statement before any model is added, and `one`/`many` /
 // `add`/`add_many` take anything `IntoActiveModel`
 #[test]
@@ -978,7 +1024,7 @@ fn insert_new_is_a_default_values_statement() {
     );
 }
 
-// [spec:pgorm:sem:query.build.insert+5/test]    `add` writes `Set` and
+// [spec:pgorm:sem:query.build.insert+6/test]    `add` writes `Set` and
 // `Unchanged` columns through `col.save_as` and omits `NotSet` ones entirely
 #[test]
 fn insert_add_omits_not_set_columns() {
@@ -1015,7 +1061,7 @@ fn insert_add_omits_not_set_columns() {
     );
 }
 
-// [spec:pgorm:sem:query.build.insert+5/test]    `on_conflict` attaches the given
+// [spec:pgorm:sem:query.build.insert+6/test]    `on_conflict` attaches the given
 // pgorm-query clause verbatim
 #[test]
 fn insert_on_conflict_is_attached_verbatim() {
@@ -1086,7 +1132,7 @@ fn insert_many_rejects_mismatched_columns() {
     );
 }
 
-// [spec:pgorm:sem:query.build.insert+5/test]    a model with nothing set
+// [spec:pgorm:sem:query.build.insert+6/test]    a model with nothing set
 // contributes a default-values row rather than an arity-zero column and value
 // list, and one such row per model
 #[test]
@@ -1176,7 +1222,7 @@ fn try_insert_conversions_and_conflict_clause() {
     );
 }
 
-// [spec:pgorm:sem:query.build.update+4/test]    `Update::one` filters on every
+// [spec:pgorm:sem:query.build.update+5/test]    `Update::one` filters on every
 // primary-key column and SETs only `Set`, non-key columns
 #[test]
 fn update_one_sets_changed_non_key_columns() {
@@ -1225,7 +1271,7 @@ fn update_one_sets_changed_non_key_columns() {
     );
 }
 
-// [spec:pgorm:sem:query.build.update+4/test]    a `NotSet` primary key has no
+// [spec:pgorm:sem:query.build.update+5/test]    a `NotSet` primary key has no
 // filter to contribute, so `Update::one` refuses to build the statement
 #[test]
 fn update_one_errs_on_unset_primary_key() {
@@ -1254,7 +1300,7 @@ fn update_one_errs_on_unset_primary_key() {
     assert_eq!(err, Error::PrimaryKeyNotSet);
 }
 
-// [spec:pgorm:sem:query.build.update+4/test]    `Update::many` adds no implicit
+// [spec:pgorm:sem:query.build.update+5/test]    `Update::many` adds no implicit
 // filter; `set` writes `Set` columns including primary keys, `col_expr` writes
 // a raw expression, and `QueryFilter` supplies the WHERE clause
 #[test]
@@ -1292,7 +1338,7 @@ fn update_many_has_no_implicit_filter() {
     );
 }
 
-// [spec:pgorm:sem:query.build.delete+3/test]    `Delete::one` filters on the
+// [spec:pgorm:sem:query.build.delete+4/test]    `Delete::one` filters on the
 // primary key only — non-key attributes never reach the WHERE clause
 #[test]
 fn delete_one_filters_by_primary_key_only() {
@@ -1334,7 +1380,7 @@ fn delete_one_filters_by_primary_key_only() {
     );
 }
 
-// [spec:pgorm:sem:query.build.delete+3/test]    a `NotSet` primary key has no
+// [spec:pgorm:sem:query.build.delete+4/test]    a `NotSet` primary key has no
 // filter to contribute, so `Delete::one` refuses to build the statement
 #[test]
 fn delete_one_errs_on_unset_primary_key() {
@@ -1362,7 +1408,7 @@ fn delete_one_errs_on_unset_primary_key() {
     assert_eq!(err, Error::PrimaryKeyNotSet);
 }
 
-// [spec:pgorm:sem:query.build.delete+3/test]    `Delete::many` is bare; narrowing
+// [spec:pgorm:sem:query.build.delete+4/test]    `Delete::many` is bare; narrowing
 // it is the caller's job through `QueryFilter`
 #[test]
 fn delete_many_is_unconstrained_until_filtered() {
@@ -1456,5 +1502,46 @@ fn last_hop_alias_matches_the_emitted_join() {
             .split(" ORDER BY ")
             .nth(1),
         Some(r#""r2"."id" ASC"#)
+    );
+}
+
+// [spec:pgorm:def:exec.crud+2/test]    a decoded selector renders the statement
+// the `Select` it came from does, whichever decode target it reads into
+#[test]
+fn decoded_selectors_render_their_statement() {
+    let query = || {
+        cake::Entity::find()
+            .select_only()
+            .column(cake::Column::Name)
+            .filter(cake::Column::Id.gt(2))
+    };
+    let expected = query().build();
+    assert_eq!(query().into_tuple::<(String,)>().build(), expected);
+    assert_eq!(
+        query().into_values::<(String,), cake::Column>().build(),
+        expected
+    );
+    assert_eq!(
+        query().into_model::<cake::Model>().as_query().to_string(),
+        query().as_query().to_string()
+    );
+
+    #[derive(pgorm::PartialModel)]
+    #[pgorm(entity = cake::Entity)]
+    struct Shout {
+        #[pgorm(from_expr = Func::upper(Expr::col((cake::Entity, cake::Column::Name))))]
+        shout: String,
+    }
+
+    let partial = cake::Entity::find()
+        .filter(cake::Column::Id.gt(2))
+        .into_partial_model::<Shout>();
+    assert_eq!(
+        partial.build().0,
+        r#"SELECT UPPER("cake"."name") AS "shout" FROM "cake" WHERE "cake"."id" > $1"#
+    );
+    assert_eq!(
+        partial.into_query().to_string(),
+        r#"SELECT UPPER("cake"."name") AS "shout" FROM "cake" WHERE "cake"."id" > 2"#
     );
 }

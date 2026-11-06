@@ -20,7 +20,7 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:query.build.insert+5/test]    a batch to which no model was
+// [spec:pgorm:sem:query.build.insert+6/test]    a batch to which no model was
 // added writes nothing on any terminal, unlike an all-NotSet model, and its
 // returning terminals answer with no key and no model
 #[pgorm_macros::test]
@@ -53,7 +53,7 @@ async fn empty_batch_writes_no_row_anywhere() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:query.build.insert+5/test]    a batch of models that set no
+// [spec:pgorm:sem:query.build.insert+6/test]    a batch of models that set no
 // column inserts one default row per model rather than collapsing into one
 #[pgorm_macros::test]
 async fn all_not_set_models_insert_one_row_each() -> Result<(), Error> {

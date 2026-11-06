@@ -185,8 +185,7 @@ in a mode PostgreSQL acts on. `mode` is one of:
 `"serializable"`, and goes only with `"readWrite"` or `"readOnly"`. These are
 Rust's `TransactionMode` and `IsolationLevel`, spelled as strings. A
 savepoint takes neither, so a transaction's own `transaction` has no such
-options, as Rust's `transaction_with` is a method of `DatabaseConnection`
-alone.
+options, as Rust's `transaction_with` is a method of a connection alone.
 
 ```ts
 import assert from "node:assert/strict";
@@ -313,5 +312,6 @@ Two transactions on one connection cannot run at the same time: a second
 `transaction` on a connection is refused with a `LifecycleError` while the
 first holds it.
 
-Rust's [metrics](21-metrics.md) wrappers report every transaction to a
-collector; that chapter says what JavaScript has in their place.
+A transaction on an [instrumented pool](21-metrics.md), or on a connection
+it lent, reports its begin, its statements, its savepoints and its commit or
+rollback to the pool's collector, whatever its mode.

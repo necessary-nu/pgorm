@@ -16,12 +16,12 @@
 use std::sync::Arc;
 
 use neon::{prelude::*, types::Finalize};
-use pgorm::{DatabaseTransaction, RetryableError, TransactionError, TransactionMode};
+use pgorm::{RetryableError, TransactionError, TransactionMode};
 use tokio::sync::{Mutex, mpsc, oneshot};
 
 use super::{
     Abort, Attempted, ConnectionHandle, ConnectionState, Exit, Failure, Finished, Frame, Halt,
-    Operation, Root, State, TransactionHandle, abort_argument, failure, mode, settle,
+    Held, Operation, Root, State, TransactionHandle, Tx, abort_argument, failure, mode, settle,
 };
 
 pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
@@ -60,7 +60,7 @@ struct Attempts {
 impl Attempts {
     /// One call of pgorm's closure: answer the attempt before it, which pgorm
     /// has ended, with `true`, and serve this attempt's frame.
-    async fn serve(&mut self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Again> {
+    async fn serve(&mut self, tx: Tx<'_, '_>) -> Result<(), Again> {
         if let Some(previous) = self.last.take() {
             previous.state.released.cancel();
             if previous.reply.send(Ok(true)).is_err() {
@@ -151,10 +151,20 @@ fn begin(mut operation: Operation, mode: TransactionMode, retries: u32) -> Arc<R
                         return None;
                     }
                 };
-                halt.run(db.transaction_with_retry(mode, retries, async move |tx| {
-                    attempts.lock().await.serve(tx).await
-                }))
-                .await
+                match db {
+                    Held::Plain(db) => {
+                        halt.run(db.transaction_with_retry(mode, retries, async move |tx| {
+                            attempts.lock().await.serve(Tx::Plain(tx)).await
+                        }))
+                        .await
+                    }
+                    Held::Metered(db) => {
+                        halt.run(db.transaction_with_retry(mode, retries, async move |tx| {
+                            attempts.lock().await.serve(Tx::Metered(tx)).await
+                        }))
+                        .await
+                    }
+                }
             } => ended,
         };
         let last = shared.lock().await.last.take();

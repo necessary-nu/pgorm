@@ -5,7 +5,7 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 // [spec:pgorm:req:bindings.quantifiers+3]
 // [spec:pgorm:req:bindings.case]
 
@@ -203,6 +203,14 @@ export declare class Expr extends Builder {
 export declare class LikeExpr {
   #private;
   private constructor();
+  /** A pattern matching exactly `text`, its `%`, `_` and escape character escaped. */
+  static literal(text: string): LikeExpr;
+  /** `%text%` over literal text, escaped as `literal` escapes it. */
+  static containing(text: string): LikeExpr;
+  /** `text%` over literal text. */
+  static startingWith(text: string): LikeExpr;
+  /** `%text` over literal text. */
+  static endingWith(text: string): LikeExpr;
   /** Escape with `character`, `ESCAPE 'c'`, in place of the default backslash: one character, not NUL. */
   escape(character: string): LikeExpr;
   /** Turn escaping off, `ESCAPE ''`: a backslash in the pattern is then itself. */
@@ -312,9 +320,11 @@ export type FunctionName =
  *
  * `generate_series` (start, stop and an optional step) and `unnest` (one
  * array) are set-returning, read as a relation by `tableFunction`. Their
- * overloads are chosen by argument type and a parameter has none, so a bound
- * argument needs its type: `bind(1).cast("int4")`, or an array cast with
- * `{ array: true }`; a column or a typed expression already has one.
+ * overloads are chosen by argument type, so a bound argument carries its
+ * own, as pgorm-query writes it: `call("generate_series", bind(1), bind(3))`
+ * is `GENERATE_SERIES($1::int4, $2::int4)`, an integer that fits 32 bits
+ * typed as its literal would be, and `bind(1).cast("int8")` chooses another
+ * overload.
  *
  * `json_to_record`, `jsonb_to_record`, `json_to_recordset` and
  * `jsonb_to_recordset` (one document each) return `record`, read by

@@ -13,7 +13,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
 
   assert.equal(
     doubled.inspect().sql,
-    `UPDATE "cake" SET "price" = "price" * $1 WHERE "id" = $2 RETURNING old."price" AS "was", new."price" AS "now"`,
+    `UPDATE "cake" SET "price" = "price" * $1::int4 WHERE "id" = $2 RETURNING old."price" AS "was", new."price" AS "now"`,
   );
   const [row] = await pool.query(doubled);
   assert.deepEqual([String(row?.was), String(row?.now)], ["4.50", "9.00"]);

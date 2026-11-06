@@ -6,7 +6,7 @@ use pgorm::pgorm_query::{ColumnType, tests_cfg::Variants};
 
 use super::metadata::InputKind;
 
-// [spec:pgorm:req:bindings.entities+5/test]
+// [spec:pgorm:req:bindings.entities+6/test]
 #[test]
 fn only_types_without_a_kind_take_explicit_values() {
     let explicit: Vec<&str> = ColumnType::variants()

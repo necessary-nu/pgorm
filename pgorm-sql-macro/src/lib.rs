@@ -55,7 +55,7 @@ use syn::{LitStr, parse_macro_input};
 /// The check is syntax only. libpg_query carries no catalog, so a well-formed
 /// statement against tables and columns that do not exist passes happily — this
 /// rules out typos in SQL, not mistakes about the schema.
-// [spec:pgorm:def:macros.sql+5]
+// [spec:pgorm:def:macros.sql+6]
 // [spec:pgorm:req:macros.sql.reject]    non-literal input is `syn`'s own refusal
 #[proc_macro]
 pub fn sql(input: TokenStream) -> TokenStream {
@@ -139,7 +139,7 @@ pub fn prql(input: TokenStream) -> TokenStream {
 /// file stem and the text the file's with CRLF line endings read as LF, after
 /// holding that text to the grammar [`sql!`] uses. The path is resolved
 /// against `CARGO_MANIFEST_DIR`.
-// [spec:pgorm:def:macros.sql+5]    the hidden third macro
+// [spec:pgorm:def:macros.sql+6]    the hidden third macro
 // [spec:pgorm:def:migration.sql-file]
 #[doc(hidden)]
 #[proc_macro]

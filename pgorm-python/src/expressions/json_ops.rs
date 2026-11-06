@@ -1,7 +1,7 @@
 //! `Expr`'s `jsonb` accessors and key tests: `->`, `->>`, `#>`, `#>>`, `?`,
 //! `?|` and `?&`, through pgorm-query's methods of those meanings.
 
-use pgorm::pgorm_query::Expr;
+use pgorm::pgorm_query::ExprTrait;
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,
@@ -37,43 +37,51 @@ impl PyExpr {
     /// does, as `jsonb`. The key is bound unless it is an expression.
     fn get_json_field(&self, key: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self::from_rust(
-            Expr::expr(self.inner.clone()).get_json_field(coerce(key)?.inner),
+            self.inner.clone().get_json_field(coerce(key)?.inner),
         ))
     }
     /// `->>`: the field or element as `text`.
     fn cast_json_field(&self, key: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self::from_rust(
-            Expr::expr(self.inner.clone()).cast_json_field(coerce(key)?.inner),
+            self.inner.clone().cast_json_field(coerce(key)?.inner),
         ))
     }
     /// `#>`: the value at `path`, a list of keys bound as one `text[]`.
     fn get_json_path(&self, path: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self::from_rust(
-            Expr::expr(self.inner.clone()).get_json_path(texts(path, "a JSON path")?),
+            self.inner
+                .clone()
+                .get_json_path(texts(path, "a JSON path")?),
         ))
     }
     /// `#>>`: the value at `path` as `text`.
     fn cast_json_path(&self, path: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self::from_rust(
-            Expr::expr(self.inner.clone()).cast_json_path(texts(path, "a JSON path")?),
+            self.inner
+                .clone()
+                .cast_json_path(texts(path, "a JSON path")?),
         ))
     }
     /// `?`: whether `key` is a top-level key, or a string element.
     fn has_json_key(&self, key: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self::from_rust(
-            Expr::expr(self.inner.clone()).has_json_key(text(key, "a JSON key")?),
+            self.inner.clone().has_json_key(text(key, "a JSON key")?),
         ))
     }
     /// `?|`: whether any of `keys` is a top-level key or a string element.
     fn has_any_json_keys(&self, keys: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self::from_rust(
-            Expr::expr(self.inner.clone()).has_any_json_keys(texts(keys, "JSON keys")?),
+            self.inner
+                .clone()
+                .has_any_json_keys(texts(keys, "JSON keys")?),
         ))
     }
     /// `?&`: whether every one of `keys` is.
     fn has_all_json_keys(&self, keys: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self::from_rust(
-            Expr::expr(self.inner.clone()).has_all_json_keys(texts(keys, "JSON keys")?),
+            self.inner
+                .clone()
+                .has_all_json_keys(texts(keys, "JSON keys")?),
         ))
     }
 }

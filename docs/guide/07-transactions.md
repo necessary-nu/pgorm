@@ -335,8 +335,10 @@ the combinations PostgreSQL acts on:
 | `ReadOnly { isolation }` | `READ ONLY`, in which every write is refused |
 | `DeferrableSnapshot` | `SERIALIZABLE READ ONLY DEFERRABLE`: it may wait for a safe snapshot, and then no serialization failure can end it |
 
-`transaction_with` is a method of `DatabaseConnection` alone: a savepoint
-takes no isolation level or access mode.
+`transaction_with` is a method of a connection alone, `DatabaseConnection`
+and the metrics layer's
+[`InstrumentedConnection`](crate::metric::InstrumentedConnection): a
+savepoint takes no isolation level or access mode.
 
 ```rust
 # use pgorm_guide_support::cake;

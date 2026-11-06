@@ -624,6 +624,69 @@ closed, and a transaction by the block or callback it was opened for ending.
 > empty channel, one longer than 63 bytes — are its `DatabaseError`, SQLSTATE
 > `22023`.
 
+> [spec:pgorm:req:bindings.metrics]
+> `InstrumentedPool(pool, metrics)` MUST wrap `pool` in pgorm's
+> `InstrumentedPool` (`metric.layer`), reporting to `metrics`, a collector the
+> program writes: an object with the seven hooks of `metric.layer.collector`,
+> `record_query_success(query, duration, rows)`,
+> `record_query_error(query, duration, error)`,
+> `record_connection_acquired(duration)`,
+> `record_connection_error(duration, error)`,
+> `record_transaction_begin(duration)`, `record_transaction_commit(duration)`
+> and `record_transaction_rollback(duration)`. A collector lacking one, a pool
+> that is no `Pool` and a pool already instrumented are each a `TypeError`.
+> The instrumented pool is a `Pool` over the same connections: it shares the
+> wrapped pool's size, its status and its closing, so closing either closes
+> both, and dropping it closes neither. `inner` is the wrapped pool, whose work
+> is not reported, and `metrics` the collector.
+>
+> What runs through an instrumented pool — on it, on a connection it lends, or
+> in a transaction or savepoint on one; a model's, a registered entity's and a
+> pipeline's terminals, a stream, a COPY's start and a notification included —
+> MUST run on pgorm's `InstrumentedConnection` and `InstrumentedTransaction`, a
+> transaction in a mode through `InstrumentedConnection::transaction_with`, so
+> that what is timed and which hook hears it are `metric.layer.delegate`'s,
+> `metric.layer.copy`'s and `metric.layer.tx`'s and never the binding's own.
+> Each acquisition is reported by pgorm's `InstrumentedPool::get`; one the
+> pool's acquire timeout cuts short is reported to nobody, as in Rust a `get`
+> a caller's timeout drops is not. A listener is not reported
+> (`bindings.listen`). A pool that is not instrumented runs on pgorm's plain
+> types and calls no collector code at all.
+>
+> A query hook's `query` is a `QueryContext` carrying the `operation`, `sql`
+> and `fingerprint` of `metric.fingerprint`, JavaScript spelling an operation
+> as it spells a closed choice; `QueryContext(operation, sql)` makes one. Its
+> `fingerprint` is a `QueryFingerprint` — its string the 16 hex digits, its
+> `value` the same number — or null, computed by pgorm's
+> `QueryContext::fingerprint` when it is read. Both bindings build pgorm with
+> `metrics-fingerprint`, so only a context with no statement text, or text
+> libpg_query refuses, has none. `duration` is a number in the unit the
+> binding's timeouts take, seconds in Python and milliseconds in JavaScript;
+> `rows` a whole number or null; and `error` the error the caller is given, not
+> raised.
+>
+> A hook MUST NOT run on pgorm's runtime. The runtime hands it to the
+> language's thread as it hands over an operation's result — through the
+> pool's event loop in Python, the addon's channel in JavaScript — and awaits
+> it: a plain hook until it returns, one that returns an awaitable or a promise
+> until that settles. So, as in Rust, the statement a hook reports on finishes
+> only once its collector has been told, and one connection's reports arrive in
+> order. A hook that cannot be handed over, the language's thread gone, is
+> skipped. A hook that raises or rejects MUST NOT change the outcome of the
+> statement it reports on: its error goes where the language reports an error
+> nothing awaits — the event loop's exception handler in Python, a process
+> warning named `MetricsWarning`, the error its `cause`, in JavaScript — and
+> the statement goes on.
+>
+> `NoOpMetrics` is a collector whose every hook does nothing. A collector
+> extending it overrides the hooks it wants, and a hook left as `NoOpMetrics`
+> wrote it is never handed over. `LoggingMetrics` is the counterpart of
+> pgorm's: it writes each report in its words and at its levels — `debug` for
+> a successful query, an acquisition, a begin and a commit; a warning for a
+> failed query and a rollback; an error for a failed acquisition — to a
+> logger, Python's `logging.getLogger("pgorm.metrics")` or JavaScript's
+> `console` unless the program gives another.
+
 ## Raw SQL
 
 > [spec:pgorm:req:bindings.batch-execute]
@@ -991,7 +1054,7 @@ the same terminals that run raw SQL.
 > (`bindings.pipeline-expressions`). The literal path and the bound path stay
 > apart: neither replaces the other.
 
-> [spec:pgorm:req:bindings.expressions+3]
+> [spec:pgorm:req:bindings.expressions+4]
 > An expression MUST lower into pgorm-query's own builders. `col` is a column,
 > qualified by a table and its schema. An operand that is not an expression is
 > a value bound as a parameter, never interpolated: inferred as a parameter
@@ -1014,8 +1077,14 @@ the same terminals that run raw SQL.
 > `LikeExpr`, the class constructed over the pattern's text. Its
 > `escape(character)` escapes with that one character instead, any other
 > text, the empty string and NUL among it, a `ConstructionError`; and its
-> `no_escape()` turns escaping off. A `LikeExpr` is no expression, and
-> nothing but these six methods reads one. `regex` (`~`), `not_regex`
+> `no_escape()` turns escaping off. `LikeExpr.literal(text)`,
+> `LikeExpr.containing(text)`, `LikeExpr.starting_with(text)` and
+> `LikeExpr.ending_with(text)` (`startingWith` and `endingWith` in
+> JavaScript, static methods of the class there as in Python) build one over
+> literal text through pgorm-query's constructors of those names, its `%`,
+> `_` and escape character escaped, so a user's search text matches itself.
+> A `LikeExpr` is no expression, and nothing but these six methods reads
+> one. `regex` (`~`), `not_regex`
 > (`!~`), `iregex` (`~*`) and `not_iregex` (`!~*`) match a POSIX regular
 > expression. `matches` (`@@`) is `BinOper::Matches`, full-text search or a
 > `jsonpath` predicate. `path_exists` (`@?`) takes a `jsonpath` as text,
@@ -1444,7 +1513,7 @@ registrations. The program reaches each registration by name, and every
 operation on one is the entity's own Rust API. A binding cannot instantiate a
 Rust generic at run time, only use the ones compiled in.
 
-> [spec:pgorm:req:bindings.entities+5]
+> [spec:pgorm:req:bindings.entities+6]
 > Each binding MUST let a downstream application crate register its own
 > entities, `SelectGraph` shapes and pipeline source tuples, for any entity
 > whose model converts into its ActiveModel, and build one native module from
@@ -1453,6 +1522,19 @@ Rust generic at run time, only use the ones compiled in.
 > registered twice, and a graph or source tuple whose entities are not
 > registered, MUST be refused as they are registered. A binding MUST NOT
 > fabricate a generic instantiation at run time.
+>
+> An entity whose names are computed at run time is registered by instance
+> too: `Registry::entity_in(name, entity)` registers that entity value, and
+> every statement the registration builds — its reads, writes, version
+> writes, schema and pipeline source — names the instance's table, as Rust's
+> `_in` constructors do (`[spec:pgorm:req:entity.traits.entity-name]`), where
+> `entity::<E>(name)` registers `E::default()`. A binding cannot construct a
+> Rust value at run time, so an application registers each instance it
+> serves, a tenant's under a name of its own, and a program picks the tenant
+> by the name it reads. One Rust type may therefore be registered more than
+> once, once for each table its instances name; the same type and table twice
+> is the duplicate refused above. A graph or source tuple over the type reads
+> the metadata of its first registration.
 >
 > `entity(name)` and `graph(name)` give one registration, and a name the
 > module does not register is a `ConstructionError`; `entities()`, `graphs()`

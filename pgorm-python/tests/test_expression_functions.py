@@ -62,7 +62,7 @@ class ExpressionFunctions(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             template(t"{limit!r}")
 
-    # [spec:pgorm:req:bindings.expressions+3/test]    GROUPING, and the full-text search functions
+    # [spec:pgorm:req:bindings.expressions+4/test]    GROUPING, and the full-text search functions
     async def test_grouping_and_full_text_search(self):
         query = (
             select(col("kind"), call("grouping", col("kind")).as_("rolled"), call("count", col("id")).as_("n"))

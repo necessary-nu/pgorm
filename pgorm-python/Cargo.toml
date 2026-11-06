@@ -25,7 +25,10 @@ extension-module = ["pyo3/extension-module"]
 pg-19 = ["pgorm/pg-19"]
 
 [dependencies]
-pgorm = { version = "0.2.0", path = ".." }
+# Query fingerprints for the metrics layer ([spec:pgorm:req:bindings.metrics]):
+# libpg_query is linked into every pgorm build, and a fingerprint is parsed
+# only when a hook asks for one.
+pgorm = { version = "0.2.0", path = "..", features = ["metrics-fingerprint"] }
 pyo3 = { version = "0.29.3", features = ["jiff-02", "multiple-pymethods", "rust_decimal", "uuid"] }
 serde_json = { version = "1.0.151", features = ["raw_value", "float_roundtrip"] }
 jiff = { version = "0.2.38", default-features = false, features = ["std"] }

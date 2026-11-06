@@ -39,7 +39,7 @@ use tokio::sync::{Mutex, Semaphore, TryAcquireError, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    Abort, ConnectionHandle, ConnectionState, Operation, Outcome, PoolHandle, PoolState,
+    Abort, ConnectionHandle, ConnectionState, Held, Operation, Outcome, PoolHandle, PoolState,
     abort_argument,
 };
 use crate::{
@@ -529,7 +529,11 @@ fn pool_copy_in(mut cx: FunctionContext) -> JsResult<JsPromise> {
                 return;
             }
         };
-        match copy_in(&mut connection, &copy, link, opened, &stop, &pool.secrets).await {
+        let settle = match &mut connection {
+            Held::Plain(db) => copy_in(db, &copy, link, opened, &stop, &pool.secrets).await,
+            Held::Metered(db) => copy_in(db, &copy, link, opened, &stop, &pool.secrets).await,
+        };
+        match settle {
             Settle::Keep => drop(connection),
             Settle::Discard => connection.discard(),
         }
@@ -556,7 +560,8 @@ fn connection_copy_in(mut cx: FunctionContext) -> JsResult<JsPromise> {
         let stop = Stop::connection(abort, &operation.state);
         let secrets = operation.state.pool.secrets.clone();
         let settle = match operation.connection_mut() {
-            Ok(db) => copy_in(db, &copy, link, opened, &stop, &secrets).await,
+            Ok(Held::Plain(db)) => copy_in(db, &copy, link, opened, &stop, &secrets).await,
+            Ok(Held::Metered(db)) => copy_in(db, &copy, link, opened, &stop, &secrets).await,
             Err(failure) => {
                 let _ = opened.send(Err(failure));
                 Settle::Discard
@@ -935,7 +940,11 @@ fn pool_copy_out(mut cx: FunctionContext) -> JsResult<JsPromise> {
                 return;
             }
         };
-        match copy_out(&mut connection, &copy, link, opened, &stop, &pool.secrets).await {
+        let settle = match &mut connection {
+            Held::Plain(db) => copy_out(db, &copy, link, opened, &stop, &pool.secrets).await,
+            Held::Metered(db) => copy_out(db, &copy, link, opened, &stop, &pool.secrets).await,
+        };
+        match settle {
             Settle::Keep => drop(connection),
             Settle::Discard => connection.discard(),
         }
@@ -962,7 +971,8 @@ fn connection_copy_out(mut cx: FunctionContext) -> JsResult<JsPromise> {
         let stop = Stop::connection(abort, &operation.state);
         let secrets = operation.state.pool.secrets.clone();
         let settle = match operation.connection_mut() {
-            Ok(db) => copy_out(db, &copy, link, opened, &stop, &secrets).await,
+            Ok(Held::Plain(db)) => copy_out(db, &copy, link, opened, &stop, &secrets).await,
+            Ok(Held::Metered(db)) => copy_out(db, &copy, link, opened, &stop, &secrets).await,
             Err(failure) => {
                 let _ = opened.send(Err(failure));
                 Settle::Discard

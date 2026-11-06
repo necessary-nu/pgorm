@@ -262,7 +262,7 @@ isolation level given to `"default"` or `"deferrable"` raises
 the two choices for type annotations. A savepoint takes neither argument.
 
 Here Python differs from Rust in spelling: Rust passes a `TransactionMode`
-value to `transaction_with`, a method of `DatabaseConnection` alone. Python
+value to `transaction_with`, a method of a connection alone. Python
 passes the same choices as keyword arguments, to a pool's `transaction` as
 well as a connection's.
 
@@ -470,5 +470,6 @@ A transaction runs every statement the package offers: a stream of its rows
 transaction until its last row, `COPY` ([COPY](17-copy.md)) and `notify`
 ([LISTEN and NOTIFY](18-listen-notify.md)) among them.
 
-Rust's metrics wrappers instrument transactions too. Python has no metrics
-layer yet ([Metrics](21-metrics.md)).
+A transaction on an instrumented pool, or on a connection it lent, reports
+its begin, its statements, its savepoints and its commit or rollback to the
+pool's collector ([Metrics](21-metrics.md)), whatever its mode.

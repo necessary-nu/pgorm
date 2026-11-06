@@ -25,7 +25,7 @@ mod tests;
 #[cfg(test)]
 mod variants;
 
-use pgorm::pgorm_query::{BinOper, SimpleExpr};
+use pgorm::pgorm_query::{BinOper, ExprTrait, SimpleExpr};
 use pyo3::prelude::*;
 
 use crate::statements::PyQuantified;
@@ -36,7 +36,7 @@ pub use construct::PyCondition;
 pub(crate) use construct::{coerce, require_expr};
 pub use options::{Aliased, OrderBy, PyLikeExpr};
 
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 // [spec:pgorm:req:python.expressions+7]
 // [spec:pgorm:req:bindings.statements]
 /// An immutable owned Rust SimpleExpr. Every composition clones its inputs.

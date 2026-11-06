@@ -10,7 +10,7 @@ pub(crate) mod work;
 
 use crate::{
     errors::{LifecycleError, database_error},
-    runtime::{ConnectionState, Operation},
+    runtime::{ConnectionState, Held, Operation},
 };
 pub(crate) use capabilities::operations as capabilities;
 pub(crate) use copy::Lease;
@@ -18,6 +18,7 @@ pub(crate) use native::{NativeRetrying, NativeTransaction, mode};
 use pgorm::TransactionMode;
 use pyo3::prelude::*;
 pub(crate) use retry::begin as begin_retrying;
+use scope::Tx;
 pub(crate) use state::State;
 use state::{Finished, Pending};
 use std::sync::Arc;
@@ -46,9 +47,14 @@ pub(crate) async fn begin(
                 };
                 let mut frame = scope::Frame::new(owner.clone(), receiver, opened);
                 let halt = frame.halt.clone();
-                let ended = halt
-                    .run(connection.transaction_with(mode, async |tx| frame.serve(tx).await))
-                    .await;
+                let ended = match connection {
+                    Held::Plain(connection) => halt
+                        .run(connection.transaction_with(mode, async |tx| frame.serve(Tx::Plain(tx)).await))
+                        .await,
+                    Held::Metered(connection) => halt
+                        .run(connection.transaction_with(mode, async |tx| frame.serve(Tx::Metered(tx)).await))
+                        .await,
+                };
                 match frame.end(ended) {
                     scope::Ended::Ran(completion) => Some(completion),
                     scope::Ended::Refused(opened, error) => {

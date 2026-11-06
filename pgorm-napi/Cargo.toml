@@ -27,7 +27,10 @@ default = ["standalone-module"]
 standalone-module = []
 
 [dependencies]
-pgorm = { version = "0.2.0", path = ".." }
+# Query fingerprints for the metrics layer ([spec:pgorm:req:bindings.metrics]):
+# libpg_query is linked into every pgorm build, and a fingerprint is parsed
+# only when a hook asks for one.
+pgorm = { version = "0.2.0", path = "..", features = ["metrics-fingerprint"] }
 neon = { version = "1.1.2", default-features = false, features = ["napi-6"] }
 tokio = { version = "1.53.2", features = ["rt-multi-thread"] }
 tokio-postgres = "0.7.18"

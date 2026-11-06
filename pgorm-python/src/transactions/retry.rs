@@ -10,15 +10,15 @@
 
 use super::{
     State,
-    scope::{Exit, Failure, Frame, Halt, Reply},
+    scope::{Exit, Failure, Frame, Halt, Reply, Tx},
     state::{Finished, Root},
     work::Output,
 };
 use crate::{
     errors::{LifecycleError, database_error},
-    runtime::{ConnectionState, Operation},
+    runtime::{ConnectionState, Held, Operation},
 };
-use pgorm::{DatabaseTransaction, RetryableError, TransactionError, TransactionMode};
+use pgorm::{RetryableError, TransactionError, TransactionMode};
 use pyo3::prelude::*;
 use std::{fmt, sync::Arc};
 use tokio::sync::{Mutex, mpsc, oneshot};
@@ -96,7 +96,7 @@ struct Attempts {
 impl Attempts {
     /// One call of pgorm's closure: answer the attempt before it, which pgorm
     /// has ended, with `Retrying`, and serve this attempt's block.
-    async fn serve(&mut self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Again> {
+    async fn serve(&mut self, tx: Tx<'_, '_>) -> Result<(), Again> {
         if let Some(previous) = self.last.take() {
             previous.state.released.cancel();
             if previous.reply.send(Ok(Output::Retrying)).is_err() {
@@ -171,10 +171,20 @@ pub(crate) fn begin(
                         return None;
                     }
                 };
-                halt.run(db.transaction_with_retry(mode, retries, async move |tx| {
-                    attempts.lock().await.serve(tx).await
-                }))
-                .await
+                match db {
+                    Held::Plain(db) => {
+                        halt.run(db.transaction_with_retry(mode, retries, async move |tx| {
+                            attempts.lock().await.serve(Tx::Plain(tx)).await
+                        }))
+                        .await
+                    }
+                    Held::Metered(db) => {
+                        halt.run(db.transaction_with_retry(mode, retries, async move |tx| {
+                            attempts.lock().await.serve(Tx::Metered(tx)).await
+                        }))
+                        .await
+                    }
+                }
             } => ended,
         };
         let last = shared.lock().await.last.take();

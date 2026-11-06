@@ -287,9 +287,10 @@ async fn by_name(db: &DatabaseConnection) -> Result<Vec<cake::Model>, Error> {
 }
 ```
 
-`cake::Entity::find().from_raw_sql(sql, values)` and
-`Model::find_by_statement(sql, values)` likewise take the SQL text and its
-values where SeaORM took a `Statement`. A statement built with pgorm-query
+`cake::Entity::find().from_raw_sql(sql, values)`,
+`Model::find_by_statement(sql, values)` and the `SelectorRaw` constructors
+likewise take the SQL text, a `&str` or `&String` as `ConnectionTrait`'s
+methods take it, and its `Values`, where SeaORM took a `Statement`. A statement built with pgorm-query
 gives the pair from `build()`; to execute one directly, wrap each value in
 `ValueHolder`:
 
@@ -409,15 +410,25 @@ expanded entity said in a trait method, an attribute says:
 - An entity whose table or schema name is computed at run time keeps a
   hand-written part: its own `Entity` struct holding what the name is computed
   from, an `EntityName` impl, and the `EntityTrait` derive on the struct,
-  beside an `Entity` derive given no `table_name`.
+  beside an `Entity` derive given no `table_name`. `find()` and the other
+  static constructors read `Entity::default()`'s names; the `_in` forms,
+  `find_in(entity)`, `Insert::one_in(entity, model)` and the rest, read the
+  names of the instance they are given, where SeaORM's dynamic table name was
+  read through `Default` alone.
 
 ```rust
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::SimpleExpr;
 
-#[derive(Copy, Clone, Default, Debug, EntityTrait)]
+#[derive(Copy, Clone, Debug, EntityTrait)]
 pub struct Entity {
     pub tenant: &'static str,
+}
+
+impl Default for Entity {
+    fn default() -> Self {
+        Self { tenant: "public" }
+    }
 }
 
 impl EntityName for Entity {
@@ -444,6 +455,10 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
+
+fn tenant_cakes(tenant: &'static str) -> Select<Entity> {
+    Entity::find_in(Entity { tenant })
+}
 ```
 
 Some details differ besides:
@@ -1212,7 +1227,15 @@ silently turned into `None`.
 
 pgorm-query is a fork of sea-query with everything that is not PostgreSQL
 removed. It is re-exported as `pgorm::pgorm_query`, and the prelude brings
-in `Expr`, `Func`, `Name` and `alias`.
+in `Expr`, `ExprTrait`, `Func`, `Name` and `alias`.
+
+The operators (`eq`, `gt`, `like`, `is_in`, `cast_as`, `count`, ...) are the
+methods of one trait, `ExprTrait`, which every expression implements: `Expr`,
+`SimpleExpr`, a function call, a `CASE`. So `Func::lower(..).eq(..)` and
+`Column::Id.count().gt(2)` compile as written, where SeaORM needed
+`Expr::expr(..)` around the call. A module that imports names one by one
+names `ExprTrait` beside `Expr`; without it the compiler's help names the
+trait.
 
 | sea-query | pgorm-query |
 | --- | --- |
@@ -1224,8 +1247,10 @@ in `Expr`, `Func`, `Name` and `alias`.
 | a `&str` or `String` used as a name | `alias(..)` or `Name::runtime(..)`: no implicit conversion |
 | `TableRef` | `TableName` in DDL, `FromItem` in queries |
 | `Expr::cust("..")` | `Expr::raw("..")`, which takes a `&'static str` |
-| `Expr::cust_with_values(..)`, `cust_with_expr(s)` | `Expr::template(..)`, `template_with_expr(s)`, which check the placeholders |
+| `Expr::cust_with_values(..)`, `cust_with_expr(s)` | `Expr::template(..)`, `template_with_expr(s)`, which check the placeholders and take their SQL as a `&'static str` |
 | `Expr::asterisk()` | `Asterisk` |
+| `ValueType::try_from(value)` | `ValueType::from_value(value)`, which no other trait in scope shares |
+| `Expr::expr(Func::upper(..)).eq(..)`, `Expr::expr(col.count()).gt(..)` | `Func::upper(..).eq(..)`, `col.count().gt(..)` |
 | `build(PostgresQueryBuilder)` | `build()` |
 | `to_string(PostgresQueryBuilder)` | `to_string()` |
 | `or_where`, `Cond`, `any!`, `all!` | `Condition::any()` and `Condition::all()` |

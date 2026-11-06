@@ -1,4 +1,4 @@
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, Literal, Never, overload
 
 from ._listen import _Listener
@@ -18,6 +18,10 @@ class _Pool:
     def status(self, /) -> tuple[int, int, int, int]: ...
     def clear_statement_caches(self, /) -> None: ...
     def listener(self, /, capacity: int = ...) -> Awaitable[_Listener]: ...
+    def instrumented(
+        self, /, hooks: Sequence[Callable[..., object] | None],
+        dispatch: Callable[[str, Callable[..., object], tuple[object, ...], Callable[[], None]], None],
+    ) -> _Pool: ...
 
 class _Connection:
     def __init__(self, _native_only: Never, /) -> None: ...

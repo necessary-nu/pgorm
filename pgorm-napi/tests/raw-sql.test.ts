@@ -291,7 +291,7 @@ test("a template binds its interpolations", async () => {
   assert.throws(() => template`'${limit}'`, ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.expressions+3/test]    GROUPING and the full-text search functions
+// [spec:pgorm:req:bindings.expressions+4/test]    GROUPING and the full-text search functions
 test("grouping and full-text search", async () => {
   await fresh();
   const items = new Table("raw_items");

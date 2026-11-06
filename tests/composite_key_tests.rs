@@ -428,7 +428,7 @@ struct Library {
 
 // [spec:pgorm:def:entity.traits.primary-key+8/test]    a composite key takes
 // its parts borrowed, each converted into the key's part in its position
-// [spec:pgorm:req:entity.traits.crud+4/test]    find_by_id and delete_by_id
+// [spec:pgorm:req:entity.traits.crud+5/test]    find_by_id and delete_by_id
 // filter on every key column, so a key differing only in its tenant names
 // another row
 #[pgorm_macros::test]
@@ -474,7 +474,7 @@ async fn key_lookups_take_borrowed_parts() -> Result<(), Error> {
 // [spec:pgorm:def:entity.traits.primary-key+8/test]    a key of three columns
 // takes its text parts borrowed, as &str, &String or Cow, in any position, each
 // converted into the key's part in its position
-// [spec:pgorm:req:entity.traits.crud+4/test]    find_by_id and delete_by_id
+// [spec:pgorm:req:entity.traits.crud+5/test]    find_by_id and delete_by_id
 // filter on all three columns, so keys differing in one part name other rows
 #[pgorm_macros::test]
 async fn three_part_lookups_take_borrowed_parts() -> Result<(), Error> {
@@ -603,7 +603,7 @@ async fn batch_returns_every_key_in_order() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:entity.active-model.persistence+2/test]    an ActiveModel
+// [spec:pgorm:req:entity.active-model.persistence+3/test]    an ActiveModel
 // over a composite key updates and deletes the one row its whole key names, and
 // a key with a part NotSet is refused before any SQL
 #[pgorm_macros::test]

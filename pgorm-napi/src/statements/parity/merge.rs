@@ -1,9 +1,9 @@
 //! The MERGE family's cases, built with pgorm-query directly.
 
 use pgorm::pgorm_query::{
-    BinOper, CommonTableExpression, Expr, FromItem, MatchedAction, MergeInsert, MergeUpdate,
-    NamedTable, NotMatchedAction, Overriding, Query, ReturningRow, SimpleExpr, TableName, Values,
-    WithClause,
+    BinOper, CommonTableExpression, Expr, ExprTrait, FromItem, MatchedAction, MergeInsert,
+    MergeUpdate, NamedTable, NotMatchedAction, Overriding, Query, ReturningRow, SimpleExpr,
+    TableName, Values, WithClause,
 };
 
 use super::n;

@@ -7,7 +7,7 @@ use crate::{
     errors::{LifecycleError, database_error},
     expressions::Compiled,
 };
-use pgorm::{ConnectionTrait, DatabaseTransaction, Error, ValueHolder};
+use pgorm::{ConnectionTrait, Error, ValueHolder};
 use pyo3::prelude::*;
 use std::sync::Arc;
 use tokio::sync::oneshot;
@@ -70,7 +70,7 @@ impl State {
 
 /// Open `compiled`'s rows on the owner's transaction.
 pub(super) async fn open(
-    tx: &DatabaseTransaction<'_>,
+    tx: &impl ConnectionTrait,
     compiled: Compiled,
 ) -> Result<RowStream, Error> {
     let values: Vec<_> = compiled.values.0.into_iter().map(ValueHolder).collect();

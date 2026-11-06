@@ -28,7 +28,7 @@
     "values": []
   },
   "update-versions-renamed": {
-    "sql": "UPDATE \"app\".\"account\" SET \"name\" = $1, \"visits\" = \"visits\" + $2 WHERE \"id\" = $3 RETURNING WITH (OLD AS \"before\", NEW AS \"after\") \"before\".\"name\" AS \"was\", \"after\".\"name\" AS \"now\"",
+    "sql": "UPDATE \"app\".\"account\" SET \"name\" = $1, \"visits\" = \"visits\" + $2::int4 WHERE \"id\" = $3 RETURNING WITH (OLD AS \"before\", NEW AS \"after\") \"before\".\"name\" AS \"was\", \"after\".\"name\" AS \"now\"",
     "values": [["text","Bob"], ["i64","1"], ["i64","2"]]
   },
   "update-from-all-rows": {

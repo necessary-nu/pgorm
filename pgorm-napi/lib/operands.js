@@ -4,7 +4,7 @@
 // operand that is not an expression is a value, bound as a parameter; that of
 // an operator PostgreSQL reads a quantifier after may also be `any(..)` or
 // `all(..)`.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 // [spec:pgorm:req:bindings.quantifiers+3]
 
 import { arg, Builder, made } from "./builder.js";

@@ -209,7 +209,7 @@ pub trait MigratorTrait: Send {
         }
 
         let (stmt, values) = stmt.build();
-        ledger::Model::find_by_statement(stmt, values.0)
+        ledger::Model::find_by_statement(&stmt, values)
             .all(db)
             .await
     }

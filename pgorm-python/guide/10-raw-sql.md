@@ -220,7 +220,6 @@ column from its text, so SQL written for it casts the column,
 `SELECT *` decodes into `Cake` with no cast.
 
 A model's `find_by_statement(statement)` decodes every row of a statement
-into its records, as Rust's `FromQueryResult::find_by_statement` does: each
 field read from the column of its SQL name and held to the kind it declares,
 the columns no field reads left unread, and a field whose column is missing a
 `DecodeError`. It gives a `SelectorRaw`, which runs the statement as written

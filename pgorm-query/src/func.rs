@@ -1003,7 +1003,7 @@ impl Func {
     /// operator PostgreSQL reads one after — a comparison, LIKE and ILIKE and
     /// their negations, the regular-expression matches, containment and
     /// overlap, the range positions, `@@` and `@?` — and PostgreSQL rejects it
-    /// anywhere else. Reach for [`Expr::eq_any`] for the equality case, which is
+    /// anywhere else. Reach for [`ExprTrait::eq_any`](crate::ExprTrait::eq_any) for the equality case, which is
     /// the one worth a name; this is the escape hatch for the other operators.
     ///
     /// # Examples
@@ -1057,7 +1057,7 @@ impl Func {
 
     /// `ALL` over an array. Postgres only, and likewise valid only after an
     /// operator PostgreSQL reads a quantifier after, as [`Func::any`] lists.
-    /// Reach for [`Expr::ne_all`] for the inequality case.
+    /// Reach for [`ExprTrait::ne_all`](crate::ExprTrait::ne_all) for the inequality case.
     ///
     /// # Examples
     ///

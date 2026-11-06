@@ -41,11 +41,15 @@ impl Redactions {
 }
 
 // [spec:pgorm:req:bindings.errors+5]
-pub(crate) fn database_error(error: pgorm::Error, secrets: &Redactions) -> PyErr {
+pub(crate) fn database_error(
+    error: impl std::borrow::Borrow<pgorm::Error>,
+    secrets: &Redactions,
+) -> PyErr {
+    let error = error.borrow();
     if let pgorm::Error::RollbackFailed { cause, rollback } = error {
         return rollback_failed(
-            database_error(*cause, secrets),
-            database_error(*rollback, secrets),
+            database_error(&**cause, secrets),
+            database_error(&**rollback, secrets),
         );
     }
     let retryable = error.is_retryable();
@@ -101,8 +105,8 @@ fn rollback_failed_error<'py>(
     .into_bound(py)
 }
 
-fn classified(error: pgorm::Error, secrets: &Redactions) -> PyErr {
-    let mut source: &(dyn std::error::Error + 'static) = &error;
+fn classified(error: &pgorm::Error, secrets: &Redactions) -> PyErr {
+    let mut source: &(dyn std::error::Error + 'static) = error;
     loop {
         if let Some(postgres) = source.downcast_ref::<tokio_postgres::Error>() {
             return postgres_error(postgres, secrets);

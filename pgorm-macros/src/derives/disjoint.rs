@@ -54,7 +54,7 @@ pub(super) fn once<T>(
 }
 
 // [spec:pgorm:def:disjoint.declare+5]
-// [spec:pgorm:req:macros.derive.code-values+3]
+// [spec:pgorm:req:macros.derive.code-values+4]
 fn container(input: &DeriveInput) -> syn::Result<Container> {
     let mut base = None;
     let mut kind = None;

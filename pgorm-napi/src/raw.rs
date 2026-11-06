@@ -243,6 +243,12 @@ fn describe_job(mut cx: FunctionContext) -> JsResult<JsValue> {
                 let columns = match db {
                     Database::Connection(connection) => connection.describe(&sql).await,
                     Database::Transaction(transaction) => transaction.describe(&sql).await,
+                    Database::MeteredConnection(connection) => {
+                        connection.inner().describe(&sql).await
+                    }
+                    Database::MeteredTransaction(transaction) => {
+                        transaction.inner().describe(&sql).await
+                    }
                 }
                 .map_err(|error| failure(&error, secrets))?;
                 let described = columns

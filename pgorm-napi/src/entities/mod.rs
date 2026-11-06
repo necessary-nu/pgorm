@@ -203,7 +203,7 @@ fn entity_names(mut cx: FunctionContext) -> JsResult<JsValue> {
 }
 
 /// `entityGet(registry, name)`: the entity registered as `name`.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 fn entity_get(mut cx: FunctionContext) -> JsResult<JsValue> {
     let registry = held!(cx, RegistryHandle, 0);
     let name = text!(cx, 1);

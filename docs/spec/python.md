@@ -137,7 +137,7 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > against it. A model's and a registered entity's column give their plain
 > expression through `expr`.
 
-> [spec:pgorm:req:python.truth-testing+4]
+> [spec:pgorm:req:python.truth-testing+5]
 > Every class the package defines MUST raise `ConstructionError` on Python
 > truth testing — `bool()`, `if`, `not`, `and`, `or` — so `if statement:` or
 > `statement or fallback` fails where it is written instead of reading the
@@ -153,7 +153,10 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > and `TypeName`, compared with `==` as data), rows, models and
 > what a write answers, pools, connections and transactions and the private
 > native handles under them and under the streams, registrations and model
-> declarations, and exceptions. A test MUST enumerate every class the
+> declarations, the metrics layer's collectors and what a query hook is told
+> (`QueryContext`, and `QueryFingerprint`, compared with `==` as data,
+> so `if query.fingerprint:` tests for one; `bindings.metrics`), and
+> exceptions. A test MUST enumerate every class the
 > package's modules define, so a class that neither refuses nor is exempt for
 > a stated reason fails it.
 

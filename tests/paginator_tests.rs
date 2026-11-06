@@ -264,7 +264,7 @@ async fn paginator_iterate() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:exec.crud+1/test]    `Select::from_raw_sql` builds a
+// [spec:pgorm:def:exec.crud+2/test]    `Select::from_raw_sql` builds a
 // `SelectorRaw` from a raw statement plus `Values`
 // [spec:pgorm:sem:exec.paginator.raw+7/test]    a parsed single `SELECT` is
 // wrapped whole as a subquery, so its own clauses survive paging
@@ -277,7 +277,7 @@ async fn paginator_raw() -> Result<(), Error> {
 
     // No bind values.
     let mut paginator = Bakery::find()
-        .from_raw_sql(RAW_ALL.to_owned(), Values(Vec::new()))
+        .from_raw_sql(RAW_ALL, Values(Vec::new()))
         .paginate(&db, page_size(3))?;
 
     assert_eq!(
@@ -292,8 +292,7 @@ async fn paginator_raw() -> Result<(), Error> {
     // With bind values: the `$1` marker keeps both its number and its value.
     let filtered = Bakery::find()
         .from_raw_sql(
-            r#"SELECT "id", "name", "profit_margin" FROM "bakery" WHERE "profit_margin" > $1 ORDER BY "id" ASC"#
-                .to_owned(),
+            r#"SELECT "id", "name", "profit_margin" FROM "bakery" WHERE "profit_margin" > $1 ORDER BY "id" ASC"#,
             Values(vec![Value::Double(Some(4.0))]),
         )
         .paginate(&db, page_size(2))?;
@@ -310,7 +309,7 @@ async fn paginator_raw() -> Result<(), Error> {
     // could never handle.
     let cte = Bakery::find()
         .from_raw_sql(
-            format!(r#"WITH t AS ({RAW_ALL}) SELECT * FROM t ORDER BY "id" ASC"#),
+            &format!(r#"WITH t AS ({RAW_ALL}) SELECT * FROM t ORDER BY "id" ASC"#),
             Values(Vec::new()),
         )
         .paginate(&db, page_size(3))?;
@@ -325,7 +324,7 @@ async fn paginator_raw() -> Result<(), Error> {
     // The statement is taken at the extent the parser reports, so leading
     // whitespace, a leading comment and a terminating `;` all page fine.
     let decorated = Bakery::find()
-        .from_raw_sql(format!("  -- the lot\n  {RAW_ALL} ; "), Values(Vec::new()))
+        .from_raw_sql(&format!("  -- the lot\n  {RAW_ALL} ; "), Values(Vec::new()))
         .paginate(&db, page_size(3))?;
     assert_eq!(decorated.num_items().await?, 7);
     assert_eq!(names(&decorated.fetch_page(2).await?), ["Golf Bakery"]);
@@ -333,7 +332,7 @@ async fn paginator_raw() -> Result<(), Error> {
     // Wrapping puts `LIMIT`/`OFFSET` outside the caller's own clauses instead
     // of colliding with them, so a statement that already limits still pages.
     let capped = Bakery::find()
-        .from_raw_sql(format!(r#"{RAW_ALL} LIMIT 4"#), Values(Vec::new()))
+        .from_raw_sql(&format!(r#"{RAW_ALL} LIMIT 4"#), Values(Vec::new()))
         .paginate(&db, page_size(3))?;
     assert_eq!(capped.num_items().await?, 4);
     assert_eq!(names(&capped.fetch_page(1).await?), ["Delta Bakery"]);
@@ -361,7 +360,7 @@ async fn paginator_raw_renumbers_markers() -> Result<(), Error> {
     let bounds = Values(vec![Value::Double(Some(5.0)), Value::Double(Some(3.0))]);
 
     let paginator = Bakery::find()
-        .from_raw_sql(swapped.to_owned(), bounds.clone())
+        .from_raw_sql(swapped, bounds.clone())
         .paginate(&db, page_size(2))?;
 
     assert_eq!(paginator.num_items().await?, 3);
@@ -377,7 +376,7 @@ async fn paginator_raw_renumbers_markers() -> Result<(), Error> {
     assert_eq!(
         names(
             &Bakery::find()
-                .from_raw_sql(swapped.to_owned(), bounds)
+                .from_raw_sql(swapped, bounds)
                 .all(&db)
                 .await?
         ),
@@ -389,7 +388,7 @@ async fn paginator_raw_renumbers_markers() -> Result<(), Error> {
     let floor = Values(vec![Value::Double(Some(2.0))]);
 
     let repeated = Bakery::find()
-        .from_raw_sql(twice.to_owned(), floor.clone())
+        .from_raw_sql(twice, floor.clone())
         .paginate(&db, page_size(2))?;
 
     assert_eq!(repeated.num_items().await?, 3);
@@ -399,12 +398,7 @@ async fn paginator_raw_renumbers_markers() -> Result<(), Error> {
     );
     assert_eq!(names(&repeated.fetch_page(1).await?), ["Delta Bakery"]);
     assert_eq!(
-        names(
-            &Bakery::find()
-                .from_raw_sql(twice.to_owned(), floor)
-                .all(&db)
-                .await?
-        ),
+        names(&Bakery::find().from_raw_sql(twice, floor).all(&db).await?),
         ["Bravo Bakery", "Charlie Bakery", "Delta Bakery"]
     );
 
@@ -412,7 +406,7 @@ async fn paginator_raw_renumbers_markers() -> Result<(), Error> {
     // naming it: there is no paginator to ask, rather than a paginator that
     // would have reported it once per reader.
     let spare = Bakery::find()
-        .from_raw_sql(RAW_ALL.to_owned(), Values(vec![Value::Double(Some(1.0))]))
+        .from_raw_sql(RAW_ALL, Values(vec![Value::Double(Some(1.0))]))
         .paginate(&db, page_size(3))
         .expect_err("an unread bind value was not refused");
 
@@ -463,7 +457,7 @@ async fn paginator_raw_rejects_non_select() -> Result<(), Error> {
     ];
 
     for (stmt, expected) in cases {
-        let raw = || Bakery::find().from_raw_sql(stmt.to_owned(), Values(Vec::new()));
+        let raw = || Bakery::find().from_raw_sql(stmt, Values(Vec::new()));
 
         // Both entry points on the raw selector refuse it, and both refuse it
         // at the call the caller made rather than at some later read.

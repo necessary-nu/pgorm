@@ -176,8 +176,9 @@ why a query pgorm builds selects `CAST("cake"."flavor" AS text)`. SQL you
 write for such a model casts the column the same way, as the last query
 above does.
 
-The same raw statement can start from other places, each taking the SQL as a
-`String`:
+The same pair can start from the type the rows decode into instead, and
+every one of these takes it in the same shape: the SQL as text, a `&str` or a
+`&String` as a connection's own methods take it, and its `Values`:
 
 - [`Select::from_raw_sql`](crate::Select::from_raw_sql), on an entity's
   `find()`, decodes into the entity's `Model`:
@@ -185,7 +186,12 @@ The same raw statement can start from other places, each taking the SQL as a
 - [`FromQueryResult::find_by_statement`](crate::FromQueryResult::find_by_statement)
   decodes into the type it is called on: `Menu::find_by_statement(sql, values)`;
 - the constructors of [`SelectorRaw`](crate::SelectorRaw), the type all of
-  these return.
+  these return, one for each way of decoding a row, each named on the
+  selector it builds:
+  [`SelectorRaw::<SelectModel<M>>::from_statement`](crate::SelectorRaw::from_statement),
+  [`SelectorRaw::<SelectGetableTuple<T>>::into_tuple`](crate::SelectorRaw::into_tuple)
+  and
+  [`SelectorRaw::<SelectGetableValue<T, C>>::with_columns`](crate::SelectorRaw::with_columns).
 
 ```rust
 # use pgorm_guide_support::cake;
@@ -193,7 +199,7 @@ The same raw statement can start from other places, each taking the SQL as a
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("raw_sql_entry_points").await;
 # let db = scratch.pool.get().await?;
-use pgorm::{Values, entity::prelude::*};
+use pgorm::{SelectGetableTuple, SelectorRaw, Values, entity::prelude::*};
 
 #[derive(Debug, PartialEq, FromQueryResult)]
 struct Named {
@@ -203,21 +209,26 @@ struct Named {
 let gluten_free = cake::Entity::find()
     .from_raw_sql(
         "SELECT id, name, flavor::text AS flavor, price, gluten_free, bakery_id
-         FROM cake WHERE gluten_free ORDER BY id"
-            .to_owned(),
+         FROM cake WHERE gluten_free ORDER BY id",
         Values(vec![]),
     )
     .all(&db)
     .await?;
 assert_eq!(gluten_free.len(), 3);
 
-let bakers = Named::find_by_statement(
-    "SELECT name FROM baker WHERE bakery_id = $1 ORDER BY name",
-    vec![1.into()],
+let sql = String::from("SELECT name FROM baker WHERE bakery_id = $1 ORDER BY name");
+let bakers = Named::find_by_statement(&sql, Values(vec![1.into()]))
+    .all(&db)
+    .await?;
+assert_eq!(bakers, [Named { name: "Ada".to_owned() }, Named { name: "Bo".to_owned() }]);
+
+let hired: Vec<(String, Date)> = SelectorRaw::<SelectGetableTuple<(String, Date)>>::into_tuple(
+    "SELECT name, hired_on FROM baker ORDER BY hired_on LIMIT 1",
+    Values(vec![]),
 )
 .all(&db)
 .await?;
-assert_eq!(bakers, [Named { name: "Ada".to_owned() }, Named { name: "Bo".to_owned() }]);
+assert_eq!(hired, [("Ada".to_owned(), Date::constant(2019, 3, 1))]);
 # drop(db);
 # scratch.finish().await;
 # Ok(())

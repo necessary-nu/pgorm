@@ -90,7 +90,7 @@ assert.deepEqual(await pool.query(query), [
 ]);
 
 const raise = update(cake).set("price", col("price").add(new Decimal("0.50"))).where(col("bakery_id").eq(2));
-assert.equal(raise.inspect().sql, `UPDATE "cake" SET "price" = "price" + $1 WHERE "bakery_id" = $2`);
+assert.equal(raise.inspect().sql, `UPDATE "cake" SET "price" = "price" + $1::numeric WHERE "bakery_id" = $2`);
 assert.equal(await pool.execute(raise), 2);
 
 const deleted = await pool.query(deleteFrom(cake).where(col("id").eq(5)).returning([col("name")]));
@@ -100,11 +100,18 @@ assert.deepEqual(deleted, [{ name: "Chocolate Torte" }]);
 ## Where a bound value's type comes from
 
 Each value a statement binds is a parameter, and PostgreSQL decides its type
-from where it stands. Beside a column it takes the column's type, which is
-the common case: `"price" + $1` reads `$1` as a `numeric`. Where nothing
-around it says, the server cannot choose: a value in a `SELECT` list or a
-`VALUES` row, the argument of a function that takes any array such as
-`unnest`, a number added to a date. There, bind the value with
+from where it stands. Compared with a column or assigned to one, it takes the
+column's type, which is the common case: `"price" = $1` reads `$1` as a
+`numeric`. Where an operator or a function chooses its overload by the
+operand's own type, the builder writes that type beside the placeholder: an
+integer, a `Decimal`, a date, a time or an interval in arithmetic (`"price" +
+$1::numeric`, `"day" + $1::int4`), the arguments of `generate_series`,
+`unnest` and the aggregates `call` names (`UNNEST($1::int8[])`), a bound range
+that contains a value. A whole number is written `int4` when its value fits
+one, as PostgreSQL types the literal `1`, and `int8` when it does not. Text and
+fractional numbers stay bare there, the operand beside them typing them. Where
+nothing around a value says, the server still cannot choose: a value in a
+`SELECT` list or a `VALUES` row. There, bind the value with
 [`bind`](../lib/expressions.d.ts) and cast it with `cast`, which also tells the
 server the type the value is sent as, `CAST($1::int8 AS integer)`. The
 examples under [WITH](#with), [Table functions](#table-functions) and
@@ -372,7 +379,7 @@ const doubled = update(new Table("cake"))
 
 assert.equal(
   doubled.inspect().sql,
-  `UPDATE "cake" SET "price" = "price" * $1 WHERE "id" = $2 RETURNING old."price" AS "was", new."price" AS "now"`,
+  `UPDATE "cake" SET "price" = "price" * $1::int4 WHERE "id" = $2 RETURNING old."price" AS "was", new."price" AS "now"`,
 );
 const [row] = await pool.query(doubled);
 assert.deepEqual([String(row?.was), String(row?.now)], ["4.50", "9.00"]);
@@ -406,7 +413,7 @@ const raise = update(cake)
   .where(bakery.col("city").eq("Bergen"));
 assert.equal(
   raise.inspect().sql,
-  `UPDATE "cake" SET "price" = "cake"."price" + $1 FROM "bakery" WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2`,
+  `UPDATE "cake" SET "price" = "cake"."price" + $1::numeric FROM "bakery" WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2`,
 );
 assert.equal(await pool.execute(raise), 2);
 

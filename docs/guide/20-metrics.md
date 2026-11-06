@@ -106,6 +106,12 @@ choose to build, so a program that does not wrap pays nothing:
 - Its transactions are
   [`InstrumentedTransaction`](crate::metric::InstrumentedTransaction)s, so
   the statements, savepoints and COPYs inside a transaction are reported too.
+  That holds for the configured forms as well:
+  [`transaction_with`](crate::metric::InstrumentedConnection::transaction_with)
+  and
+  [`transaction_with_retry`](crate::metric::InstrumentedConnection::transaction_with_retry)
+  take a [mode](crate::guide::transactions) as `DatabaseConnection`'s do, and
+  report each attempt a retry makes as a transaction of its own.
 
 Each wrapper reports to a *collector*, a value implementing
 [`MetricsCollector`](crate::metric::MetricsCollector). Two ship with pgorm:
@@ -151,7 +157,9 @@ collector it wraps. A statement run through an `InstrumentedTransaction`'s
 [`inner`](crate::metric::InstrumentedTransaction::inner) transaction, or an
 `InstrumentedConnection`'s
 [`inner`](crate::metric::InstrumentedConnection::inner) connection, bypasses
-the collector.
+the collector, and
+[`into_inner`](crate::metric::InstrumentedConnection::into_inner) gives the
+connection back for good, unreported from then on.
 
 ## Writing a collector
 
@@ -201,6 +209,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use pgorm::TransactionMode;
 use pgorm::entity::prelude::*;
 use pgorm::metric::{InstrumentedPool, MetricsCollector, QueryContext};
 
@@ -263,12 +272,17 @@ let refused = db
     .await;
 assert!(refused.is_err());
 
+// A transaction opened in a mode is reported as the others are.
+let read_only = TransactionMode::ReadOnly { isolation: None };
+db.transaction_with(read_only, async |txn| cake::Entity::find().count(&txn).await)
+    .await?;
+
 assert_eq!(counts.get("connection"), 1);
 assert_eq!(counts.get("query_all"), 1);
-assert_eq!(counts.get("query_opt"), 3);
+assert_eq!(counts.get("query_opt"), 4);
 assert_eq!(counts.get("query_one failed"), 1);
-assert_eq!(counts.get("begin"), 3);
-assert_eq!(counts.get("commit"), 2);
+assert_eq!(counts.get("begin"), 4);
+assert_eq!(counts.get("commit"), 3);
 assert_eq!(counts.get("rollback"), 1);
 # drop(db);
 # scratch.finish().await;

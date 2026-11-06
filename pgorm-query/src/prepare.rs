@@ -5,7 +5,7 @@ use crate::template::{self, Grammar, Segment};
 use crate::*;
 pub(crate) use std::fmt::Write;
 
-// [spec:pgorm:def:sql.render.writer+2]
+// [spec:pgorm:def:sql.render.writer+3]
 pub trait SqlWriter: Write + ToString {
     fn push_param(&mut self, value: Value);
 
@@ -18,10 +18,18 @@ pub trait SqlWriter: Write + ToString {
         self.push_param(value)
     }
 
+    /// Push a parameter annotated with `type_name`, a type the value binds
+    /// as. Sinks that render the value inline have nothing to annotate and
+    /// fall back to [`Self::push_param`].
+    // [spec:pgorm:sem:sql.render.placeholder-typing+2]
+    fn push_param_typed(&mut self, value: Value, _type_name: &str) {
+        self.push_param(value)
+    }
+
     fn as_writer(&mut self) -> &mut dyn Write;
 }
 
-// [spec:pgorm:def:sql.render.writer+2] (inline-rendering sink for the Display path)
+// [spec:pgorm:def:sql.render.writer+3] (inline-rendering sink for the Display path)
 impl SqlWriter for String {
     fn push_param(&mut self, value: Value) {
         self.push_str(&QueryBuilder.value_to_string(&value))
@@ -73,7 +81,7 @@ impl std::fmt::Display for SqlWriterValues {
 }
 
 // [spec:pgorm:req:sql.render.placeholders+1] (counter increments then emits $N; value collected)
-// [spec:pgorm:def:sql.render.writer+2]
+// [spec:pgorm:def:sql.render.writer+3]
 impl SqlWriter for SqlWriterValues {
     fn push_param(&mut self, value: Value) {
         self.counter += 1;
@@ -88,11 +96,16 @@ impl SqlWriter for SqlWriterValues {
 
     // [spec:pgorm:req:sql.render.cast-param-type+4]
     fn push_param_source_typed(&mut self, value: Value) {
-        let source_type = value.source_type_name();
-        self.push_param(value);
-        if let Some(source_type) = source_type {
-            write!(self.string, "::{source_type}").unwrap();
+        match value.source_type_name() {
+            Some(source_type) => self.push_param_typed(value, &source_type),
+            None => self.push_param(value),
         }
+    }
+
+    // [spec:pgorm:sem:sql.render.placeholder-typing+2]
+    fn push_param_typed(&mut self, value: Value, type_name: &str) {
+        self.push_param(value);
+        write!(self.string, "::{type_name}").unwrap();
     }
 
     fn as_writer(&mut self) -> &mut dyn Write {

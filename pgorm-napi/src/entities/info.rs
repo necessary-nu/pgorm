@@ -11,6 +11,7 @@ use pgorm::{
     RelationDef, RelationTrait, RelationType, StaticName,
 };
 use serde_json::{Value as Json, json};
+use std::sync::Arc;
 
 use crate::{
     errors::Failure,
@@ -51,7 +52,7 @@ fn scalar(ty: &ColumnType) -> Option<ArrayType> {
 /// binding has no kind for, whose values a caller declares with `Value`. A
 /// domain's values travel as its base type's do, so a domain column is the
 /// kind of the type it is over.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 // [spec:pgorm:req:bindings.schema-domains+2]
 pub(crate) fn column_tag(ty: &ColumnType) -> Option<Tag> {
     let name =
@@ -149,6 +150,10 @@ pub(crate) struct EntityInfo {
     unique_keys: &'static [pgorm::UniqueKey],
     relations: Vec<Json>,
     rust: [&'static str; 4],
+    /// The registered entity value whose names the registration's statements
+    /// read, kept type-erased because the metadata is shared by every adapter
+    /// of the registration whatever its Rust type.
+    entity: Arc<dyn std::any::Any + Send + Sync>,
 }
 
 /// A registration name: 1–255 UTF-8 bytes without NUL.
@@ -162,9 +167,13 @@ pub(crate) fn registration_name(name: &str) -> Result<(), Failure> {
 }
 
 impl EntityInfo {
-    pub(crate) fn of<E: EntityTrait>(name: &str) -> Result<Self, Failure> {
+    /// The metadata of `entity` registered under `name`, its table and
+    /// schema the instance's own.
+    pub(crate) fn of<E>(name: &str, entity: E) -> Result<Self, Failure>
+    where
+        E: EntityTrait + Send + Sync + 'static,
+    {
         registration_name(name)?;
-        let entity = E::default();
         let primary_key: Vec<String> = <E::PrimaryKey as Iterable>::iter()
             .map(|key| key.into_column().as_str().to_owned())
             .collect();
@@ -214,6 +223,16 @@ impl EntityInfo {
                 std::any::type_name::<E::ActiveModel>(),
                 std::any::type_name::<E::Column>(),
             ],
+            entity: Arc::new(entity),
+        })
+    }
+
+    /// The entity value this registration's statements name their table by,
+    /// refused for a type the registration was not made for.
+    // [spec:pgorm:req:bindings.entities+6]
+    pub(crate) fn entity<E: EntityTrait>(&self) -> Result<E, pgorm::Error> {
+        self.entity.downcast_ref::<E>().copied().ok_or_else(|| {
+            pgorm::Error::Custom("ActiveModel belongs to another entity registration".to_owned())
         })
     }
 
@@ -225,7 +244,7 @@ impl EntityInfo {
     }
 
     /// The registration as `describe()` gives it.
-    // [spec:pgorm:req:bindings.entities+5]
+    // [spec:pgorm:req:bindings.entities+6]
     pub(crate) fn describe(&self) -> Result<Json, Failure> {
         Ok(json!({
             "name": self.name,
@@ -259,7 +278,7 @@ impl EntityInfo {
 /// holds its foreign key's rows to. `onCondition` is present or absent only:
 /// it is a Rust closure over the two tables' aliases, which has no rendering
 /// of its own until a join supplies them.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 // [spec:pgorm:req:bindings.relation-conditions]
 fn relation_json(name: &str, def: &RelationDef) -> Json {
     json!({
@@ -335,7 +354,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:req:bindings.entities+5/test]
+    // [spec:pgorm:req:bindings.entities+6/test]
     // [spec:pgorm:req:bindings.relation-conditions/test]
     #[test]
     fn join_condition_shape_is_reported() {
@@ -357,7 +376,7 @@ mod tests {
             .map(|tag| kind_key(tag).unwrap_or_else(|failure| panic!("{failure}")))
     }
 
-    // [spec:pgorm:req:bindings.entities+5/test]    each column type maps to the kind
+    // [spec:pgorm:req:bindings.entities+6/test]    each column type maps to the kind
     // a decoded column of it carries, so a registered column's values bind and
     // read as the binding's own; a type it has no kind for takes a `Value`
     #[test]
@@ -475,7 +494,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:req:bindings.entities+5/test]
+    // [spec:pgorm:req:bindings.entities+6/test]
     #[test]
     fn only_types_without_a_kind_have_no_tag() {
         let untagged: Vec<&str> = ColumnType::variants()

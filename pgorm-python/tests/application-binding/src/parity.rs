@@ -1,6 +1,6 @@
 use std::ffi::CString;
 
-use pgorm::pgorm_query::{Expr, Name, NullOrdering, Order, Query};
+use pgorm::pgorm_query::{Expr, ExprTrait, Name, NullOrdering, Order, Query};
 use pgorm::{
     ActiveModelBehavior, ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Iterable,
     QueryFilter, QueryOrder, QuerySelect, QueryTrait, StaticName,

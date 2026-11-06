@@ -333,7 +333,7 @@ fn overriding_renders_before_whichever_source_follows_it() {
     );
 }
 
-// [spec:pgorm:def:sql.render.writer+2/test]    `String` is the inline-rendering sink: `push_param`
+// [spec:pgorm:def:sql.render.writer+3/test]    `String` is the inline-rendering sink: `push_param`
 // appends the value as a literal, and it takes the default `push_param_source_typed`
 #[test]
 fn string_sink_renders_parameters_inline() {
@@ -354,7 +354,7 @@ fn string_sink_renders_parameters_inline() {
     assert_eq!(typed, "8");
 }
 
-// [spec:pgorm:def:sql.render.writer+2/test]    `SqlWriterValues` emits a placeholder and collects
+// [spec:pgorm:def:sql.render.writer+3/test]    `SqlWriterValues` emits a placeholder and collects
 // the value; `into_parts` hands back the `(String, Values)` pair
 #[test]
 fn values_sink_emits_placeholders_and_collects_values() {
@@ -381,7 +381,7 @@ fn values_sink_emits_placeholders_and_collects_values() {
     );
 }
 
-// [spec:pgorm:def:sql.render.writer+2/test]    the sink is constructed with a placeholder string
+// [spec:pgorm:def:sql.render.writer+3/test]    the sink is constructed with a placeholder string
 // and a `numbered` flag
 #[test]
 fn values_sink_honours_its_placeholder_and_numbered_flag() {
@@ -404,7 +404,7 @@ fn values_sink_honours_its_placeholder_and_numbered_flag() {
     assert_eq!(rendered, ":1 :2");
 }
 
-// [spec:pgorm:def:sql.render.writer+2/test]    both sinks are usable through `&mut dyn SqlWriter`,
+// [spec:pgorm:def:sql.render.writer+3/test]    both sinks are usable through `&mut dyn SqlWriter`,
 // which is what lets one statement render either way
 #[test]
 fn both_sinks_are_reachable_through_the_trait_object() {
@@ -428,7 +428,7 @@ fn selecting(expr: SimpleExpr) -> String {
     Query::select().expr(expr).to_string()
 }
 
-// [spec:pgorm:req:sql.render.custom-expr+3/test]    `$N` names the Nth value counting from one,
+// [spec:pgorm:req:sql.render.custom-expr+4/test]    `$N` names the Nth value counting from one,
 // and may be written as often as the template likes
 #[test]
 fn custom_expr_indices_start_at_one_and_repeat() {
@@ -446,7 +446,7 @@ fn custom_expr_indices_start_at_one_and_repeat() {
     );
 }
 
-// [spec:pgorm:req:sql.render.custom-expr+3/test]    `$$` writes one literal `$`, and quoted
+// [spec:pgorm:req:sql.render.custom-expr+4/test]    `$$` writes one literal `$`, and quoted
 // regions are opaque to the tokenizer so placeholder-shaped text inside them is left alone
 #[test]
 fn custom_expr_escape_and_quoted_regions_survive_untouched() {
@@ -462,7 +462,7 @@ fn custom_expr_escape_and_quoted_regions_survive_untouched() {
     );
 }
 
-// [spec:pgorm:req:sql.render.custom-expr+3/test]    a template naming more values than it was
+// [spec:pgorm:req:sql.render.custom-expr+4/test]    a template naming more values than it was
 // given is refused where it is written, rather than indexing off the end at render
 #[test]
 fn custom_expr_under_supply_is_refused_at_construction() {
@@ -480,7 +480,7 @@ fn custom_expr_under_supply_is_refused_at_construction() {
     assert!(Expr::template_with_expr("$1 + $2", Expr::val(1)).is_err());
 }
 
-// [spec:pgorm:req:sql.render.custom-expr+3/test]    a value the template never names is refused
+// [spec:pgorm:req:sql.render.custom-expr+4/test]    a value the template never names is refused
 // too: silently dropping it would render something the caller did not write
 #[test]
 fn custom_expr_over_supply_is_refused_at_construction() {
@@ -497,7 +497,7 @@ fn custom_expr_over_supply_is_refused_at_construction() {
     assert!(Expr::template_with_expr("now()", Expr::val(1)).is_err());
 }
 
-// [spec:pgorm:req:sql.render.custom-expr+3/test]    the census demands exactly `1..=len`, so a
+// [spec:pgorm:req:sql.render.custom-expr+4/test]    the census demands exactly `1..=len`, so a
 // hole in the numbering is a refusal even when the count happens to line up
 #[test]
 fn custom_expr_arity_hole_is_refused_at_construction() {
@@ -513,7 +513,7 @@ fn custom_expr_arity_hole_is_refused_at_construction() {
     );
 }
 
-// [spec:pgorm:req:sql.render.custom-expr+3/test]    `$0` names nothing, and a `$` that is neither
+// [spec:pgorm:req:sql.render.custom-expr+4/test]    `$0` names nothing, and a `$` that is neither
 // an escape nor an index is a malformed placeholder rather than silent text loss
 #[test]
 fn zero_and_malformed_placeholders_are_refused() {
@@ -535,7 +535,7 @@ fn zero_and_malformed_placeholders_are_refused() {
     assert!(Expr::template("$1 $", [1]).is_err());
 }
 
-// [spec:pgorm:req:sql.render.custom-expr+3/test]    a template with no placeholders and no values
+// [spec:pgorm:req:sql.render.custom-expr+4/test]    a template with no placeholders and no values
 // is a complete pair, and renders verbatim
 #[test]
 fn custom_expr_empty_census_is_a_complete_pair() {
@@ -545,7 +545,7 @@ fn custom_expr_empty_census_is_a_complete_pair() {
     );
 }
 
-// [spec:pgorm:req:sql.render.custom-expr+3/test]    every template that survives construction
+// [spec:pgorm:req:sql.render.custom-expr+4/test]    every template that survives construction
 // renders, through either sink, without reaching for a value it does not hold
 #[test]
 fn custom_expr_that_was_constructed_always_renders() {

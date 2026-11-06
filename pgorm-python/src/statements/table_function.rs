@@ -107,7 +107,7 @@ impl PyTableFunction {
         "TableFunction(...)"
     }
 
-    // [spec:pgorm:req:python.truth-testing+4]
+    // [spec:pgorm:req:python.truth-testing+5]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "FROM items cannot be tested as Python booleans",

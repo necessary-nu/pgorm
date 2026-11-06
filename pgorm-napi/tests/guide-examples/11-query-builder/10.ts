@@ -17,7 +17,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
     .where(bakery.col("city").eq("Bergen"));
   assert.equal(
     raise.inspect().sql,
-    `UPDATE "cake" SET "price" = "cake"."price" + $1 FROM "bakery" WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2`,
+    `UPDATE "cake" SET "price" = "cake"."price" + $1::numeric FROM "bakery" WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2`,
   );
   assert.equal(await pool.execute(raise), 2);
 

@@ -6,9 +6,9 @@ use super::util::{bare_code, unknown_pgorm_key};
 /// The active model a form converts into, from the container's
 /// `active_model`, the one key the derive reads. Every field becomes its
 /// active model's field of the same name, so a field carries no key.
-// [spec:pgorm:sem:macros.derive.active-model+7]
-// [spec:pgorm:req:macros.derive.code-values+3]
-fn active_model_name(input: &syn::DeriveInput) -> syn::Result<Option<syn::Ident>> {
+// [spec:pgorm:sem:macros.derive.active-model+9]
+// [spec:pgorm:req:macros.derive.code-values+4]
+fn active_model_name(input: &syn::DeriveInput) -> syn::Result<Option<syn::Path>> {
     let mut active_model = None;
     for attr in input
         .attrs
@@ -46,7 +46,7 @@ enum Error {
 }
 
 struct IntoActiveModel {
-    active_model: Option<syn::Ident>,
+    active_model: Option<syn::Path>,
     fields: syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     field_idents: Vec<syn::Ident>,
     ident: syn::Ident,
@@ -94,7 +94,7 @@ impl IntoActiveModel {
 
         let active_model_ident = active_model
             .clone()
-            .unwrap_or_else(|| syn::Ident::new("ActiveModel", Span::call_site()));
+            .unwrap_or_else(|| syn::Ident::new("ActiveModel", Span::call_site()).into());
 
         let expanded_fields_into_active_model = fields.iter().map(|field| {
             let field_ident = field.ident.as_ref().unwrap();
@@ -119,7 +119,7 @@ impl IntoActiveModel {
 }
 
 /// Method to derive the ActiveModel from the [ActiveModelTrait](pgorm::ActiveModelTrait)
-// [spec:pgorm:sem:macros.derive.active-model+7]
+// [spec:pgorm:sem:macros.derive.active-model+9]
 pub fn expand_into_active_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
 

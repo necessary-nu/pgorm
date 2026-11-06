@@ -124,7 +124,10 @@ impl NativeStream {
                     state.finished.cancel();
                     Ok(None)
                 }
-                Err(error) => Err(database_error(error.into(), &state.connection.pool.secrets)),
+                Err(error) => Err(database_error(
+                    pgorm::Error::from(error),
+                    &state.connection.pool.secrets,
+                )),
             }
         })
     }
@@ -188,10 +191,11 @@ pub(crate) fn open<'py>(
             Source::Connection(connection) => {
                 let operation = Operation::begin(connection.clone())?;
                 let values: Vec<_> = compiled.values.0.into_iter().map(ValueHolder).collect();
+                let db = operation.connection()?;
                 let rows = tokio::select! {
                     _ = connection.cancelled.cancelled() => return Err(LifecycleError::new_err("connection is closed")),
                     _ = connection.pool.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
-                    rows = operation.connection()?.query_raw(&compiled.sql, values.iter().map(|v| v as &(dyn ToSql + Sync))) => rows,
+                    rows = db.query_raw(&compiled.sql, values.iter().map(|v| v as &(dyn ToSql + Sync))) => rows,
                 }.map_err(|error| database_error(error, &connection.pool.secrets))?;
                 (
                     rows,

@@ -1,7 +1,7 @@
 use pgorm::pgorm_query::{
-    Asterisk, CommonTableExpression, Cycle, Expr, FromItem, Func, IntoNamedTable, MergeUpdate,
-    Name, OnConflict, Overriding, Query, RecursiveWithClause, ReturningRow, SampleMethod, Search,
-    SearchOrder, SelectStatement, TableSample, UnionType, WithClause,
+    Asterisk, CommonTableExpression, Cycle, Expr, ExprTrait, FromItem, Func, IntoNamedTable,
+    MergeUpdate, Name, OnConflict, Overriding, Query, RecursiveWithClause, ReturningRow,
+    SampleMethod, Search, SearchOrder, SelectStatement, TableSample, UnionType, WithClause,
 };
 use pyo3::{
     exceptions::{PyTypeError, PyValueError},

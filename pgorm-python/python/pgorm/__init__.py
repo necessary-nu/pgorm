@@ -147,6 +147,14 @@ from ._native import (
     require_capability,
 )
 from .runtime import STATEMENT_CACHE_CHANNEL, Connection, Pool, PoolStatus, connect
+from .metrics import (
+    InstrumentedPool,
+    LoggingMetrics,
+    MetricsCollector,
+    NoOpMetrics,
+    QueryContext,
+    QueryFingerprint,
+)
 from .results import Record, Field, RowStream, Query
 from .models import (
     Column, ModelColumn, Model, ModelRecord, ModelQuery, ModelRows, ModelInsert, ModelInsertMany, ModelUpdate,
@@ -190,6 +198,12 @@ __all__ = [
     "IsolationLevel",
     "Pool",
     "PoolStatus",
+    "InstrumentedPool",
+    "MetricsCollector",
+    "NoOpMetrics",
+    "LoggingMetrics",
+    "QueryContext",
+    "QueryFingerprint",
     "STATEMENT_CACHE_CHANNEL",
     "connect",
     "Record",

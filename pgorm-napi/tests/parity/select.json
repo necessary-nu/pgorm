@@ -12,7 +12,7 @@
     "values": [["i64","1"]]
   },
   "operators": {
-    "sql": "SELECT (\"a\" + $1) * $2, \"b\" || $3, \"c\" % $4, (\"d\" / $5) - $6, (\"e\" <> \"f\" AND \"g\" <= $7) OR (NOT \"h\" >= $8), \"i\" IS DISTINCT FROM $9, \"j\" IS NOT DISTINCT FROM $10",
+    "sql": "SELECT (\"a\" + $1::int4) * $2::int4, \"b\" || $3, \"c\" % $4::int4, (\"d\" / $5::int4) - $6, (\"e\" <> \"f\" AND \"g\" <= $7) OR (NOT \"h\" >= $8), \"i\" IS DISTINCT FROM $9, \"j\" IS NOT DISTINCT FROM $10",
     "values": [["i64","1"], ["i64","2"], ["text","x"], ["i64","3"], ["i32","2"], ["f64","1.5"], ["i64","4"], ["i64","5"], ["i64","1"], ["text","k"]]
   },
   "membership": {
@@ -48,11 +48,11 @@
     "values": [["i64","0"], ["text","positive"], ["i64","0"], ["text","negative"], ["i64","0"], ["text","a"], ["i64","1"], ["text","b"], ["i64","2"], ["text","a"], ["i64","1"], ["i64","-1"]]
   },
   "values": {
-    "sql": "SELECT $1 + $2, CAST($3::text AS app.mood), CAST($4::text[] AS mood[]), $5, $6, $7, $8, $9, $10",
+    "sql": "SELECT $1::int2 + $2::int4, CAST($3::text AS app.mood), CAST($4::text[] AS mood[]), $5, $6, $7, $8, $9, $10",
     "values": [["i16","7"], ["i64","3"], ["text","calm"], ["array","[calm,glad]"], ["decimal","19.9900"], ["uuid","0190a7a6-8c8e-7000-8000-000000000001"], ["date","2026-10-09"], ["datetime_utc","2026-10-09T12:00:00Z"], ["bool","true"], ["array","[1,2,3]"]]
   },
   "literals": {
-    "sql": "SELECT 7 + $1, E'O\\'Brien', CAST('calm' AS app.mood), CAST(ARRAY ['calm','glad'] AS mood[]), 19.9900, '0190a7a6-8c8e-7000-8000-000000000001', '2026-10-09', TRUE, ARRAY [1,2,3], NULL FROM \"t\" WHERE \"name\" = 'x' AND \"id\" > $2",
+    "sql": "SELECT 7 + $1::int4, E'O\\'Brien', CAST('calm' AS app.mood), CAST(ARRAY ['calm','glad'] AS mood[]), 19.9900, '0190a7a6-8c8e-7000-8000-000000000001', '2026-10-09', TRUE, ARRAY [1,2,3], NULL FROM \"t\" WHERE \"name\" = 'x' AND \"id\" > $2",
     "values": [["i64","3"], ["i64","2"]]
   },
   "functions": {
@@ -92,7 +92,7 @@
     "values": [["i64","1"]]
   },
   "with-recursive": {
-    "sql": "WITH RECURSIVE \"r\" (\"n\") AS (SELECT $1 AS \"n\" UNION ALL (SELECT \"n\" + $2 FROM \"r\" WHERE \"n\" < $3)) SEARCH DEPTH FIRST BY \"n\" SET \"ord\" CYCLE \"n\" SET \"looped\" USING \"path\" SELECT \"n\" FROM \"r\"",
+    "sql": "WITH RECURSIVE \"r\" (\"n\") AS (SELECT $1 AS \"n\" UNION ALL (SELECT \"n\" + $2::int4 FROM \"r\" WHERE \"n\" < $3)) SEARCH DEPTH FIRST BY \"n\" SET \"ord\" CYCLE \"n\" SET \"looped\" USING \"path\" SELECT \"n\" FROM \"r\"",
     "values": [["i32","1"], ["i64","1"], ["i64","5"]]
   },
   "limits-reset": {
@@ -104,7 +104,7 @@
     "values": [["i64","2"], ["i64","3"], ["i64","4"], ["i64","5"], ["i64","1"]]
   },
   "expression-inspect": {
-    "sql": "SELECT \"x\" + $1",
+    "sql": "SELECT \"x\" + $1::int2",
     "values": [["i16","7"]]
   },
   "condition-inspect": {
@@ -132,7 +132,7 @@
     "values": [["text","(x|y)%"], ["text","!%%"], ["text","a\\_b"], ["text","%z"]]
   },
   "table-function": {
-    "sql": "SELECT * FROM GENERATE_SERIES($1, $2) AS \"n\"",
+    "sql": "SELECT * FROM GENERATE_SERIES($1::int4, $2::int4) AS \"n\"",
     "values": [["i64","1"], ["i64","3"]]
   },
   "table-function-ordinality": {
@@ -140,11 +140,11 @@
     "values": []
   },
   "record-functions": {
-    "sql": "SELECT \"o\".*, \"z\".* FROM \"t\" CROSS JOIN JSON_TO_RECORD(\"doc\") AS \"o\"(\"a\" integer, \"tags\" text[]) CROSS JOIN ROWS FROM (JSONB_TO_RECORDSET(\"docs\") AS (\"b\" text), GENERATE_SERIES($1, $2)) WITH ORDINALITY AS \"z\"",
+    "sql": "SELECT \"o\".*, \"z\".* FROM \"t\" CROSS JOIN JSON_TO_RECORD(\"doc\") AS \"o\"(\"a\" integer, \"tags\" text[]) CROSS JOIN ROWS FROM (JSONB_TO_RECORDSET(\"docs\") AS (\"b\" text), GENERATE_SERIES($1::int4, $2::int4)) WITH ORDINALITY AS \"z\"",
     "values": [["i64","1"], ["i64","2"]]
   },
   "rows-from": {
-    "sql": "SELECT \"r\".*, \"s\".\"s\" FROM ROWS FROM (GENERATE_SERIES($1, $2, $3), UNNEST($4)) WITH ORDINALITY AS \"r\"(\"x\", \"y\", \"n\") CROSS JOIN ROWS FROM (GENERATE_SERIES($5, $6)) AS \"s\"",
+    "sql": "SELECT \"r\".*, \"s\".\"s\" FROM ROWS FROM (GENERATE_SERIES($1::int4, $2::int4, $3::int4), UNNEST($4::text[])) WITH ORDINALITY AS \"r\"(\"x\", \"y\", \"n\") CROSS JOIN ROWS FROM (GENERATE_SERIES($5::int4, $6::int4)) AS \"s\"",
     "values": [["i64","10"], ["i64","1"], ["i64","-3"], ["array","[a,b,c]"], ["i64","1"], ["i64","2"]]
   },
   "tablesample": {
