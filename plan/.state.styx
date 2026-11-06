@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-06T12:23:36.52532Z
+last_sync_at 2026-11-06T12:32:24.116807Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -32,6 +32,7 @@ rule_versions (
     {id bindings.entity-graphs, version 4}
     {id bindings.entity-inserts, version 0}
     {id bindings.entity-reads, version 4}
+    {id bindings.entity-try-inserts, version 0}
     {id bindings.entity-versions, version 3}
     {id bindings.entity-writes, version 1}
     {id bindings.errors, version 6}
@@ -763,6 +764,7 @@ derived_priorities (
     {id guide.python-gaps.limited-graph, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
     {id guide.python-gaps.metrics, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
     {id guide.python-gaps.migrations, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
+    {id guide.python-gaps.model-array-save-cast, priority 3, derived_at 2026-11-06T12:32:24.116807Z}
     {id guide.python-gaps.model-codegen, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
     {id guide.python-gaps.model-ddl, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
     {id guide.python-gaps.model-hooks, priority 3, derived_at 2026-11-06T08:56:41.215496Z}
@@ -2300,6 +2302,11 @@ impl_evidence (
         {impl_name main, rule migration.frozen}
         {impl_name main, rule migration.sql-file.commits-after}
         {impl_name python, rule bindings.migration-file}
+    ), rule_versions_seen (
+        {id bindings.migration-file, version 1}
+        {id disjoint.evolve.frozen, version 0}
+        {id migration.frozen, version 0}
+        {id migration.sql-file.commits-after, version 0}
     )}
     {id disjoint.codegen, covered_rules (
         codegen.entity.disjoint
@@ -2510,6 +2517,8 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.codegen-coverage}
         {impl_name python, rule bindings.codegen-coverage}
+    ), rule_versions_seen (
+        {id bindings.codegen-coverage, version 0}
     )}
     {id guide.python-gaps.copy-through-query, covered_rules (
         conn.copy.statement
@@ -2519,6 +2528,13 @@ impl_evidence (
         {impl_name python, rule conn.copy.statement}
     ), rule_versions_seen (
         {id conn.copy.statement, version 0}
+    )}
+    {id guide.python-gaps.entity-try-inserts, covered_rules (
+        bindings.entity-try-inserts
+    ), covered_claims (
+        {impl_name javascript, rule bindings.entity-try-inserts}
+        {impl_name main, rule bindings.entity-try-inserts}
+        {impl_name python, rule bindings.entity-try-inserts}
     )}
     {id guide.python-gaps.failed-commit, covered_rules (
         conn.tx.aborted
@@ -2536,6 +2552,10 @@ impl_evidence (
         {impl_name main, rule migration.runtime}
         {impl_name main, rule migration.sql-file.read}
         {impl_name python, rule bindings.migrations}
+    ), rule_versions_seen (
+        {id bindings.migrations, version 0}
+        {id migration.runtime, version 0}
+        {id migration.sql-file.read, version 0}
     )}
     {id guide.python-gaps.model-hooks, covered_rules (
         bindings.model-hooks
@@ -2765,6 +2785,10 @@ impl_evidence (
         {impl_name main, rule migration.sql-file}
         {impl_name main, rule migration.sql-file.checksum}
         {impl_name main, rule migration.sql-file.compile}
+    ), rule_versions_seen (
+        {id migration.sql-file, version 1}
+        {id migration.sql-file.checksum, version 0}
+        {id migration.sql-file.compile, version 1}
     )}
     {id napi-codegen, covered_rules (
         napi.codegen-types
@@ -2857,6 +2881,9 @@ impl_evidence (
         {impl_name javascript, rule bindings.copy-rows.typed}
         {impl_name main, rule conn.copy.rows.kind}
         {impl_name python, rule bindings.copy-rows.typed}
+    ), rule_versions_seen (
+        {id bindings.copy-rows.typed, version 0}
+        {id conn.copy.rows.kind, version 0}
     )}
     {id napi.guide-gaps.expression-functions, covered_rules (
         bindings.json-operators
@@ -2876,6 +2903,8 @@ impl_evidence (
         bindings.migrations
     ), covered_claims (
         {impl_name javascript, rule bindings.migrations}
+    ), rule_versions_seen (
+        {id bindings.migrations, version 0}
     )}
     {id napi.guide-gaps.model-hooks, covered_rules (
         bindings.model-hooks

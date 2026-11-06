@@ -23,6 +23,8 @@ import {
   entity,
   EntityInsert,
   EntityInsertMany,
+  EntityTryInsert,
+  EntityTryInsertMany,
   type EntityRecord,
   graph,
   graphs,
@@ -33,6 +35,7 @@ import {
   select,
   Table,
   TypeName,
+  UniqueViolationError,
   Value,
 } from "../../../lib/index.js";
 import { scratchDatabase } from "../../support.ts";
@@ -729,6 +732,73 @@ test("an entity's insert has Rust's other insert terminals of its row count, no 
   assert.throws(() => Account.insert(account(10, "x")).add(Note.active()), mistyped(/app.Note's, not app.Account's/));
   assert.throws(() => Account.insert(account(10, "x")).addMany({} as never), TypeError);
   assert.equal((await Account.find().all(pool())).length, 7);
+});
+
+// [spec:pgorm:req:bindings.entity-try-inserts/test]
+test("an entity's try-insert answers inserted, conflicted or empty, as TryInsert does", async () => {
+  const account = (id: number, name: string) => Account.active().set("id", id).set("display name", name);
+  const conflicted = { kind: "conflicted" };
+  const empty = { kind: "empty" };
+  await Account.insert(account(1, "Ann")).execute(pool());
+  const again = Account.insert(account(1, "Ann again")).onConflictDoNothing();
+  assert.ok(again instanceof EntityTryInsert && !(again instanceof EntityTryInsertMany));
+  assert.deepStrictEqual(await again.execute(pool()), conflicted);
+  assert.deepStrictEqual(await again.returningPk(pool()), conflicted);
+  assert.deepStrictEqual(await again.returningModel(pool()), conflicted);
+  assert.deepStrictEqual(await Account.insert(account(2, "Bob")).onConflictDoNothing().execute(pool()), {
+    kind: "inserted",
+    value: 1,
+  });
+  assert.deepStrictEqual(await Account.insert(account(3, "Cy")).onConflictDoNothing().returningPk(pool()), {
+    kind: "inserted",
+    value: 3,
+  });
+  const di = await Account.insert(account(4, "Di")).onEmptyDoNothing().returningModel(pool());
+  assert.equal(di.kind, "inserted");
+  if (di.kind === "inserted") assert.deepStrictEqual([di.value.id, di.value["display name"]], [4, "Di"]);
+  await assert.rejects(Account.insert(account(4, "Di")).onEmptyDoNothing().execute(pool()), UniqueViolationError);
+  const blank = Account.insert(Account.active().notSet("version").notSet("mood")).onEmptyDoNothing();
+  assert.deepStrictEqual(
+    [await blank.execute(pool()), await blank.returningPk(pool()), await blank.returningModel(pool())],
+    [empty, empty, empty],
+  );
+  const batch = Account.insertMany([account(5, "Ed"), account(1, "Ann")]).onConflictDoNothing();
+  assert.ok(batch instanceof EntityTryInsertMany);
+  assert.deepStrictEqual(await batch.returningPks(pool()), { kind: "inserted", value: [5] });
+  assert.deepStrictEqual(await batch.returningPks(pool()), conflicted);
+  const more = batch.add(account(6, "Flo")).addMany([account(7, "Gil")]);
+  assert.ok(more instanceof EntityTryInsertMany);
+  const written = await more.returningModels(pool());
+  assert.equal(written.kind, "inserted");
+  if (written.kind === "inserted") assert.deepStrictEqual(written.value.map((row) => row.id), [6, 7]);
+  assert.deepStrictEqual(await more.execute(pool()), conflicted);
+  const none = Account.insertMany([]).onConflictDoNothing();
+  assert.deepStrictEqual(
+    [await none.execute(pool()), await none.returningPks(pool()), await none.returningModels(pool())],
+    [empty, empty, empty],
+  );
+  // onConflict replaces the key's DO NOTHING, as TryInsert::on_conflict does,
+  // and onEmptyDoNothing keeps the clause the insert had.
+  const renamed = again.onConflict(Conflict.on("id").update("display name"));
+  assert.ok(renamed instanceof EntityTryInsert);
+  assert.deepStrictEqual(await renamed.execute(pool()), { kind: "inserted", value: 1 });
+  const kept = Account.insert(account(2, "Bob again")).onConflict(Conflict.on("id").doNothing()).onEmptyDoNothing();
+  assert.deepStrictEqual(await kept.execute(pool()), conflicted);
+  const names = Object.fromEntries((await Account.find().all(pool())).map((row) => [row.id, row["display name"]]));
+  assert.deepStrictEqual([names[1], names[2]], ["Ann again", "Bob"]);
+  assert.equal("returningUpsert" in again, false);
+  assert.equal("returningUpserts" in batch, false);
+  // @ts-expect-error: a try-insert has no upsert terminal, as Rust's TryInsert has none
+  assert.equal(typeof again.returningUpsert, "undefined");
+  assert.throws(() => again.add(Note.active()), mistyped(/app.Note's, not app.Account's/));
+  assert.throws(() => batch.add(Account.active().set("id", 9)), refused(/set the same columns/));
+  assert.throws(() => new (EntityTryInsert as unknown as new (...args: unknown[]) => unknown)({}, Symbol()), TypeError);
+  const team = Membership.active().set("account_id", 1).set("team", "red").set("role", "lead");
+  assert.deepStrictEqual(await Membership.insert(team).onConflictDoNothing().returningPk(pool()), {
+    kind: "inserted",
+    value: [1, "red"],
+  });
+  assert.deepStrictEqual(await Membership.insert(team).onConflictDoNothing().returningPk(pool()), conflicted);
 });
 
 // [spec:pgorm:req:bindings.entity-graphs+4/test]

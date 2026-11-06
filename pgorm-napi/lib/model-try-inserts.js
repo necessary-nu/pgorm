@@ -15,12 +15,12 @@ const MADE = Symbol("pgorm-napi model try-insert");
 /** @typedef {import("./model-writes.js").ModelInsertMany} ModelInsertMany */
 /** @typedef {import("./model-rows.js").ModelRows} ModelRows */
 
-/** The answers of pgorm's `TryInsertResult`. */
-const EMPTY = Object.freeze({ kind: "empty" });
-const CONFLICTED = Object.freeze({ kind: "conflicted" });
+/** The answers of pgorm's `TryInsertResult`, a registered entity's too. */
+export const EMPTY = Object.freeze({ kind: "empty" });
+export const CONFLICTED = Object.freeze({ kind: "conflicted" });
 
 /** @param {unknown} value */
-function inserted(value) {
+export function inserted(value) {
   return Object.freeze({ kind: "inserted", value });
 }
 
