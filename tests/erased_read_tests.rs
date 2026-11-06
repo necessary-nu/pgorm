@@ -21,7 +21,7 @@ const TABLES: &str = "CREATE TABLE cake (id int PRIMARY KEY, name text NOT NULL)
      INSERT INTO cake VALUES (1, 'a'), (2, 'b'), (3, 'c');
      INSERT INTO fruit VALUES (10, 'x', 1), (11, 'y', 1), (12, 'z', 3);";
 
-// [spec:pgorm:def:conn.database-ref/test]    one executor type over a connection and a transaction
+// [spec:pgorm:def:conn.database-ref+1/test]    one executor type over a connection and a transaction
 // [spec:pgorm:def:exec.paginator.erased/test]    an erased paginator's pages and count are the paginator's
 // [spec:pgorm:def:exec.cursor.erased/test]    an erased graph cursor reads the typed cursor's rows under a plan
 #[pgorm_macros::test]

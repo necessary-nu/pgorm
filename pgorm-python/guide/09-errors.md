@@ -504,13 +504,13 @@ from pgorm import ConstructionError, Pool
 async def main() -> None:
     url = os.environ["DATABASE_URL"]
 
-    # "clean" is not one of the recycling methods.
+    # "tidy" is not one of the recycling methods.
     try:
-        Pool(url, recycle="clean")  # type: ignore[arg-type]
+        Pool(url, recycle="tidy")  # type: ignore[arg-type]
     except TypeError as error:
-        assert str(error) == "recycle is 'verified' or 'fast'"
+        assert str(error) == "recycle is 'verified', 'fast', 'clean' or None"
     else:
-        raise AssertionError("recycle takes 'verified' or 'fast'")
+        raise AssertionError("recycle takes 'verified', 'fast' or 'clean'")
 
     # A misspelt option is never left out silently.
     try:

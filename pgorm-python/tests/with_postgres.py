@@ -20,6 +20,9 @@ IMAGE = "postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7
 # minutes to start a container. PGORM_TEST_READY_SECONDS replaces the bound.
 READY_SECONDS = float(os.environ.get("PGORM_TEST_READY_SECONDS", "180"))
 
+# The role that authenticates by a client certificate alone, over TLS.
+CERT_USER = "pgorm_cert"
+
 
 def run(*command, input=None):
     return subprocess.run(command, input=input, text=True, check=True, capture_output=True).stdout.strip()
@@ -40,6 +43,17 @@ def certificates(root):
     run("openssl", "x509", "-req", "-in", str(root / "server.csr"),
         "-CA", str(root / "ca.pem"), "-CAkey", str(root / "ca.key"), "-CAcreateserial",
         "-days", "2", "-extfile", str(root / "server.ext"), "-out", str(root / "server.crt"))
+    # A client certificate for CERT_USER, whom the server lets in by it alone.
+    run("openssl", "req", "-newkey", "rsa:2048", "-nodes", "-subj", f"/CN={CERT_USER}",
+        "-keyout", str(root / "client.key"), "-out", str(root / "client.csr"))
+    (root / "client.ext").write_text(
+        "basicConstraints=critical,CA:FALSE\n"
+        "keyUsage=critical,digitalSignature,keyEncipherment\n"
+        "extendedKeyUsage=clientAuth\n"
+    )
+    run("openssl", "x509", "-req", "-in", str(root / "client.csr"),
+        "-CA", str(root / "ca.pem"), "-CAkey", str(root / "ca.key"), "-CAcreateserial",
+        "-days", "2", "-extfile", str(root / "client.ext"), "-out", str(root / "client.crt"))
 
 
 def enable_tls(name, root):
@@ -47,14 +61,21 @@ def enable_tls(name, root):
     # /var/lib/postgresql/18/docker), so ask the server where it is.
     data = run("docker", "exec", name, "psql", "-At", "-U", "postgres", "-d", "pgorm_python",
                "-c", "SHOW data_directory")
-    for filename in ("server.crt", "server.key"):
+    for filename in ("server.crt", "server.key", "ca.pem"):
         run("docker", "cp", str(root / filename), f"{name}:{data}/{filename}")
-    run("docker", "exec", name, "chown", "postgres:postgres", f"{data}/server.crt", f"{data}/server.key")
+    run("docker", "exec", name, "chown", "postgres:postgres", f"{data}/server.crt", f"{data}/server.key",
+        f"{data}/ca.pem")
     run("docker", "exec", name, "chmod", "600", f"{data}/server.key")
+    # The first matching line decides, so CERT_USER's comes before the image's
+    # password lines: over TLS it is let in by its certificate, which
+    # ssl_ca_file has the server ask every TLS client for.
+    run("docker", "exec", name, "sed", "-i", f"1i hostssl all {CERT_USER} all cert", f"{data}/pg_hba.conf")
     run("docker", "exec", "-i", name, "psql", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "pgorm_python",
         input="ALTER SYSTEM SET ssl = 'on';\n"
               "ALTER SYSTEM SET ssl_cert_file = 'server.crt';\n"
               "ALTER SYSTEM SET ssl_key_file = 'server.key';\n"
+              "ALTER SYSTEM SET ssl_ca_file = 'ca.pem';\n"
+              f"CREATE ROLE {CERT_USER} LOGIN;\n"
               "SELECT pg_reload_conf();\n")
     deadline = time.monotonic() + READY_SECONDS
     while run("docker", "exec", name, "psql", "-At", "-U", "postgres", "-d", "pgorm_python", "-c", "SHOW ssl") != "on":
@@ -63,7 +84,7 @@ def enable_tls(name, root):
         time.sleep(0.05)
 
 
-# [spec:pgorm:req:bindings.connections+2/test]
+# [spec:pgorm:req:bindings.connections+3/test]
 @contextmanager
 def fixture():
     name = f"pgorm-python-{uuid.uuid4().hex[:12]}"
@@ -89,6 +110,9 @@ def fixture():
                 **os.environ,
                 "PGORM_TEST_DSN": f"postgres://postgres:pgorm-python-test@127.0.0.1:{port}/pgorm_python?sslmode=disable",
                 "PGORM_TEST_CA": str(root / "ca.pem"),
+                "PGORM_TEST_CLIENT_CERT": str(root / "client.crt"),
+                "PGORM_TEST_CLIENT_KEY": str(root / "client.key"),
+                "PGORM_TEST_CERT_USER": CERT_USER,
             }
         finally:
             run("docker", "stop", "--time", "2", name)

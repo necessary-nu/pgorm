@@ -578,7 +578,7 @@ async fn expression_actions_refused_by_sqlstate() -> Result<(), Error> {
 /// refuses the action (`23514`) and leaves the old expression in place.
 // [spec:pgorm:req:sql.ddl.alter-table+15/test]    SET EXPRESSION on a virtual
 // column under a CHECK constraint, refused on 18 and checking the rows on 19
-// [spec:pgorm:req:sql.target+1/test]    18's answer in the default build, 19's
+// [spec:pgorm:req:sql.target+2/test]    18's answer in the default build, 19's
 // under pg-19
 #[pgorm_macros::test]
 async fn set_expression_under_a_check() -> Result<(), Error> {

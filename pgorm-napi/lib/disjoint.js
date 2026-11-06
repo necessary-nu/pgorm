@@ -139,7 +139,7 @@ export class Disjoint extends Disjoined {
         const sources = source === null || model === null
           ? [own]
           : [own, { fields: model.fields, names: native.disjointResultNames(handle, source), optional: false }];
-        decode = decoder(sources, false);
+        decode = decoder(sources, { exhaustive: false });
         decoders.set(index, decode);
       }
       return decode;

@@ -216,7 +216,7 @@ pub async fn connect_with_errs_on_build_failure() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.pool.multi+3/test]    one pool per builder entry, tagged and keyed by its map key
+// [spec:pgorm:sem:conn.pool.multi+4/test]    one pool per builder entry, tagged and keyed by its map key
 #[pgorm_macros::test]
 pub async fn connect_multi_builds_tagged_pools() -> Result<(), Error> {
     let mut builders: BTreeMap<String, Box<dyn Fn(PoolBuilder) -> PoolBuilder>> = BTreeMap::new();
@@ -295,7 +295,113 @@ pub async fn connect_multi_builds_tagged_pools() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.pool.multi+3/test]    one unbuildable entry fails the whole construction
+// [spec:pgorm:sem:conn.pool.multi+4/test]    connect_multi_with forwards the manager, its
+// tag replaced by each entry's key
+#[pgorm_macros::test]
+pub async fn connect_multi_with_shares_the_manager() -> Result<(), Error> {
+    let mut builders: BTreeMap<String, fn(PoolBuilder) -> PoolBuilder> = BTreeMap::new();
+    builders.insert("kitchen".to_owned(), |builder| builder.max_size(1));
+    builders.insert("till".to_owned(), |builder| builder.max_size(2));
+    let manager = ManagerConfig {
+        recycling_method: RecyclingMethod::Clean,
+        tag: Some("ignored".to_owned()),
+        ..ManagerConfig::default()
+    };
+    let pools = pgorm::connect_multi_with(maintenance_config(), NoTls, manager, builders)?;
+    assert_eq!(
+        pools
+            .iter()
+            .map(|(tag, pool)| (tag.to_owned(), pool.tag().to_string()))
+            .collect::<Vec<_>>(),
+        [
+            ("kitchen".to_owned(), "kitchen".to_owned()),
+            ("till".to_owned(), "till".to_owned())
+        ],
+        "each pool's tag is its key, never the manager's"
+    );
+
+    // The kitchen pool holds one connection, so the second checkout is the
+    // first's session, which Clean recycling reset.
+    let kitchen = pools.get("kitchen").expect("kitchen pool");
+    let conn = kitchen.get().await?;
+    conn.batch_execute("SET application_name = 'pgorm-multi-clean'")
+        .await?;
+    drop(conn);
+    let conn = kitchen.get().await?;
+    assert_ne!(
+        session_setting(&conn, "application_name").await?,
+        "pgorm-multi-clean",
+        "the manager's Clean recycling reached the pool"
+    );
+    drop(conn);
+    pools.close();
+    Ok(())
+}
+
+// [spec:pgorm:def:conn.database-ref+1/test]    a DatabaseRef over a hook's connection
+// [spec:pgorm:def:conn.pool.hook-connection/test]    a hook runs pgorm statements on its
+// connection, through that connection's statement cache
+#[pgorm_macros::test]
+pub async fn a_hook_runs_statements_through_its_connection() -> Result<(), Error> {
+    use pgorm::{Hook, HookConnection, HookError};
+
+    let hooked = Hook::async_fn(|client, _| {
+        Box::pin(async move {
+            let db = HookConnection::new(client);
+            let fail = |error: Error| HookError::message(error.to_string());
+            db.execute(
+                "SELECT set_config('application_name', $1, false)",
+                &[&"pgorm-hooked"],
+            )
+            .await
+            .map_err(fail)?;
+            let row = db
+                .query_one("SELECT current_setting('application_name')", &[])
+                .await
+                .map_err(fail)?;
+            assert_eq!(row.get::<_, String>(0), "pgorm-hooked");
+            // The erased executor a binding holds runs on the hook's connection too.
+            let erased: pgorm::DatabaseRef<'_> = db.into();
+            let one: i32 = erased
+                .query_one("SELECT 1", &[])
+                .await
+                .map_err(fail)?
+                .get(0);
+            assert_eq!(one, 1);
+            Ok(())
+        })
+    });
+    let pool = pgorm::connect_with(
+        maintenance_config(),
+        NoTls,
+        ManagerConfig::default(),
+        |builder| builder.max_size(1).post_create(hooked),
+    )?;
+    let conn = pool.get().await?;
+    assert_eq!(
+        session_setting(&conn, "application_name").await?,
+        "pgorm-hooked",
+        "the hook ran on the connection the pool then lent"
+    );
+    conn.query_one("SELECT current_setting('application_name')", &[])
+        .await?;
+    let prepared: i64 = conn
+        .query_one(
+            "SELECT count(*) FROM pg_prepared_statements WHERE statement = $1",
+            &[&"SELECT current_setting('application_name')"],
+        )
+        .await?
+        .get(0);
+    assert_eq!(
+        prepared, 1,
+        "the borrower found the hook's statement in the connection's cache"
+    );
+    drop(conn);
+    pool.close();
+    Ok(())
+}
+
+// [spec:pgorm:sem:conn.pool.multi+4/test]    one unbuildable entry fails the whole construction
 #[pgorm_macros::test]
 pub async fn connect_multi_errs_on_build_failure() -> Result<(), Error> {
     let mut builders: BTreeMap<String, Box<dyn Fn(PoolBuilder) -> PoolBuilder>> = BTreeMap::new();

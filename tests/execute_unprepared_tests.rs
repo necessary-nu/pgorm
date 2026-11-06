@@ -54,7 +54,7 @@ async fn ids<C: ConnectionTrait>(db: &C, table: &str) -> Result<Vec<i32>, Error>
     Ok(rows.iter().map(|row| row.get(0)).collect())
 }
 
-// [spec:pgorm:def:conn.pool.conn-trait+9/test]    multi-statement string on a pooled connection
+// [spec:pgorm:def:conn.pool.conn-trait+10/test]    multi-statement string on a pooled connection
 #[pgorm_macros::test]
 async fn batch_execute_on_connection() -> Result<(), Error> {
     let ctx = TestContext::new("batch_execute_conn_txbatch").await;
@@ -76,7 +76,7 @@ async fn batch_execute_on_connection() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:conn.pool.conn-trait+9/test]    multi-statement string inside a transaction
+// [spec:pgorm:def:conn.pool.conn-trait+10/test]    multi-statement string inside a transaction
 #[pgorm_macros::test]
 async fn batch_execute_in_transaction() -> Result<(), Error> {
     let ctx = TestContext::new("batch_execute_txn_txbatch").await;
@@ -105,7 +105,7 @@ async fn batch_execute_in_transaction() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:conn.pool.conn-trait+9/test]    the rejection batch_execute exists to lift
+// [spec:pgorm:def:conn.pool.conn-trait+10/test]    the rejection batch_execute exists to lift
 #[pgorm_macros::test]
 async fn multi_statement_string_needs_batch_execute() -> Result<(), Error> {
     let ctx = TestContext::new("batch_execute_two_commands_txbatch").await;
@@ -132,7 +132,7 @@ async fn multi_statement_string_needs_batch_execute() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:conn.pool.conn-trait+9/test]    one implicit transaction per string
+// [spec:pgorm:def:conn.pool.conn-trait+10/test]    one implicit transaction per string
 #[pgorm_macros::test]
 async fn batch_execute_unwinds_at_first_failure() -> Result<(), Error> {
     let ctx = TestContext::new("batch_execute_implicit_txn_txbatch").await;

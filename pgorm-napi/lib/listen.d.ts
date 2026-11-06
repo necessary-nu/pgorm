@@ -7,9 +7,9 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.listen+2]
+// [spec:pgorm:req:bindings.listen+3]
 
-import type { OperationOptions } from "./index.d.ts";
+import type { ConnectionOptions, OperationOptions } from "./index.d.ts";
 
 /** A notification: the channel it was sent on, its payload, and the process id of the session that sent it. */
 export interface Notification {
@@ -27,6 +27,17 @@ export interface ListenerOptions extends OperationOptions {
    */
   readonly capacity?: number;
 }
+
+/** How {@link connectListener} opens a listener: its capacity, and the connection and TLS a pool's would take. */
+export interface ConnectListenerOptions extends ListenerOptions, ConnectionOptions {}
+
+// [spec:pgorm:req:bindings.listen+3]
+/**
+ * A {@link Listener} on a connection of its own, belonging to no pool: the
+ * connection string and TLS options are read as a {@link Pool}'s are. Only its
+ * own close, or its iteration abandoned, closes it.
+ */
+export declare function connectListener(dsn: string, options?: ConnectListenerOptions): Promise<Listener>;
 
 /**
  * A connection of its own, opened with its pool's configuration and closed

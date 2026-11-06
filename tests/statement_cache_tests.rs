@@ -28,7 +28,7 @@ async fn prepared_count(db: &DatabaseConnection, sql: &str) -> Result<i64, Error
 }
 
 // [spec:pgorm:sem:conn.pool.statement-cache+3/test]    one Parse per connection, not per call
-// [spec:pgorm:def:conn.pool.conn-trait+9/test]    the text-carrying statement routes through the cache
+// [spec:pgorm:def:conn.pool.conn-trait+10/test]    the text-carrying statement routes through the cache
 #[pgorm_macros::test]
 async fn repeated_queries_reuse_one_prepared_statement() -> Result<(), Error> {
     let ctx = TestContext::new("reuse_one_prepared_stmtcache").await;
@@ -133,7 +133,7 @@ async fn a_second_stale_plan_error_surfaces() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:conn.pool.conn-trait+9/test]    a transaction routes through its connection's cache
+// [spec:pgorm:def:conn.pool.conn-trait+10/test]    a transaction routes through its connection's cache
 #[pgorm_macros::test]
 async fn transaction_shares_the_connection_cache() -> Result<(), Error> {
     let ctx = TestContext::new("txn_shares_cache_stmtcache").await;
@@ -192,7 +192,7 @@ async fn rolled_back_transaction_keeps_its_statements() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:conn.pool.conn-trait+9/test]    the simple-query path prepares nothing
+// [spec:pgorm:def:conn.pool.conn-trait+10/test]    the simple-query path prepares nothing
 #[pgorm_macros::test]
 async fn batch_execute_prepares_nothing() -> Result<(), Error> {
     let ctx = TestContext::new("batch_prepares_nothing_stmtcache").await;

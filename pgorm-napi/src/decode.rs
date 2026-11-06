@@ -96,7 +96,7 @@ fn column(row: &Row, index: usize) -> Result<Tagged, Failure> {
 /// reads as a `Decimal` at the places the COPY's description learned; a
 /// query's `money` column has no places beside it and is refused, as a query
 /// reads it cast to `numeric`.
-// [spec:pgorm:req:bindings.copy-rows+1]
+// [spec:pgorm:req:bindings.copy-rows+2]
 pub(crate) fn field(column: &CopyColumn, raw: Option<&[u8]>) -> Result<Tagged, Failure> {
     if column.money_places().is_some() {
         return match column.decode(raw) {
