@@ -40,7 +40,16 @@ A COPY takes no bound parameters, so a statement has one rendering:
 `inspect()` gives its SQL, with any value in it written as an escaped
 literal, and no values. The terminals that run other statements, `execute`,
 `query` and the rest, refuse a COPY with a `TypeError`, since it carries data
-only `copyIn` and `copyOut` move.
+only `copyIn` and `copyOut` move. SQL text holding a `COPY` given to them is
+refused too, with a `ConstructionError` saying to use `copyIn` or `copyOut`,
+before anything is sent, as Rust refuses it with `Error::CopyStatement`:
+
+```ts
+import assert from "node:assert/strict";
+import { ConstructionError } from "@necessary/pgorm";
+
+await assert.rejects(pool.query("COPY cake TO STDOUT"), ConstructionError);
+```
 
 ## Loading rows
 
@@ -193,6 +202,29 @@ const decoder = new TextDecoder();
 let csv = "";
 for await (const chunk of await pool.copyOut(raised)) csv += decoder.decode(chunk, { stream: true });
 assert.deepEqual(csv.trim().split("\n").sort(), ["Carrot Cake,4.80", "Vanilla Sponge,3.90"]);
+```
+
+A `select` copies as it would run, a tie limit (`limitWithTies`) and a
+`window` clause included. One PostgreSQL would refuse, with a tie limit but
+no `orderBy` to measure its ties on, or a `window` clause that names a window
+twice or refers to one it does not define, is refused by `copyTo` with a
+`ConstructionError` as it is called, where Rust's `copy_out` refuses it
+before it sends anything. Here the cheapest of Sunrise's cakes, and any that
+tie with it, are copied:
+
+```ts
+import assert from "node:assert/strict";
+import { ConstructionError, copyTo, select, Table } from "@necessary/pgorm";
+
+const cake = new Table("cake");
+const sunrise = select(cake.col("name")).from(cake).where(cake.col("bakery_id").eq(1));
+assert.throws(() => copyTo(sunrise.limitWithTies(1), "csv"), ConstructionError);
+
+const cheapest = copyTo(sunrise.orderBy(cake.col("price").asc()).limitWithTies(1), "csv");
+const decoder = new TextDecoder();
+let csv = "";
+for await (const chunk of await pool.copyOut(cheapest)) csv += decoder.decode(chunk, { stream: true });
+assert.equal(csv, "Lemon Drizzle\n");
 ```
 
 Leaving a `CopyOutStream` before its end, with `close()`, `return()` or a

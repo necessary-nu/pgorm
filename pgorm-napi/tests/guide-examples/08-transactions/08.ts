@@ -2,18 +2,23 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Customer } from "../../../guide/bakery.ts";
+import { Decimal } from "@necessary/pgorm";
+import { Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  await assert.rejects(
-    pool.transaction(async (tx) => {
-      await Customer.insert({ name: "Mo", email: "mo@example.com" }).execute(tx);
-      await tx.execute("SELECT pg_sleep(30)", [], { signal: AbortSignal.timeout(100) });
-    }),
-    (error) => error instanceof DOMException && error.name === "TimeoutError",
-  );
-
-  // Mo's insert was rolled back with the transaction.
-  assert.equal(await Customer.find().count(pool), 2);
+  await using other = await pool.acquire();
+  let attempts = 0;
+  const doubled = await pool.transactionWithRetry(async (tx) => {
+    attempts += 1;
+    const fudge = await Cake.findByKey({ id: 1 }).one(tx);
+    if (attempts === 1) {
+      // Someone else's change commits after this transaction read the row.
+      await other.execute("UPDATE cake SET price = price + 1 WHERE id = 1");
+    }
+    const price = new Decimal(String(Number(fudge.price.toString()) * 2));
+    const changed = await Cake.update({ price }).where(Cake.key({ id: 1 })).returning("price").one(tx);
+    return changed.price;
+  }, { retries: 3, mode: "readWrite", isolation: "serializable" });
+  assert.deepEqual([attempts, String(doubled)], [2, "11.00"]);
 }

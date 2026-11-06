@@ -2,17 +2,21 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { copyFrom, DatabaseError, LifecycleError } from "@necessary/pgorm";
+import { ConstructionError, copyFrom, copyTo, Decimal } from "@necessary/pgorm";
+import { OrderLine } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  await using db = await pool.acquire();
-  await assert.rejects(db.copyIn(copyFrom("pastry", "text"), new Uint8Array()), DatabaseError);
+  const bakeries = copyFrom("bakery", "binary").columns(["name", "city"]);
+  await assert.rejects(pool.copyInRows(bakeries, [["Daybreak", "Trondheim"], ["Dusk"]]), ConstructionError);
+  assert.equal(await pool.copyInRows(bakeries, [["Daybreak", "Trondheim"]]), 1);
 
-  // The connection is closed now.
-  await assert.rejects(db.one("SELECT 1 AS one"), LifecycleError);
+  const rows = [];
+  for await (const row of await pool.copyOutRows(copyTo("bakery", "binary"))) rows.push(row);
+  assert.deepEqual(rows[2], [3, "Daybreak", "Trondheim"]);
 
-  // The pool does not lend it again.
-  const { one } = await pool.one("SELECT 1 AS one");
-  assert.equal(one, 1);
+  const prices = [];
+  const lines = copyTo(OrderLine.select("price").where(OrderLine.col("orderId").eq(1)).statement, "binary");
+  for await (const [price] of await pool.copyOutRows(lines)) prices.push(String(price as Decimal));
+  assert.deepEqual(prices.sort(), ["3.20", "4.50"]);
 }

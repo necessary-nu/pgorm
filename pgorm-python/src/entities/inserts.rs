@@ -5,13 +5,13 @@
 
 use std::sync::Arc;
 
+use crate::panics::future_into_py;
 use pgorm::{ActiveValue, pgorm_query::OnConflict, pgorm_query::Value};
 use pyo3::{
     IntoPyObjectExt,
     prelude::*,
     types::{PyList, PyTuple},
 };
-use pyo3_async_runtimes::tokio::future_into_py;
 
 use super::{
     PyActiveModel,

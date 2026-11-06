@@ -1,9 +1,9 @@
 use std::{fmt, pin::Pin, sync::Arc};
 
+use crate::panics::future_into_py;
 use futures_util::TryStreamExt;
 use pgorm::{ConnectionTrait, ValueHolder};
 use pyo3::prelude::*;
-use pyo3_async_runtimes::tokio::future_into_py;
 use tokio::sync::Mutex;
 use tokio_postgres::{RowStream, types::ToSql};
 use tokio_util::sync::CancellationToken;
@@ -124,10 +124,20 @@ impl NativeStream {
                     state.finished.cancel();
                     Ok(None)
                 }
-                Err(error) => Err(database_error(
-                    pgorm::Error::from(error),
-                    &state.connection.pool.secrets,
-                )),
+                Err(error) => {
+                    // The server ended the statement with its error, which
+                    // leaves what the stream holds in a known state, as its
+                    // last row does: a transaction's is aborted, and its
+                    // commit reports so.
+                    if error.as_db_error().is_some() {
+                        active.hold.release();
+                        state.finished.cancel();
+                    }
+                    Err(database_error(
+                        pgorm::Error::from(error),
+                        &state.connection.pool.secrets,
+                    ))
+                }
             }
         })
     }

@@ -143,7 +143,7 @@ class StreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.sqlstate, "22012")
         self.assertTrue(await self.pool.ping())
 
-    # [spec:pgorm:req:python.runtime+1/test]
+    # [spec:pgorm:req:python.runtime+2/test]
     async def test_foreign_loop_does_not_consume_stream(self):
         rows = await self.pool.stream(p.RawSQL("SELECT generate_series(1, 3) AS n"))
         for action in (lambda: anext(rows), rows.aclose):

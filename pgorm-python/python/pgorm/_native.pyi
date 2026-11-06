@@ -175,9 +175,10 @@ from ._results import Record as Record, Field as Field
 from ._entity_raw import EntityRawQuery as EntityRawQuery
 from ._entities import Entity as Entity, EntityColumn as EntityColumn, EntityQuery as EntityQuery, entity as entity, entities as entities
 from ._versions import (
-    Change as Change, Upserted as Upserted, EntityUpdate as EntityUpdate,
     EntityUpdateMany as EntityUpdateMany, EntityInsert as EntityInsert,
     EntityInsertMany as EntityInsertMany,
+    Change as Change, Upserted as Upserted, _change as _change, _inserted as _inserted,
+    _updated as _updated, EntityUpdate as EntityUpdate,
 )
 from ._graphs import EntityGraph as EntityGraph, EntityGraphQuery as EntityGraphQuery, EntityGraphCursor as EntityGraphCursor, graph as graph, graphs as graphs
 from ._entity_models import EntityModel as EntityModel, ActiveModel as ActiveModel, ActiveValue as ActiveValue, ActiveState as ActiveState

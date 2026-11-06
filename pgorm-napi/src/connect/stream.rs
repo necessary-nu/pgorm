@@ -253,7 +253,17 @@ async fn next(
             state.finished.cancel();
             Ok(None)
         }
-        Err(error) => Err(failure(&error.into(), &state.connection.pool.secrets)),
+        Err(error) => {
+            // The server ended the statement with its error, which leaves what
+            // the stream holds in a known state, as its last row does: a
+            // transaction's is aborted, and its commit reports so.
+            // [spec:pgorm:req:bindings.streams+1]
+            if error.as_db_error().is_some() {
+                active.hold.release();
+                state.finished.cancel();
+            }
+            Err(failure(&error.into(), &state.connection.pool.secrets))
+        }
     }
 }
 

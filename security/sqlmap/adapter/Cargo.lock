@@ -1492,6 +1492,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "deadpool",
+ "futures-util",
  "serde",
  "tokio",
  "tokio-postgres",

@@ -170,7 +170,7 @@ test("a unique key PostgreSQL or the derive would refuse is refused as the model
   assert.throws(() => declare({ fields: ["handle"], nullsNotDistinct: 1 }), mistyped(/is a boolean/));
 });
 
-// [spec:pgorm:req:bindings.model-writes+2/test]
+// [spec:pgorm:req:bindings.model-writes+3/test]
 // [spec:pgorm:req:bindings.model-records+1/test]
 test("an insert writes the fields it sets, the rest taking the table's defaults", async () => {
   const ann = await Account.insert({ mood: "calm", name: "Ann", span: new Range(1.5, 2.5) }).returning().one(pool());
@@ -187,7 +187,7 @@ test("an insert writes the fields it sets, the rest taking the table's defaults"
   assert.deepStrictEqual(await Account.insert({ name: "Bob" }).returning("id", "name").one(pool()), { id: 2n, name: "Bob" });
 });
 
-// [spec:pgorm:req:bindings.model-writes+2/test]
+// [spec:pgorm:req:bindings.model-writes+3/test]
 test("a field left out stays as it is, and one set to null is written as NULL", async () => {
   await Account.insert({ name: "Ann", displayName: "A", mood: "calm" }).execute(pool());
   const ann = Account.findByKey({ id: 1n });
@@ -206,7 +206,7 @@ test("a field left out stays as it is, and one set to null is written as NULL", 
   assert.equal(changed.seq, 3);
 });
 
-// [spec:pgorm:req:bindings.model-writes+2/test]
+// [spec:pgorm:req:bindings.model-writes+3/test]
 test("a write that cannot be built is refused before anything is sent", async () => {
   const write = (values: unknown) => () => Account.insert(values as never);
   assert.throws(write({ displayName: "x" }), refused(/name is required/));
@@ -227,11 +227,16 @@ test("a write that cannot be built is refused before anything is sent", async ()
   assert.equal(await Account.find().count(pool()), 0);
 });
 
-// [spec:pgorm:req:bindings.model-writes+2/test]
+// [spec:pgorm:req:bindings.model-writes+3/test]
 test("insertMany writes rows that set the same fields, and a batch of none sends nothing", async () => {
   const rows = await Account.insertMany([{ name: "Ann" }, { name: "Bob" }]).returning("id").all(pool());
   assert.deepStrictEqual(rows, [{ id: 1n }, { id: 2n }]);
   const none = Account.insertMany([]);
+  // [spec:pgorm:req:bindings.model-writes+3/test]    an empty batch takes a conflict clause, sends nothing, and keeps it for rows added later
+  const guarded = none.onConflict(Conflict.on("id").doNothing());
+  assert.equal(await guarded.execute(pool()), 0);
+  assert.deepStrictEqual(await guarded.returningUpserts(pool()), []);
+  assert.match(guarded.add({ name: "Dee" }).inspect().sql, /ON CONFLICT \("id"\) DO NOTHING$/);
   assert.equal(await none.execute(pool()), 0);
   assert.deepStrictEqual(await none.returning().all(pool()), []);
   assert.equal(await none.returning().optional(pool()), null);
@@ -241,7 +246,7 @@ test("insertMany writes rows that set the same fields, and a batch of none sends
   assert.equal(await Account.find().count(pool()), 2);
 });
 
-// [spec:pgorm:req:bindings.model-writes+2/test]
+// [spec:pgorm:req:bindings.model-writes+3/test]
 test("an insert is typed by its row count, and add or addMany makes a batch of its rows and theirs", async () => {
   const one = Account.insert({ name: "Ann" });
   const many = Account.insertMany([{ name: "Bob" }]);
@@ -295,7 +300,7 @@ test("find, select and findByKey read records, filtered, ordered and windowed", 
   assert.equal(await Account.find().limit(1).count(pool()), 3);
 });
 
-// [spec:pgorm:req:bindings.model-columns+1/test]
+// [spec:pgorm:req:bindings.model-columns+2/test]
 // [spec:pgorm:req:bindings.column-operators+3/test]
 test("a column compares through its declared kind, and refuses what it cannot bind", async () => {
   await seed();
@@ -337,6 +342,36 @@ test("a column compares through its declared kind, and refuses what it cannot bi
 });
 
 // [spec:pgorm:req:bindings.model-reads/test]
+// [spec:pgorm:req:bindings.model-columns+2/test]
+test("any and all over values bind the column's declared kind, an enum's array cast to its type", async () => {
+  await seed();
+  const glad = Account.col("mood").eq(any(["glad"]));
+  assert.match(glad.inspect().sql, /= ANY\(CAST\(\$1::text\[\] AS app\.mood\[\]\)\)/);
+  assert.deepStrictEqual(await Account.select("name").where(glad).all(pool()), [{ name: "Cy" }]);
+  assert.deepStrictEqual(
+    await Account.select("name").where(Account.col("mood").ne(all(["glad"]))).orderBy(byId).all(pool()),
+    [{ name: "Ann" }],
+  );
+  assert.deepStrictEqual(await Account.select("name").where(Account.col("mood").eq(any([]))).all(pool()), []);
+  assert.deepStrictEqual(Account.col("id").eq(any([1, 3])).inspect().values.map((value) => value.kind), ["array"]);
+  assert.deepStrictEqual(
+    await Account.select("name").where(Account.col("id").eq(any([1, 3]))).orderBy(byId).all(pool()),
+    [{ name: "Ann" }, { name: "Cy" }],
+  );
+  assert.throws(() => Account.col("mood").eq(any(["wild"] as never)), refused(/not one of mood's values/));
+  assert.throws(() => Account.col("id").eq(any([1, null] as never)), refused(/compared with null is never true/));
+});
+
+// [spec:pgorm:req:napi.cancellation+2/test]    a model's terminal takes its signal, and an option it does not know is refused
+test("a model's terminals honour their signal and refuse an option they do not know", async () => {
+  await assert.rejects(
+    Account.find().all(pool(), { signal: AbortSignal.abort() }),
+    (error: unknown) => error instanceof DOMException && error.name === "AbortError",
+  );
+  await assert.rejects(Account.find().count(pool(), { sginal: undefined } as never), TypeError);
+  assert.deepStrictEqual(await Account.find().all(pool(), {}), []);
+});
+
 test("a key names every key field and no other, a composite one included", async () => {
   await Version.insertMany([{ doc: 1, rev: 1, body: "one" }, { doc: 1, rev: 2, body: "two" }]).execute(pool());
   assert.equal((await Version.findByKey({ doc: 1, rev: 2 }).one(pool())).body, "two");
@@ -464,7 +499,7 @@ test("records stream from a pool or a connection, and a transaction has no strea
   );
 });
 
-// [spec:pgorm:req:bindings.model-writes+2/test]
+// [spec:pgorm:req:bindings.model-writes+3/test]
 test("an update returns each row it wrote before and after", async () => {
   await seed();
   const change = await Account.update({ name: "Anne", visits: 5 }).where(Account.key({ id: 1n })).returningChange(pool());
@@ -482,7 +517,7 @@ test("an update returns each row it wrote before and after", async () => {
   assert.deepStrictEqual(await Account.update({ name: "x" }).where(Account.key({ id: 99n })).returningChanges(pool()), []);
 });
 
-// [spec:pgorm:req:bindings.model-writes+2/test]
+// [spec:pgorm:req:bindings.model-writes+3/test]
 test("an upsert tells a row it inserted from one it updated, and one its conflict clause held back", async () => {
   await Account.insert({ name: "Ann" }).execute(pool());
   const renamed = Conflict.on("id").update("name");
@@ -502,7 +537,7 @@ test("an upsert tells a row it inserted from one it updated, and one its conflic
   assert.throws(() => Account.insert({ name: "x" }).onConflict(Conflict.on("id") as never), TypeError);
 });
 
-// [spec:pgorm:req:bindings.model-writes+2/test]
+// [spec:pgorm:req:bindings.model-writes+3/test]
 test("a delete removes the rows its condition matches and returns what it removed", async () => {
   await seed();
   assert.deepStrictEqual(await Account.delete().where(Account.col("name").eq("Bob")).returning("name").all(pool()), [
@@ -511,8 +546,8 @@ test("a delete removes the rows its condition matches and returns what it remove
   assert.equal(await Account.delete().allRows().execute(pool()), 2);
 });
 
-// [spec:pgorm:req:bindings.model-writes+2/test]
-// [spec:pgorm:req:bindings.transactions+1/test]
+// [spec:pgorm:req:bindings.model-writes+3/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a model's writes run in a transaction and roll back with it", async () => {
   await assert.rejects(
     pool().transaction(async (transaction) => {

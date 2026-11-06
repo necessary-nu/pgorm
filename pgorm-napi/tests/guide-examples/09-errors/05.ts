@@ -13,6 +13,12 @@ export default async function example({ pool }: GuideContext): Promise<void> {
   assert.equal(tooWide.parameter, 1);
   assert.equal(tooWide.reason, "value `100000` is out of range for Postgres type `int2`");
 
+  // Two placeholders, and one value.
+  const short = await pool.execute("SELECT $1::text, $2::text", ["lemon"]).catch((error: unknown) => error);
+  assert.ok(short instanceof ConstructionError);
+  assert.equal(short.message, "the statement takes 2 parameters, and 1 was given");
+  assert.equal(short.parameter, null);
+
   // No Temporal type is a time of day at a fixed offset.
   const unreadable = await pool.one("SELECT '12:00+01'::timetz AS opens").catch((error: unknown) => error);
   assert.ok(unreadable instanceof DecodeError);

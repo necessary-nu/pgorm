@@ -79,6 +79,33 @@ class Retrying(unittest.IsolatedAsyncioTestCase):
     async def read(self, tx: p.Transaction) -> int:
         return (await tx.one(RawSQL("SELECT n FROM python_retry_items WHERE id = 1")))["n"]
 
+    # [spec:pgorm:req:bindings.transactions+2/test]    a retrying transaction and a transaction's stream meet the aborted COMMIT
+    async def test_an_aborted_transaction_is_not_retried(self):
+        attempts = 0
+
+        async def swallows(tx: p.Transaction) -> None:
+            nonlocal attempts
+            attempts += 1
+            try:
+                await tx.one(RawSQL("SELECT 1 / 0 AS n"))
+            except p.DatabaseError:
+                pass
+
+        async with self.pool.connection() as connection:
+            with self.assertRaises(p.DatabaseError) as caught:
+                await connection.transaction_with_retry(swallows, retries=3)
+            self.assertEqual((attempts, caught.exception.sqlstate, caught.exception.is_retryable), (1, "25P02", False))
+            with self.assertRaises(p.DatabaseError) as streamed:
+                async with connection.transaction() as tx:
+                    try:
+                        async with await tx.stream(RawSQL("SELECT 1 / (n - 10) AS n FROM python_retry_items")) as rows:
+                            async for _ in rows:
+                                pass
+                    except p.DatabaseError:
+                        pass
+            self.assertEqual(streamed.exception.sqlstate, "25P02")
+            self.assertTrue(await connection.ping())
+
     # [spec:pgorm:req:bindings.transaction-retry/test]
     async def test_only_pgorm_marks_an_error_retryable(self):
         try:

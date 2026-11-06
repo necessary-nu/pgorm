@@ -452,9 +452,9 @@ fn cursors() -> Vec<(&'static str, (String, Values))> {
 
 // [spec:pgorm:req:bindings.models+5/test]
 // [spec:pgorm:req:bindings.model-reads/test]
-// [spec:pgorm:req:bindings.model-writes+2/test]
+// [spec:pgorm:req:bindings.model-writes+3/test]
 // [spec:pgorm:req:bindings.relations/test]
-// [spec:pgorm:req:bindings.graphs/test]
+// [spec:pgorm:req:bindings.graphs+1/test]
 // [spec:pgorm:req:bindings.cursors/test]
 // [spec:pgorm:req:bindings.pagination/test]
 #[test]

@@ -6,7 +6,7 @@
 
 // [spec:pgorm:req:napi.typing+1]
 // [spec:pgorm:req:bindings.expressions+4]
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.quantifiers+4]
 // [spec:pgorm:req:bindings.case]
 
 import type { Multirange, Param, Range, TypeName, Value } from "./index.d.ts";

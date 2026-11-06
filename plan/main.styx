@@ -13578,6 +13578,22 @@ children (
                         title "A limited model graph refuses allGrouped, count, paginate and cursor, as Rust refuses them at compile time, instead of allGrouped truncating a root's rows, count ignoring the limit and paginate and cursor replacing it (guide 07-relations, whose example asserts today's truncation)"
                         kind @fix
                         deps (napi-models guide.javascript)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-05T19:44:54.974286Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T06:59:25.329001Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
+                            }
+                        )
                     }
 
                     {
@@ -13745,12 +13761,34 @@ children (
                         title "Rust and JavaScript agree on a COPY TO over a SELECT with a tie limit or a WINDOW clause: Rust's guide says copy_out refuses one with Error::QueryBuilder, while JavaScript's copyOut builds and runs both and PostgreSQL 18 accepts them (repro in the node note)"
                         kind @fix
                         deps (copy-source-tie-check guide.javascript)
+                        sealed true
                         log (
                             {
                                 at 2026-11-05T17:19:46.995914Z
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "Found writing guide 17-copy. Repro (JavaScript, PostgreSQL 18.6): const t = new Table(\"pg_class\"); await pool.copyOut(copyTo(select(t.col(\"relname\")).from(t).orderBy(t.col(\"relpages\").asc()).limitWithTies(1), \"csv\")) streams rows, and the same with select(..).window(..) does too. docs/guide/16-copy.md says Rust's copy_out refuses a tie-limit or WINDOW source with Error::QueryBuilder before anything is sent; copy-source-tie-check says JavaScript runs the same checks. Diagnose which side is right against the 18 grammar (COPY (query) accepts both?) and make the two bindings and Rust agree, guide chapters included."
+                            }
+
+                            {
+                                at 2026-11-05T19:54:11.174536Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:54:12.731105Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Diagnosis: the three agree with the rules already; the Rust guide was wrong. conn.copy (copy_out runs CopyToStatement::check_source) and bindings.copy refuse only a SELECT source PostgreSQL's grammar refuses: a tie limit with no ORDER BY (or beside SKIP LOCKED, check_tie_limit) and a WINDOW clause, or a reference to one, check_windows refuses (a name two entries share, an undefined base or window, ...). The note's repro used an ORDER BY with its tie limit and a declared window, both of which PostgreSQL 18 takes inside COPY (..) TO, so JavaScript was right to run them, as Rust and Python do (copy_out_checks_select_source and both bindings' tests). docs/guide/16-copy.md said any tie limit or WINDOW clause was refused; it now says which, with an example copying an ordered tie limit and refusing an unordered one. The JavaScript guide gained the passage and example, the Python one the WINDOW case; Rust's live test gained the declared-window copy JavaScript and Python already had. No rule changed."
+                            }
+
+                            {
+                                at 2026-11-06T06:59:26.140363Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
                             }
                         )
                     }
@@ -13852,6 +13890,43 @@ children (
                         title "pgorm-napi's inconsistencies the guide found are fixed: an empty model insert batch takes onConflict and sends nothing as Rust's does; new Pool and Relation.load refuse an option they do not know with a TypeError as the builders do; CopyRowStream's rows type-check as CopyRows; DisjointPaginator.numItemsAndPages returns { items, pages } as Paginator's does"
                         kind @fix
                         deps (napi-models napi-connections guide.javascript)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-05T21:07:17.73433Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T21:07:36.701561Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "(1) An empty model insert batch takes onConflict/on_conflict and sends nothing, in both bindings (Python had the same refusal): the insert keeps its conflict clause apart from its statement, so the rows add/addMany give an insert of none later are written under it, as Rust's Insert::many keeps on_conflict; bindings.model-writes+3. (2) Unknown options are a TypeError through one helper, knownOptions (lib/operations.js), used by new Pool/connect, queryOptions (every statement and model terminal, Relation.load through it) and a transaction's and a savepoint's options; Python's signatures already refuse unknown keyword arguments. Found and fixed while there: runStatement passed a built statement's options as its params, so every model, graph, relation and paginator terminal dropped its options, its signal included (statementArgs(statement, undefined, options) -> statementArgs(statement, options)); now honoured and tested. (3) CopyRowStream vs CopyRows is a real run-time gap in both bindings (ranges, multiranges and empty arrays decoded from a COPY are refused writing back), not a typing slip, so it is split to napi.guide-gaps.copy-rows-round-trip rather than widen the type to rows the binding refuses. (4) DisjointPaginator.numItemsAndPages answers { items, pages } as Paginator's does; Python's two paginators already agree (tuples), so it is unchanged; JavaScript's disjoint chapter no longer states the difference."
+                            }
+
+                            {
+                                at 2026-11-06T06:59:26.480598Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
+                            }
+                        )
+                    }
+
+                    {
+                        id napi.guide-gaps.copy-rows-round-trip
+                        title "A binary COPY's rows read with copyOutRows / copy_out_rows write back through copyInRows / copy_in_rows, in both bindings: a value inference cannot type (a plain range or multirange, an empty array, an array of nulls) is typed by its COPY column's type, which copy_in_columns already holds, and CopyRowStream's rows then type-check as CopyRows"
+                        deps (napi.guide-gaps.binding-refusals)
+                        log (
+                            {
+                                at 2026-11-05T21:07:17.331156Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Split from napi.guide-gaps.binding-refusals (its CopyRowStream-vs-CopyRows item). The type mismatch is real at run time, and in both bindings: JavaScript's copyInRows(copyFrom(dst, \"binary\"), await pool.copyOutRows(copyTo(src, \"binary\"))) refuses an int4range column's decoded Range (\"a range's kind is not inferred from its bounds\") and an empty int4[] (\"an array with no item but null has no element kind to infer\"); Python's copy_in_rows refuses the same rows (\"ambiguous or unsupported value: supply an explicit kind\"). Both bindings read each COPY row value by inference (pgorm-napi src/connect/copy/rows.rs copy_rows_encode -> params::read -> values::read::infer), though CopyRowEncoder knows every column's Type. Fix through pgorm (a value's kind from a column's tokio_postgres Type, for the bindings to read an un-inferable value by; built-in range and multirange types by name, a created range by its subtype, an array by its element), then in both bindings, then widen lib/copy.d.ts's CopyRows to the PlainValue rows CopyRowStream yields (Float32Array and Range among them) and test the round trip live in both suites. Probes in the reporting lane: tables with int4range, jsonb, int4[], numeric, timestamptz, interval, an empty int4[], bytea and uuid columns."
+                            }
+                        )
                     }
                 )
             }
@@ -19159,6 +19234,29 @@ children (
                 title "A declared Python model column's any_ and all_ bind their array cast to the column's type, as a registered column's and Rust's eq_any do, where today \"cake\".\"flavor\" = ANY($1) binds a bare text[] (unchecked for a domain over an enum or money)"
                 kind @fix
                 deps (guide.python python.models)
+                sealed true
+                log (
+                    {
+                        at 2026-11-05T19:44:58.068362Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-05T19:46:06.021386Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Same bug in both bindings, fixed in both. A declared model column given any_/all_ over a list of values (a Quantified whose source is a plain list) re-quantifies over the values each converted through the column's declared kind and bound as one array Value of that kind: an enum's renders ANY(CAST($1::text[] AS schema.mood[])), as eq's CAST($1::text AS schema.mood); labels are validated, null refused, an empty list typed. Python reads the list through a new private getter Quantified._listed (native, stubbed); JavaScript through its existing listedValues. A quantifier over a Select or expression, and one beside an array column, stays as written. A domain over an enum still finds no operator (42883) for any comparison on a declared model column, eq included, since a declaration does not know the domain's base: that is the existing declared-model typing node (Declared models type their columns as entities do ... a domain over an enum compared as the enum), not this one. Rules: bindings.model-columns+2, bindings.quantifiers+4 (an empty list typed by a declared model column too)."
+                    }
+
+                    {
+                        at 2026-11-06T06:59:25.696122Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
         )
     }
@@ -19900,6 +19998,11 @@ children (
                         id guide.python-gaps.raw-param-count-error
                         title "A raw statement given the wrong number of parameters raises ConstructionError naming the counts, not ConnectionError(\"PostgreSQL connection or protocol failure\") with no sqlstate"
                         kind @fix
+                        implements {
+                            javascript ([spec:pgorm:sem:error.model.parameter-count])
+                            main ([spec:pgorm:sem:error.model.parameter-count])
+                            python ([spec:pgorm:sem:error.model.parameter-count])
+                        }
                         deps (python.runtime)
                         log (
                             {
@@ -19907,6 +20010,20 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "Found by guide.python (lane C). Repro: await pool.one(RawSQL(\"SELECT $1 AS x, $2 AS y\", [1])) raises pgorm.ConnectionError(\"PostgreSQL connection or protocol failure\"), sqlstate None. Cause: pgorm-python/src/errors.rs client_error() matches DecodeRefusal and BindRefusal only, so tokio-postgres's parameter-count error falls to the ConnectionError fallback. It is caller input, so bindings.errors/argument-errors make it a ConstructionError. Check pgorm-napi's classification too. The guide does not document the current behaviour."
+                            }
+
+                            {
+                                at 2026-11-05T19:59:28.963092Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:59:30.218252Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Same bug in both bindings (JavaScript's text was \"PostgreSQL connection or protocol failure: expected 2 parameters but got 1\"). Shared through pgorm, as BindRefusal and DecodeRefusal are: new pgorm::ParameterCountRefusal { expected, given } with ParameterCountRefusal::of(&tokio_postgres::Error), reading tokio-postgres 0.7.18's top-level Kind::Parameters text (no public kind), and Error::parameter_count_refusal(). Display \"the statement takes N parameters, and M were given\" (singular for one); both bindings classify it as ConstructionError with exactly that text. New rule error.model.parameter-count, which states the binding classification; bindings.errors already files an argument whose value cannot become what pgorm sends as ConstructionError, so it was not bumped (33 pins, other lanes editing them). Rust's errors chapter and both dialects teach it."
                             }
                         )
                     }
@@ -19916,12 +20033,34 @@ children (
                         title "A declared model's graph with a limit or offset refuses all_grouped, paginate, cursor and count with ConstructionError, as Rust refuses them at compile time, instead of answering partial groups, replacing the limit or dropping it"
                         kind @fix
                         deps (python.models python.graph)
+                        sealed true
                         log (
                             {
                                 at 2026-11-05T17:44:18.93901Z
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "Found by guide.python (lane B). Repro: await Bakery.graph().join_maybe(bakery_cakes).order_by(Bakery.col(\"id\").asc()).limit(2).all_grouped(pool) returns [(Sunrise, 2 cakes)] though Sunrise has 3 (the limit cuts joined rows, not roots). On the same limited graph paginate and cursor silently replace the limit and count drops it. Rust refuses these on a limited SelectGraph at compile time (E0599). pgorm-python/guide/07-relations.md \"Limits, pages and cursors\" documents the current behaviour with a warning; change that example when this is fixed."
+                            }
+
+                            {
+                                at 2026-11-05T19:44:40.053821Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:45:50.460369Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Shared shape for both bindings (with napi.guide-gaps.graph-limit-refusal): limit/offset mark a declared model's graph sliced whatever value they get (Rust's SelectGraph<_, _, Sliced>), and all_grouped/count/cursor/paginate, plus inspect of the count/all_grouped terminals, raise ConstructionError \"a graph cut by limit or offset has no <terminal>: <why>; read the first roots with find().limit(..) and load their related rows\". Typed as Rust does at compile time: Python's Graph is Generic over a bool-literal S (TypeVar bound=bool, default Literal[False]); limit/offset return Graph[Literal[True]], the four methods take self: Graph[Literal[False]], so mypy reports [misc]. TypeScript's Graph gains a third type parameter Sliced extends boolean = false with the four methods taking this: Graph<S, I, false>; a private phantom `sliced: Sliced` member makes the parameter structural (variance annotations and this-params alone did not refuse). No new public names. Rule bindings.graphs+1."
+                            }
+
+                            {
+                                at 2026-11-06T06:59:23.620018Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
                             }
                         )
                     }
@@ -19931,12 +20070,34 @@ children (
                         title "The Change, Inserted and Updated a declared model's or a generated view's returning_change(s) and returning_upsert(s) return have public names, and are the classes pgorm.Change and pgorm.Upserted name, rather than private pgorm._registered.versions classes a program must import to match or annotate them"
                         kind @fix
                         deps (python.models python.entities)
+                        sealed true
                         log (
                             {
                                 at 2026-11-05T17:44:19.414614Z
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "Found by guide.python (lanes A and F2). A declared model's returning_upsert(s)/returning_change(s) and a generated view's return pgorm._registered.versions.Inserted/Updated/Change (generic Python classes); registered entity writes return the native pgorm.Change and pgorm.Upserted.Inserted/Updated. isinstance(result, pgorm.Upserted) is False for a model's upsert, and `c: pgorm.Change = await Cake.update(..).returning_change(pool)` fails mypy (pgorm._registered.versions.Change[ModelRecord] vs pgorm._versions.Change). The guide's 04-writing.md and 24-registrations.md import Inserted/Updated from pgorm._registered.entities and say so; 25-typing.md avoids annotating them. Design choice for the lead: one family of public classes."
+                            }
+
+                            {
+                                at 2026-11-05T20:30:37.867864Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T21:07:37.289104Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead decision built as one family: pgorm.Change and pgorm.Upserted (Upserted.Inserted / Upserted.Updated) are the only classes, whatever wrote the row. The native classes now hold any record (Py<PyAny>), so a declared model's and a generated view's writes return them, built through new private native functions _change(old, new), _inserted(model) and _updated(change); the Python generic Change/Inserted/Updated in pgorm._registered.versions are deleted with no alias, and pgorm._registered.entities no longer re-exports them. The stubs make both generic in the record, covariant with default Any (Change is a PyO3 generic class; Upserted, a complex enum PyO3 cannot make generic, gains __class_getitem__ returning types.GenericAlias), so `c: pgorm.Change = await Model.update(..).returning_change(pool)` passes strict mypy, a model's answer is Change[ModelRecord] / Upserted.Updated[ModelRecord], a registered entity's Change[EntityModel], and `case pgorm.Upserted.Inserted(model)` matches all three. Both were already in bindings-surface.json's python.only list as result classes (python.records), so the surface file is unchanged; python.records+1 states the single family. Guide 04-writing, 24-registrations and 25-typing import nothing private."
+                            }
+
+                            {
+                                at 2026-11-06T06:59:24.157814Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
                             }
                         )
                     }
@@ -19945,6 +20106,11 @@ children (
                         id guide.python-gaps.copy-through-query
                         title "A COPY run as an ordinary statement (pool.query(RawSQL(\"COPY cake TO STDOUT\"))) is refused with a ConstructionError naming copy_in and copy_out, not a ConnectionError protocol failure"
                         kind @fix
+                        implements {
+                            javascript ([spec:pgorm:req:conn.copy.statement])
+                            main ([spec:pgorm:req:conn.copy.statement])
+                            python ([spec:pgorm:req:conn.copy.statement])
+                        }
                         deps (python.statements)
                         log (
                             {
@@ -19953,6 +20119,20 @@ children (
                                 kind @note
                                 text "Found by guide.python (lane E). pool.query(RawSQL(\"COPY cake TO STDOUT\")) raises ConnectionError \"PostgreSQL connection or protocol failure\"; the pool recovers. Should be a clear refusal pointing at copy_in/copy_out (or CopyTo). Check pgorm-napi."
                             }
+
+                            {
+                                at 2026-11-05T20:09:32.601506Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "nplan_start refused this node (\"dep python.statements is Todo\") though nplan_node shows python.statements done; nplan_sync and a retry did not help. Proceeding in the worktree per the lane brief; the lead is told in the report."
+                            }
+
+                            {
+                                at 2026-11-05T20:09:33.956955Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Fixed in pgorm, so Rust and both bindings refuse alike. Rust's raw entry points had the same failure, worse for COPY FROM STDIN (the server waits for data nothing sends). Every ConnectionTrait statement method (execute, execute_raw, query_one/opt/all, query_raw through the cached_retry/cached_evict paths, and batch_execute) on connections and transactions (the metrics wrappers delegate) refuses SQL text holding a COPY statement with a new Error::CopyStatement before anything is sent or prepared. Cost on the hot path is a case-insensitive byte scan for \"copy\"; only text spelling it is scanned with pg_query::scan_tokens for a statement-initial COPY keyword (comments skipped; a copy in a string, quoted identifier or comment is none; any COPY in batch_execute's multi-statement text refuses all of it; lexer-refused text is sent for the server to refuse). Bindings map it to ConstructionError naming their own copy_in/copy_out (copyIn/copyOut) and CopyFrom/CopyTo (copyFrom/copyTo). New rule conn.copy.statement; error.model+14 lists the variant."
+                            }
                         )
                     }
 
@@ -19960,6 +20140,9 @@ children (
                         id guide.python-gaps.failed-commit
                         title "A transaction whose block caught a failed statement's error and ended normally reports that its COMMIT rolled back, in Rust and both bindings, rather than succeeding while PostgreSQL answers the COMMIT with ROLLBACK"
                         kind @fix
+                        implements {
+                            main ([spec:pgorm:sem:conn.tx.aborted])
+                        }
                         deps (python.transactions)
                         log (
                             {
@@ -19967,6 +20150,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "Found by guide.python (lane E), pgorm-wide, so it may belong under a Rust transactions container (tx-closure-only is sealed). A block that catches a failed statement's error without a savepoint and exits normally issues COMMIT; PostgreSQL answers it with the ROLLBACK command tag and no error, and tokio-postgres's commit ignores the tag, so the transaction \"commits\" with nothing written and no error. pgorm-python/guide/08-transactions.md \"Savepoints\" documents this; docs/guide/07-transactions.md says only that later statements are refused. Fix in pgorm (check the COMMIT's command tag), then both bindings, then both guides."
+                            }
+
+                            {
+                                at 2026-11-05T19:45:49.592114Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead decision built: a COMMIT an aborted transaction answers with ROLLBACK is an error. tokio-postgres 0.7.18 exposes neither the command tag nor ReadyForQuery's transaction status, so pgorm-pool's Transaction::commit asks: it sends `SELECT; COMMIT` as one simple query (an aborted transaction refuses the empty SELECT with 25P02, which skips the COMMIT), reads the answers with simple_query_raw to tell a refused SELECT (aborted: ROLLBACK awaited, CommitError::Aborted { refusal, rollback }) from a failed COMMIT (CommitError::Failed, transaction already ended), and forgets the inner tokio_postgres::Transaction once the server ended it (it holds only the client borrow, so nothing leaks, and no stray ROLLBACK is queued). A savepoint is asked with a separate `SELECT` a round trip ahead of RELEASE, because RELEASE consumes the handle a ROLLBACK TO would need; an aborted savepoint is rolled back to, so the enclosing transaction carries on. Cost: none on a top-level COMMIT, one round trip on a savepoint RELEASE (alternative rejected: restoring from the parent through the sealed Open/Close traits, ~80 lines across metrics too). Rust error: new `Error::TransactionAborted(#[source] tokio_postgres::Error)` (the server's 25P02), delivered as `TransactionError::Connection(Error::TransactionAborted)` since the COMMIT is what failed; not retryable; connection in a known state. Aborted + failed rollback = Connection(Error::RollbackFailed { cause: TransactionAborted, rollback }). Bindings: DatabaseError sqlstate 25P02 with pgorm's message, connection kept (healthy frame); a savepoint's raise leaves the parent usable. New rule conn.tx.aborted; conn.tx.guard+4, conn.tx.closure+6, error.model+14, bindings.transactions+1. pgorm-pool gained futures-util (default-features off; already in every lockfile's tree, 14 lockfiles re-locked with one dependency line each)."
                             }
                         )
                     }
@@ -19976,12 +20166,34 @@ children (
                         title "A Rust panic inside pgorm-python surfaces as the exception bindings.errors names (InternalError), or the rule and the guide's errors chapter agree on PyO3's PanicException; today the code catches none and the two disagree"
                         kind @fix
                         deps (python.runtime)
+                        sealed true
                         log (
                             {
                                 at 2026-11-05T17:44:20.799571Z
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "Found by guide.python (lane E), unconfirmed: the old README/TYPING.md said an internal Rust panic keeps PyO3's identifiable panic exception, docs/spec/bindings.md bindings.errors says a caught panic is InternalError, and no panic handling was found in pgorm-python/src. pgorm-python/guide/09-errors.md follows the old docs (PyO3's panic exception). Confirm which is true and make the rule, code and chapter agree."
+                            }
+
+                            {
+                                at 2026-11-05T20:20:55.269665Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T20:20:56.641334Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Confirmed: pgorm-python caught no panic. An awaitable's work that panicked resolved with pyo3-async-runtimes' RustPanic (\"rust future panicked: ...\"), neither InternalError nor PyO3's PanicException, so the old docs, the rule and the code all disagreed. Fix: every awaitable the native module returns now comes from crate::panics::future_into_py, a drop-in wrapper of pyo3-async-runtimes' that catches the unwind and resolves with InternalError(\"pgorm panicked: <message>\"), as pgorm-napi's settle::promise does; the 12 modules' imports changed, no call site. A debug build exports _native._probe_panic() (release none), which test_runtime uses as JavaScript's suite uses probePanic. A panic in a synchronous native call is caught by PyO3's trampoline before the binding sees it and stays PyO3's PanicException (a BaseException); PyO3 offers no hook to re-class it, and wrapping every #[pymethods] in catch_unwind was rejected. Rules: python.runtime+2 states both, bindings.errors+6 says a panic the binding catches (every one in work on the runtime) is InternalError and one the language's boundary catches first keeps that boundary's exception (the same bump adds ParameterCountRefusal's text, see raw-param-count-error). Guide 09-errors says the same."
+                            }
+
+                            {
+                                at 2026-11-06T06:59:24.83142Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
                             }
                         )
                     }

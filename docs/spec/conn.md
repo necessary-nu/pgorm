@@ -745,13 +745,14 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > savepoint implementation to ignore or reject its argument, so it is offered
 > only where PostgreSQL honours it.
 
-> [spec:pgorm:sem:conn.tx.guard+3]
+> [spec:pgorm:sem:conn.tx.guard+4]
 > `DatabaseTransaction` wraps `Option<pgorm_pool::Transaction>` as the handle a
 > transaction closure is given, and a transaction has three ends. Two are
 > awaited and chosen by the closure (`conn.tx.closure`): `COMMIT` after `Ok`,
 > `ROLLBACK` after `Err`, each consuming the handle, `take()`-ing the inner
 > transaction and awaiting the server's answer, mapping failure to
-> `Error::Postgres`; neither is public. Because both take the `Option`, the
+> `Error::Postgres`, and a `COMMIT` an aborted transaction could not make to
+> `Error::TransactionAborted` (`conn.tx.aborted`); neither is public. Because both take the `Option`, the
 > `Drop` impl's `tracing::warn!("Transaction dropped without committing!")`
 > fires only on the third: the closure's future dropped before it finished —
 > a timeout, a cancelled task, a `select!` that took another branch — or a
@@ -774,7 +775,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > replacing it — so a `ROLLBACK` queued as the handle drops is still flushed
 > after the connection returns to the pool and is handed to the next caller.
 
-> [spec:pgorm:sem:conn.tx.closure+5]
+> [spec:pgorm:sem:conn.tx.closure+6]
 > `TransactionTrait::transaction(f)` and `DatabaseConnection::transaction_with(opts,
 > f)` run a closure inside a transaction, taking `F: AsyncFnOnce(&mut
 > Self::Transaction<'_>) -> Result<T, E>` — `&mut DatabaseTransaction<'_>` on a
@@ -783,7 +784,10 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > implementor, opening through the sealed means of `conn.tx`;
 > `transaction_with` opens with `opts`; the rest of the cycle is shared.
 > `Ok(value)` is followed by `COMMIT`, and `value` is returned only once the
-> `COMMIT` succeeded. `Err(e)` is followed by an *awaited* `ROLLBACK`, so the
+> `COMMIT` succeeded and committed: a transaction that a statement failing
+> inside it had aborted, the error caught by the closure rather than
+> returned, is rolled back instead, and that is an error
+> (`conn.tx.aborted`). `Err(e)` is followed by an *awaited* `ROLLBACK`, so the
 > transaction is over by the time the caller is resumed — one of the awaited
 > ends of `conn.tx.guard`, not its fire-and-forget drop, which is why the
 > closure's rollback does not inherit that end's unobservable outcome. A
@@ -825,7 +829,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 >
 > Failures are wrapped in `TransactionError<E>`, whose variants keep the kinds
 > of failure apart: `Connection(Error)` for a failing `BEGIN` or `COMMIT` —
-> the transaction machinery — `Transaction(E)` for the closure's own error,
+> the transaction machinery, an aborted transaction's `COMMIT` among them — `Transaction(E)` for the closure's own error,
 > rolled back, and `RollbackFailed { cause: E, rollback: Error }` for the
 > closure's error followed by a `ROLLBACK` that failed too. It is `Debug`
 > unconditionally, `Display` where `E: Display`, and `std::error::Error` with a
@@ -877,6 +881,43 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > `transaction` returns. `Error::RollbackFailed` then means what
 > `TransactionError::RollbackFailed` means: the connection's state is
 > unknown, and it is to be discarded.
+
+> [spec:pgorm:sem:conn.tx.aborted]
+> A transaction whose closure returned `Ok` MUST NOT be reported as committed
+> when PostgreSQL rolled it back. A statement that fails inside a transaction
+> aborts it, and PostgreSQL refuses every later statement with SQLSTATE `25P02`
+> (`in_failed_sql_transaction`) until the transaction ends. A closure that
+> catches the failed statement's error and returns `Ok` all the same leads to a
+> `COMMIT`, which PostgreSQL answers with the `ROLLBACK` command tag and no
+> error, and tokio-postgres reads no command tag. So `pgorm_pool`'s
+> `Transaction::commit` asks first. It sends `SELECT; COMMIT` as one simple
+> query: the empty `SELECT` is refused in an aborted transaction, and its
+> refusal skips the `COMMIT` sent with it. A failure that came before the
+> `SELECT` completed is the transaction's abort: the transaction is rolled
+> back, the `ROLLBACK` awaited, and the commit fails with
+> `CommitError::Aborted { refusal, rollback }`. A failure after it is the
+> `COMMIT`'s own, which ends the transaction: `CommitError::Failed`. Either way
+> a transaction the server has ended is given up without the `ROLLBACK` its
+> drop would queue. A savepoint is asked a round trip ahead of its `RELEASE`,
+> with a `SELECT` alone: an aborted savepoint refuses the `RELEASE` too, but
+> the `RELEASE` consumes the handle a `ROLLBACK TO` would be sent through. On
+> the refusal the savepoint is rolled back to, so the transaction it is nested
+> in carries on. A transaction's `COMMIT` therefore costs no round trip more
+> than before, a savepoint's `RELEASE` one, and the empty `SELECT` appears in
+> the server's statement log and statistics beside them.
+>
+> pgorm reports an aborted transaction as
+> `TransactionError::Connection(Error::TransactionAborted(refusal))`: under
+> `Connection` because its `COMMIT` is what failed, holding the server's
+> refusal as its `source()`. Its connection is in a known state, idle or back
+> inside the enclosing transaction, so it need not be discarded. It is not
+> retryable (`conn.tx.retry`): the closure caught the statement that aborted
+> it and chose not to return the error, and a replay would run the same
+> closure again. When the rollback fails as well, the commit's error is
+> `Error::RollbackFailed { cause: TransactionAborted, rollback }`, with
+> `RollbackFailed`'s meaning: the connection's state is unknown. Through `?`
+> a savepoint's `TransactionAborted` reaches the closure around it as itself,
+> as `conn.tx.compose` flattens `Connection`.
 
 > [spec:pgorm:sem:conn.tx.retry+3]
 > `DatabaseConnection::transaction_with_retry(opts, max_retries, f)` is
@@ -1008,6 +1049,28 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > list leaves the generated columns out in both directions, the server
 > computing them as the rows go in; a COPY TO reads one only through a
 > `SELECT` source naming it, since `CopyToStatement` takes no column list.
+
+> [spec:pgorm:req:conn.copy.statement]
+> A `COPY` MUST run only through `CopyTrait` (`conn.copy`). The statement
+> methods of `ConnectionTrait` — `execute`, `execute_raw`, `query_one`,
+> `query_opt`, `query_all`, `query_raw` and `batch_execute`, on a
+> connection, a transaction and the metrics wrappers — run what they are
+> given as a statement, and a `COPY`'s data flows beside it: the driver
+> meets its `CopyOutResponse` or `CopyInResponse` as a protocol failure
+> after the server has started it, and a `COPY … FROM STDIN` is left waiting
+> for data nothing sends. Each MUST refuse SQL text holding a statement whose
+> first token is the `COPY` keyword with `Error::CopyStatement` before
+> anything is sent, the statement cache untouched. The text is first asked
+> whether it spells `copy` at all, in any case, which a statement pgorm
+> composes never does unless a name or a value it holds does, and only one
+> that does is scanned by libpg_query's lexer (`pg_query::scan_tokens`), so a
+> comment before the keyword is skipped and a `copy` in a string, a quoted
+> identifier or a comment is no statement. `batch_execute`'s text is a
+> simple query of any number of statements, and a `COPY` anywhere among them
+> refuses the whole text, none of it sent. Text the lexer refuses is sent,
+> for the server to refuse. The bindings report `Error::CopyStatement` as a
+> `ConstructionError` naming their own `copy_in` and `copy_out`
+> (`bindings.copy`).
 
 > [spec:pgorm:req:conn.copy.rows+5]
 > Binary COPY carries rows of pgorm `Value`s, each field in its value's

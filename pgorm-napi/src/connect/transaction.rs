@@ -280,7 +280,7 @@ impl State {
     /// The frame's lock, refusing rather than waiting when a request or an
     /// open savepoint holds it. Taken on the JavaScript thread as each request
     /// is made, so requests are refused in the order JavaScript made them.
-    // [spec:pgorm:req:bindings.transactions+1]
+    // [spec:pgorm:req:bindings.transactions+2]
     fn lock(&self) -> Result<OwnedMutexGuard<()>, Failure> {
         self.ensure_open()?;
         self.busy.clone().try_lock_owned().map_err(|_| {
@@ -612,7 +612,7 @@ impl Frame {
     /// Serve the frame's commands inside its transaction, a savepoint's frame
     /// nested inside while it is open: `Ok` once JavaScript commits, an `Exit`
     /// once it rolls back or the handle is collected unfinished.
-    // [spec:pgorm:req:bindings.transactions+1]
+    // [spec:pgorm:req:bindings.transactions+2]
     fn serve<'a>(&'a mut self, mut tx: Tx<'a, '_>) -> BoxFuture<'a, Result<(), Exit>> {
         Box::pin(async move {
             self.finished = Some(Finished(self.state.finished.clone()));
@@ -788,6 +788,28 @@ impl Frame {
                 reply: self.committed.take(),
                 result: Ok(()),
             },
+            // A `COMMIT` an aborted transaction answered by rolling back, or a
+            // `RELEASE` it refused and pgorm rolled back to: the commit fails,
+            // and the connection is in a known state.
+            // [spec:pgorm:req:bindings.transactions+2]
+            Err(TransactionError::Connection(error @ pgorm::Error::TransactionAborted(_))) => {
+                Completion {
+                    healthy: true,
+                    reply: self.committed.take(),
+                    result: Err(failure(&error, &self.secrets)),
+                }
+            }
+            // An aborted transaction whose ROLLBACK then failed leaves the
+            // connection unknown, and rejects with both errors as a
+            // callback's failed rollback does.
+            // [spec:pgorm:req:bindings.rollback-failed]
+            Err(TransactionError::Connection(error @ pgorm::Error::RollbackFailed { .. })) => {
+                Completion {
+                    healthy: false,
+                    reply: self.committed.take(),
+                    result: Err(failure(&error, &self.secrets)),
+                }
+            }
             Err(TransactionError::Connection(error)) => {
                 if let Some(opened) = self.opened.take() {
                     return Ended::Refused(opened, error);
@@ -832,7 +854,7 @@ impl Frame {
 /// Open a transaction on `connection`, which it holds until it finishes: a
 /// task takes the connection out of its slot and serves the transaction from
 /// inside the closure pgorm opens it around.
-// [spec:pgorm:req:bindings.transactions+1]
+// [spec:pgorm:req:bindings.transactions+2]
 async fn begin(
     mut operation: Operation,
     mode: TransactionMode,

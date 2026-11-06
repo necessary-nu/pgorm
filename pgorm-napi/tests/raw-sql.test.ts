@@ -241,11 +241,40 @@ test("a serialization failure runs the callback again", async () => {
   // @ts-expect-error: retries is a number
   await assert.rejects(pool().transactionWithRetry(async () => 1, { retries: "3" }), TypeError);
   await assert.rejects(pool().transactionWithRetry(async () => 1, { retries: -1 }), ConstructionError);
+  // @ts-expect-error: tries is no option
+  await assert.rejects(pool().transactionWithRetry(async () => 1, { retries: 1, tries: 2 }), TypeError);
   await assert.rejects(
     pool().query("SELECT * FROM no_such_table"),
     (error) => error instanceof DatabaseError && error.isRetryable === false,
   );
   assert.equal(new PgormError("x").isRetryable, false);
+});
+
+// [spec:pgorm:req:bindings.transactions+2/test]    a retrying transaction and a transaction's stream meet the aborted COMMIT
+test("an aborted transaction is not retried, and keeps its connection", async () => {
+  await pool().connection(async (connection) => {
+    let attempts = 0;
+    await assert.rejects(
+      connection.transactionWithRetry(async (tx) => {
+        attempts += 1;
+        await tx.one("SELECT 1 / 0 AS n").catch(() => undefined);
+      }, { retries: 3 }),
+      (error) => error instanceof DatabaseError && error.sqlstate === "25P02" && !error.isRetryable,
+    );
+    assert.equal(attempts, 1);
+    await assert.rejects(
+      connection.transaction(async (tx) => {
+        const rows = [];
+        try {
+          for await (const row of tx.stream("SELECT 1 / (n - 10) AS n FROM (VALUES (10)) AS t(n)")) rows.push(row);
+        } catch {
+          rows.length = 0;
+        }
+      }),
+      (error) => error instanceof DatabaseError && error.sqlstate === "25P02",
+    );
+    assert.equal(await connection.ping(), true);
+  });
 });
 
 // [spec:pgorm:req:bindings.refusal-fields/test]

@@ -172,6 +172,12 @@ fn begin(mut operation: Operation, mode: TransactionMode, retries: u32) -> Arc<R
         let (healthy, answer) = match ended {
             None => (false, None),
             Some(Ok(()) | Err(TransactionError::Transaction(_))) => (true, Some(Ok(false))),
+            // A COMMIT the aborted transaction answered by rolling back leaves
+            // the connection in a known state.
+            // [spec:pgorm:req:bindings.transactions+2]
+            Some(Err(TransactionError::Connection(
+                error @ pgorm::Error::TransactionAborted(_),
+            ))) => (true, Some(Err(failure(&error, secrets)))),
             Some(Err(TransactionError::Connection(error))) => match &last {
                 // A COMMIT that failed leaves the connection in a state
                 // nobody knows; a BEGIN that did, after a rolled-back

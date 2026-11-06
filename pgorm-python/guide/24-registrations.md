@@ -734,16 +734,16 @@ written by hand, is `Any`, and takes an explicit `Value` where the column's
 SQL type is no guide.
 
 The entity view's writes have the generic API's terminals, typed:
-`returning_change` gives a `Change` of the typed models, `returning_upsert`
-an `Inserted` or an `Updated`, each from `pgorm._registered.entities`, and
-`returning_models` a list of the typed models:
+`returning_change` gives a `pgorm.Change` of the typed models,
+`returning_upsert` a `pgorm.Upserted.Inserted` or `Upserted.Updated` holding
+them, the classes every write answers with, and `returning_models` a list of
+the typed models:
 
 ```python registered
 import asyncio
 import os
 
-from pgorm import Conflict, Pool
-from pgorm._registered.entities import Inserted, Updated
+from pgorm import Conflict, Pool, Upserted
 from pgorm.rust_bakery import Customer
 
 
@@ -753,14 +753,14 @@ async def main() -> None:
         kim = Customer.active().set_name("Kimberly").set_email("kim@example.com").set_notes(None)
         renamed = Conflict.on("email").update("name")
         match await Customer.insert(kim).on_conflict(renamed).returning_upsert(pool):
-            case Updated(change):
+            case Upserted.Updated(change):
                 assert (change.old.name, change.new.name) == ("Kim", "Kimberly")
             case other:
                 raise AssertionError(f"expected an update, got {other!r}")
 
         sam = Customer.active().set_name("Sam").set_email("sam@example.com").set_notes(None)
         match await Customer.insert(sam).on_conflict(renamed).returning_upsert(pool):
-            case Inserted(model):
+            case Upserted.Inserted(model):
                 # The insert that updated Kim drew id 3 from the sequence too.
                 assert (model.id, model.name) == (4, "Sam")
             case other:

@@ -1,4 +1,5 @@
 use super::{State, work::Output};
+use crate::panics::future_into_py;
 use crate::{
     errors::{ConstructionError, InternalError},
     execution::{Executor, Target},
@@ -6,7 +7,6 @@ use crate::{
 };
 use pgorm::{IsolationLevel, TransactionMode};
 use pyo3::{exceptions::PyTypeError, prelude::*};
-use pyo3_async_runtimes::tokio::future_into_py;
 use std::{fmt, sync::Arc};
 
 pub(crate) fn mode(mode: &str, isolation: Option<&str>) -> PyResult<TransactionMode> {

@@ -74,8 +74,8 @@ what it rejects with:
 | Rejects with | What failed |
 | --- | --- |
 | what the callback threw | the callback, and the transaction was rolled back |
-| the failure itself, a [`DatabaseError`](../lib/index.d.ts) or [`ConnectionError`](../lib/index.d.ts) | the transaction itself: its `BEGIN` or its `COMMIT` |
-| a `SuppressedError` | the callback threw, and then the `ROLLBACK` failed: `error` is the rollback's failure and `suppressed` what the callback threw |
+| the failure itself, a [`DatabaseError`](../lib/index.d.ts) or [`ConnectionError`](../lib/index.d.ts) | the transaction itself: its `BEGIN` or its `COMMIT`, the `COMMIT` of a transaction a caught failure aborted among them ([A caught error still aborts](#a-caught-error-still-aborts)) |
+| a `SuppressedError` | the callback threw, and then the `ROLLBACK` failed: `error` is the rollback's failure and `suppressed` what the callback threw; or the `ROLLBACK` of a transaction a caught failure aborted failed, its `suppressed` the `25P02` `DatabaseError` |
 
 Here the second line names a cake that does not exist, so its insert fails,
 and the order written before it is rolled back with it:
@@ -97,8 +97,8 @@ await assert.rejects(
 assert.equal(await Order.find().count(pool), 2);
 ```
 
-A failed `COMMIT` or `ROLLBACK` means that nobody knows how the transaction
-ended, nor what state its connection is in. The binding discards that
+A failed `COMMIT` or `ROLLBACK`, an aborted transaction's apart, means that
+nobody knows how the transaction ended, nor what state its connection is in. The binding discards that
 connection itself, closing it rather than returning it to its pool, so
 nothing else is lent a connection in that state. Rust leaves the choice to the
 program, which gives such a connection back with `discard`; JavaScript has no
@@ -151,6 +151,50 @@ rolls it back too.
 Without the savepoint, the failed insert would have aborted the whole
 transaction: PostgreSQL refuses every later statement in a transaction one
 statement has failed in, until it rolls back.
+
+## A caught error still aborts
+
+Catching a failed statement's error inside the callback does not undo what
+the failure did to the transaction. PostgreSQL has aborted it, and answers its
+`COMMIT` by rolling it back. pgorm asks before it commits, so a callback that
+returns after catching such an error does not resolve `transaction`: it
+rejects with a `DatabaseError` whose `sqlstate` is `25P02`, saying the
+transaction was rolled back, with nothing it wrote kept:
+
+```ts
+import assert from "node:assert/strict";
+import { DatabaseError, ForeignKeyViolationError } from "@necessary/pgorm";
+
+const placedAt = Temporal.Instant.from("2026-11-04T10:00:00Z");
+await assert.rejects(
+  pool.transaction(async (tx) => {
+    await Order.insert({ customerId: 1, bakeryId: 1, placedAt }).execute(tx);
+    try {
+      await Order.insert({ customerId: 99, bakeryId: 1, placedAt }).execute(tx);
+    } catch (error) {
+      // A mistake: the callback carries on.
+      if (!(error instanceof ForeignKeyViolationError)) throw error;
+    }
+  }),
+  (error) =>
+    error instanceof DatabaseError && error.sqlstate === "25P02" &&
+    error.message.startsWith("the transaction was rolled back, not committed"),
+);
+
+// Neither order was written.
+assert.equal(await Order.find().count(pool), 2);
+```
+
+The connection is in a known state, so it goes back to its pool as usual. A
+savepoint whose callback returns after catching an error rejects with the
+same `DatabaseError`, and the savepoint is rolled back to, so the transaction
+around it carries on unless the rejection leaves its callback too. Put the
+statement that may fail in a savepoint of its own, as above, and catch its
+error outside the savepoint's callback.
+
+Rust returns this as `TransactionError::Connection(Error::TransactionAborted)`;
+JavaScript rejects with the `DatabaseError` it carries, its message pgorm's
+account of the rollback rather than the server's.
 
 A savepoint borrows its transaction as a transaction borrows its connection.
 While the savepoint is open, its transaction refuses statements and other

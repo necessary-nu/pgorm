@@ -2,24 +2,25 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { copyFrom, DatabaseError } from "@necessary/pgorm";
-import { Bakery } from "../../../guide/bakery.ts";
+import { copyFrom, LifecycleError } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const copy = copyFrom("bakery", "csv").columns(["name", "city"]);
-  const encoder = new TextEncoder();
+  await using db = await pool.acquire();
+  const copy = copyFrom("bakery", "text").columns(["name", "city"]);
 
-  // The second line has a third field the column list does not hold.
-  const refused = pool.copyIn(copy, encoder.encode("Noon,Stavanger\nDusk,Tromsø,extra\n"));
-  await assert.rejects(refused, DatabaseError);
-
-  // A source that fails part way writes nothing either.
-  async function* failing() {
-    yield encoder.encode("Noon,Stavanger\n");
-    throw new Error("the upload was cut off");
+  const { promise: sent, resolve: send } = Promise.withResolvers<void>();
+  async function* bakeries() {
+    await sent;
+    yield new TextEncoder().encode("Noon\tStavanger\n");
   }
-  await assert.rejects(pool.copyIn(copy, failing()), /the upload was cut off/);
+  const copying = db.copyIn(copy, bakeries());
 
-  assert.equal(await Bakery.find().count(pool), 2);
+  // The COPY still holds the connection.
+  await assert.rejects(db.one("SELECT count(*) AS bakeries FROM bakery"), LifecycleError);
+
+  send();
+  assert.equal(await copying, 1);
+  const { bakeries: count } = await db.one("SELECT count(*) AS bakeries FROM bakery");
+  assert.equal(count, 3n);
 }

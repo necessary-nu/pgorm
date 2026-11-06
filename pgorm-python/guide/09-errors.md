@@ -261,7 +261,9 @@ hold the column's value.
 
 A value refused on its way in raises `ConstructionError`, with pgorm's text
 for the refusal: which `$N` parameter was refused, and why. Nothing was sent.
-A value refused on its way out raises `DecodeError`:
+So does a statement given another number of values than its placeholders
+take, its text saying how many it takes and how many it was given. A value
+refused on its way out raises `DecodeError`:
 
 ```python
 import asyncio
@@ -281,6 +283,14 @@ async def main() -> None:
             )
         else:
             raise AssertionError("100,000 does not bind as a smallint")
+
+        # Two placeholders, and one value.
+        try:
+            await pool.one(RawSQL("SELECT $1::text AS a, $2::text AS b", ["lemon"]))
+        except ConstructionError as error:
+            assert str(error) == "the statement takes 2 parameters, and 1 was given"
+        else:
+            raise AssertionError("a value is missing")
 
         # A model that says a customer's name is an integer cannot read it.
         Mislabelled = Model("customer", {
@@ -318,14 +328,15 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Here Python differs from Rust. Rust reports both refusals as
+Here Python differs from Rust. Rust reports these refusals as
 `Error::Postgres` with no server code, and classifies them with
-`bind_refusal` and `decode_refusal`. Python raises `ConstructionError` and
-`DecodeError`, whose fields are `BindRefusal`'s and `DecodeRefusal`'s: a
-parameter's refusal carries `parameter`, the `$N` refused, and `reason`, why;
-a read the driver refused carries `reading`, what it was reading, and
-`reason`. Every other `ConstructionError` and `DecodeError` holds `None` in
-each. The parameter above is refused so:
+`bind_refusal`, `parameter_count_refusal` and `decode_refusal`. Python raises
+`ConstructionError` and `DecodeError`, whose fields are `BindRefusal`'s and
+`DecodeRefusal`'s: a parameter's refusal carries `parameter`, the `$N`
+refused, and `reason`, why; a read the driver refused carries `reading`, what
+it was reading, and `reason`. A wrong count, like every other
+`ConstructionError` and `DecodeError`, holds `None` in each. The parameter
+above is refused so:
 
 ```python
 import asyncio
@@ -367,6 +378,7 @@ arrive in Python as these classes:
 | --- | --- | --- |
 | `DecodeError` | `one` found no row or several, `optional` several; a value of the wrong type or a `NULL` where none is declared; JSON or a value that does not convert; a registered entity's write that reads back no row; a model `verify` finds the statement does not match | `RecordNotFound`, `RecordNotInserted`, `Type`, `Json`, `Conversion`, `UnpackInsertId`, `Verify` |
 | `ConstructionError` | a write that names no row or sets nothing, a field that is required and left out, a builder that refused its input, a hook's refusal | `PrimaryKeyNotSet`, `NothingToSet`, `AttrNotSet`, `QueryBuilder`, `Custom`, and a `Listen` channel name that is too long |
+| `DatabaseError` with `sqlstate` `25P02` | a transaction's block exited normally after catching a failed statement's error, so it was rolled back ([Transactions](08-transactions.md#a-caught-error-still-aborts)) | `TransactionAborted` |
 | `ConnectionError` | the pool could not reach the server, a connection broke, or a listener fell behind | `Pool`, and a `Listen` overflow |
 | `TimeoutError` | no connection came free within the pool's `acquire_timeout` | `Pool`, when a wait times out |
 | `LifecycleError` | a pool, connection, transaction, stream or listener used after it closed, while another operation holds it, or from another event loop | `Pool` for a closed pool; Rust's borrows make the rest compile errors |
@@ -450,8 +462,12 @@ else:
 ```
 
 `InternalError` means a bug in pgorm or the binding, never a fault in what the
-program passed. A panic inside the native code is not turned into one of the
-classes that report bad input: it stays PyO3's own panic exception.
+program passed. A panic in pgorm's native work, which every awaitable the
+binding returns runs on its runtime, raises `InternalError`, its message
+`pgorm panicked:` and the panic's own. A panic in a synchronous call, such as
+a builder's, raises PyO3's `PanicException` instead, since PyO3 catches it
+before the binding can; it derives from `BaseException`, so an
+`except Exception` meant for bad input does not swallow it either.
 
 ### When the pool cannot connect
 

@@ -93,6 +93,8 @@ Running one is asynchronous. A terminal returns an awaitable, and what the
 | `Model.find().stream(db)` on a pool or connection | `RowStream[ModelRecord]` |
 | a model write's `execute(db)` | `int`, the rows written |
 | a model write's `returning(...)` | `ModelRows`, whose `all`, `one` and `optional` give `ModelRecord`s |
+| `Model.update(values)...returning_change(db)`, `returning_changes(db)` | `Change[ModelRecord]`, `list[Change[ModelRecord]]` |
+| `Model.insert(values)...returning_upsert(db)` | `Upserted.Inserted[ModelRecord] \| Upserted.Updated[ModelRecord] \| None` |
 | `Entity.find().all(db)` for a registered entity | `list[EntityModel]` |
 | `Pipeline.all(db)`, `.one(db)`, `.optional(db)` | `list[Record]`, `Record`, `Record \| None` |
 
@@ -123,7 +125,7 @@ import os
 from decimal import Decimal
 from typing import assert_type
 
-from pgorm import ModelRecord, Pool, Record, RowStream, select
+from pgorm import Change, ModelRecord, Pool, Record, RowStream, select
 
 from bakery import Cake
 
@@ -143,6 +145,12 @@ async def main() -> None:
         changed = await Cake.update({"price": Decimal("4.75")}).where(Cake.key({"id": 1})).execute(pool)
         assert_type(changed, int)
         assert changed == 1
+
+        raised = await Cake.update({"price": Decimal("5.00")}).where(Cake.key({"id": 1})).returning_change(pool)
+        assert_type(raised, Change[ModelRecord])
+        # Change, unparameterized, is any write's change: a model's, an entity's or a view's.
+        change: Change = raised
+        assert (change.old["price"], change.new["price"]) == (Decimal("4.75"), Decimal("5.00"))
 
         cakes = await Cake.find().where(Cake.col("bakery_id") == 2).all(pool)
         assert_type(cakes, list[ModelRecord])

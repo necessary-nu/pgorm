@@ -104,13 +104,21 @@ pub(crate) enum Failure {
     /// The caller's `AbortSignal` fired. `lib/index.js` rejects with the
     /// signal's reason instead.
     Cancelled,
+    /// pgorm's `Error::RollbackFailed`: a transaction that failed with
+    /// `cause`, whose `ROLLBACK` then failed with `rollback`; becomes a
+    /// `SuppressedError` over the two, as a callback's failed rollback does.
+    RollbackFailed {
+        message: String,
+        cause: Box<Failure>,
+        rollback: Box<Failure>,
+    },
 }
 
 impl Failure {
     /// The class name `lib/index.js` maps the failure to.
     pub(crate) fn kind(&self) -> &'static str {
         match self {
-            // [spec:pgorm:req:bindings.errors+5]    the constraint classes pgorm's SqlError names
+            // [spec:pgorm:req:bindings.errors+6]    the constraint classes pgorm's SqlError names
             Self::Database(diagnostics) => match diagnostics.sqlstate.as_str() {
                 "23505" => "UniqueViolationError",
                 "23503" => "ForeignKeyViolationError",
@@ -126,6 +134,7 @@ impl Failure {
             Self::Lifecycle(_) => "LifecycleError",
             Self::Timeout(_) => "TimeoutError",
             Self::Cancelled => "CancelledError",
+            Self::RollbackFailed { .. } => "SuppressedError",
         }
     }
 
@@ -139,13 +148,31 @@ impl Failure {
             | Self::Lifecycle(message)
             | Self::Timeout(message)
             | Self::Bind { message, .. }
-            | Self::Unreadable { message, .. } => message,
+            | Self::Unreadable { message, .. }
+            | Self::RollbackFailed { message, .. } => message,
             Self::Cancelled => "the operation was aborted",
         }
     }
 
     /// The error object a promise rejects with.
     pub(crate) fn into_js<'cx>(self, cx: &mut Cx<'cx>) -> JsResult<'cx, JsValue> {
+        // [spec:pgorm:req:bindings.rollback-failed]
+        if let Self::RollbackFailed {
+            message,
+            cause,
+            rollback,
+        } = self
+        {
+            let rollback = rollback.into_js(cx)?;
+            let cause = cause.into_js(cx)?;
+            let constructor: Handle<JsFunction> = cx.global("SuppressedError")?;
+            return constructor
+                .bind(cx)
+                .arg(rollback)?
+                .arg(cause)?
+                .arg(message)?
+                .construct();
+        }
         let details = cx.empty_object();
         if let Self::Database(diagnostics) = &self {
             let fields = [
@@ -241,18 +268,32 @@ impl std::error::Error for Failure {}
 /// Classify a pgorm error. A PostgreSQL error anywhere in its cause chain
 /// decides the class, so a server's refusal during connection (a bad password,
 /// a missing database) carries its SQLSTATE like any other.
-// [spec:pgorm:req:bindings.errors+5]
+// [spec:pgorm:req:bindings.errors+6]
 pub(crate) fn failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
+    let marked = |failure: Failure| match failure {
+        Failure::Database(mut diagnostics) => {
+            diagnostics.retryable = error.is_retryable();
+            Failure::Database(diagnostics)
+        }
+        other => other,
+    };
+    if let pgorm::Error::RollbackFailed { cause, rollback } = error {
+        return Failure::RollbackFailed {
+            message: secrets.apply(&error.to_string()),
+            cause: Box::new(failure(cause, secrets)),
+            rollback: Box::new(failure(rollback, secrets)),
+        };
+    }
+    // The server's 25P02 refused the statement pgorm asked with, not the
+    // callback's work, so pgorm's account of the rollback is the message.
+    // [spec:pgorm:req:bindings.transactions+2]
+    if let pgorm::Error::TransactionAborted(refusal) = error {
+        return marked(postgres_failure(refusal, Some(&error.to_string()), secrets));
+    }
     let mut source: &(dyn std::error::Error + 'static) = error;
     loop {
         if let Some(postgres) = source.downcast_ref::<tokio_postgres::Error>() {
-            return match postgres_failure(postgres, secrets) {
-                Failure::Database(mut diagnostics) => {
-                    diagnostics.retryable = error.is_retryable();
-                    Failure::Database(diagnostics)
-                }
-                other => other,
-            };
+            return marked(postgres_failure(postgres, None, secrets));
         }
         match source.source() {
             Some(next) => source = next,
@@ -270,11 +311,23 @@ pub(crate) fn failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
         pgorm::Error::Conversion { .. } | pgorm::Error::Type(_) | pgorm::Error::Json(_) => {
             Failure::Decode(secrets.apply(&error.to_string()))
         }
+        // [spec:pgorm:req:conn.copy.statement]
+        pgorm::Error::CopyStatement => Failure::Construction(
+            "a COPY runs through copyIn or copyOut, which carry its data, not as a statement: \
+             give copyIn a copyFrom statement and copyOut a copyTo statement"
+                .to_owned(),
+        ),
         _ => Failure::Connection(secrets.apply(&error.to_string())),
     }
 }
 
-fn postgres_failure(error: &tokio_postgres::Error, secrets: &Redactions) -> Failure {
+/// `error` as the failure its SQLSTATE names, its message the server's
+/// unless `message` replaces it.
+fn postgres_failure(
+    error: &tokio_postgres::Error,
+    message: Option<&str>,
+    secrets: &Redactions,
+) -> Failure {
     let Some(db) = error.as_db_error() else {
         let reason = |reason: &Option<String>| reason.as_deref().map(|text| secrets.apply(text));
         return if let Some(refusal) = pgorm::DecodeRefusal::of(error) {
@@ -289,6 +342,9 @@ fn postgres_failure(error: &tokio_postgres::Error, secrets: &Redactions) -> Fail
                 parameter: refusal.parameter,
                 reason: reason(&refusal.reason),
             }
+        } else if let Some(refusal) = pgorm::ParameterCountRefusal::of(error) {
+            // [spec:pgorm:sem:error.model.parameter-count]
+            Failure::Construction(refusal.to_string())
         } else {
             Failure::Connection(format!(
                 "PostgreSQL connection or protocol failure: {}",
@@ -299,7 +355,7 @@ fn postgres_failure(error: &tokio_postgres::Error, secrets: &Redactions) -> Fail
     let optional = |field: Option<&str>| field.map(|text| secrets.apply(text));
     Failure::Database(Box::new(Diagnostics {
         sqlstate: db.code().code().to_owned(),
-        message: secrets.apply(db.message()),
+        message: secrets.apply(message.unwrap_or(db.message())),
         severity: db.severity().to_owned(),
         detail: optional(db.detail()),
         hint: optional(db.hint()),
@@ -344,6 +400,25 @@ mod tests {
         );
     }
 
+    // [spec:pgorm:req:bindings.rollback-failed/test]    pgorm's own RollbackFailed keeps both errors
+    #[test]
+    fn a_failed_rollback_keeps_both_failures() {
+        let error = pgorm::Error::RollbackFailed {
+            cause: Box::new(pgorm::Error::Custom("aborted".into())),
+            rollback: Box::new(pgorm::Error::Custom("connection lost".into())),
+        };
+        assert_eq!(
+            failure(&error, &Redactions::default()),
+            Failure::RollbackFailed {
+                message:
+                    "Custom Error: aborted; its ROLLBACK failed: Custom Error: connection lost"
+                        .into(),
+                cause: Box::new(Failure::Connection("Custom Error: aborted".into())),
+                rollback: Box::new(Failure::Connection("Custom Error: connection lost".into())),
+            }
+        );
+    }
+
     #[test]
     fn a_failure_names_the_class_it_becomes() {
         let database = Failure::Database(Box::new(Diagnostics {
@@ -370,7 +445,7 @@ mod tests {
         assert_eq!(Failure::Internal("x".into()).kind(), "InternalError");
     }
 
-    // [spec:pgorm:req:bindings.errors+5/test]
+    // [spec:pgorm:req:bindings.errors+6/test]
     #[test]
     fn a_constraint_violation_names_its_own_class() {
         let violation = |sqlstate: &str| {

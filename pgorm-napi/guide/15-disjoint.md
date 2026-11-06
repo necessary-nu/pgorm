@@ -357,8 +357,8 @@ assert.equal(kind, "card");
 assert.deepEqual(card, { paymentId: base.id, lastFour: "4242" });
 ```
 
-A disjoint read's pages count their rows as `[items, pages]`, where a model
-query's `numItemsAndPages` gives `{ items, pages }`.
+A disjoint read's pages count their rows as a model query's do:
+`numItemsAndPages` gives `{ items, pages }`.
 
 A row the constraints rule out can still be met in a database pgorm did not
 create, such as a card payment with no card row. A read reports it as a

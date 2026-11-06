@@ -109,6 +109,9 @@ pub(crate) fn install(module: &Bound<'_, PyModule>, registry: Registry) -> PyRes
     module.add_class::<ActiveState>()?;
     module.add_class::<PyChange>()?;
     module.add_class::<PyUpserted>()?;
+    module.add_function(wrap_pyfunction!(versions::make_change, module)?)?;
+    module.add_function(wrap_pyfunction!(versions::make_inserted, module)?)?;
+    module.add_function(wrap_pyfunction!(versions::make_updated, module)?)?;
     module.add_class::<PyEntityUpdate>()?;
     module.add_class::<PyEntityUpdateMany>()?;
     module.add_class::<PyEntityInsert>()?;

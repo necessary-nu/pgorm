@@ -40,7 +40,7 @@ impl Redactions {
     }
 }
 
-// [spec:pgorm:req:bindings.errors+5]
+// [spec:pgorm:req:bindings.errors+6]
 pub(crate) fn database_error(
     error: impl std::borrow::Borrow<pgorm::Error>,
     secrets: &Redactions,
@@ -106,10 +106,16 @@ fn rollback_failed_error<'py>(
 }
 
 fn classified(error: &pgorm::Error, secrets: &Redactions) -> PyErr {
+    // The server's 25P02 refused the statement pgorm asked with, not the
+    // block's work, so pgorm's account of the rollback is the message.
+    // [spec:pgorm:req:bindings.transactions+2]
+    if let pgorm::Error::TransactionAborted(refusal) = error {
+        return postgres_error(refusal, Some(&error.to_string()), secrets);
+    }
     let mut source: &(dyn std::error::Error + 'static) = error;
     loop {
         if let Some(postgres) = source.downcast_ref::<tokio_postgres::Error>() {
-            return postgres_error(postgres, secrets);
+            return postgres_error(postgres, None, secrets);
         }
         match source.source() {
             Some(next) => source = next,
@@ -123,6 +129,11 @@ fn classified(error: &pgorm::Error, secrets: &Redactions) -> PyErr {
             ConstructionError::new_err(secrets.apply(&error.to_string()))
         }
         pgorm::Error::Listen(_) => ConnectionError::new_err(secrets.apply(&error.to_string())),
+        // [spec:pgorm:req:conn.copy.statement]
+        pgorm::Error::CopyStatement => ConstructionError::new_err(
+            "a COPY runs through copy_in or copy_out, which carry its data, not as a statement: \
+             give copy_in a CopyFrom and copy_out a CopyTo",
+        ),
         // A result that is not the row or rows asked for, a `one` finding none
         // among them, cannot become the record asked for.
         // [spec:pgorm:req:bindings.row-count]
@@ -146,12 +157,18 @@ fn classified(error: &pgorm::Error, secrets: &Redactions) -> PyErr {
     }
 }
 
-fn postgres_error(error: &tokio_postgres::Error, secrets: &Redactions) -> PyErr {
+/// `error` as the exception its SQLSTATE names, its message the server's
+/// unless `message` replaces it.
+fn postgres_error(
+    error: &tokio_postgres::Error,
+    message: Option<&str>,
+    secrets: &Redactions,
+) -> PyErr {
     let Some(db) = error.as_db_error() else {
         return client_error(error, secrets);
     };
-    let message = secrets.apply(db.message());
-    // [spec:pgorm:req:bindings.errors+5]    the constraint classes pgorm's SqlError names
+    let message = secrets.apply(message.unwrap_or(db.message()));
+    // [spec:pgorm:req:bindings.errors+6]    the constraint classes pgorm's SqlError names
     let exception = match db.code().code() {
         "23505" => UniqueViolationError::new_err(message.clone()),
         "23503" => ForeignKeyViolationError::new_err(message.clone()),
@@ -184,7 +201,7 @@ fn postgres_error(error: &tokio_postgres::Error, secrets: &Redactions) -> PyErr 
     }
 }
 
-// [spec:pgorm:req:bindings.errors+5]
+// [spec:pgorm:req:bindings.errors+6]
 fn client_error(error: &tokio_postgres::Error, secrets: &Redactions) -> PyErr {
     // Keep the original Rust error intact until this Python boundary so
     // application hooks can still match pgorm::Error::Postgres.
@@ -229,6 +246,9 @@ fn client_error(error: &tokio_postgres::Error, secrets: &Redactions) -> PyErr {
             ConstructionError::new_err(secrets.apply(&refusal.to_string())),
             [("parameter", parameter), ("reason", text(&refusal.reason))],
         )
+    } else if let Some(refusal) = pgorm::ParameterCountRefusal::of(error) {
+        // [spec:pgorm:sem:error.model.parameter-count]
+        ConstructionError::new_err(refusal.to_string())
     } else {
         ConnectionError::new_err("PostgreSQL connection or protocol failure")
     }

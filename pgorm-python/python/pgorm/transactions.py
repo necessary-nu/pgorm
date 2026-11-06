@@ -20,7 +20,7 @@ TransactionMode: TypeAlias = Literal["default", "read_write", "read_only", "defe
 IsolationLevel: TypeAlias = Literal["read_uncommitted", "read_committed", "repeatable_read", "serializable"]
 
 
-# [spec:pgorm:req:bindings.transactions+1]
+# [spec:pgorm:req:bindings.transactions+2]
 # [spec:pgorm:req:python.transactions+3]
 @asynccontextmanager
 async def _scope(
@@ -37,6 +37,14 @@ async def _scope(
         raise
     try:
         await native.finish(True)
+    except _native.DatabaseError as failure:
+        # A block that caught a failed statement's error cannot commit: pgorm
+        # rolled the transaction back, or the savepoint back to (25P02), and
+        # its connection, in a known state, carries on.
+        # [spec:pgorm:req:bindings.transactions+2]
+        if failure.sqlstate != "25P02":
+            await native.abort()
+        raise
     except BaseException:
         await native.abort()
         raise

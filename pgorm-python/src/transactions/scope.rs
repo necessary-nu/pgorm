@@ -108,6 +108,17 @@ impl Completion {
         }
     }
 
+    /// A frame whose `COMMIT` an aborted transaction answered by rolling it
+    /// back, or whose `RELEASE` it refused and pgorm rolled back to: the
+    /// commit's reply carries the failure, and the connection is in a known
+    /// state.
+    fn aborted(reply: Option<Reply>, error: Error) -> Self {
+        Self {
+            healthy: true,
+            answer: reply.map(|reply| (reply, Err(Failure::Pgorm(error)))),
+        }
+    }
+
     /// A frame whose end left its connection in a state nobody knows.
     fn failed(reply: Option<Reply>, failure: Failure) -> Self {
         Self {
@@ -252,7 +263,7 @@ impl Frame {
     /// Serve the frame's commands inside its transaction, a savepoint's frame
     /// nested inside while it is open: `Ok` once Python commits, an `Exit`
     /// once it rolls back or the handle is abandoned.
-    // [spec:pgorm:req:bindings.transactions+1]
+    // [spec:pgorm:req:bindings.transactions+2]
     pub(super) fn serve<'a>(&'a mut self, mut tx: Tx<'a, '_>) -> BoxFuture<'a, Result<(), Exit>> {
         Box::pin(async move {
             self.finished = Some(Finished(self.state.finished.clone()));
@@ -398,6 +409,17 @@ impl Frame {
         };
         Ended::Ran(match ended {
             Ok(()) => Completion::finished(self.committed.take()),
+            // [spec:pgorm:req:bindings.transactions+2]    an aborted transaction's COMMIT raises, its connection kept
+            Err(TransactionError::Connection(error @ Error::TransactionAborted(_))) => {
+                Completion::aborted(self.committed.take(), error)
+            }
+            // An aborted transaction whose ROLLBACK then failed leaves the
+            // connection unknown, and raises both errors as a block's failed
+            // rollback does.
+            // [spec:pgorm:req:bindings.rollback-failed]
+            Err(TransactionError::Connection(error @ Error::RollbackFailed { .. })) => {
+                Completion::failed(self.committed.take(), Failure::Pgorm(error))
+            }
             Err(TransactionError::Connection(error)) => {
                 if let Some(opened) = self.opened.take() {
                     return Ended::Refused(opened, error);
@@ -428,7 +450,7 @@ mod tests {
     use crate::errors::ConstructionError;
     use pyo3::Python;
 
-    // [spec:pgorm:req:bindings.errors+5/test]    a transaction ending this binding has no arm
+    // [spec:pgorm:req:bindings.errors+6/test]    a transaction ending this binding has no arm
     // for is its own failure, an InternalError, while pgorm's `Error::Custom`, which only an
     // application's hook returns, is the ConstructionError a hook's refusal is
     #[test]
@@ -447,6 +469,26 @@ mod tests {
                     .raised(&secrets)
                     .is_instance_of::<ConstructionError>(py)
             );
+        });
+    }
+
+    // [spec:pgorm:req:bindings.rollback-failed/test]    pgorm's own RollbackFailed raises both errors
+    #[test]
+    fn a_failed_rollback_raises_both_errors() {
+        use pyo3::prelude::*;
+        Python::initialize();
+        Python::attach(|py| {
+            let failed = Failure::Pgorm(Error::RollbackFailed {
+                cause: Box::new(Error::Custom("aborted".into())),
+                rollback: Box::new(Error::Custom("connection lost".into())),
+            })
+            .raised(&Redactions::default());
+            assert!(failed.is_instance_of::<crate::errors::RollbackFailedError>(py));
+            let value = failed.value(py).as_any();
+            for field in ["cause", "rollback"] {
+                let carried = value.getattr(field).ok();
+                assert!(carried.is_some_and(|error| error.is_instance_of::<ConstructionError>()));
+            }
         });
     }
 }
