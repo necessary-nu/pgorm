@@ -225,7 +225,7 @@ async fn alter_constraint_enforces_a_foreign_key() -> Result<(), Error> {
 // to a CHECK as to a foreign key, from PostgreSQL 19
 // [spec:pgorm:req:sql.ddl.enforcement/test]    ALTER CONSTRAINT moves a CHECK
 // between the two on 19, ENFORCED checking the rows as it goes
-// [spec:pgorm:req:sql.target+1/test]    19's answer, built and run under pg-19 alone
+// [spec:pgorm:req:sql.target+2/test]    19's answer, built and run under pg-19 alone
 #[cfg(feature = "pg-19")]
 #[pgorm_macros::test]
 async fn alter_constraint_enforces_a_check() -> Result<(), Error> {
@@ -287,7 +287,7 @@ async fn alter_constraint_enforces_a_check() -> Result<(), Error> {
 /// key that is not enforced may still be deferrable.
 // [spec:pgorm:req:sql.ddl.enforcement/test]    the refusals around NOT ENFORCED,
 // and a NOT ENFORCED foreign key taking deferrability
-// [spec:pgorm:req:sql.target+1/test]    18's refusal of a CHECK's enforcement,
+// [spec:pgorm:req:sql.target+2/test]    18's refusal of a CHECK's enforcement,
 // held in the default build only
 #[pgorm_macros::test]
 async fn enforcement_refusals_by_sqlstate() -> Result<(), Error> {

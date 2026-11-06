@@ -1440,6 +1440,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgorm-bindings"
+version = "0.2.0"
+dependencies = [
+ "pgorm",
+ "rustls",
+ "rustls-native-certs",
+ "tokio",
+ "tokio-postgres",
+ "tokio-postgres-rustls",
+]
+
+[[package]]
 name = "pgorm-macros"
 version = "0.2.0"
 dependencies = [
@@ -1474,15 +1486,13 @@ dependencies = [
  "jiff",
  "neon",
  "pgorm",
+ "pgorm-bindings",
  "pgorm-migration",
  "postgres-protocol",
  "rust_decimal",
- "rustls",
- "rustls-native-certs",
  "serde_json",
  "tokio",
  "tokio-postgres",
- "tokio-postgres-rustls",
  "tokio-util",
  "uuid",
 ]

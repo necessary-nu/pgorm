@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fmt,
     sync::{Arc, Mutex as RegistryMutex, Weak},
     time::Duration,
@@ -14,8 +15,10 @@ use tokio::sync::{Mutex, OwnedMutexGuard};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    config::PoolConfig,
-    errors::{InternalError, LifecycleError, Redactions, TimeoutError, database_error},
+    config::{self, DIALECT, NativePoolShape, Owner, seconds},
+    errors::{
+        ConstructionError, InternalError, LifecycleError, Redactions, TimeoutError, database_error,
+    },
     execution::Database,
     listen::ListenerState,
     metrics::{HOOKS, Metrics},
@@ -50,7 +53,7 @@ pub(crate) struct PoolState {
     pub(crate) pool: pgorm::DatabasePool,
     pub(crate) secrets: Redactions,
     pub(crate) cancelled: CancellationToken,
-    owner: Py<PyAny>,
+    pub(crate) owner: Arc<Py<PyAny>>,
     acquire_timeout: Duration,
     connections: RegistryMutex<Vec<Weak<ConnectionState>>>,
     listeners: RegistryMutex<Vec<Weak<ListenerState>>>,
@@ -64,15 +67,38 @@ impl fmt::Debug for PoolState {
     }
 }
 
+/// Refuse to run from any event loop but `owner`, the one the pool or
+/// listener `what` names was built on.
+pub(crate) fn check_loop(py: Python<'_>, owner: &Py<PyAny>, what: &str) -> PyResult<()> {
+    let current = running_loop(py)?;
+    if !owner.bind(py).is(&current) {
+        return Err(LifecycleError::new_err(format!(
+            "{what} belongs to another asyncio event loop"
+        )));
+    }
+    Ok(())
+}
+
 impl PoolState {
+    fn new(
+        pool: pgorm::DatabasePool,
+        secrets: Redactions,
+        owner: Arc<Py<PyAny>>,
+        acquire_timeout: Duration,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            pool,
+            secrets,
+            owner,
+            acquire_timeout,
+            cancelled: CancellationToken::new(),
+            connections: RegistryMutex::new(Vec::new()),
+            listeners: RegistryMutex::new(Vec::new()),
+        })
+    }
+
     pub(crate) fn check_owner(&self, py: Python<'_>) -> PyResult<()> {
-        let current = running_loop(py)?;
-        if !self.owner.bind(py).is(&current) {
-            return Err(LifecycleError::new_err(
-                "pool belongs to another asyncio event loop",
-            ));
-        }
-        Ok(())
+        check_loop(py, &self.owner, "pool")
     }
 
     pub(crate) fn ensure_open(&self) -> PyResult<()> {
@@ -85,7 +111,7 @@ impl PoolState {
 
     /// Record `listener` so that closing the pool closes it; a listener
     /// opened while the pool closed is closed here instead.
-    // [spec:pgorm:req:bindings.listen+2]
+    // [spec:pgorm:req:bindings.listen+3]
     pub(crate) fn register_listener(&self, listener: &Arc<ListenerState>) -> PyResult<()> {
         let mut registry = self
             .listeners
@@ -168,7 +194,7 @@ impl PoolState {
     }
 }
 
-fn running_loop(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
+pub(crate) fn running_loop(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
     py.import("asyncio")?
         .call_method0("get_running_loop")
         .map_err(|_| {
@@ -197,7 +223,7 @@ impl Drop for Closer {
 }
 
 // [spec:pgorm:req:python.runtime+2]
-// [spec:pgorm:req:bindings.connections+2]
+// [spec:pgorm:req:bindings.connections+3]
 #[derive(Debug)]
 #[pyclass(name = "_Pool", module = "pgorm._native", frozen)]
 pub(crate) struct NativePool {
@@ -208,50 +234,174 @@ pub(crate) struct NativePool {
     closer: Arc<Closer>,
 }
 
+impl NativePool {
+    /// The native pool over `state`, which closes once the last native pool
+    /// over it is gone.
+    fn over(state: Arc<PoolState>) -> Self {
+        Self {
+            closer: Arc::new(Closer(state.clone())),
+            state,
+            metered: None,
+        }
+    }
+}
+
+/// The options every pool built from one connection string shares, read
+/// into pgorm-bindings' settings.
+#[allow(clippy::too_many_arguments)]
+fn settings(
+    dsn: String,
+    tag: Option<String>,
+    tls: Option<&str>,
+    ca_pem: Option<Vec<u8>>,
+    cert_pem: Option<Vec<u8>>,
+    key_pem: Option<Vec<u8>>,
+    connect_timeout: f64,
+    statement_cache_size: usize,
+    recycle: &str,
+    recycle_sql: Option<String>,
+    statement_cache_channel: Option<String>,
+) -> PyResult<pgorm_bindings::PoolSettings> {
+    Ok(pgorm_bindings::PoolSettings {
+        dsn,
+        tls: config::tls(tls, ca_pem, cert_pem, key_pem)?,
+        connect_timeout: seconds(connect_timeout, "connect_timeout")?,
+        recycling_method: config::recycling(recycle, recycle_sql)?,
+        statement_cache_size,
+        statement_cache_channel,
+        tag,
+    })
+}
+
 #[pymethods]
 impl NativePool {
     #[new]
-    #[pyo3(signature = (dsn, *, tls=None, ca_pem=None, max_size=10, connect_timeout=10.0, acquire_timeout=30.0, statement_cache_size=128, recycle="verified", statement_cache_channel=None))]
+    #[pyo3(signature = (dsn, shape, *, tag=None, tls=None, ca_pem=None, cert_pem=None, key_pem=None, connect_timeout=10.0, statement_cache_size=128, recycle="verified", recycle_sql=None, statement_cache_channel=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
         dsn: String,
+        shape: PyRef<'_, NativePoolShape>,
+        tag: Option<String>,
         tls: Option<String>,
         ca_pem: Option<Vec<u8>>,
-        max_size: usize,
+        cert_pem: Option<Vec<u8>>,
+        key_pem: Option<Vec<u8>>,
         connect_timeout: f64,
-        acquire_timeout: f64,
         statement_cache_size: usize,
         recycle: &str,
+        recycle_sql: Option<String>,
         statement_cache_channel: Option<String>,
     ) -> PyResult<Self> {
-        let owner = running_loop(py)?.unbind();
-        let (pool, secrets, acquire_timeout) = PoolConfig {
+        let owner = Owner::current(py)?;
+        let settings = settings(
             dsn,
-            tls,
+            tag,
+            tls.as_deref(),
             ca_pem,
-            max_size,
+            cert_pem,
+            key_pem,
             connect_timeout,
-            acquire_timeout,
             statement_cache_size,
-            recycle: recycle.to_owned(),
+            recycle,
+            recycle_sql,
             statement_cache_channel,
-        }
-        .build()?;
-        let state = Arc::new(PoolState {
+        )?;
+        let mut secrets = None;
+        let pool = settings
+            .build(
+                |config| {
+                    let redactions = Redactions::from_config(config);
+                    let shaped = shape.shape(&owner, &redactions);
+                    secrets = Some(redactions);
+                    shaped
+                },
+                DIALECT,
+            )
+            .map_err(|refusal| ConstructionError::new_err(refusal.into_message()))?;
+        let secrets =
+            secrets.ok_or_else(|| InternalError::new_err("the pool was built unshaped"))?;
+        Ok(Self::over(PoolState::new(
             pool,
             secrets,
-            owner,
-            acquire_timeout,
-            cancelled: CancellationToken::new(),
-            connections: RegistryMutex::new(Vec::new()),
-            listeners: RegistryMutex::new(Vec::new()),
-        });
-        Ok(Self {
-            closer: Arc::new(Closer(state.clone())),
-            state,
-            metered: None,
-        })
+            owner.owner,
+            shape.acquire_timeout(),
+        )))
+    }
+
+    /// One pool per entry of `shapes`, each tagged with its key, sharing the
+    /// connection, TLS and manager configuration, in the tags' order.
+    // [spec:pgorm:req:bindings.multi-pool]
+    #[staticmethod]
+    #[pyo3(signature = (dsn, shapes, *, tls=None, ca_pem=None, cert_pem=None, key_pem=None, connect_timeout=10.0, statement_cache_size=128, recycle="verified", recycle_sql=None, statement_cache_channel=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn multi(
+        py: Python<'_>,
+        dsn: String,
+        shapes: BTreeMap<String, PyRef<'_, NativePoolShape>>,
+        tls: Option<String>,
+        ca_pem: Option<Vec<u8>>,
+        cert_pem: Option<Vec<u8>>,
+        key_pem: Option<Vec<u8>>,
+        connect_timeout: f64,
+        statement_cache_size: usize,
+        recycle: &str,
+        recycle_sql: Option<String>,
+        statement_cache_channel: Option<String>,
+    ) -> PyResult<Vec<(String, Self)>> {
+        let owner = Owner::current(py)?;
+        let settings = settings(
+            dsn,
+            None,
+            tls.as_deref(),
+            ca_pem,
+            cert_pem,
+            key_pem,
+            connect_timeout,
+            statement_cache_size,
+            recycle,
+            recycle_sql,
+            statement_cache_channel,
+        )?;
+        let mut secrets = None;
+        let pools = pgorm_bindings::multi_pool(
+            settings,
+            |config| {
+                let redactions = Redactions::from_config(config);
+                let shaped = shapes
+                    .iter()
+                    .map(|(tag, shape)| (tag.clone(), shape.shape(&owner, &redactions)))
+                    .collect();
+                secrets = Some(redactions);
+                shaped
+            },
+            DIALECT,
+        )
+        .map_err(|refusal| ConstructionError::new_err(refusal.into_message()))?;
+        let secrets =
+            secrets.ok_or_else(|| InternalError::new_err("the pools were built unshaped"))?;
+        pools
+            .iter()
+            .map(|(tag, pool)| {
+                let shape = shapes
+                    .get(tag)
+                    .ok_or_else(|| InternalError::new_err("a pool has no shape"))?;
+                Ok((
+                    tag.to_owned(),
+                    Self::over(PoolState::new(
+                        pool.clone(),
+                        secrets.clone(),
+                        owner.owner.clone(),
+                        shape.acquire_timeout(),
+                    )),
+                ))
+            })
+            .collect()
+    }
+
+    /// The pool's tag, or the `default-N` pgorm named it.
+    fn tag(&self) -> String {
+        self.state.pool.tag().to_string()
     }
 
     /// This pool, sharing its connections and its closing, reporting to the
@@ -323,7 +473,7 @@ impl NativePool {
     /// Mark every connection's cached prepared statements stale, as
     /// `DatabasePool::clear_statement_caches` does. Nothing is sent, so a
     /// closed pool or another event loop is no reason to refuse it.
-    // [spec:pgorm:req:bindings.connections+2]
+    // [spec:pgorm:req:bindings.connections+3]
     // [spec:pgorm:req:conn.pool.statement-cache.clear+1]
     fn clear_statement_caches(&self) {
         self.state.pool.clear_statement_caches();
@@ -364,6 +514,18 @@ impl ConnectionState {
         self.cancelled.cancel();
         if let Ok(mut slot) = self.slot.try_lock() {
             drop(slot.take());
+        }
+    }
+
+    /// Close, discarding the connection rather than returning it: one an
+    /// operation holds is discarded by that operation once it sees the close.
+    // [spec:pgorm:req:bindings.connections+3]
+    fn discard_now(&self) {
+        self.cancelled.cancel();
+        if let Ok(mut slot) = self.slot.try_lock()
+            && let Some(connection) = slot.take()
+        {
+            connection.discard();
         }
     }
 
@@ -552,6 +714,22 @@ impl NativeConnection {
         })
     }
 
+    /// Close the connection and discard it, as `DatabaseConnection::discard`
+    /// does, so the pool opens a fresh one in its place; an instrumented
+    /// pool's is discarded through the connection it wraps.
+    // [spec:pgorm:req:bindings.connections+3]
+    fn discard<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.state.pool.check_owner(py)?;
+        self.state.discard_now();
+        let state = self.state.clone();
+        future_into_py(py, async move {
+            if let Some(connection) = state.slot.lock().await.take() {
+                connection.discard();
+            }
+            Ok(())
+        })
+    }
+
     fn closed(&self) -> bool {
         self.state.cancelled.is_cancelled() || self.state.pool.cancelled.is_cancelled()
     }
@@ -568,9 +746,11 @@ impl Drop for NativeConnection {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    // [spec:pgorm:req:bindings.connections+2]    the channel pgorm-migration's runner notifies
+    // [spec:pgorm:req:bindings.connections+3]    the channel pgorm-migration's runner notifies
     module.add("STATEMENT_CACHE_CHANNEL", pgorm::STATEMENT_CACHE_CHANNEL)?;
     module.add_class::<NativePool>()?;
+    module.add_class::<NativePoolShape>()?;
+    module.add_class::<crate::hooks::NativeHookConnection>()?;
     module.add_class::<NativeConnection>()?;
     module.add_class::<crate::transactions::NativeTransaction>()?;
     Ok(())

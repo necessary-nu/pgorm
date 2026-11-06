@@ -2,21 +2,22 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Pool } from "@necessary/pgorm";
+import { ConnectionError, type HookConnection, Pool } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ url }: GuideContext): Promise<void> {
-  for (const recycle of ["verified", "fast"] as const) {
-    await using single = new Pool(url, { maxSize: 1, recycle });
-
-    let db = await single.acquire();
-    await db.execute("SET enable_seqscan = off");
-    await db.close();
-
-    // The pool has one connection, so this is the same session.
-    db = await single.acquire();
-    const row = await db.one("SELECT current_setting('enable_seqscan') AS seen");
-    assert.equal(row.seen, "off");
-    await db.close();
+  /** A hook refusing a server older than `minimum`, a `server_version_num` such as 180000. */
+  function requiring(minimum: number) {
+    return async (db: HookConnection) => {
+      const { version } = await db.one("SELECT current_setting('server_version_num')::int AS version");
+      if ((version as number) < minimum) throw new Error(`server version ${version} is older than ${minimum}`);
+    };
   }
+
+  await using checked = new Pool(url, { postCreate: requiring(180000) });
+  assert.equal((await checked.one("SELECT 1 AS one")).one, 1);
+
+  await using refusing = new Pool(url, { postCreate: requiring(990000) });
+  await assert.rejects(refusing.acquire(), (error: unknown) =>
+    error instanceof ConnectionError && error.message.startsWith("the postCreate hook refused the connection"));
 }

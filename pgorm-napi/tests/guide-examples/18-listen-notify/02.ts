@@ -2,16 +2,16 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { LifecycleError, Pool } from "@necessary/pgorm";
+import { connectListener, LifecycleError } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
-export default async function example({ url }: GuideContext): Promise<void> {
-  // `url` names the database; this pool only ever listens.
-  await using listening = new Pool(url, { maxSize: 1 });
-  const listener = await listening.listener();
+export default async function example({ pool, url }: GuideContext): Promise<void> {
+  // `url` names the database; no pool holds this listener.
+  const listener = await connectListener(url, { capacity: 64 });
   await listener.listen("deliveries");
-  await listener.unlistenAll();
-  assert.equal(listening.status().size, 0);
+  await pool.notify("deliveries", "flour");
+  const { value } = await listener.next();
+  assert.equal(value?.payload, "flour");
 
   // Closing the listener closes its connection.
   await listener.close();

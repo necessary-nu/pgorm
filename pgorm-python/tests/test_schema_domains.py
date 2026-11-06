@@ -211,7 +211,7 @@ class DomainDatabase(unittest.IsolatedAsyncioTestCase):
             written = (await connection.one(query))["qty"]
             return written, await cls.prepared_statement(connection, query)
 
-    # [spec:pgorm:req:bindings.connections+2/test]    clear_statement_caches makes the connection
+    # [spec:pgorm:req:bindings.connections+3/test]    clear_statement_caches makes the connection
     # that already ran an insert prepare it again, its old statement closed on the server, and
     # write the domain's new default
     # [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    from Python
@@ -241,7 +241,7 @@ class DomainDatabase(unittest.IsolatedAsyncioTestCase):
             self.assertLess(asyncio.get_running_loop().time(), deadline, what)
             await asyncio.sleep(0.01)
 
-    # [spec:pgorm:req:bindings.connections+2/test]    a pool given statement_cache_channel listens
+    # [spec:pgorm:req:bindings.connections+3/test]    a pool given statement_cache_channel listens
     # from its first acquisition, clears on a notification there whatever its payload, and
     # closes its listening connection when it closes; a pool without the setting keeps its
     # statements

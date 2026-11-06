@@ -10,6 +10,29 @@ use tokio::sync::mpsc;
 use super::{CopyFrom, CopyTo};
 use crate::runtime::Operation;
 
+/// A COPY whose columns are described without it starting.
+pub(crate) enum Described {
+    From(CopyFrom),
+    To(CopyTo),
+}
+
+/// The columns `statement` reads or writes, in order, as pgorm describes them
+/// before a COPY starts, starting none.
+// [spec:pgorm:req:bindings.copy-rows+2]
+pub(crate) async fn describe<C>(db: &mut C, statement: &Described) -> Result<Vec<CopyColumn>, Error>
+where
+    C: CopyTrait + Send,
+{
+    match statement {
+        Described::From(CopyFrom::Text(statement)) => db.copy_in_columns(statement).await,
+        Described::From(CopyFrom::Csv(statement)) => db.copy_in_columns(statement).await,
+        Described::From(CopyFrom::Binary(statement)) => db.copy_in_columns(statement).await,
+        Described::To(CopyTo::Text(statement)) => db.copy_out_columns(statement).await,
+        Described::To(CopyTo::Csv(statement)) => db.copy_out_columns(statement).await,
+        Described::To(CopyTo::Binary(statement)) => db.copy_out_columns(statement).await,
+    }
+}
+
 /// Chunks queued between Python and the owning task, in either direction.
 /// The bound is what holds a fast source, or an unread server, back.
 pub(crate) const QUEUED: usize = 4;
@@ -54,7 +77,7 @@ impl Unopened {
     }
 }
 
-// [spec:pgorm:req:bindings.copy-rows+1]
+// [spec:pgorm:req:bindings.copy-rows+2]
 pub(crate) async fn open_in<'a, C>(
     db: &'a mut C,
     statement: &CopyFrom,
@@ -79,7 +102,7 @@ where
     .map_err(Unopened::Refused)
 }
 
-// [spec:pgorm:req:bindings.copy-rows+1]
+// [spec:pgorm:req:bindings.copy-rows+2]
 pub(crate) async fn open_out<'a, C>(
     db: &'a mut C,
     statement: &CopyTo,

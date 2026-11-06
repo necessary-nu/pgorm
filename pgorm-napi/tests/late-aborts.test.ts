@@ -143,7 +143,7 @@ test("a row stream's pull aborted after it ran rejects and closes the stream", a
 });
 
 // [spec:pgorm:req:napi.cancellation+2/test]
-// [spec:pgorm:req:bindings.listen+2/test]
+// [spec:pgorm:req:bindings.listen+3/test]
 test("a listener's pull aborted after a notification arrived keeps it for the next pull", async () => {
   await using listener = await pool().listener();
   await listener.listen("napi_late");

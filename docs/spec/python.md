@@ -204,12 +204,20 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > `PanicException`, which derives from `BaseException` and so, like
 > `InternalError`, is never one of the classes that report bad input.
 
-> [spec:pgorm:req:python.lifecycle+3]
-> `Pool(dsn, *, tls, ca, cafile, max_size, connect_timeout, acquire_timeout,
-> statement_cache_size, recycle, statement_cache_channel)` builds a pool,
-> `ca` the PEM certificates to trust as a `str` or `bytes`, `cafile` naming a
-> PEM file to read them from, never both, and the timeouts given in seconds;
-> `await connect(dsn, **options)` gives one whose server answered. A pool, a
+> [spec:pgorm:req:python.lifecycle+4]
+> `Pool(dsn, *, tls, ca, cafile, cert, certfile, key, keyfile, max_size,
+> connect_timeout, acquire_timeout, wait_timeout, create_timeout,
+> recycle_timeout, queue_mode, statement_cache_size, recycle, recycle_sql,
+> statement_cache_channel, tag, post_create, pre_recycle, post_recycle)`
+> builds a pool (`bindings.connections`), `ca`, `cert` and `key` PEM data as
+> a `str` or `bytes` and `cafile`, `certfile` and `keyfile` naming a PEM file
+> to read each from, never both of a pair, the timeouts given in seconds and
+> each hook a function, `async` or not, taking a `HookConnection`. `MultiPool(dsn,
+> pools, **options)` takes each pool's own options as a mapping, the keys
+> those Rust's per-pool builder sets, and refuses another key with
+> `TypeError`. `await connect(dsn, **options)` gives one whose server
+> answered, and `await connect_listener(dsn, *, capacity, **tls)` a listener
+> of no pool. A pool, a
 > connection and every stream MUST be closable by `await close()` (`aclose()`
 > on a stream or listener) and MUST be asynchronous context managers that
 > close on exit; `pool.connection()` lends a connection for an `async with`

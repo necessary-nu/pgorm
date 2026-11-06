@@ -58,21 +58,23 @@ Once `listen` resolves, every notification on the channel from a transaction
 that commits afterwards is delivered. Once `unlisten` resolves, none is,
 though one already received is still waiting to be read.
 
-Rust also opens a listener from a configuration of its own, rather than a
-pool's, with `connect_listener`. JavaScript reaches the same thing through a
-pool built for the purpose: a pool connects nothing until it is asked, so one
-that only opens a listener holds that one connection.
+A listener can also belong to no pool:
+[`connectListener(dsn, options)`](../lib/listen.d.ts) opens one on a
+connection of its own, as Rust's `connect_listener` does, reading the
+connection string, `connectTimeout` and the TLS options as a pool's
+([Connection configuration and TLS](20-configuration.md)) and `capacity` as
+`listener()`'s. Only its own close, or its iteration left early, closes it.
 
 ```ts
 import assert from "node:assert/strict";
-import { LifecycleError, Pool } from "@necessary/pgorm";
+import { connectListener, LifecycleError } from "@necessary/pgorm";
 
-// `url` names the database; this pool only ever listens.
-await using listening = new Pool(url, { maxSize: 1 });
-const listener = await listening.listener();
+// `url` names the database; no pool holds this listener.
+const listener = await connectListener(url, { capacity: 64 });
 await listener.listen("deliveries");
-await listener.unlistenAll();
-assert.equal(listening.status().size, 0);
+await pool.notify("deliveries", "flour");
+const { value } = await listener.next();
+assert.equal(value?.payload, "flour");
 
 // Closing the listener closes its connection.
 await listener.close();

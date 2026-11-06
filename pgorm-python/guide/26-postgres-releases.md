@@ -80,25 +80,24 @@ Cargo turns a feature on for every crate in a build once any one crate asks
 for it, so a crate elsewhere in the registration crate's dependencies that
 turns on `pg-19` cannot break the statements a Python program builds.
 
-`pgorm.capabilities()` lists the installed build's features, and `pg-19` is
-among them in a 19 build:
+`pgorm.POSTGRES_TARGET` is the release the installed build targets, 18 or 19,
+as Rust's `pgorm_query::POSTGRES_TARGET` is, and `pgorm.capabilities()` lists
+the build's features, `pg-19` among them in a 19 build:
 
 ```python
 import pgorm
 
-features = pgorm.capabilities()["features"]
-postgres_target = 19 if "pg-19" in features else 18
-assert postgres_target in (18, 19)
+assert pgorm.POSTGRES_TARGET in (18, 19)
+assert ("pg-19" in pgorm.capabilities()["features"]) == (pgorm.POSTGRES_TARGET == 19)
 
 # In a program that relies on 19:
-# if postgres_target < 19:
+# if pgorm.POSTGRES_TARGET < 19:
 #     raise RuntimeError("install a pgorm wheel built with its pg-19 feature")
 ```
 
-Here Python differs from Rust, where the constant
-`pgorm_query::POSTGRES_TARGET` says which release a build targets and a
-program can refuse to compile without 19. A Python program has no compile
-step, so it reads the features when it starts.
+Here Python differs from Rust, where a program can refuse to compile without
+19. A Python program has no compile step, so it reads the constant when it
+starts.
 
 ## Where the two releases answer differently
 
@@ -137,7 +136,7 @@ async def main() -> None:
         dear = select(Cake.col("name")).from_(Cake.table).where(Cake.col("price") > Decimal("10.00"))
         row = await pool.one(select(json_array_query(dear).as_("names")))
 
-        if "pg-19" in pgorm.capabilities()["features"]:
+        if pgorm.POSTGRES_TARGET == 19:
             assert row["names"] == []
         else:
             assert row["names"] is None

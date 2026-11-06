@@ -13740,12 +13740,30 @@ children (
                         id napi.guide-gaps.copy-described-rows
                         title "A binary COPY describes its columns' names and types before it starts, takes rows one at a time, writes a model's records and reads its rows as a model's records, as Rust's copy_in_columns, copy_out_columns, CopyRowSink::send, send_model and CopyRowStream::models do (guide 17-copy)"
                         deps (copy-binary-rows napi-models guide.javascript)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-06T07:03:19.330377Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Done (nplan complete)"
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.copy-row-codec
                         title "A program frames the binary COPY format itself, encoding rows of values into bytes and decoding bytes split anywhere into rows, as Rust's CopyRowEncoder and CopyRowDecoder do (guide 17-copy)"
                         deps (copy-binary-rows guide.javascript)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-06T07:03:19.610441Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Done (nplan complete)"
+                            }
+                        )
                     }
 
                     {
@@ -13788,18 +13806,27 @@ children (
                     {
                         id napi.guide-gaps.pool-builder
                         title "A JavaScript pool takes a recycle timeout, a queue mode, post_create, pre_recycle and post_recycle hooks, and the Clean and Custom(sql) recycling methods, as Rust's PoolBuilder and RecyclingMethod do (guide 20-configuration)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.pool-hooks])
+                        }
                         deps (napi-connections guide.javascript)
                     }
 
                     {
                         id napi.guide-gaps.pool-tags
                         title "A JavaScript pool carries a tag, and several pools are built by name and addressed by tag, as Rust's ManagerConfig tag, DatabasePool::tag and connect_multi_with_builder's DatabaseMultiPool do (guide 20-configuration)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.multi-pool])
+                        }
                         deps (napi-connections guide.javascript)
                     }
 
                     {
                         id napi.guide-gaps.tls-configuration
                         title "A JavaScript pool connects through a TLS configuration of the program's own, a client certificate among it, as Rust's connect_with takes any MakeTlsConnect connector; today it has only verify-full against ca or the platform store (guide 20-configuration)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.tls])
+                        }
                         deps (napi-connections guide.javascript)
                     }
 
@@ -13807,6 +13834,15 @@ children (
                         id napi.guide-gaps.connection-discard
                         title "A checked-out JavaScript connection is discarded rather than returned to its pool, as Rust's DatabaseConnection::discard does; today close() always returns it (guide 20-configuration)"
                         deps (napi-connections guide.javascript)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-05T22:36:59.752438Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Done (nplan complete)"
+                            }
+                        )
                     }
 
                     {
@@ -13873,7 +13909,25 @@ children (
                     {
                         id napi.guide-gaps.pg-19
                         title "pgorm-napi forwards pgorm's pg-19 feature and the module reports the PostgreSQL release its build targets, as pgorm's POSTGRES_TARGET and pgorm-python's forwarded feature and capabilities() do (guide 27-postgres-releases)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.postgres-target])
+                        }
                         deps (napi-packaging guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T18:55:45.372306Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "nplan_start refused this node: \"dep napi-packaging is Todo\", though nplan_node shows napi-packaging done, and an nplan_sync did not change the answer. Worked in the pool-config lane's worktree (nplan/guide.python-gaps.pool-config) without a claim, per the lane brief."
+                            }
+
+                            {
+                                at 2026-11-05T19:36:15.438176Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Both bindings export the build's target as the shared constant POSTGRES_TARGET (bindings-surface.json modules.pgorm, rule bindings.postgres-target), read from pgorm_query::POSTGRES_TARGET, rather than JavaScript gaining a capabilities() manifest: Python keeps capabilities()[\"features\"] beside it. pgorm-napi carries pg-19 = [\"pgorm/pg-19\"], scripts/build.mjs passes --features through to cargo, and napi-native gains check-pg-19. sql.target bumped to +2 (both bindings forward; tests branch on POSTGRES_TARGET); tests/target_release_tests.rs CARRIERS includes pgorm-napi."
+                            }
+                        )
                     }
 
                     {
@@ -14031,6 +14085,11 @@ children (
                     {
                         id napi.guide-gaps.copy-rows-round-trip
                         title "A binary COPY's rows read with copyOutRows / copy_out_rows write back through copyInRows / copy_in_rows, in both bindings: a value inference cannot type (a plain range or multirange, an empty array, an array of nulls) is typed by its COPY column's type, which copy_in_columns already holds, and CopyRowStream's rows then type-check as CopyRows"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.copy-rows.typed])
+                            main ([spec:pgorm:req:conn.copy.rows.kind])
+                            python ([spec:pgorm:req:bindings.copy-rows.typed])
+                        }
                         deps (napi.guide-gaps.binding-refusals)
                         log (
                             {
@@ -14045,6 +14104,20 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "2026-11-06 (migrations lane): not started. The brief makes it wait on the COPY and connections lane's described-columns work (copy_in_columns / copy_out_columns handed to the bindings), which had not landed on main (still d56f0739) when the migrations work was committed (fa2345fd on nplan/guide.python-gaps.migrations)."
+                            }
+
+                            {
+                                at 2026-11-06T10:14:50.302771Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T10:14:51.784671Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built through pgorm: CopyColumn::value_kind() (conn.copy.rows.kind) answers the ArrayType a column's values are and whether an array, from the described Type (pgorm's own decode mapping). Both bindings read a COPY row value as before (inference first, so nothing accepted before is refused or reinterpreted, e.g. a naive datetime for timestamptz stays refused), except: a json or json[] column's value is read as JSON whatever it holds (a JSON number, string or array inferred as int/text/array, which the probe showed refused), and a value inference cannot type (plain Range/Multirange, empty array, array of nulls) is read as its column's kind; if neither reads it the inference refusal stands. lib/copy.d.ts: CopyValue = Param | PlainValue, CopyRows and CopyRowSink.send/CopyRowEncoder.encode take it, so a CopyRowStream passes as CopyRows with no cast. New rule bindings.copy-rows.typed rather than a bump of bindings.copy-rows (which stays true for every value it describes)."
                             }
                         )
                     }
@@ -20167,12 +20240,47 @@ children (
                         id guide.python-gaps.copy-rows-surface
                         title "Python's row COPY has Rust's surface: CopyRowEncoder and CopyRowDecoder, copy_in_columns and copy_out_columns (column types, not only names), CopyRowSink::send_model and CopyRowStream::models"
                         deps (python.statements)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-05T20:23:53.630034Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "nplan_start refused this node: \"dep python.statements is Todo\", though python.statements is done; the napi COPY nodes' deps (copy-binary-rows, napi-models) likewise read as Todo in this worktree. Worked unclaimed in the pool-config lane's worktree, per the lane brief."
+                            }
+
+                            {
+                                at 2026-11-05T22:50:55.824348Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "COPY rows surface (lane decision, pending operator override; shared with napi.guide-gaps.copy-described-rows and .copy-row-codec, rule bindings.copy-rows+2). copy_in_rows(statement) with no rows gives a CopyRowSink (Rust's name; with rows it keeps today's pull-and-abort behaviour, a stated difference) with columns, send (a refused row raises and the sink goes on), send_model (each COPY column from the record's field of that column), finish, close/scoped form aborting an unfinished COPY. copy_in_columns/copy_out_columns describe through CopyTrait (&mut) on a pool, connection or transaction (the transaction's owner task gained a Describe command). CopyColumn: described columns carry any server type; a program builds one of a built-in type by its pg_type name or name[] (pgorm-bindings::copy_column, so both bindings resolve names alike), money needing money_places. CopyRowStream.models(model) reads rows as the model's records through the binding's own model decode (Python: a native Record built from the COPY row, wrapped as ModelRecord). CopyRowEncoder (static header/trailer, encode(row) -> bytes) and CopyRowDecoder (push, next_row, finish) wrap pgorm's. Python's COPY methods moved into a RowCopies mixin shared by Pool, Connection and Transaction (pgorm/copy_rows.py) to keep runtime.py under the function-density gate."
+                            }
+
+                            {
+                                at 2026-11-06T07:03:19.059409Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Done (nplan complete)"
+                            }
+                        )
                     }
 
                     {
                         id guide.python-gaps.pool-config
                         title "Python pools take Rust's configuration: connect_with, connect_with_builder, connect_multi_with_builder and ManagerConfig; PoolBuilder's wait, create and recycle timeouts, queue_mode and post_create, pre_recycle and post_recycle hooks; RecyclingMethod Clean and Custom; a pool's tag; custom TLS connectors and client certificates; sslmode verify-ca and allow with sslrootcert and sslcert; and connect_listener(config, tls, capacity)"
+                        implements {
+                            main ([spec:pgorm:def:conn.pool.hook-connection])
+                            python ([spec:pgorm:req:bindings.tls] [spec:pgorm:req:bindings.pool-hooks] [spec:pgorm:req:bindings.multi-pool])
+                        }
                         deps (python.runtime)
+                        log (
+                            {
+                                at 2026-11-05T20:07:11.831793Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Pool configuration shared by both bindings (lane decision, pending operator override). (1) New main-workspace crate pgorm-bindings (publish=false) holds what both bindings need beyond pgorm: TLS settings -> rustls connector, pool settings -> connect_with / connect_multi_with, refusal texts spelled per binding (Dialect), pool-error classification, the hook job-serving loop; the bindings only read their language's arguments and raise its errors. (2) pgorm gains HookConnection (ConnectionTrait over a hook's client: a wrapper, since implementing the trait on ClientWrapper would turn a Rust hook's client.query_one into pgorm's) and connect_multi_with(config, tls, manager, builds) (multi pools over TLS; connect_multi_with_builder delegates). (3) TLS modes are libpq's names: verify-full (default), verify-ca (requires ca: the platform store trusts anyone's certificate), require and prefer (unverified, handshake signatures only), disable. The connection string's own prefer/require keep verify-full, so a weaker mode is only ever an explicit tls option. libpq's allow is not offered (tokio-postgres negotiates TLS first; an impostor would get the plaintext) and sslrootcert/sslcert/sslkey stay options, since tokio-postgres's parser refuses them in the string. Refused before anything is sent: disable beside ca/cert/key/sslmode=require, prefer beside sslmode=require, ca with an unverified mode, cert without key. (4) Hooks: post_create/pre_recycle/post_recycle take a language function run on the pool's own loop/JS thread, given a HookConnection (execute/query/one/optional, age, recycle_count) whose statements the Rust hook serves until the function returns; raising refuses the connection (post_create -> ConnectionError \"the post_create hook refused the connection: Class: message\"). (5) recycle gains \"clean\"; recycle_sql is RecyclingMethod::Custom (TypeError beside recycle). wait/create/recycle timeouts off by default; a recycle that outlasts its timeout is discarded by deadpool rather than raised. (6) Pool.tag, Connection.discard(), MultiPool(dsn, {tag: shape options}, shared options) with get/items(JS entries)/status/close, and connect_listener(dsn, capacity, TLS options) for a listener of no pool."
+                            }
+                        )
                     }
 
                     {
@@ -20195,7 +20303,18 @@ children (
                     {
                         id guide.python-gaps.postgres-target
                         title "Python reports the PostgreSQL release a build targets as pgorm_query::POSTGRES_TARGET does, beside capabilities()[\"features\"] listing pg-19"
+                        implements {
+                            python ([spec:pgorm:req:bindings.postgres-target])
+                        }
                         deps (python.package)
+                        log (
+                            {
+                                at 2026-11-05T18:55:44.811369Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "nplan_start refused this node: \"dep python.package is Todo\", though nplan_node shows python.package done (shipped 75171d85), and an nplan_sync did not change the answer. Worked in the pool-config lane's worktree (nplan/guide.python-gaps.pool-config) without a claim, per the lane brief."
+                            }
+                        )
                     }
 
                     {

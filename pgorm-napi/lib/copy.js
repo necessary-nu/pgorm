@@ -8,11 +8,13 @@
 // bind parameters, so `inspect()` gives its SQL, every value in it a
 // literal, and no values.
 // [spec:pgorm:req:bindings.copy]
-// [spec:pgorm:req:bindings.copy-rows+1]
+// [spec:pgorm:req:bindings.copy-rows+2]
 
 import { arg, Builder, trusted, TRUSTED } from "./builder.js";
+import { describedColumns } from "./copy-columns.js";
 import { pump } from "./copy-feed.js";
 import { CopyRowStream, pumpRows, rowSource } from "./copy-rows.js";
+import { CopyRowSink } from "./copy-sink.js";
 import { LifecycleError } from "./errors.js";
 import { abortable, LATE, native, queryOptions, TRUSTED as HANDLE } from "./operations.js";
 
@@ -240,11 +242,12 @@ export const COPY = Symbol("copy");
  * COPY in the addon with its `[COPY]` method, which resolves once the server
  * accepts the statement and holds what it runs on — a pool's connection of
  * its own, or the connection or transaction itself, which refuses other work
- * — until the COPY ends.
+ * — until the COPY ends; or, for `"columns"`, describes the COPY's columns
+ * and starts nothing.
  */
 export class CopyRunner {
   /**
-   * @param {"in" | "out"} _direction
+   * @param {"in" | "out" | "columns"} _direction
    * @param {unknown} _copy
    * @param {unknown} _token
    * @param {boolean} _rows
@@ -309,28 +312,99 @@ export class CopyRunner {
   }
 
   /**
+   * The columns a `COPY … FROM STDIN` in any format takes, in order, as the
+   * server describes them, without starting it: each a `CopyColumn` with its
+   * name and type. A table or column that does not exist is the server's
+   * `DatabaseError`, which leaves the connection or transaction as a failed
+   * statement does.
+   *
+   * @param {unknown} statement
+   * @param {unknown} [options]
+   * @returns {Promise<readonly import("./copy-columns.js").CopyColumn[]>}
+   */
+  async copyInColumns(statement, options = {}) {
+    if (!(statement instanceof CopyFrom)) {
+      throw new TypeError("copyInColumns describes a COPY FROM STDIN, from copyFrom(table, format)");
+    }
+    return await this.#described(statement, options);
+  }
+
+  /**
+   * The columns a `COPY … TO STDOUT` in any format gives, in order, as the
+   * server describes them, without starting it.
+   *
+   * @param {unknown} statement
+   * @param {unknown} [options]
+   * @returns {Promise<readonly import("./copy-columns.js").CopyColumn[]>}
+   */
+  async copyOutColumns(statement, options = {}) {
+    if (!(statement instanceof CopyTo)) {
+      throw new TypeError("copyOutColumns describes a COPY TO STDOUT, from copyTo(source, format)");
+    }
+    return await this.#described(statement, options);
+  }
+
+  /**
+   * @param {CopyFrom | CopyTo} statement
+   * @param {unknown} options
+   */
+  async #described(statement, options) {
+    const { signal } = queryOptions(options);
+    const handles = await abortable(
+      signal,
+      (token) => this[COPY]("columns", arg(statement), token, false),
+      () => this[LATE](),
+    );
+    return describedColumns(/** @type {unknown[]} */ (handles));
+  }
+
+  /**
    * Run a binary `COPY … FROM STDIN` whose rows are arrays of values, one for
    * each of the columns the server describes for it, and resolve with the
    * rows it wrote. Each value is read as a parameter is, and written against
    * its column's type as a parameter is bound. A row of another width, or a
    * value its column's type does not take, is a `ConstructionError` that
-   * abandons the COPY, as a source that throws does.
+   * abandons the COPY, as a source that throws does. With no rows, resolve
+   * once the server accepts the COPY with a `CopyRowSink` that takes them a
+   * row at a time.
    *
    * @param {unknown} statement
-   * @param {unknown} rows
+   * @param {unknown} [rows]
    * @param {unknown} [options]
-   * @returns {Promise<number>}
+   * @returns {Promise<number | CopyRowSink>}
    */
   async copyInRows(statement, rows, options = {}) {
     if (!(statement instanceof CopyFrom) || statement.format !== "binary") {
       throw new TypeError('copyInRows runs a binary COPY FROM STDIN, from copyFrom(table, "binary")');
     }
     const { signal } = queryOptions(options);
+    if (rows === undefined) return await this.#sink(statement, signal);
     const open = rowSource(rows);
     return await abortable(signal, async (token) => {
       const handle = await this[COPY]("in", arg(statement), token, true);
       return await pumpRows(handle, open, signal);
     }, () => this[LATE]());
+  }
+
+  /**
+   * A COPY of rows the program writes through a sink, the signal's token
+   * held for the COPY's whole length as `copyInRows` holds it for its rows'.
+   *
+   * @param {CopyFrom} statement
+   * @param {AbortSignal | undefined} signal
+   */
+  async #sink(statement, signal) {
+    /** @type {unknown} */
+    let held;
+    const handle = await abortable(
+      signal,
+      (token) => {
+        held = token;
+        return this[COPY]("in", arg(statement), token, true);
+      },
+      (opened) => abandonCopyIn(this, opened),
+    );
+    return new CopyRowSink(handle, this, signal, held, HANDLE);
   }
 
   /**
@@ -355,6 +429,18 @@ export class CopyRunner {
     );
     return new CopyRowStream(handle, this, signal, HANDLE);
   }
+}
+
+/**
+ * Abandon a COPY FROM that opened after its abort, writing nothing, and
+ * release what `runner` ran it on.
+ *
+ * @param {CopyRunner} runner
+ * @param {unknown} handle
+ */
+async function abandonCopyIn(runner, handle) {
+  await native.copyInAbort(handle);
+  await runner[LATE]();
 }
 
 /**

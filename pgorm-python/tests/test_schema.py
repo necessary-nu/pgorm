@@ -10,7 +10,7 @@ from pgorm import _native, schema as s
 # The release the native module targets: PostgreSQL 19 when pgorm was built
 # with its pg-19 feature, 18 otherwise. Where the two servers answer a
 # statement differently, a test holds the answer of the release targeted.
-# [spec:pgorm:req:sql.target+1/test]
+# [spec:pgorm:req:sql.target+2/test]
 PG_19 = "pg-19" in p.capabilities()["features"]
 
 
