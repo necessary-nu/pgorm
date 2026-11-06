@@ -20280,6 +20280,22 @@ children (
                         id guide.python-gaps.annotated-operand-goldens
                         title "The Python and JavaScript guides' writing and query-builder examples hold the SQL pgorm writes since an arithmetic operand carries its type: main's Rust guide renders \"price\" + $1::numeric, while the binding guides still assert \"price\" + $1 and fail (Python writing 7, query-builder 2, 3, 8, 9; JavaScript writing 7, query-builder 2, 7, 8)"
                         kind @fix
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-06T09:08:21.5978Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Delivered on main by guide.binding-typed-placeholders (e0dee66b, completed in cd128b7a), filed before that landed. After this lane merged main 5bd21bb6 (f34c38ba) every named example passes: pgorm-python test_guide (all chapters, in the 448-test suite) and pgorm-napi tests/guide.test.ts in Node.js and Deno, with no guide module rewritten. Completed as owning no rule and needing no change of its own."
+                            }
+
+                            {
+                                at 2026-11-06T09:08:21.835809Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Done (nplan complete)"
+                            }
+                        )
                     }
                 )
             }
