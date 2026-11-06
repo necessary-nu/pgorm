@@ -146,6 +146,16 @@ features = ["extension-module"]
         lines.append(
             f"    registry.graph({rust_string(entry['name'])}, app_entities::{entry['rust']})?;"
         )
+    # [spec:pgorm:req:bindings.codegen-coverage]
+    for entry in description["one_ofs"]:
+        lines.append(
+            f"    registry.one_of::<app_entities::{entry['rust']}>({rust_string(entry['name'])})?;"
+        )
+    for entry in description["sources"]:
+        listed = "".join(f"app_entities::{path}, " for path in entry["rust"])
+        lines.append(
+            f"    registry.sources::<({listed.rstrip()})>({rust_string(entry['name'])})?;"
+        )
     lines.extend(["    pgorm_python::install(module, registry)", "}", ""])
     (destination / "src/lib.rs").write_text("\n".join(lines))
     description["compatibility"] = {

@@ -12,7 +12,14 @@
     {"name": "app.Pallet", "rust": "courier::pallet::Entity", "python": "Pallet"},
     {"name": "app.Offer", "rust": "courier::offer::Entity", "python": "Offer"},
     {"name": "app.Auction", "rust": "courier::auction::Entity", "python": "Auction"},
-    {"name": "app.Sale", "rust": "courier::sale::Entity", "python": "Sale"}
+    {"name": "app.Sale", "rust": "courier::sale::Entity", "python": "Sale"},
+    {"name": "app.Label", "rust": "courier::label::Entity", "python": "Label"}
+  ],
+  "one_ofs": [
+    {"name": "app.LabelTarget", "rust": "courier::label::Target", "python": "LabelTarget"}
+  ],
+  "sources": [
+    {"name": "app.AccountWithNote", "rust": ["account::Entity", "note::Entity"], "python": "AccountWithNote"}
   ],
   "disjoints": [
     {"name": "app.Deliveries", "rust": "courier::delivery::Delivery", "python": "Deliveries"},

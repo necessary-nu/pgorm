@@ -665,7 +665,8 @@ seven entities from `pgorm-guide-support`:
   module exports it under. An entry may add `fields`, a map from a column's
   SQL name to the attribute its typed model reads it as, such as
   `{"display name": "display_name"}`.
-- `graphs` and `disjoints` list graph shapes and disjoint enums the same way,
+- `graphs`, `disjoints`, `one_ofs` and `sources` list graph shapes,
+  disjoint enums, one-of references and pipeline source tuples the same way,
   as the sections on them show.
 
 The description is checked before anything is written. A Rust path names
@@ -1105,8 +1106,13 @@ records are the entities' own models; `set(active, value, key)` returns the
 `ActiveModel` with the reference set to that target's key and every other
 target's column NULL, and `set(active, None)` sets them all NULL where the
 reference is optional. `load(db, records)` reads the record each reference
-names, as a one-of model's does. `pgorm.codegen` does not describe one-of
-enums yet: a wheel that registers one is built by hand.
+names, as a one-of model's does. In `pgorm.codegen`, an enum is described
+under `one_ofs` by its registration, its Rust path and its export, and the
+generated module exports it as that `OneOfEntity`:
+
+```json
+"one_ofs": [{"name": "app.CommentTarget", "rust": "comment::Target", "python": "CommentTarget"}]
+```
 
 ### Pipeline source tuples
 
@@ -1124,8 +1130,14 @@ from the source its qualifier names, and its `all`, `one` and `optional` give
 tuples of the registered models, with `None` for a source a right or full
 join left absent. `(None,)` is a row whose one source is absent, not the
 absence of a row. A tuple holds one to six entities, each registered before
-it. `pgorm.codegen` does not describe source tuples yet: a wheel that
-registers one is built by hand.
+it. In `pgorm.codegen`, a tuple is described under `sources`, its `rust` the
+paths of the entities it lists, each one the description registers, and the
+generated module exports its `SourceSelection` beside a `<Name>Row` alias
+for the rows it selects, each source's model or `None`:
+
+```json
+"sources": [{"name": "app.BakeryAndCake", "rust": ["bakery::Entity", "cake::Entity"], "python": "BakeryAndCake"}]
+```
 
 ## Checks at import
 

@@ -114,6 +114,16 @@ test("a build description names each disjoint enum once", () => {
   assert.throws(invalid({ name: "app.Other", rust: "shipping::Other", typescript: "Other", fields: {} }), refused(/"fields" is no field/));
 });
 
+// [spec:pgorm:req:bindings.codegen-coverage/test]    a build description's one-of references are named by Rust path, registration and export, each unique
+test("a build description names each one-of reference once", () => {
+  const oneOfs = [{ name: "app.Target", rust: "label::Target", typescript: "Target" }];
+  assert.deepStrictEqual(validate({ ...base, one_ofs: oneOfs }, fixture).oneOfs, oneOfs);
+  assert.deepStrictEqual(validate(base, fixture).oneOfs, []);
+  const invalid = (entry: object) => () => validate({ ...base, one_ofs: [...oneOfs, entry] }, fixture);
+  assert.throws(invalid({ name: "app.Other", rust: "label::Target", typescript: "Other" }), refused(/each Rust one-of enum is registered once/));
+  assert.throws(invalid({ name: "app.Other", rust: "label::Other", typescript: "Target" }), refused(/export Target is named twice/));
+});
+
 // [spec:pgorm:req:napi.codegen-types/test]
 test("each described kind becomes the TypeScript type its records read and its writes take", () => {
   const read = (kind: string | null, extra: object = {}) => columnType({ kind, nullable: false, ...extra }, false);

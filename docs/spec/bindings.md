@@ -1941,6 +1941,24 @@ Rust generic at run time, only use the ones compiled in.
 > native module and every registration it names describe as they did when it
 > was written, and refuse to load otherwise.
 
+> [spec:pgorm:req:bindings.codegen-coverage]
+> Each binding's build description MUST describe, beside its entities, graph
+> shapes and disjoint enums, the downstream crate's one-of references and its
+> source tuples. A one-of reference (`one_ofs`) names its registration, the
+> Rust path of its `#[derive(OneOf)]` enum and its export; the scaffold
+> registers it with the registry's `one_of`, and the generated module exports
+> it as the `OneOfEntity` the binding's `one_of_entity` gives. A source tuple
+> (`sources`) names its registration, the Rust paths of one to six entity
+> types the description registers, and its export; the scaffold registers it
+> with the registry's `sources`, and the generated module exports the
+> `SourceSelection` a pipeline's `select_sources` takes, with the type of
+> the row it selects: each listed entity's record, or nothing where the row
+> lacks it. Each is refused, before anything is written, as `bindings.codegen`
+> refuses an entity: a name that repeats or collides, a Rust path that is no
+> path to an item, a one-of enum registered twice, and a source tuple listing
+> an entity the description does not register. The generated module's load
+> check covers both, as it covers the rest of its registrations.
+
 > [spec:pgorm:req:bindings.codegen-layout]
 > The module each binding's codegen writes (`bindings.codegen`), and its
 > declarations, MUST read as a person writes the language, laid out as the

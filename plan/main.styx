@@ -20190,6 +20190,10 @@ children (
                     {
                         id guide.python-gaps.codegen-coverage
                         title "pgorm.codegen's application.json describes one-of references and pipeline source tuples beside entities, graphs and disjoint enums, as bindings.codegen says it covers source tuples, so neither needs a registration crate written by hand"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.codegen-coverage])
+                            python ([spec:pgorm:req:bindings.codegen-coverage])
+                        }
                         deps (python.codegen)
                         log (
                             {
@@ -20197,6 +20201,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "Diagnosis 2026-11-06 (migrations lane, not built): pgorm-python/python/pgorm/codegen/config.py validate() and emit.py accept entities, graphs and disjoints only, so application.json can describe neither source tuples nor one-of references; bindings.codegen (v0) claims source tuples, so Python deviates from the rule today. pgorm-napi/codegen/config.js accepts sources and disjoints but no one_ofs, so JavaScript has the one-of half of the gap. Both registries already have the registration calls (Python Registry::sources::<T>() in src/pipeline/selected.rs and one_of::<O>() in src/one_of/registered.rs; JavaScript Registry::sources / one_of in src/entities/sources.rs and src/one_of/registered.rs), so the work is config + scaffold (registry.sources::<(..,)>(name), registry.one_of::<T>(name)) + emit (Python: a typed SourceSelection view and a OneOfEntity export; JS: a one-of export beside the sources one emit.js already writes) + the codegen checks (checks/codegen.py, checks/codegen.js), whose application builds are the slow part."
+                            }
+
+                            {
+                                at 2026-11-06T10:32:38.564681Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
                             }
                         )
                     }

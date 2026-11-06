@@ -101,6 +101,8 @@ function crate(description, source) {
     "    let mut registry = Registry::default();",
     ...description.entities.map((entry) => `    registry.entity::<${at(entry.rust)}>(${JSON.stringify(entry.name)})?;`),
     ...description.disjoints.map((entry) => `    registry.disjoint::<${at(entry.rust)}>(${JSON.stringify(entry.name)})?;`),
+    // [spec:pgorm:req:bindings.codegen-coverage]
+    ...description.oneOfs.map((entry) => `    registry.one_of::<${at(entry.rust)}>(${JSON.stringify(entry.name)})?;`),
     ...description.graphs.map((entry) => `    registry.graph(${JSON.stringify(entry.name)}, ${at(entry.rust)})?;`),
     ...description.sources.map((entry) =>
       `    registry.sources::<(${entry.rust.map(at).join(", ")},)>(${JSON.stringify(entry.name)})?;`

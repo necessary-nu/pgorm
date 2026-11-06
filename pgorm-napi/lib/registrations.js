@@ -11,12 +11,12 @@
 
 import { createHash } from "node:crypto";
 
-import { ConstructionError, disjointEntity, entity, graph, pipeline, version } from "./index.js";
+import { ConstructionError, disjointEntity, entity, graph, oneOfEntity, pipeline, version } from "./index.js";
 
 /**
  * The registrations a generated module names, by kind.
  *
- * @typedef {{ entities: readonly string[], graphs: readonly string[], sources: readonly string[], disjoints?: readonly string[] }} Named
+ * @typedef {{ entities: readonly string[], graphs: readonly string[], sources: readonly string[], disjoints?: readonly string[], oneOfs?: readonly string[] }} Named
  */
 
 /**
@@ -31,6 +31,8 @@ export function describeRegistrations(named) {
     graphs: named.graphs.map((name) => graph(name).describe()),
     sources: named.sources.map((name) => pipeline.sources(name).describe()),
     disjoints: (named.disjoints ?? []).map((name) => disjointEntity(name).describe()),
+    // [spec:pgorm:req:bindings.codegen-coverage]
+    oneOfs: (named.oneOfs ?? []).map((name) => oneOfEntity(name).describe()),
   };
 }
 

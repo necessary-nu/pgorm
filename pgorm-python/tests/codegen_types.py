@@ -3,7 +3,12 @@
 from decimal import Decimal
 from typing import assert_type
 from pgorm import Connection, Interval
+from pgorm import OneOfEntity
+from pgorm.pipeline import SourceSelection
 from pgorm.app import (
+    AccountWithNote,
+    AccountWithNoteRow,
+    LabelTarget,
     Deliveries,
     DeliveriesRow,
     Delivery,
@@ -79,3 +84,7 @@ async def consumer(connection: Connection) -> None:
     assert_type(delivered, DeliveriesRow)
     assert_type(await Deliveries.find().kind("parcel").all(connection), list[DeliveriesRow])
     assert_type(await Offers.find().all(connection), list[OffersRow])
+    assert_type(LabelTarget, OneOfEntity)
+    assert_type(AccountWithNote, SourceSelection)
+    row: AccountWithNoteRow = (None, None)
+    assert_type(row[1], NoteModel | None)

@@ -3633,6 +3633,12 @@ impl_evidence (
         {impl_name main, rule conn.copy.rows.kind}
         {impl_name python, rule bindings.copy-rows.typed}
     )}
+    {id guide.python-gaps.codegen-coverage, covered_rules (
+        bindings.codegen-coverage
+    ), covered_claims (
+        {impl_name javascript, rule bindings.codegen-coverage}
+        {impl_name python, rule bindings.codegen-coverage}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}
