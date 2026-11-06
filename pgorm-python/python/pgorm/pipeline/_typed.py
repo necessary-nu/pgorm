@@ -10,7 +10,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
 
 from .. import _native as p
-from ..models import Model, ModelRecord
+from ..models import Model, ModelRecord, casts
 from ..models.record import Source, decoder
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ Terminal = Literal["all", "one", "optional"]
 TERMINALS = ("all", "one", "optional")
 
 
-# [spec:pgorm:req:bindings.pipeline-models]
+# [spec:pgorm:req:bindings.pipeline-models+1]
 def model_col(model: Model, field: str) -> p.PipelineExpr:
     """``field`` of ``model``, qualified as the model is read, written under
     its column's name, and compared as its declared kind: a value compared
@@ -39,6 +39,8 @@ def model_col(model: Model, field: str) -> p.PipelineExpr:
             )
         return declaration._value(value)
 
+    # A value a save_with function writes is no cast a pipeline can write.
+    shaped = declaration._casts if declaration.save_with is None else None
     return p.pipeline_model_col(
         model.qualifier,
         model._sql(column.field_name),
@@ -46,10 +48,11 @@ def model_col(model: Model, field: str) -> p.PipelineExpr:
         declaration.array,
         None if declaration.values is None else list(declaration.values),
         convert,
+        shaped,
     )
 
 
-# [spec:pgorm:req:bindings.pipeline-models]
+# [spec:pgorm:req:bindings.pipeline-models+1]
 class PipelineSelector(Generic[T]):
     """A pipeline's rows staged for one shape of read. ``all``, ``one`` and
     ``optional`` run it as the pipeline's own terminals do, ``one`` and
@@ -126,11 +129,22 @@ def _model_record(model: Model) -> Callable[[p.Record], ModelRecord]:
     return decode
 
 
+def _read(model: Model) -> list[tuple[str, p.TypeName | p._ModelColumnCasts | None, bool]]:
+    """Each of ``model``'s columns by its SQL name, with what its record reads
+    it as."""
+    return [(model._sql(field), *casts.read_as(column)) for field, column in model.columns.items()]
+
+
 def into_model(pipeline: p.Pipeline, target: object) -> PipelineSelector[Any]:
-    """Rust's ``into_model::<M>``: each row a declared model's record, or a
-    function called with the row's columns as keyword arguments."""
+    """Rust's ``into_model::<M>``: each row a declared model's record, the
+    pipeline ending in a projection of its columns where one is read through
+    a cast, as Rust's projects an entity model's, or a function called with
+    the row's columns as keyword arguments."""
     if isinstance(target, Model):
-        return PipelineSelector(pipeline, _same, _rows(_model_record(target)))
+        read = _read(target)
+        return PipelineSelector(
+            pipeline, lambda staged: staged._read_columns(read), _rows(_model_record(target))
+        )
     if not callable(target):
         raise TypeError("into_model takes a Model or a function of a row's columns")
     function = target
@@ -168,20 +182,7 @@ def select_models(
         )
         for index, model in enumerate(listed)
     )
-    described = [
-        (
-            model.qualifier,
-            [
-                (
-                    model._sql(field),
-                    p.TypeName("text") if column._read_as_text else None,
-                    column.array,
-                )
-                for field, column in model.columns.items()
-            ],
-        )
-        for model in listed
-    ]
+    described = [(model.qualifier, _read(model)) for model in listed]
     decode = decoder(sources)
 
     def finish(selected: p.Pipeline) -> p.Pipeline:

@@ -677,7 +677,7 @@ of the crate, compiled in every build. Rules are grouped under
 > one only when the projection omits the primary key, which this
 > projection never does.
 
-> [spec:pgorm:sem:pipeline.described]
+> [spec:pgorm:sem:pipeline.described+1]
 > A relation a program describes at run time, with no entity behind it — a
 > language binding's declared model (`[spec:pgorm:def:bindings.api]`) — is
 > read through the same writers an entity is, keyed by what the program has
@@ -689,7 +689,22 @@ of the crate, compiled in every build. Rules are grouped under
 > with it, in a comparison, `coalesce` or `in_array`, cast as the type's own
 > write cast casts a value: an enum's label to the enum, a `money` value to
 > `money`, a created range's text to its type — the type's cast and no
-> other, since the program names no `save_as`.
+> other, since the program names no `save_as`. `col_shaped(table, column,
+> casts)` is the same column typed as the `TableColumn` `casts` compares
+> (`[spec:pgorm:sem:schema.shape-casts]`): cast to the enum it
+> `compares_as`, and every value compared with it cast to its
+> `compared_value_cast`, a `save_as` type included.
+>
+> `read_columns(columns)` MUST compile the pipeline as a reader of `columns`
+> reads its rows, each the name a column is read under and the type it is
+> read as where its reader needs a cast: where some column has one, `into_sql`
+> ends the pipeline in a projection of exactly those columns, in order, each
+> referred to through `this`, a cast column cast to its type under its own
+> name and its alias screened as an identifier only; where none has, the
+> pipeline is compiled as written. It is the projection `into_model::<M>`
+> writes from `M`'s expected columns (`[spec:pgorm:sem:pipeline.terminal]`),
+> for a reader no Rust type describes, and a pipeline embedded in another is
+> read by that one, without it.
 >
 > `select_described(sources)` is `select_sources` for such relations
 > (`[spec:pgorm:sem:pipeline.select-sources]`): each `DescribedSource` names

@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use pgorm::TableColumn;
 use pgorm::pgorm_query::{ColumnType, Name, TypeName, Value};
 use pgorm::pipeline::{self as pl, ExprOps};
 
@@ -96,6 +97,9 @@ pub(super) enum Recipe {
     /// A declared model's column, under the qualifier its relation is read by,
     /// typed by its declaration.
     Typed(String, String, ColumnType),
+    /// A declared model's column declaring casts of its own, under the
+    /// qualifier its relation is read by, compared through them.
+    Shaped(String, String, Box<TableColumn>),
     /// A registered entity's column, under the qualifier its relation is read by.
     Registered(String, Arc<dyn PipelineColumn>),
     Alias(String),
@@ -143,6 +147,7 @@ impl Recipe {
             Self::Literal(_)
             | Self::Column(..)
             | Self::Typed(..)
+            | Self::Shaped(..)
             | Self::Registered(..)
             | Self::Alias(_)
             | Self::This(_)
@@ -173,6 +178,9 @@ impl Recipe {
             Self::Column(table, column) => pl::col(Name::runtime(table), Name::runtime(column)),
             Self::Typed(table, column, kind) => {
                 pl::col_typed(Name::runtime(table), Name::runtime(column), kind)
+            }
+            Self::Shaped(table, column, casts) => {
+                pl::col_shaped(Name::runtime(table), Name::runtime(column), casts)
             }
             Self::Registered(table, column) => column.lower(table),
             Self::Alias(name) => Name::runtime(name).into(),

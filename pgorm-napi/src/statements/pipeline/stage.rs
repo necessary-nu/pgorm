@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use neon::prelude::*;
 use pgorm::{
-    pgorm_query::{TableName, Value},
+    pgorm_query::{TableName, TypeName, Value},
     pipeline as pl,
 };
 
@@ -21,7 +21,7 @@ use super::{
     recipe::{Lowering, Recipe},
     scope::{Scope, lifecycle, scope_at},
 };
-use crate::errors::Failure;
+use crate::{errors::Failure, models::CastsHandle};
 
 pub(super) const EXPORTS: &[(&str, super::super::Build)] = &[
     ("pipelineSource", source),
@@ -37,6 +37,7 @@ pub(super) const EXPORTS: &[(&str, super::super::Build)] = &[
     ("pipelineSet", set),
     ("pipelineDistinct", distinct),
     ("pipelineSelectDescribed", select_described),
+    ("pipelineReadColumns", read_columns),
     ("pipelineOver", over),
     ("pipelineOverKeys", over_keys),
     ("pipelineOverFrame", over_frame),
@@ -530,11 +531,41 @@ fn distinct(cx: &mut FunctionContext) -> NeonResult<Node> {
     Ok(pipeline.distinct().into())
 }
 
+/// What a pipeline reads a declared model's column as, from `[name, readAs,
+/// array]`: `readAs` the column's casts, whose `read_cast` it is, a type read
+/// as an array of it with `array`, or null, the column read as it stands.
+// [spec:pgorm:req:bindings.pipeline-models+1]
+fn read_column<'cx>(
+    cx: &mut FunctionContext<'cx>,
+    column: Handle<'cx, JsValue>,
+) -> NeonResult<(pgorm::pgorm_query::Name, Option<TypeName>)> {
+    let column = items(cx, column)?;
+    let (Some(name), Some(read_as), Some(array)) = (column.first(), column.get(1), column.get(2))
+    else {
+        return cx.throw_type_error("a described column is [name, readAs, array]");
+    };
+    let name = super::super::args::name(cx, *name)?;
+    let array = array.downcast_or_throw::<JsBoolean, _>(cx)?.value(cx);
+    if absent(cx, *read_as) {
+        return Ok((name, None));
+    }
+    if let Ok(casts) = read_as.downcast::<JsBox<CastsHandle>, _>(cx) {
+        return Ok((name, casts.0.read_cast()));
+    }
+    let type_name = super::super::args::type_name(cx, *read_as)?;
+    Ok((
+        name,
+        Some(match array {
+            true => type_name.array(),
+            false => type_name,
+        }),
+    ))
+}
+
 /// `pipelineSelectDescribed(pipeline, sources)`: pgorm's `select_described`,
-/// each source `[qualifier, columns]` and each column `[name, readAs, array]`,
-/// `readAs` the type the column is read as where its record reads it cast,
-/// or null.
-// [spec:pgorm:req:bindings.pipeline-models]
+/// each source `[qualifier, columns]` and each column as `read_column` reads
+/// it.
+// [spec:pgorm:req:bindings.pipeline-models+1]
 fn select_described(cx: &mut FunctionContext) -> NeonResult<Node> {
     let pipeline = pipeline_at(cx, 0)?;
     let listed = arg(cx, 1);
@@ -547,25 +578,8 @@ fn select_described(cx: &mut FunctionContext) -> NeonResult<Node> {
         let qualifier = super::super::args::name(cx, *qualifier)?;
         let mut described = pl::DescribedSource::new(qualifier);
         for column in items(cx, *columns)? {
-            let column = items(cx, column)?;
-            let (Some(name), Some(read_as), Some(array)) =
-                (column.first(), column.get(1), column.get(2))
-            else {
-                return cx.throw_type_error("a described column is [name, readAs, array]");
-            };
-            let name = super::super::args::name(cx, *name)?;
-            let read_as = match absent(cx, *read_as) {
-                true => None,
-                false => Some(super::super::args::type_name(cx, *read_as)?),
-            };
-            let array = array.downcast_or_throw::<JsBoolean, _>(cx)?.value(cx);
-            described = described.column(
-                name,
-                read_as.map(|type_name| match array {
-                    true => type_name.array(),
-                    false => type_name,
-                }),
-            );
+            let (name, read_as) = read_column(cx, column)?;
+            described = described.column(name, read_as);
         }
         sources.push(described);
     }
@@ -573,6 +587,21 @@ fn select_described(cx: &mut FunctionContext) -> NeonResult<Node> {
         Ok(pipeline) => Ok(pipeline.into()),
         Err(error) => refuse(cx, error.to_string()),
     }
+}
+
+/// `pipelineReadColumns(pipeline, columns)`: pgorm's `read_columns`, the
+/// pipeline compiled as a declared model's record reads it, each column as
+/// `read_column` reads it.
+// [spec:pgorm:req:bindings.pipeline-models+1]
+fn read_columns(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let pipeline = pipeline_at(cx, 0)?;
+    let listed = arg(cx, 1);
+    let mut columns = Vec::new();
+    for column in items(cx, listed)? {
+        let (name, read_as) = read_column(cx, column)?;
+        columns.push((pgorm::pgorm_query::SqlName::to_string(&*name), read_as));
+    }
+    Ok(pipeline.read_columns(columns).into())
 }
 
 fn over_at<'cx>(cx: &mut FunctionContext<'cx>, index: usize) -> NeonResult<pl::Over> {

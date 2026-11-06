@@ -188,7 +188,7 @@ fn casts(column: &TableColumn, value: Expr) -> [String; 4] {
     ]
 }
 
-// [spec:pgorm:sem:schema.shape-casts/test]    a run-time column reads, writes and compares as an entity's column of its type does
+// [spec:pgorm:sem:schema.shape-casts+1/test]    a run-time column reads, writes and compares as an entity's column of its type does
 #[test]
 fn a_columns_type_says_its_casts() {
     let flavor = ColumnType::Enum {
@@ -246,6 +246,75 @@ fn a_columns_type_says_its_casts() {
             "CAST(126 AS bit(7))"
         ]
     );
+}
+
+// [spec:pgorm:sem:schema.shape-casts+1/test]    a run-time column's array operand, read type and compared value type are its type's or its casts
+#[test]
+fn a_columns_type_names_its_array_and_casts() {
+    let type_name = |name: &str| pgorm::pgorm_query::TypeName::new(Name::runtime(name));
+    let sql = |expr: pgorm::pgorm_query::SimpleExpr| {
+        pgorm::pgorm_query::Query::select()
+            .expr(expr)
+            .to_owned()
+            .to_string()
+    };
+    let array = || Expr::val(vec![1.5f64]);
+    let money = TableColumn::new("c", ColumnType::Money.def());
+    assert_eq!(
+        sql(money.compared_array(array())),
+        "SELECT CAST(ARRAY [1.5] AS money[])"
+    );
+    assert_eq!(
+        money.read_cast().map(|t| t.to_sql_string()).as_deref(),
+        Some("numeric")
+    );
+    assert_eq!(
+        money
+            .compared_value_cast()
+            .map(|t| t.to_sql_string())
+            .as_deref(),
+        Some("money")
+    );
+    let fancy = TableColumn::new(
+        "c",
+        ColumnType::Domain {
+            name: Name::runtime("fancy"),
+            schema: None,
+            base: std::sync::Arc::new(ColumnType::Enum {
+                name: Name::runtime("flavor"),
+                schema: None,
+                variants: vec![Name::runtime("lemon")],
+            }),
+        }
+        .def(),
+    );
+    let labels = || Expr::val(vec!["lemon".to_owned()]);
+    assert_eq!(
+        sql(fancy.compared_array(labels())),
+        "SELECT CAST(ARRAY ['lemon'] AS flavor[])"
+    );
+    assert_eq!(
+        fancy.read_cast().map(|t| t.to_sql_string()).as_deref(),
+        Some("text")
+    );
+    let code = TableColumn::new("c", ColumnType::Text.def()).with_save_as(type_name("citext"));
+    assert_eq!(
+        sql(code.compared_array(labels())),
+        "SELECT CAST(ARRAY ['lemon'] AS citext[])"
+    );
+    assert_eq!(
+        code.compared_value_cast()
+            .map(|t| t.to_sql_string())
+            .as_deref(),
+        Some("citext")
+    );
+    let plain = TableColumn::new("c", ColumnType::Text.def());
+    assert_eq!(
+        sql(plain.compared_array(labels())),
+        "SELECT ARRAY ['lemon']"
+    );
+    assert_eq!(plain.read_cast(), None);
+    assert_eq!(plain.compared_value_cast(), None);
 }
 
 // [spec:pgorm:sem:schema.from-shape/test]    a composite key is named, never serial, and a temporal key writes its period last

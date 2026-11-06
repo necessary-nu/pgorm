@@ -139,8 +139,14 @@ its `into_model` and `into_tuple` stage such a read. A Python pipeline stages
 the same reads. `into_model(model)` reads each row as a model's record, each
 field from the result column of its SQL name, the result's columns exactly
 the model's and each held to its declaration, as the model's own queries
-hold them; given a function instead, such as a dataclass, it calls it with
-each row's columns as keyword arguments. `into_tuple()` reads each row as a
+hold them. A column the model reads through a cast — a `money` column, a
+domain over an enum, a `select_as` ([Values](13-values.md)) — is read cast,
+the pipeline ending in a projection of the model's columns, as Rust's ends in
+one for an entity's model; the pipeline's own `all`, `one` and `optional`
+read the columns as the server sends them, so such a model is read through
+`into_model` or `select_sources`. Given a function instead, such as a
+dataclass, `into_model` calls it with each row's columns as keyword
+arguments. `into_tuple()` reads each row as a
 tuple of its values in column order, by position, so a result with two
 columns of one name is read whole. Each gives a `PipelineSelector`, whose
 `all`, `one` and `optional` run as the pipeline's own do, and whose
@@ -623,7 +629,9 @@ assert query.inspect().sql == "SELECT * FROM lines WHERE CAST(mood AS mood) = CA
 
 A model's column, `pl.col(model, field)`, and a registered Rust entity's,
 `pl.col(table, entity.col(name))`, know their types and compare as the
-model's or the entity's own column does, so neither needs `compares_as`.
+model's or the entity's own column does, so neither needs `compares_as`: a
+model's `money` column takes each value cast to `money`, a domain over an
+enum compares as the enum, and a `save_as` value is cast to its type.
 
 ## Windows
 

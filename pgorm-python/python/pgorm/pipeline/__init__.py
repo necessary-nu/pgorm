@@ -44,7 +44,7 @@ def col(table: Model, column: str) -> PipelineExpr: ...
 def col(table: Name, column: Name | EntityColumn) -> PipelineExpr: ...
 
 
-# [spec:pgorm:req:bindings.pipeline-models]
+# [spec:pgorm:req:bindings.pipeline-models+1]
 def col(table: Name | Model, column: Name | EntityColumn) -> PipelineExpr:
     """A column of the relation ``table`` names; of a model, its field
     ``column``, typed by the field's declaration."""

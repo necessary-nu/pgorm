@@ -37,9 +37,61 @@ impl Pipeline {
     /// guarantee for a downstream consumer that patches it.
     // [spec:pgorm:req:pipeline.errors+4]
     // [spec:pgorm:req:pipeline.params+4]
-    pub fn into_sql(self) -> Result<(String, Values), PipelineError> {
+    pub fn into_sql(mut self) -> Result<(String, Values), PipelineError> {
         self.screen(true)?;
-        self.compile()
+        let Some(columns) = self.read.take() else {
+            return self.compile();
+        };
+        let nodes = columns
+            .into_iter()
+            .map(|(name, cast)| {
+                let node = adapter::ident_in(vec!["this".to_owned()], name.clone());
+                match cast {
+                    Some(cast) => adapter::aliased(typed_cast(node, &cast), name),
+                    None => node,
+                }
+            })
+            .collect();
+        let read = self.select_nodes(nodes);
+        read.screen(false)?;
+        read.compile()
+    }
+
+    /// The pipeline compiled as a reader of `columns` reads its rows: each
+    /// column the name it is read under and the type it is read as where its
+    /// reader needs a cast, as an entity model's enum column is read as its
+    /// `text`. Where some column has a cast, a wildcard cannot deliver it,
+    /// so [`into_sql`](Pipeline::into_sql) ends the pipeline in a projection
+    /// of exactly these columns, each referred to through `this` and a cast
+    /// column cast to its type under its own name; where none has, the
+    /// pipeline is compiled as written. This is the projection
+    /// [`into_model`](Pipeline::into_model) writes for a model's columns,
+    /// for a reader no Rust type describes, as a language binding's declared
+    /// model is. A pipeline embedded in another is read by that one, and
+    /// this projection is not written for it.
+    ///
+    /// ```
+    /// use pgorm::pgorm_query::TypeName;
+    /// use pgorm::pipeline::{Pipeline, alias};
+    ///
+    /// let numeric = TypeName::new(alias("numeric"));
+    /// let (sql, _) = Pipeline::from(alias("till"))
+    ///     .read_columns([("id".to_owned(), None), ("takings".to_owned(), Some(numeric))])
+    ///     .into_sql()?;
+    /// assert_eq!(sql, "SELECT id, CAST(takings AS numeric) AS takings FROM till");
+    /// # Ok::<_, pgorm::pipeline::PipelineError>(())
+    /// ```
+    // [spec:pgorm:sem:pipeline.described+1]
+    pub fn read_columns(
+        mut self,
+        columns: impl IntoIterator<Item = (String, Option<pgorm_query::TypeName>)>,
+    ) -> Self {
+        let columns: Vec<_> = columns.into_iter().collect();
+        self.read = columns
+            .iter()
+            .any(|(_, cast)| cast.is_some())
+            .then_some(columns);
+        self
     }
 
     /// The identifier screen, and with `aliases` the reserved-alias screen,
@@ -72,18 +124,14 @@ impl Pipeline {
         Ok(census::prune(sql, self.values))
     }
 
-    /// Compile the pipeline as `M` reads it.
-    ///
-    /// Where `M` reports a column it reads through a cast — an entity
-    /// model's enum column, read as its `text`, or one its `select_as`
-    /// overrides ([`ExpectedColumn::read_cast`](crate::ExpectedColumn::read_cast))
-    /// — a wildcard cannot deliver it: the server sends the column's own
-    /// type, which the field does not decode. The pipeline then ends in a
-    /// projection of every column `M` reads, each named as `M` reads it and
-    /// referred to through `this`, the relation the stages before produced,
-    /// so a column sharing its name with one of PRQL's own does not resolve
-    /// to it; a cast column is cast to its read type under its own name. A
-    /// type reporting no cast, or no columns, is compiled as written.
+    /// Compile the pipeline as `M` reads it: as a reader of the columns `M`
+    /// reports ([`ExpectedColumn::read_cast`](crate::ExpectedColumn::read_cast))
+    /// reads it, through [`read_columns`](Pipeline::read_columns), so a
+    /// column `M` reads through a cast — an entity model's enum column, read
+    /// as its `text`, or one its `select_as` overrides — is projected cast,
+    /// which a wildcard cannot deliver: the server sends the column's own
+    /// type, which the field does not decode. A type reporting no columns is
+    /// compiled as written.
     ///
     /// The aliases the projection writes are `M`'s column names and are
     /// screened as identifiers only: they end the pipeline, so no later stage
@@ -93,27 +141,15 @@ impl Pipeline {
     pub(super) fn into_sql_for<M: FromQueryResult>(
         self,
     ) -> Result<(String, Values), PipelineError> {
-        self.screen(true)?;
         let Some(columns) = M::expected_columns() else {
-            return self.compile();
+            return self.into_sql();
         };
-        if columns.iter().all(|column| column.read_cast().is_none()) {
-            return self.compile();
-        }
-        let nodes = columns
-            .iter()
-            .map(|column| {
-                let name = column.name().to_owned();
-                let node = adapter::ident_in(vec!["this".to_owned()], name.clone());
-                match column.read_cast() {
-                    Some(cast) => adapter::aliased(typed_cast(node, cast), name),
-                    None => node,
-                }
-            })
-            .collect();
-        let read = self.select_nodes(nodes);
-        read.screen(false)?;
-        read.compile()
+        self.read_columns(
+            columns
+                .iter()
+                .map(|column| (column.name().to_owned(), column.read_cast().cloned())),
+        )
+        .into_sql()
     }
 
     /// Compile and stage the pipeline for decoding into a

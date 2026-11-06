@@ -11,6 +11,7 @@
 use std::sync::Arc;
 
 use pgorm::{
+    TableColumn,
     pgorm_query::{ColumnType, Name, TypeName, Value},
     pipeline::{self as pl, ExprOps},
 };
@@ -127,6 +128,9 @@ pub(super) enum Recipe {
     /// A declared model's column, under the name its relation is read by,
     /// typed by its declaration.
     Typed(Name, Name, ColumnType),
+    /// A declared model's column declaring casts of its own, under the name
+    /// its relation is read by, compared through them.
+    Shaped(Name, Name, Box<TableColumn>),
     /// A registered entity's column, under the name its relation is read by.
     Registered(Name, Arc<dyn PipelineColumn>),
     Alias(Name),
@@ -194,6 +198,9 @@ impl Recipe {
             Self::Bound(index) => with.bound.get(*index)?.clone(),
             Self::Column(table, column) => pl::col(table.clone(), column.clone()),
             Self::Typed(table, column, kind) => pl::col_typed(table.clone(), column.clone(), kind),
+            Self::Shaped(table, column, casts) => {
+                pl::col_shaped(table.clone(), column.clone(), casts)
+            }
             Self::Registered(table, column) => column.lower(table.clone()),
             Self::Alias(name) => name.clone().into(),
             Self::This(name) => pl::this(name.clone()),

@@ -10,7 +10,7 @@
 import { arg, args, Handle, trusted, TRUSTED } from "./builder.js";
 import { registeredColumn } from "./entity-queries.js";
 import { ConstructionError } from "./errors.js";
-import { columnValue } from "./model-columns.js";
+import { columnValue, pipelineCasts } from "./model-columns.js";
 import { fieldOf, isModel, shapeOf } from "./model-shape.js";
 import { native } from "./operations.js";
 
@@ -170,7 +170,7 @@ export class PipelineExpr extends Handle {
  * that kind. Only the column itself converts: an operator's result is a
  * plain expression.
  */
-// [spec:pgorm:req:bindings.pipeline-models]
+// [spec:pgorm:req:bindings.pipeline-models+1]
 class ModelPipelineColumn extends PipelineExpr {
   /** @type {import("./model-shape.js").Field} */
   #field;
@@ -253,7 +253,7 @@ export function col(table, column) {
     const field = fieldOf(shape, column);
     const { kind, array, values } = field.column;
     return new ModelPipelineColumn(
-      native.pipelineModelCol(shape.qualifier, field.sql, kind, array, values),
+      native.pipelineModelCol(shape.qualifier, field.sql, kind, array, values, pipelineCasts(field.column)),
       field,
     );
   }

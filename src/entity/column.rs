@@ -137,7 +137,7 @@ macro_rules! bind_subquery_func {
     };
 }
 
-use column_def::{created_range_type_name, enum_type_name, holds_array, under_domains};
+use column_def::{created_range_type_name, holds_array, under_domains};
 
 // LINT: when the operand value does not match column type
 /// API for working with a `Column`. Mostly a wrapper of the identically named methods in [`pgorm_query::Expr`]
@@ -705,18 +705,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     // [spec:pgorm:def:sql.value.created-range+9]
     // [spec:pgorm:req:sql.ast.cast-shape+2]
     fn save_enum_array_as(&self, val: Expr) -> SimpleExpr {
-        let col_def = self.def();
-        let col_type = col_def.get_column_type();
-        if let Some(money) = money_type_name(col_type) {
-            return val.cast_as_type(money.array());
-        }
-        if let Some(created) = created_range_type_name(col_type) {
-            return val.as_range(created.array());
-        }
-        match enum_type_name(col_type) {
-            Some(type_name) => val.cast_as_type(type_name.array()),
-            None => val.into(),
-        }
+        save_array_cast(self.def().get_column_type(), val)
     }
 
     /// Cast value of an enum column as enum type; do nothing if `self` is not an enum.

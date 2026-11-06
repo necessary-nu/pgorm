@@ -553,7 +553,7 @@ class PipelineModels(unittest.IsolatedAsyncioTestCase):
         await self.connection.close()
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.pipeline-models/test]
+    # [spec:pgorm:req:bindings.pipeline-models+1/test]
     async def test_model_sources_and_field_columns(self):
         cake = self.cake
         cheap = (
@@ -593,7 +593,7 @@ class PipelineModels(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             pl.col(cake, p.col("name"))  # type: ignore[call-overload]
 
-    # [spec:pgorm:req:bindings.pipeline-models/test]
+    # [spec:pgorm:req:bindings.pipeline-models+1/test]
     async def test_model_column_converts_compared_values(self):
         cake = self.cake
         lemons = pl.from_(cake).filter(pl.col(cake, "flavor") == "lemon").sort(pl.col(cake, "id")).select(pl.col(cake, "id"))
@@ -624,7 +624,7 @@ class PipelineModels(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             pl.col(cake, "price") > "cheap"
 
-    # [spec:pgorm:req:bindings.pipeline-models/test]
+    # [spec:pgorm:req:bindings.pipeline-models+1/test]
     async def test_select_sources_decodes_model_records(self):
         cake, bakery = self.cake, self.bakery
         both = (
@@ -673,7 +673,7 @@ class PipelineModels(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             pl.from_(cake).select_sources(p.Table("cake"))  # type: ignore[call-overload]
 
-    # [spec:pgorm:req:bindings.pipeline-models/test]
+    # [spec:pgorm:req:bindings.pipeline-models+1/test]
     async def test_into_model_and_into_tuple(self):
         cake, bakery = self.cake, self.bakery
         lemons = pl.from_(cake).filter(pl.col(cake, "flavor") == "lemon").sort(pl.col(cake, "id"))

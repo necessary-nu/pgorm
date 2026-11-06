@@ -371,6 +371,44 @@ impl PyModelColumnCasts {
             self.column.compared_value(operand(value)?),
         ))
     }
+
+    /// `array`, a value or an expression, as `= ANY` and `<> ALL` compare
+    /// the column with it.
+    // [spec:pgorm:req:bindings.model-casts+1]
+    fn compared_array(&self, array: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+        Ok(PyExpr::from_rust(
+            self.column.compared_array(operand(array)?),
+        ))
+    }
+}
+
+impl PyModelColumnCasts {
+    pub(crate) fn column(&self) -> &TableColumn {
+        &self.column
+    }
+}
+
+/// The type a pipeline reads a model's column as, from what the model says
+/// of it: its casts' `read_cast`, a `TypeName` read as an array of it with
+/// `array`, or `None`, read as it stands.
+// [spec:pgorm:req:bindings.pipeline-models+1]
+pub(crate) fn read_type(
+    read: Option<&Bound<'_, PyAny>>,
+    array: bool,
+) -> PyResult<Option<TypeName>> {
+    let Some(read) = read else {
+        return Ok(None);
+    };
+    if let Ok(casts) = read.cast::<PyModelColumnCasts>() {
+        return Ok(casts.get().column.read_cast());
+    }
+    let name = read
+        .extract::<PyRef<'_, crate::values::PyTypeName>>()?
+        .rust_type();
+    Ok(Some(match array {
+        true => name.array(),
+        false => name,
+    }))
 }
 
 /// `value` as the column's casts take it: a `Value` as its bare datum, the

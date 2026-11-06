@@ -21116,7 +21116,26 @@ children (
                         id guide.python-gaps.model-array-save-cast
                         title "A declared model column's quantified operand list binds through the column's save cast in both bindings, the counterpart of Rust's save_array_with: col.eq(any_(values)) / ne(all_(values)) (eq(any(..)) in JavaScript) on a model column with save_as (or a money or domain column) casts the bound array as the column's scalar comparisons cast each value, where today the operand is taken as written and the guides tell the program to cast it itself"
                         kind @feat
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.model-array-casts])
+                            python ([spec:pgorm:req:bindings.model-array-casts])
+                        }
                         deps (guide.python-gaps.model-types)
+                        log (
+                            {
+                                at 2026-11-06T13:24:24.00513Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T13:24:39.755954Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "A model column's any_/all_ list operand is bound as one array of its kind and then written through pgorm's new TableColumn::compared_array (enum array for a domain over an enum, the save_as type's array, money[], a created range's array, else as is) where the column declares column_type or save_as, the counterpart of ColumnTrait::save_array_as / compared_array. Both bindings also gain save_array_with (saveArrayWith), Rust's attribute, and adopt Rust's derive rule that save_with and save_array_with are declared together (either alone is a ConstructionError at declaration); only one refusal test in each suite used save_with, so nothing else breaks. New rule bindings.model-array-casts, owned by this node; bindings.model-columns+2 and bindings.model-casts are left unbumped since the new rule refines them."
+                            }
+                        )
                     }
 
                     {
@@ -21124,6 +21143,21 @@ children (
                         title "A declared model used as a pipeline source reads its columns through their declared column types and casts in both bindings: today pipeline_typed / pipelineTyped lower a model column from its kind alone (column_type(tag, values, None)), so a column declared column_type=\"money\" (or a domain over an enum, or select_as) reaches the pipeline as its kind's type and `pl.from_(model).all(pool)` fails with DecodeError \"column 1 has an unsupported PostgreSQL type\", where the model's own find() reads it as numeric"
                         kind @fix
                         deps (guide.python-gaps.model-types guide.python-gaps.model-relations)
+                        log (
+                            {
+                                at 2026-11-06T13:04:05.583674Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T13:24:39.460809Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Rust had no gap: Pipeline::from(entity) reads money and domain-over-enum columns through into_sql_for::<M> / select_sources (tests/codegen_column_types_tests.rs, tests/create_domain_tests.rs). The bindings' gap is closed through new pgorm API so both share one implementation: TableColumn::read_cast and compared_value_cast, pipeline::col_shaped(table, column, &TableColumn) (col_typed's counterpart for a column with its own casts, save_as included), and Pipeline::read_columns(columns), the deferred projection into_model::<M> writes (into_sql_for now delegates to it). A model column declaring column_type/select_as/save_as compares in a pipeline through col_shaped; into_model(Model) and select_sources(Model...) read each column through its TableColumn read cast (or text, as before). The untyped Pipeline all/one/optional still read the server's columns as sent: Rust has no untyped read (all::<M> is into_model(M).all), so `pl.from_(model).all(db)` over a money column remains the server's money, and the guides say to read a model's rows with into_model / select_sources. A column written through save_with is compared in a pipeline as its kind, the function no pipeline lowers, as Rust's compared_value_cast is None for such a column. Spec: bindings.pipeline-models+1, pipeline.described+1, schema.shape-casts+1."
+                            }
+                        )
                     }
                 )
             }

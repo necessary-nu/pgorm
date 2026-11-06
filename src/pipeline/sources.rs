@@ -462,7 +462,7 @@ impl<T: SourceList> SelectedSources<T> {
 /// one that has performed it, and a set operation over more than one source,
 /// whose result no longer answers to each source's name.
 // [spec:pgorm:sem:pipeline.select-sources+5]
-// [spec:pgorm:sem:pipeline.described]
+// [spec:pgorm:sem:pipeline.described+1]
 pub(super) fn appended_projection(
     mut pipeline: Pipeline,
     mut projection: Vec<PlExpr>,

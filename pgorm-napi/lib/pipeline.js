@@ -48,7 +48,7 @@ export {
 /**
  * The relation `source` names, a declared model read as its table, under its
  * alias when it has one.
- * [spec:pgorm:req:bindings.pipeline-models]
+ * [spec:pgorm:req:bindings.pipeline-models+1]
  *
  * @param {unknown} source
  */
@@ -371,7 +371,7 @@ export class Pipeline extends Builder {
    * @param {unknown} target
    */
   intoModel(target) {
-    return modelRead(this, target);
+    return modelRead(this, target, (handle) => pipelineOf(handle));
   }
 
   /**

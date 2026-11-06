@@ -237,6 +237,13 @@ pub struct Pipeline {
     /// into `UNION DISTINCT` — and leave the settle owed.
     // [spec:pgorm:req:pipeline.compose+1]
     pub(super) combined: bool,
+    /// The columns a reader of the rows reads, each with the type it is read
+    /// as, which [`into_sql`](Pipeline::into_sql) ends the pipeline in a
+    /// projection of: `None` while it is compiled as written. Set by
+    /// [`read_columns`](Pipeline::read_columns), and only where some column
+    /// is read through a cast.
+    // [spec:pgorm:sem:pipeline.described+1]
+    pub(super) read: Option<Vec<(String, Option<pgorm_query::TypeName>)>>,
 }
 
 /// Which rows a [`join`](Pipeline::join) keeps.
@@ -334,7 +341,7 @@ pub struct Source {
 #[derive(Debug)]
 enum SourceKind {
     Table(PlExpr),
-    Pipeline(Pipeline),
+    Pipeline(Box<Pipeline>),
 }
 
 fn table_source(node: PlExpr) -> Source {
@@ -391,7 +398,7 @@ impl IntoSource for Name {
 impl IntoSource for Pipeline {
     fn into_source(self) -> Source {
         Source {
-            kind: SourceKind::Pipeline(self),
+            kind: SourceKind::Pipeline(Box::new(self)),
             alias: None,
         }
     }
@@ -477,6 +484,7 @@ impl Pipeline {
             settled: naming::Settled::default(),
             ordering: None,
             combined: false,
+            read: None,
         };
         let reference = pipeline.embed(source.into_source());
         pipeline.stages.push(adapter::call("from", vec![reference]));
@@ -503,6 +511,7 @@ impl Pipeline {
             settled: naming::Settled::default(),
             ordering: None,
             combined: false,
+            read: None,
         }
     }
 
@@ -538,6 +547,7 @@ impl Pipeline {
                 node
             }
             SourceKind::Pipeline(other) => {
+                let other = *other;
                 // An embedded pipeline exposes whatever its own stages
                 // projected, so a star crosses the binding only if one was
                 // still there to cross.

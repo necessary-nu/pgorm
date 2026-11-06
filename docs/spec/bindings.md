@@ -2571,13 +2571,19 @@ placeholders belong to the stage that minted them.
 > through `ConnectionTrait`: as compiled, `one` and `optional` keeping their
 > cardinality (`bindings.pipeline`).
 
-> [spec:pgorm:req:bindings.pipeline-models]
+> [spec:pgorm:req:bindings.pipeline-models+1]
 > A declared model MUST be a pipeline source wherever a relation is, read as
 > its table, schema-qualified, under the model's alias when it has one, as a
 > `Table` is read. `col(model, field)` MUST be the field's column, qualified
 > by the model's alias or its table's name and written under the column's
 > SQL name, typed by its declaration through `pgorm::pipeline::col_typed`
-> (`pipeline.described`), so it compares as an entity column of its kind. A
+> (`pipeline.described`), so it compares as an entity column of its kind,
+> or, for a column declaring a `column_type`, a `select_as` or a `save_as`
+> (`bindings.model-casts`), through `col_shaped` and the column's
+> `TableColumn`, so it compares as the model's own comparisons do: a `money`
+> column's value cast to `money`, a domain over an enum compared as the
+> enum, a `save_as` value cast to its type. A column written through
+> `save_with` is compared as its kind, the function no pipeline lowers. A
 > value compared with it — in a comparison, `coalesce` or `in_array`, and not
 > a pipeline expression, which is taken as written — MUST convert through the
 > field's declaration as the model column's own comparisons convert one
@@ -2593,7 +2599,10 @@ placeholders belong to the stage that minted them.
 > model for one read under its alias — MUST be pgorm's `select_described` as
 > the pipeline's last stage, each model's fields projected in declaration
 > order, the i-th under the `s{i}_` prefix, each read as the model's own
-> statements read it (`bindings.model-records`). `one` and `optional` take one
+> statements read it (`bindings.model-records`): cast to the type its
+> `TableColumn`'s `read_cast` names — `money` as `numeric`, a domain over
+> an enum as its text, a `select_as` type — or to `text` where it is read
+> from its text, a column read through `select_with` as it stands. `one` and `optional` take one
 > row before the projection, as `bindings.pipeline-terminals`'s do, and each
 > row MUST be a tuple with one record per model, decoded as a graph's
 > optional slot is (`bindings.graphs`): null exactly where every column the
@@ -2607,11 +2616,17 @@ placeholders belong to the stage that minted them.
 > rows, as Rust's `into_model::<M>` and `into_tuple::<T>` do: a declared
 > model's records, each field read from the result column of its SQL name,
 > the result's columns exactly the model's and each held to its declaration
-> (`bindings.model-records`); a function's results, the function called with
+> (`bindings.model-records`), the pipeline compiled through pgorm's
+> `read_columns` with each column read as `select_sources` reads it, so
+> where one is read through a cast it ends in a projection of the model's
+> columns, as Rust's `into_model::<M>` ends in one for an entity model's; a
+> function's results, the function called with
 > each row's columns by name, as keyword arguments in Python and as one
 > object in JavaScript; and a tuple of each row's values in column order,
 > read by position, so a result naming one column twice is read. Rust's
-> `all::<M>()` is `into_model(M).all(db)`. Each of the three reads, `select_sources` over
+> `all::<M>()` is `into_model(M).all(db)`; the pipeline's own `all`, `one`
+> and `optional` read its rows as the server sends them, so a column the
+> model reads through a cast is read by `into_model` or `select_sources`. Each of the three reads, `select_sources` over
 > models, `into_model` and `into_tuple`, MUST give a `PipelineSelector`,
 > whose `all`, `one` and `optional` run on a pool, a connection or a
 > transaction with `bindings.pipeline-terminals`'s cardinality, and whose
@@ -2835,6 +2850,21 @@ placeholders belong to the stage that minted them.
 > keys over a `VIRTUAL` generated column among them. A `default_expr`,
 > `generated_stored` or `generated_virtual` that is no expression, and a
 > `comment` that is no string, are `TypeError`s.
+
+> [spec:pgorm:req:bindings.model-array-casts]
+> A declared model's column MUST write the one-array operand `any(..)` and
+> `all(..)` compare it with over a list of values as an entity's column
+> writes it for `eq_any` and `ne_all`: the values, each converted through the
+> field's declaration (`bindings.model-columns`), bound as one array of its
+> kind, then through the column's `save_array_with` where it declares one, a
+> function of the binding's own from the bound array to an expression, which
+> returning no expression is a `TypeError`; and otherwise, where it declares a
+> `column_type` or a `save_as`, cast as pgorm's `TableColumn::compared_array`
+> casts it (`[spec:pgorm:sem:schema.shape-casts]`) — to the enum's array
+> where a domain over an enum compares as the enum, to the array of the
+> `save_as` type, to `money[]` — and as it is otherwise. As Rust's derive
+> requires, `save_with` and `save_array_with` MUST be declared together: either
+> without the other is a `ConstructionError` as the model is declared.
 
 > [spec:pgorm:req:bindings.model-casts]
 > A declared model's column MUST be read, written and compared through

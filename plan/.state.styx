@@ -1776,6 +1776,8 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
+    {id guide.python-gaps.pipeline-model-column-types, kind @doing, author "brendan@necessary.nu", at 2026-11-06T13:04:05.583674Z}
+    {id guide.python-gaps.model-array-save-cast, kind @doing, author "brendan@necessary.nu", at 2026-11-06T13:24:24.00513Z}
 )
 
 impl_evidence (

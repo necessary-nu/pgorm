@@ -81,7 +81,7 @@ function refused(pattern: RegExp): (error: unknown) => true {
   };
 }
 
-// [spec:pgorm:req:bindings.pipeline-models/test]
+// [spec:pgorm:req:bindings.pipeline-models+1/test]
 test("a model is a pipeline source, read under its alias, and its fields are columns by SQL name", async () => {
   const cheap = pl.from(Cake).filter(pl.col(Cake, "price").lt(new Decimal("4"))).sort(pl.col(Cake, "id"))
     .select(pl.col(Cake, "name"), pl.col(Cake, "bakeryId"));
@@ -107,7 +107,7 @@ test("a model is a pipeline source, read under its alias, and its fields are col
   assert.throws(() => pl.col(Cake, "nope" as never), refused(/no field "nope"/));
 });
 
-// [spec:pgorm:req:bindings.pipeline-models/test]
+// [spec:pgorm:req:bindings.pipeline-models+1/test]
 test("a model column converts what it is compared with through its declaration and casts it as its kind", async () => {
   const lemons = pl.from(Cake).filter(pl.col(Cake, "flavor").eq("lemon")).sort(pl.col(Cake, "id"))
     .select(pl.col(Cake, "id"));
@@ -137,7 +137,7 @@ test("a model column converts what it is compared with through its declaration a
   assert.throws(() => pl.col(Cake, "price").gt("cheap"), (error) => error instanceof Error);
 });
 
-// [spec:pgorm:req:bindings.pipeline-models/test]
+// [spec:pgorm:req:bindings.pipeline-models+1/test]
 test("selectSources over models decodes each model's record, null where a join left its side absent", async () => {
   const both = pl.from(Cake)
     .join(Bakery, pl.col(Cake, "bakeryId").eq(pl.col(Bakery, "id")), { kind: "full" })
@@ -179,7 +179,7 @@ test("selectSources over models decodes each model's record, null where a join l
   assert.throws(() => pl.from(Cake).selectSources(), refused(/at least one source/));
 });
 
-// [spec:pgorm:req:bindings.pipeline-models/test]
+// [spec:pgorm:req:bindings.pipeline-models+1/test]
 test("intoModel reads a model's records or a function's results, and intoTuple reads by position", async () => {
   const lemons = pl.from(Cake).filter(pl.col(Cake, "flavor").eq("lemon")).sort(pl.col(Cake, "id"));
   const records = await lemons.intoModel(Cake).all(pool());
