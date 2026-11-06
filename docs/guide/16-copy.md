@@ -27,6 +27,27 @@ and a binary COPY has no delimiter, header or NULL string to set. A COPY takes
 no bound parameters, so a statement has one rendering, its `Display`, with any
 value in it written as an escaped literal.
 
+`CopyTrait` is the only way a COPY runs. Its data flows beside the statement,
+which `execute`, `query_all` and the other statement methods have no route
+for, so SQL text holding a `COPY` given to one of them, `batch_execute`
+included, is refused with
+[`Error::CopyStatement`](crate::Error::CopyStatement) before anything is sent:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("copy_as_statement").await;
+# let db = scratch.pool.get().await?;
+use pgorm::{ConnectionTrait, Error};
+
+let refused = db.query_all("COPY cake TO STDOUT", &[]).await;
+assert!(matches!(refused, Err(Error::CopyStatement)));
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
 ## Loading rows
 
 [`copy_in`](crate::CopyTrait::copy_in) starts a `COPY .. FROM STDIN` and
@@ -167,10 +188,46 @@ rows it returns. Since a write without one returns nothing to copy, it is
 converted with [`CopySource::try_from`](crate::pgorm_query::CopySource), which
 refuses it, rather than passed straight to `CopyToStatement::new`.
 
-A `SELECT` source PostgreSQL's grammar would refuse inside a COPY, one
-with a tie limit (`FETCH .. WITH TIES`) or a `WINDOW` clause, is refused by
+A `SELECT` copies as it would run, a tie limit (`FETCH .. WITH TIES`) and a
+`WINDOW` clause included. One PostgreSQL would refuse is refused by
 `copy_out` as [`Error::QueryBuilder`](crate::Error::QueryBuilder) before
-anything is sent.
+anything is sent, as every other path that sends a `SELECT` refuses it: a
+tie limit with no `ORDER BY` to measure its ties on, and a `WINDOW` clause
+that names a window twice or refers to one it does not define. Here the
+cheapest of Sunrise's cakes, and any that tie with it, are copied, and the
+same limit with no order is refused:
+
+```rust
+# use pgorm_guide_support::cake;
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("copy_tie_limit").await;
+# let pool = scratch.pool.clone();
+use futures::TryStreamExt;
+use pgorm::entity::prelude::*;
+use pgorm::pgorm_query::{CopyCsv, CopyToStatement, Order, Query};
+use pgorm::CopyTrait;
+
+let mut cheapest = Query::select()
+    .column(cake::Column::Name)
+    .from(cake::Entity)
+    .and_where(cake::Column::BakeryId.eq(1))
+    .to_owned();
+cheapest.limit_with_ties(1);
+
+let mut db = pool.get().await?;
+let unordered = CopyToStatement::new(cheapest.clone(), CopyCsv);
+assert!(matches!(db.copy_out(&unordered).await, Err(Error::QueryBuilder(_))));
+
+cheapest.order_by(cake::Column::Price, Order::Asc);
+let copy = CopyToStatement::new(cheapest, CopyCsv);
+let chunks: Vec<pgorm::Bytes> = db.copy_out(&copy).await?.try_collect().await?;
+assert_eq!(chunks.concat(), b"Lemon Drizzle\n");
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
 
 Dropping a `CopyOutStream` early does not stop the server. The connection
 reads and discards the rest of the data before its next statement runs.

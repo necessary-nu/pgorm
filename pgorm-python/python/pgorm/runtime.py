@@ -31,7 +31,7 @@ class PoolStatus(NamedTuple):
     waiting: int
 
 
-# [spec:pgorm:req:python.runtime+1]
+# [spec:pgorm:req:python.runtime+2]
 # [spec:pgorm:req:bindings.runtime]
 # [spec:pgorm:req:bindings.connections+3]
 # [spec:pgorm:req:python.lifecycle+4]

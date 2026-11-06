@@ -26,6 +26,32 @@ and a binary COPY has no delimiter, header or NULL string to set. A COPY
 takes no bound parameters, so `inspect()` gives its one rendering, with any
 value in it written as an escaped literal, and no parameters.
 
+The four methods are the only way a COPY runs. Its data flows beside the
+statement, which `execute`, `query` and the other statement methods have no
+route for, so a `RawSQL` holding a `COPY` given to one of them raises
+`ConstructionError` before anything is sent, saying to use `copy_in` or
+`copy_out`, as Rust refuses it with `Error::CopyStatement`:
+
+```python
+import asyncio
+import os
+
+from pgorm import ConstructionError, Pool, RawSQL
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        try:
+            await pool.query(RawSQL("COPY cake TO STDOUT"))
+        except ConstructionError as refusal:
+            assert "copy_in or copy_out" in str(refusal)
+        else:
+            raise AssertionError("a COPY ran as a statement")
+
+
+asyncio.run(main())
+```
+
 Here Python differs from Rust in spelling. Rust's format is a type,
 `CopyText`, `CopyCsv` or `CopyBinary`, so a missing option is a compile
 error. Python's is a string, and the stubs carry it as the statement's type
@@ -241,11 +267,13 @@ query does, where Rust's example names them bare; the data is the same.
 A write is a source too, when it has a `RETURNING` list: COPY TO copies the
 rows it returns. `CopyTo` takes a built `Insert`, `Update`, `Delete` or
 `Merge`, and raises `ConstructionError` for one without a `RETURNING` list,
-which returns nothing to copy. A `Select` PostgreSQL would refuse inside a
-COPY, such as one with a tie limit (`limit_with_ties`) but no `ORDER BY` to
-measure its ties on, raises `ConstructionError` there too. Here Python
-differs from Rust, which refuses that source when `copy_out` runs it rather
-than when the COPY is built.
+which returns nothing to copy. A `Select` copies as it would run, a tie
+limit (`limit_with_ties`) and a `WINDOW` clause included. One PostgreSQL
+would refuse, with a tie limit but no `ORDER BY` to measure its ties on, or a
+`WINDOW` clause that names a window twice or refers to one it does not
+define, raises `ConstructionError` there too. Here Python differs from Rust,
+which refuses that source when `copy_out` runs it rather than when the COPY
+is built.
 
 Reading to the end releases the connection, or the transaction, for other
 work. Here Python differs from Rust too: a Rust stream dropped early leaves

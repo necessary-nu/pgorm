@@ -11,12 +11,12 @@ use std::{
     sync::{Arc, Weak},
 };
 
+use crate::panics::future_into_py;
 use futures_util::StreamExt;
 use pyo3::{
     exceptions::{PyTypeError, PyValueError},
     prelude::*,
 };
-use pyo3_async_runtimes::tokio::future_into_py;
 use serde_json::{Value, json};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;

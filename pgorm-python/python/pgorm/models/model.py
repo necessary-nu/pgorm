@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Required, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Literal, Required, TypedDict, cast
 
 from .. import _native as p
 from .columns import Column, ModelColumn
@@ -264,7 +264,7 @@ class Model:
 
         return Relation("has_many", self, target, from_, to)
 
-    def graph(self) -> Graph:
+    def graph(self) -> Graph[Literal[False]]:
         """A graph rooted at this model, decoding its records alone until a
         slot is joined."""
         from .graphs import Graph, State, Table

@@ -292,7 +292,7 @@ test("regex, notRegex, iregex and notIregex, and pathExists, answer as PostgreSQ
   assert.throws(() => doc.pathExists(1 as never), mistyped(/JSON path is a string/));
 });
 
-// [spec:pgorm:req:bindings.quantifiers+3/test]    matches is @@, and any and all quantify each
+// [spec:pgorm:req:bindings.quantifiers+4/test]    matches is @@, and any and all quantify each
 // comparison over an array, bound or an expression, and over a subquery's rows or its ARRAY(..),
 // an empty array false under ANY and true under ALL, each answering as the SQL written by hand
 test("matches, and any and all after a comparison, answer as PostgreSQL's operators", async () => {
@@ -343,7 +343,7 @@ test("matches, and any and all after a comparison, answer as PostgreSQL's operat
   assert.throws(() => bind(quantified as never), refused(/cannot be inferred/));
 });
 
-// [spec:pgorm:req:bindings.quantifiers+3/test]    any and all after LIKE's and ILIKE's family,
+// [spec:pgorm:req:bindings.quantifiers+4/test]    any and all after LIKE's and ILIKE's family,
 // the regular-expression matches, containment, the range positions, @@ and @?, over a bound
 // array or a subquery's rows, answer as the SQL written by hand
 test("any and all follow LIKE, regex, containment, range, @@ and @? operators as PostgreSQL's", async () => {

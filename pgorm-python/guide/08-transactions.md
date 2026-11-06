@@ -160,14 +160,16 @@ has no wrapper, and raises one exception:
 
 - The block's own exception, after a rollback that succeeded.
 - A `COMMIT` that fails raises its error, a `DatabaseError` or a
-  `ConnectionError`, from the block's exit.
+  `ConnectionError`, from the block's exit, and so does a block whose
+  transaction a caught failure had aborted
+  ([A caught error still aborts](#a-caught-error-still-aborts)).
 - A `ROLLBACK` that fails raises its error in place of the block's
   exception, which it carries as `__context__`. A cancellation,
   `KeyboardInterrupt` or `SystemExit` is never replaced this way: it
   propagates as itself, so that asyncio still sees the cancellation.
 
 In Rust, a connection whose `COMMIT` or `ROLLBACK` failed is in a state no one
-knows, and the program gives it back with `discard` so the pool closes it.
+knows, an aborted transaction's apart, and the program gives it back with `discard` so the pool closes it.
 Python has no `discard`: the binding discards such a connection itself, and
 the pool opens a fresh one when it next needs one. A block whose transaction
 was already discarded, by a cancelled statement or by a `COPY` the server
@@ -226,16 +228,65 @@ as Rust's `?` passes a savepoint's error on to the closure around it.
 
 Without the savepoint, the failed insert would have aborted the whole
 transaction: PostgreSQL refuses every later statement in a transaction one
-statement has failed in, with SQLSTATE `25P02`, until it rolls back. Catching
-the error inside the block does not undo that. A block that catches a failed
-statement's error without a savepoint and then exits normally commits
-nothing: PostgreSQL answers the `COMMIT` of a failed transaction by rolling it
-back, and the block ends without an error. Put the statement that may fail in
-a savepoint and catch its error outside the savepoint's block.
+statement has failed in, with SQLSTATE `25P02`, until it rolls back.
 
 While a savepoint is open, its parent transaction refuses statements and
 other savepoints with `LifecycleError`; use the savepoint's own `Transaction`
 until its block ends.
+
+## A caught error still aborts
+
+Catching a failed statement's error inside the block does not undo what the
+failure did to the transaction. PostgreSQL has aborted it, and answers its
+`COMMIT` by rolling it back. pgorm asks before it commits, so a block that
+exits normally after catching such an error raises from its exit: a
+`DatabaseError` whose `sqlstate` is `25P02`, saying the transaction was rolled
+back, with nothing it wrote kept:
+
+```python
+import asyncio
+import os
+from datetime import datetime, timezone
+
+from pgorm import DatabaseError, ForeignKeyViolationError, Pool
+
+from bakery import Order
+
+
+async def main() -> None:
+    placed_at = datetime(2026, 11, 4, 10, 0, tzinfo=timezone.utc)
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        try:
+            async with pool.transaction() as tx:
+                await Order.insert({"customer_id": 1, "bakery_id": 1, "placed_at": placed_at}).execute(tx)
+                try:
+                    await Order.insert({"customer_id": 99, "bakery_id": 1, "placed_at": placed_at}).execute(tx)
+                except ForeignKeyViolationError:
+                    pass  # A mistake: the block carries on.
+        except DatabaseError as error:
+            assert error.sqlstate == "25P02"
+            assert str(error).startswith("the transaction was rolled back, not committed")
+        else:
+            raise AssertionError("the block committed")
+
+        # Neither order was written.
+        assert await Order.find().count(pool) == 2
+
+
+asyncio.run(main())
+```
+
+The connection is in a known state, so it goes back to the pool as usual. A
+savepoint's block that exits normally after catching an error raises the same
+`DatabaseError` from its exit, and the savepoint is rolled back to, so the
+transaction around it carries on unless the error leaves its block too. Put
+the statement that may fail in a savepoint of its own, as above, and catch its
+error outside the savepoint's block.
+
+Here Python differs from Rust: Rust returns this as
+`TransactionError::Connection(Error::TransactionAborted)`, and Python raises
+the `DatabaseError` it carries, its message pgorm's account of the rollback
+rather than the server's.
 
 ## Choosing the isolation level and access mode
 

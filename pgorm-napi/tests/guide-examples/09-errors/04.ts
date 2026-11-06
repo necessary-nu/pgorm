@@ -11,6 +11,11 @@ export default async function example({ pool }: GuideContext): Promise<void> {
   assert.ok(tooWide instanceof ConstructionError);
   assert.match(tooWide.message, /^parameter \$1 cannot be bound/);
 
+  // Two placeholders, and one value.
+  const short = await pool.execute("SELECT $1::text, $2::text", ["lemon"]).catch((error: unknown) => error);
+  assert.ok(short instanceof ConstructionError);
+  assert.equal(short.message, "the statement takes 2 parameters, and 1 was given");
+
   // No Temporal type is a time of day at a fixed offset.
   const unreadable = await pool.one("SELECT '12:00+01'::timetz AS opens").catch((error: unknown) => error);
   assert.ok(unreadable instanceof DecodeError);

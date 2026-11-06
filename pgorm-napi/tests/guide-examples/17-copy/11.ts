@@ -2,28 +2,25 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { CopyColumn, copyFrom, CopyRowDecoder, CopyRowEncoder, copyTo } from "@necessary/pgorm";
-import { Bakery } from "../../../guide/bakery.ts";
+import { ConstructionError, copyFrom, copyTo } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const columns = [new CopyColumn("name", "varchar"), new CopyColumn("city", "varchar")];
-  const encoder = new CopyRowEncoder(columns);
-  const data = [
-    CopyRowEncoder.header(),
-    encoder.encode(["Noon", "Stavanger"]),
-    encoder.encode(["Night Owl", "Tromsø"]),
-    CopyRowEncoder.trailer(),
-  ];
-  assert.equal(await pool.copyIn(copyFrom("bakery", "binary").columns(["name", "city"]), data), 2);
+  const bakeries = copyFrom("bakery", "binary").columns(["name", "city"]);
+  const columns = await pool.copyInColumns(bakeries);
+  assert.deepEqual(columns.map(({ name, type }) => `${name} ${type.schema}.${type.name}`), [
+    "name pg_catalog.varchar",
+    "city pg_catalog.varchar",
+  ]);
 
-  const decoder = new CopyRowDecoder(columns);
+  const sink = await pool.copyInRows(bakeries);
+  await sink.send(["Daybreak", "Trondheim"]);
+
+  // A row of the wrong width is refused, and the sink goes on taking rows.
+  await assert.rejects(sink.send(["Dusk"]), ConstructionError);
+  assert.equal(await sink.finish(), 1);
+
   const rows = [];
-  for await (const chunk of await pool.copyOut(copyTo(Bakery.select("name", "city").statement, "binary"))) {
-    decoder.push(chunk);
-    for (let row = decoder.nextRow(); row !== null; row = decoder.nextRow()) rows.push(row);
-  }
-  decoder.finish();
-  assert.equal(rows.length, 4);
-  assert.deepEqual(rows[3], ["Night Owl", "Tromsø"]);
+  for await (const row of await pool.copyOutRows(copyTo("bakery", "binary"))) rows.push(row);
+  assert.deepEqual(rows[2], [3, "Daybreak", "Trondheim"]);
 }

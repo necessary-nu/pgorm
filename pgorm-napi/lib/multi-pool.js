@@ -3,9 +3,9 @@
 // Several pools against one server, one per tag.
 // [spec:pgorm:req:bindings.multi-pool]
 
-import { Pool } from "./connections.js";
+import { Pool, POOL_SHAPE_OPTIONS, SHARED_POOL_OPTIONS } from "./connections.js";
 import { hooked } from "./hooks.js";
-import { native, TRUSTED } from "./operations.js";
+import { knownOptions, native, TRUSTED } from "./operations.js";
 
 /**
  * Several pools against one server, one per own property of `pools`, each
@@ -26,10 +26,12 @@ export class MultiPool {
     if (typeof dsn !== "string") throw new TypeError("dsn is a connection string");
     if (typeof pools !== "object" || pools === null) throw new TypeError("pools maps each pool's tag to its options");
     if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
+    knownOptions(options, SHARED_POOL_OPTIONS);
     /** @type {Record<string, unknown>} */
     const shapes = {};
     for (const [tag, shape] of Object.entries(pools)) {
       if (typeof shape !== "object" || shape === null) throw new TypeError(`pool ${JSON.stringify(tag)}'s options are an object`);
+      knownOptions(shape, POOL_SHAPE_OPTIONS);
       shapes[tag] = hooked(shape);
     }
     for (const [tag, handle] of native.poolsNew(dsn, shapes, options)) {

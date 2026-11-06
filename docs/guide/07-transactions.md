@@ -173,6 +173,12 @@ fn give_back<T>(db: DatabaseConnection, outcome: &Result<T, TransactionError<Err
             drop(db);
             true
         }
+        // A COMMIT that rolled back, because a failed statement had aborted
+        // the transaction, leaves the connection idle.
+        Err(TransactionError::Connection(Error::TransactionAborted(_))) => {
+            drop(db);
+            true
+        }
         // A failed BEGIN or COMMIT, a failed ROLLBACK, and any kind of
         // failure added later: the connection's state is unknown.
         Err(_) => {
@@ -271,6 +277,81 @@ assert_eq!((lines, skipped), (2, vec![99]));
 Without the savepoint, the failed insert would have aborted the whole
 transaction: PostgreSQL refuses every later statement in a transaction one
 statement has failed in, until it rolls back.
+
+## A caught error still aborts
+
+Catching a failed statement's error inside the closure does not undo what the
+failure did to the transaction. PostgreSQL has aborted it, and answers its
+`COMMIT` by rolling it back. pgorm asks before it commits, so a closure that
+returns `Ok` after catching such an error does not get its value back: the
+transaction comes back as
+`Connection(`[`Error::TransactionAborted`](crate::Error::TransactionAborted)`)`,
+rolled back, nothing it wrote kept:
+
+```rust
+# use pgorm_guide_support::order;
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("transactions_aborted").await;
+# let pool = scratch.pool.clone();
+use pgorm::{PostgresError, SqlState, TransactionError, entity::prelude::*};
+
+let placed_at: DateTimeWithTimeZone = "2026-11-04T10:00:00Z".parse()?;
+let mut db = pool.get().await?;
+let outcome = db
+    .transaction(async |txn| {
+        order::ActiveModel {
+            customer_id: set(1),
+            bakery_id: set(1),
+            placed_at: set(placed_at),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await?;
+        // A mistake: the failure is caught, and the closure carries on.
+        let refused = order::ActiveModel {
+            customer_id: set(99),
+            bakery_id: set(1),
+            placed_at: set(placed_at),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await;
+        assert!(refused.is_err());
+        Ok::<_, Error>(())
+    })
+    .await;
+
+match outcome {
+    Err(TransactionError::Connection(error @ Error::TransactionAborted(_))) => {
+        let refusal = std::error::Error::source(&error)
+            .and_then(|source| source.downcast_ref::<PostgresError>())
+            .and_then(PostgresError::code);
+        assert_eq!(refusal, Some(&SqlState::IN_FAILED_SQL_TRANSACTION));
+    }
+    other => panic!("expected the aborted transaction's rollback, got {other:?}"),
+}
+// Neither order was written, and the connection is ready for the next one.
+assert_eq!(order::Entity::find().count(&db).await?, 2);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+The connection is left idle, so it goes back to the pool as usual. A
+savepoint whose closure returns `Ok` after catching an error is rolled back
+to in the same way, and its `transaction` returns the same error, so the
+transaction around it carries on; `?` passes the error on to that
+transaction's closure, which then rolls back too. Put the statement that may
+fail in a savepoint of its own, as above, and handle its error outside the
+savepoint's closure.
+
+Asking costs a transaction's `COMMIT` nothing: it travels as `SELECT; COMMIT`
+in one round trip, and an aborted transaction refuses the empty `SELECT`,
+which skips the `COMMIT`. A savepoint's `RELEASE` takes one more round trip,
+since the `SELECT` goes ahead of it on its own. Both statements show in the
+server's statement log.
 
 The conversion keeps what each variant says. `Transaction(e)` becomes `e`,
 and `Connection(e)`, a `SAVEPOINT` or `RELEASE` that failed, becomes its

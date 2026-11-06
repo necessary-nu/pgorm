@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use super::{
+    copy::refuse_copy_statement,
     drive, rolled_back,
     sealed::{Close, Handle, TOKEN},
 };
@@ -30,6 +31,7 @@ macro_rules! cached_retry {
     ($owner:expr, $statement:expr, |$prepared:ident| $call:expr) => {{
         let owner = $owner;
         let sql = $statement.sql_text();
+        refuse_copy_statement(sql)?;
         let cached = owner.prepare_cached(sql).await?;
         let outcome = {
             let $prepared = &cached;
@@ -69,6 +71,7 @@ macro_rules! cached_evict {
     ($owner:expr, $statement:expr, |$prepared:ident| $call:expr) => {{
         let owner = $owner;
         let sql = $statement.sql_text();
+        refuse_copy_statement(sql)?;
         let cached = owner.prepare_cached(sql).await?;
         let outcome = {
             let $prepared = &cached;
@@ -245,7 +248,7 @@ impl OpenWith for DatabaseConnection {
 }
 
 /// `transaction_with`'s body, for every parent [`OpenWith`] covers.
-// [spec:pgorm:sem:conn.tx.closure+5]    configured BEGIN
+// [spec:pgorm:sem:conn.tx.closure+6]    configured BEGIN
 pub(crate) async fn with_mode<C, T, E, F>(
     parent: &mut C,
     mode: TransactionMode,
@@ -322,7 +325,7 @@ impl DatabaseConnection {
     ///
     /// [`TransactionTrait`]: crate::TransactionTrait
     /// [`TransactionTrait::transaction`]: crate::TransactionTrait::transaction
-    // [spec:pgorm:sem:conn.tx.closure+5]    configured BEGIN
+    // [spec:pgorm:sem:conn.tx.closure+6]    configured BEGIN
     #[doc(alias("transaction_with_config", "begin_with_config"))]
     pub async fn transaction_with<T, E, F>(
         &mut self,
@@ -370,7 +373,7 @@ enum Retryable<E> {
 /// What the closure returns ends it. A closure whose future is dropped before
 /// it finishes leaves this handle to roll back as it drops, which queues the
 /// `ROLLBACK` without awaiting the server's answer.
-// [spec:pgorm:sem:conn.tx.guard+3]
+// [spec:pgorm:sem:conn.tx.guard+4]
 #[derive(Debug)]
 pub struct DatabaseTransaction<'a>(pub(crate) Option<Transaction<'a>>);
 
@@ -397,7 +400,7 @@ impl<'a> DatabaseTransaction<'a> {
     }
 }
 
-// [spec:pgorm:sem:conn.tx.guard+3]    rollback-on-drop warning
+// [spec:pgorm:sem:conn.tx.guard+4]    rollback-on-drop warning
 impl Drop for DatabaseTransaction<'_> {
     fn drop(&mut self) {
         if self.0.is_some() {
@@ -489,6 +492,7 @@ impl ConnectionTrait for &DatabaseConnection {
     }
 
     async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+        refuse_copy_statement(sql)?;
         Ok(pgorm_pool::GenericClient::batch_execute(&self.0, sql).await?)
     }
 }
@@ -705,6 +709,7 @@ impl ConnectionTrait for DatabaseConnection {
     }
 
     async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+        refuse_copy_statement(sql)?;
         Ok(pgorm_pool::GenericClient::batch_execute(&self.0, sql).await?)
     }
 }
@@ -793,6 +798,7 @@ impl ConnectionTrait for DatabaseTransaction<'_> {
     }
 
     async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+        refuse_copy_statement(sql)?;
         Ok(pgorm_pool::GenericClient::batch_execute(self.tx(), sql).await?)
     }
 }

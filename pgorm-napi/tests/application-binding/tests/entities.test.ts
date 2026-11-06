@@ -489,7 +489,7 @@ test("a registered column's between and distinctness tests compare under its cas
 // expression it is compared as written
 // [spec:pgorm:req:bindings.column-operators+3/test]    a registered array column's containment and
 // overlap run through its ColumnTrait
-// [spec:pgorm:req:bindings.quantifiers+3/test]    an empty list is typed by the registered column, = ANY
+// [spec:pgorm:req:bindings.quantifiers+4/test]    an empty list is typed by the registered column, = ANY
 // of it false and <> ALL true, and refused as it is used where no registered column types it
 test("a registered column's quantified comparisons and containment compare under its casts", async () => {
   await seed();
@@ -529,7 +529,7 @@ test("a registered column's quantified comparisons and containment compare under
   assert.deepStrictEqual(await ids(Parcel.find().where(codes.overlaps(["c", "d"]))), [2]);
 });
 
-// [spec:pgorm:req:bindings.errors+5/test]    a column the entity cannot read as its field's type is a
+// [spec:pgorm:req:bindings.errors+6/test]    a column the entity cannot read as its field's type is a
 // DecodeError naming what the driver was reading and the decoder's reason, as Python reports it
 test("a decode refusal names the column the driver read and the decoder's reason", async () => {
   await pool().execute("ALTER TABLE napi_entities.notes ALTER COLUMN account_id TYPE text USING account_id::text");
@@ -552,7 +552,7 @@ test("a decode refusal names the column the driver read and the decoder's reason
 // [spec:pgorm:req:bindings.entity-reads+3/test]    any(..) / all(..) over a list of ranges compared
 // with a column of a range type the schema created is the array of their texts cast to the type's
 // array
-// [spec:pgorm:req:bindings.quantifiers+3/test]    a list of ranges, of no kind the list alone names,
+// [spec:pgorm:req:bindings.quantifiers+4/test]    a list of ranges, of no kind the list alone names,
 // is typed by the registered column it meets
 test("a registered created range's quantified comparisons bind as the array of the ranges' texts", async () => {
   for (const [id, lower, upper] of [[1, 1.5, 2.5], [2, 5, 6]] as const) {

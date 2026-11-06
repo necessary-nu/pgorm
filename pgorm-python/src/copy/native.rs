@@ -11,6 +11,7 @@ use std::{
     },
 };
 
+use crate::panics::future_into_py;
 use bytes::{Bytes, BytesMut};
 use pgorm::{CopyRowDecoder, CopyRowEncoder, Error, ValueHolder};
 use pyo3::{
@@ -19,7 +20,6 @@ use pyo3::{
     prelude::*,
     types::{PyByteArray, PyBytes, PyList, PySequence, PyString, PyTuple},
 };
-use pyo3_async_runtimes::tokio::future_into_py;
 use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 

@@ -21,7 +21,7 @@ Row: TypeAlias = "ModelRecord | tuple[ModelRecord | None, ...]"
 
 
 # [spec:pgorm:req:bindings.model-records+1]
-# [spec:pgorm:req:python.records]
+# [spec:pgorm:req:python.records+1]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
 class ModelRecord(Mapping[str, Any]):
     """A row's fields of one model, keyed by field in declaration order.

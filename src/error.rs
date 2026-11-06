@@ -1,7 +1,7 @@
 use tokio_postgres::error::SqlState;
 
 /// An error from unsuccessful database operations
-// [spec:pgorm:def:error.model+13]
+// [spec:pgorm:def:error.model+14]
 #[derive(thiserror::Error, Debug)]
 #[doc(alias = "DbErr")]
 #[non_exhaustive]
@@ -78,6 +78,28 @@ pub enum Error {
         /// What the `ROLLBACK` failed with
         rollback: Box<Error>,
     },
+    /// A transaction's closure returned `Ok`, but a statement that failed
+    /// inside it, its error caught by the closure, had aborted the
+    /// transaction, so it could only roll back: it was rolled back, and
+    /// nothing it wrote stands.
+    ///
+    /// A savepoint's is rolled back to, so the transaction it was nested in
+    /// carries on. The connection is in a known state either way. The source
+    /// is the server's refusal of the statement pgorm sends ahead of the
+    /// `COMMIT` or `RELEASE` to ask, SQLSTATE `25P02`
+    /// (`in_failed_sql_transaction`).
+    #[error(
+        "the transaction was rolled back, not committed: a statement that failed inside it had aborted it"
+    )]
+    TransactionAborted(#[source] tokio_postgres::Error),
+    /// SQL text holding a `COPY` was given to a statement method, which runs
+    /// what it is given as a statement; a `COPY`'s data flows beside it, so it
+    /// runs only through [`CopyTrait`](crate::CopyTrait)'s `copy_in` and
+    /// `copy_out`. Nothing was sent.
+    #[error(
+        "a COPY runs through CopyTrait's copy_in or copy_out, which carry its data, not as a statement"
+    )]
+    CopyStatement,
     /// A custom error
     #[error("Custom Error: {0}")]
     Custom(String),
@@ -170,7 +192,7 @@ pub enum ListenError {
 ///
 /// assert!(first_cake_id().is_err());
 /// ```
-// [spec:pgorm:def:error.model+13]    crate-root Result alias
+// [spec:pgorm:def:error.model+14]    crate-root Result alias
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Runtime error
@@ -182,7 +204,7 @@ pub enum RuntimeError {
     Internal(String),
 }
 
-// [spec:pgorm:def:error.model+13]    Display-string equality
+// [spec:pgorm:def:error.model+14]    Display-string equality
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         self.to_string() == other.to_string()
@@ -344,6 +366,55 @@ impl std::fmt::Display for BindRefusal {
     }
 }
 
+/// A statement given another number of parameters than it takes, which the
+/// driver refuses once the statement is prepared and before it binds
+/// anything: how many its `$N` placeholders take, and how many were given.
+///
+/// Its `Display` is `the statement takes N parameters, and M were given`, the
+/// text each language binding reports the refusal with.
+// [spec:pgorm:sem:error.model.parameter-count]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ParameterCountRefusal {
+    /// How many parameters the statement takes.
+    pub expected: usize,
+    /// How many were given.
+    pub given: usize,
+}
+
+impl ParameterCountRefusal {
+    /// The refusal `error` is, or `None` for any other failure.
+    // [spec:pgorm:sem:error.model.parameter-count]
+    pub fn of(error: &tokio_postgres::Error) -> Option<Self> {
+        // As for BindRefusal: tokio-postgres 0.7.18 has no public kind for
+        // it, and its top-level text, which no value shapes, is read.
+        let counts = error.to_string();
+        let (expected, given) = counts
+            .strip_prefix("expected ")?
+            .split_once(" parameters but got ")?;
+        Some(Self {
+            expected: expected.parse().ok()?,
+            given: given.parse().ok()?,
+        })
+    }
+}
+
+impl std::fmt::Display for ParameterCountRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let takes = if self.expected == 1 {
+            "parameter"
+        } else {
+            "parameters"
+        };
+        let were = if self.given == 1 { "was" } else { "were" };
+        write!(
+            f,
+            "the statement takes {} {takes}, and {} {were} given",
+            self.expected, self.given
+        )
+    }
+}
+
 /// A result the driver could not read into what was asked for: a column's
 /// value its decoder refused, a column the row does not have, or a row or a
 /// row count of another shape than the statement promised.
@@ -432,6 +503,17 @@ impl Error {
     pub fn bind_refusal(&self) -> Option<BindRefusal> {
         match self {
             Error::Postgres(e) => BindRefusal::of(e),
+            _ => None,
+        }
+    }
+
+    /// The parameters a statement was given another number of than it takes,
+    /// when this is that failure: [`ParameterCountRefusal::of`] the driver's
+    /// error, and `None` for any other variant.
+    // [spec:pgorm:sem:error.model.parameter-count]
+    pub fn parameter_count_refusal(&self) -> Option<ParameterCountRefusal> {
+        match self {
+            Error::Postgres(e) => ParameterCountRefusal::of(e),
             _ => None,
         }
     }

@@ -237,7 +237,7 @@ test("a MultiPool refuses a shared tag, an empty key and no pools before buildin
   assert.throws(() => new MultiPool(scratch(), {}), ConstructionError);
   assert.throws(() => new MultiPool(scratch(), { "": {} }), ConstructionError);
   // @ts-expect-error: each pool's tag is its key
-  assert.throws(() => new MultiPool(scratch(), { web: {} }, { tag: "web" }), ConstructionError);
+  assert.throws(() => new MultiPool(scratch(), { web: {} }, { tag: "web" }), TypeError);
   assert.throws(() => new MultiPool(scratch(), { web: { maxSize: 0 } }), ConstructionError);
   assert.throws(() => new MultiPool(scratch(), { web: 8 as never }), TypeError);
 });
