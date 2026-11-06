@@ -149,12 +149,21 @@ export declare class CopyOutStream implements AsyncIterableIterator<Uint8Array>,
   [Symbol.asyncDispose](): Promise<void>;
 }
 
+// [spec:pgorm:req:bindings.copy-rows.typed]
+/**
+ * One value of a row `copyInRows` writes: a parameter, or any value a row
+ * `copyOutRows` read holds, a range, a multirange, an empty array and a
+ * vector's `Float32Array` among them, which is read as its column's type
+ * where inference cannot say what it is.
+ */
+export type CopyValue = Param | PlainValue;
+
 /**
  * What `copyInRows` writes: rows, each an array of its columns' values in
  * the order the server describes the statement's columns, from an iterable
- * or async iterable.
+ * or async iterable, a {@link CopyRowStream} included.
  */
-export type CopyRows = Iterable<readonly Param[]> | AsyncIterable<readonly Param[]>;
+export type CopyRows = Iterable<readonly CopyValue[]> | AsyncIterable<readonly CopyValue[]>;
 
 /**
  * A binary COPY TO's rows as an async iterator of arrays of values, one row
@@ -227,7 +236,7 @@ export declare class CopyRowSink implements AsyncDisposable {
   readonly columns: readonly CopyColumn[];
   readonly closed: boolean;
   /** Write one row: a value for each column in order, each read as a {@link Param} is. */
-  send(row: readonly Param[]): Promise<void>;
+  send(row: readonly CopyValue[]): Promise<void>;
   /**
    * Write a record of `model` as one row, each of the COPY's columns from
    * the field whose column it is; a column no field of the model reads is a
@@ -256,7 +265,7 @@ export declare class CopyRowEncoder {
   static header(): Uint8Array;
   /** The field count of -1 that comes once, after the last row. */
   static trailer(): Uint8Array;
-  encode(row: readonly Param[]): Uint8Array;
+  encode(row: readonly CopyValue[]): Uint8Array;
 }
 
 /**

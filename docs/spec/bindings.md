@@ -687,6 +687,21 @@ closed, and a transaction by the block or callback it was opened for ending.
 > `finish()` refuses data that ends part way through a row or without the
 > trailer, each refusal a `DecodeError`.
 
+> [spec:pgorm:req:bindings.copy-rows.typed]
+> A row `copy_out_rows` read MUST write back through `copy_in_rows`, a
+> `CopyRowSink` and a `CopyRowEncoder` into columns of the same types, each
+> value as its column's type. Where a value says less than its column, it is
+> read as its column's kind, pgorm's `CopyColumn::value_kind()`
+> (`[spec:pgorm:req:conn.copy.rows.kind]`), rather than refused: a json
+> column's value, or the elements of a json array's, is read as JSON whatever
+> it holds, a number, a string or a list included, which inference reads as
+> numbers, text and arrays; and a value inference cannot type, a range or a
+> multirange of no named type, an array holding no element or only nulls, is
+> read as its column's kind. Every other value is read as
+> `bindings.copy-rows` says, and a value neither reading takes is refused as
+> inference refuses it. Each binding's types MUST take what its row stream
+> yields as rows to write, so a stream is written back with no cast.
+
 > [spec:pgorm:req:bindings.listen+3]
 > `listener(capacity)` on a pool MUST open a `Listener` through pgorm's
 > `DatabasePool::listener` (`conn.listen`): a connection of its own, opened

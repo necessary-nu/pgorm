@@ -105,6 +105,20 @@ impl CopyColumn {
         &self.type_
     }
 
+    /// The kind of [`Value`] this column's values are, the kind
+    /// [`decode`](CopyColumn::decode) gives and a row's value is checked
+    /// against: the [`ArrayType`] a scalar column's values are, or for an
+    /// array column its elements', with `true`. `None` for a type no `Value`
+    /// holds. A binding reads by it a value whose kind nothing else says, such
+    /// as an array holding no element or a range of no named type.
+    // [spec:pgorm:req:conn.copy.rows.kind]
+    pub fn value_kind(&self) -> Option<(ArrayType, bool)> {
+        match self.type_.kind() {
+            Kind::Array(element) => kind(element).ok().map(|element| (element, true)),
+            _ => kind(&self.type_).ok().map(|scalar| (scalar, false)),
+        }
+    }
+
     /// One field of this column, its binary form or `None` for SQL NULL, as
     /// the [`Value`] variant its type reads as.
     ///
@@ -905,6 +919,27 @@ mod tests {
             CopyColumn::new("id", Type::INT4),
             CopyColumn::new("name", Type::TEXT),
         ]
+    }
+
+    // [spec:pgorm:req:conn.copy.rows.kind/test]    a scalar's kind, an array's element kind, none for an unheld type
+    #[test]
+    fn a_column_reports_its_value_kind() {
+        let kind = |type_: Type| CopyColumn::new("c", type_).value_kind();
+        assert_eq!(kind(Type::INT8), Some((ArrayType::BigInt, false)));
+        assert_eq!(kind(Type::INT4_ARRAY), Some((ArrayType::Int, true)));
+        assert_eq!(
+            kind(Type::INT4_RANGE),
+            Some((ArrayType::Range(RangeType::Int4), false))
+        );
+        assert_eq!(
+            kind(Type::TSTZMULTI_RANGE),
+            Some((ArrayType::Multirange(RangeType::TimestampTz), false))
+        );
+        assert_eq!(
+            kind(Type::DATE_RANGE_ARRAY),
+            Some((ArrayType::Range(RangeType::Date), true))
+        );
+        assert_eq!(kind(Type::POINT), None);
     }
 
     fn encoded(rows: &[Vec<Value>]) -> Result<BytesMut, Error> {

@@ -169,7 +169,7 @@ impl PyValue {
     /// A created range's array holds each element's text form, the array
     /// its type's array reads.
     // [spec:pgorm:req:bindings.created-ranges+5]
-    fn array_of(element: Tag, values: &Bound<'_, PyAny>) -> PyResult<Self> {
+    pub(crate) fn array_of(element: Tag, values: &Bound<'_, PyAny>) -> PyResult<Self> {
         let array_type = element.array_type()?;
         let inner = if values.is_none() {
             None
@@ -186,7 +186,9 @@ impl PyValue {
         })
     }
 
-    fn convert(data: &Bound<'_, PyAny>, tag: Tag) -> PyResult<Self> {
+    /// `data` read as a value of `tag`'s kind, as `Value(data, kind)` reads
+    /// it.
+    pub(crate) fn convert(data: &Bound<'_, PyAny>, tag: Tag) -> PyResult<Self> {
         if let Ok(value) = data.extract::<PyRef<'_, Self>>() {
             if value.tag != tag {
                 return Err(ConstructionError::new_err(
