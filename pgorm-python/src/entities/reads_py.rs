@@ -27,7 +27,7 @@ use super::{
 };
 use crate::{
     errors::{ConstructionError, InternalError},
-    execution::Executor,
+    execution::{Executor, listed},
     expressions::Compiled,
     transactions::work::{Output, Read, Work},
 };
@@ -51,25 +51,23 @@ pub(crate) fn rows<'py>(
     single: bool,
 ) -> PyResult<Bound<'py, PyAny>> {
     let target = Executor::extract(py, connection)?;
-    future_into_py(py, async move {
-        let Output::Graph(rows) = target.run(Work::Read(read)).await? else {
-            return Err(InternalError::new_err("unexpected registered read result"));
-        };
-        Python::attach(|py| {
-            let mut rows = rows
-                .into_iter()
-                .map(|row| row_object(py, row))
-                .collect::<PyResult<Vec<_>>>()?;
-            if single {
-                return Ok(if rows.is_empty() {
-                    py.None()
-                } else {
-                    rows.swap_remove(0)
-                });
-            }
-            Ok(PyList::new(py, rows)?.into_any().unbind())
-        })
-    })
+    listed(
+        py,
+        target,
+        Work::Read(read),
+        single,
+        "registered read",
+        graph_rows,
+        row_object,
+    )
+}
+
+/// The rows of a read whose output is a graph's.
+pub(crate) fn graph_rows(output: Output) -> Option<Vec<crate::graphs::backend::Row>> {
+    match output {
+        Output::Graph(rows) => Some(rows),
+        _ => None,
+    }
 }
 
 /// Run `read`, whose output is a count.
@@ -90,7 +88,7 @@ pub(crate) fn counted<'py>(
 /// A stream of `statement`'s rows, each decoded by `decoder`, opened by the
 /// package's stream helper on a pool's connection of its own or on a
 /// connection, which the stream holds until it ends.
-// [spec:pgorm:req:bindings.streams]
+// [spec:pgorm:req:bindings.streams+1]
 pub(crate) fn stream<'py>(
     py: Python<'py>,
     connection: &Bound<'py, PyAny>,

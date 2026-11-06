@@ -2,25 +2,18 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { DatabaseError, PgormError, UniqueViolationError } from "@necessary/pgorm";
-import { Customer } from "../../../guide/bakery.ts";
+import { DatabaseError, Pool, TimeoutError } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
-export default async function example({ pool }: GuideContext): Promise<void> {
-  async function signUp(name: string, email: string): Promise<"welcome" | "known"> {
-    try {
-      await Customer.insert({ name, email }).execute(pool);
-      return "welcome";
-    } catch (error) {
-      if (error instanceof UniqueViolationError) return "known";
-      throw error;
-    }
-  }
+export default async function example({ url }: GuideContext): Promise<void> {
+  const elsewhere = new URL(url);
+  elsewhere.pathname = "/no_such_bakery";
+  await using missing = new Pool(elsewhere.toString());
+  await assert.rejects(missing.one("SELECT 1"), (error) =>
+    error instanceof DatabaseError && error.sqlstate === "3D000");
 
-  assert.equal(await signUp("Mo", "mo@example.com"), "welcome");
-  assert.equal(await signUp("Kim again", "kim@example.com"), "known");
-
-  const refused = await pool.query("SELECT * FROM pastry").catch((error: unknown) => error);
-  assert.ok(refused instanceof DatabaseError && refused instanceof PgormError);
-  assert.equal(refused.name, "DatabaseError");
+  // One connection, held: the next operation waits 200 ms for it, then gives up.
+  await using small = new Pool(url, { maxSize: 1, acquireTimeout: 200 });
+  await using held = await small.acquire();
+  await assert.rejects(small.one("SELECT 1"), TimeoutError);
 }

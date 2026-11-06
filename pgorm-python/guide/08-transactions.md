@@ -154,27 +154,34 @@ program decides the work should not stand, rolls back the same way and
 reaches the code around the block as itself.
 
 Here Python differs from Rust. Rust wraps a failed transaction in a
-`TransactionError` that keeps apart the closure's own error, a failed `BEGIN`
-or `COMMIT`, and a `ROLLBACK` that failed after the closure's error. Python
-has no wrapper, and raises one exception:
+`TransactionError` that keeps apart the closure's own error
+(`Transaction`), a failed `BEGIN` or `COMMIT` (`Connection`), and a
+`ROLLBACK` that failed after the closure's error (`RollbackFailed`). Python
+has no wrapper, and raises one exception for each:
 
 - The block's own exception, after a rollback that succeeded.
-- A `COMMIT` that fails raises its error, a `DatabaseError` or a
-  `ConnectionError`, from the block's exit, and so does a block whose
+- A `BEGIN` or `COMMIT` that fails raises its error, a `DatabaseError` or a
+  `ConnectionError`, from the block's entry or exit, and so does a block whose
   transaction a caught failure had aborted
   ([A caught error still aborts](#a-caught-error-still-aborts)).
-- A `ROLLBACK` that fails raises its error in place of the block's
-  exception, which it carries as `__context__`. A cancellation,
+- A `ROLLBACK` that fails raises `RollbackFailedError`, Rust's
+  `Error::RollbackFailed`: its `cause` is the block's exception, which it is
+  chained from, and its `rollback` the rollback's error. The `ROLLBACK` of a
+  transaction a caught failure aborted that fails raises it too, its `cause`
+  the `25P02` `DatabaseError`. A cancellation,
   `KeyboardInterrupt` or `SystemExit` is never replaced this way: it
   propagates as itself, so that asyncio still sees the cancellation.
 
 In Rust, a connection whose `COMMIT` or `ROLLBACK` failed is in a state no one
-knows, an aborted transaction's apart, and the program gives it back with `discard` so the pool closes it.
-Python has no `discard`: the binding discards such a connection itself, and
-the pool opens a fresh one when it next needs one. A block whose transaction
-was already discarded, by a cancelled statement or by a `COPY` the server
-refused ([COPY](17-copy.md)), keeps its own exception; if it exits normally
-instead, its exit raises `LifecycleError`, since nothing is left to commit.
+knows, an aborted transaction's apart, and the program gives it back with
+`discard` so the pool closes it. Python's binding discards such a connection
+itself, and the pool opens a fresh one when it next needs one. A connection
+the program no longer trusts for a reason of its own it gives up with
+`connection.discard()`, which closes it rather than return it to its pool, as
+Rust's `discard` does. A block whose transaction was already discarded, by a
+cancelled statement or by a `COPY` the server refused ([COPY](17-copy.md)),
+keeps its own exception; if it exits normally instead, its exit raises
+`LifecycleError`, since nothing is left to commit.
 
 ## Savepoints
 
@@ -350,15 +357,18 @@ whose result another concurrent transaction has made inconsistent, with a
 serialization failure (SQLSTATE `40001`), and expects the client to run it
 again. It does the same to one side of a deadlock (`40P01`).
 
-Rust's `transaction_with_retry` runs the whole transaction again, from
-`BEGIN`, while it fails with one of those two errors. It is not available in
-Python yet, nor is Rust's `is_retryable`, which tells those errors from the
-rest. A Python program writes the loop: open the transaction again while its
-block fails with a `DatabaseError` whose `sqlstate` is one of the two. The
-binding itself never retries a statement or a transaction.
+`transaction_with_retry(work, retries=..)`, on a pool or a connection, runs
+the whole transaction again, from `BEGIN`, while it fails with one of those
+two errors, as Rust's `transaction_with_retry` does: pgorm's own retry,
+through the connection a pool lends for the whole. A block cannot run twice,
+so the work is a function given each attempt's `Transaction`, and its result
+is returned once an attempt commits. It runs again when it raises an error
+whose `is_retryable` is true, or when its `COMMIT` fails that way, up to
+`retries` more times; past the last, or for any other exception, the
+transaction ends as a block's does and the exception propagates. `mode` and
+`isolation` are a block's. Anything the work does outside the database
+happens again on each attempt.
 
-The work may run more than once, so it is a function the loop calls on each
-attempt, and anything it does outside the database happens again each time.
 Here another connection changes the cake's price after the first attempt has
 read it, and the first attempt's update is refused; the second attempt reads
 the new price and succeeds:
@@ -366,28 +376,11 @@ the new price and succeeds:
 ```python
 import asyncio
 import os
-from collections.abc import Awaitable, Callable
 from decimal import Decimal
 
-from pgorm import DatabaseError, Pool, RawSQL, Transaction
+from pgorm import Pool, RawSQL, Transaction
 
 from bakery import Cake
-
-RETRYABLE = {"40001", "40P01"}
-
-
-async def serializable[T](pool: Pool, retries: int, work: Callable[[Transaction], Awaitable[T]]) -> T:
-    """Run `work` in a serializable transaction, and again from the start while
-    it fails with a serialization failure or a deadlock, up to `retries` times."""
-    attempt = 0
-    while True:
-        attempt += 1
-        try:
-            async with pool.transaction(mode="read_write", isolation="serializable") as tx:
-                return await work(tx)
-        except DatabaseError as error:
-            if error.sqlstate not in RETRYABLE or attempt > retries:
-                raise
 
 
 async def main() -> None:
@@ -410,16 +403,14 @@ async def main() -> None:
             price: Decimal = changed["price"]
             return price
 
-        doubled = await serializable(pool, 3, double_fudge)
+        doubled = await pool.transaction_with_retry(
+            double_fudge, retries=3, mode="read_write", isolation="serializable"
+        )
         assert (attempts, str(doubled)) == (2, "11.00")
 
 
 asyncio.run(main())
 ```
-
-The `return` inside the block commits before the value leaves the function,
-and a serialization failure can also come from the `COMMIT`, which this loop
-retries like any other.
 
 ## A cancelled block rolls back
 
@@ -528,12 +519,10 @@ the second, as two statements on one connection do. A pool used from another
 event loop, such as one running in another thread, raises `LifecycleError`
 before anything is sent.
 
-A transaction runs every statement the package offers except a stream:
-`stream` is not available on a `Transaction` in Python yet, though Rust
-streams rows inside a transaction. Read a transaction's rows whole, or a page
-at a time ([Pages, cursors and streams](06-pagination.md)). A transaction
-does run `COPY` ([COPY](17-copy.md)) and `notify` ([LISTEN and
-NOTIFY](18-listen-notify.md)).
+A transaction runs every statement the package offers: a stream of its rows
+([Pages, cursors and streams](06-pagination.md)), which reserves the
+transaction until its last row, `COPY` ([COPY](17-copy.md)) and `notify`
+([LISTEN and NOTIFY](18-listen-notify.md)) among them.
 
 A transaction on an instrumented pool, or on a connection it lent, reports
 its begin, its statements, its savepoints and its commit or rollback to the

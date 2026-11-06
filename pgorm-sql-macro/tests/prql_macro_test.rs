@@ -3,7 +3,7 @@
 use pgorm::{Value, Values};
 use pgorm_sql_macro::prql;
 
-// [spec:pgorm:def:macros.prql/test]    the expansion is the emitted SQL plus Values
+// [spec:pgorm:def:macros.prql+1/test]    the expansion is the emitted SQL plus Values
 #[test]
 fn expansion_is_sql_and_values() {
     let (sql, values) = prql!("from invoice | filter total > $1 | take 5", 100_i64);
@@ -12,7 +12,7 @@ fn expansion_is_sql_and_values() {
     assert_eq!(values, Values(vec![Value::from(100_i64)]));
 }
 
-// [spec:pgorm:def:macros.prql/test]    a `&'static str`, so it outlives any frame
+// [spec:pgorm:def:macros.prql+1/test]    a `&'static str`, so it outlives any frame
 #[test]
 fn emitted_sql_is_a_static_str() {
     fn keep(query: &'static str) -> &'static str {
@@ -48,7 +48,7 @@ fn placeholder_free_query_takes_no_arguments() {
     assert_eq!(values, Values(Vec::new()));
 }
 
-// [spec:pgorm:def:macros.prql/test]    arguments convert in placeholder order
+// [spec:pgorm:def:macros.prql+1/test]    arguments convert in placeholder order
 #[test]
 fn arguments_convert_in_placeholder_order() {
     let city = "Berlin".to_owned();
@@ -68,7 +68,7 @@ fn arguments_convert_in_placeholder_order() {
     );
 }
 
-// [spec:pgorm:def:macros.prql/test]    prqlc places the clause: a filter after
+// [spec:pgorm:def:macros.prql+1/test]    prqlc places the clause: a filter after
 // an aggregation compiles to HAVING
 #[test]
 fn filter_after_aggregate_becomes_having() {
@@ -87,7 +87,7 @@ fn filter_after_aggregate_becomes_having() {
     assert_eq!(values.0.len(), 1);
 }
 
-// [spec:pgorm:def:macros.prql/test]    a join with a bound filter survives whole
+// [spec:pgorm:def:macros.prql+1/test]    a join with a bound filter survives whole
 #[test]
 fn join_compiles_with_bound_filter() {
     let (sql, values) = prql!(

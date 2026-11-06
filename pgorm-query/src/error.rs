@@ -103,6 +103,13 @@ pub enum TemplateError {
         /// How many substitutions were supplied.
         supplied: usize,
     },
+    /// A piece of a template literal writes a `$N` marker, where its values
+    /// are the ones written between its pieces
+    /// ([`SqlTemplate::from_pieces`](crate::SqlTemplate::from_pieces)).
+    MarkerInText {
+        /// The index the marker names.
+        index: usize,
+    },
 }
 
 impl std::error::Error for Error {}
@@ -191,6 +198,10 @@ impl std::fmt::Display for TemplateError {
             Self::UnreferencedValue { index, supplied } => write!(
                 f,
                 "{supplied} substitution(s) were supplied but `${index}` is never referenced"
+            ),
+            Self::MarkerInText { index } => write!(
+                f,
+                "`${index}` is written in the template's text; its values are the ones written between its pieces"
             ),
         }
     }

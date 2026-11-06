@@ -40,6 +40,12 @@ export function signalOf(signal) {
  */
 export const LATE = Symbol("pgorm-napi late abort");
 
+/** The statement runner each database class implements, keyed privately. */
+export const RUN = Symbol("run");
+
+/** The job runner each database class implements, keyed privately. */
+export const JOB = Symbol("job");
+
 /**
  * Run `start` with a native abort token that `signal` fires, rejecting with
  * the signal's reason once it has: an aborted operation's outcome is unknown,
@@ -147,7 +153,7 @@ export async function scoped(handle, transaction, use) {
   try {
     await native.transactionFinish(handle, true);
   } catch (error) {
-    // [spec:pgorm:req:bindings.transactions+1]    an aborted transaction's rollback leaves its connection in a known state
+    // [spec:pgorm:req:bindings.transactions+2]    an aborted transaction's rollback leaves its connection in a known state
     if (!(error instanceof DatabaseError && error.sqlstate === "25P02")) await native.transactionAbort(handle);
     throw error;
   }
@@ -162,6 +168,7 @@ export async function scoped(handle, transaction, use) {
  * @param {unknown} error
  * @returns {Promise<unknown>}
  */
+// [spec:pgorm:req:bindings.rollback-failed]
 async function rolledBack(handle, error) {
   if (!native.transactionClosed(handle)) {
     try {

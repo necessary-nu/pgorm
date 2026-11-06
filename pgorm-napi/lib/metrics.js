@@ -10,7 +10,7 @@
 
 import process from "node:process";
 
-import { nativePool, Pool } from "./connections.js";
+import { Pool, poolHandle } from "./connections.js";
 import { native, TRUSTED } from "./operations.js";
 
 /** @typedef {import("./index.d.ts").MetricsCollector} MetricsCollector */
@@ -341,7 +341,7 @@ export class InstrumentedPool extends Pool {
    */
   constructor(pool, metrics) {
     if (!(pool instanceof Pool)) throw new TypeError("an InstrumentedPool wraps a Pool");
-    super(TRUSTED, native.poolInstrument(nativePool(pool), hooksOf(metrics), dispatch));
+    super(TRUSTED, native.poolInstrument(poolHandle(pool), hooksOf(metrics), dispatch));
     this.#inner = pool;
     this.#metrics = metrics;
   }

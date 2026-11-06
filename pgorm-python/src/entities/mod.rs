@@ -24,7 +24,7 @@ pub use column::PyEntityColumn;
 pub(crate) use inserts::TERMINALS as insert_terminals;
 pub use inserts::{PyEntityInsert, PyEntityInsertMany};
 pub use model::PyEntityModel;
-pub use query::PyEntityQuery;
+pub use query::{PyEntityQuery, PyEntityRawQuery};
 pub use reads_py::{PyEntityCursor, PyEntityPaginator};
 pub(crate) use registry::NativeRegistry;
 pub use registry::Registry;
@@ -120,6 +120,7 @@ pub(crate) fn install(module: &Bound<'_, PyModule>, registry: Registry) -> PyRes
     module.add_class::<PyEntity>()?;
     module.add_class::<PyEntityColumn>()?;
     module.add_class::<PyEntityQuery>()?;
+    module.add_class::<PyEntityRawQuery>()?;
     module.add_class::<PyEntitySelection>()?;
     module.add_class::<PyEntityPaginator>()?;
     module.add_class::<reads_py::PyEntityPages>()?;

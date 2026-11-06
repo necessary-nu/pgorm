@@ -13,6 +13,7 @@ mod dialect;
 mod hook;
 mod pool;
 mod tls;
+mod verify;
 
 pub use copy::{builtin_type, copy_column};
 pub use dialect::{Dialect, Refusal};
@@ -22,3 +23,4 @@ pub use pool::{
     pool_failure,
 };
 pub use tls::{Connector, TlsMode, TlsSettings};
+pub use verify::describe;

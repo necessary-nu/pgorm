@@ -85,7 +85,7 @@ const PRQLC: Fork = Fork {
     dependency: "prqlc",
     repository: "https://github.com/necessary-nu/prql.git",
     crates: &["prqlc", "prqlc-parser"],
-    declarers: &["Cargo.toml", "pgorm-sql-macro/Cargo.toml"],
+    declarers: &["Cargo.toml", "pgorm-sql-check/Cargo.toml"],
     detached: &RUNTIME_DETACHED,
     // The codegen runner reaches pgorm only through pgorm-codegen's
     // development dependency, so it compiles no prqlc.
@@ -99,7 +99,7 @@ const PG_QUERY: Fork = Fork {
     crates: &["pg_query"],
     declarers: &[
         "Cargo.toml",
-        "pgorm-sql-macro/Cargo.toml",
+        "pgorm-sql-check/Cargo.toml",
         "pgorm-codegen/Cargo.toml",
         "pgorm-query/Cargo.toml",
     ],

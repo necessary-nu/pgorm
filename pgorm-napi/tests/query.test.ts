@@ -98,7 +98,13 @@ test("a statement given another number of values than its placeholders take reje
 
 // [spec:pgorm:req:conn.copy.statement/test]    a COPY given as a statement is the caller's ConstructionError, nothing sent
 test("a COPY given as a statement rejects with a ConstructionError naming copyIn and copyOut", async () => {
-  for (const run of [() => pool.query("COPY (SELECT 1) TO STDOUT"), () => pool.execute("/* rows */ copy pg_class FROM STDIN")]) {
+  for (
+    const run of [
+      () => pool.query("COPY (SELECT 1) TO STDOUT"),
+      () => pool.execute("/* rows */ copy pg_class FROM STDIN"),
+      () => pool.batchExecute("SELECT 1; COPY pg_class FROM STDIN"),
+    ]
+  ) {
     await assert.rejects(run(), (error: unknown) => {
       assert.ok(error instanceof ConstructionError, `${error}`);
       assert.match(error.message, /copyIn or copyOut/);

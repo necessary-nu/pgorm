@@ -41,7 +41,7 @@ fn selector(sql: &str, values: Values) -> SelectorRaw<SelectModel<Invoice>> {
     (sql, values).into_model::<Invoice>()
 }
 
-// [spec:pgorm:def:macros.prql/test]    the expansion binds its argument end to end
+// [spec:pgorm:def:macros.prql+1/test]    the expansion binds its argument end to end
 #[pgorm_macros::test]
 async fn bound_param_reaches_the_server() -> Result<(), Error> {
     let ctx = TestContext::new("prql_macro_bound_param").await;
@@ -89,7 +89,7 @@ async fn reused_placeholder_binds_once_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.prql/test]    two placeholders, two values, right slots
+// [spec:pgorm:def:macros.prql+1/test]    two placeholders, two values, right slots
 #[pgorm_macros::test]
 async fn arguments_land_in_placeholder_order() -> Result<(), Error> {
     let ctx = TestContext::new("prql_macro_placeholder_order").await;
@@ -162,7 +162,7 @@ const TALLY: &str = sql!(
          ('pear', 'green', 3), ('pear', 'green', 3), ('pear', 'green', 3);"
 );
 
-// [spec:pgorm:def:macros.prql/test]    grouping an undeclared relation by
+// [spec:pgorm:def:macros.prql+1/test]    grouping an undeclared relation by
 // `this` writes a qualified whole-row key PostgreSQL can read
 #[pgorm_macros::test]
 async fn grouping_undeclared_rows_counts_duplicates() -> Result<(), Error> {
@@ -191,7 +191,7 @@ async fn grouping_undeclared_rows_counts_duplicates() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.prql/test]    a literal grouping key is projected but
+// [spec:pgorm:def:macros.prql+1/test]    a literal grouping key is projected but
 // left out of GROUP BY, where PostgreSQL would read `5` as a column position;
 // a grouping made only of literals keeps its empty-input answer
 #[pgorm_macros::test]
@@ -264,7 +264,7 @@ async fn literal_group_key_is_not_a_position() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.prql/test]    a computed DISTINCT ON key, or a computed
+// [spec:pgorm:def:macros.prql+1/test]    a computed DISTINCT ON key, or a computed
 // sort inside the group, that the projection drops is ordered by its
 // expression rather than by an alias the SELECT no longer carries
 #[pgorm_macros::test]
@@ -327,7 +327,7 @@ async fn dropped_distinct_key_still_orders_rows() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.prql/test]    a named column read beside a whole-row
+// [spec:pgorm:def:macros.prql+1/test]    a named column read beside a whole-row
 // key is written as a key too, since PostgreSQL reads a column outside an
 // aggregate only when it is grouped by name
 #[pgorm_macros::test]

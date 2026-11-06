@@ -403,7 +403,7 @@ test("every row terminal can give its columns tagged", async () => {
   assert.equal(all?.n?.isNull, true);
 });
 
-// [spec:pgorm:req:bindings.transactions+1/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a callback transaction commits when it resolves and rolls back when it throws", async () => {
   await reset();
   const result = await pool().transaction(async (tx) => {
@@ -425,7 +425,7 @@ test("a callback transaction commits when it resolves and rolls back when it thr
   assert.deepEqual(await ids(), [1]);
 });
 
-// [spec:pgorm:req:bindings.transactions+1/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a transaction holds its connection until its callback settles, and is closed after", async () => {
   await reset();
   await using connection = await pool().acquire();
@@ -464,7 +464,7 @@ test("a transaction opens only around a callback, which alone ends it", async ()
   });
 });
 
-// [spec:pgorm:req:bindings.transactions+1/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a savepoint rolls back alone inside a transaction that commits", async () => {
   await reset();
   await pool().transaction(async (tx) => {
@@ -483,7 +483,7 @@ test("a savepoint rolls back alone inside a transaction that commits", async () 
   assert.deepEqual(await ids(), [1, 4]);
 });
 
-// [spec:pgorm:req:bindings.transactions+1/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a callback that catches a failed statement's error cannot commit, and its connection is kept", async () => {
   await reset();
   const aborted =
@@ -518,6 +518,7 @@ test("a callback that catches a failed statement's error cannot commit, and its 
 });
 
 // [spec:pgorm:req:napi.transactions+3/test]
+// [spec:pgorm:req:bindings.rollback-failed/test]    the rollback's failure and the callback's, both carried
 test("a rollback the server cannot answer rejects with its failure and discards the connection", async () => {
   await reset();
   const connection = await pool().acquire();
@@ -544,7 +545,7 @@ test("a rollback the server cannot answer rejects with its failure and discards 
   assert.deepEqual(await ids(), []);
 });
 
-// [spec:pgorm:req:bindings.transactions+1/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a transaction is refused while its savepoint is open, not raced", async () => {
   await reset();
   await using connection = await pool().acquire();
@@ -560,7 +561,7 @@ test("a transaction is refused while its savepoint is open, not raced", async ()
   assert.deepEqual(await ids(), [1, 2]);
 });
 
-// [spec:pgorm:req:bindings.transactions+1/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a second statement on a transaction already running one is refused, not queued", async () => {
   await using connection = await pool().acquire();
   await connection.transaction(async (tx) => {
@@ -598,7 +599,7 @@ test("a callback that returns with its savepoint open fails, and nothing it wrot
   assert.deepEqual(await ids(), []);
 });
 
-// [spec:pgorm:req:bindings.transactions+1/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a failed statement aborts the transaction, and a savepoint recovers from one", async () => {
   await reset();
   await pool().transaction(async (tx) => {
@@ -623,7 +624,7 @@ test("a failed statement aborts the transaction, and a savepoint recovers from o
   assert.deepEqual(await ids(), [1, 2]);
 });
 
-// [spec:pgorm:req:bindings.transactions+1/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a transaction's mode and isolation level reach the server", async () => {
   const settings =
     "SELECT current_setting('transaction_isolation') AS isolation, current_setting('transaction_read_only') AS read_only, current_setting('transaction_deferrable') AS deferrable";
@@ -721,7 +722,7 @@ test("a signal bounds a pool's own statement and acquisition", async () => {
   assert.equal((await held.one("SELECT 8 AS n")).n, 8);
 });
 
-// [spec:pgorm:req:bindings.streams/test]
+// [spec:pgorm:req:bindings.streams+1/test]
 test("a stream yields its rows one per pull and returns its connection after the last", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 1000 });
   const rows = [];
@@ -736,7 +737,7 @@ test("a stream yields its rows one per pull and returns its connection after the
   assert.equal(tagged.closed, true);
 });
 
-// [spec:pgorm:req:bindings.streams/test]
+// [spec:pgorm:req:bindings.streams+1/test]
 test("leaving a stream early releases its connection", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 1000 });
   let seen = 0;
@@ -752,7 +753,7 @@ test("leaving a stream early releases its connection", async () => {
   assert.equal((await single.one("SELECT 11 AS n")).n, 11);
 });
 
-// [spec:pgorm:req:bindings.streams/test]
+// [spec:pgorm:req:bindings.streams+1/test]
 test("a connection's stream holds the connection, freeing it at the end and discarding it if left early", async () => {
   const connection = await pool().acquire();
   const stream = connection.stream("SELECT generate_series(1, 3) AS n");
@@ -770,7 +771,7 @@ test("a connection's stream holds the connection, freeing it at the end and disc
   await connection.close();
 });
 
-// [spec:pgorm:req:bindings.streams/test]
+// [spec:pgorm:req:bindings.streams+1/test]
 test("a stream holds the server back while nothing pulls", async () => {
   await using streaming = new Pool(scratch(), { maxSize: 2 });
   const marker = `held back ${process.pid}`;
@@ -788,7 +789,7 @@ test("a stream holds the server back while nothing pulls", async () => {
   await stream.close();
 });
 
-// [spec:pgorm:req:bindings.streams/test]
+// [spec:pgorm:req:bindings.streams+1/test]
 // [spec:pgorm:req:bindings.cancellation/test]
 test("closing a pool ends an idle stream and an idle transaction without waiting for them", async () => {
   const closing = new Pool(scratch(), { maxSize: 2 });

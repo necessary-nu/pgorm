@@ -2,17 +2,30 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { col, select, Table } from "@necessary/pgorm";
+import { bind, call, select, Table, tableFunction } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const next = select(col("id"))
-    .from(new Table("order"))
-    .where(col("bakery_id").eq(1))
-    .lock("update", { wait: "skipLocked" });
+  const cake = new Table("cake");
+  const wanted = tableFunction(call("unnest", bind([4, 1, 3]).cast("integer", { array: true })))
+    .withOrdinality()
+    .columns("id", "position")
+    .alias("wanted");
+  const query = select(cake.col("name"))
+    .from(wanted)
+    .join(cake, cake.col("id").eq(wanted.col("id")))
+    .orderBy(wanted.col("position").asc());
 
-  assert.equal(next.inspect().sql, `SELECT "id" FROM "order" WHERE "bakery_id" = $1 FOR UPDATE SKIP LOCKED`);
-
-  const taken = await pool.transaction((tx) => tx.query(next));
-  assert.deepEqual(taken, [{ id: 1 }]);
+  assert.equal(
+    query.inspect().sql,
+    [
+      `SELECT "cake"."name" FROM UNNEST(CAST($1::int8[] AS integer[])) WITH ORDINALITY AS "wanted"("id", "position")`,
+      `INNER JOIN "cake" ON "cake"."id" = "wanted"."id" ORDER BY "wanted"."position" ASC`,
+    ].join(" "),
+  );
+  assert.deepEqual(await pool.query(query), [
+    { name: "Vanilla Sponge" },
+    { name: "Chocolate Fudge" },
+    { name: "Carrot Cake" },
+  ]);
 }

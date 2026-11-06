@@ -2,32 +2,29 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { call, col, GroupingElement, select, Table } from "@necessary/pgorm";
+import { bind, call, col, select, Table, With } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const query = select(col("bakery_id"), col("gluten_free"), call("count", col("id")).as("cakes"))
-    .from(new Table("cake"))
-    .groupBy(GroupingElement.rollup(col("bakery_id"), col("gluten_free")))
-    .orderBy(col("bakery_id").asc(), col("gluten_free").asc());
+  const days = new Table("days");
+  const order = new Table("order");
+  const calendar = select(bind(Temporal.PlainDate.from("2026-11-01")).cast("date").as("day"))
+    .unionAll(
+      select(col("day").add(bind(1).cast("integer")))
+        .from(days)
+        .where(col("day").lt(bind(Temporal.PlainDate.from("2026-11-04")).cast("date"))),
+    );
 
-  assert.equal(
-    query.inspect().sql,
-    [
-      `SELECT "bakery_id", "gluten_free", COUNT("id") AS "cakes" FROM "cake"`,
-      `GROUP BY ROLLUP ("bakery_id", "gluten_free")`,
-      `ORDER BY "bakery_id" ASC, "gluten_free" ASC`,
-    ].join(" "),
-  );
+  const query = select(days.col("day"), call("count", order.col("id")).as("orders"))
+    .from(days)
+    .join(order, order.col("placed_at").cast("date").eq(days.col("day")), { kind: "left" })
+    .groupBy(days.col("day"))
+    .orderBy(days.col("day").asc())
+    .with(With.recursive("days", calendar, { columns: ["day"] }));
 
   const rows = await pool.query(query);
-  assert.deepEqual(rows.map((row) => [row.bakery_id, row.gluten_free, row.cakes]), [
-    [1, false, 1n],
-    [1, true, 2n],
-    [1, null, 3n],
-    [2, false, 1n],
-    [2, true, 1n],
-    [2, null, 2n],
-    [null, null, 5n],
-  ]);
+  assert.deepEqual(
+    rows.map((row) => [String(row.day), row.orders]),
+    [["2026-11-01", 0n], ["2026-11-02", 1n], ["2026-11-03", 1n], ["2026-11-04", 0n]],
+  );
 }

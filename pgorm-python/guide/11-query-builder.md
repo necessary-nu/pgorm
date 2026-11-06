@@ -279,9 +279,45 @@ more); `random`, `gen_random_uuid`, and PostgreSQL 18's `uuidv4`, `uuidv7`,
 and record-returning functions of [Table functions](#table-functions).
 `pgorm.capabilities()["expression_functions"]` lists them with the argument
 counts each takes. A name is chosen from that list, never written into the
-SQL, and another name or count raises `UnsupportedCapabilityError`. Rust's
-`Func::named`, which calls any function by name, and its full-text search
-functions are not available in Python yet.
+SQL, and another name or count raises `UnsupportedCapabilityError`. The list
+holds `grouping` ([Grouping sets](#grouping-sets)) and the full-text search
+functions too: `to_tsvector`, `to_tsquery`, `plainto_tsquery`,
+`phraseto_tsquery` and `websearch_to_tsquery` of one argument, and `ts_rank`
+and `ts_rank_cd` of a vector and a query.
+
+`func(name, *arguments)` calls any other function by name, as Rust's
+`Func::named` does. The name is an identifier, not SQL: written bare when it
+is a lowercase name PostgreSQL does not restrict, and quoted otherwise, so a
+name carrying anything else reaches the server as a function it looks up and
+fails to find, `DatabaseError` with SQLSTATE `42883`, never as syntax it
+runs. Each argument is bound unless it is an expression:
+
+```python
+import asyncio
+import os
+
+from pgorm import Pool, Table, call, col, func, select
+
+cake = Table("cake")
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        titled = select(func("initcap", col("name")).as_("title")).from_(cake).where(col("id") == 2)
+        assert titled.inspect().sql == 'SELECT initcap("name") AS "title" FROM "cake" WHERE "id" = $1'
+        assert (await pool.one(titled))["title"] == "Lemon Drizzle"
+        assert select(func("MyRank", 1)).inspect().sql == 'SELECT "MyRank"($1)'
+
+        lemony = (
+            select(col("name"))
+            .from_(cake)
+            .where(call("to_tsvector", col("name")).matches(call("websearch_to_tsquery", "lemon")))
+        )
+        assert [row["name"] for row in await pool.query(lemony)] == ["Lemon Drizzle"]
+
+
+asyncio.run(main())
+```
 
 `case_when(condition, result)` starts a searched `CASE`, `.when(condition,
 result)` adds an arm, and `.else_(result)` ends it:
@@ -361,16 +397,21 @@ A few expressions take a little more care:
   kin, the regular-expression matches, the range and array operators,
   `matches` and `path_exists`.
 - `tuple_expr(*items)` is a row of expressions, `("a", "b")`.
-- Rust's `Expr::template`, a piece of SQL with bound values for an operation
-  the builder lacks, is not available in Python yet. Python has no way to put
-  SQL text into a built statement: what the builder does not have is written
-  as a whole [raw statement](10-raw-sql.md).
+- `template(t"..")` writes a piece of SQL the builder has no method for, as
+  Rust's `Expr::template` does. It takes a t-string: its text is SQL, and
+  each interpolation goes between the pieces, an expression embedded as it
+  is and any other value bound. A `str` raises `TypeError`, so text built at
+  run time does not become a template by accident: the text is the
+  program's, as Rust's `&'static str` holds it to be, and the values are what
+  varies. A `$1` written in the text, a value inside a quoted string, and an
+  interpolation with a conversion or a format raise `ConstructionError`:
+  `template(t"char_length({col('name')}) < {limit}")`.
 
 ```python
 import asyncio
 import os
 
-from pgorm import Pool, Table, TypeName, any_, call, col, select
+from pgorm import Pool, Table, TypeName, any_, call, col, select, template
 
 cake, order_line = Table("cake"), Table("order_line")
 
@@ -393,6 +434,11 @@ async def main() -> None:
             'ORDER BY ("name" COLLATE "C") ASC'
         )
         assert [row["name"] for row in await pool.query(query)] == ["Chocolate Fudge"]
+
+        limit = 15
+        short = select(col("name")).from_(cake).where(template(t"char_length({col('name')}) < {limit}"))
+        assert short.inspect().sql == 'SELECT "name" FROM "cake" WHERE char_length("name") < $1'
+        assert len(await pool.query(short)) == 3
 
         chosen = select(col("name")).from_(cake).where(col("id") == any_([1, 3])).order_by(col("id").asc())
         assert chosen.inspect().sql == 'SELECT "name" FROM "cake" WHERE "id" = ANY($1) ORDER BY "id" ASC'
@@ -1025,9 +1071,33 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Rust's `Func::grouping`, which tells a `NULL` a set left out from one in the
-data, is not available in Python yet: `call("grouping", ..)` raises
-`UnsupportedCapabilityError`.
+`call("grouping", ..)` is Rust's `Func::grouping`: `GROUPING(..)` tells the
+`NULL` a set left out from one in the data, `1` where the row's grouping set
+leaves its argument out:
+
+```python
+import asyncio
+import os
+
+from pgorm import GroupingElement, Pool, Table, call, col, select
+
+cake = Table("cake")
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        query = (
+            select(col("bakery_id"), call("grouping", col("bakery_id")).as_("total"), call("count", col("id")).as_("cakes"))
+            .from_(cake)
+            .group_by(GroupingElement.rollup(col("bakery_id")))
+            .order_by(col("bakery_id").asc())
+        )
+        rows = await pool.query(query)
+        assert [(row["bakery_id"], row["total"], row["cakes"]) for row in rows] == [(1, 0, 3), (2, 0, 2), (None, 1, 5)]
+
+
+asyncio.run(main())
+```
 
 The list groups by every combination of its items' sets, and two
 combinations can name the same set: `ROLLUP (a, b), ROLLUP (a)` reaches `(a)`
@@ -1041,8 +1111,8 @@ read as a table. `TableFunction(call(..))` wraps the call, `columns(*names)`
 names its columns, and `with_ordinality()` adds a last column numbering the
 rows from 1; `alias(name)` finishes it as something `from_` and the joins
 take. `call` makes the calls `generate_series` (with two or three arguments)
-and `unnest` (one), and the record functions below; Rust's `Func::named`
-reaches any other, which Python cannot yet. `.and_(call)` reads a second
+and `unnest` (one), and the record functions below, and `func` any other
+set-returning function, such as `jsonb_object_keys`. `.and_(call)` reads a second
 call beside the first, `ROWS FROM (..)`, the shorter padded with `NULL`. A
 function in `FROM` may read the columns of the sources before it.
 
@@ -1289,9 +1359,40 @@ LAST`, which the builder would have to drop, so an order asking for one is
 refused.
 
 Of PostgreSQL's operators for `jsonb`, `contains` is `@>`, `path_exists`
-`@?`, `matches` `@@` and `concat` `||`. Rust also has `get_json_field`,
-`cast_json_field` and `has_json_key` for `->`, `->>` and `?`, which are not
-available in Python yet; `json_value` and `json_query` read a field instead.
+`@?`, `matches` `@@` and `concat` `||`, and the accessors and key tests are
+methods of every expression, as Rust's are: `get_json_field` (`->`) and
+`cast_json_field` (`->>`), whose key or index is bound unless it is an
+expression; `get_json_path` (`#>`) and `cast_json_path` (`#>>`), whose path is
+a list of keys bound as one `text[]`; and `has_json_key` (`?`),
+`has_any_json_keys` (`?|`) and `has_all_json_keys` (`?&`):
+
+```python
+import asyncio
+import os
+
+from pgorm import Pool, TypeName, Value, bind, select
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        incoming = bind(Value.json({"customer": "kim@example.com", "lines": [{"cake": 2, "qty": 3}]}))
+        order = incoming.cast(TypeName("jsonb"))
+        query = select(
+            order.cast_json_field("customer").as_("customer"),
+            order.get_json_path(["lines", "0", "qty"]).as_("qty"),
+            order.has_json_key("lines").as_("has_lines"),
+            order.has_all_json_keys(["customer", "notes"]).as_("has_notes"),
+        )
+        assert query.inspect().sql == (
+            'SELECT CAST($1 AS jsonb) ->> $2 AS "customer", CAST($3 AS jsonb) #> $4 AS "qty", '
+            'CAST($5 AS jsonb) ? $6 AS "has_lines", CAST($7 AS jsonb) ?& $8 AS "has_notes"'
+        )
+        row = await pool.one(query)
+        assert (row["customer"], row["qty"], row["has_lines"], row["has_notes"]) == ("kim@example.com", 3, True, False)
+
+
+asyncio.run(main())
+```
 
 ## Ranges
 

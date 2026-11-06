@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from typing import Any, Generic, TypeVar
 
 from .. import _native as native_types
+from .raw import RawQueryView
 from .versions import (
     InsertManyView,
     InsertView,
@@ -179,6 +180,9 @@ class QueryView(Generic[M]):
     async def optional(self, connection) -> M | None:
         row = await self._query.optional(connection)
         return None if row is None else self._model_class(row)
+
+    def from_raw_sql(self, statement) -> "RawQueryView[M]":
+        return RawQueryView(self._query.from_raw_sql(statement), self._model_class)
 
     def join(self, relation, *, kind=native_types.Join.Inner) -> "QueryView[M]":
         return QueryView(self._query.join(relation, kind=kind), self._model_class)

@@ -21,6 +21,9 @@ pub(super) const EXPORTS: &[(&str, super::Build)] = &[
     ("exprBind", bind),
     ("exprLiteral", literal),
     ("exprCall", call),
+    ("exprFunc", func),
+    ("exprTemplate", template),
+    ("exprJson", json),
     ("exprTuple", tuple),
     ("exprSubquery", subquery),
     ("exprQuantified", quantified),
@@ -121,6 +124,13 @@ fn function(name: &str, args: &[SimpleExpr]) -> Option<FunctionCall> {
         ("jsonb_to_record", [jsonb]) => Func::jsonb_to_record(jsonb.clone()),
         ("json_to_recordset", [json]) => Func::json_to_recordset(json.clone()),
         ("jsonb_to_recordset", [jsonb]) => Func::jsonb_to_recordset(jsonb.clone()),
+        ("to_tsvector", [text]) => Func::to_tsvector(text.clone(), None),
+        ("to_tsquery", [text]) => Func::to_tsquery(text.clone(), None),
+        ("plainto_tsquery", [text]) => Func::plainto_tsquery(text.clone(), None),
+        ("phraseto_tsquery", [text]) => Func::phraseto_tsquery(text.clone(), None),
+        ("websearch_to_tsquery", [text]) => Func::websearch_to_tsquery(text.clone(), None),
+        ("ts_rank", [vector, query]) => Func::ts_rank(vector.clone(), query.clone()),
+        ("ts_rank_cd", [vector, query]) => Func::ts_rank_cd(vector.clone(), query.clone()),
         _ => return None,
     })
 }
@@ -133,6 +143,14 @@ fn call(cx: &mut FunctionContext) -> NeonResult<Node> {
     let value = arg(cx, 0);
     let name = crate::values::read::text(cx, value, "a function's name")?;
     let args = operands_at(cx, 1)?;
+    if let ("grouping", [first, rest @ ..]) = (name.as_str(), args.as_slice()) {
+        let grouping = rest
+            .iter()
+            .fold(Func::grouping(first.clone()), |grouping, arg| {
+                grouping.arg(arg.clone())
+            });
+        return Ok(Node::Expr(grouping.into()));
+    }
     match function(&name, &args) {
         Some(call) => Ok(Node::Expr(call.into())),
         None => refuse(
@@ -142,11 +160,83 @@ fn call(cx: &mut FunctionContext) -> NeonResult<Node> {
                  char_length, count, count_distinct, sum, avg, min, max, round, coalesce, random, \
                  gen_random_uuid, uuidv4, uuidv7, uuid_extract_timestamp, \
                  uuid_extract_version, generate_series, unnest, json_to_record, \
-                 jsonb_to_record, json_to_recordset and jsonb_to_recordset",
+                 jsonb_to_record, json_to_recordset, jsonb_to_recordset, grouping, \
+                 to_tsvector, to_tsquery, plainto_tsquery, phraseto_tsquery, \
+                 websearch_to_tsquery, ts_rank and ts_rank_cd; func() calls any other by name",
                 args.len()
             ),
         ),
     }
+}
+
+/// `exprFunc(name, args)`: a call of the function `name`, any the server
+/// has, through Rust's `Func::named`. The name is an identifier, written bare
+/// when it is a lowercase name PostgreSQL does not restrict and quoted
+/// otherwise, so it names a function and is never read as syntax.
+// [spec:pgorm:req:bindings.named-functions]
+fn func(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let name = name_at(cx, 0)?;
+    let args = operands_at(cx, 1)?;
+    Ok(Node::Expr(Func::named(name).args(args).into()))
+}
+
+/// `exprTemplate(strings, values)`: a tagged template's pieces, its SQL,
+/// with each interpolated value between them, an expression embedded and any
+/// other value bound, through pgorm-query's `SqlTemplate::from_pieces`.
+// [spec:pgorm:req:bindings.template]
+fn template(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let pieces = list(cx, 0)?
+        .into_iter()
+        .map(|piece| crate::values::read::text(cx, piece, "a template's text"))
+        .collect::<NeonResult<Vec<_>>>()?;
+    let values = operands_at(cx, 1)?;
+    match pgorm::pgorm_query::SqlTemplate::from_pieces(&pieces, values) {
+        Ok(template) => Ok(Node::Expr(SimpleExpr::Template(template))),
+        Err(error) => refuse(cx, error.to_string()),
+    }
+}
+
+/// `exprJson(expr, operator, argument)`: a `jsonb` accessor or key test
+/// through pgorm-query's method of that meaning: `->` and `->>` take a key
+/// or an index, bound unless it is an expression; `#>` and `#>>` a path of
+/// keys and `?|` and `?&` keys, each bound as one `text[]`; and `?` one key.
+// [spec:pgorm:req:bindings.json-operators]
+fn json(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let expr = Expr::expr(receiver(cx, 0)?);
+    let operator = choice(
+        cx,
+        1,
+        "a JSON operator",
+        &[
+            "getJsonField",
+            "castJsonField",
+            "getJsonPath",
+            "castJsonPath",
+            "hasJsonKey",
+            "hasAnyJsonKeys",
+            "hasAllJsonKeys",
+        ],
+    )?;
+    let keys = |cx: &mut FunctionContext, what: &str| -> NeonResult<Vec<String>> {
+        let values = arg(cx, 2);
+        let items = args::items(cx, values)?;
+        items
+            .into_iter()
+            .map(|item| crate::values::read::text(cx, item, what))
+            .collect()
+    };
+    Ok(Node::Expr(match operator {
+        "getJsonField" => expr.get_json_field(operand_at(cx, 2)?),
+        "castJsonField" => expr.cast_json_field(operand_at(cx, 2)?),
+        "getJsonPath" => expr.get_json_path(keys(cx, "a JSON path's key")?),
+        "castJsonPath" => expr.cast_json_path(keys(cx, "a JSON path's key")?),
+        "hasJsonKey" => {
+            let key = arg(cx, 2);
+            expr.has_json_key(crate::values::read::text(cx, key, "a JSON key")?)
+        }
+        "hasAnyJsonKeys" => expr.has_any_json_keys(keys(cx, "a JSON key")?),
+        _ => expr.has_all_json_keys(keys(cx, "a JSON key")?),
+    }))
 }
 
 /// `exprTuple(items)`: `(a, b, ..)`, never empty.

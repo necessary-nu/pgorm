@@ -52,7 +52,7 @@ pub(crate) fn row_object(py: Python<'_>, row: Row) -> PyResult<Py<PyAny>> {
 
 /// The decode a registered read's stream runs on each row, handed to a
 /// connection's `stream` beside the read's statement.
-// [spec:pgorm:req:bindings.streams]
+// [spec:pgorm:req:bindings.streams+1]
 #[pyclass(name = "_RowDecoder", module = "pgorm._native", frozen)]
 pub(crate) struct NativeRowDecoder {
     pub(crate) decode: Decode,

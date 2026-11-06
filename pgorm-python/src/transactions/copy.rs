@@ -19,15 +19,22 @@ use pyo3::prelude::*;
 use std::sync::Arc;
 use tokio::sync::{OwnedMutexGuard, mpsc, oneshot};
 
-/// A transaction reserved by a COPY in progress. Dropped without
-/// `complete`, the COPY's outcome is unknown, and the whole transaction is
-/// discarded.
+/// A transaction reserved by a COPY or a stream in progress. Dropped without
+/// `complete`, what it ran is in an unknown state, and the whole transaction
+/// is discarded.
 pub(crate) struct Lease {
     _busy: OwnedMutexGuard<()>,
     pending: Pending,
 }
 
 impl Lease {
+    pub(super) fn new(busy: OwnedMutexGuard<()>, pending: Pending) -> Self {
+        Self {
+            _busy: busy,
+            pending,
+        }
+    }
+
     pub(crate) fn complete(mut self) {
         self.pending.complete();
     }
@@ -54,10 +61,7 @@ impl State {
             .await
             .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
         match result {
-            Ok(()) => Ok(Lease {
-                _busy: busy,
-                pending,
-            }),
+            Ok(()) => Ok(Lease::new(busy, pending)),
             Err(unopened) => {
                 // A refused COPY FROM has closed the connection under the
                 // transaction, so `pending` is left to abort it; a refused
@@ -81,18 +85,9 @@ impl State {
         self: &Arc<Self>,
         statement: Described,
     ) -> PyResult<Vec<pgorm::CopyColumn>> {
-        self.ensure_open()?;
-        let _busy = self.busy.clone().try_lock_owned().map_err(|_| {
-            LifecycleError::new_err("transaction has an active operation or nested savepoint")
-        })?;
-        let (reply, answer) = oneshot::channel();
-        let mut pending = Pending::new(self.root.aborted.clone());
-        self.commands
-            .send(Command::Describe { statement, reply })
-            .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
-        let described = answer
-            .await
-            .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
+        let (described, _busy, mut pending) = self
+            .exchange(|reply| Command::Describe { statement, reply })
+            .await?;
         pending.complete();
         described.map_err(|error| database_error(error, &self.connection.pool.secrets))
     }

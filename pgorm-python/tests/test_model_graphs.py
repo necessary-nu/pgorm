@@ -304,7 +304,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             paginator.inspect(-1)
 
-    # [spec:pgorm:req:bindings.model-reads/test]
+    # [spec:pgorm:req:bindings.model-reads+1/test]
     async def test_query_joins_relation_without_reading_it(self):
         titles = await Post.find().join(author).where(Account.col("name").eq("Bob")).all(self.pool)
         self.assertEqual([post["title"] for post in titles], ["b1"])
@@ -325,8 +325,8 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         async with await Account.find().order_by(by_account).stream(self.pool) as rows:
             self.assertEqual([row["name"] async for row in rows], ["Ann", "Bob", "Cy"])
         async with self.pool.transaction() as transaction:
-            with self.assertRaises(TypeError):
-                await Account.find().stream(transaction)
+            async with await Account.find().order_by(by_account).stream(transaction) as rows:
+                self.assertEqual([row["name"] async for row in rows], ["Ann", "Bob", "Cy"])
 
     # [spec:pgorm:req:bindings.model-writes+3/test]
     # [spec:pgorm:req:python.records+1/test]    a model's writes answer pgorm's own Change and Upserted
