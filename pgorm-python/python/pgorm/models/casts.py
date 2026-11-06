@@ -52,6 +52,38 @@ def saved(column: Column, value: p.Value) -> p.Value | p.Expr:
     return value
 
 
+# [spec:pgorm:req:bindings.model-array-casts]
+def compared_array(column: Column, array: p.Value) -> p.Value | p.Expr:
+    """``array``, a list's values bound as one array of the column's kind, as
+    ``= ANY`` and ``<> ALL`` compare ``column`` with it: through
+    ``save_array_with``, cast as the column's type or ``save_as`` says
+    (pgorm's ``TableColumn::compared_array``), and as it is otherwise."""
+    if column.save_array_with is not None:
+        written = column.save_array_with(p.bind(array))
+        if not isinstance(written, p.Expr):
+            raise TypeError("a column's save_array_with returns an expression")
+        return written
+    if column._casts is not None and (column.save_as, column.column_type) != (None, None):
+        return column._casts.compared_array(array)
+    return array
+
+
+# [spec:pgorm:req:bindings.pipeline-models+1]
+def read_as(column: Column) -> tuple[p.TypeName | p._ModelColumnCasts | None, bool]:
+    """What a pipeline reads ``column`` as, and whether that is an array of
+    it: the casts pgorm's ``TableColumn`` reads its type or ``select_as``
+    through, its text where it is read from its text, and nothing — the
+    column as it stands — otherwise, ``select_with`` among them, a function
+    no pipeline lowers."""
+    if column.select_with is not None:
+        return None, False
+    if column._casts is not None and (column.select_as, column.column_type) != (None, None):
+        return column._casts, False
+    if column._read_as_text:
+        return p.TypeName("text"), column.array
+    return None, False
+
+
 def compared_column(column: Column, expr: p.Expr) -> p.Expr | None:
     """``expr``, a read of ``column``, as a comparison takes it where its type
     says otherwise: cast to the enum a domain over one compares as; ``None``

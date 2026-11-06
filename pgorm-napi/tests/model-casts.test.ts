@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
 import {
+  all,
+  any,
   call,
   column,
   ConstructionError,
@@ -16,6 +18,7 @@ import {
   type Expr,
   fromModel,
   model,
+  pipeline as pl,
   Pool,
   TypeName,
 } from "../lib/index.js";
@@ -139,6 +142,91 @@ test("what the casts cannot say is refused", () => {
   assert.throws(() => column("text", { selectWith: "upper" }), mistyped(/selectWith is a function/));
   // @ts-expect-error: no interval has fortnight fields
   assert.throws(() => new DataType("interval", { fields: "fortnight" }), mistyped(/fields are/));
+});
+
+// [spec:pgorm:req:bindings.model-array-casts/test]    a list any() and all() range over is written as the column writes its array
+test("a quantified list takes the column's array cast", () => {
+  assert.match(
+    TipJar.find().where(TipJar.col("amount").eq(any([new Decimal("1"), new Decimal("2")]))).inspect().sql,
+    /WHERE "tip_jar"\."amount" = ANY\(CAST\(\$1::numeric\[\] AS money\[\]\)\)$/,
+  );
+  assert.match(
+    Special.find().where(Special.col("flavor").ne(all(["plain"]))).inspect().sql,
+    /WHERE CAST\("special"\."flavor" AS model_types\.flavor\) <> ALL\(CAST\(\$1::text\[\] AS model_types\.flavor\[\]\)\)$/,
+  );
+  const Coded = model("coded", { columns: { code: column("text", { saveAs: "varchar" }) } });
+  assert.match(
+    Coded.find().where(Coded.col("code").eq(any(["a"]))).inspect().sql,
+    /WHERE "coded"\."code" = ANY\(CAST\(\$1::text\[\] AS varchar\[\]\)\)$/,
+  );
+  const Upper = model("upper", {
+    columns: {
+      code: column("text", {
+        saveWith: (value: Expr) => call("upper", value),
+        saveArrayWith: (array: Expr) => array.cast(new TypeName("citext"), { array: true }),
+      }),
+    },
+  });
+  assert.match(
+    Upper.find().where(Upper.col("code").eq(any(["a"]))).inspect().sql,
+    /WHERE "upper"\."code" = ANY\(CAST\(\$1::text\[\] AS citext\[\]\)\)$/,
+  );
+  const Plain = model("plain", { columns: { code: column("text") } });
+  assert.match(Plain.find().where(Plain.col("code").eq(any(["a"]))).inspect().sql, /= ANY\(\$1\)$/);
+  const refusals = [
+    () => column("text", { saveWith: (value: Expr) => value }),
+    () => column("text", { saveArrayWith: (array: Expr) => array }),
+    () => column("text", { saveAs: "varchar", saveArrayWith: (array: Expr) => array }),
+  ];
+  for (const [index, refusal] of refusals.entries()) {
+    assert.throws(refusal, (error: unknown) => error instanceof ConstructionError, `refusal ${index}`);
+  }
+  // @ts-expect-error: saveArrayWith is a function of the bound array
+  assert.throws(() => column("text", { saveWith: (v: Expr) => v, saveArrayWith: "upper" }), mistyped(/saveArrayWith is a function/));
+  const noExpression = (() => "upper") as unknown as (array: Expr) => Expr;
+  const Bad = model("bad", { columns: { code: column("text", { saveWith: (v: Expr) => v, saveArrayWith: noExpression }) } });
+  assert.throws(() => Bad.col("code").eq(any(["a"])), mistyped(/saveArrayWith returns an expression/));
+});
+
+// [spec:pgorm:req:bindings.pipeline-models+1/test]    a cast column compares in a pipeline as the model's own comparisons do, and its typed reads read it cast
+test("a pipeline compares and reads a model's cast columns through their casts", () => {
+  const compared = pl.from(TipJar).filter(pl.col(TipJar, "amount").gt(new Decimal("10")));
+  assert.equal(compared.inspect().sql, "SELECT * FROM model_types.tip_jar WHERE amount > CAST($1::numeric AS money)");
+  assert.equal(
+    compared.intoModel(TipJar).inspect().sql,
+    "SELECT id, CAST(amount AS numeric) AS amount FROM model_types.tip_jar WHERE amount > CAST($1::numeric AS money)",
+  );
+  assert.equal(
+    pl.from(Special).filter(pl.col(Special, "flavor").eq("lemon")).selectSources(Special).inspect().sql,
+    "SELECT id AS s0_id, CAST(flavor AS text) AS s0_flavor FROM model_types.special " +
+      "WHERE CAST(flavor AS model_types.flavor) = CAST($1::text AS model_types.flavor)",
+  );
+  assert.equal(
+    pl.from(Opening).intoModel(Opening).inspect().sql,
+    "SELECT bakery_id, CAST(days AS bigint) AS days FROM model_types.opening",
+  );
+  assert.equal(pl.from(Shelving).intoModel(Shelving).inspect().sql, "SELECT * FROM model_types.shelving");
+});
+
+// [spec:pgorm:req:bindings.model-array-casts/test]    a list compared with a money or domain-over-enum column runs
+// [spec:pgorm:req:bindings.pipeline-models+1/test]    a pipeline over cast columns compares and reads them as the model does
+test("cast columns run in quantified lists and pipelines", async () => {
+  const db = pool();
+  await TipJar.insertMany([{ amount: new Decimal("3") }, { amount: new Decimal("4.5") }]).execute(db);
+  await Special.insertMany([{ flavor: "lemon" }, { flavor: "plain" }]).execute(db);
+  const listed = await TipJar.find().where(TipJar.col("amount").eq(any([new Decimal("3"), new Decimal("7")]))).all(db);
+  assert.deepEqual(listed.map((row) => row.amount.toString()), ["3.00"]);
+  const lemons = await Special.find().where(Special.col("flavor").eq(any(["lemon"]))).all(db);
+  assert.deepEqual(lemons.map((row) => row.flavor), ["lemon"]);
+  const exact = pl.from(TipJar).filter(pl.col(TipJar, "amount").eq(new Decimal("4.5")));
+  assert.deepEqual((await exact.intoModel(TipJar).all(db)).map((row) => row.amount.toString()), ["4.50"]);
+  const [[tip]] = await exact.selectSources(TipJar).all(db);
+  assert.equal(tip?.amount.toString(), "4.50");
+  const lemon = pl.from(Special).filter(pl.col(Special, "flavor").eq("lemon"));
+  assert.deepEqual((await lemon.intoModel(Special).all(db)).map((row) => row.flavor), ["lemon"]);
+  // The pipeline's own terminals read the columns as the server sends them.
+  await assert.rejects(pl.from(TipJar).all(db), DecodeError);
+  await Special.delete().allRows().execute(db);
 });
 
 // [spec:pgorm:req:bindings.model-casts/test]    the casts run against the server

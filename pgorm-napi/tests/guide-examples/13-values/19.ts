@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { column, DataType, fromModel, model } from "@necessary/pgorm";
+import { any, column, DataType, fromModel, model } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
@@ -26,4 +26,8 @@ export default async function example({ pool }: GuideContext): Promise<void> {
     `SELECT "opening"."bakery_id", CAST("opening"."days" AS bigint) AS "days" FROM "opening" WHERE "opening"."days" = CAST($1::int8 AS bit(7))`,
   );
   assert.deepEqual(await everyDay.all(pool), []);
+
+  const someDays = Opening.find().where(Opening.col("days").eq(any([0b111_1110n, 0b000_0011n])));
+  assert.match(someDays.inspect().sql, /WHERE "opening"\."days" = ANY\(CAST\(\$1::int8\[\] AS bit\(7\)\[\]\)\)$/);
+  assert.deepEqual((await someDays.all(pool)).map((row) => row.bakeryId), [1]);
 }
