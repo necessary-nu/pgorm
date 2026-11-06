@@ -30,11 +30,15 @@ install(native);
 installConnections(native);
 
 export { connect, Connection, Pool, Queryable, Transaction } from "./connections.js";
+export { HookConnection } from "./hooks.js";
+export { MultiPool } from "./multi-pool.js";
 export { RowStream } from "./streams.js";
-export { Listener } from "./listen.js";
+export { connectListener, Listener } from "./listen.js";
 export { InstrumentedPool, LoggingMetrics, NoOpMetrics, QueryContext, QueryFingerprint } from "./metrics.js";
 export { CopyFrom, copyFrom, CopyOutStream, CopyTo, copyTo } from "./copy.js";
+export { CopyColumn, CopyRowDecoder, CopyRowEncoder } from "./copy-columns.js";
 export { CopyRowStream } from "./copy-rows.js";
+export { CopyRowSink } from "./copy-sink.js";
 export { CaseOperand, caseOf, caseWhen, Condition, SearchedCase, SimpleCase } from "./conditions.js";
 export {
   Aliased,
@@ -218,3 +222,6 @@ export const version = native.version;
 
 /** @type {string} */
 export const STATEMENT_CACHE_CHANNEL = native.statementCacheChannel;
+
+/** @type {18 | 19} */
+export const POSTGRES_TARGET = native.postgresTarget;

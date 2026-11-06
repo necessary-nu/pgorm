@@ -10,7 +10,7 @@ use futures_util::FutureExt;
 use futures_util::future::BoxFuture;
 use neon::prelude::*;
 use pgorm::{
-    CopyColumn, DescribedColumn, Error, VerifyStatement,
+    CopyColumn, DescribedColumn, Error,
     pgorm_query::{Value, Values},
     sql_check,
 };
@@ -240,17 +240,9 @@ fn describe_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let job: Job = Box::new(
         move |db: Database<'_>, secrets| -> BoxFuture<'_, Result<Output, Failure>> {
             async move {
-                let columns = match db {
-                    Database::Connection(connection) => connection.describe(&sql).await,
-                    Database::Transaction(transaction) => transaction.describe(&sql).await,
-                    Database::InstrumentedConnection(connection) => {
-                        connection.inner().describe(&sql).await
-                    }
-                    Database::InstrumentedTransaction(transaction) => {
-                        transaction.inner().describe(&sql).await
-                    }
-                }
-                .map_err(|error| failure(&error, secrets))?;
+                let columns = pgorm_bindings::describe(db, &sql)
+                    .await
+                    .map_err(|error| failure(&error, secrets))?;
                 let described = columns
                     .iter()
                     .map(|column| {

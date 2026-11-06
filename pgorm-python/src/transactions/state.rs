@@ -8,7 +8,7 @@ use crate::{
 };
 use pyo3::prelude::*;
 use std::sync::{Arc, Weak};
-use tokio::sync::{Mutex, mpsc, oneshot};
+use tokio::sync::{Mutex, OwnedMutexGuard, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
 pub(super) struct Root {
@@ -113,28 +113,41 @@ impl State {
         commit: bool,
         retryable: bool,
     ) -> PyResult<Output> {
+        let (result, _busy, mut pending) = self
+            .exchange(|reply| match work {
+                Some(work) => Command::Run { work, reply },
+                None => Command::Finish {
+                    commit,
+                    retryable,
+                    reply,
+                },
+            })
+            .await?;
+        pending.complete();
+        result.map_err(|failure| failure.raised(&self.connection.pool.secrets))
+    }
+
+    /// Reserve the transaction, send its owner the command `command` makes
+    /// of the reply it is given, and wait for that reply, which comes with
+    /// the reservation held and the request still pending: until the caller
+    /// completes it, the transaction is discarded if the caller is dropped.
+    pub(super) async fn exchange<T>(
+        self: &Arc<Self>,
+        command: impl FnOnce(oneshot::Sender<T>) -> Command,
+    ) -> PyResult<(T, OwnedMutexGuard<()>, Pending)> {
         self.ensure_open()?;
-        let _lock = self.busy.clone().try_lock_owned().map_err(|_| {
+        let busy = self.busy.clone().try_lock_owned().map_err(|_| {
             LifecycleError::new_err("transaction has an active operation or nested savepoint")
         })?;
         let (reply, receive) = oneshot::channel();
-        let command = match work {
-            Some(work) => Command::Run { work, reply },
-            None => Command::Finish {
-                commit,
-                retryable,
-                reply,
-            },
-        };
-        let mut guard = Pending::new(self.root.aborted.clone());
+        let pending = Pending::new(self.root.aborted.clone());
         self.commands
-            .send(command)
+            .send(command(reply))
             .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
         let result = receive
             .await
             .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
-        guard.complete();
-        result.map_err(|failure| failure.raised(&self.connection.pool.secrets))
+        Ok((result, busy, pending))
     }
 
     pub(super) async fn begin(self: &Arc<Self>) -> PyResult<Arc<Self>> {

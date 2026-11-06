@@ -7,11 +7,12 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, TypeVar
 
 from . import _native
-from .copy import CopyOutStream, CopyRows, CopyRowStream, CopySource, copy_in, copy_in_rows
+from .copy import CopyOutStream, CopyRowStream, CopySource, copy_in
+from .copy_rows import RowCopies
+from .raw_methods import RawStatements
 from .results import Query, Record, RowStream
 
 if TYPE_CHECKING:
-    from .models.model import Model
     from .runtime import Connection
 
 T = TypeVar("T")
@@ -127,7 +128,7 @@ async def _attempt_rolled_back(
 
 
 # [spec:pgorm:req:python.transactions+3]
-class Transaction:
+class Transaction(RowCopies, RawStatements):
     """One native transaction or savepoint, open for the ``async with`` block
     that opened it and reserving its parent until that block exits.
 
@@ -175,18 +176,6 @@ class Transaction:
         its connection; so does the block ending while it is open."""
         return RowStream(await self._native.stream(query), None, release_connection=False)
 
-    async def batch_execute(self, script: str) -> None:
-        """Run ``script``, statements separated by ``;`` with no parameters,
-        unprepared through the simple-query protocol."""
-        await _native._batch_execute(self._native, script)
-
-    async def verify(self, statement: _native.RawSQL, model: Model) -> None:
-        """Check ``model`` against what ``statement`` returns, without running
-        it; see ``Connection.verify``."""
-        from .raw import verify
-
-        await verify(self, statement, model)
-
     async def copy_in(self, statement: _native.CopyFrom[Any], source: CopySource) -> int:
         """Run a COPY FROM inside this transaction; see ``Connection.copy_in``.
 
@@ -199,11 +188,8 @@ class Transaction:
         """Open a COPY TO; closing it before its end discards the transaction."""
         return CopyOutStream(await _native._copy_out(self._native, statement), None)
 
-    async def copy_in_rows(
-        self, statement: _native.CopyFrom[Literal["binary"]], rows: CopyRows
-    ) -> int:
-        """Run a binary COPY FROM of rows inside this transaction; see ``Connection.copy_in_rows``."""
-        return await copy_in_rows(self._native, statement, rows)
+    async def _copy_holder(self) -> tuple[_native._Transaction, None]:
+        return self._native, None
 
     async def copy_out_rows(self, statement: _native.CopyTo[Literal["binary"]]) -> CopyRowStream:
         """Open a binary COPY TO of rows; closing it before its end discards the transaction."""

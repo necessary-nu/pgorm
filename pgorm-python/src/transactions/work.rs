@@ -100,7 +100,9 @@ impl Work {
                 .await
                 .map(|()| Output::Finished),
             Self::Batch(script) => db.batch_execute(&script).await.map(|()| Output::Finished),
-            Self::Describe(sql) => crate::raw::described(db, &sql).await.map(Output::Described),
+            Self::Describe(sql) => pgorm_bindings::describe(db, &sql)
+                .await
+                .map(Output::Described),
         }
     }
 }

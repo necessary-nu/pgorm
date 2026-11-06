@@ -14,8 +14,8 @@ use std::{fmt, future::Future, sync::Arc, time::Duration};
 use futures_util::future::BoxFuture;
 use neon::{prelude::*, types::Finalize};
 use pgorm::{
-    DatabaseTransaction, IsolationLevel, TransactionError, TransactionMode, TransactionTrait,
-    metric::InstrumentedTransaction,
+    CopyColumn, DatabaseTransaction, IsolationLevel, TransactionError, TransactionMode,
+    TransactionTrait, metric::InstrumentedTransaction,
 };
 use tokio::sync::{Mutex, OwnedMutexGuard, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
@@ -31,7 +31,7 @@ use super::{
 use crate::{
     errors::{Failure, Redactions, failure},
     settle,
-    statements::{CopyFrom, CopyTo},
+    statements::{CopyFrom, CopyStatement, CopyTo, copy_at},
 };
 
 pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
@@ -45,13 +45,15 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("transactionJob", transaction_job)?;
     cx.export_function("transactionCopyIn", transaction_copy_in)?;
     cx.export_function("transactionCopyOut", transaction_copy_out)?;
-    cx.export_function("transactionStream", transaction_stream)?;
+    cx.export_function("transactionCopyColumns", transaction_copy_columns)?;
+    cx.export_function("transactionStream", stream::transaction_stream)?;
     cx.export_function("transactionFinishAttempt", transaction_finish_attempt)?;
     retry::export(cx)?;
     Ok(())
 }
 
 mod retry;
+mod stream;
 
 type Finish = oneshot::Sender<Result<(), Failure>>;
 
@@ -68,6 +70,11 @@ enum Command {
     Job {
         job: Job,
         reply: oneshot::Sender<Result<Output, Failure>>,
+    },
+    /// A COPY's columns, described without starting it.
+    Describe {
+        copy: Box<CopyStatement>,
+        reply: oneshot::Sender<Result<Vec<CopyColumn>, Failure>>,
     },
     Finish {
         commit: bool,
@@ -297,16 +304,31 @@ impl State {
             .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))
     }
 
-    /// Run a statement, holding the lock taken as JavaScript started it.
-    async fn run(
+    /// Send the request `command` makes of the reply it is given, and wait
+    /// for that reply, holding the lock taken as JavaScript started it: a
+    /// statement, a registered entity's job, or a COPY's description.
+    async fn request<T>(
         &self,
         _lock: OwnedMutexGuard<()>,
-        statement: Statement,
+        command: impl FnOnce(oneshot::Sender<Result<T, Failure>>) -> Command,
         abort: &Abort,
-    ) -> Result<Outcome, Failure> {
+    ) -> Result<T, Failure> {
+        let (outcome, mut pending) = self.exchange(command, abort).await?;
+        pending.complete();
+        outcome
+    }
+
+    /// Send the request `command` makes and wait for its reply, which comes
+    /// with the request still pending: until the caller completes it, the
+    /// transaction is discarded if the caller is dropped, its state unknown.
+    async fn exchange<T>(
+        &self,
+        command: impl FnOnce(oneshot::Sender<Result<T, Failure>>) -> Command,
+        abort: &Abort,
+    ) -> Result<(Result<T, Failure>, Pending), Failure> {
         let (reply, receive) = oneshot::channel();
-        let mut pending = Pending::new(self.root.aborted.clone());
-        self.send(Command::Run { statement, reply })?;
+        let pending = Pending::new(self.root.aborted.clone());
+        self.send(command(reply))?;
         let outcome = abort
             .guard(async {
                 receive
@@ -314,47 +336,12 @@ impl State {
                     .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))
             })
             .await?;
-        pending.complete();
-        outcome
+        Ok((outcome, pending))
     }
 
-    /// Run a registered entity's job, holding the lock taken as JavaScript
-    /// started it, as a statement holds it.
-    async fn run_job(
-        &self,
-        _lock: OwnedMutexGuard<()>,
-        job: Job,
-        abort: &Abort,
-    ) -> Result<Output, Failure> {
-        let (reply, receive) = oneshot::channel();
-        let mut pending = Pending::new(self.root.aborted.clone());
-        self.send(Command::Job { job, reply })?;
-        let outcome = abort
-            .guard(async {
-                receive
-                    .await
-                    .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))
-            })
-            .await?;
-        pending.complete();
-        outcome
-    }
-
-    async fn finish(&self, _lock: OwnedMutexGuard<()>, commit: bool) -> Result<(), Failure> {
-        let (reply, receive) = oneshot::channel();
-        let mut pending = Pending::new(self.root.aborted.clone());
-        self.send(Command::Finish {
-            commit,
-            retryable: false,
-            reply,
-        })?;
-        let outcome = receive
-            .await
-            .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))?;
-        pending.complete();
-        outcome?;
-        self.released.cancelled().await;
-        Ok(())
+    /// Commit or roll back the frame, once its end has released it.
+    async fn finish(&self, lock: OwnedMutexGuard<()>, commit: bool) -> Result<(), Failure> {
+        self.finish_attempt(lock, commit, false).await.map(|_| ())
     }
 
     /// End one attempt of a retrying transaction: whether pgorm opened the
@@ -382,68 +369,6 @@ impl State {
             self.released.cancelled().await;
         }
         Ok(again)
-    }
-
-    /// Open a statement's rows in this frame, the stream holding the lock
-    /// taken as JavaScript opened it until its last row. A statement the
-    /// server refuses leaves the transaction as any failed statement does.
-    // [spec:pgorm:req:bindings.streams+1]
-    async fn stream(
-        &self,
-        lock: OwnedMutexGuard<()>,
-        sql: String,
-        params: Vec<crate::params::Param>,
-        abort: &Abort,
-    ) -> Result<(Lease, tokio_postgres::RowStream), Failure> {
-        let (opened, receive) = oneshot::channel();
-        let mut pending = Pending::new(self.root.aborted.clone());
-        self.send(Command::Stream {
-            sql,
-            params,
-            opened,
-        })?;
-        let opened = abort
-            .guard(async {
-                receive
-                    .await
-                    .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))
-            })
-            .await?;
-        match opened {
-            Ok(rows) => Ok((
-                Lease {
-                    _lock: lock,
-                    pending,
-                },
-                rows,
-            )),
-            Err(failure) => {
-                pending.complete();
-                Err(failure)
-            }
-        }
-    }
-
-    /// A token that fires once this frame has ended, by any route.
-    fn ended(&self) -> CancellationToken {
-        let ended = CancellationToken::new();
-        let fire = ended.clone();
-        let (aborted, finished, abandoned, own) = (
-            self.root.aborted.clone(),
-            self.root.finished.clone(),
-            self.abandoned.clone(),
-            self.finished.clone(),
-        );
-        tokio::spawn(async move {
-            tokio::select! {
-                () = aborted.cancelled() => {}
-                () = finished.cancelled() => {}
-                () = abandoned.cancelled() => {}
-                () = own.cancelled() => {}
-            }
-            fire.cancel();
-        });
-        ended
     }
 
     /// What ends a COPY in this frame from outside it.
@@ -565,6 +490,18 @@ impl Tx<'_, '_> {
             Self::Metered(tx) => Database::InstrumentedTransaction(tx),
         }
     }
+
+    /// A COPY's columns, described in this transaction.
+    async fn described(
+        &mut self,
+        copy: &CopyStatement,
+        secrets: &Redactions,
+    ) -> Result<Vec<CopyColumn>, Failure> {
+        match self {
+            Self::Plain(tx) => copy::described(&mut **tx, copy, secrets).await,
+            Self::Metered(tx) => copy::described(&mut **tx, copy, secrets).await,
+        }
+    }
 }
 
 /// One frame: its commands, and what outlives the closure serving them.
@@ -635,20 +572,20 @@ impl Frame {
                 match command {
                     Command::Run { statement, reply } => {
                         let db = tx.database();
-                        let outcome = tokio::select! {
-                            () = self.state.abandoned.cancelled() => return self.halt.discard().await,
-                            outcome = statement.run(&db, &self.secrets) => outcome,
-                        };
-                        if reply.send(outcome).is_err() {
+                        let run = statement.run(&db, &self.secrets);
+                        if !self.answer(run, reply).await {
                             return self.halt.discard().await;
                         }
                     }
                     Command::Job { job, reply } => {
-                        let outcome = tokio::select! {
-                            () = self.state.abandoned.cancelled() => return self.halt.discard().await,
-                            outcome = job(tx.database(), &self.secrets) => outcome,
-                        };
-                        if reply.send(outcome).is_err() {
+                        let run = job(tx.database(), &self.secrets);
+                        if !self.answer(run, reply).await {
+                            return self.halt.discard().await;
+                        }
+                    }
+                    Command::Describe { copy, reply } => {
+                        let described = tx.described(&copy, &self.secrets);
+                        if !self.answer(described, reply).await {
                             return self.halt.discard().await;
                         }
                     }
@@ -672,14 +609,18 @@ impl Frame {
                         opened,
                     } => {
                         let db = tx.database();
-                        let rows = tokio::select! {
-                            () = self.state.abandoned.cancelled() => return self.halt.discard().await,
-                            rows = pgorm::ConnectionTrait::query_raw(&db,
+                        let rows = async {
+                            pgorm::ConnectionTrait::query_raw(
+                                &db,
                                 &sql,
-                                params.iter().map(|param| param as &(dyn tokio_postgres::types::ToSql + Sync)),
-                            ) => rows.map_err(|error| failure(&error, &self.secrets)),
+                                params.iter().map(|param| {
+                                    param as &(dyn tokio_postgres::types::ToSql + Sync)
+                                }),
+                            )
+                            .await
+                            .map_err(|error| failure(&error, &self.secrets))
                         };
-                        if opened.send(rows).is_err() {
+                        if !self.answer(rows, opened).await {
                             return self.halt.discard().await;
                         }
                     }
@@ -772,6 +713,17 @@ impl Frame {
                 }
             }
         })
+    }
+
+    /// Run a request and send its outcome on `reply`: `false` when the frame
+    /// is to be given up, its handle collected while the request ran or its
+    /// caller gone, the request's effect on the transaction then unknown.
+    async fn answer<T>(&self, request: impl Future<Output = T>, reply: oneshot::Sender<T>) -> bool {
+        let outcome = tokio::select! {
+            () = self.state.abandoned.cancelled() => return false,
+            outcome = request => outcome,
+        };
+        reply.send(outcome).is_ok()
     }
 
     /// What the frame's transaction ended in: `None` is a future [`Halt`]
@@ -997,7 +949,10 @@ fn transaction_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
         Ok(lock) => lock,
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
-    let work = async move { state.run(lock, statement, &abort).await };
+    let work = async move {
+        let run = |reply| Command::Run { statement, reply };
+        state.request(lock, run, &abort).await
+    };
     settle::promise(&mut cx, work, move |cx, outcome| {
         outcome.into_js(cx, tagged)
     })
@@ -1077,8 +1032,30 @@ fn transaction_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
         Ok(lock) => lock,
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
-    let work = async move { state.run_job(lock, job, &abort).await };
+    let work = async move {
+        let run = |reply| Command::Job { job, reply };
+        state.request(lock, run, &abort).await
+    };
     settle::promise(&mut cx, work, |cx, output| output.into_js(cx))
+}
+
+/// `transactionCopyColumns(transaction, copy, abort)`: a COPY's columns,
+/// described in the transaction, holding its lock as a statement does; a
+/// refused description fails the transaction as a refused statement does.
+// [spec:pgorm:req:bindings.copy-rows+2]
+fn transaction_copy_columns(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let state = state(&mut cx)?;
+    let copy = Box::new(copy_at(&mut cx, 1)?);
+    let abort = abort_argument(&mut cx, 2)?;
+    let lock = match state.lock() {
+        Ok(lock) => lock,
+        Err(failure) => return settle::rejected(&mut cx, failure),
+    };
+    let work = async move {
+        let describe = |reply| Command::Describe { copy, reply };
+        state.request(lock, describe, &abort).await
+    };
+    settle::promise(&mut cx, work, copy::columns_to_js)
 }
 
 /// `transactionCopyIn(transaction, copy, abort, rows)`: a COPY FROM in the
@@ -1129,34 +1106,6 @@ fn transaction_copy_out(mut cx: FunctionContext) -> JsResult<JsPromise> {
         lock,
     };
     copy::opened(&mut cx, shared, state.send(command), receive, CopyOutHandle)
-}
-
-/// `transactionStream(transaction, sql, params, abort, decoder?)`: a stream
-/// of the statement's rows in the transaction, which holds its lock until the
-/// last row; closed before it, the transaction is discarded.
-// [spec:pgorm:req:bindings.streams+1]
-fn transaction_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
-    let state = state(&mut cx)?;
-    let (sql, params) = super::sql_and_params(&mut cx, 1)?;
-    let abort = abort_argument(&mut cx, 3)?;
-    let decode = super::stream::decode_argument(&mut cx, 4);
-    let lock = match state.lock() {
-        Ok(lock) => lock,
-        Err(failure) => return settle::rejected(&mut cx, failure),
-    };
-    let work = async move {
-        let (lease, rows) = state.stream(lock, sql, params, &abort).await?;
-        Ok(super::stream::held(
-            state.connection.clone(),
-            rows,
-            super::stream::Hold::Transaction(lease),
-            state.ended(),
-            decode,
-        ))
-    };
-    settle::promise(&mut cx, work, |cx, stream| {
-        Ok(cx.boxed(super::stream::StreamHandle(stream)).upcast())
-    })
 }
 
 /// `transactionFinishAttempt(transaction, commit, retryable)`: end one

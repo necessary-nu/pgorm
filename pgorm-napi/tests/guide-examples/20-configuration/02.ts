@@ -22,6 +22,12 @@ export default async function example({ url }: GuideContext): Promise<void> {
   await second.close();
   assert.equal(small.status().available, 2);
 
+  // waitTimeout gives up sooner, and says which bound it was.
+  await using strict = new Pool(url, { maxSize: 1, waitTimeout: 50 });
+  const only = await strict.acquire();
+  await assert.rejects(strict.acquire(), (error: unknown) => error instanceof TimeoutError && /waitTimeout/.test(error.message));
+  await only.close();
+
   // A pool that cannot be built is refused as it is made.
   assert.throws(() => new Pool(url, { maxSize: 0 }), ConstructionError);
   assert.throws(() => new Pool(url, { maxSize: "2" as unknown as number }), TypeError);

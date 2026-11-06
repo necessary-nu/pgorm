@@ -40,6 +40,12 @@ export function signalOf(signal) {
  */
 export const LATE = Symbol("pgorm-napi late abort");
 
+/** The statement runner each database class implements, keyed privately. */
+export const RUN = Symbol("run");
+
+/** The job runner each database class implements, keyed privately. */
+export const JOB = Symbol("job");
+
 /**
  * Run `start` with a native abort token that `signal` fires, rejecting with
  * the signal's reason once it has: an aborted operation's outcome is unknown,

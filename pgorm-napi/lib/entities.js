@@ -11,7 +11,7 @@
 
 import { Handle, TRUSTED } from "./builder.js";
 import { Condition } from "./conditions.js";
-import { runJob } from "./connections.js";
+import { runJob } from "./runs.js";
 import { Expr } from "./expressions.js";
 import { EntityColumn, EntityQuery, QUERIES } from "./entity-queries.js";
 import { EntityRelation, READS } from "./entity-reads.js";

@@ -130,7 +130,7 @@ class Retrying(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(caught.exception.rollback, p.PgormError)
         self.assertTrue(str(caught.exception).startswith("the block's own failure; its ROLLBACK failed: "))
 
-    # [spec:pgorm:req:python.discard/test]
+    # [spec:pgorm:req:bindings.connections+3/test]    a discarded connection is closed, not returned
     async def test_a_discarded_connection_is_closed_not_returned(self):
         async with self.pool.connection() as connection:
             pid = (await connection.one(RawSQL("SELECT pg_backend_pid() AS pid")))["pid"]

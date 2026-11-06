@@ -7,14 +7,17 @@ covers the rest: what the `Config` can say, how big the pool is and how long it
 waits, how connections are checked when they are reused, TLS, and pools kept
 side by side.
 
-There are four constructors. Each is a shorthand for the one after it:
+There are five constructors. `connect` and `connect_with_builder` are
+shorthands for `connect_with`, and `connect_multi_with_builder` for
+`connect_multi_with`, which builds each of its pools with `connect_with`:
 
 | Function | Takes |
 | --- | --- |
 | [`connect`](crate::connect) | a `Config` |
 | [`connect_with_builder`](crate::connect_with_builder) | a `Config`, and a closure shaping the pool |
-| [`connect_multi_with_builder`](crate::connect_multi_with_builder) | a `Config`, and a closure per pool, by name |
 | [`connect_with`](crate::connect_with) | a `Config`, a TLS connector, a [`ManagerConfig`](crate::ManagerConfig), and a closure shaping the pool |
+| [`connect_multi_with_builder`](crate::connect_multi_with_builder) | a `Config`, and a closure per pool, by name |
+| [`connect_multi_with`](crate::connect_multi_with) | a `Config`, a TLS connector, a `ManagerConfig`, and a closure per pool, by name |
 
 None of them connects. A pool opens connections when they are first asked
 for, so a wrong host, password or database name shows up at the first
@@ -203,6 +206,55 @@ assert!(matches!(
 # }
 ```
 
+The client a hook is given is tokio-postgres's.
+[`HookConnection::new(client)`](crate::HookConnection) borrows it for the
+hook's length as a [`ConnectionTrait`](crate::ConnectionTrait), so pgorm's
+own statements run in a hook, an entity's `find` among them, through the
+connection's statement cache: a statement a hook prepares is the one the
+connection's borrowers then find cached. Here a `post_create` hook names
+each new session after the bakery it serves, the first by id:
+
+```rust
+# use pgorm_guide_support::bakery;
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("configuration_hook_connection").await;
+# let config = scratch.config();
+use pgorm::entity::prelude::*;
+use pgorm::{ConnectionTrait, Hook, HookConnection, HookError, connect_with_builder};
+
+fn naming() -> Hook {
+    Hook::async_fn(|client, _| {
+        Box::pin(async move {
+            let db = HookConnection::new(client);
+            let refuse = |error: pgorm::Error| HookError::message(error.to_string());
+            let first = bakery::Entity::find()
+                .order_by_asc(bakery::Column::Id)
+                .one(&db)
+                .await
+                .map_err(refuse)?;
+            db.execute("SELECT set_config('application_name', $1, false)", &[&first.name])
+                .await
+                .map_err(refuse)?;
+            Ok(())
+        })
+    })
+}
+
+let pool = connect_with_builder(config, |builder| builder.post_create(naming()))?;
+let db = pool.get().await?;
+let name: String = db
+    .query_one("SELECT current_setting('application_name')", &[])
+    .await?
+    .get(0);
+assert_eq!(name, "Sunrise");
+# drop(db);
+# pool.close();
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
 ## Reusing connections
 
 A connection returned to the pool keeps its session: a setting changed with
@@ -340,7 +392,11 @@ background jobs beside the web requests', say, so a burst of jobs cannot take
 every connection.
 [`connect_multi_with_builder`](crate::connect_multi_with_builder) builds one
 pool per name, each tagged with its name and shaped by its own closure, and
-returns them as a [`DatabaseMultiPool`](crate::DatabaseMultiPool).
+returns them as a [`DatabaseMultiPool`](crate::DatabaseMultiPool). Its pools
+speak plaintext and recycle with `Fast`;
+[`connect_multi_with`](crate::connect_multi_with) takes a TLS connector and
+a `ManagerConfig` beside the closures, as `connect_with` does, and gives
+each pool the manager's configuration under its own name.
 [`get`](crate::DatabaseMultiPool::get) gives the pool with a tag,
 [`iter`](crate::DatabaseMultiPool::iter) every pool with its tag,
 [`status`](crate::DatabaseMultiPool::status) each pool's status by tag, and

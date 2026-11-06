@@ -77,8 +77,11 @@ deno check
   records, writes, keys, graphs and cursors from its columns.
 - The suite connects in plaintext unless its connection string names an
   `sslmode`; with `PGORM_TEST_CA` naming a PEM CA whose certificate for
-  `localhost` the server presents, it also holds verified TLS to that CA, as
-  CI does. `deno.json` keeps Deno on its global npm cache, so type checking
+  `localhost` the server presents, it also holds each TLS mode against that
+  server, as CI does, and with `PGORM_TEST_CLIENT_CERT`,
+  `PGORM_TEST_CLIENT_KEY` and `PGORM_TEST_CERT_USER` a client certificate and
+  the role the server lets in by it alone. `pgorm-python/tests/with_postgres.py`
+  runs a command against a disposable server set up so, exporting all four. `deno.json` keeps Deno on its global npm cache, so type checking
   `node:` imports needs no `node_modules`.
 - `tests/package/` is the installed packages' smoke suite, which runs only in
   the projects `checks/package.js` installs the packed packages into

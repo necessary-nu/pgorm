@@ -2,15 +2,11 @@
 //! the borrowed transaction opens it, and the stream holds the transaction's
 //! reservation until its last row.
 
-use super::{State, copy::Lease, scope::Command, state::Pending};
-use crate::{
-    errors::{LifecycleError, database_error},
-    expressions::Compiled,
-};
+use super::{State, copy::Lease, scope::Command};
+use crate::{errors::database_error, expressions::Compiled};
 use pgorm::{ConnectionTrait, Error, ValueHolder};
 use pyo3::prelude::*;
 use std::sync::Arc;
-use tokio::sync::oneshot;
 use tokio_postgres::{RowStream, types::ToSql};
 use tokio_util::sync::CancellationToken;
 
@@ -23,18 +19,9 @@ impl State {
         self: &Arc<Self>,
         compiled: Compiled,
     ) -> PyResult<(Lease, RowStream)> {
-        self.ensure_open()?;
-        let busy = self.busy.clone().try_lock_owned().map_err(|_| {
-            LifecycleError::new_err("transaction has an active operation or nested savepoint")
-        })?;
-        let (opened, open) = oneshot::channel();
-        let mut pending = Pending::new(self.root.aborted.clone());
-        self.commands
-            .send(Command::Stream { compiled, opened })
-            .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
-        let result = open
-            .await
-            .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
+        let (result, busy, mut pending) = self
+            .exchange(|opened| Command::Stream { compiled, opened })
+            .await?;
         match result {
             Ok(rows) => Ok((Lease::new(busy, pending), rows)),
             Err(error) => {

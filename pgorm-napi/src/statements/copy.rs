@@ -127,7 +127,7 @@ impl From<CopyStatement> for Node {
 /// The COPY FROM at `index`, its statement text checked as `inspect()`
 /// checks it, for `copyIn` to run.
 pub(crate) fn copy_from_at(cx: &mut FunctionContext, index: usize) -> NeonResult<CopyFrom> {
-    match statement_at(cx, index)? {
+    match copy_at(cx, index)? {
         CopyStatement::CopyFrom(copy) => Ok(copy),
         CopyStatement::CopyTo(_) => cx.throw_type_error(
             "copyIn runs a COPY FROM STDIN, from copyFrom(table, format); a COPY TO runs through copyOut",
@@ -136,7 +136,7 @@ pub(crate) fn copy_from_at(cx: &mut FunctionContext, index: usize) -> NeonResult
 }
 
 pub(crate) fn copy_to_at(cx: &mut FunctionContext, index: usize) -> NeonResult<CopyTo> {
-    match statement_at(cx, index)? {
+    match copy_at(cx, index)? {
         CopyStatement::CopyTo(copy) => Ok(copy),
         CopyStatement::CopyFrom(_) => cx.throw_type_error(
             "copyOut runs a COPY TO STDOUT, from copyTo(source, format); a COPY FROM runs through copyIn",
@@ -144,7 +144,9 @@ pub(crate) fn copy_to_at(cx: &mut FunctionContext, index: usize) -> NeonResult<C
     }
 }
 
-fn statement_at(cx: &mut FunctionContext, index: usize) -> NeonResult<CopyStatement> {
+/// The COPY at `index`, in either direction, its statement text checked as
+/// `inspect()` checks it.
+pub(crate) fn copy_at(cx: &mut FunctionContext, index: usize) -> NeonResult<CopyStatement> {
     let value = arg(cx, index);
     let Some(Node::Copy(copy)) = node(cx, value) else {
         return cx.throw_type_error("expected a COPY this module built");

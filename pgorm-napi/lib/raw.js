@@ -9,6 +9,9 @@ import { paginatorOver } from "./cursors.js";
 import { DecodeError } from "./errors.js";
 import { columnKey, readsText } from "./model-columns.js";
 import { decodeAll, decodeCount, decodeOne, decodeOptional, decodeStream } from "./model-decode.js";
+
+/** How a raw statement's rows are read: columns no field reads are left unread. */
+const RAW = { exhaustive: false };
 import { shapeOf } from "./model-shape.js";
 import { native } from "./operations.js";
 import { Held } from "./raw-sql.js";
@@ -96,7 +99,7 @@ export class SelectorRaw {
   async all(db, options) {
     const sources = source(this.#model);
     if (sources === null) return await queryable(db).query(this.#statement, options);
-    return await decodeAll(db, this.#statement, sources, options, false);
+    return await decodeAll(db, this.#statement, sources, options, RAW);
   }
 
   /**
@@ -106,7 +109,7 @@ export class SelectorRaw {
   async one(db, options) {
     const sources = source(this.#model);
     if (sources === null) return await queryable(db).one(this.#statement, options);
-    return await decodeOne(db, this.#statement, sources, options, false);
+    return await decodeOne(db, this.#statement, sources, options, RAW);
   }
 
   /**
@@ -116,7 +119,7 @@ export class SelectorRaw {
   async optional(db, options) {
     const sources = source(this.#model);
     if (sources === null) return await queryable(db).optional(this.#statement, options);
-    return await decodeOptional(db, this.#statement, sources, options, false);
+    return await decodeOptional(db, this.#statement, sources, options, RAW);
   }
 
   /**
@@ -126,7 +129,7 @@ export class SelectorRaw {
   stream(db, options) {
     const sources = source(this.#model);
     if (sources === null) return queryable(db).stream(this.#statement, options);
-    return decodeStream(db, this.#statement, sources, options, false);
+    return decodeStream(db, this.#statement, sources, options, RAW);
   }
 
   /**
@@ -137,7 +140,7 @@ export class SelectorRaw {
    * @param {unknown} pageSize
    */
   paginate(pageSize) {
-    return paginatorOver({ ...pageable(this.#statement), sources: source(this.#model), exhaustive: false }, pageSize);
+    return paginatorOver({ ...pageable(this.#statement), sources: source(this.#model), reading: RAW }, pageSize);
   }
 
   /**

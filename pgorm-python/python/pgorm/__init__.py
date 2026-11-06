@@ -119,6 +119,9 @@ from ._native import (
     merge,
     CopyFrom,
     CopyTo,
+    CopyColumn,
+    CopyRowEncoder,
+    CopyRowDecoder,
     Notification,
     Entity,
     EntityColumn,
@@ -147,10 +150,13 @@ from ._native import (
     graphs,
     __pgorm_version__,
     __version__,
+    POSTGRES_TARGET,
     capabilities,
     require_capability,
 )
 from .runtime import STATEMENT_CACHE_CHANNEL, Connection, Pool, PoolStatus, connect
+from .pool_options import HookConnection
+from .multi_pool import MultiPool, connect_listener
 from .metrics import (
     InstrumentedPool,
     LoggingMetrics,
@@ -172,6 +178,7 @@ from .models import (
 )
 from .transactions import Transaction, TransactionMode, IsolationLevel
 from .copy import CopyOutStream, CopyRows, CopyRowStream, CopySource
+from .copy_rows import CopyRowSink
 from .listen import Listener
 from .raw import SelectorRaw, from_statement
 
@@ -204,6 +211,8 @@ __all__ = [
     "IsolationLevel",
     "Pool",
     "PoolStatus",
+    "MultiPool",
+    "HookConnection",
     "InstrumentedPool",
     "MetricsCollector",
     "NoOpMetrics",
@@ -212,6 +221,7 @@ __all__ = [
     "QueryFingerprint",
     "STATEMENT_CACHE_CHANNEL",
     "connect",
+    "connect_listener",
     "Record",
     "Field",
     "RowStream",
@@ -357,6 +367,10 @@ __all__ = [
     "CopyOutStream",
     "CopyRows",
     "CopyRowStream",
+    "CopyRowSink",
+    "CopyColumn",
+    "CopyRowEncoder",
+    "CopyRowDecoder",
     "CopySource",
     "Listener",
     "Notification",
@@ -392,5 +406,6 @@ __all__ = [
     "__pgorm_version__",
     "__version__",
     "capabilities",
+    "POSTGRES_TARGET",
     "require_capability",
 ]

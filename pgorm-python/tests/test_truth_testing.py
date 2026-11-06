@@ -5,7 +5,7 @@ import pkgutil
 import unittest
 
 import pgorm as p
-from pgorm import _native, pipeline as pl, schema as s
+from pgorm import _native, copy_rows, pipeline as pl, pool_options, raw_methods, schema as s
 from pgorm.schema import changes
 from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, reads as read_views, versions as version_views
 from pgorm.codegen import source
@@ -31,8 +31,13 @@ EXEMPT = {
     # them and under the streams: live resources, not SQL, and true as any
     # open resource is. The streams themselves refuse, since a stream's truth
     # would say nothing of whether rows remain.
-    p.Pool, p.InstrumentedPool, p.Connection, p.Transaction,
+    p.Pool, p.InstrumentedPool, p.Connection, p.Transaction, p.MultiPool, p.HookConnection,
+    raw_methods.RawStatements,
     _native._Pool, _native._Connection, _native._Transaction, _native._Retrying, _native._Stream,
+    _native._HookConnection, _native._PoolShape, pool_options.PoolShape,
+    # A COPY's columns and the binary format's two sides: declarations and
+    # codecs, not SQL. The row sink refuses, as the streams do.
+    p.CopyColumn, p.CopyRowEncoder, p.CopyRowDecoder, p.CopyRowSink, copy_rows.RowCopies,
     _native._CopyIn, _native._CopyOut, _native._Listener, _native._Disjoint,
     _native._DisjointChange, _native._RowDecoder, _native._EntityPages, _native._MetricsAnswer,
     # The metrics layer's collectors, objects a program writes and hands to a

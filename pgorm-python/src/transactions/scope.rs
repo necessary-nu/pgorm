@@ -7,7 +7,7 @@ use super::{
 };
 use crate::metrics::Metrics;
 use crate::{
-    copy::{Columns, CopyFrom, CopyTo, Message, Piece, Unopened},
+    copy::{Columns, CopyFrom, CopyTo, Described, Message, Piece, Unopened},
     errors::{InternalError, Redactions, database_error},
     execution::Database,
     expressions::Compiled,
@@ -81,6 +81,10 @@ pub(super) enum Command {
     Stream {
         compiled: Compiled,
         opened: oneshot::Sender<Result<tokio_postgres::RowStream, Error>>,
+    },
+    Describe {
+        statement: Described,
+        reply: oneshot::Sender<Result<Vec<pgorm::CopyColumn>, Error>>,
     },
 }
 
@@ -314,6 +318,14 @@ impl Frame {
                                 }
                             }
                         }
+                    }
+                    // [spec:pgorm:req:bindings.copy-rows+2]
+                    Command::Describe { statement, reply } => {
+                        let described = tokio::select! {
+                            _ = self.state.abandoned.cancelled() => return self.halt.discard().await,
+                            described = super::copy::describe_on(&mut tx, &statement) => described,
+                        };
+                        drop(reply.send(described));
                     }
                     Command::CopyOut {
                         statement,

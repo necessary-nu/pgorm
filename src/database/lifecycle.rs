@@ -8,7 +8,7 @@ impl DatabasePool {
     /// A pool listening on a
     /// [`statement_cache_channel`](crate::ManagerConfig::statement_cache_channel)
     /// closes that connection too.
-    // [spec:pgorm:req:bindings.connections+2]
+    // [spec:pgorm:req:bindings.connections+3]
     // [spec:pgorm:req:conn.pool.statement-cache.listen+1]    closing the pool ends the listener
     pub fn close(&self) {
         self.0.close();
@@ -52,7 +52,7 @@ impl DatabaseConnection {
     ///
     /// Use this when cancellation leaves the outcome or session state unknown.
     /// Dropping the detached client aborts its connection task.
-    // [spec:pgorm:req:bindings.connections+2]
+    // [spec:pgorm:req:bindings.connections+3]
     pub fn discard(self) {
         drop(Object::take(self.0));
     }

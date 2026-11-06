@@ -4,13 +4,13 @@
 //! pgorm's own: `batch_execute`, `pgorm::sql_check`, `VerifyStatement::describe`
 //! and `raw_select`.
 
-use pgorm::{CopyColumn, Error, VerifyStatement, sql_check};
+use pgorm::{CopyColumn, Error, sql_check};
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyString};
 use pyo3_async_runtimes::tokio::future_into_py;
 
 use crate::{
     errors::{ConstructionError, InternalError},
-    execution::{Database, Executor},
+    execution::Executor,
     results::{self, Field},
     statements::{PySelect, RawSQL},
     transactions::work::{Output, Work},
@@ -139,17 +139,4 @@ fn describe<'py>(
             })
             .collect::<Vec<(String, String, Option<PyValue>)>>())
     })
-}
-
-/// `sql`'s description on `db`.
-pub(crate) async fn described(
-    db: Database<'_>,
-    sql: &str,
-) -> Result<Vec<pgorm::DescribedColumn>, Error> {
-    match db {
-        Database::Connection(connection) => connection.describe(sql).await,
-        Database::Transaction(transaction) => transaction.describe(sql).await,
-        Database::InstrumentedConnection(connection) => connection.inner().describe(sql).await,
-        Database::InstrumentedTransaction(transaction) => transaction.inner().describe(sql).await,
-    }
 }

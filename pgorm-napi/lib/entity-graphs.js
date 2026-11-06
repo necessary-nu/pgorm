@@ -9,7 +9,7 @@
 // [spec:pgorm:req:bindings.entity-graphs+4]
 
 import { arg, TRUSTED } from "./builder.js";
-import { decodedStream, runJob } from "./connections.js";
+import { decodedStream, runJob } from "./runs.js";
 import { predicateOf, rowsOf } from "./entities.js";
 import { boundWhole, EntityCursor, EntityPaginator, READS } from "./entity-reads.js";
 import { Expr, OrderBy } from "./expressions.js";

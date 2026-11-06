@@ -230,7 +230,7 @@ export function cursorOver(keyed) {
  * @property {import("./select.js").Select | import("./raw-sql.js").Held} counted
  * @property {readonly import("./model-decode.js").Source[] | null} sources The sources each row
  *   decodes as, or `null` for rows as plain objects.
- * @property {boolean} [exhaustive] Whether every column is a field's, as a built query's is.
+ * @property {import("./model-decode.js").Reading} [reading] How its rows are read, as a built query's are by default.
  */
 
 /**
@@ -285,13 +285,13 @@ export class Paginator {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async fetchPage(db, page, options) {
-    const { sources, exhaustive = true } = this.#pageable;
+    const { sources, reading } = this.#pageable;
     if (sources === null) {
       const query = /** @type {{ query?: unknown }} */ (db)?.query;
       if (typeof query !== "function") throw new TypeError("a page is read on a Pool, a Connection or a Transaction");
       return await query.call(db, this.#page(page), options);
     }
-    return await decodeAll(db, this.#page(page), sources, options, exhaustive);
+    return await decodeAll(db, this.#page(page), sources, options, reading);
   }
 
   /**

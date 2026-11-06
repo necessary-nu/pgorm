@@ -6,7 +6,7 @@
 // [spec:pgorm:req:bindings.disjoint+2]
 
 import { arg, TRUSTED } from "./builder.js";
-import { decodedStream, runJob } from "./connections.js";
+import { decodedStream, runJob } from "./runs.js";
 import { predicateOf } from "./entities.js";
 import { ConstructionError } from "./errors.js";
 import { OrderBy } from "./expressions.js";

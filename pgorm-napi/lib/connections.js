@@ -3,41 +3,57 @@
 // Pools, connections and transactions. Each holds a native handle and
 // releases what it holds when closed — `close()`, `await using`, the end of a
 // callback — never by waiting for garbage collection.
-// [spec:pgorm:req:bindings.connections+2]
-// [spec:pgorm:req:napi.lifecycle+2]
+// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:napi.lifecycle+3]
 // [spec:pgorm:req:bindings.results+2]
 // [spec:pgorm:req:napi.raw]
 // [spec:pgorm:req:bindings.transactions+2]
 // [spec:pgorm:req:napi.transactions+3]
 // [spec:pgorm:req:bindings.copy]
-// [spec:pgorm:req:bindings.listen+2]
+// [spec:pgorm:req:bindings.listen+3]
+// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.pool-hooks]
+// [spec:pgorm:req:bindings.multi-pool]
 
 import { statementArgs } from "./builder.js";
 import { verify } from "./raw.js";
 import { COPY, CopyRunner } from "./copy.js";
 import { ConstructionError } from "./errors.js";
 import { Listener, LISTENER, listenerOptions, notifyJob } from "./listen.js";
-import { abortable, knownOptions, LATE, native, queryOptions, row, scoped, signalOf, TRUSTED } from "./operations.js";
+import { abortable, JOB, knownOptions, LATE, native, queryOptions, row, RUN, scoped, signalOf, TRUSTED } from "./operations.js";
 import { retried } from "./retry.js";
+import { hooked } from "./hooks.js";
 import { RowStream } from "./streams.js";
 
-/** The options a pool takes, as `PoolOptions` declares them. */
-const POOL_OPTIONS = [
+/** The options every pool built from one connection string shares, as `SharedPoolOptions` declares them. */
+export const SHARED_POOL_OPTIONS = [
   "tls",
   "ca",
-  "maxSize",
+  "cert",
+  "key",
   "connectTimeout",
-  "acquireTimeout",
   "statementCacheSize",
   "recycle",
+  "recycleSql",
   "statementCacheChannel",
 ];
 
-/** The statement runner each class implements, keyed privately. */
-const RUN = Symbol("run");
+/** The options one pool takes of its own, as `PoolShapeOptions` declares them. */
+export const POOL_SHAPE_OPTIONS = [
+  "maxSize",
+  "acquireTimeout",
+  "waitTimeout",
+  "createTimeout",
+  "recycleTimeout",
+  "queueMode",
+  "postCreate",
+  "preRecycle",
+  "postRecycle",
+];
 
-/** The job runner each class implements, keyed privately. */
-const JOB = Symbol("job");
+/** The options a pool takes, as `PoolOptions` declares them. */
+const POOL_OPTIONS = [...SHARED_POOL_OPTIONS, ...POOL_SHAPE_OPTIONS, "tag"];
+
 
 /**
  * What a pool, a connection and a transaction run statements through: bound
@@ -189,96 +205,11 @@ export class Queryable extends CopyRunner {
 }
 
 /**
- * Run a built statement and resolve with its result as the addon gives it,
- * `[names, rows, kinds]` — each row an array of values in column order, and
- * each column's kind — for a model to decode against its declaration.
- * [spec:pgorm:req:bindings.model-records+1]
+ * The native handle of a connection, which a read the addon builds runs on.
  *
- * @param {unknown} db
- * @param {"execute" | "all" | "one" | "optional"} terminal
- * @param {unknown} statement A builder's, or SQL text a raw read holds.
- * @param {unknown} options
- * @returns {Promise<any>}
+ * @type {(connection: Connection) => unknown}
  */
-export async function runStatement(db, terminal, statement, options) {
-  if (!(db instanceof Queryable)) {
-    throw new TypeError("a model's statement runs on a Pool, a Connection or a Transaction");
-  }
-  const [handle, values, rest] = statementArgs(statement, options, undefined);
-  const { signal } = queryOptions(rest);
-  return await abortable(signal, (token) => db[RUN](terminal, handle, values, false, token), () => db[LATE]());
-}
-
-/**
- * The rows of `statement`, the native half of a `Select`, as a stream on a
- * pool's connection of its own, on a connection, or, where `transactions`
- * says so, in a transaction, each row read by `decoder`: a disjoint read's
- * codec, or a registered read's selector. `what` names the read in the
- * refusal of any other database.
- * [spec:pgorm:req:bindings.disjoint+2]
- * [spec:pgorm:req:bindings.streams+1]
- *
- * @param {unknown} db
- * @param {unknown} statement
- * @param {unknown} decoder
- * @param {unknown} options
- * @param {string} what
- * @param {boolean} [transactions]
- * @returns {RowStream}
- */
-export function decodedStream(db, statement, decoder, options, what, transactions = false) {
-  if (db instanceof Pool) {
-    return new RowStream(async (token) => {
-      const connection = new Connection(await native.poolAcquire(poolHandle(db), token), TRUSTED);
-      try {
-        const handle = await native.connectionStream(connectionHandle(connection), statement, [], token, decoder);
-        return [handle, () => connection.close()];
-      } catch (error) {
-        await connection.close();
-        throw error;
-      }
-    }, options ?? {}, TRUSTED);
-  }
-  if (db instanceof Connection) {
-    return new RowStream(
-      async (token) => [await native.connectionStream(connectionHandle(db), statement, [], token, decoder), undefined],
-      options ?? {},
-      TRUSTED,
-    );
-  }
-  if (transactions && db instanceof Transaction) {
-    return new RowStream(
-      async (token) => [await native.transactionStream(transactionHandle(db), statement, [], token, decoder), undefined],
-      options ?? {},
-      TRUSTED,
-    );
-  }
-  throw new TypeError(`${what}'s rows stream from a Pool${transactions ? ", a Connection or a Transaction" : " or a Connection"}`);
-}
-
-/**
- * Run a registered entity's job — one of pgorm's own terminals, built by the
- * addon — on a pool's connection, a connection or a transaction, with the
- * operation a statement gets around it: the busy refusal, the abort, the
- * discard of a connection an abort left in an unknown state.
- * [spec:pgorm:req:bindings.entities+6]
- * [spec:pgorm:req:bindings.registered-pools]
- *
- * @param {unknown} db
- * @param {unknown} job
- * @param {unknown} options
- * @returns {Promise<any>}
- */
-export async function runJob(db, job, options) {
-  if (!(db instanceof Pool || db instanceof Connection || db instanceof Transaction)) {
-    throw new TypeError("a registered entity runs on a Pool, a Connection or a Transaction");
-  }
-  const { signal } = queryOptions(options ?? {});
-  return await abortable(signal, (token) => db[JOB](job, token), () => db[LATE]());
-}
-
-/** @type {(connection: Connection) => unknown} */
-let connectionHandle;
+export let connectionHandle;
 
 /**
  * The native handle of a pool, which an {@link InstrumentedPool} is built
@@ -288,8 +219,12 @@ let connectionHandle;
  */
 export let poolHandle;
 
-/** @type {(transaction: Transaction) => unknown} */
-let transactionHandle;
+/**
+ * The native handle of a transaction, which a read the addon builds runs in.
+ *
+ * @type {(transaction: Transaction) => unknown}
+ */
+export let transactionHandle;
 
 /**
  * A pool of connections to one server, opened as they are first needed. TLS
@@ -306,7 +241,8 @@ export class Pool extends Queryable {
 
   /**
    * A pool built from a connection string and its options, or, for
-   * {@link InstrumentedPool} alone, around the native handle the addon made.
+   * {@link InstrumentedPool} and {@link MultiPool} alone, around the native
+   * handle the addon made.
    *
    * @param {string | symbol} dsn
    * @param {import("./index.d.ts").PoolOptions | unknown} [options]
@@ -320,12 +256,21 @@ export class Pool extends Queryable {
     if (typeof dsn !== "string") throw new TypeError("dsn is a connection string");
     if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
     knownOptions(options, POOL_OPTIONS);
-    this.#native = native.poolNew(dsn, options);
+    this.#native = native.poolNew(dsn, hooked(options));
   }
 
   /** @returns {boolean} */
   get closed() {
     return native.poolClosed(this.#native);
+  }
+
+  /**
+   * The pool's tag, or the `default-N` pgorm named it.
+   *
+   * @returns {string}
+   */
+  get tag() {
+    return native.poolTag(this.#native);
   }
 
   /** @returns {import("./index.d.ts").PoolStatus} */
@@ -489,12 +434,13 @@ export class Pool extends Queryable {
 
   /**
    * @override
-   * @param {"in" | "out"} direction
+   * @param {"in" | "out" | "columns"} direction
    * @param {unknown} copy
    * @param {unknown} token
    * @param {boolean} rows
    */
   [COPY](direction, copy, token, rows) {
+    if (direction === "columns") return native.poolCopyColumns(this.#native, copy, token);
     return (direction === "in" ? native.poolCopyIn : native.poolCopyOut)(this.#native, copy, token, rows);
   }
 }
@@ -516,6 +462,7 @@ export async function connect(dsn, options = {}) {
   }
   return pool;
 }
+
 
 /** One connection checked out of a pool; one operation at a time. */
 export class Connection extends Queryable {
@@ -630,6 +577,18 @@ export class Connection extends Queryable {
     await native.connectionClose(this.#native);
   }
 
+  /**
+   * Close the connection and discard it rather than return it to its pool, as
+   * Rust's `DatabaseConnection::discard` does: for a connection whose session
+   * state is not what the next borrower should find. The pool opens a fresh
+   * one in its place. Resolves once it is released.
+   *
+   * @returns {Promise<void>}
+   */
+  async discard() {
+    await native.connectionDiscard(this.#native);
+  }
+
   [Symbol.asyncDispose]() {
     return this.close();
   }
@@ -657,12 +616,13 @@ export class Connection extends Queryable {
 
   /**
    * @override
-   * @param {"in" | "out"} direction
+   * @param {"in" | "out" | "columns"} direction
    * @param {unknown} copy
    * @param {unknown} token
    * @param {boolean} rows
    */
   [COPY](direction, copy, token, rows) {
+    if (direction === "columns") return native.connectionCopyColumns(this.#native, copy, token);
     return (direction === "in" ? native.connectionCopyIn : native.connectionCopyOut)(this.#native, copy, token, rows);
   }
 }
@@ -785,12 +745,13 @@ export class Transaction extends Queryable {
 
   /**
    * @override
-   * @param {"in" | "out"} direction
+   * @param {"in" | "out" | "columns"} direction
    * @param {unknown} copy
    * @param {unknown} token
    * @param {boolean} rows
    */
   [COPY](direction, copy, token, rows) {
+    if (direction === "columns") return native.transactionCopyColumns(this.#native, copy, token);
     return (direction === "in" ? native.transactionCopyIn : native.transactionCopyOut)(this.#native, copy, token, rows);
   }
 }

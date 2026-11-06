@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 from . import _native
 
 if TYPE_CHECKING:
+    from .models.model import Model
+    from .models.record import ModelRecord
     from .runtime import Connection
 
 CopySource: TypeAlias = Buffer | Iterable[Buffer] | AsyncIterable[Buffer]
@@ -209,7 +211,7 @@ def _row_source(rows: object) -> AsyncGenerator[object]:
     return _rows_of(rows)
 
 
-# [spec:pgorm:req:bindings.copy-rows+1]
+# [spec:pgorm:req:bindings.copy-rows+2]
 async def copy_in_rows(
     native: _native._Connection | _native._Transaction,
     statement: _native.CopyFrom[Literal["binary"]],
@@ -242,7 +244,7 @@ async def copy_in_rows(
     return await copy.finish()
 
 
-# [spec:pgorm:req:bindings.copy-rows+1]
+# [spec:pgorm:req:bindings.copy-rows+2]
 class CopyRowStream:
     """A binary COPY TO's rows as an async iterator of tuples of values.
 
@@ -292,6 +294,30 @@ class CopyRowStream:
         rows.reverse()
         self._rows = rows
         return self._rows.pop()
+
+    # [spec:pgorm:req:bindings.copy-rows+2]
+    async def models(self, model: Model) -> AsyncGenerator[ModelRecord]:
+        """Read the stream's rows as ``model``'s records instead of tuples, each
+        field found by its column among the COPY's and held to its kind as a
+        model's terminals hold it. The stream closes once the records end."""
+        from .models.model import Model
+        from .models.record import ModelRecord
+
+        if not isinstance(model, Model):
+            raise TypeError("models reads a stream's rows as a Model's records")
+        if self._rows:
+            raise _native.LifecycleError("models reads a copy stream none of whose rows were read")
+        fields = tuple(model.columns)
+        columns = tuple(model._sql(field) for field in fields)
+        try:
+            while not self._closed:
+                records = await self._native.next_rows(True)
+                if records is None:
+                    break
+                for record in records:
+                    yield ModelRecord(model, record, fields, columns)
+        finally:
+            await self.aclose()
 
     async def aclose(self) -> None:
         self._rows = []

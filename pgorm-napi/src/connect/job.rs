@@ -12,7 +12,9 @@ use std::sync::{Mutex as SyncMutex, PoisonError};
 use futures_util::future::BoxFuture;
 use neon::{prelude::*, types::Finalize};
 
-use super::{Operation, abort_argument, connection, metrics::Metrics, on_connection, pool};
+use super::{
+    Operation, abort_argument, connection, metrics::Metrics, on_connection, on_pool, pool,
+};
 use crate::{
     errors::{Failure, Redactions},
     settle,
@@ -80,20 +82,10 @@ fn pool_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
     };
     let abort = abort_argument(&mut cx, 2)?;
     let work = async move {
-        let connection = abort.guard(state.get()).await?;
-        let outcome = tokio::select! {
-            biased;
-            () = abort.token().cancelled() => Err(Failure::Cancelled),
-            () = state.closed.cancelled() => {
-                Err(Failure::Lifecycle("the pool closed while the statement ran".to_owned()))
-            }
-            outcome = job(connection.database(), &state.secrets) => {
-                drop(connection);
-                return outcome;
-            }
-        };
-        connection.discard();
-        outcome
+        on_pool(&state, &abort, async |db| {
+            job(db.database(), &state.secrets).await
+        })
+        .await
     };
     settle::promise(&mut cx, work, |cx, output| output.into_js(cx))
 }
@@ -111,7 +103,11 @@ fn connection_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
         Ok(operation) => operation,
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
-    let work =
-        async move { on_connection(operation, &abort, async |db| job(db, &secrets).await).await };
+    let work = async move {
+        on_connection(operation, &abort, async |db| {
+            job(db.database(), &secrets).await
+        })
+        .await
+    };
     settle::promise(&mut cx, work, |cx, output| output.into_js(cx))
 }

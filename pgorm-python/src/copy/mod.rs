@@ -57,6 +57,8 @@ macro_rules! csv_only {
     };
 }
 
+mod codec;
+mod columns;
 mod from;
 mod native;
 mod pump;
@@ -64,7 +66,9 @@ mod to;
 
 pub(crate) use from::CopyFrom;
 pub use from::PyCopyFrom;
-pub(crate) use pump::{Columns, Message, Piece, Unopened, drive_in, drive_out, open_in, open_out};
+pub(crate) use pump::{
+    Columns, Described, Message, Piece, Unopened, describe, drive_in, drive_out, open_in, open_out,
+};
 pub(crate) use to::CopyTo;
 pub use to::PyCopyTo;
 
@@ -144,12 +148,16 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<native::NativeCopyOut>()?;
     module.add_function(wrap_pyfunction!(native::copy_in, module)?)?;
     module.add_function(wrap_pyfunction!(native::copy_out, module)?)?;
+    module.add_class::<columns::PyCopyColumn>()?;
+    module.add_class::<codec::PyCopyRowEncoder>()?;
+    module.add_class::<codec::PyCopyRowDecoder>()?;
+    module.add_function(wrap_pyfunction!(columns::copy_columns, module)?)?;
     Ok(())
 }
 
 // [spec:pgorm:req:python.capabilities+2]
 // [spec:pgorm:req:bindings.copy]
-// [spec:pgorm:req:bindings.copy-rows+1]
+// [spec:pgorm:req:bindings.copy-rows+2]
 pub(crate) fn capabilities() -> Map<String, Value> {
     let builders = [
         (
@@ -258,6 +266,42 @@ pub(crate) fn capabilities() -> Map<String, Value> {
         (
             "transaction.copy_out_rows",
             "pgorm::CopyTrait::{copy_out_columns, copy_out} for DatabaseTransaction, CopyRowDecoder",
+        ),
+        (
+            "connection.copy_in_columns",
+            "pgorm::CopyTrait::copy_in_columns for DatabaseConnection, CopyColumn",
+        ),
+        (
+            "connection.copy_out_columns",
+            "pgorm::CopyTrait::copy_out_columns for DatabaseConnection, CopyColumn",
+        ),
+        (
+            "transaction.copy_in_columns",
+            "pgorm::CopyTrait::copy_in_columns for DatabaseTransaction, CopyColumn",
+        ),
+        (
+            "transaction.copy_out_columns",
+            "pgorm::CopyTrait::copy_out_columns for DatabaseTransaction, CopyColumn",
+        ),
+        (
+            "copy_row_sink",
+            "pgorm::CopyRowEncoder over the described columns, per row, as CopyRowSink::send and send_model",
+        ),
+        (
+            "copy_row_stream.models",
+            "pgorm::CopyRowStream::models, read as a model's records",
+        ),
+        (
+            "copy_row_encoder",
+            "pgorm::CopyRowEncoder::{new, header, encode, trailer}",
+        ),
+        (
+            "copy_row_decoder",
+            "pgorm::CopyRowDecoder::{new, push, next_fields, finish}",
+        ),
+        (
+            "copy_column",
+            "pgorm::CopyColumn::{new, with_money_places}, a built-in type by name",
         ),
     ];
     crate::capabilities::plain(builders.into_iter().chain(execution))
