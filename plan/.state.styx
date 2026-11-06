@@ -1709,8 +1709,6 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.model-writes}
         {impl_name python, rule bindings.model-writes}
-    ), rule_versions_seen (
-        {id bindings.model-writes, version 2}
     )}
     {id binding-parity.pipeline-terminals, covered_rules (
         bindings.pipeline-terminals
