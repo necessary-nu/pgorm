@@ -34,6 +34,7 @@ export { HookConnection } from "./hooks.js";
 export { MultiPool } from "./multi-pool.js";
 export { RowStream } from "./streams.js";
 export { connectListener, Listener } from "./listen.js";
+export { InstrumentedPool, LoggingMetrics, NoOpMetrics, QueryContext, QueryFingerprint } from "./metrics.js";
 export { CopyFrom, copyFrom, CopyOutStream, CopyTo, copyTo } from "./copy.js";
 export { CopyColumn, CopyRowDecoder, CopyRowEncoder } from "./copy-columns.js";
 export { CopyRowStream } from "./copy-rows.js";

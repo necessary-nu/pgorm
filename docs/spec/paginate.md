@@ -261,9 +261,12 @@ bound parameter is held to.
 > member type, both the conversions and the refusal apply element-wise.
 >
 > This is what makes an integer operand work against a floating-point
-> column: `Expr::col(c).mul(2)` renders `"c" * $1`, for which Postgres
+> column: `Expr::col(c).gt(2)` renders `"c" > $1`, for which Postgres
 > infers `$1 :: float8`, and the `Int` value is written as a `float8`
-> instead of producing an `08P01` protocol error.
+> instead of producing an `08P01` protocol error. (An arithmetic operand
+> carries its own type instead, `"c" * $1::int4`, per
+> `[spec:pgorm:sem:sql.render.placeholder-typing]`, and PostgreSQL widens
+> it.)
 
 > [spec:pgorm:req:exec.cursor.binding-gaps+3]
 > `ValueHolder`'s `ToSql` implementation MUST reach every `Value` variant:

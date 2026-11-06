@@ -267,7 +267,7 @@ class DescriptionTests(unittest.TestCase):
         self.assert_declared("pgorm.OneOfEntity", [p.one_of_entity(name).describe() for name in names])
 
     # [spec:pgorm:req:bindings.surface+2/test]
-    # [spec:pgorm:req:bindings.entities+5/test]
+    # [spec:pgorm:req:bindings.entities+6/test]
     def test_entity_description_has_the_declared_keys(self):
         names = p.entities()
         if not names:

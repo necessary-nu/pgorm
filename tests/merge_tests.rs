@@ -136,7 +136,7 @@ fn owned(rows: &[(i32, &str, i32)]) -> Vec<(i32, String, i32)> {
         .collect()
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    against a live server: the matched row is updated or
+// [spec:pgorm:req:sql.ast.merge+2/test]    against a live server: the matched row is updated or
 // deleted by its arm, the unmatched source row inserted, the untouched row left alone
 // [spec:pgorm:req:sql.render.merge+1/test]
 async fn a_merge_updates_deletes_and_inserts(db: &DatabaseConnection) -> Result<(), Error> {
@@ -154,7 +154,7 @@ async fn a_merge_updates_deletes_and_inserts(db: &DatabaseConnection) -> Result<
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    against a live server: when two conditional arms both
+// [spec:pgorm:req:sql.ast.merge+2/test]    against a live server: when two conditional arms both
 // hold, the row takes the one added first
 async fn conditional_arms_take_rows_in_call_order(db: &DatabaseConnection) -> Result<(), Error> {
     let empty = || delivery_col("qty").eq(0);
@@ -187,7 +187,7 @@ async fn conditional_arms_take_rows_in_call_order(db: &DatabaseConnection) -> Re
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    against a live server: an unconditional arm added
+// [spec:pgorm:req:sql.ast.merge+2/test]    against a live server: an unconditional arm added
 // first still renders where PostgreSQL accepts it, takes only the rows no conditional arm
 // took, and the condition on the conditional arm narrows it
 async fn unconditional_arm_takes_what_conditional_arms_left(
@@ -246,7 +246,7 @@ async fn every_value_is_bound_and_typed_by_column(db: &DatabaseConnection) -> Re
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    against a live server: ONLY writes the named table
+// [spec:pgorm:req:sql.ast.merge+2/test]    against a live server: ONLY writes the named table
 // alone, and without it a child table's rows are matched too
 async fn only_leaves_an_inheriting_tables_rows_alone(db: &DatabaseConnection) -> Result<(), Error> {
     let ledger = || Name::runtime("ledger");
@@ -278,7 +278,7 @@ async fn only_leaves_an_inheriting_tables_rows_alone(db: &DatabaseConnection) ->
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    against a live server: OVERRIDING SYSTEM VALUE writes
+// [spec:pgorm:req:sql.ast.merge+2/test]    against a live server: OVERRIDING SYSTEM VALUE writes
 // an ALWAYS identity, which is refused without it, and OVERRIDING USER VALUE discards a
 // value supplied for a BY DEFAULT one
 async fn overriding_reaches_the_identity_column(db: &DatabaseConnection) -> Result<(), Error> {
@@ -330,7 +330,7 @@ async fn overriding_reaches_the_identity_column(db: &DatabaseConnection) -> Resu
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ast.merge+1/test]    against a live server: INSERT DEFAULT VALUES writes a
+// [spec:pgorm:req:sql.ast.merge+2/test]    against a live server: INSERT DEFAULT VALUES writes a
 // row of defaults, and DO NOTHING skips a source row. A value in a VALUES source is assigned to
 // no column, so bound it has no type but `text` and the join refuses it (`42883`); written
 // inline it is an integer literal
@@ -368,7 +368,7 @@ async fn a_default_row_and_a_skipped_row(db: &DatabaseConnection) -> Result<(), 
 
 // [spec:pgorm:def:query.build.with+2/test]    against a live server: a WITH clause, here holding
 // a data-modifying CTE, feeds the MERGE its source
-// [spec:pgorm:req:sql.ast.merge+1/test]    a subquery and a function call as the source
+// [spec:pgorm:req:sql.ast.merge+2/test]    a subquery and a function call as the source
 async fn with_clause_and_other_sources_feed_merge(db: &DatabaseConnection) -> Result<(), Error> {
     reset(db).await?;
     let gone = Name::runtime("gone");

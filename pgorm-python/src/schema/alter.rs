@@ -56,7 +56,7 @@ impl PyPendingAlterTable {
 
 #[pymethods]
 impl PyPendingAlterTable {
-    // [spec:pgorm:req:python.truth-testing+4]
+    // [spec:pgorm:req:python.truth-testing+5]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "an ALTER TABLE with no action cannot be tested as a Python boolean",

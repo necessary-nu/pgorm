@@ -3,9 +3,9 @@
 // Several pools against one server, one per tag.
 // [spec:pgorm:req:bindings.multi-pool]
 
-import { ADOPT, Pool } from "./connections.js";
+import { Pool } from "./connections.js";
 import { hooked } from "./hooks.js";
-import { native } from "./operations.js";
+import { native, TRUSTED } from "./operations.js";
 
 /**
  * Several pools against one server, one per own property of `pools`, each
@@ -33,7 +33,7 @@ export class MultiPool {
       shapes[tag] = hooked(shape);
     }
     for (const [tag, handle] of native.poolsNew(dsn, shapes, options)) {
-      this.#pools.set(tag, Pool[ADOPT](handle));
+      this.#pools.set(tag, new Pool(TRUSTED, handle));
     }
   }
 

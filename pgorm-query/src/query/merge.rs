@@ -22,7 +22,7 @@ use inherent::inherent;
 /// )
 /// .build();
 /// ```
-// [spec:pgorm:req:sql.ast.merge+1]
+// [spec:pgorm:req:sql.ast.merge+2]
 #[derive(Debug, Clone, PartialEq)]
 pub struct PendingMerge {
     pub(crate) target: NamedTable,
@@ -115,7 +115,7 @@ pub struct PendingMerge {
 /// nests where they do: as a common table expression's body, through
 /// [`IntoSubQueryStatement`]. With [`returning`](Self::returning) the CTE
 /// yields the rows the merge wrote.
-// [spec:pgorm:req:sql.ast.merge+1]
+// [spec:pgorm:req:sql.ast.merge+2]
 #[derive(Debug, Clone, PartialEq)]
 pub struct MergeStatement {
     pub(crate) with: Option<Box<WithClause>>,
@@ -132,7 +132,7 @@ pub struct MergeStatement {
 
 /// The arms of one kind: the conditional arms in the order they were added,
 /// then at most one unconditional arm, which is where the grammar admits it.
-// [spec:pgorm:req:sql.ast.merge+1]
+// [spec:pgorm:req:sql.ast.merge+2]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct MergeArms<A> {
     pub(crate) conditional: Vec<(Condition, A)>,
@@ -150,7 +150,7 @@ impl<A> Default for MergeArms<A> {
 
 /// What a `MERGE` does with a target row: one the join condition matched, or,
 /// in a `NOT MATCHED BY SOURCE` arm, one it matched with no source row.
-// [spec:pgorm:req:sql.ast.merge+1]
+// [spec:pgorm:req:sql.ast.merge+2]
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum MatchedAction {
@@ -164,7 +164,7 @@ pub enum MatchedAction {
 }
 
 /// What a `MERGE` does with a source row that matched no target row.
-// [spec:pgorm:req:sql.ast.merge+1]
+// [spec:pgorm:req:sql.ast.merge+2]
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum NotMatchedAction {
@@ -207,7 +207,7 @@ impl MergeAssignments {
 ///
 /// A column is a bare name: PostgreSQL resolves it against the target, and
 /// refuses one qualified by the table's name (`42703`).
-// [spec:pgorm:req:sql.ast.merge+1]
+// [spec:pgorm:req:sql.ast.merge+2]
 #[derive(Debug, Clone, PartialEq)]
 pub struct MergeUpdate {
     pub(crate) sets: MergeAssignments,
@@ -266,7 +266,7 @@ impl From<MergeUpdate> for MatchedAction {
 /// constructor takes the first pair. A row of defaults is
 /// [`NotMatchedAction::InsertDefaultValues`], which takes no `OVERRIDING`
 /// clause. PostgreSQL accepts that clause only before `VALUES`.
-// [spec:pgorm:req:sql.ast.merge+1]
+// [spec:pgorm:req:sql.ast.merge+2]
 #[derive(Debug, Clone, PartialEq)]
 pub struct MergeInsert {
     pub(crate) values: MergeAssignments,

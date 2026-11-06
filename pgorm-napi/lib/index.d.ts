@@ -38,6 +38,7 @@ export * from "./disjoint.d.ts";
 export * from "./one-of.d.ts";
 export * from "./copy.d.ts";
 export * from "./listen.d.ts";
+export * from "./metrics.d.ts";
 
 /** The addon's version, which is the pgorm release it is built from. */
 export declare const version: string;

@@ -11,13 +11,18 @@ use std::sync::{Mutex as SyncMutex, PoisonError};
 
 use futures_util::future::BoxFuture;
 use neon::{prelude::*, types::Finalize};
-use pgorm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, SqlText};
+use pgorm::{
+    ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, SqlText,
+    metric::{InstrumentedConnection, InstrumentedTransaction},
+};
 use tokio_postgres::{
     Row, RowStream,
     types::{BorrowToSql, ToSql},
 };
 
-use super::{Operation, abort_argument, connection, on_connection, on_pool, pool};
+use super::{
+    Operation, abort_argument, connection, metrics::Metrics, on_connection, on_pool, pool,
+};
 use crate::{
     errors::{Failure, Redactions},
     settle,
@@ -29,11 +34,14 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     Ok(())
 }
 
-/// The executor a job runs on: a connection, or a transaction on one.
+/// The executor a job runs on: a connection, or a transaction on one,
+/// plain or, from an instrumented pool, pgorm's metrics wrapper around one.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Database<'a> {
     Connection(&'a DatabaseConnection),
     Transaction(&'a DatabaseTransaction<'a>),
+    MeteredConnection(&'a InstrumentedConnection<Metrics>),
+    MeteredTransaction(&'a InstrumentedTransaction<'a, Metrics>),
 }
 
 macro_rules! delegate {
@@ -41,6 +49,8 @@ macro_rules! delegate {
         match $db {
             Database::Connection(connection) => connection.$method($($arg),*).await,
             Database::Transaction(transaction) => transaction.$method($($arg),*).await,
+            Database::MeteredConnection(connection) => connection.$method($($arg),*).await,
+            Database::MeteredTransaction(transaction) => transaction.$method($($arg),*).await,
         }
     };
 }
@@ -165,7 +175,7 @@ fn pool_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let abort = abort_argument(&mut cx, 2)?;
     let work = async move {
         on_pool(&state, &abort, async |db| {
-            job(Database::Connection(&*db), &state.secrets).await
+            job(db.database(), &state.secrets).await
         })
         .await
     };
@@ -187,7 +197,7 @@ fn connection_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
     };
     let work = async move {
         on_connection(operation, &abort, async |db| {
-            job(Database::Connection(&*db), &secrets).await
+            job(db.database(), &secrets).await
         })
         .await
     };

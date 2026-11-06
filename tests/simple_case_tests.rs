@@ -172,11 +172,10 @@ async fn bound_arm_values_compare_like_literals(db: &DatabaseConnection) -> Resu
         "{sql}"
     );
 
-    let bound: Vec<(i32, Option<String>)> = SelectorRaw::<
-        SelectGetableTuple<(i32, Option<String>)>,
-    >::into_tuple::<(i32, Option<String>)>(sql, values)
-    .all(db)
-    .await?;
+    let bound: Vec<(i32, Option<String>)> =
+        SelectorRaw::<SelectGetableTuple<(i32, Option<String>)>>::into_tuple(&sql, values)
+            .all(db)
+            .await?;
     let bound: Vec<Option<String>> = bound.into_iter().map(|(_, answer)| answer).collect();
 
     assert_eq!(bound, answers(db, &query).await?);

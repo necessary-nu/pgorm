@@ -87,8 +87,8 @@ fn col(name: &str) -> Expr {
 }
 
 /// A bound `text[]`. PostgreSQL has an `unnest` for arrays, multiranges and
-/// `tsvector`, so a bound array beside it is cast to the type it is or the
-/// call is ambiguous (`42725`).
+/// `tsvector`, so the call reads its argument's type, and the bound array is
+/// written `$n::text[]` with no cast of the caller's.
 fn texts(items: &[&str]) -> pgorm_query::SimpleExpr {
     Expr::val(
         items
@@ -96,13 +96,13 @@ fn texts(items: &[&str]) -> pgorm_query::SimpleExpr {
             .map(|item| (*item).to_owned())
             .collect::<Vec<_>>(),
     )
-    .cast_as_type(pgorm_query::TypeName::new(Name::runtime("text")).array())
+    .into()
 }
 
-/// A bound `int4`, cast for the same reason: `generate_series` is overloaded
-/// on its argument types.
+/// A bound `int4`, which `generate_series`, overloaded on its argument types,
+/// reads as `$n::int4`.
 fn int(value: i32) -> pgorm_query::SimpleExpr {
-    Expr::val(value).cast_as(Name::runtime("int4"))
+    Expr::val(value).into()
 }
 
 /// Run `query` through `build`, its values bound, decoding each row as `T`.
@@ -110,7 +110,7 @@ async fn rows<T>(db: &DatabaseConnection, query: SelectStatement) -> Result<Vec<
 where
     T: pgorm::TryGetableMany,
 {
-    Selector::<SelectGetableTuple<T>>::into_tuple::<T>(query)
+    Selector::<SelectGetableTuple<T>>::into_tuple(query)
         .all(db)
         .await
 }
@@ -285,7 +285,7 @@ async fn group_by_distinct_groups_each_set_once(db: &DatabaseConnection) -> Resu
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    against a live server: the bound pattern is
+// [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    against a live server: the bound pattern is
 // matched whole, alternation and escape included
 async fn similar_to_matches_bound_patterns(db: &DatabaseConnection) -> Result<(), Error> {
     let named = |predicate: pgorm_query::SimpleExpr| {
@@ -319,7 +319,7 @@ async fn similar_to_matches_bound_patterns(db: &DatabaseConnection) -> Result<()
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ast.select.table-function+2/test]    against a live server: `WITH ORDINALITY`
+// [spec:pgorm:req:sql.ast.select.table-function+3/test]    against a live server: `WITH ORDINALITY`
 // numbers an array's elements in order, under the column names the alias gives
 // [spec:pgorm:req:sql.render.table-function+2/test]
 async fn ordinality_numbers_a_function_rows(db: &DatabaseConnection) -> Result<(), Error> {
@@ -372,7 +372,7 @@ async fn ordinality_numbers_a_function_rows(db: &DatabaseConnection) -> Result<(
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ast.select.table-function+2/test]    against a live server: `ROWS FROM` reads
+// [spec:pgorm:req:sql.ast.select.table-function+3/test]    against a live server: `ROWS FROM` reads
 // its calls side by side and pads the one that runs out with NULLs
 // [spec:pgorm:req:sql.render.table-function+2/test]
 async fn rows_from_pads_the_shorter_function(db: &DatabaseConnection) -> Result<(), Error> {

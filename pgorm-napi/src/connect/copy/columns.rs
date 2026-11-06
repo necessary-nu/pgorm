@@ -9,8 +9,8 @@ use pgorm::{CopyColumn, CopyTrait};
 
 use super::{
     super::{
-        ConnectionHandle, Operation, PoolHandle, abort_argument, config::DIALECT, on_connection,
-        on_pool,
+        ConnectionHandle, Held, Operation, PoolHandle, abort_argument, config::DIALECT,
+        on_connection, on_pool,
     },
     in_state, out_state, rows,
 };
@@ -150,6 +150,19 @@ where
     columns.map_err(|error| failure(&error, secrets))
 }
 
+/// The columns `copy` would carry, described on a connection a pool lent,
+/// plain or instrumented.
+async fn described_on(
+    held: &mut Held,
+    copy: &CopyStatement,
+    secrets: &Redactions,
+) -> Result<Vec<CopyColumn>, Failure> {
+    match held {
+        Held::Plain(db) => described(db, copy, secrets).await,
+        Held::Metered(db) => described(db, copy, secrets).await,
+    }
+}
+
 /// `poolCopyColumns(pool, copy, abort)`: the description on a connection the
 /// pool lends for it alone.
 // [spec:pgorm:req:bindings.copy-rows+2]
@@ -159,7 +172,7 @@ fn pool_copy_columns(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let abort = abort_argument(&mut cx, 2)?;
     let work = async move {
         on_pool(&pool, &abort, async |db| {
-            described(db, &copy, &pool.secrets).await
+            described_on(db, &copy, &pool.secrets).await
         })
         .await
     };
@@ -180,7 +193,7 @@ fn connection_copy_columns(mut cx: FunctionContext) -> JsResult<JsPromise> {
     };
     let work = async move {
         on_connection(operation, &abort, async |db| {
-            described(db, &copy, &secrets).await
+            described_on(db, &copy, &secrets).await
         })
         .await
     };

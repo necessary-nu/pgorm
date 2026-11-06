@@ -1,6 +1,7 @@
 // A pool's shape and manager options — its timeouts, queue mode, recycling,
-// tag and hooks — several pools built by tag, and a connection discarded,
-// against a live server in either runtime.
+// tag and hooks — several pools built by tag, a connection discarded, and an
+// instrumented pool over a configured one, against a live server in either
+// runtime.
 
 import assert from "node:assert/strict";
 import { createServer, type Socket } from "node:net";
@@ -10,8 +11,10 @@ import {
   ConnectionError,
   ConstructionError,
   type HookConnection,
+  InstrumentedPool,
   LifecycleError,
   MultiPool,
+  NoOpMetrics,
   Pool,
   type Queryable,
   TimeoutError,
@@ -169,6 +172,42 @@ test("discard closes a connection without returning it, and the pool opens a fre
   const fresh = await single.acquire();
   assert.notEqual(await backend(fresh), pid);
   await fresh.close();
+});
+
+/** A collector counting the connections an instrumented pool lends. */
+class Acquisitions extends NoOpMetrics {
+  acquired = 0;
+
+  override recordConnectionAcquired() {
+    this.acquired += 1;
+  }
+}
+
+// [spec:pgorm:req:bindings.metrics/test]    an instrumented pool is the pool it wraps, its configuration included, and a connection it lends discards
+// [spec:pgorm:req:bindings.connections+3/test]
+test("an InstrumentedPool keeps its pool's tag and hooks, and a connection it lends discards", async () => {
+  let created = 0;
+  const inner = new Pool(scratch(), {
+    maxSize: 1,
+    tag: "metered",
+    postCreate: async (db) => {
+      created += 1;
+      await db.execute("SELECT set_config('application_name', $1, false)", ["bakery-metered"]);
+    },
+  });
+  const counted = new Acquisitions();
+  await using metered = new InstrumentedPool(inner, counted);
+  assert.equal(metered.tag, "metered");
+  const db = await metered.acquire();
+  assert.equal(await setting(db, "application_name"), "bakery-metered");
+  const pid = await backend(db);
+  await db.discard();
+  assert.equal(db.closed, true);
+  const fresh = await metered.acquire();
+  assert.notEqual(await backend(fresh), pid);
+  assert.equal(created, 2);
+  await fresh.close();
+  assert.equal(counted.acquired, 2);
 });
 
 // [spec:pgorm:req:bindings.multi-pool/test]

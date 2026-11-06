@@ -1,7 +1,7 @@
 //! Native DDL built independently must match Python SQL, including literal escaping.
 use pgorm::pgorm_query::{
     Check, ColumnDef, ColumnType, ConstraintChange, ConstraintDrop, Domain, DomainCheck,
-    Enforcement, Expr, Func, GeneratedKind, Index, IndexOrder, IndexType, IntoName,
+    Enforcement, Expr, ExprTrait, Func, GeneratedKind, Index, IndexOrder, IndexType, IntoName,
     MaterializedView, Name, NotNullConstraint, Query, Schema, SelectStatement, SimpleExpr,
     StringLen, Table, TableKey, TableName, TypeName, Values, View, ViewCheckOption, error,
     extension::Type,

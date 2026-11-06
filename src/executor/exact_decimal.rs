@@ -2,20 +2,44 @@
 
 use bytes::BytesMut;
 use rust_decimal::Decimal;
+use tokio_postgres::row::RowIndex;
 use tokio_postgres::types::{FromSql, ToSql, Type};
+
+use crate::{QueryResult, TryGetError, TryGetable};
 
 type WireError = Box<dyn std::error::Error + Sync + Send>;
 
 /// A `numeric` that [`Decimal`] holds exactly, its scale included, or a
 /// decode error. rust_decimal's own decoder rounds a value with more than 28
 /// fractional digits and keeps no coefficient past 96 bits, so the value it
-/// reads is written back and compared with what the server sent. A range
-/// type a schema created reads its `numeric` bounds through this
-/// ([`CreatedRangeCodec`](crate::CreatedRangeCodec)), and the language
-/// bindings their `numeric` values.
+/// reads is written back and compared with what the server sent. Every
+/// `Decimal` pgorm decodes reads through this: a `Decimal` or `Vec<Decimal>`
+/// field or tuple element, a `numrange`'s bounds, a range type a schema
+/// created ([`CreatedRangeCodec`](crate::CreatedRangeCodec)), a binary COPY's
+/// rows, and the language bindings' `numeric` values.
 // [spec:pgorm:req:bindings.values]
+// [spec:pgorm:req:exec.decode.decimal-exact]
 #[derive(Debug)]
 pub struct ExactDecimal(pub Decimal);
+
+/// A `numeric` read only where a `Decimal` holds it exactly: one past 28
+/// fractional digits or a 96-bit coefficient fails to decode rather than
+/// coming back rounded, as COPY rows and the bindings read it.
+// [spec:pgorm:req:exec.decode.decimal-exact]
+impl TryGetable for Decimal {
+    fn try_get_by<I: RowIndex + std::fmt::Display>(
+        res: &QueryResult,
+        idx: I,
+    ) -> Result<Self, TryGetError> {
+        let result: ExactDecimal = res.row.try_get(idx).map_err(TryGetError::postgres)?;
+        Ok(result.0)
+    }
+
+    // [spec:pgorm:sem:exec.verify.accepts+1]
+    fn accepts(ty: &Type) -> bool {
+        <Decimal as FromSql>::accepts(ty)
+    }
+}
 
 impl From<ExactDecimal> for Decimal {
     fn from(exact: ExactDecimal) -> Self {

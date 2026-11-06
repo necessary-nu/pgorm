@@ -2,7 +2,7 @@ use pgorm_query::{QueryStatementBuilder, Values};
 
 /// A Trait for any type performing queries on a Model or ActiveModel
 // [spec:pgorm:req:query.build+2]
-// [spec:pgorm:def:query.build.query-trait]
+// [spec:pgorm:def:query.build.query-trait+2]
 pub trait QueryTrait {
     /// Constrain the QueryStatement to [QueryStatementBuilder] trait
     type QueryStatement: QueryStatementBuilder;

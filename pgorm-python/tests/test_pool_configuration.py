@@ -143,6 +143,26 @@ class PoolShapeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(pool.status().size, 1)
 
 
+class InstrumentedConfigurationTests(unittest.IsolatedAsyncioTestCase):
+    # [spec:pgorm:req:bindings.connections+3/test]    an instrumented pool wraps a configured
+    # pool: its tag and hooks hold, and its connections are discarded as a pool's are
+    async def test_an_instrumented_pool_keeps_its_configuration(self) -> None:
+        created: list[int] = []
+        configured = Pool(
+            os.environ["PGORM_TEST_DSN"], max_size=1, tag="kitchen",
+            post_create=lambda connection: created.append(connection.recycle_count),
+        )
+        async with pgorm.InstrumentedPool(configured, pgorm.NoOpMetrics()) as pool:
+            self.assertEqual(pool.tag, "kitchen")
+            connection = await pool.acquire()
+            discarded = (await connection.one(PID))["pid"]
+            await connection.discard()
+            self.assertTrue(connection.closed)
+            self.assertNotEqual(await pid(pool), discarded)
+        self.assertEqual(created, [0, 0])
+        await configured.close()
+
+
 class HookTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.dsn = os.environ["PGORM_TEST_DSN"]

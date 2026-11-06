@@ -1,9 +1,9 @@
 use std::ffi::CString;
 
 use pgorm::pgorm_query::{
-    Asterisk, ColumnRef, ColumnType, Expr, Func, IntoNamedTable, JoinType, JsonExistsBehavior,
-    JsonKind, JsonQueryBehavior, JsonTableBehavior, JsonTableColumn, JsonValueBehavior,
-    JsonValueType, Name, Order, Query, SelectStatement, SimpleExpr,
+    Asterisk, ColumnRef, ColumnType, Expr, ExprTrait, Func, IntoNamedTable, JoinType,
+    JsonExistsBehavior, JsonKind, JsonQueryBehavior, JsonTableBehavior, JsonTableColumn,
+    JsonValueBehavior, JsonValueType, Name, Order, Query, SelectStatement, SimpleExpr,
 };
 use pyo3::{prelude::*, types::PyDict};
 

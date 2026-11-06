@@ -11,7 +11,7 @@ use crate::{
 /// admits only there, as Rust's `LikeExpr` holds them: the pattern is bound,
 /// and the escape, a backslash until `escape` or `no_escape` replaces it, is
 /// written as a literal.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 #[pyclass(name = "LikeExpr", module = "pgorm", frozen, from_py_object)]
 #[derive(Clone, Debug)]
 pub struct PyLikeExpr {
@@ -24,6 +24,39 @@ impl PyLikeExpr {
     fn new(pattern: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self {
             inner: LikeExpr::new(pattern_text(pattern)?),
+        })
+    }
+
+    /// A pattern matching exactly `text`, its `%`, `_` and escape character
+    /// escaped: Rust's `LikeExpr::literal`.
+    #[staticmethod]
+    fn literal(text: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self {
+            inner: LikeExpr::literal(pattern_text(text)?),
+        })
+    }
+
+    /// `%text%` over literal text: Rust's `LikeExpr::containing`.
+    #[staticmethod]
+    fn containing(text: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self {
+            inner: LikeExpr::containing(pattern_text(text)?),
+        })
+    }
+
+    /// `text%` over literal text: Rust's `LikeExpr::starting_with`.
+    #[staticmethod]
+    fn starting_with(text: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self {
+            inner: LikeExpr::starting_with(pattern_text(text)?),
+        })
+    }
+
+    /// `%text` over literal text: Rust's `LikeExpr::ending_with`.
+    #[staticmethod]
+    fn ending_with(text: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self {
+            inner: LikeExpr::ending_with(pattern_text(text)?),
         })
     }
 
@@ -59,7 +92,7 @@ impl PyLikeExpr {
         "LikeExpr(...)"
     }
 
-    // [spec:pgorm:req:python.truth-testing+4]
+    // [spec:pgorm:req:python.truth-testing+5]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "LIKE patterns cannot be tested as Python booleans",

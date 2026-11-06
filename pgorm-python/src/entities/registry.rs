@@ -1,7 +1,6 @@
 use std::{
     any::TypeId,
-    collections::{BTreeMap, HashMap},
-    marker::PhantomData,
+    collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
 };
 
@@ -16,7 +15,12 @@ use crate::{UnsupportedCapabilityError, errors::ConstructionError};
 #[derive(Debug, Default)]
 pub struct Registry {
     entries: BTreeMap<String, Arc<dyn EntityBackend>>,
+    /// The first registration of each Rust entity type, which a graph or a
+    /// source tuple over the type reads its metadata from.
     types: HashMap<TypeId, String>,
+    /// Every registered type with the table its instance names, so one table
+    /// is not registered twice under one type.
+    tables: HashSet<(TypeId, Option<String>, String)>,
     pub(crate) graphs: BTreeMap<String, Arc<dyn crate::graphs::backend::Factory>>,
     pub(crate) sources: BTreeMap<String, Arc<dyn crate::pipeline::selected_backend::Factory>>,
     pub(crate) disjoints: crate::disjoint::Registered,
@@ -26,27 +30,48 @@ pub struct Registry {
 impl Registry {
     /// Register the real entity, model, columns and ActiveModel implementation.
     /// Duplicate names or duplicate Rust entity types are rejected atomically.
-    // [spec:pgorm:req:bindings.entities+5]
+    /// Its statements name `E::default()`'s table.
+    // [spec:pgorm:req:bindings.entities+6]
     pub fn entity<E>(&mut self, name: &str) -> PyResult<&mut Self>
     where
         E: EntityTrait + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
-        if self.entries.contains_key(name) || self.types.contains_key(&TypeId::of::<E>()) {
+        self.entity_in(name, E::default())
+    }
+
+    /// Register `entity`, an instance of an entity whose names are computed
+    /// at run time, under `name`: every statement of the registration names
+    /// the instance's table, as Rust's `_in` constructors do. A type may be
+    /// registered once for each table its instances name; a name, or a type
+    /// and table already registered, is rejected atomically.
+    // [spec:pgorm:req:bindings.entities+6]
+    pub fn entity_in<E>(&mut self, name: &str, entity: E) -> PyResult<&mut Self>
+    where
+        E: EntityTrait + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: Send + Sync + 'static,
+    {
+        let table = (
+            TypeId::of::<E>(),
+            entity.schema_name().map(str::to_owned),
+            entity.table_name().to_owned(),
+        );
+        if self.entries.contains_key(name) || self.tables.contains(&table) {
             return Err(ConstructionError::new_err(
                 "duplicate entity registration name or Rust type",
             ));
         }
-        let info = Arc::new(EntityInfo::of::<E>(name)?);
+        let info = Arc::new(EntityInfo::of(name, entity)?);
         self.entries.insert(
             name.to_owned(),
-            Arc::new(EntityAdapter::<E> {
-                info,
-                entity: PhantomData,
-            }),
+            Arc::new(EntityAdapter::<E> { info, entity }),
         );
-        self.types.insert(TypeId::of::<E>(), name.to_owned());
+        self.types
+            .entry(TypeId::of::<E>())
+            .or_insert_with(|| name.to_owned());
+        self.tables.insert(table);
         Ok(self)
     }
 
@@ -92,7 +117,7 @@ fn names(
 }
 
 /// `entities()`: the names of the entities this module registers.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 #[pyfunction(pass_module)]
 pub(crate) fn entities(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
     names(module, |registry| {
@@ -101,7 +126,7 @@ pub(crate) fn entities(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
 }
 
 /// `graphs()`: the names of the graph shapes this module registers.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 #[pyfunction(pass_module)]
 pub(crate) fn graphs(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
     names(module, |registry| registry.graphs.keys().cloned().collect())
@@ -109,7 +134,7 @@ pub(crate) fn graphs(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
 
 /// `pipeline.source_tuples()`: the names of the source tuples this module
 /// registers.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 #[pyfunction(pass_module)]
 pub(crate) fn pipeline_source_tuples(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
     names(module, |registry| {

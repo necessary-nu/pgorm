@@ -1,6 +1,7 @@
 use crate::{
     ActiveModelBehavior, ActiveModelTrait, ConnectionTrait, EntityTrait, Error, ExpectedColumn,
     IntoActiveModel, Linked, QueryFilter, QueryResult, Related, Select, SelectModel, SelectorRaw,
+    SqlText,
 };
 use async_trait::async_trait;
 pub use pgorm_query::Value;
@@ -97,7 +98,7 @@ pub trait ModelTrait: Clone + Send + Debug {
 ///     ColumnField::<{ fruit::Column::CakeId as usize }>::field(&fruit);
 /// assert_eq!(cake_id, &Some(2));
 /// ```
-// [spec:pgorm:sem:macros.derive.model+6]
+// [spec:pgorm:sem:macros.derive.model+7]
 // [spec:pgorm:def:disjoint.one-of+4]
 pub trait ColumnField<const COLUMN: usize> {
     /// The type the model declares the field as, an `Option` where the column
@@ -163,7 +164,7 @@ pub trait FromQueryResult: Sized {
     /// default answers [`None`]: a hand-written implementation decodes by means
     /// only it knows, so it is reported as unverifiable rather than treated as
     /// verified. Overriding this method opts such an implementation back in.
-    // [spec:pgorm:def:exec.verify]    the column-shape reflection hook
+    // [spec:pgorm:def:exec.verify+1]    the column-shape reflection hook
     fn expected_columns() -> Option<Vec<ExpectedColumn>> {
         None
     }
@@ -178,7 +179,7 @@ pub trait FromQueryResult: Sized {
     /// ```no_run
     /// # #[cfg(feature = "macros")]
     /// # {
-    /// # use pgorm::{error::*, query::*, DatabasePool, FromQueryResult};
+    /// # use pgorm::{error::*, query::*, DatabasePool, FromQueryResult, Values};
     /// #
     /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
     /// #[derive(Debug, PartialEq, FromQueryResult)]
@@ -191,7 +192,7 @@ pub trait FromQueryResult: Sized {
     ///
     /// let res: Vec<SelectResult> = SelectResult::find_by_statement(
     ///     r#"SELECT "name", COUNT(*) AS "num_of_cakes" FROM "cake" GROUP BY("name")"#,
-    ///     vec![],
+    ///     Values(vec![]),
     /// )
     /// .all(&db)
     /// .await?;
@@ -199,11 +200,12 @@ pub trait FromQueryResult: Sized {
     /// # }
     /// # }
     /// ```
-    fn find_by_statement(
-        stmt: impl Into<String>,
-        values: Vec<Value>,
-    ) -> SelectorRaw<SelectModel<Self>> {
-        SelectorRaw::<SelectModel<Self>>::from_statement(stmt.into(), Values(values))
+    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    fn find_by_statement<T>(sql: &T, values: Values) -> SelectorRaw<SelectModel<Self>>
+    where
+        T: ?Sized + SqlText,
+    {
+        SelectorRaw::from_statement(sql, values)
     }
 }
 

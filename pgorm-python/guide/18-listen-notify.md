@@ -362,6 +362,5 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Rust's metrics layer records a `notify` through an instrumented connection
-as the statement it is, and does not see a listener at all. Python has no
-metrics layer yet ([Metrics](21-metrics.md)).
+The metrics layer reports a `notify` through an instrumented pool as the
+statement it is, and does not see a listener at all ([Metrics](21-metrics.md)).

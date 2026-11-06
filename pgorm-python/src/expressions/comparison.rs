@@ -1,12 +1,12 @@
 //! `Expr`'s comparisons: the six ordering operators, as methods and as
 //! Python's rich comparisons, and the null-safe `IS [NOT] DISTINCT FROM`.
 
-use pgorm::pgorm_query::{BinOper, Expr};
+use pgorm::pgorm_query::{BinOper, Expr, ExprTrait};
 use pyo3::{basic::CompareOp, prelude::*};
 
 use super::{PyExpr, coerce};
 
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 // [spec:pgorm:req:python.naming+4]
 #[pymethods]
 impl PyExpr {

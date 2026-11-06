@@ -215,7 +215,7 @@ pub(super) fn int_range(start: Option<i64>, end: Option<i64>) -> PlExpr {
 ///
 /// The same namespace prqlc mints its own wrapping CTEs in; its namer steps
 /// around taken names, so the two sequences never collide.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub(super) fn binding_name(index: usize) -> String {
     format!("table_{index}")
 }
@@ -286,7 +286,7 @@ fn walk_mut(node: &mut PlExpr, visit: &mut impl FnMut(&mut PlExpr)) {
 /// A binding is named by the *leading* segment of an identifier — bare where
 /// a stage reads from it, qualifying where a column of it is referred to by
 /// name ([`requalify`]) — so both spellings are renumbered.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub(super) fn rebase(
     node: &mut PlExpr,
     params: usize,
@@ -320,7 +320,7 @@ pub(super) fn rebase(
 /// A `Some((qualifier, name))` replaces the whole identifier, which is how a
 /// reference written against a source follows its column into the binding
 /// that now exposes it.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub(super) fn requalify(node: &mut PlExpr, repoint: &dyn Fn(&str) -> Option<(String, String)>) {
     walk_mut(node, &mut |node| {
         if let Some(path) = column_path(node)
@@ -341,7 +341,7 @@ pub(super) fn requalify(node: &mut PlExpr, repoint: &dyn Fn(&str) -> Option<(Str
 /// introduced at the top level of the same namespace. The two are ordered by
 /// different keys — the input's position against the column's index — which
 /// is what the builder's `Columns` exists to see coming.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Projected<'a> {
     /// Qualified by this source, and filed under its submodule.
@@ -353,7 +353,7 @@ pub(super) enum Projected<'a> {
 }
 
 /// Classify one item of a projection by where its name will be filed.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub(super) fn projected(node: &PlExpr) -> Projected<'_> {
     if node.alias.is_some() {
         return Projected::Introduced;
@@ -370,7 +370,7 @@ pub(super) fn projected(node: &PlExpr) -> Projected<'_> {
 /// The bare name a call node names — a stage's verb (`select`, `derive`,
 /// `sort`, `join`) or, on a projected expression, the function it calls
 /// (`first`, `sum`) — or `None` for a node that is not a call of a bare name.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub(super) fn stage_verb(node: &PlExpr) -> Option<&str> {
     let ExprKind::FuncCall(call) = &node.kind else {
         return None;
@@ -383,7 +383,7 @@ pub(super) fn stage_verb(node: &PlExpr) -> Option<&str> {
 
 /// The name a `from` or `join` stage's relation answers to: the one that
 /// qualifies its columns for every stage behind it.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub(super) fn stage_source(node: &PlExpr) -> Option<&str> {
     let ExprKind::FuncCall(call) = &node.kind else {
         return None;
@@ -393,7 +393,7 @@ pub(super) fn stage_source(node: &PlExpr) -> Option<&str> {
 
 /// The tuple a single-argument stage carries — a projection's items, a
 /// sort's keys — reachable for replacement in place.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub(super) fn tuple_items_mut(node: &mut PlExpr) -> Option<&mut Vec<PlExpr>> {
     let ExprKind::FuncCall(call) = &mut node.kind else {
         return None;
@@ -411,7 +411,7 @@ pub(super) fn tuple_items_mut(node: &mut PlExpr) -> Option<&mut Vec<PlExpr>> {
 ///
 /// `None` is an expression left unnamed — which is precisely what `this`
 /// cannot expand, because there is nothing to file it in the namespace under.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub(super) fn exposed_name(node: &PlExpr) -> Option<&str> {
     if let Some(alias) = &node.alias {
         return Some(alias);
@@ -424,7 +424,7 @@ pub(super) fn exposed_name(node: &PlExpr) -> Option<&str> {
 
 /// The whole dotted path of a column reference — `fruit.name` — which is the
 /// identity a projection item and a sort key naming it have in common.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub(super) fn column_path(node: &PlExpr) -> Option<String> {
     let ExprKind::Ident(ident) = &node.kind else {
         return None;
@@ -439,7 +439,7 @@ pub(super) fn column_path(node: &PlExpr) -> Option<String> {
 
 /// The column a sort key names, seen through the `desc`/`asc` marker that
 /// wraps it.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub(super) fn sort_key_path(key: &PlExpr) -> Option<String> {
     match &key.kind {
         ExprKind::Unary(node) => sort_key_path(&node.expr),
@@ -452,7 +452,7 @@ pub(super) fn sort_key_path(key: &PlExpr) -> Option<String> {
 /// `false` when the key is not a column reference and so has no name to
 /// move — an ordering computed from an expression cannot follow its relation
 /// across a binding boundary.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub(super) fn rebind_sort_key(key: &mut PlExpr, name: &str) -> bool {
     match &mut key.kind {
         ExprKind::Unary(node) => rebind_sort_key(&mut node.expr, name),
@@ -557,7 +557,7 @@ pub(super) fn collect_identifiers(node: &PlExpr, found: &mut Vec<String>) {
 /// text compilation are interchangeable. prqlc lowers each referenced
 /// binding to a CTE (or inlines it where SQL allows).
 // [spec:pgorm:def:pipeline.adapter+2]
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+1]
 pub(super) fn compile(bindings: Vec<Vec<PlExpr>>, stages: Vec<PlExpr>) -> Result<String, String> {
     let stmts = bindings
         .into_iter()

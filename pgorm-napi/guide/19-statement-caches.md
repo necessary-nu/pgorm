@@ -231,5 +231,4 @@ assert.throws(() => new Pool(url, { statementCacheChannel: "" }), ConstructionEr
 assert.throws(() => new Pool(url, { statementCacheChannel: "c".repeat(64) }), ConstructionError);
 ```
 
-Rust's metrics layer does not see these clears, and JavaScript has no metrics
-layer ([Metrics](21-metrics.md)).
+The metrics layer does not see these clears ([Metrics](21-metrics.md)).

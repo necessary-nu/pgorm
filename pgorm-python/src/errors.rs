@@ -40,8 +40,12 @@ impl Redactions {
 }
 
 // [spec:pgorm:req:bindings.errors+5]
-pub(crate) fn database_error(error: pgorm::Error, secrets: &Redactions) -> PyErr {
-    let mut source: &(dyn std::error::Error + 'static) = &error;
+pub(crate) fn database_error(
+    error: impl std::borrow::Borrow<pgorm::Error>,
+    secrets: &Redactions,
+) -> PyErr {
+    let error = error.borrow();
+    let mut source: &(dyn std::error::Error + 'static) = error;
     loop {
         if let Some(postgres) = source.downcast_ref::<tokio_postgres::Error>() {
             return postgres_error(postgres, secrets);
@@ -55,7 +59,7 @@ pub(crate) fn database_error(error: pgorm::Error, secrets: &Redactions) -> PyErr
         // [spec:pgorm:req:bindings.pool-hooks]    a timeout names what ran out, and a
         // hook's refusal says why
         pgorm::Error::Pool(error) => {
-            match pgorm_bindings::pool_failure(&error, crate::config::DIALECT) {
+            match pgorm_bindings::pool_failure(error, crate::config::DIALECT) {
                 pgorm_bindings::PoolFailure::Timeout(message) => TimeoutError::new_err(message),
                 pgorm_bindings::PoolFailure::Connection(message) => {
                     ConnectionError::new_err(secrets.apply(&message))

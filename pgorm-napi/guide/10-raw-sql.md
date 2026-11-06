@@ -186,8 +186,10 @@ assert.ok(row.note.isNull);
 
 **Not available in JavaScript yet:** decoding the rows of SQL you wrote into
 a model's records, held to the model's declaration as its own reads are,
-which Rust does with `into_model`, `Select::from_raw_sql` and
-`FromQueryResult::find_by_statement`. A model's records come from the
+which Rust does with `into_model`, `Select::from_raw_sql`,
+`FromQueryResult::find_by_statement` and the `SelectorRaw` constructors, each
+taking the SQL text and its values in the one shape its connection methods
+take them. A model's records come from the
 model's own reads ([Reading rows](05-reading.md)); SQL text gives plain rows.
 
 ## Checking a statement before it runs

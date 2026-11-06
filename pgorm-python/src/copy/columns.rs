@@ -9,7 +9,7 @@ use crate::{
     config::DIALECT,
     errors::{ConstructionError, LifecycleError, database_error},
     execution::Target,
-    runtime::Operation,
+    runtime::{Held, Operation},
     values::PyTypeName,
 };
 /// One column of a binary COPY: its name, its type and, for `money`, the
@@ -88,6 +88,17 @@ impl PyCopyColumn {
     }
 }
 
+/// The description on a connection, plain or an instrumented pool's.
+async fn describe_held(
+    held: &mut Held,
+    statement: &Described,
+) -> Result<Vec<pgorm::CopyColumn>, pgorm::Error> {
+    match held {
+        Held::Plain(connection) => describe(connection, statement).await,
+        Held::Metered(connection) => describe(connection, statement).await,
+    }
+}
+
 /// `copy_in_columns` and, with `out`, `copy_out_columns`: the columns
 /// `statement` writes or reads, described without starting the COPY, on a
 /// connection or a transaction. A description the server refuses is its
@@ -129,7 +140,7 @@ pub(crate) fn copy_columns<'py>(
                 let described = tokio::select! {
                     _ = state.cancelled.cancelled() => return Err(LifecycleError::new_err("connection is closed")),
                     _ = state.pool.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
-                    described = describe(operation.connection_mut()?, &statement) => described,
+                    described = describe_held(operation.connection_mut()?, &statement) => described,
                 };
                 operation.restore();
                 described.map_err(|error| database_error(error, &state.pool.secrets))?

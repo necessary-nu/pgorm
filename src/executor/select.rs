@@ -1,6 +1,6 @@
 use crate::{
-    ConnectionTrait, EntityTrait, FromQueryResult, PartialModelTrait, QueryResult, Select,
-    SelectProjected, TryGetableMany, error::*,
+    ConnectionTrait, EntityTrait, FromQueryResult, PartialModelTrait, QueryResult, QueryTrait,
+    Select, SelectProjected, SqlText, TryGetableMany, error::*,
 };
 use futures::{Stream, StreamExt};
 use pgorm_query::{SelectStatement, Values};
@@ -26,7 +26,7 @@ pub type PinBoxSendStream<'db, Item> = Pin<Box<dyn Stream<Item = Item> + Send + 
 /// The `select_only` typestate keeps the ORM's own builders out of this state,
 /// but an empty `columns([])` / `exprs([])` iterator and a hand-rolled
 /// [`SelectStatement`] both still reach it.
-// [spec:pgorm:sem:query.build.modifiers+10]
+// [spec:pgorm:sem:query.build.modifiers+11]
 // [spec:pgorm:req:exec.tie-limit+1]
 // [spec:pgorm:def:sql.ast.window-statement+8]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2]
@@ -54,8 +54,29 @@ pub(crate) fn refuse_tie_limit(query: &SelectStatement, reader: &str) -> Result<
     Ok(())
 }
 
-/// Defines a type to do `SELECT` operations through a [SelectStatement] on a Model
-// [spec:pgorm:def:exec.crud+1]
+/// A `SELECT` statement and the decode target its rows are read into.
+///
+/// It renders as the [`Select`] it came from does, through [`QueryTrait`]:
+/// what [`into_partial_model`](Select::into_partial_model),
+/// [`into_model`](SelectProjected::into_model),
+/// [`into_tuple`](SelectProjected::into_tuple) or
+/// [`into_values`](SelectProjected::into_values) will run can be asserted
+/// and logged before it runs.
+///
+/// ```
+/// use pgorm::{entity::*, query::*, tests_cfg::cake};
+///
+/// let names = cake::Entity::find()
+///     .select(cake::Column::Name)
+///     .filter(cake::Column::Id.gt(2))
+///     .into_tuple::<(String,)>();
+///
+/// assert_eq!(
+///     names.build().0,
+///     r#"SELECT "cake"."name" FROM "cake" WHERE "cake"."id" > $1"#
+/// );
+/// ```
+// [spec:pgorm:def:exec.crud+2]
 #[derive(Clone, Debug)]
 pub struct Selector<S>
 where
@@ -78,7 +99,7 @@ where
 }
 
 /// A Trait for any type that can perform SELECT queries
-// [spec:pgorm:def:exec.crud+1]
+// [spec:pgorm:def:exec.crud+2]
 pub trait SelectorTrait {
     #[allow(missing_docs)]
     type Item: Sized;
@@ -156,15 +177,15 @@ impl<E> Select<E>
 where
     E: EntityTrait,
 {
-    /// Perform a Select operation on a Model using a raw SQL string and its
-    /// bound parameter values
+    /// Read the entity's models from a raw statement, its SQL text and the
+    /// values bound into it, in place of the query built so far.
+    // [spec:pgorm:sem:exec.crud.selector-entry+3]
     #[allow(clippy::wrong_self_convention)]
-    pub fn from_raw_sql(self, stmt: String, values: Values) -> SelectorRaw<SelectModel<E::Model>> {
-        SelectorRaw {
-            stmt,
-            values,
-            selector: SelectModel { model: PhantomData },
-        }
+    pub fn from_raw_sql<T>(self, sql: &T, values: Values) -> SelectorRaw<SelectModel<E::Model>>
+    where
+        T: ?Sized + SqlText,
+    {
+        SelectorRaw::from_statement(sql, values)
     }
 
     /// Return a [Selector] from `Self` that wraps a [SelectModel]
@@ -432,7 +453,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:query.build.modifiers+10]
+// [spec:pgorm:sem:query.build.modifiers+11]
 impl<E> SelectProjected<E>
 where
     E: EntityTrait,
@@ -504,37 +525,31 @@ where
     }
 }
 
-impl<S> Selector<S>
+// [spec:pgorm:def:exec.crud+2]
+impl<S> QueryTrait for Selector<S>
 where
     S: SelectorTrait,
 {
-    /// Create `Selector` from Statement and columns. Executing this `Selector`
-    /// will return a type `T` which implement `TryGetableMany`.
-    pub fn with_columns<T, C>(query: SelectStatement) -> Selector<SelectGetableValue<T, C>>
-    where
-        T: TryGetableMany,
-        C: strum::IntoEnumIterator + pgorm_query::SqlName,
-    {
-        Selector {
-            query,
-            selector: SelectGetableValue {
-                columns: PhantomData,
-                model: PhantomData,
-            },
-        }
+    type QueryStatement = SelectStatement;
+
+    fn query(&mut self) -> &mut SelectStatement {
+        &mut self.query
     }
 
-    /// Get tuple from query result based on column index
-    pub fn into_tuple<T>(query: SelectStatement) -> Selector<SelectGetableTuple<T>>
-    where
-        T: TryGetableMany,
-    {
-        Selector {
-            query,
-            selector: SelectGetableTuple { model: PhantomData },
-        }
+    fn as_query(&self) -> &SelectStatement {
+        &self.query
     }
 
+    fn into_query(self) -> SelectStatement {
+        self.query
+    }
+}
+
+// [spec:pgorm:sem:exec.crud.selector-entry+3]
+impl<M> Selector<SelectModel<M>>
+where
+    M: FromQueryResult,
+{
     /// Decode a caller-built [`SelectStatement`]'s rows into a
     /// [`FromQueryResult`] type.
     ///
@@ -562,24 +577,60 @@ where
     ///     .to_owned();
     ///
     /// let db = pool.get().await?;
-    /// let names: Vec<NameOnly> = Selector::<SelectModel<NameOnly>>::from_select::<NameOnly>(statement)
+    /// let names: Vec<NameOnly> = Selector::<SelectModel<NameOnly>>::from_select(statement)
     ///     .all(&db)
     ///     .await?;
     /// # Ok(())
     /// # }
     /// # }
     /// ```
-    // [spec:pgorm:sem:exec.crud.selector-entry+2]
-    pub fn from_select<M>(query: SelectStatement) -> Selector<SelectModel<M>>
-    where
-        M: FromQueryResult,
-    {
+    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    pub fn from_select(query: SelectStatement) -> Self {
         Selector {
             query,
             selector: SelectModel { model: PhantomData },
         }
     }
+}
 
+// [spec:pgorm:sem:exec.crud.selector-entry+3]
+impl<T> Selector<SelectGetableTuple<T>>
+where
+    T: TryGetableMany,
+{
+    /// Decode a caller-built [`SelectStatement`]'s rows into a tuple, by
+    /// column position.
+    pub fn into_tuple(query: SelectStatement) -> Self {
+        Selector {
+            query,
+            selector: SelectGetableTuple { model: PhantomData },
+        }
+    }
+}
+
+// [spec:pgorm:sem:exec.crud.selector-entry+3]
+impl<T, C> Selector<SelectGetableValue<T, C>>
+where
+    T: TryGetableMany,
+    C: strum::IntoEnumIterator + pgorm_query::SqlName,
+{
+    /// Decode a caller-built [`SelectStatement`]'s rows into a tuple, by the
+    /// column names of the column enum `C`.
+    pub fn with_columns(query: SelectStatement) -> Self {
+        Selector {
+            query,
+            selector: SelectGetableValue {
+                columns: PhantomData,
+                model: PhantomData,
+            },
+        }
+    }
+}
+
+impl<S> Selector<S>
+where
+    S: SelectorTrait,
+{
     fn into_selector_raw(self) -> Result<SelectorRaw<S>, Error> {
         ensure_select_list(&self.query)?;
         let (stmt, values) = self.query.build();
@@ -638,23 +689,49 @@ where
     }
 }
 
-impl<S> SelectorRaw<S>
+// [spec:pgorm:sem:exec.crud.selector-entry+3]
+impl<M> SelectorRaw<SelectModel<M>>
 where
-    S: SelectorTrait,
+    M: FromQueryResult,
 {
-    /// Select a custom Model from a raw SQL string and its bound parameter
-    /// values.
-    pub fn from_statement<M>(stmt: String, values: Values) -> SelectorRaw<SelectModel<M>>
+    /// Decode a raw statement's rows into a [`FromQueryResult`] type: the
+    /// SQL text and the values bound into it, as a
+    /// [`ConnectionTrait`] method takes them.
+    ///
+    /// ```no_run
+    /// # use pgorm::{DatabasePool, Error, SelectModel, SelectorRaw, tests_cfg::cake};
+    /// # use pgorm::pgorm_query::Values;
+    /// #
+    /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
+    /// let db = pool.get().await?;
+    ///
+    /// let cakes: Vec<cake::Model> = SelectorRaw::<SelectModel<cake::Model>>::from_statement(
+    ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."id" > $1"#,
+    ///     Values(vec![1.into()]),
+    /// )
+    /// .all(&db)
+    /// .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    pub fn from_statement<T>(sql: &T, values: Values) -> Self
     where
-        M: FromQueryResult,
+        T: ?Sized + SqlText,
     {
         SelectorRaw {
-            stmt,
+            stmt: sql.sql_text().to_owned(),
             values,
             selector: SelectModel { model: PhantomData },
         }
     }
+}
 
+// [spec:pgorm:sem:exec.crud.selector-entry+3]
+impl<T> SelectorRaw<SelectGetableTuple<T>>
+where
+    T: TryGetableMany,
+{
     /// Decode a raw statement's rows into a tuple by column index.
     ///
     /// The ordinal counterpart of [`with_columns`](SelectorRaw::with_columns),
@@ -668,37 +745,43 @@ where
     /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
     /// let db = pool.get().await?;
     ///
-    /// let rows: Vec<(i32, String)> =
-    ///     SelectorRaw::<SelectGetableTuple<(i32, String)>>::into_tuple::<(i32, String)>(
-    ///         r#"SELECT "cake"."id", "cake"."name" FROM "cake""#.to_owned(),
-    ///         Values(vec![]),
-    ///     )
-    ///     .all(&db)
-    ///     .await?;
+    /// let rows: Vec<(i32, String)> = SelectorRaw::<SelectGetableTuple<(i32, String)>>::into_tuple(
+    ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake""#,
+    ///     Values(vec![]),
+    /// )
+    /// .all(&db)
+    /// .await?;
     /// # Ok(())
     /// # }
     /// ```
-    // [spec:pgorm:sem:exec.crud.selector-entry+2]
-    pub fn into_tuple<T>(stmt: String, values: Values) -> SelectorRaw<SelectGetableTuple<T>>
+    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    pub fn into_tuple<Q>(sql: &Q, values: Values) -> Self
     where
-        T: TryGetableMany,
+        Q: ?Sized + SqlText,
     {
         SelectorRaw {
-            stmt,
+            stmt: sql.sql_text().to_owned(),
             values,
             selector: SelectGetableTuple { model: PhantomData },
         }
     }
+}
 
-    /// Create `SelectorRaw` from Statement and columns. Executing this `SelectorRaw` will
-    /// return a type `T` which implement `TryGetableMany`.
-    pub fn with_columns<T, C>(stmt: String, values: Values) -> SelectorRaw<SelectGetableValue<T, C>>
+// [spec:pgorm:sem:exec.crud.selector-entry+3]
+impl<T, C> SelectorRaw<SelectGetableValue<T, C>>
+where
+    T: TryGetableMany,
+    C: strum::IntoEnumIterator + pgorm_query::SqlName,
+{
+    /// Decode a raw statement's rows into a tuple, by the column names of the
+    /// column enum `C`.
+    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    pub fn with_columns<Q>(sql: &Q, values: Values) -> Self
     where
-        T: TryGetableMany,
-        C: strum::IntoEnumIterator + pgorm_query::SqlName,
+        Q: ?Sized + SqlText,
     {
         SelectorRaw {
-            stmt,
+            stmt: sql.sql_text().to_owned(),
             values,
             selector: SelectGetableValue {
                 columns: PhantomData,
@@ -706,7 +789,12 @@ where
             },
         }
     }
+}
 
+impl<S> SelectorRaw<S>
+where
+    S: SelectorTrait,
+{
     /// Decode the raw statement's rows into a custom `FromQueryResult` type.
     ///
     /// ```no_run
@@ -726,8 +814,7 @@ where
     ///
     /// let res: Vec<SelectResult> = cake::Entity::find()
     ///     .from_raw_sql(
-    ///         r#"SELECT "cake"."name", count("cake"."id") AS "num_of_cakes" FROM "cake" GROUP BY "cake"."name""#
-    ///             .to_owned(),
+    ///         r#"SELECT "cake"."name", count("cake"."id") AS "num_of_cakes" FROM "cake" GROUP BY "cake"."name""#,
     ///         Values(vec![]),
     ///     )
     ///     .into_model::<SelectResult>()
@@ -763,7 +850,7 @@ where
     ///
     /// let cake: cake::Model = cake::Entity::find()
     ///     .from_raw_sql(
-    ///         r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "id" = $1"#.to_owned(),
+    ///         r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "id" = $1"#,
     ///         Values(vec![Value::Int(Some(1))]),
     ///     )
     ///     .one(&db)
@@ -801,7 +888,7 @@ where
     ///
     /// let cake: Option<cake::Model> = cake::Entity::find()
     ///     .from_raw_sql(
-    ///         r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "id" = $1"#.to_owned(),
+    ///         r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "id" = $1"#,
     ///         Values(vec![Value::Int(Some(1))]),
     ///     )
     ///     .one_opt(&db)
@@ -838,7 +925,7 @@ where
     ///
     /// let cakes: Vec<cake::Model> = cake::Entity::find()
     ///     .from_raw_sql(
-    ///         r#"SELECT "cake"."id", "cake"."name" FROM "cake""#.to_owned(),
+    ///         r#"SELECT "cake"."id", "cake"."name" FROM "cake""#,
     ///         Values(vec![]),
     ///     )
     ///     .all(&db)

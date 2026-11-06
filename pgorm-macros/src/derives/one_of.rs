@@ -61,7 +61,7 @@ fn attrs(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<Vec<Meta>> {
 }
 
 // [spec:pgorm:def:disjoint.one-of+4]
-// [spec:pgorm:req:macros.derive.code-values+3]
+// [spec:pgorm:req:macros.derive.code-values+4]
 fn container(input: &DeriveInput) -> syn::Result<Container> {
     let mut entity = None;
     let mut key_attrs = None;
@@ -98,7 +98,7 @@ fn container(input: &DeriveInput) -> syn::Result<Container> {
 }
 
 // [spec:pgorm:def:disjoint.one-of+4]
-// [spec:pgorm:req:macros.derive.code-values+3]
+// [spec:pgorm:req:macros.derive.code-values+4]
 fn reference(variant: &Variant) -> syn::Result<Reference> {
     let mut column = None;
     for attr in variant

@@ -16,7 +16,7 @@ fn sublink_kinds(sql: &str) -> Vec<Option<i64>> {
         .collect()
 }
 
-// [spec:pgorm:def:sql.ast.expr+7/test]    `Expr::array` wraps a SELECT in `ARRAY(...)`, which
+// [spec:pgorm:def:sql.ast.expr+8/test]    `Expr::array` wraps a SELECT in `ARRAY(...)`, which
 // the grammar reads as an ARRAY sublink, standing alone or as the array operand of `= ANY`
 // [spec:pgorm:req:sql.render.subquery+5/test]    the ARRAY prefix directly before the
 // parenthesized sub-statement
