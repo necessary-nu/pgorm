@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-06T10:47:54.953431Z
+last_sync_at 2026-11-06T12:26:53.285466Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -2513,6 +2513,11 @@ impl_evidence (
         {impl_name python, rule bindings.json-operators}
         {impl_name python, rule bindings.named-functions}
         {impl_name python, rule bindings.template}
+    ), rule_versions_seen (
+        {id bindings.json-operators, version 0}
+        {id bindings.named-functions, version 0}
+        {id bindings.template, version 0}
+        {id sql.render.template-pieces, version 0}
     )}
     {id guide.python-gaps.copy-through-query, covered_rules (
         conn.copy.statement
@@ -2660,6 +2665,15 @@ impl_evidence (
         {impl_name python, rule bindings.raw-pages}
         {impl_name python, rule bindings.sql-check}
         {impl_name python, rule bindings.verify}
+    ), rule_versions_seen (
+        {id bindings.batch-execute, version 0}
+        {id bindings.prql-text, version 0}
+        {id bindings.raw-models, version 0}
+        {id bindings.raw-pages, version 0}
+        {id bindings.sql-check, version 0}
+        {id bindings.verify, version 0}
+        {id exec.verify.describe, version 0}
+        {id macros.runtime, version 0}
     )}
     {id guide.python-gaps.shared-erased-reads, covered_rules (
         conn.database-ref
@@ -2682,6 +2696,10 @@ impl_evidence (
         {impl_name python, rule bindings.refusal-fields}
         {impl_name python, rule bindings.rollback-failed}
         {impl_name python, rule bindings.transaction-retry}
+    ), rule_versions_seen (
+        {id bindings.refusal-fields, version 0}
+        {id bindings.rollback-failed, version 0}
+        {id bindings.transaction-retry, version 0}
     )}
     {id guide.rust, covered_rules (
         guide.chapters
@@ -2865,6 +2883,8 @@ impl_evidence (
         bindings.batch-execute
     ), covered_claims (
         {impl_name javascript, rule bindings.batch-execute}
+    ), rule_versions_seen (
+        {id bindings.batch-execute, version 0}
     )}
     {id napi.guide-gaps.cursor-secondary-order, covered_rules (
         bindings.cursor-secondary-order
@@ -2879,6 +2899,10 @@ impl_evidence (
         {impl_name javascript, rule bindings.json-operators}
         {impl_name javascript, rule bindings.named-functions}
         {impl_name javascript, rule bindings.template}
+    ), rule_versions_seen (
+        {id bindings.json-operators, version 0}
+        {id bindings.named-functions, version 0}
+        {id bindings.template, version 0}
     )}
     {id napi.guide-gaps.json-shape, covered_rules (
         bindings.model-conversions
@@ -2976,16 +3000,22 @@ impl_evidence (
         bindings.prql-text
     ), covered_claims (
         {impl_name javascript, rule bindings.prql-text}
+    ), rule_versions_seen (
+        {id bindings.prql-text, version 0}
     )}
     {id napi.guide-gaps.raw-into-model, covered_rules (
         bindings.raw-models
     ), covered_claims (
         {impl_name javascript, rule bindings.raw-models}
+    ), rule_versions_seen (
+        {id bindings.raw-models, version 0}
     )}
     {id napi.guide-gaps.raw-pages, covered_rules (
         bindings.raw-pages
     ), covered_claims (
         {impl_name javascript, rule bindings.raw-pages}
+    ), rule_versions_seen (
+        {id bindings.raw-pages, version 0}
     )}
     {id napi.guide-gaps.relation-conditions, covered_rules (
         bindings.linked
@@ -3001,6 +3031,8 @@ impl_evidence (
         bindings.sql-check
     ), covered_claims (
         {impl_name javascript, rule bindings.sql-check}
+    ), rule_versions_seen (
+        {id bindings.sql-check, version 0}
     )}
     {id napi.guide-gaps.tls-configuration, covered_rules (
         bindings.tls
@@ -3017,11 +3049,17 @@ impl_evidence (
         {impl_name javascript, rule bindings.refusal-fields}
         {impl_name javascript, rule bindings.rollback-failed}
         {impl_name javascript, rule bindings.transaction-retry}
+    ), rule_versions_seen (
+        {id bindings.refusal-fields, version 0}
+        {id bindings.rollback-failed, version 0}
+        {id bindings.transaction-retry, version 0}
     )}
     {id napi.guide-gaps.verify, covered_rules (
         bindings.verify
     ), covered_claims (
         {impl_name javascript, rule bindings.verify}
+    ), rule_versions_seen (
+        {id bindings.verify, version 0}
     )}
     {id orm.binding-types, covered_rules (
         exec.cursor.binding-coerce
