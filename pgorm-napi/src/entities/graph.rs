@@ -18,7 +18,7 @@ use super::{
     adapter::{Model, model_of},
     info::EntityInfo,
     keysets::{grouped_by, root_keyset, slot_keyset},
-    reads::{Decode, Keyset, Paged, Pages},
+    reads::{Decode, Keyset, Pages},
     registry::RegistrationError,
 };
 use crate::connect::job::Database;
@@ -26,15 +26,15 @@ use crate::connect::job::Database;
 /// A grouped read's answer: each root with its slot's models.
 pub(crate) type Groups = Vec<(Model, Vec<Model>)>;
 
-/// `all_grouped` of a graph, run on whichever database a job holds.
-pub(crate) type GroupedFn =
-    Box<dyn for<'a> FnOnce(Database<'a>) -> BoxFuture<'a, Result<Groups, Error>> + Send>;
+/// `all_grouped` of a graph, pgorm's erased grouped read, run on whichever
+/// database a job holds.
+pub(crate) type GroupedFn = pgorm::GroupedRead<Model, Model, crate::connect::metrics::Metrics>;
 
 /// A registered graph's keyset cursor, built where the slot tuple's
 /// positions are known.
 #[doc(hidden)]
 #[derive(Debug)]
-pub struct SlotKeyset(pub(crate) Arc<dyn Keyset>);
+pub struct SlotKeyset(pub(crate) Arc<Keyset>);
 
 /// A registered graph's grouped read, which only a tuple of one `Opt` slot
 /// has.
@@ -318,8 +318,8 @@ pub(crate) trait QueryBackend: fmt::Debug + Send + Sync {
     ) -> BoxFuture<'a, Result<Vec<Row>, Error>>;
     /// `cursor_by` over root columns when `source` is 0, otherwise
     /// `cursor_by_on` over the columns of slot `source`.
-    fn keyset(&self, source: usize, columns: &[String]) -> Result<Arc<dyn Keyset>, String>;
-    fn pages(&self) -> Arc<dyn Pages>;
+    fn keyset(&self, source: usize, columns: &[String]) -> Result<Arc<Keyset>, String>;
+    fn pages(&self) -> Arc<Pages>;
     fn statement(&self) -> SelectStatement;
     /// The decode `SelectGraph::stream` runs on each row.
     fn decode(&self) -> Decode;
@@ -435,20 +435,19 @@ where
         })
     }
 
-    fn keyset(&self, source: usize, columns: &[String]) -> Result<Arc<dyn Keyset>, String> {
+    fn keyset(&self, source: usize, columns: &[String]) -> Result<Arc<Keyset>, String> {
         S::keyset(&self.query, source, columns, &self.info.bindings).map(|keyset| keyset.0)
     }
 
-    fn pages(&self) -> Arc<dyn Pages> {
+    fn pages(&self) -> Arc<Pages> {
         let info = self.info.clone();
-        Arc::new(Paged {
-            query: self.query.clone(),
-            decode: Arc::new(move |row| {
+        Arc::new(Pages {
+            pages: Box::new(pgorm::PagedRead::new(self.query.clone(), move |row| {
                 S::models(row, &info.bindings)
                     .into_iter()
                     .map(|model| model.map(|model| model.0))
                     .collect()
-            }),
+            })),
             sources: self
                 .info
                 .bindings

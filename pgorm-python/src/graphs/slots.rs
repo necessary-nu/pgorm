@@ -29,7 +29,7 @@ pub struct GraphBindings {
 /// positions are known.
 #[doc(hidden)]
 #[derive(Debug)]
-pub struct SlotKeyset(pub(crate) Arc<dyn Keyset>);
+pub struct SlotKeyset(pub(crate) Arc<Keyset>);
 
 /// A registered graph's grouped read, which only a tuple of one `Opt` slot
 /// has.

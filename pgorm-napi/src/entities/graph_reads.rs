@@ -10,7 +10,7 @@ use super::{
     convert::{entity_failure, list, names, record},
     graph::Groups,
     info::EntityInfo,
-    reads::{CursorHandle, DecoderHandle, PagesHandle, Plan, page_size},
+    reads::{CursorHandle, DecoderHandle, PagesHandle, page_size},
     select_reads::columns_at,
 };
 use crate::{
@@ -54,7 +54,9 @@ fn query_cursor(mut cx: FunctionContext) -> JsResult<JsValue> {
         }
     }
     match query.keyset(source, &columns) {
-        Ok(keyset) => Ok(cx.boxed(CursorHandle(keyset, Plan::default())).upcast()),
+        Ok(keyset) => Ok(cx
+            .boxed(CursorHandle(keyset, pgorm::CursorPlan::default()))
+            .upcast()),
         Err(reason) => read::refuse(&mut cx, reason),
     }
 }
@@ -74,7 +76,7 @@ fn query_stream(mut cx: FunctionContext) -> JsResult<JsValue> {
     let statement = cx.boxed(Node::Select(query.statement()));
     let decoder = cx.boxed(DecoderHandle {
         decode: query.decode(),
-        sources: query.pages().sources(),
+        sources: query.pages().sources.clone(),
     });
     let pair = JsArray::new(&mut cx, 2);
     pair.set(&mut cx, 0, statement)?;
@@ -118,7 +120,7 @@ fn query_grouped_job(mut cx: FunctionContext) -> JsResult<JsValue> {
             "allGrouped reads a graph of one Opt slot, as Rust's does",
         );
     };
-    let sources = query.pages().sources();
+    let sources = query.pages().sources.clone();
     let (root, slot) = (sources[0].clone(), sources[1].clone());
     let job: Job = Box::new(move |db, secrets| {
         Box::pin(async move {

@@ -34,7 +34,7 @@ impl Held {
     pub(crate) fn database(&self) -> Database<'_> {
         match self {
             Self::Plain(connection) => Database::Connection(connection),
-            Self::Metered(connection) => Database::MeteredConnection(connection),
+            Self::Metered(connection) => Database::InstrumentedConnection(connection),
         }
     }
 

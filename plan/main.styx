@@ -13930,7 +13930,25 @@ children (
                         id napi.guide-gaps.model-hooks
                         title "A declared JavaScript model takes write hooks, the dialect of ActiveModelBehavior: beforeSave(record, insert), afterSave(record, insert), beforeDelete(record), afterDelete(record), possibly returning a promise, given as model(name, { hooks }), run around the model's own record writes with Rust's refusal semantics, statement-builder writes over many rows running none, in one shape with Python's (guide 03-entities Hooks)"
                         kind @feat
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.model-hooks])
+                        }
                         deps (napi-models guide.javascript napi.guide-gaps.model-writes)
+                        log (
+                            {
+                                at 2026-11-05T23:05:00.725823Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T07:01:36.480402Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead decision, pending operator override, the same shape as guide.python-gaps.model-hooks: model(name, { columns, hooks: { beforeSave(values, insert), afterSave(record, insert), beforeDelete(values), afterDelete(values) } }), each optional and free to return a promise, run around Model.active(values)'s insert/update/delete (lib/model-active.js, ModelActive), the statement builders running none; describe().hooks lists them. Rule bindings.model-hooks."
+                            }
+                        )
                     }
                 )
             }
@@ -20133,6 +20151,9 @@ children (
                         id guide.python-gaps.model-hooks
                         title "A declared Python model takes write hooks as callables, the dialect of ActiveModelBehavior: before_save(record, insert), after_save(record, insert), before_delete(record), after_delete(record), possibly async, given as Model(..., hooks=...), run around the model's own record writes with Rust's refusal semantics, statement-builder writes over many rows (where/all_rows, update from, delete using) running none (lead decision pending operator override; guide 03-entities Hooks)"
                         kind @feat
+                        implements {
+                            python ([spec:pgorm:req:bindings.model-hooks])
+                        }
                         deps (python.models guide.python-gaps.model-writes)
                         log (
                             {
@@ -20140,6 +20161,20 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "Filed by fork W of the model-relations lane, which ran short of turns before building it. Open design point the builder must settle with the lead: a declared model has no record-level update or delete (its update/delete are statement builders, keyed with where(Model.key(..))), so \"the model's own record writes\" needs a definition — either hooks around a one-row insert(values) and a where(key(..)) update/delete only, or record-level writes mirroring ActiveModelTrait (insert/update/delete of one record by its primary key). Rust runs hooks only around ActiveModel::insert/update/delete; its Insert::one / Update::many / Delete::many run none. The rule would be bindings.model-hooks, built in both bindings with napi.guide-gaps.model-hooks."
+                            }
+
+                            {
+                                at 2026-11-05T23:04:59.784027Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T07:01:35.959003Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead decision, pending operator override (the coordinator overrode W's \"stated difference\"): a declared model takes hooks={before_save(values, insert), after_save(record, insert), before_delete(values), after_delete(values)} as functions or coroutine functions, the dialect of ActiveModelBehavior, and they run only around its record writes, Model.active(values) -> ModelActive whose insert/update/delete mirror ActiveModelTrait (update/delete by the primary key the values hold; a key no row has is a DecodeError, as RecordNotUpdated is an error). A before_* hook's exception refuses the write and reaches the caller unchanged; an after_* hook's arrives after the row is written. Rust's `new` is the program's own (before_save's defaults). Statement builders (insert, insert_many, update, delete, their returning/try-insert terminals, update FROM, delete USING) run none, as Rust's Insert/Update/Delete run none. describe() lists the hooks. Rule bindings.model-hooks; JavaScript the same shape (napi.guide-gaps.model-hooks). Fork H wrote the first Python draft before it hit its usage limit; the lead finished both bindings."
                             }
                         )
                     }

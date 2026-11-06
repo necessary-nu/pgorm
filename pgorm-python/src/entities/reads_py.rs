@@ -9,7 +9,10 @@ use std::{
     },
 };
 
-use pgorm::pgorm_query::{ValueTuple, Values};
+use pgorm::{
+    CursorPlan, CursorWindow, boundary_columns,
+    pgorm_query::{ValueTuple, Values},
+};
 use pyo3::{
     IntoPyObjectExt,
     exceptions::{PyStopAsyncIteration, PyTypeError},
@@ -20,7 +23,7 @@ use pyo3_async_runtimes::tokio::future_into_py;
 
 use super::{
     query::bound,
-    reads::{KeyColumn, Keyset, NativeRowDecoder, Pages, Plan, page_size, row_object},
+    reads::{KeyColumn, Keyset, NativeRowDecoder, Pages, page_size, row_object},
 };
 use crate::{
     errors::{ConstructionError, InternalError},
@@ -116,12 +119,12 @@ pub(crate) fn stream<'py>(
 )]
 #[derive(Clone, Debug)]
 pub struct PyEntityPaginator {
-    pub(crate) pages: Arc<dyn Pages>,
+    pub(crate) pages: Arc<Pages>,
     pub(crate) size: NonZeroU64,
 }
 
 impl PyEntityPaginator {
-    pub(crate) fn new(pages: Arc<dyn Pages>, size: &Bound<'_, PyAny>) -> PyResult<Self> {
+    pub(crate) fn new(pages: Arc<Pages>, size: &Bound<'_, PyAny>) -> PyResult<Self> {
         let size =
             bound(Some(size))?.ok_or_else(|| PyTypeError::new_err("a page size is an int"))?;
         Ok(Self {
@@ -150,8 +153,11 @@ impl PyEntityPaginator {
         let (pages, size) = (self.pages.clone(), self.size);
         let read: Read = Box::new(move |db| {
             Box::pin(async move {
-                let (items, pages) = pages.count(db, size).await?;
-                Ok(Output::Counted(items, pages))
+                let counted = pages.count(db, size).await?;
+                Ok(Output::Counted(
+                    counted.number_of_items,
+                    counted.number_of_pages,
+                ))
             })
         });
         future_into_py(py, async move {
@@ -235,7 +241,8 @@ impl PyEntityPaginator {
             return compiled(
                 self.pages
                     .statement(self.size, None)
-                    .map_err(|error| ConstructionError::new_err(error.to_string()))?,
+                    .map_err(|error| ConstructionError::new_err(error.to_string()))?
+                    .build(),
             );
         }
         let page =
@@ -243,7 +250,8 @@ impl PyEntityPaginator {
         compiled(
             self.pages
                 .statement(self.size, Some(page))
-                .map_err(|error| ConstructionError::new_err(error.to_string()))?,
+                .map_err(|error| ConstructionError::new_err(error.to_string()))?
+                .build(),
         )
     }
 
@@ -301,15 +309,15 @@ impl PyEntityPages {
 /// giving a new state.
 #[derive(Clone, Debug)]
 pub(crate) struct CursorState {
-    pub(crate) keyset: Arc<dyn Keyset>,
-    pub(crate) plan: Plan,
+    pub(crate) keyset: Arc<Keyset>,
+    pub(crate) plan: CursorPlan,
 }
 
 impl CursorState {
-    pub(crate) fn new(keyset: Arc<dyn Keyset>) -> Self {
+    pub(crate) fn new(keyset: Arc<Keyset>) -> Self {
         Self {
             keyset,
-            plan: Plan::default(),
+            plan: CursorPlan::default(),
         }
     }
 
@@ -321,23 +329,9 @@ impl CursorState {
         values: &Bound<'_, PyTuple>,
         whole: bool,
     ) -> PyResult<Self> {
-        let order = self.keyset.order();
-        let key = self.keyset.key();
-        let columns: &[KeyColumn] = if values.len() == order.len() {
-            order
-        } else if whole && values.len() == key.len() {
-            key
-        } else {
-            let expected = if whole && key.len() > order.len() {
-                format!("{} or {}", order.len(), key.len())
-            } else {
-                order.len().to_string()
-            };
-            return Err(ConstructionError::new_err(format!(
-                "a cursor boundary of {} values does not match {expected} key column(s)",
-                values.len()
-            )));
-        };
+        let columns: &[KeyColumn] =
+            boundary_columns(&self.keyset.order, &self.keyset.key, values.len(), whole)
+                .map_err(|arity| ConstructionError::new_err(arity.to_string()))?;
         let tuple = columns
             .iter()
             .zip(values)
@@ -365,7 +359,11 @@ impl CursorState {
         let count = bound(Some(count))?
             .ok_or_else(|| PyTypeError::new_err("cursor window requires a row count"))?;
         let mut next = self.clone();
-        next.plan.window = Some((last, count));
+        next.plan.window = Some(if last {
+            CursorWindow::Last(count)
+        } else {
+            CursorWindow::First(count)
+        });
         Ok(next)
     }
 
@@ -378,8 +376,10 @@ impl CursorState {
     pub(crate) fn inspect(&self) -> PyResult<Compiled> {
         compiled(
             self.keyset
+                .cursor
                 .statement(&self.plan)
-                .map_err(|error| ConstructionError::new_err(error.to_string()))?,
+                .map_err(|error| ConstructionError::new_err(error.to_string()))?
+                .build(),
         )
     }
 
@@ -391,7 +391,7 @@ impl CursorState {
         self.inspect()?;
         let (keyset, plan) = (self.keyset.clone(), self.plan.clone());
         let read: Read = Box::new(move |db| {
-            Box::pin(async move { keyset.all(db, plan).await.map(Output::Graph) })
+            Box::pin(async move { keyset.cursor.all(db, plan).await.map(Output::Graph) })
         });
         rows(py, connection, read, false)
     }

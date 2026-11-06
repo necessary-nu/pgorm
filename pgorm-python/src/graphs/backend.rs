@@ -61,8 +61,8 @@ pub(crate) trait QueryBackend: Debug + Send + Sync {
     ) -> BoxFuture<'a, Result<Vec<Row>, Error>>;
     /// `cursor_by` over root columns when `source` is 0, otherwise
     /// `cursor_by_on` over the columns of slot `source`.
-    fn cursor(&self, source: usize, columns: &[String]) -> pyo3::PyResult<Arc<dyn Keyset>>;
-    fn pages(&self) -> Arc<dyn Pages>;
+    fn cursor(&self, source: usize, columns: &[String]) -> pyo3::PyResult<Arc<Keyset>>;
+    fn pages(&self) -> Arc<Pages>;
     /// The decode `SelectGraph::stream` runs on each row.
     fn decode(&self) -> Decode;
     /// `all_grouped`, which only a graph of one `Opt` slot has.

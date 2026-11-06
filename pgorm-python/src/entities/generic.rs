@@ -415,11 +415,11 @@ where
         Ok(query.build())
     }
 
-    fn pages(&self) -> Arc<dyn Pages> {
+    fn pages(&self) -> Arc<Pages> {
         super::select_reads::pages(self)
     }
 
-    fn cursor(&self, columns: &[String]) -> Result<Arc<dyn Keyset>, Error> {
+    fn cursor(&self, columns: &[String]) -> Result<Arc<Keyset>, Error> {
         super::select_reads::cursor(self, columns)
     }
 

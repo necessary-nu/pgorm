@@ -282,9 +282,9 @@ pub(crate) trait SelectBackend: Debug + Send + Sync {
     /// `optional` narrowed to one row.
     fn projected(&self, columns: &[String], read: Read) -> Result<SelectStatement, Failure>;
     fn statement(&self) -> SelectStatement;
-    fn pages(&self) -> Arc<dyn Pages>;
+    fn pages(&self) -> Arc<Pages>;
     /// `Select::cursor_by` over `columns`, in order.
-    fn cursor(&self, columns: &[String]) -> Result<Arc<dyn Keyset>, Failure>;
+    fn cursor(&self, columns: &[String]) -> Result<Arc<Keyset>, Failure>;
     /// The decode `Select::stream` runs on each row.
     fn decode(&self) -> Decode;
 }
@@ -632,11 +632,11 @@ where
         QueryTrait::as_query(&self.query).clone()
     }
 
-    fn pages(&self) -> Arc<dyn Pages> {
+    fn pages(&self) -> Arc<Pages> {
         super::select_reads::pages(self)
     }
 
-    fn cursor(&self, columns: &[String]) -> Result<Arc<dyn Keyset>, Failure> {
+    fn cursor(&self, columns: &[String]) -> Result<Arc<Keyset>, Failure> {
         super::select_reads::cursor(self, columns)
     }
 

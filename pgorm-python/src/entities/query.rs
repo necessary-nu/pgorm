@@ -103,7 +103,8 @@ impl PyEntityQuery {
                     self.inner
                         .pages()
                         .statement(std::num::NonZeroU64::MIN, None)
-                        .map_err(|error| ConstructionError::new_err(error.to_string()))?,
+                        .map_err(|error| ConstructionError::new_err(error.to_string()))?
+                        .build(),
                 );
             }
             _ => return Err(PyTypeError::new_err("unknown entity terminal")),
@@ -161,8 +162,8 @@ impl PyEntityQuery {
         let pages = self.inner.pages();
         let read: Read = Box::new(move |db| {
             Box::pin(async move {
-                let (items, _) = pages.count(db, std::num::NonZeroU64::MIN).await?;
-                Ok(Output::Count(items))
+                let counted = pages.count(db, std::num::NonZeroU64::MIN).await?;
+                Ok(Output::Count(counted.number_of_items))
             })
         });
         counted(py, connection, read)

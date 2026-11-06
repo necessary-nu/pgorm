@@ -1,36 +1,71 @@
 //! A registered graph's keyset cursors, `SelectGraph::cursor_by` over root
-//! columns and `cursor_by_on::<I, _>` over a slot's, and its grouped read.
-//! Each order key is a tuple of the entity's own columns, whose arity is the
-//! cursor's: a key of one to six columns is built here, one arm per arity.
+//! columns and `cursor_by_on::<I, _>` over a slot's, and its grouped read,
+//! each pgorm's erased form of them; this module resolves the columns by
+//! name and says what each key column converts a boundary value through.
 
 use std::sync::Arc;
 
 use pgorm::{
-    Cursor, EntityTrait, GraphItem, GraphRow, IntoActiveModel, Opt, SelectGraph, SelectorTrait,
-    Slot, SlotAt,
+    EntityTrait, GraphItem, GraphRow, IntoActiveModel, Opt, SelectGraph, SelectorTrait, Slot,
+    SlotAt, graph_cursor, graph_cursor_key, graph_cursor_on, grouped_read,
 };
 
 use super::{
     adapter::{column, model_of},
     graph::{GraphBindings, GraphSlots, GroupedFn},
-    reads::{KeyColumn, Keyed, Keyset, Row},
+    reads::{KeyColumn, Keyset, Row},
 };
 
-fn keyed<S, K>(
-    cursor: Box<dyn Fn() -> Cursor<S, K> + Send + Sync>,
-    decode: Arc<dyn Fn(S::Item) -> Row + Send + Sync>,
-    order: Vec<KeyColumn>,
-    key: Vec<KeyColumn>,
+/// The order columns of source `ordered`, and the whole key a cursor over
+/// them compares, as pgorm's `graph_cursor_key` lists it, each column with
+/// the entity it converts a boundary value through.
+fn key_of(
     bindings: &GraphBindings,
-) -> Arc<dyn Keyset>
+    ordered: usize,
+    columns: &[String],
+) -> (Vec<KeyColumn>, Vec<KeyColumn>) {
+    let primary_keys: Vec<&[String]> = bindings
+        .sources
+        .iter()
+        .map(|source| source.entity.primary_key.as_slice())
+        .collect();
+    let named = |(source, column): (usize, &str)| KeyColumn {
+        entity: bindings.sources[source].entity.clone(),
+        column: column.to_owned(),
+    };
+    let key: Vec<_> = graph_cursor_key(&primary_keys, ordered, columns)
+        .into_iter()
+        .map(named)
+        .collect();
+    (key[..columns.len()].to_vec(), key)
+}
+
+fn decoder<E, S>(
+    bindings: &GraphBindings,
+) -> impl Fn(GraphItem<E, S>) -> Row + Send + Sync + 'static
 where
-    S: SelectorTrait + Send + Sync + 'static,
-    S::Item: Send,
-    K: Send + Sync + 'static,
+    E: EntityTrait + Send + Sync + 'static,
+    S: GraphSlots<E>,
+    GraphRow<E, S>: SelectorTrait,
 {
-    Arc::new(Keyed {
+    let bindings = bindings.clone();
+    move |item| {
+        S::models(item, &bindings)
+            .into_iter()
+            .map(|model| model.map(|model| model.0))
+            .collect()
+    }
+}
+
+fn keyset(
+    bindings: &GraphBindings,
+    ordered: usize,
+    columns: &[String],
+    cursor: Arc<dyn pgorm::ErasedCursor<Row, crate::connect::metrics::Metrics>>,
+) -> Arc<Keyset> {
+    let (order, key) = key_of(bindings, ordered, columns);
+    Arc::new(Keyset {
         cursor,
-        decode,
         order,
         key,
         sources: bindings
@@ -41,169 +76,12 @@ where
     })
 }
 
-/// The keyset `$make` builds of `$graph` and a key of `$columns`, one arm
-/// per arity since each arity is its own key type.
-macro_rules! by_arity {
-    ($graph:ident, $bindings:ident, $columns:ident, $decode:ident, $order:ident, $key:ident, |$g:ident, $k:ident| $make:expr) => {
-        match $columns.as_slice() {
-            [a] => {
-                let (graph, a) = ($graph.clone(), *a);
-                Ok(keyed(
-                    Box::new(move || {
-                        let ($g, $k) = (graph.clone(), a);
-                        $make
-                    }),
-                    $decode,
-                    $order,
-                    $key,
-                    $bindings,
-                ))
-            }
-            [a, b] => {
-                let (graph, key) = ($graph.clone(), (*a, *b));
-                Ok(keyed(
-                    Box::new(move || {
-                        let ($g, $k) = (graph.clone(), key);
-                        $make
-                    }),
-                    $decode,
-                    $order,
-                    $key,
-                    $bindings,
-                ))
-            }
-            [a, b, c] => {
-                let (graph, key) = ($graph.clone(), (*a, *b, *c));
-                Ok(keyed(
-                    Box::new(move || {
-                        let ($g, $k) = (graph.clone(), key);
-                        $make
-                    }),
-                    $decode,
-                    $order,
-                    $key,
-                    $bindings,
-                ))
-            }
-            [a, b, c, d] => {
-                let (graph, key) = ($graph.clone(), (*a, *b, *c, *d));
-                Ok(keyed(
-                    Box::new(move || {
-                        let ($g, $k) = (graph.clone(), key);
-                        $make
-                    }),
-                    $decode,
-                    $order,
-                    $key,
-                    $bindings,
-                ))
-            }
-            [a, b, c, d, e] => {
-                let (graph, key) = ($graph.clone(), (*a, *b, *c, *d, *e));
-                Ok(keyed(
-                    Box::new(move || {
-                        let ($g, $k) = (graph.clone(), key);
-                        $make
-                    }),
-                    $decode,
-                    $order,
-                    $key,
-                    $bindings,
-                ))
-            }
-            [a, b, c, d, e, f] => {
-                let (graph, key) = ($graph.clone(), (*a, *b, *c, *d, *e, *f));
-                Ok(keyed(
-                    Box::new(move || {
-                        let ($g, $k) = (graph.clone(), key);
-                        $make
-                    }),
-                    $decode,
-                    $order,
-                    $key,
-                    $bindings,
-                ))
-            }
-            [] => Err("a cursor orders by at least one column".to_owned()),
-            _ => Err("a registered graph's cursor orders by at most six columns".to_owned()),
-        }
-    };
-}
-
-/// Every source's key column, the root's and then each slot's in order, as
-/// `(source, column)`.
-fn primary_keys(bindings: &GraphBindings) -> Vec<(usize, KeyColumn)> {
-    bindings
-        .sources
-        .iter()
-        .enumerate()
-        .flat_map(|(index, source)| {
-            source.entity.primary_key.iter().map(move |name| {
-                (
-                    index,
-                    KeyColumn {
-                        entity: source.entity.clone(),
-                        column: name.clone(),
-                    },
-                )
-            })
-        })
-        .collect()
-}
-
-/// The order columns of source `ordered`, and the whole key a cursor over
-/// them compares: those columns, then the tiebreaks pgorm installs — the
-/// ordered source's own key first, the other sources' after it in source
-/// order — less any column of the ordered source already ordered by.
-fn key_of(
-    bindings: &GraphBindings,
-    ordered: usize,
-    columns: &[String],
-) -> (Vec<KeyColumn>, Vec<KeyColumn>) {
-    let entity = &bindings.sources[ordered].entity;
-    let order: Vec<_> = columns
-        .iter()
-        .map(|name| KeyColumn {
-            entity: entity.clone(),
-            column: name.clone(),
-        })
-        .collect();
-    let keys = primary_keys(bindings);
-    let own = keys.iter().filter(|(source, _)| *source == ordered);
-    let others = keys.iter().filter(|(source, _)| *source != ordered);
-    let key = order
-        .iter()
-        .cloned()
-        .chain(
-            own.filter(|(_, column)| !columns.contains(&column.column))
-                .chain(others)
-                .map(|(_, column)| column.clone()),
-        )
-        .collect();
-    (order, key)
-}
-
-fn decoder<E, S>(bindings: &GraphBindings) -> Arc<dyn Fn(GraphItem<E, S>) -> Row + Send + Sync>
-where
-    E: EntityTrait + Send + Sync + 'static,
-    S: GraphSlots<E>,
-    GraphRow<E, S>: SelectorTrait,
-{
-    let bindings = bindings.clone();
-    Arc::new(move |item| {
-        S::models(item, &bindings)
-            .into_iter()
-            .map(|model| model.map(|model| model.0))
-            .collect()
-    })
-}
-
 // [spec:pgorm:req:bindings.entity-graphs+4]
 pub(super) fn root_keyset<E, S>(
     graph: &SelectGraph<E, S>,
     columns: &[String],
     bindings: &GraphBindings,
-) -> Result<Arc<dyn Keyset>, String>
+) -> Result<Arc<Keyset>, String>
 where
     E: EntityTrait + Send + Sync + 'static,
     S: GraphSlots<E>,
@@ -215,10 +93,9 @@ where
         .map(|name| column::<E>(&bindings.sources[0].entity, name))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|failure| failure.to_string())?;
-    let (order, key) = key_of(bindings, 0, columns);
-    let decode = decoder::<E, S>(bindings);
-    by_arity!(graph, bindings, resolved, decode, order, key, |g, k| g
-        .cursor_by(k))
+    let cursor = graph_cursor(graph, &resolved, decoder::<E, S>(bindings))
+        .map_err(|arity| arity.to_string())?;
+    Ok(keyset(bindings, 0, columns, cursor))
 }
 
 // [spec:pgorm:req:bindings.entity-graphs+4]
@@ -226,7 +103,7 @@ pub(super) fn slot_keyset<const I: usize, E, S>(
     graph: &SelectGraph<E, S>,
     columns: &[String],
     bindings: &GraphBindings,
-) -> Result<Arc<dyn Keyset>, String>
+) -> Result<Arc<Keyset>, String>
 where
     E: EntityTrait + Send + Sync + 'static,
     S: GraphSlots<E> + SlotAt<I>,
@@ -240,14 +117,13 @@ where
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|failure| failure.to_string())?;
-    let (order, key) = key_of(bindings, I, columns);
-    let decode = decoder::<E, S>(bindings);
-    by_arity!(graph, bindings, resolved, decode, order, key, |g, k| g
-        .cursor_by_on::<I, _>(k))
+    let cursor = graph_cursor_on::<I, _, _, _, _>(graph, &resolved, decoder::<E, S>(bindings))
+        .map_err(|arity| arity.to_string())?;
+    Ok(keyset(bindings, I, columns, cursor))
 }
 
-/// `all_grouped` of a graph of one `Opt` slot: each root with its slot's
-/// models, in the order roots first appear.
+/// `all_grouped` of a graph of one `Opt` slot, pgorm's `grouped_read`: each
+/// root with its slot's models, in the order roots first appear.
 // [spec:pgorm:req:bindings.entity-graphs+4]
 pub(super) fn grouped_by<E, F>(
     graph: SelectGraph<E, (Opt<F>,)>,
@@ -265,21 +141,9 @@ where
         bindings.sources[0].entity.clone(),
         bindings.sources[1].entity.clone(),
     );
-    Box::new(move |db| {
-        Box::pin(async move {
-            let groups = graph.all_grouped(&db).await?;
-            Ok(groups
-                .into_iter()
-                .map(|(parent, children)| {
-                    (
-                        model_of::<E>(parent, &root),
-                        children
-                            .into_iter()
-                            .map(|child| model_of::<F>(child, &slot))
-                            .collect(),
-                    )
-                })
-                .collect())
-        })
-    })
+    grouped_read(
+        graph,
+        move |parent| model_of::<E>(parent, &root),
+        move |child| model_of::<F>(child, &slot),
+    )
 }

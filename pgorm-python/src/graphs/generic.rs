@@ -1,5 +1,5 @@
 use crate::{
-    entities::reads::{Decode, Keyset, Paged, Pages},
+    entities::reads::{Decode, Keyset, Pages},
     execution::Database,
     transactions::work::Read,
 };
@@ -111,16 +111,15 @@ where
         Box::pin(self.read(db, optional))
     }
 
-    fn cursor(&self, source: usize, columns: &[String]) -> PyResult<Arc<dyn Keyset>> {
+    fn cursor(&self, source: usize, columns: &[String]) -> PyResult<Arc<Keyset>> {
         S::keyset(&self.query, source, columns, &self.info.bindings).map(|keyset| keyset.0)
     }
 
-    fn pages(&self) -> Arc<dyn Pages> {
+    fn pages(&self) -> Arc<Pages> {
         let info = self.info.clone();
-        Arc::new(Paged {
-            query: self.query.clone(),
-            decode: Arc::new(move |row| S::models(row, &info.bindings)),
-        })
+        Arc::new(pgorm::PagedRead::new(self.query.clone(), move |row| {
+            S::models(row, &info.bindings)
+        }))
     }
 
     fn decode(&self) -> Decode {

@@ -5,57 +5,54 @@
 use std::sync::Arc;
 
 use neon::prelude::*;
-use pgorm::{
-    EntityTrait, IntoActiveModel,
-    pgorm_query::{Key, Name},
-};
+use pgorm::{EntityTrait, IntoActiveModel, PagedRead, pgorm_query::Name};
 
 use super::{
     EntityHandle, SelectHandle,
     adapter::{Change, SelectAdapter, column, model_of},
     read_terminal,
-    reads::{
-        CursorHandle, DecoderHandle, KeyColumn, Keyed, Keyset, Paged, Pages, PagesHandle, page_size,
-    },
+    reads::{CursorHandle, DecoderHandle, KeyColumn, Keyset, Pages, PagesHandle, page_size},
 };
 use crate::{errors::throw, statements::Node, values::read};
 
-/// The `Select`'s pages, each item its entity's model.
-pub(super) fn pages<E>(select: &SelectAdapter<E>) -> Arc<dyn Pages>
+/// The `Select`'s pages, each item its entity's model, through pgorm's erased
+/// paginator.
+pub(super) fn pages<E>(select: &SelectAdapter<E>) -> Arc<Pages>
 where
     E: EntityTrait + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
     let info = select.info.clone();
-    Arc::new(Paged {
-        query: select.query.clone(),
-        decode: Arc::new(move |value| vec![Some(model_of::<E>(value, &info))]),
+    Arc::new(Pages {
+        pages: Box::new(PagedRead::new(select.query.clone(), move |value| {
+            vec![Some(model_of::<E>(value, &info))]
+        })),
         sources: vec![select.info.clone()],
     })
 }
 
-/// `Select::cursor_by` over `columns`, a key whose arity is the list's: a
-/// plain read has no tiebreak, so its whole key is its order columns.
+/// `Select::cursor_by` over `columns`, pgorm's `select_cursor`: a plain read
+/// has no tiebreak, so its whole key is its order columns.
 // [spec:pgorm:req:bindings.entity-reads+4]
 pub(super) fn cursor<E>(
     select: &SelectAdapter<E>,
     columns: &[String],
-) -> Result<Arc<dyn Keyset>, crate::errors::Failure>
+) -> Result<Arc<Keyset>, crate::errors::Failure>
 where
     E: EntityTrait + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
-    if columns.is_empty() {
-        return Err(crate::errors::Failure::Construction(
-            "a cursor orders by at least one column".to_owned(),
-        ));
-    }
     let names = columns
         .iter()
         .map(|name| column::<E>(&select.info, name).map(|_| Name::runtime(name)))
         .collect::<Result<Vec<_>, _>>()?;
+    let info = select.info.clone();
+    let cursor = pgorm::select_cursor(select.query.clone(), names, move |value| {
+        vec![Some(model_of::<E>(value, &info))]
+    })
+    .map_err(|arity| crate::errors::Failure::Construction(arity.to_string()))?;
     let order: Vec<_> = columns
         .iter()
         .map(|name| KeyColumn {
@@ -63,11 +60,8 @@ where
             column: name.clone(),
         })
         .collect();
-    let info = select.info.clone();
-    let query = select.query.clone();
-    Ok(Arc::new(Keyed {
-        cursor: Box::new(move || query.clone().cursor_by(Key::from(names.clone()))),
-        decode: Arc::new(move |value| vec![Some(model_of::<E>(value, &info))]),
+    Ok(Arc::new(Keyset {
+        cursor,
         key: order.clone(),
         order,
         sources: vec![select.info.clone()],
@@ -155,7 +149,7 @@ fn select_cursor(mut cx: FunctionContext) -> JsResult<JsValue> {
     let columns = columns_at(&mut cx, 1)?;
     match select.cursor(&columns) {
         Ok(keyset) => Ok(cx
-            .boxed(CursorHandle(keyset, super::reads::Plan::default()))
+            .boxed(CursorHandle(keyset, pgorm::CursorPlan::default()))
             .upcast()),
         Err(failure) => throw(&mut cx, failure),
     }

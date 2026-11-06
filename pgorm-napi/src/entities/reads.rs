@@ -7,12 +7,10 @@
 
 use std::{fmt, num::NonZeroU64, sync::Arc};
 
-use futures_util::future::BoxFuture;
 use neon::{prelude::*, types::Finalize};
 use pgorm::{
-    Cursor, Error, PaginatorTrait, QueryResult, QueryTrait, SelectorTrait, count_statement,
-    page_statement,
-    pgorm_query::{SelectStatement, ValueTuple, Values},
+    CursorPlan, CursorWindow, ErasedCursor, ErasedPages, Error, QueryResult, boundary_columns,
+    pgorm_query::ValueTuple,
 };
 
 use super::{
@@ -21,7 +19,10 @@ use super::{
     info::EntityInfo,
 };
 use crate::{
-    connect::job::{Job, JobHandle, Output},
+    connect::{
+        job::{Job, JobHandle, Output},
+        metrics::Metrics,
+    },
     errors::Failure,
     values::read,
 };
@@ -30,107 +31,12 @@ use crate::{
 /// optional slot.
 pub(crate) type Row = Vec<Option<Model>>;
 
-/// A read's pages: page `n` at a page size, and the count of its rows, each
-/// as pgorm's `Paginator` reads them.
-pub(crate) trait Pages: fmt::Debug + Send + Sync {
-    /// The statement reading page `page`, or counting the rows with `None`.
-    fn statement(&self, size: NonZeroU64, page: Option<u64>) -> Result<(String, Values), Error>;
-    /// `Paginator::fetch_page`.
-    fn fetch<'a>(
-        &'a self,
-        db: crate::connect::job::Database<'a>,
-        size: NonZeroU64,
-        page: u64,
-    ) -> BoxFuture<'a, Result<Vec<Row>, Error>>;
-    /// `Paginator::num_items_and_pages`: the rows, and the pages of `size`
-    /// they fill.
-    fn count<'a>(
-        &'a self,
-        db: crate::connect::job::Database<'a>,
-        size: NonZeroU64,
-    ) -> BoxFuture<'a, Result<(u64, u64), Error>>;
-    /// The entities a row's sources decode as.
-    fn sources(&self) -> Vec<Arc<EntityInfo>>;
-}
-
-/// A read `Q` whose pages pgorm's `PaginatorTrait` reads through selector
-/// `S`, the decode of its items into rows and the entities they decode as:
-/// one implementation for an entity's `Select` and a graph's `SelectGraph`.
-pub(crate) struct Paged<Q, S: SelectorTrait> {
-    pub(crate) query: Q,
-    pub(crate) decode: Arc<dyn Fn(S::Item) -> Row + Send + Sync>,
+/// A registered read's pages: pgorm's erased paginator, and the entities its
+/// rows' sources decode as.
+#[derive(Debug)]
+pub(crate) struct Pages {
+    pub(crate) pages: Box<dyn ErasedPages<Row, Metrics>>,
     pub(crate) sources: Vec<Arc<EntityInfo>>,
-}
-
-impl<Q, S: SelectorTrait> fmt::Debug for Paged<Q, S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Paged").finish_non_exhaustive()
-    }
-}
-
-// [spec:pgorm:req:bindings.entity-reads+4]
-// [spec:pgorm:req:bindings.entity-graphs+4]
-impl<Q, S> Pages for Paged<Q, S>
-where
-    Q: QueryTrait<QueryStatement = SelectStatement> + Clone + Send + Sync + 'static,
-    for<'db, 'c> Q: PaginatorTrait<'db, crate::connect::job::Database<'c>, Selector = S>,
-    S: SelectorTrait + Send + Sync + 'static,
-    S::Item: Send,
-{
-    fn statement(&self, size: NonZeroU64, page: Option<u64>) -> Result<(String, Values), Error> {
-        let query = QueryTrait::as_query(&self.query);
-        Ok(match page {
-            Some(page) => page_statement(query, size, page)?.build(),
-            None => count_statement(query)?.build(),
-        })
-    }
-
-    fn fetch<'a>(
-        &'a self,
-        db: crate::connect::job::Database<'a>,
-        size: NonZeroU64,
-        page: u64,
-    ) -> BoxFuture<'a, Result<Vec<Row>, Error>> {
-        Box::pin(async move {
-            let items = self
-                .query
-                .clone()
-                .paginate(&db, size)
-                .fetch_page(page)
-                .await?;
-            Ok(items.into_iter().map(|item| (self.decode)(item)).collect())
-        })
-    }
-
-    fn count<'a>(
-        &'a self,
-        db: crate::connect::job::Database<'a>,
-        size: NonZeroU64,
-    ) -> BoxFuture<'a, Result<(u64, u64), Error>> {
-        Box::pin(async move {
-            let counted = self
-                .query
-                .clone()
-                .paginate(&db, size)
-                .num_items_and_pages()
-                .await?;
-            Ok((counted.number_of_items, counted.number_of_pages))
-        })
-    }
-
-    fn sources(&self) -> Vec<Arc<EntityInfo>> {
-        self.sources.clone()
-    }
-}
-
-/// A keyset cursor's boundaries, window and direction, applied to pgorm's
-/// `Cursor` as it runs.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct Plan {
-    pub(crate) before: Option<ValueTuple>,
-    pub(crate) after: Option<ValueTuple>,
-    pub(crate) descending: bool,
-    pub(crate) window: Option<(bool, u64)>,
 }
 
 /// A column a cursor's boundary value converts through: its entity, and its
@@ -141,101 +47,15 @@ pub(crate) struct KeyColumn {
     pub(crate) column: String,
 }
 
-/// A registered read's keyset cursor: its order columns, the whole key a
-/// `_with` boundary names, the statement a plan composes and its rows.
-pub(crate) trait Keyset: fmt::Debug + Send + Sync {
-    fn order(&self) -> &[KeyColumn];
-    fn key(&self) -> &[KeyColumn];
-    fn sources(&self) -> Vec<Arc<EntityInfo>>;
-    fn statement(&self, plan: &Plan) -> Result<(String, Values), Error>;
-    fn all<'a>(
-        &'a self,
-        db: crate::connect::job::Database<'a>,
-        plan: Plan,
-    ) -> BoxFuture<'a, Result<Vec<Row>, Error>>;
-}
-
-/// pgorm's cursor over a selector `S`, made afresh for each plan since a
-/// cursor of a selector that is not `Clone` is not, and the decode of its
-/// items into rows.
-pub(crate) struct Keyed<S: SelectorTrait, K> {
-    pub(crate) cursor: Box<dyn Fn() -> Cursor<S, K> + Send + Sync>,
-    pub(crate) decode: Arc<dyn Fn(S::Item) -> Row + Send + Sync>,
+/// A registered read's keyset cursor: pgorm's erased cursor, its order
+/// columns, the whole key a `_with` boundary names, and the entities its
+/// rows' sources decode as.
+#[derive(Debug)]
+pub(crate) struct Keyset {
+    pub(crate) cursor: Arc<dyn ErasedCursor<Row, Metrics>>,
     pub(crate) order: Vec<KeyColumn>,
     pub(crate) key: Vec<KeyColumn>,
     pub(crate) sources: Vec<Arc<EntityInfo>>,
-}
-
-impl<S: SelectorTrait, K> fmt::Debug for Keyed<S, K> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Keyed")
-            .field("order", &self.order)
-            .field("key", &self.key)
-            .finish_non_exhaustive()
-    }
-}
-
-impl<S: SelectorTrait, K> Keyed<S, K> {
-    fn planned(&self, plan: &Plan) -> Cursor<S, K> {
-        let mut cursor = (self.cursor)();
-        if let Some(values) = plan.before.clone() {
-            cursor.before_with(values);
-        }
-        if let Some(values) = plan.after.clone() {
-            cursor.after_with(values);
-        }
-        if plan.descending {
-            cursor.desc();
-        } else {
-            cursor.asc();
-        }
-        match plan.window {
-            Some((true, rows)) => {
-                cursor.last(rows);
-            }
-            Some((false, rows)) => {
-                cursor.first(rows);
-            }
-            None => {}
-        }
-        cursor
-    }
-}
-
-// [spec:pgorm:req:bindings.entity-reads+4]
-// [spec:pgorm:req:bindings.entity-graphs+4]
-impl<S, K> Keyset for Keyed<S, K>
-where
-    S: SelectorTrait + Send + Sync + 'static,
-    S::Item: Send,
-    K: Send + Sync + 'static,
-{
-    fn order(&self) -> &[KeyColumn] {
-        &self.order
-    }
-
-    fn key(&self) -> &[KeyColumn] {
-        &self.key
-    }
-
-    fn sources(&self) -> Vec<Arc<EntityInfo>> {
-        self.sources.clone()
-    }
-
-    fn statement(&self, plan: &Plan) -> Result<(String, Values), Error> {
-        Ok(self.planned(plan).statement()?.build())
-    }
-
-    fn all<'a>(
-        &'a self,
-        db: crate::connect::job::Database<'a>,
-        plan: Plan,
-    ) -> BoxFuture<'a, Result<Vec<Row>, Error>> {
-        Box::pin(async move {
-            let items = self.planned(&plan).all(&db).await?;
-            Ok(items.into_iter().map(|item| (self.decode)(item)).collect())
-        })
-    }
 }
 
 /// The decode of one row of a registered read's result into its sources'
@@ -291,13 +111,13 @@ pub(crate) fn whole(cx: &mut FunctionContext, index: usize, what: &str) -> NeonR
 
 /// A keyset cursor as JavaScript holds it: what it orders by and its plan.
 #[derive(Debug)]
-pub(crate) struct CursorHandle(pub(crate) Arc<dyn Keyset>, pub(crate) Plan);
+pub(crate) struct CursorHandle(pub(crate) Arc<Keyset>, pub(crate) CursorPlan);
 
 impl Finalize for CursorHandle {}
 
 /// A read's pages as JavaScript holds them.
 #[derive(Debug)]
-pub(crate) struct PagesHandle(pub(crate) Arc<dyn Pages>, pub(crate) NonZeroU64);
+pub(crate) struct PagesHandle(pub(crate) Arc<Pages>, pub(crate) NonZeroU64);
 
 impl Finalize for PagesHandle {}
 
@@ -313,7 +133,7 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     Ok(())
 }
 
-fn cursor(cx: &mut FunctionContext) -> NeonResult<(Arc<dyn Keyset>, Plan)> {
+fn cursor(cx: &mut FunctionContext) -> NeonResult<(Arc<Keyset>, CursorPlan)> {
     let handle = cx.argument::<JsBox<CursorHandle>>(0)?;
     Ok((handle.0.clone(), handle.1.clone()))
 }
@@ -329,24 +149,9 @@ fn cursor_bound(mut cx: FunctionContext) -> JsResult<JsValue> {
     let before = cx.argument::<JsBoolean>(1)?.value(&mut cx);
     let values = cx.argument::<JsArray>(2)?.to_vec(&mut cx)?;
     let extended = cx.argument::<JsBoolean>(3)?.value(&mut cx);
-    let (order, key) = (keyset.order(), keyset.key());
-    let columns = if values.len() == order.len() {
-        order
-    } else if extended && values.len() == key.len() {
-        key
-    } else {
-        let expected = if extended && key.len() > order.len() {
-            format!("{} or {}", order.len(), key.len())
-        } else {
-            order.len().to_string()
-        };
-        return read::refuse(
-            &mut cx,
-            format!(
-                "a cursor boundary of {} values does not match {expected} key column(s)",
-                values.len()
-            ),
-        );
+    let columns = match boundary_columns(&keyset.order, &keyset.key, values.len(), extended) {
+        Ok(columns) => columns,
+        Err(arity) => return read::refuse(&mut cx, arity.to_string()),
     };
     let mut bound = Vec::with_capacity(values.len());
     for (column, value) in columns.iter().zip(values) {
@@ -369,7 +174,11 @@ fn cursor_window(mut cx: FunctionContext) -> JsResult<JsValue> {
     let (keyset, mut plan) = cursor(&mut cx)?;
     let last = cx.argument::<JsBoolean>(1)?.value(&mut cx);
     let rows = whole(&mut cx, 2, "a window's rows")?;
-    plan.window = Some((last, rows));
+    plan.window = Some(if last {
+        CursorWindow::Last(rows)
+    } else {
+        CursorWindow::First(rows)
+    });
     Ok(cx.boxed(CursorHandle(keyset, plan)).upcast())
 }
 
@@ -382,8 +191,8 @@ fn cursor_direction(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `cursorInspect(cursor)`: the statement `all` sends, `Cursor::statement`.
 fn cursor_inspect(mut cx: FunctionContext) -> JsResult<JsValue> {
     let (keyset, plan) = cursor(&mut cx)?;
-    match keyset.statement(&plan) {
-        Ok(compiled) => super::inspected(&mut cx, compiled),
+    match keyset.cursor.statement(&plan) {
+        Ok(statement) => super::inspected(&mut cx, statement.build()),
         Err(error) => read::refuse(&mut cx, error.to_string()),
     }
 }
@@ -392,22 +201,23 @@ fn cursor_inspect(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// order.
 fn cursor_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let (keyset, plan) = cursor(&mut cx)?;
-    if let Err(error) = keyset.statement(&plan) {
+    if let Err(error) = keyset.cursor.statement(&plan) {
         return read::refuse(&mut cx, error.to_string());
     }
     let job: Job = Box::new(move |db, secrets| {
         Box::pin(async move {
             let rows = keyset
+                .cursor
                 .all(db, plan)
                 .await
                 .map_err(|error| entity_failure(&error, secrets))?;
-            Ok(Box::new(GraphRows(keyset.sources(), rows)) as Output)
+            Ok(Box::new(GraphRows(keyset.sources.clone(), rows)) as Output)
         })
     });
     Ok(cx.boxed(JobHandle::new(job)).upcast())
 }
 
-fn pages(cx: &mut FunctionContext) -> NeonResult<(Arc<dyn Pages>, NonZeroU64)> {
+fn pages(cx: &mut FunctionContext) -> NeonResult<(Arc<Pages>, NonZeroU64)> {
     let handle = cx.argument::<JsBox<PagesHandle>>(0)?;
     Ok((handle.0.clone(), handle.1))
 }
@@ -421,8 +231,8 @@ fn pages_inspect(mut cx: FunctionContext) -> JsResult<JsValue> {
     } else {
         Some(whole(&mut cx, 1, "a page number")?)
     };
-    match pages.statement(size, page) {
-        Ok(compiled) => super::inspected(&mut cx, compiled),
+    match pages.pages.statement(size, page) {
+        Ok(statement) => super::inspected(&mut cx, statement.build()),
         Err(error) => read::refuse(&mut cx, error.to_string()),
     }
 }
@@ -432,16 +242,17 @@ fn pages_inspect(mut cx: FunctionContext) -> JsResult<JsValue> {
 fn pages_fetch_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let (pages, size) = pages(&mut cx)?;
     let page = whole(&mut cx, 1, "a page number")?;
-    if let Err(error) = pages.statement(size, Some(page)) {
+    if let Err(error) = pages.pages.statement(size, Some(page)) {
         return read::refuse(&mut cx, error.to_string());
     }
     let job: Job = Box::new(move |db, secrets| {
         Box::pin(async move {
             let rows = pages
+                .pages
                 .fetch(db, size, page)
                 .await
                 .map_err(|error| entity_failure(&error, secrets))?;
-            Ok(Box::new(GraphRows(pages.sources(), rows)) as Output)
+            Ok(Box::new(GraphRows(pages.sources.clone(), rows)) as Output)
         })
     });
     Ok(cx.boxed(JobHandle::new(job)).upcast())
@@ -465,16 +276,17 @@ impl crate::connect::job::Settled for Counted {
 // [spec:pgorm:req:bindings.entity-reads+4]
 fn pages_count_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let (pages, size) = pages(&mut cx)?;
-    if let Err(error) = pages.statement(size, None) {
+    if let Err(error) = pages.pages.statement(size, None) {
         return read::refuse(&mut cx, error.to_string());
     }
     let job: Job = Box::new(move |db, secrets| {
         Box::pin(async move {
-            let (items, count) = pages
+            let counted = pages
+                .pages
                 .count(db, size)
                 .await
                 .map_err(|error| entity_failure(&error, secrets))?;
-            Ok(Box::new(Counted(items, count)) as Output)
+            Ok(Box::new(Counted(counted.number_of_items, counted.number_of_pages)) as Output)
         })
     });
     Ok(cx.boxed(JobHandle::new(job)).upcast())

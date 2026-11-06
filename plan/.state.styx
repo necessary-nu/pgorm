@@ -1696,6 +1696,8 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
+    {id guide.python-gaps.model-hooks, kind @doing, author "brendan@necessary.nu", at 2026-11-05T23:04:59.784027Z}
+    {id napi.guide-gaps.model-hooks, kind @doing, author "brendan@necessary.nu", at 2026-11-05T23:05:00.725823Z}
 )
 
 impl_evidence (
@@ -3438,6 +3440,15 @@ impl_evidence (
         {impl_name main, rule exec.decode.decimal-exact}
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
+    )}
+    {id guide.python-gaps.shared-erased-reads, covered_rules (
+        conn.database-ref
+        exec.cursor.erased
+        exec.paginator.erased
+    ), covered_claims (
+        {impl_name main, rule conn.database-ref}
+        {impl_name main, rule exec.cursor.erased}
+        {impl_name main, rule exec.paginator.erased}
     )}
 )
 

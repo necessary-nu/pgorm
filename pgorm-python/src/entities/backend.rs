@@ -236,9 +236,9 @@ pub(crate) trait SelectBackend: Debug + Send + Sync {
     /// The statement of `Select::select` over `columns`, `one` and `optional`
     /// narrowed to one row.
     fn projected(&self, columns: &[String], terminal: Terminal) -> Result<(String, Values), Error>;
-    fn pages(&self) -> Arc<dyn Pages>;
+    fn pages(&self) -> Arc<Pages>;
     /// `Select::cursor_by` over `columns`, in order.
-    fn cursor(&self, columns: &[String]) -> Result<Arc<dyn Keyset>, Error>;
+    fn cursor(&self, columns: &[String]) -> Result<Arc<Keyset>, Error>;
     /// The decode `Select::stream` runs on each row.
     fn decode(&self) -> Decode;
 }
