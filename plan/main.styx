@@ -16759,6 +16759,14 @@ children (
                 text "Re-read after bindings.model-reads moved to +1 (guide.python-gaps.raw-sql's merge of f0c3c867, b09065f2): a declared model's stream in a transaction, which bindings.streams+1 already required and Python's ModelQuery.stream does, is now stated in bindings.model-reads too. Every reference is pinned at +1."
                 after_done true
             }
+
+            {
+                at 2026-11-06T09:54:40.710775Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Re-covered at bindings.model-reads+1 by its own commit; the entry above, committed with binding-spec-consolidation's re-cover, is the re-reading."
+                after_done true
+            }
         )
     }
 
