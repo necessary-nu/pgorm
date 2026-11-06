@@ -2,28 +2,28 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { column, model } from "@necessary/pgorm";
+import { column, ConstructionError, model } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  await pool.execute(
-    `CREATE TABLE subscriber ( id serial NOT NULL, name varchar NOT NULL, email varchar NOT NULL, weekly bool NOT NULL DEFAULT TRUE, PRIMARY KEY (id), UNIQUE (email) )`,
-  );
-
-  const Subscriber = model("subscriber", {
+  const Special = model("special", {
     columns: {
       id: column("i32", { primaryKey: true, default: true }),
       name: column("text"),
-      email: column("text"),
-      weekly: column("bool", { default: true }),
+      note: column("text"),
     },
-    uniqueKeys: [{ fields: "email" }],
+    hooks: {
+      beforeSave(values) {
+        if (!values.name) throw new ConstructionError("a special needs a name");
+        return { note: "Ask at the counter", ...values };
+      },
+    },
   });
 
-  // What the newsletter's sign-up form sends: two of the columns.
-  const form = { name: "Mo", email: "mo@example.com" };
-  const mo = await Subscriber.insert(form).returning().one(pool);
-  assert.equal(mo.email, "mo@example.com");
-  // The form left `weekly` out, so it took the column's default.
-  assert.equal(mo.weekly, true);
+  await pool.execute("CREATE TABLE special (id serial PRIMARY KEY, name text NOT NULL, note text NOT NULL)");
+  const saved = await Special.active({ name: "Saturday cinnamon buns" }).insert(pool);
+  assert.equal(saved.note, "Ask at the counter");
+
+  await assert.rejects(Special.active({ name: "" }).insert(pool), /a special needs a name/);
+  assert.deepEqual(Special.describe().hooks, ["beforeSave"]);
 }

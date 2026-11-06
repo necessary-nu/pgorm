@@ -297,6 +297,8 @@ export interface ModelDescription {
   readonly table: string;
   readonly alias: string | null;
   readonly primaryKey: readonly string[];
+  /** The names of the hooks the model runs around its record writes. */
+  readonly hooks: readonly ("beforeSave" | "afterSave" | "beforeDelete" | "afterDelete")[];
   readonly uniqueKeys: readonly {
     readonly name: string | null;
     readonly fields: readonly string[];
@@ -357,6 +359,8 @@ export declare class Model<C extends Columns = Columns> {
   update(values: UpdateOf<Model<C>>): ModelUpdate<C>;
   /** A DELETE, which needs `where` or `allRows()` before it runs. */
   delete(): ModelDelete<C>;
+  /** The fields one record write sets, whose writes run the model's hooks. */
+  active(values?: ActiveValues<C>): ModelActive<C>;
   /** A relation from this model's foreign key to the key of `target`, which reads at most one row. */
   belongsTo<T extends Model<any>>(target: T, keys: RelationKeys<Model<C>, T>): Relation<Model<C>, T, "one">;
   /** A relation from this model's key to at most one row of `target`. */
@@ -393,8 +397,52 @@ export declare class Model<C extends Columns = Columns> {
  */
 export declare function model<const C extends Columns>(
   name: string,
-  declaration: { readonly schema?: string; readonly columns: C; readonly uniqueKeys?: readonly UniqueKey<C>[] },
+  declaration: {
+    readonly schema?: string;
+    readonly columns: C;
+    readonly uniqueKeys?: readonly UniqueKey<C>[];
+    readonly hooks?: ModelHooks<C>;
+  },
 ): Model<C>;
+
+/** The fields a record write sets: any of the model's, as an update names them. */
+export type ActiveValues<C extends Columns> = { readonly [F in keyof C]?: FieldInput<C[F]> };
+
+/**
+ * The hooks a model's record writes run, the dialect of Rust's
+ * `ActiveModelBehavior`, each optional and each free to return a promise:
+ * `beforeSave` and `beforeDelete` give the values to write, or throw to
+ * refuse the write before anything is sent; `afterSave` gives the record the
+ * write returns; `afterDelete` runs once the row is gone. The statement
+ * builders run none.
+ */
+export interface ModelHooks<C extends Columns> {
+  readonly beforeSave?: (values: ActiveValues<C>, insert: boolean) => ActiveValues<C> | Promise<ActiveValues<C>>;
+  readonly afterSave?: (record: Row<C>, insert: boolean) => Row<C> | Promise<Row<C>>;
+  readonly beforeDelete?: (values: ActiveValues<C>) => ActiveValues<C> | Promise<ActiveValues<C>>;
+  readonly afterDelete?: (values: ActiveValues<C>) => unknown;
+}
+
+/**
+ * The fields one record write sets, made by a model's `active`, as a Rust
+ * `ActiveModel` holds them: `insert`, `update` and `delete` write the record
+ * by its key and run the model's hooks around the write, as
+ * `ActiveModelTrait` does.
+ */
+export declare class ModelActive<C extends Columns = Columns> {
+  private constructor();
+  readonly values: ActiveValues<C>;
+  /** `beforeSave(values, true)`, the row inserted and read back, then `afterSave(record, true)`. */
+  insert(db: Queryable, options?: OperationOptions): Promise<Row<C>>;
+  /**
+   * `beforeSave(values, false)`, the row the key names updated with the
+   * other fields and read back, then `afterSave(record, false)`; a key no row
+   * has is a {@link DecodeError}.
+   */
+  update(db: Queryable, options?: OperationOptions): Promise<Row<C>>;
+  /** `beforeDelete(values)`, the row the key names deleted, then `afterDelete(values)`: the rows deleted. */
+  delete(db: Queryable, options?: OperationOptions): Promise<number>;
+}
 
 /**
  * The options of a model query's join, which starts from the first table of

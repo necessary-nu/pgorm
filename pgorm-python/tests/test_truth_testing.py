@@ -11,7 +11,7 @@ from pgorm._registered import disjoints as disjoint_views, entities as views, gr
 from pgorm.codegen import source
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
-    Column, Linked, Model, ModelRecord, Related, Relation, cursors, disjoint_query, graphs, model, one_of, queries,
+    Column, Linked, Model, ModelRecord, Related, Relation, active, cursors, disjoint_query, graphs, model, one_of, queries,
     record, try_inserts, writes,
 )
 from pgorm.runtime import PoolStatus
@@ -44,7 +44,7 @@ EXEMPT = {
     # true as any declared object is; the queries they start refuse.
     p.Entity, p.EntityGraph, p.EntityRelation, Model, Column, Relation, Related, Linked, pl.SourceSelection,
     pl.Binder,
-    model.UniqueKey, model._DeclaredKey,
+    model.UniqueKey, model._DeclaredKey, active.ModelHooks,
     views.EntityView, graph_views.GraphView, FieldType,
     # The layout the codegen writes source with: build-time values no query
     # reads.
@@ -150,6 +150,7 @@ def other_samples():
         model.col("id"), model.find(), model.delete(), model.insert({"id": 1}), model.insert_many([]),
         model.update({"id": 2}), model.insert({"id": 1}).returning("id"),
         model.graph(), model.find().cursor("id"), model.find().paginate(2), pl.from_(model).into_tuple(),
+        model.active({"id": 1}),
         model.insert({"id": 1}).on_conflict_do_nothing(), model.insert_many([]).on_empty_do_nothing(),
         model.insert({"id": 1}).on_empty_do_nothing().returning(),
         model.insert_many([{"id": 1}]).on_conflict_do_nothing().returning("id"),

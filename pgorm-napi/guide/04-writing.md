@@ -48,9 +48,11 @@ assert.equal(
 ```
 
 There is no `into_active`, `set_if_not_equals`, `is_changed` or `reset` on a
-declared model's rows, because there is no active model to ask: a record read
-from the database is a plain object, and an update writes the fields its
-object names. A Rust entity registered with the binding has its real
+declared model's rows: a record read from the database is a plain object, and
+an update writes the fields its object names. `Model.active(values)` is the
+nearest to an active model, the fields one record write sets, whose `insert`,
+`update` and `delete` write one record by its key and run the model's hooks
+([Entities](03-entities.md#hooks)). A Rust entity registered with the binding has its real
 `ActiveModel` in JavaScript, with those methods and the entity's hooks
 ([Registered Rust entities](24-registered-entities.md)).
 
@@ -68,8 +70,8 @@ back:
 Rust's `exec_returning_pk` and `exec_returning_model` are both
 `returning(..)` here: `returning("id")` reads the key back, and `returning()`
 with no fields the whole record. The record comes back as the database stored
-it, defaults and the generated `id` included. A declared model has no hooks,
-so nothing runs around the statement.
+it, defaults and the generated `id` included. The statement runs none of the
+model's hooks; `Model.active(values).insert(db)` is the write that does.
 
 ```ts
 import assert from "node:assert/strict";

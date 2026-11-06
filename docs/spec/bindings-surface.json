@@ -73,7 +73,8 @@
       "MergeAction": ["delete", "do_nothing", "insert", "insert_defaults", "update"],
       "MergeInsert": ["overriding", "set"],
       "MergeUpdate": ["set"],
-      "Model": ["as", "belongs_to", "col", "delete", "describe", "find", "find_by_key", "graph", "has_many", "has_one", "insert", "insert_many", "key", "linked", "related", "select", "update"],
+      "Model": ["active", "as", "belongs_to", "col", "delete", "describe", "find", "find_by_key", "graph", "has_many", "has_one", "insert", "insert_many", "key", "linked", "related", "select", "update"],
+      "ModelActive": ["delete", "insert", "update"],
       "ModelColumn": ["add", "adjacent_to", "and", "as", "asc", "at", "between", "cast", "collate", "concat", "contained_by", "contains", "contains_text", "desc", "div", "ends_with", "eq", "gt", "gte", "ilike", "inspect", "iregex", "is_distinct_from", "is_in", "is_not_distinct_from", "is_not_in", "is_not_null", "is_null", "like", "lt", "lte", "matches", "mod", "mul", "ne", "not", "not_between", "not_extend_left_of", "not_extend_right_of", "not_ilike", "not_iregex", "not_like", "not_regex", "not_similar_to", "or", "over", "overlaps", "path_exists", "regex", "similar_to", "slice", "starts_with", "strictly_left_of", "strictly_right_of", "sub"],
       "ModelDelete": ["all_rows", "execute", "inspect", "returning", "using", "where"],
       "ModelInsert": ["add", "add_many", "execute", "inspect", "on_conflict", "on_conflict_do_nothing", "on_empty_do_nothing", "returning", "returning_upsert"],
@@ -275,6 +276,7 @@
       "table": null,
       "alias": null,
       "primary_key": null,
+      "hooks": [null],
       "unique_keys": [{"name": null, "fields": null, "nulls_not_distinct": null}],
       "fields": {
         "*": {

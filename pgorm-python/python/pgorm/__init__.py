@@ -155,7 +155,8 @@ from .metrics import (
 )
 from .results import Record, Field, RowStream, Query
 from .models import (
-    Column, ModelColumn, Model, ModelRecord, ModelQuery, ModelRows, ModelInsert, ModelInsertMany, ModelUpdate,
+    Column, ModelColumn, Model, ModelActive, ModelRecord, ModelQuery, ModelRows, ModelInsert,
+    ModelInsertMany, ModelUpdate,
     ModelDelete, ModelTryInsert, ModelTryInsertMany, ModelTryRow, ModelTryRows, TryInsertResult,
     Relation, Related, Linked, Graph,
     Cursor, Paginator,
@@ -211,6 +212,7 @@ __all__ = [
     "ModelColumn",
     "Model",
     "ModelRecord",
+    "ModelActive",
     "ModelQuery",
     "ModelRows",
     "ModelInsert",

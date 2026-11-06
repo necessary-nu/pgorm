@@ -1316,6 +1316,38 @@ pages follow pgorm's own `RelationDef`, `SelectGraph`, `Cursor` and
 > name, so a column of the same name in the other table cannot make them
 > ambiguous.
 
+> [spec:pgorm:req:bindings.model-hooks]
+> A model MUST take its hooks as functions of the program's own, the dialect of
+> Rust's `ActiveModelBehavior`: a `hooks` option of `before_save(values,
+> insert)`, `after_save(record, insert)`, `before_delete(values)` and
+> `after_delete(values)`, each optional and any other name a `TypeError`, an
+> aliased model keeping its model's; `describe()` reports the names of the
+> hooks it has under `hooks`. A hook may return an awaitable (a promise in
+> JavaScript), which is awaited. The hooks run only around a model's record
+> writes, which mirror `ActiveModelTrait`: `active(values)` gives a
+> `ModelActive` holding the fields set, whose
+>
+> - `insert(db)` runs `before_save(values, true)`, inserts the values it gives
+>   and reads the row back, then gives `after_save(record, true)`'s record;
+> - `update(db)` runs `before_save(values, false)`, updates the row the
+>   primary key of the values it gives names, setting their other fields, and
+>   reads it back, a key no row has being a `DecodeError` as Rust's
+>   `RecordNotUpdated` is an error, then gives `after_save(record, false)`'s
+>   record;
+> - `delete(db)` runs `before_delete(values)`, deletes the row the primary key
+>   of the values it gives names, then runs `after_delete(values)`, giving the
+>   rows deleted.
+>
+> A `before_*` hook that raises or rejects refuses the write: nothing is sent,
+> and its error is the caller's unchanged; one that gives no mapping (no
+> object in JavaScript) is a `TypeError`. An `after_*` hook's error is the
+> write's outcome, the row already written, as Rust's is. An update or delete
+> of a model without a primary key, or of values not holding it, is a
+> `ConstructionError`. The statement builders — `insert`, `insert_many`,
+> `update` and `delete` on the model, their returning and try-insert
+> terminals, an update `FROM` and a delete `USING` — run no hook, as Rust's
+> `Insert`, `Update` and `Delete` run none.
+
 > [spec:pgorm:req:bindings.relations+1]
 > A model's `belongs_to`, `has_one` and `has_many` MUST make a relation to
 > another model, pairing fields of each — one, or non-empty lists of equal

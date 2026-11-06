@@ -45,6 +45,7 @@ import { native } from "./operations.js";
  * @property {ReadonlyMap<string, Field>} byField
  * @property {readonly Field[]} primaryKey
  * @property {readonly UniqueKey[]} uniqueKeys
+ * @property {Readonly<Record<string, Function>>} hooks The hooks its record writes run, by name.
  */
 
 /** @type {WeakMap<object, Shape>} */

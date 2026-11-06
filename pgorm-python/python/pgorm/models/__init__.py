@@ -1,5 +1,6 @@
 """Python declarations over runtime builders; no compiled entity types or hooks."""
 
+from .active import ModelActive, ModelHooks
 from .columns import Column, ModelColumn
 from .cursors import Cursor, Paginator
 from .disjoint import Disjoint, DisjointEntity, disjoint_entities, disjoint_entity
@@ -17,6 +18,8 @@ __all__ = [
     "Column",
     "ModelColumn",
     "Model",
+    "ModelActive",
+    "ModelHooks",
     "ModelQuery",
     "ModelRows",
     "ModelInsert",

@@ -85,6 +85,7 @@ export { ModelRows } from "./model-rows.js";
 export { ModelDelete, ModelInsert, ModelInsertMany, ModelUpdate } from "./model-writes.js";
 export { ModelTryInsert, ModelTryInsertMany, ModelTryRow, ModelTryRows } from "./model-try-inserts.js";
 export { Linked, Related, Relation } from "./relations.js";
+export { ModelActive } from "./model-active.js";
 export { Graph } from "./graphs.js";
 export { Cursor, Paginator } from "./cursors.js";
 export { createDisjoint, disjoint, Disjoint, DisjointEntity, disjointEntities, disjointEntity } from "./disjoint.js";

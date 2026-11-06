@@ -102,6 +102,9 @@ async def invalid(connection: p.Connection) -> None:
     accounts.linked(selves).hop("r0")  # expected-error: arg-type
     # [spec:pgorm:req:bindings.cursors+1/test]    a slot cursor's source is its index
     accounts.graph().join_one(selves).cursor_on("1", "id")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.model-hooks/test]    a model's hooks are the four named functions, and a record write takes its database
+    p.Model("accounts", {"id": p.Column("i64", primary_key=True)}, hooks={"before_insert": lambda values, insert: values})  # expected-error: arg-type
+    await accounts.active({"id": 1}).insert()  # expected-error: call-arg
     # [spec:pgorm:req:bindings.cursor-secondary-order/test]    a secondary ordering is a model's column
     accounts.find().cursor("id").add_secondary_order_by("id")  # expected-error: arg-type
     insert, update, delete = accounts.insert({"id": 1}), accounts.update({"id": 2}), accounts.delete()

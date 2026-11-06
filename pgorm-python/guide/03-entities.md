@@ -9,8 +9,9 @@ derives write at compile time. A Python model is built when the program
 runs, by calling `pgorm.Model`: nothing is compiled or generated, and a
 model can be declared, inspected and used without a database. A model
 describes a table that already exists. Declaring one sends nothing and
-creates nothing, and it runs no Rust derive, so it has none of the hooks
-an entity's active model may have.
+creates nothing, and it runs no Rust derive: the hooks an entity's active
+model may have are, for a model, functions of the program's own
+([Hooks](#hooks)).
 
 A Python program can also use the entities a Rust crate declares, by
 registering them into its own wheel. [Registering Rust
@@ -591,8 +592,68 @@ columns are named by their SQL names, not by Python fields.
 
 ## Hooks
 
-A declared model has no hooks. Its writes are statements, as Rust's
-statement builders are, and those run none in Rust either.
+A declared model takes its hooks as functions, the dialect of Rust's
+`ActiveModelBehavior`: `hooks=` maps `before_save(values, insert)`,
+`after_save(record, insert)`, `before_delete(values)` and
+`after_delete(values)` to functions of the program's own, each optional,
+each free to be a coroutine function, which is awaited. They run around the
+model's record writes: `Model.active(values)` holds the fields one write
+sets, as an active model does, and its `insert`, `update` and `delete` write
+one record by its primary key, as Rust's active model writes itself.
+
+`before_save` and `before_delete` give the values to write, and refuse the
+write by raising: nothing is sent, and the exception reaches the caller as it
+was raised. `after_save` gives the record the write returns. An `after_`
+hook that raises reports its error after the row is written, as Rust's does;
+run the write in a transaction to undo it. Rust's `new` hook, which fills
+the defaults an active model starts from, is the program's own here, as
+`before_save`'s `{"note": .., **values}` does below. The statement builders
+of [Writing rows](04-writing.md) — `insert`, `insert_many`, `update` and
+`delete` on the model, their returning and try-insert terminals, and an
+update `from_` or a delete `using` — run no hook, as Rust's `Insert`,
+`Update` and `Delete` run none.
+
+```python
+import asyncio
+import os
+from collections.abc import Mapping
+from typing import Any
+
+from pgorm import Column, ConstructionError, Model, Pool, RawSQL
+
+
+def before_save(values: Mapping[str, Any], insert: bool) -> Mapping[str, Any]:
+    if not values.get("name"):
+        raise ConstructionError("a special needs a name")
+    return {"note": "Ask at the counter", **values}
+
+
+Special = Model("special", {
+    "id": Column("i32", primary_key=True, default=True),
+    "name": Column("text"),
+    "note": Column("text"),
+}, hooks={"before_save": before_save})
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        await pool.execute(RawSQL(
+            "CREATE TABLE special (id serial PRIMARY KEY, name text NOT NULL, note text NOT NULL)"
+        ))
+        saved = await Special.active({"name": "Saturday cinnamon buns"}).insert(pool)
+        assert saved["note"] == "Ask at the counter"
+
+        try:
+            await Special.active({"name": ""}).insert(pool)
+        except ConstructionError as error:
+            assert str(error) == "a special needs a name"
+        else:
+            raise AssertionError("a special without a name is refused")
+        assert Special.describe()["hooks"] == ["before_save"]
+
+
+asyncio.run(main())
+```
 
 A registered entity's hooks are its Rust `ActiveModelBehavior`, written in
 the Rust crate as the [Rust guide's

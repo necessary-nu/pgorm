@@ -379,10 +379,50 @@ says so.
 
 A Rust entity can implement `ActiveModelBehavior`, whose hooks run around an
 active model's `insert`, `update` and `delete`: `new` fills defaults, and
-`before_save` and `before_delete` can refuse the write. A JavaScript model has
-no active model, so its writes are the statements they build, and nothing
-runs around them. Code that must run around a write is a function of the
-program's own that does its work and then writes.
+`before_save` and `before_delete` can refuse the write. A JavaScript model
+takes its hooks as functions, `hooks: { beforeSave(values, insert),
+afterSave(record, insert), beforeDelete(values), afterDelete(values) }`, each
+optional and each free to return a promise. They run around the model's
+record writes: `Model.active(values)` holds the fields one write sets, and
+its `insert`, `update` and `delete` write one record by its primary key, as
+Rust's active model writes itself.
+
+`beforeSave` and `beforeDelete` give the values to write, and refuse the
+write by throwing: nothing is sent, and the error reaches the caller as it
+was thrown. `afterSave` gives the record the write returns. An `after` hook
+that throws reports its error after the row is written, as Rust's does; run
+the write in a transaction to undo it. Rust's `new`, which fills the defaults
+an active model starts from, is the program's own here, as `beforeSave`'s
+spread does below. The statement builders of [Writing rows](04-writing.md),
+`insert`, `insertMany`, `update` and `delete` on the model, their returning
+and try-insert terminals, and an update `from` or a delete `using`, run no
+hook, as Rust's `Insert`, `Update` and `Delete` run none.
+
+```ts
+import assert from "node:assert/strict";
+import { column, ConstructionError, model } from "@necessary/pgorm";
+
+const Special = model("special", {
+  columns: {
+    id: column("i32", { primaryKey: true, default: true }),
+    name: column("text"),
+    note: column("text"),
+  },
+  hooks: {
+    beforeSave(values) {
+      if (!values.name) throw new ConstructionError("a special needs a name");
+      return { note: "Ask at the counter", ...values };
+    },
+  },
+});
+
+await pool.execute("CREATE TABLE special (id serial PRIMARY KEY, name text NOT NULL, note text NOT NULL)");
+const saved = await Special.active({ name: "Saturday cinnamon buns" }).insert(pool);
+assert.equal(saved.note, "Ask at the counter");
+
+await assert.rejects(Special.active({ name: "" }).insert(pool), /a special needs a name/);
+assert.deepEqual(Special.describe().hooks, ["beforeSave"]);
+```
 
 An application whose entities have hooks in Rust can register those
 entities, and JavaScript's writes through them then run the hooks: a

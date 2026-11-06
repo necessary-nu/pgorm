@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Required, TypedDict, cast
@@ -11,6 +11,7 @@ from .. import _native as p
 from .columns import Column, ModelColumn
 
 if TYPE_CHECKING:
+    from .active import ModelActive, ModelHooks
     from .graphs import Graph
     from .queries import ModelQuery
     from .relations import ConditionType, Linked, OnCondition, Related, Relation
@@ -90,6 +91,7 @@ class Model:
     columns: Mapping[str, Column]
     primary_key: tuple[str, ...]
     _unique_keys: tuple[_DeclaredKey, ...]
+    _hooks: Mapping[str, Callable[..., Any]]
 
     def __init__(
         self,
@@ -98,7 +100,10 @@ class Model:
         *,
         schema: str | None = None,
         unique_keys: Sequence[UniqueKey] = (),
+        hooks: ModelHooks | None = None,
     ) -> None:
+        from .active import hooks_of
+
         if isinstance(table, p.Table):
             if schema is not None:
                 raise p.ConstructionError(
@@ -142,6 +147,7 @@ class Model:
             "_unique_keys",
             tuple(_unique_key(key, declarations) for key in unique_keys),
         )
+        object.__setattr__(self, "_hooks", hooks_of(hooks))
 
     @property
     def qualifier(self) -> str:
@@ -152,6 +158,7 @@ class Model:
     def as_(self, alias: str) -> Model:
         aliased = Model(self.table.as_(alias), self.columns)
         object.__setattr__(aliased, "_unique_keys", self._unique_keys)
+        object.__setattr__(aliased, "_hooks", self._hooks)
         return aliased
 
     def col(self, field: str) -> ModelColumn:
@@ -210,6 +217,14 @@ class Model:
         return p.Condition.all(
             *(self.col(name).eq(values[name]) for name in self.primary_key)
         )
+
+    def active(self, values: Mapping[str, Any] | None = None) -> ModelActive:
+        """The fields one record write sets, whose ``insert``, ``update`` and
+        ``delete`` run the model's hooks around the write, as a Rust
+        ``ActiveModel``'s do."""
+        from .active import ModelActive
+
+        return ModelActive(self, {} if values is None else values)
 
     def insert(self, values: Mapping[str, Any]) -> ModelInsert:
         """An INSERT of one row, Rust's ``Insert::one``."""
@@ -325,6 +340,7 @@ class Model:
                 }
                 for key in self._unique_keys
             ],
+            "hooks": list(self._hooks),
             "fields": {
                 name: {
                     "column": column.name,

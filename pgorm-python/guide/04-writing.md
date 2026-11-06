@@ -265,11 +265,14 @@ its active models must set the same columns too.
 leaves the others as they are. `where(..)` says which rows it changes, and
 `returning(..)` reads them back as they now are.
 
-Here Python differs from Rust. Rust changes a row it has read by turning the
-model into an active model, setting the columns that change, and calling
-`update`, which finds the row by its primary key. A declared model's record
-does not turn into a write: the update names its row with `where`, and
-`key(..)` is the condition that matches one primary key:
+Rust changes a row it has read by turning the model into an active model,
+setting the columns that change, and calling `update`, which finds the row by
+its primary key and runs the entity's hooks. A declared model's counterpart
+is `Model.active(values).update(db)`, which names the row by the primary key
+`values` holds and runs the model's hooks ([Models and
+entities](03-entities.md#hooks)). The statement builder below runs none: its
+`where` names the rows, and `key(..)` is the condition that matches one
+primary key:
 
 ```python
 import asyncio
@@ -491,9 +494,12 @@ it runs, as an update does. `execute` returns the number of rows deleted, and
 `returning(..).all` the rows as they were. A delete that matches nothing
 returns `0`.
 
-Here Python differs from Rust. A declared model's record does not delete
-itself, and there is no `delete_by_id`: a delete by key is `delete()` with
-`where(model.key(..))`. A registered entity's model does:
+Here Python differs from Rust: there is no `delete_by_id`, and a delete by
+key is `delete()` with `where(model.key(..))`, which runs no hook.
+`Model.active(record).delete(db)` deletes the row the record's key names and
+runs the model's `before_delete` and `after_delete` hooks, as Rust's
+`ActiveModelTrait::delete` does. A registered entity's model deletes itself
+too:
 `model.into_active().delete(db)` deletes its row by its key, returns the
 count, and runs the entity's `before_delete` and `after_delete` hooks.
 

@@ -15,6 +15,7 @@ import { Column, columnKey } from "./model-columns.js";
 import { query } from "./model-queries.js";
 import { fieldOf, qualified, register, shapeOf } from "./model-shape.js";
 import { picked } from "./model-rows.js";
+import { active, hooksOf } from "./model-active.js";
 import { deleteRows, insertMany, insertOne, updateSet } from "./model-writes.js";
 import { linked, related, relation } from "./relations.js";
 import { Table } from "./select.js";
@@ -108,9 +109,10 @@ export class Model {
    * @param {string | null} alias
    * @param {readonly import("./model-shape.js").Field[]} fields
    * @param {readonly import("./model-shape.js").UniqueKey[]} uniqueKeys
+   * @param {Readonly<Record<string, Function>>} hooks
    * @param {symbol} token
    */
-  constructor(name, schema, alias, fields, uniqueKeys, token) {
+  constructor(name, schema, alias, fields, uniqueKeys, hooks, token) {
     if (token !== MADE) throw new TypeError("a Model is made by model(name, { columns })");
     const table = new Table(name, { schema: schema ?? undefined, alias: alias ?? undefined });
     const qualifier = alias ?? name;
@@ -126,6 +128,7 @@ export class Model {
       byField: new Map(fields.map((field) => [field.field, field])),
       primaryKey: fields.filter((field) => field.column.primaryKey),
       uniqueKeys,
+      hooks,
     });
     Object.freeze(this);
   }
@@ -166,7 +169,7 @@ export class Model {
    */
   as(alias) {
     const shape = shapeOf(this);
-    return new Model(shape.name, shape.schema, alias, shape.fields, shape.uniqueKeys, MADE);
+    return new Model(shape.name, shape.schema, alias, shape.fields, shape.uniqueKeys, shape.hooks, MADE);
   }
 
   /**
@@ -256,6 +259,16 @@ export class Model {
     return updateSet(shapeOf(this), values);
   }
 
+  /**
+   * The fields one record write sets, whose `insert`, `update` and `delete`
+   * run the model's hooks around the write, as a Rust `ActiveModel`'s do.
+   *
+   * @param {unknown} [values]
+   */
+  active(values) {
+    return active(this, values);
+  }
+
   /** A DELETE, which needs a `where` or `allRows()` before it runs. */
   delete() {
     return deleteRows(shapeOf(this));
@@ -329,6 +342,7 @@ export class Model {
       table: shape.name,
       alias: shape.alias,
       primaryKey: shape.primaryKey.map((field) => field.field),
+      hooks: Object.keys(shape.hooks),
       uniqueKeys: shape.uniqueKeys.map((key) => ({
         name: key.name,
         fields: key.fields.map((field) => field.field),
@@ -359,13 +373,13 @@ export function model(name, declaration) {
     throw new TypeError("a model's declaration is { columns, schema?, uniqueKeys? }");
   }
   for (const key of Object.keys(declaration)) {
-    if (key !== "columns" && key !== "schema" && key !== "uniqueKeys") {
+    if (key !== "columns" && key !== "schema" && key !== "uniqueKeys" && key !== "hooks") {
       throw new TypeError(`${JSON.stringify(key)} is no model option`);
     }
   }
-  const { columns, schema = null, uniqueKeys = [] } =
-    /** @type {{ columns?: unknown, schema?: unknown, uniqueKeys?: unknown }} */ (declaration);
+  const { columns, schema = null, uniqueKeys = [], hooks } =
+    /** @type {{ columns?: unknown, schema?: unknown, uniqueKeys?: unknown, hooks?: unknown }} */ (declaration);
   if (schema !== null && typeof schema !== "string") throw new TypeError("a model's schema is a string");
   const fields = fieldsOf(columns);
-  return new Model(name, schema, null, fields, uniqueKeysOf(uniqueKeys, fields), MADE);
+  return new Model(name, schema, null, fields, uniqueKeysOf(uniqueKeys, fields), hooksOf(hooks), MADE);
 }
