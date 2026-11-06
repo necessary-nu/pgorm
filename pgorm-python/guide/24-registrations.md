@@ -120,8 +120,9 @@ when there is no row, and `optional` returns `None`.
 `inspect(terminal="one")` or `inspect(terminal="optional")` shows the SQL
 with that limit. These are the Rust selector's rules; the `one` of a pool, a
 connection or a transaction, which runs a statement you built, has its own
-([Reading rows](05-reading.md)). A registered entity has no `stream`, and no
-projection onto some of its columns: a query reads whole models.
+([Reading rows](05-reading.md)). A query also counts, pages, takes a keyset
+cursor and streams, joins a relation and reads some of its columns, [as
+below](#counts-pages-cursors-and-streams).
 
 Here Python differs from Rust: every terminal and write returns an
 awaitable, and runs on a `Pool` as well as on a `Connection` or a
@@ -136,6 +137,107 @@ the pool also cancels a Rust hook that is still running.
 A query, like every builder here, is a value: `where`, `order_by`, `limit`
 and `offset` each return a new one. Testing a query or a write for truth, as
 `if query:` does, raises `ConstructionError` rather than answering.
+
+### Counts, pages, cursors and streams
+
+A query has the rest of Rust's `Select<E>` reads. `count(db)` is
+`PaginatorTrait::count`, counting the rows with the limit, offset and
+ordering dropped, and `inspect(terminal="count")` shows that statement.
+`paginate(page_size)` is `PaginatorTrait::paginate`: its paginator holds no
+database, so each of `fetch_page(db, n)`, `num_items(db)`, `num_pages(db)` and
+`num_items_and_pages(db)` takes the one it runs on, `pages(db)` reads each
+page in turn until one is empty, and `inspect(n)` or `inspect("count")` shows
+a statement, as a model query's paginator does ([Pages, cursors and
+streams](06-pagination.md)). `cursor(*columns)` is `Select::cursor_by` over
+those columns in order: `after(*values)` and `before(*values)` take one value
+per column, converted and cast as a comparison's value is, `first`, `last`,
+`asc` and `desc` are the cursor's own, `inspect()` shows its statement, and
+`all(db)` runs it. `stream(db)` reads the models one at a time from a pool's
+connection of its own or a connection, each decoded as it arrives, as
+`Select::stream` does:
+
+```python registered
+import asyncio
+import os
+
+import pgorm
+from pgorm import Pool
+
+
+async def main() -> None:
+    cake = pgorm.entity("rust_bakery.Cake")
+    by_price = cake.find().order_by(cake.col("price").asc())
+
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        assert await by_price.count(pool) == 5
+
+        pages = by_price.paginate(2)
+        assert await pages.num_items_and_pages(pool) == (5, 3)
+        second = await pages.fetch_page(pool, 1)
+        assert [model["name"] for model in second] == ["Carrot Cake", "Chocolate Fudge"]
+
+        cursor = cake.find().cursor("price", "id")
+        first = await cursor.first(2).all(pool)
+        assert [model["name"] for model in first] == ["Vanilla Sponge", "Lemon Drizzle"]
+        last = first[-1]
+        following = await cursor.after(last["price"], last["id"]).first(2).all(pool)
+        assert [model["name"] for model in following] == ["Carrot Cake", "Chocolate Fudge"]
+
+        async with await by_price.stream(pool) as models:
+            names = [model["name"] async for model in models]
+        assert names[:2] == ["Vanilla Sponge", "Lemon Drizzle"]
+
+
+asyncio.run(main())
+```
+
+`join(relation, kind=Join.Inner)` is `QuerySelect::join` of a relation the
+entity's Rust `Relation` enum declares: `entity.relation(name)` names the
+variant, a name it does not declare raising `ConstructionError`, and the
+joined entity's columns go in the conditions and orderings. The rows stay the
+query's own models. `select(*columns)` is `select_only` with `columns`: the
+query reads only those columns, each through its `select_as`, and its rows
+are `Record`s, as a statement's are, rather than models; its `all`, `one`,
+`optional`, `stream` and `inspect` are a query's. Here Python differs from
+Rust, which decodes such a projection into a type of the program's own,
+`into_tuple` or a `PartialModel`, which a binding cannot name at run time:
+
+```python registered
+import asyncio
+import os
+
+import pgorm
+from pgorm import Pool
+
+
+async def main() -> None:
+    cake = pgorm.entity("rust_bakery.Cake")
+    bakery = pgorm.entity("rust_bakery.Bakery")
+    in_bergen = (
+        cake.find()
+        .join(cake.relation("Bakery"))
+        .where(bakery.col("city") == "Bergen")
+        .order_by(cake.col("name").asc())
+    )
+    assert in_bergen.inspect().sql == (
+        'SELECT "cake"."id", "cake"."name", CAST("cake"."flavor" AS text), "cake"."price", '
+        '"cake"."gluten_free", "cake"."bakery_id" FROM "cake" '
+        'INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" '
+        'WHERE "bakery"."city" = $1 ORDER BY "cake"."name" ASC'
+    )
+
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        assert [model["name"] for model in await in_bergen.all(pool)] == ["Carrot Cake", "Vanilla Sponge"]
+
+        names = in_bergen.select("name", "flavor")
+        assert [dict(row) for row in await names.all(pool)] == [
+            {"name": "Carrot Cake", "flavor": "carrot"},
+            {"name": "Vanilla Sponge", "flavor": "vanilla"},
+        ]
+
+
+asyncio.run(main())
+```
 
 ### Columns
 
@@ -907,10 +1009,23 @@ continues nowhere: bound the order column alone to step past it. A boundary
 on the order column alone also skips the remaining joined rows of the same
 root, so choose the boundary that matches where the page ended.
 
-Not available in Python yet: a cursor ordered by a slot's column or by more
-than one column, streaming or grouping a graph, inspecting a cursor's SQL,
-and graphs of more than seven sources. None of them falls back to another
-kind of query.
+`cursor(*columns)` orders by up to six root columns, and
+`cursor_on(source, *columns)` is Rust's `cursor_by_on`, ordering by up to six
+columns of slot `source`, the first slot being `1`: the whole key is then the
+order columns, the rest of that slot's key, the root's, and the other slots'
+in order. `after` and `before` take one value per order column, and
+`after_with` and `before_with` those or the whole key. `inspect()` shows a
+cursor's statement. A graph has no more than seven sources because Rust's
+`SelectGraph` holds no more than six slots.
+
+`query.stream(db)` reads the rows one at a time, each decoded by `GraphRow`
+as Rust's `SelectGraph::stream` decodes it, from a pool's connection of its
+own or a connection. `query.all_grouped(db)` is `all_grouped`, which Rust
+has only on a graph of one `Opt` slot: each root once with a list of its
+slot's models, an empty one where none matched; any other shape raises
+`ConstructionError`. `count(db)` and `paginate(page_size)` count and page the
+graph's rows as an entity's query does, a page boundary falling between rows
+of the join.
 
 ### Graphs in pgorm.codegen
 

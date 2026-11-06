@@ -2,29 +2,30 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { createSchema, entity, type EntityRecord, fromEntity, graph } from "@necessary/pgorm";
+import { Conflict, createSchema, entity, fromEntity } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
+  const Account = entity("app.Account");
   await pool.execute(createSchema("napi_entities"));
-  for (const registered of [entity("app.Account"), entity("app.Note")]) {
-    for (const statement of fromEntity(registered).enums) await pool.execute(statement);
-    await pool.execute(fromEntity(registered).table);
-  }
-  await pool.execute(`INSERT INTO napi_entities.accounts VALUES (1, 'Ann', NULL, 1, 'calm'), (2, 'Bob', NULL, 1, 'busy')`);
-  await pool.execute(`INSERT INTO napi_entities.notes VALUES (10, 1, 'a1'), (11, 1, 'a2')`);
+  for (const statement of fromEntity(Account).enums) await pool.execute(statement);
+  await pool.execute(fromEntity(Account).table);
 
-  const notes = graph("app.AccountNotes").find({ aliases: ["n"] });
-  // Without generated declarations, a row is typed as any graph's might be.
-  const rows = (await notes.orderBy(notes.col(0, "id").asc(), notes.col(1, "id").asc()).all(pool)) as [
-    EntityRecord,
-    EntityRecord | null,
-  ][];
-  assert.deepEqual(
-    rows.map(([account, note]) => [account["display name"], note?.body ?? null]),
-    [["Ann", "a1"], ["Ann", "a2"], ["Bob", null]],
-  );
+  const ids = await Account.insertMany([
+    Account.active().set("id", 1).set("display name", "Ann"),
+    Account.active().set("id", 2).set("display name", "Bob"),
+  ]).returningPks(pool);
+  assert.deepEqual(ids, [1, 2]);
 
-  const page = await notes.cursor("id").first(2).all(pool);
-  assert.equal(page.length, 2);
+  const raised = await Account.updateMany()
+    .set("version", 5)
+    .where(Account.col("id").gte(2))
+    .returningChanges(pool);
+  assert.deepEqual(raised.map(({ old, new: now }) => [old.version, now.version]), [[1, 5]]);
+
+  const upserted = await Account.insert(Account.active().set("id", 1).set("display name", "Anne"))
+    .onConflict(Conflict.on("id").update("display name"))
+    .returningUpsert(pool);
+  assert.equal(upserted?.kind, "updated");
+  assert.equal(upserted?.new["display name"], "Anne");
 }

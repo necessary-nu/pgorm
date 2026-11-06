@@ -54,7 +54,7 @@ pub(crate) struct Source {
 impl Source {
     /// A pipeline starting from the relation: a table by its name, its schema
     /// kept, or anything named or embedded as the source it is.
-    // [spec:pgorm:req:bindings.pipeline]
+    // [spec:pgorm:req:bindings.pipeline+1]
     fn pipeline(&self) -> pl::Pipeline {
         match (&self.relation, &self.alias) {
             (Relation::Table(TableName::Table(table)), None) => pl::Pipeline::from(table.clone()),
@@ -128,7 +128,7 @@ impl From<pl::Pipeline> for Node {
 
 /// The SQL and values a pipeline compiles to, through pgorm's
 /// `Pipeline::into_sql`; what it judges is a `ConstructionError`.
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 pub(super) fn compile<'cx>(cx: &mut Cx<'cx>, part: &Part) -> NeonResult<(String, Values)> {
     match part {
         Part::Pipeline(pipeline) => match pipeline.clone().into_sql() {

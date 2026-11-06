@@ -48,9 +48,11 @@ assert.equal(
 ```
 
 There is no `into_active`, `set_if_not_equals`, `is_changed` or `reset` on a
-declared model's rows, because there is no active model to ask: a record read
-from the database is a plain object, and an update writes the fields its
-object names. A Rust entity registered with the binding has its real
+declared model's rows: a record read from the database is a plain object, and
+an update writes the fields its object names. `Model.active(values)` is the
+nearest to an active model, the fields one record write sets, whose `insert`,
+`update` and `delete` write one record by its key and run the model's hooks
+([Entities](03-entities.md#hooks)). A Rust entity registered with the binding has its real
 `ActiveModel` in JavaScript, with those methods and the entity's hooks
 ([Registered Rust entities](24-registered-entities.md)).
 
@@ -68,8 +70,8 @@ back:
 Rust's `exec_returning_pk` and `exec_returning_model` are both
 `returning(..)` here: `returning("id")` reads the key back, and `returning()`
 with no fields the whole record. The record comes back as the database stored
-it, defaults and the generated `id` included. A declared model has no hooks,
-so nothing runs around the statement.
+it, defaults and the generated `id` included. The statement runs none of the
+model's hooks; `Model.active(values).insert(db)` is the write that does.
 
 ```ts
 import assert from "node:assert/strict";
@@ -242,9 +244,28 @@ assert.throws(() => Cake.update({ glutenFree: true }).inspect(), ConstructionErr
 assert.equal(await Cake.update({ glutenFree: true }).where(Cake.key({ id: 99 })).execute(pool), 0);
 ```
 
-A model's update reads no other table. Rust's `Update::many(..).from(..)`,
-which joins another table in the filter, is the statement builder's
-`update(table).from(item)` here ([The query builder](11-query-builder.md)).
+`from(source)` names another table the update reads, PostgreSQL's
+`UPDATE .. FROM`, as Rust's `Update::many(..).from(..)` does: another model,
+whose table it reads as the model names it, or a table or FROM item of [the
+statement builders](11-query-builder.md). Its columns go wherever the
+update's values and conditions go, and a `returning(..)` list then qualifies
+the model's own columns, so the two tables' `id`s cannot be confused. Here
+every cake sold in Bergen becomes gluten-free:
+
+```ts
+import assert from "node:assert/strict";
+
+const bergen = Cake.update({ glutenFree: true })
+  .from(Bakery)
+  .where(Cake.col("bakeryId").eq(Bakery.col("id")))
+  .where(Bakery.col("city").eq("Bergen"));
+assert.equal(
+  bergen.inspect().sql,
+  `UPDATE "cake" SET "gluten_free" = $1 FROM "bakery" WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2`,
+);
+const changed = await bergen.returning("name").all(pool);
+assert.deepEqual(changed.map((cake) => cake.name).sort(), ["Carrot Cake", "Vanilla Sponge"]);
+```
 
 ### Before and after
 
@@ -305,8 +326,24 @@ assert.equal(await Cake.find().count(pool), 4);
 `key` takes the key's fields and nothing else, so a cake_baker record, which
 holds only its key, passes as it is, while a cake record is given as
 `Cake.key({ id: cake.id })`. `returning(..)` reads the deleted rows as they
-were. Rust's `Delete::many(..).using(..)`, PostgreSQL's `DELETE .. USING`, is
-the statement builder's `deleteFrom(table).using(item)`.
+were. `using(source)` names another table the delete reads, PostgreSQL's
+`DELETE .. USING`, as Rust's `Delete::many(..).using(..)` does, from another
+model or a table or FROM item, as an update's `from` does:
+
+```ts
+import assert from "node:assert/strict";
+
+// Bo hands every cake on to the others.
+const handed = CakeBaker.delete()
+  .using(Baker)
+  .where(CakeBaker.col("bakerId").eq(Baker.col("id")))
+  .where(Baker.col("name").eq("Bo"));
+assert.equal(
+  handed.inspect().sql,
+  `DELETE FROM "cake_baker" USING "baker" WHERE "cake_baker"."baker_id" = "baker"."id" AND "baker"."name" = $1`,
+);
+assert.equal(await handed.execute(pool), 2);
+```
 
 ## Upserts
 
@@ -350,38 +387,46 @@ conflicting row uses up a number of the sequence, as Kim's did.
 The other terminals work under `ON CONFLICT` too: `returning("id")` reads the
 key of the row written, whether it was inserted or updated.
 
-To skip conflicting rows instead, `Conflict.doNothing()` adds
-`ON CONFLICT DO NOTHING`, for a conflict on any key, and
-`Conflict.on(..).doNothing()` names one key. Rust turns such an insert into a
-`TryInsert`, whose terminals answer `Inserted`, `Conflicted` or `Empty`. In
-JavaScript the counts say it: `execute` resolves with `0` for a row that was
-skipped, `returningUpsert` with `null`, and a batch's `returningUpserts`
-leaves a skipped row out. An empty batch sends nothing: `execute` resolves
-with `0` and `returningUpserts` with an empty array, which its length already
-told you.
+To skip conflicting rows instead, `onConflictDoNothing()` adds
+`ON CONFLICT (primary key) DO NOTHING`, as Rust's does, and turns the insert
+into a `ModelTryInsert`, or a batch into a `ModelTryInsertMany`, Rust's
+`TryInsert`. Its terminals resolve with a `TryInsertResult`: `{ kind:
+"inserted", value }` holding what was written, `{ kind: "conflicted" }` when
+every row was skipped, or `{ kind: "empty" }` when there was nothing to write
+and nothing was sent. `execute(db)` answers with the count, and
+`returning(...fields)` with the rows, its `one(db)` for one row and `all(db)`
+for a batch. `onEmptyDoNothing()` makes a try-insert too, its statement
+unchanged, answering an empty batch, or a row that sets no field, with
+`empty`. `Conflict.on(..).doNothing()` names another key through
+`onConflict`, and `Conflict.doNothing()` skips a row that conflicts on any
+key; there `execute` resolves with `0` for a skipped row and
+`returningUpsert` with `null`.
 
 ```ts
 import assert from "node:assert/strict";
-import { Conflict } from "@necessary/pgorm";
+
+const bakes = (cakeId: number, bakerId: number) => CakeBaker.insert({ cakeId, bakerId }).onConflictDoNothing();
 
 // Ada already bakes the Chocolate Fudge.
-const again = CakeBaker.insert({ cakeId: 1, bakerId: 1 }).onConflict(Conflict.on("cake_id", "baker_id").doNothing());
+const again = bakes(1, 1);
 assert.equal(
   again.inspect().sql,
   `INSERT INTO "cake_baker" ("cake_id", "baker_id") VALUES ($1, $2) ON CONFLICT ("cake_id", "baker_id") DO NOTHING`,
 );
-assert.equal(await again.execute(pool), 0);
-assert.equal(await again.returningUpsert(pool), null);
+assert.deepEqual(await again.execute(pool), { kind: "conflicted" });
 
 // Bo starts baking the Chocolate Fudge too.
-const bo = CakeBaker.insert({ cakeId: 1, bakerId: 2 }).onConflict(Conflict.doNothing());
-assert.equal(await bo.execute(pool), 1);
+assert.deepEqual(await bakes(1, 2).execute(pool), { kind: "inserted", value: 1 });
 
-assert.deepEqual(await CakeBaker.insertMany([]).returningUpserts(pool), []);
+assert.deepEqual(await CakeBaker.insertMany([]).onEmptyDoNothing().execute(pool), { kind: "empty" });
 ```
 
-`returning(..).one(db)` over a row the conflict skipped finds no row, a
-`DecodeError`; `returning(..).optional(db)` resolves with `null` instead.
+A declared model's try-insert has no `exec_returning_pk` or
+`exec_returning_model`: `returning(...fields)` reads the fields it names, as a
+plain insert's does, and a row the conflict clause skipped is `conflicted`
+there too. Without a try-insert, `returning(..).one(db)` over a row the
+conflict skipped finds no row, a `DecodeError`; `returning(..).optional(db)`
+resolves with `null` instead.
 
 ## MERGE
 

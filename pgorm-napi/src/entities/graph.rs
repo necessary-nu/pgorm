@@ -7,19 +7,45 @@
 use std::{fmt, marker::PhantomData, sync::Arc};
 
 use futures_util::future::BoxFuture;
-use pgorm::pgorm_query::{Condition, NullOrdering, Order, SimpleExpr, Value, ValueTuple, Values};
+use pgorm::pgorm_query::{Condition, NullOrdering, Order, SelectStatement, SimpleExpr, Values};
 use pgorm::{
-    EntityTrait, Error, GraphItem, GraphRow, IntoActiveModel, Iterable, Opt, QueryFilter,
-    QueryOrder, QueryTrait, Req, SelectGraph, SelectorTrait, Slot, Slots, StaticName,
+    EntityTrait, Error, GraphItem, GraphRow, IntoActiveModel, Opt, QueryFilter, QueryOrder,
+    QueryTrait, Req, SelectGraph, SelectorTrait, Slot, Slots,
 };
 
 use super::{
     Registry,
     adapter::{Model, model_of},
     info::EntityInfo,
+    keysets::{grouped_by, root_keyset, slot_keyset},
+    reads::{Decode, Keyset, Pages},
     registry::RegistrationError,
 };
 use crate::connect::job::Database;
+
+/// A grouped read's answer: each root with its slot's models.
+pub(crate) type Groups = Vec<(Model, Vec<Model>)>;
+
+/// `all_grouped` of a graph, pgorm's erased grouped read, run on whichever
+/// database a job holds.
+pub(crate) type GroupedFn = pgorm::GroupedRead<Model, Model, crate::connect::metrics::Metrics>;
+
+/// A registered graph's keyset cursor, built where the slot tuple's
+/// positions are known.
+#[doc(hidden)]
+#[derive(Debug)]
+pub struct SlotKeyset(pub(crate) Arc<Keyset>);
+
+/// A registered graph's grouped read, which only a tuple of one `Opt` slot
+/// has.
+#[doc(hidden)]
+pub struct GroupedRead(pub(crate) GroupedFn);
+
+impl fmt::Debug for GroupedRead {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GroupedRead").finish_non_exhaustive()
+    }
+}
 
 /// One decoded source of a registered graph: its entity, and whether its
 /// row may be absent.
@@ -41,9 +67,17 @@ pub struct GraphBindings {
 }
 
 #[doc(hidden)]
-pub trait RegisteredSlot: Slot {
+pub trait RegisteredSlot: Slot<Out: Send> {
     fn source(registry: &Registry) -> Result<Source, RegistrationError>;
     fn model(value: Self::Out, source: &Source) -> Option<GraphModel>;
+    /// `all_grouped` of a graph whose one slot this is; `None` for a `Req`
+    /// slot, which Rust's `all_grouped` is not on.
+    fn grouped<E>(graph: SelectGraph<E, (Self,)>, bindings: &GraphBindings) -> Option<GroupedRead>
+    where
+        E: EntityTrait + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: Send + Sync + 'static,
+        Self: Sized + Send + Sync + 'static;
 }
 
 impl<F> RegisteredSlot for Req<F>
@@ -61,6 +95,15 @@ where
 
     fn model(value: Self::Out, source: &Source) -> Option<GraphModel> {
         Some(GraphModel(model_of::<F>(value, &source.entity)))
+    }
+
+    fn grouped<E>(_: SelectGraph<E, (Self,)>, _: &GraphBindings) -> Option<GroupedRead>
+    where
+        E: EntityTrait + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: Send + Sync + 'static,
+    {
+        None
     }
 }
 
@@ -80,11 +123,20 @@ where
     fn model(value: Self::Out, source: &Source) -> Option<GraphModel> {
         value.map(|value| GraphModel(model_of::<F>(value, &source.entity)))
     }
+
+    fn grouped<E>(graph: SelectGraph<E, (Self,)>, bindings: &GraphBindings) -> Option<GroupedRead>
+    where
+        E: EntityTrait + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: Send + Sync + 'static,
+    {
+        Some(GroupedRead(grouped_by::<E, F>(graph, bindings)))
+    }
 }
 
 /// The slot tuples a graph can register: Rust's own arities, from no slot to
 /// six. pgorm's `Slots` is sealed, so no other shape implements this.
-// [spec:pgorm:req:bindings.entity-graphs+3]
+// [spec:pgorm:req:bindings.entity-graphs+4]
 pub trait GraphSlots<E: EntityTrait>: Slots + fmt::Debug + Send + Sync + Sized + 'static
 where
     GraphRow<E, Self>: SelectorTrait,
@@ -93,6 +145,21 @@ where
     fn bindings(registry: &Registry) -> Result<GraphBindings, RegistrationError>;
     #[doc(hidden)]
     fn models(row: GraphItem<E, Self>, bindings: &GraphBindings) -> Vec<Option<GraphModel>>;
+    /// `cursor_by` over root columns for source 0, `cursor_by_on::<I, _>`
+    /// over slot `I`'s otherwise; the refusal's message when there is none.
+    #[doc(hidden)]
+    fn keyset(
+        graph: &SelectGraph<E, Self>,
+        source: usize,
+        columns: &[String],
+        bindings: &GraphBindings,
+    ) -> Result<SlotKeyset, String>;
+    #[doc(hidden)]
+    fn grouped(graph: SelectGraph<E, Self>, bindings: &GraphBindings) -> Option<GroupedRead>;
+}
+
+fn no_source(source: usize) -> String {
+    format!("the graph has no slot {source}")
 }
 
 impl<E> GraphSlots<E> for ()
@@ -118,10 +185,26 @@ where
                 .map(|source| GraphModel(model_of::<E>(value, &source.entity))),
         ]
     }
+
+    fn keyset(
+        graph: &SelectGraph<E, Self>,
+        source: usize,
+        columns: &[String],
+        bindings: &GraphBindings,
+    ) -> Result<SlotKeyset, String> {
+        match source {
+            0 => root_keyset(graph, columns, bindings).map(SlotKeyset),
+            other => Err(no_source(other)),
+        }
+    }
+
+    fn grouped(_: SelectGraph<E, Self>, _: &GraphBindings) -> Option<GroupedRead> {
+        None
+    }
 }
 
 macro_rules! slots {
-    ($($slot:ident @ $at:tt),+) => {
+    ($grouped:ident; $($slot:ident @ $at:tt),+) => {
         impl<E, $($slot),+> GraphSlots<E> for ($($slot,)+)
         where
             E: EntityTrait + Send + Sync + 'static,
@@ -145,16 +228,40 @@ macro_rules! slots {
                     $(sources.get($at).and_then(|source| $slot::model(row.$at, source)),)+
                 ]
             }
+
+            fn keyset(
+                graph: &SelectGraph<E, Self>,
+                source: usize,
+                columns: &[String],
+                bindings: &GraphBindings,
+            ) -> Result<SlotKeyset, String> {
+                match source {
+                    0 => root_keyset(graph, columns, bindings).map(SlotKeyset),
+                    $($at => slot_keyset::<$at, E, Self>(graph, columns, bindings).map(SlotKeyset),)+
+                    other => Err(no_source(other)),
+                }
+            }
+
+            fn grouped(graph: SelectGraph<E, Self>, bindings: &GraphBindings) -> Option<GroupedRead> {
+                slots!(@grouped $grouped graph bindings $($slot)+)
+            }
         }
     };
+    (@grouped one $graph:ident $bindings:ident $slot:ident) => {
+        <$slot as RegisteredSlot>::grouped($graph, $bindings)
+    };
+    (@grouped many $graph:ident $bindings:ident $($slot:ident)+) => {{
+        let _ = ($graph, $bindings);
+        None
+    }};
 }
 
-slots!(S1 @ 1);
-slots!(S1 @ 1, S2 @ 2);
-slots!(S1 @ 1, S2 @ 2, S3 @ 3);
-slots!(S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4);
-slots!(S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4, S5 @ 5);
-slots!(S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4, S5 @ 5, S6 @ 6);
+slots!(one; S1 @ 1);
+slots!(many; S1 @ 1, S2 @ 2);
+slots!(many; S1 @ 1, S2 @ 2, S3 @ 3);
+slots!(many; S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4);
+slots!(many; S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4, S5 @ 5);
+slots!(many; S1 @ 1, S2 @ 2, S3 @ 3, S4 @ 4, S5 @ 5, S6 @ 6);
 
 /// A registered graph: its name, the Rust shape and its sources.
 #[derive(Debug)]
@@ -167,7 +274,7 @@ pub(crate) struct GraphInfo {
 impl GraphInfo {
     /// The graph as `describe()` reports it: its name, the Rust shape, and
     /// each source's entity and slot kind.
-    // [spec:pgorm:req:bindings.entity-graphs+3]
+    // [spec:pgorm:req:bindings.entity-graphs+4]
     pub(crate) fn describe(&self) -> serde_json::Value {
         serde_json::json!({
             "name": self.name,
@@ -199,24 +306,6 @@ pub(crate) enum Change {
     Order(SimpleExpr, Order, Option<NullOrdering>),
 }
 
-/// A cursor boundary: the root's order-column value, or with `full` the
-/// whole key — the order column, the root's remaining key and each slot's.
-#[derive(Clone, Debug)]
-pub(crate) struct Boundary {
-    pub(crate) values: Vec<Value>,
-    pub(crate) full: bool,
-}
-
-/// What `SelectGraph::cursor_by` is told before `Cursor::all`.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct CursorPlan {
-    pub(crate) column: String,
-    pub(crate) before: Option<Boundary>,
-    pub(crate) after: Option<Boundary>,
-    pub(crate) descending: bool,
-    pub(crate) window: Option<(bool, u64)>,
-}
-
 pub(crate) trait QueryBackend: fmt::Debug + Send + Sync {
     fn info(&self) -> &Arc<GraphInfo>;
     fn aliases(&self) -> &[String];
@@ -227,11 +316,15 @@ pub(crate) trait QueryBackend: fmt::Debug + Send + Sync {
         db: Database<'a>,
         optional: bool,
     ) -> BoxFuture<'a, Result<Vec<Row>, Error>>;
-    fn cursor<'a>(
-        &'a self,
-        db: Database<'a>,
-        plan: CursorPlan,
-    ) -> BoxFuture<'a, Result<Vec<Row>, Error>>;
+    /// `cursor_by` over root columns when `source` is 0, otherwise
+    /// `cursor_by_on` over the columns of slot `source`.
+    fn keyset(&self, source: usize, columns: &[String]) -> Result<Arc<Keyset>, String>;
+    fn pages(&self) -> Arc<Pages>;
+    fn statement(&self) -> SelectStatement;
+    /// The decode `SelectGraph::stream` runs on each row.
+    fn decode(&self) -> Decode;
+    /// `all_grouped`, which only a graph of one `Opt` slot has.
+    fn grouped(&self) -> Option<GroupedFn>;
 }
 
 pub(crate) struct GraphFactory<E: EntityTrait, S, Build> {
@@ -252,7 +345,7 @@ impl<E, S, Build> Factory for GraphFactory<E, S, Build>
 where
     E: EntityTrait + Send + Sync + 'static,
     S: GraphSlots<E>,
-    GraphRow<E, S>: SelectorTrait,
+    GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
     GraphItem<E, S>: Send + 'static,
     Build: Fn(&[String]) -> SelectGraph<E, S> + Send + Sync + 'static,
 {
@@ -269,10 +362,10 @@ where
     }
 }
 
-struct GraphQuery<E: EntityTrait, S> {
-    query: SelectGraph<E, S>,
-    info: Arc<GraphInfo>,
-    aliases: Vec<String>,
+pub(crate) struct GraphQuery<E: EntityTrait, S> {
+    pub(crate) query: SelectGraph<E, S>,
+    pub(crate) info: Arc<GraphInfo>,
+    pub(crate) aliases: Vec<String>,
 }
 
 impl<E: EntityTrait, S> fmt::Debug for GraphQuery<E, S> {
@@ -284,12 +377,12 @@ impl<E: EntityTrait, S> fmt::Debug for GraphQuery<E, S> {
     }
 }
 
-// [spec:pgorm:req:bindings.entity-graphs+3]
+// [spec:pgorm:req:bindings.entity-graphs+4]
 impl<E, S> QueryBackend for GraphQuery<E, S>
 where
     E: EntityTrait + Send + Sync + 'static,
     S: GraphSlots<E>,
-    GraphRow<E, S>: SelectorTrait,
+    GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
     GraphItem<E, S>: Send + 'static,
 {
     fn info(&self) -> &Arc<GraphInfo> {
@@ -342,58 +435,45 @@ where
         })
     }
 
-    fn cursor<'a>(
-        &'a self,
-        db: Database<'a>,
-        plan: CursorPlan,
-    ) -> BoxFuture<'a, Result<Vec<Row>, Error>> {
-        Box::pin(async move {
-            let column = <E::Column as Iterable>::iter()
-                .find(|column| column.as_str() == plan.column)
-                .ok_or_else(|| Error::Custom("unknown root cursor column".to_owned()))?;
-            let mut cursor = self.query.clone().cursor_by(column);
-            for (before, bound) in [(true, plan.before), (false, plan.after)] {
-                let Some(bound) = bound else {
-                    continue;
-                };
-                if bound.full {
-                    let values: ValueTuple = bound.values.into_iter().collect();
-                    if before {
-                        cursor.before_with(values);
-                    } else {
-                        cursor.after_with(values);
-                    }
-                } else {
-                    let value = bound.values.into_iter().next().ok_or_else(|| {
-                        Error::Custom("a cursor boundary needs its value".to_owned())
-                    })?;
-                    if before {
-                        cursor.before(value);
-                    } else {
-                        cursor.after(value);
-                    }
-                }
-            }
-            if plan.descending {
-                cursor.desc();
-            } else {
-                cursor.asc();
-            }
-            match plan.window {
-                Some((true, rows)) => {
-                    cursor.last(rows);
-                }
-                Some((false, rows)) => {
-                    cursor.first(rows);
-                }
-                None => {}
-            }
-            Ok(cursor
-                .all(&db)
-                .await?
+    fn keyset(&self, source: usize, columns: &[String]) -> Result<Arc<Keyset>, String> {
+        S::keyset(&self.query, source, columns, &self.info.bindings).map(|keyset| keyset.0)
+    }
+
+    fn pages(&self) -> Arc<Pages> {
+        let info = self.info.clone();
+        Arc::new(Pages {
+            pages: Box::new(pgorm::PagedRead::new(self.query.clone(), move |row| {
+                S::models(row, &info.bindings)
+                    .into_iter()
+                    .map(|model| model.map(|model| model.0))
+                    .collect()
+            })),
+            sources: self
+                .info
+                .bindings
+                .sources
+                .iter()
+                .map(|source| source.entity.clone())
+                .collect(),
+        })
+    }
+
+    fn statement(&self) -> SelectStatement {
+        QueryTrait::as_query(&self.query).clone()
+    }
+
+    fn decode(&self) -> Decode {
+        let info = self.info.clone();
+        Arc::new(move |row| {
+            let item = GraphRow::<E, S>::from_raw_query_result(row)?;
+            Ok(S::models(item, &info.bindings)
                 .into_iter()
-                .map(|row| S::models(row, &self.info.bindings))
+                .map(|model| model.map(|model| model.0))
                 .collect())
         })
+    }
+
+    fn grouped(&self) -> Option<GroupedFn> {
+        S::grouped(self.query.clone(), &self.info.bindings).map(|read| read.0)
     }
 }

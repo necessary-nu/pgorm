@@ -211,13 +211,16 @@ none.
 
 ### Ties and secondary keys
 
-Here Python differs from Rust: a model query's cursor has no
-`add_secondary_order_by`. Rust appends a column there after the key, of the
-queried table or a joined one, so that `after` and `before` can take the key
-alone while `after_with` and `before_with` take the whole ordering. In
-Python, a model query's key is the fields `cursor` names, all of the queried
-model, and a boundary takes a value for each: write the tiebreak into the key.
-Ordering a cursor by a joined table's column is not available in Python yet.
+`add_secondary_order_by(column)` appends a column of the queried model or a
+joined table to the cursor's ordering, after the key, as Rust's
+`add_secondary_order_by` does, which is how a cursor over a join is made
+total; the column is named as the query names its table, `Model.col(field)`
+or an aliased model's. `after` and `before` still take the key alone, and so
+resume past every row sharing the boundary's key. `after_with` and
+`before_with` take the whole ordering, the appended columns included, and
+resume from exactly one row. Here Python differs from Rust in spelling: Rust
+names the column's table beside it and changes the cursor in place, where a
+Python column carries its table and the method returns a new cursor.
 
 ```python
 import asyncio
@@ -232,14 +235,16 @@ from bakery import Cake
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
         # By bakery, then by id within each bakery.
-        by_bakery = Cake.find().cursor("bakery_id", "id")
+        by_bakery = Cake.find().cursor("bakery_id").add_secondary_order_by(Cake.col("id"))
 
         first = cast(list[ModelRecord], await by_bakery.first(2).all(pool))
         assert [cake["id"] for cake in first] == [1, 2]
 
-        # Bakery 1 has a third cake, which a boundary of the bakery alone would skip.
-        rest = cast(list[ModelRecord], await by_bakery.after(1, 2).first(2).all(pool))
+        # Bakery 1 has a third cake, which after(1) would skip.
+        rest = cast(list[ModelRecord], await by_bakery.after_with(1, 2).first(2).all(pool))
         assert [cake["id"] for cake in rest] == [5, 3]
+        skipped = cast(list[ModelRecord], await by_bakery.after(1).first(2).all(pool))
+        assert [cake["id"] for cake in skipped] == [3, 4]
 
 
 asyncio.run(main())
@@ -285,9 +290,9 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Here Python differs from Rust: a graph's cursor orders by fields of its root
-only. Rust's `cursor_by_on`, ordering by the columns of one of the related
-tables, is not available in Python yet.
+A graph's `cursor_on(source, *fields)` orders by fields of one of its slots
+instead, the first slot `1`, as Rust's `cursor_by_on` does, and
+[Relations](07-relations.md#limits-pages-and-cursors) shows one.
 
 ## Paginating raw SQL
 

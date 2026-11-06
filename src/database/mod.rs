@@ -1,6 +1,7 @@
 mod connection;
 mod copy;
 mod copy_rows;
+mod database_ref;
 mod db_connection;
 mod lifecycle;
 mod listen;
@@ -9,6 +10,7 @@ mod transaction;
 pub use connection::*;
 pub use copy::{CopyInSink, CopyOutStream, CopyTrait};
 pub use copy_rows::{CopyColumn, CopyRowDecoder, CopyRowEncoder, CopyRowSink, CopyRowStream};
+pub use database_ref::DatabaseRef;
 pub use db_connection::*;
 pub use listen::{Listener, Notifications, connect_listener, notify};
 pub use transaction::{TransactionError, TransactionTrait};

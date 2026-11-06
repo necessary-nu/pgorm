@@ -98,7 +98,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute(p.RawSQL(f"DROP SCHEMA {SCHEMA} CASCADE"))
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.relations/test]
+    # [spec:pgorm:req:bindings.relations+1/test]
     async def test_relation_find_reads_none_for_null_keys(self):
         ann = (await Account.find().order_by(by_account).limit(1).all(self.pool))[0]
         found = await posts.find(ann).order_by(by_post).all(self.pool)
@@ -113,7 +113,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         self.assertIs(author.from_, Post)
         self.assertIs(author.to, Account)
 
-    # [spec:pgorm:req:bindings.relations/test]
+    # [spec:pgorm:req:bindings.relations+1/test]
     async def test_load_reads_far_ends_in_one_query(self):
         accounts = await Account.find().order_by(by_account).all(self.pool)
         loaded = await posts.load(self.pool, accounts)
@@ -122,12 +122,10 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [account["name"] for account in await author.load(self.pool, authored)], ["Ann", "Ann", "Bob"]
         )
-        with self.assertRaisesRegex(p.DecodeError, "0 account rows have the key"):
-            await editor.load(self.pool, authored)
-        checked = [post for post in authored if post["editor_id"] != 999]
+        # A key nothing at the far end matches reads as None, as pgorm's load_one reads it.
         self.assertEqual(
-            [None if account is None else account["name"] for account in await editor.load(self.pool, checked)],
-            ["Bob", None],
+            [None if account is None else account["name"] for account in await editor.load(self.pool, authored)],
+            ["Bob", None, None],
         )
         self.assertEqual(await posts.load(self.pool, []), [])
         twice = Account.has_one(Post, from_="id", to="author_id")
@@ -139,7 +137,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
             [dict(row) for row in await pairs.load(self.pool, tagged)], [dict(row) for row in tagged]
         )
 
-    # [spec:pgorm:req:bindings.relations/test]
+    # [spec:pgorm:req:bindings.relations+1/test]
     def test_relation_pairs_equal_field_counts(self):
         with self.assertRaisesRegex(p.ConstructionError, "as many fields"):
             Post.belongs_to(Account, from_=["author_id", "id"], to="id")
@@ -154,7 +152,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             posts.find(["id"])
 
-    # [spec:pgorm:req:bindings.graphs+1/test]
+    # [spec:pgorm:req:bindings.graphs+2/test]
     async def test_slot_kinds_decode_as_their_join(self):
         required = await Post.graph().join_one(editor).order_by(by_post).all(self.pool)
         self.assertEqual([(post["title"], account["name"]) for post, account in required], [("a1", "Bob")])
@@ -171,7 +169,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         async with await Post.graph().join_one(author).order_by(by_post).stream(self.pool) as rows:
             self.assertEqual([account["name"] async for _, account in rows], ["Ann", "Ann", "Bob"])
 
-    # [spec:pgorm:req:bindings.graphs+1/test]
+    # [spec:pgorm:req:bindings.graphs+2/test]
     async def test_graph_reads_hops_and_aliased_tables(self):
         tagged = await Post.graph().via(post_tags).join_one(tag_of).order_by(
             by_post, Tag.col("id").asc()
@@ -198,7 +196,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             bool(Post.graph())
 
-    # [spec:pgorm:req:bindings.graphs+1/test]
+    # [spec:pgorm:req:bindings.graphs+2/test]
     # [spec:pgorm:req:bindings.model-records+1/test]
     async def test_undecodable_present_slot_is_decode_error(self):
         await self.pool.execute(p.RawSQL(f"UPDATE {SCHEMA}.account SET mood = 'wild' WHERE id = 1"))
@@ -207,7 +205,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.DecodeError):
             await Account.find().all(self.pool)
 
-    # [spec:pgorm:req:bindings.graphs+1/test]
+    # [spec:pgorm:req:bindings.graphs+2/test]
     async def test_all_grouped_gathers_each_roots_slot_records(self):
         grouped = await Account.graph().join_maybe(posts).order_by(Account.col("name").desc()).all_grouped(self.pool)
         self.assertEqual(
@@ -220,7 +218,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(p.ConstructionError, "none of"):
             await keyless.graph().join_maybe(keyless.has_many(Post, from_="name", to="title")).all_grouped(self.pool)
 
-    # [spec:pgorm:req:bindings.graphs+1/test]
+    # [spec:pgorm:req:bindings.graphs+2/test]
     async def test_a_sliced_graph_refuses_row_range_reads(self):
         graph = Account.graph().join_maybe(posts).order_by(by_account, by_post)
         for sliced in (graph.limit(2), graph.offset(1), graph.limit(None), graph.limit(2).where(Account.col("id") > 0)):
@@ -230,6 +228,8 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
                 await sliced.count(self.pool)
             with self.assertRaisesRegex(p.ConstructionError, "has no cursor"):
                 sliced.cursor("name")
+            with self.assertRaisesRegex(p.ConstructionError, "has no cursor_on"):
+                sliced.cursor_on(1, "title")
             with self.assertRaisesRegex(p.ConstructionError, "has no paginate"):
                 sliced.paginate(2)
             for terminal in ("count", "all_grouped"):
@@ -238,7 +238,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         rows = await graph.limit(2).all(self.pool)
         self.assertEqual([(account["name"], post and post["title"]) for account, post in rows], [("Ann", "a1"), ("Ann", "a2")])
 
-    # [spec:pgorm:req:bindings.cursors/test]
+    # [spec:pgorm:req:bindings.cursors+1/test]
     async def test_a_cursor_walks_rows_by_keyset(self):
         await Account.insert_many([{"name": "Ann"}, {"name": "Dee"}]).execute(self.pool)
         cursor = Account.find().cursor("name", "id")
@@ -264,7 +264,7 @@ class ModelGraphs(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(p.ConstructionError, "at least one field"):
             Account.find().cursor()
 
-    # [spec:pgorm:req:bindings.cursors/test]
+    # [spec:pgorm:req:bindings.cursors+1/test]
     async def test_graph_cursor_tiebreaks_on_slot_keys(self):
         cursor = Account.graph().join_one(posts).cursor("name")
         first = await cursor.first(1).all(self.pool)

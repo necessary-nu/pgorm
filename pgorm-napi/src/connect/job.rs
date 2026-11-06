@@ -11,14 +11,6 @@ use std::sync::{Mutex as SyncMutex, PoisonError};
 
 use futures_util::future::BoxFuture;
 use neon::{prelude::*, types::Finalize};
-use pgorm::{
-    ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, SqlText,
-    metric::{InstrumentedConnection, InstrumentedTransaction},
-};
-use tokio_postgres::{
-    Row, RowStream,
-    types::{BorrowToSql, ToSql},
-};
 
 use super::{Operation, abort_argument, connection, metrics::Metrics, on_connection, pool};
 use crate::{
@@ -34,91 +26,7 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
 
 /// The executor a job runs on: a connection, or a transaction on one,
 /// plain or, from an instrumented pool, pgorm's metrics wrapper around one.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Database<'a> {
-    Connection(&'a DatabaseConnection),
-    Transaction(&'a DatabaseTransaction<'a>),
-    MeteredConnection(&'a InstrumentedConnection<Metrics>),
-    MeteredTransaction(&'a InstrumentedTransaction<'a, Metrics>),
-}
-
-macro_rules! delegate {
-    ($db:expr, $method:ident $(, $arg:expr)*) => {
-        match $db {
-            Database::Connection(connection) => connection.$method($($arg),*).await,
-            Database::Transaction(transaction) => transaction.$method($($arg),*).await,
-            Database::MeteredConnection(connection) => connection.$method($($arg),*).await,
-            Database::MeteredTransaction(transaction) => transaction.$method($($arg),*).await,
-        }
-    };
-}
-
-#[pgorm::entity::prelude::async_trait::async_trait]
-impl ConnectionTrait for Database<'_> {
-    async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        delegate!(self, execute, statement, params)
-    }
-
-    async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-        P: BorrowToSql,
-        I: IntoIterator<Item = P> + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        delegate!(self, execute_raw, statement, params)
-    }
-
-    async fn query_one<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Row, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        delegate!(self, query_one, statement, params)
-    }
-
-    async fn query_opt<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<Row>, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        delegate!(self, query_opt, statement, params)
-    }
-
-    async fn query_all<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<Row>, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        delegate!(self, query_all, statement, params)
-    }
-
-    async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-        P: BorrowToSql,
-        I: IntoIterator<Item = P> + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        delegate!(self, query_raw, statement, params)
-    }
-
-    async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
-        delegate!(self, batch_execute, sql)
-    }
-}
+pub(crate) type Database<'a> = pgorm::DatabaseRef<'a, Metrics>;
 
 /// What a job hands back, made into JavaScript on the JavaScript thread.
 pub(crate) trait Settled: Send {

@@ -59,7 +59,7 @@ function refused(pattern: RegExp): (error: unknown) => true {
   };
 }
 
-// [spec:pgorm:req:bindings.relations/test]
+// [spec:pgorm:req:bindings.relations+1/test]
 test("a relation finds the rows at its far end, and none for a NULL key", async () => {
   const [ann] = await Account.find().orderBy(byAccount).limit(1).all(pool());
   assert.ok(ann);
@@ -74,19 +74,15 @@ test("a relation finds the rows at its far end, and none for a NULL key", async 
   assert.equal(author.to, Account);
 });
 
-// [spec:pgorm:req:bindings.relations/test]
+// [spec:pgorm:req:bindings.relations+1/test]
 test("load reads every row's far end in one query, a list for hasMany and a record or null otherwise", async () => {
   const accounts = await Account.find().orderBy(byAccount).all(pool());
   const loaded = await posts.load(pool(), accounts);
   assert.deepStrictEqual(loaded.map((list) => list.map((post) => post.title)), [["a1", "a2"], ["b1"], []]);
   const authored = await Post.find().orderBy(byPost).all(pool());
   assert.deepStrictEqual((await author.load(pool(), authored)).map((account) => account?.name), ["Ann", "Ann", "Bob"]);
-  await assert.rejects(
-    editor.load(pool(), authored),
-    (error: unknown) => error instanceof DecodeError && /no account row has the key/.test(error.message),
-  );
-  const checked = authored.filter((post) => post.editorId !== 999n);
-  assert.deepStrictEqual((await editor.load(pool(), checked)).map((account) => account?.name ?? null), ["Bob", null]);
+  // A key nothing at the far end matches reads as null, as pgorm's load_one reads it.
+  assert.deepStrictEqual((await editor.load(pool(), authored)).map((account) => account?.name ?? null), ["Bob", null, null]);
   assert.deepStrictEqual(await posts.load(pool(), []), []);
   // [spec:pgorm:req:bindings.argument-errors+1/test]    an option load does not know is refused, not left out
   await assert.rejects(posts.load(pool(), accounts, { sginal: undefined } as never), TypeError);
@@ -97,7 +93,7 @@ test("load reads every row's far end in one query, a list for hasMany and a reco
   );
 });
 
-// [spec:pgorm:req:bindings.relations/test]
+// [spec:pgorm:req:bindings.relations+1/test]
 test("a relation pairs as many fields at each end, each a field of its model", () => {
   assert.throws(() => Post.belongsTo(Account, { from: ["authorId", "id"], to: "id" } as never), refused(/as many fields/));
   assert.throws(() => Post.belongsTo(Account, { from: "author", to: "id" } as never), refused(/no field "author"/));
@@ -107,7 +103,7 @@ test("a relation pairs as many fields at each end, each a field of its model", (
   assert.throws(() => Post.belongsTo({} as never, { from: "authorId", to: "id" }), TypeError);
 });
 
-// [spec:pgorm:req:bindings.graphs+1/test]
+// [spec:pgorm:req:bindings.graphs+2/test]
 test("joinOne drops a root its relation misses, joinMaybe keeps it with null", async () => {
   const required = await Post.graph().joinOne(editor).orderBy(byPost).all(pool());
   assert.deepStrictEqual(required.map(([post, account]) => [post.title, account.name]), [["a1", "Bob"]]);
@@ -123,7 +119,7 @@ test("joinOne drops a root its relation misses, joinMaybe keeps it with null", a
   assert.equal(await Post.graph().joinOne(author).where(Post.col("id").eq(99)).optional(pool()), null);
 });
 
-// [spec:pgorm:req:bindings.graphs+1/test]
+// [spec:pgorm:req:bindings.graphs+2/test]
 test("a graph reads through a junction it never decodes, and names a second table of one model by its alias", async () => {
   const tagged = await Post.graph().via(postTags).joinOne(tagOf).orderBy(byPost, Tag.col("id").asc()).all(pool());
   assert.deepStrictEqual(tagged.map(([post, tag]) => [post.id, tag.label]), [[10n, "red"], [10n, "blue"], [12n, "blue"]]);
@@ -144,7 +140,7 @@ test("a graph reads through a junction it never decodes, and names a second tabl
   assert.throws(() => Post.graph().col(3 as never, "id"), refused(/no source 3/));
 });
 
-// [spec:pgorm:req:bindings.graphs+1/test]
+// [spec:pgorm:req:bindings.graphs+2/test]
 test("a present slot that does not decode is a DecodeError, never an absent slot", async () => {
   await pool().execute("UPDATE app.account SET mood = 'wild' WHERE id = 1");
   await assert.rejects(
@@ -153,7 +149,7 @@ test("a present slot that does not decode is a DecodeError, never an absent slot
   );
 });
 
-// [spec:pgorm:req:bindings.graphs+1/test]
+// [spec:pgorm:req:bindings.graphs+2/test]
 test("allGrouped gathers each root's slot records, ordered by the graph and then the root's key", async () => {
   const grouped = await Account.graph().joinMaybe(posts).orderBy(Account.col("name").desc()).allGrouped(pool());
   assert.deepStrictEqual(grouped.map(([account, list]) => [account.name, list.map((post) => post.title)]), [
@@ -169,7 +165,7 @@ test("allGrouped gathers each root's slot records, ordered by the graph and then
   );
 });
 
-// [spec:pgorm:req:bindings.graphs+1/test]
+// [spec:pgorm:req:bindings.graphs+2/test]
 test("a sliced graph refuses the reads that decide its rows themselves", async () => {
   const graph = Account.graph().joinMaybe(posts).orderBy(byAccount, byPost);
   for (const sliced of [graph.limit(2), graph.offset(1), graph.limit(null), graph.limit(2).where(Account.col("id").gt(0))]) {
@@ -179,6 +175,8 @@ test("a sliced graph refuses the reads that decide its rows themselves", async (
     await assert.rejects(sliced.count(pool()), refused(/has no count/));
     // @ts-expect-error a sliced graph has no cursor
     assert.throws(() => sliced.cursor("name"), refused(/has no cursor/));
+    // @ts-expect-error a sliced graph has no cursorOn
+    assert.throws(() => sliced.cursorOn(1, "title"), refused(/has no cursorOn/));
     // @ts-expect-error a sliced graph has no paginate
     assert.throws(() => sliced.paginate(2), refused(/has no paginate/));
     assert.throws(() => sliced.inspect("count"), refused(/has no count/));
@@ -188,7 +186,7 @@ test("a sliced graph refuses the reads that decide its rows themselves", async (
   assert.deepStrictEqual(rows.map(([account, post]) => [account.name, post?.title]), [["Ann", "a1"], ["Ann", "a2"]]);
 });
 
-// [spec:pgorm:req:bindings.cursors/test]
+// [spec:pgorm:req:bindings.cursors+1/test]
 test("a cursor walks a model's rows by keyset, forwards and backwards", async () => {
   await Account.insertMany([{ name: "Ann" }, { name: "Dee" }]).execute(pool());
   const cursor = Account.find().cursor("name", "id");
@@ -213,7 +211,7 @@ test("a cursor walks a model's rows by keyset, forwards and backwards", async ()
   assert.throws(() => Account.find().cursor(), refused(/at least one field/));
 });
 
-// [spec:pgorm:req:bindings.cursors/test]
+// [spec:pgorm:req:bindings.cursors+1/test]
 test("a graph's cursor tiebreaks on each slot's key, and afterWith resumes inside a run of one root", async () => {
   const cursor = Account.graph().joinOne(posts).cursor("name");
   const first = await cursor.first(1).all(pool());

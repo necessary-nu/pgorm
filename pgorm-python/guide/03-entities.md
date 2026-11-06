@@ -9,8 +9,9 @@ derives write at compile time. A Python model is built when the program
 runs, by calling `pgorm.Model`: nothing is compiled or generated, and a
 model can be declared, inspected and used without a database. A model
 describes a table that already exists. Declaring one sends nothing and
-creates nothing, and it runs no Rust derive, so it has none of the hooks
-an entity's active model may have.
+creates nothing, and it runs no Rust derive: the hooks an entity's active
+model may have are, for a model, functions of the program's own
+([Hooks](#hooks)).
 
 A Python program can also use the entities a Rust crate declares, by
 registering them into its own wheel. [Registering Rust
@@ -402,27 +403,49 @@ model it reaches and the fields that are equal in a related pair of rows:
   fields for a composite key, paired in order.
 - `has_one` and `has_many` are the other side: a row reaches at most one row,
   or any number, of the target.
+- `on_condition` narrows a relation with an extra predicate, as Rust's does:
+  a function given the relation's two ends, each the model as a join names
+  its table, returning a condition. It is ANDed with the fields' equality,
+  or ORed with it where `condition_type="any"`, Rust's `ConditionType::Any`.
 
 Here Python differs from Rust. A Rust `has_many` reads its columns from the
 other entity's `belongs_to`; a Python relation names its own fields on both
 sides, so the bakery declares `bakery_cakes` and `cake_bakery` as two
 relations, one for each direction. Rust's `rev` turns a relation around; in
-Python, declare the other direction. A relation pairs fields for equality and
-nothing else: narrowing a relation with an extra predicate, Rust's
-`on_condition`, is not available in Python yet. `on_delete`, `on_update` and
-`fk_name` belong to the table's foreign key, which the schema builders'
-`foreign_key(..., on_delete=..., name=...)` writes, as `bakery.py` does.
+Python, declare the other direction. And Rust's `on_condition` closure is
+given the two tables' names; a Python one is given the two models answering
+to them, so `bakery.col("city")` is qualified as the join names the bakery.
+`on_delete`, `on_update` and `fk_name` belong to the table's foreign key,
+which the schema builders' `foreign_key(..., on_delete=..., name=...)`
+writes, as `bakery.py` does.
+
+```python
+from bakery import Bakery, Cake
+
+cake_in_oslo = Cake.belongs_to(
+    Bakery, from_="bakery_id", to="id", on_condition=lambda cake, bakery: bakery.col("city") == "Oslo"
+)
+assert Cake.find().join(cake_in_oslo).inspect().sql == (
+    'SELECT "cake"."id", "cake"."name", "cake"."flavor", "cake"."price", '
+    '"cake"."gluten_free", "cake"."bakery_id" FROM "cake" '
+    'INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $1'
+)
+```
 
 The Rust derive implements `Related<E>` for each entity one variant reaches,
-so a query can name the related entity alone. Python has no `Related`: every
-join and every load names the relation it follows, such as `cake_bakery`, so
-two relations reaching one model need nothing extra.
+so a query can name the related entity alone. A Python model holds no list of
+the models it reaches: every join and every load names the relation it
+follows, such as `cake_bakery`, so two relations reaching one model need
+nothing extra.
 
 A many-to-many relation goes through a junction table. Where Rust writes the
 cake's `Related<baker::Entity>` by hand, with `via` the junction's relation to
-the cake, a Python query follows two relations: `cake_bakers`, from the cake
-to its `cake_baker` rows, and `cake_baker_baker`, from those to the baker.
-These are the cakes Ada bakes:
+the cake, Python declares the same path with the model's `related`:
+`Cake.related(cake_baker_baker, via=cake_bakers)`, `via` the relation from
+the cake to its `cake_baker` rows and then the relation from those to the
+baker, which `bakery.py` names `cake_related_bakers` and
+[Relations](07-relations.md) reads along. A query can also follow the two
+relations itself. These are the cakes Ada bakes:
 
 ```python
 import asyncio
@@ -569,8 +592,68 @@ columns are named by their SQL names, not by Python fields.
 
 ## Hooks
 
-A declared model has no hooks. Its writes are statements, as Rust's
-statement builders are, and those run none in Rust either.
+A declared model takes its hooks as functions, the dialect of Rust's
+`ActiveModelBehavior`: `hooks=` maps `before_save(values, insert)`,
+`after_save(record, insert)`, `before_delete(values)` and
+`after_delete(values)` to functions of the program's own, each optional,
+each free to be a coroutine function, which is awaited. They run around the
+model's record writes: `Model.active(values)` holds the fields one write
+sets, as an active model does, and its `insert`, `update` and `delete` write
+one record by its primary key, as Rust's active model writes itself.
+
+`before_save` and `before_delete` give the values to write, and refuse the
+write by raising: nothing is sent, and the exception reaches the caller as it
+was raised. `after_save` gives the record the write returns. An `after_`
+hook that raises reports its error after the row is written, as Rust's does;
+run the write in a transaction to undo it. Rust's `new` hook, which fills
+the defaults an active model starts from, is the program's own here, as
+`before_save`'s `{"note": .., **values}` does below. The statement builders
+of [Writing rows](04-writing.md) — `insert`, `insert_many`, `update` and
+`delete` on the model, their returning and try-insert terminals, and an
+update `from_` or a delete `using` — run no hook, as Rust's `Insert`,
+`Update` and `Delete` run none.
+
+```python
+import asyncio
+import os
+from collections.abc import Mapping
+from typing import Any
+
+from pgorm import Column, ConstructionError, Model, Pool, RawSQL
+
+
+def before_save(values: Mapping[str, Any], insert: bool) -> Mapping[str, Any]:
+    if not values.get("name"):
+        raise ConstructionError("a special needs a name")
+    return {"note": "Ask at the counter", **values}
+
+
+Special = Model("special", {
+    "id": Column("i32", primary_key=True, default=True),
+    "name": Column("text"),
+    "note": Column("text"),
+}, hooks={"before_save": before_save})
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        await pool.execute(RawSQL(
+            "CREATE TABLE special (id serial PRIMARY KEY, name text NOT NULL, note text NOT NULL)"
+        ))
+        saved = await Special.active({"name": "Saturday cinnamon buns"}).insert(pool)
+        assert saved["note"] == "Ask at the counter"
+
+        try:
+            await Special.active({"name": ""}).insert(pool)
+        except ConstructionError as error:
+            assert str(error) == "a special needs a name"
+        else:
+            raise AssertionError("a special without a name is refused")
+        assert Special.describe()["hooks"] == ["before_save"]
+
+
+asyncio.run(main())
+```
 
 A registered entity's hooks are its Rust `ActiveModelBehavior`, written in
 the Rust crate as the [Rust guide's

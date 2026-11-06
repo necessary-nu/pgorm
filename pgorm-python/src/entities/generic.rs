@@ -8,12 +8,17 @@ use pgorm::pgorm_query::{Expr, IntoValueTuple, Name, SimpleExpr, Value, Values};
 use pgorm::{
     ActiveModelBehavior, ActiveModelTrait, ActiveValue, Change as RustChange, ColumnTrait,
     EntityTrait, Error, FromQueryResult, Insert, IntoActiveModel, Iterable, ModelTrait,
-    QueryFilter, QueryOrder, QuerySelect, QueryTrait, StaticName, Update, Upserted,
+    QueryFilter, QueryOrder, QuerySelect, QueryTrait, RelationDef, RelationTrait, SelectModel,
+    SelectorTrait, StaticName, Update, Upserted,
 };
 
-use super::{backend::*, metadata::EntityInfo};
+use super::{
+    backend::*,
+    metadata::EntityInfo,
+    reads::{Decode, Keyset, Pages, one_source},
+};
 
-fn column<E: EntityTrait>(name: &str) -> Result<E::Column, Error> {
+pub(crate) fn column<E: EntityTrait>(name: &str) -> Result<E::Column, Error> {
     E::Column::iter()
         .find(|c| c.as_str() == name)
         .ok_or_else(|| Error::Type("unknown compiled entity column".to_owned()))
@@ -62,6 +67,13 @@ where
         })
     }
 
+    fn relation(&self, name: &str) -> Result<RelationDef, Error> {
+        E::Relation::iter()
+            .find(|relation| format!("{relation:?}") == name)
+            .map(|relation| relation.def())
+            .ok_or_else(|| Error::Type(format!("{} declares no relation {name}", self.info.name)))
+    }
+
     fn expression(&self, name: &str) -> Result<SimpleExpr, Error> {
         Ok(Expr::col(column::<E>(name)?.as_column_ref()).into())
     }
@@ -98,7 +110,7 @@ where
         })
     }
 
-    // [spec:pgorm:req:bindings.entity-reads+3]
+    // [spec:pgorm:req:bindings.entity-reads+4]
     fn quantified(
         &self,
         name: &str,
@@ -130,7 +142,7 @@ where
         })
     }
 
-    // [spec:pgorm:req:bindings.entity-reads+3]
+    // [spec:pgorm:req:bindings.entity-reads+4]
     fn membership(&self, name: &str, negated: bool, members: Members) -> Result<SimpleExpr, Error> {
         let column = column::<E>(name)?;
         Ok(match (members, negated) {
@@ -338,9 +350,9 @@ where
 }
 
 #[derive(Debug)]
-struct SelectAdapter<E: EntityTrait> {
-    query: pgorm::Select<E>,
-    info: Arc<EntityInfo>,
+pub(crate) struct SelectAdapter<E: EntityTrait> {
+    pub(crate) query: pgorm::Select<E>,
+    pub(crate) info: Arc<EntityInfo>,
 }
 
 impl<E> SelectBackend for SelectAdapter<E>
@@ -363,6 +375,10 @@ where
             Change::Order(expr, order, None) => query.order_by(expr, order),
             Change::Limit(limit) => query.limit(limit),
             Change::Offset(offset) => query.offset(offset),
+            Change::Join(kind, entity, relation) => match entity.relation(&relation) {
+                Ok(def) => query.join(kind, def),
+                Err(_) => query,
+            },
         };
         Arc::new(Self {
             query,
@@ -384,6 +400,50 @@ where
         terminal: Terminal,
     ) -> BoxFuture<'a, Result<Vec<Model>, Error>> {
         Box::pin(self.read(db, terminal))
+    }
+
+    // [spec:pgorm:req:bindings.entity-reads+4]
+    fn projected(&self, columns: &[String], terminal: Terminal) -> Result<(String, Values), Error> {
+        let columns = columns
+            .iter()
+            .map(|name| column::<E>(name))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut query = self.query.clone().select_only().columns(columns);
+        if !matches!(terminal, Terminal::All) {
+            QueryTrait::query(&mut query).narrow_limit_to_one();
+        }
+        Ok(query.build())
+    }
+
+    fn pages(&self) -> Arc<Pages> {
+        super::select_reads::pages(self)
+    }
+
+    fn cursor(&self, columns: &[String]) -> Result<Arc<Keyset>, Error> {
+        super::select_reads::cursor(self, columns)
+    }
+
+    fn decode(&self) -> Decode {
+        let info = self.info.clone();
+        Arc::new(move |row| {
+            let value = SelectModel::<E::Model>::from_raw_query_result(row)?;
+            Ok(one_source(model_of::<E>(value, &info)))
+        })
+    }
+}
+
+/// A registered entity's model as the binding holds one.
+pub(crate) fn model_of<E>(value: E::Model, info: &Arc<EntityInfo>) -> super::PyEntityModel
+where
+    E: EntityTrait + Send + Sync + 'static,
+    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+    E::ActiveModel: Send + Sync + 'static,
+{
+    super::PyEntityModel {
+        inner: Arc::new(ModelAdapter::<E> {
+            value,
+            info: info.clone(),
+        }),
     }
 }
 
@@ -469,6 +529,19 @@ where
             value: active,
             info: self.info.clone(),
         }))
+    }
+
+    fn set_if_not_equals(&self, name: &str, value: Value) -> Result<Active, Error> {
+        let mut active = self.value.clone();
+        active.set_if_not_equals(column::<E>(name)?, value)?;
+        Ok(Arc::new(Self {
+            value: active,
+            info: self.info.clone(),
+        }))
+    }
+
+    fn is_changed(&self) -> bool {
+        self.value.is_changed()
     }
 
     fn run<'a>(&'a self, db: Database<'a>, write: Write) -> BoxFuture<'a, Result<Written, Error>> {

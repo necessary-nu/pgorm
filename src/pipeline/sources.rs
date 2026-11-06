@@ -385,30 +385,7 @@ impl<T: SourceList> SelectedSources<T> {
     /// against.
     // [spec:pgorm:sem:pipeline.select-sources+5]
     fn into_pipeline(self) -> Result<Pipeline, PipelineError> {
-        let SelectedSources {
-            mut pipeline,
-            mut projection,
-            ..
-        } = self;
-        let reshaped = pipeline
-            .reshaped
-            .or_else(|| pipeline.bare_star_key.then_some("distinct"))
-            .or_else(|| (pipeline.combined && T::LEN > 1).then_some("append"));
-        if let Some(stage) = reshaped {
-            return Err(PipelineError::ReshapedSources(stage));
-        }
-        // A set operation's result is read whole, from a binding, and the
-        // one source it combined answers there under the binding's name.
-        if pipeline.combined {
-            pipeline.settle(&Naming::default(), None);
-            for node in &mut projection {
-                pipeline.settled.requalify(node);
-            }
-        }
-        pipeline
-            .stages
-            .push(adapter::call("select", vec![adapter::tuple(projection)]));
-        Ok(pipeline)
+        appended_projection(self.pipeline, self.projection, T::LEN)
     }
 
     /// Compile to PostgreSQL SQL and the values bound along the way, the
@@ -479,6 +456,39 @@ impl<T: SourceList> SelectedSources<T> {
     }
 }
 
+/// `pipeline` with `projection`, one block per restated source of
+/// `sources`, appended as its final `select`: refused by the stage that
+/// reshaped the sources away, a deduplication still owing its hoist named as
+/// one that has performed it, and a set operation over more than one source,
+/// whose result no longer answers to each source's name.
+// [spec:pgorm:sem:pipeline.select-sources+5]
+// [spec:pgorm:sem:pipeline.described]
+pub(super) fn appended_projection(
+    mut pipeline: Pipeline,
+    mut projection: Vec<PlExpr>,
+    sources: usize,
+) -> Result<Pipeline, PipelineError> {
+    let reshaped = pipeline
+        .reshaped
+        .or_else(|| pipeline.bare_star_key.then_some("distinct"))
+        .or_else(|| (pipeline.combined && sources > 1).then_some("append"));
+    if let Some(stage) = reshaped {
+        return Err(PipelineError::ReshapedSources(stage));
+    }
+    // A set operation's result is read whole, from a binding, and the one
+    // source it combined answers there under the binding's name.
+    if pipeline.combined {
+        pipeline.settle(&Naming::default(), None);
+        for node in &mut projection {
+            pipeline.settled.requalify(node);
+        }
+    }
+    pipeline
+        .stages
+        .push(adapter::call("select", vec![adapter::tuple(projection)]));
+    Ok(pipeline)
+}
+
 /// A relation read under a caller-chosen name: what
 /// [`named`](IntoSource::named) returns.
 ///
@@ -531,7 +541,7 @@ impl<S: SelectableSource> Named<S> {
 /// Read a relation under an owned identifier computed at runtime.
 /// Like [`IntoSource::named`], this preserves the relation's source type
 /// for [`Pipeline::select_sources`].
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 pub fn named_runtime<R: IntoSource>(relation: R, name: Name) -> Named<R> {
     Named {
         relation,

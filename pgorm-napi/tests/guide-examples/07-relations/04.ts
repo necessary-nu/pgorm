@@ -2,20 +2,16 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Bakery, bakeryCakes, cakeBakery } from "../../../guide/bakery.ts";
+import { Baker, Cake, bakerCakeBakers, cakeBakerCake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const bakeries = await Bakery.find().orderBy(Bakery.col("id").asc()).all(pool);
-
-  // Each bakery's cakes.
-  const cakes = await bakeryCakes.load(pool, bakeries);
-  assert.deepEqual(
-    cakes.map((list) => list.map((cake) => cake.name).sort()),
-    [["Chocolate Fudge", "Chocolate Torte", "Lemon Drizzle"], ["Carrot Cake", "Vanilla Sponge"]],
+  const bakes = Baker.linked(bakerCakeBakers, cakeBakerCake);
+  assert.equal(bakes.lastHop().alias, "r1");
+  assert.equal(
+    bakes.find({ id: 1 }).inspect().sql,
+    `SELECT "cake"."id", "cake"."name", "cake"."flavor", "cake"."price", "cake"."gluten_free", "cake"."bakery_id" FROM "cake" INNER JOIN "cake_baker" AS "r0" ON "r0"."cake_id" = "cake"."id" INNER JOIN "baker" AS "r1" ON "r1"."id" = "r0"."baker_id" WHERE "r1"."id" = $1`,
   );
-
-  // Each of Sunrise's cakes, with its bakery.
-  const theirBakery = await cakeBakery.load(pool, cakes[0]!);
-  assert.ok(theirBakery.every((bakery) => bakery?.name === "Sunrise"));
+  const adas = bakes.findLinked().where(bakes.lastHop().col("name").eq("Ada")).orderBy(Cake.col("id").asc());
+  assert.deepEqual((await adas.all(pool)).map((cake) => cake.name), ["Chocolate Fudge", "Lemon Drizzle"]);
 }

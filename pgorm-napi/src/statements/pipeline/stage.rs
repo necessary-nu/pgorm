@@ -36,6 +36,7 @@ pub(super) const EXPORTS: &[(&str, super::super::Build)] = &[
     ("pipelineJoin", join),
     ("pipelineSet", set),
     ("pipelineDistinct", distinct),
+    ("pipelineSelectDescribed", select_described),
     ("pipelineOver", over),
     ("pipelineOverKeys", over_keys),
     ("pipelineOverFrame", over_frame),
@@ -250,7 +251,7 @@ fn pipeline_at<'cx>(cx: &mut FunctionContext<'cx>, index: usize) -> NeonResult<p
 /// A relation: a `Table`, read under its alias when it has one, a table's
 /// name, a `Pipeline` embedded whole, a `Source`, or a registered entity's
 /// table, its schema from the registration.
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 // [spec:pgorm:req:bindings.pipeline-sources+3]
 fn relation<'cx>(cx: &mut Cx<'cx>, value: Handle<'cx, JsValue>) -> NeonResult<Source> {
     if let Some(entity) = crate::entities::entity_source(cx, value) {
@@ -301,7 +302,7 @@ fn source(cx: &mut FunctionContext) -> NeonResult<Node> {
 
 /// `pipelineNamed(source, name)`: the relation read under a name of its own,
 /// which replaces any it had.
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 fn named(cx: &mut FunctionContext) -> NeonResult<Node> {
     let mut source = relation_at(cx, 0)?;
     let name = super::super::args::name_at(cx, 1)?;
@@ -310,14 +311,14 @@ fn named(cx: &mut FunctionContext) -> NeonResult<Node> {
 }
 
 /// `pipelineFrom(source)`.
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 fn from(cx: &mut FunctionContext) -> NeonResult<Node> {
     let source = relation_at(cx, 0)?;
     Ok(source.pipeline().into())
 }
 
 /// `pipelineFilter(pipeline, predicate, scope)`.
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 fn filter(cx: &mut FunctionContext) -> NeonResult<Node> {
     let pipeline = pipeline_at(cx, 0)?;
     let predicate = arg(cx, 1);
@@ -374,7 +375,7 @@ fn list_stage(
 }
 
 /// `pipelineList(pipeline, "derive" | "select" | "sort", expressions, scope)`.
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 fn list(cx: &mut FunctionContext) -> NeonResult<Node> {
     let pipeline = pipeline_at(cx, 0)?;
     let stage = super::super::args::choice(cx, 1, "a stage", &["derive", "select", "sort"])?;
@@ -395,7 +396,7 @@ fn window(cx: &mut FunctionContext) -> NeonResult<Node> {
 
 /// `pipelineGroup(pipeline, keys, scope)`: a grouping, no relation until it
 /// is aggregated.
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 fn group(cx: &mut FunctionContext) -> NeonResult<Node> {
     let pipeline = pipeline_at(cx, 0)?;
     let plan = plan_at(cx, 1)?;
@@ -464,7 +465,7 @@ fn rows<'cx>(cx: &mut FunctionContext<'cx>, index: usize) -> NeonResult<i64> {
 /// `pipelineTake(pipeline, count)` or `pipelineTake(pipeline, start, end)`,
 /// the inclusive 1-based range PRQL takes. A count is no expression: PRQL
 /// refuses a bound `LIMIT`.
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 fn take(cx: &mut FunctionContext) -> NeonResult<Node> {
     let pipeline = pipeline_at(cx, 0)?;
     let start = rows(cx, 1)?;
@@ -477,7 +478,7 @@ fn take(cx: &mut FunctionContext) -> NeonResult<Node> {
 }
 
 /// `pipelineJoin(pipeline, kind, source, on, scope)`.
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 fn join(cx: &mut FunctionContext) -> NeonResult<Node> {
     let pipeline = pipeline_at(cx, 0)?;
     let side =
@@ -527,6 +528,51 @@ fn set(cx: &mut FunctionContext) -> NeonResult<Node> {
 fn distinct(cx: &mut FunctionContext) -> NeonResult<Node> {
     let pipeline = pipeline_at(cx, 0)?;
     Ok(pipeline.distinct().into())
+}
+
+/// `pipelineSelectDescribed(pipeline, sources)`: pgorm's `select_described`,
+/// each source `[qualifier, columns]` and each column `[name, readAs, array]`,
+/// `readAs` the type the column is read as where its record reads it cast,
+/// or null.
+// [spec:pgorm:req:bindings.pipeline-models]
+fn select_described(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let pipeline = pipeline_at(cx, 0)?;
+    let listed = arg(cx, 1);
+    let mut sources = Vec::new();
+    for source in items(cx, listed)? {
+        let source = items(cx, source)?;
+        let (Some(qualifier), Some(columns)) = (source.first(), source.get(1)) else {
+            return cx.throw_type_error("a described source is [qualifier, columns]");
+        };
+        let qualifier = super::super::args::name(cx, *qualifier)?;
+        let mut described = pl::DescribedSource::new(qualifier);
+        for column in items(cx, *columns)? {
+            let column = items(cx, column)?;
+            let (Some(name), Some(read_as), Some(array)) =
+                (column.first(), column.get(1), column.get(2))
+            else {
+                return cx.throw_type_error("a described column is [name, readAs, array]");
+            };
+            let name = super::super::args::name(cx, *name)?;
+            let read_as = match absent(cx, *read_as) {
+                true => None,
+                false => Some(super::super::args::type_name(cx, *read_as)?),
+            };
+            let array = array.downcast_or_throw::<JsBoolean, _>(cx)?.value(cx);
+            described = described.column(
+                name,
+                read_as.map(|type_name| match array {
+                    true => type_name.array(),
+                    false => type_name,
+                }),
+            );
+        }
+        sources.push(described);
+    }
+    match pipeline.select_described(sources) {
+        Ok(pipeline) => Ok(pipeline.into()),
+        Err(error) => refuse(cx, error.to_string()),
+    }
 }
 
 fn over_at<'cx>(cx: &mut FunctionContext<'cx>, index: usize) -> NeonResult<pl::Over> {

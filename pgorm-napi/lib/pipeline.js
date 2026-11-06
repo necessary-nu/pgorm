@@ -4,14 +4,16 @@
 // compiled through prqlc to PostgreSQL SQL. Each stage returns a new
 // pipeline. A stage's `With` form calls its function once with a `Binder`,
 // whose placeholders belong to that stage alone, as pgorm brands them.
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 // [spec:pgorm:req:bindings.pipeline-binder]
 
 import { arg, args, Builder, Handle, trusted, TRUSTED } from "./builder.js";
 import { Queryable } from "./connections.js";
+import { isModel, shapeOf } from "./model-shape.js";
 import { native } from "./operations.js";
 import { PipelineExpr } from "./pipeline-expressions.js";
-import { selectSourcesOf } from "./entity-sources.js";
+import { modelRead, selectModels, tupleRead } from "./pipeline-reads.js";
+import { SourceSelection, selectSourcesOf } from "./entity-sources.js";
 
 export {
   alias,
@@ -39,9 +41,20 @@ export {
 } from "./pipeline-expressions.js";
 
 /**
- * @typedef {import("./select.js").Table | string | Pipeline | Source} SourceInput
+ * @typedef {import("./select.js").Table | string | Pipeline | Source | object} SourceInput
  * @typedef {(binder: Binder) => unknown} BinderFunction
  */
+
+/**
+ * The relation `source` names, a declared model read as its table, under its
+ * alias when it has one.
+ * [spec:pgorm:req:bindings.pipeline-models]
+ *
+ * @param {unknown} source
+ */
+function relation(source) {
+  return arg(isModel(source) ? shapeOf(source).table : source);
+}
 
 /** Mints a stage's placeholders; it binds only while its `With` function runs. */
 export class Binder {
@@ -305,7 +318,7 @@ export class Pipeline extends Builder {
    * @param {{ kind?: "inner" | "left" | "right" | "full" }} [options]
    */
   join(source, on, { kind = "inner" } = {}) {
-    return pipelineOf(native.pipelineJoin(arg(this), kind, arg(source), arg(on)));
+    return pipelineOf(native.pipelineJoin(arg(this), kind, relation(source), arg(on)));
   }
 
   /**
@@ -314,34 +327,60 @@ export class Pipeline extends Builder {
    * @param {{ kind?: "inner" | "left" | "right" | "full" }} [options]
    */
   joinWith(source, fn, { kind = "inner" } = {}) {
-    return scoped(fn, true, (on, scope) => pipelineOf(native.pipelineJoin(arg(this), kind, arg(source), on, scope)));
+    return scoped(fn, true, (on, scope) => pipelineOf(native.pipelineJoin(arg(this), kind, relation(source), on, scope)));
   }
 
   /** @param {SourceInput} source */
   append(source) {
-    return pipelineOf(native.pipelineSet(arg(this), "append", arg(source)));
+    return pipelineOf(native.pipelineSet(arg(this), "append", relation(source)));
   }
 
   /** @param {SourceInput} source */
   intersect(source) {
-    return pipelineOf(native.pipelineSet(arg(this), "intersect", arg(source)));
+    return pipelineOf(native.pipelineSet(arg(this), "intersect", relation(source)));
   }
 
   /** @param {SourceInput} source */
   remove(source) {
-    return pipelineOf(native.pipelineSet(arg(this), "remove", arg(source)));
+    return pipelineOf(native.pipelineSet(arg(this), "remove", relation(source)));
   }
 
   /**
    * The pipeline's last stage: a registered source tuple's sources, each
    * read under the qualifier given for it or its table's name, decoded into
-   * their models by the terminals of what this returns.
+   * their models by the terminals of what this returns; or declared models,
+   * each read under its alias or its table's name, every row a tuple of one
+   * record per model, `null` where a join left that model's side absent.
    *
-   * @param {import("./entity-sources.js").SourceSelection} selection
-   * @param {{ qualifiers?: readonly string[] }} [options]
+   * @param {...unknown} sources
    */
-  selectSources(selection, options) {
-    return selectSourcesOf(this, selection, options);
+  selectSources(...sources) {
+    const [first, options] = sources;
+    if (first instanceof SourceSelection) {
+      if (sources.length > 2) throw new TypeError("selectSources takes one source tuple and its options");
+      return selectSourcesOf(this, first, /** @type {any} */ (options));
+    }
+    return selectModels(this, sources, (handle) => pipelineOf(handle));
+  }
+
+  /**
+   * The rows read as a declared model's records, each field from the result
+   * column of its SQL name, or as what `fn` makes of each row's record, as
+   * Rust's `into_model::<M>` reads them.
+   *
+   * @param {unknown} target
+   */
+  intoModel(target) {
+    return modelRead(this, target);
+  }
+
+  /**
+   * The rows read by position, each an array of its values in column order,
+   * as Rust's `into_tuple` reads them, so a result naming one column twice is
+   * read rather than refused.
+   */
+  intoTuple() {
+    return tupleRead(this);
   }
 
   distinct() {
@@ -399,12 +438,12 @@ export class Pipeline extends Builder {
 
 /** @param {SourceInput} source */
 export function from(source) {
-  return pipelineOf(native.pipelineFrom(arg(source)));
+  return pipelineOf(native.pipelineFrom(relation(source)));
 }
 
-/** @param {SourceInput} relation the relation, which `named` reads under a name of its own */
-export function source(relation) {
-  return new Source(native.pipelineSource(arg(relation)), TRUSTED);
+/** @param {SourceInput} relationInput the relation, which `named` reads under a name of its own */
+export function source(relationInput) {
+  return new Source(native.pipelineSource(relation(relationInput)), TRUSTED);
 }
 
 export function over() {
@@ -412,3 +451,4 @@ export function over() {
 }
 
 export { SelectedSources, SourceSelection, sources, sourceTuples } from "./entity-sources.js";
+export { PipelineSelector } from "./pipeline-reads.js";

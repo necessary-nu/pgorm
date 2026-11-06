@@ -3,8 +3,9 @@
 The guide is ``pgorm-python/guide``. Its chapter list is held to
 ``docs/guide/chapters.json`` here, and every ```python block in it runs as a
 program of its own, in a scratch database holding the bakery, on the server
-``PGORM_TEST_DSN`` names. ``PGORM_GUIDE_CHAPTERS``, a comma-separated list of
-chapter ids, narrows the run to those chapters.
+``PGORM_TEST_DSN`` names, or else ``DATABASE_URL``, as ``examples.test_server``
+reads it. ``PGORM_GUIDE_CHAPTERS``, a comma-separated list of chapter ids,
+narrows the run to those chapters.
 """
 
 import asyncio
@@ -81,9 +82,9 @@ class GuideExamples(unittest.TestCase):
             registered=False, only=set(only.split(",")) if only else None
         )
         self.assertTrue(selected, "the guide has examples to run")
-        server = os.environ.get("PGORM_TEST_DSN")
+        server = examples.test_server()
         if server is None:
-            self.fail("PGORM_TEST_DSN is required; run through tests/with_postgres.py")
+            self.fail("PGORM_TEST_DSN or DATABASE_URL names the server; tests/with_postgres.py sets one")
         outcomes = asyncio.run(examples.run_all(selected, server))
         for outcome in outcomes:
             example = outcome.example
