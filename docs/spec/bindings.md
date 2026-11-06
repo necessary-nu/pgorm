@@ -2018,6 +2018,30 @@ Rust generic at run time, only use the ones compiled in.
 > whose ActiveModels set different ones is a `ConstructionError` as it is
 > given, where Rust's `Insert` refuses it before anything is sent.
 
+> [spec:pgorm:req:bindings.entity-try-inserts]
+> An entity's insert's `on_conflict_do_nothing()` MUST give the try-insert
+> pgorm's `Insert::on_conflict_do_nothing` makes, `ON CONFLICT` on the
+> primary key's columns `DO NOTHING`, and `on_empty_do_nothing()` the one
+> `Insert::on_empty_do_nothing` makes, its conflict clause kept: an
+> `EntityTryInsert` from an `EntityInsert`, an `EntityTryInsertMany` from an
+> `EntityInsertMany`, typed by row count as `TryInsert<A, OneRow>` and
+> `TryInsert<A, ManyRows>` are, and run through them, statement terminals
+> that run no hook. Each has `on_conflict`, which sets the clause in place of
+> the one it had, as `TryInsert::on_conflict` does, and `add(active)` and
+> `add_many(actives)`, which give the `EntityTryInsertMany` of its
+> ActiveModels and then theirs as `bindings.entity-inserts` says. Both kinds
+> have `execute`, `TryInsert::exec`; an `EntityTryInsert` has `returning_pk`
+> and `returning_model`, and an `EntityTryInsertMany` `returning_pks` and
+> `returning_models`, `TryInsert`'s terminals of the same names; neither has
+> an upsert terminal, as `TryInsert` has none. Each answers as pgorm's
+> `TryInsertResult` does, in the `TryInsertResult` a declared model's
+> try-insert answers with (`bindings.model-try-inserts`): `inserted` with
+> what the terminal wrote, a key and a row as `bindings.entity-inserts`
+> reads them; `conflicted` where the conflict clause held every row back;
+> and `empty`, nothing sent, for a batch of none and for an ActiveModel that
+> sets no column. With no conflict clause, a row that conflicts is the
+> server's refusal.
+
 > [spec:pgorm:req:bindings.entity-graphs+4]
 > `graph(name).find(aliases)` MUST build the registered `SelectGraph` with the
 > application's factory, its declared entity tuple, join slot kinds and

@@ -328,6 +328,9 @@ hook runs around them:
 | `entity.insertMany(actives).returningPks(db)` | `Insert::many(actives).exec_returning_pks` |
 | `entity.insertMany(actives).returningModels(db)` | `Insert::many(actives).exec_returning_models` |
 | `insert.add(active)`, `insert.addMany(actives)` | `Insert::add`, `Insert::add_many` |
+| `entity.insert(active).onConflictDoNothing().execute(db)` | `Insert::one(active).on_conflict_do_nothing().exec` |
+| `entity.insert(active).onEmptyDoNothing().returningModel(db)` | `Insert::one(active).on_empty_do_nothing().exec_returning_model` |
+| `entity.insertMany(actives).onConflictDoNothing().returningPks(db)` | `Insert::many(actives).on_conflict_do_nothing().exec_returning_pks` |
 
 An insert is typed by its row count, as Rust's is: `insert` gives an
 `EntityInsert` and `insertMany` an `EntityInsertMany`, and `add` or
@@ -368,6 +371,42 @@ const upserted = await Account.insert(Account.active().set("id", 1).set("display
   .returningUpsert(pool);
 assert.equal(upserted?.kind, "updated");
 assert.equal(upserted?.new["display name"], "Anne");
+```
+
+`onConflictDoNothing()` adds `ON CONFLICT (primary key) DO NOTHING`, as
+Rust's does, and turns an `EntityInsert` into an `EntityTryInsert`, or an
+`EntityInsertMany` into an `EntityTryInsertMany`: Rust's `TryInsert`.
+`onEmptyDoNothing()` makes one too, keeping the insert's own conflict clause.
+A try-insert has `onConflict`, which replaces its clause, `add` and
+`addMany`, and Rust's `TryInsert` terminals: `execute`, `returningPk` and
+`returningModel` for one row, `execute`, `returningPks` and `returningModels`
+for a batch, and no upsert terminal. Each resolves with the `TryInsertResult`
+a declared model's try-insert resolves with ([Writing rows](04-writing.md)):
+`{ kind: "inserted", value }` holding what the terminal wrote, `{ kind:
+"conflicted" }` when the conflict clause held every row back, or `{ kind:
+"empty" }` when there was nothing to write, a batch of no ActiveModels or one
+that sets no column, and nothing was sent.
+
+<!-- example: application -->
+```ts
+import assert from "node:assert/strict";
+import { createSchema, entity, fromEntity } from "@necessary/pgorm";
+
+const Account = entity("app.Account");
+await pool.execute(createSchema("napi_entities"));
+for (const statement of fromEntity(Account).enums) await pool.execute(statement);
+await pool.execute(fromEntity(Account).table);
+
+const ann = Account.active().set("id", 1).set("display name", "Ann");
+assert.deepEqual(await Account.insert(ann).onConflictDoNothing().execute(pool), { kind: "inserted", value: 1 });
+// Ann's key is taken now, so the second insert writes nothing.
+assert.deepEqual(await Account.insert(ann).onConflictDoNothing().returningPk(pool), { kind: "conflicted" });
+
+const bob = await Account.insert(Account.active().set("id", 2).set("display name", "Bob"))
+  .onEmptyDoNothing()
+  .returningModel(pool);
+assert.equal(bob.kind === "inserted" && bob.value["display name"], "Bob");
+assert.deepEqual(await Account.insertMany([]).onConflictDoNothing().returningModels(pool), { kind: "empty" });
 ```
 
 ## Graphs

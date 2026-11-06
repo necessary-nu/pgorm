@@ -3,6 +3,7 @@
 from typing import Generic, TypeVar
 
 from .. import _native as native_types
+from ..models.try_inserts import TryInsertResult
 
 M = TypeVar("M")
 
@@ -92,6 +93,12 @@ class InsertView(_InsertView[M]):
     def on_conflict(self, action) -> "InsertView[M]":
         return InsertView(self._insert.on_conflict(action), self._model_class)
 
+    def on_conflict_do_nothing(self) -> "TryInsertView[M]":
+        return TryInsertView(self._insert.on_conflict_do_nothing(), self._model_class)
+
+    def on_empty_do_nothing(self) -> "TryInsertView[M]":
+        return TryInsertView(self._insert.on_empty_do_nothing(), self._model_class)
+
     async def returning_pk(self, connection):
         return await self._insert.returning_pk(connection)
 
@@ -112,6 +119,12 @@ class InsertManyView(_InsertView[M]):
     def on_conflict(self, action) -> "InsertManyView[M]":
         return InsertManyView(self._insert.on_conflict(action), self._model_class)
 
+    def on_conflict_do_nothing(self) -> "TryInsertManyView[M]":
+        return TryInsertManyView(self._insert.on_conflict_do_nothing(), self._model_class)
+
+    def on_empty_do_nothing(self) -> "TryInsertManyView[M]":
+        return TryInsertManyView(self._insert.on_empty_do_nothing(), self._model_class)
+
     async def returning_pks(self, connection) -> list:
         return await self._insert.returning_pks(connection)
 
@@ -122,3 +135,67 @@ class InsertManyView(_InsertView[M]):
     async def returning_upserts(self, connection):
         rows = await self._insert.returning_upserts(connection)
         return [_upserted(row, self._model_class) for row in rows]
+
+
+def _tried(result, read):
+    """``result``, a registered entity's try-insert answer, what it wrote
+    read by ``read``; ``Conflicted`` and ``Empty`` hold nothing to read."""
+    if isinstance(result, TryInsertResult.Inserted):
+        return TryInsertResult.Inserted(read(result.value))
+    return result
+
+
+class _TryInsertView(Generic[M]):
+    """What a typed try-insert of one row and of a batch share: the native
+    try-insert, the model class each written row is read as, and the
+    terminals both kinds have."""
+
+    __slots__ = ("_insert", "_model_class")
+
+    def __init__(self, insert, model: type[M]):
+        self._insert, self._model_class = insert, model
+
+    def add(self, active) -> "TryInsertManyView[M]":
+        return TryInsertManyView(self._insert.add_many(_native_actives([active])), self._model_class)
+
+    def add_many(self, actives) -> "TryInsertManyView[M]":
+        return TryInsertManyView(self._insert.add_many(_native_actives(actives)), self._model_class)
+
+    async def execute(self, connection):
+        return await self._insert.execute(connection)
+
+    def __bool__(self) -> bool:
+        return bool(self._insert)
+
+
+class TryInsertView(_TryInsertView[M]):
+    __slots__ = ()
+
+    def __init__(self, insert: native_types.EntityTryInsert, model: type[M]):
+        super().__init__(insert, model)
+
+    def on_conflict(self, action) -> "TryInsertView[M]":
+        return TryInsertView(self._insert.on_conflict(action), self._model_class)
+
+    async def returning_pk(self, connection):
+        return await self._insert.returning_pk(connection)
+
+    async def returning_model(self, connection):
+        return _tried(await self._insert.returning_model(connection), self._model_class)
+
+
+class TryInsertManyView(_TryInsertView[M]):
+    __slots__ = ()
+
+    def __init__(self, insert: native_types.EntityTryInsertMany, model: type[M]):
+        super().__init__(insert, model)
+
+    def on_conflict(self, action) -> "TryInsertManyView[M]":
+        return TryInsertManyView(self._insert.on_conflict(action), self._model_class)
+
+    async def returning_pks(self, connection):
+        return await self._insert.returning_pks(connection)
+
+    async def returning_models(self, connection):
+        model = self._model_class
+        return _tried(await self._insert.returning_models(connection), lambda rows: [model(row) for row in rows])

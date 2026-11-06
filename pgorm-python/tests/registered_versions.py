@@ -168,6 +168,70 @@ class RegisteredVersions(unittest.IsolatedAsyncioTestCase):
             one = membership.active().set("tenant_id", 8).set("role", "lead")
             self.assertEqual(await membership.insert(one).returning_pk(connection), (8, 3))
 
+    # [spec:pgorm:req:bindings.entity-try-inserts/test]
+    async def test_try_insert_says_what_it_did(self):
+        inserted, conflicted, empty = p.TryInsertResult.Inserted, p.TryInsertResult.Conflicted, p.TryInsertResult.Empty
+        async with self.pool.connection() as connection:
+            again = self.account.insert(self.active(1, "again")).on_conflict_do_nothing()
+            self.assertIs(type(again), p.EntityTryInsert)
+            for terminal in (again.execute, again.returning_pk, again.returning_model):
+                with self.subTest(terminal=terminal.__name__):
+                    self.assertEqual(await terminal(connection), conflicted())
+            fresh = self.account.insert(self.active(4, "four")).on_conflict_do_nothing()
+            self.assertEqual(await fresh.execute(connection), inserted(1))
+            five = self.account.insert(self.active(5, "five")).on_conflict_do_nothing()
+            self.assertEqual(await five.returning_pk(connection), inserted(5))
+            # A statement terminal: the hook that suffixes an inserted name does not run.
+            match await self.account.insert(self.active(6, "six")).on_empty_do_nothing().returning_model(connection):
+                case p.TryInsertResult.Inserted(model):
+                    self.assertEqual((model["id"], model["display name"]), (6, "six"))
+                case other:
+                    self.fail(f"six is new: {other!r}")
+            # With no conflict clause a conflicting row is the server's refusal.
+            with self.assertRaises(p.UniqueViolationError):
+                await self.account.insert(self.active(6, "six")).on_empty_do_nothing().execute(connection)
+            # An ActiveModel that sets nothing is empty, and no row of defaults is sent.
+            blank = self.account.insert(self.account.active().not_set("version").not_set("mood")).on_empty_do_nothing()
+            for terminal in (blank.execute, blank.returning_pk, blank.returning_model):
+                with self.subTest(terminal=terminal.__name__):
+                    self.assertEqual(await terminal(connection), empty())
+            batch = self.account.insert_many([self.active(7, "seven"), self.active(1, "one")]).on_conflict_do_nothing()
+            self.assertIs(type(batch), p.EntityTryInsertMany)
+            self.assertEqual(await batch.returning_pks(connection), inserted([7]))
+            self.assertEqual(await batch.returning_pks(connection), conflicted())
+            more = batch.add(self.active(8, "eight")).add_many([self.active(9, "nine")])
+            self.assertIs(type(more), p.EntityTryInsertMany)
+            written = await more.returning_models(connection)
+            assert isinstance(written, p.TryInsertResult.Inserted)
+            self.assertEqual([model["id"] for model in written.value], [8, 9])
+            self.assertEqual(await more.execute(connection), conflicted())
+            none = self.account.insert_many([]).on_conflict_do_nothing()
+            for terminal in (none.execute, none.returning_pks, none.returning_models):
+                with self.subTest(terminal=terminal.__name__):
+                    self.assertEqual(await terminal(connection), empty())
+            # on_conflict replaces the key's DO NOTHING, as TryInsert::on_conflict does,
+            # and on_empty_do_nothing keeps the clause the insert had.
+            renamed = again.on_conflict(p.Conflict.on("id").update("display name"))
+            self.assertEqual(await renamed.execute(connection), inserted(1))
+            kept = self.account.insert(self.active(2, "kept")).on_conflict(p.Conflict.on("id").do_nothing())
+            self.assertEqual(await kept.on_empty_do_nothing().execute(connection), conflicted())
+            names = {row["id"]: row["display name"] for row in await self.account.find().all(connection)}
+            self.assertEqual((names[1], names[2]), ("again", "name 2|before"))
+            self.assertIs(type(fresh.add(self.active(10, "ten"))), p.EntityTryInsertMany)
+            self.assertFalse(hasattr(again, "returning_upsert"))
+            self.assertFalse(hasattr(batch, "returning_upserts"))
+            with self.assertRaisesRegex(TypeError, "the ActiveModel is app.Old's, not app.Account's"):
+                again.add(self.old.active().set("id", 1).set("label", "x"))
+            with self.assertRaisesRegex(p.ConstructionError, "set the same columns"):
+                batch.add(self.account.active().set("id", 12).set("display name", "y"))
+            membership = p.entity("app.Membership")
+            await connection.execute(s.from_entity(membership).table)
+            lead = membership.active().set("tenant_id", 7).set("id", 1).set("role", "lead")
+            self.assertEqual(await membership.insert(lead).on_conflict_do_nothing().returning_pk(connection),
+                             inserted((7, 1)))
+            self.assertEqual(await membership.insert(lead).on_conflict_do_nothing().returning_pk(connection),
+                             conflicted())
+
     async def test_table_called_old_keeps_version_order(self):
         async with self.pool.connection() as connection:
             row = await self.old.insert(self.old.active().set("id", 1).set("label", "before")).returning_upsert(connection)

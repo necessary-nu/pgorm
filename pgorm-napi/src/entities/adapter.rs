@@ -11,7 +11,7 @@ use std::{any::Any, fmt::Debug, sync::Arc};
 use futures_util::future::BoxFuture;
 use pgorm::pgorm_query::{
     BinOper, CommentStatement, Condition, Expr, IndexCreateStatement, JoinType, Name, NullOrdering,
-    OnConflict, Order, SelectStatement, SimpleExpr, TableCreateStatement, Value, Values,
+    Order, SelectStatement, SimpleExpr, TableCreateStatement, Value, Values,
     extension::TypeCreateStatement,
 };
 use pgorm::{
@@ -166,36 +166,13 @@ pub(crate) enum VersionWrite {
     Changes(Vec<(String, Assignment)>, Condition),
 }
 
-/// An insert of a registration's ActiveModels: `Insert::one` of one when
-/// `one`, `Insert::many` of a batch otherwise, its conflict clause, and the
-/// terminal that runs it.
-#[derive(Clone, Debug)]
-pub(crate) struct Insertion {
-    pub(crate) actives: Vec<Active>,
-    pub(crate) conflict: Option<Box<OnConflict>>,
-    pub(crate) one: bool,
-    pub(crate) answer: InsertAnswer,
-}
+/// An insert of a registration's ActiveModels, the statement and terminal
+/// pgorm-bindings runs.
+pub(crate) type Insertion = pgorm_bindings::Insertion<Active>;
 
-/// Which of Rust's insert terminals runs, each the row count's own: `exec`,
-/// `exec_returning_pk(s)`, `exec_returning_model(s)` or
-/// `exec_returning_upsert(s)`.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum InsertAnswer {
-    Count,
-    Keys,
-    Models,
-    Upserts,
-}
-
-/// What an insert's terminal gave.
-pub(crate) enum Insertions {
-    Count(u64),
-    /// Each written row's key, its values in the primary key's column order.
-    Keys(Vec<Vec<Value>>),
-    Models(Vec<Model>),
-    Upserts(Vec<Versions>),
-}
+/// What an insert's terminal gave, as a `TryInsertResult` says: a plain
+/// insert's always `Inserted`.
+pub(crate) type Insertions = pgorm::TryInsertResult<pgorm_bindings::Inserted<Model, Versions>>;
 
 /// A written row's two versions, `old` absent for a row an upsert inserted.
 pub(crate) struct Versions {
@@ -260,8 +237,9 @@ pub(crate) trait EntityBackend: Debug + Send + Sync {
         db: Database<'a>,
         write: VersionWrite,
     ) -> BoxFuture<'a, Result<Vec<Versions>, Error>>;
-    /// `Insert::one` of one ActiveModel or `Insert::many` of a batch, with
-    /// the conflict clause if given, through the terminal `insertion` names.
+    /// `Insert::one` of one ActiveModel or `Insert::many` of a batch, or the
+    /// `TryInsert` of either, with its conflict clause, through the terminal
+    /// `insertion` names.
     fn insert<'a>(
         &'a self,
         db: Database<'a>,

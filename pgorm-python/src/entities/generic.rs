@@ -4,12 +4,12 @@ use crate::execution::Database;
 use std::sync::Arc;
 
 use futures_util::future::BoxFuture;
-use pgorm::pgorm_query::{Expr, IntoValueTuple, Name, SimpleExpr, Value, Values};
+use pgorm::pgorm_query::{Expr, Name, SimpleExpr, Value, Values};
 use pgorm::{
     ActiveModelBehavior, ActiveModelTrait, ActiveValue, Change as RustChange, ColumnTrait,
-    EntityTrait, Error, FromQueryResult, Insert, IntoActiveModel, Iterable, ModelTrait,
-    QueryFilter, QueryOrder, QuerySelect, QueryTrait, RelationDef, RelationTrait, SelectModel,
-    SelectorTrait, StaticName, Update, Upserted,
+    EntityTrait, Error, FromQueryResult, IntoActiveModel, Iterable, ModelTrait, QueryFilter,
+    QueryOrder, QuerySelect, QueryTrait, RelationDef, RelationTrait, SelectModel, SelectorTrait,
+    StaticName, Update, Upserted,
 };
 
 use super::{
@@ -269,83 +269,20 @@ where
     }
 
     // [spec:pgorm:req:bindings.entity-inserts]
+    // [spec:pgorm:req:bindings.entity-try-inserts]
     async fn write_insert(
         &self,
         db: Database<'_>,
         insertion: Insertion,
     ) -> Result<Insertions, Error> {
-        let Insertion {
-            actives,
-            conflict,
-            one,
-            answer,
-        } = insertion;
-        let models = actives
-            .iter()
-            .map(concrete::<E>)
-            .collect::<Result<Vec<_>, _>>()?;
-        if one {
-            let model = models.into_iter().next().ok_or_else(|| {
-                Error::Type("an insert of one row needs one ActiveModel".to_owned())
-            })?;
-            let mut insert = Insert::one_in(self.entity, model);
-            if let Some(conflict) = conflict {
-                insert = insert.on_conflict(*conflict);
-            }
-            return Ok(match answer {
-                InsertAnswer::Count => Insertions::Count(insert.exec(&db).await?),
-                InsertAnswer::Keys => Insertions::Keys(vec![
-                    insert
-                        .exec_returning_pk(&db)
-                        .await?
-                        .into_value_tuple()
-                        .into_iter()
-                        .collect(),
-                ]),
-                InsertAnswer::Models => {
-                    Insertions::Models(vec![self.model(insert.exec_returning_model(&db).await?)])
-                }
-                InsertAnswer::Upserts => Insertions::Upserts(
-                    insert
-                        .exec_returning_upsert(&db)
-                        .await?
-                        .into_iter()
-                        .map(|row| self.upserted(row))
-                        .collect(),
-                ),
-            });
-        }
-        let mut insert = Insert::many_in(self.entity, models);
-        if let Some(conflict) = conflict {
-            insert = insert.on_conflict(*conflict);
-        }
-        Ok(match answer {
-            InsertAnswer::Count => Insertions::Count(insert.exec(&db).await?),
-            InsertAnswer::Keys => Insertions::Keys(
-                insert
-                    .exec_returning_pks(&db)
-                    .await?
-                    .into_iter()
-                    .map(|key| key.into_value_tuple().into_iter().collect())
-                    .collect(),
-            ),
-            InsertAnswer::Models => Insertions::Models(
-                insert
-                    .exec_returning_models(&db)
-                    .await?
-                    .into_iter()
-                    .map(|model| self.model(model))
-                    .collect(),
-            ),
-            InsertAnswer::Upserts => Insertions::Upserts(
-                insert
-                    .exec_returning_upserts(&db)
-                    .await?
-                    .into_iter()
-                    .map(|row| self.upserted(row))
-                    .collect(),
-            ),
-        })
+        pgorm_bindings::insert(
+            self.entity,
+            &db,
+            insertion.try_map(concrete::<E>)?,
+            |model| self.model(model),
+            |row| self.upserted(row),
+        )
+        .await
     }
 }
 

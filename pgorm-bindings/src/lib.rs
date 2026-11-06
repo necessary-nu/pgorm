@@ -11,6 +11,7 @@
 mod copy;
 mod dialect;
 mod hook;
+mod insert;
 mod pool;
 mod tls;
 mod verify;
@@ -18,6 +19,9 @@ mod verify;
 pub use copy::{builtin_type, copy_column};
 pub use dialect::{Dialect, Refusal};
 pub use hook::{HookCall, HookEvent, HookJob, HookJobs, hook};
+pub use insert::{
+    InsertConflict, InsertTerminal, InsertWrite, Inserted, Insertion, TryInsertTerminal, insert,
+};
 pub use pool::{
     PoolFailure, PoolSettings, PoolShape, connect_listener, listener_config, multi_pool,
     pool_failure,
