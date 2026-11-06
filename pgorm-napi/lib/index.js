@@ -126,7 +126,9 @@ export { ActiveModel, entities, Entity, entity } from "./entities.js";
 export { EntitySchema, fromEntity } from "./entity-schema.js";
 export { EntityColumn, EntityQuery } from "./entity-queries.js";
 export { EntityCursor, EntityPaginator, EntityRelation, EntitySelection } from "./entity-reads.js";
-export { EntityInsert, EntityInsertMany, EntityUpdate, EntityUpdateMany } from "./entity-versions.js";
+export { EntityInsert, EntityInsertMany } from "./entity-inserts.js";
+export { EntityTryInsert, EntityTryInsertMany } from "./entity-try-inserts.js";
+export { EntityUpdate, EntityUpdateMany } from "./entity-versions.js";
 export { EntityGraph, EntityGraphCursor, EntityGraphQuery, graph, graphs } from "./entity-graphs.js";
 export {
   ColumnDef,

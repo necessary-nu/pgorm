@@ -69,11 +69,13 @@ EXEMPT = {
 # truth-test their instances.
 BUILT_ELSEWHERE = {
     p.EntityColumn, p.EntityQuery, p.EntityUpdate, p.EntityUpdateMany, p.EntityInsert,
-    p.EntityInsertMany, p.EntityGraphQuery, p.EntityGraphCursor, pl.SelectedSources, s.EntitySchema,
+    p.EntityInsertMany, p.EntityTryInsert, p.EntityTryInsertMany, p.EntityGraphQuery,
+    p.EntityGraphCursor, pl.SelectedSources, s.EntitySchema,
     p.EntityCursor, p.EntityPaginator, p.EntitySelection, read_views.PaginatorView, read_views.CursorView,
     views.QueryView, graph_views.GraphQueryView, graph_views.GraphCursorView,
     version_views.UpdateView, version_views.UpdateManyView, version_views._InsertView,
-    version_views.InsertView, version_views.InsertManyView, p.Notification, p.Listener, p.RowStream,
+    version_views.InsertView, version_views.InsertManyView, version_views._TryInsertView,
+    version_views.TryInsertView, version_views.TryInsertManyView, p.Notification, p.Listener, p.RowStream,
     p.CopyOutStream, p.CopyRowStream, p.EntityRawQuery, views.RawQueryView,
 }
 

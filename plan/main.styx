@@ -20708,7 +20708,27 @@ children (
                         id guide.python-gaps.entity-try-inserts
                         title "A registered entity's insert becomes Rust's TryInsert in both bindings: entity.insert(active).on_conflict_do_nothing() / on_empty_do_nothing() (and insert_many's) give EntityTryInsert / EntityTryInsertMany whose execute, returning_pk(s) and returning_model(s) answer TryInsertResult (Inserted, Conflicted, Empty) through pgorm's TryInsert, in the shape bindings.model-try-inserts gives declared models"
                         kind @feat
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.entity-try-inserts])
+                            main ([spec:pgorm:req:bindings.entity-try-inserts])
+                            python ([spec:pgorm:req:bindings.entity-try-inserts])
+                        }
                         deps (python.entities guide.python-gaps.model-writes)
+                        log (
+                            {
+                                at 2026-11-06T11:33:47.097294Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T11:33:58.116613Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Shape: on_conflict_do_nothing() / on_empty_do_nothing() on EntityInsert(Many) give EntityTryInsert / EntityTryInsertMany (on_conflict, add, add_many, execute, returning_pk/returning_model or returning_pks/returning_models; no upsert terminal since Rust's TryInsert has none; no inspect since EntityInsert has none). Both bindings answer with the TryInsertResult declared models already use (Python's pgorm.TryInsertResult dataclasses, imported by the native classes at call time; JavaScript's frozen { kind } objects from model-try-inserts.js). The statement and terminal are run once, in a new pgorm-bindings module (insert.rs: Insertion/InsertWrite/InsertConflict/InsertTerminal/TryInsertTerminal/Inserted + insert()), which both bindings' write_insert now call; this also removes the two near-identical copies of the plain-insert terminal dispatch each binding carried. on_conflict_do_nothing is held as InsertConflict::PrimaryKey and written by Rust's own Insert::on_conflict_do_nothing at run time (JS passes \"primaryKey\" to the addon), so neither binding recomputes the key clause. Spec: new shared rule bindings.entity-try-inserts."
+                            }
+                        )
                     }
 
                     {
@@ -20756,6 +20776,13 @@ children (
                                 text "Doing → Done (nplan complete)"
                             }
                         )
+                    }
+
+                    {
+                        id guide.python-gaps.model-array-save-cast
+                        title "A declared model column's quantified operand list binds through the column's save cast in both bindings, the counterpart of Rust's save_array_with: col.eq(any_(values)) / ne(all_(values)) (eq(any(..)) in JavaScript) on a model column with save_as (or a money or domain column) casts the bound array as the column's scalar comparisons cast each value, where today the operand is taken as written and the guides tell the program to cast it itself"
+                        kind @feat
+                        deps (guide.python-gaps.model-types)
                     }
                 )
             }

@@ -3706,6 +3706,13 @@ impl_evidence (
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
     )}
+    {id guide.python-gaps.entity-try-inserts, covered_rules (
+        bindings.entity-try-inserts
+    ), covered_claims (
+        {impl_name javascript, rule bindings.entity-try-inserts}
+        {impl_name main, rule bindings.entity-try-inserts}
+        {impl_name python, rule bindings.entity-try-inserts}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

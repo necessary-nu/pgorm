@@ -150,6 +150,11 @@ async def invalid(connection: p.Connection) -> None:
     registered.active().is_changed("id")  # expected-error: call-arg
     await registered.insert(registered.active()).returning_upserts(connection)  # expected-error: attr-defined
     await registered.insert_many([registered.active()]).returning_upsert(connection)  # expected-error: attr-defined
+    # [spec:pgorm:req:bindings.entity-try-inserts/test]    a try-insert has TryInsert's terminals of its row count, and no upsert terminal
+    await registered.insert(registered.active()).on_conflict_do_nothing().returning_upsert(connection)  # expected-error: attr-defined
+    await registered.insert(registered.active()).on_empty_do_nothing().returning_pks(connection)  # expected-error: attr-defined
+    await registered.insert_many([]).on_conflict_do_nothing().returning_model(connection)  # expected-error: attr-defined
+    tried: int = await registered.insert(registered.active()).on_conflict_do_nothing().execute(connection)  # expected-error: assignment
     # [spec:pgorm:req:bindings.disjoint-unkinded/test]    an unkinded disjoint model has no writes and no schema, and takes no kind options
     shops = p.Disjoint("shops", accounts, {"online": accounts, "dormant": None}, unkinded=True)
     shops.insert({"id": 1}, "online")  # expected-error: misc

@@ -22,7 +22,7 @@ mod versions;
 pub use active::{ActiveState, PyActiveModel, PyActiveValue};
 pub use column::PyEntityColumn;
 pub(crate) use inserts::TERMINALS as insert_terminals;
-pub use inserts::{PyEntityInsert, PyEntityInsertMany};
+pub use inserts::{PyEntityInsert, PyEntityInsertMany, PyEntityTryInsert, PyEntityTryInsertMany};
 pub use model::PyEntityModel;
 pub use query::{PyEntityQuery, PyEntityRawQuery};
 pub use reads_py::{PyEntityCursor, PyEntityPaginator};
@@ -140,6 +140,8 @@ pub(crate) fn install(module: &Bound<'_, PyModule>, registry: Registry) -> PyRes
     module.add_class::<PyEntityUpdateMany>()?;
     module.add_class::<PyEntityInsert>()?;
     module.add_class::<PyEntityInsertMany>()?;
+    module.add_class::<PyEntityTryInsert>()?;
+    module.add_class::<PyEntityTryInsertMany>()?;
     module.add("_registry", registry::NativeRegistry(registry))?;
     module.add_function(wrap_pyfunction!(registry::entity, module)?)?;
     module.add_function(wrap_pyfunction!(registry::entities, module)?)?;
