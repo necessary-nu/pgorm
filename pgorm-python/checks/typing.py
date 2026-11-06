@@ -130,6 +130,8 @@ def main():
         guide = guide_examples(root, Path(temporary) / "guide")
         run([*mypy, *guide], environment)
         run([*mypy, "--package", "pgorm"], environment)
+        # [spec:pgorm:req:bindings.models-from-sql/test]    the module models_from_sql writes type-checks under strict mypy
+        run([*mypy, root / "pgorm-python/tests/models_from_sql/models.py"], environment)
         rejected = reject_invalid(
             mypy, root / "pgorm-python/tests/public_types_invalid.py", environment
         )
@@ -142,6 +144,7 @@ def main():
         "native_signatures": True,
         "type_checker": checker,
         "invalid_typing_cases": rejected,
+        "generated_models": True,
         "application": result,
         "guide_examples": len(guide) - 1,
     }

@@ -4,13 +4,11 @@
 
 use heck::ToUpperCamelCase;
 use pgorm_query::{Enforcement, TableCreateStatement};
-use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    Column, ColumnExpr, Entity, Error, Operator, RelationType, TableIdent,
-    util::{escape_rust_keyword, safe_ident},
+    ColumnExpr, Entity, Error, Operator, RelationType, TableIdent, entity::column::rs_type_text,
+    util::escape_rust_keyword,
 };
 
 /// The `#[derive(OneOf)]` enum one `CHECK` of a table generates.
@@ -18,6 +16,10 @@ use crate::{
 #[derive(Clone, Debug)]
 pub(crate) struct OneOfEnum {
     pub(crate) name: String,
+    /// The part of the constraint's name the enum is named for, as written,
+    /// whose UpperCamelCase `name` is.
+    pub(crate) reference: String,
+    #[cfg_attr(not(feature = "rust"), allow(dead_code))]
     pub(crate) constraint: String,
     /// The variants naming a target, in the `CHECK`'s order.
     pub(crate) targets: Vec<OneOfTarget>,
@@ -25,14 +27,17 @@ pub(crate) struct OneOfEnum {
     pub(crate) none: bool,
 }
 
-/// One variant naming a target: its name, the column holding its key, and
-/// the target entity's module, `None` for the table's own.
+/// One variant naming a target: its name, the column holding its key, the
+/// target entity's module, `None` for the table's own, and the target
+/// table's identity.
 // [spec:pgorm:def:disjoint.one-of+4]
 #[derive(Clone, Debug)]
 pub(crate) struct OneOfTarget {
     pub(crate) variant: String,
     pub(crate) column: String,
+    #[cfg_attr(not(feature = "rust"), allow(dead_code))]
     pub(crate) module: Option<String>,
+    pub(crate) target: TableIdent,
 }
 
 /// A table's `CHECK` as the transform reads it: the name it has in the
@@ -43,9 +48,6 @@ pub(crate) struct TableCheck {
     expr: Option<ColumnExpr>,
     enforced: bool,
 }
-
-/// The unit variant of an enum whose `CHECK` lets a row reference none.
-const NONE: &str = "None";
 
 /// `table`'s `CHECK`s, each unnamed one named as PostgreSQL names it:
 /// `{table}_{column}_check` over one column and `{table}_check` otherwise,
@@ -170,8 +172,10 @@ fn shape(entities: &[Entity], entity: &Entity, check: &TableCheck) -> Option<One
         .into_iter()
         .map(|column| target(entities, entity, column))
         .collect::<Option<_>>()?;
+    let reference = enum_part(&entity.table_name, &check.name);
     Some(OneOfEnum {
-        name: escape_rust_keyword(enum_part(&entity.table_name, &check.name).to_upper_camel_case()),
+        name: escape_rust_keyword(reference.to_upper_camel_case()),
+        reference: reference.to_owned(),
         constraint: check.name.clone(),
         targets,
         none,
@@ -237,102 +241,15 @@ fn target(entities: &[Entity], entity: &Entity, column: &str) -> Option<OneOfTar
         .columns
         .iter()
         .find(|candidate| candidate.name == key.name)?;
-    if key_type(key_column) != key_type(held) {
+    if rs_type_text(&key_column.col_type, key_column.enum_home.as_ref())
+        != rs_type_text(&held.col_type, held.enum_home.as_ref())
+    {
         return None;
     }
     Some(OneOfTarget {
         variant: escape_rust_keyword(referenced.table_name.to_upper_camel_case()),
         column: column.to_owned(),
-        module: relation.get_module_name().map(|module| module.to_string()),
+        module: relation.module_name(),
+        target: ident,
     })
-}
-
-/// The Rust type of `column`'s values, whether or not it is nullable.
-fn key_type(column: &Column) -> String {
-    Column {
-        not_null: true,
-        ..column.clone()
-    }
-    .get_rs_type()
-    .to_string()
-}
-
-impl OneOfEnum {
-    /// The enum as the derive reads it, after its entity's `Relation` enum.
-    ///
-    /// Its variants are named by the schema, for the target tables, so
-    /// clippy's `enum_variant_names` is allowed on it as on a disjoint enum.
-    // [spec:pgorm:def:disjoint.one-of+4]
-    pub(crate) fn tokens(&self) -> TokenStream {
-        let ident = format_ident!("{}", self.name);
-        let variants = self.targets.iter().map(|target| {
-            let variant = format_ident!("{}", target.variant);
-            let column = format_ident!(
-                "{}",
-                escape_rust_keyword(target.column.to_upper_camel_case())
-            );
-            let entity = match &target.module {
-                Some(module) => {
-                    let module = format_ident!("{}", module);
-                    quote! { super::#module::Entity }
-                }
-                None => quote! { Entity },
-            };
-            quote! {
-                #[pgorm(column = Column::#column)]
-                #variant(#entity)
-            }
-        });
-        let none = self.none.then(|| {
-            let none = format_ident!("{}", NONE);
-            quote! { #none, }
-        });
-        quote! {
-            #[allow(clippy::enum_variant_names)]
-            #[derive(Clone, Copy, Debug, OneOf)]
-            #[pgorm(entity = Entity)]
-            pub enum #ident {
-                #( #variants, )*
-                #none
-            }
-        }
-    }
-
-    /// The items the enum's derive declares in the module, each with what
-    /// it is: the enum, `<Enum>Key` and `<Enum>Model`.
-    // [spec:pgorm:def:disjoint.one-of+4]
-    pub(crate) fn items(&self) -> [(String, &'static str); 3] {
-        [
-            (self.name.clone(), "enum"),
-            (format!("{}Key", self.name), "key enum"),
-            (format!("{}Model", self.name), "model enum"),
-        ]
-    }
-
-    /// Refuse a variant named as another of the enum's, or an enum named as
-    /// no Rust identifier.
-    // [spec:pgorm:def:disjoint.one-of+4]
-    pub(crate) fn refuse_variant_clashes(&self, table: &TableIdent) -> Result<(), Error> {
-        safe_ident(
-            &format!(
-                "table `{table}`: the one-of reference named for constraint `{}`",
-                self.constraint
-            ),
-            &self.name,
-        )?;
-        let mut named: BTreeMap<&str, String> = BTreeMap::new();
-        if self.none {
-            named.insert(NONE, "its unit variant".to_owned());
-        }
-        for target in &self.targets {
-            let other = format!("the variant for column `{}`", target.column);
-            if let Some(first) = named.insert(&target.variant, other) {
-                return Err(Error::TransformError(format!(
-                    "table `{table}`: its one-of reference's variant `{}` is named as {first}",
-                    target.variant
-                )));
-            }
-        }
-        Ok(())
-    }
 }

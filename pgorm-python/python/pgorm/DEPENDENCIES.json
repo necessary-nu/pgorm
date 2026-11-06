@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Locked Cargo graph, including build and platform-conditional dependencies; a superset of any one wheel",
-  "cargo_lock_sha256": "43b760795f6c3c33490d7c0beec751a60dc3b82d00cc561ab445ffed6f4d2839",
+  "cargo_lock_sha256": "eafd07c881691ffefdba67ffa665d152161902ce1c638a3cf1a2618025ca1824",
   "python_runtime_dependencies": [],
   "packages": [
     {
@@ -2642,6 +2642,23 @@
         {
           "source": "LICENSE-STRUM",
           "sha256": "6191f4b088d0b4458f774320722f4b5adf98bd59bd8337ad5245a061a4284de4"
+        }
+      ]
+    },
+    {
+      "name": "pgorm-codegen",
+      "version": "0.2.0",
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/necessary-nu/pgorm",
+      "source": "pgorm workspace",
+      "notices": [
+        {
+          "source": "LICENSE-APACHE",
+          "sha256": "769f80b5bcb42ed0af4e4d2fd74e1ac9bf843cb80c5a29219d1ef3544428a6bb"
+        },
+        {
+          "source": "LICENSE-MIT",
+          "sha256": "105fba85b65585b4f8ff4d405f8cfbd297f3a4cdab21643e117bc5dc9baa9072"
         }
       ]
     },

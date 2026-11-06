@@ -8,6 +8,7 @@ from ._schema import (
     MigrationFile as MigrationFile, migration_file as migration_file,
 )
 from ._migrations import SqlMigration as SqlMigration, _Migrations as _Migrations
+from ._codegen import _models_from_sql as _models_from_sql
 from ._schema_tables import (
     CreateTable as CreateTable, CreateIndex as CreateIndex,
     create_table as create_table, create_index as create_index, drop_table as drop_table,
@@ -144,7 +145,8 @@ from ._models import _model_result_names as _model_result_names, _model_count as
 from ._expressions import (
     Expr as Expr, _DeclaredColumn as _DeclaredColumn, Condition as Condition, col as col, bind as bind,
     literal as literal, call as call, func as func, template as template,
-    tuple_expr as tuple_expr, domain_value as domain_value,
+    tuple_expr as tuple_expr, domain_value as domain_value, current_date as current_date,
+    current_time as current_time, current_timestamp as current_timestamp,
 )
 from ._statements import (
     GroupingElement as GroupingElement,

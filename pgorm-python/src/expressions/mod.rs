@@ -118,5 +118,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(construct::template, module)?)?;
     module.add_function(wrap_pyfunction!(construct::tuple_expr, module)?)?;
     module.add_function(wrap_pyfunction!(construct::domain_value, module)?)?;
+    module.add_function(wrap_pyfunction!(construct::current_date, module)?)?;
+    module.add_function(wrap_pyfunction!(construct::current_time, module)?)?;
+    module.add_function(wrap_pyfunction!(construct::current_timestamp, module)?)?;
     Ok(())
 }

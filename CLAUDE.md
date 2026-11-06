@@ -26,7 +26,7 @@ pgorm is a fork of SeaORM focused entirely on PostgreSQL support. It uses tokio-
 - `pgorm` (root) - Main ORM crate
 - `pgorm-case-style` - The case styles a `rename_all` renames by (`CaseStyle`, re-exported as `pgorm::CaseStyle`), one conversion shared by the derives and by the models the bindings declare at run time
 - `pgorm-macros` - Derive macros for entities and models
-- `pgorm-codegen` - Entity source generation from a described schema
+- `pgorm-codegen` - Entity source generation from a described schema, and, from the same reading of the DDL (`EntityTransformer::entities`), the Python and TypeScript declared models the bindings' `pgorm.codegen.models_from_sql` / `modelsFromSql` return (`python_models_from_sql`, `typescript_models_from_sql`). Its Rust writer, with syn, quote and prettyplease, is the default `rust` feature, which pgorm-python and pgorm-napi build without
 - `pgorm-migration` - Migration runner
 - `pgorm-pool` - Database connection pool (vendored deadpool-postgres fork)
 - `pgorm-query` - SQL query builder (fork of sea-query, PostgreSQL-only), with its own `pgorm-query-attr`, `pgorm-query-derive` and `pgorm-query-derive-internals` members; the last is an ordinary library holding the `SqlName`/`StaticName` expansion, which pgorm-query-derive (naming `pgorm_query::`) and pgorm-macros (naming `pgorm::pgorm_query::`, so a crate depending only on pgorm can derive them) share

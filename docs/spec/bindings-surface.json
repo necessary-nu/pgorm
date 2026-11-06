@@ -145,6 +145,9 @@
       "col": null,
       "connect": null,
       "connect_listener": null,
+      "current_date": null,
+      "current_time": null,
+      "current_timestamp": null,
       "delete": null,
       "disjoint_entities": null,
       "disjoint_entity": null,
@@ -292,6 +295,9 @@
       "sum": null,
       "that": null,
       "this": null
+    },
+    "codegen": {
+      "models_from_sql": null
     }
   },
   "descriptions": {
@@ -391,7 +397,8 @@
     "modules": {
       "pgorm": "pgorm",
       "schema": "pgorm.schema",
-      "pipeline": "pgorm.pipeline"
+      "pipeline": "pgorm.pipeline",
+      "codegen": "pgorm.codegen"
     },
     "operators": {"add": "__add__", "sub": "__sub__", "mul": "__mul__", "div": "__truediv__", "mod": "__mod__", "and": "__and__", "or": "__or__", "not": "__invert__", "neg": "__neg__"},
     "operator_classes": {
@@ -414,6 +421,10 @@
       "aclose": "an asynchronous close, spelled as Python's asynchronous iterators spell it"
     },
     "only": {
+      "codegen.CodegenError": "the error Python's registration generator raises; JavaScript's generator is pgorm-napi/codegen's command line, outside the module (python.codegen, napi.codegen)",
+      "codegen.UnkindedDisjoint": "the TypedDict an unkinded set is, for a type checker; JavaScript's is the TypeScript interface UnkindedDisjointTables, which has no value at run time (bindings.models-from-sql)",
+      "codegen.emit": "Python's registration generator runs in the package; JavaScript's is pgorm-napi/codegen's command line, outside the module (python.codegen, napi.codegen)",
+      "codegen.scaffold": "Python's registration generator runs in the package; JavaScript's is pgorm-napi/codegen's command line, outside the module (python.codegen, napi.codegen)",
       "pgorm.Direction": "a closed choice, a class of constants in Python and string literals in JavaScript (python.naming)",
       "pgorm.Nulls": "a closed choice, a class of constants in Python and string literals in JavaScript (python.naming)",
       "pgorm.Join": "a closed choice, a class of constants in Python and string literals in JavaScript (python.naming)",
@@ -477,7 +488,8 @@
     "modules": {
       "pgorm": "",
       "schema": "",
-      "pipeline": "pipeline"
+      "pipeline": "pipeline",
+      "codegen": ""
     },
     "spellings": {
       "pgorm.delete": "deleteFrom",

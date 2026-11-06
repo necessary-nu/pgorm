@@ -41,6 +41,27 @@ pub(crate) fn domain_value() -> PyExpr {
     PyExpr::from_rust(Expr::domain_value().into())
 }
 
+/// `CURRENT_DATE`, the date the transaction started.
+// [spec:pgorm:req:bindings.current-keywords]
+#[pyfunction]
+pub(crate) fn current_date() -> PyExpr {
+    PyExpr::from_rust(Expr::current_date().into())
+}
+
+/// `CURRENT_TIME`, the time of day the transaction started.
+// [spec:pgorm:req:bindings.current-keywords]
+#[pyfunction]
+pub(crate) fn current_time() -> PyExpr {
+    PyExpr::from_rust(Expr::current_time().into())
+}
+
+/// `CURRENT_TIMESTAMP`, the instant the transaction started.
+// [spec:pgorm:req:bindings.current-keywords]
+#[pyfunction]
+pub(crate) fn current_timestamp() -> PyExpr {
+    PyExpr::from_rust(Expr::current_timestamp().into())
+}
+
 #[pyfunction]
 pub(crate) fn bind(value: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
     value_expr(value, false)

@@ -2285,6 +2285,34 @@ Rust generic at run time, only use the ones compiled in.
 > registered enum's `describe()` with the one it was written from, as it
 > compares each entity's.
 
+> [spec:pgorm:req:bindings.models-from-sql]
+> Each binding MUST generate declared models from DDL through pgorm-codegen,
+> its one reader and transformed model (`codegen.models`): Python's
+> `pgorm.codegen.models_from_sql(ddl, *, schema_name=None,
+> unkinded_disjoint=())` and JavaScript's `modelsFromSql(ddl, { schemaName,
+> unkindedDisjoint })`, the one in the package's `codegen` module and the
+> other exported from the package as its `schema` functions are, each
+> returning the module pgorm-codegen's Python or TypeScript writer writes for
+> the text, as a string. An unkinded set is its `base`, its
+> `kinds` and its `unit`, each table a name or a `(schema, name)` pair; a
+> refusal of the text or of what it declares is a `ConstructionError`
+> carrying pgorm-codegen's message, and an argument of the wrong type a
+> `TypeError`. Each binding's codegen command line writes it too:
+> `python -m pgorm.codegen models <schema.sql> --output <file>` and
+> `node pgorm-napi/codegen/cli.js models <schema.sql> --output <file>`, each
+> taking `--schema-name`. No binding reads DDL or transforms a schema itself,
+> and each depends on pgorm-codegen without its Rust writer
+> (`codegen.features`). The module a binding writes MUST import, type-check
+> under the binding's checker (strict mypy, `deno check`) and read and write
+> rows on the database the DDL creates.
+
+> [spec:pgorm:req:bindings.current-keywords]
+> `current_date()`, `current_time()` and `current_timestamp()` MUST be
+> `Expr::current_date()`, `Expr::current_time()` and
+> `Expr::current_timestamp()`: the SQL keywords `CURRENT_DATE`,
+> `CURRENT_TIME` and `CURRENT_TIMESTAMP`, each an expression, which a
+> declared column's `default_expr` takes as Rust's `default_expr` does.
+
 ## Disjoint models
 
 > [spec:pgorm:req:bindings.disjoint+2]

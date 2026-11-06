@@ -1,13 +1,9 @@
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use pgorm_query::{ColumnType, TableName};
-use proc_macro2::{Ident, TokenStream};
-use quote::format_ident;
-use quote::quote;
 use std::fmt;
 
 use crate::{
     Column, ConjunctRelation, DisjointEnum, Error, OneOfEnum, PrimaryKey, Relation, UniqueKey,
-    util::{escape_rust_keyword, safe_ident},
 };
 
 /// Which table a name names: the bare table name, and the schema its DDL
@@ -89,22 +85,16 @@ impl Entity {
         self.schema_name.as_deref().or(default.as_deref())
     }
 
-    /// Everything the writer derives from this entity's DB names, checked while
-    /// the caller can still be handed the failure.
+    /// What a writer could not write of this entity, checked while the caller
+    /// can still be handed the failure: a column of a type outside the
+    /// mapping, a primary-key column that is not a column of the table, a
+    /// relation that is not written. The Rust identifiers its DB names derive
+    /// are the Rust writer's gate's to check.
     // [spec:pgorm:sem:codegen.entity.transform+18]
-    // [spec:pgorm:sem:codegen.entity.keywords+2]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         let qualified = self.ident().to_string();
         let table = qualified.as_str();
         let context = format!("table `{table}`");
-        safe_ident(
-            &context,
-            &escape_rust_keyword(self.get_table_name_snake_case()),
-        )?;
-        safe_ident(
-            &context,
-            &escape_rust_keyword(self.get_table_name_camel_case()),
-        )?;
         for column in self.columns.iter() {
             column.validate().map_err(|err| err.in_table(table))?;
         }
@@ -115,15 +105,9 @@ impl Entity {
                     primary_key.name
                 )));
             }
-            primary_key.validate().map_err(|err| err.in_table(table))?;
         }
         for relation in self.relations.iter() {
             relation.validate().map_err(|err| err.in_table(table))?;
-        }
-        for conjunct_relation in self.conjunct_relations.iter() {
-            conjunct_relation
-                .validate()
-                .map_err(|err| err.in_table(table))?;
         }
         Ok(())
     }
@@ -136,77 +120,10 @@ impl Entity {
         self.table_name.to_upper_camel_case()
     }
 
-    pub fn get_table_name_snake_case_ident(&self) -> Ident {
-        format_ident!("{}", escape_rust_keyword(self.get_table_name_snake_case()))
-    }
-
-    pub fn get_table_name_camel_case_ident(&self) -> Ident {
-        format_ident!("{}", escape_rust_keyword(self.get_table_name_camel_case()))
-    }
-
-    pub fn get_column_names_snake_case(&self) -> Vec<Ident> {
-        self.columns
-            .iter()
-            .map(|col| col.get_name_snake_case())
-            .collect()
-    }
-
-    pub fn get_column_rs_types(&self) -> Vec<TokenStream> {
-        self.columns
-            .clone()
-            .into_iter()
-            .map(|col| col.get_rs_type())
-            .collect()
-    }
-
-    pub fn get_primary_key_names_snake_case(&self) -> Vec<Ident> {
-        self.primary_keys
-            .iter()
-            .map(|pk| pk.get_name_snake_case())
-            .collect()
-    }
-
-    pub fn get_relation_module_name(&self) -> Vec<Option<Ident>> {
-        self.relations
-            .iter()
-            .map(|rel| rel.get_module_name())
-            .collect()
-    }
-
-    pub fn get_relation_enum_name(&self) -> Vec<Ident> {
-        self.relations
-            .iter()
-            .map(|rel| rel.get_enum_name())
-            .collect()
-    }
-
-    pub fn get_relation_attrs(&self) -> Vec<TokenStream> {
-        self.relations.iter().map(|rel| rel.get_attrs()).collect()
-    }
-
-    pub fn get_conjunct_relations_via_snake_case(&self) -> Vec<Ident> {
-        self.conjunct_relations
-            .iter()
-            .map(|con_rel| con_rel.get_via_snake_case())
-            .collect()
-    }
-
-    pub fn get_conjunct_relations_to_snake_case(&self) -> Vec<Ident> {
-        self.conjunct_relations
-            .iter()
-            .map(|con_rel| con_rel.get_to_snake_case())
-            .collect()
-    }
-
-    pub fn get_conjunct_relations_to_upper_camel_case(&self) -> Vec<Ident> {
-        self.conjunct_relations
-            .iter()
-            .map(|con_rel| con_rel.get_to_upper_camel_case())
-            .collect()
-    }
-
+    /// Whether a column holds a float, through arrays, created ranges and
+    /// domains: a float is not `Eq`, so neither is a row holding one.
     // [spec:pgorm:sem:codegen.entity.types+13]
-    pub fn get_eq_needed(&self) -> TokenStream {
+    pub(crate) fn has_float(&self) -> bool {
         fn is_floats(col_type: &ColumnType) -> bool {
             match col_type {
                 ColumnType::Float | ColumnType::Double => true,
@@ -219,39 +136,17 @@ impl Entity {
         }
         self.columns
             .iter()
-            .find(|column| is_floats(&column.col_type))
-            // check if float or double exist.
-            // if exist, return nothing
-            .map_or(quote! {, Eq}, |_| quote! {})
-    }
-
-    pub fn get_column_serde_attributes(
-        &self,
-        serde_skip_deserializing_primary_key: bool,
-        serde_skip_hidden_column: bool,
-    ) -> Vec<TokenStream> {
-        self.columns
-            .iter()
-            .map(|col| {
-                let is_primary_key = self.primary_keys.iter().any(|pk| pk.name == col.name);
-                col.get_serde_attribute(
-                    is_primary_key,
-                    serde_skip_deserializing_primary_key,
-                    serde_skip_hidden_column,
-                )
-            })
-            .collect()
+            .any(|column| is_floats(&column.col_type))
     }
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use pgorm_query::{ColumnType, ForeignKeyAction, StringLen};
-    use quote::{format_ident, quote};
 
     use crate::{Column, Entity, PrimaryKey, Relation, RelationType};
 
-    fn setup() -> Entity {
+    pub(crate) fn setup() -> Entity {
         Entity {
             table_name: "special_cake".to_owned(),
             schema_name: None,
@@ -337,136 +232,5 @@ mod tests {
         let entity = setup();
 
         assert_eq!(entity.get_table_name_camel_case(), "SpecialCake".to_owned());
-    }
-
-    #[test]
-    fn test_get_table_name_snake_case_ident() {
-        let entity = setup();
-
-        assert_eq!(
-            entity.get_table_name_snake_case_ident(),
-            format_ident!("{}", "special_cake")
-        );
-    }
-
-    #[test]
-    fn test_get_table_name_camel_case_ident() {
-        let entity = setup();
-
-        assert_eq!(
-            entity.get_table_name_camel_case_ident(),
-            format_ident!("{}", "SpecialCake")
-        );
-    }
-
-    #[test]
-    fn test_get_column_names_snake_case() {
-        let entity = setup();
-
-        for (i, elem) in entity.get_column_names_snake_case().into_iter().enumerate() {
-            assert_eq!(elem, entity.columns[i].get_name_snake_case());
-        }
-    }
-
-    #[test]
-    fn test_get_column_rs_types() {
-        let entity = setup();
-
-        for (i, elem) in entity.get_column_rs_types().into_iter().enumerate() {
-            assert_eq!(
-                elem.to_string(),
-                entity.columns[i].get_rs_type().to_string()
-            );
-        }
-    }
-
-    #[test]
-    fn test_get_primary_key_names_snake_case() {
-        let entity = setup();
-
-        for (i, elem) in entity
-            .get_primary_key_names_snake_case()
-            .into_iter()
-            .enumerate()
-        {
-            assert_eq!(elem, entity.primary_keys[i].get_name_snake_case());
-        }
-    }
-
-    #[test]
-    fn test_get_relation_module_name() {
-        let entity = setup();
-
-        for (i, elem) in entity.get_relation_module_name().into_iter().enumerate() {
-            assert_eq!(elem, entity.relations[i].get_module_name());
-        }
-    }
-
-    #[test]
-    fn test_get_relation_enum_name() {
-        let entity = setup();
-
-        for (i, elem) in entity.get_relation_enum_name().into_iter().enumerate() {
-            assert_eq!(elem, entity.relations[i].get_enum_name());
-        }
-    }
-
-    #[test]
-    fn test_get_relation_attrs() {
-        let entity = setup();
-
-        for (i, elem) in entity.get_relation_attrs().into_iter().enumerate() {
-            assert_eq!(
-                elem.to_string(),
-                entity.relations[i].get_attrs().to_string()
-            );
-        }
-    }
-
-    #[test]
-    fn test_get_conjunct_relations_via_snake_case() {
-        let entity = setup();
-
-        for (i, elem) in entity
-            .get_conjunct_relations_via_snake_case()
-            .into_iter()
-            .enumerate()
-        {
-            assert_eq!(elem, entity.conjunct_relations[i].get_via_snake_case());
-        }
-    }
-
-    #[test]
-    fn test_get_conjunct_relations_to_snake_case() {
-        let entity = setup();
-
-        for (i, elem) in entity
-            .get_conjunct_relations_to_snake_case()
-            .into_iter()
-            .enumerate()
-        {
-            assert_eq!(elem, entity.conjunct_relations[i].get_to_snake_case());
-        }
-    }
-
-    #[test]
-    fn test_get_conjunct_relations_to_upper_camel_case() {
-        let entity = setup();
-
-        for (i, elem) in entity
-            .get_conjunct_relations_to_upper_camel_case()
-            .into_iter()
-            .enumerate()
-        {
-            assert_eq!(elem, entity.conjunct_relations[i].get_to_upper_camel_case());
-        }
-    }
-
-    #[test]
-    fn test_get_eq_needed() {
-        let entity = setup();
-        let expected = quote! {, Eq};
-
-        assert_eq!(entity.get_eq_needed().to_string(), expected.to_string());
     }
 }

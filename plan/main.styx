@@ -14193,7 +14193,25 @@ children (
                     {
                         id napi.guide-gaps.models-from-ddl
                         title "JavaScript generates model declarations from DDL, its enums, disjoint and one-of shapes recognised, as pgorm-codegen's entities_from_sql does for Rust entities (guide 23-codegen)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.models-from-sql] [spec:pgorm:req:bindings.current-keywords])
+                        }
                         deps (napi-models napi-codegen guide.javascript)
+                        log (
+                            {
+                                at 2026-11-06T12:34:21.999904Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "nplan_start refused this node: \"dep napi-codegen is Todo\", though nplan_node shows napi-codegen done (delivered 2ceef370, evidence napi.codegen-types), and an nplan_sync did not change the answer (its plan entry carries no status field). Worked in the model-codegen lane's worktree (nplan/guide.python-gaps.model-codegen) without a claim, per the lane brief, together with guide.python-gaps.model-codegen."
+                            }
+
+                            {
+                                at 2026-11-06T13:23:19.532647Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built in one shape with guide.python-gaps.model-codegen (see its decision note): modelsFromSql(ddl, { schemaName, unkindedDisjoint }) exported from @necessary/pgorm calls pgorm-codegen's TypeScript writer in the addon (src/codegen.rs, pgorm-codegen without its rust feature) and returns the module text; `node pgorm-napi/codegen/cli.js models <schema.sql> --output <file>` writes it. The module is laid out as prettier and deno fmt lay it out (a call hugging its one object argument), imports from @necessary/pgorm, names fields in lowerCamelCase with renameAll: \"snake_case\", and is committed as tests/models-from-sql/models.ts, which deno check holds and the suite imports. currentDate/currentTime/currentTimestamp were added for DEFAULT CURRENT_* (bindings.current-keywords)."
+                            }
+                        )
                     }
 
                     {
@@ -20619,6 +20637,20 @@ children (
                     {
                         id guide.python-gaps.model-codegen
                         title "Python generates pgorm.Model declarations from DDL as pgorm-codegen generates entities: entities_from_sql, EntityWriterOptions, parse_schema, EntityTransformer and EntityWriter"
+                        implements {
+                            main (
+                                [spec:pgorm:req:codegen.features]
+                                [spec:pgorm:def:codegen.models]
+                                [spec:pgorm:sem:codegen.models.columns]
+                                [spec:pgorm:sem:codegen.models.relations]
+                                [spec:pgorm:sem:codegen.models.disjoint]
+                                [spec:pgorm:sem:codegen.models.one-of]
+                                [spec:pgorm:sem:codegen.models.names]
+                                [spec:pgorm:req:codegen.models.refused]
+                                [spec:pgorm:req:codegen.models.layout]
+                            )
+                            python ([spec:pgorm:req:bindings.models-from-sql] [spec:pgorm:req:bindings.current-keywords])
+                        }
                         deps (python.models)
                         log (
                             {
@@ -20633,6 +20665,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "2026-11-06, migrations lane, second pass: NOT built (context budget exhausted after items 1, 3 and 4; commits fa2345fd..0ee5919b on nplan/guide.python-gaps.migrations). Plan per the lead's decision: pgorm-codegen keeps parse_schema -> EntityTransformer::transform -> EntityWriter as the one reader and model, and gains two writers beside writer.rs, entity/python.rs and entity/typescript.rs, over EntityWriter's pub(crate) entities (Column's ColumnType, nullability, defaults/identity, primary keys, unique_keys, relations), enums (ActiveEnum), ranges (CreatedRangeType), disjoint (DisjointEnum) and one_of (OneOfEnum); public entry points next to entities_from_sql, e.g. python_models_from_sql(sql, options) and typescript_models_from_sql(sql, options), returning WriterOutput (one module each: Model/Column/TypeName/Disjoint/OneOf declarations for Python, model()/column()/disjoint()/oneOf() for JavaScript). Each writer must map a ColumnType to the kind names the declared models take (pgorm-python/python/pgorm/models/model.py Column kinds; pgorm-napi lib/models.js column kinds), and lay out as bindings.codegen-layout says (black-shaped Python, deno-fmt-shaped TypeScript; reuse the layout rules the codegen lane wrote, pgorm-python/python/pgorm/codegen/source.py and pgorm-napi/codegen/layout.js describe them). Bindings: add pgorm-codegen as a dependency of pgorm-python and pgorm-napi (pulls syn/quote/prettyplease into both native builds; pg_query is already linked) and expose pgorm.codegen.models_from_sql(ddl) / a codegen function in pgorm-napi's codegen. Tests the lead asked for: the generated declarations import, type-check (mypy --strict, deno check) and round-trip rows for an enum table, a disjoint shape, a one-of shape, and a table with every column type declared models take. Shared with napi.guide-gaps.models-from-ddl; guide chapters 23 (Python) and 23 (JavaScript) keep their \"not available yet\" paragraphs until it lands."
+                            }
+
+                            {
+                                at 2026-11-06T13:23:19.10366Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built as the lead decided (one reader, one model; Python and TypeScript writers in pgorm-codegen; Rust writer behind a default `rust` feature; bindings depend with default-features = false), with these choices of mine, pending operator override: (1) The transformed model is a new neutral stage, EntityTransformer::entities(stmts, &[UnkindedDisjoint]) -> Entities, always compiled; transform = entities + EntityWriter::new, the Rust gate (Rust identifiers, Rust name clashes, 12-column key, enum under two qualifications), which runs only on the Rust path, so a declared-model module never depends on feature unification and a schema only Rust's names refuse (a column named `1st`) still generates declared models. (2) Each writer has its own gate: refuses what a declared model cannot say (DEFERRABLE / NOT ENFORCED / PERIOD keys, DEFAULT NULL and NULL in expressions, serial outside an integer key, bpchar, named types, domains over arrays or created ranges) and names that are no identifier or that two things (or a name the module may import) take. (3) Names: Model = UpperCamelCase(table) as the Rust entity; relations named for the model and its Rust Relation variant ({table}_{variant}: cake_bakery, bakery_cake), both directions declared as the Rust Relation enum has them; junction paths {table}_related_{far}; {Base}Disjoint; {Model}{OneOfEnum}; type constants SHOUTY (Python) / lowerCamel (TS). Python fields are column names; TS fields lowerCamelCase with renameAll: \"snake_case\" where relied on. (4) An unqualified enum or created range is in ModelWriterOptions.schema_name or `public`, since declared models name a type's schema. (5) The bindings return the module as a string: Python pgorm.codegen.models_from_sql (beside scaffold/emit), JavaScript modelsFromSql exported from @necessary/pgorm (the codegen directory is a CLI outside the package), plus a `models` subcommand in both codegen CLIs; refusals are ConstructionError. (6) The declared models needed CURRENT_DATE/TIME/TIMESTAMP, which neither binding could spell: added current_date()/current_time()/current_timestamp() and currentDate()/currentTime()/currentTimestamp() over Expr::current_* (bindings.current-keywords). (7) The fixture is pgorm-codegen/tests/models/schema.sql; the generated modules are committed in each binding (pgorm-python/tests/models_from_sql/models.py, pgorm-napi/tests/models-from-sql/models.ts) and pgorm-codegen's tests hold the writers to them byte for byte (PGORM_MODELS_WRITE=1 rewrites); black, isort and prettier --trailing-comma all leave them unchanged."
                             }
                         )
                     }

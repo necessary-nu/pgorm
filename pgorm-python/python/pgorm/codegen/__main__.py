@@ -1,10 +1,12 @@
-"""Explicit scaffold and wrapper-generation commands for application wheels."""
+"""Explicit scaffold and wrapper-generation commands for application wheels,
+and the declared models of a schema's DDL."""
 
 import argparse
 import json
 from pathlib import Path
 
-from . import CodegenError, emit, scaffold
+from . import CodegenError, emit, models_from_sql, scaffold
+from .. import _native as p
 
 
 def main() -> None:
@@ -20,6 +22,12 @@ def main() -> None:
         "emit", help="emit concrete wrappers from the installed application registry"
     )
     generate.add_argument("project", type=Path)
+    models = commands.add_parser(
+        "models", help="write the declared models of the tables a schema's DDL creates"
+    )
+    models.add_argument("schema", type=Path)
+    models.add_argument("--output", type=Path, required=True)
+    models.add_argument("--schema-name")
     options = parser.parse_args()
     try:
         if options.command == "scaffold":
@@ -29,9 +37,13 @@ def main() -> None:
                 pgorm_source=options.pgorm_source,
                 base=options.config.resolve().parent,
             )
+        elif options.command == "models":
+            source = models_from_sql(options.schema.read_text(), schema_name=options.schema_name)
+            options.output.write_text(source)
+            result = options.output
         else:
             result = emit(options.project)
-    except (CodegenError, OSError, json.JSONDecodeError) as error:
+    except (CodegenError, p.ConstructionError, OSError, json.JSONDecodeError) as error:
         parser.error(str(error))
     print(result)
 
