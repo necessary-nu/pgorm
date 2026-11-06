@@ -13839,6 +13839,13 @@ children (
                                 kind @note
                                 text "Split from napi.guide-gaps.binding-refusals (its CopyRowStream-vs-CopyRows item). The type mismatch is real at run time, and in both bindings: JavaScript's copyInRows(copyFrom(dst, \"binary\"), await pool.copyOutRows(copyTo(src, \"binary\"))) refuses an int4range column's decoded Range (\"a range's kind is not inferred from its bounds\") and an empty int4[] (\"an array with no item but null has no element kind to infer\"); Python's copy_in_rows refuses the same rows (\"ambiguous or unsupported value: supply an explicit kind\"). Both bindings read each COPY row value by inference (pgorm-napi src/connect/copy/rows.rs copy_rows_encode -> params::read -> values::read::infer), though CopyRowEncoder knows every column's Type. Fix through pgorm (a value's kind from a column's tokio_postgres Type, for the bindings to read an un-inferable value by; built-in range and multirange types by name, a created range by its subtype, an array by its element), then in both bindings, then widen lib/copy.d.ts's CopyRows to the PlainValue rows CopyRowStream yields (Float32Array and Range among them) and test the round trip live in both suites. Probes in the reporting lane: tables with int4range, jsonb, int4[], numeric, timestamptz, interval, an empty int4[], bytea and uuid columns."
                             }
+
+                            {
+                                at 2026-11-06T09:23:35.832397Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "2026-11-06 (migrations lane): not started. The brief makes it wait on the COPY and connections lane's described-columns work (copy_in_columns / copy_out_columns handed to the bindings), which had not landed on main (still d56f0739) when the migrations work was committed (fa2345fd on nplan/guide.python-gaps.migrations)."
+                            }
                         )
                     }
                 )
@@ -19818,12 +19825,28 @@ children (
                         id guide.python-gaps.model-codegen
                         title "Python generates pgorm.Model declarations from DDL as pgorm-codegen generates entities: entities_from_sql, EntityWriterOptions, parse_schema, EntityTransformer and EntityWriter"
                         deps (python.models)
+                        log (
+                            {
+                                at 2026-11-06T09:23:35.544851Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Diagnosis 2026-11-06 (migrations lane, not built): pgorm-codegen's reader is parse_schema (sql_schema/mod.rs) -> EntityTransformer::transform -> EntityWriter, whose model (Entity, Column, Relation, ActiveEnum, DisjointEnum, OneOfEnum, UniqueKey) is pub(crate) and rendered only as Rust by writer.rs. One reader for three outputs means pgorm-codegen exposing that transformed model (or gaining Python and TypeScript writers beside the Rust one, laid out as bindings.codegen-layout says: black-shaped Python, deno-fmt-shaped TypeScript), and each binding exposing a function over DDL text that returns the files. Neither binding depends on pgorm-codegen yet; it adds syn/prettyplease/quote to each native build (pg_query is already linked through pgorm). Shared with napi.guide-gaps.models-from-ddl."
+                            }
+                        )
                     }
 
                     {
                         id guide.python-gaps.codegen-coverage
                         title "pgorm.codegen's application.json describes one-of references and pipeline source tuples beside entities, graphs and disjoint enums, as bindings.codegen says it covers source tuples, so neither needs a registration crate written by hand"
                         deps (python.codegen)
+                        log (
+                            {
+                                at 2026-11-06T09:23:23.282189Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Diagnosis 2026-11-06 (migrations lane, not built): pgorm-python/python/pgorm/codegen/config.py validate() and emit.py accept entities, graphs and disjoints only, so application.json can describe neither source tuples nor one-of references; bindings.codegen (v0) claims source tuples, so Python deviates from the rule today. pgorm-napi/codegen/config.js accepts sources and disjoints but no one_ofs, so JavaScript has the one-of half of the gap. Both registries already have the registration calls (Python Registry::sources::<T>() in src/pipeline/selected.rs and one_of::<O>() in src/one_of/registered.rs; JavaScript Registry::sources / one_of in src/entities/sources.rs and src/one_of/registered.rs), so the work is config + scaffold (registry.sources::<(..,)>(name), registry.one_of::<T>(name)) + emit (Python: a typed SourceSelection view and a OneOfEntity export; JS: a one-of export beside the sources one emit.js already writes) + the codegen checks (checks/codegen.py, checks/codegen.js), whose application builds are the slow part."
+                            }
+                        )
                     }
 
                     {

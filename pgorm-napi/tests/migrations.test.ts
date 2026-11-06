@@ -24,7 +24,7 @@ import {
   type Transaction,
   TypeName,
 } from "../lib/index.js";
-import { scratchDatabase } from "./support.ts";
+import { deno, scratchDatabase } from "./support.ts";
 
 const SQL = new URL("../../pgorm-migration/tests/sql/", import.meta.url);
 const NOTE = new URL("m20260101_000001_create_note.sql", SQL);
@@ -95,7 +95,14 @@ test("a SQL file reads as the runner reads it", () => {
   ]);
   assert.deepEqual(frozen.map((file) => file.commitsAfter), [false, true, false]);
   assert.equal(sqlMigration(note.name, note.sql).checksum, NOTE_DIGEST);
+  assert.throws(() => SqlMigration.read("/"), ConstructionError);
+});
 
+// [spec:pgorm:req:bindings.migrations/test]    a directory reads its .sql files alone, CRLF read as LF
+test("a directory's files read with LF line endings", {
+  skip: deno && "the suite runs under Deno without --allow-write, so Node holds the writing",
+}, () => {
+  const note = SqlMigration.read(NOTE);
   const directory = mkdtempSync(join(tmpdir(), "pgorm-napi-migrations-"));
   try {
     mkdirSync(join(directory, "nested.sql"));
@@ -108,7 +115,6 @@ test("a SQL file reads as the runner reads it", () => {
   } finally {
     rmSync(directory, { recursive: true });
   }
-  assert.throws(() => SqlMigration.read("/"), ConstructionError);
 });
 
 // [spec:pgorm:req:bindings.migrations/test]    a migration is a SqlMigration or an object with a name and an up
@@ -131,7 +137,6 @@ test("a migrator refuses what is no migration", () => {
 test("a frozen history and JavaScript migrations replay", async () => {
   const { schema, ops } = scope();
   const mood = new TypeName("mood", { schema });
-  const directory = mkdtempSync(join(tmpdir(), "pgorm-napi-migrations-"));
   const frozen = [
     migrationFile("m20260101_000001_create_note", [
       createSchema(schema),
@@ -139,12 +144,17 @@ test("a frozen history and JavaScript migrations replay", async () => {
     ]),
     migrationFile("m20260102_000001_add_glad", [alterType(mood).addValue("glad")], { commitsAfter: true }),
   ];
-  let files: SqlMigration[];
-  try {
-    for (const file of frozen) assert.equal(file.freeze(directory), true);
-    files = SqlMigration.readDir(directory);
-  } finally {
-    rmSync(directory, { recursive: true });
+  // Under Deno, which runs the suite without --allow-write, the files are
+  // made from the frozen text rather than read back from disk.
+  let files = frozen.map((file) => sqlMigration(file.name, file.text));
+  if (!deno) {
+    const directory = mkdtempSync(join(tmpdir(), "pgorm-napi-migrations-"));
+    try {
+      for (const file of frozen) assert.equal(file.freeze(directory), true);
+      files = SqlMigration.readDir(directory);
+    } finally {
+      rmSync(directory, { recursive: true });
+    }
   }
   assert.deepEqual(files.map((file) => file.sql), frozen.map((file) => file.text));
   const seed = new Written(
