@@ -189,6 +189,15 @@ export class ModelQuery extends Clauses {
 }
 
 /**
+ * The query reading `recipe`, which a relation's loader re-roots.
+ *
+ * @param {Recipe} recipe
+ */
+export function queryOf(recipe) {
+  return new ModelQuery(recipe, MADE);
+}
+
+/**
  * A query reading `fields` of `shape`.
  *
  * @param {import("./model-shape.js").Shape} shape

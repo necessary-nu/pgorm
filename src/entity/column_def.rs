@@ -138,8 +138,23 @@ pub(crate) fn compared_value_as(
 /// the cast itself, from this.
 // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
 pub(crate) fn compared_value_cast<C: ColumnTrait>(col: &C) -> Option<pgorm_query::TypeName> {
+    cast_of(|operand| compared_value(col, operand))
+}
+
+/// [`compared_value_cast`] for a column of `col_type` no entity describes,
+/// its values written by the type's own cast ([`save_cast`]): what a
+/// pipeline column a program describes at run time compares by.
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+// [spec:pgorm:sem:pipeline.described]
+pub(crate) fn compared_type_cast(col_type: &ColumnType) -> Option<pgorm_query::TypeName> {
+    cast_of(|operand| compared_value_as(col_type, operand, |val| save_cast(col_type, val)))
+}
+
+/// The type `compare` casts its operand to, when what it writes is a cast of
+/// the operand itself.
+fn cast_of(compare: impl FnOnce(Expr) -> SimpleExpr) -> Option<pgorm_query::TypeName> {
     const OPERAND: &str = "pgorm_compared_operand";
-    match compared_value(col, Expr::expr(SimpleExpr::Raw(OPERAND))) {
+    match compare(Expr::expr(SimpleExpr::Raw(OPERAND))) {
         SimpleExpr::AsEnum(type_name, operand) if matches!(*operand, SimpleExpr::Raw(OPERAND)) => {
             Some(*type_name)
         }

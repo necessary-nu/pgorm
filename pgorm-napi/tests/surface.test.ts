@@ -296,7 +296,7 @@ test("a registered entity's describe() reports exactly the keys the surface decl
 });
 
 // [spec:pgorm:req:bindings.surface+2/test]
-// [spec:pgorm:req:bindings.entity-graphs+3/test]
+// [spec:pgorm:req:bindings.entity-graphs+4/test]
 test("a registered graph's describe() reports exactly the keys the surface declares", {
   skip: pgorm.graphs().length === 0 && "the module registers no graph; checks/entities.js runs this against an application's",
 }, () => {

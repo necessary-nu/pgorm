@@ -153,7 +153,7 @@ class Construction(unittest.TestCase):
         with self.assertRaisesRegex(p.ConstructionError, "ends at account, which the query does not read"):
             Tag.find().join_rev(author)
 
-    # [spec:pgorm:req:bindings.cursor-secondary-order/test]
+    # [spec:pgorm:req:bindings.cursor-secondary-order+1/test]
     def test_a_secondary_ordering_names_a_read_table(self):
         cursor = Post.find().cursor("author_id")
         with self.assertRaisesRegex(p.ConstructionError, "reads no table named account"):
@@ -368,7 +368,7 @@ class LiveProjections(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(p.DecodeError, "NULL"):
             await query.into_partial_model(strict).all(self.pool)
 
-    # [spec:pgorm:req:bindings.cursor-secondary-order/test]
+    # [spec:pgorm:req:bindings.cursor-secondary-order+1/test]
     async def test_a_secondary_ordering_breaks_key_ties(self):
         by_author = Post.find().cursor("author_id").add_secondary_order_by(Post, "id")
         first = await by_author.first(2).all(self.pool)

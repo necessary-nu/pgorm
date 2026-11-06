@@ -3,28 +3,26 @@
 
 import assert from "node:assert/strict";
 import { pipeline as pl } from "@necessary/pgorm";
-import { Cake } from "../../../guide/bakery.ts";
+import { Bakery, Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const cake = (column: string) => pl.col("cake", column);
-  const place = pl.alias("place");
+  const cakeName = pl.alias("cake");
 
-  const dearest = pl.from(Cake.table)
-    .window(pl.over().by(cake("bakery_id")).sortBy(cake("price").desc()), pl.rowNumber().as(place))
-    .filter(place.eq(pl.literal(1)))
-    .sort(cake("bakery_id"))
-    .select(cake("bakery_id"), cake("name"));
+  const inBergen = pl.from(Cake)
+    .join(Bakery, pl.col(Cake, "bakeryId").eq(pl.col(Bakery, "id")), { kind: "inner" })
+    .filter(pl.col(Bakery, "city").eq(pl.literal("Bergen")))
+    .select(pl.col(Cake, "name").as(cakeName), pl.col(Bakery, "name"))
+    .sort(cakeName);
 
   assert.equal(
-    dearest.inspect().sql,
-    "WITH table_0 AS (SELECT bakery_id, name, ROW_NUMBER() OVER (PARTITION BY bakery_id " +
-      "ORDER BY price DESC) AS _expr_0 FROM cake) SELECT bakery_id, name FROM table_0 " +
-      "WHERE _expr_0 = 1 ORDER BY bakery_id",
+    inBergen.inspect().sql,
+    "SELECT cake.name AS cake, bakery.name FROM cake INNER JOIN bakery " +
+      "ON cake.bakery_id = bakery.id WHERE bakery.city = 'Bergen' ORDER BY cake",
   );
 
-  assert.deepEqual(await dearest.all(pool), [
-    { bakery_id: 1, name: "Chocolate Torte" },
-    { bakery_id: 2, name: "Carrot Cake" },
+  assert.deepEqual(await inBergen.all(pool), [
+    { cake: "Carrot Cake", name: "Moonlight" },
+    { cake: "Vanilla Sponge", name: "Moonlight" },
   ]);
 }

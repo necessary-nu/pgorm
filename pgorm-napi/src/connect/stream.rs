@@ -42,12 +42,17 @@ struct Active {
     operation: Operation,
 }
 
+/// What a stream that decodes its own rows makes of each: a disjoint read's
+/// codec's rows, or a registered read's models.
+pub(crate) type RowDecode =
+    Arc<dyn Fn(tokio_postgres::Row) -> Result<crate::connect::job::Output, Failure> + Send + Sync>;
+
 /// A stream, which holds its connection until the last row or `close`.
 pub(crate) struct StreamState {
     connection: Arc<ConnectionState>,
-    /// The disjoint read whose codec reads each row, for a disjoint read's
+    /// The decode of each row, for a disjoint read's or a registered read's
     /// stream; its rows are otherwise values.
-    disjoint: Option<Arc<crate::disjoint::Core>>,
+    decode: Option<RowDecode>,
     active: Arc<Mutex<Option<Active>>>,
     cancelled: CancellationToken,
     finished: CancellationToken,
@@ -99,7 +104,7 @@ async fn open(
     sql: String,
     params: Vec<Param>,
     abort: Abort,
-    disjoint: Option<Arc<crate::disjoint::Core>>,
+    decode: Option<RowDecode>,
 ) -> Result<Arc<StreamState>, Failure> {
     let connection = operation.state.clone();
     let secrets = &connection.pool.secrets;
@@ -117,7 +122,7 @@ async fn open(
     };
     let state = Arc::new(StreamState {
         connection,
-        disjoint,
+        decode,
         active: Arc::new(Mutex::new(Some(Active {
             rows: Box::pin(rows),
             operation,
@@ -130,20 +135,33 @@ async fn open(
     Ok(state)
 }
 
-/// `connectionStream(connection, sql, params, abort, disjoint?)`: open a
+/// `connectionStream(connection, sql, params, abort, decoder?)`: open a
 /// stream, which holds the connection until the last row or `close`, each
-/// row read by `disjoint`'s codec when one is given.
+/// row read by `decoder` when one is given, a disjoint read's codec or a
+/// registered read's selector.
 // [spec:pgorm:req:bindings.streams]
 // [spec:pgorm:req:bindings.disjoint+2]
 fn connection_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let connection = cx.argument::<JsBox<ConnectionHandle>>(0)?.0.clone();
     let (sql, params) = super::sql_and_params(&mut cx, 1)?;
     let abort = abort_argument(&mut cx, 3)?;
-    let disjoint = match cx.argument_opt(4) {
-        Some(value) => value
-            .downcast::<JsBox<crate::disjoint::DisjointHandle>, _>(&mut cx)
-            .ok()
-            .map(|handle| handle.0.clone()),
+    let decode = match cx.argument_opt(4) {
+        Some(value) => {
+            if let Ok(handle) = value.downcast::<JsBox<crate::disjoint::DisjointHandle>, _>(&mut cx)
+            {
+                let core = handle.0.clone();
+                let decode: RowDecode = Arc::new(move |row| {
+                    let rows = crate::disjoint::Rows::of(&core, vec![row])?;
+                    Ok(Box::new(rows) as crate::connect::job::Output)
+                });
+                Some(decode)
+            } else {
+                value
+                    .downcast::<JsBox<crate::entities::reads::DecoderHandle>, _>(&mut cx)
+                    .ok()
+                    .map(|handle| handle.row_decode())
+            }
+        }
         None => None,
     };
     let operation = match Operation::begin(connection) {
@@ -152,15 +170,15 @@ fn connection_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
     };
     settle::promise(
         &mut cx,
-        open(operation, sql, params, abort, disjoint),
+        open(operation, sql, params, abort, decode),
         |cx, state| Ok(cx.boxed(StreamHandle(state)).upcast()),
     )
 }
 
-/// One pulled row: its values, or what a disjoint read's codec read it as.
+/// One pulled row: its values, or what the stream's decode read it as.
 enum Pulled {
     Values(Vec<Tagged>),
-    Disjoint(crate::disjoint::Rows),
+    Decoded(crate::connect::job::Output),
 }
 
 /// The next row, decoded, with the column names on the first; `None` at the
@@ -193,10 +211,10 @@ async fn next(
     };
     match row {
         Ok(Some(row)) => {
-            if let Some(disjoint) = &state.disjoint {
-                let rows = crate::disjoint::Rows::of(disjoint, vec![row])?;
+            if let Some(decode) = &state.decode {
+                let decoded = decode(row)?;
                 *slot = Some(active);
-                return Ok(Some((Pulled::Disjoint(rows), None)));
+                return Ok(Some((Pulled::Decoded(decoded), None)));
             }
             let names = if state.named.swap(true, Ordering::Relaxed) {
                 None
@@ -229,9 +247,9 @@ fn stream_next(mut cx: FunctionContext) -> JsResult<JsPromise> {
         };
         let values = match pulled {
             Pulled::Values(values) => values,
-            Pulled::Disjoint(rows) => {
+            Pulled::Decoded(decoded) => {
                 let pair = JsArray::new(cx, 1);
-                let rows = crate::connect::job::Settled::into_js(Box::new(rows), cx)?;
+                let rows = decoded.into_js(cx)?;
                 pair.set(cx, 0, rows)?;
                 return Ok(pair.upcast());
             }

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, Required, TypeAlias, TypedDict, cast
@@ -12,9 +12,10 @@ from . import casts
 from .columns import Column, ModelColumn
 
 if TYPE_CHECKING:
+    from .active import ModelActive, ModelHooks
     from .graphs import Graph
     from .queries import ModelQuery
-    from .relations import ReferentialAction, Relation
+    from .relations import ConditionType, Linked, OnCondition, ReferentialAction, Related, Relation
     from .writes import ModelDelete, ModelInsert, ModelInsertMany, ModelUpdate
 
 
@@ -116,6 +117,7 @@ class Model:
     primary_key: tuple[str, ...]
     comment: str | None
     _unique_keys: tuple[_DeclaredKey, ...]
+    _hooks: Mapping[str, Callable[..., Any]]
 
     def __init__(
         self,
@@ -126,7 +128,10 @@ class Model:
         unique_keys: Sequence[UniqueKey] = (),
         comment: str | None = None,
         rename_all: CaseStyle | None = None,
+        hooks: ModelHooks | None = None,
     ) -> None:
+        from .active import hooks_of
+
         if isinstance(table, p.Table):
             if schema is not None:
                 raise p.ConstructionError(
@@ -173,6 +178,7 @@ class Model:
             "_unique_keys",
             tuple(_unique_key(key, declarations) for key in unique_keys),
         )
+        object.__setattr__(self, "_hooks", hooks_of(hooks))
         p._model_table(self._described())
 
     @property
@@ -184,6 +190,7 @@ class Model:
     def as_(self, alias: str) -> Model:
         aliased = Model(self.table.as_(alias), self.columns, comment=self.comment)
         object.__setattr__(aliased, "_unique_keys", self._unique_keys)
+        object.__setattr__(aliased, "_hooks", self._hooks)
         return aliased
 
     def _described(self) -> dict[str, Any]:
@@ -259,6 +266,14 @@ class Model:
             *(self.col(name).eq(values[name]) for name in self.primary_key)
         )
 
+    def active(self, values: Mapping[str, Any] | None = None) -> ModelActive:
+        """The fields one record write sets, whose ``insert``, ``update`` and
+        ``delete`` run the model's hooks around the write, as a Rust
+        ``ActiveModel``'s do."""
+        from .active import ModelActive
+
+        return ModelActive(self, {} if values is None else values)
+
     def insert(self, values: Mapping[str, Any]) -> ModelInsert:
         """An INSERT of one row, Rust's ``Insert::one``."""
         from .writes import ModelInsert, appended
@@ -297,31 +312,75 @@ class Model:
         on_delete: ReferentialAction | None = None,
         on_update: ReferentialAction | None = None,
         fk_name: str | None = None,
+        on_condition: OnCondition | None = None,
+        condition_type: ConditionType = "all",
     ) -> Relation:
         """A relation from this model's foreign key to the key of ``target``,
         whose actions and constraint name the table's foreign key takes when
-        ``schema.from_model`` writes it."""
+        ``schema.from_model`` writes it. ``on_condition``, given the two ends
+        as a join names them, adds a condition of its own, ANDed with the
+        fields' equality, or ORed when ``condition_type`` is ``"any"``."""
         from .relations import Relation
 
         return Relation(
-            "belongs_to", self, target, from_, to, on_delete, on_update, fk_name
+            "belongs_to",
+            self,
+            target,
+            from_,
+            to,
+            on_delete=on_delete,
+            on_update=on_update,
+            fk_name=fk_name,
+            on_condition=on_condition,
+            condition_type=condition_type,
         )
 
     def has_one(
-        self, target: Model, *, from_: str | Sequence[str], to: str | Sequence[str]
+        self,
+        target: Model,
+        *,
+        from_: str | Sequence[str],
+        to: str | Sequence[str],
+        on_condition: OnCondition | None = None,
+        condition_type: ConditionType = "all",
     ) -> Relation:
         """A relation from this model's key to at most one row of ``target``."""
         from .relations import Relation
 
-        return Relation("has_one", self, target, from_, to)
+        return Relation(
+            "has_one", self, target, from_, to, on_condition=on_condition, condition_type=condition_type
+        )
 
     def has_many(
-        self, target: Model, *, from_: str | Sequence[str], to: str | Sequence[str]
+        self,
+        target: Model,
+        *,
+        from_: str | Sequence[str],
+        to: str | Sequence[str],
+        on_condition: OnCondition | None = None,
+        condition_type: ConditionType = "all",
     ) -> Relation:
         """A relation from this model's key to any number of rows of ``target``."""
         from .relations import Relation
 
-        return Relation("has_many", self, target, from_, to)
+        return Relation(
+            "has_many", self, target, from_, to, on_condition=on_condition, condition_type=condition_type
+        )
+
+    def related(self, relation: Relation, *, via: Relation) -> Related:
+        """The path from this model through a junction, as a Rust ``Related``
+        implementation with a ``via`` declares it: ``via`` from this model to
+        the junction, then ``relation`` from the junction to the far end."""
+        from .relations import Related
+
+        return Related(self, relation, via)
+
+    def linked(self, *relations: Relation) -> Linked:
+        """A chain of relations from this model, each starting where the one
+        before it ends, as a Rust ``Linked`` type lists them."""
+        from .relations import Linked
+
+        return Linked(self, relations)
 
     def graph(self) -> Graph[Literal[False]]:
         """A graph rooted at this model, decoding its records alone until a
@@ -348,6 +407,7 @@ class Model:
                 }
                 for key in self._unique_keys
             ],
+            "hooks": list(self._hooks),
             "fields": {
                 name: {
                     "column": column.name,

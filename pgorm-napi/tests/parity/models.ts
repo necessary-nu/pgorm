@@ -3,7 +3,7 @@
 // with pgorm's own entities — `find`, `insert`, `update_many`,
 // `delete_many`, `SelectGraph` — or, where pgorm composes a statement inside
 // a terminal, with pgorm-query as that terminal does.
-// [spec:pgorm:req:bindings.graphs+1/test]
+// [spec:pgorm:req:bindings.graphs+2/test]
 
 import {
   call,

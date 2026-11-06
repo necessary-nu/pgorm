@@ -10,9 +10,13 @@ use super::{
     recipe::{Function, Literal, Recipe},
 };
 use crate::{
-    UnsupportedCapabilityError, entities::PyEntityColumn, errors::ConstructionError,
-    values::PyValue,
+    UnsupportedCapabilityError,
+    entities::PyEntityColumn,
+    errors::ConstructionError,
+    schema::column_type,
+    values::{PyValue, Tag},
 };
+use std::sync::Arc;
 
 pub(super) fn integer(value: &Bound<'_, PyAny>) -> PyResult<i64> {
     if !value.is_exact_instance_of::<PyInt>() {
@@ -91,6 +95,34 @@ pub(super) fn pipeline_col(
         Err(_) => Recipe::Column(table, alias_name(column)?),
     };
     PyPipelineExpr::compose(recipe, &[])
+}
+
+/// `pl.col(model, field)`: a declared model's field, the column its
+/// declaration names under the qualifier the model is read by, typed by the
+/// declaration through pgorm's `col_typed`; `convert` is the declaration's
+/// conversion of a value compared with it.
+// [spec:pgorm:req:bindings.pipeline-models]
+#[pyfunction]
+#[pyo3(signature = (table, column, kind, array, values, convert))]
+pub(super) fn pipeline_model_col(
+    table: &Bound<'_, PyAny>,
+    column: &Bound<'_, PyAny>,
+    kind: &Bound<'_, PyAny>,
+    array: bool,
+    values: Option<Vec<String>>,
+    convert: Py<PyAny>,
+) -> PyResult<PyPipelineExpr> {
+    let table = alias_name(table)?;
+    let column = alias_name(column)?;
+    let tag = Tag::parse(kind)?;
+    let tag = match array {
+        true => Tag::Array(Box::new(tag)),
+        false => tag,
+    };
+    let column_type = column_type(&tag, values.as_deref(), None)?;
+    let mut expression = PyPipelineExpr::compose(Recipe::Typed(table, column, column_type), &[])?;
+    expression.declared = Some(Arc::new(convert));
+    Ok(expression)
 }
 
 #[pyfunction]

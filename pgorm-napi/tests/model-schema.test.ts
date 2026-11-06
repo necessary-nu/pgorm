@@ -90,7 +90,7 @@ function cake(owner: ReturnType<typeof bakery>) {
 }
 
 // [spec:pgorm:req:bindings.schema-from-model/test]    every part of a declaration is written as an entity's
-// [spec:pgorm:req:bindings.relations+2/test]    a belongsTo relation's actions reach its foreign key
+// [spec:pgorm:req:bindings.relations+3/test]    a belongsTo relation's actions reach its foreign key
 test("every option of a declaration is written", () => {
   const [Cake, toBakery] = cake(bakery());
   const schema = fromModel(Cake, { relations: [toBakery] });
@@ -228,7 +228,7 @@ test("what the options cannot say is refused as the model is declared", () => {
 });
 
 // [spec:pgorm:req:bindings.schema-from-model/test]    the schema refuses relations it holds no key of, and unstated defaults
-// [spec:pgorm:req:bindings.relations+2/test]    only belongsTo takes a foreign key's options
+// [spec:pgorm:req:bindings.relations+3/test]    only belongsTo takes a foreign key's options
 test("the schema refuses what it holds no key of", () => {
   const owner = bakery();
   const [Cake, toBakery] = cake(owner);

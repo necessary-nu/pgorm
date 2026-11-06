@@ -186,7 +186,7 @@ impl Tx<'_, '_> {
     fn database(&self) -> Database<'_> {
         match self {
             Self::Plain(tx) => Database::Transaction(tx),
-            Self::Metered(tx) => Database::MeteredTransaction(tx),
+            Self::Metered(tx) => Database::InstrumentedTransaction(tx),
         }
     }
 }

@@ -73,6 +73,12 @@ async def invalid(connection: p.Connection) -> None:
     p.col("x").similar_to(p.any_(["a%"]))  # expected-error: arg-type
     p.col("doc").path_exists(p.col("path"))  # expected-error: arg-type
     pl.from_(p.Table("t")).filter_with(42)  # expected-error: arg-type
+    stalls = p.Model("stalls", {"id": p.Column("i64", primary_key=True)})
+    pl.col(stalls, stalls.col("id"))  # expected-error: call-overload
+    pl.from_(stalls).into_model(3)  # expected-error: call-overload
+    pl.from_(stalls).select_sources()  # expected-error: call-overload
+    pl.from_(stalls).select_sources(stalls, qualifiers=["stalls"])  # expected-error: call-overload
+    shop_rows: list[p.ModelRecord] = await pl.from_(stalls).select_sources(stalls).all(connection)  # expected-error: assignment
     optional: p.Record | None = await connection.query(  # expected-error: assignment
         p.select(p.literal(1))
     )
@@ -97,7 +103,30 @@ async def invalid(connection: p.Connection) -> None:
     await accounts.graph().offset(None).count(connection)  # expected-error: misc
     accounts.graph().limit(2).cursor("id")  # expected-error: misc
     accounts.graph().where(accounts.col("id") == 1).offset(1).paginate(10)  # expected-error: misc
+    # [spec:pgorm:req:bindings.relations+3/test]    a relation's condition type is a closed choice, and a load's query a model query
+    selves = accounts.has_many(accounts, from_="id", to="id")
+    accounts.has_many(accounts, from_="id", to="id", condition_type="either")  # expected-error: arg-type
+    await selves.load(connection, [], accounts)  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.related/test]    a related path names its junction's relation as via
+    accounts.related(selves)  # expected-error: call-arg
+    # [spec:pgorm:req:bindings.linked/test]    a chain is made of relations, and a hop is its index
+    accounts.linked(accounts)  # expected-error: arg-type
+    accounts.linked(selves).hop("r0")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.cursors+1/test]    a slot cursor's source is its index
+    accounts.graph().join_one(selves).cursor_on("1", "id")  # expected-error: arg-type
+    accounts.graph().join_one(selves).limit(2).cursor_on(1, "id")  # expected-error: misc
+    # [spec:pgorm:req:bindings.model-hooks/test]    a model's hooks are the four named functions, and a record write takes its database
+    p.Model("accounts", {"id": p.Column("i64", primary_key=True)}, hooks={"before_insert": lambda values, insert: values})  # expected-error: arg-type
+    await accounts.active({"id": 1}).insert()  # expected-error: call-arg
     insert, update, delete = accounts.insert({"id": 1}), accounts.update({"id": 2}), accounts.delete()
+    # [spec:pgorm:req:bindings.model-try-inserts/test]    a try-insert's RETURNING reads one row or a batch by its row count
+    await insert.on_conflict_do_nothing().returning().all(connection)  # expected-error: attr-defined
+    await accounts.insert_many([]).on_empty_do_nothing().returning().one(connection)  # expected-error: attr-defined
+    insert.on_conflict_do_nothing().returning_upsert(connection)  # expected-error: attr-defined
+    # [spec:pgorm:req:bindings.model-write-sources/test]    FROM and USING read a model, a table or a FROM item, and an insert reads neither
+    update.from_("accounts")  # expected-error: arg-type
+    delete.using(accounts.col("id"))  # expected-error: arg-type
+    insert.using(accounts)  # expected-error: attr-defined
     insert.where(accounts.col("id") == 1)  # expected-error: attr-defined
     insert.all_rows()  # expected-error: attr-defined
     await insert.returning_change(connection)  # expected-error: attr-defined
@@ -122,6 +151,9 @@ async def invalid(connection: p.Connection) -> None:
     p.entity("app.Account").col("id").describe()  # expected-error: attr-defined
     # [spec:pgorm:req:bindings.entity-versions+3/test]    an entity's insert is typed by its row count, each with its own upsert terminal alone
     registered = p.entity("app.Account")
+    # [spec:pgorm:req:bindings.entity-active-changes/test]    set_if_not_equals names a column and its value; is_changed takes nothing
+    registered.active().set_if_not_equals("id")  # expected-error: call-arg
+    registered.active().is_changed("id")  # expected-error: call-arg
     await registered.insert(registered.active()).returning_upserts(connection)  # expected-error: attr-defined
     await registered.insert_many([registered.active()]).returning_upsert(connection)  # expected-error: attr-defined
     # [spec:pgorm:req:bindings.disjoint-unkinded/test]    an unkinded disjoint model has no writes and no schema, and takes no kind options
@@ -146,7 +178,7 @@ async def invalid(connection: p.Connection) -> None:
     projection.column(p.col("id"))  # expected-error: arg-type
     # [spec:pgorm:req:bindings.partial-models/test]    a partial model's field is a model column, a FromExpr or a Skip
     p.PartialModel(accounts, {"id": "id"})  # expected-error: dict-item
-    # [spec:pgorm:req:bindings.cursor-secondary-order/test]    a secondary ordering names a model, not a table's name
+    # [spec:pgorm:req:bindings.cursor-secondary-order+1/test]    a secondary ordering names a model, not a table's name
     accounts.find().cursor("id").add_secondary_order_by("accounts", "id")  # expected-error: arg-type
     # [spec:pgorm:req:bindings.model-clauses/test]    a model query's lock takes a LockStrength
     accounts.find().lock("update")  # expected-error: arg-type

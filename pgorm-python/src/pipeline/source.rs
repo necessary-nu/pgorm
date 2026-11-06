@@ -98,10 +98,7 @@ pub(super) fn pipeline_source(value: &Bound<'_, PyAny>) -> PyResult<PySource> {
         });
     }
     if let Ok(table) = value.extract::<PyRef<'_, PyTable>>() {
-        return Ok(PySource {
-            relation: Relation::Table(table.inner.clone()),
-            alias: table.inner.alias.as_ref().map(|alias| alias.to_string()),
-        });
+        return Ok(table_source(&table));
     }
     if let Ok(entity) = value.extract::<PyRef<'_, PyEntity>>() {
         let info = entity.backend.info();
@@ -114,7 +111,29 @@ pub(super) fn pipeline_source(value: &Bound<'_, PyAny>) -> PyResult<PySource> {
             alias: None,
         });
     }
+    // A module that embeds the binding without its Python package, as an
+    // application's Rust tests do, has no declared models to be given.
+    // [spec:pgorm:req:bindings.pipeline-models]
+    if let Ok(model) = value
+        .py()
+        .import("pgorm.models")
+        .and_then(|models| models.getattr("Model"))
+        && value.is_instance(&model)?
+    {
+        let table = value.getattr("table")?;
+        let table = table.extract::<PyRef<'_, PyTable>>()?;
+        return Ok(table_source(&table));
+    }
     Err(PyTypeError::new_err(
-        "pipeline source requires a Table, Entity, Pipeline or named Source",
+        "pipeline source requires a Table, Model, Entity, Pipeline or named Source",
     ))
+}
+
+/// A table read under its alias when it has one: a `Table`'s, or a declared
+/// model's.
+fn table_source(table: &PyTable) -> PySource {
+    PySource {
+        relation: Relation::Table(table.inner.clone()),
+        alias: table.inner.alias.as_ref().map(|alias| alias.to_string()),
+    }
 }

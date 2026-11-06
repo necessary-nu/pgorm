@@ -134,7 +134,7 @@ pub(crate) fn names<'cx>(cx: &mut Cx<'cx>, info: &EntityInfo) -> JsResult<'cx, J
     Ok(array)
 }
 
-fn list<'cx, T>(
+pub(crate) fn list<'cx, T>(
     cx: &mut Cx<'cx>,
     items: Vec<T>,
     mut each: impl FnMut(&mut Cx<'cx>, T) -> JsResult<'cx, JsValue>,

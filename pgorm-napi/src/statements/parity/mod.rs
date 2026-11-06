@@ -201,7 +201,7 @@ fn schema_family_matches_its_golden_file() {
     check(include_str!("../../../tests/parity/schema.json"), cases);
 }
 
-// [spec:pgorm:req:bindings.pipeline/test]
+// [spec:pgorm:req:bindings.pipeline+1/test]
 // [spec:pgorm:req:bindings.pipeline-expressions+3/test]
 // [spec:pgorm:req:bindings.pipeline-binder/test]
 #[test]

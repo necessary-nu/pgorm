@@ -11,10 +11,11 @@ use super::{
 };
 use crate::{
     errors::ConstructionError, execution::Executor, expressions::Compiled, results,
-    statements::Join,
+    statements::Join, values::PyTypeName,
 };
+use pgorm::pgorm_query::Name;
 
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 /// An immutable wrapper owning the real Rust Pipeline, including its bound values.
 #[pyclass(name = "Pipeline", module = "pgorm.pipeline", frozen, from_py_object)]
 #[derive(Clone, Debug)]
@@ -239,13 +240,84 @@ impl PyPipeline {
         self.compile(terminal)
     }
 
-    #[pyo3(signature = (selection, *, qualifiers=None))]
-    fn select_sources(
+    /// A registered source tuple's entities (`bindings.pipeline-sources`), or
+    /// declared models' records, one model or more each restating a relation
+    /// the pipeline read (`bindings.pipeline-models`).
+    #[pyo3(signature = (selection, *models, qualifiers=None))]
+    fn select_sources<'py>(
         &self,
-        selection: PyRef<'_, super::PySourceSelection>,
+        py: Python<'py>,
+        selection: &Bound<'py, PyAny>,
+        models: &Bound<'py, PyTuple>,
         qualifiers: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<super::PySelectedSources> {
-        selection.select(self, qualifiers)
+    ) -> PyResult<Bound<'py, PyAny>> {
+        if let Ok(registered) = selection.extract::<PyRef<'_, super::PySourceSelection>>() {
+            if !models.is_empty() {
+                return Err(PyTypeError::new_err(
+                    "select_sources takes one registered source tuple, or models alone",
+                ));
+            }
+            return Ok(Py::new(py, registered.select(self, qualifiers)?)?
+                .into_bound(py)
+                .into_any());
+        }
+        if qualifiers.is_some_and(|value| !value.is_none()) {
+            return Err(PyTypeError::new_err(
+                "qualifiers name a registered source tuple's relations; a model is read by its own name or alias",
+            ));
+        }
+        let mut sources = vec![selection.clone()];
+        sources.extend(models.iter());
+        typed(py, "select_models", (self.clone(), sources))
+    }
+
+    /// The rows staged as a model's records or a function's results, as
+    /// Rust's `into_model::<M>` stages them (`bindings.pipeline-models`).
+    // [spec:pgorm:req:bindings.pipeline-models]
+    #[pyo3(name = "into_model")]
+    fn staged_model<'py>(
+        &self,
+        py: Python<'py>,
+        target: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        typed(py, "into_model", (self.clone(), target))
+    }
+
+    /// The rows staged as tuples read by position, as Rust's `into_tuple`
+    /// stages them (`bindings.pipeline-models`).
+    // [spec:pgorm:req:bindings.pipeline-models]
+    #[pyo3(name = "into_tuple")]
+    fn staged_tuple<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        typed(py, "into_tuple", (self.clone(),))
+    }
+
+    /// pgorm's `select_described`: the projection of each declared model
+    /// `sources` describes, its qualifier and each column with the type it is
+    /// read as where its record reads it cast.
+    // [spec:pgorm:req:bindings.pipeline-models]
+    #[allow(clippy::type_complexity)]
+    fn _select_described(
+        &self,
+        sources: Vec<(String, Vec<(String, Option<PyRef<'_, PyTypeName>>, bool)>)>,
+    ) -> PyResult<Self> {
+        let sources = sources.into_iter().map(|(qualifier, columns)| {
+            columns.into_iter().fold(
+                pl::DescribedSource::new(Name::runtime(qualifier)),
+                |source, (column, read_as, array)| {
+                    let read_as = read_as.map(|name| match array {
+                        true => name.rust_type().array(),
+                        false => name.rust_type(),
+                    });
+                    source.column(Name::runtime(column), read_as)
+                },
+            )
+        });
+        let inner = self
+            .inner
+            .clone()
+            .select_described(sources.collect::<Vec<_>>())
+            .map_err(|error| ConstructionError::new_err(error.to_string()))?;
+        Ok(Self { inner })
     }
 
     fn all<'py>(
@@ -277,6 +349,31 @@ impl PyPipeline {
             "pipelines cannot be tested as Python booleans",
         ))
     }
+}
+
+/// The staged read `pgorm.pipeline` makes of `arguments` through its helper
+/// `name`, which decodes the rows as records of the binding's models.
+fn typed<'py>(
+    py: Python<'py>,
+    name: &str,
+    arguments: impl pyo3::call::PyCallArgs<'py>,
+) -> PyResult<Bound<'py, PyAny>> {
+    py.import("pgorm.pipeline._typed")?
+        .getattr(name)?
+        .call1(arguments)
+}
+
+/// The rows `statement` reads, each a tuple of its values in column order,
+/// for a staged `into_tuple()` read.
+// [spec:pgorm:req:bindings.pipeline-models]
+#[pyfunction]
+pub(super) fn pipeline_tuples<'py>(
+    py: Python<'py>,
+    connection: &Bound<'_, PyAny>,
+    statement: &Bound<'_, PyAny>,
+    terminal: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    results::fetch_tuples(py, Executor::extract(py, connection)?, statement, terminal)
 }
 
 #[pyclass(

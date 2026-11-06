@@ -288,9 +288,9 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Here Python differs from Rust: a graph's cursor orders by fields of its root
-only. Rust's `cursor_by_on`, ordering by the columns of one of the related
-tables, is not available in Python yet.
+A graph's `cursor_on(source, *fields)` orders by fields of one of its slots
+instead, the first slot `1`, as Rust's `cursor_by_on` does, and
+[Relations](07-relations.md#limits-pages-and-cursors) shows one.
 
 ## Paginating raw SQL
 

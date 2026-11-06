@@ -89,8 +89,7 @@ class ModelQuery(Clauses):
         recipe = self.recipe
         if not fields:
             raise p.ConstructionError("a cursor orders by at least one field")
-        qualifier = recipe.model.qualifier
-        order = tuple((recipe.model, qualifier, recipe.model.col(name).field_name) for name in fields)
+        order = tuple(recipe.model.col(name) for name in fields)
         return Cursor(
             Keyed(
                 lambda orders, wheres, limit: recipe.select(orders, wheres, limit),

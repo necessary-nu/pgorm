@@ -192,12 +192,14 @@ class Clauses:
         alias: str | None = None,
     ) -> Self:
         """Join the table at the far end of ``relation``, from the query's
-        model or a table it joined, without reading its columns."""
+        model or a table it joined, without reading its columns: the first
+        table of the relation's model the query reads, or the one its
+        ``from_alias`` names."""
         from .relations import Relation, joined_on
 
         if not isinstance(relation, Relation):
             raise TypeError("a model query joins a Relation")
-        start = self._start(relation.from_, "starts", kind)
+        start = self._start(relation.from_, "starts", kind, relation.start)
         end = relation.to
         table, qualifier = _joined_table(end, alias)
         on = joined_on(relation, start, qualifier)
@@ -223,13 +225,24 @@ class Clauses:
         on = joined_on(relation, qualifier, start)
         return self._joined(Joined(end, table, qualifier, on, kind))
 
-    def _start(self, model: Model, end: str, kind: p.Join) -> str:
+    def _start(self, model: Model, end: str, kind: p.Join, named: str | None = None) -> str:
         """The name of the table the join starts from, ``model``'s, which the
-        relation ``end`` at."""
+        relation ``end`` at: the one answering to ``named`` where a
+        ``from_alias`` names it, otherwise the first of ``model``'s the query
+        reads."""
         from .relations import same_table
 
         if not any(kind == known for known in _JOINS):
             raise TypeError("a model join is Join.Inner, Join.Left, Join.Right or Join.Full")
+        if named is not None:
+            read = next((table for table, q in self.recipe.tables() if q == named), None)
+            if read is None:
+                raise p.ConstructionError(f"the query reads no table called {named!r}")
+            if not same_table(read, model):
+                raise p.ConstructionError(
+                    f"{named!r} is {read.table.name}, where the relation {end} at {model.table.name}"
+                )
+            return named
         start = next((q for read, q in self.recipe.tables() if same_table(read, model)), None)
         if start is None:
             raise p.ConstructionError(

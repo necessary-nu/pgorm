@@ -13570,7 +13570,6 @@ children (
                         title "A model query's cursor takes a secondary ordering after its key, so after() skips a whole run of one key while afterWith() resumes inside it, as Rust's Cursor::add_secondary_order_by and after_with do (guide 06-pagination)"
                         implements {
                             javascript ([spec:pgorm:req:bindings.cursor-secondary-order])
-                            python ([spec:pgorm:req:bindings.cursor-secondary-order])
                         }
                         deps (napi-models guide.javascript)
                         log (
@@ -13587,6 +13586,21 @@ children (
                                 kind @decision
                                 text "Cursor.addSecondaryOrderBy(model, field) (Python add_secondary_order_by), Rust's add_secondary_order_by(table, column): the model names the table as the query names it, its alias included, and must be the queried model or one the query joined (ConstructionError otherwise); the field's declared kind converts its boundary value. It appends a tiebreak after the key and the entries before it, so after()/before() take the key alone and afterWith()/beforeWith() the whole ordering (the bindings' existing keyset logic). Graph cursors take it too, appended after the graph's own key tiebreaks. A selector's cursor (a projection read into tuples or objects) takes it the same way. This also gives a cursor ordered by a joined table's column, as a secondary entry."
                             }
+
+                            {
+                                at 2026-11-05T19:50:31.221284Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "From the guide.python-gaps.model-relations lane: Python's Cursor.add_secondary_order_by(column) is built and its shape held in docs/spec/bindings.md as bindings.cursor-secondary-order (a model's column, qualified as the query names its table, appended after the key and the tiebreaks; after/before take the key alone, after_with/before_with the whole ordering). This node was given that rule's javascript claim, and bindings-surface.json lists pgorm.Cursor.add_secondary_order_by as a javascript gap naming this node, so JavaScript's cursor takes it in the same shape (addSecondaryOrderBy(column)) and closes the gap."
+                            }
+
+                            {
+                                at 2026-11-06T09:30:10.477268Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "On merging main f0c3c867 (whose model-relations lane built Python's add_secondary_order_by(column) under the same rule id), the two-argument form stands in both bindings; see guide.python-gaps.model-relations' decision note. This node keeps the javascript claim and the model-relations node the python one; bindings-surface.json's javascript gap for Cursor.add_secondary_order_by is closed, since addSecondaryOrderBy exists."
+                                after_done true
+                            }
                         )
                     }
 
@@ -13600,18 +13614,103 @@ children (
                         id napi.guide-gaps.relation-loaders
                         title "Relation.load takes a filtered, ordered query of the far end and follows a junction, as Rust's load_one(Select), load_many(Select) and load_many_via do (guide 07-relations)"
                         deps (napi-models guide.javascript)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-05T19:36:35.683665Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:36:35.683665Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "single-flight overridden: started while guide.python-gaps.model-relations had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T19:50:27.361439Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built with Python's in one shape (see guide.python-gaps.model-relations' decision): relation.load(db, rows, { query }) and Related.load(db, rows, { query }) read the far end's query with the starting model joined back under pgorm_loader_src, as pgorm's loader does; a key nothing matches is null, as Rust's load_one gives, where it was a DecodeError. The rules are bindings.relations+2 and bindings.related; this node claims none of its own, so it completes after its delivery commit."
+                            }
+
+                            {
+                                at 2026-11-05T20:17:43.387475Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.relation-conditions
                         title "A model relation carries a condition of its own, and a declared path through a junction that one find call follows, as Rust's on_condition and a Related implementation with via do for find_related (guide 03-entities)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.related] [spec:pgorm:req:bindings.linked])
+                        }
                         deps (napi-models guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T19:36:34.31633Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:36:34.31633Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "single-flight overridden: started while guide.python-gaps.model-relations had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T19:50:29.875006Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built with Python's in one shape (see guide.python-gaps.model-relations' decision): belongsTo/hasOne/hasMany take onCondition, a function of the two ends as models answering to the join's names, and conditionType \"all\"/\"any\"; Model.related(relation, { via }) is the Related path whose find joins through the junction keyed by the start's primary key; Model.linked(...relations) is the Linked chain (find, findLinked, hop, lastHop). JavaScript's guide said a Linked chain was a stated difference (a chain of joins); it is built anyway so the two bindings keep one shape."
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.graph-joins
                         title "A model graph joins a relation starting from an aliased via hop, narrows an optional slot's ON with a predicate, and orders a cursor by a slot's columns, as Rust's via_as with RelationDef::from_alias, join_maybe_filtered and cursor_by_on do (guide 07-relations)"
                         deps (napi-models guide.javascript)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-05T19:36:36.516308Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:36:36.516308Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "single-flight overridden: started while guide.python-gaps.model-relations had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T19:50:28.807766Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built with Python's in one shape (see guide.python-gaps.model-relations' decision): relation.fromAlias(name) starts a graph edge from any table the graph reads under that name, a via hop included (Rust's via_as with RelationDef::from_alias; the graph's via already took { alias }); joinMaybeFiltered(relation, (from, to) => predicate) ANDs the predicate into the ON; cursorOn(source, ...fields), 1 the first slot, ties broken by that slot's key, then the root's and the other slots'. The rules are bindings.graphs+2 and bindings.cursors+2, owned by binding-spec-consolidation; this node claims none of its own, so it completes after its delivery commit."
+                            }
+
+                            {
+                                at 2026-11-05T20:17:43.732408Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
+                            }
+                        )
                     }
 
                     {
@@ -13867,12 +13966,53 @@ children (
                         id napi.guide-gaps.entity-select-reads
                         title "A registered entity's Select<E> counts, streams, pages, takes a cursor and joins a relation from JavaScript, as Rust's Select count, stream, paginate, cursor_by and join methods do (guide 24-registered-entities)"
                         deps (napi-entities guide.javascript)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-05T18:56:40.752132Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T21:09:32.119219Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built in the same shape as Python's (see guide.python-gaps.registered-reads's decision): EntityQuery count/stream/paginate/cursor(...columns)/join(Entity.relation(name), { kind })/select(...columns), EntityPaginator, EntityCursor, EntitySelection, EntityRelation; EntityGraphQuery cursor(...columns), cursorOn(source, ...columns), count, paginate, allGrouped, stream; EntityGraphCursor extends EntityCursor with beforeWith/afterWith and gains inspect. connectionStream's decoder argument now takes a registered read's decoder beside a disjoint read's (one RowDecode in connect/stream.rs), and lib/connections.js's disjointStream became decodedStream for both."
+                            }
+
+                            {
+                                at 2026-11-05T22:16:53.555552Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
+                            }
+                        )
                     }
 
                     {
                         id napi.guide-gaps.pipeline-models
                         title "A pipeline reads a declared model as a source, its columns named by field and compared by kind, and selectSources decodes declared models' records, as Rust's Pipeline::from(entity), its Column steps and select_sources do (guide 12-pipeline)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.pipeline-models])
+                        }
                         deps (napi-pipeline napi-models guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T18:56:42.074984Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:45:30.4179Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Built in one shape with guide.python-gaps.pipeline-typed (see its decision note and bindings.pipeline-models): pipeline.from(Model) and every relation position take a declared model; pipeline.col(Model, field) is a typed column (an internal ModelPipelineColumn whose comparisons, coalesce and inArray convert through columnValue and bind through pgorm's col_typed); selectSources(...models) over pgorm's select_described, rows tuples of records or null; intoModel(Model | fn) and intoTuple() give a PipelineSelector. The typed column is declared as an interface PipelineColumn<I> in pipeline.d.ts, so a label the column does not list, null and a value of another kind are type errors."
+                            }
+                        )
                     }
 
                     {
@@ -13921,10 +14061,73 @@ children (
                             }
 
                             {
+                                at 2026-11-05T21:46:16.479005Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "From guide.python-gaps.model-writes (commit f095733a): an empty model insert batch now takes onConflict and sends nothing in both bindings, as Rust's does, which the try-inserts needed; that part of this node is done there."
+                            }
+
+                            {
                                 at 2026-11-06T06:59:26.480598Z
                                 author "brendan@necessary.nu"
                                 kind @status
                                 text "Doing → Done (nplan complete)"
+                            }
+                        )
+                    }
+
+                    {
+                        id napi.guide-gaps.model-writes
+                        title "JavaScript writes have Rust's write surface, as Python's: a model insert's onConflictDoNothing and onEmptyDoNothing give a try-insert answering inserted, conflicted or empty (TryInsert, TryInsertResult); a model update's from and a delete's using read another table (Update::many(..).from, Delete::many(..).using); a registered ActiveModel's setIfNotEquals and isChanged (guide 04-writing)"
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.model-try-inserts] [spec:pgorm:req:bindings.model-write-sources] [spec:pgorm:req:bindings.entity-active-changes])
+                        }
+                        deps (napi-models napi-entities guide.javascript)
+                        log (
+                            {
+                                at 2026-11-05T21:33:41.038525Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T21:33:41.038525Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "single-flight overridden: started while guide.python-gaps.model-writes had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T22:35:13.46998Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead decision pending operator override: a declared model takes write hooks as callables in both bindings, the dialect of ActiveModelBehavior — beforeSave(record, insert), afterSave(record, insert), beforeDelete(record), afterDelete(record), given as model(name, { hooks }) and possibly returning a promise — run around the model's own record writes with Rust's refusal semantics, statement-builder writes over many rows (where/allRows, update from, delete using) running none. See guide.python-gaps.model-writes' decision for the whole shape."
+                            }
+                        )
+                    }
+
+                    {
+                        id napi.guide-gaps.model-hooks
+                        title "A declared JavaScript model takes write hooks, the dialect of ActiveModelBehavior: beforeSave(record, insert), afterSave(record, insert), beforeDelete(record), afterDelete(record), possibly returning a promise, given as model(name, { hooks }), run around the model's own record writes with Rust's refusal semantics, statement-builder writes over many rows running none, in one shape with Python's (guide 03-entities Hooks)"
+                        kind @feat
+                        implements {
+                            javascript ([spec:pgorm:req:bindings.model-hooks])
+                        }
+                        deps (napi-models guide.javascript napi.guide-gaps.model-writes)
+                        log (
+                            {
+                                at 2026-11-05T23:05:00.725823Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T07:01:36.480402Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead decision, pending operator override, the same shape as guide.python-gaps.model-hooks: model(name, { columns, hooks: { beforeSave(values, insert), afterSave(record, insert), beforeDelete(values), afterDelete(values) } }), each optional and free to return a promise, run around Model.active(values)'s insert/update/delete (lib/model-active.js, ModelActive), the statement builders running none; describe().hooks lists them. Rule bindings.model-hooks."
                             }
                         )
                     }
@@ -19782,6 +19985,13 @@ children (
                         kind @note
                         text "Filed 2026-11-06. The raw-sql lane reported that the retry serve functions and Frame::serve are near-identical between pgorm-napi and pgorm-python, like the rest of both bindings' transaction code. They are below the duplication gate's threshold, but the duplication is real. The relations lane reported the same for the type-erased cursor and paginator (Paged, Keyed), which it is moving into pgorm now. The operator does not accept the same logic in two crates: read both crates side by side and move every shared piece into one place both depend on, either pgorm or an unpublished binding-runtime crate that depends on neither language framework. Leave in each crate only the language glue (PyO3 / Neon conversion and settlement)."
                     }
+
+                    {
+                        at 2026-11-06T08:53:12.300199Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The type-erased reads part is done by guide.python-gaps.shared-erased-reads (6f5d86e8, branch nplan/guide.python-gaps.model-relations). It moved into pgorm: DatabaseRef<'a, M> (src/database/database_ref.rs, rule conn.database-ref), now both bindings' executor enum (each binding keeps only `type Database<'a> = pgorm::DatabaseRef<'a, Metrics>`); ErasedPages + PagedRead (was each binding's Paged/Pages), ErasedCursor + KeyedRead under CursorPlan/CursorWindow (was Keyed/Keyset and each binding's Plan), select_cursor, graph_cursor / graph_cursor_on over a key chosen at run time (was each binding's by-arity macro), graph_cursor_key (was key_of's ordering logic), boundary_columns + KeyArity (was each binding's boundary-arity check), grouped_read / GroupedRead (was grouped_by), all in src/executor/erased.rs (rules exec.cursor.erased, exec.paginator.erased). What stays in each binding is glue: mapping keys to its own EntityInfo and PyO3 / Neon conversion. Still to do under this node: the transaction frame and retry serve functions, and the capability and refusal plumbing."
+                    }
                 )
             }
         )
@@ -19896,13 +20106,74 @@ children (
                     {
                         id guide.python-gaps.model-relations
                         title "Declared models follow relations as entities do: a relation's on_condition; Related through a junction (find_related); Linked chains (find_linked, LinkedAlias::hop, last_hop_alias), a chain continuing from a second visit to one table included; load_many with a Select and load_many_via; a graph's related_one and related_maybe; from_alias on a via hop; join_maybe_filtered; cursor_by_on over a slot's columns and add_secondary_order_by"
+                        implements {
+                            python ([spec:pgorm:req:bindings.related] [spec:pgorm:req:bindings.linked] [spec:pgorm:req:bindings.cursor-secondary-order])
+                        }
                         deps (python.models python.graph)
+                        log (
+                            {
+                                at 2026-11-05T19:50:25.670514Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Shape, held in bindings.relations+2, bindings.related, bindings.linked, bindings.graphs+2, bindings.cursors+2 and bindings.cursor-secondary-order and built the same way in both bindings (host code over the statement builders, as the model layer already is): (1) on_condition is a relation option, a function of the two ends given as the models answering to the join's names (Rust's closure gets the names; a model's col(field) then converts by kind), with condition_type \"all\"/\"any\" strings as describe() already spells it; (2) a junction path is Model.related(relation, via=junction_relation) -> Related (find, load), Rust's Related with a via; (3) a chain is Model.linked(*relations) -> Linked (find, find_linked, hop(i), last_hop()), hops aliased r0.. walked back from the far end as find_linked does; hop/last_hop return the aliased model rather than the alias name; (4) Relation.from_alias(name), as RelationDef::from_alias, starts a model query's join or a graph edge (a via hop included) from the table under that name; (5) loads follow pgorm's loader: an optional query of the far end, the starting model joined back under pgorm_loader_src, rows filed by the key read back; a key nothing matches now gives None/null as Rust's load_one does (was a DecodeError), two distinct rows for a one-relation key stays a DecodeError; (6) finds that join the start back (on_condition, Related, Linked) key it by its primary key as find_related does; (7) graph.join_maybe_filtered, related_one/related_maybe (a Relation or a Related; related_one joins the junction INNER), cursor_on(source, *fields) with 1 the first slot. Python Cursor.add_secondary_order_by(column) is built here; JavaScript's is napi.guide-gaps.cursor-secondary-order's (the declared-models lane), listed as a javascript gap in bindings-surface.json and given the rule's javascript claim."
+                            }
+
+                            {
+                                at 2026-11-05T20:18:05.135494Z
+                                author "brendan@necessary.nu"
+                                kind @errata
+                                text "The decision above names bindings.relations+2, bindings.graphs+2 and bindings.cursors+2; an unversioned rule is version 0, so the bumps are +1, which 05bb459b pins everywhere."
+                                after_done true
+                            }
+
+                            {
+                                at 2026-11-06T09:30:10.014436Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Merged with the declared-models lane (nplan/guide.python-gaps.model-ddl), which had built the same cursor ordering in both bindings under the same rule id as add_secondary_order_by(model, field) / addSecondaryOrderBy(model, field). One API was kept, decided by that lane pending operator override: the two-argument form, Rust's add_secondary_order_by(table, column) spelled with the model for the table, which also refuses a model the query reads under no such name (ConstructionError) before anything is sent. It is built on this lane's representation (Keyed.order and tiebreaks are ModelColumns; the method appends model._column(field, model.qualifier)), so graph cursors and cursor_on are unchanged, and comparisons now go through the ModelColumn, taking the column's casts. bindings.cursor-secondary-order is +1 with the merged text (graph sources named); this node's tests moved to the two-argument form, and public_types_invalid keeps one arg-type case."
+                                after_done true
+                            }
+                        )
                     }
 
                     {
                         id guide.python-gaps.model-writes
                         title "Python writes have Rust's write surface: TryInsert and TryInsertResult (on_conflict_do_nothing on the key, on_empty_do_nothing, Conflicted, Empty); set_if_not_equals and is_changed on a registered ActiveModel; a declared model's update FROM and delete USING; and write hooks (ActiveModelBehavior) for a declared model"
+                        implements {
+                            main ([spec:pgorm:req:entity.active-model.set-if-not-equals])
+                            python ([spec:pgorm:req:bindings.model-try-inserts] [spec:pgorm:req:bindings.model-write-sources] [spec:pgorm:req:bindings.entity-active-changes])
+                        }
                         deps (python.models python.entities)
+                        log (
+                            {
+                                at 2026-11-05T20:52:32.538422Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T20:52:32.538422Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "single-flight overridden: started while guide.python-gaps.pipeline-typed had uncommitted WIP"
+                            }
+
+                            {
+                                at 2026-11-05T21:46:16.18898Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Shape, built in both bindings (JS via napi.guide-gaps.model-writes) and held in bindings.model-try-inserts and bindings.model-write-sources: (1) a declared model's insert takes on_conflict_do_nothing() (ON CONFLICT on the primary key DO NOTHING, or ON CONFLICT DO NOTHING with no key) and on_empty_do_nothing() (statement unchanged), giving ModelTryInsert / ModelTryInsertMany typed by row count as TryInsert<A, OneRow|ManyRows>; execute answers TryInsertResult (Python: TryInsertResult.Inserted(value) / Conflicted() / Empty(); JavaScript: {kind: \"inserted\", value} / {kind: \"conflicted\"} / {kind: \"empty\"}), and returning(*fields) gives ModelTryRow.one / ModelTryRows.all answering the same way; no rows and a row setting no field are Empty and send nothing, as TryInsert answers an all-NotSet model; (2) an empty batch now takes on_conflict and still sends nothing, as Rust's does (it was a ConstructionError in both bindings); (3) ModelUpdate.from_ (JS from) and ModelDelete.using take another model, a Table or a FROM item, and RETURNING is then qualified by the model's table so the other table's same-named columns cannot be ambiguous. Hooks for a declared model are recorded as a stated difference, not a gap: Rust runs ActiveModelBehavior only around an ActiveModel's insert/update/delete, and a declared model's writes are statement builders (Rust's Insert::one, Update::many, Delete::many), which run no hooks in Rust either; bindings.models says no ActiveModel hook is behind a declared model, and both guides' Hooks sections already say so."
+                                after_done true
+                            }
+
+                            {
+                                at 2026-11-05T22:35:12.932797Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead decision pending operator override, replacing this node's earlier \"hooks are a stated difference\" note: a declared model takes its hooks as callables, the dialect of ActiveModelBehavior, in both bindings — before_save(record, insert), after_save(record, insert), before_delete(record), after_delete(record) (JS beforeSave/afterSave/beforeDelete/afterDelete), declared on the model (Model(..., hooks=...) / model(name, { hooks })), run around the model's own record writes (its insert/update/delete of a record and their returning terminals) with Rust's refusal semantics (a before_* error refuses the write, an after_* error is the write's error); Python hooks may be async and JavaScript hooks may return a promise; statement-builder writes (an update or delete over many rows by where/all_rows, an update FROM / delete USING) run no hooks, as Rust's statement builders run none. To be held in a new rule (bindings.model-hooks) and bindings-surface.json, with typings, rejection cases, live tests in both suites and both Hooks sections teaching them."
+                            }
+                        )
                     }
 
                     {
@@ -19945,7 +20216,26 @@ children (
                     {
                         id guide.python-gaps.pipeline-typed
                         title "A Python pipeline decodes into declared models as Rust's does into entities: select_sources over declared models, and the typed terminals all::<M>, into_model and into_tuple, where today every pipeline over models returns records"
+                        implements {
+                            main ([spec:pgorm:sem:pipeline.described])
+                            python ([spec:pgorm:req:bindings.pipeline-models])
+                        }
                         deps (python.pipeline)
+                        log (
+                            {
+                                at 2026-11-05T18:56:36.798525Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T19:45:28.815159Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Shape (shared with napi.guide-gaps.pipeline-models, held in bindings.pipeline-models): a declared model is a pipeline source anywhere a relation is (from/source/join/append/intersect/remove), read as its table under its alias; col(model, field) is the field's column under the model's qualifier and SQL name, typed through a new pgorm API pipeline::col_typed(table, column, &ColumnType) (rule pipeline.described) so it compares as an entity column of that kind (enum label cast to the enum, a created range's text to its type, a domain over an enum as the enum); a value compared with it converts through the field's declaration (Python: a converter the native expression carries; JS: a typed column subclass) and binds its payload under the column's cast. select_sources(*models) runs pgorm's new Pipeline::select_described (the runtime counterpart of select_sources, same writer, same ReshapedSources refusal) and decodes each model like a graph's optional slot, rows always tuples (as the registered form is). into_model(Model | function) and into_tuple() stage reads (Rust's into_model::<M>/into_tuple::<T>, all::<M> being into_model(M).all); all three return a PipelineSelector (all/one/optional/inspect). into_model(function) matches the declared-models lane's ModelSelector spelling (Python callable(**row), JS fn(row)). The Rust additions are new items in src/pipeline/described.rs; select_sources' projection append is shared with them (appended_projection), not duplicated. bindings.pipeline bumped to +1 for the model source."
+                            }
+                        )
                     }
 
                     {
@@ -19970,6 +20260,29 @@ children (
                         id guide.python-gaps.registered-reads
                         title "Registered entities and graphs read as Rust's do: an entity's stream and partial projections; a graph's stream and grouping, cursors over slot columns and composite orders, cursor SQL inspection and graphs of more than seven sources; and a paginator's fetch, advance and fetch_and_next"
                         deps (python.entities python.graph)
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-05T18:56:35.902673Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T21:09:31.258046Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Registered reads built through pgorm's own APIs in both bindings: count = PaginatorTrait::count; paginate = PaginatorTrait::paginate with Paginator::{fetch_page, num_items_and_pages} (an EntityPaginator holding no database and no current page, pages() the loop); cursor(*columns) = Select::cursor_by over a runtime Key; graph cursor(*columns) = SelectGraph::cursor_by and cursor_on(source, *columns) = cursor_by_on::<I, _>, both over one to six columns, dispatched per slot position and key arity inside the GraphSlots impls; boundaries go through Cursor::before_with/after_with so the key type is erased and pgorm checks the arity (so after_with now also takes the order columns' arity, as Rust's does, where the old registered graph cursor refused it); stream = the read's statement through the connection's stream with a native decoder running the selector's from_raw_query_result per row (SelectModel<E::Model> / GraphRow<E, S>); all_grouped only on (Opt<F>,) graphs via RegisteredSlot::grouped; join(entity.relation(name)) = QuerySelect::join of the Relation variant's def; select(*columns) = select_only + columns, rows read as plain records (a binding cannot name a PartialModel or tuple at run time, stated as a dialect difference). Two items judged no gap: a paginator's current page (fetch/advance/fetch_and_next/cur_page) stays the stated immutable-builder difference the pagination chapter already gives, and a graph of more than seven sources does not exist in Rust (SelectGraph holds at most six slots), which the chapter now says. Rules bumped: bindings.entity-reads+4, bindings.entity-graphs+4."
+                            }
+
+                            {
+                                at 2026-11-05T22:16:52.934743Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
+                            }
+                        )
                     }
 
                     {
@@ -20296,6 +20609,99 @@ children (
                                 text "Todo → Done (nplan complete)"
                             }
                         )
+                    }
+
+                    {
+                        id guide.python-gaps.model-hooks
+                        title "A declared Python model takes write hooks as callables, the dialect of ActiveModelBehavior: before_save(record, insert), after_save(record, insert), before_delete(record), after_delete(record), possibly async, given as Model(..., hooks=...), run around the model's own record writes with Rust's refusal semantics, statement-builder writes over many rows (where/all_rows, update from, delete using) running none (lead decision pending operator override; guide 03-entities Hooks)"
+                        kind @feat
+                        implements {
+                            python ([spec:pgorm:req:bindings.model-hooks])
+                        }
+                        deps (python.models guide.python-gaps.model-writes)
+                        log (
+                            {
+                                at 2026-11-05T22:40:48.853106Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Filed by fork W of the model-relations lane, which ran short of turns before building it. Open design point the builder must settle with the lead: a declared model has no record-level update or delete (its update/delete are statement builders, keyed with where(Model.key(..))), so \"the model's own record writes\" needs a definition — either hooks around a one-row insert(values) and a where(key(..)) update/delete only, or record-level writes mirroring ActiveModelTrait (insert/update/delete of one record by its primary key). Rust runs hooks only around ActiveModel::insert/update/delete; its Insert::one / Update::many / Delete::many run none. The rule would be bindings.model-hooks, built in both bindings with napi.guide-gaps.model-hooks."
+                            }
+
+                            {
+                                at 2026-11-05T23:04:59.784027Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-06T07:01:35.959003Z
+                                author "brendan@necessary.nu"
+                                kind @decision
+                                text "Lead decision, pending operator override (the coordinator overrode W's \"stated difference\"): a declared model takes hooks={before_save(values, insert), after_save(record, insert), before_delete(values), after_delete(values)} as functions or coroutine functions, the dialect of ActiveModelBehavior, and they run only around its record writes, Model.active(values) -> ModelActive whose insert/update/delete mirror ActiveModelTrait (update/delete by the primary key the values hold; a key no row has is a DecodeError, as RecordNotUpdated is an error). A before_* hook's exception refuses the write and reaches the caller unchanged; an after_* hook's arrives after the row is written. Rust's `new` is the program's own (before_save's defaults). Statement builders (insert, insert_many, update, delete, their returning/try-insert terminals, update FROM, delete USING) run none, as Rust's Insert/Update/Delete run none. describe() lists the hooks. Rule bindings.model-hooks; JavaScript the same shape (napi.guide-gaps.model-hooks). Fork H wrote the first Python draft before it hit its usage limit; the lead finished both bindings."
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.entity-try-inserts
+                        title "A registered entity's insert becomes Rust's TryInsert in both bindings: entity.insert(active).on_conflict_do_nothing() / on_empty_do_nothing() (and insert_many's) give EntityTryInsert / EntityTryInsertMany whose execute, returning_pk(s) and returning_model(s) answer TryInsertResult (Inserted, Conflicted, Empty) through pgorm's TryInsert, in the shape bindings.model-try-inserts gives declared models"
+                        kind @feat
+                        deps (python.entities guide.python-gaps.model-writes)
+                    }
+
+                    {
+                        id guide.python-gaps.shared-erased-reads
+                        title "The bindings' registered reads share one type-erased paginator and keyset cursor from pgorm, ErasedPages/PagedRead and ErasedCursor/KeyedRead with CursorPlan, graph_cursor, graph_cursor_on and graph_cursor_key, running on pgorm's DatabaseRef, where pgorm-python and pgorm-napi each held a copy of Paged, Keyed, the arity macro, the graph key and the executor enum"
+                        kind @refactor
+                        implements {
+                            main ([spec:pgorm:def:conn.database-ref] [spec:pgorm:def:exec.paginator.erased] [spec:pgorm:def:exec.cursor.erased])
+                        }
+                        deps (guide.python-gaps.registered-reads napi.guide-gaps.entity-select-reads)
+                        log (
+                            {
+                                at 2026-11-05T22:50:02.251736Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.guide-server-url
+                        title "The Python guide's example harness reads its server as the JavaScript suite does: PGORM_TEST_DSN, else DATABASE_URL, a URL naming no database taking postgres and one saying nothing of TLS taking sslmode=disable, so a bare local server URL runs the examples where a pool verifying TLS refused it"
+                        kind @test
+                        sealed true
+                        log (
+                            {
+                                at 2026-11-05T22:49:27.216858Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-05T22:49:53.57946Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
+                            }
+
+                            {
+                                at 2026-11-06T07:22:02.923158Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
+                            }
+                        )
+                    }
+
+                    {
+                        id guide.python-gaps.pipeline-model-column-types
+                        title "A declared model used as a pipeline source reads its columns through their declared column types and casts in both bindings: today pipeline_typed / pipelineTyped lower a model column from its kind alone (column_type(tag, values, None)), so a column declared column_type=\"money\" (or a domain over an enum, or select_as) reaches the pipeline as its kind's type and `pl.from_(model).all(pool)` fails with DecodeError \"column 1 has an unsupported PostgreSQL type\", where the model's own find() reads it as numeric"
+                        kind @fix
+                        deps (guide.python-gaps.model-types guide.python-gaps.model-relations)
                     }
                 )
             }

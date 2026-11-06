@@ -94,12 +94,17 @@ cake_order_lines = Cake.has_many(OrderLine, from_="id", to="cake_id")
 cake_bakers = Cake.has_many(CakeBaker, from_="id", to="cake_id")
 cake_baker_cake = CakeBaker.belongs_to(Cake, from_="cake_id", to="id", on_delete="cascade")
 cake_baker_baker = CakeBaker.belongs_to(Baker, from_="baker_id", to="id", on_delete="cascade")
+baker_cake_bakers = Baker.has_many(CakeBaker, from_="id", to="baker_id")
 customer_orders = Customer.has_many(Order, from_="id", to="customer_id")
 order_customer = Order.belongs_to(Customer, from_="customer_id", to="id")
 order_bakery = Order.belongs_to(Bakery, from_="bakery_id", to="id")
 order_lines = Order.has_many(OrderLine, from_="id", to="order_id")
 order_line_order = OrderLine.belongs_to(Order, from_="order_id", to="id", on_delete="cascade")
 order_line_cake = OrderLine.belongs_to(Cake, from_="cake_id", to="id")
+
+# A cake's bakers through the cake_baker junction, the path the Rust cake's
+# Related<baker::Entity> declares.
+cake_related_bakers = Cake.related(cake_baker_baker, via=cake_bakers)
 
 # Each model with the belongs_to relations whose foreign keys its table holds,
 # in the order the tables are created: a table before those that point at it.

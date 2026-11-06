@@ -166,9 +166,10 @@ const skipped = await byBakery.after(1).first(2).all(pool);
 assert.deepEqual(skipped.map((cake) => cake.id), [3, 4]);
 ```
 
-A [graph](07-relations.md) has cursors too, by its root's fields, and adds
-every decoded source's primary key to the ordering itself; there `afterWith`
-takes the whole ordering.
+A [graph](07-relations.md) has cursors too, `cursor` by its root's fields and
+`cursorOn` by one of its slots', as Rust's `cursor_by` and `cursor_by_on`, and
+adds every decoded source's primary key to the ordering itself; there
+`afterWith` takes the whole ordering.
 
 ## Paginating raw SQL
 

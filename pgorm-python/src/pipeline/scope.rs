@@ -105,6 +105,7 @@ impl PyPipelineBinder {
         Ok(PyPipelineExpr {
             recipe: Arc::new(Recipe::Bound(index)),
             scope: Some(self.scope.clone()),
+            declared: None,
         })
     }
 

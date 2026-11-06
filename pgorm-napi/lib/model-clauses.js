@@ -14,7 +14,7 @@ import { Expr, OrderBy } from "./expressions.js";
 import { cursorOver, paginatorOver } from "./cursors.js";
 import { fieldOf, projected, qualified, sameTable } from "./model-shape.js";
 import { native } from "./operations.js";
-import { relationOn, shapesOf } from "./relation-parts.js";
+import { relationOn, shapesOf, startOf } from "./relation-parts.js";
 import { Select, select } from "./select.js";
 
 const JOINS = ["inner", "left", "right", "full"];
@@ -41,7 +41,7 @@ const WAITS = ["nowait", "skipLocked"];
  * @typedef {object} Recipe
  * @property {import("./model-shape.js").Shape} shape
  * @property {readonly import("./model-shape.js").Field[]} fields
- * @property {readonly { table: import("./select.js").Table, on: Expr | Condition, kind: string, shape: import("./model-shape.js").Shape, qualifier: string }[]} joins
+ * @property {readonly { table: import("./select.js").Table, on: Expr | Condition, kind: "inner" | "left" | "right" | "full", shape: import("./model-shape.js").Shape, qualifier: string }[]} joins
  * @property {readonly (Expr | Condition)[]} wheres
  * @property {readonly OrderBy[]} orders
  * @property {number | bigint | null} limit
@@ -250,14 +250,15 @@ export class Clauses {
   /**
    * Join the table at the other end of `relation`, from the query's model or
    * a table it joined, without reading its columns: what a condition on a
-   * related row needs.
+   * related row needs. The join starts from the first table of the
+   * relation's model the query reads, or the one its `fromAlias` names.
    *
    * @param {import("./relations.js").Relation} relation
    * @param {{ kind?: "inner" | "left" | "right" | "full", alias?: string }} [options]
    */
   join(relation, { kind = "inner", alias } = {}) {
     const [from, to] = shapesOf(relation);
-    const start = this.#start(from, "starts", kind);
+    const start = this.#start(from, "starts", kind, startOf(relation));
     const qualifier = alias ?? to.qualifier;
     const table = alias === undefined ? to.table : to.table.as(alias);
     const on = relationOn(relation, start, qualifier);
@@ -283,15 +284,25 @@ export class Clauses {
 
   /**
    * The name of the table a join starts from: `shape`'s, which the relation
-   * `end` at.
+   * `end` at — the one answering to `named` where a `fromAlias` names it,
+   * otherwise the first of `shape`'s the query reads.
    *
    * @param {import("./model-shape.js").Shape} shape
    * @param {string} end
    * @param {unknown} kind
+   * @param {string | null} [named]
    */
-  #start(shape, end, kind) {
+  #start(shape, end, kind, named = null) {
     if (typeof kind !== "string" || !JOINS.includes(kind)) {
       throw new TypeError('a model join is "inner", "left", "right" or "full"');
+    }
+    if (named !== null) {
+      const read = tablesOf(this.#recipe).find((table) => table.qualifier === named);
+      if (read === undefined) throw new ConstructionError(`the query reads no table called ${JSON.stringify(named)}`);
+      if (!sameTable(read.shape, shape)) {
+        throw new ConstructionError(`${JSON.stringify(named)} is ${read.shape.name}, where the relation ${end} at ${shape.name}`);
+      }
+      return named;
     }
     const found = tablesOf(this.#recipe).find((table) => sameTable(table.shape, shape));
     if (found === undefined) {

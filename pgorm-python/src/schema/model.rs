@@ -26,7 +26,7 @@ use crate::{
 /// labels `values` lists, a created range over its subtype's, and an array of
 /// its element's.
 // [spec:pgorm:req:bindings.schema-from-model]
-fn column_type(
+pub(crate) fn column_type(
     tag: &Tag,
     values: Option<&[String]>,
     declared: Option<&ColumnType>,

@@ -4,15 +4,21 @@
 import assert from "node:assert/strict";
 import { pipeline as pl } from "@necessary/pgorm";
 import { Cake } from "../../../guide/bakery.ts";
+import type { GuideContext } from "../../../guide/context.ts";
 
-export default async function example(): Promise<void> {
-  /** The cakes a customer who avoids gluten can eat. */
-  function glutenFree(cakes: pl.Pipeline): pl.Pipeline {
-    return cakes.filter(pl.col("cake", "gluten_free").eq(pl.literal(true)));
-  }
+export default async function example({ pool }: GuideContext): Promise<void> {
+  const Other = Cake.as("other");
 
-  assert.equal(
-    glutenFree(pl.from(Cake.table)).select(pl.col("cake", "name")).inspect().sql,
-    "SELECT name FROM cake WHERE gluten_free = true",
-  );
+  const pairs = pl.from(Cake)
+    .join(Other, pl.col(Cake, "bakeryId").eq(pl.col(Other, "bakeryId")))
+    .filter(pl.col(Cake, "id").lt(pl.col(Other, "id")))
+    .sort(pl.col(Cake, "id"), pl.col(Other, "id"))
+    .select(pl.col(Cake, "name").as(pl.alias("earlier")), pl.col(Other, "name").as(pl.alias("later")));
+
+  assert.deepEqual(await pairs.all(pool), [
+    { earlier: "Chocolate Fudge", later: "Lemon Drizzle" },
+    { earlier: "Chocolate Fudge", later: "Chocolate Torte" },
+    { earlier: "Lemon Drizzle", later: "Chocolate Torte" },
+    { earlier: "Carrot Cake", later: "Vanilla Sponge" },
+  ]);
 }

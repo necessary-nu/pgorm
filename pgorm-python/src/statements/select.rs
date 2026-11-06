@@ -31,7 +31,7 @@ impl Join {
 }
 
 impl Join {
-    fn rust_join(&self) -> JoinType {
+    pub(crate) fn rust_join(&self) -> JoinType {
         match self {
             Self::Inner => JoinType::InnerJoin,
             Self::Left => JoinType::LeftJoin,

@@ -140,7 +140,7 @@ test("a model query's clauses refuse what the builder refuses", () => {
   assert.throws(() => Post.find().join(author, { kind: "cross" }), TypeError);
 });
 
-// [spec:pgorm:req:bindings.cursor-secondary-order/test]
+// [spec:pgorm:req:bindings.cursor-secondary-order+1/test]
 test("a secondary ordering names a table the cursor's query reads", () => {
   const cursor = Post.find().cursor("authorId");
   assert.throws(() => cursor.addSecondaryOrderBy(Account, "id"), refused(/reads no table named account/));
@@ -270,7 +270,7 @@ test("a partial model selects and decodes its fields", async () => {
   await assert.rejects(query.intoPartialModel(strict).all(pool()), DecodeError);
 });
 
-// [spec:pgorm:req:bindings.cursor-secondary-order/test]
+// [spec:pgorm:req:bindings.cursor-secondary-order+1/test]
 test("a secondary ordering breaks ties after the cursor's key", async () => {
   const byAuthor = Post.find().cursor("authorId").addSecondaryOrderBy(Post, "id");
   assert.deepStrictEqual((await byAuthor.first(2).all(pool())).map((row) => row.id), [10n, 11n]);

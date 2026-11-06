@@ -40,7 +40,7 @@ pub use table::PyCreateTable;
 pub use types::PyDataType;
 
 pub(crate) use args::relation;
-pub(crate) use model::{DescribedKey, column_of, item, table_name};
+pub(crate) use model::{DescribedKey, column_of, column_type, item, table_name};
 
 /// `statement`, one of a list pgorm's `Schema` built, as Python's class of
 /// its kind: `CreateType`, `CreateTable` and `AlterTable` for the builders

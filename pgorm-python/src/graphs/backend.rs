@@ -2,12 +2,18 @@ use crate::execution::Database;
 use futures_util::future::BoxFuture;
 use pgorm::{
     Error,
-    pgorm_query::{Condition, NullOrdering, Order, SimpleExpr, Value, Values},
+    pgorm_query::{Condition, NullOrdering, Order, SimpleExpr, Values},
 };
 use std::{fmt::Debug, sync::Arc};
 
 use super::slots::GraphBindings;
-use crate::entities::PyEntityModel;
+use crate::{
+    entities::{
+        PyEntityModel,
+        reads::{Decode, Keyset, Pages},
+    },
+    transactions::work::Read,
+};
 
 pub(crate) type Row = Vec<Option<PyEntityModel>>;
 pub(crate) type Query = Arc<dyn QueryBackend>;
@@ -22,7 +28,7 @@ pub(crate) struct Info {
 impl Info {
     /// The graph as `describe()` reports it: its name, the Rust shape, and
     /// each source's entity and slot kind.
-    // [spec:pgorm:req:bindings.entity-graphs+3]
+    // [spec:pgorm:req:bindings.entity-graphs+4]
     pub(crate) fn describe(&self) -> serde_json::Value {
         serde_json::json!({"name": self.name, "rust_shape": self.rust_shape,
             "sources": self.bindings.sources.iter().enumerate().map(|(index, source)| {
@@ -43,21 +49,6 @@ pub(crate) enum Change {
     Order(SimpleExpr, Order, Option<NullOrdering>),
 }
 
-#[derive(Clone, Debug)]
-pub(crate) struct Boundary {
-    pub(crate) values: Vec<Value>,
-    pub(crate) full: bool,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct CursorPlan {
-    pub(crate) column: String,
-    pub(crate) before: Option<Boundary>,
-    pub(crate) after: Option<Boundary>,
-    pub(crate) descending: bool,
-    pub(crate) window: Option<(bool, u64)>,
-}
-
 pub(crate) trait QueryBackend: Debug + Send + Sync {
     fn info(&self) -> &Arc<Info>;
     fn aliases(&self) -> &[String];
@@ -68,9 +59,12 @@ pub(crate) trait QueryBackend: Debug + Send + Sync {
         db: Database<'a>,
         optional: bool,
     ) -> BoxFuture<'a, Result<Vec<Row>, Error>>;
-    fn cursor<'a>(
-        &'a self,
-        db: Database<'a>,
-        plan: CursorPlan,
-    ) -> BoxFuture<'a, Result<Vec<Row>, Error>>;
+    /// `cursor_by` over root columns when `source` is 0, otherwise
+    /// `cursor_by_on` over the columns of slot `source`.
+    fn cursor(&self, source: usize, columns: &[String]) -> pyo3::PyResult<Arc<Keyset>>;
+    fn pages(&self) -> Arc<Pages>;
+    /// The decode `SelectGraph::stream` runs on each row.
+    fn decode(&self) -> Decode;
+    /// `all_grouped`, which only a graph of one `Opt` slot has.
+    fn grouped(&self) -> pyo3::PyResult<Read>;
 }

@@ -11,7 +11,7 @@ from pipeline_programs import programs
 
 
 class PipelineConstruction(unittest.TestCase):
-    # [spec:pgorm:req:bindings.pipeline/test]
+    # [spec:pgorm:req:bindings.pipeline+1/test]
     def test_public_programs_compile_with_native_parameters(self):
         cases = programs(_native)
         self.assertEqual(len(cases), 22)
@@ -183,7 +183,7 @@ class PipelineConstruction(unittest.TestCase):
                 pl.over().sort_by(*keys)
         self.assertIsInstance(pl.over().by(pl.literal(1), key), pl.Over)
 
-    # [spec:pgorm:req:bindings.pipeline/test]
+    # [spec:pgorm:req:bindings.pipeline+1/test]
     # [spec:pgorm:req:pipeline.errors+4/test]
     def test_names_the_screen_refuses_fail_at_compile(self):
         # The binding delegates to the Rust screen at `into_sql`, so it refuses
@@ -228,7 +228,7 @@ class PipelineDatabase(unittest.IsolatedAsyncioTestCase):
         await self.connection.close()
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.pipeline/test]
+    # [spec:pgorm:req:bindings.pipeline+1/test]
     # [spec:pgorm:req:bindings.pipeline-terminals/test]
     # [spec:pgorm:req:bindings.row-count/test]
     async def test_terminals_models_and_dynamic_streams(self):
@@ -272,7 +272,7 @@ class PipelineDatabase(unittest.IsolatedAsyncioTestCase):
         finally:
             await pool.close()
 
-    # [spec:pgorm:req:bindings.pipeline/test]
+    # [spec:pgorm:req:bindings.pipeline+1/test]
     async def test_pipeline_stages_execute_in_postgresql(self):
         cases = programs(_native)
         expected = {
@@ -502,3 +502,202 @@ class PipelineDomainEnums(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PipelineModels(unittest.IsolatedAsyncioTestCase):
+    """Declared models in a pipeline: a model as a source, its fields as
+    typed columns, select_sources decoding each model's records, and the
+    staged reads into_model and into_tuple."""
+
+    flavor = p.TypeName("flavor", schema="pipeline_models")
+    bakery = p.Model(
+        "bakery",
+        {"id": p.Column("i32", primary_key=True), "name": p.Column("text"), "city": p.Column("text")},
+        schema="pipeline_models",
+    )
+    cake = p.Model(
+        "cake",
+        {
+            "id": p.Column("i32", primary_key=True),
+            "name": p.Column("text"),
+            "flavor": p.Column(flavor, values=["lemon", "carrot", "chocolate"]),
+            "price": p.Column("decimal"),
+            "baker": p.Column("i32", name="bakery_id", nullable=True),
+        },
+        schema="pipeline_models",
+    )
+
+    async def asyncSetUp(self):
+        self.pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=1)
+        self.connection = await self.pool.acquire()
+        await self.drop()
+        for statement in (
+            "CREATE SCHEMA pipeline_models",
+            "CREATE TYPE pipeline_models.flavor AS ENUM ('lemon', 'carrot', 'chocolate')",
+            "CREATE TABLE pipeline_models.bakery (id integer PRIMARY KEY, name text NOT NULL, city text NOT NULL)",
+            "CREATE TABLE pipeline_models.cake (id integer PRIMARY KEY, name text NOT NULL, "
+            "flavor pipeline_models.flavor NOT NULL, price numeric(10, 2) NOT NULL, "
+            "bakery_id integer REFERENCES pipeline_models.bakery (id))",
+            "INSERT INTO pipeline_models.bakery VALUES (1, 'Sunrise', 'Oslo'), (2, 'Moonlight', 'Bergen'), "
+            "(3, 'Noon', 'Tromsø')",
+            "INSERT INTO pipeline_models.cake VALUES (1, 'Fudge', 'chocolate', 4.50, 1), "
+            "(2, 'Drizzle', 'lemon', 3.20, 1), (3, 'Carrot', 'carrot', 3.50, 2), (4, 'Orphan', 'lemon', 2.00, NULL)",
+        ):
+            await self.connection.execute(p.RawSQL(statement))
+
+    async def drop(self):
+        await self.connection.execute(p.RawSQL("DROP SCHEMA IF EXISTS pipeline_models CASCADE"))
+
+    async def asyncTearDown(self):
+        await self.drop()
+        await self.connection.close()
+        await self.pool.close()
+
+    # [spec:pgorm:req:bindings.pipeline-models/test]
+    async def test_model_sources_and_field_columns(self):
+        cake = self.cake
+        cheap = (
+            pl.from_(cake)
+            .filter(pl.col(cake, "price") < Decimal("4"))
+            .sort(pl.col(cake, "id"))
+            .select(pl.col(cake, "name"), pl.col(cake, "baker"))
+        )
+        self.assertEqual(
+            cheap.inspect().sql,
+            "WITH table_0 AS (SELECT name, bakery_id, id FROM pipeline_models.cake WHERE price < $1) "
+            "SELECT name, bakery_id FROM table_0 ORDER BY id",
+        )
+        self.assertEqual(cheap.inspect().params[0].kind, "decimal")
+        rows = await cheap.all(self.connection)
+        self.assertEqual(
+            [(row["name"], row["bakery_id"]) for row in rows],
+            [("Drizzle", 1), ("Carrot", 2), ("Orphan", None)],
+        )
+        other = cake.as_("other")
+        pairs = (
+            pl.from_(cake)
+            .join(other, pl.col(cake, "baker") == pl.col(other, "baker"))
+            .filter(pl.col(cake, "id") < pl.col(other, "id"))
+            .select(pl.col(cake, "name").as_("earlier"), pl.col(other, "name").as_("later"))
+        )
+        self.assertEqual(
+            [(row["earlier"], row["later"]) for row in await pairs.all(self.connection)],
+            [("Fudge", "Drizzle")],
+        )
+        self.assertEqual(
+            [row["name"] for row in await pl.from_(cake).append(other).filter(pl.col(cake, "id") == 1).all(self.connection)],
+            ["Fudge", "Fudge"],
+        )
+        with self.assertRaises(p.ConstructionError):
+            pl.col(cake, "nope")
+        with self.assertRaises(TypeError):
+            pl.col(cake, p.col("name"))  # type: ignore[call-overload]
+
+    # [spec:pgorm:req:bindings.pipeline-models/test]
+    async def test_model_column_converts_compared_values(self):
+        cake = self.cake
+        lemons = pl.from_(cake).filter(pl.col(cake, "flavor") == "lemon").sort(pl.col(cake, "id")).select(pl.col(cake, "id"))
+        self.assertIn("flavor = CAST($1::text AS pipeline_models.flavor)", lemons.inspect().sql)
+        self.assertEqual([row["id"] for row in await lemons.all(self.connection)], [2, 4])
+        listed = (
+            pl.from_(cake)
+            .filter(pl.col(cake, "flavor").in_array(["carrot", "chocolate"]))
+            .sort(pl.col(cake, "id"))
+            .select(pl.col(cake, "id"))
+        )
+        self.assertEqual([row["id"] for row in await listed.all(self.connection)], [1, 3])
+        tagged = pl.from_(cake).filter(pl.col(cake, "flavor") != p.Value("lemon", self.flavor)).select(pl.col(cake, "id"))
+        self.assertEqual(len(await tagged.all(self.connection)), 2)
+        reflected = pl.from_(cake).filter(Decimal(4) <= pl.col(cake, "price")).select(pl.col(cake, "name"))
+        self.assertEqual([row["name"] for row in await reflected.all(self.connection)], ["Fudge"])
+        written = pl.from_(cake).filter(pl.col(cake, "flavor") == pl.literal("carrot"))
+        self.assertIn("flavor = CAST('carrot' AS pipeline_models.flavor)", written.inspect().sql)
+        bound = pl.from_(cake).filter_with(lambda binder: pl.col(cake, "flavor") == binder.bind("carrot"))
+        self.assertEqual(len(await bound.all(self.connection)), 1)
+        # What an operator makes of the column is a plain expression again.
+        with self.assertRaises(p.ConstructionError):
+            pl.from_(cake).filter((pl.col(cake, "price") + 1) == p.Value("lemon", self.flavor)).inspect()
+        with self.assertRaisesRegex(p.ConstructionError, "not one of the column's values"):
+            pl.col(cake, "flavor") == "banana"
+        with self.assertRaisesRegex(p.ConstructionError, "never true"):
+            pl.col(cake, "baker") == None  # noqa: E711
+        with self.assertRaises(p.ConstructionError):
+            pl.col(cake, "price") > "cheap"
+
+    # [spec:pgorm:req:bindings.pipeline-models/test]
+    async def test_select_sources_decodes_model_records(self):
+        cake, bakery = self.cake, self.bakery
+        both = (
+            pl.from_(cake)
+            .join(bakery, pl.col(cake, "baker") == pl.col(bakery, "id"), kind=p.Join.Full)
+            .sort(pl.col(bakery, "id"), pl.col(cake, "id"))
+            .select_sources(cake, bakery)
+        )
+        self.assertIn("SELECT cake.id AS s0_id, cake.name AS s0_name, cake.flavor AS s0_flavor", both.inspect().sql)
+        rows = await both.all(self.connection)
+        self.assertEqual(
+            [(None if c is None else c["name"], None if b is None else b["name"]) for c, b in rows],
+            [("Fudge", "Sunrise"), ("Drizzle", "Sunrise"), ("Carrot", "Moonlight"), (None, "Noon"), ("Orphan", None)],
+        )
+        first = rows[0][0]
+        assert first is not None
+        self.assertIsInstance(first, p.ModelRecord)
+        self.assertEqual(dict(first), {"id": 1, "name": "Fudge", "flavor": "chocolate", "price": Decimal("4.50"), "baker": 1})
+        only = await pl.from_(cake).sort(pl.col(cake, "id")).select_sources(cake).one(self.connection)
+        self.assertEqual(len(only), 1)
+        assert only[0] is not None
+        self.assertEqual(only[0]["name"], "Fudge")
+        self.assertIn("LIMIT 1", pl.from_(cake).select_sources(cake).inspect(terminal="one").sql)
+        none = pl.from_(cake).filter(pl.col(cake, "id") < 0).select_sources(cake)
+        self.assertIsNone(await none.optional(self.connection))
+        with self.assertRaises(p.DecodeError):
+            await none.one(self.connection)
+        other = cake.as_("other")
+        same = (
+            pl.from_(cake)
+            .join(other, pl.col(cake, "baker") == pl.col(other, "baker"))
+            .filter(pl.col(cake, "id") < pl.col(other, "id"))
+            .select_sources(cake, other)
+        )
+        self.assertEqual(
+            [(a["name"] if a else None, b["name"] if b else None) for a, b in await same.all(self.connection)],
+            [("Fudge", "Drizzle")],
+        )
+        reshaped = pl.from_(cake).select(pl.col(cake, "id")).select_sources(cake)
+        with self.assertRaisesRegex(p.ConstructionError, "select_sources after `select`"):
+            reshaped.inspect()
+        with self.assertRaisesRegex(p.ConstructionError, "select_sources after `select`"):
+            await reshaped.all(self.connection)
+        with self.assertRaises(TypeError):
+            pl.from_(cake).select_sources(cake, qualifiers=["cake"])  # type: ignore[call-overload]
+        with self.assertRaises(TypeError):
+            pl.from_(cake).select_sources(p.Table("cake"))  # type: ignore[call-overload]
+
+    # [spec:pgorm:req:bindings.pipeline-models/test]
+    async def test_into_model_and_into_tuple(self):
+        cake, bakery = self.cake, self.bakery
+        lemons = pl.from_(cake).filter(pl.col(cake, "flavor") == "lemon").sort(pl.col(cake, "id"))
+        records = await lemons.into_model(cake).all(self.connection)
+        self.assertEqual([(r["id"], r["baker"], r["flavor"]) for r in records], [(2, 1, "lemon"), (4, None, "lemon")])
+        self.assertEqual((await lemons.into_model(cake).one(self.connection))["name"], "Drizzle")
+        with self.assertRaises(p.DecodeError):
+            await lemons.select(pl.col(cake, "name")).into_model(cake).all(self.connection)
+        named = await lemons.select(pl.col(cake, "name")).into_model(lambda name: f"cake {name}").all(self.connection)
+        self.assertEqual(named, ["cake Drizzle", "cake Orphan"])
+        with self.assertRaises(TypeError):
+            lemons.into_model(3)  # type: ignore[call-overload]
+        pairs = (
+            pl.from_(cake)
+            .join(bakery, pl.col(cake, "baker") == pl.col(bakery, "id"))
+            .sort(pl.col(cake, "id"))
+            .select(pl.col(cake, "name"), pl.col(bakery, "name"))
+            .into_tuple()
+        )
+        self.assertEqual(
+            await pairs.all(self.connection),
+            [("Fudge", "Sunrise"), ("Drizzle", "Sunrise"), ("Carrot", "Moonlight")],
+        )
+        self.assertEqual(await pairs.optional(self.connection), ("Fudge", "Sunrise"))
+        self.assertIn("LIMIT 1", pairs.inspect(terminal="one").sql)
+        with self.assertRaises(p.ConstructionError):
+            bool(pairs)

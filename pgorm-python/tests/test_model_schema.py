@@ -44,7 +44,7 @@ def cake(bakery_model):
 
 class ModelSchemaConstruction(unittest.TestCase):
     # [spec:pgorm:req:bindings.schema-from-model/test]    every part of a declaration is written as an entity's
-    # [spec:pgorm:req:bindings.relations+2/test]    a belongs_to relation's actions reach its foreign key
+    # [spec:pgorm:req:bindings.relations+3/test]    a belongs_to relation's actions reach its foreign key
     def test_every_option_is_written(self):
         model, to_bakery = cake(bakery())
         schema = s.from_model(model, relations=[to_bakery])
@@ -187,7 +187,7 @@ class ModelSchemaConstruction(unittest.TestCase):
                 wrong()
 
     # [spec:pgorm:req:bindings.schema-from-model/test]    the schema refuses relations it holds no key of, and unstated defaults
-    # [spec:pgorm:req:bindings.relations+2/test]    only belongs_to takes a foreign key's options
+    # [spec:pgorm:req:bindings.relations+3/test]    only belongs_to takes a foreign key's options
     def test_schema_refusals(self):
         model, to_bakery = cake(bakery())
         owner = bakery()
