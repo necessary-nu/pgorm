@@ -139,3 +139,48 @@ fn options_qualify_and_name_unkinded_sets() {
     );
     assert!(typescript.contains("{ unkinded: true }"), "{typescript}");
 }
+
+// [spec:pgorm:sem:codegen.models.names/test]    a model is its table in UpperCamelCase, a relation `{table}_{variant}` with the Rust variants of a self reference and of two keys to one table, a type outside the default schema prefixed by it, and a keyword followed by `_`
+#[test]
+fn names_follow_the_rust_entity() {
+    let ddl = "CREATE SCHEMA kitchen; \
+               CREATE TYPE kitchen.oven_mood AS ENUM ('calm'); \
+               CREATE TYPE \"delete\" AS ENUM ('soft'); \
+               CREATE TABLE bakery (id int PRIMARY KEY); \
+               CREATE TABLE \"none\" (id int PRIMARY KEY); \
+               CREATE TABLE cake_order (id int PRIMARY KEY, \
+                 parent_id int REFERENCES cake_order (id), \
+                 bakery_id int NOT NULL REFERENCES bakery (id), \
+                 pickup_bakery_id int REFERENCES bakery (id), \
+                 mood kitchen.oven_mood, purge \"delete\");";
+    let python = one(
+        python_models_from_sql(ddl, ModelWriterOptions::default()).expect("generates"),
+        PYTHON_MODULE,
+    );
+    for name in [
+        "CakeOrder = Model(",
+        "None_ = Model(",
+        "cake_order_self_ref = CakeOrder.belongs_to(CakeOrder,",
+        "cake_order_bakery1 = CakeOrder.belongs_to(Bakery, from_=\"pickup_bakery_id\"",
+        "cake_order_bakery2 = CakeOrder.belongs_to(Bakery, from_=\"bakery_id\"",
+        "KITCHEN_OVEN_MOOD = TypeName(\"oven_mood\", schema=\"kitchen\")",
+        "DELETE = TypeName(\"delete\",",
+    ] {
+        assert!(python.contains(name), "{name} in {python}");
+    }
+    let typescript = one(
+        typescript_models_from_sql(ddl, ModelWriterOptions::default()).expect("generates"),
+        TYPESCRIPT_MODULE,
+    );
+    for name in [
+        "export const CakeOrder = model(",
+        "export const None = model(",
+        "export const cakeOrderSelfRef = CakeOrder.belongsTo(CakeOrder,",
+        "export const cakeOrderBakery1 = CakeOrder.belongsTo(Bakery,",
+        "export const cakeOrderBakery2 = CakeOrder.belongsTo(Bakery,",
+        "export const kitchenOvenMood = new TypeName(\"oven_mood\", { schema: \"kitchen\" })",
+        "export const delete_ = new TypeName(\"delete\",",
+    ] {
+        assert!(typescript.contains(name), "{name} in {typescript}");
+    }
+}

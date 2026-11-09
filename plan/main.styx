@@ -20406,6 +20406,29 @@ children (
                     }
                 )
             }
+
+            {
+                id binding-parity.coverage-restored
+                title "Every rule is covered and tested in each binding again: bindings.relation-conditions on both describe()s and Python's test after the shared runtime took the code, napi.pipeline-table-names and codegen.models.names given the tests they never had"
+                kind @test
+                deps (binding-parity.shared-runtime)
+                sealed true
+                log (
+                    {
+                        at 2026-11-09T15:57:51.135106Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-09T16:01:50.49527Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
         )
         log (
             {

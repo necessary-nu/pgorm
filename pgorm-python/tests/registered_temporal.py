@@ -47,6 +47,7 @@ class RegisteredTemporal(unittest.IsolatedAsyncioTestCase):
         query = self.room.find().order_by(self.room.col("id").expr().asc(), self.room.col("valid_at").expr().asc())
         return [(row["id"], row["valid_at"], row["rate"]) for row in await query.all(connection)]
 
+    # [spec:pgorm:req:bindings.relation-conditions/test]    each relation reports its condition type and whether an on_condition adds one
     async def test_describe_reports_the_temporal_key_and_relations(self):
         room = self.room.describe()
         self.assertEqual(room["primary_key"], ["id", "valid_at"])
