@@ -8,12 +8,67 @@ use pgorm::{
     TimeoutType,
 };
 
-use crate::{Connector, Dialect, Refusal, TlsSettings};
+use crate::{Connector, Dialect, Failure, HookEvent, Redactions, Refusal, TlsSettings};
+
+/// One pool's own options as a binding read them: Rust's `PoolBuilder`
+/// closure's, how long acquiring a connection waits, and the language's
+/// callables `C` its three hooks call.
+// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.pool-hooks]
+#[derive(Debug, Clone)]
+#[allow(missing_docs)]
+pub struct PoolOptions<C> {
+    pub max_size: usize,
+    pub acquire_timeout: Duration,
+    pub wait_timeout: Option<Duration>,
+    pub create_timeout: Option<Duration>,
+    pub recycle_timeout: Option<Duration>,
+    pub queue_mode: QueueMode,
+    pub post_create: Option<C>,
+    pub pre_recycle: Option<C>,
+    pub post_recycle: Option<C>,
+}
+
+impl<C> PoolOptions<C> {
+    /// The shape the pool is built with, each hook the one `hook` makes of
+    /// its callable, reporting under `secrets`.
+    fn shape(
+        &self,
+        hook: &impl Fn(HookEvent, &C, &Redactions) -> Hook,
+        secrets: &Redactions,
+    ) -> PoolShape {
+        let hook = |event, callable: &Option<C>| {
+            callable
+                .as_ref()
+                .map(|callable| hook(event, callable, secrets))
+        };
+        PoolShape {
+            max_size: self.max_size,
+            wait_timeout: self.wait_timeout,
+            create_timeout: self.create_timeout,
+            recycle_timeout: self.recycle_timeout,
+            queue_mode: self.queue_mode,
+            post_create: hook(HookEvent::PostCreate, &self.post_create),
+            pre_recycle: hook(HookEvent::PreRecycle, &self.pre_recycle),
+            post_recycle: hook(HookEvent::PostRecycle, &self.post_recycle),
+        }
+    }
+}
+
+/// A pool built from a binding's options, the secrets its errors redact, and
+/// how long acquiring one of its connections waits.
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub struct Built {
+    pub pool: DatabasePool,
+    pub secrets: Redactions,
+    pub acquire_timeout: Duration,
+}
 
 /// What Rust's `PoolBuilder` closure says of one pool: its size, its three
 /// timeouts, the order it lends idle connections in, and its hooks.
 #[derive(Debug)]
-pub struct PoolShape {
+pub(crate) struct PoolShape {
     /// `max_size`: the most connections the pool holds.
     pub max_size: usize,
     /// `wait_timeout`: how long a `get` waits for a free connection.
@@ -35,7 +90,8 @@ pub struct PoolShape {
 
 impl PoolShape {
     /// `max_size` connections, no timeouts, first in first out, no hooks.
-    pub fn sized(max_size: usize) -> Self {
+    #[cfg(test)]
+    fn sized(max_size: usize) -> Self {
         Self {
             max_size,
             wait_timeout: None,
@@ -142,11 +198,82 @@ impl PoolSettings {
         Ok((config, connector, manager))
     }
 
+    /// The pool `connect_with` builds, shaped as `options` say, each hook
+    /// the one `hook` makes of its callable once the parsed configuration
+    /// has said what its errors redact.
+    // [spec:pgorm:req:bindings.connections+3]
+    pub fn pool<C>(
+        self,
+        options: &PoolOptions<C>,
+        hook: impl Fn(HookEvent, &C, &Redactions) -> Hook,
+        dialect: Dialect,
+    ) -> Result<Built, Failure> {
+        let mut secrets = None;
+        let pool = self
+            .build(
+                |config| {
+                    let redactions = Redactions::from_config(config);
+                    let shape = options.shape(&hook, &redactions);
+                    secrets = Some(redactions);
+                    shape
+                },
+                dialect,
+            )
+            .map_err(|refusal| Failure::Construction(refusal.into_message()))?;
+        Ok(Built {
+            pool,
+            secrets: secrets.ok_or_else(unshaped)?,
+            acquire_timeout: options.acquire_timeout,
+        })
+    }
+
+    /// One pool per tag, each shaped as its entry of `options` says, sharing
+    /// these settings, in the tags' order, as [`multi_pool`] builds them.
+    // [spec:pgorm:req:bindings.multi-pool]
+    pub fn pools<C>(
+        self,
+        options: &BTreeMap<String, PoolOptions<C>>,
+        hook: impl Fn(HookEvent, &C, &Redactions) -> Hook,
+        dialect: Dialect,
+    ) -> Result<Vec<(String, Built)>, Failure> {
+        let mut secrets = None;
+        let pools = multi_pool(
+            self,
+            |config| {
+                let redactions = Redactions::from_config(config);
+                let shapes = options
+                    .iter()
+                    .map(|(tag, options)| (tag.clone(), options.shape(&hook, &redactions)))
+                    .collect();
+                secrets = Some(redactions);
+                shapes
+            },
+            dialect,
+        )
+        .map_err(|refusal| Failure::Construction(refusal.into_message()))?;
+        let secrets = secrets.ok_or_else(unshaped)?;
+        pools
+            .iter()
+            .map(|(tag, pool)| {
+                let options = options
+                    .get(tag)
+                    .ok_or_else(|| Failure::Internal("a pool has no shape".to_owned()))?;
+                Ok((
+                    tag.to_owned(),
+                    Built {
+                        pool: pool.clone(),
+                        secrets: secrets.clone(),
+                        acquire_timeout: options.acquire_timeout,
+                    },
+                ))
+            })
+            .collect()
+    }
+
     /// The pool `connect_with` builds, shaped as `shape` says once it has
     /// seen the parsed configuration, from which a binding learns what its
     /// errors redact before it makes the hooks that report them.
-    // [spec:pgorm:req:bindings.connections+3]
-    pub fn build(
+    fn build(
         self,
         shape: impl FnOnce(&Config) -> PoolShape,
         dialect: Dialect,
@@ -161,6 +288,12 @@ impl PoolSettings {
         }
         .map_err(|_| Refusal("invalid PostgreSQL pool configuration".to_owned()))
     }
+}
+
+/// What a pool built without its shape being asked for is, which no input
+/// should cause.
+fn unshaped() -> Failure {
+    Failure::Internal("the pool was built unshaped".to_owned())
 }
 
 /// `dsn` parsed as tokio-postgres parses a `Config`, which must name a host,
@@ -212,7 +345,7 @@ pub async fn connect_listener(
 /// `connect_multi_with`. `settings` names no tag of its own: each pool's is
 /// its key.
 // [spec:pgorm:req:bindings.multi-pool]
-pub fn multi_pool(
+fn multi_pool(
     settings: PoolSettings,
     shapes: impl FnOnce(&Config) -> BTreeMap<String, PoolShape>,
     dialect: Dialect,
@@ -385,6 +518,54 @@ mod tests {
                 Dialect::JavaScript
             )),
             "each pool's tag is its key, so the shared options name none"
+        );
+    }
+
+    fn options(max_size: usize, acquire: u64) -> PoolOptions<()> {
+        PoolOptions {
+            max_size,
+            acquire_timeout: Duration::from_secs(acquire),
+            wait_timeout: None,
+            create_timeout: None,
+            recycle_timeout: None,
+            queue_mode: QueueMode::Fifo,
+            post_create: None,
+            pre_recycle: None,
+            post_recycle: None,
+        }
+    }
+
+    fn no_hook(_: HookEvent, (): &(), _: &Redactions) -> Hook {
+        unreachable!("no hook is asked for")
+    }
+
+    // [spec:pgorm:req:bindings.connections+3/test]    each pool keeps its own acquire timeout
+    #[tokio::test]
+    async fn each_pool_keeps_its_acquire_timeout() {
+        let plain = "postgres://postgres@db.example.com/bakery?sslmode=disable";
+        let built = settings(plain)
+            .pool(&options(3, 7), no_hook, Dialect::Python)
+            .expect("the pool builds");
+        assert_eq!(built.pool.status().max_size, 3);
+        assert_eq!(built.acquire_timeout, Duration::from_secs(7));
+        let shapes = BTreeMap::from([
+            ("web".to_owned(), options(8, 2)),
+            ("jobs".to_owned(), options(2, 9)),
+        ]);
+        let pools = settings(plain)
+            .pools(&shapes, no_hook, Dialect::JavaScript)
+            .expect("the pools build");
+        let timeouts: Vec<_> = pools
+            .iter()
+            .map(|(tag, built)| (tag.as_str(), built.acquire_timeout.as_secs()))
+            .collect();
+        assert_eq!(timeouts, [("jobs", 9), ("web", 2)]);
+        let refused = settings("dbname=bakery").pool(&options(1, 1), no_hook, Dialect::Python);
+        assert_eq!(
+            refused
+                .map(|built| built.acquire_timeout)
+                .map_err(|failure| failure.message().to_owned()),
+            Err("the connection string names no host".to_owned())
         );
     }
 

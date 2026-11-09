@@ -1,4 +1,10 @@
-//! Validate numeric fidelity around serde_json's PostgreSQL FromSql decoder.
+//! A `json` or `jsonb` column read so that every number in it reaches the
+//! language exactly or not at all.
+//!
+//! serde_json reads an integer that fits 64 bits as one and anything else as
+//! an `f64`. The document's own spelling of each number is compared with what
+//! was read, so a number that changed in the reading is refused rather than
+//! delivered rounded.
 
 use std::{collections::BTreeMap, error::Error};
 
@@ -7,8 +13,14 @@ use tokio_postgres::types::{FromSql, Type};
 
 type CodecError = Box<dyn Error + Send + Sync>;
 
+/// How deep a document may nest.
+pub const MAX_DEPTH: usize = 64;
+
+/// A `json` or `jsonb` value whose every number serde_json read exactly.
+// [spec:pgorm:req:bindings.values]
+// [spec:pgorm:req:napi.values+1]
 #[derive(Debug)]
-pub(super) struct ExactJson(pub Value);
+pub struct ExactJson(pub Value);
 
 impl<'a> FromSql<'a> for ExactJson {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, CodecError> {
@@ -29,17 +41,17 @@ impl<'a> FromSql<'a> for ExactJson {
 }
 
 fn validate(raw: &RawValue, decoded: &Value, depth: usize) -> Result<(), CodecError> {
-    if depth > 64 {
-        return Err("JSON exceeds 64 levels".into());
+    if depth > MAX_DEPTH {
+        return Err("JSON nests deeper than 64 levels".into());
     }
     match decoded {
         Value::Number(number) => {
             let original = raw.get();
             if !original.contains(['.', 'e', 'E']) && !number.is_i64() && !number.is_u64() {
-                return Err("JSON integer exceeds Rust's i64/u64 range".into());
+                return Err(format!("JSON integer {original} exceeds 64 bits").into());
             }
             if canonical(original)? != canonical(&number.to_string())? {
-                return Err("JSON number cannot survive Rust serde_json decoding exactly".into());
+                return Err(format!("JSON number {original} has no exact binary form").into());
             }
         }
         Value::Array(values) => {
@@ -66,8 +78,8 @@ fn validate(raw: &RawValue, decoded: &Value, depth: usize) -> Result<(), CodecEr
     Ok(())
 }
 
-/// Compare decimal JSON spellings without converting either through float.
-/// Parsing and JSON structure remain owned by serde_json.
+/// A decimal JSON spelling as sign, significant digits and exponent, compared
+/// without converting either side through a float.
 fn canonical(text: &str) -> Result<(bool, String, i64), CodecError> {
     let negative = text.starts_with('-');
     let text = text.strip_prefix('-').unwrap_or(text);
@@ -78,19 +90,18 @@ fn canonical(text: &str) -> Result<(bool, String, i64), CodecError> {
     let fraction = mantissa
         .split_once('.')
         .map_or(0, |(_, fraction)| fraction.len());
-    let mut digits: String = mantissa.chars().filter(|c| *c != '.').collect();
+    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
     let significant = digits.trim_start_matches('0');
     if significant.is_empty() {
         return Ok((negative, "0".to_owned(), 0));
     }
-    digits = significant.to_owned();
-    let zeros = digits.len() - digits.trim_end_matches('0').len();
-    digits.truncate(digits.len() - zeros);
+    let trimmed = significant.trim_end_matches('0');
+    let zeros = significant.len() - trimmed.len();
     let exponent = exponent
         .checked_sub(i64::try_from(fraction)?)
-        .and_then(|e| e.checked_add(zeros as i64))
-        .ok_or("JSON exponent exceeds supported range")?;
-    Ok((negative, digits, exponent))
+        .and_then(|exponent| exponent.checked_add(i64::try_from(zeros).ok()?))
+        .ok_or("JSON exponent exceeds the supported range")?;
+    Ok((negative, trimmed.to_owned(), exponent))
 }
 
 #[cfg(test)]
@@ -98,8 +109,9 @@ mod tests {
     use super::*;
 
     // [spec:pgorm:req:bindings.values/test]
+    // [spec:pgorm:req:napi.values+1/test]
     #[test]
-    fn json_numbers_reject_rounding_and_integer_loss() -> Result<(), CodecError> {
+    fn json_numbers_are_read_exactly_or_refused() -> Result<(), CodecError> {
         for text in [
             "0.1",
             "-0.0",

@@ -29,7 +29,7 @@ use uuid::Uuid;
 
 use crate::{
     errors::Failure,
-    values::{CreatedKind, Tag, Tagged, TypeName, json::ExactJson},
+    values::{CreatedKind, Tag, Tagged, TypeName},
 };
 
 type CodecError = Box<dyn Error + Send + Sync>;
@@ -265,7 +265,9 @@ fn value(ty: &Type, kind: &ArrayType, raw: &[u8]) -> Result<Value, CodecError> {
         ArrayType::Double => Value::Double(Some(f64::from_sql(ty, raw)?)),
         ArrayType::String => Value::String(Some(Box::new(String::from_sql(ty, raw)?))),
         ArrayType::Bytes => Value::Bytes(Some(Box::new(Vec::<u8>::from_sql(ty, raw)?))),
-        ArrayType::Json => Value::Json(Some(Box::new(ExactJson::from_sql(ty, raw)?.0))),
+        ArrayType::Json => Value::Json(Some(Box::new(
+            pgorm_bindings::ExactJson::from_sql(ty, raw)?.0,
+        ))),
         ArrayType::Uuid => Value::Uuid(Some(Box::new(Uuid::from_sql(ty, raw)?))),
         ArrayType::Date => Value::Date(Some(Box::new(Date::from_sql(ty, raw)?))),
         // The driver's civil-time codec refuses 24:00:00, which no Temporal

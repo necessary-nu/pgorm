@@ -1,11 +1,13 @@
+use crate::errors::Raise as _;
 use pgorm::pipeline as pl;
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyTuple};
 
+use pgorm_bindings::pipeline::{self as stages, Stage};
+
 use super::{
-    bound::{self, Stage},
     construct::integer,
     expression::PyPipelineExpr,
-    scope::{Plan, callback},
+    scope::{self, callback},
     source::pipeline_source,
     window::{PyOver, plan},
 };
@@ -76,96 +78,101 @@ impl PyPipeline {
     }
 
     fn filter(&self, condition: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let plan = Plan::plain(vec![PyPipelineExpr::coerce(condition)?])?;
+        let plan = scope::plain(vec![PyPipelineExpr::coerce(condition)?])?;
         Ok(Self {
-            inner: bound::filter(self.inner.clone(), plan)?,
+            inner: stages::filter(self.inner.clone(), plan).py()?,
         })
     }
 
     fn filter_with(&self, function: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self {
-            inner: bound::filter(self.inner.clone(), callback(function, true)?)?,
+            inner: stages::filter(self.inner.clone(), callback(function, true)?).py()?,
         })
     }
 
     #[pyo3(signature = (*columns))]
     fn derive(&self, columns: &Bound<'_, PyTuple>) -> PyResult<Self> {
         Ok(Self {
-            inner: bound::apply(self.inner.clone(), Stage::Derive, plan(columns)?)?,
+            inner: stages::list(self.inner.clone(), Stage::Derive, plan(columns)?).py()?,
         })
     }
 
     fn derive_with(&self, function: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self {
-            inner: bound::apply(
+            inner: stages::list(
                 self.inner.clone(),
                 Stage::Derive,
                 callback(function, false)?,
-            )?,
+            )
+            .py()?,
         })
     }
 
     #[pyo3(signature = (*columns))]
     fn select(&self, columns: &Bound<'_, PyTuple>) -> PyResult<Self> {
         Ok(Self {
-            inner: bound::apply(self.inner.clone(), Stage::Select, plan(columns)?)?,
+            inner: stages::list(self.inner.clone(), Stage::Select, plan(columns)?).py()?,
         })
     }
 
     fn select_with(&self, function: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self {
-            inner: bound::apply(
+            inner: stages::list(
                 self.inner.clone(),
                 Stage::Select,
                 callback(function, false)?,
-            )?,
+            )
+            .py()?,
         })
     }
 
     #[pyo3(signature = (*keys))]
     fn group(&self, keys: &Bound<'_, PyTuple>) -> PyResult<PyGrouped> {
         Ok(PyGrouped {
-            inner: bound::grouped(self.inner.clone(), plan(keys)?)?,
+            inner: stages::group(self.inner.clone(), plan(keys)?).py()?,
         })
     }
 
     fn group_with(&self, function: &Bound<'_, PyAny>) -> PyResult<PyGrouped> {
         Ok(PyGrouped {
-            inner: bound::grouped(self.inner.clone(), callback(function, false)?)?,
+            inner: stages::group(self.inner.clone(), callback(function, false)?).py()?,
         })
     }
 
     #[pyo3(signature = (*columns, over))]
     fn window(&self, columns: &Bound<'_, PyTuple>, over: PyRef<'_, PyOver>) -> PyResult<Self> {
         Ok(Self {
-            inner: bound::apply(
+            inner: stages::list(
                 self.inner.clone(),
                 Stage::Window(over.inner.clone()),
                 plan(columns)?,
-            )?,
+            )
+            .py()?,
         })
     }
 
     fn window_with(&self, over: PyRef<'_, PyOver>, function: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self {
-            inner: bound::apply(
+            inner: stages::list(
                 self.inner.clone(),
                 Stage::Window(over.inner.clone()),
                 callback(function, false)?,
-            )?,
+            )
+            .py()?,
         })
     }
 
     #[pyo3(signature = (*keys))]
     fn sort(&self, keys: &Bound<'_, PyTuple>) -> PyResult<Self> {
         Ok(Self {
-            inner: bound::apply(self.inner.clone(), Stage::Sort, plan(keys)?)?,
+            inner: stages::list(self.inner.clone(), Stage::Sort, plan(keys)?).py()?,
         })
     }
 
     fn sort_with(&self, function: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self {
-            inner: bound::apply(self.inner.clone(), Stage::Sort, callback(function, false)?)?,
+            inner: stages::list(self.inner.clone(), Stage::Sort, callback(function, false)?)
+                .py()?,
         })
     }
 
@@ -187,9 +194,9 @@ impl PyPipeline {
     #[pyo3(signature = (source, on, *, kind=Join::Inner))]
     fn join(&self, source: &Bound<'_, PyAny>, on: &Bound<'_, PyAny>, kind: Join) -> PyResult<Self> {
         let source = pipeline_source(source)?.source();
-        let plan = Plan::plain(vec![PyPipelineExpr::coerce(on)?])?;
+        let plan = scope::plain(vec![PyPipelineExpr::coerce(on)?])?;
         Ok(Self {
-            inner: bound::join(self.inner.clone(), join_side(kind), source, plan)?,
+            inner: stages::join(self.inner.clone(), join_side(kind), source, plan).py()?,
         })
     }
 
@@ -203,7 +210,7 @@ impl PyPipeline {
         let source = pipeline_source(source)?.source();
         let plan = callback(function, true)?;
         Ok(Self {
-            inner: bound::join(self.inner.clone(), join_side(kind), source, plan)?,
+            inner: stages::join(self.inner.clone(), join_side(kind), source, plan).py()?,
         })
     }
 
@@ -392,13 +399,13 @@ impl PyGrouped {
     #[pyo3(signature = (*columns))]
     fn aggregate(&self, columns: &Bound<'_, PyTuple>) -> PyResult<PyPipeline> {
         Ok(PyPipeline {
-            inner: bound::aggregate(self.inner.clone(), plan(columns)?)?,
+            inner: stages::aggregate(self.inner.clone(), plan(columns)?).py()?,
         })
     }
 
     fn aggregate_with(&self, function: &Bound<'_, PyAny>) -> PyResult<PyPipeline> {
         Ok(PyPipeline {
-            inner: bound::aggregate(self.inner.clone(), callback(function, false)?)?,
+            inner: stages::aggregate(self.inner.clone(), callback(function, false)?).py()?,
         })
     }
 

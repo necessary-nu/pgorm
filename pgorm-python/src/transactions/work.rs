@@ -7,7 +7,7 @@ use pgorm_bindings::entity::{
     Active, EntityBackend, GraphQuery, Insertion, Insertions, Model, Read as Terminal,
     Row as GraphRow, Select, Selected, VersionWrite, Versions, Write, Written,
 };
-use pgorm_migration::{MigrationStatus, MigratorTrait};
+use pgorm_migration::MigratorTrait;
 use tokio_postgres::{Row, types::ToSql};
 
 pub(crate) enum Work {
@@ -101,22 +101,11 @@ impl Work {
             Self::Ledger(migrations, Ledger::Install) => {
                 migrations.install(&db).await.map(|()| Output::Finished)
             }
-            Self::Ledger(migrations, Ledger::Status) => migrations
-                .get_migration_with_status(&db)
-                .await
-                .map(|migrations| {
-                    Output::Migrations(
-                        migrations
-                            .iter()
-                            .map(|migration| {
-                                (
-                                    migration.name().to_owned(),
-                                    migration.status() == MigrationStatus::Applied,
-                                )
-                            })
-                            .collect(),
-                    )
-                }),
+            Self::Ledger(migrations, Ledger::Status) => {
+                pgorm_bindings::migrations::statuses(&migrations, &db)
+                    .await
+                    .map(Output::Migrations)
+            }
         }
     }
 }

@@ -19,10 +19,7 @@ use pgorm_bindings::{HookCall, HookEvent, HookJobs};
 use tokio::sync::oneshot;
 
 use super::Statement;
-use crate::{
-    errors::{Failure, Redactions},
-    settle,
-};
+use crate::{errors::Redactions, settle};
 
 pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("hookRun", hook_run)?;
@@ -144,19 +141,11 @@ fn hook_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let statement = Statement::read(&mut cx, 1)?;
     let tagged = cx.argument::<JsBoolean>(4)?.value(&mut cx);
     let work = async move {
-        let closed = || {
-            Failure::Lifecycle("the hook has returned, so its connection is the pool's".to_owned())
-        };
-        let (reply, answer) = oneshot::channel();
         let secrets = state.secrets.clone();
-        if !state.jobs.submit(move |db| {
-            Box::pin(async move {
-                drop(reply.send(statement.run(db, &secrets).await));
-            })
-        }) {
-            return Err(closed());
-        }
-        answer.await.map_err(|_| closed())?
+        state
+            .jobs
+            .run(move |db| Box::pin(async move { statement.run(db, &secrets).await }))
+            .await?
     };
     settle::promise(&mut cx, work, move |cx, outcome| {
         outcome.into_js(cx, tagged)

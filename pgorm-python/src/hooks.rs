@@ -12,10 +12,9 @@ use std::{fmt, sync::Arc, time::Duration};
 use pgorm_bindings::{HookCall, HookEvent, HookJobs};
 use pyo3::prelude::*;
 use pyo3_async_runtimes::TaskLocals;
-use tokio::sync::oneshot;
 
 use crate::{
-    errors::{LifecycleError, Redactions, database_error},
+    errors::{Raise, Redactions, database_error},
     execution::{Database, Executor, Target},
     runtime::check_loop,
     transactions::work::{Output, Work},
@@ -41,31 +40,17 @@ impl fmt::Debug for HookState {
 impl HookState {
     pub(crate) fn check(&self, py: Python<'_>) -> PyResult<()> {
         check_loop(py, &self.owner, "pool")?;
-        if self.jobs.0.is_closed() {
-            return Err(LifecycleError::new_err(
-                "the hook has returned, so its connection is the pool's",
-            ));
-        }
-        Ok(())
+        self.jobs.ensure_open().py()
     }
 
     /// Run `work` on the hook's connection, which serves it before the hook
     /// returns.
     // [spec:pgorm:req:bindings.pool-hooks]
     pub(crate) async fn run(&self, work: Work) -> PyResult<Output> {
-        let (reply, answer) = oneshot::channel();
-        let closed =
-            || LifecycleError::new_err("the hook has returned, so its connection is the pool's");
-        if !self.jobs.submit(move |db| {
-            Box::pin(async move {
-                drop(reply.send(work.run(Database::Hook(*db)).await));
-            })
-        }) {
-            return Err(closed());
-        }
-        answer
+        self.jobs
+            .run(move |db| Box::pin(async move { work.run(Database::Hook(*db)).await }))
             .await
-            .map_err(|_| closed())?
+            .py()?
             .map_err(|error| database_error(error, &self.secrets))
     }
 }

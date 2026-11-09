@@ -8,7 +8,7 @@ use pgorm::metric::InstrumentedPool;
 
 use super::{
     Lender, PoolHandle,
-    config::{self, Shape, Shared},
+    config::{self, Shared},
     metrics, pool,
 };
 use crate::values::read;
@@ -30,7 +30,7 @@ fn pool_new(mut cx: FunctionContext) -> JsResult<JsBox<PoolHandle>> {
     let dsn = cx.argument::<JsValue>(0)?;
     let options = cx.argument::<JsObject>(1)?;
     let shared = Shared::read(&mut cx, dsn, options)?;
-    let shape = Shape::read(&mut cx, options)?;
+    let shape = config::shape(&mut cx, options)?;
     let tag = match config::option(&mut cx, options, "tag")? {
         Some(tag) => Some(read::text(&mut cx, tag, "tag")?),
         None => None,
@@ -97,7 +97,7 @@ fn pools_new(mut cx: FunctionContext) -> JsResult<JsArray> {
         let Ok(object) = value.downcast::<JsObject, _>(&mut cx) else {
             return cx.throw_type_error(format!("pool {tag:?}'s options are an object"));
         };
-        let shape = Shape::read(&mut cx, object)?;
+        let shape = config::shape(&mut cx, object)?;
         read_shapes.insert(tag, shape);
     }
     let built = match shared.build_multi(read_shapes) {

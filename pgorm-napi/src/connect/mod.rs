@@ -39,7 +39,7 @@ use crate::{
     values::read,
 };
 
-use config::Built;
+use pgorm_bindings::Built;
 use pgorm_bindings::Metrics;
 
 pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
@@ -282,13 +282,7 @@ impl Lender {
     /// The pool `built` holds, lending its connections plain.
     fn new(built: Built) -> Self {
         Self {
-            state: PoolState::new(
-                built.pool,
-                built.secrets,
-                (),
-                built.acquire_timeout,
-                config::DIALECT,
-            ),
+            state: PoolState::new(built, (), config::DIALECT),
             metered: None,
         }
     }

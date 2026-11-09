@@ -107,22 +107,16 @@ impl<O: Send + Sync + 'static> Closed<O> {
 }
 
 impl<O: Send + Sync + 'static> PoolState<O> {
-    /// A pool lending its connections within `acquire_timeout`, its
-    /// refusals worded for `dialect`.
-    pub fn new(
-        pool: DatabasePool,
-        secrets: Redactions,
-        owner: O,
-        acquire_timeout: Duration,
-        dialect: Dialect,
-    ) -> Arc<Self> {
+    /// The pool `built` is, lending its connections within its acquire
+    /// timeout, its refusals worded for `dialect`.
+    pub fn new(built: crate::Built, owner: O, dialect: Dialect) -> Arc<Self> {
         Arc::new(Self {
-            pool,
-            secrets,
+            pool: built.pool,
+            secrets: built.secrets,
             closed: CancellationToken::new(),
             owner,
             dialect,
-            acquire_timeout,
+            acquire_timeout: built.acquire_timeout,
             connections: SyncMutex::new(Vec::new()),
             listeners: SyncMutex::new(Vec::new()),
         })

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use pgorm::pgorm_query::Name;
 use pgorm::pipeline as pl;
 use pyo3::{
     basic::CompareOp,
@@ -282,7 +283,7 @@ impl PyPipelineExpr {
     }
 }
 
-pub(super) fn alias_name(value: &Bound<'_, PyAny>) -> PyResult<String> {
+pub(super) fn alias_name(value: &Bound<'_, PyAny>) -> PyResult<Name> {
     if let Ok(expression) = value.extract::<PyRef<'_, PyPipelineExpr>>() {
         expression.check()?;
         if let Recipe::Alias(name) = expression.recipe.as_ref() {
@@ -292,5 +293,5 @@ pub(super) fn alias_name(value: &Bound<'_, PyAny>) -> PyResult<String> {
             "pipeline names require identifiers or alias tokens",
         ));
     }
-    Ok(Identifier::new(value)?.name)
+    Ok(Name::runtime(Identifier::new(value)?.name))
 }

@@ -2,17 +2,16 @@
 
 use std::sync::{Arc, Mutex};
 
-use pgorm::{pgorm_query::Value, pipeline as pl};
+use pgorm::pgorm_query::Value;
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,
     types::{PyList, PyTuple},
 };
 
-use super::{
-    expression::PyPipelineExpr,
-    recipe::{Lowering, Recipe},
-};
+pub(super) use pgorm_bindings::pipeline::Plan;
+
+use super::{expression::PyPipelineExpr, recipe::Recipe};
 use crate::{
     errors::{ConstructionError, InternalError, LifecycleError},
     values::PyValue,
@@ -114,91 +113,25 @@ impl PyPipelineBinder {
     }
 }
 
-/// A stage's expressions and the values its binder function bound, if it had
-/// one.
-pub(super) struct Plan {
-    pub(super) nodes: Vec<Arc<Recipe>>,
-    values: Vec<Value>,
-}
-
-impl Plan {
-    /// The plan of a stage with no binder function: a placeholder in any of
-    /// its expressions belongs to another stage, as pgorm's brand rules.
-    // [spec:pgorm:req:bindings.pipeline-binder]
-    pub(super) fn plain(expressions: Vec<PyPipelineExpr>) -> PyResult<Self> {
-        for expression in &expressions {
-            expression.check()?;
-            if expression.scope.is_some() {
-                return Err(LifecycleError::new_err(
-                    "a placeholder belongs to the stage its binder's function returns it to, not a plain stage",
-                ));
-            }
+/// The plan of a stage with no binder function: a placeholder in any of its
+/// expressions belongs to another stage, as pgorm's brand rules.
+// [spec:pgorm:req:bindings.pipeline-binder]
+pub(super) fn plain(expressions: Vec<PyPipelineExpr>) -> PyResult<Plan> {
+    for expression in &expressions {
+        expression.check()?;
+        if expression.scope.is_some() {
+            return Err(LifecycleError::new_err(
+                "a placeholder belongs to the stage its binder's function returns it to, not a plain stage",
+            ));
         }
-        Ok(Self {
-            nodes: expressions
-                .into_iter()
-                .map(|expression| expression.recipe)
-                .collect(),
-            values: Vec::new(),
-        })
     }
-
-    /// Whether lowering the plan binds anything, so the stage needs its
-    /// binder form.
-    pub(super) fn binds(&self) -> bool {
-        !self.values.is_empty() || self.nodes.iter().any(|node| node.binds())
-    }
-
-    /// The expressions lowered with no binder, for a plan that binds nothing.
-    pub(super) fn unbound(&self) -> PyResult<Vec<pl::Expr<'static>>> {
-        let mut with = Lowering {
-            binder: None,
-            bound: &[],
-        };
-        self.nodes
-            .iter()
-            .map(|node| node.lower(&mut with))
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(unlowered)
-    }
-
-    /// The expressions lowered in a stage's binder closure: the function's
-    /// values bound first, in the order it bound them, then each operand's
-    /// own value as the expression reaches it. `failed` notes a lowering that
-    /// could not finish, which one scope minting both rules out.
-    // [spec:pgorm:req:bindings.pipeline-binder]
-    // [spec:pgorm:req:bindings.operands]
-    pub(super) fn lower<'brand, const N: usize>(
-        &self,
-        binder: &mut pl::Binder<'brand>,
-        failed: &mut bool,
-    ) -> [pl::Expr<'brand>; N] {
-        let bound: Vec<_> = self
-            .values
-            .iter()
-            .cloned()
-            .map(|value| binder.bind(value))
-            .collect();
-        let mut with = Lowering {
-            binder: Some(binder),
-            bound: &bound,
-        };
-        let lowered = self
-            .nodes
-            .iter()
-            .map(|node| node.lower(&mut with))
-            .collect::<Option<Vec<_>>>()
-            .and_then(|all| <[_; N]>::try_from(all).ok());
-        lowered.unwrap_or_else(|| {
-            *failed = true;
-            std::array::from_fn(|_| pl::null())
-        })
-    }
-}
-
-/// A lowering that could not finish, which no input should cause.
-pub(super) fn unlowered() -> PyErr {
-    InternalError::new_err("a pipeline expression could not be lowered")
+    Ok(Plan {
+        recipes: expressions
+            .into_iter()
+            .map(|expression| expression.recipe)
+            .collect(),
+        values: Vec::new(),
+    })
 }
 
 // [spec:pgorm:req:bindings.pipeline-binder]
@@ -259,7 +192,7 @@ pub(super) fn callback(function: &Bound<'_, PyAny>, single: bool) -> PyResult<Pl
         .map_err(|_| InternalError::new_err("pipeline binder state is poisoned"))?;
     state.active = false;
     Ok(Plan {
-        nodes: expressions
+        recipes: expressions
             .into_iter()
             .map(|expression| expression.recipe)
             .collect(),

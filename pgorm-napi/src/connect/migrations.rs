@@ -1,20 +1,15 @@
 //! pgorm-migration's runner, run from JavaScript.
 //!
-//! A JavaScript program's migrations are pgorm-migration's: a `SqlMigration`
-//! is the crate's own, and a migration written in JavaScript is a
-//! `MigrationTrait` whose `up` sends the object's `up` to the JavaScript
-//! thread with a transaction handle on the batch's transaction, and awaits
-//! it. The list is a `pgorm_migration::Migrations`, so the ledger, the lock,
-//! the checksums, `commits_after` and the statement-cache clear and
-//! notification are the runner's alone.
+//! A JavaScript program's migrations are pgorm-bindings' list of them, whose
+//! written migrations' `up` sends the object's `up` to the JavaScript thread
+//! with a transaction handle on the batch's transaction, and awaits it.
 
 use std::sync::{Arc, Mutex, PoisonError};
 
 use futures_util::FutureExt;
 use neon::{event::Channel, prelude::*, types::Finalize};
-use pgorm::{DatabaseTransaction, Error, Name};
-use pgorm_bindings::transaction::{Lent, lend};
-use pgorm_migration::{MigrationName, MigrationTrait, Migrations, MigratorTrait, SqlMigration};
+use pgorm_bindings::migrations::{Entry, Failed, Host, Listed, statuses};
+use pgorm_migration::{MigrationName, MigrationTrait, MigratorTrait, SqlMigration};
 use tokio::sync::oneshot;
 
 use super::{
@@ -108,44 +103,17 @@ fn sql_migration_parts(mut cx: FunctionContext) -> JsResult<JsArray> {
     Ok(array)
 }
 
-/// A migration written in JavaScript: what the runner read of it once, as
-/// the migrator was built, and the object whose `up` it calls.
-struct Written {
-    name: String,
-    checksum: Option<String>,
-    commits_after: bool,
-    object: Root<JsObject>,
-}
-
-enum Entry {
-    Sql(SqlMigration),
-    Written(Arc<Written>),
-}
+/// A migration written in JavaScript: the object whose `up` is called.
+type Written = pgorm_bindings::migrations::Written<Root<JsObject>>;
 
 /// What one `up` call's JavaScript migrations run with: the pool their
 /// transaction handles report through, the channel to the JavaScript thread
 /// that called `up`, `dispatch` in `lib/migrations.js`, which calls a
-/// migration's `up` and reports how it settled, and the value a migration's
-/// `up` rejected with, which `up` rejects with in place of the runner's
-/// account of it.
+/// migration's `up` and reports how it settled.
 struct Call {
     pool: Arc<PoolState>,
     channel: Channel,
     dispatch: Root<JsFunction>,
-    raised: Mutex<Option<Root<JsObject>>>,
-}
-
-/// A JavaScript migration as the runner holds it: `call` is `None` for a
-/// migrator built to read the ledger, which never runs a migration.
-struct Hosted {
-    written: Arc<Written>,
-    call: Option<Arc<Call>>,
-}
-
-impl MigrationName for Hosted {
-    fn name(&self) -> &str {
-        &self.written.name
-    }
 }
 
 /// How a JavaScript migration's `up` settled: resolved, or rejected with the
@@ -153,117 +121,65 @@ impl MigrationName for Hosted {
 /// that is no object cannot be rooted.
 type Settlement = Result<(), Root<JsObject>>;
 
-#[pgorm::entity::prelude::async_trait::async_trait]
-impl MigrationTrait for Hosted {
-    // [spec:pgorm:req:bindings.migrations]    `up` awaited in the batch's transaction
-    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
-        let Some(call) = &self.call else {
-            return Err(Error::Custom(format!(
-                "migration '{}' was read to report a status, not to run",
-                self.written.name
-            )));
-        };
-        let lent = lend(call.pool.clone(), tx, |state| {
-            let handle = TransactionHandle(state);
-            let (settled, settlement) = oneshot::channel::<Settlement>();
-            let written = self.written.clone();
-            let sent = call.clone();
-            let _ = call.channel.try_send(move |mut cx| {
-                let dispatch = sent.dispatch.to_inner(&mut cx);
-                let object = written.object.to_inner(&mut cx);
-                let handle = cx.boxed(handle);
-                let settled = Mutex::new(Some(settled));
-                let done = JsFunction::new(&mut cx, move |mut cx| {
-                    let rejected = cx.argument::<JsBoolean>(0)?.value(&mut cx);
-                    let outcome = match rejected {
-                        true => Err(cx.argument::<JsObject>(1)?.root(&mut cx)),
-                        false => Ok(()),
-                    };
-                    if let Some(settled) = settled
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .take()
-                    {
-                        let _ = settled.send(outcome);
-                    }
-                    Ok(cx.undefined())
-                })?;
-                dispatch
-                    .bind(&mut cx)
-                    .arg(object)?
-                    .arg(handle)?
-                    .arg(done)?
-                    .exec()
-            });
-            settlement
-        })
-        .await;
-        match lent {
-            Lent::Ran(Ok(Ok(()))) => Ok(()),
-            Lent::Ran(Ok(Err(rejected))) => {
-                call.raised
+impl Host for Call {
+    type Object = Root<JsObject>;
+    type Owner = ();
+    type Raised = Root<JsObject>;
+
+    fn pool(&self) -> &Arc<PoolState> {
+        &self.pool
+    }
+
+    async fn up(
+        self: &Arc<Self>,
+        written: &Arc<Written>,
+        state: Arc<pgorm_bindings::transaction::State<()>>,
+    ) -> Result<(), Failed<Root<JsObject>>> {
+        let handle = TransactionHandle(state);
+        let (settled, settlement) = oneshot::channel::<Settlement>();
+        let call = self.clone();
+        let written = written.clone();
+        let _ = self.channel.try_send(move |mut cx| {
+            let dispatch = call.dispatch.to_inner(&mut cx);
+            let object = written.object.to_inner(&mut cx);
+            let handle = cx.boxed(handle);
+            let settled = Mutex::new(Some(settled));
+            let done = JsFunction::new(&mut cx, move |mut cx| {
+                let rejected = cx.argument::<JsBoolean>(0)?.value(&mut cx);
+                let outcome = match rejected {
+                    true => Err(cx.argument::<JsObject>(1)?.root(&mut cx)),
+                    false => Ok(()),
+                };
+                if let Some(settled) = settled
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
-                    .get_or_insert(rejected);
-                Err(Error::Custom(format!(
-                    "migration '{}' rejected",
-                    self.written.name
-                )))
-            }
-            Lent::Ran(Err(_)) => Err(Error::Custom(format!(
-                "migration '{}' could not be run on the JavaScript thread",
-                self.written.name
-            ))),
-            Lent::Discarded => Err(Error::Custom(format!(
-                "migration '{}' lost a command's outcome, so its transaction is in a state nobody knows",
-                self.written.name
-            ))),
+                    .take()
+                {
+                    let _ = settled.send(outcome);
+                }
+                Ok(cx.undefined())
+            })?;
+            dispatch
+                .bind(&mut cx)
+                .arg(object)?
+                .arg(handle)?
+                .arg(done)?
+                .exec()
+        });
+        match settlement.await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(rejected)) => Err(Failed::With(rejected, "rejected")),
+            Err(_) => Err(Failed::Unrun("could not be run on the JavaScript thread")),
         }
-    }
-
-    fn checksum(&self) -> Option<String> {
-        self.written.checksum.clone()
-    }
-
-    fn commits_after(&self) -> bool {
-        self.written.commits_after
     }
 }
 
 /// A migrator built from JavaScript's list: pgorm-migration's `Migrations`,
 /// its ledger placed and its channel named as given.
 // [spec:pgorm:req:bindings.migrations]
-pub(crate) struct MigrationsHandle {
-    entries: Vec<Entry>,
-    table_name: Option<String>,
-    table_schema: Option<String>,
-    channel: Option<String>,
-}
+pub(crate) struct MigrationsHandle(Listed<Root<JsObject>>);
 
 impl Finalize for MigrationsHandle {}
-
-impl MigrationsHandle {
-    /// The runner's migrator over this list, its JavaScript migrations run
-    /// in `call` when there is one.
-    fn migrator(&self, call: Option<&Arc<Call>>) -> Migrations {
-        let migrations = self.entries.iter().map(|entry| match entry {
-            Entry::Sql(migration) => Box::new(migration.clone()) as Box<dyn MigrationTrait>,
-            Entry::Written(written) => Box::new(Hosted {
-                written: written.clone(),
-                call: call.cloned(),
-            }),
-        });
-        let mut migrator =
-            Migrations::new(migrations).with_statement_cache_channel(self.channel.clone());
-        if let Some(name) = &self.table_name {
-            migrator = migrator.with_migration_table_name(Name::runtime(name));
-        }
-        if let Some(schema) = &self.table_schema {
-            migrator = migrator.with_migration_table_schema(Name::runtime(schema));
-        }
-        migrator
-    }
-}
 
 /// `value` as a string, `None` when it is `null` or undefined.
 fn optional_string<'cx>(
@@ -340,12 +256,12 @@ fn migrations_new(mut cx: FunctionContext) -> JsResult<JsBox<MigrationsHandle>> 
     let table_schema = optional_string(&mut cx, table_schema, "migrationTableSchema")?;
     let channel = cx.argument::<JsValue>(3)?;
     let channel = optional_string(&mut cx, channel, "statementCacheChannel")?;
-    Ok(cx.boxed(MigrationsHandle {
+    Ok(cx.boxed(MigrationsHandle(Listed::new(
         entries,
         table_name,
         table_schema,
         channel,
-    }))
+    ))))
 }
 
 /// `migrationsUp(migrations, pool, steps, dispatch)`: pgorm-migration's `up`
@@ -372,26 +288,12 @@ fn migrations_up(mut cx: FunctionContext) -> JsResult<JsPromise> {
     if let Err(refused) = pool.ensure_open() {
         return settle::rejected(&mut cx, refused);
     }
-    let call = Arc::new(Call {
-        pool: pool.clone(),
+    let call = Call {
+        pool,
         channel: cx.channel(),
         dispatch,
-        raised: Mutex::new(None),
-    });
-    let migrator = handle.migrator(Some(&call));
-    let work = async move {
-        let result = migrator.up(pool.pool.clone(), steps).await;
-        let raised = call
-            .raised
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take();
-        match (result, raised) {
-            (Ok(()), _) => Ok(None),
-            (Err(_), Some(raised)) => Ok(Some(raised)),
-            (Err(error), None) => Err(failure(&error, &pool.secrets)),
-        }
     };
+    let work = handle.0.up(call, steps);
     settle::promise(&mut cx, work, |cx, raised| match raised {
         None => Ok(cx.undefined().upcast()),
         Some(raised) => {
@@ -431,7 +333,10 @@ impl Settled for Installed {
 /// reading of every migration's status, as a job any executor runs.
 // [spec:pgorm:req:bindings.migrations]    the runner's own install and reads
 fn migrations_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
-    let migrator = cx.argument::<JsBox<MigrationsHandle>>(0)?.migrator(None);
+    let migrator = cx
+        .argument::<JsBox<MigrationsHandle>>(0)?
+        .0
+        .ledger::<Call>();
     let install = cx.argument::<JsBoolean>(1)?.value(&mut cx);
     Ok(cx.boxed(JobHandle::new(Box::new(move |db, secrets| {
         async move {
@@ -442,23 +347,9 @@ fn migrations_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
                     .map(|()| Box::new(Installed) as Output)
                     .map_err(|error| failure(&error, secrets))
             } else {
-                migrator
-                    .get_migration_with_status(&db)
+                statuses(&migrator, &db)
                     .await
-                    .map(|migrations| {
-                        Box::new(Statuses(
-                            migrations
-                                .iter()
-                                .map(|migration| {
-                                    (
-                                        migration.name().to_owned(),
-                                        migration.status()
-                                            == pgorm_migration::MigrationStatus::Applied,
-                                    )
-                                })
-                                .collect(),
-                        )) as Output
-                    })
+                    .map(|statuses| Box::new(Statuses(statuses)) as Output)
                     .map_err(|error| failure(&error, secrets))
             }
         }

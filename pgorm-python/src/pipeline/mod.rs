@@ -1,6 +1,5 @@
 //! Public pipeline construction through pgorm's existing branded builders.
 
-mod bound;
 mod builder;
 mod capabilities;
 mod construct;

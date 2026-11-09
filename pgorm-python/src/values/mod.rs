@@ -24,7 +24,7 @@ pub use classes::{PyMultirange, PyRange};
 pub(crate) use created::{CreatedKind, CreatedKindPy, extract as created_kind};
 pub use created::{PyCreatedMultirange, PyCreatedRange};
 pub use interval::PyInterval;
-pub(crate) use ranges::{column_type as range_column_type, kind_names as range_kind_names};
+pub(crate) use ranges::kind_names as range_kind_names;
 pub use types::PyTypeName;
 pub(crate) use types::{Tag, TagPy, TypeName, unrepresented};
 

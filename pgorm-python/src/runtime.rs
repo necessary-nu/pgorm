@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     config::{self, DIALECT, NativePoolShape, Owner, seconds},
-    errors::{ConstructionError, InternalError, LifecycleError, Redactions},
+    errors::LifecycleError,
 };
 
 /// The event loop a pool, and everything it lends, belongs to.
@@ -148,27 +148,14 @@ impl NativePool {
             recycle_sql,
             statement_cache_channel,
         )?;
-        let mut secrets = None;
-        let pool = settings
-            .build(
-                |config| {
-                    let redactions = Redactions::from_config(config);
-                    let shaped = shape.shape(&owner, &redactions);
-                    secrets = Some(redactions);
-                    shaped
-                },
+        let built = settings
+            .pool(
+                &shape.0,
+                |event, call, secrets| owner.hook(event, call, secrets),
                 DIALECT,
             )
-            .map_err(|refusal| ConstructionError::new_err(refusal.into_message()))?;
-        let secrets =
-            secrets.ok_or_else(|| InternalError::new_err("the pool was built unshaped"))?;
-        Ok(Self::over(PoolState::new(
-            pool,
-            secrets,
-            owner.owner,
-            shape.acquire_timeout(),
-            DIALECT,
-        )))
+            .py()?;
+        Ok(Self::over(PoolState::new(built, owner.owner, DIALECT)))
     }
 
     /// One pool per entry of `shapes`, each tagged with its key, sharing the
@@ -205,41 +192,24 @@ impl NativePool {
             recycle_sql,
             statement_cache_channel,
         )?;
-        let mut secrets = None;
-        let pools = pgorm_bindings::multi_pool(
-            settings,
-            |config| {
-                let redactions = Redactions::from_config(config);
-                let shaped = shapes
-                    .iter()
-                    .map(|(tag, shape)| (tag.clone(), shape.shape(&owner, &redactions)))
-                    .collect();
-                secrets = Some(redactions);
-                shaped
-            },
-            DIALECT,
-        )
-        .map_err(|refusal| ConstructionError::new_err(refusal.into_message()))?;
-        let secrets =
-            secrets.ok_or_else(|| InternalError::new_err("the pools were built unshaped"))?;
-        pools
+        let options = shapes
             .iter()
-            .map(|(tag, pool)| {
-                let shape = shapes
-                    .get(tag)
-                    .ok_or_else(|| InternalError::new_err("a pool has no shape"))?;
-                Ok((
-                    tag.to_owned(),
-                    Self::over(PoolState::new(
-                        pool.clone(),
-                        secrets.clone(),
-                        owner.owner.clone(),
-                        shape.acquire_timeout(),
-                        DIALECT,
-                    )),
-                ))
+            .map(|(tag, shape)| (tag.clone(), shape.0.clone()))
+            .collect();
+        let pools = settings
+            .pools(
+                &options,
+                |event, call, secrets| owner.hook(event, call, secrets),
+                DIALECT,
+            )
+            .py()?;
+        Ok(pools
+            .into_iter()
+            .map(|(tag, built)| {
+                let state = PoolState::new(built, owner.owner.clone(), DIALECT);
+                (tag, Self::over(state))
             })
-            .collect()
+            .collect())
     }
 
     /// The pool's tag, or the `default-N` pgorm named it.

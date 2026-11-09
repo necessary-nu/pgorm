@@ -9,7 +9,7 @@
 
 use pgorm::{
     CreatedRangeCodec,
-    pgorm_query::{ArrayType, ColumnType, Multirange, Range, Value},
+    pgorm_query::{ArrayType, Multirange, Range, Value},
 };
 use pyo3::{prelude::*, types::PyString};
 
@@ -44,8 +44,6 @@ fn created_kind(
 /// A created range or multirange type as Python reads and writes its
 /// values.
 pub(crate) trait CreatedKindPy {
-    /// The column type a schema declares for this kind.
-    fn column_type(&self) -> PyResult<ColumnType>;
     /// The kind as Python names it, a `CreatedRange` or `CreatedMultirange`.
     fn to_python(&self, py: Python<'_>) -> PyResult<Py<PyAny>>;
     /// The text form of a Python value of this kind.
@@ -79,25 +77,6 @@ fn bounds(kind: &CreatedKind, data: &Bound<'_, PyAny>) -> PyResult<Vec<Range<Val
 }
 
 impl CreatedKindPy for CreatedKind {
-    fn column_type(&self) -> PyResult<ColumnType> {
-        let subtype = std::sync::Arc::new(codec(self)?.subtype_column_type());
-        let rust = self.name.rust_type();
-        let (name, schema) = (rust.name, rust.schema);
-        Ok(if self.multirange {
-            ColumnType::CreatedMultirange {
-                name,
-                schema,
-                subtype,
-            }
-        } else {
-            ColumnType::CreatedRange {
-                name,
-                schema,
-                subtype,
-            }
-        })
-    }
-
     fn to_python(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         if self.multirange {
             Ok(Py::new(py, PyCreatedMultirange(self.clone()))?.into_any())

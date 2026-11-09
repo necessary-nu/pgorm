@@ -1,13 +1,7 @@
 //! Closed runtime type constructors over pgorm_query::ColumnType.
 
-use crate::{
-    UnsupportedCapabilityError,
-    errors::ConstructionError,
-    values::{CreatedKindPy, PyTypeName},
-};
-use pgorm::pgorm_query::{
-    ColumnType, IntervalPrecision, IntervalSpec, Name, PgInterval, StringLen,
-};
+use crate::{UnsupportedCapabilityError, errors::ConstructionError, values::PyTypeName};
+use pgorm::pgorm_query::{ColumnType, IntervalPrecision, IntervalSpec, Name, PgInterval};
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyInt};
 use std::sync::Arc;
 
@@ -66,94 +60,35 @@ impl PyDataType {
                 inner: ColumnType::Interval(interval(kind, fields, precision)?),
             });
         }
-        if length == Some(0) {
-            return Err(ConstructionError::new_err("type length must be positive"));
-        }
+        let refused =
+            |refusal: pgorm_bindings::Refusal| ConstructionError::new_err(refusal.into_message());
+        let sized = length.is_some() || precision.is_some() || scale.is_some();
         if let Some(created) = crate::values::created_kind(kind) {
-            if length.is_some() || precision.is_some() || scale.is_some() {
-                return Err(ConstructionError::new_err(
-                    "created range types do not accept size modifiers",
-                ));
+            if sized {
+                return Err(refused(pgorm_bindings::sized_named_type()));
             }
             return Ok(Self {
-                inner: created.column_type()?,
+                inner: pgorm_bindings::created_column(&created).map_err(refused)?,
             });
         }
         if let Ok(name) = kind.extract::<PyRef<'_, PyTypeName>>() {
-            if length.is_some() || precision.is_some() || scale.is_some() {
-                return Err(ConstructionError::new_err(
-                    "named types do not accept size modifiers",
-                ));
+            if sized {
+                return Err(refused(pgorm_bindings::sized_named_type()));
             }
             return Ok(Self {
-                inner: ColumnType::Enum {
-                    name: Name::runtime(&name.name),
-                    schema: name.schema.as_ref().map(Name::runtime),
-                    variants: Vec::new(),
-                },
+                inner: pgorm_bindings::enum_column(&name),
             });
         }
         let kind = kind.extract::<&str>().map_err(|_| {
             PyTypeError::new_err("DataType requires a supported type name or TypeName")
         })?;
-        if length.is_some() && !matches!(kind, "char" | "varchar" | "bit" | "varbit" | "vector") {
-            return Err(ConstructionError::new_err(
-                "this type does not accept length",
-            ));
-        }
-        if (precision.is_some() || scale.is_some()) && kind != "numeric" {
-            return Err(ConstructionError::new_err(
-                "precision and scale require numeric",
-            ));
-        }
-        let inner = match kind {
-            // SQL's `char` without a length is `char(1)`; `Char(None)` is the
-            // unbounded `bpchar`.
-            "char" => ColumnType::Char(Some(length.unwrap_or(1))),
-            "varchar" => ColumnType::String(length.map_or(StringLen::None, StringLen::N)),
-            "text" => ColumnType::Text,
-            "smallint" => ColumnType::SmallInteger,
-            "integer" => ColumnType::Integer,
-            "bigint" => ColumnType::BigInteger,
-            "real" => ColumnType::Float,
-            "double" => ColumnType::Double,
-            "numeric" => {
-                let size = match (precision, scale) {
-                    (None, None) => None,
-                    (Some(p @ 1..=1000), s) if s.unwrap_or(0) <= 1000 => Some((p, s.unwrap_or(0))),
-                    _ => {
-                        return Err(ConstructionError::new_err(
-                            "numeric requires precision 1–1000 and optional scale 0–1000",
-                        ));
-                    }
-                };
-                ColumnType::Decimal(size)
-            }
-            "boolean" => ColumnType::Boolean,
-            "date" => ColumnType::Date,
-            "time" => ColumnType::Time,
-            "timestamp" => ColumnType::Timestamp,
-            "timestamptz" => ColumnType::TimestampWithTimeZone,
-            "bytea" => ColumnType::Bytea,
-            // SQL's `bit` without a length is `bit(1)`; `Bit(None)` is the
-            // bit type with no length limit.
-            "bit" => ColumnType::Bit(Some(length.unwrap_or(1))),
-            "varbit" => ColumnType::VarBit(
-                length.ok_or_else(|| ConstructionError::new_err("varbit requires length"))?,
-            ),
-            "money" => ColumnType::Money,
-            "json" => ColumnType::Json,
-            "jsonb" => ColumnType::JsonBinary,
-            "uuid" => ColumnType::Uuid,
-            "vector" => ColumnType::Vector(length),
-            "cidr" => ColumnType::Cidr,
-            "inet" => ColumnType::Inet,
-            "macaddr" => ColumnType::MacAddr,
-            "ltree" => ColumnType::LTree,
-            kind => crate::values::range_column_type(kind).ok_or_else(|| {
-                UnsupportedCapabilityError::new_err("unsupported DDL column type")
-            })?,
-        };
+        let inner = pgorm_bindings::builtin_column(kind, length, precision, scale)
+            .map_err(refused)?
+            .ok_or_else(|| {
+                UnsupportedCapabilityError::new_err(
+                    pgorm_bindings::unknown_type(kind).into_message(),
+                )
+            })?;
         Ok(Self { inner })
     }
 

@@ -15,8 +15,9 @@ publish = false
 # raises what comes back as its own errors.
 [dependencies]
 pgorm = { version = "0.2.0", path = ".." }
+pgorm-migration = { version = "0.2.0", path = "../pgorm-migration" }
 futures-util = "0.3.34"
-serde_json = "1.0.151"
+serde_json = { version = "1.0.151", features = ["raw_value", "float_roundtrip"] }
 tokio = { version = "1.53", features = ["sync", "time", "rt", "macros"] }
 tokio-util = "0.7.20"
 tokio-postgres.workspace = true

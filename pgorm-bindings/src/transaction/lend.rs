@@ -13,7 +13,7 @@ use crate::connection::{ConnectionState, PoolState};
 
 /// How a lent transaction's work ended.
 #[derive(Debug)]
-pub enum Lent<T> {
+pub(crate) enum Lent<T> {
     /// The work finished, as it answered; the transaction is as its last
     /// command left it.
     Ran(T),
@@ -26,7 +26,7 @@ pub enum Lent<T> {
 /// the language sends afterwards is refused rather than run in a transaction
 /// the runner has moved on from.
 // [spec:pgorm:req:bindings.migrations]    a migration's `up` runs in the batch's transaction
-pub async fn lend<O, F>(
+pub(crate) async fn lend<O, F>(
     pool: Arc<PoolState<O>>,
     tx: &mut DatabaseTransaction<'_>,
     work: impl FnOnce(Arc<State<O>>) -> F,

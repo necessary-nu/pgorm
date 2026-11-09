@@ -25,7 +25,7 @@ use tokio::sync::{Mutex, OwnedMutexGuard, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
 pub use frame::begin;
-pub use lend::{Lent, lend};
+pub(crate) use lend::{Lent, lend};
 pub use retry::Retrying;
 
 use crate::{Database, Failure, Metrics, connection::ConnectionState};

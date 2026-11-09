@@ -6,7 +6,7 @@ use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use super::{builder::PyPipeline, expression::alias_name};
 use crate::{entities::PyEntity, errors::ConstructionError, statements::PyTable};
-use pgorm::pgorm_query::Name;
+use pgorm::pgorm_query::{Name, SqlName};
 
 /// The pipeline arm is boxed because it is several times the size of a named
 /// table, and a `PySource` is cloned on every composition.
@@ -74,7 +74,7 @@ impl PySource {
     fn named(&self, name: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self {
             relation: self.relation.clone(),
-            alias: Some(alias_name(name)?),
+            alias: Some(SqlName::to_string(&*alias_name(name)?)),
         })
     }
 
