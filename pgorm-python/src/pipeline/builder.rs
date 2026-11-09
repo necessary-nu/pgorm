@@ -44,11 +44,7 @@ impl PyPipeline {
         let (sql, values) = pipeline
             .into_sql()
             .map_err(|error| ConstructionError::new_err(error.to_string()))?;
-        if values.0.len() > 65535 {
-            return Err(ConstructionError::new_err(
-                "PostgreSQL supports at most 65535 query parameters",
-            ));
-        }
+        pgorm_bindings::parameter_count(values.0.len()).py()?;
         Ok(Compiled { sql, values })
     }
 

@@ -22,6 +22,21 @@ use pgorm::{
 
 use crate::entity::PipelineColumn;
 
+/// What a binder used after its stage's function returned is refused with.
+pub const BINDER_ENDED: &str = "the binder has ended: it binds only while its function runs";
+
+/// What an expression over a placeholder whose binder's function has
+/// returned is refused with.
+pub const PLACEHOLDER_ENDED: &str = "a placeholder belongs to the stage its binder's function \
+     returns it to, and that function has returned";
+
+/// What an expression over the placeholders of two binders is refused with.
+pub const TWO_BINDERS: &str = "an expression cannot combine the placeholders of two binders";
+
+/// What a stage given a placeholder of a binder not its own is refused with.
+pub const MISPLACED: &str = "a placeholder belongs to the stage its binder's function returns \
+     it to: not a plain stage, a window, another function's stage or another pipeline's";
+
 /// The binary operators pgorm's pipeline has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(missing_docs)]

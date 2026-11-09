@@ -2,7 +2,6 @@
 
 use std::error::Error;
 
-use fallible_iterator::FallibleIterator;
 use pgorm::pgorm_query::{IpNetwork, MacAddress};
 use tokio_postgres::types::{FromSql, Kind, Type};
 
@@ -17,11 +16,7 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for CheckedArray<T> {
         if !matches!(ty.kind(), Kind::Array(_)) {
             return Err("expected a PostgreSQL array".into());
         }
-        let array = postgres_protocol::types::array_from_sql(raw)?;
-        let dimensions = array.dimensions().collect::<Vec<_>>()?;
-        if dimensions.len() > 1 || dimensions.first().is_some_and(|d| d.lower_bound != 1) {
-            return Err("only one-dimensional arrays with lower bound 1 are supported".into());
-        }
+        pgorm_bindings::one_dimensional(raw)?;
         Vec::<Option<T>>::from_sql(ty, raw).map(Self)
     }
 

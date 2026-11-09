@@ -127,11 +127,7 @@ fn decode(ty: &Type, raw: Option<&[u8]>) -> Result<Tagged, CodecError> {
     let Some(raw) = raw else {
         return Ok(Tagged::null(tag));
     };
-    let array = wire::array_from_sql(raw)?;
-    let dimensions = array.dimensions().collect::<Vec<_>>()?;
-    if dimensions.len() > 1 || dimensions.first().is_some_and(|d| d.lower_bound != 1) {
-        return Err("only one-dimensional arrays with lower bound 1 are supported".into());
-    }
+    let array = pgorm_bindings::one_dimensional(raw)?;
     let items = array.values().collect::<Vec<_>>()?;
     let kind = match &element {
         Tag::Scalar(kind) => kind.clone(),

@@ -167,7 +167,7 @@ class CopyOutStream:
 
     async def __aenter__(self) -> CopyOutStream:
         if self.closed:
-            raise _native.LifecycleError("copy stream is closed")
+            raise _native.LifecycleError("the COPY stream is closed")
         return self
 
     async def __aexit__(
@@ -333,7 +333,7 @@ class CopyRowStream:
 
     async def __aenter__(self) -> CopyRowStream:
         if self.closed:
-            raise _native.LifecycleError("copy stream is closed")
+            raise _native.LifecycleError("the COPY stream is closed")
         return self
 
     async def __aexit__(

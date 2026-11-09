@@ -16,7 +16,7 @@ use crate::{
     transaction::{Lease, State},
 };
 
-const STREAM_CLOSED: &str = "stream is closed";
+const STREAM_CLOSED: &str = "the stream is closed";
 
 /// What a stream holds while it reads: its connection, taken out of its
 /// slot, or its transaction, reserved. Released at the last row; dropped
@@ -222,7 +222,7 @@ impl<O: Send + Sync + 'static> StreamState<O> {
                 return Err(Failure::Lifecycle(POOL_CLOSED.to_owned()));
             }
             () = self.ended.cancelled() => {
-                return Err(Failure::Lifecycle("transaction is closed".to_owned()));
+                return Err(Failure::Lifecycle("the transaction is closed".to_owned()));
             }
             row = active.rows.try_next() => row,
         };

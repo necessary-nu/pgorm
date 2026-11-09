@@ -28,8 +28,8 @@ use tokio_util::sync::CancellationToken;
 use crate::{Database, Dialect, Failure, Metrics, Redactions, classify, listen::ListenerState};
 
 /// What a lent connection refuses once it, or its pool, has closed.
-pub(crate) const POOL_CLOSED: &str = "pool is closed";
-const CONNECTION_CLOSED: &str = "connection is closed";
+pub(crate) const POOL_CLOSED: &str = "the pool is closed";
+const CONNECTION_CLOSED: &str = "the connection is closed";
 
 /// A connection checked out of a pool: a plain one, or one an instrumented
 /// pool lent, which reports what runs on it.
@@ -163,7 +163,7 @@ impl<O: Send + Sync + 'static> PoolState<O> {
                 self.ensure_open()?;
                 acquired
                 .map_err(|_| Failure::Timeout(format!(
-                    "no connection became free within the pool's {}",
+                    "no connection came free within the pool's {}",
                     self.dialect.option("acquire_timeout")
                 )))?
                 .map_err(|error| self.failure(&error))?

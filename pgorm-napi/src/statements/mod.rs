@@ -43,7 +43,7 @@ use pgorm::pgorm_query::{
     TableFunction, Value, Values, WindowStatement,
 };
 
-use crate::{codec::Codec, rows, values::Tagged};
+use crate::{codec::Codec, errors::FailureJs as _, rows, values::Tagged};
 use args::refuse;
 pub(crate) use args::select as embedded_select;
 pub(crate) use args::{expression, node, operand, pick, predicate};
@@ -213,10 +213,6 @@ pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     Ok(())
 }
 
-/// PostgreSQL's limit on a statement's bound parameters: the protocol counts
-/// them in an unsigned 16-bit field.
-const MAX_PARAMETERS: usize = 65_535;
-
 /// The SQL and values a statement node builds, through the same validated
 /// state whether it is inspected or run. A node that is no complete
 /// statement is refused, and so is a SELECT whose tie limit or WINDOW
@@ -267,16 +263,13 @@ pub(crate) fn compile<'cx>(cx: &mut Cx<'cx>, node: &Node) -> NeonResult<(String,
 
 /// `built`, unless it binds more values than PostgreSQL takes.
 fn limited<'cx>(cx: &mut Cx<'cx>, built: (String, Values)) -> NeonResult<(String, Values)> {
-    if built.1.0.len() > MAX_PARAMETERS {
-        return refuse(
-            cx,
-            format!(
-                "the statement binds {} values, past PostgreSQL's {MAX_PARAMETERS}",
-                built.1.0.len()
-            ),
-        );
+    match pgorm_bindings::parameter_count(built.1.0.len()) {
+        Ok(()) => Ok(built),
+        Err(failure) => {
+            let error = failure.into_js(cx)?;
+            cx.throw(error)
+        }
     }
-    Ok(built)
 }
 
 /// `statementInspect(node)`: `[sql, values]`, each value a tagged `Value`. A

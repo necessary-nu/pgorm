@@ -40,7 +40,12 @@ pub struct PyPipelineExpr {
 
 impl PyPipelineExpr {
     pub(super) fn check(&self) -> PyResult<()> {
-        self.scope.as_ref().map_or(Ok(()), |scope| scope.check())
+        match &self.scope {
+            Some(scope) if !scope.active()? => Err(LifecycleError::new_err(
+                pgorm_bindings::pipeline::PLACEHOLDER_ENDED,
+            )),
+            _ => Ok(()),
+        }
     }
 
     pub(super) fn compose(recipe: Recipe, operands: &[Self]) -> PyResult<Self> {
@@ -53,7 +58,7 @@ impl PyPipelineExpr {
                     .is_some_and(|owner| !Arc::ptr_eq(owner, scope))
                 {
                     return Err(LifecycleError::new_err(
-                        "pipeline expression combines different binder scopes",
+                        pgorm_bindings::pipeline::TWO_BINDERS,
                     ));
                 }
                 owner = Some(scope.clone());
@@ -72,7 +77,6 @@ impl PyPipelineExpr {
     // [spec:pgorm:req:bindings.operands]
     pub(super) fn coerce(value: &Bound<'_, PyAny>) -> PyResult<Self> {
         if let Ok(expression) = value.extract::<PyRef<'_, Self>>() {
-            expression.check()?;
             return Ok(expression.clone());
         }
         Ok(Self {

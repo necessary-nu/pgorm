@@ -66,7 +66,7 @@ export class InternalError extends PgormError {}
 /** A pool, connection, transaction or stream was used after it closed, or while another operation held it. */
 export class LifecycleError extends PgormError {}
 
-/** No connection became free within the pool's acquire budget. */
+/** No connection came free within the pool's acquire budget. */
 export class TimeoutError extends PgormError {}
 
 /** PostgreSQL rejected the statement. */

@@ -37,11 +37,7 @@ use crate::{
 
 /// The statement, refused when it binds more values than PostgreSQL takes.
 pub(crate) fn compiled((sql, values): (String, Values)) -> PyResult<Compiled> {
-    if values.0.len() > 65535 {
-        return Err(ConstructionError::new_err(
-            "PostgreSQL supports at most 65535 query parameters",
-        ));
-    }
+    pgorm_bindings::parameter_count(values.0.len()).py()?;
     Ok(Compiled { sql, values })
 }
 

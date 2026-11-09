@@ -30,7 +30,7 @@ pub use retry::Retrying;
 
 use crate::{Database, Failure, Metrics, connection::ConnectionState};
 
-const ENDED: &str = "transaction owner has closed";
+const ENDED: &str = "the transaction has ended";
 
 /// The transaction a frame serves: a plain one, or pgorm's metrics wrapper
 /// around one on an instrumented pool's connection, whose savepoints are
@@ -255,7 +255,7 @@ impl<O: Send + Sync + 'static> State<O> {
     /// Refuse once the frame is closed.
     pub fn ensure_open(&self) -> Result<(), Failure> {
         if self.closed() {
-            Err(Failure::Lifecycle("transaction is closed".to_owned()))
+            Err(Failure::Lifecycle("the transaction is closed".to_owned()))
         } else {
             Ok(())
         }

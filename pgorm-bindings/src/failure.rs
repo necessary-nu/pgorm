@@ -134,7 +134,7 @@ pub enum Failure {
     /// A pool, connection, transaction, stream or listener used after it
     /// closed, or while another operation holds it: a `LifecycleError`.
     Lifecycle(String),
-    /// No connection became free in time: a `TimeoutError`.
+    /// No connection came free in time: a `TimeoutError`.
     Timeout(String),
     /// The caller cancelled the operation, which the binding reports in its
     /// language's own way.
@@ -257,6 +257,21 @@ impl fmt::Display for Failure {
 }
 
 impl std::error::Error for Failure {}
+
+/// The most values one statement binds, as PostgreSQL's protocol counts them
+/// in sixteen bits.
+pub const MAX_PARAMETERS: usize = 65_535;
+
+/// Refuse a statement binding `count` values, past [`MAX_PARAMETERS`],
+/// before anything is sent.
+pub fn parameter_count(count: usize) -> Result<(), Failure> {
+    match count > MAX_PARAMETERS {
+        true => Err(Failure::Construction(format!(
+            "the statement binds {count} values, past PostgreSQL's {MAX_PARAMETERS}"
+        ))),
+        false => Ok(()),
+    }
+}
 
 /// Classify a pgorm error for the binding `dialect` names. A PostgreSQL error
 /// anywhere in its cause chain decides the class, so a server's refusal
@@ -395,6 +410,15 @@ fn postgres_failure(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_statement_binds_at_most_the_protocol_limit() {
+        assert_eq!(parameter_count(MAX_PARAMETERS), Ok(()));
+        assert_eq!(
+            parameter_count(MAX_PARAMETERS + 1).map_err(|failure| failure.message().to_owned()),
+            Err("the statement binds 65536 values, past PostgreSQL's 65535".to_owned())
+        );
+    }
 
     fn diagnostics(sqlstate: &str) -> Failure {
         Failure::Database(Box::new(Diagnostics {

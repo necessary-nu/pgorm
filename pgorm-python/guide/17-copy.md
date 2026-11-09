@@ -652,7 +652,7 @@ async def main() -> None:
             try:
                 await connection.one(RawSQL("SELECT 1 AS one"))
             except pgorm.LifecycleError as error:
-                assert str(error) == "connection is closed"
+                assert str(error) == "the connection is closed"
             else:
                 raise AssertionError("the connection was closed")
 

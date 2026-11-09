@@ -3,10 +3,7 @@
 
 use neon::{prelude::*, types::Finalize};
 use pgorm::pgorm_query::{ColumnType, Expr, GeneratedKind, Name, TableName, TypeName};
-use pgorm::{
-    CaseStyle, ColumnDef, ColumnPairs, ColumnTypeTrait, RelationDef, Schema, TableColumn,
-    TableShape,
-};
+use pgorm::{CaseStyle, ColumnDef, ColumnTypeTrait, Schema, TableColumn, TableShape};
 
 use crate::{
     codec::Codec,
@@ -329,32 +326,27 @@ fn with_relation<'cx>(
     let to = property(cx, relation, "to")?;
     let to = names(cx, to, "relation's columns")?;
     let target = table_name(cx, relation)?;
-    let (Some(first_from), Some(first_to)) = (from.first(), to.first()) else {
-        return read::refuse(cx, "a relation pairs at least one column");
-    };
-    let mut pairs = ColumnPairs::new(Name::runtime(first_from), Name::runtime(first_to));
-    for (from, to) in from.iter().zip(&to).skip(1) {
-        pairs.push(Name::runtime(from), Name::runtime(to));
-    }
-    let label = format!("{}({})", target.table().to_string(), from.join(", "));
-    let mut def = RelationDef::belongs_to(shape.table().clone(), target, pairs);
-    for (key, what) in [
+    let mut actions = [None, None];
+    for (action, (key, what)) in actions.iter_mut().zip([
         ("onDelete", "an ON DELETE action"),
         ("onUpdate", "an ON UPDATE action"),
-    ] {
-        let action = property(cx, relation, key)?;
-        let action = match missing(cx, action) {
-            true => None,
-            false => Some(pick(cx, action, what, FOREIGN_KEY_ACTIONS)?),
-        };
-        match key {
-            "onDelete" => def.on_delete = action,
-            _ => def.on_update = action,
+    ]) {
+        let value = property(cx, relation, key)?;
+        if !missing(cx, value) {
+            *action = Some(pick(cx, value, what, FOREIGN_KEY_ACTIONS)?);
         }
     }
+    let [on_delete, on_update] = actions;
     let fk_name = property(cx, relation, "fkName")?;
-    def.fk_name = optional_text(cx, fk_name, "foreign key's name")?;
-    refused(cx, shape.with_relation(label, def))
+    let relation = pgorm_bindings::BelongsTo {
+        from,
+        to,
+        target,
+        on_delete,
+        on_update,
+        fk_name: optional_text(cx, fk_name, "foreign key's name")?,
+    };
+    pgorm_bindings::with_relation(shape, relation).or_else(|failure| throw(cx, failure))
 }
 
 /// `modelTable(table)`: the table a model declares, checked as pgorm's

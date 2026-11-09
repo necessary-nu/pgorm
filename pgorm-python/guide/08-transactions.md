@@ -89,7 +89,7 @@ async def main() -> None:
             try:
                 await tx.one(RawSQL("SELECT 1 AS one"))
             except pgorm.LifecycleError as error:
-                assert str(error) == "transaction is closed"
+                assert str(error) == "the transaction is closed"
             else:
                 raise AssertionError("the transaction ended with its block")
 

@@ -83,7 +83,7 @@ class Listener:
 
     async def __aenter__(self) -> Listener:
         if self.closed:
-            raise _native.LifecycleError("listener is closed")
+            raise _native.LifecycleError("the listener is closed")
         return self
 
     async def __aexit__(

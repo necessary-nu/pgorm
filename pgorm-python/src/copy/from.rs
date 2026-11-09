@@ -2,57 +2,20 @@
 
 use std::num::NonZeroU32;
 
-use pgorm::pgorm_query::{
-    CopyBinary, CopyCsv, CopyFromStatement, CopyIgnore, CopyLogVerbosity, CopyText, TableName,
-    Values,
-};
+use pgorm::pgorm_query::{CopyIgnore, CopyLogVerbosity, Values};
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,
     types::{PyDict, PyInt, PyTuple},
 };
 
-use super::{Format, character, names, table_name, text};
+use super::{CopyFrom, character, names, table_name, text};
 use crate::{
     errors::ConstructionError,
     expressions::Compiled,
     identifiers::Identifier,
     statements::{PyTable, condition},
 };
-
-/// A COPY FROM in one of the three formats.
-#[derive(Clone, Debug)]
-pub(crate) enum CopyFrom {
-    Text(CopyFromStatement<CopyText>),
-    Csv(CopyFromStatement<CopyCsv>),
-    Binary(CopyFromStatement<CopyBinary>),
-}
-
-impl CopyFrom {
-    fn new(table: TableName, format: Format) -> Self {
-        match format {
-            Format::Text => Self::Text(CopyFromStatement::new(table, CopyText)),
-            Format::Csv => Self::Csv(CopyFromStatement::new(table, CopyCsv)),
-            Format::Binary => Self::Binary(CopyFromStatement::new(table, CopyBinary)),
-        }
-    }
-
-    fn format(&self) -> &'static str {
-        match self {
-            Self::Text(_) => "text",
-            Self::Csv(_) => "csv",
-            Self::Binary(_) => "binary",
-        }
-    }
-
-    pub(crate) fn sql(&self) -> String {
-        match self {
-            Self::Text(statement) => statement.to_string(),
-            Self::Csv(statement) => statement.to_string(),
-            Self::Binary(statement) => statement.to_string(),
-        }
-    }
-}
 
 // [spec:pgorm:req:bindings.copy]
 /// `COPY table [(columns)] FROM STDIN` in a format chosen at construction.
@@ -272,7 +235,7 @@ impl PyCopyFrom {
     /// COPY takes no bind parameters: Rust renders every value inline.
     fn inspect(&self) -> Compiled {
         Compiled {
-            sql: self.inner.sql(),
+            sql: self.inner.rendered(),
             values: Values(Vec::new()),
         }
     }

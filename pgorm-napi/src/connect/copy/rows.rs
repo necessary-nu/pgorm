@@ -10,7 +10,7 @@ use std::sync::{
 
 use bytes::BytesMut;
 use neon::{prelude::*, types::JsUint8Array};
-use pgorm::{CopyColumn, CopyRowDecoder, CopyRowEncoder, CopyTrait, pgorm_query::ArrayType};
+use pgorm::{CopyColumn, CopyRowDecoder, CopyRowEncoder, pgorm_query::ArrayType};
 use tokio::sync::oneshot;
 
 use super::{OutState, Pull, abort_argument, in_state, out_state};
@@ -38,20 +38,6 @@ impl RowsIn {
         if !self.headed.swap(true, Ordering::AcqRel) {
             CopyRowEncoder::header(out);
         }
-    }
-}
-
-pub(super) async fn describe_in<C>(
-    db: &mut C,
-    copy: &CopyFrom,
-) -> Result<Vec<CopyColumn>, pgorm::Error>
-where
-    C: CopyTrait + Send,
-{
-    match copy {
-        CopyFrom::Text(statement) => db.copy_in_columns(statement).await,
-        CopyFrom::Csv(statement) => db.copy_in_columns(statement).await,
-        CopyFrom::Binary(statement) => db.copy_in_columns(statement).await,
     }
 }
 
@@ -101,20 +87,6 @@ pub(crate) fn copy_to_rows_at(
     let rows = rows_argument(cx, rows_index)?;
     rows_format(cx, matches!(copy, CopyTo::Binary(_)), rows)?;
     Ok((copy, rows))
-}
-
-pub(super) async fn describe_out<C>(
-    db: &mut C,
-    copy: &CopyTo,
-) -> Result<Vec<CopyColumn>, pgorm::Error>
-where
-    C: CopyTrait + Send,
-{
-    match copy {
-        CopyTo::Text(statement) => db.copy_out_columns(statement).await,
-        CopyTo::Csv(statement) => db.copy_out_columns(statement).await,
-        CopyTo::Binary(statement) => db.copy_out_columns(statement).await,
-    }
 }
 
 /// The message a refusal of pgorm's carries, without the variant's prefix.
@@ -300,7 +272,7 @@ pub(super) fn copy_rows_next(mut cx: FunctionContext) -> JsResult<JsPromise> {
     }
     let Ok(busy) = state.busy.clone().try_lock_owned() else {
         let busy =
-            Failure::Lifecycle("the COPY stream is busy: one pull runs at a time".to_owned());
+            Failure::Lifecycle("the COPY stream is busy: one row is pulled at a time".to_owned());
         return settle::rejected(&mut cx, busy);
     };
     let work = async move {

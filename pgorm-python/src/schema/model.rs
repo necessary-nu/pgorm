@@ -2,10 +2,7 @@
 //! disjoint model's tables are written from.
 
 use pgorm::pgorm_query::{ColumnType, Expr, GeneratedKind, Name, TableName, TypeName};
-use pgorm::{
-    CaseStyle, ColumnDef, ColumnPairs, ColumnTypeTrait, RelationDef, Schema, TableColumn,
-    TableShape,
-};
+use pgorm::{CaseStyle, ColumnDef, ColumnTypeTrait, Schema, TableColumn, TableShape};
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyDict};
 
 use super::{
@@ -187,28 +184,21 @@ pub(crate) fn shape_of(table: &Bound<'_, PyAny>) -> PyResult<TableShape> {
 /// actions and its constraint's name.
 // [spec:pgorm:req:bindings.schema-from-model]
 fn with_relation(shape: TableShape, relation: &Bound<'_, PyAny>) -> PyResult<TableShape> {
-    let refused = |error: pgorm::Error| ConstructionError::new_err(error.to_string());
     let described = relation.cast::<PyDict>()?;
     let from: Vec<String> = item(described, "from")?.extract()?;
     let to: Vec<String> = item(described, "to")?.extract()?;
     let target = table_name(described)?;
-    let (Some(first_from), Some(first_to)) = (from.first(), to.first()) else {
-        return Err(ConstructionError::new_err(
-            "a relation pairs at least one column",
-        ));
-    };
-    let mut pairs = ColumnPairs::new(Name::runtime(first_from), Name::runtime(first_to));
-    for (from, to) in from.iter().zip(&to).skip(1) {
-        pairs.push(Name::runtime(from), Name::runtime(to));
-    }
-    let label = format!("{}({})", target.table().to_string(), from.join(", "));
-    let mut def = RelationDef::belongs_to(shape.table().clone(), target, pairs);
     let on_delete: Option<String> = item(described, "on_delete")?.extract()?;
-    def.on_delete = choice(on_delete.as_deref(), "an ON DELETE action", ACTIONS)?;
     let on_update: Option<String> = item(described, "on_update")?.extract()?;
-    def.on_update = choice(on_update.as_deref(), "an ON UPDATE action", ACTIONS)?;
-    def.fk_name = item(described, "fk_name")?.extract()?;
-    shape.with_relation(label, def).map_err(refused)
+    let relation = pgorm_bindings::BelongsTo {
+        from,
+        to,
+        target,
+        on_delete: choice(on_delete.as_deref(), "an ON DELETE action", ACTIONS)?,
+        on_update: choice(on_update.as_deref(), "an ON UPDATE action", ACTIONS)?,
+        fk_name: item(described, "fk_name")?.extract()?,
+    };
+    pgorm_bindings::with_relation(shape, relation).py()
 }
 
 /// `_model_table(table)`: the table a model declares, checked as pgorm's

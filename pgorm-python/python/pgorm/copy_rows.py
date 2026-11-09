@@ -49,7 +49,7 @@ class CopyRowSink:
         """Write one row, a sequence of its columns' values."""
         if not await self._native.write_rows([row]):
             await self.finish()
-            raise _native.LifecycleError("COPY has ended")
+            raise _native.LifecycleError("the COPY has ended")
 
     async def send_model(self, record: ModelRecord) -> None:
         """Write ``record``, each of the COPY's columns taken from the record's
@@ -94,7 +94,7 @@ class CopyRowSink:
 
     async def __aenter__(self) -> CopyRowSink:
         if self.closed:
-            raise _native.LifecycleError("copy sink is closed")
+            raise _native.LifecycleError("the COPY has ended")
         return self
 
     async def __aexit__(

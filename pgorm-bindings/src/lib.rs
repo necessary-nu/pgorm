@@ -11,6 +11,7 @@
 //! choice, [`Dialect`] spells it as the binding does.
 // [spec:pgorm:req:bindings.shared-runtime]
 
+mod array;
 mod connection;
 mod copy;
 mod dialect;
@@ -24,6 +25,7 @@ mod kind;
 mod listen;
 mod metrics;
 pub mod migrations;
+mod model;
 mod panic;
 pub mod pipeline;
 mod pool;
@@ -33,11 +35,14 @@ pub mod transaction;
 mod types;
 mod verify;
 
+pub use array::one_dimensional;
 pub use connection::{Closed, ConnectionState, Held, Operation, PoolState, cancellable};
-pub use copy::{builtin_type, copy_column};
-pub use dialect::{Dialect, Refusal};
-pub use expr::call;
-pub use failure::{Class, Diagnostics, Failure, Redactions, classify};
+pub use copy::{CopyFrom, CopyTo, DataFormat, builtin_type, copy_column};
+pub use dialect::{Dialect, Refusal, pick};
+pub use expr::{call, window_function};
+pub use failure::{
+    Class, Diagnostics, Failure, MAX_PARAMETERS, Redactions, classify, parameter_count,
+};
 pub use hook::{HookCall, HookEvent, HookJob, HookJobs, hook};
 pub use insert::{
     InsertConflict, InsertTerminal, InsertWrite, Inserted, Insertion, TryInsertTerminal, insert,
@@ -46,6 +51,7 @@ pub use json::{ExactJson, MAX_DEPTH as JSON_MAX_DEPTH};
 pub use kind::{CreatedKind, Tag, TypeName, labels};
 pub use listen::{ListenRequest, ListenerState, Received};
 pub use metrics::{Database, Hook, Metrics, Report, Reporter};
+pub use model::{BelongsTo, with_relation};
 pub use panic::panicked;
 pub use pool::{Built, PoolOptions, PoolSettings, connect_listener, listener_config};
 pub use stream::StreamState;

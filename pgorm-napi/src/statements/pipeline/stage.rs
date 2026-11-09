@@ -58,11 +58,7 @@ fn plan<'cx>(
         };
         let ours = scope.as_ref().is_some_and(|ours| Arc::ptr_eq(ours, theirs));
         if !ours {
-            return lifecycle(
-                cx,
-                "a placeholder belongs to the stage its binder's function returns it to: not a \
-                 plain stage, a window, another function's stage or another pipeline's",
-            );
+            return lifecycle(cx, pgorm_bindings::pipeline::MISPLACED);
         }
     }
     let values = match &scope {

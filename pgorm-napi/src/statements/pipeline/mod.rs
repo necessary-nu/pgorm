@@ -156,18 +156,11 @@ fn compose<'cx>(cx: &mut Cx<'cx>, recipe: Recipe, operands: &[&PlExpr]) -> NeonR
             continue;
         };
         if !theirs.is_open(cx)? {
-            return lifecycle(
-                cx,
-                "a placeholder belongs to the stage its binder's function returns it to, and that \
-                 function has returned",
-            );
+            return lifecycle(cx, pgorm_bindings::pipeline::PLACEHOLDER_ENDED);
         }
         match &scope {
             Some(ours) if !Arc::ptr_eq(ours, theirs) => {
-                return lifecycle(
-                    cx,
-                    "an expression cannot combine the placeholders of two binders",
-                );
+                return lifecycle(cx, pgorm_bindings::pipeline::TWO_BINDERS);
             }
             _ => scope = Some(theirs.clone()),
         }

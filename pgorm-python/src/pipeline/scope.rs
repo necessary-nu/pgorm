@@ -13,7 +13,7 @@ pub(super) use pgorm_bindings::pipeline::Plan;
 
 use super::{expression::PyPipelineExpr, recipe::Recipe};
 use crate::{
-    errors::{ConstructionError, InternalError, LifecycleError},
+    errors::{ConstructionError, InternalError, LifecycleError, Raise},
     values::PyValue,
 };
 
@@ -27,17 +27,13 @@ struct State {
 pub(super) struct Scope(Mutex<State>);
 
 impl Scope {
-    pub(super) fn check(&self) -> PyResult<()> {
-        if self
+    /// Whether the scope's function is still running.
+    pub(super) fn active(&self) -> PyResult<bool> {
+        Ok(self
             .0
             .lock()
             .map_err(|_| InternalError::new_err("pipeline binder state is poisoned"))?
-            .active
-        {
-            Ok(())
-        } else {
-            Err(LifecycleError::new_err("pipeline binder scope has ended"))
-        }
+            .active)
     }
 
     fn bind(&self, value: Value) -> PyResult<usize> {
@@ -46,14 +42,12 @@ impl Scope {
             .lock()
             .map_err(|_| InternalError::new_err("pipeline binder state is poisoned"))?;
         if !state.active {
-            return Err(LifecycleError::new_err("pipeline binder scope has ended"));
-        }
-        let index = state.values.len();
-        if index >= 65535 {
-            return Err(ConstructionError::new_err(
-                "PostgreSQL supports at most 65535 query parameters",
+            return Err(LifecycleError::new_err(
+                pgorm_bindings::pipeline::BINDER_ENDED,
             ));
         }
+        let index = state.values.len();
+        pgorm_bindings::parameter_count(index + 1).py()?;
         state.values.push(value);
         Ok(index)
     }
@@ -99,7 +93,11 @@ pub struct PyPipelineBinder {
 #[pymethods]
 impl PyPipelineBinder {
     fn bind(&self, value: &Bound<'_, PyAny>) -> PyResult<PyPipelineExpr> {
-        self.scope.check()?;
+        if !self.scope.active()? {
+            return Err(LifecycleError::new_err(
+                pgorm_bindings::pipeline::BINDER_ENDED,
+            ));
+        }
         let index = self.scope.bind(bindable(value)?)?;
         Ok(PyPipelineExpr {
             recipe: Arc::new(Recipe::Bound(index)),
@@ -117,13 +115,11 @@ impl PyPipelineBinder {
 /// expressions belongs to another stage, as pgorm's brand rules.
 // [spec:pgorm:req:bindings.pipeline-binder]
 pub(super) fn plain(expressions: Vec<PyPipelineExpr>) -> PyResult<Plan> {
-    for expression in &expressions {
-        expression.check()?;
-        if expression.scope.is_some() {
-            return Err(LifecycleError::new_err(
-                "a placeholder belongs to the stage its binder's function returns it to, not a plain stage",
-            ));
-        }
+    if expressions
+        .iter()
+        .any(|expression| expression.scope.is_some())
+    {
+        return Err(LifecycleError::new_err(pgorm_bindings::pipeline::MISPLACED));
     }
     Ok(Plan {
         recipes: expressions
@@ -174,17 +170,14 @@ pub(super) fn callback(function: &Bound<'_, PyAny>, single: bool) -> PyResult<Pl
             .map(|value| PyPipelineExpr::coerce(&value?))
             .collect::<PyResult<Vec<_>>>()?
     };
-    for expression in &expressions {
-        expression.check()?;
-        if expression
+    let misplaced = expressions.iter().any(|expression| {
+        expression
             .scope
             .as_ref()
             .is_some_and(|owner| !Arc::ptr_eq(owner, &scope))
-        {
-            return Err(LifecycleError::new_err(
-                "pipeline expression belongs to another binder scope",
-            ));
-        }
+    });
+    if misplaced {
+        return Err(LifecycleError::new_err(pgorm_bindings::pipeline::MISPLACED));
     }
     let mut state = scope
         .0

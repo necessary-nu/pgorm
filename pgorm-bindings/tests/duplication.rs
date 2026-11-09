@@ -14,9 +14,11 @@ use std::{
 };
 
 /// The longest run of identical tokens the two bindings may share. Language
-/// glue around one shared call, a `match` over a closed choice spelled the
-/// same way, is shorter; a function body written twice is not.
-const LIMIT: usize = 480;
+/// glue is shorter: the longest the bindings hold alike are a registry
+/// method's generic bounds over pgorm-bindings' own and the list of DDL
+/// statements a node can hold, both near 80; a function body written twice
+/// is longer.
+const LIMIT: usize = 100;
 
 /// The shortest run the scan seeds a match with: shorter runs are counted
 /// only as part of a longer one.

@@ -185,7 +185,7 @@ async def main() -> None:
     try:
         await pool.one(RawSQL("SELECT 1 AS one"))
     except pgorm.LifecycleError as error:
-        assert str(error) == "pool is closed"
+        assert str(error) == "the pool is closed"
     else:
         raise AssertionError("a closed pool runs nothing")
 

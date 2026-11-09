@@ -212,7 +212,7 @@ impl<O: Send + Sync + 'static> Retrying<O> {
             biased;
             () = cancel.cancelled() => Err(Failure::Cancelled),
             attempt = attempts.recv() => attempt
-                .ok_or_else(|| Failure::Lifecycle("transaction is closed".to_owned())),
+                .ok_or_else(|| Failure::Lifecycle("the transaction is closed".to_owned())),
         };
         if attempt.is_err() {
             self.abort();

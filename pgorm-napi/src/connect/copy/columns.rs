@@ -144,8 +144,8 @@ where
     C: CopyTrait + Send,
 {
     let columns = match copy {
-        CopyStatement::CopyFrom(copy) => rows::describe_in(db, copy).await,
-        CopyStatement::CopyTo(copy) => rows::describe_out(db, copy).await,
+        CopyStatement::CopyFrom(copy) => copy.columns(db).await,
+        CopyStatement::CopyTo(copy) => copy.columns(db).await,
     };
     columns.map_err(|error| failure(&error, secrets))
 }

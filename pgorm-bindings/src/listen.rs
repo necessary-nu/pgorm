@@ -16,7 +16,7 @@ use crate::{
     connection::{POOL_CLOSED, PoolState},
 };
 
-const LISTENER_CLOSED: &str = "listener is closed";
+const LISTENER_CLOSED: &str = "the listener is closed";
 
 /// What a request on a listener asks of its connection: `LISTEN`,
 /// `UNLISTEN` or `UNLISTEN *`, each channel sent as a quoted identifier.

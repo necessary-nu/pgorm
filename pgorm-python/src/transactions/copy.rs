@@ -30,7 +30,7 @@ async fn copy(
     state.send_job(job(opened)).py()?;
     let result = open
         .await
-        .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
+        .map_err(|_| LifecycleError::new_err("the transaction has ended"))?;
     match result {
         Ok(()) => Ok(State::lease(lock, pending)),
         Err(unopened) => {

@@ -68,11 +68,7 @@ impl fmt::Debug for NativeDisjoint {
 /// limit.
 fn compiled(query: &SelectStatement) -> PyResult<Compiled> {
     let (sql, values) = query.build();
-    if values.0.len() > 65535 {
-        return Err(ConstructionError::new_err(
-            "statement exceeds PostgreSQL's 65535-parameter limit",
-        ));
-    }
+    pgorm_bindings::parameter_count(values.0.len()).py()?;
     Ok(Compiled { sql, values })
 }
 

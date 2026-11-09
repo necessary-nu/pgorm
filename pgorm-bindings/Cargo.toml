@@ -17,6 +17,10 @@ publish = false
 pgorm = { version = "0.2.0", path = ".." }
 pgorm-migration = { version = "0.2.0", path = "../pgorm-migration" }
 futures-util = "0.3.34"
+# fallible-iterator stays on 0.2: postgres-protocol 0.6.12 hands its array
+# iterators out through 0.2's `FallibleIterator`.
+fallible-iterator = "0.2.0"
+postgres-protocol = "0.6.12"
 serde_json = { version = "1.0.151", features = ["raw_value", "float_roundtrip"] }
 tokio = { version = "1.53", features = ["sync", "time", "rt", "macros"] }
 tokio-util = "0.7.20"
@@ -28,6 +32,7 @@ rustls-native-certs = "0.8.4"
 tokio-postgres-rustls = "0.14.0"
 
 [dev-dependencies]
+bytes = "1.12.1"
 tokio = { version = "1.53", features = ["macros", "rt"] }
 # The variants of pgorm-query's open enums, behind its hidden tests-cfg
 # feature, which the kind tests walk.

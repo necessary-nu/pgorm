@@ -1,5 +1,5 @@
 use crate::{
-    errors::ConstructionError,
+    errors::Raise,
     execution::{Executor, listed},
     transactions::work::Work,
 };
@@ -20,11 +20,7 @@ pub(crate) fn read<'py>(
 ) -> PyResult<Bound<'py, PyAny>> {
     let target = Executor::extract(py, connection)?;
     let optional = matches!(terminal, Read::Optional);
-    if query.compile(optional).1.0.len() > 65535 {
-        return Err(ConstructionError::new_err(
-            "PostgreSQL supports at most 65535 query parameters",
-        ));
-    }
+    pgorm_bindings::parameter_count(query.compile(optional).1.0.len()).py()?;
     listed(
         py,
         target,

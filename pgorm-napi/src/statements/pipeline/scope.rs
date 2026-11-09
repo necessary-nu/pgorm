@@ -28,9 +28,6 @@ use crate::{
     values::{Tag, read},
 };
 
-/// PostgreSQL's limit on a statement's bound parameters.
-const MAX_PARAMETERS: usize = 65_535;
-
 #[derive(Debug)]
 struct State {
     open: bool,
@@ -155,17 +152,12 @@ fn bind(cx: &mut FunctionContext) -> NeonResult<Node> {
     let mut state = scope.state(cx)?;
     if !state.open {
         drop(state);
-        return lifecycle(
-            cx,
-            "a binder binds only while its function runs; this one has returned",
-        );
+        return lifecycle(cx, pgorm_bindings::pipeline::BINDER_ENDED);
     }
-    if state.values.len() >= MAX_PARAMETERS {
+    if let Err(failure) = pgorm_bindings::parameter_count(state.values.len() + 1) {
         drop(state);
-        return refuse(
-            cx,
-            format!("a pipeline binds at most {MAX_PARAMETERS} values"),
-        );
+        let error = failure.into_js(cx)?;
+        return cx.throw(error);
     }
     state.values.push(value);
     let index = state.values.len() - 1;

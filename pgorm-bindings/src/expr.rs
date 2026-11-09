@@ -2,9 +2,9 @@
 //! pgorm-query constructor and taking the argument counts the constructor
 //! does: the name selects a constructor and never reaches SQL.
 
-use pgorm::pgorm_query::{Func, FunctionCall, SimpleExpr};
+use pgorm::pgorm_query::{Func, FunctionCall, Name, SimpleExpr};
 
-use crate::Refusal;
+use crate::{Dialect, Refusal};
 
 /// The functions `call` reaches, in the order its refusal lists them.
 const FUNCTIONS: &[&str] = &[
@@ -41,6 +41,32 @@ const FUNCTIONS: &[&str] = &[
     "ts_rank",
     "ts_rank_cd",
 ];
+
+/// PostgreSQL's general-purpose window function `name` over `args`, at the
+/// argument counts it takes, usable only through `over` since the server
+/// refuses one without a window (`42809`).
+// [spec:pgorm:req:bindings.windows]
+pub fn window_function(
+    name: &str,
+    args: Vec<SimpleExpr>,
+    dialect: Dialect,
+) -> Result<FunctionCall, Refusal> {
+    let accepted = match name {
+        "row_number" | "rank" | "dense_rank" | "percent_rank" | "cume_dist" => Some(0..=0),
+        "ntile" | "first_value" | "last_value" => Some(1..=1),
+        "nth_value" => Some(2..=2),
+        "lag" | "lead" => Some(1..=3),
+        _ => None,
+    };
+    if !accepted.is_some_and(|counts| counts.contains(&args.len())) {
+        return Err(Refusal(format!(
+            "{}() has no {name:?} taking {} argument(s)",
+            dialect.option("window_function"),
+            args.len()
+        )));
+    }
+    Ok(Func::named(Name::runtime(name)).args(args))
+}
 
 /// `name` called with `args`, through pgorm-query's constructor of that
 /// function, or the refusal naming the functions `call` reaches; `func`
@@ -115,6 +141,27 @@ mod tests {
     use pgorm::pgorm_query::Expr;
 
     use super::*;
+
+    // [spec:pgorm:req:bindings.windows/test]    a window function at a count it does not take
+    // is refused, named as the binding spells window_function
+    #[test]
+    fn a_window_function_takes_its_own_argument_counts() {
+        let one = vec![Expr::val(1).into()];
+        assert!(window_function("lag", one.clone(), Dialect::Python).is_ok());
+        assert!(window_function("row_number", Vec::new(), Dialect::Python).is_ok());
+        let refused = |name, args, dialect| {
+            window_function(name, args, dialect)
+                .map_or_else(|refusal| refusal.into_message(), |_| String::new())
+        };
+        assert_eq!(
+            refused("rank", one.clone(), Dialect::JavaScript),
+            "windowFunction() has no \"rank\" taking 1 argument(s)"
+        );
+        assert_eq!(
+            refused("median", one, Dialect::Python),
+            "window_function() has no \"median\" taking 1 argument(s)"
+        );
+    }
 
     // [spec:pgorm:req:bindings.expressions+4/test]    a name selects its constructor at the
     // argument counts the constructor takes, and any other is refused naming those call reaches

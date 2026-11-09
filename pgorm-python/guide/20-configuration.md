@@ -173,7 +173,7 @@ async def main() -> None:
         try:
             await pool.acquire()
         except pgorm.TimeoutError as error:
-            assert str(error) == "no connection became free within the pool's acquire_timeout"
+            assert str(error) == "no connection came free within the pool's acquire_timeout"
         else:
             raise AssertionError("every connection is lent")
 
@@ -554,7 +554,7 @@ async def main() -> None:
     try:
         await connection.one(RawSQL("SELECT 1 AS one"))
     except pgorm.LifecycleError as error:
-        assert str(error) == "pool is closed"
+        assert str(error) == "the pool is closed"
     else:
         raise AssertionError("a closed pool's connections run nothing")
 

@@ -8,9 +8,153 @@
 
 use std::{collections::HashMap, sync::OnceLock};
 
-use pgorm::{CopyColumn, types::Type};
+use pgorm::{
+    CopyColumn, CopyInSink, CopyOutStream, CopyTrait, Error,
+    pgorm_query::{
+        CopyBinary, CopyCsv, CopyFromStatement, CopyText, CopyToStatement, IntoCopySource,
+        TableName,
+    },
+    types::Type,
+};
 
 use crate::{Dialect, Refusal};
+
+/// A COPY's data format, which decides the options it takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(missing_docs)]
+pub enum DataFormat {
+    Text,
+    Csv,
+    Binary,
+}
+
+/// A `COPY … FROM STDIN` in one of its three formats, as a binding's
+/// builder holds it.
+// [spec:pgorm:req:bindings.copy]
+#[derive(Debug, Clone)]
+#[allow(missing_docs)]
+pub enum CopyFrom {
+    Text(CopyFromStatement<CopyText>),
+    Csv(CopyFromStatement<CopyCsv>),
+    Binary(CopyFromStatement<CopyBinary>),
+}
+
+/// A `COPY … TO STDOUT` in one of its three formats.
+// [spec:pgorm:req:bindings.copy]
+#[derive(Debug, Clone)]
+#[allow(missing_docs)]
+pub enum CopyTo {
+    Text(CopyToStatement<CopyText>),
+    Csv(CopyToStatement<CopyCsv>),
+    Binary(CopyToStatement<CopyBinary>),
+}
+
+impl CopyFrom {
+    /// `COPY table FROM STDIN` in `format`.
+    pub fn new(table: TableName, format: DataFormat) -> Self {
+        match format {
+            DataFormat::Text => Self::Text(CopyFromStatement::new(table, CopyText)),
+            DataFormat::Csv => Self::Csv(CopyFromStatement::new(table, CopyCsv)),
+            DataFormat::Binary => Self::Binary(CopyFromStatement::new(table, CopyBinary)),
+        }
+    }
+
+    /// The format's name in a COPY's own options.
+    pub fn format(&self) -> &'static str {
+        match self {
+            Self::Text(_) => "text",
+            Self::Csv(_) => "csv",
+            Self::Binary(_) => "binary",
+        }
+    }
+
+    /// pgorm-query's one rendering of the statement, every value in it an
+    /// escaped literal.
+    pub fn rendered(&self) -> String {
+        match self {
+            Self::Text(statement) => statement.to_string(),
+            Self::Csv(statement) => statement.to_string(),
+            Self::Binary(statement) => statement.to_string(),
+        }
+    }
+
+    /// The columns the COPY writes, as pgorm describes them before it
+    /// starts, starting none.
+    // [spec:pgorm:req:bindings.copy-rows+2]
+    pub async fn columns<C: CopyTrait + Send>(&self, db: &mut C) -> Result<Vec<CopyColumn>, Error> {
+        match self {
+            Self::Text(statement) => db.copy_in_columns(statement).await,
+            Self::Csv(statement) => db.copy_in_columns(statement).await,
+            Self::Binary(statement) => db.copy_in_columns(statement).await,
+        }
+    }
+
+    /// The COPY started on `db`, its sink borrowing the connection.
+    pub async fn open<'a, C: CopyTrait + Send>(
+        &self,
+        db: &'a mut C,
+    ) -> Result<CopyInSink<'a>, Error> {
+        match self {
+            Self::Text(statement) => db.copy_in(statement).await,
+            Self::Csv(statement) => db.copy_in(statement).await,
+            Self::Binary(statement) => db.copy_in(statement).await,
+        }
+    }
+}
+
+impl CopyTo {
+    /// `COPY source TO STDOUT` in `format`.
+    pub fn new(source: impl IntoCopySource, format: DataFormat) -> Self {
+        let source = source.into_copy_source();
+        match format {
+            DataFormat::Text => Self::Text(CopyToStatement::new(source, CopyText)),
+            DataFormat::Csv => Self::Csv(CopyToStatement::new(source, CopyCsv)),
+            DataFormat::Binary => Self::Binary(CopyToStatement::new(source, CopyBinary)),
+        }
+    }
+
+    /// The format's name in a COPY's own options.
+    pub fn format(&self) -> &'static str {
+        match self {
+            Self::Text(_) => "text",
+            Self::Csv(_) => "csv",
+            Self::Binary(_) => "binary",
+        }
+    }
+
+    /// pgorm-query's one rendering of the statement, every value in it an
+    /// escaped literal.
+    pub fn rendered(&self) -> String {
+        match self {
+            Self::Text(statement) => statement.to_string(),
+            Self::Csv(statement) => statement.to_string(),
+            Self::Binary(statement) => statement.to_string(),
+        }
+    }
+
+    /// The columns the COPY reads, as pgorm describes them before it starts,
+    /// starting none.
+    // [spec:pgorm:req:bindings.copy-rows+2]
+    pub async fn columns<C: CopyTrait + Send>(&self, db: &mut C) -> Result<Vec<CopyColumn>, Error> {
+        match self {
+            Self::Text(statement) => db.copy_out_columns(statement).await,
+            Self::Csv(statement) => db.copy_out_columns(statement).await,
+            Self::Binary(statement) => db.copy_out_columns(statement).await,
+        }
+    }
+
+    /// The COPY started on `db`, its stream borrowing the connection.
+    pub async fn open<'a, C: CopyTrait + Send>(
+        &self,
+        db: &'a mut C,
+    ) -> Result<CopyOutStream<'a>, Error> {
+        match self {
+            Self::Text(statement) => db.copy_out(statement).await,
+            Self::Csv(statement) => db.copy_out(statement).await,
+            Self::Binary(statement) => db.copy_out(statement).await,
+        }
+    }
+}
 
 /// The first OID PostgreSQL gives an object it did not create itself, so
 /// every built-in type's is below it.

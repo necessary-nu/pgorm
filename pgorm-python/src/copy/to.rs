@@ -1,55 +1,19 @@
 //! `COPY … TO STDOUT`, its format chosen by name at construction.
 
-use pgorm::pgorm_query::{
-    CopyBinary, CopyCsv, CopySource, CopyText, CopyToStatement, IntoCopySource, Values,
-};
+use pgorm::pgorm_query::{CopySource, Values};
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,
     types::{PyDict, PyTuple},
 };
 
-use super::{Format, character, names, table_name, text};
+use super::{CopyTo, character, names, table_name, text};
 use crate::{
     errors::ConstructionError,
     expressions::Compiled,
     identifiers::Identifier,
     statements::{PyDelete, PyInsert, PyMerge, PyPendingMerge, PySelect, PyTable, PyUpdate},
 };
-
-/// A COPY TO in one of the three formats.
-#[derive(Clone, Debug)]
-pub(crate) enum CopyTo {
-    Text(CopyToStatement<CopyText>),
-    Csv(CopyToStatement<CopyCsv>),
-    Binary(CopyToStatement<CopyBinary>),
-}
-
-impl CopyTo {
-    fn new<S: IntoCopySource>(source: S, format: Format) -> Self {
-        match format {
-            Format::Text => Self::Text(CopyToStatement::new(source, CopyText)),
-            Format::Csv => Self::Csv(CopyToStatement::new(source, CopyCsv)),
-            Format::Binary => Self::Binary(CopyToStatement::new(source, CopyBinary)),
-        }
-    }
-
-    fn format(&self) -> &'static str {
-        match self {
-            Self::Text(_) => "text",
-            Self::Csv(_) => "csv",
-            Self::Binary(_) => "binary",
-        }
-    }
-
-    pub(crate) fn sql(&self) -> String {
-        match self {
-            Self::Text(statement) => statement.to_string(),
-            Self::Csv(statement) => statement.to_string(),
-            Self::Binary(statement) => statement.to_string(),
-        }
-    }
-}
 
 /// A write as a COPY TO source, refused as Rust refuses one with no RETURNING
 /// list.
@@ -283,7 +247,7 @@ impl PyCopyTo {
     /// COPY takes no bind parameters: Rust renders every value inline.
     fn inspect(&self) -> Compiled {
         Compiled {
-            sql: self.inner.sql(),
+            sql: self.inner.rendered(),
             values: Values(Vec::new()),
         }
     }

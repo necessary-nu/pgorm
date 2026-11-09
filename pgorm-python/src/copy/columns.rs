@@ -139,8 +139,8 @@ pub(crate) fn copy_columns<'py>(
             Target::Connection(state) => {
                 let mut operation = Operation::begin(state.clone()).py()?;
                 let described = tokio::select! {
-                    _ = state.closed.cancelled() => return Err(LifecycleError::new_err("connection is closed")),
-                    _ = state.pool.closed.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
+                    _ = state.closed.cancelled() => return Err(LifecycleError::new_err("the connection is closed")),
+                    _ = state.pool.closed.cancelled() => return Err(LifecycleError::new_err("the pool is closed")),
                     described = describe_held(operation.connection_mut().py()?, &statement) => described,
                 };
                 operation.restore();

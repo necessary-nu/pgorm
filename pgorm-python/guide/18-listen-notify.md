@@ -96,7 +96,7 @@ async def main() -> None:
     try:
         await of_the_pool.listen("deliveries")
     except pgorm.LifecycleError as error:
-        assert str(error) == "pool is closed"
+        assert str(error) == "the pool is closed"
     else:
         raise AssertionError("the listener closed with its pool")
 
