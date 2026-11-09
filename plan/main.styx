@@ -2748,12 +2748,20 @@ children (
                 id polish.query-doc-links
                 title "pgorm-query documents with no warnings: ExprTrait's links to LikeExpr and Collation resolve"
                 kind @docs
+                sealed true
                 log (
                     {
                         at 2026-11-09T14:54:52.579898Z
                         author "brendan@necessary.nu"
                         kind @status
                         text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-09T14:57:02.403905Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
