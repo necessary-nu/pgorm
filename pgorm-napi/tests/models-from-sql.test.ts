@@ -6,7 +6,9 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
 
@@ -25,7 +27,7 @@ import {
   Uuid,
 } from "../lib/index.js";
 import * as m from "./models-from-sql/models.ts";
-import { same, scratchDatabase } from "./support.ts";
+import { deno, same, scratchDatabase } from "./support.ts";
 
 const schema = readFileSync(new URL("../../pgorm-codegen/tests/models/schema.sql", import.meta.url), "utf8");
 const committed = readFileSync(new URL("./models-from-sql/models.ts", import.meta.url), "utf8");
@@ -89,12 +91,22 @@ test("options reach pgorm-codegen, and its refusals are ConstructionErrors", () 
 });
 
 // [spec:pgorm:req:bindings.models-from-sql/test]    cli.js models writes the module to the file --output names
-test("the command line writes the module", () => {
+test("the command line writes the module", {
+  skip: deno && "the suite runs under Deno without --allow-write, so Node holds the writing",
+}, () => {
   const cli = fileURLToPath(new URL("../codegen/cli.js", import.meta.url));
   const schemaFile = fileURLToPath(new URL("../../pgorm-codegen/tests/models/schema.sql", import.meta.url));
-  const ran = spawnSync("node", [cli, "models", schemaFile, "--output", "/dev/stdout"], { encoding: "utf8" });
-  assert.equal(ran.status, 0, ran.stderr);
-  assert.equal(ran.stdout, committed);
+  // A file of its own, not /dev/stdout: Linux refuses to open that when the
+  // child's stdout is the socket a spawn connects it by (ENXIO).
+  const directory = mkdtempSync(join(tmpdir(), "pgorm-models-cli-"));
+  try {
+    const output = join(directory, "models.ts");
+    const ran = spawnSync("node", [cli, "models", schemaFile, "--output", output], { encoding: "utf8" });
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.equal(readFileSync(output, "utf8"), committed);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 // [spec:pgorm:req:bindings.current-keywords/test]    currentDate(), currentTime() and currentTimestamp() are the SQL keywords

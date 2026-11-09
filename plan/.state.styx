@@ -1795,6 +1795,8 @@ assertions (
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id polish.query-doc-links, kind @complete, author "brendan@necessary.nu", at 2026-11-09T14:57:02.403905Z}
+    {id guide.python-gaps.ci-client-certificate, kind @doing, author "brendan@necessary.nu", at 2026-11-09T15:16:20.914461Z}
+    {id napi.guide-gaps.models-cli-test-portable, kind @doing, author "brendan@necessary.nu", at 2026-11-09T15:16:39.920507Z}
 )
 
 impl_evidence (
