@@ -347,6 +347,20 @@ built library (`bindings.codegen`).
 > always; `UpdateOf`; and `KeyOf`. A COPY statement's format is a type
 > parameter, `CopyFrom<"binary">` or `CopyTo<"binary">` for the row COPY.
 
+> [spec:pgorm:req:napi.linking]
+> An import that would fail to link when a module of the package loads — a
+> name its module does not export, or a module that does not exist — MUST
+> fail `deno check`, not only the suites that load the addon. The package's
+> configuration type-checks all of its JavaScript (`checkJs`), whether or not
+> a file asks for it with `// @ts-check`. Deno reads `lib/index.js`'s types
+> from `lib/index.d.ts` and resolves none of that module's own imports, so it
+> holds nothing but `export * from "./pgorm.js"`, and what it re-exports is
+> made in `lib/pgorm.js`, whose imports `deno check` resolves. The values
+> the declarations name, the `pipeline` namespace's included, MUST be exactly
+> the ones `lib/pgorm.js` exports, which a type-level check under `deno check`
+> holds: an application's import of a declared value the module does not make
+> type-checks against the declarations and fails only as it links.
+
 > [spec:pgorm:req:napi.runtimes+1]
 > The binding targets runtimes that carry `Temporal` as a global, which its
 > date and time values are: Node.js 26 or later, and Deno 2.9.5 or later, the

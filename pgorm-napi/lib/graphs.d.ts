@@ -195,3 +195,7 @@ export declare class Paginator<R> {
   /** Each page in turn from the first, ending at the first empty one. */
   pages(db: Queryable, options?: OperationOptions): AsyncGenerator<R[], void, undefined>;
 }
+
+// A declaration file with no `export {}` exports every declaration in it, so
+// the helpers above without `export` would be the package's exports too.
+export {};

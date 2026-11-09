@@ -363,7 +363,7 @@ function pack(partial) {
   const allowed = /^(package\.json|README\.md|DISTRIBUTION\.md|support\.json|LICENSE-APACHE|LICENSE-MIT|lib\/[^/]+\.(js|d\.ts))$/;
   const stray = mainPacked.files.filter((file) => !allowed.test(file));
   ensure(stray.length === 0, `the main package carries ${stray.join(", ")}`);
-  for (const file of ["lib/index.js", "lib/index.d.ts", "lib/native.js"]) {
+  for (const file of ["lib/index.js", "lib/index.d.ts", "lib/pgorm.js", "lib/native.js"]) {
     ensure(mainPacked.files.includes(file), `the main package lacks ${file}`);
   }
   const expected = ["DEPENDENCIES.json", "LICENSE-APACHE", "LICENSE-MIT", "README.md", "THIRD_PARTY_NOTICES.txt", "package.json", "pgorm_napi.node"];
