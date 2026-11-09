@@ -1797,6 +1797,7 @@ assertions (
     {id polish.query-doc-links, kind @complete, author "brendan@necessary.nu", at 2026-11-09T14:57:02.403905Z}
     {id guide.python-gaps.ci-client-certificate, kind @complete, author "brendan@necessary.nu", at 2026-11-09T15:17:34.01912Z}
     {id napi.guide-gaps.models-cli-test-portable, kind @complete, author "brendan@necessary.nu", at 2026-11-09T15:17:39.744422Z}
+    {id binding-parity.coverage-restored, kind @doing, author "brendan@necessary.nu", at 2026-11-09T15:57:51.135106Z}
 )
 
 impl_evidence (

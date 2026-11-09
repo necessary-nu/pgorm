@@ -223,7 +223,9 @@ fn entity_get(mut cx: FunctionContext) -> JsResult<JsValue> {
     }
 }
 
-/// `entityDescribe(entity)`: the registration as JSON text.
+/// `entityDescribe(entity)`: the registration as JSON text, each relation
+/// with its condition type and whether an `on_condition` adds a condition.
+// [spec:pgorm:req:bindings.relation-conditions]
 fn entity_describe(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
     Ok(cx

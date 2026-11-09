@@ -44,6 +44,9 @@ impl PyEntity {
         &self.backend.info().name
     }
 
+    /// The registration as pgorm-bindings describes it, each relation with
+    /// its condition type and whether an `on_condition` adds a condition.
+    // [spec:pgorm:req:bindings.relation-conditions]
     fn describe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         py.import("json")?.call_method1(
             "loads",

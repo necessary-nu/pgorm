@@ -78,6 +78,17 @@ function refused(kind: typeof ConstructionError | typeof LifecycleError, pattern
 const lifecycle = (pattern: RegExp) => refused(LifecycleError, pattern);
 const construction = (pattern: RegExp) => refused(ConstructionError, pattern);
 
+// [spec:pgorm:req:napi.pipeline-table-names/test]    a table's name as a string is the Table of that name, as a pipeline's source and as a join's
+test("a pipeline's source may be a table's name, read as the Table of that name", async () => {
+  await pool().execute("CREATE TABLE notes (id int8 PRIMARY KEY, item_id int8)");
+  await pool().execute("INSERT INTO notes VALUES (1, 3), (2, 1)");
+  const named = pl.from("notes").sort(pl.col("notes", "id"));
+  assert.equal(named.inspect().sql, pl.from(new Table("notes")).sort(pl.col("notes", "id")).inspect().sql);
+  assert.deepStrictEqual(await pool().query(named), [{ id: 1n, item_id: 3n }, { id: 2n, item_id: 1n }]);
+  const joined = base.join("notes", id.eq(pl.col("notes", "item_id"))).select(id, category).sort(id);
+  assert.deepStrictEqual(await pool().query(joined), [{ id: 1n, category: "fruit" }, { id: 3n, category: "veg" }]);
+});
+
 // [spec:pgorm:req:bindings.pipeline+1/test]
 test("a pipeline's stages run as any statement does, through each terminal", async () => {
   const totals = base.filter(category.isNotNull()).group(category).aggregate(pl.sum(amount).as(total))
