@@ -14455,7 +14455,7 @@ children (
                 title "A broken import or export in pgorm-napi's lib/*.js fails nplan check, not only the live suites"
                 kind @test
                 implements {
-                    javascript (napi.linking)
+                    javascript ([spec:pgorm:req:napi.linking])
                 }
                 log (
                     {
