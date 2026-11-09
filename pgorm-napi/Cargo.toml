@@ -39,6 +39,10 @@ pgorm-migration = { version = "0.2.0", path = "../pgorm-migration" }
 # What pgorm-python needs too: a pool and its TLS built from the binding's
 # options, and its hooks' statements served.
 pgorm-bindings = { version = "0.2.0", path = "../pgorm-bindings" }
+# The reader and the TypeScript writer `modelsFromSql` runs
+# ([spec:pgorm:req:bindings.models-from-sql]), without the Rust writer and
+# the syn, quote and prettyplease it is built with.
+pgorm-codegen = { version = "0.2.0", path = "../pgorm-codegen", default-features = false }
 neon = { version = "1.1.2", default-features = false, features = ["napi-6"] }
 tokio = { version = "1.53.2", features = ["rt-multi-thread"] }
 tokio-postgres = "0.7.18"

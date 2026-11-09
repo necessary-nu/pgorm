@@ -1,7 +1,7 @@
 from .transactions import Transaction
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeAlias, TypeVar, Literal, Never, overload
-from ._native import Table, Entity, Join, Compiled, Record, TypeName
+from ._native import Table, Entity, Join, Compiled, Record, TypeName, _ModelColumnCasts
 from .runtime import Connection, Pool
 from .models import Model, ModelRecord
 from .pipeline._typed import PipelineSelector
@@ -70,7 +70,10 @@ class Pipeline:
     def into_tuple(self, /) -> PipelineSelector[tuple[Any, ...]]: ...
     def _select_described(
         self, /,
-        sources: list[tuple[str, list[tuple[str, TypeName | None, bool]]]],
+        sources: list[tuple[str, list[tuple[str, TypeName | _ModelColumnCasts | None, bool]]]],
+    ) -> Pipeline: ...
+    def _read_columns(
+        self, /, columns: list[tuple[str, TypeName | _ModelColumnCasts | None, bool]]
     ) -> Pipeline: ...
 
 class PipelineGrouped:

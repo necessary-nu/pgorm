@@ -294,6 +294,39 @@ and `compared_column` and `compared_value` give the two sides of a
 comparison, both cast to the enum where the column is a domain over one.
 `with_select_as` and `with_save_as` replace the read's and the write's cast,
 as an entity column's `select_as` and `save_as` attributes do.
+[`compared_array`](crate::TableColumn::compared_array) is the array `= ANY`
+and `<> ALL` compare the column with, as an entity column's `eq_any` casts
+it, and [`read_cast`](crate::TableColumn::read_cast) and
+[`compared_value_cast`](crate::TableColumn::compared_value_cast) name the
+types the read and a compared value are cast to. A
+[pipeline](crate::guide::pipeline) reads such a table through them:
+[`col_shaped`](crate::pipeline::col_shaped) is a column compared as its
+`TableColumn` compares, and
+[`read_columns`](crate::pipeline::Pipeline::read_columns) reads the rows as
+a reader of those columns does, each cast column projected cast, as
+`into_model` reads an entity's:
+
+```rust
+use pgorm::pgorm_query::{ColumnType, Expr, Query};
+use pgorm::pipeline::{ExprOps, Pipeline, alias, col_shaped};
+use pgorm::{ColumnTypeTrait, TableColumn};
+
+let takings = TableColumn::new("takings", ColumnType::Money.def());
+assert_eq!(
+    Query::select().expr(takings.compared_array(Expr::val(vec![1.5]))).to_string(),
+    "SELECT CAST(ARRAY [1.5] AS money[])"
+);
+
+let (sql, _) = Pipeline::from(alias("till"))
+    .filter(col_shaped(alias("till"), alias("takings"), &takings).gt(10))
+    .read_columns([("id".to_owned(), None), ("takings".to_owned(), takings.read_cast())])
+    .into_sql()?;
+assert_eq!(
+    sql,
+    "SELECT id, CAST(takings AS numeric) AS takings FROM till WHERE takings > CAST(10 AS money)"
+);
+# Ok::<_, pgorm::pipeline::PipelineError>(())
+```
 
 ## The DDL builders
 

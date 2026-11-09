@@ -87,7 +87,7 @@ impl PyPipelineExpr {
     /// and bound as the payload it holds, the column's own cast typing it as
     /// `col_typed` casts a compared value; any other operand as `coerce`
     /// takes it.
-    // [spec:pgorm:req:bindings.pipeline-models]
+    // [spec:pgorm:req:bindings.pipeline-models+1]
     fn compared(&self, value: &Bound<'_, PyAny>) -> PyResult<Self> {
         let Some(convert) = &self.declared else {
             return Self::coerce(value);

@@ -19,7 +19,7 @@ const OPTIONS = new Set([
   "name", "nullable", "array", "primaryKey", "default", "generated", "values",
   "columnType", "defaultValue", "defaultExpr", "generatedStored", "generatedVirtual",
   "autoIncrement", "indexed", "comment", "withoutOverlaps",
-  "selectAs", "saveAs", "selectWith", "saveWith", "decode", "encode",
+  "selectAs", "saveAs", "selectWith", "saveWith", "saveArrayWith", "decode", "encode",
 ]);
 
 /**
@@ -212,6 +212,8 @@ export class Column {
     /** @readonly */
     this.saveWith = functionOf(declared.saveWith, "saveWith");
     /** @readonly */
+    this.saveArrayWith = functionOf(declared.saveArrayWith, "saveArrayWith");
+    /** @readonly */
     this.decode = functionOf(declared.decode, "decode");
     /** @readonly */
     this.encode = functionOf(declared.encode, "encode");
@@ -220,6 +222,16 @@ export class Column {
     }
     if (this.saveAs !== null && this.saveWith !== null) {
       throw new ConstructionError("a column is written through saveAs or saveWith, not both");
+    }
+    // [spec:pgorm:req:bindings.model-array-casts]
+    if (this.saveWith !== null && this.saveArrayWith === null) {
+      throw new ConstructionError(
+        "a column written through saveWith names saveArrayWith too: the function writing an array " +
+          "of its values, which = ANY and <> ALL compare it with",
+      );
+    }
+    if (this.saveArrayWith !== null && this.saveWith === null) {
+      throw new ConstructionError("saveArrayWith writes an array of the values saveWith writes one of: name saveWith beside it");
     }
     checkDdl(this);
     this.#key = native.modelKindKey(kind, this.array);
@@ -416,6 +428,61 @@ export function compared(column, value) {
   return saved(column, value);
 }
 
+// [spec:pgorm:req:bindings.model-array-casts]
+/**
+ * `array`, a list's values bound as one array of the column's kind, as
+ * `= ANY` and `<> ALL` compare `column` with it: through its
+ * `saveArrayWith`, cast as its column type or `saveAs` says (pgorm's
+ * `TableColumn::compared_array`), and as it is otherwise.
+ *
+ * @param {Column} column
+ * @param {Value} array
+ * @returns {Expr | Value}
+ */
+export function comparedArray(column, array) {
+  if (column.saveArrayWith !== null) {
+    const written = column.saveArrayWith(bind(array));
+    if (!(written instanceof Expr)) throw new TypeError("a column's saveArrayWith returns an expression");
+    return written;
+  }
+  const casts = castsOf(column);
+  if (casts !== null && (column.saveAs !== null || column.columnType !== null)) {
+    return new Expr(native.modelCastComparedArray(casts, arg(array)), TRUSTED);
+  }
+  return array;
+}
+
+// [spec:pgorm:req:bindings.pipeline-models+1]
+/**
+ * The casts a pipeline compares `column` through, those of a column that
+ * declares its own: null for one compared as its kind, and for one written
+ * through `saveWith`, a function no pipeline lowers.
+ *
+ * @param {Column} column
+ * @returns {unknown}
+ */
+export function pipelineCasts(column) {
+  return column.saveWith === null ? castsOf(column) : null;
+}
+
+// [spec:pgorm:req:bindings.pipeline-models+1]
+/**
+ * What a pipeline reads `column` as, and whether that is an array of it:
+ * the casts pgorm's `TableColumn` reads its type or `selectAs` through, its
+ * text where it is read from its text, and null — the column as it stands —
+ * otherwise, `selectWith` among them, a function no pipeline lowers.
+ *
+ * @param {Column} column
+ * @returns {[unknown, boolean]}
+ */
+export function readAs(column) {
+  if (column.selectWith !== null) return [null, false];
+  const casts = castsOf(column);
+  if (casts !== null && (column.selectAs !== null || column.columnType !== null)) return [casts, false];
+  if (readsText(column)) return [new TypeName("text"), column.array];
+  return [null, false];
+}
+
 /**
  * `expr`, a read of `column`, as a comparison takes it where its type says
  * otherwise: cast to the enum a domain over one compares as; null where the
@@ -534,10 +601,12 @@ export class ModelColumn extends Expr {
   /**
    * `any(..)` or `all(..)` over a list of values, ranging over them each
    * converted to the declared kind and bound as one array of it, an enum's
-   * cast to its array type, as pgorm's `eq_any` binds through the column's
-   * cast. One over a `Select` or an expression, and one beside an array
-   * column, whose elements are arrays, is the quantifier given.
+   * cast to its array type, then written as the column writes the array its
+   * comparisons take, as pgorm's `eq_any` binds through the column's
+   * `save_array_as`. One over a `Select` or an expression, and one beside an
+   * array column, whose elements are arrays, is the quantifier given.
    * [spec:pgorm:req:bindings.model-columns+2]
+   * [spec:pgorm:req:bindings.model-array-casts]
    *
    * @param {Quantified} quantified
    */
@@ -552,7 +621,7 @@ export class ModelColumn extends Expr {
       const converted = columnValue(this.#column, this.#field, value);
       return converted instanceof Value ? converted.value : value;
     });
-    const array = Value.array(/** @type {any} */ (this.#column.kind), elements);
+    const array = comparedArray(this.#column, Value.array(/** @type {any} */ (this.#column.kind), elements));
     return quantifier === "all" ? all(array) : any(array);
   }
 

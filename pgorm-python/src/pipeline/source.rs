@@ -113,7 +113,7 @@ pub(super) fn pipeline_source(value: &Bound<'_, PyAny>) -> PyResult<PySource> {
     }
     // A module that embeds the binding without its Python package, as an
     // application's Rust tests do, has no declared models to be given.
-    // [spec:pgorm:req:bindings.pipeline-models]
+    // [spec:pgorm:req:bindings.pipeline-models+1]
     if let Ok(model) = value
         .py()
         .import("pgorm.models")

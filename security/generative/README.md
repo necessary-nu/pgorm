@@ -292,7 +292,7 @@ Recursive expressions carry schema types and nullability. Pipeline transitions
 track available projections, source aliases and binder ownership. PRQL grouping
 and partitioned windows remove their keys from the inner expression scope.
 Pipeline identifiers are drawn without a double quote, because `into_sql`
-refuses one rather than escaping it (`pipeline.errors+4`); a valid program
+refuses one rather than escaping it (`pipeline.errors+5`); a valid program
 carrying one could never pass.
 Runtime-model inserts use unaliased tables, as required by that public API.
 Sequences reuse observed results, actually reach both conflict actions and close

@@ -139,8 +139,14 @@ its `into_model` and `into_tuple` stage such a read. A Python pipeline stages
 the same reads. `into_model(model)` reads each row as a model's record, each
 field from the result column of its SQL name, the result's columns exactly
 the model's and each held to its declaration, as the model's own queries
-hold them; given a function instead, such as a dataclass, it calls it with
-each row's columns as keyword arguments. `into_tuple()` reads each row as a
+hold them. A column the model reads through a cast — a `money` column, a
+domain over an enum, a `select_as` ([Values](13-values.md)) — is read cast,
+the pipeline ending in a projection of the model's columns, as Rust's ends in
+one for an entity's model; the pipeline's own `all`, `one` and `optional`
+read the columns as the server sends them, so such a model is read through
+`into_model` or `select_sources`. Given a function instead, such as a
+dataclass, `into_model` calls it with each row's columns as keyword
+arguments. `into_tuple()` reads each row as a
 tuple of its values in column order, by position, so a result with two
 columns of one name is read whole. Each gives a `PipelineSelector`, whose
 `all`, `one` and `optional` run as the pipeline's own do, and whose
@@ -623,7 +629,9 @@ assert query.inspect().sql == "SELECT * FROM lines WHERE CAST(mood AS mood) = CA
 
 A model's column, `pl.col(model, field)`, and a registered Rust entity's,
 `pl.col(table, entity.col(name))`, know their types and compare as the
-model's or the entity's own column does, so neither needs `compares_as`.
+model's or the entity's own column does, so neither needs `compares_as`: a
+model's `money` column takes each value cast to `money`, a domain over an
+enum compares as the enum, and a `save_as` value is cast to its type.
 
 ## Windows
 
@@ -779,9 +787,7 @@ An embedded pipeline's columns are referred to by their names, as
 pipeline's own.
 
 `append` puts another relation's rows after this one's, matching columns by
-position, and `distinct` after it makes the `UNION ALL` a `UNION`.
-`intersect` keeps the rows both have, and `remove` the rows the other does
-not; give both sides the same projection:
+position, and `distinct` after it makes the `UNION ALL` a `UNION`:
 
 ```python
 import asyncio
@@ -814,9 +820,63 @@ A step after a combination reads the whole combined relation, as in Rust:
 the combination is written as a `WITH` query first and the step reads it, so
 `pl.from_(Cake).append(pl.source(Cake)).select(pl.col("cake", "name"))` projects the rows
 of both operands, `WITH table_0 AS (SELECT * FROM cake UNION ALL SELECT *
-FROM cake) SELECT name FROM table_0`, and a column named against an operand's
-table still resolves after `intersect` or `remove`. A `distinct` directly
-after `append` still folds into `UNION DISTINCT`, as above.
+FROM cake) SELECT name FROM table_0`. A `distinct` directly after `append`
+still folds into `UNION DISTINCT`, as above.
+
+`intersect` keeps the rows both relations hold, and `remove` the rows of the
+first that the second does not, each row of the second cancelling one of the
+first. Like `append`, both combine whole rows by position, so neither operand
+needs a projection of its own, the operands may each read different columns
+first, and every step after them reads the combined relation, a `Table` read
+whole as much as a model. Sunrise's cakes that are not gluten-free, and those
+under 5.00:
+
+```python
+import asyncio
+import os
+
+from pgorm import Pool
+from pgorm import pipeline as pl
+
+from bakery import Cake
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        bakery, gluten_free = pl.col(Cake, "bakery_id"), pl.col(Cake, "gluten_free")
+        price, name = pl.col(Cake, "price"), pl.col(Cake, "name")
+        sunrise = pl.from_(Cake).filter(bakery == pl.literal(1))
+
+        not_gluten_free = sunrise.remove(
+            pl.from_(Cake).filter(gluten_free == pl.literal(True))
+        ).select(name)
+        assert not_gluten_free.inspect().sql == (
+            "WITH table_1 AS (SELECT * FROM cake WHERE bakery_id = 1 "
+            "EXCEPT ALL SELECT * FROM cake WHERE gluten_free = true) "
+            "SELECT name FROM table_1"
+        )
+        assert [row["name"] for row in await not_gluten_free.all(pool)] == ["Chocolate Fudge"]
+
+        affordable = (
+            sunrise.intersect(pl.from_(Cake).filter(price < pl.literal(5)))
+            .sort(name)
+            .select(name)
+        )
+        rows = await affordable.all(pool)
+        assert [row["name"] for row in rows] == ["Chocolate Fudge", "Lemon Drizzle"]
+
+
+asyncio.run(main())
+```
+
+The operands correspond by position, so where both projections are written
+out a different number of columns is a `ConstructionError` before anything
+is sent, for all three; where an operand is a table read whole, its `*` is
+the server's to check. A column named against an operand's model or table
+still resolves after any of them. A chain reads in the order it is written:
+`a.append(b).intersect(c)` is `(a UNION ALL b) INTERSECT ALL c`, with the
+parentheses written in, and an operand that is itself a combination stays
+one operand.
 
 ## When a pipeline fails
 

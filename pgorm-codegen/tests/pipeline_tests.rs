@@ -116,8 +116,7 @@ fn errors_are_the_two_variant_error_enum() {
 fn an_error_displays_its_message() {
     let quoted = r#"CREATE TABLE "odd""name" (id serial PRIMARY KEY, drop_off point NOT NULL);"#;
     let error = pgorm_codegen::entities_from_sql(quoted, Opts::default())
-        .err()
-        .expect("a point column is refused");
+        .expect_err("a point column is refused");
     let Error::TransformError(message) = &error else {
         panic!("expected a TransformError, got {error:?}");
     };

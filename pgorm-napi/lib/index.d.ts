@@ -30,6 +30,7 @@ export * from "./json.d.ts";
 export * from "./merge.d.ts";
 export * from "./schema.d.ts";
 export * from "./migrations.d.ts";
+export * from "./codegen.d.ts";
 export * as pipeline from "./pipeline.d.ts";
 export * from "./windows.d.ts";
 export * from "./select.d.ts";

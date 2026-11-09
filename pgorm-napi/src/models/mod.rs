@@ -22,7 +22,9 @@ use crate::{
     values::{Tag, Tagged, read, write},
 };
 
-pub(crate) use shape::{columns, flag, names, property, table_name, text, unique_keys};
+pub(crate) use shape::{
+    CastsHandle, columns, flag, names, property, table_name, text, unique_keys,
+};
 
 pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("modelKindKey", kind_key_of_kind)?;

@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-06T12:54:48.414319Z
+last_sync_at 2026-11-06T16:21:11.891335Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -22,6 +22,7 @@ rule_versions (
     {id bindings.copy-rows.typed, version 0}
     {id bindings.created-ranges, version 5}
     {id bindings.cte-options, version 0}
+    {id bindings.current-keywords, version 0}
     {id bindings.cursor-secondary-order, version 1}
     {id bindings.cursors, version 1}
     {id bindings.delegation, version 0}
@@ -50,6 +51,7 @@ rule_versions (
     {id bindings.metrics, version 0}
     {id bindings.migration-file, version 1}
     {id bindings.migrations, version 0}
+    {id bindings.model-array-casts, version 0}
     {id bindings.model-casts, version 0}
     {id bindings.model-clauses, version 0}
     {id bindings.model-columns, version 2}
@@ -63,6 +65,7 @@ rule_versions (
     {id bindings.model-write-sources, version 0}
     {id bindings.model-writes, version 3}
     {id bindings.models, version 6}
+    {id bindings.models-from-sql, version 0}
     {id bindings.multi-pool, version 0}
     {id bindings.named-functions, version 0}
     {id bindings.one-of, version 1}
@@ -73,7 +76,7 @@ rule_versions (
     {id bindings.pipeline, version 1}
     {id bindings.pipeline-binder, version 0}
     {id bindings.pipeline-expressions, version 3}
-    {id bindings.pipeline-models, version 0}
+    {id bindings.pipeline-models, version 1}
     {id bindings.pipeline-sources, version 3}
     {id bindings.pipeline-terminals, version 0}
     {id bindings.pool-hooks, version 0}
@@ -148,6 +151,15 @@ rule_versions (
     {id codegen.entity.types, version 13}
     {id codegen.entity.types.datetime, version 2}
     {id codegen.entity.types.unsupported, version 12}
+    {id codegen.features, version 0}
+    {id codegen.models, version 0}
+    {id codegen.models.columns, version 0}
+    {id codegen.models.disjoint, version 0}
+    {id codegen.models.layout, version 0}
+    {id codegen.models.names, version 0}
+    {id codegen.models.one-of, version 0}
+    {id codegen.models.refused, version 0}
+    {id codegen.models.relations, version 0}
     {id conn.copy, version 2}
     {id conn.copy.rows, version 5}
     {id conn.copy.rows.kind, version 0}
@@ -354,10 +366,10 @@ rule_versions (
     {id napi.transactions, version 3}
     {id napi.typing, version 1}
     {id napi.values, version 1}
-    {id pipeline.compose, version 1}
-    {id pipeline.described, version 0}
+    {id pipeline.compose, version 2}
+    {id pipeline.described, version 1}
     {id pipeline.qualify, version 4}
-    {id pipeline.select-sources, version 5}
+    {id pipeline.select-sources, version 6}
     {id pipeline.terminal, version 1}
     {id python.acceptance, version 1}
     {id python.api, version 1}
@@ -408,7 +420,7 @@ rule_versions (
     {id schema.from-entity.enum, version 3}
     {id schema.from-entity.index, version 2}
     {id schema.from-shape, version 0}
-    {id schema.shape-casts, version 0}
+    {id schema.shape-casts, version 1}
     {id security.ident-oracle, version 17}
     {id security.ident-oracle.nul, version 2}
     {id security.sqlmap, version 0}
@@ -553,7 +565,9 @@ derived_priorities (
     {id annotation-verbs-match, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id api-doc-honesty, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id api-honesty.pipeline-select-after-append, priority 0, derived_at 2026-11-05T22:13:24.839676Z}
+    {id api-honesty.pipeline-set-operation-arity, priority 1, derived_at 2026-11-06T12:37:56.922232Z}
     {id api-honesty.pipeline-wildcard-intersect-reads, priority 1, derived_at 2026-11-05T22:13:24.839676Z}
+    {id api-honesty.prql-text-set-operations, priority 2, derived_at 2026-11-06T12:37:56.922232Z}
     {id between-render-parens, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id big-unsigned-binding, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id binding-coverage-per-impl, priority 1, derived_at 2026-10-30T13:42:29.080898Z}
@@ -915,7 +929,7 @@ derived_priorities (
     {id napi.guide-gaps.transaction-retry, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.transaction-streams, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.verify, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
-    {id napi.lib-imports-checked, priority 0, derived_at 2026-11-06T12:38:11.666828Z}
+    {id napi.lib-imports-checked, priority 0, derived_at 2026-11-06T13:17:06.285162Z}
     {id nested-source-from-entry, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id nopanic.codegen-gate, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
     {id nopanic.connect-builders, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
@@ -1245,6 +1259,9 @@ assertions (
     {id alter-column-type-collate, kind @complete, author "brendan@necessary.nu", at 2026-11-04T23:37:56.559191Z}
     {id annotation-verbs-match, kind @complete, author "brendan@necessary.nu", at 2026-11-05T00:25:19.803423Z}
     {id api-doc-honesty, kind @complete, author "brendan@necessary.nu", at 2026-09-21T18:16:04.02923Z}
+    {id api-honesty.pipeline-set-operation-arity, kind @complete, author "brendan@necessary.nu", at 2026-11-06T12:37:39.664374Z}
+    {id api-honesty.pipeline-wildcard-intersect-reads, kind @complete, author "brendan@necessary.nu", at 2026-11-06T12:37:39.492055Z}
+    {id api-honesty.prql-text-set-operations, kind @complete, author "brendan@necessary.nu", at 2026-11-06T14:38:41.843732Z}
     {id between-render-parens, kind @complete, author "brendan@necessary.nu", at 2026-10-23T20:14:51.562869Z}
     {id big-unsigned-binding, kind @complete, author "brendan@necessary.nu", at 2026-09-05T20:09:24.191318Z}
     {id binding-coverage-per-impl, kind @complete, author "brendan@necessary.nu", at 2026-10-30T14:18:38.065807Z}
@@ -1413,6 +1430,7 @@ assertions (
     {id guide.python-gaps.limited-graph, kind @complete, author "brendan@necessary.nu", at 2026-11-06T06:59:23.620018Z}
     {id guide.python-gaps.panic-class, kind @complete, author "brendan@necessary.nu", at 2026-11-06T06:59:24.83142Z}
     {id guide.python-gaps.partial-model-skip, kind @complete, author "brendan@necessary.nu", at 2026-11-05T21:33:51.667821Z}
+    {id guide.python-gaps.pipeline-model-column-types, kind @complete, author "brendan@necessary.nu", at 2026-11-06T15:49:02.680628Z}
     {id guide.python-gaps.registered-reads, kind @complete, author "brendan@necessary.nu", at 2026-11-05T22:16:52.934743Z}
     {id guide.python-gaps.version-classes, kind @complete, author "brendan@necessary.nu", at 2026-11-06T06:59:24.157814Z}
     {id ident-oracle-disjoint-sites, kind @complete, author "brendan@necessary.nu", at 2026-11-05T00:07:10.622369Z}
@@ -1784,7 +1802,7 @@ impl_evidence (
     ), covered_claims (
         {impl_name main, rule pipeline.compose}
     ), rule_versions_seen (
-        {id pipeline.compose, version 1}
+        {id pipeline.compose, version 2}
     )}
     {id binding-parity.foreign-active-error, covered_rules (
         bindings.entity-writes
@@ -2582,12 +2600,48 @@ impl_evidence (
         {id migration.runtime, version 0}
         {id migration.sql-file.read, version 0}
     )}
+    {id guide.python-gaps.model-array-save-cast, covered_rules (
+        bindings.model-array-casts
+    ), covered_claims (
+        {impl_name javascript, rule bindings.model-array-casts}
+        {impl_name python, rule bindings.model-array-casts}
+    ), rule_versions_seen (
+        {id bindings.model-array-casts, version 0}
+    )}
+    {id guide.python-gaps.model-codegen, covered_rules (
+        bindings.current-keywords
+        bindings.models-from-sql
+        codegen.features
+        codegen.models
+        codegen.models.columns
+        codegen.models.disjoint
+        codegen.models.layout
+        codegen.models.names
+        codegen.models.one-of
+        codegen.models.refused
+        codegen.models.relations
+    ), covered_claims (
+        {impl_name main, rule codegen.features}
+        {impl_name main, rule codegen.models}
+        {impl_name main, rule codegen.models.columns}
+        {impl_name main, rule codegen.models.disjoint}
+        {impl_name main, rule codegen.models.layout}
+        {impl_name main, rule codegen.models.names}
+        {impl_name main, rule codegen.models.one-of}
+        {impl_name main, rule codegen.models.refused}
+        {impl_name main, rule codegen.models.relations}
+        {impl_name python, rule bindings.current-keywords}
+        {impl_name python, rule bindings.models-from-sql}
+    )}
     {id guide.python-gaps.model-ddl, covered_rules (
         bindings.schema-from-model
         schema.from-shape
     ), covered_claims (
         {impl_name main, rule schema.from-shape}
         {impl_name python, rule bindings.schema-from-model}
+    ), rule_versions_seen (
+        {id bindings.schema-from-model, version 0}
+        {id schema.from-shape, version 0}
     )}
     {id guide.python-gaps.model-hooks, covered_rules (
         bindings.model-hooks
@@ -2613,6 +2667,9 @@ impl_evidence (
         {impl_name javascript, rule bindings.model-projections}
         {impl_name python, rule bindings.condition-option}
         {impl_name python, rule bindings.model-projections}
+    ), rule_versions_seen (
+        {id bindings.condition-option, version 0}
+        {id bindings.model-projections, version 0}
     )}
     {id guide.python-gaps.model-types, covered_rules (
         bindings.model-casts
@@ -2622,6 +2679,10 @@ impl_evidence (
         {impl_name main, rule schema.shape-casts}
         {impl_name python, rule bindings.model-casts}
         {impl_name python, rule bindings.model-conversions}
+    ), rule_versions_seen (
+        {id bindings.model-casts, version 0}
+        {id bindings.model-conversions, version 0}
+        {id schema.shape-casts, version 1}
     )}
     {id guide.python-gaps.model-writes, covered_rules (
         bindings.entity-active-changes
@@ -2646,8 +2707,8 @@ impl_evidence (
         {impl_name main, rule pipeline.described}
         {impl_name python, rule bindings.pipeline-models}
     ), rule_versions_seen (
-        {id bindings.pipeline-models, version 0}
-        {id pipeline.described, version 0}
+        {id bindings.pipeline-models, version 1}
+        {id pipeline.described, version 1}
     )}
     {id guide.python-gaps.pool-config, covered_rules (
         bindings.multi-pool
@@ -2935,6 +2996,8 @@ impl_evidence (
         bindings.cursor-secondary-order
     ), covered_claims (
         {impl_name javascript, rule bindings.cursor-secondary-order}
+    ), rule_versions_seen (
+        {id bindings.cursor-secondary-order, version 1}
     )}
     {id napi.guide-gaps.expression-functions, covered_rules (
         bindings.json-operators
@@ -2953,6 +3016,8 @@ impl_evidence (
         bindings.model-conversions
     ), covered_claims (
         {impl_name javascript, rule bindings.model-conversions}
+    ), rule_versions_seen (
+        {id bindings.model-conversions, version 0}
     )}
     {id napi.guide-gaps.metrics, covered_rules (
         bindings.metrics
@@ -2972,12 +3037,16 @@ impl_evidence (
         bindings.model-casts
     ), covered_claims (
         {impl_name javascript, rule bindings.model-casts}
+    ), rule_versions_seen (
+        {id bindings.model-casts, version 0}
     )}
     {id napi.guide-gaps.model-expression-shape, covered_rules (
         bindings.partial-models
     ), covered_claims (
         {impl_name javascript, rule bindings.partial-models}
         {impl_name python, rule bindings.partial-models}
+    ), rule_versions_seen (
+        {id bindings.partial-models, version 0}
     )}
     {id napi.guide-gaps.model-hooks, covered_rules (
         bindings.model-hooks
@@ -2994,11 +3063,16 @@ impl_evidence (
         {impl_name javascript, rule bindings.model-clauses}
         {impl_name python, rule bindings.distinct-on}
         {impl_name python, rule bindings.model-clauses}
+    ), rule_versions_seen (
+        {id bindings.distinct-on, version 0}
+        {id bindings.model-clauses, version 0}
     )}
     {id napi.guide-gaps.model-schema, covered_rules (
         bindings.schema-from-model
     ), covered_claims (
         {impl_name javascript, rule bindings.schema-from-model}
+    ), rule_versions_seen (
+        {id bindings.schema-from-model, version 0}
     )}
     {id napi.guide-gaps.model-writes, covered_rules (
         bindings.entity-active-changes
@@ -3013,6 +3087,13 @@ impl_evidence (
         {id bindings.model-try-inserts, version 0}
         {id bindings.model-write-sources, version 0}
     )}
+    {id napi.guide-gaps.models-from-ddl, covered_rules (
+        bindings.current-keywords
+        bindings.models-from-sql
+    ), covered_claims (
+        {impl_name javascript, rule bindings.current-keywords}
+        {impl_name javascript, rule bindings.models-from-sql}
+    )}
     {id napi.guide-gaps.pg-19, covered_rules (
         bindings.postgres-target
     ), covered_claims (
@@ -3025,7 +3106,7 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.pipeline-models}
     ), rule_versions_seen (
-        {id bindings.pipeline-models, version 0}
+        {id bindings.pipeline-models, version 1}
     )}
     {id napi.guide-gaps.pool-builder, covered_rules (
         bindings.pool-hooks
@@ -3375,9 +3456,9 @@ impl_evidence (
         {id bindings.graphs, version 2}
         {id bindings.model-reads, version 1}
         {id bindings.model-records, version 1}
-        {id bindings.models, version 5}
+        {id bindings.models, version 6}
         {id bindings.pagination, version 0}
-        {id bindings.relations, version 1}
+        {id bindings.relations, version 3}
     )}
     {id python-registered-pools, covered_rules (
         bindings.registered-pools

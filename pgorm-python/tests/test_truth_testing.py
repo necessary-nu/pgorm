@@ -8,7 +8,7 @@ import pgorm as p
 from pgorm import _native, copy_rows, pipeline as pl, pool_options, raw_methods, schema as s
 from pgorm.schema import changes
 from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, reads as read_views, versions as version_views
-from pgorm.codegen import source
+from pgorm.codegen import models as codegen_models, source
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
     Column, Linked, Model, ModelRecord, Related, Relation, active, clauses, cursors, disjoint_query,
@@ -57,9 +57,10 @@ EXEMPT = {
     Related, Linked, pl.SourceSelection, pl.Binder,
     model.UniqueKey, model._DeclaredKey, active.ModelHooks, p.PartialModel, p.FromExpr, p.Skip,
     views.EntityView, graph_views.GraphView, FieldType,
-    # The layout the codegen writes source with: build-time values no query
-    # reads.
-    source.Code, source.Call, source.Ternary, source.Layout,
+    # The layout the codegen writes source with, and the unkinded set
+    # models_from_sql reads, a TypedDict whose instances are dicts: build-time
+    # values no query reads.
+    source.Code, source.Call, source.Ternary, source.Layout, codegen_models.UnkindedDisjoint,
     p.Disjoint, p.DisjointEntity, disjoint_query._Disjoint,
     p.OneOf, p.OneOfEntity, one_of._OneOf, one_of._Reader, _native._OneOf,
     disjoint_views.DisjointView, disjoint_views.WritableDisjointView, disjoint_views._Decoded,

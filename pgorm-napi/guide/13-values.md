@@ -755,22 +755,29 @@ TypeScript itself.
 ## Custom reads and writes
 
 Sometimes a column needs SQL around it on its way in or out, because pgorm
-has no type that reads it directly. Rust's entities say so with four field
+has no type that reads it directly. Rust's entities say so with five field
 attributes: `select_as` reads the column cast to a type and `save_as` writes
 each value cast to one, and `select_with` and `save_with` read and write
-through functions of the column's expression.
+through functions of the column's expression, beside `save_array_with` for
+the arrays `eq_any` and `ne_all` compare the column with.
 
-A model's column takes the same four: `selectAs` and `saveAs` name a type —
+A model's column takes the same five: `selectAs` and `saveAs` name a type —
 a built-in type's name, a `TypeName` or a `DataType`, whose length or
-precision the cast writes — and `selectWith` and `saveWith` are functions
-from an expression to an expression, the value bound before `saveWith` sees
-it. A comparison's value takes the column's write too. The bakery keeps the
-days of the week it opens as a `bit(7)`, read as an integer:
+precision the cast writes — and `selectWith`, `saveWith` and `saveArrayWith`
+are functions from an expression to an expression, the value bound before
+`saveWith` sees it and the array before `saveArrayWith` does. As in Rust,
+`saveWith` and `saveArrayWith` come together, and either alone is a
+`ConstructionError`. A comparison's value takes the column's write too, and
+so does a list `any(..)` or `all(..)` ranges over, bound as one array: a
+`saveAs` column's array is cast to the array of its type, a `money`
+column's to `money[]`, a domain over an enum's to the enum's array, as
+Rust's `save_array_as` casts it. The bakery keeps the days of the week it
+opens as a `bit(7)`, read as an integer:
 
 <!-- example: empty -->
 ```ts
 import assert from "node:assert/strict";
-import { column, DataType, fromModel, model } from "@necessary/pgorm";
+import { any, column, DataType, fromModel, model } from "@necessary/pgorm";
 
 const days = new DataType("bit", { length: 7 });
 const Opening = model("opening", {
@@ -792,10 +799,13 @@ assert.equal(
   `SELECT "opening"."bakery_id", CAST("opening"."days" AS bigint) AS "days" FROM "opening" WHERE "opening"."days" = CAST($1::int8 AS bit(7))`,
 );
 assert.deepEqual(await everyDay.all(pool), []);
+
+const someDays = Opening.find().where(Opening.col("days").eq(any([0b111_1110n, 0b000_0011n])));
+assert.match(someDays.inspect().sql, /WHERE "opening"\."days" = ANY\(CAST\(\$1::int8\[\] AS bit\(7\)\[\]\)\)$/);
+assert.deepEqual((await someDays.all(pool)).map((row) => row.bakeryId), [1]);
 ```
 
-A `selectWith` or `saveWith` written inline names its parameter's type,
-`(column: Expr) => ..`. Rust's `save_array_with` writes the array `eq_any`
-compares with; a model's `any(..)` operand is taken as written.
+A `selectWith`, `saveWith` or `saveArrayWith` written inline names its
+parameter's type, `(column: Expr) => ..`.
 
 [pgvector]: https://github.com/pgvector/pgvector

@@ -13,7 +13,7 @@ use super::{
 };
 use crate::{
     errors::ConstructionError, execution::Executor, expressions::Compiled, results,
-    statements::Join, values::PyTypeName,
+    schema::read_type, statements::Join,
 };
 use pgorm::pgorm_query::Name;
 
@@ -280,7 +280,7 @@ impl PyPipeline {
 
     /// The rows staged as a model's records or a function's results, as
     /// Rust's `into_model::<M>` stages them (`bindings.pipeline-models`).
-    // [spec:pgorm:req:bindings.pipeline-models]
+    // [spec:pgorm:req:bindings.pipeline-models+1]
     #[pyo3(name = "into_model")]
     fn staged_model<'py>(
         &self,
@@ -292,39 +292,53 @@ impl PyPipeline {
 
     /// The rows staged as tuples read by position, as Rust's `into_tuple`
     /// stages them (`bindings.pipeline-models`).
-    // [spec:pgorm:req:bindings.pipeline-models]
+    // [spec:pgorm:req:bindings.pipeline-models+1]
     #[pyo3(name = "into_tuple")]
     fn staged_tuple<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         typed(py, "into_tuple", (self.clone(),))
     }
 
     /// pgorm's `select_described`: the projection of each declared model
-    /// `sources` describes, its qualifier and each column with the type it is
-    /// read as where its record reads it cast.
-    // [spec:pgorm:req:bindings.pipeline-models]
+    /// `sources` describes, its qualifier and each column with what it is
+    /// read as where its record reads it cast: the column's casts, or a
+    /// `TypeName` and whether the column is an array of it.
+    // [spec:pgorm:req:bindings.pipeline-models+1]
     #[allow(clippy::type_complexity)]
     fn _select_described(
         &self,
-        sources: Vec<(String, Vec<(String, Option<PyRef<'_, PyTypeName>>, bool)>)>,
+        sources: Vec<(String, Vec<(String, Option<Bound<'_, PyAny>>, bool)>)>,
     ) -> PyResult<Self> {
-        let sources = sources.into_iter().map(|(qualifier, columns)| {
-            columns.into_iter().fold(
-                pl::DescribedSource::new(Name::runtime(qualifier)),
-                |source, (column, read_as, array)| {
-                    let read_as = read_as.map(|name| match array {
-                        true => name.rust_type().array(),
-                        false => name.rust_type(),
-                    });
-                    source.column(Name::runtime(column), read_as)
-                },
-            )
-        });
+        let mut described = Vec::with_capacity(sources.len());
+        for (qualifier, columns) in sources {
+            let mut source = pl::DescribedSource::new(Name::runtime(qualifier));
+            for (column, read, array) in columns {
+                source = source.column(Name::runtime(column), read_type(read.as_ref(), array)?);
+            }
+            described.push(source);
+        }
         let inner = self
             .inner
             .clone()
-            .select_described(sources.collect::<Vec<_>>())
+            .select_described(described)
             .map_err(|error| ConstructionError::new_err(error.to_string()))?;
         Ok(Self { inner })
+    }
+
+    /// pgorm's `read_columns`: the pipeline compiled as a declared model's
+    /// record reads it, each of `columns` its SQL name and what it is read
+    /// as, as `_select_described` takes them.
+    // [spec:pgorm:req:bindings.pipeline-models+1]
+    fn _read_columns(
+        &self,
+        columns: Vec<(String, Option<Bound<'_, PyAny>>, bool)>,
+    ) -> PyResult<Self> {
+        let columns = columns
+            .into_iter()
+            .map(|(column, read, array)| Ok((column, read_type(read.as_ref(), array)?)))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(Self {
+            inner: self.inner.clone().read_columns(columns),
+        })
     }
 
     fn all<'py>(
@@ -372,7 +386,7 @@ fn typed<'py>(
 
 /// The rows `statement` reads, each a tuple of its values in column order,
 /// for a staged `into_tuple()` read.
-// [spec:pgorm:req:bindings.pipeline-models]
+// [spec:pgorm:req:bindings.pipeline-models+1]
 #[pyfunction]
 pub(super) fn pipeline_tuples<'py>(
     py: Python<'py>,

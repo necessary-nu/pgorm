@@ -18,6 +18,7 @@ use super::{
 use crate::{
     codec::Codec,
     errors::throw,
+    models::CastsHandle,
     values::{Tag, read},
 };
 
@@ -115,13 +116,20 @@ fn registered_col(cx: &mut FunctionContext) -> NeonResult<Node> {
     compose(cx, Recipe::Registered(table, column), &[])
 }
 
-/// `pipelineModelCol(table, column, kind, array, values)`: a declared model's
-/// field, the column its declaration names under the name its relation is
-/// read by, typed by the declaration through pgorm's `col_typed`.
-// [spec:pgorm:req:bindings.pipeline-models]
+/// `pipelineModelCol(table, column, kind, array, values, casts)`: a declared
+/// model's field, the column its declaration names under the name its
+/// relation is read by, typed by the declaration through pgorm's
+/// `col_typed`, or through `col_shaped` by `casts`, the casts of a column
+/// declaring its own, where they are given.
+// [spec:pgorm:req:bindings.pipeline-models+1]
 fn model_col(cx: &mut FunctionContext) -> NeonResult<Node> {
     let table = pipeline_name_at(cx, 0)?;
     let column = pipeline_name_at(cx, 1)?;
+    let casts = arg(cx, 5);
+    if let Ok(casts) = casts.downcast::<JsBox<CastsHandle>, _>(cx) {
+        let casts = Box::new(casts.0.clone());
+        return compose(cx, Recipe::Shaped(table, column, casts), &[]);
+    }
     let kind = arg(cx, 2);
     let codec = Codec::get(cx)?;
     let tag = read::kind(cx, codec, kind)?;
@@ -146,7 +154,7 @@ fn model_col(cx: &mut FunctionContext) -> NeonResult<Node> {
 /// `pipelineDeclaredValue(value)`: a value a declared model's column has
 /// converted through its declaration, bound as the payload it holds, the
 /// column's own cast typing it as `col_typed` casts a compared value.
-// [spec:pgorm:req:bindings.pipeline-models]
+// [spec:pgorm:req:bindings.pipeline-models+1]
 fn declared_value(cx: &mut FunctionContext) -> NeonResult<Node> {
     let value = arg(cx, 0);
     let codec = Codec::get(cx)?;

@@ -1,6 +1,7 @@
 use super::format;
 use crate::{
-    ActiveEnum, CreatedRangeType, Entity, Error, UnkindedDisjoint, util::escape_rust_keyword,
+    ActiveEnum, CreatedRangeType, Entity, Error, OutputFile, UnkindedDisjoint, WriterOutput,
+    util::escape_rust_keyword,
 };
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
@@ -17,15 +18,6 @@ pub struct EntityWriter {
     pub(crate) entities: Vec<Entity>,
     pub(crate) enums: BTreeMap<String, ActiveEnum>,
     pub(crate) ranges: BTreeMap<String, CreatedRangeType>,
-}
-
-pub struct WriterOutput {
-    pub files: Vec<OutputFile>,
-}
-
-pub struct OutputFile {
-    pub name: String,
-    pub content: String,
 }
 
 // [spec:pgorm:def:codegen.entity.serde+1]
@@ -427,7 +419,7 @@ impl EntityWriter {
         let table_name_camel_case = entity.get_table_name_camel_case_ident();
         let via_snake_case = entity.get_conjunct_relations_via_snake_case();
         let to_snake_case = entity.get_conjunct_relations_to_snake_case();
-        let to_upper_camel_case = entity.get_conjunct_relations_to_upper_camel_case();
+        let to_upper_camel_case = entity.get_conjunct_relations_to_camel_case();
         via_snake_case
             .into_iter()
             .zip(to_snake_case)
@@ -640,7 +632,7 @@ mod tests {
     use crate::{
         Column, ConjunctRelation, Entity, EntityWriter, PrimaryKey, Relation, RelationType,
         WithSerde,
-        entity::writer::{bonus_attributes, bonus_derive},
+        entity::rust::writer::{bonus_attributes, bonus_derive},
     };
     use pgorm_query::{ColumnType, ForeignKeyAction, Name, StringLen};
     use pretty_assertions::assert_eq;
@@ -654,7 +646,7 @@ mod tests {
     /// byte; `PGORM_CODEGEN_BLESS` writes it there instead.
     #[track_caller]
     fn hold_golden(path: &str, blocks: Vec<TokenStream>) {
-        crate::entity::format::hold_golden(path, &crate::entity::format::file(blocks));
+        crate::entity::rust::format::hold_golden(path, &crate::entity::rust::format::file(blocks));
     }
 
     fn setup() -> Vec<Entity> {

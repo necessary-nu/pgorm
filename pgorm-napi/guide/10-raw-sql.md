@@ -374,6 +374,29 @@ assert.throws(
 assert.throws(() => prql("from cake | filter id > $1 | filter id < $3", [1, 2]), ConstructionError);
 ```
 
+PRQL's `append`, `intersect` and `remove` are `UNION ALL`, `INTERSECT ALL`
+and `EXCEPT ALL`, combining whole rows by position as the
+[pipeline](12-pipeline.md)'s do, so neither relation needs its columns
+listed, and a step after one reads the whole result. pgorm's PRQL compiler
+departs from upstream PRQL there on purpose, which joins on the columns the
+two relations share. Two relations whose columns differ in number are a
+`ConstructionError`. Sunrise's cakes that are not gluten-free:
+
+```ts
+import assert from "node:assert/strict";
+import { prql } from "@necessary/pgorm";
+
+const { sql, values } = prql(
+  "from cake\nfilter bakery_id == 1\nremove (from cake | filter gluten_free)\nselect {name}",
+);
+assert.equal(
+  sql,
+  "WITH table_1 AS (SELECT * FROM cake WHERE bakery_id = 1 " +
+    "EXCEPT ALL SELECT * FROM cake WHERE gluten_free) SELECT name FROM table_1",
+);
+assert.deepEqual(await pool.query(sql, values), [{ name: "Chocolate Fudge" }]);
+```
+
 Like `prql!`, it does not know the schema. For a query assembled from parts
 at run time, such as a filter a user chose, [the pipeline](12-pipeline.md) is
 the same compiler with a builder in front of it, which binds each value

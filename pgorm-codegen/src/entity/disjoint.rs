@@ -19,12 +19,10 @@
 use crate::{
     CaseExpr, ColumnExpr, Entity, Error, Operator, Relation, RelationType, TableIdent,
     entity::{active_enum::variant_name, transformer::resolve_reference},
-    util::{escape_rust_keyword, safe_ident},
+    util::escape_rust_keyword,
 };
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use pgorm_query::{ColumnType, Deferrability, ForeignKeyAction, GeneratedKind, Name};
-use proc_macro2::{Ident, TokenStream};
-use quote::{format_ident, quote};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The `#[derive(Disjoint)]` enum a base's module declares: its kind column
@@ -36,8 +34,14 @@ use std::collections::{BTreeMap, BTreeSet};
 pub(crate) struct DisjointEnum {
     pub(crate) kinded: Option<KindColumn>,
     pub(crate) kinds: Vec<Kind>,
-    /// Whether every kind's `Model`, and so the enum holding them, is `Eq`.
+    /// Whether every kind's `Model`, and so the enum holding them, is `Eq`,
+    /// which the Rust writer derives.
+    #[cfg_attr(not(feature = "rust"), allow(dead_code))]
     pub(crate) eq: bool,
+    /// The base as a refusal of the enum names it: as the caller named it,
+    /// for an unkinded enum, and as the schema does for a kinded one.
+    #[cfg_attr(not(feature = "rust"), allow(dead_code))]
+    pub(crate) named: TableIdent,
 }
 
 /// A kinded enum's kind column and the kind type it holds.
@@ -49,13 +53,15 @@ pub(crate) struct KindColumn {
 }
 
 /// One variant: its name, the `value` it carries where the kind type's value
-/// is not its name in snake_case, and the module of its table when it has
-/// one.
+/// is not its name in snake_case, and the module and identity of its table
+/// when it has one.
 #[derive(Clone, Debug)]
 pub(crate) struct Kind {
     pub(crate) variant: String,
     pub(crate) value: Option<String>,
+    #[cfg_attr(not(feature = "rust"), allow(dead_code))]
     pub(crate) table: Option<String>,
+    pub(crate) ident: Option<TableIdent>,
 }
 
 /// A base table and its kinds' tables, named to generate as an unkinded
@@ -104,6 +110,7 @@ pub(crate) struct UniqueKey {
 
 /// A recognised disjoint entity's kind type: the base it belongs to, and
 /// the Rust name its derive gives it.
+#[derive(Clone, Debug)]
 pub(crate) struct KindType {
     pub(crate) base: TableIdent,
     pub(crate) rust_name: String,
@@ -119,18 +126,6 @@ pub(crate) fn enum_key(name: &Name, schema: &Option<Name>) -> String {
 /// The kind type the derive declares for the enum named `ident`.
 pub(crate) fn kind_type_ident(ident: &str) -> String {
     format!("{ident}Kind")
-}
-
-/// The active-model enum the derive declares for the enum named `ident`.
-pub(crate) fn active_model_ident(ident: &str) -> String {
-    format!("{ident}ActiveModel")
-}
-
-/// The name the derive gives the kind type of the enum named `ident` when no
-/// `enum_name` says otherwise.
-fn default_kind_type_name(ident: &str) -> String {
-    let bare = ident.strip_prefix("r#").unwrap_or(ident);
-    format!("{}_kind", bare.to_snake_case())
 }
 
 /// One kind's table as the shape requires it.
@@ -186,7 +181,7 @@ pub(crate) fn recognise(
         let Some(base) = entities.get(&shape.base) else {
             continue;
         };
-        let rust_name = kind_type_ident(&base.get_table_name_camel_case_ident().to_string());
+        let rust_name = kind_type_ident(&escape_rust_keyword(base.get_table_name_camel_case()));
         if let Some(first) = kind_types.insert(
             key.clone(),
             KindType {
@@ -278,6 +273,7 @@ pub(crate) fn unkinded(
                 kinded: None,
                 kinds: variants,
                 eq,
+                named: set.base.clone(),
             });
         }
     }
@@ -355,14 +351,11 @@ fn unkinded_kinds(
             variant: escape_rust_keyword(kind.get_table_name_camel_case()),
             value: None,
             table: module_of(entities, ident),
+            ident: Some(ident.clone()),
         });
     }
     if let Some(unit) = unit {
         let name = escape_rust_keyword(unit.to_upper_camel_case());
-        safe_ident("its unit variant", &name).map_err(|error| match error {
-            Error::TransformError(message) => message,
-            other => other.to_string(),
-        })?;
         if let Some((_, ident)) = variants
             .iter()
             .zip(kinds)
@@ -376,6 +369,7 @@ fn unkinded_kinds(
             variant: name,
             value: None,
             table: None,
+            ident: None,
         });
     }
     Ok(variants)
@@ -396,12 +390,12 @@ fn apply(entities: &mut BTreeMap<TableIdent, Entity>, shape: Shape) {
         .iter()
         .map(|value| {
             let variant = variant_name(value.trim());
+            let kind = kinds.get(value);
             Kind {
                 value: (variant.to_snake_case() != *value).then(|| value.clone()),
                 variant,
-                table: kinds
-                    .get(value)
-                    .and_then(|kind| module_of(entities, &kind.ident)),
+                table: kind.and_then(|kind| module_of(entities, &kind.ident)),
+                ident: kind.map(|kind| kind.ident.clone()),
             }
         })
         .collect();
@@ -435,6 +429,7 @@ fn apply(entities: &mut BTreeMap<TableIdent, Entity>, shape: Shape) {
         }),
         kinds: variants,
         eq,
+        named: base_ident.clone(),
     });
     for kind in kinds.values() {
         let Some(entity) = entities.get_mut(&kind.ident) else {
@@ -463,11 +458,7 @@ fn all_eq<'a>(
     entities: &BTreeMap<TableIdent, Entity>,
     mut kinds: impl Iterator<Item = &'a TableIdent>,
 ) -> bool {
-    kinds.all(|kind| {
-        entities
-            .get(kind)
-            .is_some_and(|entity| !entity.get_eq_needed().is_empty())
-    })
+    kinds.all(|kind| entities.get(kind).is_some_and(|entity| !entity.has_float()))
 }
 
 /// The relation a kind's table generates in place of its cascading key: from
@@ -794,85 +785,4 @@ fn base_key_relation(
             relation.columns.iter().zip(&relation.ref_columns).collect();
         relation.ref_ident() == *base && relation.period.is_none() && pairs == implied
     })
-}
-
-impl DisjointEnum {
-    /// The enum as the derive reads it, saying only what differs from its
-    /// defaults: `kind` where the kind column's variant is not `Kind`,
-    /// `enum_name` where the kind type is not named for the enum, and
-    /// `schema_name` where the type is qualified; and a variant's `value`
-    /// where it is not the variant's name in snake_case. An unkinded enum
-    /// says `unkinded` and none of them, and takes no `kind_attrs`, since no
-    /// `Model` holds its kind enum.
-    ///
-    /// Its variants are named by the schema, for the kinds' values and
-    /// tables, not by the program, so clippy's `enum_variant_names`, which a
-    /// variant ending with the enum's name (`Shop::WebShop`) trips, is
-    /// allowed on it.
-    // [spec:pgorm:sem:codegen.entity.disjoint+3]
-    // [spec:pgorm:sem:codegen.entity.disjoint.unkinded+1]
-    pub(crate) fn tokens(
-        &self,
-        base: &Entity,
-        extra: &TokenStream,
-        kind_derives: Option<TokenStream>,
-    ) -> TokenStream {
-        let ident = base.get_table_name_camel_case_ident().to_string();
-        let enum_iden = format_ident!("{}", ident);
-        let eq = self.eq.then(|| quote! { , Eq });
-        let mut keys = vec![quote! { base = Entity }];
-        match &self.kinded {
-            Some(kinded) => keys.extend(kinded.keys(&ident, kind_derives)),
-            None => keys.push(quote! { unkinded }),
-        }
-        let variants = self.kinds.iter().map(|kind| {
-            let variant = format_ident!("{}", kind.variant);
-            let attr = kind
-                .value
-                .as_ref()
-                .map(|value| quote! { #[pgorm(value = #value)] });
-            match &kind.table {
-                Some(module) => {
-                    let module = format_ident!("{}", module);
-                    quote! { #attr #variant(super::#module::Model) }
-                }
-                None => quote! { #attr #variant },
-            }
-        });
-        quote! {
-            #[allow(clippy::enum_variant_names)]
-            #[derive(Clone, Debug, PartialEq #eq, Disjoint #extra)]
-            #[pgorm(#(#keys),*)]
-            pub enum #enum_iden {
-                #( #variants, )*
-            }
-        }
-    }
-}
-
-impl KindColumn {
-    /// The keys naming the kind column and the kind type of the enum named
-    /// `ident` where they differ from the derive's defaults, and the kind
-    /// type's derives.
-    // [spec:pgorm:sem:codegen.entity.disjoint+3]
-    fn keys(&self, ident: &str, kind_derives: Option<TokenStream>) -> Vec<TokenStream> {
-        let mut keys = Vec::new();
-        let column: Ident =
-            format_ident!("{}", escape_rust_keyword(self.column.to_upper_camel_case()));
-        if column != "Kind" {
-            keys.push(quote! { kind = Column::#column });
-        }
-        let kind_type = self.kind_type.to_string();
-        if kind_type != default_kind_type_name(ident) {
-            keys.push(quote! { enum_name = #kind_type });
-        }
-        if let Some(schema) = &self.kind_schema {
-            let schema = schema.to_string();
-            keys.push(quote! { schema_name = #schema });
-        }
-        if let Some(derives) = kind_derives {
-            keys.push(quote! { kind_attrs(derive(#derives)) });
-        }
-        keys
-    }
 }

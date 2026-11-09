@@ -16,6 +16,14 @@ rust-version = "1.89"
 name = "pgorm_codegen"
 path = "src/lib.rs"
 
+[features]
+default = ["rust"]
+# The Rust entity writer, `EntityWriter`, and what only it needs. Reading a
+# schema into `Entities` needs none of it, so the Python and TypeScript
+# writers' callers build with `default-features = false` and compile no
+# Rust writer.
+rust = ["dep:syn", "dep:quote", "dep:prettyplease", "dep:proc-macro2"]
+
 [dependencies]
 pgorm-query.workspace = true
 # libpg_query, the PostgreSQL server's own parser, is a plain dependency here:
@@ -25,14 +33,22 @@ pgorm-query.workspace = true
 # read with the grammar the server it describes speaks; the root manifest says
 # why it is a git dependency.
 pg_query = { git = "https://github.com/necessary-nu/pg_query.rs.git", rev = "09ebc3a4c7f50f3682e890a8372b4c4c99382ed9" }
-syn = { version = "3", default-features = false, features = ["parsing", "proc-macro", "derive", "printing", "full"] }
-# Generated files are written formatted, as a person writes Rust, so a
+# The Rust writer's: it builds generated source as tokens (proc-macro2 and
+# quote) and parses it back as a syntax tree (syn) to lay it out.
+syn = { version = "3", default-features = false, features = ["parsing", "proc-macro", "derive", "printing", "full"], optional = true }
+# Generated Rust files are written formatted, as a person writes Rust, so a
 # program needs no rustfmt step after generating; prettyplease is the
 # formatter that runs in-process over a syntax tree, where rustfmt is a tool.
-prettyplease = { version = "0.3", default-features = false }
-quote = { version = "1.0.47", default-features = false }
+prettyplease = { version = "0.3", default-features = false, optional = true }
+quote = { version = "1.0.47", default-features = false, optional = true }
 heck = { version = "0.5", default-features = false }
-proc-macro2 = { version = "1.0.107", default-features = false }
+# A TypeScript model's `renameAll: "snake_case"` names its columns by the
+# conversion the bindings' models and the derives rename by.
+pgorm-case-style = { version = "0.2.0", path = "../pgorm-case-style" }
+# A declared model's names are held to Python's and JavaScript's identifier
+# rules, which are Unicode's identifier properties.
+unicode-ident = { version = "1", default-features = false }
+proc-macro2 = { version = "1.0.107", default-features = false, optional = true }
 tracing = { version = "0.1.44", default-features = false, features = ["log"] }
 # A numeric literal in a column's DEFAULT or generation expression is read as
 # the exact decimal it spells, not rounded through a float.

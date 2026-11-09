@@ -10,6 +10,7 @@
 
 use pgorm_query::{ColumnType, IntoName, SqlName, TypeName};
 
+use crate::TableColumn;
 use crate::entity::{compared_enum, compared_type_cast};
 use crate::executor::result_name::result_column_name;
 use crate::query::graph::source_prefix;
@@ -42,7 +43,7 @@ use super::sources::{appended_projection, typed_cast};
 /// assert_eq!(sql, "SELECT * FROM cake WHERE flavor = CAST('lemon' AS flavor)");
 /// # Ok::<_, pgorm::pipeline::PipelineError>(())
 /// ```
-// [spec:pgorm:sem:pipeline.described]
+// [spec:pgorm:sem:pipeline.described+1]
 // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
 pub fn col_typed<'brand>(
     table: impl IntoName,
@@ -55,12 +56,43 @@ pub fn col_typed<'brand>(
     expr
 }
 
+/// The column `col(table, column)` names, compared as the [`TableColumn`]
+/// `casts` compares: cast to the enum where its domain is over one, and every
+/// literal or bound value compared with it cast as
+/// [`TableColumn::compared_value`] casts one — its type's own write cast, as
+/// [`col_typed`] casts, or the type its `save_as` names in place of that.
+///
+/// ```
+/// use pgorm::pgorm_query::{ColumnType, TypeName};
+/// use pgorm::pipeline::{ExprOps, Pipeline, alias, col_shaped};
+/// use pgorm::{ColumnTypeTrait, TableColumn};
+///
+/// let code = TableColumn::new("code", ColumnType::Text.def())
+///     .with_save_as(TypeName::new(alias("citext")));
+/// let (sql, _) = Pipeline::from(alias("till"))
+///     .filter(col_shaped(alias("till"), alias("code"), &code).eq("ab"))
+///     .into_sql()?;
+/// assert_eq!(sql, "SELECT * FROM till WHERE code = CAST('ab' AS citext)");
+/// # Ok::<_, pgorm::pipeline::PipelineError>(())
+/// ```
+// [spec:pgorm:sem:pipeline.described+1]
+pub fn col_shaped<'brand>(
+    table: impl IntoName,
+    column: impl IntoName,
+    casts: &TableColumn,
+) -> Expr<'brand> {
+    let mut expr = col(table, column);
+    expr.compares_as = casts.compares_as();
+    expr.values_as = casts.compared_value_cast();
+    expr
+}
+
 /// One relation a pipeline read, restated to
 /// [`select_described`](Pipeline::select_described): the name its columns are
 /// qualified by — its table's, or the name it was read under — and each
 /// column to project, with the type it is read as where its reader needs a
 /// cast.
-// [spec:pgorm:sem:pipeline.described]
+// [spec:pgorm:sem:pipeline.described+1]
 #[derive(Debug, Clone)]
 pub struct DescribedSource {
     qualifier: String,
@@ -117,7 +149,7 @@ impl Pipeline {
     /// );
     /// # Ok::<_, pgorm::pipeline::PipelineError>(())
     /// ```
-    // [spec:pgorm:sem:pipeline.described]
+    // [spec:pgorm:sem:pipeline.described+1]
     pub fn select_described(
         self,
         sources: impl IntoIterator<Item = DescribedSource>,
@@ -147,7 +179,7 @@ impl Pipeline {
 mod tests {
     use pgorm_query::{ColumnType, Name, TypeName, Value};
 
-    use super::{DescribedSource, col_typed};
+    use super::{DescribedSource, col_shaped, col_typed};
     use crate::pipeline::{ExprOps, Pipeline, PipelineError, alias, col};
 
     fn flavor() -> ColumnType {
@@ -158,7 +190,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:sem:pipeline.described/test]
+    // [spec:pgorm:sem:pipeline.described+1/test]
     #[test]
     fn typed_column_casts_compared_values() {
         let cake = alias("cake");
@@ -178,7 +210,7 @@ mod tests {
         assert_eq!(values.0, [Value::from("lemon")]);
     }
 
-    // [spec:pgorm:sem:pipeline.described/test]
+    // [spec:pgorm:sem:pipeline.described+1/test]
     #[test]
     fn typed_domain_column_compares_as_its_enum() {
         let mood = ColumnType::Domain {
@@ -201,7 +233,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:sem:pipeline.described/test]
+    // [spec:pgorm:sem:pipeline.described+1/test]
     #[test]
     fn typed_created_range_binds_its_text() {
         let span = ColumnType::CreatedRange {
@@ -220,7 +252,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:sem:pipeline.described/test]
+    // [spec:pgorm:sem:pipeline.described+1/test]
     #[test]
     fn described_sources_take_prefixes_and_read_casts() {
         let (cake, other) = (alias("cake"), alias("other"));
@@ -250,7 +282,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:sem:pipeline.described/test]
+    // [spec:pgorm:sem:pipeline.described+1/test]
     #[test]
     fn described_sources_refuse_reshaped_pipelines() {
         let cake = alias("cake");
@@ -271,7 +303,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:sem:pipeline.described/test]
+    // [spec:pgorm:sem:pipeline.described+1/test]
     #[test]
     fn described_column_names_are_bounded() {
         let long = "a".repeat(61);
@@ -284,5 +316,67 @@ mod tests {
         let alias_name = crate::executor::result_name::result_column_name("s0_", &long);
         assert!(alias_name.len() <= 63);
         assert_eq!(sql, format!("SELECT {long} AS {alias_name} FROM t"));
+    }
+
+    // [spec:pgorm:sem:pipeline.described+1/test]
+    #[test]
+    fn shaped_columns_compare_through_their_casts() {
+        use crate::{ColumnTypeTrait, TableColumn};
+        let till = alias("till");
+        let takings = TableColumn::new("takings", ColumnType::Money.def());
+        let code = TableColumn::new("code", ColumnType::Text.def())
+            .with_save_as(TypeName::new(alias("citext")));
+        let mood = TableColumn::new(
+            "mood",
+            ColumnType::Domain {
+                name: Name::runtime("cheerful"),
+                schema: None,
+                base: std::sync::Arc::new(ColumnType::Enum {
+                    name: Name::runtime("mood"),
+                    schema: None,
+                    variants: vec![Name::runtime("glad")],
+                }),
+            }
+            .def(),
+        );
+        let (sql, values) = Pipeline::from(till)
+            .filter_with(|binder| {
+                col_shaped(till, alias("takings"), &takings)
+                    .gte(binder.bind(rust_decimal::Decimal::new(150, 2)))
+                    .and(col_shaped(till, alias("code"), &code).eq("ab"))
+                    .and(col_shaped(till, alias("mood"), &mood).eq("glad"))
+            })
+            .into_sql()
+            .expect("the pipeline compiles");
+        assert_eq!(
+            sql,
+            "SELECT * FROM till WHERE takings >= CAST($1::numeric AS money) AND code = \
+             CAST('ab' AS citext) AND CAST(mood AS mood) = CAST('glad' AS mood)"
+        );
+        assert_eq!(values.0.len(), 1);
+    }
+
+    // [spec:pgorm:sem:pipeline.described+1/test]
+    #[test]
+    fn read_columns_project_only_where_columns_cast() {
+        let till = alias("till");
+        let numeric = TypeName::new(alias("numeric"));
+        let (sql, _) = Pipeline::from(till)
+            .read_columns([
+                ("all".to_owned(), None),
+                ("takings".to_owned(), Some(numeric)),
+            ])
+            .take(1)
+            .into_sql()
+            .expect("a read column's alias is screened as an identifier only");
+        assert_eq!(
+            sql,
+            "SELECT \"all\", CAST(takings AS numeric) AS takings FROM till LIMIT 1"
+        );
+        let (sql, _) = Pipeline::from(till)
+            .read_columns([("id".to_owned(), None)])
+            .into_sql()
+            .expect("the pipeline compiles");
+        assert_eq!(sql, "SELECT * FROM till");
     }
 }

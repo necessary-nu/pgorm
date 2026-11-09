@@ -26,6 +26,7 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("modelCastComparedColumn", cast_compared_column)?;
     cx.export_function("modelCastComparedValue", cast_compared_value)?;
     cx.export_function("modelCastComparesAsEnum", cast_compares_as_enum)?;
+    cx.export_function("modelCastComparedArray", cast_compared_array)?;
     Ok(())
 }
 
@@ -404,7 +405,7 @@ fn model_renamed(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `selectAs` and `saveAs`, which a model reads, writes and compares a column
 /// declaring one of them through.
 // [spec:pgorm:req:bindings.model-casts]
-pub(crate) struct CastsHandle(TableColumn);
+pub(crate) struct CastsHandle(pub(crate) TableColumn);
 
 impl Finalize for CastsHandle {}
 
@@ -506,6 +507,17 @@ fn cast_compared_value(mut cx: FunctionContext) -> JsResult<JsValue> {
     let value = cx.argument::<JsValue>(1)?;
     let value = cast_operand(&mut cx, value)?;
     let compared = handle.0.compared_value(value);
+    expr_node(&mut cx, compared)
+}
+
+/// `modelCastComparedArray(casts, array)`: an array of values as `= ANY`
+/// and `<> ALL` compare the column with it.
+// [spec:pgorm:req:bindings.model-array-casts]
+fn cast_compared_array(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let handle = casts(&mut cx)?;
+    let array = cx.argument::<JsValue>(1)?;
+    let array = cast_operand(&mut cx, array)?;
+    let compared = handle.0.compared_array(array);
     expr_node(&mut cx, compared)
 }
 

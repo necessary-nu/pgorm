@@ -1,53 +1,49 @@
-//! What SQL's set-operation precedence costs a flat rendering.
+//! The pipeline's set operations.
 //!
-//! A pipeline writes set operations left to right, so
-//! `append(b).intersect(c)` means `(a ∪ b) ∩ c`. Rendered flat — one
-//! `SELECT` per operand with the operators between them, which is what prqlc
-//! emits when nothing forces a subquery — that reaches PostgreSQL as
-//! `a UNION ALL b INTERSECT ALL c`, and PostgreSQL binds `INTERSECT` tighter
-//! than `UNION` and `EXCEPT`. The server evaluates `a ∪ (b ∩ c)`: a different
-//! relation, and for a self-combining source every row twice.
-//!
-//! Parentheses are not available — prqlc owns the rendering — but a binding
-//! is: a `let`-bound subrelation is a CTE the next operation reads as one
-//! whole relation, which is the same bracket by another spelling. This module
-//! is the knowledge of *when* that bracket is owed, and nothing else.
+//! All three are relation-level transforms in the fork's std, the same ones
+//! PRQL text's `append`, `intersect` and `remove` call: the operands are
+//! combined whole, by column position, with nothing joined over their
+//! columns — so neither operand's columns have to be known, a column count
+//! both projections show is refused, and a chain renders with the brackets
+//! SQL's precedence needs. Upstream PRQL's `intersect` and `remove` are joins
+//! over every column pair instead, which can neither expand a wildcard
+//! operand nor tell a short operand from a matching one; the fork departs
+//! from upstream there on purpose.
 
 use super::adapter::{self, PlExpr};
 
-/// How tightly PostgreSQL binds a pipeline set operation's SQL operator.
-///
-/// `UNION` and `EXCEPT` share one level and associate left, so a chain of
-/// those two alone already evaluates the way it was written; `INTERSECT` sits
-/// above both. Anything that is not a set operation has no binding power and
-/// cannot reassociate a chain.
-// [spec:pgorm:req:pipeline.compose+1]
-fn binding_power(verb: &str) -> Option<u8> {
-    match verb {
-        "append" | "remove" => Some(1),
-        "intersect" => Some(2),
-        _ => None,
-    }
+/// A pipeline set operation: `append` is `UNION ALL`, `intersect` is
+/// `INTERSECT ALL`, and `remove` is `EXCEPT ALL`.
+// [spec:pgorm:req:pipeline.compose+2]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SetOperation {
+    Append,
+    Intersect,
+    Remove,
 }
 
-/// Whether appending `op` to these stages would render a chain PostgreSQL
-/// reassociates — the question [`Pipeline::set_op`](super::Pipeline) settles
-/// a binding to answer `false` to.
-///
-/// The whole pending run is read rather than the stage that happens to be
-/// last, because a stage between two set operations does not reliably break
-/// the chain: prqlc folds a projection the relation already carries straight
-/// back into the set operation's own arms, leaving the operators as adjacent
-/// as they were. Reading the run costs a settle in the cases where prqlc
-/// would have wrapped anyway — one binding, the same rows.
-// [spec:pgorm:req:pipeline.compose+1]
-pub(super) fn reassociates(stages: &[PlExpr], op: &str) -> bool {
-    let Some(power) = binding_power(op) else {
-        return false;
-    };
-    stages
-        .iter()
-        .filter_map(adapter::stage_verb)
-        .filter_map(binding_power)
-        .any(|pending| pending < power)
+impl SetOperation {
+    const ALL: [SetOperation; 3] = [
+        SetOperation::Append,
+        SetOperation::Intersect,
+        SetOperation::Remove,
+    ];
+
+    /// The std transform the stage calls, which is also the pipeline
+    /// method's name an error names the stage by.
+    pub(super) fn verb(self) -> &'static str {
+        match self {
+            SetOperation::Append => "append",
+            SetOperation::Intersect => "intersect",
+            SetOperation::Remove => "remove",
+        }
+    }
+
+    /// The set operation a stage is, if it is one.
+    pub(super) fn of_stage(stage: &PlExpr) -> Option<Self> {
+        let verb = adapter::stage_verb(stage)?;
+        Self::ALL
+            .into_iter()
+            .find(|operation| operation.verb() == verb)
+    }
 }

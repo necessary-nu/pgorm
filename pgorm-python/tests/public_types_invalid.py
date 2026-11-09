@@ -3,7 +3,7 @@
 from contextlib import AbstractAsyncContextManager
 
 import pgorm as p
-from pgorm import pipeline as pl, schema as s
+from pgorm import codegen, pipeline as pl, schema as s
 
 
 async def invalid(connection: p.Connection) -> None:
@@ -86,6 +86,8 @@ async def invalid(connection: p.Connection) -> None:
     accounts = p.Model("accounts", {"id": p.Column("i64", primary_key=True)})
     p.Model("accounts", {"id": p.Column("i64")}, unique_keys=[{"fields": "id", "nulls_distinct": True}])  # expected-error: typeddict-unknown-key
     p.Column("i32", generated="sometimes")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.model-array-casts/test]    save_array_with is a function of an expression
+    p.Column("text", save_with=lambda value: value, save_array_with="upper")  # expected-error: arg-type
     # [spec:pgorm:req:bindings.schema-from-model/test]    the DDL options are typed: expressions, a closed case style, a belongs_to's actions
     p.Column("i32", default_expr=1)  # expected-error: arg-type
     p.Column("i32", generated_stored="price")  # expected-error: arg-type
@@ -205,3 +207,6 @@ async def invalid(connection: p.Connection) -> None:
     p.col("meta").get_json_path("size")  # expected-error: arg-type
     # [spec:pgorm:req:bindings.transaction-retry/test]    retries is a keyword-only int
     await connection.transaction_with_retry(lambda tx: tx.one(p.RawSQL("SELECT 1")), retries="3")  # expected-error: arg-type
+    # [spec:pgorm:req:bindings.models-from-sql/test]    models_from_sql reads DDL text, and an unkinded set's tables are names or (schema, name) pairs
+    codegen.models_from_sql(b"CREATE TABLE a (id int)")  # expected-error: arg-type
+    codegen.models_from_sql("", unkinded_disjoint=[{"base": 1, "kinds": []}])  # expected-error: typeddict-item

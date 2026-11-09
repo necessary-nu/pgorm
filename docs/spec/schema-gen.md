@@ -132,7 +132,7 @@ executes SQL.
 > and refused as `schema.from-entity` refuses a key over a domain over an
 > enum, from the types its `ColumnPairs` records.
 
-> [spec:pgorm:sem:schema.shape-casts]
+> [spec:pgorm:sem:schema.shape-casts+1]
 > A `TableColumn` MUST read, write and compare as an entity's column of its
 > type does when it declares no cast of its own
 > (`[spec:pgorm:sem:entity.traits.column.enum-cast]`), from its
@@ -150,8 +150,17 @@ is read as it stands — `save` is `save_as`'s —
 > `select_as` and `save_as` attributes do, and `compared_value` then writes
 > the value through the `save_as` cast too, unless the column compares as an
 > enum. `compares_as` names the enum a domain-over-enum column compares as.
-> So a table described at run time, a binding's model's, is read, written and
-> compared by pgorm's own casts.
+> `compared_array` is the one-array operand `= ANY` and `<> ALL` compare the
+> column with, as an entity column's `eq_any` and `ne_all` take it
+> (`save_array_as`): the enum's array where the column compares as an enum,
+> the array of the `save_as` type where it names one, and otherwise the array
+> its type writes, `money[]`, an enum's array, a created range's array through
+> its text, or as it is. `read_cast` names the type `select` casts to and
+> `compared_value_cast` the type `compared_value` casts to, each `None` where
+> the column is read, or its value written, as it stands or not by a cast of
+> it alone, so a pipeline can write the casts itself. So a table described at
+> run time, a binding's model's, is read, written and compared by pgorm's own
+> casts.
 
 ## Secondary indexes
 

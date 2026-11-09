@@ -7,6 +7,7 @@
 #![recursion_limit = "256"]
 
 mod capabilities;
+mod codegen;
 mod config;
 mod copy;
 mod disjoint;
@@ -85,6 +86,7 @@ pub fn install(module: &Bound<'_, PyModule>, registry: entities::Registry) -> Py
     listen::register(module)?;
     metrics::register(module)?;
     migrations::register(module)?;
+    codegen::register(module)?;
     results::register(module)?;
     raw::register(module)?;
     models::register(module)?;
